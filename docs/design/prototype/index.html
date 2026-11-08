@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src 'self' about:; connect-src 'none'; img-src data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Duolify · Make room for one new idea</title>
+<style>
+:root {
+  color-scheme: light;
+  --canvas: #f7f5f0;
+  --surface: #ffffff;
+  --raised: #ede8fa;
+  --text: #242038;
+  --muted: #5f596f;
+  --primary: #5942b5;
+  --primary-hover: #483398;
+  --primary-edge: #392873;
+  --on-primary: #ffffff;
+  --accent: #f4be69;
+  --on-accent: #38250c;
+  --success: #216446;
+  --success-bg: #e5f3eb;
+  --danger: #a52d45;
+  --danger-bg: #fbecef;
+  --warning: #774617;
+  --warning-bg: #fff0d6;
+  --line: #80768f;
+  --focus: #5942b5;
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+  --size-target: 44px;
+  --size-node: 64px;
+  --size-sidebar: 224px;
+  --size-rail: 280px;
+  --size-reading: 680px;
+  --size-focus-width: 3px;
+  --size-focus-offset: 3px;
+  --size-press-depth: 4px;
+  --size-press-offset: 3px;
+  --font-size-small: 0.75rem;
+  --font-size-caption: 0.875rem;
+  --font-size-body: 1rem;
+  --font-size-title: 1.25rem;
+  --font-size-heading: 1.75rem;
+  --font-size-display: 2.5rem;
+  --size-shell: 1280px;
+  --size-focused: 1000px;
+  --size-dialog: 600px;
+  --size-slide: 340px;
+  --size-slide-mobile: 300px;
+  --size-timeline-min: 120px;
+  --tracking-wide: 1.2px;
+  --tracking-tight: -0.8px;
+  --opacity-overlay: 0.9;
+  --font-family: ui-sans-serif, system-ui, sans-serif;
+  --weight-regular: 400;
+  --weight-strong: 650;
+  --weight-heavy: 800;
+  --leading-body: 1.5;
+  --leading-heading: 1.15;
+  --duration-none: 0ms;
+  --duration-press: 90ms;
+  --duration-fast: 140ms;
+  --duration-normal: 240ms;
+  --duration-slow: 420ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --elevation-flat: 0 0 0 0 var(--primary-edge);
+  --elevation-press: 0 var(--size-press-depth) 0 0 var(--primary-edge);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+  --canvas: #171420;
+  --surface: #231f30;
+  --raised: #302a42;
+  --text: #f6f1ff;
+  --muted: #c4bbd4;
+  --primary: #bca6ff;
+  --primary-hover: #cdbeff;
+  --primary-edge: #8270b7;
+  --on-primary: #22163e;
+  --accent: #f4be69;
+  --on-accent: #38250c;
+  --success: #a1ddbb;
+  --success-bg: #19392d;
+  --danger: #ffabbc;
+  --danger-bg: #482332;
+  --warning: #f1cd99;
+  --warning-bg: #3d3020;
+  --line: #9c90af;
+  --focus: #d9cbff;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #171420;
+  --surface: #231f30;
+  --raised: #302a42;
+  --text: #f6f1ff;
+  --muted: #c4bbd4;
+  --primary: #bca6ff;
+  --primary-hover: #cdbeff;
+  --primary-edge: #8270b7;
+  --on-primary: #22163e;
+  --accent: #f4be69;
+  --on-accent: #38250c;
+  --success: #a1ddbb;
+  --success-bg: #19392d;
+  --danger: #ffabbc;
+  --danger-bg: #482332;
+  --warning: #f1cd99;
+  --warning-bg: #3d3020;
+  --line: #9c90af;
+  --focus: #d9cbff;
+}
+
+/* All semantic values above match tokens.json. Diagram positions, percentages,
+   1px borders and safe-area insets are content/platform geometry exceptions. */
+* { box-sizing: border-box; }
+html { font-family: var(--font-family); color: var(--text); background: var(--canvas); line-height: var(--leading-body); }
+body { margin: var(--space-0); }
+button, input, select, textarea { font: inherit; }
+button, a, input, select, textarea, summary { -webkit-tap-highlight-color: transparent; }
+button, select, summary { cursor: pointer; }
+a { color: var(--primary); text-underline-offset: var(--space-1); }
+button, a, select, textarea { touch-action: manipulation; }
+:focus-visible { outline: var(--size-focus-width) solid var(--focus); outline-offset: var(--size-focus-offset); }
+[hidden] { display: none !important; }
+h1,h2,h3,p { margin-block: var(--space-0) var(--space-3); }
+h1,h2,h3 { line-height: var(--leading-heading); overflow-wrap: anywhere; }
+h1 { font-size: var(--font-size-display); font-weight: var(--weight-heavy); letter-spacing: var(--tracking-tight); }
+h2 { font-size: var(--font-size-heading); } h3 { font-size: var(--font-size-title); }
+p { color: var(--muted); } small,.small { font-size: var(--font-size-caption); }
+button { min-block-size: var(--size-target); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-4); color: var(--text); background: var(--surface); font-weight: var(--weight-strong); transition: background var(--duration-fast) var(--ease-standard), transform var(--duration-press) var(--ease-standard); overflow-wrap: anywhere; }
+button:hover { background: var(--raised); }
+button:disabled { cursor: default; border-style: dashed; color: var(--muted); background: var(--surface); box-shadow: var(--elevation-flat); }
+.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); box-shadow: var(--elevation-press); border-radius: var(--radius-md); }
+.primary:hover { background: var(--primary-hover); color: var(--on-primary); }
+.primary:active { transform: translateY(var(--size-press-offset)); box-shadow: var(--elevation-flat); }
+.quiet { border-color: transparent; background: transparent; }
+.wide { inline-size: 100%; }
+.row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+.between { justify-content: space-between; }
+.stack { display: grid; gap: var(--space-4); }
+.eyebrow { font-size: var(--font-size-small); font-weight: var(--weight-heavy); letter-spacing: var(--tracking-wide); color: var(--primary); margin-block-end: var(--space-3); }
+.pill { display: inline-flex; align-items: center; gap: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); padding: var(--space-1) var(--space-3); font-size: var(--font-size-caption); font-weight: var(--weight-strong); background: var(--surface); color: var(--text); }
+.accent { background: var(--accent); color: var(--on-accent); border-color: var(--on-accent); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-6); }
+.soft { background: var(--raised); }
+.muted { color: var(--muted); } .success { color: var(--success); background: var(--success-bg); } .danger { color: var(--danger); background: var(--danger-bg); } .warning { color: var(--warning); background: var(--warning-bg); }
+.banner { border: 1px solid currentColor; border-radius: var(--radius-md); padding: var(--space-4); margin-block: var(--space-4); }
+.banner p { color: inherit; margin-block-end: var(--space-0); }
+.skip { position: fixed; inset-block-start: var(--space-3); inset-inline-start: var(--space-3); z-index: 20; transform: translateY(-200%); padding: var(--space-3); background: var(--surface); }
+.skip:focus { transform: none; }
+.shell { display: grid; grid-template-columns: var(--size-sidebar) minmax(0, var(--size-reading)) var(--size-rail); max-inline-size: var(--size-shell); margin-inline: auto; min-block-size: 100dvh; }
+.sidebar { padding: var(--space-10) var(--space-6); border-inline-end: 1px solid var(--line); display: flex; flex-direction: column; gap: var(--space-10); }
+.brand { display: flex; gap: var(--space-3); align-items: center; font-size: var(--font-size-heading); font-weight: var(--weight-heavy); color: var(--primary); text-decoration: none; letter-spacing: var(--tracking-tight); }
+.mark { inline-size: var(--space-6); block-size: var(--space-6); position: relative; display: inline-block; flex-shrink: 0; }
+.mark::before,.mark::after { content: ''; position: absolute; inline-size: var(--space-4); block-size: var(--space-5); background: var(--primary); border-radius: var(--radius-sm); transform: rotate(-15deg); }
+.mark::after { background: var(--accent); inset-inline-start: var(--space-2); inset-block-start: var(--space-1); transform: rotate(15deg); }
+nav { display: grid; gap: var(--space-3); }
+nav a { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3); min-block-size: var(--size-target); border-radius: var(--radius-md); border: 1px solid transparent; color: var(--muted); font-weight: var(--weight-strong); text-decoration: none; overflow-wrap: anywhere; }
+nav a[aria-current=page] { color: var(--primary); background: var(--raised); border-color: var(--primary); }
+.nav-icon { font-size: var(--font-size-title); inline-size: var(--space-6); text-align: center; }
+.sidebar-foot { margin-block-start: auto; font-size: var(--font-size-caption); }
+.preference { margin-block-start: var(--space-4); } select { min-block-size: var(--size-target); padding: var(--space-2); background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-sm); max-inline-size: 100%; }
+.main { padding: var(--space-10) var(--space-8) var(--space-16); min-inline-size: 0; }
+.topline { margin-block-end: var(--space-8); }
+.hero { margin-block-end: var(--space-8); }
+.hero p { font-size: var(--font-size-body); max-inline-size: 50ch; }
+.unit { background: var(--primary); color: var(--on-primary); padding: var(--space-6); border-radius: var(--radius-lg); margin-block: var(--space-6); }
+.unit p,.unit .eyebrow { color: var(--on-primary); }
+.unit h2 { font-size: var(--font-size-title); }
+.path { list-style: none; padding: var(--space-0); margin: var(--space-0); position: relative; }
+.path::before { content: ''; position: absolute; inset-block: var(--space-8); inset-inline-start: var(--space-8); inline-size: var(--space-1); background: var(--line); }
+.path li { position: relative; display: flex; align-items: center; gap: var(--space-5); padding-block: var(--space-5); }
+.path li:nth-child(even) { margin-inline-start: var(--space-8); }
+.node { display: grid; place-items: center; inline-size: var(--size-node); block-size: var(--size-node); flex-shrink: 0; border-radius: var(--radius-lg); background: var(--surface); border: 1px solid var(--line); font-size: var(--font-size-heading); color: var(--muted); box-shadow: 0 var(--space-1) 0 var(--line); }
+.node.done { background: var(--success-bg); color: var(--success); border-color: var(--success); }
+.node.current { background: var(--accent); color: var(--on-accent); border: 1px solid var(--on-accent); box-shadow: 0 var(--space-1) 0 var(--on-accent); }
+.path h3 { font-size: var(--font-size-body); margin-block-end: var(--space-1); }
+.path p { font-size: var(--font-size-caption); margin-block-end: var(--space-2); }
+.path .primary { margin-block-start: var(--space-2); }
+.path li.future { padding-block: var(--space-4); }
+.rail { padding: var(--space-10) var(--space-5); display: grid; align-content: start; gap: var(--space-6); }
+.rail .card { padding: var(--space-5); } .rail h2 { font-size: var(--font-size-title); } .stat-value { font-size: var(--font-size-heading); font-weight: var(--weight-heavy); }
+progress { inline-size: 100%; block-size: var(--space-3); accent-color: var(--primary); border: 1px solid var(--line); border-radius: var(--radius-pill); overflow: hidden; background: var(--raised); }
+progress::-webkit-progress-bar { background: var(--raised); } progress::-webkit-progress-value { background: var(--primary); }
+.mobile-credits { display: none; }
+.focused .shell { display: block; max-inline-size: var(--size-focused); } .focused .sidebar,.focused .rail { display: none; } .focused .main { padding-block-start: var(--space-6); }
+.player-top { margin-block-end: var(--space-6); } .player-title { margin-block: var(--space-5); }
+iframe { display: block; inline-size: 100%; block-size: var(--size-slide); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--raised); }
+.caption { padding: var(--space-4); margin-block-start: var(--space-3); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); color: var(--text); text-align: center; font-size: var(--font-size-title); }
+.control-panel { margin-block: var(--space-6); } .timeline { flex: 1; min-inline-size: var(--size-timeline-min); inline-size: 100%; min-block-size: var(--size-target); accent-color: var(--primary); }
+.time { font-size: var(--font-size-caption); font-variant-numeric: tabular-nums; }
+.control-panel label:has(input[type=checkbox]) { display: flex; align-items: center; min-block-size: var(--size-target); }
+.control-panel label { display: grid; gap: var(--space-1); font-size: var(--font-size-caption); }
+.actions { border-block-start: 1px solid var(--line); padding-block-start: var(--space-5); margin-block-start: var(--space-6); }
+details { margin-block: var(--space-4); } summary { min-block-size: var(--size-target); padding-block: var(--space-2); color: var(--primary); font-weight: var(--weight-strong); }
+.test-card { max-inline-size: var(--size-reading); margin-inline: auto; } .test-meta { margin-block: var(--space-6); }
+fieldset { min-inline-size: 0; margin: var(--space-0); padding: var(--space-0); border: 0; } legend { font-size: var(--font-size-heading); font-weight: var(--weight-heavy); line-height: var(--leading-heading); margin-block-end: var(--space-6); }
+.choice { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-4); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); min-block-size: var(--size-target); cursor: pointer; margin-block-end: var(--space-3); }
+.choice:has(input:checked) { background: var(--raised); border-color: var(--primary); outline: 1px solid var(--primary); } .choice input { accent-color: var(--primary); margin-block-start: var(--space-1); inline-size: var(--space-5); block-size: var(--space-5); flex-shrink: 0; }
+.choice strong,.choice small { display: block; } .choice small { color: var(--muted); margin-block-start: var(--space-1); }
+.offer-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: var(--space-3); margin-block: var(--space-6); } .offer-grid .choice { flex-direction: column; padding: var(--space-4); margin: var(--space-0); }
+.offer-grid h2 { font-size: var(--font-size-title); } .price { font-size: var(--font-size-heading); font-weight: var(--weight-heavy); }
+.balance { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-block: var(--space-6); } .balance .card { padding: var(--space-4); }
+.finish { text-align: center; padding-block: var(--space-12); max-inline-size: var(--size-reading); margin-inline: auto; } .finish-mark { display: grid; place-items: center; inline-size: var(--size-node); block-size: var(--size-node); border-radius: var(--radius-lg); background: var(--success-bg); color: var(--success); font-size: var(--font-size-display); margin: var(--space-0) auto var(--space-6); }
+dialog { background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-6); inline-size: min(100% - var(--space-8), var(--size-dialog)); max-block-size: calc(100dvh - var(--space-8)); overflow: auto; }
+dialog::backdrop { background: var(--canvas); opacity: var(--opacity-overlay); } .dialog-close { margin-inline-start: auto; } .bubble { padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--raised); }
+textarea { display: block; inline-size: 100%; min-block-size: var(--size-timeline-min); color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--space-3); margin-block: var(--space-3); resize: vertical; }
+.toast { position: fixed; inset-inline: var(--space-4); inset-block-end: var(--space-6); max-inline-size: var(--size-dialog); margin-inline: auto; z-index: 10; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-4); }
+.sr { position: absolute; inline-size: 1px; block-size: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+@media (max-width: 74.999rem) { .shell { grid-template-columns: var(--size-sidebar) minmax(0,1fr); } .rail { display: none; } .mobile-credits { display: block; } }
+@media (max-width: 47.999rem) { h1 { font-size: var(--font-size-heading); } .shell { display: block; } .main { padding: var(--space-6) var(--space-4); padding-block-end: calc(var(--navigation-height, var(--space-16)) + var(--space-6)); } .sidebar { padding: var(--space-4); border: 0; } .sidebar .brand { font-size: var(--font-size-title); } .sidebar-foot { display: none; } nav { position: fixed; z-index: 5; inset-inline: 0; inset-block-end: 0; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); padding: var(--space-2) var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom)); gap: var(--space-1); background: var(--surface); border-block-start: 1px solid var(--line); } nav a { display: flex; flex-direction: column; gap: 0; padding: var(--space-2) var(--space-1); font-size: var(--font-size-small); text-align: center; } nav .nav-icon { font-size: var(--font-size-body); } .topline { margin-block-end: var(--space-6); } .card { padding: var(--space-4); } .unit { padding: var(--space-5); } .path li { gap: var(--space-4); } .path li:nth-child(even) { margin-inline-start: var(--space-4); } .offer-grid { grid-template-columns: 1fr; } .offer-grid .choice { flex-direction: row; } .balance { grid-template-columns: 1fr; } iframe { block-size: var(--size-slide-mobile); } .focused .main { padding: var(--space-4); } .focused h1 { font-size: var(--font-size-heading); } legend { font-size: var(--font-size-title); } .actions { align-items: stretch; } .actions button { flex: 1; } .toast { inset-block-end: calc(var(--navigation-height, var(--space-16)) + var(--space-4)); } .focused .toast { inset-block-end: var(--space-4); } }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } .primary:active { transform: none; } }
+:root[data-motion=reduce] *, :root[data-motion=reduce] *::before, :root[data-motion=reduce] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+:root[data-motion=reduce] .primary:active { transform: none; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="#path" aria-label="Duolify learn path"><span class="mark" aria-hidden="true"></span>duolify</a>
+    <nav aria-label="Prototype screens">
+      <a href="#path" data-nav="path"><span class="nav-icon" aria-hidden="true">◈</span>Learn</a>
+      <a href="#player" data-nav="player"><span class="nav-icon" aria-hidden="true">▣</span>Lesson</a>
+      <a href="#test" data-nav="test"><span class="nav-icon" aria-hidden="true">✓</span>Lesson test</a>
+      <a href="#shop" data-nav="shop"><span class="nav-icon" aria-hidden="true">◇</span>Credits</a>
+    </nav>
+    <div class="sidebar-foot">
+      <p>A small discovery.<br>A little more you.</p>
+      <label for="appearance">Appearance</label>
+      <select id="appearance" class="wide"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
+      <p class="preference">Offline design prototype<br>Illustrative balances</p>
+
+    </div>
+  </aside>
+  <main class="main" id="main" tabindex="-1"></main>
+  <aside class="rail" aria-label="Learning summary">
+    <div class="row between"><span class="pill">7-day streak</span><span class="pill">240 XP</span></div>
+    <section class="card"><div class="eyebrow">A steady rhythm</div><h2>Make a little space.</h2><p>One lesson is enough to keep your streak going.</p><label for="daily-goal">Daily goal · 0 of 20 XP</label><progress id="daily-goal" value="0" max="20">0 of 20 XP</progress></section>
+    <section class="card"><div class="eyebrow">Room to explore</div><h2>Daily free credits</h2><p>6 of 12 remaining in this demo. Used before purchased credits.</p><p class="small">One shared allowance, sized for about 3 quick notes and 5–8 chat messages per day. Usage varies.</p><button class="wide" data-go="shop" aria-label="View credit options">View options</button></section>
+    <section class="card soft"><h2>Yesterday, covered.</h2><p>A streak freeze kept your 7-day streak safe. 1 freeze remaining.</p><span class="pill">Earned through effort</span></section>
+  </aside>
+</div>
+<dialog id="sheet" aria-labelledby="sheet-title"><div class="row"><h2 id="sheet-title"></h2><button class="dialog-close" id="close-sheet" aria-label="Close dialog">Close</button></div><div id="sheet-body"></div></dialog>
+<div class="toast" id="toast" role="status" hidden></div>
+<script>
+'use strict';
+const $ = selector => document.querySelector(selector);
+const main = $('#main');
+const sheet = $('#sheet');
+const state = { screen: 'path', complete: false, time: 0, playing: false, speed: 1, muted: false, captions: true, bookmarked: false, selected: null, graded: false, queue: [], resolved: new Set(), current: null, retries: 0, offer: null, payment: '', note: '', tutorDraft: '', review: false };
+let timer = null, lastTick = 0, toastTimer = null, trigger = null;
+const duration = 12;
+const mediaDark = matchMedia('(prefers-color-scheme: dark)');
+const mediaReduced = matchMedia('(prefers-reduced-motion: reduce)');
+const captions = ['Earth turns. Your view changes.', 'As Earth rotates, different parts face the Sun.', 'At night, that same rotation makes stars appear to move.'];
+const questions = {
+ rotation: { topic: 'rotation', prompt: 'Why do stars appear to move at night?', choices: ['Earth turns.', 'Earth stays still.', 'Stars switch on and off.'], correct: 0, explanation: 'Earth rotates. As our view turns, stars appear to cross the sky.' },
+ daylight: { topic: 'daylight', prompt: 'What gives Earth its daylight?', choices: ['Light from the Moon.', 'Light from the Sun.', 'Light from distant stars.'], correct: 1, explanation: 'Sunlight illuminates the side of Earth facing the Sun.' }
+};
+function variant(topic) {
+ if (topic === 'rotation') return { topic, retry: true, prompt: state.retries % 2 ? 'What makes constellations drift across your view?' : 'Why does a star change position in your sky?', choices: ['Because our planet rotates.', 'Because the Sun orbits us.', 'Because the sky is a moving screen.'], correct: 0, explanation: 'Our planet rotates, so the direction we face in space changes.' };
+ return { topic, retry: true, prompt: 'Why is it bright on the side of our planet facing the Sun?', choices: ['The Moon lights that side.', 'Sunlight reaches that side.', 'The air creates its own light.'], correct: 1, explanation: 'The Sun provides the light we see during the day.' };
+}
+function escapeText(value) { const el = document.createElement('span'); el.textContent = value; return el.innerHTML; }
+function toast(message) { clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false; toastTimer = setTimeout(() => $('#toast').hidden = true, 8000); }
+function stopClock() { state.playing = false; clearInterval(timer); timer = null; }
+function setClock(time) { state.time = Math.max(0, Math.min(duration, time)); updatePlayer(); }
+function updatePlayer() {
+ if (state.screen !== 'player') return;
+ $('#timeline').value = state.time;
+ $('#timeline').setAttribute('aria-valuetext', state.time.toFixed(1) + ' seconds of 12 seconds');
+ $('#time-label').textContent = '0:' + String(Math.floor(state.time)).padStart(2,'0') + ' / 0:12';
+ $('#play').textContent = state.playing ? 'Pause' : 'Play';
+ $('#play').setAttribute('aria-label', state.playing ? 'Pause narration' : 'Play narration');
+ $('#caption-text').textContent = captions[Math.min(2, Math.floor(state.time / 4))];
+ const frame = $('#slide');
+ if (frame && frame.contentWindow) frame.contentWindow.postMessage({ type: 'time', time: state.time, colors: Object.fromEntries(['raised','text','primary','accent','on-accent','line'].map(name=>[name,getComputedStyle(document.documentElement).getPropertyValue('--'+name).trim()])), reduced: mediaReduced.matches || document.documentElement.dataset.motion === 'reduce' }, '*');
+}
+function play() {
+ if (state.playing) { stopClock(); updatePlayer(); return; }
+ if (state.time >= duration) state.time = 0;
+ state.playing = true; lastTick = performance.now();
+ timer = setInterval(() => { const now = performance.now(); state.time = Math.min(duration,state.time+(now-lastTick)/1000*state.speed); lastTick=now; if(state.time>=duration) stopClock(); updatePlayer(); }, 100);
+ updatePlayer();
+}
+function startTest() {
+ state.review = state.complete; state.queue = [{...questions.rotation}, {...questions.daylight}]; state.resolved = new Set(); state.retries = 0;
+ nextQuestion();
+}
+function nextQuestion() {
+ state.current = state.queue.shift(); state.selected = null; state.graded = false;
+ if (!state.current) { state.complete = true; go('finish'); return; }
+ go('test');
+}
+function go(screen, focus=true) {
+ stopClock(); $('#toast').hidden = true;
+ state.screen = screen; document.body.classList.toggle('focused', ['player','test','finish'].includes(screen));
+ document.querySelectorAll('[data-nav]').forEach(el=>{ if(el.dataset.nav===screen) el.setAttribute('aria-current','page'); else el.removeAttribute('aria-current'); });
+ if (screen === 'test' && !state.current) { startTest(); return; }
+ const views={path:renderPath,player:renderPlayer,test:renderTest,shop:renderShop,finish:renderFinish};
+ main.innerHTML=(views[screen]||renderPath)(); bindScreen();
+ document.title='Duolify · '+({path:'Learn',player:'Lesson',test:'Lesson test',shop:'Credit options',finish:'One idea clearer'}[screen]||'Learn');
+ if (focus) { const heading=main.querySelector('h1,legend'); if(heading){ heading.tabIndex=-1; heading.focus({preventScroll:true}); } window.scrollTo({top:0,behavior:'instant'}); }
+}
+function renderPath() {
+ return '<div class="row between topline"><span class="pill">◈ &nbsp; Astronomy</span><span class="small muted">Your learning path</span></div>'+
+ '<header class="hero"><div class="eyebrow">A few minutes. A wider view.</div><h1>A little closer to the cosmos.</h1><p>Notice the patterns above you, one small lesson at a time.</p></header>'+
+ '<section class="unit"><div class="eyebrow">Unit 1 · Finding your bearings</div><h2>The sky is a place you can learn.</h2><p>'+ (state.complete ? '2' : '1') +' of 4 lessons completed</p></section>'+
+ '<ol class="path" aria-label="Lessons in unit 1"><li><span class="node done" aria-hidden="true">✓</span><div><h3>A map of the night</h3><p>Completed · Ready to review</p></div></li>'+
+ '<li><span class="node current" aria-hidden="true">'+(state.complete?'✓':'▶')+'</span><div><span class="pill accent">'+(state.complete?'Completed':'Your next small step')+'</span><h3 style="margin-block-start:var(--space-3)">Why the sky changes</h3><p>Motion HTML · Narration · Lesson test</p><button class="primary" id="start" aria-label="Start lesson">'+(state.complete?'Review lesson':'Start lesson')+'</button></div></li>'+
+ '<li class="future"><span class="node" aria-hidden="true">'+(state.complete?'…':'⌑')+'</span><div><h3>Following a star</h3><p>'+(state.complete?'Next lesson: waiting for generation · Not generated in this demo.':'Locked · Pass the previous lesson test first')+'</p></div></li>'+
+ '<li class="future"><span class="node" aria-hidden="true">⌑</span><div><h3>Reading the seasons</h3><p>Locked · One lesson at a time</p></div></li></ol>'+
+ '<div class="banner warning"><strong>A streak freeze covered yesterday.</strong><p>Your 7-day streak stayed safe. 1 freeze remaining.</p></div>'+
+ '<section class="card mobile-credits"><h2>Room for your next idea</h2><p>6 of 12 daily free credits remain in this illustrative demo.</p><button data-go="shop" aria-label="View credit options">View credit options</button></section>'+
+ '<div class="row actions"><button id="restart-inline">Restart demo</button><label>Appearance <select id="appearance-inline"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></div>';
+}
+function renderPlayer() {
+ return '<div class="row between player-top"><button data-go="path" class="quiet">← Exit lesson</button><span class="pill">Slide 1 of 1</span></div>'+
+ '<progress value="1" max="1" aria-label="Slide progress">Slide 1 of 1</progress><div class="player-title"><div class="eyebrow">Astronomy · Unit 1</div><h1>Why the sky changes</h1></div>'+
+ '<iframe id="slide" title="Motion HTML: Earth turns" sandbox="allow-scripts"></iframe>'+
+ '<div id="caption-box" class="caption" '+(state.captions?'':'hidden')+'><span class="sr">Captions: </span><span id="caption-text">'+captions[0]+'</span></div>'+
+ '<div class="control-panel"><div class="row"><button id="play" aria-label="Play narration">Play</button><button id="replay" aria-label="Replay slide">Replay</button><label class="sr" for="timeline">Narration timeline</label><input class="timeline" id="timeline" type="range" min="0" max="12" step="0.1" value="'+state.time+'"><span class="time" id="time-label">0:00 / 0:12</span></div>'+
+ '<div class="row" style="margin-block-start:var(--space-3)"><label>Speed <select id="speed" aria-label="Narration speed"><option value="0.75">0.75×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label><button id="mute" aria-label="'+(state.muted?'Unmute':'Mute')+' narration" aria-pressed="'+state.muted+'">'+(state.muted?'Unmute':'Mute')+'</button><button id="captions" aria-label="Show captions" aria-pressed="'+state.captions+'">Captions '+(state.captions?'on':'off')+'</button><label><input type="checkbox" id="reduce-motion"> Reduce motion</label></div></div>'+
+ '<details><summary>Read full transcript</summary><p>Earth turns once each day. As it rotates, different parts face the Sun, giving us day and night. That same rotation changes the direction we face in space, so stars appear to move across the night sky.</p></details>'+
+ '<div class="row"><button id="bookmark" aria-label="'+(state.bookmarked?'Remove bookmark':'Bookmark slide')+'" aria-pressed="'+state.bookmarked+'">'+(state.bookmarked?'Bookmarked':'Bookmark')+'</button><button id="tutor">Ask tutor</button><button id="note">Add note</button></div>'+
+ '<p class="small" style="margin-block-start:var(--space-4)">Demo narration uses a silent timeline. In the app, ElevenLabs narration, captions and slide motion share the same clock.</p>'+
+ '<div class="row between actions"><button disabled aria-describedby="only-slide">Previous</button><span id="only-slide" class="small muted">One sample slide</span><button class="primary" id="take-test">Take lesson test</button></div>';
+}
+function renderTest() {
+ const q=state.current;
+ const count=state.queue.filter(q=>q.retry).length;
+ return '<div class="test-card"><div class="row between"><button data-go="player" class="quiet">← Return to lesson</button><span class="pill">Lesson test</span></div>'+
+ '<div class="test-meta"><div class="row between"><span>Resolved topics: '+state.resolved.size+' of 2</span><span class="pill">Retry variants queued: '+count+'</span></div><progress value="'+state.resolved.size+'" max="2" aria-label="Resolved topics">'+state.resolved.size+' of 2</progress></div>'+
+ '<p class="eyebrow">'+(q.retry?'Retry variant · Same idea, fresh wording':'A moment to connect the dots')+'</p>'+
+ '<fieldset id="answers"><legend>'+q.prompt+'</legend>'+q.choices.map((choice,i)=>'<label class="choice"><input type="radio" name="answer" value="'+i+'"><span>'+choice+'</span></label>').join('')+'</fieldset>'+
+ '<div id="feedback" role="status"></div><p class="small">Every topic needs a correct answer. If you miss one, you get a correction and a fresh question later.</p><div class="row between actions"><span class="small muted">No timer. Take your time.</span><button class="primary" id="check" disabled>Select an answer</button></div></div>';
+}
+function renderFinish() {
+ return '<div class="finish"><div class="finish-mark" aria-hidden="true">✓</div><div class="eyebrow">Lesson complete</div><h1>One idea clearer.</h1><p>All topics resolved. '+(state.retries?'You came back to the tricky idea and worked it through.':'You connected every idea on your first try.')+'</p><div class="row" style="justify-content:center;margin-block:var(--space-6)"><span class="pill">'+(state.review?'Review complete · No extra XP':'+20 XP · Demo')+'</span><span class="pill">7-day streak</span></div><section class="card"><h2>Following a star</h2><p>Your next lesson is eligible for generation. This offline demo does not generate or charge for it.</p></section><div class="actions"><button class="primary" data-go="path" aria-label="Back to learn path">Back to learn path</button></div></div>';
+}
+function renderShop() {
+ return '<div class="row between topline"><button data-go="path" class="quiet" aria-label="Back to learn path">← Back to learn path</button><span class="pill">◇ Credits</span></div>'+
+ '<header class="hero"><div class="eyebrow">Keep your curiosity moving</div><h1>Make room for your next idea.</h1><p>Choose a little extra room, or return after your daily free credits reset. Your saved lessons and notes stay available.</p></header>'+
+ '<div class="balance"><section class="card"><div class="small muted">Daily free credits</div><div class="stat-value">6 / 12</div><p class="small">Illustrative · Reset at 00:00 Asia/Ho_Chi_Minh</p></section><section class="card"><div class="small muted">Purchased credits</div><div class="stat-value">0</div><p class="small">Reserved: 0 · Daily free used first</p></section></div>'+
+ '<div class="banner warning"><strong>Illustrative offers — pricing pending E12.</strong><p>These are layout examples, not prices or plans available to buy. The checkout is a local simulation.</p></div>'+
+ (state.payment?'<div class="banner warning" role="status"><strong>'+state.payment+'</strong><p>Your draft and learning progress are safe.</p></div>':'')+
+ '<fieldset><legend>Choose an illustrative offer</legend><div class="offer-grid">'+
+ offer('pack','One-time credit pack','A little extra','Credits: set by E12','One payment · No renewal')+
+ offer('monthly','Monthly subscription','A steady rhythm','Allowance: set by E12','Monthly billing · Terms pending')+
+ offer('yearly','Yearly subscription','A longer view','Allowance: set by E12','Full yearly total shown before billing')+
+ '</div></fieldset><p class="small">The live shop must show exact currency, total billed price, allowance, renewal, expiry, cancellation and taxes before checkout. No recurring plan is preselected.</p>'+
+ '<div class="row actions"><button class="primary" id="checkout" '+(state.offer?'':'disabled')+'>Preview checkout</button><button id="wait-reset">Wait for daily reset</button></div><p class="small" style="margin-block-start:var(--space-4)">Daily free credits are one shared allowance sized for about 3 quick notes and 5–8 tutor chat messages. Usage varies; they expire at local day end.</p>';
+}
+function offer(id,label,title,amount,terms) { return '<label class="choice"><input type="radio" name="offer" value="'+id+'" aria-label="'+label+'" '+(state.offer===id?'checked':'')+'><span><strong>'+title+'</strong><span class="small">'+label+'</span><strong style="margin-block:var(--space-4)">'+amount+'</strong><small>'+terms+'</small></span></label>'; }
+function grade() {
+ if(state.selected===null||state.graded) return;
+ state.graded=true;
+ const q=state.current, correct=state.selected===q.correct;
+ if(correct) state.resolved.add(q.topic);
+ else { state.resolved.delete(q.topic); state.retries++; state.queue.push(variant(q.topic)); }
+ $('#answers').disabled=true;
+ $('#feedback').className='banner '+(correct?'success':'danger');
+ $('#feedback').innerHTML='<strong>'+(correct?"✓ That's it.":'Correction: '+q.choices[q.correct])+'</strong><p>'+q.explanation+'</p>'+(correct?'':'<p>A retry variant is queued for later.</p>');
+ const done=state.queue.length===0;
+ $('#check').textContent=done?'Finish lesson':'Continue test';
+ $('#check').disabled=false;
+ $('#check').onclick=()=>nextQuestion();
+ const queueCount=state.queue.filter(q=>q.retry).length;
+ main.querySelector('.test-meta .pill').textContent='Retry variants queued: '+queueCount;
+}
+function openSheet(title,body) {
+ stopClock(); updatePlayer(); trigger=document.activeElement;
+ $('#sheet-title').textContent=title; $('#sheet-body').innerHTML=body; sheet.showModal();
+ const field=sheet.querySelector('textarea'); if(field) field.focus(); else $('#close-sheet').focus();
+}
+function closeSheet() { const draft=$('#tutor-draft'); if(draft) state.tutorDraft=draft.value; sheet.close(); if(trigger&&trigger.isConnected) trigger.focus(); }
+$('#close-sheet').onclick=closeSheet;
+sheet.addEventListener('cancel',event=>{event.preventDefault();closeSheet();});
+sheet.addEventListener('keydown',event=>{
+ if(event.key!=='Tab') return;
+ const items=[...sheet.querySelectorAll('button:not(:disabled),textarea,input,select,a[href]')].filter(el=>!el.hidden);
+ const first=items[0],last=items.at(-1);
+ if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+ else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+});
+function bindScreen() {
+ main.querySelectorAll('[data-go]').forEach(el=>el.onclick=()=>go(el.dataset.go));
+ if(state.screen==='path') {
+ $('#start').onclick=()=>{state.time=0;go('player');};
+ $('#restart-inline').onclick=reset;
+ $('#appearance-inline').value=$('#appearance').value;
+ $('#appearance-inline').onchange=event=>appearance(event.target.value);
+ }
+ if(state.screen==='player') {
+  const palette=Object.fromEntries(['canvas','raised','text','primary','accent','on-accent','muted','line','space-0','space-2','space-3','space-4','space-5','space-6','space-10','size-node','font-size-title','font-size-body','leading-body','leading-heading','font-family','size-focus-width'].map(name=>[name,getComputedStyle(document.documentElement).getPropertyValue('--'+name).trim()]));
+  const reduced=mediaReduced.matches||document.documentElement.dataset.motion==='reduce';
+  $('#reduce-motion').checked=reduced;
+  $('#slide').srcdoc=slideHtml(palette);
+  $('#slide').addEventListener('load',updatePlayer);
+  $('#play').onclick=play; $('#replay').onclick=()=>{stopClock();setClock(0);};
+  $('#timeline').oninput=event=>setClock(Number(event.target.value));
+  $('#speed').value=String(state.speed); $('#speed').onchange=event=>{state.speed=Number(event.target.value);};
+  $('#mute').onclick=()=>{state.muted=!state.muted;$('#mute').textContent=state.muted?'Unmute':'Mute';$('#mute').setAttribute('aria-label',(state.muted?'Unmute':'Mute')+' narration');$('#mute').setAttribute('aria-pressed',String(state.muted));};
+  $('#captions').onclick=()=>{state.captions=!state.captions;$('#caption-box').hidden=!state.captions;$('#captions').textContent='Captions '+(state.captions?'on':'off');$('#captions').setAttribute('aria-pressed',String(state.captions));};
+  $('#reduce-motion').onchange=event=>{document.documentElement.dataset.motion=event.target.checked?'reduce':'system';updatePlayer();};
+  $('#bookmark').onclick=()=>{state.bookmarked=!state.bookmarked;$('#bookmark').textContent=state.bookmarked?'Bookmarked':'Bookmark';$('#bookmark').setAttribute('aria-label',state.bookmarked?'Remove bookmark':'Bookmark slide');$('#bookmark').setAttribute('aria-pressed',String(state.bookmarked));toast(state.bookmarked?'Slide bookmarked.':'Bookmark removed.');};
+  $('#tutor').onclick=()=>{openSheet('Tutor chat · This lesson','<p class="small">Authored demo reply · no AI request or credits used.</p><div class="bubble"><strong>Tutor</strong><p>Imagine slowly turning in a room. The walls stay put, but your view changes. Earth’s rotation changes your view of the stars in the same way.</p></div><label for="tutor-draft">Your question</label><textarea id="tutor-draft" placeholder="Keep a question for later">'+escapeText(state.tutorDraft)+'</textarea><p class="small">In the app, sending shows an estimate and uses course, lesson and learner context.</p><button id="keep-question">Keep draft and return</button>');$('#keep-question').onclick=()=>{closeSheet();toast('Demo draft kept for this open session.');};};
+  $('#note').onclick=()=>{openSheet('Add quick note','<label for="note-text">Your original note</label><textarea id="note-text">'+escapeText(state.note)+'</textarea><p class="small">Raw text can save without credits. AI enrichment is separate. This demo keeps text only while open.</p><button class="primary" id="save-note">Save quick note</button>');$('#save-note').onclick=()=>{state.note=$('#note-text').value;closeSheet();toast('Note saved in this demo session. Enrichment pending.');};};
+  $('#take-test').onclick=()=>startTest(); updatePlayer();
+ }
+ if(state.screen==='test') {
+  main.querySelectorAll('input[name=answer]').forEach(input=>input.onchange=()=>{state.selected=Number(input.value);$('#check').disabled=false;$('#check').textContent='Check answer';});
+  $('#check').onclick=grade;
+ }
+ if(state.screen==='shop') {
+  main.querySelectorAll('input[name=offer]').forEach(input=>input.onchange=()=>{state.offer=input.value;$('#checkout').disabled=false;});
+  $('#checkout').onclick=()=>{
+   openSheet('Preview checkout','<p>This is a local simulation. No payment provider opens, and no money or credits move.</p><p>Live checkout would show the exact price and billing terms for your selected offer.</p><div class="stack"><button id="pending">Simulate pending payment</button><button id="cancel-payment">Simulate cancelled payment</button></div>');
+   $('#pending').onclick=()=>{state.payment='Payment pending. Your balance has not changed.';closeSheet();go('shop');};
+   $('#cancel-payment').onclick=()=>{state.payment='Checkout cancelled. No credits were added.';closeSheet();go('shop');};
+  };
+  $('#wait-reset').onclick=()=>{state.payment='Daily free credits reset at 00:00 Asia/Ho_Chi_Minh. No purchase needed to wait.';go('shop');};
+ }
+}
+function appearance(value) {
+ $('#appearance').value=value;
+ if(value==='system') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme=value;
+ const inline=$('#appearance-inline'); if(inline) inline.value=value;
+ updatePlayer();
+}
+$('#appearance').onchange=event=>appearance(event.target.value);
+function reset() {stopClock();Object.assign(state,{complete:false,time:0,playing:false,speed:1,muted:false,captions:true,bookmarked:false,selected:null,graded:false,queue:[],resolved:new Set(),current:null,retries:0,offer:null,payment:'',note:'',tutorDraft:'',review:false});go('path');}
+
+document.querySelectorAll('[data-go]').forEach(el=>el.onclick=()=>go(el.dataset.go));
+document.querySelectorAll('a[href^="#"]').forEach(link=>{if(link.classList.contains('skip'))return;link.onclick=event=>{event.preventDefault();const screen=link.getAttribute('href').slice(1);if(screen==='test'){startTest();}else{go(screen);}};});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){stopClock();updatePlayer();}});
+mediaDark.addEventListener('change',updatePlayer); mediaReduced.addEventListener('change',updatePlayer);
+function slideHtml(palette) {
+ const vars = Object.entries(palette).map(([name,value])=>'--'+name+':'+value+';').join('');
+ return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+ <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'">
+ <style>
+ :root { ${vars} }
+ * { box-sizing: border-box; }
+ body { margin: var(--space-0); background: var(--raised); color: var(--text); font-family: var(--font-family); display: grid; place-items: center; min-height: 100vh; padding: var(--space-6); text-align: center; }
+ h2 { font-size: var(--font-size-title); margin: var(--space-4) var(--space-0) var(--space-2); line-height: var(--leading-heading); }
+ p { margin: var(--space-0); line-height: var(--leading-body); font-size: var(--font-size-body); max-width: 40ch; }
+ .scene { height: 120px; display: flex; align-items: center; justify-content: center; gap: var(--space-6); }
+ .sun { width: var(--size-node); height: var(--size-node); background: var(--accent); border: var(--size-focus-width) solid var(--text); border-radius: 50%; }
+ .earth { width: 96px; height: 96px; border-radius: 50%; border: var(--size-focus-width) solid var(--text); position: relative; overflow: hidden; background: var(--primary); }
+ .earth::after { content: ''; position: absolute; inset: 0 50% 0 0; background: var(--accent); }
+ .meridian { position: absolute; inset: var(--space-2) 32px; border: var(--size-focus-width) solid var(--text); border-radius: 50%; z-index: 1; }
+ .axis { position: absolute; inset: 50% 0 auto; height: var(--size-focus-width); background: var(--text); z-index: 2; }
+ .rays { font-size: var(--font-size-title); color: var(--text); }
+ @media(max-width:350px) { .scene { gap: var(--space-4); } body { padding: var(--space-4); } }
+ </style></head><body><main>
+ <div class="scene" aria-hidden="true"><div class="sun"></div><span class="rays">→</span><div class="earth" id="earth"><div class="meridian"></div><div class="axis"></div></div></div>
+ <h2>Earth turns. Your view changes.</h2><p>As Earth rotates, the side facing the Sun has daylight. Our changing view makes stars appear to move at night.</p>
+ </main><script>
+ addEventListener('message',function(event){
+   if(event.source!==parent||!event.data||event.data.type!=='time')return;
+   document.getElementById('earth').style.transform='rotate('+(event.data.reduced?0:event.data.time*15)+'deg)';
+   for(const [name,value] of Object.entries(event.data.colors||{}))document.documentElement.style.setProperty('--'+name,value);
+ });
+ <${'/script'}></body></html>`;
+}
+// Navigation height is measured content geometry so expanded text never covers final actions.
+const navigation = document.querySelector('nav');
+new ResizeObserver(() => {
+ const bottom = getComputedStyle(navigation).position === 'fixed';
+ document.documentElement.style.setProperty('--navigation-height', (bottom ? navigation.getBoundingClientRect().height : 0) + 'px');
+}).observe(navigation);
+const initial=location.hash.slice(1);
+go(['player','test','shop'].includes(initial)?initial:'path',false);
+</script>
+</body>
+</html>
