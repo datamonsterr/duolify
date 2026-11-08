@@ -19,7 +19,7 @@ func TestLoad(t *testing.T) {
 		{"tls engine", "ENGINE_ADDR", "https://engine:50051", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			env := map[string]string{"DATABASE_URL": "postgres://local:local@localhost:5432/local", "REDIS_URL": "redis://localhost:6379/0", "ENGINE_ADDR": "http://localhost:50051"}
+			env := map[string]string{"DATABASE_URL": "postgres://localhost:5432/local", "REDIS_URL": "redis://localhost:6379/0", "ENGINE_ADDR": "http://localhost:50051"}
 			if tt.key != "" {
 				env[tt.key] = tt.value
 			}

@@ -37,7 +37,7 @@ func TestMiddleware(t *testing.T) {
 				}
 				w.WriteHeader(http.StatusOK)
 			}))
-			req := httptest.NewRequest(tt.method, "/healthz?secret=hidden", nil)
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, "/healthz?secret=hidden", nil)
 			req.Header.Set("Origin", tt.origin)
 			req.Header.Set("X-Request-ID", "untrusted-id")
 			recorder := httptest.NewRecorder()

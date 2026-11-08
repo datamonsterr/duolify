@@ -40,7 +40,7 @@ func (*fakeEngine) PreviewCourse(ctx context.Context, req *enginev1.PreviewCours
 }
 
 func TestHTTPAPI(t *testing.T) {
-	grpcListener, err := net.Listen("tcp", "127.0.0.1:0")
+	grpcListener, err := new(net.ListenConfig).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestHTTPAPI(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	handler := httpapi.New(httpapi.Dependencies{Engine: client, Postgres: func(context.Context) error { return nil }, Redis: func(context.Context) error { return errors.New("unavailable") }}, logger)
 	server := httpapi.NewServer("127.0.0.1:0", handler)
-	listener, err := net.Listen("tcp", server.Addr)
+	listener, err := new(net.ListenConfig).Listen(t.Context(), "tcp", server.Addr)
 	if err != nil {
 		t.Fatal(err)
 	}
