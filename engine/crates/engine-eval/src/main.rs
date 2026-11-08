@@ -27,6 +27,38 @@ struct ResultRow {
 struct Threshold {
     minimum_score: f64,
 }
+
+fn select_cases(mut cases: Vec<Case>, limit: Option<usize>) -> (Vec<Case>, usize) {
+    let total = cases.len();
+    cases.sort_by(|a, b| a.id.cmp(&b.id));
+    if let Some(limit) = limit.filter(|&n| n > 0) {
+        cases.truncate(limit);
+    }
+    (cases, total)
+}
+
+fn sample_limit() -> Result<Option<usize>> {
+    let mut limit = std::env::var("EVAL_SAMPLE_LIMIT")
+        .ok()
+        .map(|value| {
+            value
+                .parse::<usize>()
+                .context("EVAL_SAMPLE_LIMIT must be an integer")
+        })
+        .transpose()?;
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--limit" {
+            let value = args.get(i + 1).context("--limit requires a value")?;
+            limit = Some(value.parse().context("--limit must be an integer")?);
+            i += 1;
+        }
+        i += 1;
+    }
+    Ok(limit)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
@@ -37,6 +69,7 @@ async fn main() -> Result<()> {
         .map(|a| a[1].as_str())
         .unwrap_or("live");
     let judge = args.iter().any(|a| a == "--judge");
+    let limit = sample_limit()?;
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../evals");
     let data = if offline || std::env::var("HF_TOKEN").unwrap_or_default().is_empty() {
         std::fs::read_to_string(root.join("fixtures/golden.sample.jsonl"))?
@@ -75,9 +108,14 @@ async fn main() -> Result<()> {
         }
     };
     let router = engine_providers::router(provider)?;
-    let mut results = Vec::new();
+    let mut cases = Vec::new();
     for line in data.lines().filter(|l| !l.trim().is_empty()) {
-        let case: Case = serde_json::from_str(line)?;
+        cases.push(serde_json::from_str(line)?);
+    }
+    let (cases, total) = select_cases(cases, limit);
+    println!("selected {} of {total} cases", cases.len());
+    let mut results = Vec::new();
+    for case in cases {
         let response = router.complete(&case.task, &case.input.to_string()).await?;
         let mut errors = Vec::new();
         for check in &case.checks {
@@ -136,4 +174,44 @@ async fn main() -> Result<()> {
         bail!("score below threshold");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Case, select_cases};
+
+    fn cases() -> Vec<Case> {
+        ["c", "a", "b"]
+            .into_iter()
+            .map(|id| Case {
+                id: id.into(),
+                task: String::new(),
+                input: serde_json::Value::Null,
+                rubric: String::new(),
+                checks: Vec::new(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn selection_is_sorted_and_respects_optional_limit() {
+        for limit in [None, Some(0)] {
+            let (selected, total) = select_cases(cases(), limit);
+            assert_eq!(total, 3);
+            assert_eq!(
+                selected.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+                ["a", "b", "c"]
+            );
+        }
+        let (selected, _) = select_cases(cases(), Some(2));
+        assert_eq!(
+            selected.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+            ["a", "b"]
+        );
+        let (selected, _) = select_cases(cases(), Some(9));
+        assert_eq!(
+            selected.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+            ["a", "b", "c"]
+        );
+    }
 }
