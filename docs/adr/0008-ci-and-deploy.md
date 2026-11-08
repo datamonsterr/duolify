@@ -10,7 +10,7 @@
 - **Ready PR / main pipeline** (full): adds integration tests with Postgres and Redis services, Playwright e2e, Docker image builds, Tauri debug build, live sample evals when secrets exist.
 - One aggregate `ci-ok` job is the only required status check.
 - Caching: mise tool cache, Go module and build cache, `Swatinem/rust-cache`, pnpm store, Docker BuildKit cache (`type=gha`).
-- **Deploy**: Railway config as code (`railway.json` per service). Deploys to a `dev` environment only from `main`, after `ci-ok`. Production deploys are manual and out of scope for bootstrap.
+- **Deploy**: Railway Infrastructure as Code in `.railway/railway.ts` (TypeScript authoring is GA; legacy `railway.json`/`railway.toml` config-as-code is deprecated and stops being read on 2026-12-01). One file describes services (api, worker, engine), Postgres, Redis, bucket and variables per environment. `railway config plan` runs in CI on PRs; `railway config apply` and deploys target the `dev` environment only, from `main`, after `ci-ok`. Production is manual and out of scope for bootstrap.
 
 ## Consequences
 
