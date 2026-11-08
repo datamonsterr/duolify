@@ -33,3 +33,49 @@ fn slide_rejects_invalid_documents() {
         .is_err()
     );
 }
+
+#[test]
+fn slide_rejects_network_obfuscation_and_fake_roots() {
+    assert!(slide::validate("<!-- <div id=\"root\"></div> -->", &[]).is_err());
+    assert!(slide::validate("<div id=\"root\"></div><script>fetch('/api')</script>", &[]).is_err());
+    assert!(
+        slide::validate(
+            "<div id=\"root\"></div><img src=\"https://safe.test@evil.test/x\">",
+            &["safe.test"]
+        )
+        .is_err()
+    );
+    assert!(
+        slide::validate(
+            "<div id=\"root\"></div><script>fetch('https:&#47;&#47;evil')</script>",
+            &[]
+        )
+        .is_err()
+    );
+}
+
+#[tokio::test]
+async fn router_retries_then_falls_back() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    struct Failing(AtomicUsize);
+    #[async_trait::async_trait]
+    impl LlmProvider for Failing {
+        async fn complete(&self, _: &str, _: &str) -> anyhow::Result<Completion> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            anyhow::bail!("failed")
+        }
+        async fn stream(&self, _: &str, _: &str) -> anyhow::Result<CompletionStream> {
+            anyhow::bail!("failed")
+        }
+    }
+    let primary = Arc::new(Failing(AtomicUsize::new(0)));
+    let router = ProviderRouter::new(primary.clone(), Arc::new(MockProvider)).unwrap();
+    assert_eq!(
+        router.complete("note", "test").await.unwrap().provider,
+        "mock"
+    );
+    assert_eq!(primary.0.load(Ordering::SeqCst), 2);
+}
