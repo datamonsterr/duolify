@@ -27,6 +27,26 @@ Duolify turns any topic a person wants to learn long-term into a Duolingo-style 
 - Keep services stateless. State lives in Postgres, Redis and object storage.
 - The `proto` contract changes only with a matching change in both `services/api` and `engine`.
 
+## Agent skills
+
+Skills are routed by OtherSkill (`otherskill.config.json`, project bank `.otherskill/bank`, plus the owner's global bank). The routing hook adds the matching skill descriptions to each prompt; load a skill before acting on it. See `docs/agents/skills.md` for the full list.
+
+### Issue tracker
+
+GitHub Issues on `datamonsterr/duolify`, epics as `epic` issues with sub-issue tickets. Flow: OpenSpec change, then `/to-tickets`, then one PR per ticket. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) plus `epic` and `area:*`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` (glossary) and `docs/adr/`. See `docs/agents/domain.md`.
+
+### Reverse engineering
+
+To learn from an existing app, use the `reverse-to-spec` skill: evidence, product spec, fit decision, OpenSpec change, tickets, implementation by subagents. Binary and packaged targets need the REA plugin (`rea@rea`).
+
 ## Workflow
 
 - Branch from `main`, open a draft PR early. Draft PRs run the fast CI pipeline; ready PRs run the full pipeline.

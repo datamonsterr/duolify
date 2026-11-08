@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "c8a6916c1a9704d01dc7a18d5b51633c2d17818fc055492a3623c6f69089b5a4",
+  "source": "https://github.com/morluto/rea/tree/HEAD/.agents/skills/reverse-engineer-anything",
+  "ref": "HEAD",
+  "revision": "72d5e72e6d7b7997c4ecb11972fc405be8ec67d2",
+  "category": "reverse-engineering",
+  "installedAt": "2026-11-08T09:28:10.794Z"
+}

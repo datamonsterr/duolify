@@ -24,10 +24,12 @@
       "docs",
       "backend/go",
       "frontend/tauri",
-      "analytics"
+      "analytics",
+      "reverse-engineering",
+      "product"
     ]
   },
-  "portableHooks": true,
+  "portableHooks": false,
   "enabledCategories": [
     "backend",
     "backend/rust",
@@ -40,7 +42,9 @@
     "docs",
     "backend/go",
     "frontend/tauri",
-    "analytics"
+    "analytics",
+    "reverse-engineering",
+    "product"
   ],
   "categories": [
     {
@@ -106,6 +110,14 @@
     {
       "id": "analytics",
       "description": "Product analytics, LLM analytics and feature flags with PostHog"
+    },
+    {
+      "id": "reverse-engineering",
+      "description": "Reverse engineering apps and binaries into product specs, then OpenSpec changes"
+    },
+    {
+      "id": "product",
+      "description": "Pricing, business models, subscriptions, tickets and GitHub issue planning"
     }
   ],
   "limits": {
