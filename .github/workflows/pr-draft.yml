@@ -1,0 +1,22 @@
+name: pr-draft
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, converted_to_draft]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  # Inactive callers must not cancel the active tier on opened/synchronize events.
+  group: pr-checks-${{ github.event.pull_request.number || github.ref }}-${{ github.event.pull_request.draft && 'active' || 'draft-inactive' }}
+  cancel-in-progress: true
+
+jobs:
+  # Runner selection and timeouts belong to each job in the called workflow.
+  checks:
+    if: github.event.pull_request.draft
+    uses: ./.github/workflows/_checks.yml
+    with:
+      tier: fast

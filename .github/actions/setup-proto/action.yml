@@ -1,0 +1,15 @@
+name: Set up protobuf
+description: Buf and pinned Go generators through mise, with a Go module cache.
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-tools
+      with:
+        tools: buf go
+        area: proto
+    - uses: actions/cache@v6
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: proto-go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'buf.gen.yaml', 'services/api/go.sum') }}

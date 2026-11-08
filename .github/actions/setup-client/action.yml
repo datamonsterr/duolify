@@ -1,0 +1,33 @@
+name: Set up client
+description: mise Node, pnpm and Rust; pnpm store and separate Tauri cache.
+inputs:
+  tauri:
+    description: Install Rust and Tauri system dependencies when true.
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-tools
+      with:
+        tools: ${{ inputs.tauri == 'true' && 'node pnpm rust' || 'node pnpm' }}
+        area: client-${{ inputs.tauri }}
+    - name: Locate pnpm store
+      id: store
+      shell: bash
+      run: mise run ci:pnpm-store
+    - uses: actions/cache@v6
+      with:
+        path: ${{ steps.store.outputs.path }}
+        key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'pnpm-lock.yaml') }}
+        restore-keys: pnpm-${{ runner.os }}-${{ runner.arch }}-
+    - name: Tauri system dependencies
+      if: inputs.tauri == 'true'
+      shell: bash
+      run: mise run ci:tauri-deps
+    - uses: Swatinem/rust-cache@v2
+      if: inputs.tauri == 'true'
+      with:
+        workspaces: apps/client/src-tauri -> target
+        shared-key: client-tauri
+    - shell: bash
+      run: mise run client:install

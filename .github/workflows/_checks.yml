@@ -1,0 +1,565 @@
+name: Shared checks
+
+on:
+  workflow_call:
+    inputs:
+      tier:
+        description: fast for drafts, full for ready PRs, main and merge queues
+        required: true
+        type: string
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: false
+      OPENROUTER_API_KEY:
+        required: false
+      HF_TOKEN:
+        required: false
+      RAILWAY_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+  MISE_AUTO_INSTALL: 'false'
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  changes:
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      proto: ${{ github.event_name != 'pull_request' || steps.paths.outputs.proto == 'true' }}
+      api: ${{ github.event_name != 'pull_request' || steps.paths.outputs.api == 'true' }}
+      engine: ${{ github.event_name != 'pull_request' || steps.paths.outputs.engine == 'true' }}
+      client: ${{ github.event_name != 'pull_request' || steps.paths.outputs.client == 'true' }}
+      infra: ${{ github.event_name != 'pull_request' || steps.paths.outputs.infra == 'true' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v4
+        id: paths
+        with:
+          base: ${{ github.event.merge_group.base_sha || github.event.before || 'main' }}
+          filters: |
+            proto:
+              - 'proto/**'
+              - 'buf*.yaml'
+              - 'services/api/gen/**'
+              - '.mise/tasks/proto.toml'
+              - &tooling 'mise.toml'
+              - &tasks '.mise/tasks/ci.toml'
+              - &github '.github/**'
+              - &scripts 'scripts/ci/**'
+            api:
+              - 'services/api/**'
+              - 'proto/**'
+              - 'buf*.yaml'
+              - '.mise/tasks/api.toml'
+              - *tooling
+              - *tasks
+              - *github
+              - *scripts
+            engine:
+              - 'engine/**'
+              - 'proto/**'
+              - 'evals/**'
+              - '.mise/tasks/engine.toml'
+              - *tooling
+              - *tasks
+              - *github
+              - *scripts
+            client:
+              - 'apps/client/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.npmrc'
+              - '.mise/tasks/client.toml'
+              - *tooling
+              - *tasks
+              - *github
+              - *scripts
+            infra:
+              - 'infra/**'
+              - '.railway/**'
+              - 'docker-compose*.yml'
+              - 'compose*.yaml'
+              - '**/Dockerfile*'
+              - '**/.dockerignore'
+              - '.env.example'
+              - '.mise/tasks/infra.toml'
+              - *tooling
+              - *tasks
+              - *github
+              - *scripts
+
+  workflow-lint:
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: actionlint shellcheck
+      - run: mise run ci:lint
+        timeout-minutes: 2
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  openspec:
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: node npm:@fission-ai/openspec@1.3.1
+          area: openspec
+      - run: mise run ci:openspec
+        timeout-minutes: 2
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  proto:
+    needs: changes
+    if: needs.changes.outputs.proto == 'true'
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          # proto:breaking fetches main using the read-only checkout credential.
+          persist-credentials: true
+      - uses: ./.github/actions/setup-proto
+      - run: mise run proto:lint
+      - run: mise run proto:gen
+        timeout-minutes: 4
+      - run: mise run ci:proto-drift
+      - if: inputs.tier == 'full'
+        run: mise run ci:proto-main
+      - if: inputs.tier == 'full'
+        run: mise run proto:breaking
+        timeout-minutes: 2
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-api
+      - run: mise run api:lint
+        timeout-minutes: 5
+      - run: mise run api:test
+        timeout-minutes: 5
+      - run: mise run api:build
+        timeout-minutes: 2
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  api-integration:
+    needs: changes
+    if: inputs.tier == 'full' && needs.changes.outputs.api == 'true'
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 15
+    # The task starts and removes Postgres 18 via testcontainers; Docker must be available.
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-api
+      - run: mise run api:test-e2e
+        timeout-minutes: 3
+      - run: mise run api:test-integration
+        timeout-minutes: 8
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  engine-lint:
+    needs: changes
+    if: needs.changes.outputs.engine == 'true'
+    runs-on: namespace-profile-linux-xl
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-engine
+      - run: mise run engine:lint
+        timeout-minutes: 12
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  engine-build:
+    needs: changes
+    if: needs.changes.outputs.engine == 'true'
+    runs-on: namespace-profile-linux-xl
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-engine
+      - run: mise run engine:build
+        timeout-minutes: 6
+      - run: mise run ci:engine-archive
+        timeout-minutes: 6
+      - uses: actions/upload-artifact@v7
+        with:
+          name: engine-nextest
+          path: engine/nextest.tar.zst
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  engine-test:
+    needs: engine-build
+    runs-on: namespace-profile-linux-xl
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: rust cargo:cargo-nextest
+          area: engine-test
+      - uses: actions/download-artifact@v8
+        with:
+          name: engine-nextest
+          path: engine
+      # Same workspace suite as engine:test, without compiling it again.
+      - run: mise run ci:engine-test-archive
+        timeout-minutes: 6
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  engine-eval:
+    needs: changes
+    if: needs.changes.outputs.engine == 'true'
+    runs-on: namespace-profile-linux-xl
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-engine
+      - run: mise run engine:eval
+        timeout-minutes: 12
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  engine-eval-live:
+    needs: changes
+    if: inputs.tier == 'full' && needs.changes.outputs.engine == 'true'
+    runs-on: namespace-profile-linux-xl
+    timeout-minutes: 20
+    steps:
+      - name: Check live eval credentials
+        id: credentials
+        env:
+          HAVE_SECRETS: ${{ secrets.ANTHROPIC_API_KEY != '' && secrets.OPENROUTER_API_KEY != '' && secrets.HF_TOKEN != '' }}
+          FORK: ${{ github.event.pull_request.head.repo.fork || false }}
+        run: |
+          if [[ "$HAVE_SECRETS" == true && "$FORK" != true ]]; then
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
+          else
+            echo '::notice::Live sample evals skipped: credentials unavailable or fork PR.'
+          fi
+      - uses: actions/checkout@v7
+        if: steps.credentials.outputs.enabled == 'true'
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-engine
+        if: steps.credentials.outputs.enabled == 'true'
+      - if: steps.credentials.outputs.enabled == 'true'
+        run: mise run engine:eval-live
+        timeout-minutes: 15
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_GOLDEN_DATASET: ${{ vars.HF_GOLDEN_DATASET || 'datamonsterr/duolify-golden' }}
+          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || 'main' }}
+          EVAL_SAMPLE_LIMIT: '10'
+      - name: Summary
+        if: always() && steps.credentials.outputs.enabled == 'true'
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  client:
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    runs-on: namespace-profile-linux-xl
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-client
+      - run: mise run client:lint
+        timeout-minutes: 8
+      - run: mise run client:test
+        timeout-minutes: 5
+      - run: mise run client:build
+        timeout-minutes: 2
+      - uses: actions/upload-artifact@v7
+        with:
+          name: client-web
+          path: apps/client/dist
+          retention-days: 1
+          if-no-files-found: error
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  playwright:
+    needs: [changes, client]
+    if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
+    runs-on: namespace-profile-linux-xl
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-client
+        with:
+          tauri: 'false'
+      - uses: actions/download-artifact@v8
+        with:
+          name: client-web
+          path: apps/client/dist
+      - uses: actions/cache@v6
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: mise run ci:playwright-deps
+        timeout-minutes: 3
+      - if: steps.browsers.outputs.cache-hit != 'true'
+        run: mise run client:e2e-setup
+        timeout-minutes: 3
+      - run: mise run client:e2e
+        timeout-minutes: 6
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playwright-report
+          path: |
+            apps/client/playwright-report
+            apps/client/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  tauri:
+    needs: changes
+    if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
+    runs-on: namespace-profile-linux-xl
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-client
+      - run: mise run client:tauri-build
+        timeout-minutes: 15
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  images:
+    needs: changes
+    if: inputs.tier == 'full'
+    runs-on: namespace-profile-linux-xl
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            context: services/api
+            file: services/api/Dockerfile
+          - image: engine
+            context: .
+            file: engine/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs[matrix.image] == 'true'
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        if: needs.changes.outputs[matrix.image] == 'true'
+      - uses: docker/setup-buildx-action@v4
+        if: needs.changes.outputs[matrix.image] == 'true'
+      - uses: docker/build-push-action@v7
+        if: needs.changes.outputs[matrix.image] == 'true'
+        timeout-minutes: 20
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      - name: Summary
+        if: always() && needs.changes.outputs[matrix.image] == 'true'
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  infra:
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: hadolint
+          area: infra-lint
+      - run: mise run infra:lint
+        timeout-minutes: 6
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  infra-plan:
+    needs: changes
+    if: inputs.tier == 'full' && needs.changes.outputs.infra == 'true'
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 10
+    steps:
+      - name: Check Railway credentials
+        id: credentials
+        env:
+          HAVE_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
+          FORK: ${{ github.event.pull_request.head.repo.fork || false }}
+        run: |
+          if [[ "$HAVE_TOKEN" == true && "$FORK" != true ]]; then
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
+          else
+            echo '::notice::Railway plan skipped: RAILWAY_TOKEN unavailable or fork PR.'
+          fi
+      - uses: actions/checkout@v7
+        if: steps.credentials.outputs.enabled == 'true'
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        if: steps.credentials.outputs.enabled == 'true'
+        with:
+          tools: node pnpm railway
+          area: infra
+      - if: steps.credentials.outputs.enabled == 'true'
+        run: mise run infra:plan
+        timeout-minutes: 6
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - name: Summary
+        if: always() && steps.credentials.outputs.enabled == 'true'
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs:
+      - changes
+      - workflow-lint
+      - openspec
+      - proto
+      - api
+      - api-integration
+      - engine-lint
+      - engine-build
+      - engine-test
+      - engine-eval
+      - engine-eval-live
+      - client
+      - playwright
+      - tauri
+      - images
+      - infra
+      - infra-plan
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+      - name: Require all selected checks to pass
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
+        run: mise run ci:aggregate
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary

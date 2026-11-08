@@ -1,0 +1,16 @@
+name: Set up API
+description: Cached Go tools, modules and compiled packages.
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-tools
+      with:
+        tools: go golangci-lint gotestsum
+        area: api
+    - uses: actions/cache@v6
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'services/api/go.sum') }}
+        restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
