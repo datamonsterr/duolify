@@ -1,0 +1,269 @@
+@import "tailwindcss";
+:root {
+  font-family: Inter, ui-sans-serif, system-ui;
+  color: #252a48;
+  background: #faf9f6;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button {
+  cursor: pointer;
+}
+.shell {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 680px) 280px;
+  justify-content: center;
+  min-height: 100vh;
+}
+.sidebar {
+  border-right: 1px solid #ecebf0;
+  padding: 32px 22px;
+  display: flex;
+  flex-direction: column;
+}
+.brand {
+  font-size: 27px;
+  font-weight: 900;
+  color: #6b5ce7;
+  letter-spacing: -1px;
+  margin-bottom: 50px;
+}
+.sidebar nav {
+  display: grid;
+  gap: 10px;
+}
+.sidebar nav a {
+  padding: 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  color: #686b80;
+}
+.sidebar nav a[data-status="active"] {
+  background: #efedff;
+  color: #6355d6;
+}
+.sidebar-foot {
+  margin-top: auto;
+  color: #999bad;
+  font-size: 13px;
+}
+.main {
+  padding: 48px 48px 80px;
+}
+.right {
+  padding: 48px 24px;
+}
+.stats {
+  display: flex;
+  justify-content: space-between;
+  color: #6b5ce7;
+  font-weight: 800;
+  gap: 10px;
+}
+.stats small {
+  display: block;
+  color: #9194a5;
+  font-size: 10px;
+  font-weight: 600;
+}
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.13em;
+  font-weight: 800;
+  color: #8278dc;
+}
+h1 {
+  font-size: 34px;
+  letter-spacing: -1px;
+  margin: 8px 0;
+}
+h2 {
+  font-size: 20px;
+  margin: 8px 0;
+}
+p {
+  color: #818498;
+  line-height: 1.5;
+}
+.unit {
+  margin-top: 32px;
+  border-radius: 16px;
+  padding: 20px 24px;
+  color: white;
+  background: #7161de;
+  box-shadow: 0 5px #594bbd;
+}
+.unit small {
+  font-weight: 700;
+  opacity: 0.7;
+}
+.path {
+  padding: 24px 30px;
+}
+.node-row {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin: 20px 0;
+}
+.node {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  font-size: 28px;
+  color: #fff;
+  background: #d9dae5;
+  box-shadow: 0 6px #c1c3d1;
+}
+.node.current {
+  background: #faab5b;
+  box-shadow: 0 6px #e68a3f;
+}
+.node.done {
+  background: #69c8ac;
+}
+.muted {
+  font-size: 13px;
+  color: #999bad;
+  margin-top: 4px;
+}
+.card,
+.course-card {
+  border: 1px solid #eeedf3;
+  background: white;
+  border-radius: 18px;
+  padding: 22px;
+  margin-top: 28px;
+}
+.card h3 {
+  font-size: 16px;
+}
+.card p {
+  font-size: 13px;
+}
+.quest,
+.progress {
+  height: 10px;
+  border-radius: 10px;
+  background: #eae9f1;
+  overflow: hidden;
+}
+.quest span,
+.progress span {
+  display: block;
+  height: 100%;
+  background: #7ccdb4;
+}
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+.course-card {
+  margin: 10px 0;
+  transition: transform 0.2s;
+}
+.course-card:hover {
+  transform: translateY(-3px);
+}
+.course-card strong {
+  color: #7161de;
+  font-size: 13px;
+}
+.course-icon,
+.big-star {
+  font-size: 42px;
+  color: #f6af5e;
+}
+.player iframe {
+  width: 100%;
+  height: 340px;
+  border: 0;
+  border-radius: 20px;
+}
+.player .progress {
+  margin-top: 24px;
+}
+.controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+.controls button,
+.complete a {
+  border: 1px solid #dedde8;
+  border-radius: 10px;
+  padding: 12px 16px;
+  background: white;
+  font-weight: 700;
+}
+.controls button:disabled {
+  opacity: 0.4;
+}
+.controls .primary,
+.complete a {
+  background: #7161de;
+  color: white;
+  border-color: #7161de;
+  margin-left: auto;
+}
+.complete {
+  text-align: center;
+  padding: 80px 0;
+}
+.complete a {
+  display: inline-block;
+  margin: 20px 0;
+}
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: 160px minmax(0, 1fr);
+  }
+  .right {
+    display: none;
+  }
+  .main {
+    padding: 35px 25px;
+  }
+  .sidebar {
+    padding: 25px 12px;
+  }
+}
+@media (max-width: 600px) {
+  .shell {
+    display: block;
+  }
+  .sidebar {
+    border: 0;
+    padding: 14px;
+  }
+  .brand {
+    margin: 0;
+  }
+  .sidebar nav {
+    display: flex;
+    overflow: auto;
+  }
+  .sidebar nav a {
+    white-space: nowrap;
+    font-size: 13px;
+    padding: 10px;
+  }
+  .sidebar-foot {
+    display: none;
+  }
+  .course-grid {
+    grid-template-columns: 1fr;
+  }
+}
