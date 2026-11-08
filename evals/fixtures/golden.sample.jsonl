@@ -1,0 +1,3 @@
+{"id":"preview-1","task":"preview","input":{"topic":"example"},"rubric":"Return a title and slide.","checks":[{"kind":"json"},{"kind":"field","value":"title"},{"kind":"slide"}]}
+{"id":"outline-1","task":"outline","input":{"topic":"example"},"rubric":"Return a title.","checks":[{"kind":"field","value":"title"}]}
+{"id":"note-1","task":"note","input":{"note":"example"},"rubric":"Summarize the note.","checks":[{"kind":"contains","value":"Sample note"}]}
