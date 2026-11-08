@@ -9,7 +9,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 FROM gcr.io/distroless/static-debian13:nonroot
 COPY --from=build /out/api /api
-USER nonroot:nonroot
+USER 65532:65532
 EXPOSE 8080
 ENTRYPOINT ["/api"]
 CMD ["serve"]
