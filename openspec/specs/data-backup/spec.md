@@ -70,7 +70,7 @@ Backup and drill jobs SHALL emit `backup_completed`, `backup_failed` and `restor
 - **THEN** `restore_drill_completed` is emitted
 
 ### Requirement: Backup tooling reliability
-Backup jobs have no AI component, so no model reliability requirement applies. Backup jobs MUST be idempotent and MUST be covered by an integration test with Postgres and MinIO.
+Backup jobs have no AI component, so no model reliability requirement applies. Backup jobs MUST be idempotent and MUST be covered by an integration test with Postgres and a local S3-compatible store (RustFS).
 
 #### Scenario: Job retried
 - **WHEN** a dump job runs twice for the same date

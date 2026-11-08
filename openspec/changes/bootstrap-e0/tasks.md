@@ -19,7 +19,7 @@
 - [ ] 5.2 Tauri 2 + React scaffold, `client:lint|test|build`
 
 ## 6. Infra and CI
-- [ ] 6.1 docker compose with Postgres, Redis, MinIO; Railway config; backup stub
+- [ ] 6.1 docker compose with Postgres, Redis, RustFS (S3); Railway config; backup stub
 - [ ] 6.2 Draft and ready pipelines with `ci-ok`
 
 ## 7. Cross-cutting
