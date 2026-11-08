@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "9ca1243d63cf397d316eb0f96d9758ffc70d676c8e00109bcc2e670ad6563f27",
+  "source": "https://github.com/PostHog/skills/tree/HEAD/skills/posthog/all/skills/error-tracking-react",
+  "ref": "HEAD",
+  "revision": "a5d30e775d092e16e198f7b582f1f66dac2cee45",
+  "category": "analytics",
+  "installedAt": "2026-11-08T08:12:12.459Z"
+}

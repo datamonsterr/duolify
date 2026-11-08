@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "b95cfa550f79e7c9b0c6d1962840f43d17ad476490aaef31e66844bead0cedd5",
+  "source": "https://github.com/PostHog/skills/tree/HEAD/skills/posthog/all/skills/llm-analytics-setup",
+  "ref": "HEAD",
+  "revision": "a5d30e775d092e16e198f7b582f1f66dac2cee45",
+  "category": "analytics",
+  "installedAt": "2026-11-08T08:12:27.066Z"
+}

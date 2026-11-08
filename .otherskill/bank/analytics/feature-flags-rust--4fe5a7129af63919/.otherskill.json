@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "4fe5a7129af63919003f24d7bf0f7a9af5072129599c44764a7b31abc5dc3b3c",
+  "source": "https://github.com/PostHog/skills/tree/HEAD/skills/posthog/all/skills/feature-flags-rust",
+  "ref": "HEAD",
+  "revision": "a5d30e775d092e16e198f7b582f1f66dac2cee45",
+  "category": "analytics",
+  "installedAt": "2026-11-08T08:12:24.193Z"
+}

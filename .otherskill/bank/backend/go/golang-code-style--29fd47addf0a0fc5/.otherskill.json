@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "29fd47addf0a0fc51c531b893f946cf31432a1ae697ca63c2a8d22b44f6cf82a",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-code-style",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:15.419Z"
+}

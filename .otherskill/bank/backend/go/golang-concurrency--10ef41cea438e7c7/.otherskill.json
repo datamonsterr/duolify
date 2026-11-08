@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "10ef41cea438e7c755dbd8e7370e0a0da2d38755e2666a80b8bd86b6be40d72d",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-concurrency",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:20.001Z"
+}

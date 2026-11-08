@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "807db48a1ff1334a6796be1037ff2500ba456692dfd1d07635e4001e337b4028",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-structs-interfaces",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:51.548Z"
+}

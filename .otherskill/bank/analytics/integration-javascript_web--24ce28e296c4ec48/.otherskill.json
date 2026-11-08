@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "24ce28e296c4ec4843076bb6ce07aed482e5168aa4f56c6b8342e53999659937",
+  "source": "https://github.com/PostHog/skills/tree/HEAD/skills/posthog/all/skills/integration-javascript_web",
+  "ref": "HEAD",
+  "revision": "a5d30e775d092e16e198f7b582f1f66dac2cee45",
+  "category": "analytics",
+  "installedAt": "2026-11-08T08:12:09.721Z"
+}

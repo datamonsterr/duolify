@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "2b50024475e0598c1c6198d41ac8911ca3fc68f2f5658cac41e3857d5d06f28a",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-continuous-integration",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:53.783Z"
+}

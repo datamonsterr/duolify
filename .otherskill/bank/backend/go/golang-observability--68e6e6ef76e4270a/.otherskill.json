@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "68e6e6ef76e4270abe19383a02831de03cf1fb0122f3c3ad96de9d039a31afb4",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-observability",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:41.101Z"
+}

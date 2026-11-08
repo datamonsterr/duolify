@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "d99958752bbc9b4eaa1fef595ac2b5761fe0f4619ce2cffb1a87b417229643ce",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-grpc",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:35.885Z"
+}

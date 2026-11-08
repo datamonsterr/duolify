@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "8bfeaf0251a49ce16e8585dd4d35ac17fbef7c7ac05adf11215902f0191fed54",
+  "source": "https://github.com/full-stack-skills/tauri-skills/tree/HEAD/skills/tauri-ipc",
+  "ref": "HEAD",
+  "revision": "77b57c4913873a0f8cab7db45116038dc18a27f0",
+  "category": "frontend/tauri",
+  "installedAt": "2026-11-08T08:11:01.707Z"
+}
