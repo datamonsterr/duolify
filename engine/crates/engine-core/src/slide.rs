@@ -6,14 +6,17 @@ pub fn validate(html: &str, allow_hosts: &[&str]) -> Result<(), &'static str> {
         return Err("slide exceeds size limit");
     }
     let stripped = Regex::new(r"(?s)<!--.*?-->").unwrap().replace_all(html, "");
+    let without_scripts = Regex::new(r"(?is)<script\b[^>]*>.*?</script\s*>")
+        .unwrap()
+        .replace_all(&stripped, "");
     let root =
         Regex::new(r#"(?i)<[a-z][a-z0-9-]*\b[^>]*\bid\s*=\s*(?:"root"|'root'|root(?:\s|>))"#)
             .unwrap();
-    if !root.is_match(&stripped) {
+    if !root.is_match(&without_scripts) {
         return Err("slide must contain a root element");
     }
     // Reject obfuscation and dynamic network primitives rather than trying to interpret JS.
-    let dangerous = Regex::new(r"(?i)(?:&#|\\|\b(?:fetch|websocket|eventsource|xmlhttprequest|sendbeacon|importscripts)\b|@import|<\s*(?:iframe|object|embed|base)\b)").unwrap();
+    let dangerous = Regex::new(r"(?i)(?:&(?:#|[a-z]+;)|\\|\b(?:fetch|websocket|eventsource|xmlhttprequest|sendbeacon|importscripts)\b|@import|\b(?:ftp|wss?|data|javascript):|<\s*(?:iframe|object|embed|base)\b)").unwrap();
     if dangerous.is_match(&stripped) {
         return Err("dynamic network or obfuscation is not allowed");
     }

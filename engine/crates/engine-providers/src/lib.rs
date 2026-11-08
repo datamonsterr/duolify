@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
-use engine_core::{Completion, CompletionStream, LlmProvider};
+use engine_core::{Completion, CompletionStream, LlmProvider, StreamEvent};
 use futures::{StreamExt, stream};
 use serde_json::{Value, json};
 
@@ -40,6 +40,9 @@ impl HttpProvider {
                 .header("anthropic-version", "2023-06-01");
         } else {
             req = req.bearer_auth(&self.key);
+        }
+        if streaming && !self.anthropic {
+            body["stream_options"] = json!({"include_usage":true});
         }
         req.json(&body)
     }
@@ -97,47 +100,116 @@ impl LlmProvider for HttpProvider {
             .await?
             .error_for_status()?;
         let anthropic = self.anthropic;
-        let bytes = response.bytes_stream();
+        let model = model.to_owned();
         let output = stream::unfold(
-            (Box::pin(bytes), String::new(), false),
-            move |(mut bytes, mut buffer, mut done)| async move {
-                loop {
-                    if let Some(pos) = buffer.find('\n') {
-                        let line = buffer.drain(..=pos).collect::<String>();
-                        if let Some(data) = line.trim().strip_prefix("data:") {
-                            let data = data.trim();
-                            if data == "[DONE]" {
-                                done = true;
-                                continue;
-                            }
-                            match serde_json::from_str::<Value>(data) {
-                                Ok(v) => {
-                                    let delta = if anthropic {
-                                        v["delta"]["text"].as_str()
-                                    } else {
-                                        v["choices"][0]["delta"]["content"].as_str()
-                                    };
-                                    if let Some(text) = delta {
-                                        return Some((Ok(text.to_string()), (bytes, buffer, done)));
+            (
+                Box::pin(response.bytes_stream()),
+                Vec::<u8>::new(),
+                false,
+                0_u32,
+                0_u32,
+                false,
+            ),
+            move |(mut bytes, mut buffer, mut done, mut input, mut output, mut emitted)| {
+                let model = model.clone();
+                async move {
+                    loop {
+                        if let Some(pos) = buffer.iter().position(|b| *b == b'\n') {
+                            let line = match String::from_utf8(buffer.drain(..=pos).collect()) {
+                                Ok(s) => s,
+                                Err(e) => {
+                                    return Some((
+                                        Err(e.into()),
+                                        (bytes, buffer, true, input, output, emitted),
+                                    ));
+                                }
+                            };
+                            if let Some(data) = line.trim().strip_prefix("data:") {
+                                let data = data.trim();
+                                if data == "[DONE]" {
+                                    done = true;
+                                    continue;
+                                }
+                                let v: Value = match serde_json::from_str(data) {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        return Some((
+                                            Err(e.into()),
+                                            (bytes, buffer, true, input, output, emitted),
+                                        ));
+                                    }
+                                };
+                                if v["type"] == "error" || !v["error"].is_null() {
+                                    return Some((
+                                        Err(anyhow::anyhow!("provider stream error")),
+                                        (bytes, buffer, true, input, output, true),
+                                    ));
+                                }
+                                let count =
+                                    |v: &Value| v.as_u64().and_then(|n| u32::try_from(n).ok());
+                                if anthropic {
+                                    if let Some(n) = count(&v["message"]["usage"]["input_tokens"]) {
+                                        input = n;
+                                    }
+                                    if let Some(n) = count(&v["usage"]["output_tokens"]) {
+                                        output = n;
+                                    }
+                                    if v["type"] == "message_stop" {
+                                        done = true;
+                                    }
+                                } else {
+                                    if let Some(n) = count(&v["usage"]["prompt_tokens"]) {
+                                        input = n;
+                                    }
+                                    if let Some(n) = count(&v["usage"]["completion_tokens"]) {
+                                        output = n;
                                     }
                                 }
-                                Err(e) => return Some((Err(e.into()), (bytes, buffer, true))),
-                            }
-                        }
-                    } else if done {
-                        return None;
-                    } else {
-                        match bytes.next().await {
-                            Some(Ok(b)) => match std::str::from_utf8(&b) {
-                                Ok(s) => buffer.push_str(s),
-                                Err(e) => return Some((Err(e.into()), (bytes, buffer, true))),
-                            },
-                            Some(Err(e)) => return Some((Err(e.into()), (bytes, buffer, true))),
-                            None => {
-                                if !buffer.is_empty() {
-                                    buffer.push('\n');
+                                let delta = if anthropic {
+                                    v["delta"]["text"].as_str()
+                                } else {
+                                    v["choices"][0]["delta"]["content"].as_str()
+                                };
+                                if let Some(text) = delta {
+                                    return Some((
+                                        Ok(StreamEvent::Delta(text.to_owned())),
+                                        (bytes, buffer, done, input, output, emitted),
+                                    ));
                                 }
-                                done = true;
+                            }
+                        } else if done {
+                            if emitted {
+                                return None;
+                            }
+                            emitted = true;
+                            let usage = Completion {
+                                text: String::new(),
+                                provider: if anthropic { "anthropic" } else { "openrouter" }.into(),
+                                model,
+                                input_tokens: input,
+                                output_tokens: output,
+                            };
+                            return Some((
+                                Ok(StreamEvent::Usage(usage)),
+                                (bytes, buffer, done, input, output, emitted),
+                            ));
+                        } else {
+                            match bytes.next().await {
+                                Some(Ok(b)) => buffer.extend_from_slice(&b),
+                                Some(Err(e)) => {
+                                    return Some((
+                                        Err(e.into()),
+                                        (bytes, buffer, true, input, output, true),
+                                    ));
+                                }
+                                None => {
+                                    return Some((
+                                        Err(anyhow::anyhow!(
+                                            "provider stream ended before completion"
+                                        )),
+                                        (bytes, Vec::new(), true, input, output, true),
+                                    ));
+                                }
                             }
                         }
                     }

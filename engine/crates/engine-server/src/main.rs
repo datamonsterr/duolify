@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
     let service = EngineServiceServer::new(Service {
         router: Arc::new(engine_providers::router(&mode)?),
     });
-    let (mut reporter, health) = tonic_health::server::health_reporter();
+    let (reporter, health) = tonic_health::server::health_reporter();
     reporter.set_serving::<EngineServiceServer<Service>>().await;
     let reflection = tonic_reflection::server::Builder::configure()
         .register_encoded_file_descriptor_set(engine_proto::FILE_DESCRIPTOR_SET)

@@ -1,4 +1,4 @@
-use engine_core::{Completion, ProviderRouter};
+use engine_core::{Completion, ProviderRouter, StreamEvent};
 use engine_proto::{self as pb, engine_service_server::EngineService};
 use futures::{Stream, StreamExt};
 use std::{pin::Pin, sync::Arc};
@@ -29,7 +29,25 @@ fn outline(c: &Completion) -> Result<pb::CourseOutline, Status> {
         course_id: String::new(),
         title: title.into(),
         description: v["description"].as_str().unwrap_or_default().into(),
-        units: vec![],
+        units: v["units"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|unit| pb::Unit {
+                unit_id: unit["unit_id"].as_str().unwrap_or_default().into(),
+                title: unit["title"].as_str().unwrap_or_default().into(),
+                lessons: unit["lessons"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|lesson| pb::LessonRef {
+                        lesson_id: lesson["lesson_id"].as_str().unwrap_or_default().into(),
+                        title: lesson["title"].as_str().unwrap_or_default().into(),
+                        goal: lesson["goal"].as_str().unwrap_or_default().into(),
+                    })
+                    .collect(),
+            })
+            .collect(),
     })
 }
 fn slide(c: &Completion) -> Result<pb::Slide, Status> {
@@ -67,7 +85,7 @@ impl EngineService for Service {
         let req = request.into_inner();
         let c = self
             .router
-            .complete("preview", &req.topic)
+            .complete("preview", &format!("{req:?}"))
             .await
             .map_err(internal)?;
         Ok(Response::new(pb::PreviewCourseResponse {
@@ -83,7 +101,7 @@ impl EngineService for Service {
         let req = request.into_inner();
         let c = self
             .router
-            .complete("outline", &req.topic)
+            .complete("outline", &format!("{req:?}"))
             .await
             .map_err(internal)?;
         Ok(Response::new(pb::GenerateCourseOutlineResponse {
@@ -107,7 +125,26 @@ impl EngineService for Service {
         let l = pb::Lesson {
             r#ref: req.lesson,
             slides: vec![s.clone()],
-            test: vec![],
+            test: content(&c)?["test"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|q| pb::Question {
+                    question_id: q["question_id"].as_str().unwrap_or_default().into(),
+                    prompt: q["prompt"].as_str().unwrap_or_default().into(),
+                    choices: q["choices"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|v| v.as_str().map(str::to_owned))
+                        .collect(),
+                    answer_index: q["answer_index"]
+                        .as_u64()
+                        .and_then(|n| u32::try_from(n).ok())
+                        .unwrap_or(0),
+                    explanation: q["explanation"].as_str().unwrap_or_default().into(),
+                })
+                .collect(),
         };
         let events = vec![
             pb::generate_lesson_event::Event::Progress("Generating".into()),
@@ -133,8 +170,13 @@ impl EngineService for Service {
             .await
             .map_err(internal)?
             .map(|r| {
-                r.map(|delta| pb::ChatEvent {
-                    event: Some(pb::chat_event::Event::Delta(delta)),
+                r.map(|part| pb::ChatEvent {
+                    event: Some(match part {
+                        StreamEvent::Delta(delta) => pb::chat_event::Event::Delta(delta),
+                        StreamEvent::Usage(c) => {
+                            pb::chat_event::Event::Usage(usage(&c).expect("usage"))
+                        }
+                    }),
                 })
                 .map_err(internal)
             });
@@ -147,7 +189,7 @@ impl EngineService for Service {
         let req = request.into_inner();
         let c = self
             .router
-            .complete("note", &req.note)
+            .complete("note", &format!("{req:?}"))
             .await
             .map_err(internal)?;
         Ok(Response::new(pb::EnrichNoteResponse {

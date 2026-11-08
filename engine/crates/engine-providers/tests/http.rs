@@ -28,10 +28,16 @@ async fn parses_anthropic_stream() {
     use futures::StreamExt;
     let server = MockServer::start().await;
     Mock::given(method("POST")).and(body_partial_json(serde_json::json!({"stream":true})))
-        .respond_with(ResponseTemplate::new(200).set_body_string("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"hello\"}}\n\n"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"hello\"}}\n\ndata: {\"type\":\"message_stop\"}\n\n"))
         .mount(&server).await;
     let p = HttpProvider::anthropic("key".into(), server.uri());
     let mut stream = p.stream("m", "input").await.unwrap();
-    assert_eq!(stream.next().await.unwrap().unwrap(), "hello");
+    assert!(
+        matches!(stream.next().await.unwrap().unwrap(), engine_core::StreamEvent::Delta(s) if s == "hello")
+    );
+    assert!(matches!(
+        stream.next().await.unwrap().unwrap(),
+        engine_core::StreamEvent::Usage(_)
+    ));
     assert!(stream.next().await.is_none());
 }

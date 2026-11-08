@@ -21,7 +21,12 @@ pub struct Completion {
     pub input_tokens: u32,
     pub output_tokens: u32,
 }
-pub type CompletionStream = Pin<Box<dyn Stream<Item = Result<String>> + Send>>;
+#[derive(Debug, Clone)]
+pub enum StreamEvent {
+    Delta(String),
+    Usage(Completion),
+}
+pub type CompletionStream = Pin<Box<dyn Stream<Item = Result<StreamEvent>> + Send>>;
 #[async_trait]
 pub trait LlmProvider: Send + Sync {
     async fn complete(&self, model: &str, input: &str) -> Result<Completion>;
@@ -64,12 +69,20 @@ pub struct MockProvider;
 #[async_trait]
 impl LlmProvider for MockProvider {
     async fn complete(&self, model: &str, _: &str) -> Result<Completion> {
-        Ok(Completion { text: "{\"title\":\"Sample\",\"summary\":\"Sample note\",\"html\":\"<div id=\\\"root\\\">Sample</div>\"}".into(), provider: "mock".into(), model: model.into(), input_tokens: 0, output_tokens: 0 })
+        Ok(Completion { text: serde_json::json!({"title":"Sample", "summary":"Sample note", "html":"<div id=\"root\">Sample</div>", "units":[{"unit_id":"unit-1","title":"Sample unit","lessons":[{"lesson_id":"lesson-1","title":"Sample lesson","goal":"Learn"}]}], "test":[{"question_id":"q1","prompt":"Sample?","choices":["Yes","No"],"answer_index":0,"explanation":"Sample"}]}).to_string(), provider: "mock".into(), model: model.into(), input_tokens: 0, output_tokens: 0 })
     }
-    async fn stream(&self, _: &str, _: &str) -> Result<CompletionStream> {
-        Ok(Box::pin(futures::stream::once(async {
-            Ok("Sample response".into())
-        })))
+    async fn stream(&self, model: &str, _: &str) -> Result<CompletionStream> {
+        let usage = Completion {
+            text: String::new(),
+            provider: "mock".into(),
+            model: model.into(),
+            input_tokens: 0,
+            output_tokens: 0,
+        };
+        Ok(Box::pin(futures::stream::iter(vec![
+            Ok(StreamEvent::Delta("Sample response".into())),
+            Ok(StreamEvent::Usage(usage)),
+        ])))
     }
 }
 pub mod slide;
