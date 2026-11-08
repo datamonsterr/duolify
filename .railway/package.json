@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "railway": "3.16.0"
+  },
+  "name": "duolify-railway",
+  "private": true,
+  "type": "module"
+}

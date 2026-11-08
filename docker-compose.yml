@@ -1,0 +1,152 @@
+name: duolify
+
+x-api-env: &api-env
+  DUOLIFY_ENV: ${DUOLIFY_ENV:-development}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  API_ADDR: :8080
+  # Host-side .env URLs use localhost; containers always use service DNS.
+  DATABASE_URL: postgres://duolify:duolify@postgres:5432/duolify?sslmode=disable
+  REDIS_URL: redis://redis:6379/0
+  ENGINE_ADDR: http://engine:50051
+  JWT_SECRET: ${JWT_SECRET:-change-me-dev-only}
+  S3_ENDPOINT: http://objectstore:9000
+  S3_BUCKET: ${S3_BUCKET:-duolify}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-duolify}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-duolify-dev-secret}
+  POSTHOG_API_KEY: ${POSTHOG_API_KEY:-}
+  POSTHOG_HOST: ${POSTHOG_HOST:-https://us.i.posthog.com}
+
+x-api: &api
+  image: duolify-api:local
+  build:
+    context: services/api
+    dockerfile: Dockerfile
+  environment: *api-env
+  env_file:
+    - path: .env
+      required: false
+
+x-health: &health
+  interval: 5s
+  timeout: 4s
+  retries: 20
+  start_period: 10s
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: duolify
+      POSTGRES_PASSWORD: duolify
+      POSTGRES_DB: duolify
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [postgres-data:/var/lib/postgresql]
+    healthcheck:
+      <<: *health
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+
+  redis:
+    image: redis:8
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      <<: *health
+      test: [CMD, redis-cli, ping]
+
+  objectstore:
+    # MinIO's public images are no longer anonymously pullable. RustFS serves
+    # the same S3 contract locally; cloud storage remains Railway Buckets.
+    image: rustfs/rustfs:1.0.4
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY_ID:-duolify}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_ACCESS_KEY:-duolify-dev-secret}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_CONSOLE_ENABLE: "true"
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+    volumes: [objectstore-data:/data, objectstore-logs:/logs]
+    healthcheck:
+      <<: *health
+      test: [CMD, curl, --fail, --silent, http://localhost:9000/health/ready]
+
+  s3-init:
+    image: amazon/aws-cli:2.39.6
+    depends_on:
+      objectstore: {condition: service_healthy}
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-duolify}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-duolify-dev-secret}
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+      AWS_ENDPOINT_URL: http://objectstore:9000
+      AWS_CONFIG_FILE: /aws-config
+      AWS_PAGER: ""
+      S3_BUCKET: ${S3_BUCKET:-duolify}
+    volumes:
+      - ./infra/s3/init-buckets.sh:/init-buckets.sh:ro
+      - ./infra/s3/aws-config:/aws-config:ro
+    entrypoint: [/bin/bash, /init-buckets.sh]
+    restart: "no"
+    healthcheck:
+      <<: *health
+      test: [CMD, aws, s3api, list-buckets]
+
+  migrate:
+    <<: *api
+    # Current binary: `migrate` applies all embedded Goose + River up migrations.
+    command: [migrate]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+    healthcheck:
+      <<: *health
+      test: [CMD, /api, healthcheck, --database]
+
+  engine:
+    image: duolify-engine:local
+    build:
+      context: .
+      dockerfile: engine/Dockerfile
+    environment:
+      ENGINE_ADDR_LISTEN: 0.0.0.0:50051
+      ENGINE_PROVIDER_MODE: ${ENGINE_PROVIDER_MODE:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    ports: ["127.0.0.1:50051:50051"]
+    healthcheck:
+      <<: *health
+      test: [CMD, /grpc_health_probe, -addr=127.0.0.1:50051]
+
+  api:
+    <<: *api
+    command: [serve]
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      s3-init: {condition: service_completed_successfully}
+      migrate: {condition: service_completed_successfully}
+      engine: {condition: service_healthy}
+    healthcheck:
+      <<: *health
+      test: [CMD, /api, healthcheck]
+
+  worker:
+    <<: *api
+    profiles: [workers]
+    command: [worker]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      s3-init: {condition: service_completed_successfully}
+      migrate: {condition: service_completed_successfully}
+      engine: {condition: service_healthy}
+    healthcheck:
+      <<: *health
+      # Worker has no HTTP listener; verify its durable queue dependency.
+      test: [CMD, /api, healthcheck, --database]
+
+volumes:
+  postgres-data:
+  redis-data:
+  objectstore-data:
+  objectstore-logs:

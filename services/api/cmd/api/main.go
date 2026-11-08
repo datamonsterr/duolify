@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -35,9 +37,12 @@ func main() {
 }
 func run(ctx context.Context, args []string) (result error) {
 	if len(args) == 0 {
-		return errors.New("usage: api {serve|worker|migrate}")
+		return errors.New("usage: api {serve|worker|migrate|healthcheck}")
 	}
 	command := args[0]
+	if command == "healthcheck" {
+		return healthcheck(ctx, args[1:])
+	}
 	switch command {
 	case "serve", "worker", "migrate":
 	default:
@@ -104,4 +109,65 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	logger.InfoContext(ctx, "HTTP server listening", "addr", listener.Addr().String())
 	return httpapi.Serve(ctx, server, listener)
+}
+
+// healthcheck works in distroless images without a shell or curl. Workers and
+// one-shot migrations use --database because they do not expose an HTTP server.
+func healthcheck(ctx context.Context, args []string) error {
+	flags := flag.NewFlagSet("healthcheck", flag.ContinueOnError)
+	database := flags.Bool("database", false, "check the queue's Postgres dependency")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("unexpected healthcheck arguments")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if *database {
+		databaseURL := os.Getenv("DATABASE_URL")
+		if databaseURL == "" {
+			return errors.New("DATABASE_URL is required")
+		}
+		db, err := store.New(ctx, databaseURL)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		return db.Ping(ctx)
+	}
+	addr := os.Getenv("API_ADDR")
+	if addr == "" {
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "8080"
+		}
+		addr = ":" + port
+	}
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return err
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return errors.New("healthcheck port must be between 1 and 65535")
+	}
+	// #nosec G704 -- fixed loopback host and numeric port; no user-controlled URL.
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+net.JoinHostPort("127.0.0.1", port)+"/healthz", nil)
+	if err != nil {
+		return err
+	}
+	client := &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	// #nosec G704 -- request is fixed to loopback above and redirects are disabled.
+	response, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("healthcheck returned HTTP %d", response.StatusCode)
+	}
+	return nil
 }

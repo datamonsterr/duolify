@@ -1,0 +1,55 @@
+["infra:up"]
+description = "Start the local stack and wait for healthchecks"
+run = "docker compose up -d --wait"
+
+["infra:deps"]
+description = "Start only Postgres, Redis, RustFS S3 and bucket initialization"
+# --wait treats an explicitly selected one-shot exit as a failure when no
+# selected service depends on its completion. Run the initializer separately.
+run = ["docker compose up -d --wait postgres redis objectstore", "docker compose run --rm --no-deps s3-init"]
+
+["infra:down"]
+description = "Stop all profiles; retain named data volumes"
+run = "docker compose --profile '*' down --remove-orphans"
+
+["infra:logs"]
+description = "Follow local stack logs (all profiles)"
+run = "docker compose --profile '*' logs --follow --tail 100"
+
+["infra:lint"]
+description = "Validate Compose, lint every Dockerfile and infra shell script"
+run = '''
+set -eu
+docker compose config -q
+git ls-files --cached --others --exclude-standard -z -- '*Dockerfile' | xargs -0 hadolint
+shellcheck infra/backup/restore-drill.sh infra/hooks/*.sh infra/s3/*.sh
+'''
+
+["infra:test"]
+description = "Verify healthy local dependencies"
+depends = ["infra:deps"]
+run = ["docker compose exec -T postgres pg_isready -U duolify -d duolify", "docker compose exec -T redis redis-cli ping", "docker compose exec -T objectstore curl --fail --silent http://localhost:9000/health/ready"]
+
+["infra:build"]
+description = "Build the API and engine container images"
+run = "docker compose build api engine"
+
+["infra:plan"]
+description = "Preview Railway IaC for duolify/dev without applying"
+run = ["npm ci --prefix .railway --ignore-scripts", "railway link --project duolify --environment dev", "railway config plan"]
+
+["infra:deploy-dev"]
+description = "Review and apply Railway IaC to duolify/dev only (may incur costs)"
+run = ["npm ci --prefix .railway --ignore-scripts", "railway link --project duolify --environment dev", "railway config apply"]
+
+["infra:restore-drill"]
+description = "Restore an anonymized custom-format dump into disposable Postgres"
+usage = 'arg "<dump>" help="Path to an anonymized custom-format pg_dump archive"'
+run = 'bash infra/backup/restore-drill.sh "${usage_dump?}"'
+
+[dev]
+description = "Start dependencies and print the three local development commands"
+depends = ["infra:deps"]
+run = '''
+printf '%s\n' 'In separate terminals:' 'mise run api:migrate && mise run api:run' 'mise run engine:run' 'mise run client:dev'
+'''
