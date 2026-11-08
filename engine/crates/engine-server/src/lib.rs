@@ -50,18 +50,41 @@ fn outline(c: &Completion) -> Result<pb::CourseOutline, Status> {
             .collect(),
     })
 }
-fn slide(c: &Completion) -> Result<pb::Slide, Status> {
+fn slides(c: &Completion) -> Result<Vec<pb::Slide>, Status> {
     let v = content(c)?;
-    let html = v["html"]
-        .as_str()
-        .ok_or_else(|| Status::internal("missing slide html"))?;
-    engine_core::slide::validate(html, &[]).map_err(|_| Status::internal("invalid slide"))?;
-    Ok(pb::Slide {
-        slide_id: String::new(),
-        html: html.into(),
-        duration_ms: 1000,
-        narration: String::new(),
-    })
+    let values = v["slides"]
+        .as_array()
+        .cloned()
+        .unwrap_or_else(|| vec![v.clone()]);
+    if values.is_empty() {
+        return Err(Status::internal("missing slides"));
+    }
+    values
+        .iter()
+        .map(|item| {
+            let html = item["html"]
+                .as_str()
+                .ok_or_else(|| Status::internal("missing slide html"))?;
+            engine_core::slide::validate(html, &[])
+                .map_err(|_| Status::internal("invalid slide"))?;
+            Ok(pb::Slide {
+                slide_id: item["slide_id"].as_str().unwrap_or_default().into(),
+                html: html.into(),
+                duration_ms: item["duration_ms"]
+                    .as_u64()
+                    .and_then(|n| u32::try_from(n).ok())
+                    .unwrap_or(1000),
+                narration: item["narration"].as_str().unwrap_or_default().into(),
+            })
+        })
+        .collect()
+}
+fn strings(v: &serde_json::Value) -> Vec<String> {
+    v.as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|x| x.as_str().map(str::to_owned))
+        .collect()
 }
 fn internal(e: anyhow::Error) -> Status {
     tracing::error!(error = %e, "provider failed");
@@ -93,7 +116,7 @@ impl EngineService for Service {
             .map_err(internal)?;
         Ok(Response::new(pb::PreviewCourseResponse {
             sample_outline: Some(outline(&c)?),
-            example_slides: vec![slide(&c)?],
+            example_slides: slides(&c)?,
             usage: usage(&c),
         }))
     }
@@ -124,10 +147,10 @@ impl EngineService for Service {
             .complete("lesson", &input)
             .await
             .map_err(internal)?;
-        let s = slide(&c)?;
+        let generated_slides = slides(&c)?;
         let l = pb::Lesson {
             r#ref: req.lesson,
-            slides: vec![s.clone()],
+            slides: generated_slides.clone(),
             test: content(&c)?["test"]
                 .as_array()
                 .into_iter()
@@ -149,12 +172,16 @@ impl EngineService for Service {
                 })
                 .collect(),
         };
-        let events = vec![
-            pb::generate_lesson_event::Event::Progress("Generating".into()),
-            pb::generate_lesson_event::Event::Slide(s),
-            pb::generate_lesson_event::Event::Lesson(l),
-            pb::generate_lesson_event::Event::Usage(usage(&c).unwrap()),
-        ];
+        let mut events = vec![pb::generate_lesson_event::Event::Progress(
+            "Generating".into(),
+        )];
+        events.extend(
+            generated_slides
+                .into_iter()
+                .map(pb::generate_lesson_event::Event::Slide),
+        );
+        events.push(pb::generate_lesson_event::Event::Lesson(l));
+        events.push(pb::generate_lesson_event::Event::Usage(usage(&c).unwrap()));
         Ok(Response::new(Box::pin(futures::stream::iter(
             events
                 .into_iter()
@@ -200,8 +227,8 @@ impl EngineService for Service {
                 .as_str()
                 .ok_or_else(|| Status::internal("missing summary"))?
                 .into(),
-            tags: vec![],
-            links: vec![],
+            tags: strings(&content(&c)?["tags"]),
+            links: strings(&content(&c)?["links"]),
             usage: usage(&c),
         }))
     }
