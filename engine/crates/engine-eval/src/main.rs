@@ -52,23 +52,27 @@ async fn main() -> Result<()> {
         {
             bail!("invalid dataset or revision");
         }
-        let url =
-            format!("https://huggingface.co/datasets/{dataset}/resolve/{revision}/golden.jsonl");
-        let body = reqwest::Client::new()
-            .get(url)
-            .bearer_auth(std::env::var("HF_TOKEN")?)
-            .send()
-            .await?
-            .error_for_status()?
-            .text()
-            .await?;
         let cache = root.join(".cache");
         std::fs::create_dir_all(&cache)?;
-        std::fs::write(
-            cache.join(format!("{}-{revision}.jsonl", dataset.replace('/', "--"))),
-            &body,
-        )?;
-        body
+        let cache_file = cache.join(format!("{}-{revision}.jsonl", dataset.replace('/', "--")));
+        let immutable = revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit());
+        if immutable && cache_file.is_file() {
+            std::fs::read_to_string(cache_file)?
+        } else {
+            let url = format!(
+                "https://huggingface.co/datasets/{dataset}/resolve/{revision}/golden.jsonl"
+            );
+            let body = reqwest::Client::new()
+                .get(url)
+                .bearer_auth(std::env::var("HF_TOKEN")?)
+                .send()
+                .await?
+                .error_for_status()?
+                .text()
+                .await?;
+            std::fs::write(cache_file, &body)?;
+            body
+        }
     };
     let router = engine_providers::router(provider)?;
     let mut results = Vec::new();
