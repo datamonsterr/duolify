@@ -29,6 +29,7 @@ pub enum StreamEvent {
 pub type CompletionStream = Pin<Box<dyn Stream<Item = Result<StreamEvent>> + Send>>;
 #[async_trait]
 pub trait LlmProvider: Send + Sync {
+    fn name(&self) -> &'static str;
     async fn complete(&self, model: &str, input: &str) -> Result<Completion>;
     async fn stream(&self, model: &str, input: &str) -> Result<CompletionStream>;
 }
@@ -68,6 +69,9 @@ impl ProviderRouter {
 pub struct MockProvider;
 #[async_trait]
 impl LlmProvider for MockProvider {
+    fn name(&self) -> &'static str {
+        "mock"
+    }
     async fn complete(&self, model: &str, _: &str) -> Result<Completion> {
         Ok(Completion { text: serde_json::json!({"title":"Sample", "summary":"Sample note", "html":"<div id=\"root\">Sample</div>", "units":[{"unit_id":"unit-1","title":"Sample unit","lessons":[{"lesson_id":"lesson-1","title":"Sample lesson","goal":"Learn"}]}], "test":[{"question_id":"q1","prompt":"Sample?","choices":["Yes","No"],"answer_index":0,"explanation":"Sample"}]}).to_string(), provider: "mock".into(), model: model.into(), input_tokens: 0, output_tokens: 0 })
     }

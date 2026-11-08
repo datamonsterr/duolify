@@ -40,6 +40,7 @@ async fn all_rpcs() {
         .unwrap()
         .into_inner();
     assert!(!preview.example_slides.is_empty());
+    assert!(!preview.sample_outline.unwrap().units.is_empty());
     assert!(
         c.generate_course_outline(pb::GenerateCourseOutlineRequest {
             topic: "test".into(),
@@ -66,7 +67,14 @@ async fn all_rpcs() {
         .await
         .unwrap()
         .into_inner();
-    assert!(chat.message().await.unwrap().is_some());
+    assert!(matches!(
+        chat.message().await.unwrap().unwrap().event,
+        Some(pb::chat_event::Event::Delta(_))
+    ));
+    assert!(matches!(
+        chat.message().await.unwrap().unwrap().event,
+        Some(pb::chat_event::Event::Usage(_))
+    ));
     assert!(
         !c.enrich_note(pb::EnrichNoteRequest::default())
             .await

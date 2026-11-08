@@ -75,7 +75,10 @@ impl EngineService for Service {
     ) -> Result<Response<pb::HealthResponse>, Status> {
         Ok(Response::new(pb::HealthResponse {
             version: env!("CARGO_PKG_VERSION").into(),
-            providers: vec!["configured".into()],
+            providers: vec![
+                self.router.primary.name().into(),
+                self.router.fallback.name().into(),
+            ],
         }))
     }
     async fn preview_course(

@@ -49,6 +49,13 @@ impl HttpProvider {
 }
 #[async_trait]
 impl LlmProvider for HttpProvider {
+    fn name(&self) -> &'static str {
+        if self.anthropic {
+            "anthropic"
+        } else {
+            "openrouter"
+        }
+    }
     async fn complete(&self, model: &str, input: &str) -> Result<Completion> {
         let value: Value = self
             .request(model, input, false)

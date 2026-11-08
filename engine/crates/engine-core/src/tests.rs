@@ -63,6 +63,9 @@ async fn router_retries_then_falls_back() {
     struct Failing(AtomicUsize);
     #[async_trait::async_trait]
     impl LlmProvider for Failing {
+        fn name(&self) -> &'static str {
+            "failing"
+        }
         async fn complete(&self, _: &str, _: &str) -> anyhow::Result<Completion> {
             self.0.fetch_add(1, Ordering::SeqCst);
             anyhow::bail!("failed")
