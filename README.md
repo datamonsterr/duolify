@@ -179,7 +179,10 @@ Start feature work with an OpenSpec change. Use `/opsx:new`, `/opsx:continue` or
 implementation; specs cover analytics, data backup and AI reliability.
 
 OtherSkill routes skills using `otherskill.config.json` and the project bank
-`.otherskill/bank`. Keep routing credentials outside the repo. Superorchestrator
+`.otherskill/bank` (run `otherskill setup` once to install the global routing
+hook). Keep routing credentials outside the repo. The skill list, the ticket
+flow and the reverse-engineering flow are in `docs/agents/` (`skills.md`,
+`issue-tracker.md`, and the `reverse-to-spec` skill). Superorchestrator
 coordinates work packages in separate git worktrees; merge reviewed commits
 through the bootstrap branch. Branch from `main`, open a draft PR early and use
 Conventional Commits. A task is complete after its PR merges into `main`; remove
@@ -201,6 +204,10 @@ its worktree with `git worktree remove <path>` afterwards.
 - [ ] Install the Tauri OS packages above (or macOS Xcode tools).
 - [ ] Refresh the OpenRouter key used by OtherSkill routing; the current key
   returns HTTP 401. Keep the replacement outside source control.
+- [ ] Add `ELEVENLABS_API_KEY` to `.env` and GitHub secrets (slide narration).
+- [ ] Install the REA plugin for reverse engineering:
+  `claude plugin marketplace add morluto/rea` then
+  `claude plugin install rea@rea --scope project`.
 - [ ] Install Android SDK/NDK or full Xcode and mobile targets when needed.
 - [ ] Finish and verify backup scheduling, 14-day retention, restricted bucket
   access, cloud asset versioning and scheduled restore drills before real data.

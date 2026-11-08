@@ -18,7 +18,6 @@
       "devops",
       "testing",
       "management",
-      "ai-data",
       "frontend/ui-ux",
       "frontend/react",
       "docs",
@@ -26,7 +25,8 @@
       "frontend/tauri",
       "analytics",
       "reverse-engineering",
-      "product"
+      "product",
+      "business-analyst"
     ]
   },
   "portableHooks": false,
@@ -36,7 +36,6 @@
     "devops",
     "testing",
     "management",
-    "ai-data",
     "frontend/ui-ux",
     "frontend/react",
     "docs",
@@ -44,7 +43,8 @@
     "frontend/tauri",
     "analytics",
     "reverse-engineering",
-    "product"
+    "product",
+    "business-analyst"
   ],
   "categories": [
     {
@@ -118,6 +118,10 @@
     {
       "id": "product",
       "description": "Pricing, business models, subscriptions, tickets and GitHub issue planning"
+    },
+    {
+      "id": "business-analyst",
+      "description": "Requirements elicitation, use cases, user stories and acceptance criteria"
     }
   ],
   "limits": {
