@@ -1,0 +1,13 @@
+name: Set up engine
+description: mise Rust, protoc and nextest with the engine workspace cache.
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-tools
+      with:
+        tools: rust protoc cargo:cargo-nextest
+        area: engine
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: engine -> target
+        shared-key: engine
