@@ -31,3 +31,14 @@ One term, one meaning. Use these words in code, specs and UI copy.
 | **Golden set** | Versioned evaluation cases for AI features, stored as a Hugging Face dataset. |
 | **API** | `services/api`, the Go service that clients call. |
 | **Engine** | `engine/`, the Rust service that runs AI agents. Only the API calls it. |
+| **Username** | Unique public handle of a learner, used for invites and the friend list. |
+| **Friend list** | Learners connected by a mutual, accepted friend request. Friends can see each other's streaks and invite each other to courses. |
+| **Course visibility** | One of `private` (only the owner), `link` (anyone with the share link), `public` (listed in the marketplace). |
+| **Share link** | URL that opens a course preview and lets the visitor enroll. Revocable by the owner. |
+| **Course invite** | Request sent to a username or a friend to enroll in a course. |
+| **Marketplace** | Catalog of public courses with search, categories, ratings and reports. |
+| **Published course** | A course with visibility `link` or `public`. Its outline and generated lessons are a frozen, versioned snapshot that enrolled learners reuse. |
+| **Course copy** | A learner's own enrollment in a published course. It reuses published lessons until the learner steers it; from then on it generates its own lessons. |
+| **Course steering** | Learner instructions added during learning (for example "more examples in Go", "skip history") that shape future lesson generation and, on request, the remaining outline. Past lessons do not change. |
+| **Course instruction** | One saved steering entry: text, scope (`next lesson`, `rest of course`) and time added. |
+| **Pricing config** | Versioned configuration that holds every credit price, daily free credit amount, credit pack and subscription tier. Changed without a code deploy. |

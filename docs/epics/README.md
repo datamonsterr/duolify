@@ -10,7 +10,7 @@ Each epic becomes one or more OpenSpec changes (`openspec/changes/<id>`). Order 
 | E3 | Lesson player: Motion HTML slides, playback controls, preload, offline cache | client, api | E2 |
 | E4 | Gated lesson generation and lesson tests (pass all; retry variants after mistakes) | engine, api, client | E2, E3 |
 | E5 | Gamification: XP, streaks, auto-applied streak freezes earned by effort, daily goals, leagues | api, client | E4 |
-| E6 | Social: friends, friend streaks | api, client | E5 |
+| E6 | Social: usernames, friend list (invite by username), friend streaks | api, client | E1, E5 |
 | E7 | Credits: ledger, daily free credits, reservation and settlement, packs and subscriptions (prices from E12) | api, client | E1, E12 |
 | E8 | Tutor chat with course, lesson, profile and history context | engine, api, client | E4, E7 |
 | E9 | Quick AI notes and bookmarks | engine, api, client | E3, E7 |
@@ -19,6 +19,8 @@ Each epic becomes one or more OpenSpec changes (`openspec/changes/<id>`). Order 
 | E12 | Monetization: unit costs, credit price, daily free allowance, packs, subscription tiers and benefits, business model | specs, api | E0 |
 | E13 | App design: brand, design system, information architecture, every screen and state, motion and sound | design, client | E0 |
 | E14 | Slide narration: ElevenLabs TTS, captions, audio sync in the player (ADR 0009) | engine, api, client | E3, E4 |
+| E15 | Course sharing and marketplace: visibility, share links, invites by username or friend, published snapshots, marketplace search, ratings, moderation | api, engine, client | E2, E6, E12 |
+| E16 | Course steering: learner instructions during learning that shape future lessons and the remaining outline | engine, api, client | E4, E7 |
 
 ## E0 bootstrap work packages
 
