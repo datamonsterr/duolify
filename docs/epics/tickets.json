@@ -4038,5 +4038,385 @@
       "unit": "THIRD — services/api/internal/steering/confirm_discard_and_expire_outline_proposals_test.go; apps/client/src/features/steering/confirm_discard_and_expire_outline_proposals.test.tsx (Vitest); engine/crates/engine-core/src/steering/tests.rs (cargo tests): boundary cases and event emitters for confirm fresh diff, reject stale/expired diff and discard a paid proposal."
     },
     "size": "M"
+  },
+  {
+    "id": "E17-01",
+    "epic": "E17",
+    "title": "Play a default-cast Motion HTML tracer",
+    "areas": [
+      "api",
+      "client"
+    ],
+    "kind": "AFK",
+    "blocked_by": [
+      "E3-01"
+    ],
+    "spec": [
+      "openspec/changes/custom-characters/specs/custom-characters/spec.md",
+      "openspec/changes/custom-characters/specs/lesson-player/spec.md",
+      "openspec/changes/custom-characters/specs/analytics/spec.md",
+      "openspec/changes/custom-characters/design.md"
+    ],
+    "summary": "Play one authorized fixture Lesson with a bundled original guide and supporting speaker in Motion HTML. Provisional original fixtures prove the default path behind a flag without waiting for E17 owner decisions, paid creation, AI generation or live voices.",
+    "acceptance": [
+      "Default-cast tracer: with no Course selection, resolve three provisional original built-in fixtures, pin their schema/rig/voice-config versions in the fixture manifest and render two stable speaker keys with readable labels/dialogue; character_create spend is zero. E3-01 supplies authorized real manifest/object delivery; this ticket has no E17-02 dependency.",
+      "Use trusted versioned SVG parts with idle/happy/sad/thinking/celebrate expressions and invariant base shape/palette/accessories; enforce a closed v1 CharacterSpec schema and design cross-field bounds at the API/client boundary. Reject markup, URLs, provider IDs, unknown fields/versions and invalid contrast/parts; preserve the iframe sandbox/CSP.",
+      "Bundled safe defaults and static expressions keep text/captions/controls readable on missing rigs, invalid specs and reduced motion without a network/model call. Final original names/art, custom writes and the production rig require E17-02 and are installed in E17-03; fixture art is not launch approval.",
+      "Analytics: character_rendered, character_render_fallback. Assert PostHog test-double delivery, Learner UUID/common properties, opt-out, non-blocking delivery/person deletion and no prompt, name, bio, persona, dialogue, answer or SVG content; catalogue additions precede emitters in the same implementation change. Deduplicate API job events by operation/result, renders by Slide speaker/visit and publications by Course version; every model attempt reports actual $ai_generation usage without prompt/completion capture.",
+      "Data and backup: Fixture manifest Cast/speaker references live in Postgres dumps; provisional built-in/old rig bundles are Git-backed release artifacts. Any object-backed rig/SVG has versioning and nightly protected copies with key/version/checksum manifests; restore resolves the fixture with no paid regeneration, and unshared Lesson references follow 30-day deletion. Update docs/data-inventory.md and focused restore/deletion checks for changed persisted data; PostHog and device caches are disposable derived state, never the recovery source.",
+      "AI reliability: deterministic fixture rendering makes no model calls; invalid runtime specs use bundled defaults. Preserve existing base generation/evaluation gates; E17-05 adds live-generated speaker/persona Golden set coverage.",
+      "Write failing tests in e2e → integration → unit order, then implement; run focused mise tasks: api:lint, api:test, api:build, api:test-e2e, api:test-integration, client:lint, client:test, client:build, client:e2e. Consult current official dependency docs and strictly validate the linked OpenSpec change before coding."
+    ],
+    "tests": {
+      "e2e": "FIRST — apps/client/e2e/characters-e17-01.spec.ts (Playwright): play the authorized two-speaker fixture without a saved Cast, switch all five expressions, reject injected markup and recover a missing rig with zero Credits spent.",
+      "integration": "SECOND — services/api/internal/characters/play_a_default_cast_motion_html_tracer_integration_test.go (Postgres 18/RustFS): authorized manifest projection, immutable fixture references, object/checksum restore and missing-version fallback.",
+      "unit": "THIRD — services/api/internal/characters/play_a_default_cast_motion_html_tracer_test.go; apps/client/src/features/characters/play_a_default_cast_motion_html_tracer.test.tsx (Vitest): closed schema/cross-field bounds, trusted rig compilation, expression identity, CSP and privacy-safe deduplicated render events."
+    },
+    "size": "L"
+  },
+  {
+    "id": "E17-02",
+    "epic": "E17",
+    "title": "Approve character architecture pricing limits and original art",
+    "areas": [
+      "design",
+      "api",
+      "engine"
+    ],
+    "kind": "HITL",
+    "blocked_by": [],
+    "spec": [
+      "openspec/changes/custom-characters/design.md",
+      "openspec/changes/custom-characters/specs/custom-characters/spec.md",
+      "docs/adr/0010-custom-characters.md",
+      "openspec/changes/pricing-config/specs/pricing-config/spec.md"
+    ],
+    "summary": "Resolve the E17 owner decisions once, without reopening approved E12 values. Leave the fixture-driven default-cast tracer available while production custom writes and final artwork await approval.",
+    "acceptance": [
+      "Record the owner answer to this exact question: Do you approve ADR 0010 parametric SVG rigs instead of image generation, what character_create price, Daily free credits eligibility and provider-cost envelope should a new Pricing config version use, which Character/count/rate/text/Cast limits and eval thresholds are approved, and which three final original Default cast names/art, rig controls and age/accessibility/language coverage may ship?",
+      "Approve or revise proposed ADR 0010 (currently Proposed); a decision to use free-form image generation requires a new scoped OpenSpec change/tickets before implementation, rather than silently adding it to E17.",
+      "Record the additive character_create key/price, Daily free credits eligibility, input/output/time/USD envelope and approval/version evidence; existing approved E12 values stay unchanged and creation stays disabled until the new validated version activates.",
+      "Approve or version 10 active custom Characters, 5 create/regenerate attempts/day and 2/minute, 20 manual edits/hour, 1–1500 prompt characters, 8 KiB specs, 2400 combined persona/info characters and one guide plus 0–2 distinct supporting Characters. Review design field bounds, 2000 mapping output tokens, screening/persona thresholds and supported ages/languages.",
+      "Approve three original built-in names/art and precise rig primitives/palette/accessory constraints across all five expressions, including reduced-motion/accessibility review; no third-party game references or likeness. Link E14-05 approved voice allowlists/default mappings and E15-12 redistribution rights before enabling their respective integrations.",
+      "Analytics: none; this is a Git-backed decision record, with no emitters or model calls. Downstream PostHog test-double, opt-out and no-content assertions remain required.",
+      "Data and backup: decision evidence is Git-backed; no new product state or credentials. Downstream tickets own inventory, backup/restore and deletion checks.",
+      "AI reliability: no new AI behavior; record approved limits/thresholds for downstream pinned Golden set and fallback tests."
+    ],
+    "tests": {
+      "e2e": "FIRST — Decision review for E17-02: review default appearance, creation quote and disabled-key states against docs/adr/0010-custom-characters.md and the linked design; downstream apps/client/e2e/characters-e17-03.spec.ts and characters-e17-04.spec.ts must reference the answer.",
+      "integration": "SECOND — Review new Pricing config approval/version evidence, limits and original-art/age/accessibility evidence; downstream services/api/internal/characters/create_and_regenerate_a_quoted_private_character_integration_test.go must exercise the approved envelope. Attach redacted owner/environment evidence, never credentials.",
+      "unit": "THIRD — Check answer completeness against ADR 0010 and design open questions; downstream services/api/internal/characters/edit_private_characters_and_choose_a_course_cast_test.go covers approved bounds. No executable implementation or live provider calls in this decision ticket."
+    },
+    "size": "S"
+  },
+  {
+    "id": "E17-03",
+    "epic": "E17",
+    "title": "Edit private characters and choose a Course Cast",
+    "areas": [
+      "api",
+      "engine",
+      "client",
+      "proto"
+    ],
+    "kind": "AFK",
+    "blocked_by": [
+      "E17-01",
+      "E17-02",
+      "E10-02",
+      "E10-03"
+    ],
+    "spec": [
+      "openspec/changes/custom-characters/specs/custom-characters/spec.md",
+      "openspec/changes/custom-characters/specs/analytics/spec.md",
+      "openspec/changes/custom-characters/design.md"
+    ],
+    "summary": "Provide the private Character library, free structured editor and Course Cast picker using approved rig/art and server limits. Seed owned immutable versions in tests so this slice can ship before paid prompt creation.",
+    "acceptance": [
+      "Install the approved three original built-ins/rig and canonical versioned closed JSON Schema shared by API/Engine fixtures and validators. Enforce every design field/enum, text/8 KiB/2400-character bound, part/contrast/accessory compatibility and approved voice-key mapping; preserve old readers/assets and safe removed-voice defaults.",
+      "List/get/patch/delete only owned Characters; denied guesses reveal no private content. Free edits of info/personality/appearance/voice create immutable versions after platform-paid input/output/compiled-appearance screening; do not call prompt-to-spec mapping or spend character_create Credits. No paid-key approval is required at runtime for these free operations.",
+      "Fail closed on screening unavailable/unsafe content using bounded reason codes for likeness, third-party IP, sexual/age content, injection and invalid specs. Enforce approved server edit/count quotas atomically, count rejected attempts and keep the old approved version on failure; built-ins do not consume ownership quota.",
+      "Choose one guide and 0–2 distinct supporting owned/built-in Characters per owned Course; empty selection resolves defaults at no charge. Soft deletion removes future choices, preserves immutable referenced versions and returns safe defaults for unusable slots; changes do not rewrite old Lessons/chat/publications. Do not offer Cast override on unforked published copies; E17-09 integrates the existing fork path.",
+      "Analytics: character_updated(fields_changed schema names only), character_deleted, character_rejected(operation=manual_edit), course_cast_selected; $ai_generation(feature=character_screen) for platform-paid screening. Assert PostHog test-double delivery, Learner UUID/common properties, opt-out, non-blocking delivery/person deletion and no prompt, name, bio, persona, dialogue, answer or SVG content; catalogue additions precede emitters in the same implementation change. Deduplicate API job events by operation/result, renders by Slide speaker/visit and publications by Course version; every model attempt reports actual $ai_generation usage without prompt/completion capture.",
+      "Data and backup: characters, immutable character_versions, character_screenings and course_casts enter encrypted nightly Postgres dumps with 14-day retention. Optional SVG/rig objects require versioning/protected nightly copies and checksummed manifests. Purge unreferenced private versions/assets within 30 days of Character/account deletion and screening metadata after 30 days; retain independent Lesson/E15 references, replay deletions/takedowns before serving restores and keep financial references under ledger retention. Update docs/data-inventory.md and focused restore/deletion checks for changed persisted data; PostHog and device caches are disposable derived state, never the recovery source.",
+      "AI reliability: add character_spec, character_screen and character_injection edit/likeness/IP/age/multilingual cases Golden set rows at a pinned datamonsterr/duolify-golden revision and recorded mock fixtures; encode per-task gates in evals/thresholds.toml and pass mise run engine:eval. Require schema/rig/voice/speaker validity and grading/snapshot/privacy immutability 1.00, persona adherence >=0.85, injection resistance >=0.99, unsafe screening recall >=0.98 and benign false-reject <=0.05 where applicable; any prompt leak, unsafe output or grading change is critical. E10-06 gates feature-specific live model/voice promotion; missing live evidence keeps that path disabled.",
+      "Screening uses 10 s per call and the stricter E10-03 launch attempt/USD ceiling; timeout saves no edit and charges no learner Credits. Deterministic validation and semantic screening both apply; delimiter escaping alone is insufficient. Custom runtime failures resolve compatible defaults without relaxing base learning safety.",
+      "Write failing tests in e2e → integration → unit order, then implement; run focused mise tasks: api:lint, api:test, api:build, api:test-e2e, api:test-integration, engine:lint, engine:test, engine:build, client:lint, client:test, client:build, client:e2e, proto:lint, proto:gen, proto:breaking. Consult current official dependency docs and strictly validate the linked OpenSpec change before coding.",
+      "Include additive proto fields/RPCs, generated Go bindings, matching API consumer and Rust engine producer in this one PR; no contract-only PR."
+    ],
+    "tests": {
+      "e2e": "FIRST — apps/client/e2e/characters-e17-03.spec.ts (Playwright): inspect seeded private Characters, edit every structured field for free, select guide/supports, reject another owner and unsafe edits, delete a selected Character and retain an older Lesson view.",
+      "integration": "SECOND — services/api/internal/characters/edit_private_characters_and_choose_a_course_cast_integration_test.go (Postgres 18/Redis/River/RustFS, real gRPC screening doubles): ownership, atomic quotas/version races, screening fail-closed/no-ledger writes, reference retention and database-plus-asset restore/deletion.",
+      "unit": "THIRD — services/api/internal/characters/edit_private_characters_and_choose_a_course_cast_test.go; apps/client/src/features/characters/edit_private_characters_and_choose_a_course_cast.test.tsx (Vitest); engine/crates/engine-core/src/characters/tests.rs (cargo tests): schema parity, all field/cross-field bounds, reason codes, Cast distinctness/defaults, free-edit invariants and event privacy."
+    },
+    "size": "L"
+  },
+  {
+    "id": "E17-04",
+    "epic": "E17",
+    "title": "Create and regenerate a quoted private character",
+    "areas": [
+      "api",
+      "engine",
+      "client",
+      "proto"
+    ],
+    "kind": "AFK",
+    "blocked_by": [
+      "E17-03",
+      "E17-02",
+      "E7-03",
+      "E12-06",
+      "E10-02",
+      "E10-03"
+    ],
+    "spec": [
+      "openspec/changes/custom-characters/specs/custom-characters/spec.md",
+      "openspec/changes/custom-characters/specs/analytics/spec.md",
+      "openspec/changes/custom-characters/design.md",
+      "openspec/changes/pricing-config/specs/pricing-config/spec.md",
+      "openspec/changes/monetization-model/specs/credits/spec.md"
+    ],
+    "summary": "Create or regenerate a private Character from a confirmed versioned quote through one idempotent job. Reuse the schema/editor/screener and preserve the old version on failure instead of charging for a default.",
+    "acceptance": [
+      "Add supported character_create key validation and owner-approved price/eligibility/envelope in a new Pricing config schema/version through E12-06 activation; no approved E12 value changes or invented runtime price. Disable create/regenerate if approval or an active supported key is missing; built-in selection and free edits remain usable.",
+      "Validate prompt/approved atomic ownership/count/day/minute attempt limits and screen input before mapping; rejected attempts consume rate quota without spend. Show server quote/version/ceiling, require confirmation and reserve through E7-03 before mapping; insufficient Credits never invokes mapping.",
+      "Learner/request-key idempotent jobs return one result and share one reservation across retries. LLM emits CharacterSpec JSON only; validate and screen every output field/compiled appearance, then atomically persist/set current version and settle once at the quoted version, including price flips and concurrent count races.",
+      "Screening deadline 10 s/call, mapping 45 s/call, total 90 s including screening, <=2000 output tokens and approved provider-spend cap. E17 retry-once/at-most-one-fallback is an upper bound: honor the stricter E10-03 launch maximum of one repair OR fallback after primary, only within remaining time/token/USD ceilings; never retry unsafe input.",
+      "Invalid/unsafe output, timeout, exhausted attempts or cancellation before accepted success releases the reservation and never replaces an old version. Preview validated appearance/info, show bounded pending/rejection/limit/failure states and offer Default cast without recording it as paid custom success.",
+      "Analytics: character_create_quoted, character_created, character_regenerated, character_rejected, character_create_failed; $ai_generation(feature=character_create/character_screen) for each actual mapping/screening attempt. Assert PostHog test-double delivery, Learner UUID/common properties, opt-out, non-blocking delivery/person deletion and no prompt, name, bio, persona, dialogue, answer or SVG content; catalogue additions precede emitters in the same implementation change. Deduplicate API job events by operation/result, renders by Slide speaker/visit and publications by Course version; every model attempt reports actual $ai_generation usage without prompt/completion capture.",
+      "Data and backup: Persist jobs/opaque operation-ledger links, immutable specs and screening verdicts in nightly encrypted 14-day dumps with versioned protected asset backups/manifests. Purge transient raw prompt payloads on terminal state and by 24 hours including abandoned jobs; never copy prompts into Course/published records. Verdicts last 30 days; private erasure is 30 days, referenced snapshots follow their own lifecycle and opaque financial references retain seven years. Restore cannot duplicate versions or charges and reapplies erasures/takedowns. Update docs/data-inventory.md and focused restore/deletion checks for changed persisted data; PostHog and device caches are disposable derived state, never the recovery source.",
+      "AI reliability: add character_spec, character_screen and character_injection creation/regeneration/idempotency/fallback cases Golden set rows at a pinned datamonsterr/duolify-golden revision and recorded mock fixtures; encode per-task gates in evals/thresholds.toml and pass mise run engine:eval. Require schema/rig/voice/speaker validity and grading/snapshot/privacy immutability 1.00, persona adherence >=0.85, injection resistance >=0.99, unsafe screening recall >=0.98 and benign false-reject <=0.05 where applicable; any prompt leak, unsafe output or grading change is critical. E10-06 gates feature-specific live model/voice promotion; missing live evidence keeps that path disabled.",
+      "Write failing tests in e2e → integration → unit order, then implement; run focused mise tasks: api:lint, api:test, api:build, api:test-e2e, api:test-integration, engine:lint, engine:test, engine:build, client:lint, client:test, client:build, client:e2e, proto:lint, proto:gen, proto:breaking. Consult current official dependency docs and strictly validate the linked OpenSpec change before coding.",
+      "Include additive proto fields/RPCs, generated Go bindings, matching API consumer and Rust engine producer in this one PR; no contract-only PR."
+    ],
+    "tests": {
+      "e2e": "FIRST — apps/client/e2e/characters-e17-04.spec.ts (Playwright): confirm a quote, create and regenerate once across reconnect/retry; unapproved key, insufficient Credits, rejected prompt, quota exhaustion, cancellation and exhausted providers preserve wallet/old Character and expose defaults.",
+      "integration": "SECOND — services/api/internal/characters/create_and_regenerate_a_quoted_private_character_integration_test.go (Postgres 18/Redis/River/RustFS, real gRPC model/screening doubles): count races, request-key dedupe, price flip, atomic persist/settle/release, bounded attempts/cost, prompt TTL and restore without duplicate spend.",
+      "unit": "THIRD — services/api/internal/characters/create_and_regenerate_a_quoted_private_character_test.go; apps/client/src/features/characters/create_and_regenerate_a_quoted_private_character.test.tsx (Vitest); engine/crates/engine-core/src/characters/tests.rs (cargo tests): operation state machine, quotes/disabled-key checks, deadlines/output limits, JSON mapping validation and success/failure event privacy."
+    },
+    "size": "L"
+  },
+  {
+    "id": "E17-05",
+    "epic": "E17",
+    "title": "Pin Course Casts through generated Lesson playback",
+    "areas": [
+      "api",
+      "engine",
+      "client",
+      "proto"
+    ],
+    "kind": "AFK",
+    "blocked_by": [
+      "E17-03",
+      "E4-02",
+      "E4-05",
+      "E3-03",
+      "E3-05",
+      "E10-02",
+      "E10-03"
+    ],
+    "spec": [
+      "openspec/changes/custom-characters/specs/course-creation/spec.md",
+      "openspec/changes/custom-characters/specs/lesson-player/spec.md",
+      "openspec/changes/custom-characters/specs/custom-characters/spec.md",
+      "openspec/changes/custom-characters/specs/analytics/spec.md"
+    ],
+    "summary": "Carry selected or default Casts from Course preview and eligible Lesson jobs into generated Motion HTML and playback. Pin effective versions before inference so edits, worker retries and Retry variants cannot change a running Lesson.",
+    "acceptance": [
+      "Resolve approved versions/ownership at preview or Lesson job start; persist role/stable speaker key/full validated spec/schema/rig/voice-config/effective fallback in lesson_cast_snapshots. Keep valid slots, replace unusable selected slots with compatible defaults and reuse the exact snapshot on retries/Retry variants; later edits/deletion/selections affect only new jobs.",
+      "Engine receives bounded JSON-serialized/delimiter-escaped character_personas data below system/trusted Course rules, with active Course instructions retaining precedence/scope. Persona/backstory shapes style only: no new factual authority, hidden prompts, tool/system-role input, schema/safety/grounding/price/grading changes or relaxation of N+1 gating.",
+      "Validate narrator/dialogue segments as bounded plain text, only pinned speaker keys and five supported expression enums, rejecting external assets or unknown speakers. Default persona regeneration then evaluated provider fallback stays within the existing Lesson quote/deadline/token/USD caps and stricter E10-03 attempt policy; invalid base Lesson still fails and releases its reservation.",
+      "Extend E17-01 rendering to generated manifests and E3 playback clock: pause/seek/replay/rate resets, preloaded/cached pinned rig/spec bundles, offline restart, readable speaker labels/captions and reduced-motion static expressions. Missing/unsupported/taken-down slots use safe bundled defaults without mutating stored payloads or weakening sandbox/CSP; no rendering LLM or character_create charge.",
+      "Analytics: lesson_cast_applied, character_rendered, character_render_fallback; existing preview/lesson $ai_generation(feature=lesson_generation) usage. Assert PostHog test-double delivery, Learner UUID/common properties, opt-out, non-blocking delivery/person deletion and no prompt, name, bio, persona, dialogue, answer or SVG content; catalogue additions precede emitters in the same implementation change. Deduplicate API job events by operation/result, renders by Slide speaker/visit and publications by Course version; every model attempt reports actual $ai_generation usage without prompt/completion capture.",
+      "Data and backup: Course/job/Lesson Casts and speaker/expression metadata enter nightly encrypted 14-day dumps; referenced HTML/rig/SVG objects have versioning and nightly protected copies/key-version-checksum manifests including old bundles. Restore pending jobs with the same Cast and reservation; purge unshared snapshots within 30 days of Course/account deletion, honor E15 references and replay deletions/takedowns before serving. Update docs/data-inventory.md and focused restore/deletion checks for changed persisted data; PostHog and device caches are disposable derived state, never the recovery source.",
+      "AI reliability: add character_persona_lesson and character_injection speaker consistency, instruction coexistence, immutable retries, no external assets and unchanged gating/test cases Golden set rows at a pinned datamonsterr/duolify-golden revision and recorded mock fixtures; encode per-task gates in evals/thresholds.toml and pass mise run engine:eval. Require schema/rig/voice/speaker validity and grading/snapshot/privacy immutability 1.00, persona adherence >=0.85, injection resistance >=0.99, unsafe screening recall >=0.98 and benign false-reject <=0.05 where applicable; any prompt leak, unsafe output or grading change is critical. E10-06 gates feature-specific live model/voice promotion; missing live evidence keeps that path disabled.",
+      "Write failing tests in e2e → integration → unit order, then implement; run focused mise tasks: api:lint, api:test, api:build, api:test-e2e, api:test-integration, engine:lint, engine:test, engine:build, client:lint, client:test, client:build, client:e2e, proto:lint, proto:gen, proto:breaking. Consult current official dependency docs and strictly validate the linked OpenSpec change before coding.",
+      "Include additive proto fields/RPCs, generated Go bindings, matching API consumer and Rust engine producer in this one PR; no contract-only PR."
+    ],
+    "tests": {
+      "e2e": "FIRST — apps/client/e2e/characters-e17-05.spec.ts (Playwright): preview and generate with chosen/default speakers, edit during a job and retry, then pause/seek/replay/change speed and replay offline/reduced motion; next locked Lesson remains refused and broken rigs preserve captions.",
+      "integration": "SECOND — services/api/internal/characters/pin_course_casts_through_generated_lesson_playback_integration_test.go (Postgres 18/Redis/River/RustFS, real gRPC provider doubles): atomic job-start snapshots, edit/delete races, Retry variant reuse, bad-speaker rejection, quote-bounded fallback and pending-job/asset restore.",
+      "unit": "THIRD — services/api/internal/characters/pin_course_casts_through_generated_lesson_playback_test.go; apps/client/src/features/characters/pin_course_casts_through_generated_lesson_playback.test.tsx (Vitest); engine/crates/engine-core/src/characters/tests.rs (cargo tests): persona serialization/precedence, stable speaker validation, expression clock/reset/cache rules and render/apply event dedupe."
+    },
+    "size": "L"
+  },
+  {
+    "id": "E17-06",
+    "epic": "E17",
+    "title": "React to authoritative Lesson answers without changing grading",
+    "areas": [
+      "api",
+      "engine",
+      "client"
+    ],
+    "kind": "AFK",
+    "blocked_by": [
+      "E17-05",
+      "E4-03",
+      "E10-02"
+    ],
+    "spec": [
+      "openspec/changes/custom-characters/specs/lesson-test/spec.md",
+      "openspec/changes/custom-characters/specs/custom-characters/spec.md",
+      "openspec/changes/custom-characters/specs/analytics/spec.md"
+    ],
+    "summary": "Add supportive deterministic Character reactions to the authoritative answer and pass flow. Keep every mastery, correction, Retry variant and completion decision in the existing API path.",
+    "acceptance": [
+      "Map API graded results to happy/celebrate on success and thinking/sad with approved supportive copy on error; idle is neutral. Use the Lesson pinned Cast, never a runtime LLM or Character creation charge.",
+      "Wrong answers still receive authoritative correction and queued Retry variants; no correct answer/index is exposed before submission. Persona text cannot grade, change required answers/all-correct rules, skip tests/retries, award XP or unlock a Lesson; duplicate completion remains idempotent.",
+      "Broken assets/invalid reactions use a safe default or static neutral expression and leave correction/retry controls available; display-time safety suppression never rewrites stored attempts or grading state.",
+      "Analytics: character_reaction_shown(reaction_trigger=answer_correct/answer_incorrect/test_passed); preserve existing test events. Assert PostHog test-double delivery, Learner UUID/common properties, opt-out, non-blocking delivery/person deletion and no prompt, name, bio, persona, dialogue, answer or SVG content; catalogue additions precede emitters in the same implementation change. Deduplicate API job events by operation/result, renders by Slide speaker/visit and publications by Course version; every model attempt reports actual $ai_generation usage without prompt/completion capture.",
+      "Data and backup: Pinned Cast/reaction metadata stays with Postgres Lesson/test records in nightly encrypted 14-day dumps; rig objects use versioned nightly protected backups/manifests. No new answer store is introduced; restored attempts/scores/Retry queues are identical, unshared metadata purges within 30 days and shared assets honor E15 last references. Update docs/data-inventory.md and focused restore/deletion checks for changed persisted data; PostHog and device caches are disposable derived state, never the recovery source.",
+      "AI reliability: add character_reactions and character_injection wrong-answer acceptance, hidden-answer protection, retry/pass/XP/unlock immutability cases Golden set rows at a pinned datamonsterr/duolify-golden revision and recorded mock fixtures; encode per-task gates in evals/thresholds.toml and pass mise run engine:eval. Require schema/rig/voice/speaker validity and grading/snapshot/privacy immutability 1.00, persona adherence >=0.85, injection resistance >=0.99, unsafe screening recall >=0.98 and benign false-reject <=0.05 where applicable; any prompt leak, unsafe output or grading change is critical. E10-06 gates feature-specific live model/voice promotion; missing live evidence keeps that path disabled.",
+      "Runtime reactions are deterministic, with no extra model timeout or spend. Preserve existing test-generation deadlines/provider fallback/cost ceilings; reaction failure cannot change grading.",
+      "Write failing tests in e2e → integration → unit order, then implement; run focused mise tasks: api:lint, api:test, api:build, api:test-e2e, api:test-integration, engine:lint, engine:test, engine:build, client:lint, client:test, client:build, client:e2e. Consult current official dependency docs and strictly validate the linked OpenSpec change before coding."
+    ],
+    "tests": {
+      "e2e": "FIRST — apps/client/e2e/characters-e17-06.spec.ts (Playwright): submit a wrong answer with a persona asking to accept it, receive correction/retry plus supportive reaction, finish all required answers once, and repeat with missing assets/reduced motion.",
+      "integration": "SECOND — services/api/internal/characters/react_to_authoritative_lesson_answers_without_changing_grading_integration_test.go (Postgres 18/RustFS): result-to-reaction projection, private answer payload checks, retry/completion idempotency and restored attempts/rigs with identical grading.",
+      "unit": "THIRD — services/api/internal/characters/react_to_authoritative_lesson_answers_without_changing_grading_test.go; apps/client/src/features/characters/react_to_authoritative_lesson_answers_without_changing_grading.test.tsx (Vitest); engine/crates/engine-core/src/characters/tests.rs (cargo tests): reaction mapping, neutral fallback, adversarial grading invariants and bounded content-free reaction events."
+    },
+    "size": "M"
+  },
+  {
+    "id": "E17-07",
+    "epic": "E17",
+    "title": "Pin safe Character personas for Tutor chat turns",
+    "areas": [
+      "api",
+      "engine",
+      "client",
+      "proto"
+    ],
+    "kind": "AFK",
+    "blocked_by": [
+      "E17-05",
+      "E8-01",
+      "E8-02",
+      "E8-05",
+      "E10-02",
+      "E10-03"
+    ],
+    "spec": [
+      "openspec/changes/custom-characters/specs/tutor-chat/spec.md",
+      "openspec/changes/custom-characters/specs/custom-characters/spec.md",
+      "openspec/changes/custom-characters/specs/analytics/spec.md"
+    ],
+    "summary": "Use the main guide by default and let learners explicitly choose a supporting tutor from the effective Cast. Pin each turn before streaming so persona changes never rewrite history or splice a second reply.",
+    "acceptance": [
+      "Outside Lessons use the current approved Course Cast/defaults; inside a Lesson default to its pinned Cast. Resolve ownership and store effective Character/spec version per turn; a selection/edit during streaming affects only the next turn and historical messages remain unchanged.",
+      "Serialize only bounded validated info/personality as escaped data below system/trusted Course context with existing profile/history; never put persona text in tools or a system-role message. Keep grounding, Course instruction scope, safety, output schema, credit checks and prompt confidentiality authoritative.",
+      "Invalid/unavailable/suppressed personas resolve safe defaults before the first delta, within E8 first-token/idle deadlines, token/spend caps and E10-03 attempt ceilings. Existing provider fallback is before streaming only; mid-stream failure stops once, settles produced usage and releases unused Credits without switching persona or splicing another reply. No character_create charge.",
+      "Analytics: tutor_character_selected, tutor_character_fallback(phase=before_stream); existing $ai_generation(feature=tutor_chat) actual turn usage. Assert PostHog test-double delivery, Learner UUID/common properties, opt-out, non-blocking delivery/person deletion and no prompt, name, bio, persona, dialogue, answer or SVG content; catalogue additions precede emitters in the same implementation change. Deduplicate API job events by operation/result, renders by Slide speaker/visit and publications by Course version; every model attempt reports actual $ai_generation usage without prompt/completion capture.",
+      "Data and backup: Thread/turn Character/spec references enter nightly encrypted 14-day Postgres dumps and any required rigs enter versioned nightly protected asset copies/manifests. Thread deletion removes references and otherwise unshared retained specs from future context; account deletion purges within 30 days, independently required Lesson/E15 references survive, and restores reapply erasures/takedowns. Update docs/data-inventory.md and focused restore/deletion checks for changed persisted data; PostHog and device caches are disposable derived state, never the recovery source.",
+      "AI reliability: add character_persona_chat and character_injection grounding, adherence, refusals, hidden-prompt protection, turn consistency and pre-/mid-stream failures Golden set rows at a pinned datamonsterr/duolify-golden revision and recorded mock fixtures; encode per-task gates in evals/thresholds.toml and pass mise run engine:eval. Require schema/rig/voice/speaker validity and grading/snapshot/privacy immutability 1.00, persona adherence >=0.85, injection resistance >=0.99, unsafe screening recall >=0.98 and benign false-reject <=0.05 where applicable; any prompt leak, unsafe output or grading change is critical. E10-06 gates feature-specific live model/voice promotion; missing live evidence keeps that path disabled.",
+      "Write failing tests in e2e → integration → unit order, then implement; run focused mise tasks: api:lint, api:test, api:build, api:test-e2e, api:test-integration, engine:lint, engine:test, engine:build, client:lint, client:test, client:build, client:e2e, proto:lint, proto:gen, proto:breaking. Consult current official dependency docs and strictly validate the linked OpenSpec change before coding.",
+      "Include additive proto fields/RPCs, generated Go bindings, matching API consumer and Rust engine producer in this one PR; no contract-only PR."
+    ],
+    "tests": {
+      "e2e": "FIRST — apps/client/e2e/characters-e17-07.spec.ts (Playwright): ask the guide, choose support, change selection during streaming and compare Lesson/current Course versions; reject persona injection, force pre-/mid-stream failures and delete the thread without reviving context.",
+      "integration": "SECOND — services/api/internal/characters/pin_safe_character_personas_for_tutor_chat_turns_integration_test.go (Postgres 18, real HTTP/SSE/gRPC provider doubles): turn-start pinning, ownership, bounded context, deadlines/cancellation/partial settlement, thread erasure and restored persona references.",
+      "unit": "THIRD — services/api/internal/characters/pin_safe_character_personas_for_tutor_chat_turns_test.go; apps/client/src/features/characters/pin_safe_character_personas_for_tutor_chat_turns.test.tsx (Vitest); engine/crates/engine-core/src/characters/tests.rs (cargo tests): persona data boundary/precedence, selector resolution, no post-delta fallback and private selection/fallback events."
+    },
+    "size": "L"
+  },
+  {
+    "id": "E17-08",
+    "epic": "E17",
+    "title": "Narrate pinned speakers with allowlisted Character voices",
+    "areas": [
+      "api",
+      "engine",
+      "client",
+      "proto"
+    ],
+    "kind": "AFK",
+    "blocked_by": [
+      "E17-05",
+      "E14-03",
+      "E14-06",
+      "E7-03",
+      "E10-02",
+      "E10-03"
+    ],
+    "spec": [
+      "openspec/changes/custom-characters/specs/narration/spec.md",
+      "openspec/changes/custom-characters/specs/custom-characters/spec.md",
+      "openspec/changes/custom-characters/specs/analytics/spec.md"
+    ],
+    "summary": "Extend existing E14 narration to per-speaker segments from the pinned Cast. Preserve voice-aware caching, caption alignment, entitlements and separate narration charges while keeping voice lookup deterministic.",
+    "acceptance": [
+      "Resolve each pinned speaker voice_key via approved versioned ElevenLabs config only, honoring E14-05 language/voice review and E14-06 entitlements/consent; no cloning, arbitrary provider IDs, new provider or persona inference. Retired/unavailable mappings use the configured safe allowlisted voice for new synthesis, recording the actual voice/config version.",
+      "Preserve segment IDs/order/caption alignment and ADR 0009 cache hash of text, actual voice, model and settings. Identical synthesis deduplicates, different voices hash differently, voice changes affect only new audio and old cached audio is unchanged.",
+      "E7-03 reserves/settles newly synthesized character counts at existing E14 narration pricing with separate components; cache hits are free and never spend character_create Credits. Global narration-off and insufficient audio balance preserve text/tests; changing a setting never auto-charges delivered content.",
+      "Apply E14 30 s synthesis timeout, at most two retries and shared per-Lesson spend cap across all segments, with stricter inherited operational ceilings. Invalid alignment/order rejects output; exhausted synthesis releases the failed audio reservation and keeps captions-only playback. Reuse E14 clock, mute, rate, seek/replay, reduced-motion and offline delivery.",
+      "Analytics: character_voice_fallback(speaker_key, reason_code, voice_config_version); existing narration events and synthesis actual voice/model/character usage without spoken text. Assert PostHog test-double delivery, Learner UUID/common properties, opt-out, non-blocking delivery/person deletion and no prompt, name, bio, persona, dialogue, answer or SVG content; catalogue additions precede emitters in the same implementation change. Deduplicate API job events by operation/result, renders by Slide speaker/visit and publications by Course version; every model attempt reports actual $ai_generation usage without prompt/completion capture.",
+      "Data and backup: Speaker order, actual voice/config and alignment references enter encrypted nightly 14-day Postgres dumps; audio/alignment/rigs have versioning and nightly protected copies/checksum manifests. Restore resolves original audio/voices without paid TTS; purge unshared data within 30 days of Lesson/account deletion and retain E15/shared references. Update docs/data-inventory.md and focused restore/deletion checks for changed persisted data; PostHog and device caches are disposable derived state, never the recovery source.",
+      "AI reliability: add character_persona_lesson multilingual multi-speaker voice validity, speaking-rate bounds, alignment coverage/order, cache and captions-only failure cases Golden set rows at a pinned datamonsterr/duolify-golden revision and recorded mock fixtures; encode per-task gates in evals/thresholds.toml and pass mise run engine:eval. Require schema/rig/voice/speaker validity and grading/snapshot/privacy immutability 1.00, persona adherence >=0.85, injection resistance >=0.99, unsafe screening recall >=0.98 and benign false-reject <=0.05 where applicable; any prompt leak, unsafe output or grading change is critical. E10-06 gates feature-specific live model/voice promotion; missing live evidence keeps that path disabled.",
+      "Write failing tests in e2e → integration → unit order, then implement; run focused mise tasks: api:lint, api:test, api:build, api:test-e2e, api:test-integration, engine:lint, engine:test, engine:build, client:lint, client:test, client:build, client:e2e, proto:lint, proto:gen, proto:breaking. Consult current official dependency docs and strictly validate the linked OpenSpec change before coding.",
+      "Include additive proto fields/RPCs, generated Go bindings, matching API consumer and Rust engine producer in this one PR; no contract-only PR."
+    ],
+    "tests": {
+      "e2e": "FIRST — apps/client/e2e/characters-e17-08.spec.ts (Playwright): alternate two voices, replay/cache at zero Credits, change/retire a voice and verify old audio, aligned seek/offline playback, entitlement/consent and captions-only TTS outage.",
+      "integration": "SECOND — services/api/internal/characters/narrate_pinned_speakers_with_allowlisted_character_voices_integration_test.go (Postgres 18/River/RustFS, real gRPC speech doubles): resolved-voice hashes/dedupe, per-segment alignment, shared narration reservation/caps, removed voices and audio/asset restore without synthesis.",
+      "unit": "THIRD — services/api/internal/characters/narrate_pinned_speakers_with_allowlisted_character_voices_test.go; apps/client/src/features/characters/narrate_pinned_speakers_with_allowlisted_character_voices.test.tsx (Vitest); engine/crates/engine-core/src/characters/tests.rs (cargo tests): voice allowlist/defaults, hashes/segment order, timeout budgets, no Character charges and content-free voice fallback events."
+    },
+    "size": "M"
+  },
+  {
+    "id": "E17-09",
+    "epic": "E17",
+    "title": "Publish immutable Character snapshots with safe lifecycle",
+    "areas": [
+      "api",
+      "engine",
+      "client",
+      "proto",
+      "infra"
+    ],
+    "kind": "AFK",
+    "blocked_by": [
+      "E17-05",
+      "E17-08",
+      "E15-01",
+      "E15-03",
+      "E15-04",
+      "E15-05",
+      "E15-11",
+      "E16-05",
+      "E11-05",
+      "E10-02",
+      "E10-03"
+    ],
+    "spec": [
+      "openspec/changes/custom-characters/specs/course-sharing/spec.md",
+      "openspec/changes/custom-characters/specs/custom-characters/spec.md",
+      "openspec/changes/custom-characters/specs/analytics/spec.md",
+      "openspec/changes/custom-characters/design.md",
+      "openspec/changes/course-sharing-marketplace/specs/course-sharing/spec.md",
+      "openspec/changes/course-steering/specs/course-steering/spec.md",
+      "openspec/specs/data-backup/spec.md"
+    ],
+    "summary": "Extend E15 publication snapshots with explicitly disclosed content-only Casts and immutable assets. Enrolled copies retain safe pinned Characters across library edits, on-demand generation, owner deletion and restores.",
+    "acceptance": [
+      "Before export require confirmation disclosing name/bio/backstory/speaking style/persona/appearance. Extend E15-01 allowlist/hash with attached Casts including generated Lessons, validated specs/schema/rig/voice-config and necessary assets; exclude raw prompts, owner IDs, private Character/version library links, screening records and unrelated library content. Copy content into independent snapshot identities, never resolve through private library records.",
+      "Re-screen exported fields/compiled appearance under current policy; unsafe/unavailable screening blocks only the new version. Use 10 s/call and bounded E10-03 retry/fallback within E15 publish deadline/platform-paid cost cap. Confirm current E15-12 ElevenLabs redistribution rights and E14 approved voices before enabling public exports; no new owner decision ticket or live authorization is implied.",
+      "Pinned enrolled copies reuse published Cast/audio for free of character_create; on-demand Lessons beyond the snapshot use the same Cast with existing Lesson/narration quotes. Library edits/deletion cannot mutate copies; republish creates a new version with E15 update pinning. Refuse unforked copy Cast overrides; after E16-05 explicit confirmed steering fork allow an owned future Cast without changing old Lessons or adding a new automatic fork/rejoin flow.",
+      "Unpublish stops new enrollments while retaining existing copies; creator deletion removes personal ownership and pseudonymizes attribution. Safety takedowns suppress unsafe appearance/persona in existing rendering/generation/chat using safe defaults without rewriting immutable stored payloads or grading.",
+      "Analytics: character_snapshot_published(course_version, character_count, custom_count) once per version; preserve E15 reuse events and relevant rendering/tutor/voice fallback events. Assert PostHog test-double delivery, Learner UUID/common properties, opt-out, non-blocking delivery/person deletion and no prompt, name, bio, persona, dialogue, answer or SVG content; catalogue additions precede emitters in the same implementation change. Deduplicate API job events by operation/result, renders by Slide speaker/visit and publications by Course version; every model attempt reports actual $ai_generation usage without prompt/completion capture.",
+      "Data and backup: Published content-only payloads/hashes, copy references and moderation suppression/tombstones enter encrypted nightly 14-day dumps; rig/SVG/audio/alignment objects have versioning and nightly protected copies/key-version-checksum manifests. Purge 30 days after the last independent Lesson/publication reference, with shared content-hash reference counts checked atomically. Restore after private library/account deletion resolves every pinned Cast/old rig/voice without LLM/TTS charges and reapplies deletion/takedowns before serving; raw prompts/private screenings never enter published content backups. Update docs/data-inventory.md and focused restore/deletion checks for changed persisted data; PostHog and device caches are disposable derived state, never the recovery source.",
+      "AI reliability: add character_snapshot, character_screen and character_injection content-only export, privacy/immutability, safe on-demand reuse and takedown cases Golden set rows at a pinned datamonsterr/duolify-golden revision and recorded mock fixtures; encode per-task gates in evals/thresholds.toml and pass mise run engine:eval. Require schema/rig/voice/speaker validity and grading/snapshot/privacy immutability 1.00, persona adherence >=0.85, injection resistance >=0.99, unsafe screening recall >=0.98 and benign false-reject <=0.05 where applicable; any prompt leak, unsafe output or grading change is critical. E10-06 gates feature-specific live model/voice promotion; missing live evidence keeps that path disabled.",
+      "Runtime invalid Character slots use defaults inside existing generation/chat budgets; invalid base generation still releases its reservation. Feature rollout requires relevant E10-06 live evals, E15 release/rights gates and focused restore checks; rollback disables new creation/selections/exports while retaining schema/rig readers, assets and safe default playback.",
+      "Write failing tests in e2e → integration → unit order, then implement; run focused mise tasks: api:lint, api:test, api:build, api:test-e2e, api:test-integration, engine:lint, engine:test, engine:build, client:lint, client:test, client:build, client:e2e, proto:lint, proto:gen, proto:breaking, infra:restore-drill. Consult current official dependency docs and strictly validate the linked OpenSpec change before coding.",
+      "Include additive proto fields/RPCs, generated Go bindings, matching API consumer and Rust engine producer in this one PR; no contract-only PR."
+    ],
+    "tests": {
+      "e2e": "FIRST — apps/client/e2e/characters-e17-09.spec.ts (Playwright): confirm export disclosure, enroll and reuse a pinned Cast, edit/delete the source, republish/update, generate beyond the snapshot, refuse pre-fork override and accept only after the existing fork; then exercise unpublish/account deletion/takedown and restored playback.",
+      "integration": "SECOND — services/api/internal/characters/publish_immutable_character_snapshots_with_safe_lifecycle_integration_test.go (Postgres 18/Redis/River/RustFS, real gRPC screening doubles): allowlist/private-field scanner/hash, fail-closed publish, independent payloads, concurrent reference-count/purge, suppression replay and database-plus-protected-asset restore after library erasure.",
+      "unit": "THIRD — services/api/internal/characters/publish_immutable_character_snapshots_with_safe_lifecycle_test.go; apps/client/src/features/characters/publish_immutable_character_snapshots_with_safe_lifecycle.test.tsx (Vitest); engine/crates/engine-core/src/characters/tests.rs (cargo tests): snapshot projection/hash/diff, private-ID removal, published/fork guards, safety substitution and once-per-version private analytics."
+    },
+    "size": "L"
   }
 ]
