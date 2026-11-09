@@ -124,6 +124,39 @@ fn attempt_usage(a: &engine_core::credits::Attempt) -> pb::Usage {
 }
 #[tonic::async_trait]
 impl EngineService for Service {
+    async fn screen_character(
+        &self,
+        request: Request<pb::ScreenCharacterRequest>,
+    ) -> Result<Response<pb::ScreenCharacterResponse>, Status> {
+        let req = request.into_inner();
+        if !engine_core::characters::valid_spec(&req.spec_json) {
+            return Ok(Response::new(pb::ScreenCharacterResponse {
+                approved: false,
+                reason_code: "invalid_spec".into(),
+                policy_version: "character-v1".into(),
+                attempts: vec![],
+            }));
+        }
+        // ADR 0011 / E10-06: missing live feature evidence keeps writes closed.
+        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+            return Err(Status::unavailable("screening_unavailable"));
+        }
+        let outcome =
+            engine_core::characters::screen(&self.router, &req.spec_json, &req.compiled_appearance)
+                .await
+                .map_err(|_| Status::unavailable("screening_unavailable"))?;
+        let (approved, reason_code) = outcome
+            .completion
+            .as_ref()
+            .and_then(|c| engine_core::characters::verdict(&c.text))
+            .unwrap_or((false, "screening_unavailable".into()));
+        Ok(Response::new(pb::ScreenCharacterResponse {
+            approved,
+            reason_code,
+            policy_version: "character-v1".into(),
+            attempts: outcome.attempts.iter().map(attempt_usage).collect(),
+        }))
+    }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
     async fn outline_chat_change(
         &self,

@@ -1,4 +1,35 @@
 import type { Palette } from "./types";
+import canonicalSchema from "../../../../../services/api/internal/characters/schema/v1.json";
+
+type Shape = {
+  type: string;
+  properties?: Record<string, unknown>;
+  items?: unknown;
+};
+function matchesShape(value: unknown, definition: unknown): boolean {
+  const schema = definition as Shape;
+  if (schema.type === "object") {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return false;
+    const object = value as Record<string, unknown>;
+    const properties = schema.properties ?? {};
+    return (
+      Object.keys(object).length === Object.keys(properties).length &&
+      Object.entries(properties).every(
+        ([key, child]) => key in object && matchesShape(object[key], child),
+      )
+    );
+  }
+  if (schema.type === "array")
+    return (
+      Array.isArray(value) &&
+      value.every((item) => matchesShape(item, schema.items))
+    );
+  if (schema.type === "integer")
+    return typeof value === "number" && Number.isInteger(value);
+  return schema.type === "string" && typeof value === "string";
+}
+const characters = (text: string) => Array.from(text).length;
 
 const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
 const VALID_BODY_SHAPES = new Set(["round", "bean", "star"]);
@@ -51,6 +82,11 @@ export interface ValidationResult {
 export function validateCharacterSpec(input: unknown): ValidationResult {
   const errors: string[] = [];
 
+  if (!matchesShape(input, canonicalSchema))
+    return { valid: false, errors: ["unknown_field", "invalid_schema"] };
+  if (new TextEncoder().encode(JSON.stringify(input)).length > 8192)
+    return { valid: false, errors: ["spec_too_large"] };
+
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return { valid: false, errors: ["spec_not_object"] };
   }
@@ -81,11 +117,12 @@ export function validateCharacterSpec(input: unknown): ValidationResult {
       if (!ALLOWED_INFO_KEYS.has(k)) errors.push(`unknown_info_field:${k}`);
     }
     const name = String(info.name ?? "");
-    if (name.length < 1 || name.length > 40) errors.push("invalid_name_length");
+    if (characters(name) < 1 || characters(name) > 40)
+      errors.push("invalid_name_length");
     const bio = String(info.bio ?? "");
-    if (bio.length > 280) errors.push("invalid_bio_length");
+    if (characters(bio) > 280) errors.push("invalid_bio_length");
     const backstory = String(info.backstory ?? "");
-    if (backstory.length > 800) errors.push("invalid_backstory_length");
+    if (characters(backstory) > 800) errors.push("invalid_backstory_length");
 
     for (const text of [name, bio, backstory]) {
       if (containsUnsafeContent(text)) errors.push("markup_rejected");
@@ -114,7 +151,7 @@ export function validateCharacterSpec(input: unknown): ValidationResult {
       const seen = new Set<string>();
       for (const t of p.traits) {
         const str = String(t);
-        if (str.length < 1 || str.length > 40)
+        if (characters(str) < 1 || characters(str) > 40)
           errors.push("invalid_trait_length");
         if (seen.has(str)) errors.push("duplicate_trait");
         seen.add(str);
@@ -122,16 +159,36 @@ export function validateCharacterSpec(input: unknown): ValidationResult {
       }
     }
     const style = String(p.speaking_style ?? "");
-    if (style.length < 1 || style.length > 200)
+    if (characters(style) < 1 || characters(style) > 200)
       errors.push("invalid_speaking_style_length");
     const prompt = String(p.persona_prompt ?? "");
-    if (prompt.length < 1 || prompt.length > 500)
+    if (characters(prompt) < 1 || characters(prompt) > 500)
       errors.push("invalid_persona_prompt_length");
 
     for (const text of [style, prompt]) {
       if (containsUnsafeContent(text)) errors.push("markup_rejected");
     }
   }
+
+  const typed = input as {
+    info: { name: string; bio: string; backstory: string };
+    personality: {
+      traits: string[];
+      speaking_style: string;
+      persona_prompt: string;
+    };
+  };
+  if (
+    [
+      typed.info.name,
+      typed.info.bio,
+      typed.info.backstory,
+      ...typed.personality.traits,
+      typed.personality.speaking_style,
+      typed.personality.persona_prompt,
+    ].reduce((sum, text) => sum + characters(text), 0) > 2400
+  )
+    errors.push("combined_text_too_long");
 
   // Appearance
   if (

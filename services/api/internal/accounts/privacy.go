@@ -15,7 +15,12 @@ import (
 
 // ClassifiedLearnerTables lists every table holding learner data and its retention policy.
 var ClassifiedLearnerTables = map[string]string{
-	"course_creations": "erased", "courses": "erased", "course_units": "erased", "course_lesson_stubs": "erased", "course_enrollments": "erased",
+	"characters":            "erased",
+	"character_versions":    "erased_via_character",
+	"character_screenings":  "erased_30_days",
+	"course_casts":          "erased",
+	"lesson_cast_snapshots": "erased_independent_payload",
+	"course_creations":      "erased", "courses": "erased", "course_units": "erased", "course_lesson_stubs": "erased", "course_enrollments": "erased",
 	"credit_subscription_lifecycle":     "financial_retained_via_subscription",
 	"credit_subscription_transitions":   "financial_retained_via_subscription",
 	"credit_subscription_schedule":      "financial_retained_via_subscription",
@@ -75,6 +80,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		query string
 	}
 	queries := []exportQuery{
+		{table: "character_versions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(v)),'[]'::jsonb) FROM character_versions v JOIN characters c ON c.id=v.character_id WHERE c.learner_id=$1`},
 		{table: "credit_subscription_lifecycle", query: `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]'::jsonb) FROM credit_subscription_lifecycle x JOIN credit_subscriptions b USING(subscription_id) JOIN credit_checkout_orders o ON o.id=b.order_id WHERE o.learner_id=$1`},
 		{table: "credit_subscription_transitions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]'::jsonb) FROM credit_subscription_transitions x JOIN credit_subscriptions b USING(subscription_id) JOIN credit_checkout_orders o ON o.id=b.order_id WHERE o.learner_id=$1`},
 		{table: "credit_subscriptions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(s)),'[]'::jsonb) FROM credit_subscriptions s JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1`},
@@ -99,7 +105,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 	for _, table := range []string{"credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(g)),'[]'::jsonb) FROM " + table + " g JOIN credit_subscription_terms t USING(period_key) JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1"})
 	}
-	for _, table := range []string{"course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "credit_checkout_orders", "credit_jobs", "credit_outbox"} {
+	for _, table := range []string{"characters", "character_screenings", "course_casts", "lesson_cast_snapshots", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "credit_checkout_orders", "credit_jobs", "credit_outbox"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM " + table + " t WHERE learner_id=$1"})
 	}
 	for _, table := range []string{"credit_allocations", "credit_usage"} {

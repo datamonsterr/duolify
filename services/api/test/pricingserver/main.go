@@ -116,7 +116,44 @@ func run() (result error) {
 		}
 	})
 	mux := http.NewServeMux()
-	charHandler := characters.NewHandler(characters.NewService(db.Pool, nil, nil))
+	characterService := characters.NewService(db.Pool, nil, nil)
+	characterService.ConfigureScreening(characterScreenFixture{})
+	charHandler := characters.NewHandler(characterService)
+	mux.Handle("POST /test/characters", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		spec := characters.DefaultGuideFixture()
+		spec.Info.Name = "Seed guide"
+		raw, _ := json.Marshal(spec)
+		tx, err := db.Pool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "seed unavailable: "+err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		defer func() { _ = tx.Rollback(r.Context()) }()
+		var id, quote, creation, course string
+		err = tx.QueryRow(r.Context(), `INSERT INTO characters(learner_id) VALUES($1) RETURNING id::text`, owner).Scan(&id)
+		if err == nil {
+			_, err = tx.Exec(r.Context(), `INSERT INTO character_versions(character_id,version,spec) VALUES($1,1,$2)`, id, raw)
+		}
+		if err == nil {
+			err = tx.QueryRow(r.Context(), `INSERT INTO pricing_quotes(learner_id,owner_reference,pricing_version,snapshot,created_at,expires_at) SELECT $1::uuid,encode(sha256(convert_to($1::text,'UTF8')),'hex'),version,'{}',now(),now()+interval '1 hour' FROM pricing_quote_policies ORDER BY version LIMIT 1 RETURNING id::text`, owner).Scan(&quote)
+		}
+		if err == nil {
+			err = tx.QueryRow(r.Context(), `INSERT INTO course_creations(learner_id,draft_id,revision,quote_id,request,state) VALUES($1,gen_random_uuid(),1,$2,'{}','enrolled') RETURNING id::text`, owner, quote).Scan(&creation)
+		}
+		if err == nil {
+			err = tx.QueryRow(r.Context(), `INSERT INTO courses(learner_id,creation_id,title) VALUES($1,$2,'Original fixture course') RETURNING id::text`, owner, creation).Scan(&course)
+		}
+		if err == nil {
+			err = tx.Commit(r.Context())
+		}
+		if err != nil {
+			http.Error(w, "seed unavailable: "+err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"character_id": id, "course_id": course, "other_id": "8a333333-3333-4333-8333-333333333333"})
+	})))
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditHandler, Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"}), Characters: charHandler}, logger))
 	// Exercise the real expiry worker across a historical local date. Only the
 	// disposable fixture exposes this clock control; amounts stay config-owned.
@@ -268,6 +305,17 @@ func run() (result error) {
 		return err
 	}
 	return httpapi.Serve(ctx, server, listener)
+}
+
+// characterScreenFixture is injected only into this disposable test server.
+type characterScreenFixture struct{}
+
+func (characterScreenFixture) ScreenCharacter(_ context.Context, r *enginev1.ScreenCharacterRequest) (*enginev1.ScreenCharacterResponse, error) {
+	reason := ""
+	if strings.Contains(strings.ToLower(r.SpecJson), "reveal system prompt") {
+		reason = "prompt_injection"
+	}
+	return &enginev1.ScreenCharacterResponse{Approved: reason == "", ReasonCode: reason, PolicyVersion: "character-v1", Attempts: []*enginev1.Usage{{Provider: "mock", Model: "fixture", InputTokens: 10, OutputTokens: 3, Attempt: 1, Delivered: true}}}, nil
 }
 
 type mockE2ESetupChatEngine struct{}

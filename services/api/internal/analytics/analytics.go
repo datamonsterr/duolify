@@ -82,6 +82,7 @@ func allowlisted(event string) bool {
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
 		"character_rendered", "character_render_fallback",
+		"character_updated", "character_deleted", "character_rejected", "course_cast_selected",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":
 		return true
 	default:
@@ -178,6 +179,36 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "character_updated":
+		ids("character_id")
+		numeric("character_version")
+		if fields, ok := input["fields_changed"].([]string); ok {
+			safe := []string{}
+			for _, field := range fields {
+				switch field {
+				case "info.name", "info.bio", "info.backstory", "personality.traits", "personality.speaking_style", "personality.persona_prompt", "appearance.body_shape", "appearance.palette", "appearance.eyes", "appearance.mouth", "appearance.accessories", "voice_key":
+					safe = append(safe, field)
+				}
+			}
+			out["fields_changed"] = safe
+		}
+	case "character_deleted":
+		ids("character_id")
+	case "character_rejected":
+		if input["operation"] == "manual_edit" {
+			out["operation"] = "manual_edit"
+		}
+		if reason, ok := input["reason_code"].(string); ok {
+			switch reason {
+			case "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "prompt_injection", "invalid_spec", "limit_exceeded", "screening_unavailable":
+				out["reason_code"] = reason
+			}
+		}
+	case "course_cast_selected":
+		numeric("supporting_count", "cast_version")
+		if source := input["cast_source"]; source == "default" || source == "custom" || source == "mixed" {
+			out["cast_source"] = source
+		}
 	case "course_outline_generated", "course_enrolled":
 		ids("course_id", "provider", "model")
 		numeric("unit_count", "lesson_count", "latency_ms")

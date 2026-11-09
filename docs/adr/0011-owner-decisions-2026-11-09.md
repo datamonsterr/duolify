@@ -46,6 +46,16 @@ Not owner decisions; chosen by the orchestrator so work could continue. Change t
 
 ## Still open (owner provisioning)
 
+E17-03 implementation default: free structured edits use platform screening only,
+with the existing two-attempt launch clamp, at most ten seconds and 0.05 USD
+operational ceiling, 200 output tokens and fail-closed provider/schema handling.
+This is not a `character_create` price. Missing E10-06 live feature evidence keeps
+live screening disabled; development/tests explicitly inject mock providers. The
+three original built-ins and logical voice keys remain PROVISIONAL, every unique
+pair of the four independently authored accessory parts is compatible, and
+`FEATURE_CUSTOM_CHARACTERS` remains off by default. No final art/voice rights or
+commercial terms are approved by this implementation.
+
 Live credentials and accounts: E1-10 (Resend, Google, Apple), E7-05/E7-12/E7-13/E7-14 (billing), E10-01 dataset and secrets, E11-02/E11-07 (backup keys, environment secrets), E12-08 (launch catalogue), E13-05 (brand assets), E14-05 (voices), E15-12/E15-13 (marketplace policy and pilot), the `character_create` price and final default-cast art (E17).
 
 | E7-03 | `usd-quotes-2026-11-09` succeeds the launch config without changing commercial prices; its quote TTL is 300 seconds, free generation concurrency is 1, and its quote policy permits two total attempts (primary then one evaluated fallback). Legacy quote terms stay immutable. Plan concurrency resolves only from server-issued subscription grant `plan_id` provenance until billing supplies active entitlements; absent provenance uses the free limit. A missing usage report after a started provider call conservatively consumes the held operational USD and releases undelivered customer Credits. Admin-approved successors inherit the parent execution policy, including price rollbacks, so historical prices cannot silently remove current safety bounds. Postgres is authoritative for all capacity counters; Redis wallet caching remains disposable. Shared preview execution requires accepted quote consent via `X-Quote-ID`; clients cannot submit settlement or override API-derived limits. |

@@ -23,6 +23,13 @@ type Client struct {
 	timeout time.Duration
 }
 
+// ScreenCharacter bounds platform-paid screening independently of learner Credits.
+func (c *Client) ScreenCharacter(ctx context.Context, r *enginev1.ScreenCharacterRequest) (*enginev1.ScreenCharacterResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return c.rpc.ScreenCharacter(ctx, r)
+}
+
 // OutlineChatChange uses the same private transport and bounded request context.
 func (c *Client) OutlineChatChange(ctx context.Context, r *enginev1.OutlineChatChangeRequest) (*enginev1.OutlineChatChangeResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)

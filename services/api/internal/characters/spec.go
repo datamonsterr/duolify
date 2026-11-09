@@ -2,15 +2,22 @@ package characters
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"regexp"
 	"strconv"
 	"strings"
 )
+
+// SpecSchema is the canonical closed v1 contract, also consumed by the Engine.
+//
+//go:embed schema/v1.json
+var SpecSchema []byte
 
 var (
 	hexColorRegex    = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
@@ -80,12 +87,64 @@ func ValidateSpecJSON(raw []byte) (*CharacterSpec, error) {
 	if err := decoder.Decode(&spec); err != nil {
 		return nil, fmt.Errorf("invalid character spec schema: %w", err)
 	}
+	if !errors.Is(decoder.Decode(new(any)), io.EOF) {
+		return nil, errors.New("trailing JSON")
+	}
+	var value any
+	var schema map[string]any
+	if json.Unmarshal(raw, &value) != nil || json.Unmarshal(SpecSchema, &schema) != nil || !schemaShape(value, schema) {
+		return nil, errors.New("invalid required fields or JSON types")
+	}
 
 	if err := ValidateSpec(&spec); err != nil {
 		return nil, err
 	}
 
 	return &spec, nil
+}
+
+// schemaShape enforces required, closed and exact JSON types from the shared
+// schema. Bounds and cross-field compatibility are checked by ValidateSpec.
+func schemaShape(value any, schema map[string]any) bool {
+	switch schema["type"] {
+	case "object":
+		v, ok := value.(map[string]any)
+		if !ok {
+			return false
+		}
+		p := schema["properties"].(map[string]any)
+		if len(v) != len(p) {
+			return false
+		}
+		for key, child := range p {
+			item, exists := v[key]
+			if !exists || !schemaShape(item, child.(map[string]any)) {
+				return false
+			}
+		}
+	case "string":
+		if _, ok := value.(string); !ok {
+			return false
+		}
+	case "integer":
+		n, ok := value.(float64)
+		if !ok || n != math.Trunc(n) {
+			return false
+		}
+	case "array":
+		v, ok := value.([]any)
+		if !ok {
+			return false
+		}
+		for _, item := range v {
+			if !schemaShape(item, schema["items"].(map[string]any)) {
+				return false
+			}
+		}
+	default:
+		return false
+	}
+	return true
 }
 
 // ValidateSpec checks cross-field constraints, bounds, contrast, and safety.
@@ -217,6 +276,12 @@ func ValidateSpec(spec *CharacterSpec) error {
 	// Validate VoiceKey
 	if !validVoiceKeys[spec.VoiceKey] {
 		return fmt.Errorf("unresolvable or unapproved voice_key: %s", spec.VoiceKey)
+	}
+	var serialized bytes.Buffer
+	encoder := json.NewEncoder(&serialized)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(spec); err != nil || serialized.Len()-1 > 8192 {
+		return errors.New("CharacterSpec exceeds maximum serialized size of 8 KiB")
 	}
 
 	return nil

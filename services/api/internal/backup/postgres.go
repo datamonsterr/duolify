@@ -73,6 +73,9 @@ func (p Postgres) Dump(ctx context.Context, destination io.Writer) error {
 // PurgeExpiredBriefs applies personal-data and redacted webhook payload retention
 // before either local or packaged dumps. Financial references are never removed.
 func (p Postgres) PurgeExpiredBriefs(ctx context.Context) error {
+	if _, err := p.Pool.Exec(ctx, `DELETE FROM character_screenings WHERE created_at<now()-interval '30 days'; DELETE FROM characters WHERE deleted_at<now()-interval '30 days'`); err != nil {
+		return errors.New("character retention cleanup failed")
+	}
 	if err := db.New(p.Pool).PurgeExpiredCourseBriefs(ctx); err != nil {
 		return err
 	}

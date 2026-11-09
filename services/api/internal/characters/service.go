@@ -32,11 +32,12 @@ type S3Client interface {
 
 // Service coordinates cast resolution, manifest projection, and rig storage.
 type Service struct {
-	pool    *pgxpool.Pool
-	storage *backup.S3
-	events  analytics.Events
-	mu      sync.RWMutex
-	memory  map[string][]byte
+	pool     *pgxpool.Pool
+	storage  *backup.S3
+	events   analytics.Events
+	mu       sync.RWMutex
+	memory   map[string][]byte
+	screener Screener
 }
 
 // NewService constructs a new character service.
@@ -50,12 +51,34 @@ func NewService(pool *pgxpool.Pool, storage *backup.S3, events analytics.Events)
 }
 
 // ProjectManifest resolves the default cast lesson manifest and pinned cast snapshot.
-func (s *Service) ProjectManifest(_ context.Context, learnerID, courseID, lessonID string) (*LessonManifest, error) {
+func (s *Service) ProjectManifest(ctx context.Context, learnerID, courseID, lessonID string) (*LessonManifest, error) {
 	if learnerID == "" {
 		return nil, errors.New("unauthorized: learnerID required")
 	}
 
-	return ProjectDefaultCastManifest(courseID, lessonID)
+	manifest, err := ProjectDefaultCastManifest(courseID, lessonID)
+	if err != nil {
+		return nil, err
+	}
+	if s.pool != nil && CustomCharactersEnabled() {
+		cast, pinErr := s.PinCast(ctx, learnerID, courseID, lessonID)
+		if pinErr != nil {
+			return nil, pinErr
+		}
+		manifest.Cast = cast
+		for i := range manifest.Slides {
+			for j := range manifest.Slides[i].Segments {
+				segment := &manifest.Slides[i].Segments[j]
+				if speaker, ok := cast.Speakers[segment.SpeakerKey]; ok {
+					segment.SpeakerLabel = speaker.Spec.Info.Name
+				} else {
+					segment.SpeakerKey = "guide"
+					segment.SpeakerLabel = cast.Speakers["guide"].Spec.Info.Name
+				}
+			}
+		}
+	}
+	return manifest, nil
 }
 
 // StoreRigAsset stores an object-backed rig or SVG into object storage with SHA-256 checksum.

@@ -68,6 +68,31 @@ type AuthSession struct {
 	ReauthenticatedAt pgtype.Timestamptz `json:"reauthenticated_at"`
 }
 
+type Character struct {
+	ID             pgtype.UUID        `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	CurrentVersion int32              `json:"current_version"`
+	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type CharacterScreening struct {
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	CharacterID   pgtype.UUID        `json:"character_id"`
+	Verdict       string             `json:"verdict"`
+	ReasonCode    string             `json:"reason_code"`
+	PolicyVersion string             `json:"policy_version"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type CharacterVersion struct {
+	CharacterID pgtype.UUID        `json:"character_id"`
+	Version     int32              `json:"version"`
+	Spec        []byte             `json:"spec"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type Course struct {
 	ID          pgtype.UUID        `json:"id"`
 	LearnerID   pgtype.UUID        `json:"learner_id"`
@@ -85,6 +110,13 @@ type CourseBriefRevision struct {
 	ContentHash string             `json:"content_hash"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+}
+
+type CourseCast struct {
+	CourseID  pgtype.UUID `json:"course_id"`
+	LearnerID pgtype.UUID `json:"learner_id"`
+	Selection []byte      `json:"selection"`
+	Version   int32       `json:"version"`
 }
 
 type CourseCreation struct {
@@ -413,6 +445,13 @@ type LearnerProfile struct {
 	UiSounds        bool               `json:"ui_sounds"`
 	Haptics         string             `json:"haptics"`
 	ActiveCourseID  pgtype.UUID        `json:"active_course_id"`
+}
+
+type LessonCastSnapshot struct {
+	CourseID  pgtype.UUID `json:"course_id"`
+	LearnerID pgtype.UUID `json:"learner_id"`
+	LessonKey string      `json:"lesson_key"`
+	Snapshot  []byte      `json:"snapshot"`
 }
 
 type OutlineDraft struct {

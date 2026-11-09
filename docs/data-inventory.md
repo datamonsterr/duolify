@@ -285,3 +285,24 @@ enforcement. No new database tables or personal learner data stores are created.
 
 E10-05: Expose reliability and AI cost dashboards. Introduces `eval_alert_configs` (alert thresholds and windows), `eval_alert_events` (deduplicated operational alert history), `eval_reports` (golden-set evaluation runs with 90-day retention), and `eval_operational_aggregates` (daily rollup counters for total calls, fallback calls, error calls, latency, tokens, cost nanos, and credit revenue cents). Dashboards and alerts are derived purely from operational aggregations, pricing catalogue prices, and evaluation reports. Neither prompts, completions, nor learner-submitted text are stored in these tables or exposed via endpoints. Operational recording and server-side counter increments continue independently even if PostHog analytics is down or if the learner opted out of analytics.
 
+# E17-03 private Characters and Course Casts
+
+`characters` stores private ownership/current version and a soft deletion date;
+`character_versions` stores immutable, closed v1 JSON specs; `character_screenings`
+stores only verdict/reason/policy/attempt time (never rejected text or SVG);
+`course_casts` stores an owned Course's free selection; `lesson_cast_snapshots`
+stores independent immutable approved payloads, so library deletion cannot rewrite
+history. All are included in encrypted nightly Postgres dumps with 14-day roll-off,
+account export and cascading account erasure. Restore replays existing durable
+account deletion tombstones before serving. The backup fixture compares all five
+tables and verifies deletion cascades.
+
+Soft-deleted private Characters/versions and screening metadata purge within 30
+days, hourly and before nightly dumps. Independent historical Cast payloads last
+with their Course; deletion of a Course/account cascades them. Future E15 publishes
+independent allowlisted snapshots under its retention policy. No per-learner SVG or
+S3 asset is created by free edits: trusted `original-v1` rigs are bundled versioned
+release artifacts and retained with the application. Existing optional asset
+backup/checksum checks remain unchanged. Redis and PostHog/device state are derived.
+No financial records, raw prompts, price or `character_create` spend are added.
+

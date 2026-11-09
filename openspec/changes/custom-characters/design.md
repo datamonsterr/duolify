@@ -104,6 +104,41 @@ Implementation first ships schema/rig/built-ins and additive stores behind a fla
 
 ## Open Questions
 
+### E17-03 scoped implementation review
+
+S23 Settings hosts the private library and S04 Create/Course hosts a Course Cast
+link. The shared Components buttons, outlined cards, spacing, typography and
+light/dark tokens extend these boards; the boards do not already draw Character
+controls. Desktop uses library cards and a two-column structured editor; mobile
+opens the same editor as a separate step with Cancel and free Save. Native selects,
+labelled controls, all five static expression previews, focus return, a trapped
+delete-confirmation dialog, loading/empty/connect-and-retry states and preserved
+drafts cover keyboard/touch and reduced motion. Preview uses a scriptless sandbox
+and `default-src 'none'`; character text never becomes executable markup.
+
+The original three v1 built-ins, names and logical voices remain explicitly
+PROVISIONAL. The flag defaults off, including `.env.example`. Free editing has no
+Pricing/ledger dependency, while prompt creation remains unavailable. Live semantic
+screening is disabled without E10-06 feature evidence; offline development uses
+explicit mock-provider injection. A closed canonical schema is retained at
+`services/api/internal/characters/schema/v1.json` and consumed by all three stacks.
+All four accessory kinds occupy separate rig parts, so any unique pair is
+compatible; the existing two-accessory cap remains. No new art or voice rights are
+implied. Screens only edit logical voice keys; actual synthesis is E17-08.
+
+The screening envelope is platform operational policy (not a Credit price): ten
+seconds at the API (nine seconds in the Engine), two attempts maximum under the existing E10 launch clamp, 200 output
+tokens and 0.05 USD worst-case ceiling. All usage attempts are reported without
+content. Model/provider activation remains closed in production. Offline fixture
+tasks require 1.00 correctness (stricter than aggregate minimums); publish the same
+cases at a pinned HF revision when E10-01 provisions it, with no invented revision.
+
+Private writes use a committed attempt before validation and compare-and-swap
+version replacement after screening. Database learner-row locks bound concurrent
+quota/count races. Immutable independent snapshots and bundled versioned rigs
+survive private deletion; no new S3 assets require regeneration on restore.
+
+
 1. Approve `character_create` price, Daily free credits eligibility and protected provider-cost ceiling in a new Pricing config version; creation remains disabled until then.
 2. Final Default cast names/art, precise rig controls, palette/accessory constraints and supported learner age policy.
 3. Validate proposed count/rate/text/token limits and adherence/screening thresholds against a representative Golden set.
