@@ -68,6 +68,16 @@ type AuthSession struct {
 	ReauthenticatedAt pgtype.Timestamptz `json:"reauthenticated_at"`
 }
 
+type Course struct {
+	ID          pgtype.UUID        `json:"id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	CreationID  pgtype.UUID        `json:"creation_id"`
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type CourseBriefRevision struct {
 	ID          pgtype.UUID        `json:"id"`
 	LearnerID   pgtype.UUID        `json:"learner_id"`
@@ -75,6 +85,48 @@ type CourseBriefRevision struct {
 	ContentHash string             `json:"content_hash"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+}
+
+type CourseCreation struct {
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	DraftID       pgtype.UUID        `json:"draft_id"`
+	Revision      int64              `json:"revision"`
+	QuoteID       pgtype.UUID        `json:"quote_id"`
+	Request       []byte             `json:"request"`
+	State         string             `json:"state"`
+	ReservationID pgtype.UUID        `json:"reservation_id"`
+	Response      []byte             `json:"response"`
+	CourseID      pgtype.UUID        `json:"course_id"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type CourseEnrollment struct {
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	CourseID      pgtype.UUID        `json:"course_id"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	LevelOverride string             `json:"level_override"`
+	LastActiveAt  pgtype.Timestamptz `json:"last_active_at"`
+}
+
+type CourseLessonStub struct {
+	ID         pgtype.UUID `json:"id"`
+	LearnerID  pgtype.UUID `json:"learner_id"`
+	UnitID     pgtype.UUID `json:"unit_id"`
+	AuthoredID string      `json:"authored_id"`
+	Position   int32       `json:"position"`
+	Title      string      `json:"title"`
+	Goal       string      `json:"goal"`
+	Status     string      `json:"status"`
+}
+
+type CourseUnit struct {
+	ID         pgtype.UUID `json:"id"`
+	LearnerID  pgtype.UUID `json:"learner_id"`
+	CourseID   pgtype.UUID `json:"course_id"`
+	AuthoredID string      `json:"authored_id"`
+	Position   int32       `json:"position"`
+	Title      string      `json:"title"`
 }
 
 type CreditAllocation struct {
@@ -302,6 +354,7 @@ type LearnerProfile struct {
 	TextSize        pgtype.Numeric     `json:"text_size"`
 	UiSounds        bool               `json:"ui_sounds"`
 	Haptics         string             `json:"haptics"`
+	ActiveCourseID  pgtype.UUID        `json:"active_course_id"`
 }
 
 type OutlineDraft struct {

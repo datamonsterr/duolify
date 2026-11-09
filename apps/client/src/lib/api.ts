@@ -4,14 +4,17 @@ export type Lesson = {
   id: string;
   title: string;
   state: "done" | "current" | "locked" | "ready_to_generate";
+  goal?: string;
 };
 export type Course = {
   availability?: "available" | "unavailable";
   id: string;
   title: string;
   description: string;
-  units: { title: string; lessons: Lesson[] }[];
+  level_override?: string;
+  units: { id?: string; title: string; lessons: Lesson[] }[];
 };
+export type CoursesResponse = Course[] & { active_course_id?: string };
 const base = import.meta.env.VITE_API_URL || "http://localhost:8080";
 const pricingCacheKey = "pricing:last-known";
 type PricingCache = { pricing: Pricing; etag: string | null };
@@ -43,7 +46,11 @@ function writePricingCache(pricing: Pricing, etag: string | null) {
 
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(`${base}${path}`);
-  if (!response.ok) throw new Error(`API request failed: ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(`API request failed: ${response.status}`);
+    (error as { status?: number }).status = response.status;
+    throw error;
+  }
   return response.json() as Promise<T>;
 }
 export const api = {
@@ -62,7 +69,64 @@ export const api = {
     writePricingCache(pricing, response.headers.get("ETag"));
     return pricing;
   },
-  courses: () => get<Course[]>("/courses"),
+  courses: async (): Promise<CoursesResponse> => {
+    let list: Course[] = [];
+    let activeCourseId: string | undefined;
+
+    try {
+      const data = await session.request<
+        | Course[]
+        | {
+            courses?: Course[];
+            active_course_id?: string;
+          }
+      >("/v1/courses");
+      if (Array.isArray(data)) {
+        list = data;
+      } else if (Array.isArray(data?.courses)) {
+        list = data.courses;
+        activeCourseId = data.active_course_id;
+      }
+    } catch {
+      const fallback = await get<
+        Course[] | { courses?: Course[]; active_course_id?: string }
+      >("/courses");
+      if (Array.isArray(fallback)) {
+        list = fallback;
+      } else if (Array.isArray(fallback?.courses)) {
+        list = fallback.courses;
+        activeCourseId = fallback.active_course_id;
+      }
+    }
+
+    if (activeCourseId) {
+      try {
+        if (!localStorage.getItem("duolify:active-course")) {
+          localStorage.setItem("duolify:active-course", activeCourseId);
+        }
+      } catch {
+        /* LocalStorage may be unavailable. */
+      }
+    }
+
+    return Object.assign(list, { active_course_id: activeCourseId });
+  },
+  selectCourse: async (id: string): Promise<{ active_course_id: string }> => {
+    return session.request<{ active_course_id: string }>(
+      `/v1/courses/${encodeURIComponent(id)}/select`,
+      "POST",
+    );
+  },
+  setCourseLevel: async (
+    id: string,
+    level: string,
+  ): Promise<{ level_override: string }> => {
+    return session.request<{ level_override: string }>(
+      `/v1/courses/${encodeURIComponent(id)}/level`,
+      "POST",
+      { level },
+    );
+  },
   course: (id: string) =>
     /^[0-9a-f-]{36}$/.test(id)
       ? session.request<Course>(`/v1/courses/${encodeURIComponent(id)}`)

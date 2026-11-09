@@ -361,7 +361,10 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status) VALUES('f3333333-3333-4333-8333-333333333333','a1111111-1111-4111-8111-111111111111','f2222222-2222-4222-8222-222222222222','fixture-lesson',0,'Phases','Recognize phases','ready_to_generate')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_enrollments(learner_id,course_id) VALUES('a1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111')`); err != nil {
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_enrollments(learner_id,course_id,level_override) VALUES('a1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','intermediate')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `UPDATE learner_profiles SET active_course_id='f1111111-1111-4111-8111-111111111111' WHERE learner_id='a1111111-1111-4111-8111-111111111111'`); err != nil {
 		t.Fatal(err)
 	}
 

@@ -470,9 +470,12 @@ func (s *Service) ServeCourseHTTP(w http.ResponseWriter, r *http.Request) {
 		outlineError(w, 401)
 		return
 	}
-	id := strings.TrimPrefix(r.URL.Path, "/v1/courses/")
+	id := r.PathValue("id")
+	if id == "" {
+		id = strings.TrimPrefix(r.URL.Path, "/v1/courses/")
+	}
 	var raw []byte
-	err := s.opts.Pool.QueryRow(r.Context(), `SELECT jsonb_build_object('id',c.id,'title',c.title,'description',c.description,'units',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',u.id,'title',u.title,'lessons',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',l.id,'title',l.title,'goal',l.goal,'state',l.status) ORDER BY l.position) FROM course_lesson_stubs l WHERE l.unit_id=u.id),'[]'::jsonb)) ORDER BY u.position) FROM course_units u WHERE u.course_id=c.id),'[]'::jsonb)) FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE c.id::text=$1 AND e.learner_id::text=$2 AND c.deleted_at IS NULL`, id, owner).Scan(&raw)
+	err := s.opts.Pool.QueryRow(r.Context(), `SELECT jsonb_build_object('id',c.id,'title',c.title,'description',c.description,'level_override',COALESCE(e.level_override,''),'units',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',u.id,'title',u.title,'lessons',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',l.id,'title',l.title,'goal',l.goal,'state',l.status) ORDER BY l.position) FROM course_lesson_stubs l WHERE l.unit_id=u.id),'[]'::jsonb)) ORDER BY u.position) FROM course_units u WHERE u.course_id=c.id),'[]'::jsonb)) FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE c.id::text=$1 AND e.learner_id::text=$2 AND c.deleted_at IS NULL`, id, owner).Scan(&raw)
 	if err != nil {
 		outlineError(w, 404)
 		return

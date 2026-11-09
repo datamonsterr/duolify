@@ -83,6 +83,19 @@ func TestHTTPAPI(t *testing.T) {
 	if _, err = database.Pool.Exec(t.Context(), "INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version) VALUES($1,1000,'purchase','e2e-fixture',$2)", owner, catalogue.Config().Version); err != nil {
 		t.Fatal(err)
 	}
+	var qID, creationID, courseID string
+	if err = database.Pool.QueryRow(t.Context(), `INSERT INTO pricing_quotes(learner_id,owner_reference,pricing_version,snapshot,created_at,expires_at) VALUES($1,'fixture-owner',$2,'{}',now(),now()+interval '10 minutes') RETURNING id`, owner, catalogue.Config().Version).Scan(&qID); err != nil {
+		t.Fatal(err)
+	}
+	if err = database.Pool.QueryRow(t.Context(), `INSERT INTO course_creations(learner_id,draft_id,revision,quote_id,request,state) VALUES($1,gen_random_uuid(),1,$2,'{}','enrolled') RETURNING id`, owner, qID).Scan(&creationID); err != nil {
+		t.Fatal(err)
+	}
+	if err = database.Pool.QueryRow(t.Context(), `INSERT INTO courses(learner_id,creation_id,title,description) VALUES($1,$2,'Everyday Physics','A demonstration course') RETURNING id`, owner, creationID).Scan(&courseID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = database.Pool.Exec(t.Context(), `INSERT INTO course_enrollments(learner_id,course_id) VALUES($1,$2)`, owner, courseID); err != nil {
+		t.Fatal(err)
+	}
 	handler := httpapi.New(httpapi.Dependencies{Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: database.Pool}), Engine: client, Credits: creditService, Quotes: quotes, Postgres: func(context.Context) error { return nil }, Redis: func(context.Context) error { return errors.New("unavailable") }}, logger)
 	server := httpapi.NewServer("127.0.0.1:0", handler)
 	listener, err := new(net.ListenConfig).Listen(t.Context(), "tcp", server.Addr)

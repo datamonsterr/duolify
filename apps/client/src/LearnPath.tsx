@@ -2,18 +2,36 @@ import { useUiPreferences } from "./features/design/localization/Preferences";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "./lib/api";
+import { RouteUnavailable } from "./features/shell/RouteBoundary";
+
 export function LearnPath({ courseId }: { courseId: string }) {
   const { t } = useUiPreferences();
   const {
     data: course,
     isPending,
     isError,
+    error,
   } = useQuery({
     queryKey: ["course", courseId],
     queryFn: () => api.course(courseId),
+    retry: false,
   });
+
   if (isPending) return <p>{t("path.loading")}</p>;
-  if (isError) return <p>{t("path.error")}</p>;
+  if (isError) {
+    if (
+      (error as { status?: number })?.status === 404 ||
+      (error as { message?: string })?.message?.includes("404") ||
+      (error as { message?: string })?.message?.includes("not found")
+    ) {
+      return <RouteUnavailable />;
+    }
+    return <p>{t("path.error")}</p>;
+  }
+  if (!course || course.availability === "unavailable") {
+    return <RouteUnavailable />;
+  }
+
   return (
     <>
       <div className="eyebrow">{t("path.title")}</div>
@@ -89,6 +107,11 @@ export function LearnPath({ courseId }: { courseId: string }) {
                   <strong>
                     <bdi>{lesson.title}</bdi>
                   </strong>
+                  {lesson.goal ? (
+                    <div className="lesson-goal muted">
+                      <bdi>{lesson.goal}</bdi>
+                    </div>
+                  ) : null}
                   <div className="muted">
                     {lesson.state === "locked"
                       ? t("path.locked")

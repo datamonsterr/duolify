@@ -89,11 +89,18 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		if creation, ok := deps.CourseBrief.(interface {
 			ServeCreationHTTP(http.ResponseWriter, *http.Request)
 			ServeCourseHTTP(http.ResponseWriter, *http.Request)
+			ServeCoursesListHTTP(http.ResponseWriter, *http.Request)
+			ServeCourseSelectHTTP(http.ResponseWriter, *http.Request)
+			ServeCourseLevelHTTP(http.ResponseWriter, *http.Request)
 		}); ok {
 			h := deps.Accounts.Protect(http.HandlerFunc(creation.ServeCreationHTTP))
 			mux.Handle("/v1/course-creations", h)
 			mux.Handle("/v1/course-creations/", h)
+			mux.Handle("GET /v1/courses", deps.Accounts.Protect(http.HandlerFunc(creation.ServeCoursesListHTTP)))
 			mux.Handle("GET /v1/courses/{id}", deps.Accounts.Protect(http.HandlerFunc(creation.ServeCourseHTTP)))
+			mux.Handle("POST /v1/courses/{id}/select", deps.Accounts.Protect(http.HandlerFunc(creation.ServeCourseSelectHTTP)))
+			mux.Handle("POST /v1/courses/{id}/level", deps.Accounts.Protect(http.HandlerFunc(creation.ServeCourseLevelHTTP)))
+			mux.Handle("PUT /v1/courses/{id}/level", deps.Accounts.Protect(http.HandlerFunc(creation.ServeCourseLevelHTTP)))
 		}
 		if outlines, ok := deps.CourseBrief.(interface {
 			ServeOutlineHTTP(http.ResponseWriter, *http.Request)
@@ -161,15 +168,6 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		}
 		probes.Wait()
 		writeJSON(w, code, results)
-	})
-	mux.HandleFunc("GET /v1/courses", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"courses": []map[string]string{{
-				"id":          "demo-physics",
-				"title":       "Everyday Physics",
-				"description": "A demonstration course",
-			}},
-		})
 	})
 	mux.HandleFunc("POST /v1/courses/preview", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")

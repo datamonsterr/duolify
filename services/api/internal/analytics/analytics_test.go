@@ -88,7 +88,7 @@ func TestEventAllowlist(t *testing.T) {
 		"course_outline_generated", "course_enrolled",
 		"learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
-		"$ai_generation", "ui_control_activated",
+		"$ai_generation", "ui_control_activated", "ui_navigation_selected",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",

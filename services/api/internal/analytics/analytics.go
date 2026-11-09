@@ -77,7 +77,7 @@ func allowlisted(event string) bool {
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
-		"$ai_generation", "ui_control_activated",
+		"$ai_generation", "ui_control_activated", "ui_navigation_selected",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
@@ -237,7 +237,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		boolean("enabled")
 	case "learner_profile_updated":
 		allowed := map[string]bool{}
-		for _, key := range strings.Fields("goal topic background level daily_minutes daily_xp locale time_zone reminder_enabled reminder_time appearance motion narration narration_speed captions text_size ui_sounds haptics analytics_opt_out") {
+		for _, key := range strings.Fields("goal topic background level course_level daily_minutes daily_xp locale time_zone reminder_enabled reminder_time appearance motion narration narration_speed captions text_size ui_sounds haptics analytics_opt_out") {
 			allowed[key] = true
 		}
 		if fields, ok := input["fields_changed"].([]string); ok {
@@ -250,7 +250,9 @@ func safeProperties(event string, input map[string]any) map[string]any {
 			out["fields_changed"] = safe
 		}
 	case "ui_control_activated":
-		ids("control_id", "screen", "surface")
+		ids("control_id", "screen", "surface", "course_id")
+	case "ui_navigation_selected":
+		ids("destination")
 	case "paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested":
 		ids("placement", "feature", "plan_id", "price_table_version", "pricing_version", "surface", "offer_id")
 		numeric("balance")

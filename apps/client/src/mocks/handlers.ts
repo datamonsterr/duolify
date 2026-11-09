@@ -34,6 +34,16 @@ export const courses: Course[] = [
   },
 ];
 export const handlers = [
+  http.get("*/v1/courses", () =>
+    HttpResponse.json({ courses, active_course_id: courses[0]?.id }),
+  ),
+  http.post("*/v1/courses/:id/select", ({ params }) =>
+    HttpResponse.json({ active_course_id: params.id }),
+  ),
+  http.post("*/v1/courses/:id/level", async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as { level?: string };
+    return HttpResponse.json({ level_override: body.level ?? "" });
+  }),
   http.get("*/courses", () => HttpResponse.json(courses)),
   http.get("*/courses/:id", ({ params }) => {
     const course = courses.find((c) => c.id === params.id);

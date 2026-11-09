@@ -1,6 +1,9 @@
 import { UiPreferencesProvider } from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
 import { session } from "./features/accounts/session";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "./lib/api";
+import { useShellSession } from "./features/shell/ShellSession";
 import {
   createRootRoute,
   createRoute,
@@ -53,10 +56,44 @@ const root = createRootRoute({
   errorComponent: RouteError,
   notFoundComponent: RouteUnavailable,
 });
+function IndexRoute() {
+  const session = useShellSession();
+  const { data: coursesData } = useQuery({
+    queryKey: ["courses"],
+    queryFn: api.courses,
+    staleTime: 60000,
+  });
+
+  const activeId = session.courseId();
+  let resolvedCourseId = activeId;
+
+  if (coursesData && coursesData.length > 0) {
+    const exists = coursesData.some((c) => c.id === activeId);
+    if (!exists) {
+      resolvedCourseId = coursesData.active_course_id || coursesData[0].id;
+    }
+  } else if (!resolvedCourseId && coursesData?.active_course_id) {
+    resolvedCourseId = coursesData.active_course_id;
+  }
+
+  if (resolvedCourseId && resolvedCourseId !== activeId) {
+    session.rememberCourse(resolvedCourseId, false);
+  }
+
+  if (!resolvedCourseId) {
+    if (coursesData && coursesData.length === 0) {
+      return <Courses />;
+    }
+    return <p role="status">Loading course…</p>;
+  }
+
+  return <LearnPath courseId={resolvedCourseId} />;
+}
+
 const index = createRoute({
   getParentRoute: () => root,
   path: "/",
-  component: () => <LearnPath courseId="astronomy" />,
+  component: IndexRoute,
 });
 const courses = createRoute({
   getParentRoute: () => root,

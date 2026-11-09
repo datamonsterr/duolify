@@ -2,6 +2,7 @@ import { useRef, useState, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { trackControl } from "../../lib/analytics";
+import { useShellSession } from "../shell/ShellSession";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
 import { CourseCard } from "./CourseCard";
@@ -23,8 +24,15 @@ export function Courses() {
   );
   const [search, setSearch] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
+  const shell = useShellSession();
   const { data, isPending, isError, isFetching, dataUpdatedAt, refetch } =
     useQuery({ queryKey: ["courses"], queryFn: api.courses, retry: false });
+  const sessionActiveId = shell.courseId();
+  const activeCourseId =
+    sessionActiveId && data?.some((c) => c.id === sessionActiveId)
+      ? sessionActiveId
+      : data?.active_course_id ||
+        (data && data.length > 0 ? data[0].id : "astronomy");
   const filtered = data?.filter((course) =>
     `${course.title} ${course.description}`
       .toLocaleLowerCase()
@@ -203,7 +211,7 @@ export function Courses() {
               <CourseCard
                 key={course.id}
                 course={course}
-                current={course.id === "astronomy"}
+                current={course.id === activeCourseId}
               />
             ))}
           </div>
