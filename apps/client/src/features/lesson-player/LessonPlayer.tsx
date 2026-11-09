@@ -18,8 +18,16 @@ import {
   type Manifest,
 } from "../player/manifest";
 import {
+  enqueueSyncEvent,
+  generateActionKey,
+  hasPendingSync,
+  subscribeSyncStatus,
+  synchronizeProgress,
+} from "../player/sync";
+import {
   loadPosition,
   readLocalPosition,
+  writeLocalPosition,
   savePosition,
   playerReturnPath,
   type Position,
@@ -33,7 +41,12 @@ const speeds = [1, 1.25, 1.5, 2, 0.75];
 export function LessonPlayer({
   lessonId = "sky",
   returnTo,
-}: { lessonId?: string; returnTo?: string } = {}) {
+  targetSlideId,
+}: {
+  lessonId?: string;
+  returnTo?: string;
+  targetSlideId?: string;
+} = {}) {
   const owner = session.current()?.id ?? "current";
   const shell = useShellSession();
   const exit = playerReturnPath(returnTo, shell.courseId());
@@ -77,6 +90,7 @@ export function LessonPlayer({
       key={`${owner}:${lessonId}:${manifest.data.version}`}
       manifest={manifest.data}
       returnTo={returnTo}
+      targetSlideId={targetSlideId}
     />
   );
 }
@@ -133,9 +147,11 @@ function PlayerRecovery({
 function ResumePlayback({
   manifest,
   returnTo,
+  targetSlideId,
 }: {
   manifest: Manifest;
   returnTo?: string;
+  targetSlideId?: string;
 }) {
   const owner = session.current()?.id ?? "current";
   const position = useQuery({
@@ -159,6 +175,7 @@ function ResumePlayback({
       returnTo={returnTo}
       initial={readLocalPosition(owner, manifest) ?? position.data ?? null}
       restoreError={!!position.error}
+      targetSlideId={targetSlideId}
     />
   );
 }
@@ -167,18 +184,27 @@ function ManifestPlayback({
   returnTo,
   initial,
   restoreError,
+  targetSlideId,
 }: {
   manifest: Manifest;
   returnTo?: string;
   initial: Position | null;
   restoreError: boolean;
+  targetSlideId?: string;
 }) {
-  const [index, setIndex] = useState(() =>
-    Math.max(
+  const [index, setIndex] = useState(() => {
+    if (targetSlideId) {
+      const targetIdx = manifest.slides.findIndex(
+        (s) => s.slide_id === targetSlideId,
+      );
+      if (targetIdx !== -1) return targetIdx;
+      return 0;
+    }
+    return Math.max(
       0,
       manifest.slides.findIndex((s) => s.slide_id === initial?.slide_id),
-    ),
-  );
+    );
+  });
   const [rate, setRate] = useState(1);
   const [note, setNote] = useState("");
   const [muted, setMuted] = useState(false);
@@ -260,6 +286,9 @@ function SlidePlayback({
   const playback = useSyncExternalStore(clock.subscribe, clock.snapshot);
   const [ready, setReady] = useState(false);
   const [unsaved, setUnsaved] = useState(restoreError);
+  const [pendingSync, setPendingSync] = useState(() =>
+    hasPendingSync(owner, lessonId),
+  );
   const [checkpoint, setCheckpoint] = useState(false);
   const [panel, setPanel] = useState<
     "Transcript" | "Ask tutor" | "Quick note" | null
@@ -267,6 +296,36 @@ function SlidePlayback({
   const viewed = useRef(initialTime === slide.duration_ms);
   const reached = useRef(new Set<string>());
   const saveRevision = useRef(0);
+
+  useEffect(() => {
+    return subscribeSyncStatus(() => {
+      setPendingSync(hasPendingSync(owner, lessonId));
+    });
+  }, [owner, lessonId]);
+
+  useEffect(() => {
+    const onOnline = () => {
+      if (hasPendingSync(owner, lessonId)) {
+        void synchronizeProgress(owner, lessonId)
+          .then(() => {
+            setPendingSync(hasPendingSync(owner, lessonId));
+            setUnsaved(false);
+          })
+          .catch(() => {});
+      }
+    };
+    window.addEventListener("online", onOnline);
+    if (
+      typeof navigator !== "undefined" &&
+      navigator.onLine &&
+      hasPendingSync(owner, lessonId)
+    ) {
+      onOnline();
+    }
+    return () => {
+      window.removeEventListener("online", onOnline);
+    };
+  }, [owner, lessonId]);
   const slideDocument = useQuery({
     queryKey: [
       "lesson-document",
@@ -303,17 +362,44 @@ function SlidePlayback({
   );
   const persist = useCallback(() => {
     const revision = ++saveRevision.current;
+    const timeMs = Math.round(clock.snapshot().time);
     const position = {
       version: manifest.version,
       slide_id: slide.slide_id,
-      time_ms: Math.round(clock.snapshot().time),
+      time_ms: timeMs,
     };
+    writeLocalPosition(owner, lessonId, position);
+
+    const event = {
+      action_key: generateActionKey(),
+      lesson_id: lessonId,
+      version: manifest.version,
+      slide_id: slide.slide_id,
+      time_ms: timeMs,
+      occurred_at: new Date().toISOString(),
+    };
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      enqueueSyncEvent(owner, event);
+      setPendingSync(true);
+      return;
+    }
+
     void savePosition(owner, lessonId, position).then(
       () => {
-        if (revision === saveRevision.current) setUnsaved(false);
+        if (revision === saveRevision.current) {
+          setUnsaved(false);
+          if (hasPendingSync(owner, lessonId)) {
+            void synchronizeProgress(owner, lessonId).then(() => {
+              setPendingSync(hasPendingSync(owner, lessonId));
+            });
+          }
+        }
       },
       () => {
-        if (revision === saveRevision.current) setUnsaved(true);
+        if (revision === saveRevision.current) {
+          setUnsaved(true);
+        }
         trackPlayer("lesson_player_error", {
           lesson_id: lessonId,
           slide_id: slide.slide_id,
@@ -322,6 +408,7 @@ function SlidePlayback({
       },
     );
   }, [clock, owner, lessonId, manifest.version, slide.slide_id]);
+
   const pause = useCallback(() => {
     const wasPlaying = clock.snapshot().playing;
     clock.pause(performance.now());
@@ -487,14 +574,31 @@ function SlidePlayback({
           ? "Available offline"
           : "Offline download unavailable. Keep this lesson open or retry online."}
       </p>
-      {unsaved && (
+      {pendingSync ? (
+        <div role="status" className="player-sync-status">
+          <p>Waiting to sync</p>
+          <button
+            className="duo-button quiet"
+            onClick={() => {
+              void synchronizeProgress(owner, lessonId)
+                .then(() => {
+                  setPendingSync(hasPendingSync(owner, lessonId));
+                  setUnsaved(false);
+                })
+                .catch(() => {});
+            }}
+          >
+            Retry sync
+          </button>
+        </div>
+      ) : unsaved ? (
         <div role="status">
           <p>Position saved on this device only.</p>
           <button className="duo-button quiet" onClick={persist}>
             Retry saving position
           </button>
         </div>
-      )}
+      ) : null}
       <PanelLayout
         panel={
           <ResponsivePanel
@@ -574,6 +678,9 @@ function SlidePlayback({
                 clock.play(performance.now());
                 command({ type: "play" });
               } else command({ type: "pause" });
+              if (typeof navigator !== "undefined" && !navigator.onLine) {
+                persist();
+              }
             }}
           />
         )}

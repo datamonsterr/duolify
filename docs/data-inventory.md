@@ -11,6 +11,16 @@ disposable recovery cursors, cleared on logout. Save failures visibly offer Retr
 durable offline reconciliation and lesson caching remain E3-04/E3-03. Analytics
 records only registered IDs, numeric watch time/index, offline and fixed codes.
 
+E3-04 adds `lesson_playback_sync_events`: non-authoritative playback progress events
+with stable action key, learner UUID, lesson UUID, manifest version, slide ID, bounded
+time in milliseconds, UTC `occurred_at`, and `created_at`. It joins encrypted nightly
+Postgres dumps retained for 14 days. Backup fixtures compare the entire restored row
+and verify deletion tombstones erase it. Learner exports include the row; account and
+lesson deletion cascade immediate erasure. Device `localStorage` keys
+`player:sync-queue:<learner UUID>:<lesson UUID>` retain pending offline progress events
+until server acknowledgment and clear on logout. Reconciled events update canonical
+cursors monotonically without granting completion or XP.
+
 E2-01: personalized preview output (sample outline and Motion HTML) stays in component
 memory and is discarded on Back/leave; no Course, enrollment, object or new learner
 table is created. The existing immutable `pricing_quotes.snapshot.input.brief_revision`
@@ -43,6 +53,8 @@ and production drills still require provisioning. See [backup tooling](../infra/
 
 | Store | Data held | Backup method | Retention / deletion | Owner spec |
 | --- | --- | --- | --- | --- |
+| Postgres `lesson_playback_sync_events` | Non-authoritative playback progress events with stable action key, manifest version, slide ID, bounded time and UTC occurred_at | Nightly encrypted general dump, 14-day retention; populated backup fixture compares full rows | Read/export for authenticated owner only; immediate account/lesson deletion cascades; restore deletion tombstones erase | [synchronize-offline-playback-progress](../openspec/changes/synchronize-offline-playback-progress/design.md) |
+| Device pending sync queue (`localStorage`, learner UUID + lesson ID) | Non-authoritative playback progress events pending server acknowledgment | Disposable; never backed up; server reconciliation is authoritative | Retained until server ack; cleared on logout or account change | [synchronize-offline-playback-progress](../openspec/changes/synchronize-offline-playback-progress/design.md) |
 | Postgres `course_brief_revisions` | Immutable learner-owned confirmed Course briefs, content hash and expiry; no transcript | Nightly encrypted general dump, 14-day retention; populated backup fixture compares full rows | Read/export for authenticated owner only; expires after 30 days, nightly pre-backup purge (within 24 hours); immediate account cascade and restored deletion tombstones | [E2-06 change](../openspec/changes/clarify-course-brief/design.md) |
 | Postgres `outline_proposals` | Learner-owned immutable draft/base revision, request, typed diff, result, usage references and Apply/Discard/Undo decision snapshot; unique quote links reconnect without generation | Nightly encrypted general dump, 14 days; populated full-row restore comparison and restored account-erasure checks | Owner-only read/export; draft/account/brief deletion cascades; brief 30-day expiry with nightly pre-backup purge (within 24 hours); restore tombstones replayed before serving. Quotes/reservations/usage retain separate financial policy without learner text | [E2-08 contract](../openspec/changes/outline-chat-change/design.md) |
 | Postgres `outline_drafts` | Learner-owned edited sample outline with stable IDs, revision, last 50 pre-edit snapshots/focus IDs and exact confirmed snapshot/hash; includes recovery copies | Nightly encrypted general dump, 14 days; populated full-row backup comparison and restored deletion checks | Authenticated owner read/export; explicit draft deletion, immediate account/brief cascades; brief 30-day expiry and pre-backup purge bound lifetime; reapply restore tombstones before serving | [E2-07 contract](../openspec/changes/edit-sample-outline/design.md) |

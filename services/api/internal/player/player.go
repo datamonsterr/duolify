@@ -78,6 +78,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.position(ctx, w, r, owner, id, m)
 		return
 	}
+	if r.PathValue("slide") == "" && strings.HasSuffix(r.URL.Path, "/sync") {
+		s.sync(ctx, w, r, owner, id, m)
+		return
+	}
 	if r.PathValue("slide") != "" {
 		for _, slide := range m.Slides {
 			if slide.ID != r.PathValue("slide") {

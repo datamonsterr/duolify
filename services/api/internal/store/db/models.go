@@ -357,6 +357,35 @@ type LearnerProfile struct {
 	ActiveCourseID  pgtype.UUID        `json:"active_course_id"`
 }
 
+type LessonManifest struct {
+	LessonID    pgtype.UUID        `json:"lesson_id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	Version     int32              `json:"version"`
+	ManifestKey string             `json:"manifest_key"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type LessonPlaybackPosition struct {
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	LessonID   pgtype.UUID        `json:"lesson_id"`
+	Version    int32              `json:"version"`
+	SlideID    string             `json:"slide_id"`
+	TimeMs     int32              `json:"time_ms"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
+}
+
+type LessonPlaybackSyncEvent struct {
+	ActionKey  string             `json:"action_key"`
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	LessonID   pgtype.UUID        `json:"lesson_id"`
+	Version    int32              `json:"version"`
+	SlideID    string             `json:"slide_id"`
+	TimeMs     int32              `json:"time_ms"`
+	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type OutlineDraft struct {
 	ID            pgtype.UUID        `json:"id"`
 	LearnerID     pgtype.UUID        `json:"learner_id"`

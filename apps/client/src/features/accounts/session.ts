@@ -2,6 +2,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { configureAnalytics, setAnalyticsConsent } from "../../lib/analytics";
 import { secureStore, type Tokens } from "./secure-store";
 import { clearLessonCache } from "../player/cache";
+import { clearSyncQueue } from "../player/sync";
 import {
   clearOfflineIdentity,
   readOfflineIdentity,
@@ -119,6 +120,7 @@ async function expire(expected: number) {
   generation++;
   clearOfflineIdentity();
   await clearLessonCache();
+  clearSyncQueue();
   learner = null;
   expired = true;
   // Keep only the last verified analytics identity/consent for the recovery
@@ -162,6 +164,7 @@ export const session = {
   clear() {
     clearOfflineIdentity();
     void clearLessonCache().catch(() => {});
+    clearSyncQueue();
     try {
       for (const key of Object.keys(sessionStorage))
         if (

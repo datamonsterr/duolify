@@ -387,6 +387,9 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_playback_positions(learner_id,lesson_id,version,slide_id,time_ms) VALUES('a1111111-1111-4111-8111-111111111111','f3333333-3333-4333-8333-333333333333',1,'sky-2',1800)`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_playback_sync_events(action_key,learner_id,lesson_id,version,slide_id,time_ms,occurred_at) VALUES('act-11111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','f3333333-3333-4333-8333-333333333333',1,'sky-2',1800,now())`); err != nil {
+		t.Fatal(err)
+	}
 	catalogue, err := pricing.Load(t.Context(), f.DB.Queries)
 	if err != nil {
 		t.Fatal(err)
@@ -868,6 +871,10 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	var positions int
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM lesson_playback_positions WHERE learner_id::text=$1", paymentOwner).Scan(&positions); err != nil || positions != 0 {
 		t.Fatal("playback position survived restore tombstone", positions, err)
+	}
+	var syncEvents int
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM lesson_playback_sync_events WHERE learner_id::text=$1", paymentOwner).Scan(&syncEvents); err != nil || syncEvents != 0 {
+		t.Fatal("playback sync event survived restore tombstone", syncEvents, err)
 	}
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id::text=$1) OR EXISTS(SELECT 1 FROM outline_proposals WHERE learner_id::text=$1) OR EXISTS(SELECT 1 FROM lesson_manifests WHERE learner_id::text=$1)", paymentOwner).Scan(&outlineSurvived); err != nil || outlineSurvived {
 		t.Fatal("outline survived restore tombstone", err)

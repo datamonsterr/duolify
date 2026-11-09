@@ -38,6 +38,17 @@ func (f *Fixture) AssertPlaybackPositionRestored(t *testing.T, restored *pgxpool
 	if before != after || !bytes.Contains([]byte(after), []byte(`"time_ms": 1800`)) {
 		t.Fatal("cursor restore mismatch", before, after)
 	}
+	const syncQuery = "SELECT coalesce(jsonb_agg(to_jsonb(s)), '[]'::jsonb)::text FROM lesson_playback_sync_events s"
+	var syncBefore, syncAfter string
+	if err := f.DB.Pool.QueryRow(t.Context(), syncQuery).Scan(&syncBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.QueryRow(t.Context(), syncQuery).Scan(&syncAfter); err != nil {
+		t.Fatal(err)
+	}
+	if syncBefore != syncAfter || !bytes.Contains([]byte(syncAfter), []byte(`act-11111111`)) {
+		t.Fatal("sync event restore mismatch", syncBefore, syncAfter)
+	}
 }
 
 // BackupPlayerObjects exercises the protected-copy/key-version-checksum contract
