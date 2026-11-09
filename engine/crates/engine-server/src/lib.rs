@@ -91,9 +91,36 @@ fn strings(v: &serde_json::Value) -> Vec<String> {
         .filter_map(|x| x.as_str().map(str::to_owned))
         .collect()
 }
-fn internal(_: anyhow::Error) -> Status {
-    tracing::error!(code = "provider_failed", "provider failed");
-    Status::internal("provider failed")
+fn internal(e: anyhow::Error) -> Status {
+    let msg = e.to_string();
+    let code = engine_core::eval::sanitize_error_code(&msg);
+    tracing::error!(code = code, error = %msg, "provider failed");
+    match code {
+        "rate_limited" => Status::resource_exhausted(code),
+        "timeout" => Status::deadline_exceeded(code),
+        "invalid_schema" => Status::invalid_argument(code),
+        "provider_outage" => Status::unavailable(code),
+        _ => Status::internal("provider failed"),
+    }
+}
+
+fn attempt_usage(a: &engine_core::credits::Attempt) -> pb::Usage {
+    pb::Usage {
+        provider: a.provider.clone(),
+        model: a.model.clone(),
+        input_tokens: a.input_tokens,
+        output_tokens: a.output_tokens,
+        cache_write_tokens: a.cache_write_tokens,
+        cache_read_tokens: a.cache_read_tokens,
+        latency_ms: a.latency_ms,
+        attempt: a.attempt,
+        fallback_used: a.fallback_used,
+        component: "content".into(),
+        delivered: a.delivered,
+        usage_unavailable: a.usage_unavailable,
+        error_code: a.error_code.clone().unwrap_or_default(),
+        ..Default::default()
+    }
 }
 #[tonic::async_trait]
 impl EngineService for Service {
@@ -181,25 +208,7 @@ impl EngineService for Service {
                 goal: o.goal,
             })
             .collect();
-        let attempts = outcome
-            .attempts
-            .into_iter()
-            .map(|a| pb::Usage {
-                provider: a.provider,
-                model: a.model,
-                input_tokens: a.input_tokens,
-                output_tokens: a.output_tokens,
-                cache_write_tokens: a.cache_write_tokens,
-                cache_read_tokens: a.cache_read_tokens,
-                latency_ms: a.latency_ms,
-                attempt: a.attempt,
-                fallback_used: a.fallback_used,
-                component: "content".into(),
-                delivered: a.delivered,
-                usage_unavailable: a.usage_unavailable,
-                ..Default::default()
-            })
-            .collect();
+        let attempts = outcome.attempts.iter().map(attempt_usage).collect();
         Ok(Response::new(pb::OutlineChatChangeResponse {
             operations,
             attempts,
@@ -294,25 +303,7 @@ impl EngineService for Service {
                 attempt.delivered = false
             }
         }
-        let attempts = outcome
-            .attempts
-            .iter()
-            .map(|a| pb::Usage {
-                provider: a.provider.clone(),
-                model: a.model.clone(),
-                input_tokens: a.input_tokens,
-                output_tokens: a.output_tokens,
-                cache_write_tokens: a.cache_write_tokens,
-                cache_read_tokens: a.cache_read_tokens,
-                latency_ms: a.latency_ms,
-                attempt: a.attempt,
-                fallback_used: a.fallback_used,
-                component: "content".into(),
-                delivered: a.delivered,
-                usage_unavailable: a.usage_unavailable,
-                ..Default::default()
-            })
-            .collect();
+        let attempts = outcome.attempts.iter().map(attempt_usage).collect();
         let (sample_outline, example_slides) =
             parsed.map(|(o, s)| (Some(o), s)).unwrap_or_default();
         Ok(Response::new(pb::PreviewCourseResponse {
@@ -401,25 +392,7 @@ impl EngineService for Service {
         )
         .await
         .map_err(|_| Status::invalid_argument("invalid API envelope"))?;
-        let attempts = outcome
-            .attempts
-            .iter()
-            .map(|a| pb::Usage {
-                provider: a.provider.clone(),
-                model: a.model.clone(),
-                input_tokens: a.input_tokens,
-                output_tokens: a.output_tokens,
-                cache_write_tokens: a.cache_write_tokens,
-                cache_read_tokens: a.cache_read_tokens,
-                latency_ms: a.latency_ms,
-                attempt: a.attempt,
-                fallback_used: a.fallback_used,
-                component: "content".into(),
-                delivered: a.delivered,
-                usage_unavailable: a.usage_unavailable,
-                ..Default::default()
-            })
-            .collect();
+        let attempts = outcome.attempts.iter().map(attempt_usage).collect();
         Ok(Response::new(pb::GenerateCourseOutlineResponse {
             outline: outcome.completion.as_ref().map(|_| base.clone()),
             usage: outcome.completion.as_ref().and_then(usage),
@@ -488,9 +461,27 @@ impl EngineService for Service {
         &self,
         request: Request<pb::ChatRequest>,
     ) -> Result<Response<Self::ChatStream>, Status> {
-        let input = format!("{:?}", request.into_inner());
+        let req = request.into_inner();
+        let first_to = req
+            .limits
+            .as_ref()
+            .map(|l| l.first_token_timeout_ms)
+            .filter(|&ms| ms > 0)
+            .map(|ms| std::time::Duration::from_millis(u64::from(ms)))
+            .unwrap_or(std::time::Duration::from_secs(15));
+        let idle_to = req
+            .limits
+            .as_ref()
+            .map(|l| l.idle_timeout_ms)
+            .filter(|&ms| ms > 0)
+            .map(|ms| std::time::Duration::from_millis(u64::from(ms)))
+            .unwrap_or(std::time::Duration::from_secs(5));
+        let input = format!("{req:?}");
         let span = tracing::Span::current();
-        let stream = self.router.stream("chat", &input).await.map_err(internal)?;
+        let stream =
+            engine_core::eval::stream_bounded(&self.router, "chat", &input, first_to, idle_to)
+                .await
+                .map_err(internal)?;
         // Enter the request span while polling the provider as well as mapping
         // its output; a map closure alone runs after provider work has finished.
         let map_span = span.clone();
@@ -535,6 +526,8 @@ impl EngineService for Service {
             tags: strings(&content(&c)?["tags"]),
             links: strings(&content(&c)?["links"]),
             usage: usage(&c),
+            attempts: vec![],
+            unavailable: false,
         }))
     }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]

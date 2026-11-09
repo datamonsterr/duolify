@@ -26,6 +26,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
+	"github.com/datamonsterr/duolify/services/api/internal/eval"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -247,6 +248,7 @@ func run(ctx context.Context, args []string) (result error) {
 		Pricing:       pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events),
 		PricingAdmin:  pricingAdmin,
 		Quotes:        pricing.NewQuotes(db.Pool),
+		Eval:          eval.NewService(db.Pool, catalogue, monitor, events),
 		Postgres:      db.Ping,
 		Redis:         func(ctx context.Context) error { return redis.Ping(ctx).Err() },
 		Engine:        backend,

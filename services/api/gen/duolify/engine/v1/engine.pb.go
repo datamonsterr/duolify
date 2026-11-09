@@ -127,6 +127,7 @@ type Usage struct {
 	Cached              bool                   `protobuf:"varint,13,opt,name=cached,proto3" json:"cached,omitempty"`
 	ArtifactId          string                 `protobuf:"bytes,14,opt,name=artifact_id,json=artifactId,proto3" json:"artifact_id,omitempty"`
 	UsageUnavailable    bool                   `protobuf:"varint,15,opt,name=usage_unavailable,json=usageUnavailable,proto3" json:"usage_unavailable,omitempty"`
+	ErrorCode           string                 `protobuf:"bytes,16,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -266,6 +267,13 @@ func (x *Usage) GetUsageUnavailable() bool {
 	return false
 }
 
+func (x *Usage) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ""
+}
+
 // Bounds come only from the API's immutable Pricing quote, never client prices.
 type UsageLimits struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
@@ -283,9 +291,11 @@ type UsageLimits struct {
 	FallbackProvider string                 `protobuf:"bytes,12,opt,name=fallback_provider,json=fallbackProvider,proto3" json:"fallback_provider,omitempty"`
 	FallbackModel    string                 `protobuf:"bytes,13,opt,name=fallback_model,json=fallbackModel,proto3" json:"fallback_model,omitempty"`
 	// Absolute reservation deadline, including API queue and transport time.
-	DeadlineUnixMs uint64 `protobuf:"varint,14,opt,name=deadline_unix_ms,json=deadlineUnixMs,proto3" json:"deadline_unix_ms,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	DeadlineUnixMs      uint64 `protobuf:"varint,14,opt,name=deadline_unix_ms,json=deadlineUnixMs,proto3" json:"deadline_unix_ms,omitempty"`
+	FirstTokenTimeoutMs uint32 `protobuf:"varint,15,opt,name=first_token_timeout_ms,json=firstTokenTimeoutMs,proto3" json:"first_token_timeout_ms,omitempty"`
+	IdleTimeoutMs       uint32 `protobuf:"varint,16,opt,name=idle_timeout_ms,json=idleTimeoutMs,proto3" json:"idle_timeout_ms,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *UsageLimits) Reset() {
@@ -412,6 +422,20 @@ func (x *UsageLimits) GetFallbackModel() string {
 func (x *UsageLimits) GetDeadlineUnixMs() uint64 {
 	if x != nil {
 		return x.DeadlineUnixMs
+	}
+	return 0
+}
+
+func (x *UsageLimits) GetFirstTokenTimeoutMs() uint32 {
+	if x != nil {
+		return x.FirstTokenTimeoutMs
+	}
+	return 0
+}
+
+func (x *UsageLimits) GetIdleTimeoutMs() uint32 {
+	if x != nil {
+		return x.IdleTimeoutMs
 	}
 	return 0
 }
@@ -1267,7 +1291,8 @@ type GenerateLessonRequest struct {
 	Lesson  *LessonRef             `protobuf:"bytes,2,opt,name=lesson,proto3" json:"lesson,omitempty"`
 	Learner *LearnerProfile        `protobuf:"bytes,3,opt,name=learner,proto3" json:"learner,omitempty"`
 	// Summaries of completed lessons and test results, oldest first.
-	History       []string `protobuf:"bytes,4,rep,name=history,proto3" json:"history,omitempty"`
+	History       []string     `protobuf:"bytes,4,rep,name=history,proto3" json:"history,omitempty"`
+	Limits        *UsageLimits `protobuf:"bytes,5,opt,name=limits,proto3" json:"limits,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1330,6 +1355,13 @@ func (x *GenerateLessonRequest) GetHistory() []string {
 	return nil
 }
 
+func (x *GenerateLessonRequest) GetLimits() *UsageLimits {
+	if x != nil {
+		return x.Limits
+	}
+	return nil
+}
+
 type GenerateLessonEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Event:
@@ -1338,6 +1370,8 @@ type GenerateLessonEvent struct {
 	//	*GenerateLessonEvent_Slide
 	//	*GenerateLessonEvent_Lesson
 	//	*GenerateLessonEvent_Usage
+	//	*GenerateLessonEvent_Attempt
+	//	*GenerateLessonEvent_Unavailable
 	Event         isGenerateLessonEvent_Event `protobuf_oneof:"event"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1416,6 +1450,24 @@ func (x *GenerateLessonEvent) GetUsage() *Usage {
 	return nil
 }
 
+func (x *GenerateLessonEvent) GetAttempt() *Usage {
+	if x != nil {
+		if x, ok := x.Event.(*GenerateLessonEvent_Attempt); ok {
+			return x.Attempt
+		}
+	}
+	return nil
+}
+
+func (x *GenerateLessonEvent) GetUnavailable() bool {
+	if x != nil {
+		if x, ok := x.Event.(*GenerateLessonEvent_Unavailable); ok {
+			return x.Unavailable
+		}
+	}
+	return false
+}
+
 type isGenerateLessonEvent_Event interface {
 	isGenerateLessonEvent_Event()
 }
@@ -1436,6 +1488,14 @@ type GenerateLessonEvent_Usage struct {
 	Usage *Usage `protobuf:"bytes,4,opt,name=usage,proto3,oneof"`
 }
 
+type GenerateLessonEvent_Attempt struct {
+	Attempt *Usage `protobuf:"bytes,5,opt,name=attempt,proto3,oneof"`
+}
+
+type GenerateLessonEvent_Unavailable struct {
+	Unavailable bool `protobuf:"varint,6,opt,name=unavailable,proto3,oneof"`
+}
+
 func (*GenerateLessonEvent_Progress) isGenerateLessonEvent_Event() {}
 
 func (*GenerateLessonEvent_Slide) isGenerateLessonEvent_Event() {}
@@ -1443,6 +1503,10 @@ func (*GenerateLessonEvent_Slide) isGenerateLessonEvent_Event() {}
 func (*GenerateLessonEvent_Lesson) isGenerateLessonEvent_Event() {}
 
 func (*GenerateLessonEvent_Usage) isGenerateLessonEvent_Event() {}
+
+func (*GenerateLessonEvent_Attempt) isGenerateLessonEvent_Event() {}
+
+func (*GenerateLessonEvent_Unavailable) isGenerateLessonEvent_Event() {}
 
 type ChatMessage struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1503,6 +1567,7 @@ type ChatRequest struct {
 	Learner       *LearnerProfile        `protobuf:"bytes,3,opt,name=learner,proto3" json:"learner,omitempty"`
 	History       []string               `protobuf:"bytes,4,rep,name=history,proto3" json:"history,omitempty"`
 	Messages      []*ChatMessage         `protobuf:"bytes,5,rep,name=messages,proto3" json:"messages,omitempty"`
+	Limits        *UsageLimits           `protobuf:"bytes,6,opt,name=limits,proto3" json:"limits,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1572,12 +1637,21 @@ func (x *ChatRequest) GetMessages() []*ChatMessage {
 	return nil
 }
 
+func (x *ChatRequest) GetLimits() *UsageLimits {
+	if x != nil {
+		return x.Limits
+	}
+	return nil
+}
+
 type ChatEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Event:
 	//
 	//	*ChatEvent_Delta
 	//	*ChatEvent_Usage
+	//	*ChatEvent_Attempt
+	//	*ChatEvent_ErrorCode
 	Event         isChatEvent_Event `protobuf_oneof:"event"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1638,6 +1712,24 @@ func (x *ChatEvent) GetUsage() *Usage {
 	return nil
 }
 
+func (x *ChatEvent) GetAttempt() *Usage {
+	if x != nil {
+		if x, ok := x.Event.(*ChatEvent_Attempt); ok {
+			return x.Attempt
+		}
+	}
+	return nil
+}
+
+func (x *ChatEvent) GetErrorCode() string {
+	if x != nil {
+		if x, ok := x.Event.(*ChatEvent_ErrorCode); ok {
+			return x.ErrorCode
+		}
+	}
+	return ""
+}
+
 type isChatEvent_Event interface {
 	isChatEvent_Event()
 }
@@ -1650,15 +1742,28 @@ type ChatEvent_Usage struct {
 	Usage *Usage `protobuf:"bytes,2,opt,name=usage,proto3,oneof"`
 }
 
+type ChatEvent_Attempt struct {
+	Attempt *Usage `protobuf:"bytes,3,opt,name=attempt,proto3,oneof"`
+}
+
+type ChatEvent_ErrorCode struct {
+	ErrorCode string `protobuf:"bytes,4,opt,name=error_code,json=errorCode,proto3,oneof"`
+}
+
 func (*ChatEvent_Delta) isChatEvent_Event() {}
 
 func (*ChatEvent_Usage) isChatEvent_Event() {}
+
+func (*ChatEvent_Attempt) isChatEvent_Event() {}
+
+func (*ChatEvent_ErrorCode) isChatEvent_Event() {}
 
 type EnrichNoteRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Note          string                 `protobuf:"bytes,1,opt,name=note,proto3" json:"note,omitempty"`
 	Lesson        *LessonRef             `protobuf:"bytes,2,opt,name=lesson,proto3" json:"lesson,omitempty"`
 	Learner       *LearnerProfile        `protobuf:"bytes,3,opt,name=learner,proto3" json:"learner,omitempty"`
+	Limits        *UsageLimits           `protobuf:"bytes,4,opt,name=limits,proto3" json:"limits,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1714,12 +1819,21 @@ func (x *EnrichNoteRequest) GetLearner() *LearnerProfile {
 	return nil
 }
 
+func (x *EnrichNoteRequest) GetLimits() *UsageLimits {
+	if x != nil {
+		return x.Limits
+	}
+	return nil
+}
+
 type EnrichNoteResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Summary       string                 `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
 	Tags          []string               `protobuf:"bytes,2,rep,name=tags,proto3" json:"tags,omitempty"`
 	Links         []string               `protobuf:"bytes,3,rep,name=links,proto3" json:"links,omitempty"`
 	Usage         *Usage                 `protobuf:"bytes,4,opt,name=usage,proto3" json:"usage,omitempty"`
+	Attempts      []*Usage               `protobuf:"bytes,5,rep,name=attempts,proto3" json:"attempts,omitempty"`
+	Unavailable   bool                   `protobuf:"varint,6,opt,name=unavailable,proto3" json:"unavailable,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1780,6 +1894,20 @@ func (x *EnrichNoteResponse) GetUsage() *Usage {
 		return x.Usage
 	}
 	return nil
+}
+
+func (x *EnrichNoteResponse) GetAttempts() []*Usage {
+	if x != nil {
+		return x.Attempts
+	}
+	return nil
+}
+
+func (x *EnrichNoteResponse) GetUnavailable() bool {
+	if x != nil {
+		return x.Unavailable
+	}
+	return false
 }
 
 type QuickReply struct {
@@ -2763,7 +2891,7 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\rHealthRequest\"H\n" +
 	"\x0eHealthResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x1c\n" +
-	"\tproviders\x18\x02 \x03(\tR\tproviders\"\x8e\x04\n" +
+	"\tproviders\x18\x02 \x03(\tR\tproviders\"\xad\x04\n" +
 	"\x05Usage\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x14\n" +
 	"\x05model\x18\x02 \x01(\tR\x05model\x12!\n" +
@@ -2782,7 +2910,9 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\x06cached\x18\r \x01(\bR\x06cached\x12\x1f\n" +
 	"\vartifact_id\x18\x0e \x01(\tR\n" +
 	"artifactId\x12+\n" +
-	"\x11usage_unavailable\x18\x0f \x01(\bR\x10usageUnavailable\"\x87\x04\n" +
+	"\x11usage_unavailable\x18\x0f \x01(\bR\x10usageUnavailable\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\x10 \x01(\tR\terrorCode\"\xe4\x04\n" +
 	"\vUsageLimits\x12!\n" +
 	"\finput_tokens\x18\x01 \x01(\rR\vinputTokens\x12#\n" +
 	"\routput_tokens\x18\x02 \x01(\rR\foutputTokens\x12\x1d\n" +
@@ -2800,7 +2930,9 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\x05model\x18\v \x01(\tR\x05model\x12+\n" +
 	"\x11fallback_provider\x18\f \x01(\tR\x10fallbackProvider\x12%\n" +
 	"\x0efallback_model\x18\r \x01(\tR\rfallbackModel\x12(\n" +
-	"\x10deadline_unix_ms\x18\x0e \x01(\x04R\x0edeadlineUnixMs\"\xd6\x02\n" +
+	"\x10deadline_unix_ms\x18\x0e \x01(\x04R\x0edeadlineUnixMs\x123\n" +
+	"\x16first_token_timeout_ms\x18\x0f \x01(\rR\x13firstTokenTimeoutMs\x12&\n" +
+	"\x0fidle_timeout_ms\x18\x10 \x01(\rR\ridleTimeoutMs\"\xd6\x02\n" +
 	"\x0eLearnerProfile\x12\x1d\n" +
 	"\n" +
 	"learner_id\x18\x01 \x01(\tR\tlearnerId\x12\x16\n" +
@@ -2874,40 +3006,50 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\x05usage\x18\x02 \x01(\v2\x18.duolify.engine.v1.UsageR\x05usage\x124\n" +
 	"\battempts\x18\x03 \x03(\v2\x18.duolify.engine.v1.UsageR\battempts\x12 \n" +
 	"\vunavailable\x18\x04 \x01(\bR\vunavailable\x12)\n" +
-	"\x10outline_revision\x18\x05 \x01(\x03R\x0foutlineRevision\"\xe0\x01\n" +
+	"\x10outline_revision\x18\x05 \x01(\x03R\x0foutlineRevision\"\x98\x02\n" +
 	"\x15GenerateLessonRequest\x12:\n" +
 	"\aoutline\x18\x01 \x01(\v2 .duolify.engine.v1.CourseOutlineR\aoutline\x124\n" +
 	"\x06lesson\x18\x02 \x01(\v2\x1c.duolify.engine.v1.LessonRefR\x06lesson\x12;\n" +
 	"\alearner\x18\x03 \x01(\v2!.duolify.engine.v1.LearnerProfileR\alearner\x12\x18\n" +
-	"\ahistory\x18\x04 \x03(\tR\ahistory\"\xd5\x01\n" +
+	"\ahistory\x18\x04 \x03(\tR\ahistory\x126\n" +
+	"\x06limits\x18\x05 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\"\xaf\x02\n" +
 	"\x13GenerateLessonEvent\x12\x1c\n" +
 	"\bprogress\x18\x01 \x01(\tH\x00R\bprogress\x120\n" +
 	"\x05slide\x18\x02 \x01(\v2\x18.duolify.engine.v1.SlideH\x00R\x05slide\x123\n" +
 	"\x06lesson\x18\x03 \x01(\v2\x19.duolify.engine.v1.LessonH\x00R\x06lesson\x120\n" +
-	"\x05usage\x18\x04 \x01(\v2\x18.duolify.engine.v1.UsageH\x00R\x05usageB\a\n" +
+	"\x05usage\x18\x04 \x01(\v2\x18.duolify.engine.v1.UsageH\x00R\x05usage\x124\n" +
+	"\aattempt\x18\x05 \x01(\v2\x18.duolify.engine.v1.UsageH\x00R\aattempt\x12\"\n" +
+	"\vunavailable\x18\x06 \x01(\bH\x00R\vunavailableB\a\n" +
 	"\x05event\";\n" +
 	"\vChatMessage\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
-	"\acontent\x18\x02 \x01(\tR\acontent\"\x9e\x02\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"\xd6\x02\n" +
 	"\vChatRequest\x12:\n" +
 	"\aoutline\x18\x01 \x01(\v2 .duolify.engine.v1.CourseOutlineR\aoutline\x12@\n" +
 	"\x0ecurrent_lesson\x18\x02 \x01(\v2\x19.duolify.engine.v1.LessonR\rcurrentLesson\x12;\n" +
 	"\alearner\x18\x03 \x01(\v2!.duolify.engine.v1.LearnerProfileR\alearner\x12\x18\n" +
 	"\ahistory\x18\x04 \x03(\tR\ahistory\x12:\n" +
-	"\bmessages\x18\x05 \x03(\v2\x1e.duolify.engine.v1.ChatMessageR\bmessages\"^\n" +
+	"\bmessages\x18\x05 \x03(\v2\x1e.duolify.engine.v1.ChatMessageR\bmessages\x126\n" +
+	"\x06limits\x18\x06 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\"\xb5\x01\n" +
 	"\tChatEvent\x12\x16\n" +
 	"\x05delta\x18\x01 \x01(\tH\x00R\x05delta\x120\n" +
-	"\x05usage\x18\x02 \x01(\v2\x18.duolify.engine.v1.UsageH\x00R\x05usageB\a\n" +
-	"\x05event\"\x9a\x01\n" +
+	"\x05usage\x18\x02 \x01(\v2\x18.duolify.engine.v1.UsageH\x00R\x05usage\x124\n" +
+	"\aattempt\x18\x03 \x01(\v2\x18.duolify.engine.v1.UsageH\x00R\aattempt\x12\x1f\n" +
+	"\n" +
+	"error_code\x18\x04 \x01(\tH\x00R\terrorCodeB\a\n" +
+	"\x05event\"\xd2\x01\n" +
 	"\x11EnrichNoteRequest\x12\x12\n" +
 	"\x04note\x18\x01 \x01(\tR\x04note\x124\n" +
 	"\x06lesson\x18\x02 \x01(\v2\x1c.duolify.engine.v1.LessonRefR\x06lesson\x12;\n" +
-	"\alearner\x18\x03 \x01(\v2!.duolify.engine.v1.LearnerProfileR\alearner\"\x88\x01\n" +
+	"\alearner\x18\x03 \x01(\v2!.duolify.engine.v1.LearnerProfileR\alearner\x126\n" +
+	"\x06limits\x18\x04 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\"\xe0\x01\n" +
 	"\x12EnrichNoteResponse\x12\x18\n" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12\x12\n" +
 	"\x04tags\x18\x02 \x03(\tR\x04tags\x12\x14\n" +
 	"\x05links\x18\x03 \x03(\tR\x05links\x12.\n" +
-	"\x05usage\x18\x04 \x01(\v2\x18.duolify.engine.v1.UsageR\x05usage\"2\n" +
+	"\x05usage\x18\x04 \x01(\v2\x18.duolify.engine.v1.UsageR\x05usage\x124\n" +
+	"\battempts\x18\x05 \x03(\v2\x18.duolify.engine.v1.UsageR\battempts\x12 \n" +
+	"\vunavailable\x18\x06 \x01(\bR\vunavailable\"2\n" +
 	"\n" +
 	"QuickReply\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
@@ -3082,55 +3224,61 @@ var file_duolify_engine_v1_engine_proto_depIdxs = []int32{
 	7,  // 19: duolify.engine.v1.GenerateLessonRequest.outline:type_name -> duolify.engine.v1.CourseOutline
 	5,  // 20: duolify.engine.v1.GenerateLessonRequest.lesson:type_name -> duolify.engine.v1.LessonRef
 	4,  // 21: duolify.engine.v1.GenerateLessonRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
-	8,  // 22: duolify.engine.v1.GenerateLessonEvent.slide:type_name -> duolify.engine.v1.Slide
-	10, // 23: duolify.engine.v1.GenerateLessonEvent.lesson:type_name -> duolify.engine.v1.Lesson
-	2,  // 24: duolify.engine.v1.GenerateLessonEvent.usage:type_name -> duolify.engine.v1.Usage
-	7,  // 25: duolify.engine.v1.ChatRequest.outline:type_name -> duolify.engine.v1.CourseOutline
-	10, // 26: duolify.engine.v1.ChatRequest.current_lesson:type_name -> duolify.engine.v1.Lesson
-	4,  // 27: duolify.engine.v1.ChatRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
-	17, // 28: duolify.engine.v1.ChatRequest.messages:type_name -> duolify.engine.v1.ChatMessage
-	2,  // 29: duolify.engine.v1.ChatEvent.usage:type_name -> duolify.engine.v1.Usage
-	5,  // 30: duolify.engine.v1.EnrichNoteRequest.lesson:type_name -> duolify.engine.v1.LessonRef
-	4,  // 31: duolify.engine.v1.EnrichNoteRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
-	2,  // 32: duolify.engine.v1.EnrichNoteResponse.usage:type_name -> duolify.engine.v1.Usage
-	4,  // 33: duolify.engine.v1.SetupChatRequest.profile:type_name -> duolify.engine.v1.LearnerProfile
-	23, // 34: duolify.engine.v1.SetupChatRequest.messages:type_name -> duolify.engine.v1.SetupChatMessage
-	22, // 35: duolify.engine.v1.SetupChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
-	4,  // 36: duolify.engine.v1.SetupChatResponse.updated_profile:type_name -> duolify.engine.v1.LearnerProfile
-	2,  // 37: duolify.engine.v1.SetupChatResponse.usage:type_name -> duolify.engine.v1.Usage
-	26, // 38: duolify.engine.v1.CourseBriefChatRequest.brief:type_name -> duolify.engine.v1.CourseBrief
-	27, // 39: duolify.engine.v1.CourseBriefChatRequest.limits:type_name -> duolify.engine.v1.CourseBriefLimits
-	2,  // 40: duolify.engine.v1.BriefAttempt.usage:type_name -> duolify.engine.v1.Usage
-	26, // 41: duolify.engine.v1.CourseBriefChatResponse.brief:type_name -> duolify.engine.v1.CourseBrief
-	22, // 42: duolify.engine.v1.CourseBriefChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
-	29, // 43: duolify.engine.v1.CourseBriefChatResponse.attempts:type_name -> duolify.engine.v1.BriefAttempt
-	7,  // 44: duolify.engine.v1.OutlineChatChangeRequest.outline:type_name -> duolify.engine.v1.CourseOutline
-	3,  // 45: duolify.engine.v1.OutlineChatChangeRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	31, // 46: duolify.engine.v1.OutlineChatChangeResponse.operations:type_name -> duolify.engine.v1.OutlineOperation
-	2,  // 47: duolify.engine.v1.OutlineChatChangeResponse.attempts:type_name -> duolify.engine.v1.Usage
-	0,  // 48: duolify.engine.v1.EngineService.Health:input_type -> duolify.engine.v1.HealthRequest
-	11, // 49: duolify.engine.v1.EngineService.PreviewCourse:input_type -> duolify.engine.v1.PreviewCourseRequest
-	13, // 50: duolify.engine.v1.EngineService.GenerateCourseOutline:input_type -> duolify.engine.v1.GenerateCourseOutlineRequest
-	15, // 51: duolify.engine.v1.EngineService.GenerateLesson:input_type -> duolify.engine.v1.GenerateLessonRequest
-	18, // 52: duolify.engine.v1.EngineService.Chat:input_type -> duolify.engine.v1.ChatRequest
-	20, // 53: duolify.engine.v1.EngineService.EnrichNote:input_type -> duolify.engine.v1.EnrichNoteRequest
-	24, // 54: duolify.engine.v1.EngineService.SetupChat:input_type -> duolify.engine.v1.SetupChatRequest
-	28, // 55: duolify.engine.v1.EngineService.CourseBriefChat:input_type -> duolify.engine.v1.CourseBriefChatRequest
-	32, // 56: duolify.engine.v1.EngineService.OutlineChatChange:input_type -> duolify.engine.v1.OutlineChatChangeRequest
-	1,  // 57: duolify.engine.v1.EngineService.Health:output_type -> duolify.engine.v1.HealthResponse
-	12, // 58: duolify.engine.v1.EngineService.PreviewCourse:output_type -> duolify.engine.v1.PreviewCourseResponse
-	14, // 59: duolify.engine.v1.EngineService.GenerateCourseOutline:output_type -> duolify.engine.v1.GenerateCourseOutlineResponse
-	16, // 60: duolify.engine.v1.EngineService.GenerateLesson:output_type -> duolify.engine.v1.GenerateLessonEvent
-	19, // 61: duolify.engine.v1.EngineService.Chat:output_type -> duolify.engine.v1.ChatEvent
-	21, // 62: duolify.engine.v1.EngineService.EnrichNote:output_type -> duolify.engine.v1.EnrichNoteResponse
-	25, // 63: duolify.engine.v1.EngineService.SetupChat:output_type -> duolify.engine.v1.SetupChatResponse
-	30, // 64: duolify.engine.v1.EngineService.CourseBriefChat:output_type -> duolify.engine.v1.CourseBriefChatResponse
-	33, // 65: duolify.engine.v1.EngineService.OutlineChatChange:output_type -> duolify.engine.v1.OutlineChatChangeResponse
-	57, // [57:66] is the sub-list for method output_type
-	48, // [48:57] is the sub-list for method input_type
-	48, // [48:48] is the sub-list for extension type_name
-	48, // [48:48] is the sub-list for extension extendee
-	0,  // [0:48] is the sub-list for field type_name
+	3,  // 22: duolify.engine.v1.GenerateLessonRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	8,  // 23: duolify.engine.v1.GenerateLessonEvent.slide:type_name -> duolify.engine.v1.Slide
+	10, // 24: duolify.engine.v1.GenerateLessonEvent.lesson:type_name -> duolify.engine.v1.Lesson
+	2,  // 25: duolify.engine.v1.GenerateLessonEvent.usage:type_name -> duolify.engine.v1.Usage
+	2,  // 26: duolify.engine.v1.GenerateLessonEvent.attempt:type_name -> duolify.engine.v1.Usage
+	7,  // 27: duolify.engine.v1.ChatRequest.outline:type_name -> duolify.engine.v1.CourseOutline
+	10, // 28: duolify.engine.v1.ChatRequest.current_lesson:type_name -> duolify.engine.v1.Lesson
+	4,  // 29: duolify.engine.v1.ChatRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
+	17, // 30: duolify.engine.v1.ChatRequest.messages:type_name -> duolify.engine.v1.ChatMessage
+	3,  // 31: duolify.engine.v1.ChatRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	2,  // 32: duolify.engine.v1.ChatEvent.usage:type_name -> duolify.engine.v1.Usage
+	2,  // 33: duolify.engine.v1.ChatEvent.attempt:type_name -> duolify.engine.v1.Usage
+	5,  // 34: duolify.engine.v1.EnrichNoteRequest.lesson:type_name -> duolify.engine.v1.LessonRef
+	4,  // 35: duolify.engine.v1.EnrichNoteRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
+	3,  // 36: duolify.engine.v1.EnrichNoteRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	2,  // 37: duolify.engine.v1.EnrichNoteResponse.usage:type_name -> duolify.engine.v1.Usage
+	2,  // 38: duolify.engine.v1.EnrichNoteResponse.attempts:type_name -> duolify.engine.v1.Usage
+	4,  // 39: duolify.engine.v1.SetupChatRequest.profile:type_name -> duolify.engine.v1.LearnerProfile
+	23, // 40: duolify.engine.v1.SetupChatRequest.messages:type_name -> duolify.engine.v1.SetupChatMessage
+	22, // 41: duolify.engine.v1.SetupChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
+	4,  // 42: duolify.engine.v1.SetupChatResponse.updated_profile:type_name -> duolify.engine.v1.LearnerProfile
+	2,  // 43: duolify.engine.v1.SetupChatResponse.usage:type_name -> duolify.engine.v1.Usage
+	26, // 44: duolify.engine.v1.CourseBriefChatRequest.brief:type_name -> duolify.engine.v1.CourseBrief
+	27, // 45: duolify.engine.v1.CourseBriefChatRequest.limits:type_name -> duolify.engine.v1.CourseBriefLimits
+	2,  // 46: duolify.engine.v1.BriefAttempt.usage:type_name -> duolify.engine.v1.Usage
+	26, // 47: duolify.engine.v1.CourseBriefChatResponse.brief:type_name -> duolify.engine.v1.CourseBrief
+	22, // 48: duolify.engine.v1.CourseBriefChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
+	29, // 49: duolify.engine.v1.CourseBriefChatResponse.attempts:type_name -> duolify.engine.v1.BriefAttempt
+	7,  // 50: duolify.engine.v1.OutlineChatChangeRequest.outline:type_name -> duolify.engine.v1.CourseOutline
+	3,  // 51: duolify.engine.v1.OutlineChatChangeRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	31, // 52: duolify.engine.v1.OutlineChatChangeResponse.operations:type_name -> duolify.engine.v1.OutlineOperation
+	2,  // 53: duolify.engine.v1.OutlineChatChangeResponse.attempts:type_name -> duolify.engine.v1.Usage
+	0,  // 54: duolify.engine.v1.EngineService.Health:input_type -> duolify.engine.v1.HealthRequest
+	11, // 55: duolify.engine.v1.EngineService.PreviewCourse:input_type -> duolify.engine.v1.PreviewCourseRequest
+	13, // 56: duolify.engine.v1.EngineService.GenerateCourseOutline:input_type -> duolify.engine.v1.GenerateCourseOutlineRequest
+	15, // 57: duolify.engine.v1.EngineService.GenerateLesson:input_type -> duolify.engine.v1.GenerateLessonRequest
+	18, // 58: duolify.engine.v1.EngineService.Chat:input_type -> duolify.engine.v1.ChatRequest
+	20, // 59: duolify.engine.v1.EngineService.EnrichNote:input_type -> duolify.engine.v1.EnrichNoteRequest
+	24, // 60: duolify.engine.v1.EngineService.SetupChat:input_type -> duolify.engine.v1.SetupChatRequest
+	28, // 61: duolify.engine.v1.EngineService.CourseBriefChat:input_type -> duolify.engine.v1.CourseBriefChatRequest
+	32, // 62: duolify.engine.v1.EngineService.OutlineChatChange:input_type -> duolify.engine.v1.OutlineChatChangeRequest
+	1,  // 63: duolify.engine.v1.EngineService.Health:output_type -> duolify.engine.v1.HealthResponse
+	12, // 64: duolify.engine.v1.EngineService.PreviewCourse:output_type -> duolify.engine.v1.PreviewCourseResponse
+	14, // 65: duolify.engine.v1.EngineService.GenerateCourseOutline:output_type -> duolify.engine.v1.GenerateCourseOutlineResponse
+	16, // 66: duolify.engine.v1.EngineService.GenerateLesson:output_type -> duolify.engine.v1.GenerateLessonEvent
+	19, // 67: duolify.engine.v1.EngineService.Chat:output_type -> duolify.engine.v1.ChatEvent
+	21, // 68: duolify.engine.v1.EngineService.EnrichNote:output_type -> duolify.engine.v1.EnrichNoteResponse
+	25, // 69: duolify.engine.v1.EngineService.SetupChat:output_type -> duolify.engine.v1.SetupChatResponse
+	30, // 70: duolify.engine.v1.EngineService.CourseBriefChat:output_type -> duolify.engine.v1.CourseBriefChatResponse
+	33, // 71: duolify.engine.v1.EngineService.OutlineChatChange:output_type -> duolify.engine.v1.OutlineChatChangeResponse
+	63, // [63:72] is the sub-list for method output_type
+	54, // [54:63] is the sub-list for method input_type
+	54, // [54:54] is the sub-list for extension type_name
+	54, // [54:54] is the sub-list for extension extendee
+	0,  // [0:54] is the sub-list for field type_name
 }
 
 func init() { file_duolify_engine_v1_engine_proto_init() }
@@ -3143,10 +3291,14 @@ func file_duolify_engine_v1_engine_proto_init() {
 		(*GenerateLessonEvent_Slide)(nil),
 		(*GenerateLessonEvent_Lesson)(nil),
 		(*GenerateLessonEvent_Usage)(nil),
+		(*GenerateLessonEvent_Attempt)(nil),
+		(*GenerateLessonEvent_Unavailable)(nil),
 	}
 	file_duolify_engine_v1_engine_proto_msgTypes[19].OneofWrappers = []any{
 		(*ChatEvent_Delta)(nil),
 		(*ChatEvent_Usage)(nil),
+		(*ChatEvent_Attempt)(nil),
+		(*ChatEvent_ErrorCode)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

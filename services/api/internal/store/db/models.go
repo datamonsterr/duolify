@@ -325,6 +325,64 @@ type CreditUsage struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type EvalAlertConfig struct {
+	ID                           string             `json:"id"`
+	PlatformDailyBudgetUsd       pgtype.Numeric     `json:"platform_daily_budget_usd"`
+	DailyBudgetAlert80Percent    bool               `json:"daily_budget_alert_80_percent"`
+	DailyBudgetAlert100Percent   bool               `json:"daily_budget_alert_100_percent"`
+	LearnerCostIncreaseThreshold pgtype.Numeric     `json:"learner_cost_increase_threshold"`
+	CacheHitRateThreshold        pgtype.Numeric     `json:"cache_hit_rate_threshold"`
+	PaidMarginThreshold          pgtype.Numeric     `json:"paid_margin_threshold"`
+	FallbackRateThreshold        pgtype.Numeric     `json:"fallback_rate_threshold"`
+	ErrorRateThreshold           pgtype.Numeric     `json:"error_rate_threshold"`
+	AlertWindowMinutes           int32              `json:"alert_window_minutes"`
+	CreatedAt                    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                    pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EvalAlertEvent struct {
+	ID         pgtype.UUID        `json:"id"`
+	Scope      string             `json:"scope"`
+	AlertKey   string             `json:"alert_key"`
+	ActualUsd  pgtype.Numeric     `json:"actual_usd"`
+	BudgetUsd  pgtype.Numeric     `json:"budget_usd"`
+	Properties []byte             `json:"properties"`
+	Status     string             `json:"status"`
+	NotifiedAt pgtype.Timestamptz `json:"notified_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type EvalOperationalAggregate struct {
+	ID                 int64              `json:"id"`
+	Day                pgtype.Date        `json:"day"`
+	Task               string             `json:"task"`
+	TotalCalls         int64              `json:"total_calls"`
+	FallbackCalls      int64              `json:"fallback_calls"`
+	ErrorCalls         int64              `json:"error_calls"`
+	TotalLatencyMs     int64              `json:"total_latency_ms"`
+	InputTokens        int64              `json:"input_tokens"`
+	OutputTokens       int64              `json:"output_tokens"`
+	CacheWriteTokens   int64              `json:"cache_write_tokens"`
+	CacheReadTokens    int64              `json:"cache_read_tokens"`
+	CostNanos          int64              `json:"cost_nanos"`
+	CreditRevenueCents int64              `json:"credit_revenue_cents"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type EvalReport struct {
+	ID              pgtype.UUID        `json:"id"`
+	Task            string             `json:"task"`
+	DatasetRevision string             `json:"dataset_revision"`
+	PromptRevision  string             `json:"prompt_revision"`
+	Model           string             `json:"model"`
+	Score           pgtype.Numeric     `json:"score"`
+	Threshold       pgtype.Numeric     `json:"threshold"`
+	Passed          bool               `json:"passed"`
+	ReportJson      []byte             `json:"report_json"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+}
+
 type Learner struct {
 	ID          pgtype.UUID        `json:"id"`
 	DisplayName string             `json:"display_name"`

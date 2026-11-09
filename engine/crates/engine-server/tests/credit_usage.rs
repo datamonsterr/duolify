@@ -60,6 +60,8 @@ async fn preview_preserves_missing_usage_through_grpc() {
             model: "claude-sonnet-5-5".into(),
             fallback_model: "anthropic/claude-sonnet-5.5".into(),
             deadline_unix_ms: 0,
+            first_token_timeout_ms: 0,
+            idle_timeout_ms: 0,
         }),
         ..Default::default()
     };

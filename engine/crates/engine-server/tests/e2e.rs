@@ -50,6 +50,7 @@ async fn all_rpcs() {
                 fallback_provider: "mock".into(),
                 fallback_model: "anthropic/claude-sonnet-5.5".into(),
                 deadline_unix_ms: 0,
+                ..Default::default()
             }),
             ..Default::default()
         })
@@ -92,6 +93,7 @@ async fn all_rpcs() {
                 fallback_provider: "mock".into(),
                 fallback_model: "anthropic/claude-sonnet-5.5".into(),
                 deadline_unix_ms: 0,
+                ..Default::default()
             }),
             ..Default::default()
         })
@@ -201,6 +203,7 @@ async fn all_rpcs() {
                 fallback_provider: "mock".into(),
                 fallback_model: "anthropic/claude-haiku-5.5".into(),
                 deadline_unix_ms: 0,
+                ..Default::default()
             }),
         })
         .await

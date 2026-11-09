@@ -16,6 +16,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
+	"github.com/datamonsterr/duolify/services/api/internal/eval"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -41,6 +42,7 @@ type Dependencies struct {
 	Quotes          http.Handler
 	Credits         http.Handler
 	Player          http.Handler
+	Eval            http.Handler
 	Accounts        interface {
 		http.Handler
 		Protect(http.Handler) http.Handler
@@ -144,6 +146,9 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("PUT /v1/lessons/{lesson}/position", deps.Accounts.Protect(deps.Player))
 		mux.Handle("POST /v1/lessons/{lesson}/sync", deps.Accounts.Protect(deps.Player))
 		mux.Handle("GET /v1/lessons/{lesson}/slides/{slide}", deps.Accounts.Protect(deps.Player))
+	}
+	if deps.Eval != nil {
+		mux.Handle("/v1/eval/", deps.Eval)
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -296,6 +301,35 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		finished = finishErr == nil && (settled.State == "released" || settled.State == "settled")
 		if !valid || finishErr != nil || settled.State != "settled" {
 			preparer.PreviewEvent(finishCtx, owner, "course_generation_failed", request, job.ID, time.Since(started).Milliseconds())
+		}
+		if recorder, ok := deps.Eval.(interface {
+			RecordCallMetrics(context.Context, eval.CallMetrics) error
+		}); ok {
+			var fallbackUsed bool
+			var inTokens, outTokens, cacheWrite, cacheRead int64
+			for _, a := range attempts {
+				if a != nil {
+					if a.FallbackUsed {
+						fallbackUsed = true
+					}
+					inTokens += int64(a.InputTokens)
+					outTokens += int64(a.OutputTokens)
+					cacheWrite += int64(a.CacheWriteTokens)
+					cacheRead += int64(a.CacheReadTokens)
+				}
+			}
+			_ = recorder.RecordCallMetrics(finishCtx, eval.CallMetrics{
+				Task:               "course_preview",
+				Success:            valid && finishErr == nil,
+				FallbackUsed:       fallbackUsed,
+				LatencyMs:          time.Since(started).Milliseconds(),
+				InputTokens:        inTokens,
+				OutputTokens:       outTokens,
+				CacheWriteTokens:   cacheWrite,
+				CacheReadTokens:    cacheRead,
+				CostNanos:          settled.CostNanos,
+				CreditRevenueCents: settled.ContentSpent + settled.AudioSpent,
+			})
 		}
 		if finishErr != nil {
 			writeJSON(w, 502, map[string]string{"error": "usage verification failed"})

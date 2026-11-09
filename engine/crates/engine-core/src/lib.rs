@@ -227,6 +227,7 @@ pub mod accounts;
 pub mod backup;
 pub mod courses;
 pub mod credits;
+pub mod eval;
 pub mod slide;
 #[cfg(test)]
 mod tests;

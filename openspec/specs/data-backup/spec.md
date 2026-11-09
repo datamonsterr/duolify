@@ -35,7 +35,7 @@ A restore drill MUST restore the latest dump into a throwaway database, run migr
 - **THEN** CI fails and an alert is raised
 
 ### Requirement: Object storage protection
-Object storage buckets for Slides and assets MUST have versioning enabled. Slides MUST be regenerable only through a tracked job, never silently.
+Object storage buckets for Slides, assets and mirrored Golden set revisions MUST have versioning enabled. Pinned golden set dataset revisions mirrored to S3 MUST be verified with SHA-256 checksums. Slides MUST be regenerable only through a tracked job, never silently.
 
 #### Scenario: Object overwritten
 - **WHEN** a Slide object is overwritten by mistake
