@@ -64,6 +64,18 @@ func (e *previewEngine) PreviewCourse(ctx context.Context, r *enginev1.PreviewCo
 	}
 	return response, nil
 }
+
+// Delays in quote-bound resolution must consume the original reservation budget.
+type delayedPreviewFinancial struct{ *credits.Service }
+
+func (f delayedPreviewFinancial) Limits(ctx context.Context, owner, id, action string) (*enginev1.UsageLimits, error) {
+	select {
+	case <-time.After(40 * time.Millisecond):
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return f.Service.Limits(ctx, owner, id, action)
+}
 func TestQuotedPreviewIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
@@ -93,7 +105,7 @@ func TestQuotedPreviewIntegration(t *testing.T) {
 	enginev1.RegisterEngineServiceServer(rpc, fixture)
 	go func() { _ = rpc.Serve(lis) }()
 	defer rpc.Stop()
-	engine, err := backend.New("http://"+lis.Addr().String(), 15*time.Second)
+	engine, err := backend.New("http://"+lis.Addr().String(), time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +142,7 @@ func TestQuotedPreviewIntegration(t *testing.T) {
 	defer func() { _ = events.Close() }()
 	financial := credits.NewServiceWithCatalogue(db.Pool, nil, cat, events)
 	svc := courses.New(courses.Options{Pool: db.Pool, Events: events})
-	server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, Engine: engine, CourseBrief: svc, Quotes: pricing.NewQuotes(db.Pool), Credits: financial}, slog.New(slog.NewTextHandler(io.Discard, nil))))
+	server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, Engine: engine, CourseBrief: svc, Quotes: pricing.NewQuotes(db.Pool), Credits: delayedPreviewFinancial{financial}}, slog.New(slog.NewTextHandler(io.Discard, nil))))
 	defer server.Close()
 	call := func(method, path string, body any, token string, quoteID ...string) (int, map[string]any) {
 		raw, _ := json.Marshal(body)
@@ -211,6 +223,13 @@ func TestQuotedPreviewIntegration(t *testing.T) {
 	q = quote(second)
 	if code := preview(second, q); code != 200 {
 		t.Fatalf("preview %d", code)
+	}
+	var jobDeadline time.Time
+	if err = db.Pool.QueryRow(ctx, "SELECT deadline_at FROM credit_jobs WHERE quote_id::text=$1", q).Scan(&jobDeadline); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.last.Limits.DeadlineUnixMs != uint64(jobDeadline.UnixMilli()) {
+		t.Errorf("provider absolute deadline %v differs from reserved deadline %v", fixture.last.Limits.DeadlineUnixMs, jobDeadline)
 	}
 	if fixture.last.BriefRevision != second || fixture.last.Brief.IncludeTopics != "Moon" || fixture.last.Brief.SkipTopics != "History" || fixture.last.Brief.Maths != "No maths" || fixture.last.Learner.LearnerId != owner {
 		t.Fatalf("lost confirmed brief/profile %v", fixture.last)
