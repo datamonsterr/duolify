@@ -115,6 +115,20 @@ func run() (result error) {
 	})
 	mux := http.NewServeMux()
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditHandler, Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"})}, logger))
+	// Exercise the real expiry worker across a historical local date. Only the
+	// disposable fixture exposes this clock control; amounts stay config-owned.
+	mux.Handle("POST /test/credits/yesterday", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		if _, err := creditService.EnsureDailyGrant(r.Context(), owner, time.Now().Add(-24*time.Hour)); err != nil {
+			http.Error(w, "historical grant failed", http.StatusInternalServerError)
+			return
+		}
+		if _, err := creditService.ExpireDailyCredits(r.Context(), time.Now()); err != nil {
+			http.Error(w, "daily expiry failed", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})))
 	mux.HandleFunc("POST /test/stripe/{id}", func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
 			State string `json:"state"`

@@ -298,7 +298,12 @@ func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput,
 
 // Get reads original terms for the authenticated owner.
 func (s *Quotes) Get(ctx context.Context, owner, id string) (Quote, error) {
-	row, err := db.New(s.pool).GetQuote(ctx, db.GetQuoteParams{ID: quoteUUID(id), LearnerID: quoteUUID(owner)})
+	return ReadQuote(ctx, s.pool, owner, id)
+}
+
+// ReadQuote reads pinned terms through the caller's pool or transaction.
+func ReadQuote(ctx context.Context, conn db.DBTX, owner, id string) (Quote, error) {
+	row, err := db.New(conn).GetQuote(ctx, db.GetQuoteParams{ID: quoteUUID(id), LearnerID: quoteUUID(owner)})
 	if err != nil {
 		return Quote{}, err
 	}
