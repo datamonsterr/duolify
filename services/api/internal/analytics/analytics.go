@@ -130,7 +130,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		switch key {
 		case "source":
 			if event == "quick_note_created" {
-				if v == "slide" || v == "lesson" || v == "chat" || v == "api" || v == "ci" || v == "client" {
+				if v == "slide" || v == "lesson" || v == "chat" {
 					out[key] = v
 				}
 				continue
@@ -290,9 +290,6 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "quick_note_created":
 		numeric("length")
 		if src, ok := input["source"].(string); ok && (src == "slide" || src == "lesson" || src == "chat") {
-			out["source"] = src
-		}
-		if src, ok := input["note_source"].(string); ok && (src == "slide" || src == "lesson" || src == "chat") {
 			out["source"] = src
 		}
 	case "ui_sheet_opened":
