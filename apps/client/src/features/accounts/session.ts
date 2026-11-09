@@ -70,6 +70,7 @@ export function setAnalyticsOptOut(value: boolean) {
   if (value) configureAnalytics(null);
 }
 let learner: Learner | null = null;
+let expired = false;
 let loading: Promise<Learner | null> | null = null;
 function identify(value: Learner) {
   configureAnalytics({
@@ -81,19 +82,22 @@ function identify(value: Learner) {
 }
 export const session = {
   current: () => learner,
+  expired: () => expired,
   clear() {
     learner = null;
+    expired = false;
     loading = null;
     configureAnalytics(null);
   },
   async accept(tokens: Tokens) {
     // Verify identity before exposing credentials or configuring analytics.
-    const value = await authRequest<Learner>(
-      "/v1/me",
-      undefined,
-      tokens.access_token,
-    );
+    let value: Learner;
     try {
+      value = await authRequest<Learner>(
+        "/v1/me",
+        undefined,
+        tokens.access_token,
+      );
       await credentialStore.write(tokens);
     } catch (error) {
       await authRequest("/v1/auth/logout", {
@@ -102,6 +106,7 @@ export const session = {
       throw error;
     }
     learner = value;
+    expired = false;
     identify(value);
     return value;
   },
@@ -134,6 +139,7 @@ export const session = {
           ) {
             await credentialStore.write(null);
             session.clear();
+            expired = true;
             return null;
           }
           throw refreshError;

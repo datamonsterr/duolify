@@ -118,6 +118,13 @@ func TestSignInRacesRotationRestoreAndDeletion(t *testing.T) {
 		t.Fatalf("unsafe refresh storage %v", err)
 	}
 	// A real custom-format backup restores profile and explicit expiry without raw secrets.
+	if w := call("/v1/auth/code", map[string]any{"email": "expired@example.test", "age_confirmed": true}, ""); w.Code != 202 {
+		t.Fatal(w.Body)
+	}
+	expiredCode := sink.Code("expired@example.test")
+	if _, err := db.Pool.Exec(ctx, "UPDATE auth_codes SET expires_at=now()-interval '1 second' WHERE email='expired@example.test'"); err != nil {
+		t.Fatal(err)
+	}
 	for _, command := range [][]string{
 		{"pg_dump", "-U", "duolify", "-d", "duolify", "-Fc", "-f", "/tmp/auth.dump"},
 		{"createdb", "-U", "duolify", "restored"},
@@ -146,6 +153,27 @@ func TestSignInRacesRotationRestoreAndDeletion(t *testing.T) {
 	restoredAuth.ServeHTTP(restoredW, restoredReq)
 	if restoredW.Code != 200 {
 		t.Fatal("restored session failed")
+	}
+	expiredRaw, _ := json.Marshal(map[string]any{"email": "expired@example.test", "age_confirmed": true, "code": expiredCode})
+	expiredW := httptest.NewRecorder()
+	restoredAuth.ServeHTTP(expiredW, httptest.NewRequestWithContext(ctx, "POST", "/v1/auth/verify", bytes.NewReader(expiredRaw)))
+	if expiredW.Code != 401 {
+		t.Fatal("restored expired code was accepted")
+	}
+	// Expired refresh/session state is authoritative even with a valid JWT signature.
+	if _, err := restored.Pool.Exec(ctx, "UPDATE auth_sessions SET expires_at=now()-interval '1 second'"); err != nil {
+		t.Fatal(err)
+	}
+	expiredW = httptest.NewRecorder()
+	restoredAuth.ServeHTTP(expiredW, restoredReq)
+	if expiredW.Code != 401 {
+		t.Fatal("expired restored session was accepted")
+	}
+	expiredRaw, _ = json.Marshal(map[string]string{"refresh_token": session.RefreshToken})
+	expiredW = httptest.NewRecorder()
+	restoredAuth.ServeHTTP(expiredW, httptest.NewRequestWithContext(ctx, "POST", "/v1/auth/refresh", bytes.NewReader(expiredRaw)))
+	if expiredW.Code != 401 {
+		t.Fatal("expired restored refresh was accepted")
 	}
 	// Token rotation is single-use; replay revokes the whole family including access JWTs.
 	w = call("/v1/auth/refresh", map[string]string{"refresh_token": session.RefreshToken}, "")

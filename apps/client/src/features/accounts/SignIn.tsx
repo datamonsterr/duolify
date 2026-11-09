@@ -31,12 +31,17 @@ export function SignIn({
   const [optOut, setOptOut] = useState(analyticsOptOut);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(
+    new URLSearchParams(location.search).get("reason") === "expired"
+      ? "Session expired. Sign in again and we'll take you back to your lesson."
+      : "",
+  );
   const [online, setOnline] = useState(navigator.onLine);
   const [info, setInfo] = useState<
     "Privacy" | "Terms" | "Analytics preference" | null
   >(null);
   const field = useRef<HTMLInputElement>(null);
+  const actions = useRef<HTMLDivElement>(null);
   const destination = safeReturnTo(
     new URLSearchParams(location.search).get("returnTo"),
   );
@@ -51,6 +56,7 @@ export function SignIn({
   }, []);
   useEffect(() => {
     field.current?.focus();
+    if (step === "welcome") actions.current?.querySelector("button")?.focus();
     trackAuthScreen(step === "welcome" ? "welcome" : "sign_in");
   }, [step]);
   function open(existing: boolean) {
@@ -145,7 +151,7 @@ export function SignIn({
                 <Badge role="info">Chat to set it up</Badge>
                 <Badge role="streak">Learn daily</Badge>
               </div>
-              <div className="auth-actions">
+              <div className="auth-actions" ref={actions}>
                 <Button onClick={() => open(false)}>Get started</Button>
                 <Button variant="secondary" onClick={() => open(true)}>
                   I already have an account

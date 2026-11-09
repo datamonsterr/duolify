@@ -110,3 +110,74 @@ test("expired code and unsafe destination preserve recovery", async ({
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/profile$/);
 });
+
+for (const width of [1280, 320]) {
+  test(`loading, retry, long email and cancel focus at ${width}px`, async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let fail = true;
+    await page.route("**/v1/auth/code", async (route) => {
+      if (fail) {
+        await held;
+        await route.fulfill({
+          status: 503,
+          json: { error: "Sign-in is unavailable. Please retry." },
+        });
+      } else await route.fallback();
+    });
+    await page.goto("/sign-in?returnTo=%2Flesson%2Fsky-changes");
+    await page.getByRole("button", { name: "Get started" }).tap();
+    const email = "a-very-long-learner-address-".repeat(6) + "@example.test";
+    await page.getByLabel("Email address").fill(email);
+    await page.getByLabel("I am 16 or older").check();
+    await page.getByRole("button", { name: "Send code" }).tap();
+    await expect(
+      page.getByRole("button", { name: "Preparing…" }),
+    ).toBeDisabled();
+    release();
+    await expect(page.getByRole("alert")).toContainText("unavailable");
+    await expect(page.getByLabel("Email address")).toHaveValue(email);
+    await context.setOffline(true);
+    await expect(
+      page.getByRole("button", { name: "Retry sign-in" }),
+    ).toBeDisabled();
+    await context.setOffline(false);
+    fail = false;
+    await page.getByRole("button", { name: "Retry sign-in" }).tap();
+    await expect(page.getByLabel("One-time code")).toBeFocused();
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "200%";
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.getByRole("button", { name: "Change email" }).tap();
+    await expect(page.getByLabel("Email address")).toHaveValue(email);
+    await page.getByRole("button", { name: "Back to welcome" }).tap();
+    await expect(
+      page.getByRole("button", { name: "Get started" }),
+    ).toBeFocused();
+    await expect(page).toHaveURL(/returnTo=%2Flesson%2Fsky-changes/);
+    await page.getByRole("button", { name: "Privacy", exact: true }).tap();
+    await expect(page.getByRole("region", { name: "Privacy" })).toContainText(
+      "never sent to analytics",
+    );
+    await page.getByRole("button", { name: "Close Privacy" }).tap();
+    await page.getByRole("button", { name: "Analytics preference" }).tap();
+    await page.getByLabel("Share anonymous product analytics").uncheck();
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem("duolify.analytics-opt-out"),
+      ),
+    ).toBe("true");
+  });
+}

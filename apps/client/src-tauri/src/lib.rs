@@ -26,13 +26,14 @@ fn write_credentials(value: Option<String>) -> Result<(), String> {
     {
         let entry = keyring::Entry::new("app.duolify.client", "auth-session")
             .map_err(|_| "Secure credential store is unavailable".to_string())?;
-        let result = match value {
-            Some(value) => entry.set_password(&value),
-            None => entry.delete_credential(),
-        };
-        match result {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(_) => Err("Could not update the secure credential store".to_string()),
+        match value {
+            Some(value) => entry
+                .set_password(&value)
+                .map_err(|_| "Could not update the secure credential store".to_string()),
+            None => match entry.delete_credential() {
+                Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+                Err(_) => Err("Could not update the secure credential store".to_string()),
+            },
         }
     }
     #[cfg(mobile)]

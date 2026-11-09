@@ -163,3 +163,21 @@ it("rotates an expired access token before retrying the authenticated learner re
   expect((await credentialStore.read())?.refresh_token).toBe("rotated");
   expect(posthog.capture).not.toHaveBeenCalled();
 });
+
+it("clears revoked credentials and marks the expired-session recovery", async () => {
+  await credentialStore.write({
+    access_token: "expired",
+    refresh_token: "revoked",
+    expires_in: 900,
+  });
+  server.use(
+    http.get("*/v1/me", () => HttpResponse.json({}, { status: 401 })),
+    http.post("*/v1/auth/refresh", () =>
+      HttpResponse.json({}, { status: 401 }),
+    ),
+  );
+  expect(await session.load()).toBeNull();
+  expect(await credentialStore.read()).toBeNull();
+  expect(session.expired()).toBe(true);
+  expect(posthog.capture).not.toHaveBeenCalled();
+});

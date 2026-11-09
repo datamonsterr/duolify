@@ -12,7 +12,7 @@ export function RouteGuard({ children }: { children: ReactNode }) {
         if (value) setState("ready");
         else
           location.replace(
-            `/sign-in?returnTo=${encodeURIComponent(safeReturnTo(location.pathname))}`,
+            `/sign-in?returnTo=${encodeURIComponent(safeReturnTo(location.pathname))}${session.expired() ? "&reason=expired" : ""}`,
           );
       })
       .catch(() => {

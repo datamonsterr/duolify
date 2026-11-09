@@ -175,7 +175,7 @@ importers:
         specifier: 1.170.46
         version: 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tauri-apps/api':
-        specifier: ^2.12.4
+        specifier: 2.12.4
         version: 2.12.4
       posthog-js:
         specifier: 1.447.3

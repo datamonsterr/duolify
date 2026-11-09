@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -109,6 +110,9 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	var mailer accounts.Mailer = accounts.LogMailer{Logger: logger}
 	if os.Getenv("DUOLIFY_ENV") == "production" {
+		if strings.HasPrefix(secret, "change-me") {
+			return errors.New("production JWT_SECRET must replace the development placeholder")
+		}
 		if os.Getenv("RESEND_API_KEY") == "" || os.Getenv("AUTH_MAIL_FROM") == "" {
 			return errors.New("production auth requires RESEND_API_KEY and AUTH_MAIL_FROM")
 		}

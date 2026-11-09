@@ -9,7 +9,7 @@ dir = "{{config_root}}/services/api"
 run = "gotestsum -- -race -count=1 ./internal/... ./migrations/..."
 
 ["api:test-e2e"]
-description = "Run real HTTP and fake gRPC end-to-end tests"
+description = "Run real authenticated HTTP, Postgres and fake gRPC end-to-end tests"
 dir = "{{config_root}}/services/api"
 run = "gotestsum -- -race -count=1 ./test/e2e/..."
 
