@@ -13,6 +13,15 @@ export function CourseCard({
   const heading = useId();
   const lessons = course.units.flatMap((unit) => unit.lessons);
   const completed = lessons.filter((lesson) => lesson.state === "done").length;
+  const currentUnitIndex = course.units.findIndex((unit) =>
+    unit.lessons.some((lesson) => lesson.state === "current"),
+  );
+  const currentUnit =
+    course.units[currentUnitIndex >= 0 ? currentUnitIndex : 0];
+  const currentLessonIndex =
+    currentUnit?.lessons.findIndex((lesson) => lesson.state === "current") ??
+    -1;
+  const lessonIndex = currentLessonIndex >= 0 ? currentLessonIndex : completed;
   const unavailable = course.availability === "unavailable";
   return (
     <article
@@ -24,7 +33,7 @@ export function CourseCard({
           className={`course-icon ${current ? "course-icon-secondary" : ""}`}
           aria-hidden="true"
         >
-          {current ? "✦" : "▱"}
+          <span className="course-icon-glyph">{current ? "✦" : "▱"}</span>
         </span>
         <h2 id={heading}>
           {unavailable ? (
@@ -52,8 +61,12 @@ export function CourseCard({
               value={completed}
               max={lessons.length}
             />
-            <span className="muted">
-              {completed} of {lessons.length} lessons completed
+            <span className="muted course-progress-copy">
+              {currentUnit &&
+                `Unit ${currentUnitIndex >= 0 ? currentUnitIndex + 1 : 1} · `}
+              {currentLessonIndex >= 0
+                ? `Lesson ${lessonIndex + 1} of ${currentUnit?.lessons.length}`
+                : `${completed} of ${lessons.length} lessons completed`}
             </span>
           </>
         )

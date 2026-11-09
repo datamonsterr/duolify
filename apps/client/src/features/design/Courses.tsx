@@ -42,28 +42,7 @@ export function Courses() {
           <div className="eyebrow">Keep your curiosity going</div>
           <h1 id="courses-heading">Courses</h1>
         </div>
-        <Button disabled aria-describedby="creation-unavailable">
-          Create a course
-        </Button>
-      </header>
-      <p id="creation-unavailable" className="muted">
-        Course creation is not available yet.
-      </p>
-      <div className="course-toolbar">
-        <div className="course-tabs" aria-label="Course collections">
-          <span className="badge badge-info">My courses</span>
-          <Button
-            variant="quiet"
-            disabled
-            aria-describedby="discover-unavailable"
-          >
-            Discover
-          </Button>
-        </div>
-        <p id="discover-unavailable" className="muted">
-          Public course discovery is not available yet.
-        </p>
-        <label className="search-label">
+        <label className="search-label courses-search">
           Search courses
           <input
             ref={searchInput}
@@ -72,6 +51,41 @@ export function Courses() {
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
+        <Button disabled aria-describedby="creation-unavailable">
+          Create a course
+        </Button>
+      </header>
+      <p id="creation-unavailable" className="muted">
+        Course creation is not available yet.
+      </p>
+      <div className="course-toolbar">
+        <div
+          className="course-tabs"
+          role="tablist"
+          aria-label="Course collections"
+        >
+          <button
+            className="course-tab selected"
+            type="button"
+            role="tab"
+            aria-selected="true"
+          >
+            My courses
+          </button>
+          <button
+            className="course-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            disabled
+            aria-describedby="discover-unavailable"
+          >
+            Discover
+          </button>
+        </div>
+        <p id="discover-unavailable" className="muted">
+          Public course discovery is not available yet.
+        </p>
       </div>
       <div className="course-context">
         <Badge role="streak">
@@ -122,7 +136,7 @@ export function Courses() {
         >
           {isError ? "Retry" : "Refresh courses"}
         </Button>
-        {search && (
+        {search && filtered?.length !== 0 && (
           <Button variant="secondary" onClick={clearSearch}>
             Clear search
           </Button>
@@ -132,13 +146,18 @@ export function Courses() {
         <div aria-busy="true" className="course-loading">
           <p role="status">Loading your courses…</p>
           <div className="course-grid" aria-hidden="true">
-            <div className="course-skeleton" />
-            <div className="course-skeleton" />
+            {[0, 1].map((item) => (
+              <div className="course-skeleton" key={item}>
+                <span className="skeleton-tile" />
+                <span className="skeleton-line skeleton-line-title" />
+                <span className="skeleton-line skeleton-line-meta" />
+              </div>
+            ))}
           </div>
         </div>
       )}
       {data?.length === 0 && (
-        <div className="course-empty">
+        <div className="course-empty card">
           <div className="brand-mark" aria-hidden="true">
             <span />
             <span />
@@ -158,11 +177,17 @@ export function Courses() {
             {filtered?.length} courses found
           </p>
           {filtered?.length === 0 && (
-            <div className="course-empty">
+            <div className="course-empty card">
               <h2>No courses found</h2>
               <p>
                 Try another search or clear your search to see your courses.
               </p>
+              <Button variant="secondary" onClick={clearSearch}>
+                Clear search
+              </Button>
+              <Button disabled aria-describedby="creation-unavailable">
+                Create a course
+              </Button>
             </div>
           )}
           <div className="course-grid">

@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
@@ -241,4 +247,78 @@ it("shares configureAnalytics identity and opt-out between pricing and course co
   trackControl("refresh_courses");
   exposePricing("signed-out-test", "quote");
   expect(posthog.capture).not.toHaveBeenCalled();
+});
+
+it("matches the Courses canvas structure and secondary button treatment", async () => {
+  const styles = readFileSync(resolve("src/test", "../styles.css"), "utf8");
+  expect(styles).toMatch(
+    /\.duo-button\.secondary\s*\{[^}]*background:\s*var\(--surface\)/s,
+  );
+  expect(styles).toMatch(
+    /\.duo-button\.secondary\s*\{[^}]*border-color:\s*var\(--line\)/s,
+  );
+  expect(styles).toMatch(
+    /\.duo-button\.secondary\s*\{[^}]*box-shadow:\s*0 var\(--size-press-depth\) 0 var\(--line\)/s,
+  );
+  expect(styles).toMatch(
+    /\.course-card\s*\{[^}]*border-block-end-width:\s*var\(--size-card-depth\)/s,
+  );
+  expect(styles).toContain(".skeleton-tile");
+  expect(styles).toContain(".skeleton-line");
+  expect(styles).toMatch(/@keyframes\s+course-shimmer/);
+  expect(styles).toMatch(/prefers-reduced-motion:\s*reduce/);
+
+  mount();
+  expect(
+    await screen.findByRole("tablist", { name: "Course collections" }),
+  ).toBeVisible();
+  expect(screen.getByRole("tab", { name: "My courses" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  const card = await screen.findByRole("article", {
+    name: "Everyday astronomy",
+  });
+  expect(card).toHaveTextContent(/Unit 1/);
+  expect(card).toHaveTextContent(/Lesson 2 of 4/);
+  expect(card.querySelector(".course-icon")).toBeInTheDocument();
+  expect(screen.getByRole("searchbox").closest("header")).toBeInTheDocument();
+
+  fireEvent.change(screen.getByRole("searchbox"), {
+    target: { value: "private topic" },
+  });
+  const empty = screen
+    .getByRole("heading", { name: "No courses found" })
+    .closest(".course-empty") as HTMLElement | null;
+  expect(empty).toBeInTheDocument();
+  expect(
+    within(empty!).getByRole("button", { name: "Clear search" }),
+  ).toBeVisible();
+  expect(
+    within(empty!).getByRole("button", { name: "Create a course" }),
+  ).toBeVisible();
+});
+
+it("renders labeled skeleton tiles and lines while the course list is pending", async () => {
+  let finishRequest!: () => void;
+  server.use(
+    http.get(
+      "*/courses",
+      () =>
+        new Promise((resolve) => {
+          finishRequest = () => resolve(HttpResponse.json([]));
+        }),
+    ),
+  );
+  const { container } = mount();
+  expect(await screen.findByText("Loading your courses…")).toBeVisible();
+  expect(container.querySelectorAll(".course-skeleton")).toHaveLength(2);
+  expect(container.querySelectorAll(".skeleton-tile")).toHaveLength(2);
+  expect(container.querySelectorAll(".skeleton-line")).toHaveLength(4);
+  finishRequest();
+  expect(
+    await screen.findByRole("heading", {
+      name: "What would you like to keep learning?",
+    }),
+  ).toBeVisible();
 });

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../../lib/api";
 import { exposePricing } from "../../lib/analytics";
-import type { Pricing } from "./types";
+import { QuotePanel } from "./QuotePanel";
+import { pricingQueryOptions } from "./query";
+import { formatCredits, formatMoney } from "./format";
 import { Button } from "../design/Button";
 import "./pricing.css";
 
@@ -25,84 +26,17 @@ const messages = {
     "Billed once a year; credits granted each paid service month. Renews automatically; cancel any time. Taxes are additional.",
 } as const;
 type Surface = "wallet" | "pack_list" | "plan_list" | "quote";
-const number = (value: number) => new Intl.NumberFormat().format(value);
-const money = (minor: number, currency: string) =>
-  new Intl.NumberFormat(undefined, { style: "currency", currency }).format(
-    minor / 100,
-  );
-function valid(c: Pricing): boolean {
-  return (
-    !!c &&
-    typeof c.version === "string" &&
-    Number.isFinite(Date.parse(c.effective_from)) &&
-    c.currency === "USD" &&
-    [
-      "preview",
-      "outline",
-      "lesson_content",
-      "narration",
-      "tutor_short",
-      "tutor_long",
-      "quick_note",
-      "cached_replay",
-    ].every(
-      (k) =>
-        Number.isSafeInteger(c.actions?.[k]?.credits) &&
-        c.actions[k].credits >= 0,
-    ) &&
-    Number.isSafeInteger(c.daily_free?.credits) &&
-    c.daily_free.credits >= 0 &&
-    c.narration?.characters > 0 &&
-    Array.isArray(c.packs) &&
-    c.packs.length > 0 &&
-    Array.isArray(c.plans) &&
-    c.plans.length > 0
-  );
-}
-function cached(): Pricing | undefined {
-  try {
-    const value: Pricing = JSON.parse(
-      sessionStorage.getItem("pricing:last-known") || "null",
-    );
-    return valid(value) ? value : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 export function PricingView() {
   const [surface, setSurface] = useState<Surface>("wallet");
   const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
   const [selection, setSelection] = useState("");
-  const [lastKnown] = useState(cached);
   const heading = useRef<HTMLHeadingElement>(null);
-  const query = useQuery({
-    queryKey: ["pricing"],
-    queryFn: async () => {
-      const c = await api.pricing();
-      if (!valid(c)) throw new Error("Invalid pricing response");
-      return c;
-    },
-    retry: false,
-    staleTime: 60_000,
-    networkMode: "always",
-  });
-  const c = query.data ?? (query.isError ? lastKnown : undefined);
+  const query = useQuery(pricingQueryOptions());
+  const c = query.data;
   const stale = query.isError && !!c;
   useEffect(() => {
-    if (query.data) {
-      try {
-        sessionStorage.setItem(
-          "pricing:last-known",
-          JSON.stringify(query.data),
-        );
-      } catch {
-        /* Read-only display works without storage. */
-      }
-    }
-  }, [query.data]);
-  useEffect(() => {
-    if (c && surface !== "wallet") exposePricing(c.version, surface);
+    if (c && surface !== "wallet" && surface !== "quote")
+      exposePricing(c.version, surface);
   }, [c, surface]);
   function navigate(next: Surface) {
     setSurface(next);
@@ -114,6 +48,13 @@ export function PricingView() {
       <h1 id="pricing-heading" ref={heading} tabIndex={-1}>
         {messages.title}
       </h1>
+      <Button
+        variant="quiet"
+        onClick={() => void query.refetch()}
+        disabled={query.isFetching}
+      >
+        Refresh prices
+      </Button>
       <nav aria-label="Credit views" className="pricing-nav">
         <Button
           variant="quiet"
@@ -173,7 +114,9 @@ export function PricingView() {
           {surface === "wallet" && (
             <>
               <div className="pricing-card pricing-credit">
-                <h2>{number(c.daily_free.credits)} daily free credits</h2>
+                <h2>
+                  {formatCredits(c.daily_free.credits)} daily free credits
+                </h2>
                 <p>
                   For quick notes and tutor chat. Resets at the end of your
                   local day.
@@ -247,8 +190,10 @@ export function PricingView() {
                           checked={selection === p.sku}
                           onChange={() => setSelection(p.sku)}
                         />
-                        <h3>{number(p.credits)} credits</h3>
-                        <strong>{money(p.amount_minor, p.currency)}</strong>
+                        <h3>{formatCredits(p.credits)} credits</h3>
+                        <strong>
+                          {formatMoney(p.amount_minor, p.currency)}
+                        </strong>
                         <p>{p.name} · Paid credits never expire</p>
                       </label>
                     ))
@@ -263,7 +208,7 @@ export function PricingView() {
                         />
                         <h3>{p.name}</h3>
                         <strong>
-                          {money(
+                          {formatMoney(
                             p[interval].amount_minor,
                             p[interval].currency,
                           )}
@@ -273,7 +218,8 @@ export function PricingView() {
                           / {interval === "monthly" ? "month" : "year"}
                         </span>
                         <p>
-                          {number(p.monthly_credits)} credits each service month
+                          {formatCredits(p.monthly_credits)} credits each
+                          service month
                         </p>
                         <ul>
                           {p.benefits.map((b) => (
@@ -281,7 +227,7 @@ export function PricingView() {
                           ))}
                         </ul>
                         <p>
-                          {number(p.concurrent_generation)} concurrent
+                          {formatCredits(p.concurrent_generation)} concurrent
                           generation{" "}
                           {p.concurrent_generation === 1 ? "job" : "jobs"}
                         </p>
@@ -310,6 +256,7 @@ export function PricingView() {
           {surface === "quote" && (
             <>
               <h2>Create a course · price guide</h2>
+              <QuotePanel narrationCharacters={c.narration.characters} />
               <p>
                 Review costs before confirming any generation. These are
                 catalogue prices; an API quote confirms the final charge.
@@ -317,31 +264,36 @@ export function PricingView() {
               <div className="pricing-costs">
                 <div className="pricing-card">
                   <h3>Course preview</h3>
-                  <strong>{number(c.actions.preview.credits)} credits</strong>
+                  <strong>
+                    {formatCredits(c.actions.preview.credits)} credits
+                  </strong>
                   <p>Sample outline and example slides.</p>
                 </div>
                 <div className="pricing-card">
                   <h3>Course outline</h3>
-                  <strong>{number(c.actions.outline.credits)} credits</strong>
+                  <strong>
+                    {formatCredits(c.actions.outline.credits)} credits
+                  </strong>
                   <p>Future lessons are prepared only when reached.</p>
                 </div>
                 <aside className="pricing-card">
                   <h3>Lesson with narration</h3>
                   <strong>
-                    {number(
+                    {formatCredits(
                       c.actions.lesson_content.credits + c.narration.credits,
                     )}{" "}
                     credits
                   </strong>
                   <p>
-                    {number(c.actions.lesson_content.credits)} content +{" "}
-                    {number(c.narration.credits)} narration for{" "}
-                    {number(c.narration.characters)} newly synthesized
+                    {formatCredits(c.actions.lesson_content.credits)} content +{" "}
+                    {formatCredits(c.narration.credits)} narration for{" "}
+                    {formatCredits(c.narration.characters)} newly synthesized
                     characters.
                   </p>
                   <p>
                     Narration rounds up once across all new characters. Cached
-                    replay: {number(c.actions.cached_replay.credits)} credits.
+                    replay: {formatCredits(c.actions.cached_replay.credits)}{" "}
+                    credits.
                   </p>
                 </aside>
               </div>
@@ -359,7 +311,7 @@ export function PricingView() {
                         )[k]
                       }
                     </dt>
-                    <dd>{number(c.actions[k].credits)} credits</dd>
+                    <dd>{formatCredits(c.actions[k].credits)} credits</dd>
                   </div>
                 ))}
               </dl>

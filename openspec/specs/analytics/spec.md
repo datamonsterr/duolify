@@ -74,3 +74,8 @@ PostHog is a derived store and MUST NOT be the only copy of any product state. E
 #### Scenario: Account deleted
 - **WHEN** a Learner deletes their account
 - **THEN** a PostHog person deletion request is made
+
+#### Scenario: Authoritative quote terms exposed
+- **WHEN** an action quote is displayed or renewed
+- **THEN** `pricing_version_exposed` uses surface `quote` and the quote's original version, deduplicated by authenticated session, surface and version; common UUID/platform/app_version/source properties are present and opt-out prevents delivery
+- **AND** action input, learner text, model mappings and quote payloads are excluded

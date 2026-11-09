@@ -68,7 +68,7 @@ func run() (result error) {
 		return err
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: catalogue, Accounts: auth}, logger))
+	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: catalogue, Quotes: pricing.NewQuotes(db.Pool), Accounts: auth}, logger))
 	// Test-only controls bind to loopback in this disposable fixture binary.
 	mux.HandleFunc("GET /test/mail", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:4182")

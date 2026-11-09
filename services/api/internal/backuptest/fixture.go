@@ -289,6 +289,14 @@ func (f *Fixture) Seed(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	quote, err := pricing.NewQuotes(f.DB.Pool).Create(t.Context(), "a1111111-1111-4111-8111-111111111111", pricing.QuoteInput{Action: "lesson_content", NarrationCharacters: 1440})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pricing.NewQuotes(f.DB.Pool).Accept(t.Context(), "a1111111-1111-4111-8111-111111111111", quote.ID); err != nil {
+		t.Fatal(err)
+	}
+
 }
 
 // RunJob waits for the real River worker, including failed attempts and retries.
@@ -431,7 +439,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"learner_profiles", "auth_identities", "auth_provider_identities", "auth_oauth_attempts", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits"} {
+	for _, table := range []string{"pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "learner_profiles", "auth_identities", "auth_provider_identities", "auth_oauth_attempts", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -497,7 +505,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		}
 	}
 
-	for _, query := range []string{"UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions"} {
+	for _, query := range []string{"UPDATE pricing_quotes SET snapshot='{}'", "DELETE FROM pricing_quotes", "TRUNCATE pricing_quotes", "DELETE FROM pricing_quote_consents", "DELETE FROM pricing_quote_policies", "UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions"} {
 		if _, err := restored.Pool.Exec(t.Context(), query); err == nil {
 			t.Fatalf("restored immutable data accepted mutation: %s", query)
 		}
