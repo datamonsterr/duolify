@@ -176,4 +176,19 @@ export const profileApi = {
       await accessToken(),
     );
   },
+  async exportData() {
+    return authRequest<{
+      schema_version: number;
+      exported_at: string;
+      expires_at: string;
+      tables: Record<string, unknown>;
+    }>("/v1/me/data-export", undefined, await accessToken());
+  },
+  async deleteAccount(confirmation: string) {
+    return authRequest<{ deleted: boolean }>(
+      "/v1/me/deletion-request",
+      { confirmation },
+      await accessToken(),
+    );
+  },
 };

@@ -29,6 +29,7 @@ Not owner decisions; chosen by the orchestrator so work could continue. Change t
 |---|---|
 | E12-02 | Action quotes are independent of wallet reservations. The initial quote TTL is 10 minutes; provider/model rates come from the business-model cost envelope; the logical narration voice key is `default`. Quote policy is an immutable extension owned by each Pricing version. Quoting never enables a model or calls a provider. |
 | E1 fixes | Local Playwright servers default to ports 4010 (web) and 4011 (API); the disposable API fixture uses 100000/hour for each email-code request and verification bucket so a parallel full-suite run cannot exhaust production throttles. |
+| E1-07 | Client-side export encryption uses PBKDF2-SHA256 (310,000 iterations) and AES-256-GCM with a user-provided passphrase (minimum 12 characters). Server export payload expiry window is 7 days. Account deletion severs personal references and anonymizes credit entries and action quotes to a SHA-256 pseudonymous owner reference (retaining financial entries at least 7 years per spec), revokes all sessions, cascades immediate erasure of personal profile and auth records, creates durable backed-up tombstones replayed on restore via `ApplyDeletionTombstones`, enqueues PostHog person deletion requests, and clears device storage/caches. |
 
 ## Still open (owner provisioning)
 

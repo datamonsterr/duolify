@@ -8,6 +8,7 @@ import { Feedback } from "../design/chat/Feedback";
 import { PreferenceControls } from "../design/localization/PreferenceControls";
 import { resolveLocale } from "../design/localization/messages";
 import { useUiPreferences } from "../design/localization/Preferences";
+import { AccountPrivacy } from "./AccountPrivacy";
 import {
   emptySettings,
   profileApi,
@@ -338,6 +339,7 @@ export function Settings() {
           </div>
         </form>
       )}
+      <AccountPrivacy />
       <a className="shell-link" href="/profile">
         Profile
       </a>

@@ -285,6 +285,7 @@ func (f *Fixture) Seed(t *testing.T) {
 		"INSERT INTO auth_sessions (id,learner_id,revoked_at) VALUES ('d4444444-4444-4444-8444-444444444444','a1111111-1111-4111-8111-111111111111',now())",
 		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES ('%x','d4444444-4444-4444-8444-444444444444',now()+interval '30 days')", sha256.Sum256([]byte("synthetic-revoked-refresh"))),
 		"INSERT INTO auth_rate_limits (key_hash,count,expires_at) VALUES (repeat('c',64),3,now()+interval '1 hour')",
+		"INSERT INTO account_deletion_tombstones (learner_reference) VALUES (repeat('9',64))",
 	} {
 		if _, err := f.DB.Pool.Exec(t.Context(), query); err != nil {
 			t.Fatal(err)
@@ -440,7 +441,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "learner_profiles", "auth_identities", "auth_provider_identities", "auth_oauth_attempts", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits"} {
+	for _, table := range []string{"pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "learner_profiles", "auth_identities", "auth_provider_identities", "auth_oauth_attempts", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -510,6 +511,9 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		if _, err := restored.Pool.Exec(t.Context(), query); err == nil {
 			t.Fatalf("restored immutable data accepted mutation: %s", query)
 		}
+	}
+	if err := accounts.ApplyDeletionTombstones(t.Context(), restored.Pool); err != nil {
+		t.Fatalf("apply deletion tombstones after restore: %v", err)
 	}
 }
 

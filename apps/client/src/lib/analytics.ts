@@ -229,6 +229,26 @@ export function trackControl(controlId: CourseControl, courseId?: string) {
   }
 }
 
+// E1-07 catalogue: openspec/changes/export-delete-account-data.
+export function trackPrivacyControl(
+  controlId: "export_data" | "delete_account",
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("ui_control_activated", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      surface: "settings_privacy",
+      control_id: controlId,
+    });
+  } catch {
+    /* A privacy control remains usable when analytics is unavailable. */
+  }
+}
+
 function trackShell(
   event: "ui_screen_viewed" | "ui_navigation_selected",
   properties: { screen_id: ScreenId } | { destination: Destination },

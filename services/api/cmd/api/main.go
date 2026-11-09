@@ -83,6 +83,9 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	defer db.Close()
+	if err := accounts.ApplyDeletionTombstones(ctx, db.Pool); err != nil {
+		return fmt.Errorf("apply account deletion tombstones: %w", err)
+	}
 	if command == "worker" {
 		backupConfig, err := backup.Load(os.Getenv)
 		if err != nil {
