@@ -51,6 +51,7 @@ type Service struct {
 	apple   AppleOAuthProvider
 	mux     *http.ServeMux
 	profile ProfileOptions
+	limits  RateLimits
 }
 
 // New requires a shared signing/HMAC secret of at least 32 bytes.
@@ -75,7 +76,7 @@ func NewWithOAuthProviders(pool *pgxpool.Pool, secret string, mailer Mailer, goo
 	if apple == nil {
 		apple = unavailableAppleProvider{}
 	}
-	s := &Service{pool: pool, key: []byte(secret), mail: mailer, oauth: google, apple: apple, mux: http.NewServeMux()}
+	s := &Service{pool: pool, key: []byte(secret), mail: mailer, oauth: google, apple: apple, mux: http.NewServeMux(), limits: DefaultRateLimits()}
 	s.mux.HandleFunc("POST /v1/auth/code", s.requestCode)
 	s.mux.HandleFunc("POST /v1/auth/verify", s.verify)
 	s.mux.HandleFunc("POST /v1/auth/google/start", s.googleOAuthStart)
@@ -95,6 +96,11 @@ func NewWithOAuthProviders(pool *pgxpool.Pool, secret string, mailer Mailer, goo
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	s.mux.ServeHTTP(w, r)
+}
+
+// ConfigureRateLimits installs limits validated by RateLimitsFromEnv.
+func (s *Service) ConfigureRateLimits(limits RateLimits) {
+	s.limits = limits
 }
 
 // NormalizeEmail accepts one unadorned mailbox, lowercases it and bounds storage.
@@ -188,7 +194,7 @@ func (s *Service) requestCode(w http.ResponseWriter, r *http.Request) {
 	for _, v := range []struct {
 		key string
 		max int
-	}{{"request-ip:" + ip(r), 20}, {"request-email:" + in.Email, 3}} {
+	}{{"request-ip:" + ip(r), s.limits.RequestIP}, {"request-email:" + in.Email, s.limits.RequestEmail}} {
 		if err = s.limit(ctx, tx, v.key, v.max); err != nil {
 			if errors.Is(err, errLimited) {
 				err = errors.Join(err, tx.Commit(ctx))
@@ -246,7 +252,7 @@ func (s *Service) verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err = s.limit(ctx, tx, "verify-ip:"+ip(r), 60); err != nil {
+	if err = s.limit(ctx, tx, "verify-ip:"+ip(r), s.limits.VerifyIP); err != nil {
 		if errors.Is(err, errLimited) {
 			err = errors.Join(err, tx.Commit(ctx))
 		}

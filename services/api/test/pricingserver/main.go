@@ -67,11 +67,29 @@ func run() (result error) {
 	if err != nil {
 		return err
 	}
+	rateLimits, err := accounts.RateLimitsFromEnv(os.Getenv)
+	if err != nil {
+		return err
+	}
+	if os.Getenv("AUTH_CODE_REQUESTS_PER_IP_PER_HOUR") == "" {
+		rateLimits.RequestIP = 100000
+	}
+	if os.Getenv("AUTH_CODE_REQUESTS_PER_EMAIL_PER_HOUR") == "" {
+		rateLimits.RequestEmail = 100000
+	}
+	if os.Getenv("AUTH_CODE_VERIFICATIONS_PER_IP_PER_HOUR") == "" {
+		rateLimits.VerifyIP = 100000
+	}
+	auth.ConfigureRateLimits(rateLimits)
 	mux := http.NewServeMux()
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: catalogue, Quotes: pricing.NewQuotes(db.Pool), Accounts: auth}, logger))
 	// Test-only controls bind to loopback in this disposable fixture binary.
 	mux.HandleFunc("GET /test/mail", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:4182")
+		webPort := os.Getenv("E2E_WEB_PORT")
+		if webPort == "" {
+			webPort = "4010"
+		}
+		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+webPort)
 		_ = json.NewEncoder(w).Encode(map[string]string{"code": sink.Code(r.URL.Query().Get("email"))})
 	})
 	mux.HandleFunc("POST /test/expire-access", func(w http.ResponseWriter, r *http.Request) {

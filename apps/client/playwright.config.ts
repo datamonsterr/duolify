@@ -1,5 +1,5 @@
 import { defineConfig } from "@playwright/test";
-import { apiBase, webBase, webPort } from "./e2e/servers";
+import { apiBase, authRateLimits, webBase, webPort } from "./e2e/servers";
 export default defineConfig({
   testDir: "./e2e",
   workers: Number(process.env.E2E_WORKERS ?? 1),
@@ -11,7 +11,7 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: `E2E_API_ADDR=${new URL(apiBase).host} mise run api:pricing-e2e-server`,
+      command: `AUTH_CODE_REQUESTS_PER_IP_PER_HOUR=${authRateLimits.requestIp} AUTH_CODE_REQUESTS_PER_EMAIL_PER_HOUR=${authRateLimits.requestEmail} AUTH_CODE_VERIFICATIONS_PER_IP_PER_HOUR=${authRateLimits.verifyIp} E2E_API_ADDR=${new URL(apiBase).host} E2E_WEB_PORT=${webPort} mise run api:pricing-e2e-server`,
       url: `${apiBase}/healthz`,
       timeout: 120_000,
       reuseExistingServer: false,

@@ -148,12 +148,17 @@ func run(ctx context.Context, args []string) (result error) {
 	if err != nil {
 		return err
 	}
+	rateLimits, err := accounts.RateLimitsFromEnv(os.Getenv)
+	if err != nil {
+		return err
+	}
 	profileOptions.Events = events
 	auth, err := accounts.New(db.Pool, secret, mailer)
 	if err != nil {
 		return err
 	}
 	auth.ConfigureProfile(profileOptions)
+	auth.ConfigureRateLimits(rateLimits)
 	handler := httpapi.New(httpapi.Dependencies{
 		Accounts: auth,
 		Pricing:  catalogue,

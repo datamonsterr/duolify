@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { Settings } from "./Settings";
 import { emptySettings, profileApi } from "./learner-context";
+import { UiPreferencesProvider } from "../design/localization/Preferences";
 
 const analytics = vi.hoisted(() => ({
   setAnalyticsConsent: vi.fn(),
@@ -65,4 +66,41 @@ it("emits only the stable appearance value after an opted-in save", async () => 
   await waitFor(() =>
     expect(analytics.trackAppearanceChanged).toHaveBeenCalledWith("dark"),
   );
+});
+
+it("saves the localized preferences through account settings", async () => {
+  render(
+    <UiPreferencesProvider>
+      <Settings />
+    </UiPreferencesProvider>,
+  );
+  await screen.findByRole("heading", { name: "Settings" });
+  fireEvent.change(screen.getByLabelText("Language"), {
+    target: { value: "ar" },
+  });
+  fireEvent.click(screen.getByLabelText("Reduce motion"));
+  fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+  await waitFor(() =>
+    expect(profileApi.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ locale: "ar", motion: "reduce" }),
+    ),
+  );
+  expect(screen.getByRole("link", { name: "Manage sessions" })).toHaveAttribute(
+    "href",
+    "/settings/sessions",
+  );
+});
+
+it("translates the settings heading and sessions link for Arabic accounts", async () => {
+  render(
+    <UiPreferencesProvider initialPreferences={{ locale: "ar" }}>
+      <Settings />
+    </UiPreferencesProvider>,
+  );
+  await screen.findByRole("heading", { name: "الإعدادات" });
+  expect(screen.getByRole("link", { name: "إدارة الجلسات" })).toHaveAttribute(
+    "href",
+    "/settings/sessions",
+  );
+  expect(screen.getByLabelText("المظهر")).toBeVisible();
 });

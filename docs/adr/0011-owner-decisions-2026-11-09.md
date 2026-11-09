@@ -28,6 +28,7 @@ Not owner decisions; chosen by the orchestrator so work could continue. Change t
 | Ticket | Default |
 |---|---|
 | E12-02 | Action quotes are independent of wallet reservations. The initial quote TTL is 10 minutes; provider/model rates come from the business-model cost envelope; the logical narration voice key is `default`. Quote policy is an immutable extension owned by each Pricing version. Quoting never enables a model or calls a provider. |
+| E1 fixes | Local Playwright servers default to ports 4010 (web) and 4011 (API); the disposable API fixture uses 100000/hour for each email-code request and verification bucket so a parallel full-suite run cannot exhaust production throttles. |
 
 ## Still open (owner provisioning)
 

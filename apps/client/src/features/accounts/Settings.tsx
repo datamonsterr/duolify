@@ -5,6 +5,9 @@ import {
 } from "../../lib/analytics";
 import { Button } from "../design/Button";
 import { Feedback } from "../design/chat/Feedback";
+import { PreferenceControls } from "../design/localization/PreferenceControls";
+import { resolveLocale } from "../design/localization/messages";
+import { useUiPreferences } from "../design/localization/Preferences";
 import {
   emptySettings,
   profileApi,
@@ -42,6 +45,7 @@ function applyVisualPreferences(settings: LearnerSettings) {
 }
 
 export function Settings() {
+  const { t } = useUiPreferences();
   const [saved, setSaved] = useState<LearnerSettings | null>(null);
   const [draft, setDraft] = useState<LearnerSettings>(emptySettings);
   const [pending, setPending] = useState(false);
@@ -127,7 +131,7 @@ export function Settings() {
 
   return (
     <section className="settings-page" aria-busy={pending}>
-      <h1>Settings</h1>
+      <h1>{t("settings.title")}</h1>
       <p>Appearance, lessons, accessibility and privacy.</p>
       {!saved && !error && <p role="status">Loading settings…</p>}
       {error && (
@@ -152,40 +156,19 @@ export function Settings() {
             void commit();
           }}
         >
-          <fieldset>
-            <legend>Appearance</legend>
-            <label>
-              Appearance
-              <select
-                value={draft.appearance}
-                onChange={(event) =>
-                  update(
-                    "appearance",
-                    event.target.value as LearnerSettings["appearance"],
-                  )
-                }
-              >
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </select>
-            </label>
-            <label>
-              Motion
-              <select
-                value={draft.motion}
-                onChange={(event) =>
-                  update(
-                    "motion",
-                    event.target.value as LearnerSettings["motion"],
-                  )
-                }
-              >
-                <option value="system">System</option>
-                <option value="reduce">Reduce</option>
-              </select>
-            </label>
-          </fieldset>
+          <PreferenceControls
+            value={{
+              locale: resolveLocale(draft.locale),
+              appearance: draft.appearance,
+              reduceMotion: draft.motion === "reduce",
+            }}
+            onChange={(patch) => {
+              if (patch.locale) update("locale", patch.locale);
+              if (patch.appearance) update("appearance", patch.appearance);
+              if (patch.reduceMotion !== undefined)
+                update("motion", patch.reduceMotion ? "reduce" : "system");
+            }}
+          />
           <fieldset>
             <legend>Lessons &amp; audio</legend>
             <label>
@@ -359,7 +342,7 @@ export function Settings() {
         Profile
       </a>
       <a className="shell-link" href="/settings/sessions">
-        Manage sessions
+        {t("settings.sessions")}
       </a>
     </section>
   );
