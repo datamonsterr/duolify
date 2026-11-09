@@ -11,6 +11,7 @@ func TestEventAllowlist(t *testing.T) {
 		"$ai_generation", "ui_control_activated",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
+		"daily_credits_granted", "daily_credits_expired",
 	} {
 		if !allowlisted(name) {
 			t.Errorf("catalogue event %q rejected", name)

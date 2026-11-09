@@ -30,6 +30,28 @@ func (m *mockLedgerStore) ListLedgerActivity(_ context.Context, _ string, limit 
 	return result, nil
 }
 
+func (m *mockLedgerStore) InsertCreditEntry(_ context.Context, e credits.Entry) (credits.Entry, error) {
+	e.ID = int64(len(m.entries) + 1)
+	m.entries = append(m.entries, e)
+	return e, nil
+}
+
+func (m *mockLedgerStore) GetEffectiveTimezone(_ context.Context, _ string, _ time.Time) (string, error) {
+	return "Asia/Ho_Chi_Minh", nil
+}
+
+func (m *mockLedgerStore) ScheduleTimezoneChange(_ context.Context, _, _ string, _ time.Time) error {
+	return nil
+}
+
+func (m *mockLedgerStore) GetLastDailyGrant(_ context.Context, _ string) (*credits.Entry, error) {
+	return nil, nil
+}
+
+func (m *mockLedgerStore) ListUnexpiredDailyGrants(_ context.Context, _ time.Time) ([]credits.DailyGrantSummary, error) {
+	return nil, nil
+}
+
 func TestWallet_BoundaryCasesAndCalculations(t *testing.T) {
 	ctx := context.Background()
 

@@ -49,6 +49,132 @@ func (q *Queries) CreateCreditEntry(ctx context.Context, arg CreateCreditEntryPa
 	return i, err
 }
 
+const getDailyGrantForDate = `-- name: GetDailyGrantForDate :one
+SELECT id, learner_id, amount, kind, reference, created_at, owner_reference, pricing_version, provenance FROM credit_entries
+WHERE learner_id = $1 AND kind = 'daily_grant' AND provenance->>'date' = $2::text
+LIMIT 1
+`
+
+type GetDailyGrantForDateParams struct {
+	LearnerID pgtype.UUID `json:"learner_id"`
+	Column2   string      `json:"column_2"`
+}
+
+func (q *Queries) GetDailyGrantForDate(ctx context.Context, arg GetDailyGrantForDateParams) (CreditEntry, error) {
+	row := q.db.QueryRow(ctx, getDailyGrantForDate, arg.LearnerID, arg.Column2)
+	var i CreditEntry
+	err := row.Scan(
+		&i.ID,
+		&i.LearnerID,
+		&i.Amount,
+		&i.Kind,
+		&i.Reference,
+		&i.CreatedAt,
+		&i.OwnerReference,
+		&i.PricingVersion,
+		&i.Provenance,
+	)
+	return i, err
+}
+
+const getEffectiveCreditTimezone = `-- name: GetEffectiveCreditTimezone :one
+SELECT time_zone, effective_at FROM credit_timezones
+WHERE learner_id = $1 AND effective_at <= $2
+ORDER BY effective_at DESC, id DESC
+LIMIT 1
+`
+
+type GetEffectiveCreditTimezoneParams struct {
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	EffectiveAt pgtype.Timestamptz `json:"effective_at"`
+}
+
+type GetEffectiveCreditTimezoneRow struct {
+	TimeZone    string             `json:"time_zone"`
+	EffectiveAt pgtype.Timestamptz `json:"effective_at"`
+}
+
+func (q *Queries) GetEffectiveCreditTimezone(ctx context.Context, arg GetEffectiveCreditTimezoneParams) (GetEffectiveCreditTimezoneRow, error) {
+	row := q.db.QueryRow(ctx, getEffectiveCreditTimezone, arg.LearnerID, arg.EffectiveAt)
+	var i GetEffectiveCreditTimezoneRow
+	err := row.Scan(&i.TimeZone, &i.EffectiveAt)
+	return i, err
+}
+
+const getLastDailyGrant = `-- name: GetLastDailyGrant :one
+SELECT id, learner_id, amount, kind, reference, created_at, owner_reference, pricing_version, provenance FROM credit_entries
+WHERE learner_id = $1 AND kind = 'daily_grant'
+ORDER BY id DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLastDailyGrant(ctx context.Context, learnerID pgtype.UUID) (CreditEntry, error) {
+	row := q.db.QueryRow(ctx, getLastDailyGrant, learnerID)
+	var i CreditEntry
+	err := row.Scan(
+		&i.ID,
+		&i.LearnerID,
+		&i.Amount,
+		&i.Kind,
+		&i.Reference,
+		&i.CreatedAt,
+		&i.OwnerReference,
+		&i.PricingVersion,
+		&i.Provenance,
+	)
+	return i, err
+}
+
+const getPendingCreditTimezone = `-- name: GetPendingCreditTimezone :one
+SELECT time_zone, effective_at FROM credit_timezones
+WHERE learner_id = $1 AND effective_at > $2
+ORDER BY effective_at ASC, id DESC
+LIMIT 1
+`
+
+type GetPendingCreditTimezoneParams struct {
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	EffectiveAt pgtype.Timestamptz `json:"effective_at"`
+}
+
+type GetPendingCreditTimezoneRow struct {
+	TimeZone    string             `json:"time_zone"`
+	EffectiveAt pgtype.Timestamptz `json:"effective_at"`
+}
+
+func (q *Queries) GetPendingCreditTimezone(ctx context.Context, arg GetPendingCreditTimezoneParams) (GetPendingCreditTimezoneRow, error) {
+	row := q.db.QueryRow(ctx, getPendingCreditTimezone, arg.LearnerID, arg.EffectiveAt)
+	var i GetPendingCreditTimezoneRow
+	err := row.Scan(&i.TimeZone, &i.EffectiveAt)
+	return i, err
+}
+
+const insertCreditTimezone = `-- name: InsertCreditTimezone :one
+INSERT INTO credit_timezones (learner_id, time_zone, effective_at)
+VALUES ($1, $2, $3)
+RETURNING id, learner_id, owner_reference, time_zone, effective_at, created_at
+`
+
+type InsertCreditTimezoneParams struct {
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	TimeZone    string             `json:"time_zone"`
+	EffectiveAt pgtype.Timestamptz `json:"effective_at"`
+}
+
+func (q *Queries) InsertCreditTimezone(ctx context.Context, arg InsertCreditTimezoneParams) (CreditTimezone, error) {
+	row := q.db.QueryRow(ctx, insertCreditTimezone, arg.LearnerID, arg.TimeZone, arg.EffectiveAt)
+	var i CreditTimezone
+	err := row.Scan(
+		&i.ID,
+		&i.LearnerID,
+		&i.OwnerReference,
+		&i.TimeZone,
+		&i.EffectiveAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listCreditEntries = `-- name: ListCreditEntries :many
 SELECT id, learner_id, amount, kind, reference, created_at, owner_reference, pricing_version, provenance FROM credit_entries WHERE learner_id = $1 ORDER BY id ASC
 `
@@ -115,6 +241,51 @@ func (q *Queries) ListCreditEntriesCursor(ctx context.Context, arg ListCreditEnt
 			&i.OwnerReference,
 			&i.PricingVersion,
 			&i.Provenance,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnexpiredDailyGrants = `-- name: ListUnexpiredDailyGrants :many
+SELECT e.learner_id, (e.provenance->>'date')::text AS grant_date, e.amount, e.created_at
+FROM credit_entries e
+WHERE e.learner_id IS NOT NULL
+  AND e.kind = 'daily_grant'
+  AND NOT EXISTS (
+      SELECT 1 FROM credit_entries x
+      WHERE x.learner_id = e.learner_id
+        AND x.kind = 'expire'
+        AND x.provenance->>'date' = e.provenance->>'date'
+  )
+`
+
+type ListUnexpiredDailyGrantsRow struct {
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	GrantDate string             `json:"grant_date"`
+	Amount    int64              `json:"amount"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) ListUnexpiredDailyGrants(ctx context.Context) ([]ListUnexpiredDailyGrantsRow, error) {
+	rows, err := q.db.Query(ctx, listUnexpiredDailyGrants)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnexpiredDailyGrantsRow{}
+	for rows.Next() {
+		var i ListUnexpiredDailyGrantsRow
+		if err := rows.Scan(
+			&i.LearnerID,
+			&i.GrantDate,
+			&i.Amount,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

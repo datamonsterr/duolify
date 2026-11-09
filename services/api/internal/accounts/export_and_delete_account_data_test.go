@@ -32,6 +32,7 @@ func TestClassifiedLearnerTablesCoversKnownTables(t *testing.T) {
 		"pricing_drafts",
 		"pricing_audit",
 		"pricing_version_cancellations",
+		"credit_timezones",
 	}
 	for _, name := range required {
 		policy, ok := accounts.ClassifiedLearnerTables[name]

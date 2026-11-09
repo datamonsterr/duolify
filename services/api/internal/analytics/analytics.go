@@ -77,7 +77,8 @@ func allowlisted(event string) bool {
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
 		"$ai_generation", "ui_control_activated",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
-		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated":
+		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
+		"daily_credits_granted", "daily_credits_expired":
 		return true
 	default:
 		return false
@@ -173,6 +174,8 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "daily_credits_granted", "daily_credits_expired":
+		numeric("amount")
 	case "backup_completed", "backup_failed", "restore_drill_completed":
 		numeric("size_bytes", "duration_ms")
 		boolean("ok")

@@ -191,7 +191,7 @@ func run(ctx context.Context, args []string) (result error) {
 		Pricing: catalogue,
 		Events:  events,
 	})
-	creditService := credits.NewService(db.Pool, redis)
+	creditService := credits.NewServiceWithCatalogue(db.Pool, redis, catalogue, events)
 	handler := httpapi.New(httpapi.Dependencies{
 		Monitor:       monitor,
 		ObjectStorage: telemetry.StorageProbe(os.Getenv),

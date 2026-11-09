@@ -278,6 +278,7 @@ func (f *Fixture) Seed(t *testing.T) {
 	for _, query := range []string{
 		"INSERT INTO learners (id,display_name) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner')",
 		"INSERT INTO credit_entries (learner_id,amount,kind,reference,pricing_version,provenance) VALUES ('a1111111-1111-4111-8111-111111111111',120,'purchase','synthetic-purchase','2026-11-09.approved.v1','{\"channel\":\"web\"}'::jsonb),('a1111111-1111-4111-8111-111111111111',-35,'spend','synthetic-spend','2026-11-09.approved.v1','{\"action\":\"lesson\"}'::jsonb)",
+		"INSERT INTO credit_timezones (learner_id,time_zone,effective_at) VALUES ('a1111111-1111-4111-8111-111111111111','Asia/Ho_Chi_Minh',now())",
 		"INSERT INTO learner_profiles (learner_id,locale,time_zone,analytics_opt_out) VALUES ('a1111111-1111-4111-8111-111111111111','vi-VN','Asia/Ho_Chi_Minh',true)",
 		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true,appearance='dark',motion='reduce',narration=false,narration_speed=1.25,captions=false,text_size=1.2,ui_sounds=true,haptics='off' WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
 		"INSERT INTO auth_identities (email,learner_id) VALUES ('synthetic@example.test','a1111111-1111-4111-8111-111111111111')",
@@ -564,7 +565,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		}
 	}
 
-	for _, query := range []string{"UPDATE pricing_quotes SET snapshot='{}'", "DELETE FROM pricing_quotes", "TRUNCATE pricing_quotes", "DELETE FROM pricing_quote_consents", "DELETE FROM pricing_quote_policies", "UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions", "UPDATE pricing_audit SET reason='rewritten'", "DELETE FROM pricing_audit", "TRUNCATE pricing_audit", "UPDATE pricing_activation_events SET activated_at=now()", "DELETE FROM pricing_activation_events", "TRUNCATE pricing_activation_events", "UPDATE pricing_version_cancellations SET reason='rewritten'", "DELETE FROM pricing_version_cancellations", "TRUNCATE pricing_version_cancellations"} {
+	for _, query := range []string{"UPDATE pricing_quotes SET snapshot='{}'", "DELETE FROM pricing_quotes", "TRUNCATE pricing_quotes", "DELETE FROM pricing_quote_consents", "DELETE FROM pricing_quote_policies", "UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE credit_timezones SET time_zone='UTC'", "DELETE FROM credit_timezones", "TRUNCATE credit_timezones", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions", "UPDATE pricing_audit SET reason='rewritten'", "DELETE FROM pricing_audit", "TRUNCATE pricing_audit", "UPDATE pricing_activation_events SET activated_at=now()", "DELETE FROM pricing_activation_events", "TRUNCATE pricing_activation_events", "UPDATE pricing_version_cancellations SET reason='rewritten'", "DELETE FROM pricing_version_cancellations", "TRUNCATE pricing_version_cancellations"} {
 		if _, err := restored.Pool.Exec(t.Context(), query); err == nil {
 			t.Fatalf("restored immutable data accepted mutation: %s", query)
 		}

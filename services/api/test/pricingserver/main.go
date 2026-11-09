@@ -96,7 +96,7 @@ func run() (result error) {
 		Engine:  mockE2ESetupChatEngine{},
 		Pricing: setupPricing,
 	})
-	creditService := credits.NewService(db.Pool, nil)
+	creditService := credits.NewServiceWithCatalogue(db.Pool, nil, catalogue, nil)
 	mux := http.NewServeMux()
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditService, Accounts: auth}, logger))
 	// Test-only controls bind to loopback in this disposable fixture binary.

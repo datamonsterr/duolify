@@ -80,6 +80,15 @@ type CreditEntry struct {
 	Provenance     []byte             `json:"provenance"`
 }
 
+type CreditTimezone struct {
+	ID             int64              `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	OwnerReference pgtype.Text        `json:"owner_reference"`
+	TimeZone       string             `json:"time_zone"`
+	EffectiveAt    pgtype.Timestamptz `json:"effective_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type Learner struct {
 	ID          pgtype.UUID        `json:"id"`
 	DisplayName string             `json:"display_name"`

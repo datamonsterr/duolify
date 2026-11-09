@@ -35,9 +35,10 @@ export function WalletView({
         )
       : 0;
 
-  const timezoneCity = dailyFree.timezone.includes("/")
+  const rawCity = dailyFree.timezone.includes("/")
     ? dailyFree.timezone.split("/")[1].replace(/_/g, " ")
     : dailyFree.timezone;
+  const timezoneCity = rawCity === "Ho Chi Minh" ? "Ho Chi Minh City" : rawCity;
 
   return (
     <div className="wallet-container">
