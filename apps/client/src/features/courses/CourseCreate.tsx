@@ -3,6 +3,7 @@ import { Button } from "../design/Button";
 import { session } from "../accounts/session";
 import { secureStore } from "../accounts/secure-store";
 import { quoteAPI } from "../pricing/quotes";
+import { trackCourseRecovery } from "../../lib/analytics";
 import type { ConfirmedOutline } from "./outline";
 
 type Terms = {
@@ -103,6 +104,20 @@ export function CourseCreate({
     return () => clearInterval(timer);
   }, []);
   useEffect(() => {
+    if (recovery?.startsWith("job:") && !job) {
+      let cancelled = false;
+      void service.get(recovery.slice(4)).then(
+        (res) => {
+          if (!cancelled) setJob(res);
+        },
+        () => {},
+      );
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [recovery, service, job]);
+  useEffect(() => {
     if (!job || job.state === "failed" || job.state === "enrolled") return;
     const controller = new AbortController();
     void service.watch(job.id, setJob, controller.signal).catch(() => {
@@ -183,6 +198,14 @@ export function CourseCreate({
       setBusy(false);
     }
   }
+  function handleTryAgain() {
+    trackCourseRecovery("course_create", "retry", "terminal_failure");
+    sessionStorage.removeItem(key);
+    setRecovery(null);
+    setJob(undefined);
+    setTerms(undefined);
+    setError("");
+  }
   return (
     <section className="course-create" aria-label="Create course outline">
       <h2>Create your course outline</h2>
@@ -201,16 +224,24 @@ export function CourseCreate({
       {busy && (
         <p role="status">Preparing your outline… Your edits are kept.</p>
       )}
-      {job && (
+      {job && job.state !== "failed" && (
         <p role="status">
-          {job.state === "failed"
-            ? "Creation failed. Undelivered reserved credits are released. Your edits are kept."
-            : job.state === "enrolled"
-              ? "Course ready. Opening your path…"
-              : job.state === "validated"
-                ? "Saving your outline…"
-                : "Preparing your outline…"}
+          {job.state === "enrolled"
+            ? "Course ready. Opening your path…"
+            : job.state === "validated"
+              ? "Saving your outline…"
+              : "Preparing your outline…"}
         </p>
+      )}
+      {job?.state === "failed" && (
+        <div role="alert" className="course-create-failure-banner">
+          <h3>Couldn&apos;t create it</h3>
+          <p>
+            Your {terms?.content_ceiling ?? 55} reserved credits were released.
+            Your edits are saved.
+          </p>
+          <Button onClick={handleTryAgain}>Try again</Button>
+        </div>
       )}
       {terms && !job && (
         <div aria-live="polite">
@@ -253,7 +284,7 @@ export function CourseCreate({
           </Button>
         </div>
       )}
-      {!recovery && (
+      {!recovery && !job && (
         <Button disabled={busy} onClick={() => void review()}>
           Review creation cost
         </Button>

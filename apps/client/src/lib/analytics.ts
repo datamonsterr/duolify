@@ -440,3 +440,26 @@ export function trackPreference(control: "locale" | "motion" | "reset") {
     control_id: control,
   });
 }
+export function trackCourseRecovery(
+  surface: "course_create" | "courses",
+  action: "retry" | "resume",
+  errorCode?: string,
+  courseId?: string,
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("ui_recovery_selected", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      surface,
+      action,
+      ...(errorCode ? { error_code: errorCode } : {}),
+      ...(courseId ? { course_id: courseId } : {}),
+    });
+  } catch {
+    /* Telemetry failure never blocks recovery. */
+  }
+}

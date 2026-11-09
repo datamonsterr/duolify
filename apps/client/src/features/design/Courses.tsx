@@ -212,6 +212,10 @@ export function Courses() {
                 key={course.id}
                 course={course}
                 current={course.id === activeCourseId}
+                onRemove={async (id) => {
+                  await api.deleteCourse(id);
+                  await refetch();
+                }}
               />
             ))}
           </div>

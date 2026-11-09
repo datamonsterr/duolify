@@ -104,7 +104,26 @@ export function CourseBrief({
   const [draft, setDraft] = useState(() => initial(learnerId, initialBrief));
   const [config, setConfig] = useState<BriefConfig | null>(null);
   const [pending, setPending] = useState(false);
-  const [previewStep, setPreviewStep] = useState(1);
+  const [previewStep, setPreviewStepState] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(`course-creation-step:${learnerId}`);
+      if (saved) {
+        const num = parseInt(saved, 10);
+        if (num >= 1 && num <= 4) return num;
+      }
+    } catch {
+      /* ignore */
+    }
+    return 1;
+  });
+  const setPreviewStep = (step: number) => {
+    setPreviewStepState(step);
+    try {
+      sessionStorage.setItem(`course-creation-step:${learnerId}`, String(step));
+    } catch {
+      /* ignore */
+    }
+  };
   const [panelOpen, setPanelOpen] = useState(false);
   const [error, setError] = useState("");
   const [replies, setReplies] = useState<{ id: string; label: string }[]>([]);
@@ -335,7 +354,9 @@ export function CourseBrief({
           <li aria-current={previewStep === 3 ? "step" : undefined}>
             3 Outline
           </li>
-          <li>4 Create</li>
+          <li aria-current={previewStep === 4 ? "step" : undefined}>
+            4 Create
+          </li>
         </ol>
       </header>
       <p>

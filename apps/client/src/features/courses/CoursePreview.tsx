@@ -89,13 +89,31 @@ export function CoursePreview({
     void outlineApi
       .latest(revision.id)
       .then((draft) => {
-        if (active) setSavedOutline(draft);
+        if (!active || !draft) return;
+        setSavedOutline(draft);
+        const owner = session.current()?.id ?? "";
+        let step = "";
+        try {
+          step = sessionStorage.getItem(`course-creation-step:${owner}`) ?? "";
+        } catch {
+          /* ignore */
+        }
+        if (step === "4" && draft.confirmed) {
+          setCreation(draft.confirmed);
+        } else if (step === "3") {
+          setEditor(
+            workingOutline
+              ? { value: workingOutline.value, draft: workingOutline.draft }
+              : { value: draft.outline, draft },
+          );
+          setOutline(true);
+        }
       })
       .catch(() => {});
     return () => {
       active = false;
     };
-  }, [revision.id]);
+  }, [revision.id, workingOutline]);
   function editOutline() {
     if (!editor)
       setEditor(

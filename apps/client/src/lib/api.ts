@@ -127,6 +127,12 @@ export const api = {
       { level },
     );
   },
+  deleteCourse: async (id: string): Promise<{ deleted: boolean }> => {
+    return session.request<{ deleted: boolean }>(
+      `/v1/courses/${encodeURIComponent(id)}`,
+      "DELETE",
+    );
+  },
   course: (id: string) =>
     /^[0-9a-f-]{36}$/.test(id)
       ? session.request<Course>(`/v1/courses/${encodeURIComponent(id)}`)

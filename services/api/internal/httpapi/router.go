@@ -89,6 +89,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		if creation, ok := deps.CourseBrief.(interface {
 			ServeCreationHTTP(http.ResponseWriter, *http.Request)
 			ServeCourseHTTP(http.ResponseWriter, *http.Request)
+			ServeCourseDeleteHTTP(http.ResponseWriter, *http.Request)
 			ServeCoursesListHTTP(http.ResponseWriter, *http.Request)
 			ServeCourseSelectHTTP(http.ResponseWriter, *http.Request)
 			ServeCourseLevelHTTP(http.ResponseWriter, *http.Request)
@@ -98,6 +99,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			mux.Handle("/v1/course-creations/", h)
 			mux.Handle("GET /v1/courses", deps.Accounts.Protect(http.HandlerFunc(creation.ServeCoursesListHTTP)))
 			mux.Handle("GET /v1/courses/{id}", deps.Accounts.Protect(http.HandlerFunc(creation.ServeCourseHTTP)))
+			mux.Handle("DELETE /v1/courses/{id}", deps.Accounts.Protect(http.HandlerFunc(creation.ServeCourseDeleteHTTP)))
 			mux.Handle("POST /v1/courses/{id}/select", deps.Accounts.Protect(http.HandlerFunc(creation.ServeCourseSelectHTTP)))
 			mux.Handle("POST /v1/courses/{id}/level", deps.Accounts.Protect(http.HandlerFunc(creation.ServeCourseLevelHTTP)))
 			mux.Handle("PUT /v1/courses/{id}/level", deps.Accounts.Protect(http.HandlerFunc(creation.ServeCourseLevelHTTP)))

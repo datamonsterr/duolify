@@ -85,7 +85,7 @@ func TestFundedSubscriptionEventsReachPostHogWithoutPrivateData(t *testing.T) {
 
 func TestEventAllowlist(t *testing.T) {
 	for _, name := range []string{
-		"course_outline_generated", "course_enrolled",
+		"course_outline_generated", "course_enrolled", "course_generation_failed", "ui_recovery_selected",
 		"learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
 		"$ai_generation", "ui_control_activated", "ui_navigation_selected",

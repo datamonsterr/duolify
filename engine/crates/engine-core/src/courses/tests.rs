@@ -330,3 +330,113 @@ fn confirmed_outline_exact_structure_and_no_lesson_content() {
         .is_err()
     );
 }
+
+#[tokio::test]
+async fn outline_recovery_timeout_fallback_and_boundary_cases() {
+    struct OutlineFixture(bool);
+    #[async_trait::async_trait]
+    impl crate::LlmProvider for OutlineFixture {
+        fn name(&self) -> &'static str {
+            "fixture"
+        }
+        async fn complete(&self, _model: &str, _input: &str) -> anyhow::Result<crate::Completion> {
+            if self.0 {
+                anyhow::bail!("provider error");
+            }
+            Ok(crate::Completion {
+                text: serde_json::json!({
+                    "units": [
+                        {
+                            "id": "u1",
+                            "title": "Cosmos",
+                            "lessons": [
+                                {"id": "l1", "title": "Stars", "goal": "Map the sky"}
+                            ]
+                        }
+                    ]
+                })
+                .to_string(),
+                provider: "fixture".into(),
+                model: "test".into(),
+                input_tokens: 500,
+                output_tokens: 150,
+                cache_write_tokens: 0,
+                cache_read_tokens: 0,
+            })
+        }
+        async fn stream(
+            &self,
+            _model: &str,
+            _input: &str,
+        ) -> anyhow::Result<crate::CompletionStream> {
+            anyhow::bail!("not streaming")
+        }
+    }
+
+    let base_units = vec![super::outline::Unit {
+        id: "u1".into(),
+        title: "Cosmos".into(),
+        lessons: vec![super::outline::Lesson {
+            id: "l1".into(),
+            title: "Stars".into(),
+            goal: "Map the sky".into(),
+        }],
+    }];
+    let prompt = super::outline::creation_prompt(
+        &base_units,
+        serde_json::json!({"topic": "Cosmos"}),
+        serde_json::json!({}),
+    )
+    .unwrap();
+
+    let limits = crate::credits::Limits {
+        input_tokens: 4000,
+        output_tokens: 2500,
+        timeout_ms: 3000,
+        max_attempts: 2,
+        max_cost_nanos: 100000000,
+        input_nanos: 2000,
+        output_nanos: 10000,
+        cache_write_nanos: 2500,
+        cache_read_nanos: 100,
+    };
+
+    // 1. Primary fails, fallback succeeds
+    let router_fallback = crate::ProviderRouter::new(
+        std::sync::Arc::new(OutlineFixture(true)),
+        std::sync::Arc::new(OutlineFixture(false)),
+    )
+    .unwrap();
+
+    let outcome =
+        crate::credits::run_validated(&router_fallback, "outline", &prompt, &limits, |text| {
+            super::outline::validate_created(&base_units, text)
+        })
+        .await
+        .unwrap();
+
+    assert!(outcome.completion.is_some());
+    assert_eq!(outcome.attempts.len(), 2);
+    assert!(!outcome.attempts[0].delivered);
+    assert!(outcome.attempts[1].fallback_used);
+    assert!(outcome.attempts[1].delivered);
+
+    // 2. Both providers fail: completion is None, undelivered attempts reported for reservation release
+    let router_terminal = crate::ProviderRouter::new(
+        std::sync::Arc::new(OutlineFixture(true)),
+        std::sync::Arc::new(OutlineFixture(true)),
+    )
+    .unwrap();
+
+    let outcome_terminal =
+        crate::credits::run_validated(&router_terminal, "outline", &prompt, &limits, |text| {
+            super::outline::validate_created(&base_units, text)
+        })
+        .await
+        .unwrap();
+
+    assert!(outcome_terminal.completion.is_none());
+    assert_eq!(outcome_terminal.attempts.len(), 2);
+    assert!(!outcome_terminal.attempts[0].delivered);
+    assert!(!outcome_terminal.attempts[1].delivered);
+}

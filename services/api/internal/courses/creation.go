@@ -63,8 +63,25 @@ type Creation struct {
 
 func (s *Service) creation(ctx context.Context, owner, id string) (Creation, error) {
 	var c Creation
-	err := s.opts.Pool.QueryRow(ctx, `SELECT id::text,state,COALESCE(course_id::text,'') FROM course_creations WHERE learner_id::text=$1 AND id::text=$2`, owner, id).Scan(&c.ID, &c.State, &c.CourseID)
-	return c, err
+	var quoteID, reservation string
+	err := s.opts.Pool.QueryRow(ctx, `SELECT id::text,state,COALESCE(course_id::text,''),COALESCE(quote_id::text,''),COALESCE(reservation_id::text,'') FROM course_creations WHERE learner_id::text=$1 AND id::text=$2`, owner, id).Scan(&c.ID, &c.State, &c.CourseID, &quoteID, &reservation)
+	if err != nil {
+		return c, err
+	}
+	if c.State == "queued" || c.State == "generating" {
+		var expired bool
+		_ = s.opts.Pool.QueryRow(ctx, `
+			SELECT clock_timestamp() >= COALESCE(j.deadline_at, c.created_at + (q.snapshot#>>'{bounds,timeout_ms}')::bigint*interval '1 millisecond' + interval '2 seconds')
+			FROM course_creations c
+			JOIN pricing_quotes q ON q.id=c.quote_id
+			LEFT JOIN credit_jobs j ON j.quote_id=c.quote_id
+			WHERE c.id::text=$1`, id).Scan(&expired)
+		if expired {
+			_ = s.failCreation(ctx, owner, id, reservation, nil)
+			c.State = "failed"
+		}
+	}
+	return c, nil
 }
 
 // ServeCreationHTTP binds consent to the owned, confirmed head before enqueueing.
@@ -132,16 +149,18 @@ func (s *Service) ServeCreationHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	var old Creation
 	var revision int64
-	err = tx.QueryRow(ctx, `SELECT id::text,state,COALESCE(course_id::text,''),revision FROM course_creations WHERE draft_id::text=$1 AND learner_id::text=$2`, in.DraftID, owner).Scan(&old.ID, &old.State, &old.CourseID, &revision)
+	var oldQuoteID string
+	err = tx.QueryRow(ctx, `SELECT id::text,state,COALESCE(course_id::text,''),revision,quote_id::text FROM course_creations WHERE draft_id::text=$1 AND learner_id::text=$2`, in.DraftID, owner).Scan(&old.ID, &old.State, &old.CourseID, &revision, &oldQuoteID)
 	if err == nil {
 		if revision != in.ExpectedRevision {
 			outlineError(w, 409)
 			return
 		}
-		respond(w, 202, old)
-		return
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
+		if old.State != "failed" || in.QuoteID == oldQuoteID {
+			respond(w, 202, old)
+			return
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
 		outlineError(w, 503)
 		return
 	}
@@ -191,9 +210,18 @@ func (s *Service) ServeCreationHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	var c Creation
 	c.State = "queued"
-	if tx.QueryRow(ctx, `INSERT INTO course_creations(learner_id,draft_id,revision,quote_id,request) VALUES($1::uuid,$2::uuid,$3,$4::uuid,$5) RETURNING id::text`, owner, in.DraftID, in.ExpectedRevision, in.QuoteID, raw).Scan(&c.ID) != nil {
-		outlineError(w, 409)
-		return
+	if old.ID != "" {
+		c = old
+		c.State = "queued"
+		if _, err = tx.Exec(ctx, `UPDATE course_creations SET state='queued',quote_id=$2::uuid,revision=$3,request=$4,response=NULL,reservation_id=NULL WHERE id::text=$1`, old.ID, in.QuoteID, in.ExpectedRevision, raw); err != nil {
+			outlineError(w, 409)
+			return
+		}
+	} else {
+		if tx.QueryRow(ctx, `INSERT INTO course_creations(learner_id,draft_id,revision,quote_id,request) VALUES($1::uuid,$2::uuid,$3,$4::uuid,$5) RETURNING id::text`, owner, in.DraftID, in.ExpectedRevision, in.QuoteID, raw).Scan(&c.ID) != nil {
+			outlineError(w, 409)
+			return
+		}
 	}
 	queue, err := s.CreationQueue(slog.Default())
 	if err != nil {
@@ -322,9 +350,12 @@ func (s *Service) RunCreation(ctx context.Context, id string) error {
 		return s.failCreation(ctx, owner, id, reservation, nil)
 	}
 	if state == "queued" {
+		if ctx.Err() != nil {
+			return s.failCreation(context.WithoutCancel(ctx), owner, id, "", nil)
+		}
 		job, e := s.opts.Financial.ReserveAction(ctx, owner, quoteID, "outline")
 		if e != nil {
-			return s.failCreation(ctx, owner, id, "", nil)
+			return s.failCreation(context.WithoutCancel(ctx), owner, id, "", nil)
 		}
 		reservation = job.ID
 		// Crash before this transition leaves a reserved job safely discoverable by quote.
@@ -343,7 +374,7 @@ func (s *Service) RunCreation(ctx context.Context, id string) error {
 		cancel()
 		finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer finishCancel()
-		if e != nil || ValidateCreatedOutline(request, response) != nil {
+		if e != nil || ctx.Err() != nil || ValidateCreatedOutline(request, response) != nil {
 			var attempts []*enginev1.Usage
 			if response != nil {
 				attempts = response.Attempts

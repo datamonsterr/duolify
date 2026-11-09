@@ -73,7 +73,7 @@ func (c *client) Close() error {
 
 func allowlisted(event string) bool {
 	switch event {
-	case "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
+	case "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
@@ -251,6 +251,8 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "ui_control_activated":
 		ids("control_id", "screen", "surface", "course_id")
+	case "ui_recovery_selected":
+		ids("surface", "error_code", "action", "course_id", "screen_id")
 	case "ui_navigation_selected":
 		ids("destination")
 	case "paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested":

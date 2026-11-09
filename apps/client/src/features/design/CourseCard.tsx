@@ -1,5 +1,5 @@
 import { useUiPreferences } from "./localization/Preferences";
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 import type { Course } from "../../lib/api";
 import { trackControl } from "../../lib/analytics";
 import { Badge } from "./Badge";
@@ -7,12 +7,26 @@ import { Badge } from "./Badge";
 export function CourseCard({
   course,
   current = false,
+  onRemove,
 }: {
   course: Course;
   current?: boolean;
+  onRemove?: (id: string) => Promise<unknown>;
 }) {
   const { t } = useUiPreferences();
   const heading = useId();
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  useEffect(() => {
+    if (!showConfirm) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowConfirm(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showConfirm]);
+
   const lessons = course.units.flatMap((unit) => unit.lessons);
   const completed = lessons.filter((lesson) => lesson.state === "done").length;
   const currentUnitIndex = course.units.findIndex((unit) =>
@@ -76,6 +90,58 @@ export function CourseCard({
             </span>
           </>
         )
+      )}
+      {onRemove && (
+        <div className="course-card-actions">
+          <button
+            type="button"
+            className="course-remove-btn"
+            aria-label={`Remove course ${course.title}`}
+            onClick={() => setShowConfirm(true)}
+          >
+            Remove course
+          </button>
+        </div>
+      )}
+      {showConfirm && onRemove && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`${heading}-remove-title`}
+          aria-describedby={`${heading}-remove-desc`}
+          className="course-remove-dialog card"
+        >
+          <h3 id={`${heading}-remove-title`}>Remove course</h3>
+          <p id={`${heading}-remove-desc`}>
+            This course will be hidden immediately and permanently purged after
+            30 days.
+          </p>
+          <div className="course-remove-dialog-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowConfirm(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={removing}
+              onClick={async () => {
+                setRemoving(true);
+                try {
+                  await onRemove(course.id);
+                  setShowConfirm(false);
+                } finally {
+                  setRemoving(false);
+                }
+              }}
+            >
+              {removing ? "Removing…" : "Confirm removal"}
+            </button>
+          </div>
+        </div>
       )}
     </article>
   );
