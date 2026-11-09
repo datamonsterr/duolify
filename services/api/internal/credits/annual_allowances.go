@@ -40,7 +40,7 @@ func recordAnnualCancellation(ctx context.Context, tx pgx.Tx, event string, sub 
 	return err
 }
 
-func (s *Service) revokeAnnualTerm(ctx context.Context, tx pgx.Tx, event string, i SubscriptionInvoice, sub ProviderSubscription, r PaymentRequest, order CheckoutOrder, owner string) error {
+func (s *Service) revokeFundedTerm(ctx context.Context, tx pgx.Tx, event string, i SubscriptionInvoice, sub ProviderSubscription, r PaymentRequest, order CheckoutOrder, owner string) error {
 	// Full-term revocation must identify previously verified funding exactly. A
 	// changed status may be legitimate, but identity, amounts and service periods
 	// still have to match the canonical term and original configured order.
@@ -54,7 +54,8 @@ func (s *Service) revokeAnnualTerm(ctx context.Context, tx pgx.Tx, event string,
 	canonical := sub
 	canonical.Status = "active"
 	canonical.Trial = false
-	if !annualFundingMatches(checked, canonical, r, time.Now()) {
+	valid := order.BillingPeriod == "yearly" && annualFundingMatches(checked, canonical, r, time.Now()) || order.BillingPeriod == "monthly" && monthlyFundingMatches(checked, canonical, r, time.Now())
+	if !valid {
 		return paymentResult(ctx, tx, event, order.ID, "rejected", "", 0)
 	}
 	var term, plan, version string

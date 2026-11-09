@@ -340,6 +340,7 @@ func (s *Service) SetStore(store LedgerStore) {
 func (s *Service) registerRoutes() {
 	s.mux.HandleFunc("POST /v1/payments/stripe/webhook", s.handleStripeWebhook)
 	s.mux.HandleFunc("POST /v1/credits/checkouts", s.handleCheckout)
+	s.mux.HandleFunc("POST /v1/credits/subscription/change", s.handleSubscriptionChange)
 	s.mux.HandleFunc("GET /v1/credits/checkouts/{id}", s.handleCheckout)
 	s.mux.HandleFunc("POST /v1/quotes/{id}/reserve", s.handleReserve)
 	s.mux.HandleFunc("POST /v1/credits/reservations/{id}/release", s.handleRelease)

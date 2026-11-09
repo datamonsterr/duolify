@@ -209,7 +209,7 @@ func (s *Service) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch event.Type {
-	case "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired", "invoice.paid", "invoice.payment_succeeded", "invoice.updated", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted":
+	case "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired", "invoice.paid", "invoice.payment_succeeded", "invoice.payment_failed", "invoice.updated", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted":
 	default:
 		respondJSON(w, 200, map[string]bool{"received": true})
 		return

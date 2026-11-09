@@ -22,15 +22,17 @@ const WebhookSecret = "fixture-only-not-a-real-stripe-secret"
 
 // Stripe keeps canonical fixture state independently of signed event snapshots.
 type Stripe struct {
-	mu            sync.Mutex
-	sessions      map[string]credits.PaymentSession
-	invoices      map[string]credits.SubscriptionInvoice
-	subscriptions map[string]credits.ProviderSubscription
+	mu              sync.Mutex
+	transitions     map[string]credits.SubscriptionTransition
+	currentInvoices map[string]string
+	sessions        map[string]credits.PaymentSession
+	invoices        map[string]credits.SubscriptionInvoice
+	subscriptions   map[string]credits.ProviderSubscription
 }
 
 // NewStripe creates an isolated, credential-free sandbox double.
 func NewStripe() *Stripe {
-	return &Stripe{sessions: map[string]credits.PaymentSession{}, invoices: map[string]credits.SubscriptionInvoice{}, subscriptions: map[string]credits.ProviderSubscription{}}
+	return &Stripe{currentInvoices: map[string]string{}, transitions: map[string]credits.SubscriptionTransition{}, sessions: map[string]credits.PaymentSession{}, invoices: map[string]credits.SubscriptionInvoice{}, subscriptions: map[string]credits.ProviderSubscription{}}
 }
 
 // CreateSession preserves the order idempotency key across service retries.
@@ -56,6 +58,7 @@ func (s *Stripe) CreateSession(_ context.Context, r credits.PaymentRequest) (cre
 			end = start.AddDate(1, 0, 0)
 		}
 		s.subscriptions[session.SubscriptionID] = credits.ProviderSubscription{ID: session.SubscriptionID, OrderID: r.OrderID, OwnerReference: r.OwnerReference, CustomerID: session.CustomerID, PriceID: r.PriceID, Status: "incomplete", Interval: interval, IntervalCount: 1, Quantity: 1, PeriodStart: start, PeriodEnd: end, BillingAnchor: start}
+		s.currentInvoices[session.SubscriptionID] = "in_" + r.OrderID
 		s.invoices["in_"+r.OrderID] = credits.SubscriptionInvoice{ID: "in_" + r.OrderID, SubscriptionID: session.SubscriptionID, OrderID: r.OrderID, OwnerReference: r.OwnerReference, CustomerID: session.CustomerID, SKU: r.SKU, PriceID: r.PriceID, Currency: r.Currency, AmountMinor: r.AmountMinor, Status: "open", BillingReason: "subscription_create", PeriodStart: start, PeriodEnd: end, Quantity: 1, LineCount: 1}
 	}
 	s.sessions[id] = session
@@ -83,9 +86,9 @@ func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
 		return nil, "", errors.New("unknown fixture session")
 	}
 	switch state {
-	case "cancel_scheduled", "refunded", "disputed":
+	case "cancel_scheduled", "resumed", "stale", "refunded", "disputed":
 		// Canonical subscription/invoice changes are applied below.
-	case "paid":
+	case "paid", "previous_paid", "renewed":
 		session.PaymentStatus = "paid"
 		session.Status = "complete"
 	case "unpaid":
@@ -101,27 +104,62 @@ func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
 	objectID := id
 	if session.Mode == "subscription" {
 		if strings.HasPrefix(kind, "invoice.") {
-			objectID = "in_" + session.OrderID
+			objectID = s.currentInvoices[session.SubscriptionID]
 			i := s.invoices[objectID]
+			sub := s.subscriptions[session.SubscriptionID]
+			if state == "previous_paid" && i.Status != "paid" {
+				sub.PeriodEnd = sub.PeriodStart
+				sub.PeriodStart = sub.PeriodStart.AddDate(0, -1, 0)
+				sub.BillingAnchor = sub.PeriodStart
+				i.PeriodStart = sub.PeriodStart
+				i.PeriodEnd = sub.PeriodEnd
+			}
+			if state == "renewed" {
+				objectID = "in_renewed_" + session.OrderID
+				if existing, ok := s.invoices[objectID]; ok {
+					i = existing
+				} else {
+					sub.PeriodStart = sub.PeriodEnd
+					sub.PeriodEnd = sub.PeriodStart.AddDate(0, 1, 0)
+					i.ID = objectID
+					i.PeriodStart = sub.PeriodStart
+					i.PeriodEnd = sub.PeriodEnd
+					i.BillingReason = "subscription_cycle"
+				}
+			}
 			if state == "refunded" {
 				i.Refunded = true
 			}
 			if state == "disputed" {
 				i.Disputed = true
 			}
-			if state == "paid" {
+			if state == "paid" || state == "previous_paid" || state == "renewed" {
 				i.Status = "paid"
 				i.AmountPaid = i.AmountMinor
 				i.StripePaid = true
 			}
 			s.invoices[objectID] = i
-			sub := s.subscriptions[session.SubscriptionID]
-			if state == "paid" {
+			s.currentInvoices[session.SubscriptionID] = objectID
+			if state == "failed" {
+				sub.Status = "past_due"
+				i.Status = "open"
+				i.StripePaid = false
+				i.AmountPaid = 0
+				s.invoices[objectID] = i
+			}
+			if state == "paid" || state == "previous_paid" || state == "renewed" {
 				sub.Status = "active"
 			}
+			sub.LatestInvoiceID = objectID
 			s.subscriptions[sub.ID] = sub
 		} else if strings.HasPrefix(kind, "customer.subscription.") {
 			objectID = session.SubscriptionID
+			if state == "resumed" {
+				sub := s.subscriptions[objectID]
+				sub.CancelAtPeriodEnd = false
+				sub.Status = "active"
+				s.subscriptions[objectID] = sub
+			}
 			if state == "cancel_scheduled" {
 				sub := s.subscriptions[objectID]
 				sub.CancelAtPeriodEnd = true
@@ -186,5 +224,37 @@ func (s *Stripe) SetAnnualStart(sessionID string, start time.Time) error {
 	i.PeriodStart = start
 	i.PeriodEnd = sub.PeriodEnd
 	s.invoices[i.ID] = i
+	return nil
+}
+
+// ScheduleTransition simulates Stripe's two phases, preserving the current item.
+// The idempotency key is durable in the fixture for provider/DB retry tests.
+func (s *Stripe) ScheduleTransition(_ context.Context, v credits.SubscriptionTransition) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sub, ok := s.subscriptions[v.SubscriptionID]
+	if !ok || v.ProrationBehavior != "none" || v.PhaseProrationBehavior != "none" || !v.EffectiveAt.Equal(sub.PeriodEnd) {
+		return errors.New("invalid fixture schedule")
+	}
+	if old, ok := s.transitions[v.Key]; ok {
+		if old != v {
+			return errors.New("conflicting fixture schedule")
+		}
+		return nil
+	}
+	switch v.Kind {
+	case "cancel":
+		sub.CancelAtPeriodEnd = true
+	case "resume":
+		sub.CancelAtPeriodEnd = false
+	case "plan":
+		if v.PriceID == "" {
+			return errors.New("missing configured price")
+		}
+	default:
+		return errors.New("unknown transition")
+	}
+	s.transitions[v.Key] = v
+	s.subscriptions[sub.ID] = sub
 	return nil
 }

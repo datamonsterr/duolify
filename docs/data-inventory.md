@@ -219,3 +219,16 @@ the remaining funded months exactly once after restore, and assert revoked terms
 and deleted learners cannot receive further grants. Issued ledger credits remain
 non-expiring. River's minute/start sweep reconstructs due work from these tables;
 queue timers and PostHog are never the recovery source.
+
+E7-09 adds append-only `credit_subscription_lifecycle` (bound canonical provider
+status, item period, cancellation flag, optional inbox reference and observation
+sequence) and `credit_subscription_transitions` (idempotency request, provider
+subscription, kind, effective date, pinned Pricing version/offer/plan and provider
+price reference). Both link to the learner only through the original immutable
+subscription/order. Account export includes them; deletion and restored deletion
+tombstones sever identity at that order. Retain at least seven years, in nightly
+encrypted financial dumps with 35-day snapshot rotation and PITR where available.
+Backup fixtures seed cancellation/resumption transitions and compare complete
+rows after restore, including dedupe/effective dates; replay never reissues funded
+Credits. Redis wallet state and priority are disposable derived data. No card data,
+raw notification bodies or learner content enter these tables or analytics.

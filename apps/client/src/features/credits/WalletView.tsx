@@ -31,6 +31,10 @@ export function WalletView({
   }, [trackView]);
 
   const dailyFree = wallet.daily_free;
+  const suppressUpsell =
+    wallet.plan?.active &&
+    !wallet.unverified &&
+    wallet.plan.benefits.includes("No upsell banners");
   const isExhausted = dailyFree.available === 0 && dailyFree.granted > 0;
   const meterPercent =
     dailyFree.granted > 0
@@ -174,7 +178,7 @@ export function WalletView({
       </p>
 
       {/* Exhausted Recovery Banner */}
-      {isExhausted && (
+      {isExhausted && !suppressUpsell && (
         <div className="wallet-banner wallet-banner-info">
           <div>
             <b className="wallet-banner-title">
@@ -202,7 +206,7 @@ export function WalletView({
       )}
 
       {/* Recovery Buttons */}
-      {isExhausted && (
+      {isExhausted && !suppressUpsell && (
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <Button variant="secondary" onClick={onWait}>
             Wait for daily reset

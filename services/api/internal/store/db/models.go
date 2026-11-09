@@ -202,6 +202,17 @@ type CreditSubscriptionCancellation struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type CreditSubscriptionLifecycle struct {
+	ID                int64              `json:"id"`
+	SubscriptionID    string             `json:"subscription_id"`
+	EventID           pgtype.Text        `json:"event_id"`
+	ProviderStatus    string             `json:"provider_status"`
+	PeriodStart       pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd         pgtype.Timestamptz `json:"period_end"`
+	CancelAtPeriodEnd bool               `json:"cancel_at_period_end"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
 type CreditSubscriptionRevocation struct {
 	PeriodKey string             `json:"period_key"`
 	EventID   string             `json:"event_id"`
@@ -233,6 +244,17 @@ type CreditSubscriptionTerm struct {
 	ConcurrentGeneration int32              `json:"concurrent_generation"`
 	LedgerID             int64              `json:"ledger_id"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditSubscriptionTransition struct {
+	RequestID      pgtype.UUID        `json:"request_id"`
+	SubscriptionID string             `json:"subscription_id"`
+	Kind           string             `json:"kind"`
+	EffectiveAt    pgtype.Timestamptz `json:"effective_at"`
+	PricingVersion string             `json:"pricing_version"`
+	Terms          []byte             `json:"terms"`
+	PriceID        string             `json:"price_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type CreditTimezone struct {

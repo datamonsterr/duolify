@@ -94,6 +94,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	if deps.Credits != nil && deps.Accounts != nil {
 		mux.Handle("POST /v1/payments/stripe/webhook", deps.Credits)
 		mux.Handle("POST /v1/credits/checkouts", deps.Accounts.Protect(deps.Credits))
+		mux.Handle("POST /v1/credits/subscription/change", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("GET /v1/credits/checkouts/{id}", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("POST /v1/quotes/{id}/reserve", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("POST /v1/credits/reservations/{id}/release", deps.Accounts.Protect(deps.Credits))
@@ -186,7 +187,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		}
 		request.Learner = &enginev1.LearnerProfile{LearnerId: owner}
 		if err = financial.Claim(r.Context(), owner, job.ID); err != nil {
-			writeJSON(w, 409, map[string]string{"error": "job already started"})
+			writeJSON(w, 409, map[string]string{"error": "Generation queue unavailable. Refresh your wallet and retry."})
 			return
 		}
 		providerCtx, cancel := context.WithTimeout(r.Context(), time.Duration(request.Limits.TimeoutMs)*time.Millisecond)

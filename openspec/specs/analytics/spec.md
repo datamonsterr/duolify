@@ -5,6 +5,19 @@ Define how Duolify uses PostHog: identity, privacy, the event catalog with names
 
 ## Requirements
 
+### Requirement: Subscription lifecycle events
+The catalogue SHALL include `subscription_renewed` and `subscription_cancelled`
+(plan_id, interval, channel, billing_period_start/end, entitlement_version),
+`subscription_payment_failed` (plan_id, channel, reason_code), and
+`entitlement_changed` (plan_id, entitlement_version, reason_code). Renewals SHALL
+be deduplicated per funded term, failures per canonical unpaid invoice, and
+cancellations per canonical state transition. Events SHALL use the transactional
+financial outbox and UUID identity, common properties, opt-out and no learner text.
+
+#### Scenario: Stale failure notification
+- **WHEN** a failed notification resolves to a canonical paid invoice
+- **THEN** no payment-failed event is emitted
+
 ### Requirement: Funded subscription financial events
 The catalogue SHALL include `plan_purchased` (plan_id, interval, channel,
 amount_minor, currency, billing_period_start, billing_period_end,

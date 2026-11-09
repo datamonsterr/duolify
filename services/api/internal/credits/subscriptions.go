@@ -38,6 +38,7 @@ type SubscriptionInvoice struct {
 // ProviderSubscription projects the sole subscription item's current period and
 // recurring price. Current Stripe APIs expose periods on items, not the root.
 type ProviderSubscription struct {
+	LatestInvoiceID                                                    string
 	ID, OrderID, OwnerReference, CustomerID, PriceID, Status, Interval string
 	IntervalCount, Quantity                                            int
 	PeriodStart, PeriodEnd                                             time.Time
@@ -48,21 +49,24 @@ type ProviderSubscription struct {
 
 // FundedPlan is a database-derived entitlement snapshot, independent of balance.
 type FundedPlan struct {
-	BillingPeriod        string     `json:"billing_period"`
-	CancelAtPeriodEnd    bool       `json:"cancel_at_period_end"`
-	Revoked              bool       `json:"revoked"`
-	NextAllowanceAt      *time.Time `json:"next_allowance_at,omitempty"`
-	PlanID               string     `json:"plan_id"`
-	Name                 string     `json:"name"`
-	PricingVersion       string     `json:"pricing_version"`
-	EntitlementVersion   string     `json:"entitlement_version"`
-	MonthlyCredits       int        `json:"monthly_credits"`
-	Benefits             []string   `json:"benefits"`
-	ConcurrentGeneration int        `json:"concurrent_generation"`
-	PaidThrough          time.Time  `json:"paid_through"`
-	Active               bool       `json:"active"`
-	Channel              string     `json:"channel"`
-	ManagementURL        string     `json:"management_url"`
+	Status               string       `json:"status"`
+	PendingPlan          *PendingPlan `json:"pending_plan,omitempty"`
+	PriorityGeneration   bool         `json:"priority_generation"`
+	BillingPeriod        string       `json:"billing_period"`
+	CancelAtPeriodEnd    bool         `json:"cancel_at_period_end"`
+	Revoked              bool         `json:"revoked"`
+	NextAllowanceAt      *time.Time   `json:"next_allowance_at,omitempty"`
+	PlanID               string       `json:"plan_id"`
+	Name                 string       `json:"name"`
+	PricingVersion       string       `json:"pricing_version"`
+	EntitlementVersion   string       `json:"entitlement_version"`
+	MonthlyCredits       int          `json:"monthly_credits"`
+	Benefits             []string     `json:"benefits"`
+	ConcurrentGeneration int          `json:"concurrent_generation"`
+	PaidThrough          time.Time    `json:"paid_through"`
+	Active               bool         `json:"active"`
+	Channel              string       `json:"channel"`
+	ManagementURL        string       `json:"management_url"`
 }
 
 func paymentMode(period string) string {
@@ -118,14 +122,15 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if strings.HasPrefix(kind, "customer.subscription.") {
-		// Only canonical cancellation may annotate an existing annual paid term.
-		// Cancellation never erases funding or its remaining grants.
 		sub, err := provider.RetrieveSubscription(callCtx, object)
 		if err != nil {
 			return err
 		}
 		if sub.ID != object || sub.LiveMode {
 			return paymentResult(ctx, tx, event, "", "rejected", "", 0)
+		}
+		if err = s.recordLifecycle(ctx, tx, event, sub, ""); err != nil {
+			return err
 		}
 		if err = recordAnnualCancellation(ctx, tx, event, sub); err != nil {
 			return err
@@ -166,9 +171,34 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 	if err = tx.QueryRow(ctx, "SELECT now()").Scan(&now); err != nil {
 		return err
 	}
+	// A scheduled plan is pinned independently from the immutable original order.
+	// It only supplies terms for invoice periods at or beyond its verified boundary.
+	var changedTerms []byte
+	var changedPrice, changedVersion string
+	transitionErr := tx.QueryRow(ctx, `SELECT terms,price_id,pricing_version FROM credit_subscription_transitions WHERE subscription_id=$1 AND kind='plan' AND effective_at<=$2 ORDER BY effective_at DESC LIMIT 1`, sub.ID, invoice.PeriodStart).Scan(&changedTerms, &changedPrice, &changedVersion)
+	if transitionErr == nil {
+		var pinned transitionTerms
+		if err = json.Unmarshal(changedTerms, &pinned); err != nil {
+			return err
+		}
+		order.SKU = pinned.Order.SKU
+		order.AmountMinor = pinned.Order.AmountMinor
+		order.Currency = pinned.Order.Currency
+		order.Credits = pinned.Order.Credits
+		order.PricingVersion = changedVersion
+		price = changedPrice
+	} else if !errors.Is(transitionErr, pgx.ErrNoRows) {
+		return transitionErr
+	}
 	request := PaymentRequest{OrderID: order.ID, OwnerReference: ownerRef, SKU: order.SKU, PriceID: price, Currency: order.Currency, AmountMinor: order.AmountMinor, Mode: paymentMode(order.BillingPeriod)}
-	if order.BillingPeriod == "yearly" && (invoice.Refunded || invoice.Disputed) {
-		return s.revokeAnnualTerm(ctx, tx, event, invoice, sub, request, order, *owner)
+	if invoice.Refunded || invoice.Disputed {
+		return s.revokeFundedTerm(ctx, tx, event, invoice, sub, request, order, *owner)
+	}
+	if (kind == "invoice.payment_failed" || kind == "invoice.updated") && invoice.Status == "open" && !invoice.LiveMode && invoice.SubscriptionID == sub.ID && invoice.CustomerID == sub.CustomerID && invoice.OrderID == sub.OrderID && invoice.OwnerReference == sub.OwnerReference {
+		if err = s.recordLifecycle(ctx, tx, event, sub, invoice.ID); err != nil {
+			return err
+		}
+		return paymentResult(ctx, tx, event, order.ID, "pending", "", 0)
 	}
 	valid := order.BillingPeriod == "monthly" && monthlyFundingMatches(invoice, sub, request, now) || order.BillingPeriod == "yearly" && annualFundingMatches(invoice, sub, request, now)
 	if !valid {
@@ -193,6 +223,9 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 	}
 	if plan == nil || plan.MonthlyCredits != order.Credits || cfg.ProviderMappings("development")[order.SKU] != price {
 		return paymentResult(ctx, tx, event, order.ID, "rejected", "", 0)
+	}
+	if err = s.recordLifecycle(ctx, tx, event, sub, ""); err != nil {
+		return err
 	}
 	key := fmt.Sprintf("stripe:test:%s:%d:%d:0", sub.ID, invoice.PeriodStart.Unix(), invoice.PeriodEnd.Unix())
 	var duplicate bool
@@ -225,7 +258,11 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 	if _, err = tx.Exec(ctx, `INSERT INTO credit_subscription_terms(period_key,subscription_id,invoice_id,pricing_version,plan_id,plan_name,entitlement_version,service_start,paid_through,amount_minor,currency,monthly_credits,benefits,concurrent_generation,ledger_id) VALUES($1,$2,$3,$4,$5,$6,$4,$7,$8,$9,$10,$11,$12,$13,$14)`, key, sub.ID, invoice.ID, order.PricingVersion, plan.ID, plan.Name, invoice.PeriodStart, invoice.PeriodEnd, order.AmountMinor, order.Currency, plan.MonthlyCredits, benefits, plan.ConcurrentGeneration, ledger); err != nil {
 		return err
 	}
-	for _, name := range []string{"plan_purchased", "subscription_grant_issued", "entitlement_changed"} {
+	names := []string{"plan_purchased", "subscription_grant_issued", "entitlement_changed"}
+	if invoice.BillingReason == "subscription_cycle" {
+		names = append(names, "subscription_renewed")
+	}
+	for _, name := range names {
 		props := map[string]any{"source": "api", "platform": order.Platform, "app_version": "development", "plan_id": plan.ID, "interval": order.BillingPeriod, "channel": "stripe", "amount_minor": order.AmountMinor, "currency": order.Currency, "billing_period_start": invoice.PeriodStart.UTC().Format(time.RFC3339), "billing_period_end": invoice.PeriodEnd.UTC().Format(time.RFC3339), "price_table_version": order.PricingVersion, "amount": plan.MonthlyCredits, "period_key": key, "entitlement_version": order.PricingVersion}
 		eventKey := key + ":" + name
 		if name == "plan_purchased" {
@@ -234,6 +271,9 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 		if err = insertOutbox(ctx, tx, *owner, eventKey, name, props); err != nil {
 			return err
 		}
+	}
+	if err = s.recordLifecycle(ctx, tx, event, sub, ""); err != nil {
+		return err
 	}
 	if order.BillingPeriod == "yearly" {
 		for month := 0; month < 12; month++ {
@@ -272,6 +312,14 @@ func (s *Service) fundedPlan(ctx context.Context, owner string, at time.Time) (*
 	}
 	if err = json.Unmarshal(benefits, &p.Benefits); err != nil {
 		return nil, err
+	}
+	if err = s.decorateLifecycle(ctx, owner, p, at); err != nil {
+		return nil, err
+	}
+	for _, b := range p.Benefits {
+		if b == "Priority generation queue" && p.Active {
+			p.PriorityGeneration = true
+		}
 	}
 	return p, nil
 }

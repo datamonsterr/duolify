@@ -112,7 +112,14 @@ export function PricingView() {
     setRecoveryQuote(quote);
     setRecoveryQuoteId(quote.id);
     recoveryID("quote", quote.id);
-    if (c) {
+    if (
+      c &&
+      !(
+        activeWallet.plan?.active &&
+        !activeWallet.unverified &&
+        activeWallet.plan.benefits.includes("No upsell banners")
+      )
+    ) {
       exposePricing(c.version, "paywall");
       for (const event of ["paywall_viewed", "credits_upsell_shown"] as const)
         trackPurchase({

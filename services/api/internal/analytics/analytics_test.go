@@ -37,7 +37,7 @@ func TestFundedSubscriptionEventsReachPostHogWithoutPrivateData(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, event := range []string{"plan_purchased", "subscription_grant_issued", "entitlement_changed"} {
+			for _, event := range []string{"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed"} {
 				if !allowlisted(event) {
 					t.Fatal("event missing from catalogue", event)
 				}
@@ -50,7 +50,7 @@ func TestFundedSubscriptionEventsReachPostHogWithoutPrivateData(t *testing.T) {
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			if len(received) != 3 {
+			if len(received) != 6 {
 				t.Fatalf("PostHog delivery %v", received)
 			}
 			for _, event := range received {
@@ -76,7 +76,7 @@ func TestFundedSubscriptionEventsReachPostHogWithoutPrivateData(t *testing.T) {
 			if err = opted.Close(); err != nil {
 				t.Fatal(err)
 			}
-			if len(received) != 3 {
+			if len(received) != 6 {
 				t.Fatal("opt-out sent analytics")
 			}
 		})

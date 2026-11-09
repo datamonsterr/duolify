@@ -118,7 +118,7 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 	concurrency := q.Bounds["concurrency"]
 	// Benefits expire with the funded term; an old non-expiring credit grant is
 	// no longer evidence of an active plan. Honor its original configured limit.
-	err = tx.QueryRow(ctx, `SELECT COALESCE((SELECT t.concurrent_generation FROM credit_subscription_terms t JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1 AND t.service_start<=now() AND t.paid_through>now() AND NOT EXISTS(SELECT 1 FROM credit_subscription_revocations r WHERE r.period_key=t.period_key) ORDER BY t.paid_through DESC LIMIT 1),$2::bigint)`, owner, concurrency).Scan(&concurrency)
+	err = tx.QueryRow(ctx, `SELECT COALESCE((SELECT t.concurrent_generation FROM credit_subscription_terms t JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1 AND t.service_start<=now() AND t.paid_through>now() AND COALESCE((SELECT l.provider_status FROM credit_subscription_lifecycle l WHERE l.subscription_id=s.subscription_id ORDER BY l.id DESC LIMIT 1),'active') IN ('active','past_due','canceled') AND NOT EXISTS(SELECT 1 FROM credit_subscription_revocations r WHERE r.period_key=t.period_key) ORDER BY t.paid_through DESC LIMIT 1),$2::bigint)`, owner, concurrency).Scan(&concurrency)
 	if err != nil {
 		return Reservation{}, err
 	}
@@ -285,11 +285,54 @@ func (s *Service) Claim(ctx context.Context, owner, id string) error {
 	if s.pool() == nil {
 		return ErrReservation
 	}
-	command, err := s.pool().Exec(ctx, `UPDATE credit_jobs SET state='running',result=jsonb_set(result,'{state}','"running"') WHERE id=$1 AND learner_id=$2 AND state='reserved' AND deadline_at>clock_timestamp()`, id, owner)
-	if err == nil && command.RowsAffected() != 1 {
-		return ErrReservation
+	// Resolve priority from funded config every time, including while waiting.
+	// Reservation already acquired concurrency and USD capacity; this ordering
+	// cannot increase either bound. Equal-priority jobs can run concurrently.
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		tx, err := s.pool().Begin(ctx)
+		if err != nil {
+			return err
+		}
+		if err = financialLock(ctx, tx); err != nil {
+			_ = tx.Rollback(ctx)
+			return err
+		}
+		command, err := tx.Exec(ctx, `WITH waiting AS (
+          SELECT j.id,EXISTS(SELECT 1 FROM credit_subscription_terms t JOIN credit_subscriptions b USING(subscription_id) JOIN credit_checkout_orders o ON o.id=b.order_id
+            WHERE o.learner_id=j.learner_id AND t.service_start<=now() AND t.paid_through>now() AND t.benefits ? 'Priority generation queue'
+            AND NOT EXISTS(SELECT 1 FROM credit_subscription_revocations r WHERE r.period_key=t.period_key)
+            AND COALESCE((SELECT l.provider_status FROM credit_subscription_lifecycle l WHERE l.subscription_id=b.subscription_id ORDER BY l.id DESC LIMIT 1),'active') IN ('active','past_due','canceled')) AS priority
+          FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.state='reserved' AND j.deadline_at>clock_timestamp() AND q.snapshot->>'action' IN ('preview','outline','lesson_content','outline_replan')
+        ) UPDATE credit_jobs SET state='running',result=jsonb_set(result,'{state}','"running"')
+          WHERE id=$1 AND learner_id=$2 AND state='reserved' AND deadline_at>clock_timestamp()
+          AND (SELECT count(*) FROM credit_jobs running WHERE running.learner_id=$2 AND running.state='running') < COALESCE((SELECT t.concurrent_generation FROM credit_subscription_terms t JOIN credit_subscriptions b USING(subscription_id) JOIN credit_checkout_orders o ON o.id=b.order_id WHERE o.learner_id=$2 AND t.service_start<=now() AND t.paid_through>now() AND NOT EXISTS(SELECT 1 FROM credit_subscription_revocations r WHERE r.period_key=t.period_key) AND COALESCE((SELECT l.provider_status FROM credit_subscription_lifecycle l WHERE l.subscription_id=b.subscription_id ORDER BY l.id DESC LIMIT 1),'active') IN ('active','past_due','canceled') ORDER BY t.paid_through DESC LIMIT 1),(SELECT (q.snapshot->'bounds'->>'concurrency')::integer FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.id=$1))
+          AND (NOT EXISTS(SELECT 1 FROM waiting WHERE id=$1) OR EXISTS(SELECT 1 FROM waiting WHERE id=$1 AND priority) OR NOT EXISTS(SELECT 1 FROM waiting WHERE priority))`, id, owner)
+		if err == nil {
+			err = tx.Commit(ctx)
+		} else {
+			_ = tx.Rollback(ctx)
+		}
+		if err != nil {
+			return err
+		}
+		if command.RowsAffected() == 1 {
+			return nil
+		}
+		var eligible bool
+		if err = s.pool().QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_jobs WHERE id=$1 AND learner_id=$2 AND state='reserved' AND deadline_at>clock_timestamp())`, id, owner).Scan(&eligible); err != nil {
+			return err
+		}
+		if !eligible {
+			return ErrReservation
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
 	}
-	return err
 }
 
 // Limits returns trusted bounds for the engine; HTTP input cannot override them.

@@ -23,6 +23,15 @@ export type ActivityPage = {
 
 export type WalletResponse = {
   plan?: {
+    status?:
+      | "active"
+      | "cancel-scheduled"
+      | "past-due"
+      | "expired"
+      | "refunded"
+      | "disputed";
+    pending_plan?: { name: string; effective_at: string };
+    priority_generation?: boolean;
     billing_period?: "monthly" | "yearly";
     cancel_at_period_end?: boolean;
     revoked?: boolean;
