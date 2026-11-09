@@ -25,7 +25,9 @@ export function AccountProfile() {
           <Button variant="secondary" onClick={() => setChatOpen(true)}>
             Update by chat
           </Button>
-          {!chatOpen && <LearnerProfile />}
+          <div style={{ display: chatOpen ? "none" : undefined }}>
+            <LearnerProfile />
+          </div>
           {chatOpen && (
             <section role="dialog" aria-label="Update profile by chat">
               <h2>Update by chat</h2>

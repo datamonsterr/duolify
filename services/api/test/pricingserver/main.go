@@ -86,13 +86,14 @@ func run() (result error) {
 		rateLimits.VerifyIP = 100000
 	}
 	auth.ConfigureRateLimits(rateLimits)
+	setupPricing := catalogue
 	devCatalogue, err := pricing.LoadDevelopment(boot, db.Pool)
 	if err == nil {
-		catalogue = devCatalogue
+		setupPricing = devCatalogue
 	}
 	auth.ConfigureSetupChat(accounts.SetupChatOptions{
 		Engine:  mockE2ESetupChatEngine{},
-		Pricing: catalogue,
+		Pricing: setupPricing,
 	})
 	mux := http.NewServeMux()
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: catalogue, Quotes: pricing.NewQuotes(db.Pool), Accounts: auth}, logger))

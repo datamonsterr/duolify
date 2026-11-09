@@ -229,6 +229,12 @@ test("profile update by chat opens setup workflow with existing values", async (
 
   // Open "Update by chat"
   await page.getByRole("button", { name: "Update by chat" }).tap();
-  await expect(page.getByText("What I've understood")).toBeVisible();
-  await expect(page.getByText("Astronomy", { exact: true })).toBeVisible();
+  const chatDialog = page.getByRole("dialog", {
+    name: "Update profile by chat",
+  });
+  await expect(chatDialog).toBeVisible();
+  await expect(chatDialog.getByText("What I've understood")).toBeVisible();
+  await expect(
+    chatDialog.getByText("Astronomy", { exact: true }),
+  ).toBeVisible();
 });

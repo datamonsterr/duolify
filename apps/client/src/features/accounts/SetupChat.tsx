@@ -75,6 +75,7 @@ export function SetupChat({
   const [composerText, setComposerText] = useState("");
   const [pending, setPending] = useState(false);
   const [fallback, setFallback] = useState(false);
+  const [assistantFailed, setAssistantFailed] = useState(false);
   const [commitError, setCommitError] = useState("");
   const [completed, setCompleted] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -180,6 +181,7 @@ export function SetupChat({
       setIsComplete(res.is_complete);
       setComposerText("");
     } catch {
+      setAssistantFailed(true);
       setFallback(true);
     } finally {
       setPending(false);
@@ -260,6 +262,7 @@ export function SetupChat({
       surface: "guided_chat",
       controlId: "form_fallback",
     });
+    setAssistantFailed(false);
     setFallback(true);
   };
 
@@ -281,21 +284,24 @@ export function SetupChat({
   if (fallback) {
     return (
       <div className="setup-fallback-wrapper">
-        <div role="status" className="ban warn setup-fallback-banner">
-          <b>The setup chat isn't responding</b>
-          <p>
-            Your answers so far are kept below.{" "}
-            <Button
-              variant="secondary"
-              className="try-chat-btn"
-              onClick={() => {
-                setFallback(false);
-              }}
-            >
-              Try chat again
-            </Button>
-          </p>
-        </div>
+        {assistantFailed && (
+          <div role="status" className="ban warn setup-fallback-banner">
+            <b>The setup chat isn't responding</b>
+            <p>
+              Your answers so far are kept below.{" "}
+              <Button
+                variant="secondary"
+                className="try-chat-btn"
+                onClick={() => {
+                  setFallback(false);
+                  setAssistantFailed(false);
+                }}
+              >
+                Try chat again
+              </Button>
+            </p>
+          </div>
+        )}
         <LearnerContextEditor
           profile={profile}
           setup
@@ -524,6 +530,15 @@ export function SetupChat({
           )}
         </div>
       </header>
+
+      <aside className="context-disclosure">
+        <strong>AI uses your optional answers</strong>
+        <p>
+          Your goal, topic, background and level help our configured AI
+          providers tailor examples. Only share what you want. Profile text is
+          never sent to analytics. Every answer is optional.
+        </p>
+      </aside>
 
       <div className="setup-body">
         {/* Step Navigation Sidebar */}
