@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Duolify design overview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Nunito',system-ui,sans-serif;color:#3C3C3C}
+*{box-sizing:border-box}
+a{color:#1667AB}a:hover{color:#0F5A99}
+.sec{display:flex;flex-direction:column;gap:16px}
+.h2{margin:0;font-size:28px;font-weight:900;color:#2B2B2B}
+.card{background:#fff;border:2px solid #E3E3E3;border-radius:22px;padding:24px;display:flex;flex-direction:column;gap:10px}
+.step{flex:1;background:#fff;border:2px solid #E3E3E3;border-bottom-width:6px;border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.step b{font-size:17px;font-weight:900;color:#2B2B2B}
+.step span{font-size:14px;color:#555;line-height:1.4}
+.arr{align-self:center;font-weight:900;font-size:22px;color:#58A82B}
+table{border-collapse:separate;border-spacing:0;width:100%;background:#fff;border:2px solid #E3E3E3;border-radius:22px;overflow:hidden}
+th{text-align:left;font-size:13px;letter-spacing:1px;text-transform:uppercase;font-weight:900;color:#1E6E0C;background:#E3F8D3;padding:12px 16px}
+td{font-size:15px;padding:12px 16px;border-top:2px solid #F0F0F0;vertical-align:top;line-height:1.4}
+td.id{font-weight:900;color:#2B2B2B;white-space:nowrap}
+td.nm{font-weight:800;color:#2B2B2B}
+td.rt{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:#4A4A4A}
+td.bd{font-weight:800;color:#1667AB;white-space:nowrap}
+tr.grp td{background:#F7F7F7;font-weight:900;font-size:14px;color:#2B2B2B;letter-spacing:.4px}
+.pill{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:800;background:#F1F1F1;color:#444}
+ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:15px;line-height:1.45}
+</style>
+</helmet>
+<div style="width: 1600px; height: 3000px; background: #F3F5EF; padding: 64px; display: flex; flex-direction: column; gap: 48px;">
+
+<div style="display: flex; align-items: center; gap: 16px;">
+<div aria-hidden="true" style="position: relative; width: 52px; height: 48px;">
+<div style="position: absolute; left: 0; top: 8px; width: 34px; height: 34px; border-radius: 10px; background: #58C322;"></div>
+<div style="position: absolute; left: 18px; top: 0; width: 34px; height: 34px; border-radius: 10px; background: #1677C9;"></div>
+</div>
+<span style="font-size: 44px; font-weight: 900; color: #2E9A12; letter-spacing: -1px;">duolify</span>
+<span class="pill" style="margin-left: 12px;">App design · v1 draft · 2026-11-09</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; max-width: 1150px;">
+<h1 style="margin: 0; font-size: 56px; font-weight: 900; line-height: 1.05; color: #2B2B2B;">Every screen, state and component for Duolify</h1>
+<p style="margin: 0; font-size: 20px; line-height: 1.5; color: #4F4F4F;">Turn any topic into a playful, Duolingo-style learning path: short Motion HTML lessons, a lesson test you pass by resolving every idea, streaks with friends and credits for AI help. This canvas covers epics E1–E16 from <b>docs/epics</b>, the 24 surfaces in <b>docs/design/screens.md</b>, plus sharing &amp; marketplace (E15), course steering (E16), subscription plans (E12) and the moderator console.</p>
+</div>
+
+<div class="sec">
+<h2 class="h2">The learning loop</h2>
+<div style="display: flex; gap: 12px; align-items: stretch;">
+<div class="step"><b>1 · Topic</b><span>Learner names a topic and level.</span></div><div class="arr" aria-hidden="true">›</div>
+<div class="step"><b>2 · Preview</b><span>Sample slides + sample outline. Paid, nothing created.</span></div><div class="arr" aria-hidden="true">›</div>
+<div class="step"><b>3 · Outline</b><span>Confirm cost; outline is generated and learner is enrolled.</span></div><div class="arr" aria-hidden="true">›</div>
+<div class="step"><b>4 · Lesson</b><span>Motion HTML slides with narration and captions.</span></div><div class="arr" aria-hidden="true">›</div>
+<div class="step"><b>5 · Lesson test</b><span>Every topic must be right. Misses return as retry variants.</span></div><div class="arr" aria-hidden="true">›</div>
+<div class="step"><b>6 · Finish</b><span>XP, streak, daily goal. Next lesson is generated only now.</span></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
+<div class="card">
+<h2 class="h2" style="font-size: 22px;">Theme decision</h2>
+<ul>
+<li>Duolingo-style look as requested: bright green actions, chunky 3D buttons, rounded heavy type (Nunito), zig-zag path, celebratory but short feedback.</li>
+<li>Original brand: <b>duolify</b> wordmark and two-tile mark. No owl, mascot or Duolingo assets.</li>
+<li>Overrides the ink-violet palette in <b>docs/design/brand.md</b> — that doc needs an update before implementation.</li>
+<li>Action green is #1F7A0D so white labels pass 5.5:1; bright lime is decoration only. Tokens live in docs/design/tokens.json.</li>
+<li><b>Desktop first:</b> every board shows desktop frames, then mobile states. Both platforms have the same functions; desktop panels become mobile sheets.</li>
+<li><b>Guided chat:</b> onboarding and course creation are chats with quick replies, a live summary and an explicit confirm before anything paid.</li>
+</ul>
+</div>
+<div class="card">
+<h2 class="h2" style="font-size: 22px;">Product rules kept</h2>
+<ul>
+<li>No hearts or lives. Mistakes queue a <b>retry variant</b>; no timers.</li>
+<li>Streak freezes are earned by effort and applied automatically — never sold.</li>
+<li>Effort never earns credits. Daily free credits (46) fund notes and tutor chat only.</li>
+<li>Narration never autoplays. Captions and transcript are always available.</li>
+<li>Saved lessons, notes and bookmarks stay usable at zero credits.</li>
+</ul>
+</div>
+<div class="card">
+<h2 class="h2" style="font-size: 22px;">Open questions (from specs)</h2>
+<ul>
+<li>Prices shown are the <b>proposed</b> catalogue <span style="font-family: ui-monospace, Consolas, monospace; font-size: 13px;">usd-launch-2026-11-08</span>; owner adoption pending.</li>
+<li>Does a personal freeze also protect a friend streak? (E6)</li>
+<li>Who pays for lessons beyond a published snapshot — owner or learner? (E15, v1: learner)</li>
+<li>Price of outline re-plan (proposed 55 credits, flagged). (E16)</li>
+<li>Can shared narration audio be redistributed? (ADR 0009)</li>
+<li>Is the clarifying chat free, and do chat edits to the sample outline cost ~5 credits? (proposed, E12)</li>
+</ul>
+</div>
+</div>
+
+<div class="sec">
+<h2 class="h2">Navigation</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px;">
+<div class="card"><b style="font-size: 18px; color: #2B2B2B;">Phone (&lt; 48rem)</b><span style="font-size: 15px; line-height: 1.5;">Five bottom tabs: <b>Learn · Courses · Friends · Notes · More</b>. More holds Leagues, Bookmarks, Credits, Profile, Settings. Header shows course switcher, streak and a labelled credit balance. Player and test use a focused shell with Exit.</span></div>
+<div class="card"><b style="font-size: 18px; color: #2B2B2B;">Desktop (≥ 48rem, rail ≥ 75rem)</b><span style="font-size: 15px; line-height: 1.5;">224px sidebar: Learn, Courses, Marketplace, Friends, Leagues, Quick notes, Bookmarks, then Credits and Profile. 280px support rail: streak, daily goal, credits, league. See page “Desktop &amp; moderator”.</span></div>
+</div>
+</div>
+
+<div class="sec">
+<h2 class="h2">Screen &amp; state inventory</h2>
+<table>
+<thead><tr><th style="width: 90px;">ID</th><th style="width: 260px;">Screen</th><th style="width: 230px;">Route</th><th>States designed</th><th style="width: 150px;">Artboard</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="5">Onboarding &amp; courses · E1, E2</td></tr>
+<tr><td class="id">S01</td><td class="nm">Welcome &amp; sign-in</td><td class="rt">/ (signed out)</td><td>new learner, returning, auth opening in browser, auth cancelled, session expired, offline</td><td class="bd">S01</td></tr>
+<tr><td class="id">S02</td><td class="nm">Chat onboarding &amp; profile</td><td class="rt">/onboarding, /settings/profile</td><td>first question, quick replies, vague answer → follow-up, typing, live summary panel / sheet, confirm summary, edit a line, skip, chat unavailable → form fallback, profile edit, clear-profile confirm, export</td><td class="bd">S01 · S23</td></tr>
+<tr><td class="id">S03</td><td class="nm">Course catalog &amp; switcher</td><td class="rt">/courses</td><td>my courses, discover, no enrollment, no results, loading skeleton, stale offline list, unavailable course, request error</td><td class="bd">S03</td></tr>
+<tr><td class="id">S04</td><td class="nm">Create · clarifying chat &amp; brief</td><td class="rt">/courses/new?step=brief</td><td>chat from onboarding context, multi-select topics, include / skip, follow-ups, live course brief (panel / sheet), unanswered items, edit brief line</td><td class="bd">S04</td></tr>
+<tr><td class="id">S05</td><td class="nm">Create · confirm brief &amp; preview</td><td class="rt">step=preview</td><td>confirm brief (consent for 25), insufficient credits → shop with brief kept, preview ready, playback unavailable, regenerate with new consent</td><td class="bd">S04</td></tr>
+<tr><td class="id">S06</td><td class="nm">Create · outline editor</td><td class="rt">step=outline</td><td>drag or move-button reorder of units and lessons, rename, remove, add, undo, chat change request → proposal diff → apply / discard, chat change failed, unsaved changes</td><td class="bd">S04</td></tr>
+<tr><td class="id">S07</td><td class="nm">Create · confirm &amp; generate</td><td class="rt">step=create</td><td>cost breakdown, expired estimate, insufficient → shop, job accepted, reconnecting, failed + credits released (edits kept), success → learn path</td><td class="bd">S04</td></tr>
+<tr class="grp"><td colspan="5">Learning loop · E3, E4, E14</td></tr>
+<tr><td class="id">S08</td><td class="nm">Learn path</td><td class="rt">/course/$courseId</td><td>no courses, first lesson ready to generate, generating (SSE), ready, in progress, blocked on test, needs credits, generation failed, course complete, offline cached</td><td class="bd">S08</td></tr>
+<tr><td class="id">S09</td><td class="nm">Lesson player</td><td class="rt">/lesson/$lessonId</td><td>idle, playing, paused, ended, buffering, audio unavailable, slide failure, slow preload, cached offline, missing asset, bookmark saving / queued</td><td class="bd">S09</td></tr>
+<tr><td class="id">S09s</td><td class="nm">Player sheets (tutor, note)</td><td class="rt">sheet over player</td><td>tutor sheet open (player paused), streaming reply, note draft, saved + enrichment pending, zero credits</td><td class="bd">S09 sheets</td></tr>
+<tr><td class="id">S10</td><td class="nm">Lesson test · question</td><td class="rt">/lesson/$lessonId/test</td><td>no selection, selected, submitting, grade error keeps selection, restored attempt, offline waiting for verification</td><td class="bd">S10</td></tr>
+<tr><td class="id">S11</td><td class="nm">Correction &amp; retry variant</td><td class="rt">(same)</td><td>correct, incorrect + correction, variant queued, variant ready, variant wrong again, variant service failure</td><td class="bd">S10</td></tr>
+<tr><td class="id">S12</td><td class="nm">Lesson finish</td><td class="rt">/lesson/$lessonId/complete</td><td>first pass, review (no duplicate XP), freeze earned, offline provisional, next lesson preparing / ready / needs credits / failed</td><td class="bd">S12</td></tr>
+<tr class="grp"><td colspan="5">Progress &amp; social · E5, E6</td></tr>
+<tr><td class="id">S13</td><td class="nm">Streak &amp; freezes</td><td class="rt">/streak</td><td>active, today incomplete, milestone earned, cap reached, freeze used, streak reset, time zone changed (reconciling)</td><td class="bd">S13</td></tr>
+<tr><td class="id">S14</td><td class="nm">Friends &amp; friend streaks</td><td class="rt">/friends, /friends/$id</td><td>friends list, requests, friend detail, no friends, add by username, not found, invite copied / expired, nudge sent / limited, shared day checking, blocked</td><td class="bd">S14</td></tr>
+<tr><td class="id">S15</td><td class="nm">Weekly league</td><td class="rt">/leagues</td><td>not joined, active with zones, ties, rollover pending, promoted / stayed / demoted, offline as-of</td><td class="bd">S13</td></tr>
+<tr class="grp"><td colspan="5">Credits &amp; plans · E7, E12</td></tr>
+<tr><td class="id">S16</td><td class="nm">Credits wallet</td><td class="rt">/credits</td><td>available, partly spent, daily exhausted, reservation held, settled / released, cached unverified</td><td class="bd">S16</td></tr>
+<tr><td class="id">S17</td><td class="nm">Shop · packs &amp; plans</td><td class="rt">/credits/shop</td><td>credit packs, Learn / Plus / Pro monthly &amp; yearly, active subscription manage, offers loading / error</td><td class="bd">S17</td></tr>
+<tr><td class="id">S18</td><td class="nm">Checkout return &amp; exhausted</td><td class="rt">/credits/return</td><td>payment pending, cancelled (draft kept), failed, verified success + resume action</td><td class="bd">S17</td></tr>
+<tr class="grp"><td colspan="5">AI tools &amp; library · E8, E9</td></tr>
+<tr><td class="id">S19</td><td class="nm">Tutor chat</td><td class="rt">/course/$courseId/chat</td><td>empty + starters, estimating, streaming + Stop, stopped, interrupted (produced tokens charged), insufficient credits with draft kept, delete confirm</td><td class="bd">S19</td></tr>
+<tr><td class="id">S20</td><td class="nm">Add quick note</td><td class="rt">sheet</td><td>draft, device-saved, synced, offline queue, enrichment running / ready, zero credits (raw saved), failure</td><td class="bd">S09 sheets</td></tr>
+<tr><td class="id">S21</td><td class="nm">Quick notes list &amp; detail</td><td class="rt">/notes, /notes/$noteId</td><td>list with filters, empty, no results, detail (original vs AI sections), enrichment failed + retry, edit conflict, delete</td><td class="bd">S21</td></tr>
+<tr><td class="id">S22</td><td class="nm">Bookmarks</td><td class="rt">/bookmarks</td><td>list, empty, uncached offline, unavailable target (removable), queued add / remove</td><td class="bd">S21</td></tr>
+<tr class="grp"><td colspan="5">Account</td></tr>
+<tr><td class="id">S23</td><td class="nm">Settings &amp; data controls</td><td class="rt">/settings</td><td>default, saving / error keeps old value, export pending, delete account confirm (30-day), sign-out with queued work</td><td class="bd">S23</td></tr>
+<tr><td class="id">S24</td><td class="nm">More, not found, no access</td><td class="rt">/more, unmatched</td><td>more list, not found, no access, expired invite, signed out</td><td class="bd">S23</td></tr>
+<tr class="grp"><td colspan="5">New epics · E15, E16, moderation</td></tr>
+<tr><td class="id">M01</td><td class="nm">Share, visibility &amp; invites</td><td class="rt">/course/$id/share, /c/$token</td><td>private / link / public, link copied, revoke &amp; rotate, invite friend, invite received, public eligibility blocked, screening pending / blocked</td><td class="bd">E15 Share</td></tr>
+<tr><td class="id">M02</td><td class="nm">Marketplace &amp; course page</td><td class="rt">/market, /market/$id</td><td>browse by category, search, no results, course page (N of M lessons ready), update available, reviews, write review, report</td><td class="bd">E15 Market</td></tr>
+<tr><td class="id">M03</td><td class="nm">Course steering</td><td class="rt">/course/$id/steer</td><td>instructions list, add (next lesson / rest of course), screening rejected, fork warning, re-plan diff, stale proposal</td><td class="bd">E16</td></tr>
+<tr><td class="id">D01–03</td><td class="nm">Desktop shells &amp; moderator</td><td class="rt">≥ 48rem</td><td>learn shell with sidebar + rail, focused player, moderator report queue with actions</td><td class="bd">D1–D3</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="card">
+<h2 class="h2" style="font-size: 22px;">Shared states on every surface</h2>
+<span style="font-size: 15px; line-height: 1.6;">Initial loading (static skeleton) · long background job card (no invented %) · empty / first use · no search results · offline cached banner · offline uncached · reconnect / syncing · recoverable error with Retry · AI terminal error (“reserved credits were released”) · session expired · long / localized content (40% expansion, RTL) · destructive confirm. Drawn once on the Components board and reused across screens.</span>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":3000}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

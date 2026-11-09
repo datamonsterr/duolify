@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Create a course</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Nunito',system-ui,sans-serif;color:#3C3C3C}
+*{box-sizing:border-box}
+a{color:#1667AB}a:hover{color:#0F5A99}
+.i{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sm{width:18px;height:18px}
+.st{width:390px;display:flex;flex-direction:column;gap:12px;flex:none}
+.lb{display:flex;flex-direction:column;gap:2px;min-height:64px}
+.lb b{font-size:17px;font-weight:900;color:#2B2B2B}
+.lb span{font-size:14px;color:#555;line-height:1.35}
+.ph{width:390px;height:844px;background:#fff;border:2px solid #DADADA;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.top{display:flex;align-items:center;gap:10px;padding:16px 16px 12px;border-bottom:2px solid #EFEFEF}
+.mn{flex:1;min-height:0;padding:14px 16px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.foot{padding:14px 18px 22px;border-top:2px solid #EFEFEF;display:flex;flex-direction:column;gap:8px}
+.t{margin:0;font-size:24px;font-weight:900;line-height:1.15;color:#2B2B2B}
+.s{margin:0;font-size:15px;line-height:1.5;color:#555}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;padding:0 16px;border:none;border-radius:16px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:14px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;cursor:pointer;text-align:center}
+.btn.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.btn.vio{background:#7B3FE4;box-shadow:0 4px 0 #5A2BB0}
+.btn.q{background:none;box-shadow:none;color:#1667AB;min-height:44px}
+.btn.au{width:auto}
+.btn.sm2{min-height:38px;font-size:12px;padding:0 12px;width:auto}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:12px;font-weight:800;font-size:12px;background:#F1F1F1;color:#444;white-space:nowrap}
+.ok{background:#E3F8D3;color:#1E6E0C}.warn{background:#FFF1D1;color:#704400}.info{background:#DDF1FF;color:#0D5592}.bad{background:#FDECEC;color:#B3261E}.vi{background:#F0E7FF;color:#5B2BB5}
+.ban{border-radius:16px;padding:11px 13px;display:flex;gap:10px;align-items:flex-start}
+.ban b{display:block;font-size:15px;font-weight:900;margin-bottom:2px}
+.ban p{margin:0;font-size:13px;line-height:1.45}
+.help{font-size:13px;font-weight:600;color:#5E5E5E}
+.ib{width:44px;height:44px;border-radius:14px;border:2px solid #E0E0E0;background:#fff;display:flex;align-items:center;justify-content:center;color:#3C3C3C;flex:none;cursor:pointer}
+.ib.s{width:36px;height:36px;border-radius:11px}
+.bar{height:14px;border-radius:999px;background:#E5E5E5;overflow:hidden;flex:1}
+.bar i{display:block;height:100%;border-radius:999px;background:#58C322}
+.bub{max-width:300px;padding:10px 13px;border-radius:18px;font-size:15px;line-height:1.45;font-weight:600}
+.me{align-self:flex-end;background:#DDF1FF;color:#0D5592}
+.ai{background:#fff;border:2px solid #E3E3E3;color:#2B2B2B}
+.who{font-size:12px;font-weight:900;color:#555}
+.qr{display:flex;flex-wrap:wrap;gap:8px}
+.q{border:2px solid #E0E0E0;border-bottom-width:4px;border-radius:14px;padding:7px 12px;font-family:inherit;font-weight:800;font-size:14px;background:#fff;color:#2B2B2B;display:inline-flex;align-items:center;gap:5px}
+.q.on{background:#DDF1FF;border-color:#8CCBF7;color:#0D5592}
+.cmp{border-top:2px solid #EFEFEF;padding:10px 14px 20px;display:flex;gap:8px;align-items:flex-end}
+.in{font-family:inherit;font-size:15px;font-weight:600;color:#2B2B2B;background:#F7F7F7;border:2px solid #CFCFCF;border-radius:14px;padding:10px 13px;width:100%;resize:none}
+.send{width:48px;height:48px;border-radius:16px;border:none;background:#1F7A0D;box-shadow:0 4px 0 #145208;color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.sumr{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:2px solid #F3F3F3}
+.sumr b{font-size:12px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#555;width:88px;flex:none;padding-top:2px}
+.sumr span{flex:1;font-size:14px;font-weight:700;color:#2B2B2B;line-height:1.4}
+.steps{display:flex;gap:6px;align-items:center;font-size:12px;font-weight:900}
+.sp{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:12px;background:#F1F1F1;color:#555}
+.sp.done{background:#E3F8D3;color:#1E6E0C}
+.sp.now{background:#1677C9;color:#fff}
+.un{border:2px solid #E3E3E3;border-bottom-width:5px;border-radius:16px;background:#fff;display:flex;flex-direction:column}
+.uh{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 6px}
+.uh b{flex:1;font-size:15px;font-weight:900;color:#2B2B2B}
+.drag{width:30px;height:40px;display:flex;align-items:center;justify-content:center;color:#7A7A7A;cursor:grab;border:none;background:none;flex:none}
+.ls{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 40px;border-top:2px solid #F3F3F3;font-size:14px;font-weight:700;color:#2B2B2B}
+.ls span.g{display:block;font-size:12px;font-weight:600;color:#5E5E5E}
+.un.lift{border-color:#1677C9;box-shadow:0 10px 0 rgba(22,119,201,.18);transform:rotate(-1deg)}
+.drop{height:8px;border-radius:6px;background:#8CCBF7}
+.tag{font-size:11px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;padding:3px 7px;border-radius:8px;flex:none}
+.add{background:#E3F8D3;color:#1E6E0C}.mov{background:#DDF1FF;color:#0D5592}.del{background:#FDECEC;color:#B3261E}.ren{background:#FFF1D1;color:#704400}
+.stage{border-radius:18px;background:#0F2A3D;position:relative;overflow:hidden}
+.row{display:flex;justify-content:space-between;gap:12px;font-size:14px}
+.row b{font-weight:900;color:#2B2B2B;font-variant-numeric:tabular-nums}
+.dots{display:inline-flex;gap:4px;padding:11px 13px;border:2px solid #E3E3E3;border-radius:18px;align-self:flex-start}
+.dots i{width:8px;height:8px;border-radius:50%;background:#9A9A9A;display:block}
+.dk{width:1280px;height:800px;background:#fff;border:2px solid #DADADA;border-radius:20px;overflow:hidden;display:flex;flex-direction:column;flex:none;position:relative}
+.dktop{display:flex;align-items:center;gap:14px;padding:14px 24px;border-bottom:2px solid #EFEFEF}
+.dkb{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border:none;border-radius:16px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:14px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;cursor:pointer;white-space:nowrap}
+.dkb.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.dkb.sm{min-height:38px;padding:0 14px;font-size:12px}
+.dkst{font-size:15px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:#555}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"></path></symbol>
+<symbol id="back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"></path></symbol>
+<symbol id="gm" viewBox="0 0 24 24"><path d="M7 4h10l4 5-9 11L3 9z"></path><path d="M3 9h18M10 4 8 9l4 11 4-11-2-5"></path></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></symbol>
+<symbol id="cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M10.5 10.2a2.2 2.2 0 1 0 0 3.6M17 10.2a2.2 2.2 0 1 0 0 3.6"></path></symbol>
+<symbol id="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></symbol>
+<symbol id="down" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"></path></symbol>
+<symbol id="up" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"></path></symbol>
+<symbol id="alert" viewBox="0 0 24 24"><path d="M12 3 2 20.5h20z"></path><path d="M12 10v4.5M12 17.5h.01"></path></symbol>
+<symbol id="spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 1-9 9"></path></symbol>
+<symbol id="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></symbol>
+<symbol id="rp" viewBox="0 0 24 24"><path d="M4 4v6h6"></path><path d="M5.5 15A8 8 0 1 0 7 7.5L4 10"></path></symbol>
+<symbol id="send" viewBox="0 0 24 24"><path d="M4 12 20 4l-5 16-3.5-6.5z"></path><path d="M11.5 13.5 20 4"></path></symbol>
+<symbol id="edit" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5l-4-4L4 16z"></path></symbol>
+<symbol id="trash" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4h5v3M6 7l1 14h10l1-14"></path></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+<symbol id="drag" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.4"></circle><circle cx="15" cy="6" r="1.4"></circle><circle cx="9" cy="12" r="1.4"></circle><circle cx="15" cy="12" r="1.4"></circle><circle cx="9" cy="18" r="1.4"></circle><circle cx="15" cy="18" r="1.4"></circle></symbol>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"></path></symbol>
+<symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6M12 7.5h.01"></path></symbol>
+<symbol id="undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"></path><path d="M4 9h11a5 5 0 0 1 0 10h-3"></path></symbol>
+</defs></svg>
+
+<div style="width: 3066px; height: 2080px; background: #F3F5EF; padding: 48px; display: flex; flex-direction: column; gap: 24px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 14px; font-weight: 900; letter-spacing: 1.2px; text-transform: uppercase; color: #1E6E0C;">S04–S07 · E2 Course creation</span>
+<h1 style="margin: 0; font-size: 40px; font-weight: 900; color: #2B2B2B;">Create a course — clarify, confirm, preview, shape the outline</h1>
+<p style="margin: 0; font-size: 17px; color: #4F4F4F; max-width: 1800px;">Four steps: <b>Brief</b> (a clarifying chat fills a course brief), <b>Confirm brief</b> (nothing is charged until the learner confirms), <b>Preview</b> (sample slides + sample outline, 25 credits), <b>Outline</b> (reorder units and lessons by drag or move buttons, rename, remove, or ask the chat for changes), then <b>Create outline</b> (up to 55 credits). Proposed: the clarifying chat is free; chat edits to the sample outline cost about 5 credits each and can use daily free credits — both need E12 sign-off. Desktop and mobile offer the same steps and actions.</p>
+</div>
+
+<span class="dkst">Desktop · ≥ 48rem</span>
+<div style="display: flex; gap: 40px; align-items: flex-start;">
+
+<div class="dk">
+<div class="dktop"><a class="ib" href="#" aria-label="Cancel and keep draft"><svg class="i" aria-hidden="true"><use href="#x"></use></svg></a><b style="font-size: 18px; font-weight: 900; color: #2B2B2B;">Create a course</b><div class="steps" role="list" aria-label="Steps"><span class="sp now" role="listitem">1 Brief</span><span class="sp" role="listitem">2 Preview</span><span class="sp" role="listitem">3 Outline</span><span class="sp" role="listitem">4 Create</span></div><span style="flex: 1;"></span><span class="chip vi"><svg class="i sm" aria-hidden="true"><use href="#gm"></use></svg>184 purchased</span></div>
+<div style="flex: 1; display: flex; min-height: 0;">
+<div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+<div style="flex: 1; padding: 22px 40px; display: flex; flex-direction: column; gap: 12px; overflow: hidden;">
+<div style="display: flex; flex-direction: column; gap: 3px;"><span class="who">Duolify</span><div class="bub ai" style="max-width: 600px;">From your setup: astronomy, for fun, to explain the night sky to your kids. Let's shape the course. Which parts interest you most?</div></div>
+<div class="qr" role="group" aria-label="Pick topics, choose any"><button class="q on" type="button" aria-pressed="true"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg>Constellations</button><button class="q on" type="button" aria-pressed="true"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg>Moon phases</button><button class="q on" type="button" aria-pressed="true"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg>Planets</button><button class="q" type="button">Telescopes</button><button class="q" type="button">Black holes</button><button class="q" type="button">History of astronomy</button></div>
+<div style="align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: 3px;"><span class="who">You</span><div class="bub me" style="max-width: 600px;">Constellations, Moon phases, planets. Skip the history please, and no heavy maths.</div></div>
+<div style="display: flex; flex-direction: column; gap: 3px;"><span class="who">Duolify</span><div class="bub ai" style="max-width: 600px;">Got it — no history, light on maths. Should examples be things you can see from a city balcony, or is a dark-sky trip OK?</div></div>
+<div class="qr"><button class="q" type="button">City balcony</button><button class="q" type="button">Both</button><button class="q" type="button">Dark sky is fine</button><button class="q" type="button">Not sure</button></div>
+<div class="dots" role="status" aria-label="Waiting for your answer" style="display: none;"><i></i><i></i><i></i></div>
+</div>
+<div class="cmp" style="padding: 12px 40px 20px;"><label style="flex: 1;"><span style="position: absolute; left: -9999px;">Your answer</span><textarea class="in" rows="1">Type an answer or anything else you want in the course…</textarea></label><button class="send" type="button" aria-label="Send"><svg class="i" aria-hidden="true"><use href="#send"></use></svg></button></div>
+</div>
+<aside aria-label="Course brief" style="width: 360px; flex: none; border-left: 2px solid #EFEFEF; background: #FCFCFA; padding: 22px; display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; align-items: center; gap: 8px;"><svg class="i" aria-hidden="true" style="color: #1677C9;"><use href="#spark"></use></svg><b style="font-size: 17px; font-weight: 900; color: #2B2B2B; flex: 1;">Course brief</b><span class="chip warn">1 question left</span></div>
+<div class="sumr"><b>Topic</b><span>Astronomy for curious beginners</span><a href="#" aria-label="Edit topic"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Goal</b><span>Explain the night sky to my kids</span><a href="#" aria-label="Edit goal"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Level</b><span>Beginner · light maths</span><a href="#" aria-label="Edit level"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Include</b><span>Constellations · Moon phases · Planets</span><a href="#" aria-label="Edit included topics"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Skip</b><span>History of astronomy</span><a href="#" aria-label="Edit skipped topics"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Viewing</b><span class="help">Waiting for your answer</span></div>
+<div class="sumr"><b>Lessons</b><span>About 6 min · English</span><a href="#" aria-label="Edit lesson length and language"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div style="flex: 1;"></div>
+<span class="help">Clarifying is free. Nothing is charged until you confirm and preview.</span>
+<a class="dkb" href="#">Confirm brief</a>
+</aside>
+</div>
+</div>
+
+<div class="dk">
+<div class="dktop"><a class="ib" href="#" aria-label="Back to preview"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><b style="font-size: 18px; font-weight: 900; color: #2B2B2B;">Create a course</b><div class="steps"><span class="sp done"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg>Brief</span><span class="sp done"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg>Preview</span><span class="sp now">3 Outline</span><span class="sp">4 Create</span></div><span style="flex: 1;"></span><span class="chip">2 unsaved changes</span><a href="#" class="dkb sec sm"><svg class="i sm" aria-hidden="true"><use href="#undo"></use></svg>Undo</a></div>
+<div style="flex: 1; display: flex; min-height: 0;">
+<div style="flex: 1; padding: 20px 32px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; min-width: 0;">
+<div style="display: flex; align-items: center; gap: 10px;"><h2 style="margin: 0; font-size: 26px; font-weight: 900; color: #2B2B2B; flex: 1;">Shape your outline</h2><span class="chip vi">Sample outline</span></div>
+<p class="s">Drag units or lessons to reorder, or use the arrow buttons. Lesson content is written later, one lesson at a time.</p>
+<div class="un"><div class="uh"><button class="drag" type="button" aria-label="Reorder Unit 1. Use arrow keys or the move buttons"><svg class="i" aria-hidden="true"><use href="#drag"></use></svg></button><b>Unit 1 · Finding your bearings</b><button class="ib s" type="button" aria-label="Move Unit 1 up" disabled style="color: #BDBDBD;"><svg class="i sm" aria-hidden="true"><use href="#up"></use></svg></button><button class="ib s" type="button" aria-label="Move Unit 1 down"><svg class="i sm" aria-hidden="true"><use href="#down"></use></svg></button><button class="ib s" type="button" aria-label="Rename Unit 1"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></button><button class="ib s" type="button" aria-label="Collapse Unit 1" aria-expanded="true"><svg class="i sm" aria-hidden="true"><use href="#down"></use></svg></button></div>
+<div class="ls"><button class="drag" type="button" aria-label="Reorder lesson" style="margin-left: -34px; height: 30px;"><svg class="i sm" aria-hidden="true"><use href="#drag"></use></svg></button><span style="flex: 1;">1.1 A map of the night<span class="g">Name the main parts of the night sky</span></span><button class="ib s" type="button" aria-label="Remove lesson 1.1"><svg class="i sm" aria-hidden="true"><use href="#trash"></use></svg></button></div>
+<div class="ls"><button class="drag" type="button" aria-label="Reorder lesson" style="margin-left: -34px; height: 30px;"><svg class="i sm" aria-hidden="true"><use href="#drag"></use></svg></button><span style="flex: 1;">1.2 Why the sky changes<span class="g">Explain why stars appear to move</span></span><button class="ib s" type="button" aria-label="Remove lesson 1.2"><svg class="i sm" aria-hidden="true"><use href="#trash"></use></svg></button></div>
+<div class="ls" style="color: #1667AB;"><svg class="i sm" aria-hidden="true"><use href="#plus"></use></svg>Add a lesson</div>
+</div>
+<div class="un lift" aria-grabbed="true"><div class="uh"><button class="drag" type="button" aria-label="Dragging Unit 3, Planets you can spot"><svg class="i" aria-hidden="true"><use href="#drag"></use></svg></button><b>Unit 3 · Planets you can spot</b><span class="chip info">Moving · drop above Unit 2</span></div></div>
+<div class="drop" aria-hidden="true"></div>
+<div class="un"><div class="uh"><button class="drag" type="button" aria-label="Reorder Unit 2"><svg class="i" aria-hidden="true"><use href="#drag"></use></svg></button><b>Unit 2 · The Moon and its phases</b><span class="help">5 lessons</span><button class="ib s" type="button" aria-label="Move Unit 2 up"><svg class="i sm" aria-hidden="true"><use href="#up"></use></svg></button><button class="ib s" type="button" aria-label="Move Unit 2 down"><svg class="i sm" aria-hidden="true"><use href="#down"></use></svg></button><button class="ib s" type="button" aria-label="Expand Unit 2" aria-expanded="false"><svg class="i sm" aria-hidden="true"><use href="#chev"></use></svg></button></div></div>
+<div class="un"><div class="uh"><span style="width: 30px;"></span><b>Unit 4 · Your first telescope</b><span class="tag add">New from chat</span><button class="ib s" type="button" aria-label="Expand Unit 4" aria-expanded="false"><svg class="i sm" aria-hidden="true"><use href="#chev"></use></svg></button></div></div>
+<a href="#" class="help" style="color: #1667AB; font-weight: 900;"><svg class="i sm" aria-hidden="true" style="vertical-align: -4px;"><use href="#plus"></use></svg> Add a unit</a>
+</div>
+<aside aria-label="Ask to change the outline" style="width: 380px; flex: none; border-left: 2px solid #EFEFEF; background: #FCFCFA; display: flex; flex-direction: column;">
+<div style="padding: 18px 20px 8px; display: flex; align-items: center; gap: 8px;"><svg class="i" aria-hidden="true" style="color: #1677C9;"><use href="#spark"></use></svg><b style="font-size: 17px; font-weight: 900; color: #2B2B2B;">Ask to change it</b></div>
+<div style="flex: 1; padding: 6px 20px; display: flex; flex-direction: column; gap: 10px; overflow: hidden;">
+<div class="bub me" style="align-self: flex-end;">Add a short unit on choosing a first telescope at the end</div>
+<div class="bub ai">Here's my suggestion:</div>
+<div style="border: 2px solid #E3E3E3; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; gap: 8px; align-items: center; padding: 8px 10px; font-size: 13px; font-weight: 700;"><span class="tag add">Added</span>Unit 4 · Your first telescope (3 lessons)</div>
+<div style="display: flex; gap: 8px; align-items: center; padding: 8px 10px; font-size: 13px; font-weight: 700; border-top: 2px solid #F3F3F3;"><span class="tag ren">Retitled</span>3.5 Planets through binoculars</div>
+</div>
+<div style="display: flex; gap: 8px;"><button class="btn sm2" type="button">Apply</button><button class="btn sec sm2" type="button">Discard</button></div>
+<span class="chip ok" style="align-self: flex-start;"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg>Applied · Undo available</span>
+</div>
+<div class="cmp" style="padding: 10px 16px 18px;"><label style="flex: 1;"><span style="position: absolute; left: -9999px;">Ask for an outline change</span><textarea class="in" rows="1">e.g. “Put planets before the Moon”</textarea></label><button class="send" type="button" aria-label="Send"><svg class="i" aria-hidden="true"><use href="#send"></use></svg></button></div>
+<div style="padding: 0 20px 14px;"><span class="help">About 5 credits per change · daily free 28 left. Dragging and renaming are free.</span></div>
+<div style="padding: 14px 20px 20px; border-top: 2px solid #EFEFEF;"><a class="dkb" href="#" style="width: 100%;">Create outline · up to 55</a></div>
+</aside>
+</div>
+</div>
+
+</div>
+
+<span class="dkst" style="margin-top: 12px;">Mobile · &lt; 48rem · same steps and actions</span>
+<div style="display: flex; gap: 40px; align-items: flex-start;">
+
+<div class="st">
+<div class="lb"><b>1 · Brief — clarifying chat</b><span>Starts from onboarding answers. Multi-select quick replies; free text always allowed.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Cancel and keep draft"><svg class="i" aria-hidden="true"><use href="#x"></use></svg></a><div class="steps"><span class="sp now">1 Brief</span><span class="sp">2</span><span class="sp">3</span><span class="sp">4</span></div><span style="flex: 1;"></span><a href="#" class="chip warn" style="text-decoration: none;">Brief · 1 left</a></div>
+<div class="mn">
+<div class="bub ai">From your setup: astronomy, for fun, for your kids. Which parts interest you most?</div>
+<div class="qr" role="group" aria-label="Pick topics, choose any"><button class="q on" type="button" aria-pressed="true"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg>Constellations</button><button class="q on" type="button" aria-pressed="true"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg>Moon phases</button><button class="q on" type="button" aria-pressed="true"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg>Planets</button><button class="q" type="button">Telescopes</button><button class="q" type="button">Black holes</button><button class="q" type="button">History</button></div>
+<div class="bub me">Skip the history please, and no heavy maths.</div>
+<div class="bub ai">Got it. City balcony or dark-sky trips for examples?</div>
+<div class="qr"><button class="q" type="button">City balcony</button><button class="q" type="button">Both</button><button class="q" type="button">Not sure</button></div>
+</div>
+<div class="cmp"><label style="flex: 1;"><span style="position: absolute; left: -9999px;">Your answer</span><textarea class="in" rows="1">Type an answer…</textarea></label><button class="send" type="button" aria-label="Send"><svg class="i" aria-hidden="true"><use href="#send"></use></svg></button></div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>1 · Brief sheet (= desktop side panel)</b><span>Live brief opened from the chip. Each line editable; unanswered items are labelled.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back to chat"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><b style="font-size: 17px; font-weight: 900; color: #2B2B2B; flex: 1;">Course brief</b><span class="chip warn">1 left</span></div>
+<div class="mn">
+<div class="sumr"><b>Topic</b><span>Astronomy for curious beginners</span><a href="#" aria-label="Edit topic"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Goal</b><span>Explain the night sky to my kids</span><a href="#" aria-label="Edit goal"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Level</b><span>Beginner · light maths</span><a href="#" aria-label="Edit level"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Include</b><span>Constellations · Moon phases · Planets</span><a href="#" aria-label="Edit included"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Skip</b><span>History of astronomy</span><a href="#" aria-label="Edit skipped"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Viewing</b><span class="help">Waiting for your answer · <a href="#">Answer in chat</a></span></div>
+<div class="sumr"><b>Lessons</b><span>About 6 min · English</span><a href="#" aria-label="Edit lessons"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+</div>
+<div class="foot"><a class="btn" href="#">Confirm brief</a><a class="btn q" href="#">Keep chatting</a></div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>2 · Confirm brief → preview</b><span>Explicit consent before the paid preview. Insufficient credits keeps the brief and opens the shop.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back to brief"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><div class="steps"><span class="sp done"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span><span class="sp now">2 Preview</span><span class="sp">3</span><span class="sp">4</span></div></div>
+<div class="mn">
+<h2 class="t">Ready to preview?</h2>
+<p class="s">We'll make 3 sample slides and a sample outline from your brief. No course is created yet.</p>
+<div style="border: 2px solid #8CCBF7; background: #F4FAFF; border-radius: 18px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;"><b style="color: #2B2B2B;">Astronomy for curious beginners</b><span class="help">Beginner · light maths · constellations, Moon phases, planets · no history · city balcony</span><a href="#" class="help" style="font-weight: 900;">Edit brief</a></div>
+<div style="border-radius: 18px; background: #F0E7FF; border: 2px solid #DCC9FB; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;"><div class="row"><span style="color: #5B2BB5; font-weight: 800;">Preview</span><b style="color: #3E1A8A;">25 credits</b></div><div class="row"><span class="help" style="color: #5B2BB5;">Purchased balance</span><b style="color: #3E1A8A;">184 → 159</b></div></div>
+<div class="ban warn"><svg class="i" aria-hidden="true"><use href="#gm"></use></svg><div><b>Not enough credits variant</b><p>Purchased balance 10. Daily free credits can't pay for previews. Your brief is saved.</p></div></div>
+</div>
+<div class="foot"><a class="btn" href="#">Confirm &amp; preview · 25</a><a class="btn q" href="#">Keep chatting</a></div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>2 · Preview examples</b><span>Sample badge, no autoplay, captions. Regenerate needs a fresh 25-credit consent.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><div class="steps"><span class="sp done"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span><span class="sp now">2 Preview</span><span class="sp">3</span><span class="sp">4</span></div></div>
+<div class="mn">
+<div style="display: flex; align-items: center;"><h2 class="t" style="flex: 1;">Course preview</h2><span class="chip vi">Sample</span></div>
+<div class="stage" style="height: 200px;" role="img" aria-label="Example slide: Earth rotating under the stars"><div style="position: absolute; left: 130px; top: 50px; width: 100px; height: 100px; border-radius: 50%; background: #1677C9; border: 6px solid #58C322;"></div><div style="position: absolute; left: 40px; top: 30px; width: 8px; height: 8px; border-radius: 50%; background: #FFC233;"></div><div style="position: absolute; left: 290px; top: 50px; width: 10px; height: 10px; border-radius: 50%; background: #FFC233;"></div><span class="chip" style="position: absolute; left: 10px; bottom: 10px; background: #fff;">Example 1 of 3</span></div>
+<div style="padding: 8px 12px; border: 2px solid #E3E3E3; border-radius: 14px; font-weight: 700;">Earth turns. Your view of the stars changes.</div>
+<div style="display: flex; gap: 8px;"><button class="btn au" type="button" style="min-height: 44px;"><svg class="i sm" aria-hidden="true" style="fill: #fff;"><use href="#play"></use></svg>Play</button><button class="ib" type="button" aria-label="Captions on"><svg class="i" aria-hidden="true"><use href="#cc"></use></svg></button><span style="flex: 1;"></span><button class="btn sec au" type="button" style="min-height: 44px;">Next</button></div>
+<div style="border: 2px solid #E3E3E3; border-radius: 14px; padding: 10px 12px;"><b style="color: #2B2B2B; font-size: 14px;">Sample outline · 3 units · 14 lessons</b><br><span class="help">Finding your bearings · The Moon · Planets</span></div>
+<a href="#" class="help" style="font-weight: 900;">Regenerate preview · 25</a>
+</div>
+<div class="foot"><a class="btn" href="#">Shape the outline</a></div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>3 · Outline editor</b><span>Long-press drag handle or the up/down buttons (keyboard and screen-reader friendly). Rename, remove, add.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back to preview"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><div class="steps"><span class="sp done"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span><span class="sp done"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span><span class="sp now">3 Outline</span><span class="sp">4</span></div><span style="flex: 1;"></span><button class="ib" type="button" aria-label="Undo"><svg class="i" aria-hidden="true"><use href="#undo"></use></svg></button></div>
+<div class="mn" style="gap: 8px;">
+<div style="display: flex; align-items: center;"><h2 class="t" style="flex: 1; font-size: 22px;">Shape your outline</h2><span class="chip vi">Sample</span></div>
+<div class="un"><div class="uh"><button class="drag" type="button" aria-label="Reorder Unit 1"><svg class="i" aria-hidden="true"><use href="#drag"></use></svg></button><b>1 · Finding your bearings</b><button class="ib s" type="button" aria-label="Unit 1 options"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></button></div>
+<div class="ls">1.1 A map of the night</div><div class="ls">1.2 Why the sky changes</div><div class="ls">1.3 Following a star</div></div>
+<div class="un lift"><div class="uh"><button class="drag" type="button" aria-label="Dragging Unit 3"><svg class="i" aria-hidden="true"><use href="#drag"></use></svg></button><b>3 · Planets you can spot</b><span class="chip info">Moving</span></div></div>
+<div class="drop" aria-hidden="true"></div>
+<div class="un"><div class="uh"><button class="drag" type="button" aria-label="Reorder Unit 2"><svg class="i" aria-hidden="true"><use href="#drag"></use></svg></button><b>2 · The Moon</b><button class="ib s" type="button" aria-label="Move Unit 2 up"><svg class="i sm" aria-hidden="true"><use href="#up"></use></svg></button><button class="ib s" type="button" aria-label="Move Unit 2 down"><svg class="i sm" aria-hidden="true"><use href="#down"></use></svg></button></div></div>
+<a href="#" class="help" style="font-weight: 900;">+ Add a unit</a>
+<span class="help" role="status">Unit 3 moved to position 2.</span>
+</div>
+<div class="cmp" style="padding-bottom: 10px;"><label style="flex: 1;"><span style="position: absolute; left: -9999px;">Ask for an outline change</span><textarea class="in" rows="1">Ask to change the outline…</textarea></label><button class="send" type="button" aria-label="Send"><svg class="i" aria-hidden="true"><use href="#send"></use></svg></button></div>
+<div style="padding: 0 18px 20px;"><a class="btn" href="#">Review &amp; create</a></div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>3 · Chat change → proposal diff</b><span>Same diff as desktop. Apply or Discard; applied changes can be undone.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back to outline"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><b style="font-size: 17px; font-weight: 900; color: #2B2B2B; flex: 1;">Ask to change it</b></div>
+<div class="mn">
+<div class="bub me">Add a short unit on choosing a first telescope at the end</div>
+<div class="bub ai">Here's my suggestion:</div>
+<div style="border: 2px solid #E3E3E3; border-radius: 14px; overflow: hidden;">
+<div style="display: flex; gap: 8px; align-items: center; padding: 9px 10px; font-size: 14px; font-weight: 700;"><span class="tag add">Added</span>Unit 4 · Your first telescope</div>
+<div style="display: flex; gap: 8px; align-items: center; padding: 9px 10px; font-size: 14px; font-weight: 700; border-top: 2px solid #F3F3F3;"><span class="tag ren">Retitled</span>3.5 Planets through binoculars</div>
+<div style="display: flex; gap: 8px; align-items: center; padding: 9px 10px; font-size: 14px; font-weight: 700; border-top: 2px solid #F3F3F3;"><span class="tag mov">Kept</span>Your manual order of units 1–3</div>
+</div>
+<div style="display: flex; gap: 8px;"><button class="btn" type="button">Apply</button><button class="btn sec" type="button">Discard</button></div>
+<div class="ban vi" style="background: #F0E7FF; color: #5B2BB5;"><svg class="i sm" aria-hidden="true"><use href="#gm"></use></svg><p>5 credits used (daily free). 23 left today.</p></div>
+<div class="ban bad"><svg class="i sm" aria-hidden="true"><use href="#alert"></use></svg><div><b>Failure variant</b><p>Couldn't suggest a change. Nothing was charged; your outline is unchanged.</p></div></div>
+</div>
+<div class="cmp"><label style="flex: 1;"><span style="position: absolute; left: -9999px;">Ask for an outline change</span><textarea class="in" rows="1">Ask for another change…</textarea></label><button class="send" type="button" aria-label="Send"><svg class="i" aria-hidden="true"><use href="#send"></use></svg></button></div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>4 · Create outline · job states</b><span>Final consent with breakdown, then job card. Failure releases the reservation; success opens the path.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back to outline"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><div class="steps"><span class="sp done"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span><span class="sp done"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span><span class="sp done"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span><span class="sp now">4 Create</span></div></div>
+<div class="mn">
+<h2 class="t">Create your course outline</h2>
+<p class="s">Uses your edited outline (4 units, 17 lessons) and enrolls you. Lessons are prepared one at a time as you reach them.</p>
+<div style="border: 2px solid #E3E3E3; border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;"><div class="row"><span>Outline generation</span><b>up to 55</b></div><div class="row"><span class="help">From purchased credits</span><b>159 → 104</b></div><span class="help">Each lesson later: about 140 + 50 narration, shown before it's prepared.</span></div>
+<a class="btn" href="#">Create outline · up to 55</a>
+<div class="ban info" role="status"><svg class="i" aria-hidden="true"><use href="#spin"></use></svg><div><b>Preparing your outline…</b><p>You can leave — we'll keep going.</p></div></div>
+<div class="ban bad"><svg class="i" aria-hidden="true"><use href="#alert"></use></svg><div><b>Couldn't create it</b><p>Your 55 reserved credits were released. Your edits are saved. <a href="#" style="color: #B3261E; font-weight: 900;">Try again</a></p></div></div>
+<div class="ban ok"><svg class="i" aria-hidden="true"><use href="#ck"></use></svg><div><b>Your course is ready</b><p>Lesson 1 is ready to prepare. 52 used, 3 returned. <a href="#" style="color: #1E6E0C; font-weight: 900;">Go to learn path</a></p></div></div>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":3066,"height":2080}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -104,7 +104,7 @@ async function browserChecks() {
       await page.getByRole('heading', { name: 'One idea clearer.' }).waitFor();
       await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
       await page.getByRole('button', { name: 'Back to learn path' }).click();
-      assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim()), '#171420');
+      assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim()), '#131f24');
       await page.getByRole('button', { name: 'Restart demo' }).click();
       await page.getByRole('button', { name: 'Start lesson' }).click();
       await page.getByRole('button', { name: 'Play narration' }).click();
@@ -175,6 +175,7 @@ async function tokenChecks() {
     }
     pairs.push(['on-primary', 'primary', 4.5], ['on-primary', 'primary-hover', 4.5], ['on-accent', 'accent', 4.5]);
     for (const role of ['success', 'danger', 'warning']) pairs.push([role, `${role}-bg`, 4.5]);
+    pairs.push(['on-secondary', 'secondary', 4.5], ['info', 'info-bg', 4.5], ['credit', 'credit-bg', 4.5], ['streak', 'streak-bg', 4.5]);
     for (const [fg, bg, threshold] of pairs) {
       const a = colors[fg].$value.hex, b = colors[bg].$value.hex;
       const ratio = contrast(a, b);

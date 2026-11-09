@@ -9,6 +9,13 @@ The bootstrap client has useful course and player structure but no shared brand,
 - Add capability `design-system`: tokens, WCAG 2.2 AA, reduced motion, dark mode, breakpoints, localization and UI analytics naming.
 - Document source drift: the owner's explicit all-correct/retry-variant and effort-earned-freeze rules take precedence over older lesson-test, credits, gamification and friend-streak spec passages. This change does not migrate those capabilities.
 
+## Revision 2026-11-09
+- Re-theme to a playful green, Duolingo-style look with original branding; update `tokens.json`, `theme.css`, the prototype's token values, contrast evidence and `check.mjs` pairs together. New roles: `secondary`, `info`, `credit`, `streak`, `lime`.
+- Replace the onboarding form and topic form with guided chats (quick replies, follow-ups, live summary or course brief, explicit confirm); the form stays as a fallback and the profile editor.
+- Make the sample outline editable before the outline job: reorder by drag or move buttons, rename, remove, add, undo, and chat change proposals shown as a diff.
+- Design every surface desktop first with the same functions on mobile; add the canvas source under `docs/design/canvas/`.
+- Open pricing questions for E12: a free clarifying chat and about 5 credits per outline chat change are proposals only.
+
 ## Impact
 Documentation and a static review artifact only. No app wiring, runtime dependencies, API/proto changes, new AI calls or real payment flow. E1–E9/E12/E14 implementation tickets consume the design. Exact commercial prices remain E12 decisions.
 

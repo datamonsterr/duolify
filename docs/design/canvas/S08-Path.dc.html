@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Learn path</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Nunito',system-ui,sans-serif;color:#3C3C3C}
+*{box-sizing:border-box}
+a{color:#1667AB}a:hover{color:#0F5A99}
+.i{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sm{width:18px;height:18px}
+.st{width:390px;display:flex;flex-direction:column;gap:12px;flex:none}
+.lb{display:flex;flex-direction:column;gap:2px;min-height:64px}
+.lb b{font-size:17px;font-weight:900;color:#2B2B2B}
+.lb span{font-size:14px;color:#555;line-height:1.35}
+.ph{width:390px;height:844px;background:#fff;border:2px solid #DADADA;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.top{display:flex;align-items:center;gap:10px;padding:16px 16px 12px;border-bottom:2px solid #EFEFEF}
+.cs{display:flex;align-items:center;gap:8px;text-decoration:none;color:#2B2B2B;font-weight:900;font-size:15px}
+.tile{width:36px;height:36px;border-radius:10px;background:#1677C9;display:flex;align-items:center;justify-content:center;color:#fff}
+.stat{display:inline-flex;align-items:center;gap:4px;font-weight:900;font-size:16px;font-variant-numeric:tabular-nums;text-decoration:none}
+.mn{flex:1;min-height:0;padding:16px 20px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.tabs{display:flex;gap:2px;border-top:2px solid #EFEFEF;padding:8px 6px 18px}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;font-weight:800;color:#5E5E5E;text-decoration:none;padding:6px 0;border:2px solid transparent;border-radius:14px}
+.tab.on{color:#0D5592;background:#DDF1FF;border-color:#8CCBF7}
+.unit{background:#1F7A0D;border-radius:18px;box-shadow:0 5px 0 #145208;padding:14px 16px;color:#fff;display:flex;align-items:center;gap:10px}
+.unit .e{font-size:12px;font-weight:900;letter-spacing:1px;text-transform:uppercase}
+.unit .n{font-size:19px;font-weight:900;line-height:1.2}
+.ol{border:2px solid rgba(255,255,255,.65);border-radius:14px;padding:8px 10px;color:#fff;font-weight:900;font-size:12px;text-decoration:none;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.6px}
+.path{display:flex;flex-direction:column;gap:18px;padding:8px 0 0;margin:0;list-style:none}
+.pn{display:flex;align-items:center;gap:14px}
+.nd{width:72px;height:66px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;background:#1F7A0D;box-shadow:0 7px 0 #145208;border:none;flex:none;text-decoration:none}
+.nd.lock{background:#E5E5E5;color:#555;box-shadow:0 7px 0 #C9C9C9}
+.nd.gold{background:#FFC233;color:#4A2E00;box-shadow:0 7px 0 #D99A00}
+.nd.blue{background:#1677C9;box-shadow:0 7px 0 #0F5A99}
+.nd.red{background:#fff;color:#C62828;border:3px solid #C62828;box-shadow:0 7px 0 #E8B4B4}
+.nd.vio{background:#F0E7FF;color:#5B2BB5;border:3px solid #7B3FE4;box-shadow:0 7px 0 #CDB5F7}
+.pl{display:flex;flex-direction:column;gap:1px}
+.pl b{font-size:15px;font-weight:900;color:#2B2B2B}
+.pl span{font-size:13px;font-weight:700;color:#555}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;padding:0 18px;border:none;border-radius:16px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:15px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;cursor:pointer;text-align:center}
+.btn.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.btn.vio{background:#7B3FE4;box-shadow:0 4px 0 #5A2BB0}
+.btn.sm2{min-height:40px;font-size:13px;width:auto;padding:0 14px}
+.bub{background:#fff;border:2px solid #E3E3E3;border-radius:14px;padding:4px 10px;font-weight:900;font-size:12px;color:#1F7A0D;text-transform:uppercase;letter-spacing:.6px}
+.help{font-size:13px;font-weight:600;color:#5E5E5E}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:12px;font-weight:800;font-size:12px;background:#F1F1F1;color:#444}
+.ok{background:#E3F8D3;color:#1E6E0C}.warn{background:#FFF1D1;color:#704400}.info{background:#DDF1FF;color:#0D5592}.bad{background:#FDECEC;color:#B3261E}
+.ban{border-radius:16px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start}
+.ban b{display:block;font-size:15px;font-weight:900;margin-bottom:2px}
+.ban p{margin:0;font-size:13px;line-height:1.45}
+.goal{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:800;color:#2B2B2B}
+.bar{height:12px;border-radius:999px;background:#E5E5E5;overflow:hidden;flex:1}
+.bar i{display:block;height:100%;border-radius:999px;background:#FFC233}
+.job{border:2px solid #9FD3FF;background:#F4FAFF;border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.dk{width:1280px;height:800px;background:#fff;border:2px solid #DADADA;border-radius:20px;overflow:hidden;display:flex;flex:none;position:relative}
+.dks{width:224px;flex:none;border-right:2px solid #EFEFEF;padding:20px 12px;display:flex;flex-direction:column;gap:4px}
+.dkn{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;border:2px solid transparent;text-decoration:none;color:#3C3C3C;font-weight:900;font-size:13px;letter-spacing:.5px;text-transform:uppercase}
+.dkn.on{background:#DDF1FF;border-color:#8CCBF7;color:#0D5592}
+.dkm{flex:1;min-width:0;padding:28px 36px;display:flex;flex-direction:column;gap:16px;overflow:hidden}
+.dkr{width:300px;flex:none;padding:28px 22px;display:flex;flex-direction:column;gap:14px;border-left:2px solid #EFEFEF;background:#FCFCFA}
+.dki{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.dkb{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border:none;border-radius:16px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:14px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;cursor:pointer;white-space:nowrap}
+.dkb.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.dkb.blue{background:#1677C9;box-shadow:0 4px 0 #0F5A99}
+.dkb.vio{background:#7B3FE4;box-shadow:0 4px 0 #5A2BB0}
+.dkb.red{background:#C62828;box-shadow:0 4px 0 #8E1B1B}
+.dkb.off{background:#E5E5E5;color:#555;box-shadow:0 4px 0 #CFCFCF;border:2px dashed #9A9A9A}
+.dkb.q{background:none;box-shadow:none;color:#1667AB}
+.dkb.sm{min-height:38px;padding:0 14px;font-size:12px}
+.dkc{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:12px;font-weight:800;font-size:12px;background:#F1F1F1;color:#444;white-space:nowrap}
+.dkx{border-radius:16px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start}
+.dkx b{display:block;font-size:15px;font-weight:900;margin-bottom:2px}
+.dkx p{margin:0;font-size:13px;line-height:1.45}
+.dkk{background:#fff;border:2px solid #E3E3E3;border-radius:18px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.t-ok{background:#E3F8D3;color:#1E6E0C}.t-info{background:#DDF1FF;color:#0D5592}.t-warn{background:#FFF1D1;color:#704400}.t-bad{background:#FDECEC;color:#B3261E}.t-vi{background:#F0E7FF;color:#5B2BB5}
+.dkh{margin:0;font-size:30px;font-weight:900;color:#2B2B2B;line-height:1.15}
+.dkp{margin:0;font-size:15px;line-height:1.5;color:#555}
+.dkhelp{font-size:13px;font-weight:600;color:#5E5E5E}
+.dkbar{height:14px;border-radius:999px;background:#E5E5E5;overflow:hidden}
+.dkbar i{display:block;height:100%;border-radius:999px;background:#58C322}
+.dkin{font-family:inherit;font-size:15px;font-weight:600;color:#2B2B2B;background:#F7F7F7;border:2px solid #CFCFCF;border-radius:14px;padding:10px 12px;width:100%}
+.dkf{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:800;color:#2B2B2B}
+.dktop{display:flex;align-items:center;gap:14px;padding:16px 28px;border-bottom:2px solid #EFEFEF}
+.dkib{width:44px;height:44px;border-radius:14px;border:2px solid #E0E0E0;background:#fff;display:flex;align-items:center;justify-content:center;color:#3C3C3C;flex:none;cursor:pointer}
+.dkbub{max-width:560px;padding:12px 15px;border-radius:18px;font-size:15px;line-height:1.5;font-weight:600}
+.dkme{align-self:flex-end;background:#DDF1FF;color:#0D5592}
+.dkai{background:#fff;border:2px solid #E3E3E3;color:#2B2B2B}
+.dkqr{border:2px solid #E0E0E0;border-bottom-width:4px;border-radius:14px;padding:8px 14px;font-family:inherit;font-weight:800;font-size:14px;background:#fff;color:#2B2B2B;cursor:pointer}
+.dkqr.on{background:#DDF1FF;border-color:#8CCBF7;color:#0D5592}
+.dkst{font-size:15px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:#555}
+.dkstat{display:inline-flex;align-items:center;gap:6px;font-weight:900;font-size:16px;text-decoration:none}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="fl" viewBox="0 0 24 24"><path d="M12 2c1.5 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2.5 1.2-4 2.5-5 .2 2 1 3 2.2 3.3C11.5 7.8 11 5 12 2z"></path></symbol>
+<symbol id="gm" viewBox="0 0 24 24"><path d="M7 4h10l4 5-9 11L3 9z"></path><path d="M3 9h18M10 4 8 9l4 11 4-11-2-5"></path></symbol>
+<symbol id="home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"></path></symbol>
+<symbol id="crs" viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5z"></path><path d="M2 12.5l10 5 10-5M2 17l10 5 10-5"></path></symbol>
+<symbol id="frn" viewBox="0 0 24 24"><circle cx="8" cy="9" r="3.2"></circle><circle cx="16.5" cy="9" r="3.2"></circle><path d="M2 20c.5-3 3-5 6-5s5.5 2 6 5M15 15.2c.5-.1 1-.2 1.5-.2 3 0 5.5 2 6 5"></path></symbol>
+<symbol id="nt" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle></symbol>
+<symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z"></path></symbol>
+<symbol id="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></symbol>
+<symbol id="lk" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></symbol>
+<symbol id="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></symbol>
+<symbol id="tr" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10M4 18h13"></path></symbol>
+<symbol id="spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 1-9 9"></path></symbol>
+<symbol id="rp" viewBox="0 0 24 24"><path d="M4 4v6h6"></path><path d="M5.5 15A8 8 0 1 0 7 7.5L4 10"></path></symbol>
+<symbol id="off" viewBox="0 0 24 24"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.6a10 10 0 0 1 4.2-2.3M14.8 10.3A10 10 0 0 1 19 12.6M2 8.8a15 15 0 0 1 4-2.3M12 20h.01"></path></symbol>
+<symbol id="alert" viewBox="0 0 24 24"><path d="M12 3 2 20.5h20z"></path><path d="M12 10v4.5M12 17.5h.01"></path></symbol>
+<symbol id="snow" viewBox="0 0 24 24"><path d="M12 2v20M3.3 7l17.4 10M20.7 7 3.3 17M9 4l3 2 3-2M9 20l3-2 3 2"></path></symbol>
+<symbol id="sl" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path><circle cx="15" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></symbol>
+<symbol id="trophy" viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"></path><path d="M8 6H4v2a4 4 0 0 0 4 4M16 6h4v2a4 4 0 0 1-4 4M12 13v4M8 21h8M9 17h6v4H9z"></path></symbol>
+</defs></svg>
+
+<div style="width: 2206px; height: 2080px; background: #F3F5EF; padding: 48px; display: flex; flex-direction: column; gap: 28px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 14px; font-weight: 900; letter-spacing: 1.2px; text-transform: uppercase; color: #1E6E0C;">S08 · E3, E4 Gated generation</span>
+<h1 style="margin: 0; font-size: 40px; font-weight: 900; color: #2B2B2B;">Learn path</h1>
+<p style="margin: 0; font-size: 17px; color: #4F4F4F;">A zig-zag of chunky nodes, read in linear order. Lesson N+1 is generated only after lesson N's test is passed. Locked lessons are not focusable and state their prerequisite in text.</p>
+</div>
+<span class="dkst">Desktop · ≥ 48rem</span>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="q-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"></path></symbol>
+<symbol id="q-crs" viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5z"></path><path d="M2 12.5l10 5 10-5M2 17l10 5 10-5"></path></symbol>
+<symbol id="q-glb" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3.5 3.5 3.5 14.5 0 18M12 3c-3.5 3.5-3.5 14.5 0 18"></path></symbol>
+<symbol id="q-frn" viewBox="0 0 24 24"><circle cx="8" cy="9" r="3.2"></circle><circle cx="16.5" cy="9" r="3.2"></circle><path d="M2 20c.5-3 3-5 6-5s5.5 2 6 5M15 15.2c.5-.1 1-.2 1.5-.2 3 0 5.5 2 6 5"></path></symbol>
+<symbol id="q-flg" viewBox="0 0 24 24"><path d="M5 21V3M5 4h12l-2.5 4L17 12H5"></path></symbol>
+<symbol id="q-nt" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></symbol>
+<symbol id="q-bk" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"></path></symbol>
+<symbol id="q-gm" viewBox="0 0 24 24"><path d="M7 4h10l4 5-9 11L3 9z"></path><path d="M3 9h18M10 4 8 9l4 11 4-11-2-5"></path></symbol>
+<symbol id="q-usr" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c.5-4 4-6 8-6s7.5 2 8 6"></path></symbol>
+<symbol id="q-gr" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"></path></symbol>
+<symbol id="q-fl" viewBox="0 0 24 24"><path d="M12 2c1.5 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2.5 1.2-4 2.5-5 .2 2 1 3 2.2 3.3C11.5 7.8 11 5 12 2z"></path></symbol>
+<symbol id="q-xp" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"></path></symbol>
+<symbol id="q-snw" viewBox="0 0 24 24"><path d="M12 2v20M3.3 7l17.4 10M20.7 7 3.3 17M9 4l3 2 3-2M9 20l3-2 3 2"></path></symbol>
+<symbol id="q-ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></symbol>
+<symbol id="q-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"></path></symbol>
+<symbol id="q-bck" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"></path></symbol>
+<symbol id="q-chv" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></symbol>
+<symbol id="q-ply" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></symbol>
+<symbol id="q-pse" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"></path></symbol>
+<symbol id="q-rp" viewBox="0 0 24 24"><path d="M4 4v6h6"></path><path d="M5.5 15A8 8 0 1 0 7 7.5L4 10"></path></symbol>
+<symbol id="q-lk" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></symbol>
+<symbol id="q-cht" viewBox="0 0 24 24"><path d="M4 5h16v11H10l-6 4z"></path></symbol>
+<symbol id="q-snd" viewBox="0 0 24 24"><path d="M4 12 20 4l-5 16-3.5-6.5z"></path><path d="M11.5 13.5 20 4"></path></symbol>
+<symbol id="q-stp" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></symbol>
+<symbol id="q-spn" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 1-9 9"></path></symbol>
+<symbol id="q-alr" viewBox="0 0 24 24"><path d="M12 3 2 20.5h20z"></path><path d="M12 10v4.5M12 17.5h.01"></path></symbol>
+<symbol id="q-off" viewBox="0 0 24 24"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.6a10 10 0 0 1 4.2-2.3M14.8 10.3A10 10 0 0 1 19 12.6M2 8.8a15 15 0 0 1 4-2.3M12 20h.01"></path></symbol>
+<symbol id="q-pls" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+<symbol id="q-src" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M20.5 20.5 16 16"></path></symbol>
+<symbol id="q-str" viewBox="0 0 24 24"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z"></path></symbol>
+<symbol id="q-sl" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path><circle cx="15" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></symbol>
+<symbol id="q-tr" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10M4 18h13"></path></symbol>
+<symbol id="q-cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M10.5 10.2a2.2 2.2 0 1 0 0 3.6M17 10.2a2.2 2.2 0 1 0 0 3.6"></path></symbol>
+<symbol id="q-vol" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"></path><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"></path></symbol>
+<symbol id="q-clk" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></symbol>
+<symbol id="q-edt" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5l-4-4L4 16z"></path></symbol>
+<symbol id="q-trs" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4h5v3M6 7l1 14h10l1-14"></path></symbol>
+<symbol id="q-lnk" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"></path><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"></path></symbol>
+<symbol id="q-cpy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5"></rect><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"></path></symbol>
+<symbol id="q-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"></path></symbol>
+<symbol id="q-mor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle></symbol>
+<symbol id="q-bel" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></symbol>
+<symbol id="q-dl" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></symbol>
+<symbol id="q-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"></path></symbol>
+<symbol id="q-spk" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"></path></symbol>
+<symbol id="q-fork" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"></circle><circle cx="18" cy="5" r="2"></circle><circle cx="12" cy="19" r="2"></circle><path d="M6 7v2a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4V7M12 13v4"></path></symbol>
+<symbol id="q-map" viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"></path><path d="M9 4v14M15 6v14"></path></symbol>
+<symbol id="q-trophy" viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"></path><path d="M8 6H4v2a4 4 0 0 0 4 4M16 6h4v2a4 4 0 0 1-4 4M12 13v4M8 21h8M9 17h6v4H9z"></path></symbol>
+<symbol id="q-tgt" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></symbol>
+</defs></svg>
+<div style="display: flex; gap: 40px; align-items: flex-start;">
+<div class="dk"><nav class="dks" aria-label="Main"><div style="display: flex; align-items: center; gap: 8px; padding: 4px 12px 18px;"><div aria-hidden="true" style="position: relative; width: 30px; height: 28px;"><div style="position: absolute; left: 0; top: 6px; width: 20px; height: 20px; border-radius: 6px; background: #58C322;"></div><div style="position: absolute; left: 10px; top: 0; width: 20px; height: 20px; border-radius: 6px; background: #1677C9;"></div></div><span style="font-size: 24px; font-weight: 900; color: #2E9A12; letter-spacing: -.5px;">duolify</span></div><a class="dkn on" href="#" aria-current="page"><svg class="dki" aria-hidden="true" style="color: #1F7A0D;"><use href="#q-home"></use></svg>Learn</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-crs"></use></svg>Courses</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-glb"></use></svg>Marketplace</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-frn"></use></svg>Friends</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #A44E00;"><use href="#q-flg"></use></svg>Leagues</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-nt"></use></svg>Quick notes</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-bk"></use></svg>Bookmarks</a><div style="height: 2px; background: #EFEFEF; margin: 8px 0;"></div><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #7B3FE4;"><use href="#q-gm"></use></svg>Credits</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #555555;"><use href="#q-usr"></use></svg>Profile</a></nav>
+<div class="dkm" style="align-items: center;">
+<div style="width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; align-items: center; gap: 10px;"><a href="#" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #2B2B2B; font-weight: 900; font-size: 18px; flex: 1;"><span style="width: 40px; height: 40px; border-radius: 12px; background: #1677C9; color: #fff; display: flex; align-items: center; justify-content: center;"><svg class="dki" aria-hidden="true" style="fill: #fff;"><use href="#q-str"></use></svg></span>Astronomy for curious beginners<svg class="dki" aria-hidden="true"><use href="#q-chv"></use></svg></a></div>
+<div style="background: #1F7A0D; border-radius: 18px; box-shadow: 0 5px 0 #145208; padding: 16px 20px; color: #fff; display: flex; align-items: center; gap: 10px;"><div style="flex: 1;"><div style="font-size: 12px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;">Unit 1 · 2 of 4 complete</div><div style="font-size: 22px; font-weight: 900;">Finding your bearings</div></div><a href="#" style="border: 2px solid rgba(255,255,255,.65); border-radius: 14px; padding: 9px 12px; color: #fff; font-weight: 900; font-size: 12px; text-decoration: none; display: flex; align-items: center; gap: 6px; text-transform: uppercase;"><svg class="dki" aria-hidden="true"><use href="#q-sl"></use></svg>Steer</a><a href="#" style="border: 2px solid rgba(255,255,255,.65); border-radius: 14px; padding: 9px 12px; color: #fff; font-weight: 900; font-size: 12px; text-decoration: none; display: flex; align-items: center; gap: 6px; text-transform: uppercase;"><svg class="dki" aria-hidden="true"><use href="#q-tr"></use></svg>Outline</a></div>
+<ol style="list-style: none; margin: 0; padding: 10px 0 0; display: flex; flex-direction: column; gap: 22px;">
+<li style="display: flex; align-items: center; gap: 16px; padding-left: 250px;"><a href="#" aria-label="Lesson 1 completed. Review" style="width: 80px; height: 72px; border-radius: 50%; background: #FFC233; box-shadow: 0 7px 0 #D99A00; color: #4A2E00; display: flex; align-items: center; justify-content: center;"><svg class="dki" aria-hidden="true" style="width: 34px; height: 34px; stroke-width: 3;"><use href="#q-ck"></use></svg></a><span><b style="color: #2B2B2B;">A map of the night</b><br><span class="dkhelp">Completed · Review</span></span></li>
+<li style="display: flex; align-items: center; gap: 16px; padding-left: 170px;"><a href="#" aria-label="Lesson 2 completed. Review" style="width: 80px; height: 72px; border-radius: 50%; background: #FFC233; box-shadow: 0 7px 0 #D99A00; color: #4A2E00; display: flex; align-items: center; justify-content: center;"><svg class="dki" aria-hidden="true" style="width: 34px; height: 34px; stroke-width: 3;"><use href="#q-ck"></use></svg></a><span><b style="color: #2B2B2B;">Why the sky changes</b><br><span class="dkhelp">Completed · Review</span></span></li>
+<li style="display: flex; align-items: center; gap: 16px; padding-left: 240px;"><a href="#" aria-label="Lesson 3 needs 190 credits" style="width: 80px; height: 72px; border-radius: 50%; background: #F0E7FF; border: 3px solid #7B3FE4; box-shadow: 0 7px 0 #CDB5F7; color: #5B2BB5; display: flex; align-items: center; justify-content: center;"><svg class="dki" aria-hidden="true" style="width: 30px; height: 30px;"><use href="#q-gm"></use></svg></a><span><b style="color: #2B2B2B;">Following a star</b><br><span class="dkhelp">Ready to prepare · up to 190 credits</span><br><a class="dkb sm" href="#" style="margin-top: 6px;">Prepare lesson · 190</a></span></li>
+<li style="display: flex; align-items: center; gap: 16px; padding-left: 320px;"><span role="img" aria-label="Lesson 4 locked" style="width: 80px; height: 72px; border-radius: 50%; background: #E5E5E5; box-shadow: 0 7px 0 #C9C9C9; color: #555; display: flex; align-items: center; justify-content: center;"><svg class="dki" aria-hidden="true" style="width: 30px; height: 30px;"><use href="#q-lk"></use></svg></span><span><b style="color: #2B2B2B;">Reading the seasons</b><br><span class="dkhelp">Pass lesson 3's test first</span></span></li>
+</ol>
+</div>
+</div>
+<aside class="dkr" aria-label="Your progress"><div style="display: flex; justify-content: space-between;"><a class="dkstat" href="#" style="color: #A44E00;" aria-label="7 day streak"><svg class="dki" aria-hidden="true" style="color: #FF8A00; fill: #FF8A00;"><use href="#q-fl"></use></svg>7</a><a class="dkstat" href="#" style="color: #5B2BB5;" aria-label="212 credits"><svg class="dki" aria-hidden="true" style="color: #7B3FE4;"><use href="#q-gm"></use></svg>212</a></div><div class="dkk"><b style="color: #2B2B2B;">Daily goal</b><div class="dkbar"><i style="width: 50%; background: #FFC233;"></i></div><span class="dkhelp">10 / 20 XP today</span></div><div class="dkk"><b style="color: #2B2B2B;">Streak freezes</b><span class="dkhelp">1 of 2 Â· applied automatically</span></div><div class="dkk"><b style="color: #2B2B2B;">Credits</b><div class="dkbar"><i style="width: 61%; background: #7B3FE4;"></i></div><span class="dkhelp">Daily free 28 / 46 Â· purchased 124</span></div><div class="dkk"><b style="color: #2B2B2B;">Sun league Â· rank 5</b><span class="dkhelp">240 XP Â· promotion zone</span></div></aside></div>
+</div>
+<span class="dkst" style="margin-top: 12px;">Mobile · &lt; 48rem · same actions</span>
+<div style="display: flex; gap: 40px; align-items: flex-start;">
+
+<div class="st">
+<div class="lb"><b>Active — current lesson ready</b><span>Completed (gold, review), current (green + START), locked (grey). Daily goal under header.</span></div>
+<div class="ph">
+<div class="top"><a class="cs" href="#" aria-label="Switch course, current Astronomy"><span class="tile"><svg class="i sm" aria-hidden="true" style="fill: #fff;"><use href="#star"></use></svg></span>Astronomy<svg class="i sm" aria-hidden="true"><use href="#chev"></use></svg></a><span style="flex: 1;"></span><a class="stat" href="#" style="color: #A44E00;" aria-label="7 day streak"><svg class="i" aria-hidden="true" style="color: #FF8A00; fill: #FF8A00;"><use href="#fl"></use></svg>7</a><a class="stat" href="#" style="color: #5B2BB5;" aria-label="212 credits"><svg class="i" aria-hidden="true" style="color: #7B3FE4;"><use href="#gm"></use></svg>212</a></div>
+<div class="mn">
+<div class="goal"><span>Daily goal</span><div class="bar"><i style="width: 50%;"></i></div><span style="font-variant-numeric: tabular-nums;">10 / 20 XP</span></div>
+<div class="unit"><div style="flex: 1;"><div class="e">Unit 1 · 1 of 4 complete</div><div class="n">Finding your bearings</div></div><a class="ol" href="#"><svg class="i sm" aria-hidden="true"><use href="#tr"></use></svg>Outline</a></div>
+<p style="margin: 0; font-size: 14px; font-weight: 800; color: #555; text-align: center;">One small lesson. A wider view.</p>
+<ol class="path">
+<li class="pn" style="padding-left: 120px;"><a class="nd gold" href="#" aria-label="Lesson 1, A map of the night, completed. Review"><svg class="i" aria-hidden="true" style="width: 32px; height: 32px; stroke-width: 3;"><use href="#ck"></use></svg></a><div class="pl"><b>A map of the night</b><span>Completed · Review</span></div></li>
+<li style="display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-left: 50px;"><span class="bub" style="margin-left: 8px;">Start</span><div class="pn"><a class="nd" href="#" aria-label="Lesson 2, Why the sky changes, ready. Start lesson" style="outline: 6px solid #C9EFB2;"><svg class="i" aria-hidden="true" style="width: 30px; height: 30px; fill: #fff;"><use href="#play"></use></svg></a><div class="pl"><b>Why the sky changes</b><span>Ready · about 6 min</span></div></div></li>
+<li class="pn" style="padding-left: 110px;"><div class="nd lock" role="img" aria-label="Lesson 3, Following a star, locked"><svg class="i" aria-hidden="true" style="width: 28px; height: 28px;"><use href="#lk"></use></svg></div><div class="pl"><b>Following a star</b><span>Pass the previous lesson test first</span></div></li>
+<li class="pn" style="padding-left: 170px;"><div class="nd lock" role="img" aria-label="Lesson 4, locked"><svg class="i" aria-hidden="true" style="width: 28px; height: 28px;"><use href="#lk"></use></svg></div><div class="pl"><b>Reading the seasons</b><span>Locked</span></div></li>
+<li class="pn" style="padding-left: 100px;"><div class="nd lock" role="img" aria-label="Unit review, locked" style="border-radius: 22px;"><svg class="i" aria-hidden="true" style="width: 28px; height: 28px;"><use href="#trophy"></use></svg></div><div class="pl"><b>Unit 1 checkpoint</b><span>After lesson 4</span></div></li>
+</ol>
+</div>
+<nav class="tabs" aria-label="Main"><a class="tab on" href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#home"></use></svg>Learn</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#crs"></use></svg>Courses</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#frn"></use></svg>Friends</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#nt"></use></svg>Notes</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#more"></use></svg>More</a></nav>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>Ready to generate → generating</b><span>Estimate shown before preparing. Job card streams stage names (SSE), reconnects to the same job.</span></div>
+<div class="ph">
+<div class="top"><a class="cs" href="#"><span class="tile"><svg class="i sm" aria-hidden="true" style="fill: #fff;"><use href="#star"></use></svg></span>Astronomy<svg class="i sm" aria-hidden="true"><use href="#chev"></use></svg></a><span style="flex: 1;"></span><span class="stat" style="color: #A44E00;"><svg class="i" aria-hidden="true" style="color: #FF8A00; fill: #FF8A00;"><use href="#fl"></use></svg>8</span><span class="stat" style="color: #5B2BB5;"><svg class="i" aria-hidden="true" style="color: #7B3FE4;"><use href="#gm"></use></svg>212</span></div>
+<div class="mn">
+<div class="unit"><div style="flex: 1;"><div class="e">Unit 1 · 2 of 4 complete</div><div class="n">Finding your bearings</div></div><a class="ol" href="#"><svg class="i sm" aria-hidden="true"><use href="#tr"></use></svg>Outline</a></div>
+<ol class="path">
+<li class="pn" style="padding-left: 120px;"><a class="nd gold" href="#" aria-label="Lesson 1 completed"><svg class="i" aria-hidden="true" style="width: 32px; height: 32px; stroke-width: 3;"><use href="#ck"></use></svg></a><div class="pl"><b>A map of the night</b><span>Completed</span></div></li>
+<li class="pn" style="padding-left: 50px;"><a class="nd gold" href="#" aria-label="Lesson 2 completed"><svg class="i" aria-hidden="true" style="width: 32px; height: 32px; stroke-width: 3;"><use href="#ck"></use></svg></a><div class="pl"><b>Why the sky changes</b><span>Completed</span></div></li>
+<li class="pn" style="padding-left: 110px;"><div class="nd blue" role="img" aria-label="Lesson 3, preparing"><svg class="i" aria-hidden="true" style="width: 30px; height: 30px;"><use href="#spin"></use></svg></div><div class="pl"><b>Following a star</b><span>Preparing…</span></div></li>
+</ol>
+<div class="job" role="status"><b style="font-size: 16px; font-weight: 900; color: #0D5592;">Preparing your lesson</b><span class="help" style="color: #0D5592;">Stage 2 of 3 · Recording narration. You can leave and come back.</span><span class="help">Reserved: up to 190 credits (140 lesson + 50 narration)</span></div>
+<div style="border: 2px dashed #CFCFCF; border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;"><b style="font-size: 14px; color: #2B2B2B;">Before preparing (earlier state)</b><span class="help">Lesson 3 is ready to prepare · up to 190 credits from purchased balance 184 + plan</span><a class="btn sm2" href="#" style="align-self: flex-start;">Prepare lesson · 190</a></div>
+</div>
+<nav class="tabs" aria-label="Main"><a class="tab on" href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#home"></use></svg>Learn</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#crs"></use></svg>Courses</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#frn"></use></svg>Friends</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#nt"></use></svg>Notes</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#more"></use></svg>More</a></nav>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>Needs credits · generation failed</b><span>Paid gate (violet) is distinct from the test prerequisite (grey). Failure releases reservation and offers Retry.</span></div>
+<div class="ph">
+<div class="top"><a class="cs" href="#"><span class="tile"><svg class="i sm" aria-hidden="true" style="fill: #fff;"><use href="#star"></use></svg></span>Astronomy<svg class="i sm" aria-hidden="true"><use href="#chev"></use></svg></a><span style="flex: 1;"></span><span class="stat" style="color: #A44E00;"><svg class="i" aria-hidden="true" style="color: #FF8A00; fill: #FF8A00;"><use href="#fl"></use></svg>8</span><span class="stat" style="color: #5B2BB5;"><svg class="i" aria-hidden="true" style="color: #7B3FE4;"><use href="#gm"></use></svg>40</span></div>
+<div class="mn">
+<div class="unit"><div style="flex: 1;"><div class="e">Unit 1 · 2 of 4 complete</div><div class="n">Finding your bearings</div></div></div>
+<ol class="path">
+<li class="pn" style="padding-left: 50px;"><a class="nd gold" href="#" aria-label="Lesson 2 completed"><svg class="i" aria-hidden="true" style="width: 32px; height: 32px; stroke-width: 3;"><use href="#ck"></use></svg></a><div class="pl"><b>Why the sky changes</b><span>Completed</span></div></li>
+<li class="pn" style="padding-left: 110px;"><a class="nd vio" href="#" aria-label="Lesson 3 needs 190 credits"><svg class="i" aria-hidden="true" style="width: 28px; height: 28px;"><use href="#gm"></use></svg></a><div class="pl"><b>Following a star</b><span>Needs 190 credits</span></div></li>
+</ol>
+<div class="ban" style="background: #F0E7FF; color: #5B2BB5;"><svg class="i" aria-hidden="true"><use href="#gm"></use></svg><div><b>Your next lesson needs credits</b><p>You have 12 purchased and 28 daily free credits (daily credits fund notes and chat only). Completed lessons stay open for review.</p></div></div>
+<a class="btn vio" href="#">See credit options</a>
+<div style="border-top: 2px solid #F0F0F0; padding-top: 12px; display: flex; flex-direction: column; gap: 10px;">
+<div class="pn" style="padding-left: 30px;"><a class="nd red" href="#" aria-label="Lesson 3 could not be prepared. Retry"><svg class="i" aria-hidden="true" style="width: 28px; height: 28px;"><use href="#rp"></use></svg></a><div class="pl"><b>Following a star</b><span>Couldn't be prepared</span></div></div>
+<div class="ban bad" role="alert"><svg class="i" aria-hidden="true"><use href="#alert"></use></svg><div><b>This lesson couldn't be prepared</b><p>Your reserved credits were released. Try again — you'll see a new estimate.</p></div></div>
+</div>
+</div>
+<nav class="tabs" aria-label="Main"><a class="tab on" href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#home"></use></svg>Learn</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#crs"></use></svg>Courses</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#frn"></use></svg>Friends</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#nt"></use></svg>Notes</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#more"></use></svg>More</a></nav>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>Offline — cached badges</b><span>Downloaded lessons play; others say why. No AI or payment actions attempted.</span></div>
+<div class="ph">
+<div class="top"><a class="cs" href="#"><span class="tile"><svg class="i sm" aria-hidden="true" style="fill: #fff;"><use href="#star"></use></svg></span>Astronomy<svg class="i sm" aria-hidden="true"><use href="#chev"></use></svg></a><span style="flex: 1;"></span><span class="stat" style="color: #A44E00;"><svg class="i" aria-hidden="true" style="color: #FF8A00; fill: #FF8A00;"><use href="#fl"></use></svg>7</span><span class="stat" style="color: #5B2BB5;"><svg class="i" aria-hidden="true" style="color: #7B3FE4;"><use href="#gm"></use></svg>212<span class="help" style="margin-left: 2px;">?</span></span></div>
+<div class="mn">
+<div class="ban warn"><svg class="i" aria-hidden="true"><use href="#off"></use></svg><div><b>Offline. Saved lessons are available.</b><p>As of 08:42. Balance not verified. Progress syncs when you reconnect.</p></div></div>
+<div class="unit"><div style="flex: 1;"><div class="e">Unit 1 · 1 of 4 complete</div><div class="n">Finding your bearings</div></div></div>
+<ol class="path">
+<li class="pn" style="padding-left: 120px;"><div style="position: relative;"><a class="nd gold" href="#" aria-label="Lesson 1 completed, saved offline"><svg class="i" aria-hidden="true" style="width: 32px; height: 32px; stroke-width: 3;"><use href="#ck"></use></svg></a><span style="position: absolute; right: -6px; bottom: -4px; width: 26px; height: 26px; border-radius: 50%; background: #FFF1D1; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; color: #704400;"><svg class="i" aria-hidden="true" style="width: 14px; height: 14px;"><use href="#off"></use></svg></span></div><div class="pl"><b>A map of the night</b><span>Saved offline</span></div></li>
+<li class="pn" style="padding-left: 50px;"><div style="position: relative;"><a class="nd" href="#" aria-label="Lesson 2 ready, saved offline"><svg class="i" aria-hidden="true" style="width: 30px; height: 30px; fill: #fff;"><use href="#play"></use></svg></a><span style="position: absolute; right: -6px; bottom: -4px; width: 26px; height: 26px; border-radius: 50%; background: #FFF1D1; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; color: #704400;"><svg class="i" aria-hidden="true" style="width: 14px; height: 14px;"><use href="#off"></use></svg></span></div><div class="pl"><b>Why the sky changes</b><span>Saved offline · test answers verify later</span></div></li>
+<li class="pn" style="padding-left: 110px;"><div class="nd lock" role="img" aria-label="Lesson 3, locked"><svg class="i" aria-hidden="true" style="width: 28px; height: 28px;"><use href="#lk"></use></svg></div><div class="pl"><b>Following a star</b><span>Pass lesson 2 test online first</span></div></li>
+</ol>
+<div class="ban info"><svg class="i" aria-hidden="true"><use href="#spin"></use></svg><div><b>Back online variant</b><p>Syncing saved work… then showing your verified progress.</p></div></div>
+</div>
+<nav class="tabs" aria-label="Main"><a class="tab on" href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#home"></use></svg>Learn</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#crs"></use></svg>Courses</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#frn"></use></svg>Friends</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#nt"></use></svg>Notes</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#more"></use></svg>More</a></nav>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>Course complete</b><span>All units resolved. Offers review, a new course, steering or sharing.</span></div>
+<div class="ph">
+<div class="top"><a class="cs" href="#"><span class="tile"><svg class="i sm" aria-hidden="true" style="fill: #fff;"><use href="#star"></use></svg></span>Astronomy<svg class="i sm" aria-hidden="true"><use href="#chev"></use></svg></a><span style="flex: 1;"></span><span class="stat" style="color: #A44E00;"><svg class="i" aria-hidden="true" style="color: #FF8A00; fill: #FF8A00;"><use href="#fl"></use></svg>41</span><span class="stat" style="color: #5B2BB5;"><svg class="i" aria-hidden="true" style="color: #7B3FE4;"><use href="#gm"></use></svg>96</span></div>
+<div class="mn" style="align-items: center; text-align: center; gap: 16px; padding-top: 36px;">
+<div aria-hidden="true" style="width: 132px; height: 132px; border-radius: 40px; background: #FFC233; box-shadow: 0 8px 0 #D99A00; display: flex; align-items: center; justify-content: center; color: #4A2E00;"><svg class="i" style="width: 70px; height: 70px; stroke-width: 2;"><use href="#trophy"></use></svg></div>
+<h2 style="margin: 0; font-size: 28px; font-weight: 900; color: #2B2B2B;">Course complete!</h2>
+<p style="margin: 0; font-size: 15px; color: #555; line-height: 1.5;">14 lessons · every idea resolved. You came back 41 days in a row.</p>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;"><span class="chip ok">3 of 3 units</span><span class="chip" style="background: #FFF6D6; color: #4A2E00;">1,240 XP</span><span class="chip info">2 freezes used</span></div>
+<a class="btn" href="#">Review any lesson</a>
+<a class="btn sec" href="#"><svg class="i sm" aria-hidden="true"><use href="#sl"></use></svg>Extend with steering</a>
+<a class="btn sec" href="#">Share this course</a>
+<a href="#" style="font-weight: 900; font-size: 14px;">Start another course</a>
+</div>
+<nav class="tabs" aria-label="Main"><a class="tab on" href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#home"></use></svg>Learn</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#crs"></use></svg>Courses</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#frn"></use></svg>Friends</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#nt"></use></svg>Notes</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#more"></use></svg>More</a></nav>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2206,"height":2080}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

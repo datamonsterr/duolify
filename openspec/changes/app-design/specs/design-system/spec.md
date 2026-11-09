@@ -43,6 +43,31 @@ UI SHALL use mobile layout below 48rem, sidebar layout at 48rem and above, and a
 - **WHEN** a learner opens the path at 320 CSS pixels
 - **THEN** bottom navigation, readable lesson labels and the start control fit without horizontal scrolling
 
+### Requirement: Desktop-first parity across platforms
+Every surface SHALL be designed for desktop first and then for mobile, and both MUST expose the same functions, states and recovery actions. Desktop side panels (course brief, outline chat, tutor, quick note, transcript) SHALL become mobile sheets or step screens; desktop list-and-detail views SHALL become two mobile screens; the desktop sidebar SHALL map to mobile bottom tabs plus More. A function MUST NOT exist on only one platform, except internal tooling delivered as one responsive page.
+
+#### Scenario: Course brief on mobile
+- **WHEN** a learner on a phone needs the course brief that desktop shows as a side panel
+- **THEN** the same brief, with the same edit and confirm actions, opens as a sheet and as the confirm step
+
+### Requirement: Guided conversational setup
+Onboarding and course creation SHALL use a guided chat that asks one question at a time, offers quick-reply buttons and free text, asks a follow-up only for a vague answer, and lets every question be skipped. A live summary (learner profile) or course brief SHALL update as the learner answers, every line MUST be editable, and the learner MUST confirm it before anything is saved or any paid step starts. If the assistant is unavailable, collected answers MUST carry over to an equivalent form. Transcripts MUST announce new assistant messages once, without announcing each token.
+
+#### Scenario: Vague onboarding answer
+- **WHEN** the learner answers “something about space”
+- **THEN** the assistant asks one clarifying follow-up with quick replies and records the topic in the live summary
+
+#### Scenario: Preview needs consent
+- **WHEN** the course brief is complete
+- **THEN** no preview is generated or charged until the learner confirms the brief and its cost
+
+### Requirement: Editable sample outline
+Before the outline job is confirmed, the learner SHALL be able to reorder units and lessons by drag handle and by move-up/down buttons, rename, remove and add items, undo changes, and request changes in chat. Chat changes MUST be shown as a diff (added, removed, moved, retitled) that the learner applies or discards. Reordering MUST NOT be drag-only and position changes MUST be announced. The confirmed outline job SHALL use the edited outline.
+
+#### Scenario: Keyboard reorder
+- **WHEN** a keyboard user moves Unit 3 above Unit 2 with the move buttons
+- **THEN** the order updates, “Unit 3 moved to position 2” is announced and focus stays on the moved unit
+
 ### Requirement: Localization-ready copy
 UI copy SHALL use stable message identifiers, complete translatable sentences, locale-aware plural/number/date formatting and logical layout properties. Strings MUST allow at least 40% expansion and right-to-left layout. Credit costs, local-day resets and plan periods MUST be explicit. Prototype English strings SHALL be maintained as authored fixtures rather than claims of shipped localization.
 

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Moderator console</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Nunito',system-ui,sans-serif;color:#3C3C3C;background:#F7F7F7}
+*{box-sizing:border-box}
+a{color:#1667AB}a:hover{color:#0F5A99}
+.i{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sm{width:18px;height:18px}
+.help{font-size:13px;font-weight:600;color:#5E5E5E}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:12px;font-weight:800;font-size:12px;background:#F1F1F1;color:#444;white-space:nowrap}
+.cbad{background:#FDECEC;color:#B3261E}.cwarn{background:#FFF1D1;color:#704400}.cinfo{background:#DDF1FF;color:#0D5592}.cok{background:#E3F8D3;color:#1E6E0C}
+.card{background:#fff;border:2px solid #E3E3E3;border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:12px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:12px;font-weight:900;letter-spacing:.8px;text-transform:uppercase;color:#555;padding:8px 10px;border-bottom:2px solid #EFEFEF}
+td{font-size:14px;padding:10px;border-bottom:2px solid #F3F3F3;vertical-align:top}
+tr.sel td{background:#F4FAFF}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;border:none;border-radius:14px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:13px;letter-spacing:.6px;text-transform:uppercase;text-decoration:none;cursor:pointer}
+.btn.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.btn.red{background:#C62828;box-shadow:0 4px 0 #8E1B1B}
+.btn.gold{background:#FFC233;color:#4A2E00;box-shadow:0 4px 0 #D99A00}
+.flt{border:2px solid #E0E0E0;border-radius:12px;padding:6px 10px;font-family:inherit;font-weight:800;font-size:13px;background:#fff;color:#2B2B2B}
+.flt.on{background:#DDF1FF;border-color:#8CCBF7;color:#0D5592}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.log li{font-size:13px;display:flex;gap:8px}
+.log li b{font-weight:900;color:#2B2B2B}
+.in{font-family:inherit;font-size:14px;font-weight:600;color:#2B2B2B;background:#F7F7F7;border:2px solid #CFCFCF;border-radius:12px;padding:9px 11px;width:100%}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="flg" viewBox="0 0 24 24"><path d="M5 21V3M5 4h12l-2.5 4L17 12H5"></path></symbol>
+<symbol id="alert" viewBox="0 0 24 24"><path d="M12 3 2 20.5h20z"></path><path d="M12 10v4.5M12 17.5h.01"></path></symbol>
+<symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></symbol>
+<symbol id="ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"></path></symbol>
+<symbol id="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></symbol>
+</defs></svg>
+
+<div style="min-height: 960px; display: flex; flex-direction: column;">
+<header style="display: flex; align-items: center; gap: 16px; padding: 18px 32px; background: #fff; border-bottom: 2px solid #EFEFEF; flex-wrap: wrap;">
+<div style="display: flex; align-items: center; gap: 10px;"><div aria-hidden="true" style="position: relative; width: 30px; height: 28px;"><div style="position: absolute; left: 0; top: 6px; width: 20px; height: 20px; border-radius: 6px; background: #58C322;"></div><div style="position: absolute; left: 10px; top: 0; width: 20px; height: 20px; border-radius: 6px; background: #1677C9;"></div></div><b style="font-size: 20px; font-weight: 900; color: #2B2B2B;">Moderation</b></div>
+<span class="chip cbad">14 open</span><span class="chip cwarn">3 over 48 h</span><span class="chip cinfo">5 awaiting screening review</span>
+<span style="flex: 1;"></span><span class="help">Signed in as moderator · @ops.lan</span>
+</header>
+<div style="flex: 1; display: flex; flex-wrap: wrap; gap: 24px; padding: 24px 32px; align-items: flex-start;">
+<section class="card" aria-label="Report queue" style="flex: 999 1 620px; min-width: 0;">
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;"><b style="font-size: 18px; font-weight: 900; color: #2B2B2B; margin-right: 8px;">Queue · severity, then age</b><button class="flt on" type="button">All</button><button class="flt" type="button">Courses</button><button class="flt" type="button">Reviews</button><button class="flt" type="button">Users</button><button class="flt" type="button">Screening</button></div>
+<div style="overflow-x: auto;">
+<table>
+<thead><tr><th>Severity</th><th>Target</th><th>Reason</th><th>Reports</th><th>Age</th><th>Status</th></tr></thead>
+<tbody>
+<tr class="sel"><td><span class="chip cbad"><svg class="i sm" aria-hidden="true"><use href="#alert"></use></svg>High</span></td><td><b>Course · Home chemistry</b><br><span class="help">@quickfix · v2</span></td><td>Unsafe</td><td>4</td><td>51 h</td><td><span class="chip cwarn">Auto-hidden</span></td></tr>
+<tr><td><span class="chip cbad">High</span></td><td><b>Course · Lockpicking 101</b><br><span class="help">@tinker · v1</span></td><td>Screening: needs review</td><td>—</td><td>3 h</td><td><span class="chip cinfo">Pending screening</span></td></tr>
+<tr><td><span class="chip cwarn">Medium</span></td><td><b>Course · Distributed systems</b><br><span class="help">@mina · v3</span></td><td>Copyright</td><td>1</td><td>20 h</td><td><span class="chip">Open</span></td></tr>
+<tr><td><span class="chip cwarn">Medium</span></td><td><b>Review on Earth's climate</b><br><span class="help">by @anon42</span></td><td>Inappropriate</td><td>2</td><td>9 h</td><td><span class="chip">Open</span></td></tr>
+<tr><td><span class="chip">Low</span></td><td><b>User · @promo.deals</b></td><td>Spam</td><td>1</td><td>2 h</td><td><span class="chip">Open</span></td></tr>
+</tbody>
+</table>
+</div>
+</section>
+<section class="card" aria-label="Report detail" style="flex: 1 1 380px; max-width: 460px;">
+<div style="display: flex; align-items: center; gap: 8px;"><svg class="i" aria-hidden="true" style="color: #B3261E;"><use href="#flg"></use></svg><b style="flex: 1; font-size: 18px; font-weight: 900; color: #2B2B2B;">Home chemistry · v2</b><a href="#" class="help" style="font-weight: 900;">Open course <svg class="i sm" aria-hidden="true" style="vertical-align: -3px;"><use href="#ext"></use></svg></a></div>
+<div style="display: flex; gap: 6px; flex-wrap: wrap;"><span class="chip cbad">4 reporters · unsafe</span><span class="chip cwarn">Auto-hidden from listings</span><span class="chip"><svg class="i sm" aria-hidden="true"><use href="#clock"></use></svg>Past 48 h target</span></div>
+<div style="border: 2px solid #F0F0F0; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 4px;"><b style="font-size: 14px; color: #2B2B2B;">Screening (v2)</b><span class="help">Verdict: pass at publish · categories: none. Sampled 8 lessons.</span><b style="font-size: 14px; color: #2B2B2B; margin-top: 6px;">Flagged excerpt · lesson 3, slide 2</b><span class="help">“Mix the two cleaners in a closed room to…”</span></div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-weight: 800; font-size: 14px; color: #2B2B2B;">Reason sent to owner<textarea class="in" rows="2">Lesson 3 gives instructions that could cause harm.</textarea></label>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+<button class="btn sec" type="button">Dismiss</button>
+<button class="btn gold" type="button">Warn owner</button>
+<button class="btn sec" type="button" style="color: #B3261E;">Delist</button>
+<button class="btn red" type="button">Take down</button>
+</div>
+<label style="display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 14px;"><input type="checkbox" checked style="width: 20px; height: 20px; accent-color: #C62828;">Also block existing copies (severe: unsafe)</label>
+<button class="btn sec" type="button" style="color: #B3261E;">Ban publishing for @quickfix</button>
+<b style="font-size: 14px; color: #2B2B2B;">Audit log</b>
+<ul class="log">
+<li><span class="help">Nov 9 08:02</span><span><b>System</b> auto-hid after 3rd distinct report</span></li>
+<li><span class="help">Nov 7 14:40</span><span><b>@quickfix</b> published v2 (screening pass)</span></li>
+<li><span class="help">Nov 6 10:11</span><span><b>@ops.kim</b> dismissed spam report on v1</span></li>
+</ul>
+<span class="help">Owner is notified with the reason and can appeal once.</span>
+</section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

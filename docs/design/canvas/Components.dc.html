@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Common components</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Nunito',system-ui,sans-serif;color:#3C3C3C}
+*{box-sizing:border-box}
+a{color:#1667AB}a:hover{color:#0F5A99}
+.i{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sm{width:18px;height:18px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;padding:0 18px;border:none;border-radius:16px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:15px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;cursor:pointer}
+.btn.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.btn.blue{background:#1677C9;box-shadow:0 4px 0 #0F5A99}
+.btn.red{background:#C62828;box-shadow:0 4px 0 #8E1B1B}
+.btn.gold{background:#FFC233;color:#4A2E00;box-shadow:0 4px 0 #D99A00}
+.btn.off{background:#E5E5E5;color:#555;box-shadow:0 4px 0 #CFCFCF;border:2px dashed #9A9A9A}
+.btn.q{background:none;box-shadow:none;color:#1667AB;min-height:44px}
+.btn.hov{background:#1A6B0A}
+.btn.prs{box-shadow:0 1px 0 #145208;transform:translateY(3px)}
+.btn.foc{outline:3px solid #1677C9;outline-offset:3px}
+.card{background:#fff;border:2px solid #E3E3E3;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:8px}
+.box{background:#fff;border:2px solid #E3E3E3;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:16px}
+.bt{margin:0;font-size:22px;font-weight:900;color:#2B2B2B}
+.cap{font-size:13px;font-weight:800;color:#555}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:12px;font-weight:800;font-size:13px;background:#F1F1F1;color:#444}
+.ok{background:#E3F8D3;color:#1E6E0C}
+.bad{background:#FDECEC;color:#B3261E}
+.warn{background:#FFF1D1;color:#704400}
+.info{background:#DDF1FF;color:#0D5592}
+.vio{background:#F0E7FF;color:#5B2BB5}
+.ban{border-radius:18px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start}
+.ban b{display:block;font-size:16px;font-weight:900;margin-bottom:2px}
+.ban p{margin:0;font-size:14px;line-height:1.45}
+.bar{height:16px;border-radius:999px;background:#E5E5E5;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:999px;background:#58C322}
+.fl{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:800;color:#2B2B2B}
+.in{font-family:inherit;font-size:16px;font-weight:600;color:#2B2B2B;background:#F7F7F7;border:2px solid #CFCFCF;border-radius:14px;padding:12px 14px;width:100%}
+.in.err{border-color:#C62828;background:#FFF7F7}
+.in.foc{border-color:#1677C9;background:#fff;outline:3px solid #8CCBF7}
+.help{font-size:13px;font-weight:600;color:#5E5E5E}
+.nd{width:72px;height:66px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;background:#1F7A0D;box-shadow:0 7px 0 #145208;border:none;flex:none}
+.nd.lock{background:#E5E5E5;color:#555;box-shadow:0 7px 0 #C9C9C9}
+.nd.gold{background:#FFC233;color:#4A2E00;box-shadow:0 7px 0 #D99A00}
+.nd.blue{background:#1677C9;box-shadow:0 7px 0 #0F5A99}
+.nd.red{background:#fff;color:#C62828;border:3px solid #C62828;box-shadow:0 7px 0 #E8B4B4}
+.ch{display:flex;align-items:center;gap:12px;padding:14px 16px;border:2px solid #E0E0E0;border-bottom-width:5px;border-radius:16px;background:#fff;font-size:16px;font-weight:700}
+.ch .k{width:30px;height:30px;border-radius:9px;border:2px solid #D3D3D3;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#555;flex:none}
+.ch.sel{border-color:#8CCBF7;background:#DDF1FF;color:#0D5592}
+.ch.sel .k{border-color:#1677C9;color:#0D5592}
+.ch.good{border-color:#7DCB55;background:#E3F8D3;color:#1E6E0C}
+.ch.wrong{border-color:#E39B9B;background:#FDECEC;color:#B3261E}
+.ch.lk{color:#555;background:#F7F7F7}
+.stat{display:inline-flex;align-items:center;gap:4px;font-weight:900;font-size:16px}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;font-weight:800;color:#5E5E5E;text-decoration:none;padding:6px 0;border:2px solid transparent;border-radius:14px}
+.tab.on{color:#0D5592;background:#DDF1FF;border-color:#8CCBF7}
+.ib{width:44px;height:44px;border-radius:14px;border:2px solid #E0E0E0;background:#fff;display:flex;align-items:center;justify-content:center;color:#3C3C3C;cursor:pointer;flex:none}
+.sk{background:#ECECEC;border-radius:10px}
+.bub{max-width:300px;padding:12px 14px;border-radius:18px;font-size:15px;line-height:1.45;font-weight:600}
+.num{font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="fl" viewBox="0 0 24 24"><path d="M12 2c1.5 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2.5 1.2-4 2.5-5 .2 2 1 3 2.2 3.3C11.5 7.8 11 5 12 2z"></path></symbol>
+<symbol id="gm" viewBox="0 0 24 24"><path d="M7 4h10l4 5-9 11L3 9z"></path><path d="M3 9h18M10 4 8 9l4 11 4-11-2-5"></path></symbol>
+<symbol id="xp" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"></path></symbol>
+<symbol id="home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"></path></symbol>
+<symbol id="crs" viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5z"></path><path d="M2 12.5l10 5 10-5M2 17l10 5 10-5"></path></symbol>
+<symbol id="frn" viewBox="0 0 24 24"><circle cx="8" cy="9" r="3.2"></circle><circle cx="16.5" cy="9" r="3.2"></circle><path d="M2 20c.5-3 3-5 6-5s5.5 2 6 5M15 15.2c.5-.1 1-.2 1.5-.2 3 0 5.5 2 6 5"></path></symbol>
+<symbol id="nt" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></symbol>
+<symbol id="bk" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"></path></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle></symbol>
+<symbol id="lk" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></symbol>
+<symbol id="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></symbol>
+<symbol id="pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"></path></symbol>
+<symbol id="rp" viewBox="0 0 24 24"><path d="M4 4v6h6"></path><path d="M5.5 15A8 8 0 1 0 7 7.5L4 10"></path></symbol>
+<symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"></path></symbol>
+<symbol id="back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"></path></symbol>
+<symbol id="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></symbol>
+<symbol id="snow" viewBox="0 0 24 24"><path d="M12 2v20M3.3 7l17.4 10M20.7 7 3.3 17M9 4l3 2 3-2M9 20l3-2 3 2"></path></symbol>
+<symbol id="chat" viewBox="0 0 24 24"><path d="M4 5h16v11H10l-6 4z"></path></symbol>
+<symbol id="cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M10.5 10.2a2.2 2.2 0 1 0 0 3.6M17 10.2a2.2 2.2 0 1 0 0 3.6"></path></symbol>
+<symbol id="vol" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"></path><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"></path></symbol>
+<symbol id="off" viewBox="0 0 24 24"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.6a10 10 0 0 1 4.2-2.3M14.8 10.3A10 10 0 0 1 19 12.6M2 8.8a15 15 0 0 1 4-2.3M12 20h.01"></path></symbol>
+<symbol id="alert" viewBox="0 0 24 24"><path d="M12 3 2 20.5h20z"></path><path d="M12 10v4.5M12 17.5h.01"></path></symbol>
+<symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z"></path></symbol>
+<symbol id="stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></symbol>
+<symbol id="send" viewBox="0 0 24 24"><path d="M4 12 20 4l-5 16-3.5-6.5z"></path><path d="M11.5 13.5 20 4"></path></symbol>
+<symbol id="spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 1-9 9"></path></symbol>
+<symbol id="tr" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10M4 18h13"></path></symbol>
+<symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></symbol>
+<symbol id="srch" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M20.5 20.5 16 16"></path></symbol>
+</defs></svg>
+
+<div style="width: 1600px; height: 3200px; background: #F3F5EF; padding: 64px; display: flex; flex-direction: column; gap: 32px;">
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<span style="font-size: 14px; font-weight: 900; letter-spacing: 1.2px; text-transform: uppercase; color: #1E6E0C;">Common components</span>
+<h1 style="margin: 0; font-size: 44px; font-weight: 900; color: #2B2B2B;">Components and their states</h1>
+<p style="margin: 0; font-size: 18px; color: #4F4F4F; max-width: 1100px; line-height: 1.5;">Every control has default, hover, focus-visible, pressed, pending and unavailable states. Unavailable controls keep a readable label, a dashed edge and a reason — never faded opacity. Screens reuse only these parts.</p>
+</div>
+
+<div class="box">
+<h2 class="bt">C1 · Chunky 3D button</h2>
+<div style="display: grid; grid-template-columns: 150px repeat(6, minmax(0, 1fr)); gap: 16px; align-items: center;">
+<span></span><span class="cap">Default</span><span class="cap">Hover</span><span class="cap">Pressed</span><span class="cap">Focus-visible</span><span class="cap">Pending</span><span class="cap">Unavailable</span>
+<span class="cap">Primary · green</span>
+<button class="btn" type="button">Continue</button>
+<button class="btn hov" type="button">Continue</button>
+<button class="btn prs" type="button">Continue</button>
+<button class="btn foc" type="button">Continue</button>
+<button class="btn" type="button" aria-busy="true"><svg class="i sm" aria-hidden="true"><use href="#spin"></use></svg>Preparing…</button>
+<div style="display: flex; flex-direction: column; gap: 4px;"><button class="btn off" type="button" disabled>Check answer</button><span class="help">Select an answer first</span></div>
+<span class="cap">Secondary · outline</span>
+<button class="btn sec" type="button">Skip for now</button>
+<button class="btn sec" type="button" style="background: #F4FAFF;">Skip for now</button>
+<button class="btn sec" type="button" style="box-shadow: 0 1px 0 #D3D3D3; transform: translateY(3px);">Skip for now</button>
+<button class="btn sec foc" type="button">Skip for now</button>
+<button class="btn sec" type="button" aria-busy="true">Saving…</button>
+<button class="btn off" type="button" disabled>Skip for now</button>
+<span class="cap">Sky · Gold · Danger · Quiet</span>
+<button class="btn blue" type="button">Ask tutor</button>
+<button class="btn gold" type="button">Claim</button>
+<button class="btn red" type="button">Delete note</button>
+<button class="btn q" type="button">Back to learn path</button>
+<button class="btn sec" type="button" style="color: #B3261E;">Remove friend</button>
+<div class="ib" role="img" aria-label="Icon button example"><svg class="i" aria-hidden="true"><use href="#x"></use></svg></div>
+</div>
+<span class="help">Labels describe the outcome (“Create outline · up to 55 credits”, not “Submit”). Pending prevents double submit. Reduced motion: no 3px travel, color change only.</span>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px;">
+<div class="box">
+<h2 class="bt">C2 · Inputs, select, textarea</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+<label class="fl">Topic<input class="in" value="" placeholder="e.g. Astronomy for beginners"><span class="help">Default · 0 / 120</span></label>
+<label class="fl">Topic<input class="in foc" value="Astronomy"><span class="help">Focus · 9 / 120</span></label>
+<label class="fl">Username<input class="in err" value="mina!!"><span class="help" style="color: #B3261E; font-weight: 800;">Use letters, numbers, _ or . only</span></label>
+<label class="fl">Starting level<select class="in"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select><span class="help">Select</span></label>
+<label class="fl" style="grid-column: 1 / -1;">Background<textarea class="in" rows="2">I studied physics in school but forgot most of it.</textarea><span class="help">AI uses this to tailor examples · 52 / 500 · Saved</span></label>
+</div>
+</div>
+<div class="box">
+<h2 class="bt">C3 · Header stats &amp; badges</h2>
+<div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 12px 16px; border: 2px solid #EFEFEF; border-radius: 16px;">
+<a href="#" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: #2B2B2B; font-weight: 900;"><span style="width: 36px; height: 36px; border-radius: 10px; background: #1677C9; display: flex; align-items: center; justify-content: center; color: #fff;"><svg class="i sm" aria-hidden="true" style="fill: #fff;"><use href="#star"></use></svg></span>Astronomy<svg class="i sm" aria-hidden="true"><use href="#chev"></use></svg></a>
+<span style="flex: 1;"></span>
+<span class="stat" style="color: #A44E00;"><svg class="i" aria-hidden="true" style="color: #FF8A00; fill: #FF8A00;"><use href="#fl"></use></svg><span class="num">7</span><span style="position: absolute; left: -9999px;">day streak</span></span>
+<a href="#" class="stat" style="color: #5B2BB5; text-decoration: none;"><svg class="i" aria-hidden="true" style="color: #7B3FE4;"><use href="#gm"></use></svg><span class="num">212</span><span style="position: absolute; left: -9999px;">credits</span></a>
+</div>
+<div style="display: flex; gap: 10px; flex-wrap: wrap;">
+<span class="chip warn"><svg class="i sm" aria-hidden="true" style="color: #FF8A00; fill: #FF8A00;"><use href="#fl"></use></svg>7-day streak</span>
+<span class="chip vio"><svg class="i sm" aria-hidden="true"><use href="#gm"></use></svg>212 credits</span>
+<span class="chip" style="background: #FFF6D6; color: #4A2E00;"><svg class="i sm" aria-hidden="true" style="color: #D99A00; fill: #FFC233;"><use href="#xp"></use></svg>+15 XP</span>
+<span class="chip info"><svg class="i sm" aria-hidden="true"><use href="#snow"></use></svg>1 freeze</span>
+<span class="chip ok"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg>Completed</span>
+<span class="chip" style="background: #FFC233; color: #4A2E00;">Ready</span>
+<span class="chip"><svg class="i sm" aria-hidden="true"><use href="#lk"></use></svg>Locked</span>
+<span class="chip warn"><svg class="i sm" aria-hidden="true"><use href="#off"></use></svg>Saved offline</span>
+<span class="chip vio">Sample</span>
+<span class="chip info">Retry variant · 1 queued</span>
+</div>
+<span class="help">Numbers have text names for screen readers (“7 day streak”, “212 credits”). The header never shows hearts.</span>
+</div>
+</div>
+
+<div class="box">
+<h2 class="bt">C4 · Learn path node &amp; unit banner</h2>
+<div style="display: flex; gap: 40px; align-items: flex-start;">
+<div style="width: 360px; background: #1F7A0D; border-radius: 18px; box-shadow: 0 5px 0 #145208; padding: 16px 18px; color: #fff; display: flex; align-items: center; gap: 12px;">
+<div style="flex: 1;"><span style="font-size: 13px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase;">Unit 1 · 1 of 4 complete</span><div style="font-size: 20px; font-weight: 900;">Finding your bearings</div></div>
+<a href="#" style="border: 2px solid rgba(255,255,255,.6); border-radius: 14px; padding: 8px 10px; color: #fff; font-weight: 900; font-size: 13px; text-decoration: none; display: flex; align-items: center; gap: 6px;"><svg class="i sm" aria-hidden="true"><use href="#tr"></use></svg>Outline</a>
+</div>
+<div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 24px; flex: 1;">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 14px;"><a class="nd gold" href="#" aria-label="Lesson 1, A map of the night, completed. Review"><svg class="i" aria-hidden="true" style="width: 32px; height: 32px; stroke-width: 3;"><use href="#ck"></use></svg></a><span class="cap" style="text-align: center;">Completed<br>tap to review</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 6px;"><span style="background: #fff; border: 2px solid #E3E3E3; border-radius: 12px; padding: 4px 10px; font-weight: 900; font-size: 13px; color: #1F7A0D; text-transform: uppercase;">Start</span><a class="nd" href="#" aria-label="Lesson 2, Why the sky changes, ready. Start lesson" style="outline: 6px solid #C9EFB2;"><svg class="i" aria-hidden="true" style="width: 30px; height: 30px; fill: #fff;"><use href="#play"></use></svg></a><span class="cap" style="text-align: center; margin-top: 8px;">Current · Ready</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 14px;"><div class="nd blue" role="img" aria-label="Lesson 3, preparing"><svg class="i" aria-hidden="true" style="width: 30px; height: 30px;"><use href="#spin"></use></svg></div><span class="cap" style="text-align: center;">Generating<br>“Preparing…”</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 14px;"><div class="nd lock" role="img" aria-label="Lesson 4, locked. Pass the previous lesson test first"><svg class="i" aria-hidden="true" style="width: 28px; height: 28px;"><use href="#lk"></use></svg></div><span class="cap" style="text-align: center;">Locked<br>not focusable</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 14px;"><a class="nd red" href="#" aria-label="Lesson 3 could not be prepared. Retry"><svg class="i" aria-hidden="true" style="width: 28px; height: 28px;"><use href="#rp"></use></svg></a><span class="cap" style="text-align: center;">Failed<br>Retry</span></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 14px;"><div style="position: relative;"><a class="nd gold" href="#" aria-label="Lesson 1 completed, saved offline"><svg class="i" aria-hidden="true" style="width: 32px; height: 32px; stroke-width: 3;"><use href="#ck"></use></svg></a><span style="position: absolute; right: -6px; bottom: -4px; width: 26px; height: 26px; border-radius: 50%; background: #FFF1D1; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; color: #704400;"><svg class="i" aria-hidden="true" style="width: 14px; height: 14px;"><use href="#off"></use></svg></span></div><span class="cap" style="text-align: center;">Offline cached</span></div>
+</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px;">
+<div class="box">
+<h2 class="bt">C5 · Feedback banners &amp; result sheet</h2>
+<div class="ban ok"><svg class="i" aria-hidden="true"><use href="#ck"></use></svg><div><b>That's it.</b><p>Earth's rotation changes your view.</p></div></div>
+<div class="ban bad"><svg class="i" aria-hidden="true"><use href="#x"></use></svg><div><b>Not quite. Correct answer: Earth turns.</b><p>You'll try this idea again in a fresh question.</p></div></div>
+<div class="ban info"><svg class="i" aria-hidden="true"><use href="#rp"></use></svg><div><b>Retry variant queued</b><p>Same idea, fresh wording — after the next topic.</p></div></div>
+<div class="ban warn"><svg class="i" aria-hidden="true"><use href="#off"></use></svg><div><b>Offline. Saved lessons are available.</b><p>As of 08:42. Notes and bookmarks will sync later.</p></div></div>
+<div class="ban info"><svg class="i" aria-hidden="true"><use href="#snow"></use></svg><div><b>A streak freeze covered yesterday</b><p>Your 7-day streak is safe. 0 of 2 freezes left.</p></div></div>
+<div style="border-radius: 18px; background: #E3F8D3; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; gap: 10px; color: #1E6E0C;"><span style="width: 36px; height: 36px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center;"><svg class="i" aria-hidden="true" style="stroke-width: 3;"><use href="#ck"></use></svg></span><b style="font-size: 20px; font-weight: 900;">Nicely done!</b></div>
+<button class="btn" type="button">Continue</button>
+<span class="help" style="color: #1E6E0C;">Bottom result sheet after Check answer. Correct = green; correction = red variant with the explanation. Persists until Continue.</span>
+</div>
+</div>
+<div class="box">
+<h2 class="bt">C6 · Test choices</h2>
+<fieldset style="border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px;">
+<legend class="cap" style="margin-bottom: 8px;">Default · Selected · Correct · Incorrect · Locked after grade</legend>
+<label class="ch"><span class="k">1</span>Earth stays still.</label>
+<label class="ch sel"><span class="k">2</span>Earth turns.<span style="flex: 1;"></span><span class="help" style="color: #0D5592;">Selected</span></label>
+<label class="ch good"><span class="k" style="border-color: #1F7A0D; color: #1E6E0C;"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span>Earth turns.<span style="flex: 1;"></span><span class="help" style="color: #1E6E0C;">Correct</span></label>
+<label class="ch wrong"><span class="k" style="border-color: #C62828; color: #B3261E;"><svg class="i sm" aria-hidden="true"><use href="#x"></use></svg></span>Stars switch on and off.<span style="flex: 1;"></span><span class="help" style="color: #B3261E;">Your answer</span></label>
+<label class="ch lk"><span class="k">4</span>The Moon pulls them.<span style="flex: 1;"></span><span class="help">Locked</span></label>
+</fieldset>
+<div style="display: flex; gap: 10px; flex-wrap: wrap;"><span class="chip ok">Resolved topics 1 of 3</span><span class="chip info">Retry variants queued 1</span><span class="chip">No timer · no hearts</span></div>
+<h2 class="bt" style="margin-top: 8px;">C7 · Progress</h2>
+<div style="display: flex; align-items: center; gap: 12px;"><div class="ib" role="img" aria-label="Exit"><svg class="i" aria-hidden="true"><use href="#x"></use></svg></div><div class="bar" style="flex: 1;" role="progressbar" aria-label="Lesson progress" aria-valuenow="3" aria-valuemax="5"><i style="width: 60%;"></i></div><span class="cap num">3 / 5</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px;"><div style="display: flex; justify-content: space-between;"><span class="fl">Daily goal</span><span class="cap num">20 / 30 XP</span></div><div class="bar" style="height: 14px;"><i style="width: 66%; background: #FFC233;"></i></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px;"><div style="display: flex; justify-content: space-between;"><span class="fl">Daily free credits</span><span class="cap num">28 / 46 · resets 00:00 Asia/Ho_Chi_Minh</span></div><div class="bar" style="height: 14px;"><i style="width: 61%; background: #7B3FE4;"></i></div></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
+<div class="box">
+<h2 class="bt">C8 · Audio controls &amp; captions</h2>
+<div style="background: #fff; border: 2px solid #E3E3E3; border-radius: 16px; padding: 12px 14px; font-size: 16px; font-weight: 700; line-height: 1.45;">Earth turns. Your view changes.</div>
+<div style="display: flex; align-items: center; gap: 8px;">
+<button class="ib" type="button" aria-label="Replay slide"><svg class="i" aria-hidden="true"><use href="#rp"></use></svg></button>
+<button class="btn" type="button" aria-label="Play" style="width: 56px; min-height: 52px; padding: 0; border-radius: 50%;"><svg class="i" aria-hidden="true" style="fill: #fff;"><use href="#play"></use></svg></button>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 4px;"><div class="bar" style="height: 10px;" role="slider" aria-label="Slide time" aria-valuetext="0:03 of 0:08"><i style="width: 38%; background: #1677C9;"></i></div><span class="cap num">0:03 / 0:08</span></div>
+<button class="ib" type="button" aria-label="Speed 1x" style="font-weight: 900; font-size: 14px;">1×</button>
+<button class="ib" type="button" aria-label="Mute narration"><svg class="i" aria-hidden="true"><use href="#vol"></use></svg></button>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;"><span class="chip info"><svg class="i sm" aria-hidden="true"><use href="#cc"></use></svg>Captions on</span><span class="chip"><svg class="i sm" aria-hidden="true"><use href="#tr"></use></svg>Transcript</span><span class="chip warn">Audio unavailable · read transcript</span><span class="chip">Buffering…</span></div>
+</div>
+<div class="box">
+<h2 class="bt">C9 · Chat bubbles</h2>
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<div style="align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: 2px;"><span class="cap">You</span><div class="bub" style="background: #DDF1FF; color: #0D5592;">Why does the sky move?</div></div>
+<div style="display: flex; flex-direction: column; gap: 2px;"><span class="cap">Tutor</span><div class="bub" style="background: #fff; border: 2px solid #E3E3E3;">Earth rotates once a day, so the direction you face changes…</div><a href="#" class="cap" style="color: #1667AB;">Save as quick note</a></div>
+<div style="display: flex; align-items: center; gap: 8px;"><span class="chip"><svg class="i sm" aria-hidden="true"><use href="#spin"></use></svg>Streaming…</span><button class="btn sec" type="button" style="width: auto; min-height: 40px;"><svg class="i sm" aria-hidden="true"><use href="#stop"></use></svg>Stop reply</button></div>
+<div class="ban warn" style="padding: 10px 12px;"><svg class="i sm" aria-hidden="true"><use href="#alert"></use></svg><p>Reply interrupted. Only produced tokens were charged (3 credits).</p></div>
+</div>
+</div>
+<div class="box">
+<h2 class="bt">C10 · Offer card &amp; wallet card</h2>
+<label class="card" style="flex-direction: row; align-items: center; gap: 12px; border-color: #8CCBF7; background: #F4FAFF;"><input type="radio" name="o" checked style="width: 22px; height: 22px; accent-color: #1677C9;"><span style="flex: 1;"><b style="font-size: 17px; font-weight: 900; color: #2B2B2B;">Plus · Monthly</b><br><span class="help">1,600 credits / month · $19.99 / month</span></span><span class="chip ok">Selected</span></label>
+<label class="card" style="flex-direction: row; align-items: center; gap: 12px;"><input type="radio" name="o" style="width: 22px; height: 22px;"><span style="flex: 1;"><b style="font-size: 17px; font-weight: 900; color: #2B2B2B;">1,350 credits</b><br><span class="help">One-time · $15.00</span></span></label>
+<div class="card" style="background: #F0E7FF; border-color: #DCC9FB;"><span class="cap" style="color: #5B2BB5;">Available</span><span class="num" style="font-size: 32px; font-weight: 900; color: #3E1A8A;">212</span><span class="help" style="color: #5B2BB5;">28 daily free · 184 purchased · 55 reserved</span></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
+<div class="box">
+<h2 class="bt">C11 · Navigation</h2>
+<nav aria-label="Main" style="display: flex; gap: 2px; border: 2px solid #EFEFEF; border-radius: 18px; padding: 8px 6px;">
+<a class="tab on" href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#home"></use></svg>Learn</a>
+<a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#crs"></use></svg>Courses</a>
+<a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#frn"></use></svg>Friends</a>
+<a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#nt"></use></svg>Notes</a>
+<a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#more"></use></svg>More</a>
+</nav>
+<div role="tablist" style="display: flex; background: #F1F1F1; border-radius: 14px; padding: 4px;"><button role="tab" aria-selected="true" type="button" style="flex: 1; border: 2px solid #E0E0E0; background: #fff; border-radius: 11px; padding: 9px; font-family: inherit; font-weight: 900; color: #2B2B2B;">My courses</button><button role="tab" aria-selected="false" type="button" style="flex: 1; border: none; background: none; padding: 9px; font-family: inherit; font-weight: 800; color: #555;">Discover</button></div>
+<a href="#" style="display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 2px solid #F0F0F0; text-decoration: none; color: #2B2B2B; font-weight: 800;"><svg class="i" aria-hidden="true" style="color: #1677C9;"><use href="#bk"></use></svg><span style="flex: 1;">Bookmarks</span><svg class="i sm" aria-hidden="true"><use href="#chev"></use></svg></a>
+<label style="display: flex; align-items: center; gap: 12px; font-weight: 800;"><span style="flex: 1;">Captions<br><span class="help">Shown on every slide</span></span><input type="checkbox" checked style="width: 24px; height: 24px; accent-color: #1F7A0D;"></label>
+</div>
+<div class="box">
+<h2 class="bt">C12 · Sheet, dialog, toast</h2>
+<div style="border: 2px solid #DADADA; border-radius: 24px 24px 0 0; padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 10px;"><div style="width: 44px; height: 5px; border-radius: 9px; background: #CFCFCF; align-self: center;"></div><div style="display: flex; align-items: center;"><b style="flex: 1; font-size: 18px; font-weight: 900;">Quick note · Slide 2</b><button class="ib" type="button" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#x"></use></svg></button></div><span class="help">Opening a sheet pauses the lesson and returns focus on close.</span></div>
+<div style="border: 2px solid #DADADA; border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 10px;"><b style="font-size: 18px; font-weight: 900;">Delete “Orbit idea”?</b><span class="help">This note and its AI summary will be removed.</span><div style="display: flex; gap: 10px;"><button class="btn sec" type="button">Cancel</button><button class="btn red" type="button">Delete</button></div></div>
+<div style="background: #2B2B2B; color: #fff; border-radius: 16px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; font-weight: 800;"><svg class="i sm" aria-hidden="true"><use href="#bk"></use></svg><span style="flex: 1;">Slide bookmarked</span><a href="#" style="color: #9FD3FF;">Undo</a></div>
+</div>
+<div class="box">
+<h2 class="bt">C13 · Shared surface states</h2>
+<div class="card" style="gap: 10px;" aria-busy="true"><div class="sk" style="height: 18px; width: 60%;"></div><div class="sk" style="height: 14px; width: 90%;"></div><span class="help">Loading your courses…</span></div>
+<div class="card" style="flex-direction: row; gap: 12px; align-items: center; border-color: #9FD3FF; background: #F4FAFF;"><svg class="i" aria-hidden="true" style="color: #1677C9;"><use href="#spin"></use></svg><span style="flex: 1;"><b style="color: #2B2B2B;">Preparing your lesson</b><br><span class="help">Writing slides. You can leave and come back.</span></span></div>
+<div class="ban bad"><svg class="i" aria-hidden="true"><use href="#alert"></use></svg><div><b>Couldn't prepare this</b><p>Reserved credits were released. <a href="#" style="color: #B3261E; font-weight: 900;">Try again</a> · ID 7f3a</p></div></div>
+<div class="card" style="align-items: center; text-align: center;"><div aria-hidden="true" style="position: relative; width: 70px; height: 56px;"><div style="position: absolute; left: 0; top: 14px; width: 42px; height: 42px; border-radius: 12px; background: #C9EFB2;"></div><div style="position: absolute; left: 26px; top: 0; width: 42px; height: 42px; border-radius: 12px; background: #9FD3FF;"></div></div><b style="color: #2B2B2B;">Start with a topic</b><span class="help">Empty state: one heading, one line, one action.</span></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
+<div class="box">
+<h2 class="bt">C14 · Guided chat (setup &amp; course brief)</h2>
+<div style="display: flex; flex-direction: column; gap: 3px;"><span class="cap">Duolify</span><div class="bub" style="background: #fff; border: 2px solid #E3E3E3;">How much time can you give it on a normal day?</div></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;" role="group" aria-label="Quick replies">
+<button type="button" style="border: 2px solid #E0E0E0; border-bottom-width: 4px; border-radius: 14px; padding: 8px 12px; font-family: inherit; font-weight: 800; font-size: 14px; background: #fff; color: #2B2B2B;">5 min</button>
+<button type="button" aria-pressed="true" style="border: 2px solid #8CCBF7; border-bottom-width: 4px; border-radius: 14px; padding: 8px 12px; font-family: inherit; font-weight: 800; font-size: 14px; background: #DDF1FF; color: #0D5592;">10 min · selected</button>
+<button type="button" style="border: 2px solid #E0E0E0; border-bottom-width: 4px; border-radius: 14px; padding: 8px 12px; font-family: inherit; font-weight: 800; font-size: 14px; background: #fff; color: #2B2B2B;"><svg class="i sm" aria-hidden="true" style="vertical-align: -3px;"><use href="#ck"></use></svg> Multi-select on</button>
+<button type="button" style="border: 2px solid #E0E0E0; border-bottom-width: 4px; border-radius: 14px; padding: 8px 12px; font-family: inherit; font-weight: 800; font-size: 14px; background: #fff; color: #2B2B2B;">Skip</button>
+</div>
+<div style="display: inline-flex; gap: 4px; padding: 11px 13px; border: 2px solid #E3E3E3; border-radius: 18px; align-self: flex-start;" role="status" aria-label="Duolify is typing"><i style="width: 8px; height: 8px; border-radius: 50%; background: #9A9A9A; display: block;"></i><i style="width: 8px; height: 8px; border-radius: 50%; background: #9A9A9A; display: block;"></i><i style="width: 8px; height: 8px; border-radius: 50%; background: #9A9A9A; display: block;"></i></div>
+<div style="display: flex; gap: 6px; flex-wrap: wrap;"><span class="chip info">Step chip · 3 of 5</span><span class="chip warn">Brief · 1 left</span><span class="chip">Prefer a form?</span></div>
+<span class="help">One question at a time. Quick replies are buttons with pressed state; free text always allowed; Skip on every question. Follow-ups only for vague answers. Typing indicator is announced once. If the assistant fails, answers carry over to a form.</span>
+</div>
+<div class="box">
+<h2 class="bt">C15 · Live summary / course brief</h2>
+<div style="border: 2px solid #8CCBF7; background: #F4FAFF; border-radius: 18px; padding: 6px 14px;">
+<div style="display: flex; gap: 10px; padding: 9px 0; border-bottom: 2px solid #E3EEF8;"><b class="cap" style="width: 80px; text-transform: uppercase;">Topic</b><span style="flex: 1; font-weight: 700;">Astronomy</span><a href="#" aria-label="Edit topic"><svg class="i sm" aria-hidden="true"><use href="#tr"></use></svg></a></div>
+<div style="display: flex; gap: 10px; padding: 9px 0; border-bottom: 2px solid #E3EEF8;"><b class="cap" style="width: 80px; text-transform: uppercase;">Include</b><span style="flex: 1; font-weight: 700;">Constellations · Moon · Planets</span><a href="#" aria-label="Edit included"><svg class="i sm" aria-hidden="true"><use href="#tr"></use></svg></a></div>
+<div style="display: flex; gap: 10px; padding: 9px 0;"><b class="cap" style="width: 80px; text-transform: uppercase;">Viewing</b><span class="help" style="flex: 1;">Waiting for your answer</span></div>
+</div>
+<button class="btn" type="button">Confirm brief</button>
+<span class="help">Desktop: docked right panel that updates as you chat. Mobile: the same card opens as a sheet from the brief chip and as the final confirm step. Every line is editable; nothing paid starts until Confirm.</span>
+</div>
+<div class="box">
+<h2 class="bt">C16 · Outline editor row &amp; change proposal</h2>
+<div style="border: 2px solid #E3E3E3; border-bottom-width: 5px; border-radius: 16px; display: flex; align-items: center; gap: 6px; padding: 8px 8px 8px 4px;"><button type="button" aria-label="Reorder Unit 2. Use arrow keys or move buttons" style="width: 30px; height: 40px; border: none; background: none; color: #7A7A7A;"><svg class="i" aria-hidden="true"><use href="#more"></use></svg></button><b style="flex: 1;">Unit 2 · The Moon</b><button class="ib" type="button" aria-label="Move up" style="width: 36px; height: 36px;"><svg class="i sm" aria-hidden="true" style="transform: rotate(-90deg);"><use href="#chev"></use></svg></button><button class="ib" type="button" aria-label="Move down" style="width: 36px; height: 36px;"><svg class="i sm" aria-hidden="true" style="transform: rotate(90deg);"><use href="#chev"></use></svg></button></div>
+<div style="border: 2px solid #1677C9; border-bottom-width: 5px; border-radius: 16px; padding: 10px 12px; font-weight: 900; transform: rotate(-1deg); box-shadow: 0 10px 0 rgba(22,119,201,.18);">Unit 3 · Planets <span class="chip info">Moving</span></div>
+<div style="height: 8px; border-radius: 6px; background: #8CCBF7;" aria-hidden="true"></div>
+<div style="border: 2px solid #E3E3E3; border-radius: 14px; overflow: hidden; font-size: 14px; font-weight: 700;"><div style="padding: 8px 10px;"><span class="chip ok">Added</span> Unit 4 · Your first telescope</div><div style="padding: 8px 10px; border-top: 2px solid #F3F3F3;"><span class="chip info">Moved</span> Planets before the Moon</div><div style="padding: 8px 10px; border-top: 2px solid #F3F3F3;"><span class="chip bad">Removed</span> <s>History of astronomy</s></div><div style="padding: 8px 10px; border-top: 2px solid #F3F3F3;"><span class="chip warn">Retitled</span> 3.5 Planets through binoculars</div></div>
+<span class="help">Drag handle plus move buttons (never drag-only). Position change announced (“Unit 3 moved to position 2”). Chat proposals show a diff with Apply / Discard and Undo. Same diff component is used by course steering re-plan.</span>
+</div>
+</div>
+
+<div class="box">
+<h2 class="bt">C17 · Responsive shells (desktop first, same functions on mobile)</h2>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; font-size: 15px; line-height: 1.5;">
+<div><b>App shell</b><br>Desktop: 224px sidebar (Learn, Courses, Marketplace, Friends, Leagues, Quick notes, Bookmarks · Credits, Profile) + 300px progress rail. Mobile: 5 bottom tabs + header stats; More lists the rest.</div>
+<div><b>Focused shell</b><br>Player, test, finish, create course. Desktop: top bar with Exit and progress, panels dock right. Mobile: same top bar; panels become full-height sheets.</div>
+<div><b>List + detail</b><br>Friends, notes, tutor threads, settings. Desktop: split view. Mobile: list screen → detail screen with Back. Same actions in both.</div>
+<div><b>Side panel ⇄ sheet</b><br>Course brief, tutor, quick note, transcript, outline chat. Desktop: docked panel beside content. Mobile: sheet or step screen. A function never exists on only one platform (moderator console is internal, responsive page only).</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":3200}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
