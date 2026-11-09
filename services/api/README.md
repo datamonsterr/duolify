@@ -2,8 +2,12 @@
 
 The public HTTP router fronts the private gRPC engine. Email-code sign-in protects
 Learner routes; course/credit behavior remains a scaffold. `GET /v1/courses` returns demonstration data;
-`POST /v1/courses/preview` forwards a protobuf JSON request such as
-`{"topic":"Physics"}` and returns protobuf JSON with snake_case field names.
+`POST /v1/courses/preview` accepts an owned confirmed `brief_revision` and accepted
+`X-Quote-ID` header bound to that revision. It loads the current profile and exact confirmed
+brief before calling the engine, validates samples before settlement and never
+creates a course/enrollment. Free-form topic/profile/limits input is rejected.
+The private request carries the brief, revision/hash, current profile and server-derived
+usage limits together; the HTTP response uses snake_case fields.
 
 Copy the root `.env.example` to `.env`; mise loads it. `DATABASE_URL`, `REDIS_URL`
 and `ENGINE_ADDR` are required and validated before startup. `ENGINE_ADDR` accepts

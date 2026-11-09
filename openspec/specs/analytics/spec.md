@@ -48,7 +48,7 @@ Events MUST NOT contain note text, chat content, profile text, Slide HTML or ans
 - **THEN** the API request still succeeds and events are dropped or retried in the background
 
 ### Requirement: Course and lesson events
-The catalog MUST include: `course_preview_requested` (topic_length, has_profile), `course_preview_viewed` (course preview id, duration_ms), `course_outline_generated` (course_id, unit_count, lesson_count, provider, model, latency_ms), `course_enrolled` (course_id), `course_generation_failed` (stage, error_code), `lesson_generation_requested` (course_id, lesson_id), `lesson_generated` (lesson_id, slide_count, provider, model, latency_ms), `lesson_started`, `slide_viewed` (index, watch_ms, offline), `slide_replayed`, `slide_paused`, `lesson_completed` (xp, duration_ms), `lesson_player_error` (error_code, slide_id), `lesson_test_started`, `lesson_test_submitted`, `lesson_test_passed` and `lesson_test_failed` (score, attempt, duration_ms).
+The catalog MUST include: `course_preview_requested` (topic_length, has_profile), `course_preview_viewed` (preview_id: opaque financial job UUID, duration_ms; ephemeral preview only), `course_outline_generated` (course_id, unit_count, lesson_count, provider, model, latency_ms), `course_enrolled` (course_id), `course_generation_failed` (stage, error_code, preview_id, duration_ms), `lesson_generation_requested` (course_id, lesson_id), `lesson_generated` (lesson_id, slide_count, provider, model, latency_ms), `lesson_started`, `slide_viewed` (index, watch_ms, offline), `slide_replayed`, `slide_paused`, `lesson_completed` (xp, duration_ms), `lesson_player_error` (error_code, slide_id), `lesson_test_started`, `lesson_test_submitted`, `lesson_test_passed` and `lesson_test_failed` (score, attempt, duration_ms).
 
 #### Scenario: Catalog check
 - **WHEN** a feature emits an event
@@ -151,3 +151,10 @@ cost and concurrency state SHALL remain independent of event delivery.
 #### Scenario: Repeated settlement
 - **WHEN** a worker repeats finalization after a network interruption
 - **THEN** one financial outcome and one set of per-attempt events exist
+
+### Requirement: Personalized preview event delivery
+Preview requested/viewed/failed events SHALL be API-owned and allowlisted, include UUID identity, source/platform/app_version, and honor current server opt-out. Requested events SHALL carry topic_length and has_profile only; viewed events SHALL identify an ephemeral preview by its opaque financial job UUID and duration_ms. Failure stage SHALL be preview with a fixed error_code, never provider diagnostics. Every attempted generation SHALL retain actual usage in the existing $ai_generation event. Preview text, profile, brief, slide HTML and outline titles MUST NOT enter analytics.
+
+#### Scenario: Preview discarded
+- **WHEN** a learner discards a paid preview
+- **THEN** the API-owned viewed event remains derived analytics and no Course or enrollment is created

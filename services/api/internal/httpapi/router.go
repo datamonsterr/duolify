@@ -13,6 +13,7 @@ import (
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"google.golang.org/grpc/codes"
@@ -148,11 +149,30 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		})
 	})
 	mux.HandleFunc("POST /v1/courses/preview", func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		raw, err := io.ReadAll(r.Body)
-		request := new(enginev1.PreviewCourseRequest)
-		if err != nil || protojson.Unmarshal(raw, request) != nil || strings.TrimSpace(request.GetTopic()) == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a valid JSON body and topic are required"})
+		w.Header().Set("Cache-Control", "no-store")
+		var in struct {
+			BriefRevision string `json:"brief_revision"`
+		}
+		quoteID := r.Header.Get("X-Quote-ID")
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192))
+		decoder.DisallowUnknownFields()
+		var extra any
+		if decoder.Decode(&in) != nil || decoder.Decode(&extra) != io.EOF || in.BriefRevision == "" || quoteID == "" {
+			writeJSON(w, 400, map[string]string{"error": "confirmed brief revision and quote required"})
+			return
+		}
+		preparer, ok := deps.CourseBrief.(interface {
+			PreparePreview(context.Context, string, string, string) (*enginev1.PreviewCourseRequest, error)
+			PreviewEvent(context.Context, string, string, *enginev1.PreviewCourseRequest, string, int64)
+		})
+		if !ok {
+			writeJSON(w, 503, map[string]string{"error": "brief preview unavailable"})
+			return
+		}
+		owner := accounts.LearnerID(r.Context())
+		request, err := preparer.PreparePreview(r.Context(), owner, in.BriefRevision, quoteID)
+		if err != nil {
+			writeJSON(w, 409, map[string]string{"error": "fresh accepted quote for the confirmed brief required"})
 			return
 		}
 		if deps.Engine == nil {
@@ -164,47 +184,83 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			Limits(context.Context, string, string, string) (*enginev1.UsageLimits, error)
 			Claim(context.Context, string, string) error
 			Settle(context.Context, string, string, []*enginev1.Usage) (credits.Reservation, error)
+			Release(context.Context, string, string) (credits.Reservation, error)
 		})
 		if !ok {
 			writeJSON(w, 503, map[string]string{"error": "credit reservation unavailable"})
 			return
 		}
-		owner := accounts.LearnerID(r.Context())
-		job, err := financial.ReserveAction(r.Context(), owner, r.Header.Get("X-Quote-ID"), "preview")
+		job, err := financial.ReserveAction(r.Context(), owner, quoteID, "preview")
 		if err != nil {
-			writeJSON(w, 409, map[string]string{"error": "accepted eligible quote required"})
+			message := "Accepted eligible quote required. Renew the quote and retry."
+			if errors.Is(err, credits.ErrInsufficient) {
+				message = "Not enough eligible purchased credits. Daily free credits cannot pay for previews. Your brief is kept."
+			}
+			if errors.Is(err, credits.ErrBudget) || errors.Is(err, credits.ErrConcurrency) {
+				message = "Generation limit reached. Your brief is kept; wait and retry."
+			}
+			writeJSON(w, 409, map[string]string{"error": message})
 			return
 		}
 		if job.State != "reserved" {
 			writeJSON(w, 409, map[string]string{"error": "quote already finalized"})
 			return
 		}
-		// API overwrites any caller-supplied bounds and learner identity.
+		// A failure before provider work also releases the reserved component.
+		finished := false
+		claimed := false
+		defer func() {
+			if !finished {
+				ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+				defer cancel()
+				if claimed {
+					_, _ = financial.Settle(ctx, owner, job.ID, nil)
+				} else {
+					_, _ = financial.Release(ctx, owner, job.ID)
+				}
+			}
+		}()
+		// API resolves bounds from the pinned quote.
 		request.Limits, err = financial.Limits(r.Context(), owner, job.ID, "preview")
 		if err != nil {
 			writeJSON(w, 409, map[string]string{"error": "quote bounds unavailable"})
 			return
 		}
-		request.Learner = &enginev1.LearnerProfile{LearnerId: owner}
 		if err = financial.Claim(r.Context(), owner, job.ID); err != nil {
 			writeJSON(w, 409, map[string]string{"error": "Generation queue unavailable. Refresh your wallet and retry."})
 			return
 		}
+		claimed = true
+		started := time.Now()
+		preparer.PreviewEvent(r.Context(), owner, "course_preview_requested", request, job.ID, 0)
 		providerCtx, cancel := context.WithTimeout(r.Context(), time.Duration(request.Limits.TimeoutMs)*time.Millisecond)
 		defer cancel()
 		response, err := deps.Engine.PreviewCourse(providerCtx, request)
+		valid := err == nil && courses.ValidatePreview(response) == nil && len(response.Attempts) > 0 && response.Attempts[len(response.Attempts)-1].GetDelivered()
+		if !valid && response != nil {
+			for _, attempt := range response.Attempts {
+				if attempt != nil {
+					attempt.Delivered = false
+				}
+			}
+		}
 		var attempts []*enginev1.Usage
 		if response != nil {
 			attempts = response.Attempts
 		}
 		finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(r.Context()), time.Duration(request.Limits.TimeoutMs)*time.Millisecond)
 		defer finishCancel()
-		if _, finishErr := financial.Settle(finishCtx, owner, job.ID, attempts); finishErr != nil {
+		settled, finishErr := financial.Settle(finishCtx, owner, job.ID, attempts)
+		finished = finishErr == nil || settled.State == "released" || settled.State == "settled"
+		if !valid || finishErr != nil {
+			preparer.PreviewEvent(finishCtx, owner, "course_generation_failed", request, job.ID, time.Since(started).Milliseconds())
+		}
+		if finishErr != nil {
 			writeJSON(w, 502, map[string]string{"error": "usage verification failed"})
 			return
 		}
-		if err == nil && (response == nil || response.Unavailable) {
-			writeJSON(w, 502, map[string]string{"error": "engine preview unavailable"})
+		if err == nil && (!valid || settled.State != "settled") {
+			writeJSON(w, 502, map[string]string{"error": "Preview unavailable. Reserved credits were released. Your brief is kept."})
 			return
 		}
 		if err != nil {
@@ -213,19 +269,16 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 				code = http.StatusGatewayTimeout
 			}
 			logger.WarnContext(r.Context(), "engine preview failed", "request_id", RequestID(r.Context()), "code", status.Code(err).String())
-			writeJSON(w, code, map[string]string{"error": "engine preview unavailable"})
+			writeJSON(w, code, map[string]string{"error": "Preview unavailable. Reserved credits were released. Your brief is kept."})
 			return
 		}
+		preparer.PreviewEvent(finishCtx, owner, "course_preview_viewed", request, job.ID, time.Since(started).Milliseconds())
 		body, err := (protojson.MarshalOptions{UseProtoNames: true}).Marshal(response)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "invalid engine response"})
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(body); err != nil {
-			logger.DebugContext(r.Context(), "response write failed", "request_id", RequestID(r.Context()))
-		}
+		writeJSON(w, http.StatusOK, json.RawMessage(body))
 	})
 	// Public health and pricing stay available; learner-owned routes require auth.
 	guard := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

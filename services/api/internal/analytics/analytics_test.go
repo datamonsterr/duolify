@@ -186,3 +186,73 @@ func TestAnnualGrantMonthKeyPrivacy(t *testing.T) {
 		}
 	}
 }
+
+func TestPreviewEventsReachPostHogWithoutPrivateData(t *testing.T) {
+	for _, interval := range []string{"preview"} {
+		t.Run(interval, func(t *testing.T) {
+			var mu sync.Mutex
+			var received []map[string]any
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var body struct {
+					Batch []map[string]any `json:"batch"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Error(err)
+				}
+				mu.Lock()
+				received = append(received, body.Batch...)
+				mu.Unlock()
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+			props := map[string]any{"source": "api", "platform": "web", "app_version": "development", "stage": "preview", "error_code": "generation_unavailable", "preview_id": "11111111-1111-4111-8111-111111111111", "topic_length": 20, "has_profile": true, "duration_ms": 42, "topic": "private astronomy", "brief": "private answer", "html": "private slide"}
+			id := "11111111-1111-4111-8111-111111111111"
+			events, err := NewWithOptions("fixture-only", server.URL, Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, event := range []string{"course_preview_requested", "course_preview_viewed", "course_generation_failed"} {
+				if !allowlisted(event) {
+					t.Fatal("event missing from catalogue", event)
+				}
+				if err = events.Capture(id, event, props); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err = events.Close(); err != nil {
+				t.Fatal(err)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if len(received) != 3 {
+				t.Fatalf("PostHog delivery %v", received)
+			}
+			for _, event := range received {
+				raw, _ := json.Marshal(event)
+				if strings.Contains(string(raw), "private") {
+					t.Fatal("private content leaked", string(raw))
+				}
+				if event["distinct_id"] != id {
+					t.Fatal("non-UUID identity", event)
+				}
+				p, ok := event["properties"].(map[string]any)
+				if !ok || p["source"] != "api" || p["platform"] != "web" || p["stage"] != "preview" || p["app_version"] != "development" {
+					t.Fatal("lost common/configured properties", event)
+				}
+			}
+			opted, err := NewWithOptions("fixture-only", server.URL, Options{OptOut: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = opted.Capture(id, "course_preview_viewed", props); err != nil {
+				t.Fatal(err)
+			}
+			if err = opted.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if len(received) != 3 {
+				t.Fatal("opt-out sent analytics")
+			}
+		})
+	}
+}

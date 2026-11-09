@@ -24,10 +24,12 @@ export async function authRequest<T>(
   body?: unknown,
   access?: string,
   method = body === undefined ? "GET" : "POST",
+  requestHeaders: Record<string, string> = {},
 ): Promise<T> {
   const response = await fetch(`${base}${path}`, {
     method,
     headers: {
+      ...requestHeaders,
       "Content-Type": "application/json",
       ...(access ? { Authorization: `Bearer ${access}` } : {}),
     },
@@ -186,7 +188,12 @@ export const session = {
     publish();
     return value;
   },
-  async request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+  async request<T>(
+    path: string,
+    method = "GET",
+    body?: unknown,
+    requestHeaders: Record<string, string> = {},
+  ): Promise<T> {
     const expected = generation;
     const tokens = await credentialStore.read();
     if (!tokens || expected !== generation)
@@ -197,6 +204,7 @@ export const session = {
         body,
         tokens.access_token,
         method,
+        requestHeaders,
       );
       if (expected !== generation) throw new AuthError("Session changed.", 401);
       return value;
@@ -206,7 +214,13 @@ export const session = {
         const rotated = await rotate(tokens, expected);
         if (expected !== generation)
           throw new AuthError("Session changed.", 401);
-        return await authRequest<T>(path, body, rotated.access_token, method);
+        return await authRequest<T>(
+          path,
+          body,
+          rotated.access_token,
+          method,
+          requestHeaders,
+        );
       } catch (refreshError) {
         if (refreshError instanceof AuthError && refreshError.status === 401)
           await expire(expected);

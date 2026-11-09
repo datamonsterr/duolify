@@ -91,6 +91,7 @@ async fn grpc_spans_correlate_failures_and_stream_polling_without_text() {
             topic: "private-prompt".into(),
             learner: None,
             limits: None,
+            ..Default::default()
         }))
         .await
         .unwrap_err();

@@ -145,9 +145,35 @@ impl EngineService for Service {
             cache_write_nanos: bounds.cache_write_nanos,
             cache_read_nanos: bounds.cache_read_nanos,
         };
-        let mut outcome = engine_core::credits::run(&self.router, "preview", &req.topic, &limits)
-            .await
-            .map_err(|_| Status::invalid_argument("invalid API envelope"))?;
+        let b = req.brief.unwrap_or_else(|| pb::CourseBrief {
+            topic: req.topic,
+            ..Default::default()
+        });
+        let brief = engine_core::courses::Brief {
+            topic: b.topic,
+            goal: b.goal,
+            include_topics: b.include_topics,
+            skip_topics: b.skip_topics,
+            level: b.level,
+            maths: b.maths,
+            viewing_conditions: b.viewing_conditions,
+            lesson_length: b.lesson_length,
+            language: b.language,
+        };
+        let p = req.learner.unwrap_or_default();
+        let prompt = engine_core::courses::preview_prompt(
+            &brief,
+            serde_json::json!({"locale":p.locale,"background":p.background,"goals":p.goals,"level":p.level,"topic":p.topic,"daily_minutes":p.daily_minutes,"daily_xp":p.daily_xp,"time_zone":p.time_zone,"reminder_enabled":p.reminder_enabled,"reminder_time":p.reminder_time}),
+        );
+        let mut outcome = engine_core::credits::run_validated(
+            &self.router,
+            "preview",
+            &prompt,
+            &limits,
+            engine_core::courses::validate_preview,
+        )
+        .await
+        .map_err(|_| Status::invalid_argument("invalid API envelope"))?;
         let parsed = outcome
             .completion
             .as_ref()

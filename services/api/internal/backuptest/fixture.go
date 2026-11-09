@@ -332,7 +332,13 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	}
 	creditService := credits.NewServiceWithCatalogue(f.DB.Pool, nil, catalogue, nil)
 	for _, action := range []string{"quick_note", "preview"} {
-		q, e := pricing.NewQuotes(f.DB.Pool).Create(t.Context(), "a1111111-1111-4111-8111-111111111111", pricing.QuoteInput{Action: action})
+		input := pricing.QuoteInput{Action: action}
+		if action == "preview" {
+			if err := f.DB.Pool.QueryRow(t.Context(), "SELECT id FROM course_brief_revisions WHERE expires_at>now() LIMIT 1").Scan(&input.BriefRevision); err != nil {
+				t.Fatal(err)
+			}
+		}
+		q, e := pricing.NewQuotes(f.DB.Pool).Create(t.Context(), "a1111111-1111-4111-8111-111111111111", input)
 		if e != nil {
 			t.Fatal(e)
 		}

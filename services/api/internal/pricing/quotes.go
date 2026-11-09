@@ -44,6 +44,7 @@ type QuotePolicy struct {
 
 // QuoteInput contains counts and allowlisted identifiers, never learner text.
 type QuoteInput struct {
+	BriefRevision       string `json:"brief_revision,omitempty"`
 	Action              string `json:"action"`
 	Model               string `json:"model,omitempty"`
 	Voice               string `json:"voice,omitempty"`
@@ -223,6 +224,14 @@ func NewQuotes(pool *pgxpool.Pool) *Quotes { return &Quotes{pool: pool} }
 // Create resolves database time and snapshots the active version.
 func (s *Quotes) Create(ctx context.Context, owner string, in QuoteInput) (Quote, error) {
 	queries := db.New(s.pool)
+	if in.BriefRevision != "" {
+		if in.Action != "preview" {
+			return Quote{}, errQuote
+		}
+		if _, err := queries.GetCourseBrief(ctx, db.GetCourseBriefParams{ID: in.BriefRevision, LearnerID: owner}); err != nil {
+			return Quote{}, errQuote
+		}
+	}
 	row, err := queries.ActiveQuoteConfig(ctx)
 	if err != nil {
 		return Quote{}, err

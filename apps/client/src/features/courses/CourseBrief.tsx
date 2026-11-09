@@ -23,6 +23,7 @@ import {
   type BriefService,
 } from "./brief";
 import "./course-brief.css";
+import { CoursePreview } from "./CoursePreview";
 
 // Covers a stalled network as well as an assistant failure; API attempts finish sooner.
 async function withDeadline<T>(request: Promise<T>): Promise<T> {
@@ -103,6 +104,7 @@ export function CourseBrief({
   const [draft, setDraft] = useState(() => initial(learnerId, initialBrief));
   const [config, setConfig] = useState<BriefConfig | null>(null);
   const [pending, setPending] = useState(false);
+  const [previewStep, setPreviewStep] = useState(1);
   const [panelOpen, setPanelOpen] = useState(false);
   const [error, setError] = useState("");
   const [replies, setReplies] = useState<{ id: string; label: string }[]>([]);
@@ -142,6 +144,7 @@ export function CourseBrief({
     }
   }, [draft, learnerId]);
   function change(field: BriefField, value: string) {
+    setPreviewStep(1);
     operation.current++;
     setPending(false);
     setError("");
@@ -325,9 +328,13 @@ export function CourseBrief({
         <a href="/courses">Cancel and keep draft</a>
         <h1 id="create-course-title">Create a course</h1>
         <ol className="brief-steps" aria-label="Creation steps">
-          <li aria-current="step">1 Brief</li>
-          <li>2 Preview</li>
-          <li>3 Outline</li>
+          <li aria-current={previewStep === 1 ? "step" : undefined}>1 Brief</li>
+          <li aria-current={previewStep === 2 ? "step" : undefined}>
+            2 Preview
+          </li>
+          <li aria-current={previewStep === 3 ? "step" : undefined}>
+            3 Outline
+          </li>
           <li>4 Create</li>
         </ol>
       </header>
@@ -343,46 +350,62 @@ export function CourseBrief({
         preview.
       </p>
       {error && <p role="alert">{error}</p>}
-      {draft.form ? (
-        <div className="guided-fallback">
-          <h2>Course brief</h2>
-          {summary()}
-        </div>
-      ) : (
-        <div className="guided-split">
-          <GuidedChat
-            messages={draft.messages}
-            announcedMessageIds={announcedMessageIds}
-            question={{
-              id: `${draft.step}-${draft.followUps.length}`,
-              replies,
-              multiple:
-                draft.step === "include_topics" || draft.step === "skip_topics",
-            }}
-            draft={draft.composer}
-            onDraftChange={(composer) => setDraft((d) => ({ ...d, composer }))}
-            onAnswer={(a) => void answer(a)}
-            formHref="#brief-form"
-            onFormFallback={(e) => {
-              e.preventDefault();
-              setDraft((d) => ({ ...d, form: true }));
-            }}
-            step={{
-              current: briefFields.findIndex((f) => f.id === draft.step) + 1,
-              total: briefFields.length,
-            }}
-            state={pending || !config ? "loading" : "ready"}
-          />
-          <ResponsivePanel
-            title="Course brief"
-            triggerLabel="Open course brief"
-            sheetId="course_brief"
-            open={panelOpen}
-            onOpenChange={setPanelOpen}
-          >
+      {previewStep === 1 &&
+        (draft.form ? (
+          <div className="guided-fallback">
+            <h2>Course brief</h2>
             {summary()}
-          </ResponsivePanel>
-        </div>
+          </div>
+        ) : (
+          <div className="guided-split">
+            <GuidedChat
+              messages={draft.messages}
+              announcedMessageIds={announcedMessageIds}
+              question={{
+                id: `${draft.step}-${draft.followUps.length}`,
+                replies,
+                multiple:
+                  draft.step === "include_topics" ||
+                  draft.step === "skip_topics",
+              }}
+              draft={draft.composer}
+              onDraftChange={(composer) =>
+                setDraft((d) => ({ ...d, composer }))
+              }
+              onAnswer={(a) => void answer(a)}
+              formHref="#brief-form"
+              onFormFallback={(e) => {
+                e.preventDefault();
+                setDraft((d) => ({ ...d, form: true }));
+              }}
+              step={{
+                current: briefFields.findIndex((f) => f.id === draft.step) + 1,
+                total: briefFields.length,
+              }}
+              state={pending || !config ? "loading" : "ready"}
+            />
+            <ResponsivePanel
+              title="Course brief"
+              triggerLabel="Open course brief"
+              sheetId="course_brief"
+              open={panelOpen}
+              onOpenChange={setPanelOpen}
+            >
+              {summary()}
+            </ResponsivePanel>
+          </div>
+        ))}
+      {draft.revision && (
+        <CoursePreview
+          key={draft.revision.id}
+          revision={draft.revision}
+          onStep={setPreviewStep}
+          onBack={() => {
+            setPreviewStep(1);
+            setPanelOpen(false);
+            setDraft((d) => ({ ...d, form: true }));
+          }}
+        />
       )}
     </section>
   );

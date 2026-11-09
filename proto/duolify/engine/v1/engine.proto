@@ -127,6 +127,9 @@ message PreviewCourseRequest {
   string topic = 1;
   LearnerProfile learner = 2;
   UsageLimits limits = 3;
+  CourseBrief brief = 4;
+  string brief_revision = 5;
+  string brief_hash = 6;
 }
 
 message PreviewCourseResponse {

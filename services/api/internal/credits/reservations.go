@@ -374,6 +374,11 @@ func (s *Service) Limits(ctx context.Context, owner, id, action string) (*engine
 	return &enginev1.UsageLimits{InputTokens: input, OutputTokens: output, TimeoutMs: timeout, MaxAttempts: attempts, MaxCostNanos: nonnegativeUint64(min(reservationCost(q), q.Bounds["max_cost_nanos"])), InputNanos: nonnegativeUint64(max(q.Rate.Input, fallback.Input)), OutputNanos: nonnegativeUint64(max(q.Rate.Output, fallback.Output)), CacheWriteNanos: nonnegativeUint64(max(q.Rate.CacheWrite, fallback.CacheWrite)), CacheReadNanos: nonnegativeUint64(max(q.Rate.CacheRead, fallback.CacheRead)), Provider: q.Rate.Provider, Model: q.Rate.Model, FallbackProvider: fallback.Provider, FallbackModel: fallback.Model}, nil
 }
 
+// Release cancels only queued work; it cannot release another executor's running job.
+func (s *Service) Release(ctx context.Context, owner, id string) (Reservation, error) {
+	return s.finalize(ctx, owner, id, nil, true)
+}
+
 // Settle is an internal trusted engine consumer; no public usage submission route exists.
 func (s *Service) Settle(ctx context.Context, owner, id string, usage []*enginev1.Usage) (Reservation, error) {
 	return s.finalize(ctx, owner, id, usage, false)
@@ -573,7 +578,7 @@ func (s *Service) handleReserve(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, result)
 }
 func (s *Service) handleRelease(w http.ResponseWriter, r *http.Request) {
-	result, err := s.finalize(r.Context(), accounts.LearnerID(r.Context()), r.PathValue("id"), nil, true)
+	result, err := s.Release(r.Context(), accounts.LearnerID(r.Context()), r.PathValue("id"))
 	if err != nil {
 		respondJSON(w, http.StatusConflict, map[string]string{"error": "reservation_unavailable"})
 		return

@@ -50,6 +50,7 @@ async fn all_rpcs() {
                 fallback_provider: "mock".into(),
                 fallback_model: "anthropic/claude-sonnet-5.5".into(),
             }),
+            ..Default::default()
         })
         .await
         .unwrap()

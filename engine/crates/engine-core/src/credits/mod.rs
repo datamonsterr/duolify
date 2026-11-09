@@ -75,6 +75,36 @@ pub struct Outcome {
 /// A provider error/timeout retains a conservative cost hold. A fallback starts
 /// only when its full worst-case envelope still fits the API's total cap.
 pub async fn run(router: &ProviderRouter, task: &str, input: &str, l: &Limits) -> Result<Outcome> {
+    execute(
+        router,
+        task,
+        input,
+        l,
+        |text| serde_json::from_str::<serde_json::Value>(text).is_ok(),
+        false,
+    )
+    .await
+}
+
+/// Feature validation participates in the same attempt, USD and deadline budget.
+/// Preview leaves time for its evaluated fallback within the total deadline.
+pub async fn run_validated<F: Fn(&str) -> bool>(
+    router: &ProviderRouter,
+    task: &str,
+    input: &str,
+    l: &Limits,
+    validate: F,
+) -> Result<Outcome> {
+    execute(router, task, input, l, validate, true).await
+}
+async fn execute<F: Fn(&str) -> bool>(
+    router: &ProviderRouter,
+    task: &str,
+    input: &str,
+    l: &Limits,
+    validate: F,
+    reserve_fallback_time: bool,
+) -> Result<Outcome> {
     validate_limits(l)?;
     if input.len() > l.input_tokens as usize {
         bail!("input exceeds API envelope")
@@ -123,7 +153,11 @@ pub async fn run(router: &ProviderRouter, task: &str, input: &str, l: &Limits) -
         };
         let attempt_started = Instant::now();
         let response = tokio::time::timeout(
-            remaining,
+            if reserve_fallback_time {
+                remaining / (l.max_attempts - index)
+            } else {
+                remaining
+            },
             provider.complete_bounded(route, input, l.output_tokens),
         )
         .await;
@@ -162,7 +196,7 @@ pub async fn run(router: &ProviderRouter, task: &str, input: &str, l: &Limits) -
             ) {
                 cost = actual;
                 // Invalid structured output is undelivered and can use one bounded fallback.
-                if serde_json::from_str::<serde_json::Value>(&c.text).is_ok() {
+                if validate(&c.text) {
                     attempt.delivered = true;
                     outcome.completion = Some(c)
                 }

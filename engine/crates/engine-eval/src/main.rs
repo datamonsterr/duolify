@@ -163,6 +163,25 @@ async fn evaluate_credits(input: &serde_json::Value) -> Result<String> {
  }.to_string())
 }
 
+async fn evaluate_preview(input: &serde_json::Value) -> Result<String> {
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input["recorded"].clone())?;
+    let provider = std::sync::Arc::new(RecordedCredits(std::sync::Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
+    let brief: engine_core::courses::Brief = serde_json::from_value(input["brief"].clone())?;
+    let prompt = engine_core::courses::preview_prompt(&brief, input["profile"].clone());
+    let outcome = engine_core::credits::run_validated(
+        &router,
+        "preview",
+        &prompt,
+        &limits,
+        engine_core::courses::validate_preview,
+    )
+    .await?;
+    Ok(serde_json::json!({"delivered":outcome.completion.is_some(),"attempt_count":outcome.attempts.len(),"fallback_used":outcome.attempts.iter().any(|a|a.fallback_used),"preview":outcome.completion.and_then(|c|serde_json::from_str::<serde_json::Value>(&c.text).ok())}).to_string())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
@@ -220,7 +239,9 @@ async fn main() -> Result<()> {
     println!("selected {} of {total} cases", cases.len());
     let mut results = Vec::new();
     for case in cases {
-        let response_text = if case.task == "credit_envelope" && provider == "mock" {
+        let response_text = if case.task == "course_preview" && provider == "mock" {
+            evaluate_preview(&case.input).await?
+        } else if case.task == "credit_envelope" && provider == "mock" {
             evaluate_credits(&case.input).await?
         } else if case.task == "course_brief_chat" && provider == "mock" {
             evaluate_brief(&case.input).await?

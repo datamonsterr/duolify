@@ -15,3 +15,11 @@ Quote-version pinning, local-midnight release and financial backup invariants ru
 against Postgres in the credits integration/restore suites. Publish these fixture
 rows to the pinned `datamonsterr/duolify-golden` revision when E10-01 is provisioned;
 no live promotion is enabled by this ticket.
+
+E2-01 `course_preview` recorded fixtures cover beginner, expert, empty and Vietnamese
+profiles, malformed/unsafe primary output, terminal failure and a fallback that
+cannot fit the remaining USD cap. The offline gate builds the production preview
+prompt and runs the shared bounded executor with production schema validation;
+it never calls a live provider. Fixture revisions are pinned by the Git commit
+until the ADR 0011 live Hugging Face gate is provisioned; E10-06 still gates live
+model promotion.

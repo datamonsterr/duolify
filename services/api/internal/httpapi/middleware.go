@@ -67,7 +67,7 @@ func Middleware(logger *slog.Logger, next http.Handler, monitors ...*telemetry.M
 			case "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420", "http://127.0.0.1:1420":
 				rw.Header().Set("Access-Control-Allow-Origin", origin)
 				rw.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-				rw.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID, If-None-Match")
+				rw.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID, X-Quote-ID, If-None-Match")
 				rw.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, ETag, Cache-Control")
 			default:
 				writeJSON(rw, http.StatusForbidden, map[string]string{"error": "origin not allowed"})

@@ -159,3 +159,94 @@ async fn timeouts_cancel_each_attempt_and_keep_known_routes_without_inventing_us
             .all(|a| a.completion.is_none() && a.provider == "slow-fixture" && !a.model.is_empty())
     );
 }
+
+#[test]
+fn preview_requires_outline_and_safe_samples() {
+    let good = serde_json::json!({"title":"Sample","units":[{"title":"Unit","lessons":[{"title":"Lesson","goal":"Learn"}]}],"html":"<div id=\"root\">Example</div>","narration":"Example"});
+    assert!(super::validate_preview(&good.to_string()));
+    for field in ["title", "units", "html", "narration"] {
+        let mut bad = good.clone();
+        bad[field] = serde_json::Value::Null;
+        assert!(!super::validate_preview(&bad.to_string()));
+    }
+}
+
+struct PreviewFixture(bool);
+#[async_trait::async_trait]
+impl crate::LlmProvider for PreviewFixture {
+    fn name(&self) -> &'static str {
+        "fixture"
+    }
+    async fn complete(&self, model: &str, _input: &str) -> anyhow::Result<crate::Completion> {
+        let mut completion = <crate::MockProvider as crate::LlmProvider>::complete(
+            &crate::MockProvider,
+            model,
+            "preview fixture",
+        )
+        .await?;
+        completion.input_tokens = 100;
+        completion.output_tokens = 20;
+        if self.0 {
+            completion.text = "{}".into()
+        }
+        Ok(completion)
+    }
+    async fn stream(&self, _model: &str, _input: &str) -> anyhow::Result<crate::CompletionStream> {
+        anyhow::bail!("not streaming")
+    }
+}
+#[tokio::test]
+async fn preview_schema_fallback_respects_the_accepted_cap() {
+    let router = crate::ProviderRouter::new(
+        std::sync::Arc::new(PreviewFixture(true)),
+        std::sync::Arc::new(PreviewFixture(false)),
+    )
+    .unwrap();
+    let limits = crate::credits::Limits {
+        input_tokens: 4000,
+        output_tokens: 2500,
+        timeout_ms: 3000,
+        max_attempts: 2,
+        max_cost_nanos: 100000000,
+        input_nanos: 2000,
+        output_nanos: 10000,
+        cache_write_nanos: 2500,
+        cache_read_nanos: 100,
+    };
+    let outcome =
+        crate::credits::run_validated(&router, "preview", "fixture", &limits, validate_preview)
+            .await
+            .unwrap();
+    assert!(outcome.completion.is_some());
+    assert_eq!(outcome.attempts.len(), 2);
+    assert!(!outcome.attempts[0].delivered);
+    assert!(outcome.attempts[1].fallback_used);
+    let limited = crate::credits::Limits {
+        max_cost_nanos: 35000000,
+        ..limits
+    };
+    let outcome =
+        crate::credits::run_validated(&router, "preview", "fixture", &limited, validate_preview)
+            .await
+            .unwrap();
+    assert!(outcome.completion.is_none());
+    assert_eq!(outcome.attempts.len(), 1);
+}
+#[test]
+fn preview_prompt_keeps_all_confirmed_fields_and_empty_profile() {
+    let brief = Brief {
+        topic: "Sky".into(),
+        include_topics: "Moon".into(),
+        skip_topics: "History".into(),
+        maths: "No maths".into(),
+        viewing_conditions: "On the bus".into(),
+        lesson_length: "5 minutes".into(),
+        level: "expert".into(),
+        language: "vi-VN".into(),
+        ..Default::default()
+    };
+    let prompt: serde_json::Value =
+        serde_json::from_str(&preview_prompt(&brief, serde_json::json!({}))).unwrap();
+    assert_eq!(prompt["brief"], serde_json::to_value(brief).unwrap());
+    assert_eq!(prompt["profile"], serde_json::json!({}));
+}

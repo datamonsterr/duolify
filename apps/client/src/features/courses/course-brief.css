@@ -42,3 +42,28 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.course-preview {
+  max-inline-size: var(--size-shell);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.course-preview iframe {
+  width: 100%;
+  /* Match the existing slide geometry token while keeping text outside readable. */
+  min-block-size: var(--size-slide-mobile);
+  border: 0;
+}
+.course-preview details {
+  width: 100%;
+}
+.sample-badge {
+  color: var(--primary);
+  font-weight: var(--weight-strong);
+}

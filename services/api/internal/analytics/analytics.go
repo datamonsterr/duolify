@@ -73,7 +73,7 @@ func (c *client) Close() error {
 
 func allowlisted(event string) bool {
 	switch event {
-	case "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
+	case "course_preview_requested", "course_preview_viewed", "course_generation_failed", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
@@ -177,6 +177,10 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "course_preview_requested", "course_preview_viewed", "course_generation_failed":
+		numeric("topic_length", "duration_ms")
+		boolean("has_profile")
+		ids("stage", "error_code", "preview_id")
 	case "plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed":
 		numeric("amount", "amount_minor")
 		ids("plan_id", "interval", "channel", "currency", "price_table_version", "entitlement_version", "reason_code")

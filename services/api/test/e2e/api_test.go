@@ -14,6 +14,7 @@ import (
 	"time"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
@@ -41,7 +42,7 @@ func (*fakeEngine) PreviewCourse(ctx context.Context, req *enginev1.PreviewCours
 	if req.Limits == nil {
 		return nil, status.Error(codes.InvalidArgument, "bounds required")
 	}
-	return &enginev1.PreviewCourseResponse{Attempts: []*enginev1.Usage{{Provider: req.Limits.Provider, Model: req.Limits.Model, InputTokens: 100, OutputTokens: 20, Attempt: 1, Component: "content", Delivered: true}}, SampleOutline: &enginev1.CourseOutline{Title: req.GetTopic()}, ExampleSlides: []*enginev1.Slide{{SlideId: "demo", Html: "<p>Learn</p>"}}}, nil
+	return &enginev1.PreviewCourseResponse{Attempts: []*enginev1.Usage{{Provider: req.Limits.Provider, Model: req.Limits.Model, InputTokens: 100, OutputTokens: 20, Attempt: 1, Component: "content", Delivered: true}}, SampleOutline: &enginev1.CourseOutline{Title: req.GetTopic(), Units: []*enginev1.Unit{{Title: "Unit", Lessons: []*enginev1.LessonRef{{Title: "Lesson", Goal: "Learn"}}}}}, ExampleSlides: []*enginev1.Slide{{SlideId: "demo", Html: `<div id="root">Learn</div>`, Narration: "Learn", DurationMs: 1000}}}, nil
 }
 
 func TestHTTPAPI(t *testing.T) {
@@ -82,7 +83,7 @@ func TestHTTPAPI(t *testing.T) {
 	if _, err = database.Pool.Exec(t.Context(), "INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version) VALUES($1,1000,'purchase','e2e-fixture',$2)", owner, catalogue.Config().Version); err != nil {
 		t.Fatal(err)
 	}
-	handler := httpapi.New(httpapi.Dependencies{Accounts: auth, Engine: client, Credits: creditService, Quotes: quotes, Postgres: func(context.Context) error { return nil }, Redis: func(context.Context) error { return errors.New("unavailable") }}, logger)
+	handler := httpapi.New(httpapi.Dependencies{Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: database.Pool}), Engine: client, Credits: creditService, Quotes: quotes, Postgres: func(context.Context) error { return nil }, Redis: func(context.Context) error { return errors.New("unavailable") }}, logger)
 	server := httpapi.NewServer("127.0.0.1:0", handler)
 	listener, err := new(net.ListenConfig).Listen(t.Context(), "tcp", server.Addr)
 	if err != nil {
@@ -126,14 +127,27 @@ func TestHTTPAPI(t *testing.T) {
 				req.Header.Set("Authorization", "Bearer "+access)
 			}
 			if tt.name == "preview" || tt.name == "engine error" || tt.name == "engine timeout" {
-				quote, e := quotes.Create(t.Context(), owner, pricing.QuoteInput{Action: "preview"})
+				var input map[string]string
+				if err = json.Unmarshal([]byte(tt.body), &input); err != nil {
+					t.Fatal(err)
+				}
+				brief := courses.Brief{Topic: input["topic"]}
+				raw, _ := json.Marshal(brief)
+				var revision string
+				if err = database.Pool.QueryRow(t.Context(), `INSERT INTO course_brief_revisions(learner_id,brief,content_hash) VALUES($1,$2,$3) RETURNING id`, owner, raw, brief.Hash()).Scan(&revision); err != nil {
+					t.Fatal(err)
+				}
+				quote, e := quotes.Create(t.Context(), owner, pricing.QuoteInput{Action: "preview", BriefRevision: revision})
 				if e != nil {
 					t.Fatal(e)
 				}
 				if e = quotes.Accept(t.Context(), owner, quote.ID); e != nil {
 					t.Fatal(e)
 				}
+				body, _ := json.Marshal(map[string]string{"brief_revision": revision})
 				req.Header.Set("X-Quote-ID", quote.ID)
+				req.Body = io.NopCloser(strings.NewReader(string(body)))
+				req.ContentLength = int64(len(body))
 			}
 			resp, err := httpClient.Do(req)
 			if err != nil {

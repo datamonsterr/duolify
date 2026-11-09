@@ -1,5 +1,15 @@
 # Data inventory
 
+E2-01: personalized preview output (sample outline and Motion HTML) stays in component
+memory and is discarded on Back/leave; no Course, enrollment, object or new learner
+table is created. The existing immutable `pricing_quotes.snapshot.input.brief_revision`
+contains only an opaque confirmed revision ID, never brief/profile text. Existing
+quote/job/usage/ledger export and pseudonymization policies in `accounts/privacy.go`
+apply; financial records retain seven years and encrypted snapshots rotate after
+35 days. Confirmed briefs retain E2-06 expiry/erasure. Restore fixtures preserve
+revision-bound preview quotes alongside reservations and replay account erasures.
+
+
 E7-04: `credit_checkout_orders` stores immutable illustrative pending order IDs,
 request dedupe keys, pseudonymous owner references, optional quote IDs and original
 catalogue SKU, amount, currency, Credits, billing period and fixed internal return

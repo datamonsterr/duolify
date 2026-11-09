@@ -42,9 +42,14 @@ export const quoteAPI = {
       return response.json() as Promise<ActionQuote>;
     })();
   },
-  create: (action: string, narrationCharacters?: number) =>
+  create: (
+    action: string,
+    narrationCharacters?: number,
+    briefRevision?: string,
+  ) =>
     request<ActionQuote>("/v1/quotes", {
       action,
+      brief_revision: briefRevision,
       narration_characters: narrationCharacters,
     }),
   accept: (id: string) =>
