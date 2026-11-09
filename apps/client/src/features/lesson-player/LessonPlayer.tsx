@@ -8,6 +8,7 @@ import slide3 from "../../slides/three.html?raw";
 import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { useShellSession } from "../shell/ShellSession";
 const slides = [slide1, slide2, slide3];
+const playbackSpeeds = [1, 1.25, 1.5, 2];
 export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
   const session = useShellSession();
   const [index, setIndex] = useState(() => session.slides.get(lessonId) ?? 0);
@@ -15,18 +16,31 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
     session.slides.set(lessonId, index);
   }, [session, lessonId, index]);
   const [finished, setFinished] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [speedIndex, setSpeedIndex] = useState(0);
+  const [slideTime, setSlideTime] = useState(0);
   const frame = useRef<HTMLIFrameElement>(null);
   const [panel, setPanel] = useState<
     "Transcript" | "Ask tutor" | "Quick note" | null
   >(null);
   const [note, setNote] = useState("");
-  const pause = () =>
+  const pause = () => {
+    setIsPlaying(false);
     sendCommand(frame.current?.contentWindow ?? null, { type: "pause" });
+  };
+  const goToSlide = (nextIndex: number) => {
+    setIndex(nextIndex);
+    setSlideTime(0);
+    setIsPlaying(true);
+  };
   useEffect(() => {
     const playerFrame = frame.current;
     const onVisibility = () => {
-      if (document.hidden)
+      if (document.hidden) {
+        setIsPlaying(false);
         sendCommand(frame.current?.contentWindow ?? null, { type: "pause" });
+      }
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
@@ -149,41 +163,93 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
           title={`Slide ${index + 1}`}
           sandbox="allow-scripts"
           srcDoc={slides[index]}
+          onLoad={() => {
+            sendCommand(frame.current?.contentWindow ?? null, {
+              type: "rate",
+              rate: playbackSpeeds[speedIndex],
+            });
+            if (!isPlaying)
+              sendCommand(frame.current?.contentWindow ?? null, {
+                type: "pause",
+              });
+          }}
         />
-        <div className="controls">
+        <div className="controls player-controls">
           <button
-            onClick={() => setIndex(Math.max(0, index - 1))}
+            onClick={() => goToSlide(Math.max(0, index - 1))}
             disabled={index === 0}
           >
             Previous
           </button>
           <button
-            onClick={() =>
+            aria-label="Replay slide"
+            onClick={() => {
+              setSlideTime(0);
+              setIsPlaying(true);
               sendCommand(frame.current?.contentWindow ?? null, {
                 type: "seek",
                 time: 0,
-              })
-            }
+              });
+            }}
           >
             Replay
           </button>
           <button
-            onClick={() =>
+            onClick={() => {
+              const nextPlaying = !isPlaying;
+              setIsPlaying(nextPlaying);
               sendCommand(frame.current?.contentWindow ?? null, {
-                type: "pause",
-              })
-            }
+                type: nextPlaying ? "play" : "pause",
+              });
+            }}
           >
-            Pause
+            {isPlaying ? "Pause" : "Play"}
+          </button>
+          <div className="audio-timeline">
+            <input
+              className="audio-timeline-slider"
+              type="range"
+              min={0}
+              max={3000}
+              step={100}
+              value={slideTime}
+              aria-label="Slide time"
+              aria-valuetext={`${Math.floor(slideTime / 1000)}:${String(Math.floor((slideTime % 1000) / 100)).padStart(2, "0")} of 0:03`}
+              onChange={(event) => {
+                const time = Number(event.currentTarget.value);
+                setSlideTime(time);
+                setIsPlaying(true);
+                sendCommand(frame.current?.contentWindow ?? null, {
+                  type: "seek",
+                  time,
+                });
+              }}
+            />
+            <span aria-hidden="true">
+              {Math.floor(slideTime / 1000)}:
+              {String(Math.floor((slideTime % 1000) / 100)).padStart(2, "0")} /
+              0:03
+            </span>
+          </div>
+          <button
+            aria-label={`Speed ${playbackSpeeds[speedIndex]}x`}
+            onClick={() => {
+              const nextIndex = (speedIndex + 1) % playbackSpeeds.length;
+              setSpeedIndex(nextIndex);
+              sendCommand(frame.current?.contentWindow ?? null, {
+                type: "rate",
+                rate: playbackSpeeds[nextIndex],
+              });
+            }}
+          >
+            {playbackSpeeds[speedIndex]}×
           </button>
           <button
-            onClick={() =>
-              sendCommand(frame.current?.contentWindow ?? null, {
-                type: "play",
-              })
-            }
+            aria-label={isMuted ? "Unmute narration" : "Mute narration"}
+            aria-pressed={isMuted}
+            onClick={() => setIsMuted(!isMuted)}
           >
-            Play
+            {isMuted ? "Unmute" : "Mute"}
           </button>
           <button
             className="primary"
@@ -191,7 +257,7 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
               if (index === slides.length - 1) {
                 track("lesson_completed", { lesson: "sky" });
                 setFinished(true);
-              } else setIndex(nextSlide(index, slides.length));
+              } else goToSlide(nextSlide(index, slides.length));
             }}
           >
             {index === slides.length - 1 ? "Finish lesson" : "Next"}
