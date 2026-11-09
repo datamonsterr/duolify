@@ -1,20 +1,25 @@
 use anyhow::{Context, Result, bail};
 use engine_eval::{
-    Case, Runner, TaskRegistry, Thresholds, emit_eval_run_completed, fetch_dataset_with_mirror,
-    generate_json_report, generate_markdown_report, is_pinned_commit, sample_limit_from_args,
-    select_cases,
+    Case, EvalReport, Runner, TaskRegistry, Thresholds, budget_from_args, emit_eval_run_completed,
+    fetch_dataset_with_mirror, generate_json_report, generate_markdown_report, is_pinned_commit,
+    mode_from_args, sample_limit_from_args, select_cases,
 };
 use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    let offline = args.iter().any(|a| a == "--offline");
-    let provider = args
+    let (mode, allow_missing_secrets) = mode_from_args(&args);
+    let mut offline = args.iter().any(|a| a == "--offline") || mode.as_deref() == Some("draft");
+    let mut provider = args
         .windows(2)
         .find(|a| a[0] == "--provider")
         .map(|a| a[1].as_str())
-        .unwrap_or("live");
+        .unwrap_or_else(|| if offline { "mock" } else { "live" });
+    if mode.as_deref() == Some("draft") {
+        offline = true;
+        provider = "mock";
+    }
     let judge = args.iter().any(|a| a == "--judge");
 
     let custom_data = args
@@ -36,7 +41,67 @@ async fn main() -> Result<()> {
         .or_else(|| std::env::var("EVAL_REPORTS_DIR").ok());
 
     let limit = sample_limit_from_args(&args, std::env::var("EVAL_SAMPLE_LIMIT").ok().as_deref())?;
+    let budget = budget_from_args(&args, std::env::var("EVAL_BUDGET_USD").ok().as_deref())?;
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../evals");
+
+    // Check ready pipeline mode with missing credentials
+    let is_ready = mode.as_deref() == Some("ready") || allow_missing_secrets;
+    if !offline && custom_data.is_none() && is_ready {
+        let anthropic_key = std::env::var("ANTHROPIC_API_KEY").unwrap_or_default();
+        let openrouter_key = std::env::var("OPENROUTER_API_KEY").unwrap_or_default();
+        let hf_token = std::env::var("HF_TOKEN").unwrap_or_default();
+        let has_secrets =
+            !anthropic_key.is_empty() && !openrouter_key.is_empty() && !hf_token.is_empty();
+
+        if !has_secrets {
+            println!(
+                "::notice::Live sample evals skipped: credentials unavailable (ANTHROPIC_API_KEY, OPENROUTER_API_KEY, HF_TOKEN); feature activation stays disabled without fabricating a live pass."
+            );
+            println!("eval status: missing_secrets; live promotion disabled");
+
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis();
+            let dataset = std::env::var("HF_GOLDEN_DATASET")
+                .unwrap_or_else(|_| "datamonsterr/duolify-golden".into());
+            let revision = std::env::var("HF_GOLDEN_REVISION")
+                .unwrap_or_else(|_| "0123456789abcdef0123456789abcdef01234567".into());
+
+            let report = EvalReport {
+                timestamp_millis: stamp,
+                dataset,
+                dataset_revision: revision,
+                dataset_source: "none".to_string(),
+                prompt_revision: std::env::var("PROMPT_REVISION")
+                    .unwrap_or_else(|_| "git-head".to_string()),
+                provider: "live".to_string(),
+                budget_usd: budget,
+                total_cost_usd: 0.0,
+                budget_exceeded: false,
+                status: "missing_secrets".to_string(),
+                live_promoted: false,
+                passed: false,
+                critical_failure: false,
+                task_reports: std::collections::BTreeMap::new(),
+                results: Vec::new(),
+            };
+
+            let reports_dir = custom_reports
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("reports"));
+            std::fs::create_dir_all(&reports_dir)?;
+
+            let json_bytes = generate_json_report(&report)?;
+            let md_text = generate_markdown_report(&report);
+
+            std::fs::write(reports_dir.join(format!("{stamp}.json")), json_bytes)?;
+            std::fs::write(reports_dir.join(format!("{stamp}.md")), md_text)?;
+
+            // Exit 0 to preserve ci-ok aggregate
+            return Ok(());
+        }
+    }
 
     let (data, dataset_name, dataset_revision, dataset_source) = if let Some(path) = custom_data {
         let content = std::fs::read_to_string(&path)
@@ -131,6 +196,7 @@ async fn main() -> Result<()> {
     runner.dataset_revision = dataset_revision;
     runner.dataset_source = dataset_source;
     runner.prompt_revision = prompt_rev;
+    runner.budget_usd = budget;
 
     let report = runner.run_cases(cases, &thresholds).await?;
 
@@ -172,6 +238,15 @@ async fn main() -> Result<()> {
             tr.threshold,
             if tr.passed { "PASS" } else { "FAIL" }
         );
+    }
+
+    if report.budget_exceeded {
+        eprintln!(
+            "eval failed: evaluation budget exceeded (${:.6} >= ${:.6})",
+            report.total_cost_usd,
+            budget.unwrap_or_default()
+        );
+        bail!("budget exceeded");
     }
 
     if report.critical_failure {
@@ -349,5 +424,70 @@ lesson_test = 1.00
         assert!(!raw.contains("learner_text"));
         assert!(!raw.contains("prompt"));
         assert!(!raw.contains("completion"));
+    }
+
+    #[test]
+    fn task_stratified_sample_selection_distributes_across_tasks() {
+        let mut cases = Vec::new();
+        for task in ["course_preview", "course_outline", "lesson_slides"] {
+            for i in 1..=4 {
+                cases.push(Case {
+                    id: format!("{task}-{i}"),
+                    task: task.to_string(),
+                    input: serde_json::Value::Null,
+                    rubric: String::new(),
+                    checks: Vec::new(),
+                });
+            }
+        }
+        let (selected, total) = select_cases(cases, Some(6));
+        assert_eq!(total, 12);
+        assert_eq!(selected.len(), 6);
+        let mut by_task = std::collections::HashMap::new();
+        for c in &selected {
+            *by_task.entry(c.task.clone()).or_insert(0) += 1;
+        }
+        assert_eq!(by_task.get("course_preview"), Some(&2));
+        assert_eq!(by_task.get("course_outline"), Some(&2));
+        assert_eq!(by_task.get("lesson_slides"), Some(&2));
+    }
+
+    #[test]
+    fn promotion_gate_enforces_live_pass_and_rejects_missing_secrets() {
+        use engine_eval::is_promotable;
+        let report_mock = EvalReport {
+            provider: "mock".to_string(),
+            passed: true,
+            ..Default::default()
+        };
+        assert!(!is_promotable(&report_mock, "course_preview"));
+
+        let report_missing = EvalReport {
+            provider: "live".to_string(),
+            status: "missing_secrets".to_string(),
+            passed: false,
+            ..Default::default()
+        };
+        assert!(!is_promotable(&report_missing, "course_preview"));
+    }
+
+    #[test]
+    fn budget_and_mode_argument_parsing() {
+        let args = vec!["bin".into(), "--budget".into(), "12.50".into()];
+        assert_eq!(budget_from_args(&args, None).unwrap(), Some(12.50));
+
+        let args_env = vec!["bin".into()];
+        assert_eq!(
+            budget_from_args(&args_env, Some("5.25")).unwrap(),
+            Some(5.25)
+        );
+
+        let args_ready = vec!["bin".into(), "--ready".into()];
+        let (mode, _) = mode_from_args(&args_ready);
+        assert_eq!(mode.as_deref(), Some("ready"));
+
+        let args_mode_draft = vec!["bin".into(), "--mode".into(), "draft".into()];
+        let (mode_d, _) = mode_from_args(&args_mode_draft);
+        assert_eq!(mode_d.as_deref(), Some("draft"));
     }
 }

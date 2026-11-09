@@ -12,9 +12,26 @@ pub fn generate_markdown_report(report: &EvalReport) -> String {
         "- **Overall Result**: {}\n",
         if report.passed { "PASSED" } else { "FAILED" }
     ));
+    md.push_str(&format!("- **Status**: {}\n", report.status));
     md.push_str(&format!(
         "- **Critical Check Failure**: {}\n",
         if report.critical_failure { "YES" } else { "NO" }
+    ));
+    md.push_str(&format!(
+        "- **Budget Exceeded**: {}\n",
+        if report.budget_exceeded { "YES" } else { "NO" }
+    ));
+    md.push_str(&format!("- **Provider**: {}\n", report.provider));
+    if let Some(b) = report.budget_usd {
+        md.push_str(&format!("- **Budget (USD)**: ${:.2}\n", b));
+    }
+    md.push_str(&format!(
+        "- **Total Cost (USD)**: ${:.4}\n",
+        report.total_cost_usd
+    ));
+    md.push_str(&format!(
+        "- **Live Promoted**: {}\n",
+        if report.live_promoted { "YES" } else { "NO" }
     ));
     md.push_str(&format!("- **Dataset**: {}\n", report.dataset));
     md.push_str(&format!(
@@ -96,6 +113,12 @@ mod tests {
             dataset_revision: "rev123".into(),
             dataset_source: "mirror".into(),
             prompt_revision: "git-abc".into(),
+            provider: "mock".into(),
+            budget_usd: Some(5.0),
+            total_cost_usd: 0.0,
+            budget_exceeded: false,
+            status: "passed".into(),
+            live_promoted: false,
             passed: true,
             critical_failure: false,
             task_reports,
@@ -107,6 +130,9 @@ mod tests {
                 deterministic_passed: true,
                 judge_passed: Some(true),
                 errors: vec![],
+                cost_usd: 0.0,
+                input_tokens: 0,
+                output_tokens: 0,
             }],
         };
 

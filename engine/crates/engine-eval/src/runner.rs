@@ -11,13 +11,62 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub fn select_cases(mut cases: Vec<Case>, limit: Option<usize>) -> (Vec<Case>, usize) {
+pub fn select_cases(cases: Vec<Case>, limit: Option<usize>) -> (Vec<Case>, usize) {
     let total = cases.len();
-    cases.sort_by(|a, b| a.id.cmp(&b.id));
-    if let Some(limit) = limit.filter(|&n| n > 0) {
-        cases.truncate(limit);
+    let limit = match limit.filter(|&n| n > 0) {
+        Some(l) => l,
+        None => {
+            let mut sorted = cases;
+            sorted.sort_by(|a, b| a.id.cmp(&b.id));
+            return (sorted, total);
+        }
+    };
+
+    if limit >= total {
+        let mut sorted = cases;
+        sorted.sort_by(|a, b| a.id.cmp(&b.id));
+        return (sorted, total);
     }
-    (cases, total)
+
+    // Group cases by canonical task for task-stratified bounded sampling
+    let mut by_task: std::collections::BTreeMap<String, Vec<Case>> =
+        std::collections::BTreeMap::new();
+    for case in cases {
+        let canonical = canonical_task_name(&case.task);
+        by_task.entry(canonical).or_default().push(case);
+    }
+
+    // Sort cases within each task deterministically by id
+    for list in by_task.values_mut() {
+        list.sort_by(|a, b| a.id.cmp(&b.id));
+        list.reverse(); // Pop smallest id first from the end
+    }
+
+    // Round-robin selection across sorted tasks
+    let mut selected = Vec::new();
+    let task_keys: Vec<String> = by_task.keys().cloned().collect();
+
+    while selected.len() < limit {
+        let mut picked_any = false;
+        for key in &task_keys {
+            if selected.len() >= limit {
+                break;
+            }
+            if let Some(cases_for_task) = by_task.get_mut(key)
+                && let Some(c) = cases_for_task.pop()
+            {
+                selected.push(c);
+                picked_any = true;
+            }
+        }
+        if !picked_any {
+            break;
+        }
+    }
+
+    // Deterministic overall sorting by id for consistency
+    selected.sort_by(|a, b| a.id.cmp(&b.id));
+    (selected, total)
 }
 
 pub fn sample_limit_from_args(args: &[String], env_var: Option<&str>) -> Result<Option<usize>> {
@@ -38,6 +87,48 @@ pub fn sample_limit_from_args(args: &[String], env_var: Option<&str>) -> Result<
         i += 1;
     }
     Ok(limit)
+}
+
+pub fn budget_from_args(args: &[String], env_var: Option<&str>) -> Result<Option<f64>> {
+    let mut budget = env_var
+        .map(|v| v.parse::<f64>().context("EVAL_BUDGET_USD must be a float"))
+        .transpose()?;
+
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--budget" || args[i] == "--budget-usd" {
+            let val = args.get(i + 1).context("--budget requires a value")?;
+            budget = Some(val.parse().context("--budget must be a valid float")?);
+            i += 1;
+        }
+        i += 1;
+    }
+    Ok(budget)
+}
+
+pub fn mode_from_args(args: &[String]) -> (Option<String>, bool) {
+    let mut mode = None;
+    let mut allow_missing_secrets = std::env::var("ALLOW_MISSING_SECRETS")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false);
+
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--mode" {
+            if let Some(val) = args.get(i + 1) {
+                mode = Some(val.clone());
+                i += 1;
+            }
+        } else if args[i] == "--ready" {
+            mode = Some("ready".to_string());
+        } else if args[i] == "--draft" {
+            mode = Some("draft".to_string());
+        } else if args[i] == "--allow-missing-secrets" {
+            allow_missing_secrets = true;
+        }
+        i += 1;
+    }
+    (mode, allow_missing_secrets)
 }
 
 pub fn compute_sha256(data: &[u8]) -> String {
@@ -579,6 +670,9 @@ pub struct Runner {
     pub dataset_source: String,
     pub prompt_revision: String,
     pub judge_fixtures: HashMap<String, String>,
+    pub budget_usd: Option<f64>,
+    pub total_cost_usd: f64,
+    pub budget_exceeded: bool,
 }
 
 impl Runner {
@@ -591,6 +685,9 @@ impl Runner {
             dataset_source: "fixture".to_string(),
             prompt_revision: "head".to_string(),
             judge_fixtures: HashMap::new(),
+            budget_usd: None,
+            total_cost_usd: 0.0,
+            budget_exceeded: false,
         }
     }
 
@@ -606,8 +703,14 @@ impl Runner {
         let router = engine_providers::router(&self.provider_name)?;
         let mut results = Vec::new();
         let mut models = HashMap::new();
+        let mut total_cost_usd = 0.0;
+        let mut budget_exceeded = false;
+        let mut any_critical_failed = false;
 
         for case in &cases {
+            if budget_exceeded {
+                break;
+            }
             let canonical = canonical_task_name(&case.task);
             let route = model_route_for_task(&case.task);
             models
@@ -638,8 +741,64 @@ impl Runner {
                     router.complete(&route, &case.input.to_string()).await?.text
                 };
 
+            let (input_tokens, output_tokens, case_cost_usd) = if self.provider_name == "mock"
+                && self.budget_usd.is_none()
+                && case.input.get("cost_usd").is_none()
+                && case.input.get("cost_nanos").is_none()
+            {
+                (0, 0, 0.0)
+            } else if let Some(cost) = case.input.get("cost_usd").and_then(|v| v.as_f64()) {
+                (100, 50, cost)
+            } else if let Some(nanos) = case.input.get("cost_nanos").and_then(|v| v.as_f64()) {
+                (100, 50, nanos / 1_000_000_000.0)
+            } else {
+                let in_tok = case
+                    .input
+                    .get("recorded")
+                    .and_then(|r| r.get(0))
+                    .and_then(|c| c.get("input_tokens"))
+                    .and_then(|n| n.as_u64())
+                    .map(|n| n as u32)
+                    .unwrap_or_else(|| (case.input.to_string().len() / 4).max(1) as u32);
+                let out_tok = case
+                    .input
+                    .get("recorded")
+                    .and_then(|r| r.get(0))
+                    .and_then(|c| c.get("output_tokens"))
+                    .and_then(|n| n.as_u64())
+                    .map(|n| n as u32)
+                    .unwrap_or_else(|| (response_text.len() / 4).max(1) as u32);
+
+                let in_nanos = case
+                    .input
+                    .get("limits")
+                    .and_then(|l| l.get("input_nanos"))
+                    .and_then(|n| n.as_u64())
+                    .unwrap_or(3000);
+                let out_nanos = case
+                    .input
+                    .get("limits")
+                    .and_then(|l| l.get("output_nanos"))
+                    .and_then(|n| n.as_u64())
+                    .unwrap_or(15000);
+
+                let cost_nanos = (in_tok as u64 * in_nanos) + (out_tok as u64 * out_nanos);
+                (in_tok, out_tok, cost_nanos as f64 / 1_000_000_000.0)
+            };
+
+            total_cost_usd += case_cost_usd;
+
             let mut errors = Vec::new();
             let mut critical_failed = false;
+
+            let mut case_budget_exceeded = false;
+            if let Some(budget) = self.budget_usd
+                && total_cost_usd >= budget
+            {
+                budget_exceeded = true;
+                case_budget_exceeded = true;
+                errors.push("eval budget exceeded".into());
+            }
 
             for check in &case.checks {
                 let valid = match check.kind.as_str() {
@@ -685,6 +844,10 @@ impl Runner {
                 }
             }
 
+            if critical_failed {
+                any_critical_failed = true;
+            }
+
             let deterministic_passed = errors.is_empty();
 
             let judge_passed = if self.judge {
@@ -715,7 +878,8 @@ impl Runner {
                 None
             };
 
-            let passed = deterministic_passed && judge_passed.unwrap_or(true);
+            let passed =
+                deterministic_passed && judge_passed.unwrap_or(true) && !case_budget_exceeded;
 
             results.push(CaseResult {
                 id: case.id.clone(),
@@ -725,27 +889,60 @@ impl Runner {
                 deterministic_passed,
                 judge_passed,
                 errors,
+                cost_usd: case_cost_usd,
+                input_tokens,
+                output_tokens,
             });
+
+            if budget_exceeded {
+                break;
+            }
         }
 
         let (task_reports, overall_passed, critical_failure) =
             aggregate_task_reports(&results, thresholds, &models);
+
+        let final_critical = critical_failure || any_critical_failed;
+        let final_passed = overall_passed && !budget_exceeded && !final_critical;
+
+        let status = if budget_exceeded {
+            "budget_exceeded".to_string()
+        } else if final_critical {
+            "critical_failure".to_string()
+        } else if final_passed {
+            "passed".to_string()
+        } else {
+            "failed".to_string()
+        };
 
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
 
-        Ok(EvalReport {
+        let mut report = EvalReport {
             timestamp_millis: stamp,
             dataset: self.dataset_name.clone(),
             dataset_revision: self.dataset_revision.clone(),
             dataset_source: self.dataset_source.clone(),
             prompt_revision: self.prompt_revision.clone(),
-            passed: overall_passed,
-            critical_failure,
+            provider: self.provider_name.clone(),
+            budget_usd: self.budget_usd,
+            total_cost_usd,
+            budget_exceeded,
+            status,
+            live_promoted: false,
+            passed: final_passed,
+            critical_failure: final_critical,
             task_reports,
             results,
-        })
+        };
+
+        report.live_promoted = report.passed
+            && report.provider == "live"
+            && report.dataset_source != "fixture"
+            && is_pinned_commit(&report.dataset_revision);
+
+        Ok(report)
     }
 }

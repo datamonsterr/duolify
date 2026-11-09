@@ -30,6 +30,14 @@ fallbacks, and fall back to the verified mirror during Hugging Face outages. Eva
 reports are retained for 90 days as CI artifacts. No learner data is created, mirrored,
 or held; account deletion/export policies are unaffected.
 
+E10-06: Gate AI promotion on reproducible live samples. Evaluation reports record case,
+revision, provider, usage, budget, and thresholds with 90-day retention as CI artifacts.
+Live sample promotion requires explicit credentials and passing relevant cases; absence
+of secrets reports explicit missing-secret status and keeps feature activation disabled
+without fabricating a pass. Provider budget accounting halts execution when the configured
+eval budget is reached. Critical safety, ledger, and cost violations reject the run immediately.
+No learner data is created, mirrored, or sent; account deletion and export policies are unaffected.
+
 Owner specs are authoritative for collection and deletion. Every feature adding
 data must update this table and its restore checks. Bootstrap currently creates
 `learners`, email-code auth/profile/session tables, `credit_entries`, immutable `pricing_versions`, Goose/River metadata and River's queue tables;

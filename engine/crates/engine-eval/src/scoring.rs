@@ -65,6 +65,12 @@ pub struct CaseResult {
     pub deterministic_passed: bool,
     pub judge_passed: Option<bool>,
     pub errors: Vec<String>,
+    #[serde(default)]
+    pub cost_usd: f64,
+    #[serde(default)]
+    pub input_tokens: u32,
+    #[serde(default)]
+    pub output_tokens: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +91,14 @@ fn default_dataset_source() -> String {
     "fixture".to_string()
 }
 
+fn default_provider() -> String {
+    "mock".to_string()
+}
+
+fn default_status() -> String {
+    "passed".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvalReport {
     pub timestamp_millis: u128,
@@ -93,10 +107,84 @@ pub struct EvalReport {
     #[serde(default = "default_dataset_source")]
     pub dataset_source: String,
     pub prompt_revision: String,
+    #[serde(default = "default_provider")]
+    pub provider: String,
+    #[serde(default)]
+    pub budget_usd: Option<f64>,
+    #[serde(default)]
+    pub total_cost_usd: f64,
+    #[serde(default)]
+    pub budget_exceeded: bool,
+    #[serde(default = "default_status")]
+    pub status: String,
+    #[serde(default)]
+    pub live_promoted: bool,
     pub passed: bool,
     pub critical_failure: bool,
     pub task_reports: BTreeMap<String, TaskReport>,
     pub results: Vec<CaseResult>,
+}
+
+impl Default for EvalReport {
+    fn default() -> Self {
+        Self {
+            timestamp_millis: 0,
+            dataset: "datamonsterr/duolify-golden".to_string(),
+            dataset_revision: "pinned".to_string(),
+            dataset_source: "fixture".to_string(),
+            prompt_revision: "head".to_string(),
+            provider: "mock".to_string(),
+            budget_usd: None,
+            total_cost_usd: 0.0,
+            budget_exceeded: false,
+            status: "passed".to_string(),
+            live_promoted: false,
+            passed: false,
+            critical_failure: false,
+            task_reports: BTreeMap::new(),
+            results: Vec::new(),
+        }
+    }
+}
+
+pub fn is_promotable(report: &EvalReport, task: &str) -> bool {
+    let canonical = canonical_task_name(task);
+
+    // 1. Must be executed with live provider
+    if report.provider != "live" {
+        return false;
+    }
+
+    // 2. Status must be passed (never missing_secrets or budget_exceeded)
+    if report.status != "passed"
+        || !report.passed
+        || report.critical_failure
+        || report.budget_exceeded
+    {
+        return false;
+    }
+
+    // 3. Must be a pinned 40-character commit hash
+    if report.dataset_revision.len() != 40
+        || !report
+            .dataset_revision
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit())
+    {
+        return false;
+    }
+
+    // 4. Dataset source must be live (hf, mirror, or cache), never mock fixture
+    if report.dataset_source == "fixture" || report.dataset_source == "custom" {
+        return false;
+    }
+
+    // 5. Relevant task must exist and have passed without critical failure
+    if let Some(tr) = report.task_reports.get(&canonical) {
+        tr.passed && !tr.critical_failure
+    } else {
+        false
+    }
 }
 
 pub fn aggregate_task_reports(
@@ -220,6 +308,9 @@ mod tests {
                 deterministic_passed: true,
                 judge_passed: None,
                 errors: vec![],
+                cost_usd: 0.0,
+                input_tokens: 0,
+                output_tokens: 0,
             },
             CaseResult {
                 id: "2".into(),
@@ -229,6 +320,9 @@ mod tests {
                 deterministic_passed: true,
                 judge_passed: None,
                 errors: vec![],
+                cost_usd: 0.0,
+                input_tokens: 0,
+                output_tokens: 0,
             },
             CaseResult {
                 id: "3".into(),
@@ -238,6 +332,9 @@ mod tests {
                 deterministic_passed: false,
                 judge_passed: None,
                 errors: vec!["critical check failed".into()],
+                cost_usd: 0.0,
+                input_tokens: 0,
+                output_tokens: 0,
             },
         ];
 
