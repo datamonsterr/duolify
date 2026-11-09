@@ -99,3 +99,16 @@ after server revocation succeeds; offline failures retain them for Retry. No dev
 secret or draft is added to server backups. The encrypted worker restore fixture
 includes consumed refresh hashes and a revoked family and proves they cannot
 restore access; learner deletion still cascades families and refresh hashes.
+
+E13-04 localization and appearance: typed English/Arabic messages and expansion
+fixtures live in Git with the semantic tokens. Restore them from the same commit
+and run `mise run client:test-localization` and `mise run client:build`.
+Locale, appearance and motion choices are disposable React host memory by default;
+no local storage or learner text is written. The `PreferenceAdapter` boundary lets
+E1 supply validated account preference load/save/clear when available. The mounted E1 account supplies the initial locale;
+appearance and motion have no durable E1 API yet. Adapter exceptions keep the local
+choice and expose retry/reset; reset clears the adapter and restores defaults.
+Focused tests cover adapter restore, allowlisted saves, clear/reset, corrupt input
+and host recreation. Account deletion/logout must clear any future E1 adapter;
+these components never copy chat, summary or outline text into it. Existing feature
+retention, backup, evaluation and fallback gates continue to apply.

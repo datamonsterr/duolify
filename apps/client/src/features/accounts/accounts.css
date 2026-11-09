@@ -105,6 +105,19 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+.auth-legal .auth-legal-link {
+  min-inline-size: var(--size-target);
+  min-block-size: var(--size-target);
+  padding-inline: var(--space-1);
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  text-transform: none;
+  letter-spacing: normal;
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+}
 .auth-art {
   position: relative;
   width: 26rem;
@@ -145,6 +158,7 @@
   width: 16%;
   height: 17%;
   background: var(--accent);
+  box-shadow: 0 7px 0 var(--accent-edge);
 }
 .auth-art i:nth-of-type(4) {
   left: 79%;

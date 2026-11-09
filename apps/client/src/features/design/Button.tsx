@@ -1,3 +1,4 @@
+import { useUiPreferences } from "./localization/Preferences";
 import type { ButtonHTMLAttributes } from "react";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -13,6 +14,7 @@ export function Button({
   className = "",
   ...props
 }: Props) {
+  const { t } = useUiPreferences();
   return (
     <button
       {...props}
@@ -21,7 +23,7 @@ export function Button({
       disabled={disabled || pending}
       aria-busy={pending || undefined}
     >
-      {pending ? "Preparing…" : children}
+      {pending ? t("common.preparing") : children}
     </button>
   );
 }

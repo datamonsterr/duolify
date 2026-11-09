@@ -1,3 +1,4 @@
+import { useUiPreferences } from "../localization/Preferences";
 import { useId, type InputHTMLAttributes, type ReactNode } from "react";
 import { Button } from "../Button";
 import "./guided-chat.css";
@@ -19,6 +20,7 @@ export function Field({
       <input
         {...props}
         id={id}
+        dir="auto"
         aria-invalid={error ? true : undefined}
         aria-describedby={error || hint ? `${id}-help` : undefined}
       />
@@ -73,11 +75,12 @@ export function UndoNotice({
   children: ReactNode;
   onUndo: () => void;
 }) {
+  const { t } = useUiPreferences();
   return (
     <div className="guided-toast" role="status">
       <span>{children}</span>
       <Button variant="quiet" onClick={onUndo}>
-        Undo
+        {t("common.undo")}
       </Button>
     </div>
   );

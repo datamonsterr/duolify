@@ -1,3 +1,7 @@
+import { UiPreferencesProvider } from "./features/design/localization/Preferences";
+import { resolveLocale } from "./features/design/localization/messages";
+import { session } from "./features/accounts/session";
+import { SettingsPage } from "./features/design/localization/PreferenceControls";
 import {
   createRootRoute,
   createRoute,
@@ -24,12 +28,21 @@ import {
   RoutePending,
   RouteUnavailable,
 } from "./features/shell/RouteBoundary";
+function AccountShell() {
+  return (
+    <UiPreferencesProvider
+      initialPreferences={{ locale: resolveLocale(session.current()?.locale) }}
+    >
+      <AppShell />
+    </UiPreferencesProvider>
+  );
+}
 function AuthenticatedShell() {
   const path = useLocation({ select: (location) => location.pathname });
   if (path === "/sign-in") return <Outlet />;
   return (
     <RouteGuard path={path}>
-      <AppShell />
+      <AccountShell />
     </RouteGuard>
   );
 }
@@ -110,14 +123,7 @@ const bookmarks = createRoute({
 const settings = createRoute({
   getParentRoute: () => root,
   path: "/settings",
-  component: () => (
-    <>
-      <DestinationPage title="Settings" />
-      <a className="shell-link" href="/settings/sessions">
-        Manage sessions
-      </a>
-    </>
-  ),
+  component: SettingsPage,
 });
 const sessions = createRoute({
   getParentRoute: () => root,

@@ -50,6 +50,64 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.nav-icon-primary {
+  color: var(--primary);
+}
+.nav-icon-secondary {
+  color: var(--secondary);
+}
+.nav-icon-credit-icon {
+  color: var(--credit-icon);
+}
+.nav-icon-muted {
+  color: var(--muted);
+}
+.sidebar nav[aria-label="Main"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.sidebar nav[aria-label="Main"] [role="group"] {
+  display: grid;
+  gap: var(--space-1);
+}
+.sidebar nav[aria-label="Main"] hr {
+  inline-size: 100%;
+  border: 0;
+  border-block-start: 1px solid var(--line);
+  margin-block: var(--space-2);
+}
+.support-rail .card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+.support-rail .card h2,
+.support-rail .card p {
+  margin: 0;
+}
+.support-progress {
+  display: block;
+  inline-size: 100%;
+  block-size: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--raised);
+  color: var(--primary);
+  accent-color: var(--primary);
+}
+.support-progress::-webkit-progress-bar {
+  background: var(--raised);
+}
+.support-progress::-webkit-progress-value {
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+}
+.support-progress::-moz-progress-bar {
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+}
 .mobile-header,
 .support-rail {
   display: none;
