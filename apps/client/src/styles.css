@@ -755,3 +755,61 @@ progress::-moz-progress-bar {
   max-inline-size: var(--size-reading);
   padding-block: var(--space-6);
 }
+
+.stage-recovery {
+  background: var(--raised, #f7f7f7);
+  border: 2px dashed var(--line, #cfcfcf);
+  border-radius: var(--radius-lg, 24px);
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2, 10px);
+  text-align: center;
+  padding: var(--space-5, 20px);
+  box-sizing: border-box;
+}
+.stage-recovery .recovery-icon {
+  color: var(--danger, #b3261e);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stage-recovery .recovery-title {
+  font-size: var(--font-size-subhead, 18px);
+  font-weight: 900;
+  color: var(--text, #2b2b2b);
+}
+.stage-recovery .recovery-explanation {
+  color: var(--muted, #5e5e5e);
+  font-size: var(--font-size-body, 14px);
+}
+.recovery-actions {
+  display: flex;
+  gap: var(--space-2, 10px);
+  margin-block-start: var(--space-3, 12px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.tool-captions.on,
+.panel-tools button.on {
+  background: var(--color-primary-light, #ddf1ff);
+  border-color: var(--color-primary-focus, #8ccbf7);
+  color: var(--color-primary-dark, #0d5592);
+}
+.transcript-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  margin-block-start: var(--space-2, 8px);
+}
+.transcript-entry {
+  border-radius: var(--radius-md, 12px);
+  padding: var(--space-2, 8px) var(--space-3, 10px);
+  color: var(--muted, #555555);
+}
+.transcript-entry.active {
+  background: var(--color-primary-light, #ddf1ff);
+  color: var(--text, #2b2b2b);
+}

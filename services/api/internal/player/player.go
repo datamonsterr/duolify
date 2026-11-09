@@ -105,7 +105,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			failure(w, 503)
 			return
 		}
-		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: "disabled", NarrationText: slide.NarrationText, HTMLSHA256: checksum(raw), AssetSHA256: hashes})
+		explanation := slide.Explanation
+		if explanation == "" {
+			explanation = slide.NarrationText
+		}
+		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: "disabled", NarrationText: slide.NarrationText, Explanation: explanation, HTMLSHA256: checksum(raw), AssetSHA256: hashes})
 	}
 	respond(w, 200, out)
 }

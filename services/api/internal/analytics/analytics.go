@@ -192,7 +192,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("lesson_id", "slide_id")
 		if code, ok := input["error_code"].(string); ok {
 			switch code {
-			case "manifest_unavailable", "document_unavailable", "invalid_manifest", "document_timeout", "offline", "position_unavailable", "offline_uncached", "cache_unavailable", "checksum_mismatch":
+			case "manifest_unavailable", "document_unavailable", "invalid_manifest", "document_timeout", "offline", "position_unavailable", "offline_uncached", "cache_unavailable", "checksum_mismatch", "asset_unavailable", "slide_failure":
 				out["error_code"] = code
 			}
 		}

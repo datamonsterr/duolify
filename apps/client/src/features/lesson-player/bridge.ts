@@ -5,7 +5,9 @@ export type SlideCommand =
   | { type: "rate"; rate: number }
   | { type: "set_motion"; reduced: boolean };
 export type SlideMessage =
-  { type: "ended" } | { type: "checkpoint"; name: string };
+  | { type: "ended" }
+  | { type: "checkpoint"; name: string }
+  | { type: "asset_error" };
 export function isSlideMessage(
   event: MessageEvent,
   frame: Window | null,
@@ -21,6 +23,8 @@ export function isSlideMessage(
     return false;
   return (
     (event.data.type === "ended" && Object.keys(event.data).length === 1) ||
+    (event.data.type === "asset_error" &&
+      Object.keys(event.data).length === 1) ||
     (event.data.type === "checkpoint" &&
       Object.keys(event.data).length === 2 &&
       typeof event.data.name === "string" &&
@@ -56,6 +60,22 @@ function motionBridge(config: BridgeConfig) {
         animation.play();
     }
   };
+  window.addEventListener(
+    "error",
+    (event) => {
+      const target = event.target;
+      if (
+        target &&
+        (target instanceof HTMLImageElement ||
+          target instanceof HTMLMediaElement ||
+          target instanceof HTMLLinkElement ||
+          target instanceof HTMLScriptElement)
+      ) {
+        parent.postMessage({ type: "asset_error" }, "*");
+      }
+    },
+    true,
+  );
   document.addEventListener("DOMContentLoaded", apply);
   window.addEventListener("message", (event) => {
     if (

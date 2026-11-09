@@ -21,6 +21,15 @@ lesson deletion cascade immediate erasure. Device `localStorage` keys
 until server acknowledgment and clear on logout. Reconciled events update canonical
 cursors monotonically without granting completion or XP.
 
+E3-05 adds `explanation` per slide in object lesson manifests stored in application object
+storage. Explanations provide accessible static recovery and captions under reduced
+motion or asset failure without learner data, private questions, or assessment leaks.
+It contains bounded course content (<= 20,000 characters per slide), backed up with
+object versioning alongside Motion HTML slides and manifests. No new Postgres tables
+or personal learner data are collected; PostHog analytics records only registered
+error codes and recovery actions (`lesson_player_error`, `ui_recovery_selected`)
+without slide or learner text.
+
 E2-01: personalized preview output (sample outline and Motion HTML) stays in component
 memory and is discarded on Back/leave; no Course, enrollment, object or new learner
 table is created. The existing immutable `pricing_quotes.snapshot.input.brief_revision`
@@ -73,7 +82,7 @@ and production drills still require provisioning. See [backup tooling](../infra/
 | Postgres (planned) | Friends, requests, blocks, friend streaks and nudges | Nightly dump | Remove relationships and end shared streak on account deletion; personal rows within 30 days | [friend-streaks](../openspec/specs/friend-streaks/spec.md) |
 | Postgres (planned) | Tutor chat threads/messages; quick notes, enrichment/review state; bookmarks | Nightly dump | Per-item deletion where supported; account deletion within 30 days | [tutor-chat](../openspec/specs/tutor-chat/spec.md), [quick-notes](../openspec/specs/quick-notes/spec.md), [bookmarks](../openspec/specs/bookmarks/spec.md) |
 | Redis | Disposable session/cache entries, rate limits, cached balances, leaderboards and streak counters | No backup; rebuild from Postgres | TTL or eviction; never sole copy of product data | [data-backup](../openspec/specs/data-backup/spec.md), [gamification](../openspec/specs/gamification/spec.md) |
-| S3 application bucket | Motion HTML slides, manifests, lesson assets; optional golden-set mirror | Object versioning; tracked regeneration jobs; verify cloud capability before use | Match owning course/account deletion; object-version expiry policy must be specified before real data | [lesson-player](../openspec/specs/lesson-player/spec.md), [course-creation](../openspec/specs/course-creation/spec.md) |
+| S3 application bucket | Motion HTML slides, manifests (including static slide explanations), lesson assets; optional golden-set mirror | Object versioning; tracked regeneration jobs; verify cloud capability before use | Match owning course/account deletion; object-version expiry policy must be specified before real data | [lesson-player](../openspec/specs/lesson-player/spec.md), [course-creation](../openspec/specs/course-creation/spec.md) |
 | S3 separate backup bucket | age-encrypted custom Postgres dumps at `YYYY-MM-DD/schema-<Goose version>.dump.age`; includes learner, append-only ledger and migration/queue state | Worker at 02:00 UTC plus startup catch-up; public X25519 recipient only, conditional whole-object upload, no multipart remnants. Railway snapshots remain a separately provisioned second layer | General backups 14 days; financial backup policy 35 days per ADR 0011. API has no backup access; writer can read/put but cannot delete or administer buckets. Separate retention administrator owns expiry; cloud lifecycle automation remains a follow-up | [data-backup](../openspec/specs/data-backup/spec.md), [ADR 0011](adr/0011-owner-decisions-2026-11-09.md) |
 | Worker temporary filesystem | Ciphertext-only private staging file (0600); no plaintext database archive | Disposable, never a recovery source; removed on success, dump failure and upload failure | One bounded job (30 minutes, at most 4 GiB encrypted output); container filesystem is ephemeral after abnormal process termination | [worker backup change](../openspec/changes/worker-database-backup/design.md) |
 | Local RustFS IAM metadata | Separate application, backup writer and root/retention identities and policies; local fixture secrets are environment settings | Reprovisioned by the development-only initializer; production IAM/keys managed separately | Never pass root or backup credentials to API containers; private age recovery key is never in worker images or environment | [worker backup change](../openspec/changes/worker-database-backup/design.md) |

@@ -21,6 +21,11 @@ export function playerManifest(lessonId = "sky") {
         "Stars are distant suns, shining across space.",
         "Notice how the sky changes as Earth turns.",
       ][n - 1],
+      explanation: [
+        "The sky is a map waiting to be explored. Stars appear to move across the sky because Earth rotates.",
+        "Stars are distant suns, shining across space. Their light takes years to reach our eyes on Earth.",
+        "Notice how the sky changes as Earth turns once every twenty-four hours from west to east.",
+      ][n - 1],
     })),
   };
 }

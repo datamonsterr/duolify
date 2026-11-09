@@ -12,6 +12,7 @@ export type ManifestSlide = {
   checkpoints: Checkpoint[];
   narration_status: "disabled" | "pending" | "failed";
   narration_text: string;
+  explanation?: string;
 };
 export type Manifest = {
   lesson_id: string;
@@ -87,6 +88,28 @@ export function isManifest(value: unknown): value is Manifest {
           "checkpoints",
           "narration_status",
           "narration_text",
+          "explanation",
+        ]) ||
+        keys(slide, [
+          "slide_id",
+          "duration_ms",
+          "html_url",
+          "assets",
+          "checkpoints",
+          "narration_status",
+          "narration_text",
+          "explanation",
+        ]) ||
+        keys(slide, [
+          "slide_id",
+          "html_sha256",
+          "asset_sha256",
+          "duration_ms",
+          "html_url",
+          "assets",
+          "checkpoints",
+          "narration_status",
+          "narration_text",
         ]) ||
         keys(slide, [
           "slide_id",
@@ -115,6 +138,9 @@ export function isManifest(value: unknown): value is Manifest {
       ) ||
       typeof slide.narration_text !== "string" ||
       slide.narration_text.length > 20000 ||
+      (slide.explanation !== undefined &&
+        (typeof slide.explanation !== "string" ||
+          slide.explanation.length > 20000)) ||
       !Array.isArray(slide.assets) ||
       slide.assets.length > 100 ||
       (slide.asset_sha256 !== undefined &&

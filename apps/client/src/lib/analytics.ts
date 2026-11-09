@@ -469,6 +469,8 @@ export function trackPlayer(
       | "offline_uncached"
       | "cache_unavailable"
       | "checksum_mismatch"
+      | "asset_unavailable"
+      | "slide_failure"
       | "offline";
   },
 ) {
@@ -499,6 +501,8 @@ export function trackPlayer(
       "offline_uncached",
       "cache_unavailable",
       "checksum_mismatch",
+      "asset_unavailable",
+      "slide_failure",
       "offline",
     ].includes(value.error_code)
   )
@@ -524,12 +528,15 @@ export function trackPlayer(
   }
 }
 
-// Registered by the E3-03 cache recovery catalogue before emitters.
-export function trackPlayerRecovery(action: "retry" | "exit") {
+// Registered by the E3-03 cache recovery and E3-05 static recovery catalogue before emitters.
+export function trackPlayerRecovery(
+  action: "retry" | "exit",
+  errorCode: string = "offline_uncached",
+) {
   if (action !== "retry" && action !== "exit") return;
   captureAuth("ui_recovery_selected", {
     surface: "lesson_player",
-    error_code: "offline_uncached",
+    error_code: errorCode,
     action,
   });
 }

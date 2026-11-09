@@ -29,12 +29,17 @@ func Documents() map[string][]byte {
 	m := player.ObjectManifest{Version: 1, Slides: []player.ObjectSlide{}}
 	out := map[string][]byte{}
 	captions := []string{"The sky is a map waiting to be explored.", "Stars are distant suns, shining across space.", "Notice how the sky changes as Earth turns."}
+	explanations := []string{
+		"The sky is a map waiting to be explored. Stars appear to move across the sky because Earth rotates.",
+		"Stars are distant suns, shining across space. Their light takes years to reach our eyes on Earth.",
+		"Notice how the sky changes as Earth turns once every twenty-four hours from west to east.",
+	}
 	for i, name := range []string{"one", "two", "three"} {
 		raw, _ := slides.ReadFile("slides/" + name + ".html")
 		key := "lessons/fixture-v1/" + name + ".html"
 		sum := sha256.Sum256(raw)
 		out[key] = raw
-		m.Slides = append(m.Slides, player.ObjectSlide{ID: fmt.Sprintf("sky-%d", i+1), DurationMS: 3000, HTMLKey: key, HTMLSHA256: fmt.Sprintf("%x", sum), Assets: []string{}, Checkpoints: []player.Checkpoint{{ID: "explanation", AtMS: 1500}}, NarrationText: captions[i]})
+		m.Slides = append(m.Slides, player.ObjectSlide{ID: fmt.Sprintf("sky-%d", i+1), DurationMS: 3000, HTMLKey: key, HTMLSHA256: fmt.Sprintf("%x", sum), Assets: []string{}, Checkpoints: []player.Checkpoint{{ID: "explanation", AtMS: 1500}}, NarrationText: captions[i], Explanation: explanations[i]})
 	}
 	out[ManifestKey], _ = json.Marshal(m)
 	return out

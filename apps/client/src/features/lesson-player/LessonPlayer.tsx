@@ -6,7 +6,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { trackPlayer, trackPlayerRecovery } from "../../lib/analytics";
 import { availableOffline, preparedDocument } from "../player/cache";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -275,6 +275,7 @@ function SlidePlayback({
 }) {
   const lessonId = manifest.lesson_id,
     slide = manifest.slides[index];
+  const navigate = useNavigate();
   const owner = session.current()?.id ?? "current";
   const { reducedMotion } = useUiPreferences();
   const frame = useRef<HTMLIFrameElement>(null);
@@ -290,6 +291,8 @@ function SlidePlayback({
     hasPendingSync(owner, lessonId),
   );
   const [checkpoint, setCheckpoint] = useState(false);
+  const [captionsVisible, setCaptionsVisible] = useState(true);
+  const [assetError, setAssetError] = useState(false);
   const [panel, setPanel] = useState<
     "Transcript" | "Ask tutor" | "Quick note" | null
   >(null);
@@ -439,13 +442,18 @@ function SlidePlayback({
     }
   };
   useEffect(() => {
-    if (slideDocument.error)
+    if (slideDocument.error) {
+      const isAsset =
+        slideDocument.error.message === "asset_unavailable" ||
+        slideDocument.error.message.includes("asset") ||
+        (slide.assets && slide.assets.length > 0);
       trackPlayer("lesson_player_error", {
         lesson_id: lessonId,
         slide_id: slide.slide_id,
-        error_code: "document_unavailable",
+        error_code: isAsset ? "asset_unavailable" : "document_unavailable",
       });
-  }, [slideDocument.error, lessonId, slide.slide_id]);
+    }
+  }, [slideDocument.error, lessonId, slide.slide_id, slide.assets]);
   useEffect(() => {
     command({ type: "set_motion", reduced: reducedMotion });
   }, [command, reducedMotion]);
@@ -484,7 +492,14 @@ function SlidePlayback({
         )
       )
         return;
-      if (event.data.type === "checkpoint") {
+      if (event.data.type === "asset_error") {
+        setAssetError(true);
+        trackPlayer("lesson_player_error", {
+          lesson_id: lessonId,
+          slide_id: slide.slide_id,
+          error_code: "asset_unavailable",
+        });
+      } else if (event.data.type === "checkpoint") {
         const name = event.data.name;
         const point = slide.checkpoints.find((c) => c.id === name);
         if (
@@ -519,8 +534,8 @@ function SlidePlayback({
       window.removeEventListener("message", listener);
     };
   }, [ready, clock, command, index, lessonId, slide, persist, frame]);
-  const [documentMotion] = useState(reducedMotion);
-  const disabled = !ready || !!slideDocument.error || panel !== null;
+  const slideFailed = !!slideDocument.error || assetError;
+  const disabled = !ready || slideFailed || panel !== null;
   return (
     <div
       className="player"
@@ -609,7 +624,19 @@ function SlidePlayback({
             <p className="feedback badge-warning" role="status">
               Lesson paused
             </p>
-            {panel === "Transcript" && <p>{slide.narration_text}</p>}
+            {panel === "Transcript" && (
+              <div className="transcript-list" aria-label="Lesson transcript">
+                {manifest.slides.map((s, idx) => (
+                  <div
+                    key={s.slide_id}
+                    className={`transcript-entry ${idx === index ? "active" : ""}`}
+                  >
+                    <b>Slide {idx + 1}. </b>
+                    <span>{s.explanation || s.narration_text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {panel === "Ask tutor" && (
               <>
                 <p>
@@ -644,55 +671,110 @@ function SlidePlayback({
         }
       >
         {slideDocument.isPending && <p role="status">Loading slide…</p>}
-        {slideDocument.error && (
-          <div role="alert">
-            <p>This slide is unavailable. Check your connection and retry.</p>
-            <button
-              className="duo-button quiet"
-              onClick={() => void slideDocument.refetch()}
-            >
-              Retry slide
-            </button>
+        {slideFailed ? (
+          <div
+            className="stage-recovery"
+            role="alert"
+            aria-label="Slide load failure"
+          >
+            <span className="recovery-icon" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                width="40"
+                height="40"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 3 2 20.5h20z" />
+                <path d="M12 10v4.5M12 17.5h.01" />
+              </svg>
+            </span>
+            <b className="recovery-title">This slide didn't load</b>
+            <span className="help recovery-explanation">
+              {assetError ||
+              slideDocument.error?.message === "asset_unavailable" ||
+              (slide.assets && slide.assets.length > 0)
+                ? "A diagram asset is missing. Your place is saved."
+                : "This slide is unavailable. Check your connection and retry. Your place is saved."}
+            </span>
+            <div className="recovery-actions">
+              <button
+                className="duo-button primary"
+                type="button"
+                onClick={() => {
+                  trackPlayerRecovery("retry", "asset_unavailable");
+                  setAssetError(false);
+                  void slideDocument.refetch();
+                }}
+              >
+                Retry slide
+              </button>
+              <button
+                className="duo-button sec"
+                type="button"
+                onClick={() => {
+                  trackPlayerRecovery("exit", "asset_unavailable");
+                  pause();
+                  void navigate({ to: exit });
+                }}
+              >
+                Exit to path
+              </button>
+            </div>
+            <span className="help recovery-transcript-hint">
+              Transcript for slide {index + 1} is still available below the
+              frame.
+            </span>
           </div>
+        ) : (
+          slideDocument.data && (
+            <iframe
+              ref={frame}
+              title={`Slide ${index + 1}`}
+              sandbox="allow-scripts"
+              srcDoc={sandboxDocument(
+                slideDocument.data,
+                manifest.asset_origin,
+                reducedMotion,
+                slide,
+                availableOffline(manifest.lesson_id),
+              )}
+              referrerPolicy="no-referrer"
+              onLoad={() => {
+                setReady(true);
+                onStart();
+                command({ type: "set_motion", reduced: reducedMotion });
+                command({ type: "rate", rate });
+                command({ type: "seek", time: clock.snapshot().time });
+                if (autoplay && !document.hidden && !panel) {
+                  clock.play(performance.now());
+                  command({ type: "play" });
+                } else command({ type: "pause" });
+                if (typeof navigator !== "undefined" && !navigator.onLine) {
+                  persist();
+                }
+              }}
+            />
+          )
         )}
-        {slideDocument.data && (
-          <iframe
-            ref={frame}
-            title={`Slide ${index + 1}`}
-            sandbox="allow-scripts"
-            srcDoc={sandboxDocument(
-              slideDocument.data,
-              manifest.asset_origin,
-              documentMotion,
-              slide,
-              availableOffline(manifest.lesson_id),
-            )}
-            referrerPolicy="no-referrer"
-            onLoad={() => {
-              setReady(true);
-              onStart();
-              command({ type: "set_motion", reduced: reducedMotion });
-              command({ type: "rate", rate });
-              command({ type: "seek", time: clock.snapshot().time });
-              if (autoplay && !document.hidden && !panel) {
-                clock.play(performance.now());
-                command({ type: "play" });
-              } else command({ type: "pause" });
-              if (typeof navigator !== "undefined" && !navigator.onLine) {
-                persist();
-              }
-            }}
-          />
+        {captionsVisible && (
+          <p className="slide-caption">
+            {slide.explanation || slide.narration_text}
+          </p>
         )}
-        <p className="slide-caption">{slide.narration_text}</p>
         <p role="status">
-          {playback.ended
-            ? "Slide ended. Continue when you’re ready."
-            : checkpoint
-              ? "Checkpoint reached"
-              : playback.playing
-                ? "Playing"
-                : "Paused"}
+          {slideFailed
+            ? "Slide paused"
+            : playback.ended
+              ? "Slide ended. Continue when you’re ready."
+              : checkpoint
+                ? "Checkpoint reached"
+                : playback.playing
+                  ? "Playing"
+                  : "Paused"}
         </p>
         <div className="controls player-controls">
           <button
@@ -759,11 +841,16 @@ function SlidePlayback({
           <button
             aria-label={muted ? "Unmute narration" : "Mute narration"}
             aria-pressed={muted}
+            disabled={slideFailed}
             onClick={() => onMute(!muted)}
           >
             {muted ? "Unmute" : "Mute"}
           </button>
-          {index === manifest.slides.length - 1 ? (
+          {slideFailed ? (
+            <button disabled className="duo-button disabled">
+              Next · unavailable
+            </button>
+          ) : index === manifest.slides.length - 1 ? (
             <Link
               className="duo-button primary"
               to="/lesson/$lessonId/test"
@@ -786,9 +873,17 @@ function SlidePlayback({
           )}
         </div>
         <div className="panel-tools" aria-label="Lesson tools">
+          <button
+            className={`duo-button quiet tool-captions ${captionsVisible ? "on" : ""}`}
+            type="button"
+            aria-pressed={captionsVisible}
+            onClick={() => setCaptionsVisible(!captionsVisible)}
+          >
+            Captions
+          </button>
           {(["Transcript", "Ask tutor", "Quick note"] as const).map((name) => (
             <button
-              className="duo-button quiet"
+              className={`duo-button quiet ${panel === name ? "on" : ""}`}
               key={name}
               aria-expanded={panel === name}
               onClick={() => {

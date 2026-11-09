@@ -36,6 +36,7 @@ type ObjectSlide struct {
 	Assets        []string          `json:"assets"`
 	Checkpoints   []Checkpoint      `json:"checkpoints"`
 	NarrationText string            `json:"narration_text"`
+	Explanation   string            `json:"explanation,omitempty"`
 }
 
 // ObjectManifest contains ordered immutable document references.
@@ -55,6 +56,7 @@ type Slide struct {
 	Checkpoints     []Checkpoint      `json:"checkpoints"`
 	NarrationStatus string            `json:"narration_status"`
 	NarrationText   string            `json:"narration_text"`
+	Explanation     string            `json:"explanation"`
 }
 
 // Manifest is the authorized lesson playback DTO.
@@ -87,7 +89,7 @@ func ValidateManifest(m ObjectManifest, origin string) error {
 	}
 	seen := map[string]bool{}
 	for _, s := range m.Slides {
-		if !identifier.MatchString(s.ID) || seen[s.ID] || s.DurationMS < 1 || s.DurationMS > 120000 || !validKey(s.HTMLKey) || s.Assets == nil || len(s.Assets) > 100 || s.Checkpoints == nil || len(s.Checkpoints) > 100 || len(s.NarrationText) > 20000 {
+		if !identifier.MatchString(s.ID) || seen[s.ID] || s.DurationMS < 1 || s.DurationMS > 120000 || !validKey(s.HTMLKey) || s.Assets == nil || len(s.Assets) > 100 || s.Checkpoints == nil || len(s.Checkpoints) > 100 || len(s.NarrationText) > 20000 || len(s.Explanation) > 20000 {
 			return errInvalid
 		}
 		seen[s.ID] = true
