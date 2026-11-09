@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strconv"
 
+	"github.com/datamonsterr/duolify/services/api/internal/store/db"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -28,6 +29,11 @@ func (p Postgres) SchemaVersion(ctx context.Context) (int64, error) {
 // Dump streams a consistent custom-format archive; connection secrets are passed
 // through the environment rather than process arguments or diagnostic output.
 func (p Postgres) Dump(ctx context.Context, destination io.Writer) error {
+	// Nightly expiry cleanup keeps inactive learners' confirmed drafts bounded too.
+	if err := p.PurgeExpiredBriefs(ctx); err != nil {
+		return errors.New("brief retention cleanup failed")
+	}
+
 	config, err := pgxpool.ParseConfig(p.DatabaseURL)
 	if err != nil {
 		return errors.New("invalid dump database configuration")
@@ -62,4 +68,9 @@ func (p Postgres) Dump(ctx context.Context, destination io.Writer) error {
 		return errors.New("pg_dump failed")
 	}
 	return nil
+}
+
+// PurgeExpiredBriefs applies personal-data retention before either local or packaged dumps.
+func (p Postgres) PurgeExpiredBriefs(ctx context.Context) error {
+	return db.New(p.Pool).PurgeExpiredCourseBriefs(ctx)
 }

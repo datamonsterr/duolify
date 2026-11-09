@@ -196,6 +196,9 @@ type containerSource struct {
 }
 
 func (s containerSource) Dump(ctx context.Context, w io.Writer) error {
+	if err := s.PurgeExpiredBriefs(ctx); err != nil {
+		return err
+	}
 	code, r, err := s.container.Exec(ctx, []string{"pg_dump", "--format=custom", "--no-owner", "--no-acl", "--no-password", "--username=duolify", "--dbname=duolify"}, containerexec.Multiplexed())
 	if err != nil {
 		return err
@@ -279,6 +282,8 @@ func (f *Fixture) Seed(t *testing.T) {
 		"INSERT INTO learners (id,display_name) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner')",
 		"INSERT INTO credit_entries (learner_id,amount,kind,reference,pricing_version,provenance) VALUES ('a1111111-1111-4111-8111-111111111111',120,'purchase','synthetic-purchase','2026-11-09.approved.v1','{\"channel\":\"web\"}'::jsonb),('a1111111-1111-4111-8111-111111111111',-35,'spend','synthetic-spend','2026-11-09.approved.v1','{\"action\":\"lesson\"}'::jsonb)",
 		"INSERT INTO credit_timezones (learner_id,time_zone,effective_at) VALUES ('a1111111-1111-4111-8111-111111111111','Asia/Ho_Chi_Minh',now())",
+		`INSERT INTO course_brief_revisions(learner_id,brief,content_hash) VALUES ('a1111111-1111-4111-8111-111111111111','{"topic":"Synthetic sky","include_topics":"Moon","skip_topics":"History","maths":"Light maths"}',repeat('b',64))`,
+		`INSERT INTO course_brief_revisions(learner_id,brief,content_hash,expires_at) VALUES ('a1111111-1111-4111-8111-111111111111','{"topic":"Expired synthetic sky"}',repeat('e',64),now()-interval '1 second')`,
 		"INSERT INTO learner_profiles (learner_id,locale,time_zone,analytics_opt_out) VALUES ('a1111111-1111-4111-8111-111111111111','vi-VN','Asia/Ho_Chi_Minh',true)",
 		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true,appearance='dark',motion='reduce',narration=false,narration_speed=1.25,captions=false,text_size=1.2,ui_sounds=true,haptics='off' WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
 		"INSERT INTO auth_identities (email,learner_id) VALUES ('synthetic@example.test','a1111111-1111-4111-8111-111111111111')",
@@ -450,6 +455,10 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if pricingVersion != "2026-11-09.approved.v1" || provenance["channel"] != "web" {
 		t.Fatalf("invalid restored pricing_version/provenance: %s %v", pricingVersion, provenance)
 	}
+	var expiredBriefs int
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM course_brief_revisions WHERE expires_at<=now()").Scan(&expiredBriefs); err != nil || expiredBriefs != 0 {
+		t.Fatalf("expired briefs entered backup: %d %v", expiredBriefs, err)
+	}
 	beforePricing, err := pricing.Load(t.Context(), f.DB.Queries)
 	if err != nil {
 		t.Fatal(err)
@@ -476,7 +485,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -522,11 +531,14 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
  SELECT $1::uuid,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed,appearance,motion,narration,narration_speed,captions,text_size,ui_sounds,haptics,analytics_opt_out FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111'`, erasedID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO course_brief_revisions(learner_id,brief,content_hash) VALUES($1::uuid,'{"topic":"Erased brief"}',repeat('c',64))`, erasedID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", erasedID); err != nil {
 		t.Fatal(err)
 	}
 	var survived bool
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
 		t.Fatal("restored context survived account erasure", err)
 	}
 	var valid bool

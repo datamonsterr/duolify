@@ -185,17 +185,18 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("task")
 	case "$ai_generation":
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
-		boolean("fallback_used", "$ai_is_error")
+		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available")
 		ids("$ai_provider", "$ai_model", "feature")
-		numeric("input_tokens", "output_tokens", "latency_ms")
-		ids("provider", "model", "task")
+		numeric("input_tokens", "output_tokens", "latency_ms", "attempt")
+		ids("provider", "model", "task", "pricing_version")
 		for legacy, canonical := range map[string]string{"input_tokens": "$ai_input_tokens", "output_tokens": "$ai_output_tokens", "latency_ms": "$ai_latency", "provider": "$ai_provider", "model": "$ai_model", "task": "feature"} {
 			if out[canonical] == nil && out[legacy] != nil {
 				out[canonical] = out[legacy]
 			}
 		}
 		if out["$ai_is_error"] == nil {
-			out["$ai_is_error"] = false
+			succeeded, known := out["succeeded"].(bool)
+			out["$ai_is_error"] = known && !succeeded
 		}
 	case "analytics_opt_out_changed":
 		boolean("enabled")

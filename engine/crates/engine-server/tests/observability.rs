@@ -101,6 +101,42 @@ async fn grpc_spans_correlate_failures_and_stream_polling_without_text() {
         .into_inner();
     assert!(stream.message().await.unwrap().is_some());
     assert!(stream.message().await.unwrap().is_none());
+    let before_brief = bytes.lock().unwrap().len();
+    let brief = client
+        .course_brief_chat(correlated(pb::CourseBriefChatRequest {
+            brief: Some(pb::CourseBrief {
+                goal: "private-goal".into(),
+                ..Default::default()
+            }),
+            current_step: "topic".into(),
+            answer: "private-answer".into(),
+            limits: Some(pb::CourseBriefLimits {
+                input_tokens: 2000,
+                output_tokens: 1000,
+                attempt_timeout_ms: 3000,
+                max_attempts: 3,
+                max_cost_nanos: 2100000,
+                input_nanos_per_token: 100,
+                output_nanos_per_token: 500,
+            }),
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(brief.unavailable);
+    assert_eq!(brief.attempts.len(), 3);
+    let brief_log = String::from_utf8(bytes.lock().unwrap()[before_brief..].to_vec()).unwrap();
+    let brief_records: Vec<serde_json::Value> = brief_log
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert!(
+        brief_records
+            .iter()
+            .any(|record| record["span"]["name"] == "engine.rpc"),
+        "course brief RPC did not produce a tracing span: {brief_log}"
+    );
     let text = String::from_utf8(bytes.lock().unwrap().clone()).unwrap();
     assert!(!text.contains("private"), "{text}");
     let records: Vec<serde_json::Value> = text

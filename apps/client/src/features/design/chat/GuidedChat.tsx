@@ -36,6 +36,7 @@ export type GuidedChatProps = {
   step?: { current: number; total: number };
   state?: "ready" | "loading" | "offline" | "error";
   onRetry?: () => void;
+  announcedMessageIds?: Set<string>;
 };
 
 export function GuidedChat({
@@ -49,12 +50,13 @@ export function GuidedChat({
   step,
   state = "ready",
   onRetry,
+  announcedMessageIds,
 }: GuidedChatProps) {
   const { t } = useUiPreferences();
   const inputId = useId();
   const composer = useRef<HTMLTextAreaElement>(null);
   const log = useRef<HTMLDivElement>(null);
-  const announced = useRef(new Set<string>());
+  const announced = useRef(announcedMessageIds ?? new Set<string>());
   const [selection, setSelection] = useState<{
     questionId: string;
     ids: string[];

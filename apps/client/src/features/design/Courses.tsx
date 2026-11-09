@@ -51,12 +51,12 @@ export function Courses() {
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-        <Button disabled aria-describedby="creation-unavailable">
+        <a className="duo-button primary" href="/courses/create">
           Create a course
-        </Button>
+        </a>
       </header>
       <p id="creation-unavailable" className="muted">
-        Course creation is not available yet.
+        Start with a free course brief.
       </p>
       <div className="course-toolbar">
         <div
@@ -166,7 +166,11 @@ export function Courses() {
           <p>
             Start with a topic. You'll see a preview before anything is created.
           </p>
-          <Button disabled aria-describedby="creation-unavailable">
+          <Button
+            onClick={() => {
+              location.assign("/courses/create");
+            }}
+          >
             Create a course
           </Button>
         </div>
@@ -185,7 +189,11 @@ export function Courses() {
               <Button variant="secondary" onClick={clearSearch}>
                 Clear search
               </Button>
-              <Button disabled aria-describedby="creation-unavailable">
+              <Button
+                onClick={() => {
+                  location.assign("/courses/create");
+                }}
+              >
                 Create a course
               </Button>
             </div>

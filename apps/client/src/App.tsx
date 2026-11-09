@@ -11,6 +11,7 @@ import {
   useParams,
   type RouterHistory,
 } from "@tanstack/react-router";
+import { CourseBriefPage } from "./features/courses/CourseBrief";
 import { Sessions } from "./features/accounts/Sessions";
 import { SignIn } from "./features/accounts/SignIn";
 import { RouteGuard } from "./features/accounts/RouteGuard";
@@ -61,6 +62,11 @@ const courses = createRoute({
   getParentRoute: () => root,
   path: "/courses",
   component: Courses,
+});
+const createCourse = createRoute({
+  getParentRoute: () => root,
+  path: "/courses/create",
+  component: CourseBriefPage,
 });
 function CoursePath() {
   const { courseId } = useParams({ from: "/course/$courseId" });
@@ -162,6 +168,7 @@ export const createAppRouter = (history?: RouterHistory) =>
     routeTree: root.addChildren([
       index,
       courses,
+      createCourse,
       course,
       lesson,
       profile,

@@ -1,9 +1,6 @@
 ["engine:lint"]
 dir = "engine"
 run = ["cargo fmt --all -- --check", "cargo clippy --workspace --all-targets -- -D warnings"]
-["engine:format"]
-dir = "engine"
-run = "cargo fmt --all"
 ["engine:test"]
 dir = "engine"
 run = "cargo nextest run --workspace"
@@ -19,3 +16,8 @@ run = "cargo run -p engine-eval --bin duolify-eval -- --offline --provider mock"
 ["engine:eval-live"]
 dir = "engine"
 run = "cargo run -p engine-eval --bin duolify-eval -- --provider live --judge"
+
+["engine:format"]
+description = "Format engine workspace"
+dir = "engine"
+run = "cargo fmt --all"

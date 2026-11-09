@@ -19,6 +19,7 @@ import (
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -98,7 +99,7 @@ func run() (result error) {
 	})
 	creditService := credits.NewServiceWithCatalogue(db.Pool, nil, catalogue, nil)
 	mux := http.NewServeMux()
-	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditService, Accounts: auth}, logger))
+	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditService, Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"})}, logger))
 	// Test-only controls bind to loopback in this disposable fixture binary.
 	mux.HandleFunc("GET /test/mail", func(w http.ResponseWriter, r *http.Request) {
 		webPort := os.Getenv("E2E_WEB_PORT")
@@ -276,4 +277,30 @@ func (mockE2ESetupChatEngine) SetupChat(_ context.Context, req *enginev1.SetupCh
 		NextStep:       "confirm",
 		IsComplete:     true,
 	}, nil
+}
+
+// This fixture implements only clarification, making paid generation impossible.
+type mockE2EBriefEngine struct{}
+
+func (mockE2EBriefEngine) CourseBriefChat(_ context.Context, r *enginev1.CourseBriefChatRequest) (*enginev1.CourseBriefChatResponse, error) {
+	b := r.GetBrief()
+	steps := []string{"topic", "goal", "include_topics", "skip_topics", "level", "maths", "viewing_conditions", "lesson_length", "language"}
+	values := []*string{&b.Topic, &b.Goal, &b.IncludeTopics, &b.SkipTopics, &b.Level, &b.Maths, &b.ViewingConditions, &b.LessonLength, &b.Language}
+	next := "confirm"
+	for i, step := range steps {
+		if step == r.CurrentStep {
+			if !r.Skipped {
+				*values[i] = r.Answer
+			}
+			if i+1 < len(steps) {
+				next = steps[i+1]
+			}
+			break
+		}
+	}
+	message := "Review your brief and confirm when ready."
+	if next == "goal" {
+		message = "What is your goal?"
+	}
+	return &enginev1.CourseBriefChatResponse{Brief: b, Message: message, NextStep: next, IsComplete: next == "confirm"}, nil
 }

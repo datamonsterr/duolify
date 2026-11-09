@@ -68,6 +68,15 @@ type AuthSession struct {
 	ReauthenticatedAt pgtype.Timestamptz `json:"reauthenticated_at"`
 }
 
+type CourseBriefRevision struct {
+	ID          pgtype.UUID        `json:"id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	Brief       []byte             `json:"brief"`
+	ContentHash string             `json:"content_hash"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+}
+
 type CreditEntry struct {
 	ID             int64              `json:"id"`
 	LearnerID      pgtype.UUID        `json:"learner_id"`
