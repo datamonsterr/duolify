@@ -253,3 +253,12 @@ export function trackGuidedUi(value: GuidedUiEvent) {
     // UI works even when analytics is unavailable.
   }
 }
+
+// Catalogue: session-rotation-revocation/specs/design-system/spec.md.
+export function trackSessionRecovery() {
+  captureAuth("ui_recovery_selected", {
+    surface: "sign_in",
+    error_code: "session_expired",
+    action: "sign_in",
+  });
+}

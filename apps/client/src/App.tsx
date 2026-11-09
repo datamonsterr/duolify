@@ -8,6 +8,7 @@ import {
   useParams,
   type RouterHistory,
 } from "@tanstack/react-router";
+import { Sessions } from "./features/accounts/Sessions";
 import { SignIn } from "./features/accounts/SignIn";
 import { RouteGuard } from "./features/accounts/RouteGuard";
 import { AccountProfile } from "./features/accounts/AccountProfile";
@@ -26,7 +27,7 @@ function AuthenticatedShell() {
   const path = useLocation({ select: (location) => location.pathname });
   if (path === "/sign-in") return <Outlet />;
   return (
-    <RouteGuard>
+    <RouteGuard path={path}>
       <AppShell />
     </RouteGuard>
   );
@@ -103,7 +104,19 @@ const bookmarks = createRoute({
 const settings = createRoute({
   getParentRoute: () => root,
   path: "/settings",
-  component: () => <DestinationPage title="Settings" />,
+  component: () => (
+    <>
+      <DestinationPage title="Settings" />
+      <a className="shell-link" href="/settings/sessions">
+        Manage sessions
+      </a>
+    </>
+  ),
+});
+const sessions = createRoute({
+  getParentRoute: () => root,
+  path: "/settings/sessions",
+  component: Sessions,
 });
 const streak = createRoute({
   getParentRoute: () => root,
@@ -147,6 +160,7 @@ export const createAppRouter = (history?: RouterHistory) =>
       notes,
       bookmarks,
       settings,
+      sessions,
       streak,
       lessonTest,
       signIn,

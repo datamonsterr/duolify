@@ -14,16 +14,19 @@ import "./accounts.css";
 
 export function SignIn({
   onSignedIn,
+  recovery = false,
 }: {
   onSignedIn?: (path: string) => void;
+  recovery?: boolean;
 }) {
   const [step, setStep] = useState<"welcome" | "email" | "code">(
-    new URLSearchParams(location.search).get("returning") === "true"
+    recovery || new URLSearchParams(location.search).get("returning") === "true"
       ? "email"
       : "welcome",
   );
   const [returning, setReturning] = useState(
-    new URLSearchParams(location.search).get("returning") === "true",
+    recovery ||
+      new URLSearchParams(location.search).get("returning") === "true",
   );
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -32,7 +35,7 @@ export function SignIn({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState(
-    new URLSearchParams(location.search).get("reason") === "expired"
+    recovery || new URLSearchParams(location.search).get("reason") === "expired"
       ? "Session expired. Sign in again and we'll take you back to your lesson."
       : "",
   );
