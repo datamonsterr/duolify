@@ -82,6 +82,10 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	_, err = db.Pool.Exec(ctx, `INSERT INTO pricing_admin_grants(account_id) VALUES($1::uuid)`, learnerID)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Every table with a direct learner reference must have an export/deletion classification.
 	var linked []string
@@ -122,7 +126,7 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 	if len(providerRows) != 1 || providerRows[0]["subject"] != nil {
 		t.Fatalf("unsafe/missing provider export: %s", exportedTables["auth_provider_identities"])
 	}
-	for _, name := range []string{"learners", "learner_profiles", "auth_identities", "auth_provider_identities", "auth_sessions", "credit_entries", "pricing_quotes"} {
+	for _, name := range []string{"learners", "learner_profiles", "auth_identities", "auth_provider_identities", "auth_sessions", "credit_entries", "pricing_quotes", "pricing_admin_grants"} {
 		if len(exportedTables[name]) == 0 || string(exportedTables[name]) == "null" {
 			t.Fatalf("export missing %s", name)
 		}
@@ -147,6 +151,10 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 	if entryLearner != nil || owner != hex.EncodeToString(h[:]) {
 		t.Fatalf("ledger not pseudonymized: learner=%v owner=%q", entryLearner, owner)
 	}
+	var grantCount int
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM pricing_admin_grants WHERE account_id=$1::uuid", learnerID).Scan(&grantCount); err != nil || grantCount != 0 {
+		t.Fatalf("pricing_admin_grants not removed: count=%d err=%v", grantCount, err)
+	}
 	var tombstone int
 	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM account_deletion_tombstones WHERE learner_reference=$1", owner).Scan(&tombstone); err != nil || tombstone != 1 {
 		t.Fatalf("tombstone=%d err=%v", tombstone, err)
@@ -163,11 +171,17 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 	if _, err = db.Pool.Exec(ctx, `INSERT INTO learner_profiles(learner_id) VALUES($1::uuid)`, learnerID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = db.Pool.Exec(ctx, `INSERT INTO pricing_admin_grants(account_id) VALUES($1::uuid)`, learnerID); err != nil {
+		t.Fatal(err)
+	}
 	if err = accounts.ApplyDeletionTombstones(ctx, db.Pool); err != nil {
 		t.Fatal(err)
 	}
 	var restoredPersonal int
 	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM learners WHERE id=$1::uuid", learnerID).Scan(&restoredPersonal); err != nil || restoredPersonal != 0 {
 		t.Fatalf("restore did not replay tombstone: count=%d err=%v", restoredPersonal, err)
+	}
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM pricing_admin_grants WHERE account_id=$1::uuid", learnerID).Scan(&grantCount); err != nil || grantCount != 0 {
+		t.Fatalf("restore did not clean pricing admin grant: count=%d err=%v", grantCount, err)
 	}
 }

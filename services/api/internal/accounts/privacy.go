@@ -15,12 +15,16 @@ import (
 
 // ClassifiedLearnerTables lists every table holding learner data and its retention policy.
 var ClassifiedLearnerTables = map[string]string{
-	"learner_profiles":         "erased",
-	"auth_identities":          "erased",
-	"auth_provider_identities": "erased",
-	"auth_sessions":            "revoked_and_erased",
-	"credit_entries":           "financial_retained_pseudonymous",
-	"pricing_quotes":           "financial_retained_anonymized",
+	"learner_profiles":              "erased",
+	"auth_identities":               "erased",
+	"auth_provider_identities":      "erased",
+	"auth_sessions":                 "revoked_and_erased",
+	"credit_entries":                "financial_retained_pseudonymous",
+	"pricing_quotes":                "financial_retained_anonymized",
+	"pricing_admin_grants":          "revoked_and_erased",
+	"pricing_drafts":                "financial_retained_pseudonymous",
+	"pricing_audit":                 "financial_retained_pseudonymous",
+	"pricing_version_cancellations": "financial_retained_anonymized",
 }
 
 // LearnerReference is a stable pseudonym used only for legally retained records.
@@ -55,6 +59,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		{table: "auth_sessions", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'created_at',created_at,'expires_at',expires_at,'revoked_at',revoked_at)),'[]'::jsonb) FROM auth_sessions WHERE learner_id=$1`},
 		{table: "credit_entries", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'amount',amount,'kind',kind,'reference',reference,'created_at',created_at)),'[]'::jsonb) FROM credit_entries WHERE learner_id=$1`},
 		{table: "pricing_quotes", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',q.id,'pricing_version',q.pricing_version,'snapshot',q.snapshot,'created_at',q.created_at,'expires_at',q.expires_at,'accepted_at',c.accepted_at)),'[]'::jsonb) FROM pricing_quotes q LEFT JOIN pricing_quote_consents c ON c.quote_id=q.id WHERE q.learner_id=$1`},
+		{table: "pricing_admin_grants", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('account_id',account_id,'granted_at',granted_at)),'[]'::jsonb) FROM pricing_admin_grants WHERE account_id=$1`},
 	}
 	for _, item := range queries {
 		var raw []byte
@@ -101,6 +106,9 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil {
 		_, err = tx.Exec(ctx, "UPDATE pricing_quotes SET learner_id=NULL WHERE learner_id=$1", id)
+	}
+	if err == nil {
+		_, err = tx.Exec(ctx, "DELETE FROM pricing_admin_grants WHERE account_id=$1", id)
 	}
 	if err == nil {
 		_, err = tx.Exec(ctx, "INSERT INTO account_deletion_tombstones(learner_reference) VALUES($1) ON CONFLICT DO NOTHING", ref)
@@ -173,6 +181,9 @@ func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "UPDATE pricing_quotes SET learner_id=NULL WHERE learner_id=$1::uuid", id); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, "DELETE FROM pricing_admin_grants WHERE account_id=$1::uuid", id); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "DELETE FROM learners WHERE id=$1::uuid", id); err != nil {
