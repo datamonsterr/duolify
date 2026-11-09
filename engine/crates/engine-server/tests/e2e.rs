@@ -83,5 +83,19 @@ async fn all_rpcs() {
             .summary
             .is_empty()
     );
+    let setup = c
+        .setup_chat(pb::SetupChatRequest {
+            profile: None,
+            messages: vec![],
+            current_step: "goal".into(),
+            answer: "space".into(),
+            skipped: false,
+            is_follow_up: false,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(!setup.message.is_empty());
+    assert!(setup.is_follow_up);
     task.abort();
 }

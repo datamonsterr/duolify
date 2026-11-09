@@ -149,6 +149,7 @@ func (s *Service) registerProfile() {
 	s.mux.Handle("POST /v1/me/profile", s.Protect(http.HandlerFunc(s.saveContext)))
 	s.mux.Handle("GET /v1/me/settings", s.Protect(http.HandlerFunc(s.readSettings)))
 	s.mux.Handle("POST /v1/me/settings", s.Protect(http.HandlerFunc(s.saveSettings)))
+	s.mux.Handle("POST /v1/me/setup-chat", s.Protect(http.HandlerFunc(s.handleSetupChat)))
 }
 func contextID(r *http.Request) pgtype.UUID {
 	var id pgtype.UUID

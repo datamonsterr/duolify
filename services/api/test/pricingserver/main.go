@@ -13,9 +13,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -84,6 +86,14 @@ func run() (result error) {
 		rateLimits.VerifyIP = 100000
 	}
 	auth.ConfigureRateLimits(rateLimits)
+	devCatalogue, err := pricing.LoadDevelopment(boot, db.Pool)
+	if err == nil {
+		catalogue = devCatalogue
+	}
+	auth.ConfigureSetupChat(accounts.SetupChatOptions{
+		Engine:  mockE2ESetupChatEngine{},
+		Pricing: catalogue,
+	})
 	mux := http.NewServeMux()
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: catalogue, Quotes: pricing.NewQuotes(db.Pool), Accounts: auth}, logger))
 	// Test-only controls bind to loopback in this disposable fixture binary.
@@ -149,4 +159,118 @@ func run() (result error) {
 		return err
 	}
 	return httpapi.Serve(ctx, server, listener)
+}
+
+type mockE2ESetupChatEngine struct{}
+
+func (mockE2ESetupChatEngine) SetupChat(_ context.Context, req *enginev1.SetupChatRequest) (*enginev1.SetupChatResponse, error) {
+	if req.CurrentStep == "goal" {
+		lower := strings.ToLower(req.Answer)
+		if !req.IsFollowUp && strings.Contains(lower, "space") && !strings.Contains(lower, "kids") && !strings.Contains(lower, "fun") {
+			return &enginev1.SetupChatResponse{
+				Message: "Space is a great pick! Is this for fun, for school, or for work?",
+				QuickReplies: []*enginev1.QuickReply{
+					{Id: "fun", Label: "For fun"},
+					{Id: "school", Label: "For school"},
+					{Id: "work", Label: "For work"},
+					{Id: "skip", Label: "Skip"},
+				},
+				UpdatedProfile: &enginev1.LearnerProfile{
+					Topic: "Astronomy",
+					Goals: req.Answer,
+				},
+				NextStep:   "goal",
+				IsFollowUp: true,
+			}, nil
+		}
+		topic := "Astronomy"
+		goal := "Learn " + req.Answer
+		if !strings.Contains(lower, "space") && req.Answer != "" {
+			topic = req.Answer
+		}
+		if req.Profile.GetGoals() != "" {
+			goal = req.Profile.GetGoals()
+		}
+		return &enginev1.SetupChatResponse{
+			Message: "What level would you describe yourself as?",
+			QuickReplies: []*enginev1.QuickReply{
+				{Id: "beginner", Label: "Beginner"},
+				{Id: "intermediate", Label: "Intermediate"},
+				{Id: "advanced", Label: "Advanced"},
+				{Id: "expert", Label: "Expert"},
+				{Id: "skip", Label: "Skip"},
+			},
+			UpdatedProfile: &enginev1.LearnerProfile{
+				Topic: topic,
+				Goals: goal,
+			},
+			NextStep:   "level",
+			IsFollowUp: false,
+		}, nil
+	}
+	if req.CurrentStep == "level" {
+		level := strings.ToLower(req.Answer)
+		return &enginev1.SetupChatResponse{
+			Message: "How much time can you give it on a normal day?",
+			QuickReplies: []*enginev1.QuickReply{
+				{Id: "5", Label: "5 min · Casual"},
+				{Id: "10", Label: "10 min · Regular"},
+				{Id: "15", Label: "15 min · Serious"},
+				{Id: "20", Label: "20+ min · Intense"},
+				{Id: "skip", Label: "Skip"},
+			},
+			UpdatedProfile: &enginev1.LearnerProfile{
+				Topic: req.Profile.GetTopic(),
+				Goals: req.Profile.GetGoals(),
+				Level: level,
+			},
+			NextStep:   "daily_time",
+			IsFollowUp: false,
+		}, nil
+	}
+	if req.CurrentStep == "daily_time" {
+		return &enginev1.SetupChatResponse{
+			Message: "Would you like daily reminders?",
+			QuickReplies: []*enginev1.QuickReply{
+				{Id: "20:00", Label: "8:00 pm"},
+				{Id: "09:00", Label: "9:00 am"},
+				{Id: "none", Label: "No reminders"},
+				{Id: "skip", Label: "Skip"},
+			},
+			UpdatedProfile: &enginev1.LearnerProfile{
+				Topic:        req.Profile.GetTopic(),
+				Goals:        req.Profile.GetGoals(),
+				Level:        req.Profile.GetLevel(),
+				DailyMinutes: 10,
+				DailyXp:      20,
+			},
+			NextStep:   "reminders",
+			IsFollowUp: false,
+		}, nil
+	}
+	if req.CurrentStep == "reminders" {
+		return &enginev1.SetupChatResponse{
+			Message: "Does this time zone look right?",
+			QuickReplies: []*enginev1.QuickReply{
+				{Id: "confirm", Label: "Looks right"},
+				{Id: "skip", Label: "Skip"},
+			},
+			UpdatedProfile: &enginev1.LearnerProfile{
+				Topic:           req.Profile.GetTopic(),
+				Goals:           req.Profile.GetGoals(),
+				Level:           req.Profile.GetLevel(),
+				DailyMinutes:    req.Profile.GetDailyMinutes(),
+				DailyXp:         req.Profile.GetDailyXp(),
+				ReminderEnabled: false,
+			},
+			NextStep:   "time_zone",
+			IsFollowUp: false,
+		}, nil
+	}
+	return &enginev1.SetupChatResponse{
+		Message:        "Here's what I've got. Does this look right?",
+		UpdatedProfile: req.Profile,
+		NextStep:       "confirm",
+		IsComplete:     true,
+	}, nil
 }

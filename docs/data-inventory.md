@@ -114,3 +114,12 @@ Focused tests cover adapter restore, allowlisted saves, clear/reset, corrupt inp
 and host recreation. Account deletion/logout must clear any future E1 adapter;
 these components never copy chat, summary or outline text into it. Existing feature
 retention, backup, evaluation and fallback gates continue to apply.
+
+E1-11 setup chat: setup chat transcripts, quick replies and live summary drafts are
+disposable React state in client memory only and are never persisted to Postgres, Redis,
+or object storage. Confirmed profiles write to the existing `learner_profiles` table
+via canonical `POST /v1/me/profile` under existing 14-day backup and account deletion
+cascade policies. No chat or profile text enters PostHog; analytics emits only event
+metadata and token counts (`$ai_generation`, `ui_control_activated`). Development pricing
+key `setup_chat` is inserted into immutable `pricing_versions` (`usd-dev-unapproved`,
+`approved=false`, 0 credits) with existing 7-year financial retention.

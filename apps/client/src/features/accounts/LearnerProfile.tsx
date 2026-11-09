@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { LearnerContextEditor } from "./LearnerContextEditor";
+import { SetupChat } from "./SetupChat";
 import { profileApi, type LearnerContext } from "./learner-context";
 import { Feedback } from "../design/chat/Feedback";
 import { Button } from "../design/Button";
@@ -42,24 +43,36 @@ export function LearnerProfile({ setup = false }: { setup?: boolean }) {
         )}
       </div>
     );
+  const exportProfile = async () => {
+    const exported = await profileApi.export();
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(exported, null, 2)], {
+        type: "application/json",
+      }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "learner-profile.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (setup) {
+    return (
+      <SetupChat
+        profile={profile}
+        onCommit={profileApi.commit}
+        onExport={exportProfile}
+      />
+    );
+  }
+
   return (
     <LearnerContextEditor
       profile={profile}
-      setup={setup}
+      setup={false}
       onCommit={profileApi.commit}
-      onExport={async () => {
-        const exported = await profileApi.export();
-        const url = URL.createObjectURL(
-          new Blob([JSON.stringify(exported, null, 2)], {
-            type: "application/json",
-          }),
-        );
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "learner-profile.json";
-        link.click();
-        URL.revokeObjectURL(url);
-      }}
+      onExport={exportProfile}
     />
   );
 }

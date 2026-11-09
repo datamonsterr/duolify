@@ -55,3 +55,10 @@ func (c *Client) PreviewCourse(ctx context.Context, request *enginev1.PreviewCou
 	defer cancel()
 	return c.rpc.PreviewCourse(ctx, request)
 }
+
+// SetupChat forwards the setup turn with a bounded context.
+func (c *Client) SetupChat(ctx context.Context, request *enginev1.SetupChatRequest) (*enginev1.SetupChatResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	return c.rpc.SetupChat(ctx, request)
+}

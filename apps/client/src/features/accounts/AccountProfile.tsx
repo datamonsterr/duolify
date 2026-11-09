@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LearnerProfile } from "./LearnerProfile";
+import { LearnerProfile, SetupProfile } from "./LearnerProfile";
 import { Button } from "../design/Button";
 import { session, type Learner } from "./session";
 export function AccountProfile() {
@@ -25,17 +25,14 @@ export function AccountProfile() {
           <Button variant="secondary" onClick={() => setChatOpen(true)}>
             Update by chat
           </Button>
-          <LearnerProfile />
+          {!chatOpen && <LearnerProfile />}
           {chatOpen && (
             <section role="dialog" aria-label="Update profile by chat">
               <h2>Update by chat</h2>
-              <p>
-                Chat profile updates are coming in E1-11. Your form draft is
-                still here.
-              </p>
               <Button variant="secondary" onClick={() => setChatOpen(false)}>
                 Close chat
               </Button>
+              <SetupProfile />
             </section>
           )}
           <p>

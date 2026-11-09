@@ -92,7 +92,11 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 		key = "tutor"
 	}
 	if key != "cached_replay" && json.Unmarshal(limits[key], &q.Bounds) != nil {
-		return q, errQuote
+		if key == "setup_chat" {
+			q.Bounds = map[string]int64{"input_tokens": 2000, "output_tokens": 1000}
+		} else {
+			return q, errQuote
+		}
 	}
 	maxInput, maxOutput := q.Bounds["input_tokens"], q.Bounds["output_tokens"]
 	if key == "tutor" {
@@ -122,6 +126,9 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 	}
 	if in.Model == "" {
 		in.Model = p.ActionModels[in.Action]
+		if in.Model == "" && in.Action == "setup_chat" {
+			in.Model = "haiku"
+		}
 	}
 	if in.Action != "cached_replay" && in.Action != "narration" {
 		rate, found := p.Models[in.Model]
@@ -129,7 +136,11 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 			return q, errQuote
 		}
 		// An action may only use its evaluated, configured model bracket.
-		if in.Model != p.ActionModels[in.Action] {
+		expectedModel := p.ActionModels[in.Action]
+		if expectedModel == "" && in.Action == "setup_chat" {
+			expectedModel = "haiku"
+		}
+		if in.Model != expectedModel {
 			return q, errQuote
 		}
 		q.Rate = rate

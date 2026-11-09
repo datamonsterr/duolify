@@ -155,6 +155,22 @@ export const profileApi = {
       await accessToken(),
     );
   },
+  async setupChat(turn: {
+    current_step: string;
+    answer?: string;
+    skipped?: boolean;
+    is_follow_up?: boolean;
+    draft?: Partial<ContextFields>;
+  }) {
+    return authRequest<{
+      message: string;
+      quick_replies: { id: string; label: string }[];
+      updated_profile: Partial<ContextFields>;
+      next_step: string;
+      is_follow_up: boolean;
+      is_complete: boolean;
+    }>("/v1/me/setup-chat", turn, await accessToken());
+  },
   async readSettings() {
     return authRequest<LearnerSettings>(
       "/v1/me/settings",

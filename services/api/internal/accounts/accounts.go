@@ -53,6 +53,7 @@ type Service struct {
 	profile       ProfileOptions
 	limits        RateLimits
 	personDeleter PersonDeleter
+	setupChat     SetupChatOptions
 }
 
 // New requires a shared signing/HMAC secret of at least 32 bytes.

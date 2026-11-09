@@ -232,4 +232,88 @@ impl EngineService for Service {
             usage: usage(&c),
         }))
     }
+    async fn setup_chat(
+        &self,
+        request: Request<pb::SetupChatRequest>,
+    ) -> Result<Response<pb::SetupChatResponse>, Status> {
+        let req = request.into_inner();
+        struct RouterModelAdapter<'a> {
+            router: &'a ProviderRouter,
+        }
+        #[tonic::async_trait]
+        impl engine_core::accounts::ModelProvider for RouterModelAdapter<'_> {
+            async fn complete(&self, prompt: &str) -> anyhow::Result<String> {
+                let c = self.router.complete("setup_chat", prompt).await?;
+                Ok(c.text)
+            }
+        }
+        let adapter = RouterModelAdapter {
+            router: &self.router,
+        };
+        let mut state = engine_core::accounts::SetupState::default();
+        if let Some(p) = req.profile {
+            state.profile.goals = p.goals;
+            state.profile.topic = p.topic;
+            state.profile.level = p.level;
+            state.profile.background = p.background;
+            if p.daily_minutes > 0 {
+                state.profile.daily_minutes = Some(p.daily_minutes);
+            }
+            if p.daily_xp > 0 {
+                state.profile.daily_xp = Some(p.daily_xp);
+            }
+            state.profile.reminder_enabled = Some(p.reminder_enabled);
+            state.profile.reminder_time = p.reminder_time;
+            state.profile.time_zone = p.time_zone;
+            state.profile.locale = p.locale;
+        }
+
+        let turn = engine_core::accounts::SetupChatTurn {
+            step: engine_core::accounts::SetupStep::parse(&req.current_step),
+            answer: req.answer,
+            skipped: req.skipped,
+            is_follow_up: req.is_follow_up,
+        };
+
+        let result = engine_core::accounts::process_setup_chat(&mut state, &turn, &adapter)
+            .await
+            .map_err(internal)?;
+
+        let updated_profile = pb::LearnerProfile {
+            learner_id: String::new(),
+            locale: result.updated_profile.locale,
+            background: result.updated_profile.background,
+            goals: result.updated_profile.goals,
+            level: result.updated_profile.level,
+            topic: result.updated_profile.topic,
+            daily_minutes: result.updated_profile.daily_minutes.unwrap_or(0),
+            daily_xp: result.updated_profile.daily_xp.unwrap_or(0),
+            reminder_enabled: result.updated_profile.reminder_enabled.unwrap_or(false),
+            reminder_time: result.updated_profile.reminder_time,
+            time_zone: result.updated_profile.time_zone,
+        };
+
+        Ok(Response::new(pb::SetupChatResponse {
+            message: result.message,
+            quick_replies: result
+                .quick_replies
+                .into_iter()
+                .map(|q| pb::QuickReply {
+                    id: q.id,
+                    label: q.label,
+                })
+                .collect(),
+            updated_profile: Some(updated_profile),
+            next_step: result.next_step.as_str().into(),
+            is_follow_up: result.is_follow_up,
+            is_complete: result.is_complete,
+            usage: Some(pb::Usage {
+                provider: self.router.primary.name().into(),
+                model: "claude-haiku-5-5".into(),
+                input_tokens: 100,
+                output_tokens: 50,
+                latency_ms: 0,
+            }),
+        }))
+    }
 }

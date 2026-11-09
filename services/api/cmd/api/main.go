@@ -162,6 +162,11 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	auth.ConfigureProfile(profileOptions)
 	auth.ConfigureRateLimits(rateLimits)
+	auth.ConfigureSetupChat(accounts.SetupChatOptions{
+		Engine:  backend,
+		Pricing: catalogue,
+		Events:  events,
+	})
 	handler := httpapi.New(httpapi.Dependencies{
 		Accounts: auth,
 		Pricing:  catalogue,

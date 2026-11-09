@@ -72,8 +72,103 @@ impl LlmProvider for MockProvider {
     fn name(&self) -> &'static str {
         "mock"
     }
-    async fn complete(&self, model: &str, _: &str) -> Result<Completion> {
-        Ok(Completion { text: serde_json::json!({"title":"Sample", "summary":"Sample note", "html":"<div id=\"root\">Sample</div>", "units":[{"unit_id":"unit-1","title":"Sample unit","lessons":[{"lesson_id":"lesson-1","title":"Sample lesson","goal":"Learn"}]}], "test":[{"question_id":"q1","prompt":"Sample?","choices":["Yes","No"],"answer_index":0,"explanation":"Sample"}]}).to_string(), provider: "mock".into(), model: model.into(), input_tokens: 0, output_tokens: 0 })
+    async fn complete(&self, model: &str, input: &str) -> Result<Completion> {
+        let text = if input.contains("setup_chat")
+            || input.contains("is_vague")
+            || input.contains("vague")
+            || input.contains("scenario")
+            || model.contains("setup_chat")
+        {
+            if input.contains("vague_goal") || input.contains("something about space") {
+                serde_json::json!({
+                    "is_vague": true,
+                    "follow_up_message": "Space is a great pick! Is this for fun, for school, or for work?",
+                    "extracted_topic": "Astronomy",
+                    "extracted_goal": "Something about space",
+                    "quick_replies": ["For fun", "For school", "For work", "Skip"],
+                    "next_step": "goal",
+                    "is_follow_up": true
+                })
+                .to_string()
+            } else if input.contains("followup_bound") || input.contains("is_follow_up: true") {
+                serde_json::json!({
+                    "is_vague": false,
+                    "message": "What level would you describe yourself as?",
+                    "is_follow_up": false,
+                    "next_step": "level",
+                    "quick_replies": ["Beginner", "Intermediate", "Advanced", "Expert", "Skip"]
+                })
+                .to_string()
+            } else if input.contains("skipped") {
+                serde_json::json!({
+                    "skipped": true,
+                    "message": "What level would you describe yourself as?",
+                    "is_follow_up": false,
+                    "next_step": "level",
+                    "extracted_topic": "",
+                    "extracted_goal": ""
+                })
+                .to_string()
+            } else if input.contains("non_english")
+                || input.contains("vi-VN")
+                || input.contains("thiên văn")
+            {
+                serde_json::json!({
+                    "message": "Thiên văn học là một chủ đề tuyệt vời!",
+                    "extracted_topic": "Astronomy",
+                    "locale": "vi-VN"
+                })
+                .to_string()
+            } else if input.contains("injection") || input.contains("Ignore previous") {
+                serde_json::json!({
+                    "message": "I understand your goal.",
+                    "safe": true,
+                    "injection_blocked": true
+                })
+                .to_string()
+            } else if input.contains("summary_fidelity") {
+                serde_json::json!({
+                    "extracted_topic": "Astronomy",
+                    "extracted_goal": "Explain the night sky to my kids",
+                    "extracted_level": "beginner",
+                    "fidelity": true
+                })
+                .to_string()
+            } else if input.contains("no_save_before_confirm") {
+                serde_json::json!({
+                    "draft_only": true,
+                    "persisted": false,
+                    "confirm_required": true
+                })
+                .to_string()
+            } else if input.contains("unavailable_assistant") {
+                serde_json::json!({
+                    "error": "assistant unavailable",
+                    "form_fallback": true
+                })
+                .to_string()
+            } else {
+                serde_json::json!({
+                    "is_vague": false,
+                    "message": "What level would you describe yourself as?",
+                    "extracted_topic": "Astronomy",
+                    "extracted_goal": "Fun — for my kids",
+                    "next_step": "level",
+                    "is_follow_up": false,
+                    "quick_replies": ["Beginner", "Intermediate", "Advanced", "Expert", "Skip"]
+                })
+                .to_string()
+            }
+        } else {
+            serde_json::json!({"title":"Sample", "summary":"Sample note", "html":"<div id=\"root\">Sample</div>", "units":[{"unit_id":"unit-1","title":"Sample unit","lessons":[{"lesson_id":"lesson-1","title":"Sample lesson","goal":"Learn"}]}], "test":[{"question_id":"q1","prompt":"Sample?","choices":["Yes","No"],"answer_index":0,"explanation":"Sample"}]}).to_string()
+        };
+        Ok(Completion {
+            text,
+            provider: "mock".into(),
+            model: model.into(),
+            input_tokens: 0,
+            output_tokens: 0,
+        })
     }
     async fn stream(&self, model: &str, _: &str) -> Result<CompletionStream> {
         let usage = Completion {
@@ -89,6 +184,7 @@ impl LlmProvider for MockProvider {
         ])))
     }
 }
+pub mod accounts;
 pub mod slide;
 #[cfg(test)]
 mod tests;

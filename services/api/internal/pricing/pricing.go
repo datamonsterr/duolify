@@ -15,6 +15,7 @@ import (
 
 	"github.com/datamonsterr/duolify/services/api/internal/store/db"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -225,6 +226,36 @@ func Load(ctx context.Context, q Queries) (*Catalogue, error) {
 		return nil, err
 	}
 	return &Catalogue{config: c, body: body, etag: fmt.Sprintf(`"%x"`, sha256.Sum256(body))}, nil
+}
+
+// FromConfig builds a Catalogue from an in-memory validated Config.
+func FromConfig(c Config) *Catalogue {
+	dto := c.Public()
+	body, _ := json.Marshal(dto)
+	return &Catalogue{config: c, body: body, etag: fmt.Sprintf(`"%x"`, sha256.Sum256(body))}
+}
+
+// LoadDevelopment loads the unapproved development pricing version if present.
+func LoadDevelopment(ctx context.Context, pool *pgxpool.Pool) (*Catalogue, error) {
+	var configJSON []byte
+	err := pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version='usd-dev-unapproved'").Scan(&configJSON)
+	if err != nil {
+		return nil, err
+	}
+	c, err := Parse(configJSON)
+	if err != nil {
+		return nil, err
+	}
+	return FromConfig(c), nil
+}
+
+// HasAction reports whether the catalogue defines the given action.
+func (c *Catalogue) HasAction(name string) bool {
+	if c == nil {
+		return false
+	}
+	_, ok := c.config.Actions[name]
+	return ok
 }
 
 // Config returns a copy so consumers cannot mutate the validated catalogue.

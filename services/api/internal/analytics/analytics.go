@@ -29,7 +29,8 @@ func (c client) Capture(learnerID, event string, properties map[string]any) erro
 func allowlisted(event string) bool {
 	switch event {
 	case "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
-		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed":
+		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
+		"$ai_generation", "ui_control_activated":
 		return true
 	default:
 		return false

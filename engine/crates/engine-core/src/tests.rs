@@ -3,8 +3,9 @@ use super::*;
 #[test]
 fn config_has_all_tasks() {
     let config: Models = toml::from_str(include_str!("../../../config/models.toml")).unwrap();
-    assert_eq!(config.tasks.len(), 5);
+    assert_eq!(config.tasks.len(), 6);
     assert_eq!(config.tasks["chat"].model, "claude-haiku-5-5");
+    assert_eq!(config.tasks["setup_chat"].model, "claude-haiku-5-5");
 }
 
 #[test]
