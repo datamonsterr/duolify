@@ -113,6 +113,39 @@ func TestOptionalContextConfirmationOwnershipAndEvents(t *testing.T) {
 	if initial["locale"] != "vi-VN" || initial["time_zone"] != "Asia/Ho_Chi_Minh" || initial["background"] != "" || initial["daily_minutes"] != nil || initial["setup_completed"] != false {
 		t.Fatalf("defaults: %v", initial)
 	}
+	settingsRead := func(token string) map[string]any {
+		w := call("GET", "/v1/me/settings", nil, token)
+		if w.Code != 200 {
+			t.Fatalf("settings read: %d %s", w.Code, w.Body)
+		}
+		var value map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &value); err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	settingsSave := func(token string, fields map[string]any) *httptest.ResponseRecorder {
+		return call("POST", "/v1/me/settings", map[string]any{"confirmed": true, "fields": fields}, token)
+	}
+	if settingsRead(first.AccessToken)["appearance"] != "system" {
+		t.Fatal("settings defaults missing")
+	}
+	if w := settingsSave(first.AccessToken, map[string]any{"appearance": "dark", "motion": "reduce", "narration": false, "narration_speed": 1.25, "captions": false, "text_size": 1.2, "ui_sounds": true, "haptics": "off", "daily_xp": 35, "reminder_enabled": true, "reminder_time": "07:30"}); w.Code != 200 {
+		t.Fatalf("settings save: %d %s", w.Code, w.Body)
+	}
+	storedSettings := settingsRead(first.AccessToken)
+	if storedSettings["appearance"] != "dark" || storedSettings["motion"] != "reduce" || storedSettings["analytics_opt_out"] != false || storedSettings["daily_xp"] != float64(35) {
+		t.Fatalf("settings not persisted: %v", storedSettings)
+	}
+	if w := settingsSave(first.AccessToken, map[string]any{"appearance": "neon"}); w.Code != 400 {
+		t.Fatalf("invalid setting: %d", w.Code)
+	}
+	if w := settingsSave(first.AccessToken, map[string]any{"analytics_opt_out": true}); w.Code != 200 {
+		t.Fatalf("opt out: %d %s", w.Code, w.Body)
+	}
+	if w := settingsSave(first.AccessToken, map[string]any{"analytics_opt_out": false}); w.Code != 200 {
+		t.Fatalf("opt in: %d %s", w.Code, w.Body)
+	}
 	save := func(token string, confirmed bool, action string, fields map[string]any) *httptest.ResponseRecorder {
 		return call("POST", "/v1/me/profile", map[string]any{"confirmed": confirmed, "action": action, "fields": fields}, token)
 	}
@@ -189,9 +222,22 @@ func TestOptionalContextConfirmationOwnershipAndEvents(t *testing.T) {
 			}
 		}
 	}
-	if counts["onboarding_completed"] != 1 || counts["learner_profile_updated"] != 2 {
+	if counts["onboarding_completed"] != 1 || counts["learner_profile_updated"] != 4 || counts["analytics_opt_out_changed"] != 1 {
 		t.Fatalf("events: %v", counts)
 	}
+	unavailableEvents, err := analytics.New("test-only", "http://127.0.0.1:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth.ConfigureProfile(accounts.ProfileOptions{TextLimit: 20, Events: unavailableEvents})
+	started := time.Now()
+	if w := settingsSave(first.AccessToken, map[string]any{"appearance": "light"}); w.Code != 200 {
+		t.Fatalf("settings update failed while PostHog was unavailable: %d %s", w.Code, w.Body)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("settings update waited for PostHog: %s", elapsed)
+	}
+	_ = unavailableEvents.Close()
 	// Account erasure cascades current profile; no history survives.
 	if _, err := db.Pool.Exec(ctx, "DELETE FROM learners WHERE id::text=$1", initial["learner_id"]); err != nil {
 		t.Fatal(err)
