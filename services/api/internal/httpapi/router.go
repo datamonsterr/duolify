@@ -39,6 +39,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	if deps.Accounts != nil {
 		mux.Handle("/v1/auth/", deps.Accounts)
 		mux.Handle("GET /v1/me", deps.Accounts)
+		mux.Handle("/v1/me/", deps.Accounts)
 	} else {
 		mux.HandleFunc("GET /v1/me", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})

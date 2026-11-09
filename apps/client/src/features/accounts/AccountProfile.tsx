@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { LearnerProfile } from "./LearnerProfile";
 import { Button } from "../design/Button";
 import { session, type Learner } from "./session";
 export function AccountProfile() {
@@ -17,6 +18,10 @@ export function AccountProfile() {
       {learner ? (
         <>
           <p>Signed in as {learner.display_name}</p>
+          <a className="shell-link" href="/profile/setup">
+            Set up learner context
+          </a>
+          <LearnerProfile />
           <p>
             {learner.locale} · {learner.time_zone}
           </p>

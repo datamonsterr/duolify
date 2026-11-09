@@ -1,0 +1,73 @@
+.learner-context {
+  max-inline-size: var(--size-focused);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.context-disclosure {
+  padding: var(--space-4);
+  margin-block: var(--space-5);
+  border: var(--size-focus-width) solid var(--info);
+  border-radius: var(--radius-md);
+  color: var(--info);
+  background: var(--info-bg);
+}
+.context-disclosure p {
+  color: inherit;
+}
+.context-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  margin-block: var(--space-6);
+}
+.context-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+.context-field label {
+  font-weight: var(--weight-strong);
+}
+.context-field :is(input, textarea, select) {
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--size-target);
+  padding: var(--space-3);
+  border: var(--size-focus-width) solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+}
+.context-field textarea {
+  resize: vertical;
+}
+.context-field :is(input, textarea, select):focus-visible {
+  outline: var(--size-focus-width) solid var(--focus);
+  outline-offset: var(--size-focus-offset);
+}
+.context-field [aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.context-actions,
+.context-welcome {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-block: var(--space-5);
+}
+.context-welcome p {
+  flex-basis: 100%;
+}
+@media (max-width: 47.999rem) {
+  .context-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .context-actions {
+    flex-direction: column;
+  }
+  .learner-context h1 {
+    font-size: var(--font-size-heading);
+  }
+}
