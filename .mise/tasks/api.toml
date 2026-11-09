@@ -17,7 +17,7 @@ run = "gotestsum -- -race -count=1 ./test/e2e/..."
 ["api:test-integration"]
 description = "Test migrations, store and queue against Postgres 18 (Docker)"
 dir = "{{config_root}}/services/api"
-run = "gotestsum -- -race -count=1 -tags integration ./internal/store/... ./internal/backup/... ./internal/pricing/... ./internal/accounts/..."
+run = "gotestsum -- -race -count=1 -tags integration ./internal/store/... ./internal/backup/... ./internal/pricing/... ./internal/accounts/... ./internal/credits/..."
 
 ["api:build"]
 description = "Build the statically linked API binary"
@@ -48,4 +48,4 @@ run = "go run ./test/pricingserver"
 ["api:format"]
 description = "Format Go source"
 dir = "{{config_root}}/services/api"
-run = "gofmt -w internal/accounts internal/backuptest internal/pricing internal/httpapi/router.go internal/httpapi/middleware.go cmd/api/main.go test/pricingserver test/e2e"
+run = "gofmt -w internal/accounts internal/backuptest internal/credits internal/pricing internal/httpapi/router.go internal/httpapi/middleware.go cmd/api/main.go test/pricingserver test/e2e"

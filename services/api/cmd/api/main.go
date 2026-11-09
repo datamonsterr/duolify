@@ -23,6 +23,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
 	"github.com/datamonsterr/duolify/services/api/internal/config"
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -176,8 +177,10 @@ func run(ctx context.Context, args []string) (result error) {
 		Pricing: catalogue,
 		Events:  events,
 	})
+	creditService := credits.NewService(db.Pool, redis)
 	handler := httpapi.New(httpapi.Dependencies{
 		Accounts:     auth,
+		Credits:      creditService,
 		Pricing:      pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events),
 		PricingAdmin: pricingAdmin,
 		Quotes:       pricing.NewQuotes(db.Pool),

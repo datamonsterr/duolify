@@ -52,7 +52,7 @@ func TestMigrationsStoreAndQueue(t *testing.T) {
 	if err != nil || got.DisplayName != "Learner" {
 		t.Fatalf("learner=%+v err=%v", got, err)
 	}
-	for _, kind := range []string{"purchase", "reward", "spend", "reserve", "release", "refund"} {
+	for _, kind := range []string{"purchase", "daily_grant", "subscription_grant", "spend", "reserve", "release", "refund", "expire"} {
 		if _, err := db.Queries.CreateCreditEntry(ctx, dbsql.CreateCreditEntryParams{LearnerID: learner.ID, Amount: 10, Kind: kind, Reference: kind}); err != nil {
 			t.Fatal(err)
 		}
@@ -63,12 +63,13 @@ func TestMigrationsStoreAndQueue(t *testing.T) {
 		"TRUNCATE credit_entries",
 		"INSERT INTO credit_entries (learner_id,amount,kind,reference) SELECT id,1,'invalid','x' FROM learners",
 		"INSERT INTO credit_entries (learner_id,amount,kind,reference) SELECT id,0,'purchase','x' FROM learners",
+		"INSERT INTO credit_entries (learner_id,amount,kind,reference) SELECT id,1,'reward','x' FROM learners",
 	} {
 		if _, err := db.Pool.Exec(ctx, query); err == nil {
 			t.Errorf("accepted invalid ledger mutation: %s", query)
 		}
 	}
-	if _, err := db.Queries.CreateCreditEntry(ctx, dbsql.CreateCreditEntryParams{LearnerID: pgtype.UUID{Bytes: [16]byte{1}, Valid: true}, Amount: 1, Kind: "reward", Reference: "orphan"}); err == nil {
+	if _, err := db.Queries.CreateCreditEntry(ctx, dbsql.CreateCreditEntryParams{LearnerID: pgtype.UUID{Bytes: [16]byte{1}, Valid: true}, Amount: 1, Kind: "purchase", Reference: "orphan"}); err == nil {
 		t.Error("orphan entry accepted")
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))

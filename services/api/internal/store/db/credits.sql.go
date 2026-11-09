@@ -12,15 +12,17 @@ import (
 )
 
 const createCreditEntry = `-- name: CreateCreditEntry :one
-INSERT INTO credit_entries (learner_id, amount, kind, reference)
-VALUES ($1, $2, $3, $4) RETURNING id, learner_id, amount, kind, reference, created_at
+INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
+VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'::jsonb)) RETURNING id, learner_id, amount, kind, reference, created_at, owner_reference, pricing_version, provenance
 `
 
 type CreateCreditEntryParams struct {
-	LearnerID pgtype.UUID `json:"learner_id"`
-	Amount    int64       `json:"amount"`
-	Kind      string      `json:"kind"`
-	Reference string      `json:"reference"`
+	LearnerID      pgtype.UUID `json:"learner_id"`
+	Amount         int64       `json:"amount"`
+	Kind           string      `json:"kind"`
+	Reference      string      `json:"reference"`
+	PricingVersion pgtype.Text `json:"pricing_version"`
+	Column6        interface{} `json:"column_6"`
 }
 
 func (q *Queries) CreateCreditEntry(ctx context.Context, arg CreateCreditEntryParams) (CreditEntry, error) {
@@ -29,6 +31,8 @@ func (q *Queries) CreateCreditEntry(ctx context.Context, arg CreateCreditEntryPa
 		arg.Amount,
 		arg.Kind,
 		arg.Reference,
+		arg.PricingVersion,
+		arg.Column6,
 	)
 	var i CreditEntry
 	err := row.Scan(
@@ -38,12 +42,15 @@ func (q *Queries) CreateCreditEntry(ctx context.Context, arg CreateCreditEntryPa
 		&i.Kind,
 		&i.Reference,
 		&i.CreatedAt,
+		&i.OwnerReference,
+		&i.PricingVersion,
+		&i.Provenance,
 	)
 	return i, err
 }
 
 const listCreditEntries = `-- name: ListCreditEntries :many
-SELECT id, learner_id, amount, kind, reference, created_at FROM credit_entries WHERE learner_id = $1 ORDER BY id
+SELECT id, learner_id, amount, kind, reference, created_at, owner_reference, pricing_version, provenance FROM credit_entries WHERE learner_id = $1 ORDER BY id ASC
 `
 
 func (q *Queries) ListCreditEntries(ctx context.Context, learnerID pgtype.UUID) ([]CreditEntry, error) {
@@ -62,6 +69,52 @@ func (q *Queries) ListCreditEntries(ctx context.Context, learnerID pgtype.UUID) 
 			&i.Kind,
 			&i.Reference,
 			&i.CreatedAt,
+			&i.OwnerReference,
+			&i.PricingVersion,
+			&i.Provenance,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCreditEntriesCursor = `-- name: ListCreditEntriesCursor :many
+SELECT id, learner_id, amount, kind, reference, created_at, owner_reference, pricing_version, provenance FROM credit_entries
+WHERE learner_id = $1 AND ($2::bigint = 0 OR id < $2::bigint)
+ORDER BY id DESC
+LIMIT $3
+`
+
+type ListCreditEntriesCursorParams struct {
+	LearnerID pgtype.UUID `json:"learner_id"`
+	Column2   int64       `json:"column_2"`
+	Limit     int32       `json:"limit"`
+}
+
+func (q *Queries) ListCreditEntriesCursor(ctx context.Context, arg ListCreditEntriesCursorParams) ([]CreditEntry, error) {
+	rows, err := q.db.Query(ctx, listCreditEntriesCursor, arg.LearnerID, arg.Column2, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CreditEntry{}
+	for rows.Next() {
+		var i CreditEntry
+		if err := rows.Scan(
+			&i.ID,
+			&i.LearnerID,
+			&i.Amount,
+			&i.Kind,
+			&i.Reference,
+			&i.CreatedAt,
+			&i.OwnerReference,
+			&i.PricingVersion,
+			&i.Provenance,
 		); err != nil {
 			return nil, err
 		}

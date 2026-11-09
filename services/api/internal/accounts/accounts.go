@@ -434,6 +434,18 @@ func (s *Service) ParseAccess(raw string) (*jwt.RegisteredClaims, error) {
 type learnerKey struct{}
 type sessionKey struct{}
 
+// LearnerIDFromContext extracts the authenticated learner UUID from context.
+func LearnerIDFromContext(ctx context.Context) (string, bool) {
+	id, ok := ctx.Value(learnerKey{}).(string)
+	return id, ok && id != ""
+}
+
+// SessionIDFromContext extracts the active session UUID from context.
+func SessionIDFromContext(ctx context.Context) (string, bool) {
+	id, ok := ctx.Value(sessionKey{}).(string)
+	return id, ok && id != ""
+}
+
 // Protect rejects missing, expired, revoked and deleted-account credentials.
 func (s *Service) Protect(next http.Handler) http.Handler {
 	return s.protect(next, nil)

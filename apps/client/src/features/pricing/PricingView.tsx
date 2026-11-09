@@ -5,6 +5,9 @@ import { exposePricing } from "../../lib/analytics";
 import { QuotePanel } from "./QuotePanel";
 import { pricingQueryOptions } from "./query";
 import { Button } from "../design/Button";
+import { WalletView } from "../credits/WalletView";
+import type { WalletResponse } from "../credits/types";
+import { credentialStore, session } from "../accounts/session";
 import "./pricing.css";
 
 const messages = {
@@ -37,6 +40,36 @@ export function PricingView() {
   const query = useQuery(pricingQueryOptions());
   const c = query.data;
   const stale = query.isError && !!c;
+
+  const walletQuery = useQuery({
+    queryKey: ["wallet"],
+    queryFn: async () => {
+      const tokens = await credentialStore.read();
+      if (!tokens) return null;
+      return await session.request<WalletResponse>("/v1/me/credits");
+    },
+    enabled: surface === "wallet",
+    retry: false,
+  });
+
+  const fallbackCredits = 0; // @noncommercial-number
+  const defaultWallet: WalletResponse = {
+    available: c ? c.daily_free.credits : fallbackCredits, // @noncommercial-number
+    daily_free: {
+      available: c ? c.daily_free.credits : fallbackCredits, // @noncommercial-number
+      granted: c ? c.daily_free.credits : fallbackCredits, // @noncommercial-number
+      resets_at: "",
+      timezone: "UTC",
+    },
+    purchased: 0,
+    subscription: 0,
+    reserved: 0,
+    reserved_note: "0 reserved",
+    recent_activity: [],
+    unverified: walletQuery.isError,
+  };
+
+  const activeWallet = walletQuery.data ?? defaultWallet;
   useEffect(() => {
     if (c && surface !== "wallet" && surface !== "quote")
       exposePricing(c.version, surface);
@@ -112,29 +145,11 @@ export function PricingView() {
             </p>
           )}
           {surface === "wallet" && (
-            <>
-              <div className="pricing-card pricing-credit">
-                <h2>
-                  {formatCredits(c.daily_free.credits)} daily free credits
-                </h2>
-                <p>
-                  For quick notes and tutor chat. Resets at the end of your
-                  local day.
-                </p>
-              </div>
-              <div className="pricing-card">
-                <h2>Wallet activity</h2>
-                <p>{messages.empty}</p>
-                <p>
-                  Balances and reservations appear here when your wallet is
-                  connected.
-                </p>
-              </div>
-              <p>{messages.paid}</p>
-              <Button onClick={() => navigate("pack_list")}>
-                See packs and plans
-              </Button>
-            </>
+            <WalletView
+              wallet={activeWallet}
+              onViewOptions={() => navigate("pack_list")}
+              trackView={false}
+            />
           )}
           {(surface === "pack_list" || surface === "plan_list") && (
             <>

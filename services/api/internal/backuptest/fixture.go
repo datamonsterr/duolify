@@ -271,7 +271,7 @@ func (f *Fixture) Seed(t *testing.T) {
 	t.Helper()
 	for _, query := range []string{
 		"INSERT INTO learners (id,display_name) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner')",
-		"INSERT INTO credit_entries (learner_id,amount,kind,reference) VALUES ('a1111111-1111-4111-8111-111111111111',120,'purchase','synthetic-purchase'),('a1111111-1111-4111-8111-111111111111',-35,'spend','synthetic-spend')",
+		"INSERT INTO credit_entries (learner_id,amount,kind,reference,pricing_version,provenance) VALUES ('a1111111-1111-4111-8111-111111111111',120,'purchase','synthetic-purchase','2026-11-09.approved.v1','{\"channel\":\"web\"}'::jsonb),('a1111111-1111-4111-8111-111111111111',-35,'spend','synthetic-spend','2026-11-09.approved.v1','{\"action\":\"lesson\"}'::jsonb)",
 		"INSERT INTO learner_profiles (learner_id,locale,time_zone,analytics_opt_out) VALUES ('a1111111-1111-4111-8111-111111111111','vi-VN','Asia/Ho_Chi_Minh',true)",
 		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true,appearance='dark',motion='reduce',narration=false,narration_speed=1.25,captions=false,text_size=1.2,ui_sounds=true,haptics='off' WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
 		"INSERT INTO auth_identities (email,learner_id) VALUES ('synthetic@example.test','a1111111-1111-4111-8111-111111111111')",
@@ -434,6 +434,14 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	if version != f.schemaVersion || riverVersions < 1 || learners != 1 || entries != 2 || balance != 85 || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
+	}
+	var pricingVersion string
+	var provenance map[string]any
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT pricing_version, provenance FROM credit_entries WHERE reference='synthetic-purchase'").Scan(&pricingVersion, &provenance); err != nil {
+		t.Fatal(err)
+	}
+	if pricingVersion != "2026-11-09.approved.v1" || provenance["channel"] != "web" {
+		t.Fatalf("invalid restored pricing_version/provenance: %s %v", pricingVersion, provenance)
 	}
 	beforePricing, err := pricing.Load(t.Context(), f.DB.Queries)
 	if err != nil {
