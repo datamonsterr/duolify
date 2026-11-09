@@ -3,6 +3,7 @@ use crate::{Completion, ProviderRouter};
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
+pub mod outline;
 
 pub const FIELDS: [&str; 9] = [
     "topic",

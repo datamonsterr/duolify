@@ -5,6 +5,13 @@ Define how Duolify uses PostHog: identity, privacy, the event catalog with names
 
 ## Requirements
 
+### Requirement: Sample outline proposal lifecycle
+The catalogue SHALL include API-owned `outline_proposal_requested`, `outline_proposal_delivered`, `outline_proposal_failed`, `outline_proposal_applied`, `outline_proposal_discarded`, and `outline_proposal_undone`, carrying only proposal_id and base_revision plus UUID/common properties. The existing client `ui_control_activated` SHALL allow surface=outline and control_id=outline_change_requested|proposal_apply|proposal_discard|outline_undo. All events honor current opt-out and exclude request text, titles, goals and diffs. Canonical credits_reserved/settled/released and $ai_generation remain owned by the financial outbox.
+
+#### Scenario: Private delivered diff
+- **WHEN** a valid proposal is delivered and later discarded
+- **THEN** lifecycle events contain only opaque identity and revision properties, with no second usage or charge event
+
 ### Requirement: Manual outline controls
 The catalogue SHALL include existing `ui_control_activated` with `surface=outline` and `control_id=outline_move|outline_rename|outline_remove|outline_add|outline_undo`. Move includes drag, arrow keys and move buttons. The API allowlist SHALL retain this event and its surface/control properties. Client events SHALL include Learner UUID, platform, source and app_version, honor opt-out and contain no titles, goals, outline snapshots or other learner text. Manual controls SHALL NOT duplicate generation outcomes or emit model usage.
 

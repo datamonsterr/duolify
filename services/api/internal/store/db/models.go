@@ -317,6 +317,24 @@ type OutlineDraft struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
+type OutlineProposal struct {
+	ID              pgtype.UUID        `json:"id"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	DraftID         pgtype.UUID        `json:"draft_id"`
+	QuoteID         pgtype.UUID        `json:"quote_id"`
+	BaseRevision    int64              `json:"base_revision"`
+	BaseOutline     []byte             `json:"base_outline"`
+	Request         string             `json:"request"`
+	Operations      []byte             `json:"operations"`
+	ResultOutline   []byte             `json:"result_outline"`
+	Attempts        []byte             `json:"attempts"`
+	State           string             `json:"state"`
+	Decision        string             `json:"decision"`
+	AppliedRevision pgtype.Int8        `json:"applied_revision"`
+	DecisionDraft   []byte             `json:"decision_draft"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
 type PosthogPersonDeletionRequest struct {
 	DistinctID  pgtype.UUID        `json:"distinct_id"`
 	RequestedAt pgtype.Timestamptz `json:"requested_at"`

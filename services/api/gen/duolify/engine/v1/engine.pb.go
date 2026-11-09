@@ -2453,6 +2453,235 @@ func (x *CourseBriefChatResponse) GetUnavailable() bool {
 	return false
 }
 
+// Positions are zero-based within the destination after removal. IDs never change.
+type OutlineOperation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	ParentId      string                 `protobuf:"bytes,3,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	Position      int32                  `protobuf:"varint,4,opt,name=position,proto3" json:"position,omitempty"`
+	Title         string                 `protobuf:"bytes,5,opt,name=title,proto3" json:"title,omitempty"`
+	Goal          string                 `protobuf:"bytes,6,opt,name=goal,proto3" json:"goal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OutlineOperation) Reset() {
+	*x = OutlineOperation{}
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OutlineOperation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OutlineOperation) ProtoMessage() {}
+
+func (x *OutlineOperation) ProtoReflect() protoreflect.Message {
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OutlineOperation.ProtoReflect.Descriptor instead.
+func (*OutlineOperation) Descriptor() ([]byte, []int) {
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *OutlineOperation) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *OutlineOperation) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *OutlineOperation) GetParentId() string {
+	if x != nil {
+		return x.ParentId
+	}
+	return ""
+}
+
+func (x *OutlineOperation) GetPosition() int32 {
+	if x != nil {
+		return x.Position
+	}
+	return 0
+}
+
+func (x *OutlineOperation) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *OutlineOperation) GetGoal() string {
+	if x != nil {
+		return x.Goal
+	}
+	return ""
+}
+
+type OutlineChatChangeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProposalId    string                 `protobuf:"bytes,1,opt,name=proposal_id,json=proposalId,proto3" json:"proposal_id,omitempty"`
+	DraftId       string                 `protobuf:"bytes,2,opt,name=draft_id,json=draftId,proto3" json:"draft_id,omitempty"`
+	BaseRevision  int64                  `protobuf:"varint,3,opt,name=base_revision,json=baseRevision,proto3" json:"base_revision,omitempty"`
+	Outline       *CourseOutline         `protobuf:"bytes,4,opt,name=outline,proto3" json:"outline,omitempty"`
+	Request       string                 `protobuf:"bytes,5,opt,name=request,proto3" json:"request,omitempty"`
+	Limits        *UsageLimits           `protobuf:"bytes,6,opt,name=limits,proto3" json:"limits,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OutlineChatChangeRequest) Reset() {
+	*x = OutlineChatChangeRequest{}
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OutlineChatChangeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OutlineChatChangeRequest) ProtoMessage() {}
+
+func (x *OutlineChatChangeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OutlineChatChangeRequest.ProtoReflect.Descriptor instead.
+func (*OutlineChatChangeRequest) Descriptor() ([]byte, []int) {
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *OutlineChatChangeRequest) GetProposalId() string {
+	if x != nil {
+		return x.ProposalId
+	}
+	return ""
+}
+
+func (x *OutlineChatChangeRequest) GetDraftId() string {
+	if x != nil {
+		return x.DraftId
+	}
+	return ""
+}
+
+func (x *OutlineChatChangeRequest) GetBaseRevision() int64 {
+	if x != nil {
+		return x.BaseRevision
+	}
+	return 0
+}
+
+func (x *OutlineChatChangeRequest) GetOutline() *CourseOutline {
+	if x != nil {
+		return x.Outline
+	}
+	return nil
+}
+
+func (x *OutlineChatChangeRequest) GetRequest() string {
+	if x != nil {
+		return x.Request
+	}
+	return ""
+}
+
+func (x *OutlineChatChangeRequest) GetLimits() *UsageLimits {
+	if x != nil {
+		return x.Limits
+	}
+	return nil
+}
+
+type OutlineChatChangeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Operations    []*OutlineOperation    `protobuf:"bytes,1,rep,name=operations,proto3" json:"operations,omitempty"`
+	Attempts      []*Usage               `protobuf:"bytes,2,rep,name=attempts,proto3" json:"attempts,omitempty"`
+	Unavailable   bool                   `protobuf:"varint,3,opt,name=unavailable,proto3" json:"unavailable,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OutlineChatChangeResponse) Reset() {
+	*x = OutlineChatChangeResponse{}
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OutlineChatChangeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OutlineChatChangeResponse) ProtoMessage() {}
+
+func (x *OutlineChatChangeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OutlineChatChangeResponse.ProtoReflect.Descriptor instead.
+func (*OutlineChatChangeResponse) Descriptor() ([]byte, []int) {
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *OutlineChatChangeResponse) GetOperations() []*OutlineOperation {
+	if x != nil {
+		return x.Operations
+	}
+	return nil
+}
+
+func (x *OutlineChatChangeResponse) GetAttempts() []*Usage {
+	if x != nil {
+		return x.Attempts
+	}
+	return nil
+}
+
+func (x *OutlineChatChangeResponse) GetUnavailable() bool {
+	if x != nil {
+		return x.Unavailable
+	}
+	return false
+}
+
 var File_duolify_engine_v1_engine_proto protoreflect.FileDescriptor
 
 const file_duolify_engine_v1_engine_proto_rawDesc = "" +
@@ -2665,7 +2894,28 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\vis_complete\x18\x06 \x01(\bR\n" +
 	"isComplete\x12;\n" +
 	"\battempts\x18\a \x03(\v2\x1f.duolify.engine.v1.BriefAttemptR\battempts\x12 \n" +
-	"\vunavailable\x18\b \x01(\bR\vunavailable2\x89\x06\n" +
+	"\vunavailable\x18\b \x01(\bR\vunavailable\"\x99\x01\n" +
+	"\x10OutlineOperation\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x1b\n" +
+	"\tparent_id\x18\x03 \x01(\tR\bparentId\x12\x1a\n" +
+	"\bposition\x18\x04 \x01(\x05R\bposition\x12\x14\n" +
+	"\x05title\x18\x05 \x01(\tR\x05title\x12\x12\n" +
+	"\x04goal\x18\x06 \x01(\tR\x04goal\"\x89\x02\n" +
+	"\x18OutlineChatChangeRequest\x12\x1f\n" +
+	"\vproposal_id\x18\x01 \x01(\tR\n" +
+	"proposalId\x12\x19\n" +
+	"\bdraft_id\x18\x02 \x01(\tR\adraftId\x12#\n" +
+	"\rbase_revision\x18\x03 \x01(\x03R\fbaseRevision\x12:\n" +
+	"\aoutline\x18\x04 \x01(\v2 .duolify.engine.v1.CourseOutlineR\aoutline\x12\x18\n" +
+	"\arequest\x18\x05 \x01(\tR\arequest\x126\n" +
+	"\x06limits\x18\x06 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\"\xb8\x01\n" +
+	"\x19OutlineChatChangeResponse\x12C\n" +
+	"\n" +
+	"operations\x18\x01 \x03(\v2#.duolify.engine.v1.OutlineOperationR\n" +
+	"operations\x124\n" +
+	"\battempts\x18\x02 \x03(\v2\x18.duolify.engine.v1.UsageR\battempts\x12 \n" +
+	"\vunavailable\x18\x03 \x01(\bR\vunavailable2\xf9\x06\n" +
 	"\rEngineService\x12M\n" +
 	"\x06Health\x12 .duolify.engine.v1.HealthRequest\x1a!.duolify.engine.v1.HealthResponse\x12b\n" +
 	"\rPreviewCourse\x12'.duolify.engine.v1.PreviewCourseRequest\x1a(.duolify.engine.v1.PreviewCourseResponse\x12z\n" +
@@ -2675,7 +2925,8 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\n" +
 	"EnrichNote\x12$.duolify.engine.v1.EnrichNoteRequest\x1a%.duolify.engine.v1.EnrichNoteResponse\x12V\n" +
 	"\tSetupChat\x12#.duolify.engine.v1.SetupChatRequest\x1a$.duolify.engine.v1.SetupChatResponse\x12h\n" +
-	"\x0fCourseBriefChat\x12).duolify.engine.v1.CourseBriefChatRequest\x1a*.duolify.engine.v1.CourseBriefChatResponseBMZKgithub.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1;enginev1b\x06proto3"
+	"\x0fCourseBriefChat\x12).duolify.engine.v1.CourseBriefChatRequest\x1a*.duolify.engine.v1.CourseBriefChatResponse\x12n\n" +
+	"\x11OutlineChatChange\x12+.duolify.engine.v1.OutlineChatChangeRequest\x1a,.duolify.engine.v1.OutlineChatChangeResponseBMZKgithub.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1;enginev1b\x06proto3"
 
 var (
 	file_duolify_engine_v1_engine_proto_rawDescOnce sync.Once
@@ -2689,7 +2940,7 @@ func file_duolify_engine_v1_engine_proto_rawDescGZIP() []byte {
 	return file_duolify_engine_v1_engine_proto_rawDescData
 }
 
-var file_duolify_engine_v1_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_duolify_engine_v1_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_duolify_engine_v1_engine_proto_goTypes = []any{
 	(*HealthRequest)(nil),                 // 0: duolify.engine.v1.HealthRequest
 	(*HealthResponse)(nil),                // 1: duolify.engine.v1.HealthResponse
@@ -2722,6 +2973,9 @@ var file_duolify_engine_v1_engine_proto_goTypes = []any{
 	(*CourseBriefChatRequest)(nil),        // 28: duolify.engine.v1.CourseBriefChatRequest
 	(*BriefAttempt)(nil),                  // 29: duolify.engine.v1.BriefAttempt
 	(*CourseBriefChatResponse)(nil),       // 30: duolify.engine.v1.CourseBriefChatResponse
+	(*OutlineOperation)(nil),              // 31: duolify.engine.v1.OutlineOperation
+	(*OutlineChatChangeRequest)(nil),      // 32: duolify.engine.v1.OutlineChatChangeRequest
+	(*OutlineChatChangeResponse)(nil),     // 33: duolify.engine.v1.OutlineChatChangeResponse
 }
 var file_duolify_engine_v1_engine_proto_depIdxs = []int32{
 	5,  // 0: duolify.engine.v1.Unit.lessons:type_name -> duolify.engine.v1.LessonRef
@@ -2764,27 +3018,33 @@ var file_duolify_engine_v1_engine_proto_depIdxs = []int32{
 	26, // 37: duolify.engine.v1.CourseBriefChatResponse.brief:type_name -> duolify.engine.v1.CourseBrief
 	22, // 38: duolify.engine.v1.CourseBriefChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
 	29, // 39: duolify.engine.v1.CourseBriefChatResponse.attempts:type_name -> duolify.engine.v1.BriefAttempt
-	0,  // 40: duolify.engine.v1.EngineService.Health:input_type -> duolify.engine.v1.HealthRequest
-	11, // 41: duolify.engine.v1.EngineService.PreviewCourse:input_type -> duolify.engine.v1.PreviewCourseRequest
-	13, // 42: duolify.engine.v1.EngineService.GenerateCourseOutline:input_type -> duolify.engine.v1.GenerateCourseOutlineRequest
-	15, // 43: duolify.engine.v1.EngineService.GenerateLesson:input_type -> duolify.engine.v1.GenerateLessonRequest
-	18, // 44: duolify.engine.v1.EngineService.Chat:input_type -> duolify.engine.v1.ChatRequest
-	20, // 45: duolify.engine.v1.EngineService.EnrichNote:input_type -> duolify.engine.v1.EnrichNoteRequest
-	24, // 46: duolify.engine.v1.EngineService.SetupChat:input_type -> duolify.engine.v1.SetupChatRequest
-	28, // 47: duolify.engine.v1.EngineService.CourseBriefChat:input_type -> duolify.engine.v1.CourseBriefChatRequest
-	1,  // 48: duolify.engine.v1.EngineService.Health:output_type -> duolify.engine.v1.HealthResponse
-	12, // 49: duolify.engine.v1.EngineService.PreviewCourse:output_type -> duolify.engine.v1.PreviewCourseResponse
-	14, // 50: duolify.engine.v1.EngineService.GenerateCourseOutline:output_type -> duolify.engine.v1.GenerateCourseOutlineResponse
-	16, // 51: duolify.engine.v1.EngineService.GenerateLesson:output_type -> duolify.engine.v1.GenerateLessonEvent
-	19, // 52: duolify.engine.v1.EngineService.Chat:output_type -> duolify.engine.v1.ChatEvent
-	21, // 53: duolify.engine.v1.EngineService.EnrichNote:output_type -> duolify.engine.v1.EnrichNoteResponse
-	25, // 54: duolify.engine.v1.EngineService.SetupChat:output_type -> duolify.engine.v1.SetupChatResponse
-	30, // 55: duolify.engine.v1.EngineService.CourseBriefChat:output_type -> duolify.engine.v1.CourseBriefChatResponse
-	48, // [48:56] is the sub-list for method output_type
-	40, // [40:48] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	7,  // 40: duolify.engine.v1.OutlineChatChangeRequest.outline:type_name -> duolify.engine.v1.CourseOutline
+	3,  // 41: duolify.engine.v1.OutlineChatChangeRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	31, // 42: duolify.engine.v1.OutlineChatChangeResponse.operations:type_name -> duolify.engine.v1.OutlineOperation
+	2,  // 43: duolify.engine.v1.OutlineChatChangeResponse.attempts:type_name -> duolify.engine.v1.Usage
+	0,  // 44: duolify.engine.v1.EngineService.Health:input_type -> duolify.engine.v1.HealthRequest
+	11, // 45: duolify.engine.v1.EngineService.PreviewCourse:input_type -> duolify.engine.v1.PreviewCourseRequest
+	13, // 46: duolify.engine.v1.EngineService.GenerateCourseOutline:input_type -> duolify.engine.v1.GenerateCourseOutlineRequest
+	15, // 47: duolify.engine.v1.EngineService.GenerateLesson:input_type -> duolify.engine.v1.GenerateLessonRequest
+	18, // 48: duolify.engine.v1.EngineService.Chat:input_type -> duolify.engine.v1.ChatRequest
+	20, // 49: duolify.engine.v1.EngineService.EnrichNote:input_type -> duolify.engine.v1.EnrichNoteRequest
+	24, // 50: duolify.engine.v1.EngineService.SetupChat:input_type -> duolify.engine.v1.SetupChatRequest
+	28, // 51: duolify.engine.v1.EngineService.CourseBriefChat:input_type -> duolify.engine.v1.CourseBriefChatRequest
+	32, // 52: duolify.engine.v1.EngineService.OutlineChatChange:input_type -> duolify.engine.v1.OutlineChatChangeRequest
+	1,  // 53: duolify.engine.v1.EngineService.Health:output_type -> duolify.engine.v1.HealthResponse
+	12, // 54: duolify.engine.v1.EngineService.PreviewCourse:output_type -> duolify.engine.v1.PreviewCourseResponse
+	14, // 55: duolify.engine.v1.EngineService.GenerateCourseOutline:output_type -> duolify.engine.v1.GenerateCourseOutlineResponse
+	16, // 56: duolify.engine.v1.EngineService.GenerateLesson:output_type -> duolify.engine.v1.GenerateLessonEvent
+	19, // 57: duolify.engine.v1.EngineService.Chat:output_type -> duolify.engine.v1.ChatEvent
+	21, // 58: duolify.engine.v1.EngineService.EnrichNote:output_type -> duolify.engine.v1.EnrichNoteResponse
+	25, // 59: duolify.engine.v1.EngineService.SetupChat:output_type -> duolify.engine.v1.SetupChatResponse
+	30, // 60: duolify.engine.v1.EngineService.CourseBriefChat:output_type -> duolify.engine.v1.CourseBriefChatResponse
+	33, // 61: duolify.engine.v1.EngineService.OutlineChatChange:output_type -> duolify.engine.v1.OutlineChatChangeResponse
+	53, // [53:62] is the sub-list for method output_type
+	44, // [44:53] is the sub-list for method input_type
+	44, // [44:44] is the sub-list for extension type_name
+	44, // [44:44] is the sub-list for extension extendee
+	0,  // [0:44] is the sub-list for field type_name
 }
 
 func init() { file_duolify_engine_v1_engine_proto_init() }
@@ -2808,7 +3068,7 @@ func file_duolify_engine_v1_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_duolify_engine_v1_engine_proto_rawDesc), len(file_duolify_engine_v1_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   31,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

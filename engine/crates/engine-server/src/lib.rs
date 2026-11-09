@@ -96,6 +96,114 @@ fn internal(_: anyhow::Error) -> Status {
 }
 #[tonic::async_trait]
 impl EngineService for Service {
+    #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
+    async fn outline_chat_change(
+        &self,
+        request: Request<pb::OutlineChatChangeRequest>,
+    ) -> Result<Response<pb::OutlineChatChangeResponse>, Status> {
+        let req = request.into_inner();
+        if req.base_revision < 1 || req.draft_id.is_empty() || req.proposal_id.is_empty() {
+            return Err(Status::invalid_argument("proposal identity required"));
+        }
+        let bounds = req
+            .limits
+            .ok_or_else(|| Status::invalid_argument("quote bounds required"))?;
+        let model = self
+            .router
+            .models
+            .tasks
+            .get("outline_chat_change")
+            .ok_or_else(|| Status::failed_precondition("route unavailable"))?;
+        if bounds.model != model.model
+            || bounds.fallback_model != model.fallback_model
+            || bounds.provider != self.router.primary.name()
+            || bounds.fallback_provider != self.router.fallback.name()
+        {
+            return Err(Status::failed_precondition(
+                "quote route differs from evaluated route",
+            ));
+        }
+        let limits = engine_core::credits::Limits {
+            input_tokens: bounds.input_tokens,
+            output_tokens: bounds.output_tokens,
+            timeout_ms: bounds.timeout_ms,
+            max_attempts: bounds.max_attempts,
+            max_cost_nanos: bounds.max_cost_nanos,
+            input_nanos: bounds.input_nanos,
+            output_nanos: bounds.output_nanos,
+            cache_write_nanos: bounds.cache_write_nanos,
+            cache_read_nanos: bounds.cache_read_nanos,
+        };
+        let base: Vec<engine_core::courses::outline::Unit> = req
+            .outline
+            .unwrap_or_default()
+            .units
+            .into_iter()
+            .map(|u| engine_core::courses::outline::Unit {
+                id: u.unit_id,
+                title: u.title,
+                lessons: u
+                    .lessons
+                    .into_iter()
+                    .map(|l| engine_core::courses::outline::Lesson {
+                        id: l.lesson_id,
+                        title: l.title,
+                        goal: l.goal,
+                    })
+                    .collect(),
+            })
+            .collect();
+        let prompt = engine_core::courses::outline::prompt(&base, &req.request)
+            .map_err(|_| Status::invalid_argument("invalid edited draft"))?;
+        let outcome = engine_core::credits::run_validated(
+            &self.router,
+            "outline_chat_change",
+            &prompt,
+            &limits,
+            |text| engine_core::courses::outline::parse(&base, text).is_ok(),
+        )
+        .await
+        .map_err(|_| Status::invalid_argument("invalid quote envelope"))?;
+        let operations = outcome
+            .completion
+            .as_ref()
+            .and_then(|c| engine_core::courses::outline::parse(&base, &c.text).ok())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|o| pb::OutlineOperation {
+                kind: o.kind,
+                id: o.id,
+                parent_id: o.parent_id,
+                position: o.position,
+                title: o.title,
+                goal: o.goal,
+            })
+            .collect();
+        let attempts = outcome
+            .attempts
+            .into_iter()
+            .map(|a| pb::Usage {
+                provider: a.provider,
+                model: a.model,
+                input_tokens: a.input_tokens,
+                output_tokens: a.output_tokens,
+                cache_write_tokens: a.cache_write_tokens,
+                cache_read_tokens: a.cache_read_tokens,
+                latency_ms: a.latency_ms,
+                attempt: a.attempt,
+                fallback_used: a.fallback_used,
+                component: "content".into(),
+                delivered: a.delivered,
+                usage_unavailable: a.usage_unavailable,
+                ..Default::default()
+            })
+            .collect();
+        Ok(Response::new(pb::OutlineChatChangeResponse {
+            operations,
+            attempts,
+            unavailable: outcome.completion.is_none(),
+        }))
+    }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&_request).request_id, trace_id = %correlation(&_request).trace_id, parent_span_id = %correlation(&_request).parent_span_id, span_id = %span_id()))]
     async fn health(
         &self,

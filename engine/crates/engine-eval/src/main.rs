@@ -239,7 +239,9 @@ async fn main() -> Result<()> {
     println!("selected {} of {total} cases", cases.len());
     let mut results = Vec::new();
     for case in cases {
-        let response_text = if case.task == "course_preview" && provider == "mock" {
+        let response_text = if case.task == "outline_chat_change" && provider == "mock" {
+            evaluate_outline_change(&case.input).await?
+        } else if case.task == "course_preview" && provider == "mock" {
             evaluate_preview(&case.input).await?
         } else if case.task == "credit_envelope" && provider == "mock" {
             evaluate_credits(&case.input).await?
@@ -319,6 +321,31 @@ async fn main() -> Result<()> {
         bail!("score below threshold");
     }
     Ok(())
+}
+
+async fn evaluate_outline_change(input: &serde_json::Value) -> Result<String> {
+    use engine_core::courses::outline;
+    let base: Vec<outline::Unit> = serde_json::from_value(input["outline"].clone())?;
+    let prompt = outline::prompt(&base, input["request"].as_str().context("request")?)?;
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input["recorded"].clone())?;
+    let provider = std::sync::Arc::new(RecordedCredits(std::sync::Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
+    let outcome = engine_core::credits::run_validated(
+        &router,
+        "outline_chat_change",
+        &prompt,
+        &limits,
+        |text| outline::parse(&base, text).is_ok(),
+    )
+    .await?;
+    let result = outcome
+        .completion
+        .as_ref()
+        .and_then(|c| outline::parse(&base, &c.text).ok())
+        .and_then(|ops| outline::apply(&base, &ops).ok());
+    Ok(serde_json::json!({"delivered":result.is_some(),"result":result,"attempt_count":outcome.attempts.len(),"fallback_used":outcome.attempts.iter().any(|a|a.fallback_used)}).to_string())
 }
 
 #[cfg(test)]

@@ -93,6 +93,13 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			mux.Handle("/v1/outline-drafts", handler)
 			mux.Handle("/v1/outline-drafts/", handler)
 		}
+		if proposals, ok := deps.CourseBrief.(interface {
+			ServeProposalHTTP(http.ResponseWriter, *http.Request)
+		}); ok {
+			handler := deps.Accounts.Protect(http.HandlerFunc(proposals.ServeProposalHTTP))
+			mux.Handle("/v1/outline-proposals", handler)
+			mux.Handle("/v1/outline-proposals/", handler)
+		}
 	}
 	if deps.Quotes != nil {
 		mux.Handle("POST /v1/quotes", deps.Quotes)

@@ -85,7 +85,18 @@ impl LlmProvider for MockProvider {
         "mock"
     }
     async fn complete(&self, model: &str, input: &str) -> Result<Completion> {
-        let text = if input.contains("course_brief_chat") {
+        let text = if serde_json::from_str::<serde_json::Value>(input)
+            .ok()
+            .is_some_and(|v| v["task"] == "outline_chat_change")
+        {
+            let data: serde_json::Value = serde_json::from_str(input)?;
+            let operation = if let Some(id) = data["outline"][0]["id"].as_str() {
+                serde_json::json!({"kind":"retitled","id":id,"title":"Suggested outline"})
+            } else {
+                serde_json::json!({"kind":"added","id":"mock-unit","title":"Suggested outline","position":0})
+            };
+            serde_json::json!({"operations":[operation]}).to_string()
+        } else if input.contains("course_brief_chat") {
             let data: serde_json::Value = serde_json::from_str(input)?;
             let answer = data["answer"].as_str().unwrap_or_default().to_lowercase();
             serde_json::json!({"is_vague":matches!(answer.as_str(), "something" | "not sure" | "something about space")}).to_string()

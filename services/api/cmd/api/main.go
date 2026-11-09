@@ -223,7 +223,7 @@ func run(ctx context.Context, args []string) (result error) {
 		ObjectStorage: telemetry.StorageProbe(os.Getenv),
 		Accounts:      auth,
 		Credits:       creditService,
-		CourseBrief:   courses.New(courses.Options{Pool: db.Pool, Engine: backend, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
+		CourseBrief:   courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
 		Pricing:       pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events),
 		PricingAdmin:  pricingAdmin,
 		Quotes:        pricing.NewQuotes(db.Pool),

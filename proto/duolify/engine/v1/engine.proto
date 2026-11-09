@@ -23,6 +23,8 @@ service EngineService {
   rpc SetupChat(SetupChatRequest) returns (SetupChatResponse);
   // CourseBriefChat clarifies intent without generating or persisting a course.
   rpc CourseBriefChat(CourseBriefChatRequest) returns (CourseBriefChatResponse);
+  // OutlineChatChange proposes typed edits to an owned pre-creation draft.
+  rpc OutlineChatChange(OutlineChatChangeRequest) returns (OutlineChatChangeResponse);
 }
 
 message HealthRequest {}
@@ -281,4 +283,29 @@ message CourseBriefChatResponse {
   bool is_complete = 6;
   repeated BriefAttempt attempts = 7;
   bool unavailable = 8;
+}
+
+// Positions are zero-based within the destination after removal. IDs never change.
+message OutlineOperation {
+  string kind = 1;
+  string id = 2;
+  string parent_id = 3;
+  int32 position = 4;
+  string title = 5;
+  string goal = 6;
+}
+
+message OutlineChatChangeRequest {
+  string proposal_id = 1;
+  string draft_id = 2;
+  int64 base_revision = 3;
+  CourseOutline outline = 4;
+  string request = 5;
+  UsageLimits limits = 6;
+}
+
+message OutlineChatChangeResponse {
+  repeated OutlineOperation operations = 1;
+  repeated Usage attempts = 2;
+  bool unavailable = 3;
 }

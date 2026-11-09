@@ -23,3 +23,13 @@ prompt and runs the shared bounded executor with production schema validation;
 it never calls a live provider. Fixture revisions are pinned by the Git commit
 until the ADR 0011 live Hugging Face gate is provisioned; E10-06 still gates live
 model promotion.
+
+E2-08 `outline_chat_change` fixtures replay recorded mock completions through the
+production prompt, typed diff validator and bounded executor. Cases cover all four
+operation kinds, exact preservation of manual edits, injection, unknown/reused IDs,
+duplicate operations, fallback and terminal outage. API integration owns the
+matching financial/lifecycle cases: insufficient Credits (zero engine calls),
+released failed reservations, stale/duplicate Apply, Discard and Undo; backup
+fixtures preserve full proposal rows and replay deletion. Git pins these fixtures
+until E10-01 provisions the same cases in `datamonsterr/duolify-golden`; live
+publication and E10-06 promotion remain deferred.

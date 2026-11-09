@@ -44,6 +44,9 @@ type QuotePolicy struct {
 
 // QuoteInput contains counts and allowlisted identifiers, never learner text.
 type QuoteInput struct {
+	OutlineDraftID      string `json:"outline_draft_id,omitempty"`
+	OutlineRevision     int64  `json:"outline_revision,omitempty"`
+	RequestHash         string `json:"request_hash,omitempty"`
 	BriefRevision       string `json:"brief_revision,omitempty"`
 	Action              string `json:"action"`
 	Model               string `json:"model,omitempty"`
@@ -206,6 +209,15 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 		deadline = operational.AudioDeadline
 	}
 	q.Bounds["timeout_ms"] = deadline * 1000
+	if in.Action == "outline_chat_change" {
+		var feature map[string]int64
+		if json.Unmarshal(limits[key], &feature) != nil || feature["timeout_ms"] <= 0 || feature["timeout_ms"] >= q.Bounds["timeout_ms"] || feature["max_attempts"] <= 0 || feature["max_attempts"] > p.MaxAttempts || feature["max_cost_nanos"] <= 0 {
+			return q, errQuote
+		}
+		q.Bounds["timeout_ms"] = feature["timeout_ms"]
+		q.Bounds["max_attempts"] = feature["max_attempts"]
+		q.Bounds["max_cost_nanos"] = min(q.Bounds["max_cost_nanos"], feature["max_cost_nanos"])
+	}
 	q.Input = in
 	q.Bounds["narration_characters"] = in.NarrationCharacters
 	q.NarrationNumerator = int64(c.Narration.Credits)
@@ -223,7 +235,28 @@ func NewQuotes(pool *pgxpool.Pool) *Quotes { return &Quotes{pool: pool} }
 
 // Create resolves database time and snapshots the active version.
 func (s *Quotes) Create(ctx context.Context, owner string, in QuoteInput) (Quote, error) {
+	return s.createVersion(ctx, owner, in, "")
+}
+
+// CreateDevelopmentOutline quotes only the explicitly unapproved development action.
+// The caller must gate this server-only path by the deployment environment.
+func (s *Quotes) CreateDevelopmentOutline(ctx context.Context, owner string, in QuoteInput) (Quote, error) {
+	if in.Action != "outline_chat_change" {
+		return Quote{}, errQuote
+	}
+	return s.createVersion(ctx, owner, in, "usd-dev-outline-chat-unapproved")
+}
+
+func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput, version string) (Quote, error) {
 	queries := db.New(s.pool)
+	if in.Action == "outline_chat_change" {
+		var exists bool
+		if len(in.RequestHash) != 64 || in.OutlineRevision < 1 || s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id::text=$1 AND d.learner_id::text=$2 AND d.revision=$3 AND b.expires_at>now())`, in.OutlineDraftID, owner, in.OutlineRevision).Scan(&exists) != nil || !exists {
+			return Quote{}, errQuote
+		}
+	} else if in.OutlineDraftID != "" || in.OutlineRevision != 0 || in.RequestHash != "" {
+		return Quote{}, errQuote
+	}
 	if in.BriefRevision != "" {
 		if in.Action != "preview" {
 			return Quote{}, errQuote
@@ -233,6 +266,9 @@ func (s *Quotes) Create(ctx context.Context, owner string, in QuoteInput) (Quote
 		}
 	}
 	row, err := queries.ActiveQuoteConfig(ctx)
+	if version != "" {
+		err = s.pool.QueryRow(ctx, `SELECT v.config,p.policy,now() FROM pricing_versions v JOIN pricing_quote_policies p ON p.version=v.version WHERE v.version=$1 AND NOT v.approved`, version).Scan(&row.Config, &row.Policy, &row.QuotedAt)
+	}
 	if err != nil {
 		return Quote{}, err
 	}

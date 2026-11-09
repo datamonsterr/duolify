@@ -15,6 +15,7 @@ import (
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store/db"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -66,6 +67,10 @@ type Catalogue interface{ Config() pricing.Config }
 
 // Options wires the platform-funded assistant; forms need only Postgres.
 type Options struct {
+	ProposalEngine interface {
+		OutlineChatChange(context.Context, *enginev1.OutlineChatChangeRequest) (*enginev1.OutlineChatChangeResponse, error)
+	}
+	Financial    *credits.Service
 	Pool         *pgxpool.Pool
 	Engine       Engine
 	Pricing      Catalogue

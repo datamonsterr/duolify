@@ -21,11 +21,15 @@ export function ProposalDiff({
   onApply,
   onDiscard,
   pending = false,
+  outlineControls = false,
+  disableApply = false,
 }: {
   proposal: OutlineProposal;
   onApply: () => void;
   onDiscard: () => void;
   pending?: boolean;
+  outlineControls?: boolean;
+  disableApply?: boolean;
 }) {
   const { t } = useUiPreferences();
   return (
@@ -50,11 +54,12 @@ export function ProposalDiff({
       <div className="guided-actions">
         <Button
           pending={pending}
+          disabled={disableApply}
           onClick={() => {
             trackGuidedUi({
               event: "ui_control_activated",
               surface: "outline",
-              controlId: "apply",
+              controlId: outlineControls ? "proposal_apply" : "apply",
             });
             onApply();
           }}
@@ -68,7 +73,7 @@ export function ProposalDiff({
             trackGuidedUi({
               event: "ui_control_activated",
               surface: "outline",
-              controlId: "discard",
+              controlId: outlineControls ? "proposal_discard" : "discard",
             });
             onDiscard();
           }}

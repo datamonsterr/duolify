@@ -135,5 +135,48 @@ async fn all_rpcs() {
     assert_eq!(brief.brief.unwrap().topic, "Astronomy");
     assert_eq!(brief.next_step, "goal");
     assert_eq!(brief.attempts.len(), 1);
+    let change = c
+        .outline_chat_change(pb::OutlineChatChangeRequest {
+            proposal_id: "proposal".into(),
+            draft_id: "draft".into(),
+            base_revision: 7,
+            outline: Some(pb::CourseOutline {
+                units: vec![pb::Unit {
+                    unit_id: "manual-unit".into(),
+                    title: "Authored title".into(),
+                    lessons: vec![pb::LessonRef {
+                        lesson_id: "manual-lesson".into(),
+                        title: "Keep".into(),
+                        goal: "Keep goal".into(),
+                    }],
+                }],
+                ..Default::default()
+            }),
+            request: "Suggest a title".into(),
+            limits: Some(pb::UsageLimits {
+                input_tokens: 12000,
+                output_tokens: 2000,
+                timeout_ms: 10000,
+                max_attempts: 2,
+                max_cost_nanos: 5000000,
+                input_nanos: 100,
+                output_nanos: 500,
+                cache_write_nanos: 125,
+                cache_read_nanos: 10,
+                provider: "mock".into(),
+                model: "claude-haiku-5-5".into(),
+                fallback_provider: "mock".into(),
+                fallback_model: "anthropic/claude-haiku-5.5".into(),
+            }),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(!change.unavailable);
+    assert_eq!(change.operations.len(), 1);
+    assert_eq!(change.operations[0].id, "manual-unit");
+    assert_eq!(change.operations[0].kind, "retitled");
+    assert_eq!(change.attempts.len(), 1);
+    assert!(change.attempts[0].delivered);
     task.abort();
 }

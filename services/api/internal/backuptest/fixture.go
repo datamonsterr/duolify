@@ -333,6 +333,15 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		t.Fatal(err)
 	}
 
+	proposalQuote, err := pricing.NewQuotes(f.DB.Pool).CreateDevelopmentOutline(t.Context(), "a1111111-1111-4111-8111-111111111111", pricing.QuoteInput{Action: "outline_chat_change", OutlineDraftID: "c7222222-2222-4222-8222-222222222222", OutlineRevision: 3, RequestHash: strings.Repeat("a", 64)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO outline_proposals(learner_id,draft_id,quote_id,base_revision,base_outline,request,operations,result_outline,attempts,state,decision,applied_revision,decision_draft)
+ SELECT learner_id,id,$1,2,outline,'Synthetic change','[{"kind":"retitled","id":"fixture-unit","title":"Moon"}]',outline,'[]','delivered','applied',revision,to_jsonb(d) FROM outline_drafts d WHERE id='c7222222-2222-4222-8222-222222222222'`, proposalQuote.ID); err != nil {
+		t.Fatal(err)
+	}
+
 	catalogue, err := pricing.Load(t.Context(), f.DB.Queries)
 	if err != nil {
 		t.Fatal(err)
@@ -632,7 +641,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -799,7 +808,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		t.Fatal(err)
 	}
 	var outlineSurvived bool
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id::text=$1)", paymentOwner).Scan(&outlineSurvived); err != nil || outlineSurvived {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id::text=$1) OR EXISTS(SELECT 1 FROM outline_proposals WHERE learner_id::text=$1)", paymentOwner).Scan(&outlineSurvived); err != nil || outlineSurvived {
 		t.Fatal("outline survived restore tombstone", err)
 	}
 	var anonymous bool

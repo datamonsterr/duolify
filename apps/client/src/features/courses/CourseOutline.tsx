@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "../design/Button";
+import { OutlineChat } from "./OutlineChat";
+import { ResponsivePanel } from "../design/sheet/ResponsivePanel";
 import {
   OutlineEditor,
   type Outline,
@@ -51,6 +53,16 @@ export function CourseOutline({
   );
   const [conflict, setConflict] = useState<OutlineConflict>();
   const [epoch, setEpoch] = useState(0);
+  function loadDraft(next: OutlineDraft) {
+    setDraft(next);
+    setValue(next.outline);
+    setHistory(next.history);
+    setDirty(false);
+    setConfirmed(next.confirmed);
+    setError("");
+    setEpoch((current) => current + 1);
+    onSaved?.(next);
+  }
   useEffect(() => {
     writeWorkingOutline(
       briefRevision,
@@ -175,47 +187,73 @@ export function CourseOutline({
           ))}
         </div>
       )}
-      <fieldset disabled={busy || !!conflict}>
-        <legend className="guided-sr-only">
-          Edit sample units and lessons
-        </legend>
-        <OutlineEditor
-          key={epoch}
-          persistent
-          initialValue={value}
-          initialHistory={history}
-          onChange={(next, stack) => {
-            setValue(next);
-            setHistory(stack);
-            setDirty(true);
-            setConfirmed(null);
-            setStatus("");
-          }}
-        />
-        {!validOutline(value) && (
-          <p role="alert">
-            Enter a title and goal for every lesson and a title for every unit
-            before saving.
-          </p>
-        )}
-        <div className="outline-actions">
-          <Button
-            disabled={!dirty || !validOutline(value)}
-            onClick={() => void persist()}
-          >
-            Save outline
-          </Button>
-          <Button
-            disabled={!validOutline(value, true)}
-            onClick={() => void persist(true)}
-          >
-            Confirm outline
-          </Button>
-          <Button variant="quiet" onClick={onBack}>
-            Back to preview
-          </Button>
+      <div className="outline-workspace">
+        <div>
+          <fieldset disabled={busy || !!conflict}>
+            <legend className="guided-sr-only">
+              Edit sample units and lessons
+            </legend>
+            <OutlineEditor
+              key={epoch}
+              persistent
+              initialValue={value}
+              initialHistory={history}
+              onChange={(next, stack) => {
+                setValue(next);
+                setHistory(stack);
+                setDirty(true);
+                setConfirmed(null);
+                setStatus("");
+              }}
+            />
+            {!validOutline(value) && (
+              <p role="alert">
+                Enter a title and goal for every lesson and a title for every
+                unit before saving.
+              </p>
+            )}
+            <div className="outline-actions">
+              <Button
+                disabled={!dirty || !validOutline(value)}
+                onClick={() => void persist()}
+              >
+                Save outline
+              </Button>
+              <Button
+                disabled={!validOutline(value, true)}
+                onClick={() => void persist(true)}
+              >
+                Confirm outline
+              </Button>
+              <Button variant="quiet" onClick={onBack}>
+                Back to preview
+              </Button>
+            </div>
+          </fieldset>
         </div>
-      </fieldset>
+        {draft && (
+          <ResponsivePanel
+            title="Outline chat"
+            triggerLabel="Open outline chat"
+            sheetId="outline_chat"
+          >
+            <OutlineChat
+              key={draft.id}
+              draft={draft}
+              dirty={dirty || busy || !!conflict}
+              onDraft={loadDraft}
+              onReload={async () => {
+                const latest = await service.latest(briefRevision);
+                if (!latest)
+                  throw new Error(
+                    "Saved outline unavailable. Retry without resending your request.",
+                  );
+                loadDraft(latest);
+              }}
+            />
+          </ResponsivePanel>
+        )}
+      </div>
       <p role="status">
         {busy
           ? "Saving outline…"

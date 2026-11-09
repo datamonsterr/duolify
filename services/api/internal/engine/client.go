@@ -23,6 +23,13 @@ type Client struct {
 	timeout time.Duration
 }
 
+// OutlineChatChange uses the same private transport and bounded request context.
+func (c *Client) OutlineChatChange(ctx context.Context, r *enginev1.OutlineChatChangeRequest) (*enginev1.OutlineChatChangeResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	return c.rpc.OutlineChatChange(ctx, r)
+}
+
 // New accepts the ENGINE_ADDR http(s) URL; http is for the private local network.
 func New(addr string, timeout time.Duration) (*Client, error) {
 	u, err := url.Parse(addr)
