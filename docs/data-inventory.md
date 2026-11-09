@@ -38,3 +38,12 @@ the optional E1-06 analytics context stay in memory and disappear when the app
 closes; this slice adds no device persistence or learner-data deletion work.
 Existing API course retention and backup policies still apply. UI analytics use
 stable control IDs only and remain silent without an enabled UUID context.
+
+E13-02 application shell: navigation selection, per-route scroll positions and
+responsive layout state are disposable memory only. Resizing keeps the same
+route and editor tree. The current slide and return course survive Exit/reopen
+within the shell session. Recreating the router/host resets local state; no local
+storage, database or backup job is added. Feature owners remain responsible for
+durable drafts and deletion. Shell source and its OpenSpec/canvas references are
+restored together from Git. Focused tests recreate hosts to verify draft disposal
+and check that private route IDs/queries never enter screen/navigation analytics.

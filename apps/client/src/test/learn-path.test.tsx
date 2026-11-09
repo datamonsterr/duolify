@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { LearnPath } from "../LearnPath";
+import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
+import { createAppRouter } from "../App";
 import { api } from "../lib/api";
 
 describe("learn path", () => {
@@ -9,7 +10,11 @@ describe("learn path", () => {
     expect((await api.courses())[0].title).toBe("Everyday astronomy");
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <LearnPath courseId="astronomy" />
+        <RouterProvider
+          router={createAppRouter(
+            createMemoryHistory({ initialEntries: ["/course/astronomy"] }),
+          )}
+        />
       </QueryClientProvider>,
     );
     expect(await screen.findByText("Look up")).toBeTruthy();

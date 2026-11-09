@@ -54,3 +54,8 @@ run = "pnpm exec vitest run"
 description = "Format pricing source and shared client integration files"
 dir = "{{config_root}}/apps/client"
 run = "pnpm exec prettier --write src/features/pricing src/lib/analytics.ts src/lib/api.ts src/App.tsx src/test/apply_design_tokens_to_a_real_course_card.integration.test.tsx e2e/pricing-e12-01.spec.ts e2e/design-e13-01.spec.ts playwright.config.ts"
+
+["client:format-shell"]
+description = "Format responsive shell sources and acceptance tests"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/shell src/features/lesson-player/LessonPlayer.tsx src/lib/analytics.ts src/App.tsx src/LearnPath.tsx src/styles.css src/test/learn-path.test.tsx src/test/implement_responsive_navigation_shells.integration.test.tsx src/features/design/implement_responsive_navigation_shells.test.tsx e2e/design-e13-02.spec.ts"

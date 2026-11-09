@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { api } from "./lib/api";
 export function LearnPath({ courseId }: { courseId: string }) {
   const {
@@ -26,13 +27,14 @@ export function LearnPath({ courseId }: { courseId: string }) {
             {unit.lessons.map((lesson) => (
               <div className="node-row" key={lesson.id}>
                 {lesson.state === "current" ? (
-                  <a
+                  <Link
                     className="node current"
-                    href={`/lesson/${lesson.id}`}
+                    to="/lesson/$lessonId"
+                    params={{ lessonId: lesson.id }}
                     aria-label={`Start lesson: ${lesson.title}`}
                   >
                     ✦
-                  </a>
+                  </Link>
                 ) : (
                   <span className={`node ${lesson.state}`}>
                     {lesson.state === "done" ? "✓" : "●"}

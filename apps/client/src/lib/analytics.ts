@@ -1,4 +1,10 @@
 import posthog from "posthog-js/dist/module.no-external";
+import {
+  navigation,
+  screenIds,
+  type Destination,
+  type ScreenId,
+} from "../features/shell/navigation";
 const key = import.meta.env.VITE_POSTHOG_KEY;
 type Identity = {
   learnerId: string;
@@ -110,4 +116,36 @@ export function trackControl(controlId: CourseControl, courseId?: string) {
   } catch {
     // Analytics is derived data; transport failure must never block the control.
   }
+}
+
+function trackShell(
+  event: "ui_screen_viewed" | "ui_navigation_selected",
+  properties: { screen_id: ScreenId } | { destination: Destination },
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture(event, {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      ...properties,
+    });
+  } catch {
+    /* Analytics never blocks navigation. */
+  }
+}
+export function trackNavigation(destination: Destination) {
+  if (
+    destination !== "more" &&
+    destination !== "streak" &&
+    !navigation.some((item) => item.id === destination)
+  )
+    return;
+  trackShell("ui_navigation_selected", { destination });
+}
+export function trackScreen(screenId: ScreenId) {
+  if (!screenIds.includes(screenId)) return;
+  trackShell("ui_screen_viewed", { screen_id: screenId });
 }
