@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "4ec559f125bc9bfe0dbd080f04212cdf0794e5f05d4d499f73aa21abce3869bd",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-context",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:27.198Z"
+}

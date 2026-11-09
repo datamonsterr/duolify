@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "3d89eee2682fe32a9c1f11e685706f50f949328e473983fd951e5f8a358aed36",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-error-handling",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:33.604Z"
+}

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "14e2014c6175e9022ac65e78be1aa94e361a38fb6b6cc8b10d0ac8153f0fae6a",
+  "source": "https://github.com/PostHog/skills/tree/HEAD/skills/posthog/all/skills/logs-go",
+  "ref": "HEAD",
+  "revision": "a5d30e775d092e16e198f7b582f1f66dac2cee45",
+  "category": "analytics",
+  "installedAt": "2026-11-08T08:12:36.809Z"
+}

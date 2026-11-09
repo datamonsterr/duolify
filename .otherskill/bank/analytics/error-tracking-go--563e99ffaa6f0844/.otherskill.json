@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "563e99ffaa6f08445a5d71b2bfdc92144877b7e374d736f96fe405fe9424ae11",
+  "source": "https://github.com/PostHog/skills/tree/HEAD/skills/posthog/all/skills/error-tracking-go",
+  "ref": "HEAD",
+  "revision": "a5d30e775d092e16e198f7b582f1f66dac2cee45",
+  "category": "analytics",
+  "installedAt": "2026-11-08T08:12:15.005Z"
+}

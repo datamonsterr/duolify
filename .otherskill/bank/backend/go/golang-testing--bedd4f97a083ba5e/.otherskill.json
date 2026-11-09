@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "bedd4f97a083ba5eca3cc57b3d14cb42d92bebb4e73a994a6ce6dde12f78dc32",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-testing",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:49.508Z"
+}

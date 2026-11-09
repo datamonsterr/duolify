@@ -1,0 +1,32 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: gomod
+    directory: /services/api
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns: ['*']
+  - package-ecosystem: cargo
+    directories:
+      - /engine
+      - /apps/client/src-tauri
+    schedule:
+      interval: weekly
+    groups:
+      rust:
+        patterns: ['*']
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      javascript:
+        patterns: ['*']

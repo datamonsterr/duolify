@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "e5340c24d0ec7de2cff550561ebad06383ea447e3b68afe8cd4ee1ce05997245",
+  "source": "https://github.com/PostHog/skills/tree/HEAD/skills/posthog/all/skills/omnibus-instrument-product-analytics",
+  "ref": "HEAD",
+  "revision": "a5d30e775d092e16e198f7b582f1f66dac2cee45",
+  "category": "analytics",
+  "installedAt": "2026-11-08T08:12:31.167Z"
+}

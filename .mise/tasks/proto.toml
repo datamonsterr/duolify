@@ -1,0 +1,22 @@
+["proto:lint"]
+description = "Lint and check formatting of the private gRPC contract"
+dir = "{{config_root}}/proto"
+run = ["buf lint", "buf format --diff --exit-code"]
+
+["proto:gen"]
+description = "Generate pinned Go protobuf and gRPC bindings"
+dir = "{{config_root}}"
+run = "buf generate --template buf.gen.yaml"
+
+["proto:breaking"]
+description = "Check wire compatibility against main when it has a contract"
+dir = "{{config_root}}"
+run = '''
+set -eu
+git rev-parse --verify main >/dev/null
+if [ -z "$(git ls-tree -r --name-only main -- proto | sed -n '/\.proto$/p')" ]; then
+  echo "Skipping breaking check: main has no proto contract"
+  exit 0
+fi
+buf breaking proto --against '.git#branch=main,subdir=proto'
+'''

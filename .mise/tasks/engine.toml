@@ -1,0 +1,18 @@
+["engine:lint"]
+dir = "engine"
+run = ["cargo fmt --all -- --check", "cargo clippy --workspace --all-targets -- -D warnings"]
+["engine:test"]
+dir = "engine"
+run = "cargo nextest run --workspace"
+["engine:build"]
+dir = "engine"
+run = "cargo build --workspace"
+["engine:run"]
+dir = "engine"
+run = "cargo run -p engine-server --bin duolify-engine"
+["engine:eval"]
+dir = "engine"
+run = "cargo run -p engine-eval --bin duolify-eval -- --offline --provider mock"
+["engine:eval-live"]
+dir = "engine"
+run = "cargo run -p engine-eval --bin duolify-eval -- --provider live --judge"

@@ -1,0 +1,28 @@
+# Single source of truth for toolchain versions and project tasks.
+# Tasks live in .mise/tasks/<area>.toml (one file per area) so parallel work does not conflict.
+min_version = "2026.10.0"
+
+[tools]
+go = "1.27"
+rust = { version = "1.99", components = "rustfmt,clippy" }
+node = "24"
+pnpm = "12"
+protoc = "36"
+buf = "1.75"
+golangci-lint = "2.15"
+gotestsum = "latest"
+"cargo:cargo-nextest" = "latest"
+actionlint = "1.7"
+shellcheck = "0.11"
+hadolint = "2.15"
+lefthook = "2"
+railway = "5"
+uv = "0.13"
+
+[env]
+# Local, untracked secrets. Copy .env.example to .env and fill it in.
+_.file = ".env"
+DUOLIFY_ENV = "development"
+
+[task_config]
+includes = [".mise/tasks/*.toml"]

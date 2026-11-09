@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "8a8d1b786d825292cd1b432ffb53046371c5f384c4b66921cce238715459032e",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-modernize",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:55.590Z"
+}

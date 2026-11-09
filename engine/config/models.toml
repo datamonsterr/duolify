@@ -1,0 +1,15 @@
+[tasks.preview]
+model = "claude-sonnet-5-5"
+fallback_model = "anthropic/claude-sonnet-5.5"
+[tasks.outline]
+model = "claude-sonnet-5-5"
+fallback_model = "anthropic/claude-sonnet-5.5"
+[tasks.lesson]
+model = "claude-sonnet-5-5"
+fallback_model = "anthropic/claude-sonnet-5.5"
+[tasks.chat]
+model = "claude-haiku-5-5"
+fallback_model = "anthropic/claude-haiku-5.5"
+[tasks.note]
+model = "claude-haiku-5-5"
+fallback_model = "anthropic/claude-haiku-5.5"

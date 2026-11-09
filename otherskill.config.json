@@ -1,0 +1,139 @@
+{
+  "bankPath": ".otherskill/bank",
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "fallbackModels": [
+    "respan/span-02",
+    "~typesafe/jev-latest"
+  ],
+  "allowPaidModels": true,
+  "scope": "project",
+  "agent": "claude",
+  "agents": [
+    "claude"
+  ],
+  "hookParams": {
+    "categories": [
+      "backend",
+      "backend/rust",
+      "devops",
+      "testing",
+      "management",
+      "frontend/ui-ux",
+      "frontend/react",
+      "docs",
+      "backend/go",
+      "frontend/tauri",
+      "analytics",
+      "reverse-engineering",
+      "product",
+      "business-analyst"
+    ]
+  },
+  "portableHooks": false,
+  "enabledCategories": [
+    "backend",
+    "backend/rust",
+    "devops",
+    "testing",
+    "management",
+    "frontend/ui-ux",
+    "frontend/react",
+    "docs",
+    "backend/go",
+    "frontend/tauri",
+    "analytics",
+    "reverse-engineering",
+    "product",
+    "business-analyst"
+  ],
+  "categories": [
+    {
+      "id": "ai-data",
+      "description": "LLM, agent SDKs, vector search and data analysis"
+    },
+    {
+      "id": "backend",
+      "description": "Server APIs, databases, architecture and backend implementation"
+    },
+    {
+      "id": "devops",
+      "description": "CI, GitOps, Kubernetes, deployment and git/GitHub workflows"
+    },
+    {
+      "id": "docs",
+      "description": "Technical writing, diagrams, specs and documentation maintenance"
+    },
+    {
+      "id": "frontend/react",
+      "description": "React and Next.js app patterns, components and chat UI"
+    },
+    {
+      "id": "frontend/storytelling",
+      "description": "Narrative, copywriting, presentations and visual storytelling"
+    },
+    {
+      "id": "frontend/ui-ux",
+      "description": "Interface design, accessibility, frontend components, visual usability"
+    },
+    {
+      "id": "management",
+      "description": "Find, create, install and maintain agent skills and project workflows"
+    },
+    {
+      "id": "protocols",
+      "description": "Model Context Protocol and agent-to-agent protocols"
+    },
+    {
+      "id": "security",
+      "description": "Security policy, credential hygiene and vulnerability handling"
+    },
+    {
+      "id": "testing",
+      "description": "Testing, test-driven development, debugging and verification"
+    },
+    {
+      "id": "backend/rust",
+      "description": "Rust backend crates: async, error handling, concurrency, web frameworks and databases"
+    },
+    {
+      "id": "protocols/mcp",
+      "description": "Model Context Protocol servers, clients and builders"
+    },
+    {
+      "id": "backend/go",
+      "description": "Go services: project layout, concurrency, gRPC, database, testing, linting, observability"
+    },
+    {
+      "id": "frontend/tauri",
+      "description": "Tauri 2 desktop and mobile apps: config, IPC, plugins, security, builds"
+    },
+    {
+      "id": "analytics",
+      "description": "Product analytics, LLM analytics and feature flags with PostHog"
+    },
+    {
+      "id": "reverse-engineering",
+      "description": "Reverse engineering apps and binaries into product specs, then OpenSpec changes"
+    },
+    {
+      "id": "product",
+      "description": "Pricing, business models, subscriptions, tickets and GitHub issue planning"
+    },
+    {
+      "id": "business-analyst",
+      "description": "Requirements elicitation, use cases, user stories and acceptance criteria"
+    }
+  ],
+  "limits": {
+    "concurrency": 4,
+    "retries": 1,
+    "retryDelayMs": 250,
+    "timeoutMs": 10000,
+    "maxRequestBytes": 60000,
+    "maxCandidates": 200,
+    "categoryThreshold": 0.05,
+    "skillThreshold": 0.05,
+    "maxCategories": 20,
+    "maxSkills": 10
+  }
+}

@@ -1,0 +1,12 @@
+version: v2
+lint:
+  use:
+    - STANDARD
+  # Existing streaming RPCs intentionally return *Event envelopes.
+  # Keep the bootstrap contract unchanged; all other STANDARD rules apply.
+  ignore_only:
+    RPC_RESPONSE_STANDARD_NAME:
+      - duolify/engine/v1/engine.proto
+breaking:
+  use:
+    - FILE

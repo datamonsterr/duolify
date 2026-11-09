@@ -1,0 +1,165 @@
+/* Review snippet only; import Tailwind separately when integrating. Generated mapping of tokens.json. */
+:root {
+  color-scheme: light;
+  --canvas: #f7f5f0;
+  --surface: #ffffff;
+  --raised: #ede8fa;
+  --text: #242038;
+  --muted: #5f596f;
+  --primary: #5942b5;
+  --primary-hover: #483398;
+  --primary-edge: #392873;
+  --on-primary: #ffffff;
+  --accent: #f4be69;
+  --on-accent: #38250c;
+  --success: #216446;
+  --success-bg: #e5f3eb;
+  --danger: #a52d45;
+  --danger-bg: #fbecef;
+  --warning: #774617;
+  --warning-bg: #fff0d6;
+  --line: #80768f;
+  --focus: #5942b5;
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+  --size-target: 44px;
+  --size-node: 64px;
+  --size-sidebar: 224px;
+  --size-rail: 280px;
+  --size-reading: 680px;
+  --size-focus-width: 3px;
+  --size-focus-offset: 3px;
+  --size-press-depth: 4px;
+  --size-press-offset: 3px;
+  --font-size-small: 0.75rem;
+  --font-size-caption: 0.875rem;
+  --font-size-body: 1rem;
+  --font-size-title: 1.25rem;
+  --font-size-heading: 1.75rem;
+  --font-size-display: 2.5rem;
+  --size-shell: 1280px;
+  --size-focused: 1000px;
+  --size-dialog: 600px;
+  --size-slide: 340px;
+  --size-slide-mobile: 300px;
+  --size-timeline-min: 120px;
+  --tracking-wide: 1.2px;
+  --tracking-tight: -0.8px;
+  --opacity-overlay: 0.9;
+  --font-family: ui-sans-serif, system-ui, sans-serif;
+  --weight-regular: 400;
+  --weight-strong: 650;
+  --weight-heavy: 800;
+  --leading-body: 1.5;
+  --leading-heading: 1.15;
+  --duration-none: 0ms;
+  --duration-press: 90ms;
+  --duration-fast: 140ms;
+  --duration-normal: 240ms;
+  --duration-slow: 420ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --elevation-flat: 0 0 0 0 var(--primary-edge);
+  --elevation-press: 0 var(--size-press-depth) 0 0 var(--primary-edge);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+  --canvas: #171420;
+  --surface: #231f30;
+  --raised: #302a42;
+  --text: #f6f1ff;
+  --muted: #c4bbd4;
+  --primary: #bca6ff;
+  --primary-hover: #cdbeff;
+  --primary-edge: #8270b7;
+  --on-primary: #22163e;
+  --accent: #f4be69;
+  --on-accent: #38250c;
+  --success: #a1ddbb;
+  --success-bg: #19392d;
+  --danger: #ffabbc;
+  --danger-bg: #482332;
+  --warning: #f1cd99;
+  --warning-bg: #3d3020;
+  --line: #9c90af;
+  --focus: #d9cbff;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #171420;
+  --surface: #231f30;
+  --raised: #302a42;
+  --text: #f6f1ff;
+  --muted: #c4bbd4;
+  --primary: #bca6ff;
+  --primary-hover: #cdbeff;
+  --primary-edge: #8270b7;
+  --on-primary: #22163e;
+  --accent: #f4be69;
+  --on-accent: #38250c;
+  --success: #a1ddbb;
+  --success-bg: #19392d;
+  --danger: #ffabbc;
+  --danger-bg: #482332;
+  --warning: #f1cd99;
+  --warning-bg: #3d3020;
+  --line: #9c90af;
+  --focus: #d9cbff;
+}
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-edge: var(--primary-edge);
+  --color-on-primary: var(--on-primary);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-line: var(--line);
+  --color-focus: var(--focus);
+  --font-sans: var(--font-family);
+  --spacing: 4px;
+  --radius-duo-sm: var(--radius-sm);
+  --radius-duo-md: var(--radius-md);
+  --radius-duo-lg: var(--radius-lg);
+  --radius-duo-pill: var(--radius-pill);
+  --text-small: var(--font-size-small);
+  --text-caption: var(--font-size-caption);
+  --text-body: var(--font-size-body);
+  --text-title: var(--font-size-title);
+  --text-heading: var(--font-size-heading);
+  --text-display: var(--font-size-display);
+  --breakpoint-sm: 30rem; /* optional wide-phone layout; no navigation change */
+  --breakpoint-md: 48rem;
+  --breakpoint-xl: 75rem;
+  --ease-duo: var(--ease-standard);
+  --shadow-press: var(--elevation-press);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --duration-press: 0ms; --duration-fast: 0ms; --duration-normal: 0ms; --duration-slow: 0ms; }
+}
+:root[data-motion="reduce"] { --duration-press: 0ms; --duration-fast: 0ms; --duration-normal: 0ms; --duration-slow: 0ms; }

@@ -1,0 +1,41 @@
+schema: spec-driven
+
+context: |
+  Duolify turns any topic a person wants to learn long-term into a Duolingo-style app:
+  courses, short lessons, streaks, friend streaks and credits. Lessons are Motion HTML
+  slides played live in the app, never rendered to video.
+
+  Terms: use CONTEXT.md exactly (Learner, Course, Course outline, Unit, Lesson, Slide,
+  Motion HTML, Slide manifest, Lesson test, Gated generation, Course preview, XP, Streak,
+  Streak freeze, Friend streak, Credits, Reward credits, Tutor chat, Quick note, Bookmark,
+  Learner profile, Golden set, API, Engine). Decisions live in docs/adr/.
+
+  Stack:
+  - Client: Tauri 2 + React + TypeScript + Vite (desktop and mobile), apps/client.
+  - API: Go (services/api), the only public entry point. REST/JSON + SSE. pgx, sqlc, goose, River queue.
+  - Engine: Rust (engine/), private stateless gRPC service (tonic). Contract in proto/ (buf).
+  - Data: Postgres (system of record), Redis (cache, leaderboards, counters), S3-compatible object storage (slides, assets, backups).
+  - Infra: Railway (dev environment from main), docker compose locally, Namespace CI runners.
+  - Analytics: PostHog (product events and LLM analytics).
+  - AI: Claude API primary, OpenRouter fallback and cheap tasks. Golden set on Hugging Face.
+
+  Conventions:
+  - mise for every tool and task. Each area exposes <area>:lint, <area>:test, <area>:build.
+  - TDD order: e2e test, then integration test, then unit test, then code.
+  - Conventional Commits. Branch from main, draft PR early.
+  - Keep services stateless; state lives in Postgres, Redis and object storage.
+  - No secrets in the repo; new variables go in .env.example.
+
+rules:
+  proposal:
+    - State impact on each area (client, api, engine, proto, infra).
+    - Link the ADRs that the change relies on or changes.
+  specs:
+    - Every feature spec MUST contain a requirement for PostHog analytics events (names and properties from the analytics spec).
+    - Every feature spec MUST contain a requirement for data backup and retention (what data is created, where, how it is backed up and deleted).
+    - Every spec that uses AI MUST contain a requirement for model testing and reliability (golden-set cases, eval thresholds, fallback, timeout, cost limit).
+    - Use SHALL or MUST in requirement text. Use WHEN/THEN bullets in scenarios.
+    - Use glossary terms from CONTEXT.md exactly.
+  tasks:
+    - Order tasks e2e test, integration test, unit test, then implementation.
+    - Include tasks for analytics events, backup notes, and golden-set cases when AI is involved.

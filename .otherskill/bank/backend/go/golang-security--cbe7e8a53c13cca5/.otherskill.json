@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "cbe7e8a53c13cca5f9bffdd3ffc74c37417cb2ba77605abbe7e009196c919267",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-security",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:47.597Z"
+}

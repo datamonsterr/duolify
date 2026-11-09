@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "e9d65ba80450b41384d54fdf8e0849e5e21776ddd25d22bc6b96b80088217ae0",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-lint",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:38.207Z"
+}

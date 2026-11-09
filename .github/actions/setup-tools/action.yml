@@ -1,0 +1,20 @@
+name: Set up tools
+description: Install only the requested mise tools, cache them, and start the job timer.
+inputs:
+  tools:
+    description: Space-separated mise install arguments; empty installs mise only.
+    default: ''
+  area:
+    description: Cache namespace for this tool set.
+    default: ci
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+    - uses: jdx/mise-action@v5
+      with:
+        install: ${{ inputs.tools != '' }}
+        install_args: ${{ inputs.tools }}
+        cache: true
+        cache_key_prefix: mise-${{ inputs.area }}-v1

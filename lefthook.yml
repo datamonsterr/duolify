@@ -1,0 +1,24 @@
+pre-commit:
+  parallel: true
+  commands:
+    gofmt:
+      root: services/api/
+      glob: "*.go"
+      run: mise exec go -- bash ../../infra/hooks/check-go-format.sh {staged_files}
+    engine-fmt:
+      root: engine/
+      glob: "*.rs"
+      run: mise exec rust -- cargo fmt --all -- --check
+    tauri-fmt:
+      root: apps/client/src-tauri/
+      glob: "*.rs"
+      run: mise exec rust -- cargo fmt -- --check
+    client-prettier:
+      root: apps/client/
+      glob: "*.{js,cjs,mjs,jsx,ts,tsx,json,css,html,md,yml,yaml}"
+      run: mise exec pnpm -- pnpm exec prettier --check {staged_files}
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: mise exec node -- bash infra/hooks/commit-msg.sh {1}

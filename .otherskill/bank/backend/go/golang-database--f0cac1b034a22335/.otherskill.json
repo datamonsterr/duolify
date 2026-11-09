@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "f0cac1b034a22335c73c0dac30ada58fc79c1276f50cb44ed69676eb78ac2005",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-database",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:31.142Z"
+}

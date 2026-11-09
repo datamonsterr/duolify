@@ -1,0 +1,57 @@
+// Package engine wraps the private gRPC engine with bounded calls.
+package engine
+
+import (
+	"context"
+	"crypto/tls"
+	"fmt"
+	"net/url"
+	"time"
+
+	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+// Client owns a reusable gRPC connection and per-call deadline.
+type Client struct {
+	conn    *grpc.ClientConn
+	rpc     enginev1.EngineServiceClient
+	timeout time.Duration
+}
+
+// New accepts the ENGINE_ADDR http(s) URL; http is for the private local network.
+func New(addr string, timeout time.Duration) (*Client, error) {
+	u, err := url.Parse(addr)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || timeout <= 0 {
+		return nil, fmt.Errorf("invalid engine address or timeout")
+	}
+	creds := insecure.NewCredentials()
+	if u.Scheme == "https" {
+		creds = credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12})
+	}
+	conn, err := grpc.NewClient("dns:///"+u.Host, grpc.WithTransportCredentials(creds))
+	if err != nil {
+		return nil, fmt.Errorf("create engine client: %w", err)
+	}
+	return &Client{conn: conn, rpc: enginev1.NewEngineServiceClient(conn), timeout: timeout}, nil
+}
+
+// Close releases the connection.
+func (c *Client) Close() error { return c.conn.Close() }
+
+// Health checks the engine over its actual contract.
+func (c *Client) Health(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	_, err := c.rpc.Health(ctx, &enginev1.HealthRequest{})
+	return err
+}
+
+// PreviewCourse forwards the supplied context and bounds engine execution time.
+func (c *Client) PreviewCourse(ctx context.Context, request *enginev1.PreviewCourseRequest) (*enginev1.PreviewCourseResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	return c.rpc.PreviewCourse(ctx, request)
+}

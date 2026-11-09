@@ -1,0 +1,14 @@
+[package]
+name = "engine-providers"
+version.workspace = true
+edition.workspace = true
+[dependencies]
+engine-core.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+[dev-dependencies]
+tokio.workspace = true
+wiremock.workspace = true

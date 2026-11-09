@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "logicalId": "61c78c54a8c4ff73a125ae6d4bba165f633810b7fb5340e3c70e2ad0e1d3fc95",
+  "source": "https://github.com/samber/cc-skills-golang/tree/HEAD/skills/golang-performance",
+  "ref": "HEAD",
+  "revision": "bb1d43d98a3f8ab639a0042f90d0ec524e39a477",
+  "category": "backend/go",
+  "installedAt": "2026-11-08T08:10:43.221Z"
+}

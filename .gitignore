@@ -1,0 +1,38 @@
+# Env & secrets
+.env
+.env.*
+!.env.example
+mise.local.toml
+*.pem
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Go
+services/*/bin/
+services/*/coverage.out
+
+# Rust
+target/
+
+# Node / client
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+.turbo/
+
+# Tauri
+apps/*/src-tauri/target/
+apps/*/src-tauri/gen/schemas/
+
+# Evals
+evals/.cache/
+evals/reports/
+
+# Claude worktrees
+.claude/worktrees/

@@ -1,0 +1,39 @@
+["client:install"]
+description = "Install client dependencies"
+dir = "{{config_root}}"
+run = "pnpm install --frozen-lockfile"
+
+["client:lint"]
+description = "Check client formatting, types and lint"
+dir = "{{config_root}}/apps/client"
+run = ["pnpm exec eslint .", "pnpm exec prettier --check .", "pnpm exec tsc --noEmit", "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check", "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings"]
+
+["client:test"]
+description = "Run client tests"
+dir = "{{config_root}}/apps/client"
+run = ["pnpm exec vitest run", "cargo test --manifest-path src-tauri/Cargo.toml"]
+
+["client:build"]
+description = "Build client web assets"
+dir = "{{config_root}}/apps/client"
+run = "pnpm build"
+
+["client:e2e-setup"]
+description = "Install browser for end-to-end tests"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec playwright install chromium"
+
+["client:e2e"]
+description = "Run end-to-end tests against the web build"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec playwright test"
+
+["client:tauri-build"]
+description = "Build Tauri debug application"
+dir = "{{config_root}}/apps/client"
+run = "pnpm tauri build --debug --no-bundle"
+
+["client:dev"]
+description = "Run Tauri development application"
+dir = "{{config_root}}/apps/client"
+run = "pnpm tauri dev"

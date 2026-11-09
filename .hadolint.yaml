@@ -1,0 +1,4 @@
+# Builder-stage distro tooling follows the pinned base image's security updates.
+# Runtime images are distroless; do not freeze Debian package patch versions here.
+ignored:
+  - DL3008

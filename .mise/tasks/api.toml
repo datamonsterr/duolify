@@ -1,0 +1,40 @@
+["api:lint"]
+description = "Lint Go API, including integration tests"
+dir = "{{config_root}}/services/api"
+run = "golangci-lint run --build-tags integration ./..."
+
+["api:test"]
+description = "Run unit tests with the race detector"
+dir = "{{config_root}}/services/api"
+run = "gotestsum -- -race -count=1 ./internal/... ./migrations/..."
+
+["api:test-e2e"]
+description = "Run real HTTP and fake gRPC end-to-end tests"
+dir = "{{config_root}}/services/api"
+run = "gotestsum -- -race -count=1 ./test/e2e/..."
+
+["api:test-integration"]
+description = "Test migrations, store and queue against Postgres 18 (Docker)"
+dir = "{{config_root}}/services/api"
+run = "gotestsum -- -race -count=1 -tags integration ./internal/store/..."
+
+["api:build"]
+description = "Build the statically linked API binary"
+dir = "{{config_root}}/services/api"
+env = { CGO_ENABLED = "0" }
+run = "go build -trimpath -o bin/api ./cmd/api"
+
+["api:run"]
+description = "Run the HTTP API"
+dir = "{{config_root}}/services/api"
+run = "go run ./cmd/api serve"
+
+["api:migrate"]
+description = "Apply embedded Goose and River migrations"
+dir = "{{config_root}}/services/api"
+run = "go run ./cmd/api migrate"
+
+["api:generate"]
+description = "Regenerate pinned sqlc queries"
+dir = "{{config_root}}/services/api"
+run = "go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate"
