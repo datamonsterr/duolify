@@ -24,6 +24,7 @@ import (
 	"filippo.io/age"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
@@ -32,6 +33,8 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/credits/creditstest"
+	"github.com/datamonsterr/duolify/services/api/internal/player"
+	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
@@ -138,6 +141,15 @@ func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, bucket := range []string{"application-assets", "protected-player-assets"} {
+		if _, err := f.root.Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.root.Client.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{Bucket: aws.String(bucket), VersioningConfiguration: &types.VersioningConfiguration{Status: types.BucketVersioningStatusEnabled}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	writerOptions := rootOptions
 	writerOptions.AccessKey = "backup-writer"
 	writerOptions.SecretKey = "writer-synthetic-secret"
@@ -368,6 +380,10 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		t.Fatal(err)
 	}
 
+	if err := playerfixture.Publish(t.Context(), f.DB.Pool, f.ApplicationObjects(), "a1111111-1111-4111-8111-111111111111", "f3333333-3333-4333-8333-333333333333"); err != nil {
+		t.Fatal(err)
+	}
+	f.BackupPlayerObjects(t)
 	catalogue, err := pricing.Load(t.Context(), f.DB.Queries)
 	if err != nil {
 		t.Fatal(err)
@@ -601,6 +617,7 @@ func (f *Fixture) Restore(t *testing.T, ciphertext []byte) *store.Store {
 // AssertRestored verifies schema versions, exact data, balances and immutability.
 func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	t.Helper()
+	f.AssertPlayerObjectsRestored(t)
 	var version, learners, entries, balance, riverVersions int64
 	var name string
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT max(version_id) FROM goose_db_version WHERE is_applied").Scan(&version); err != nil {
@@ -667,7 +684,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -834,7 +851,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		t.Fatal(err)
 	}
 	var outlineSurvived bool
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id::text=$1) OR EXISTS(SELECT 1 FROM outline_proposals WHERE learner_id::text=$1)", paymentOwner).Scan(&outlineSurvived); err != nil || outlineSurvived {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id::text=$1) OR EXISTS(SELECT 1 FROM outline_proposals WHERE learner_id::text=$1) OR EXISTS(SELECT 1 FROM lesson_manifests WHERE learner_id::text=$1)", paymentOwner).Scan(&outlineSurvived); err != nil || outlineSurvived {
 		t.Fatal("outline survived restore tombstone", err)
 	}
 	var anonymous bool
@@ -937,4 +954,9 @@ func (f *Fixture) AssertEvents(t *testing.T, names ...string) {
 	if !reflect.DeepEqual(got, names) {
 		t.Fatalf("events=%v want=%v", got, names)
 	}
+}
+
+// ApplicationObjects accesses only this fixture's disposable versioned asset bucket.
+func (f *Fixture) ApplicationObjects() *player.S3 {
+	return &player.S3{Client: f.root.Client, Bucket: "application-assets"}
 }

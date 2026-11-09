@@ -8,6 +8,7 @@ export type SlideMessage =
 export function isSlideMessage(
   event: MessageEvent,
   frame: Window | null,
+  checkpoints?: readonly string[],
 ): event is MessageEvent<SlideMessage> {
   if (
     !frame ||
@@ -18,8 +19,12 @@ export function isSlideMessage(
   )
     return false;
   return (
-    event.data.type === "ended" ||
-    (event.data.type === "checkpoint" && typeof event.data.name === "string")
+    (event.data.type === "ended" && Object.keys(event.data).length === 1) ||
+    (event.data.type === "checkpoint" &&
+      Object.keys(event.data).length === 2 &&
+      typeof event.data.name === "string" &&
+      /^[A-Za-z0-9_-]{1,100}$/.test(event.data.name) &&
+      (checkpoints === undefined || checkpoints.includes(event.data.name)))
   );
 }
 export function nextSlide(index: number, count: number) {

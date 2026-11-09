@@ -249,3 +249,27 @@ raw notification bodies or learner content enter these tables or analytics.
 | Postgres `course_creations` | Owned immutable confirmed outline/revision, quote/reservation IDs, durable stages and validated response; no lesson content | Nightly encrypted general dumps, 14 days; populated fixture restored and compared in full | Owner export; account cascade erasure and restore tombstones; financial usage stays separately anonymized for seven years / 35-day financial snapshots | [E2-02](../openspec/changes/create-confirmed-outline/design.md) |
 | Postgres `courses`, `course_units`, `course_lesson_stubs`, `course_enrollments` | Owned Course and exact ordered Units/stubs/goals; first ready_to_generate, others locked; single enrollment | Nightly encrypted general dumps, 14 days; full-row fixture comparison and deletion replay | Owner export; account cascade erasure; Course soft-delete metadata, 30-day grace before hard deletion (removal UI and automated purge) | [E2-02](../openspec/changes/create-confirmed-outline/design.md), [E2-04](../openspec/changes/recover-generation-and-remove-courses/design.md) |
 | Postgres `course_enrollments.level_override`, `course_enrollments.last_active_at`, `learner_profiles.active_course_id` | Per-course level overrides, enrollment access timestamps and persisted active course selection; feeds effective AI context without mutating global profile | Nightly encrypted general dumps, 14 days; full-row fixture comparison and deletion replay | Owner export; account cascade erasure; level override reset to global | [E2-03](../openspec/changes/switch-courses-override-level/design.md) |
+
+E3-01 stores `lesson_manifests` (owned Lesson UUID, content version, immutable
+manifest object key, created timestamp) in encrypted nightly general Postgres
+backups with 14-day rotation. Account export includes these references; direct
+Learner and Lesson cascades erase them on account/course hard deletion. Existing
+account deletion tombstones reapply erasure after restore. Course soft deletion
+and revoked enrollment immediately deny manifest and document reads.
+
+Manifest JSON and Motion HTML use immutable versioned `lessons/…` application
+object keys; assets may load only from configured `LESSON_ASSET_ORIGIN`. They follow
+the data-backup protected nightly asset-copy policy with key/version/SHA-256
+manifests. The disposable RustFS backup fixture includes all four nonempty lesson
+objects, a separately versioned protected copy and checksum manifest, and proves
+recovery after current objects are lost, without generation. Postgres restore
+compares complete metadata and replays deletion. Shared synthetic fixture bytes
+contain no personal data and stay Git-backed; learner-linked content must be
+purged within 30 days when no independent references remain under existing object
+retention policy. This ticket adds no learner-specific asset generation.
+
+The player holds document replicas in account-scoped query memory only; E3-03
+owns durable offline caching. Loading/failed/offline content never grants
+completion; Take lesson test is only navigation. PostHog receives opaque IDs and
+fixed error codes, never HTML, captions, titles, notes, URLs or answer keys. No new
+AI behavior or provider calls are introduced.

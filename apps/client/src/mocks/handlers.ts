@@ -1,4 +1,5 @@
 import { http, HttpResponse } from "msw";
+import { playerManifest, playerHTML } from "./player";
 import type { Course } from "../lib/api";
 export const courses: Course[] = [
   {
@@ -34,6 +35,12 @@ export const courses: Course[] = [
   },
 ];
 export const handlers = [
+  http.get("*/v1/lessons/:lesson/manifest", ({ params }) =>
+    HttpResponse.json(playerManifest(String(params.lesson))),
+  ),
+  http.get("*/v1/lessons/:lesson/slides/:slide", () =>
+    HttpResponse.json({ html: playerHTML }),
+  ),
   http.get("*/v1/courses", () =>
     HttpResponse.json({ courses, active_course_id: courses[0]?.id }),
   ),

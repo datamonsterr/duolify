@@ -172,3 +172,11 @@ Preview requested/viewed/failed events SHALL be API-owned and allowlisted, inclu
 #### Scenario: Preview discarded
 - **WHEN** a learner discards a paid preview
 - **THEN** the API-owned viewed event remains derived analytics and no Course or enrollment is created
+
+
+### Requirement: Authorized player event projection
+The catalogue SHALL define `lesson_started` with `lesson_id` and `course_id`, and `lesson_player_error` with `lesson_id`, optional `slide_id`, and fixed `error_code` (`manifest_unavailable`, `document_unavailable`, `invalid_manifest`, `document_timeout`, `offline`). Both SHALL use authenticated Learner UUID/common properties and existing opt-out. The wrapper SHALL discard all other properties, including titles, narration, learner text, HTML and URLs. E3-01 SHALL emit no completion or slide-view events.
+
+#### Scenario: Content-free playback delivery
+- **WHEN** the authenticated player starts or fails and analytics is enabled
+- **THEN** the PostHog test double receives only registered IDs/codes and common properties; opted-out learners emit nothing

@@ -733,3 +733,21 @@ progress::-moz-progress-bar {
 :root[data-motion="reduce"] .complete a:active {
   transform: none;
 }
+
+.slide-caption {
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  overflow-wrap: anywhere;
+  line-height: var(--font-leading-body);
+}
+.player h1,
+.player .adaptive-panel p {
+  overflow-wrap: anywhere;
+}
+.player-recovery {
+  max-inline-size: var(--size-reading);
+  padding-block: var(--space-6);
+}

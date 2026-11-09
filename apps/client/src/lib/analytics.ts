@@ -105,26 +105,6 @@ if (key)
     autocapture: false,
     capture_pageview: false,
   });
-export function track(
-  event: "lesson_started" | "slide_viewed" | "lesson_completed",
-  properties: Record<string, string | number>,
-) {
-  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
-  try {
-    if (posthog.has_opted_out_capturing()) return;
-    if (key)
-      posthog.capture(event, {
-        ...properties,
-        distinct_id: identity.learnerId,
-        platform: identity.platform,
-        app_version: identity.appVersion ?? "0.1.0",
-        source: "client",
-      });
-  } catch {
-    /* Analytics must not interrupt a lesson. */
-  }
-}
-
 // Compatibility with the theme foundation; auth has one shared analytics boundary.
 export type UiAnalyticsContext = {
   learnerId: string;
@@ -461,5 +441,55 @@ export function trackCourseRecovery(
     });
   } catch {
     /* Telemetry failure never blocks recovery. */
+  }
+}
+
+// E3-01 catalogue: authorized-lesson-manifest/specs/lesson-player/spec.md.
+// Deliberately closed projection: no captions, titles, drafts, HTML or URLs.
+export function trackPlayer(
+  event: "lesson_started" | "lesson_player_error",
+  value: {
+    lesson_id: string;
+    course_id?: string;
+    slide_id?: string;
+    error_code?:
+      | "manifest_unavailable"
+      | "document_unavailable"
+      | "invalid_manifest"
+      | "document_timeout"
+      | "offline";
+  },
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  const properties: Record<string, string> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? "0.1.0",
+    source: "client",
+  };
+  for (const name of (event === "lesson_started"
+    ? ["lesson_id", "course_id"]
+    : ["lesson_id", "slide_id"]) as (
+    "lesson_id" | "course_id" | "slide_id"
+  )[]) {
+    const id = value[name];
+    if (id && /^[A-Za-z0-9_-]{1,100}$/.test(id)) properties[name] = id;
+  }
+  if (
+    event === "lesson_player_error" &&
+    value.error_code &&
+    [
+      "manifest_unavailable",
+      "document_unavailable",
+      "invalid_manifest",
+      "document_timeout",
+      "offline",
+    ].includes(value.error_code)
+  )
+    properties.error_code = value.error_code;
+  try {
+    if (!posthog.has_opted_out_capturing()) posthog.capture(event, properties);
+  } catch {
+    /* Playback never depends on analytics. */
   }
 }

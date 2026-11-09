@@ -25,6 +25,8 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/credits/creditstest"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
+	"github.com/datamonsterr/duolify/services/api/internal/player"
+	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/migrations"
@@ -113,8 +115,20 @@ func run() (result error) {
 			creditService.ServeHTTP(w, r)
 		}
 	})
+	objects := &fixtureObjects{values: playerfixture.Documents()}
+	lessonPlayer := player.New(player.Options{Pool: db.Pool, Objects: objects, AssetOrigin: playerfixture.AssetOrigin})
 	mux := http.NewServeMux()
-	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditHandler, Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"})}, logger))
+	mux.Handle("POST /test/player/fixture", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id, err := playerfixture.Seed(r.Context(), db.Pool, objects, accounts.LearnerID(r.Context()))
+		if err != nil {
+			w.WriteHeader(500)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(201)
+		_ = json.NewEncoder(w).Encode(map[string]string{"lesson_id": id})
+	})))
+	mux.Handle("/", httpapi.New(httpapi.Dependencies{Player: lessonPlayer, Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditHandler, Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"})}, logger))
 	mux.HandleFunc("POST /test/stripe/{id}", func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
 			State string `json:"state"`
@@ -391,4 +405,22 @@ func (mockE2EBriefEngine) CourseBriefChat(_ context.Context, r *enginev1.CourseB
 		message = "What is your goal?"
 	}
 	return &enginev1.CourseBriefChatResponse{Brief: b, Message: message, NextStep: next, IsComplete: next == "confirm"}, nil
+}
+
+// Fixture documents are immutable and contain no personal content; integration
+// coverage separately exercises the real RustFS adapter and protected restore.
+type fixtureObjects struct{ values map[string][]byte }
+
+func (f *fixtureObjects) Get(_ context.Context, key string) ([]byte, error) {
+	v, ok := f.values[key]
+	if !ok {
+		return nil, errors.New("missing fixture object")
+	}
+	return v, nil
+}
+func (f *fixtureObjects) Put(_ context.Context, key string, value []byte) error {
+	if !bytes.Equal(f.values[key], value) {
+		return errors.New("fixture mutation")
+	}
+	return nil
 }

@@ -75,3 +75,8 @@ run = "pnpm exec prettier --write src/features/courses src/features/design/Cours
 description = "Format credits reservation controls and tests"
 dir = "{{config_root}}/apps/client"
 run = "pnpm exec prettier --write src/features/credits src/features/pricing/PricingView.tsx src/features/pricing/QuotePanel.tsx src/features/pricing/quotes.ts src/features/pricing/pricing.css src/features/accounts/session.ts src/lib/analytics.ts e2e/credits*.spec.ts e2e/pricing-e12-01.spec.ts"
+
+["client:format-player"]
+description = "Format authorized lesson player and its acceptance tests"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/player src/features/lesson-player src/lib/analytics.ts src/mocks/handlers.ts src/mocks/player.ts e2e/player-e3-01.spec.ts e2e/design-e13-04.spec.ts e2e/lesson.spec.ts e2e/accounts-fixture.ts src/styles.css"

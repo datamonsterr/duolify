@@ -1,23 +1,123 @@
 import { useUiPreferences } from "../design/localization/Preferences";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { track } from "../../lib/analytics";
+import { trackPlayer } from "../../lib/analytics";
+import { useQuery } from "@tanstack/react-query";
+import { session as accountSession } from "../accounts/session";
+import {
+  loadManifest,
+  loadDocument,
+  sandboxDocument,
+  type Manifest,
+} from "../player/manifest";
 import { isSlideMessage, nextSlide, sendCommand } from "./bridge";
-import slide1 from "../../slides/one.html?raw";
-import slide2 from "../../slides/two.html?raw";
-import slide3 from "../../slides/three.html?raw";
 import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { useShellSession } from "../shell/ShellSession";
-const slides = [slide1, slide2, slide3];
 const playbackSpeeds = [1, 1.25, 1.5, 2];
 export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
+  const owner = accountSession.current()?.id ?? "current";
+  const manifest = useQuery({
+    queryKey: ["lesson-manifest", owner, lessonId],
+    queryFn: () => loadManifest(lessonId),
+    retry: false,
+    networkMode: "always",
+    staleTime: 0,
+  });
+  useEffect(() => {
+    if (manifest.error)
+      trackPlayer("lesson_player_error", {
+        lesson_id: lessonId,
+        error_code:
+          manifest.error.message === "invalid_manifest"
+            ? "invalid_manifest"
+            : "manifest_unavailable",
+      });
+  }, [manifest.error, lessonId]);
+  if (manifest.error)
+    return <PlayerRecovery retry={() => void manifest.refetch()} />;
+  if (!manifest.data)
+    return <PlayerRecovery loading retry={() => void manifest.refetch()} />;
+  return <ManifestPlayback key={lessonId} manifest={manifest.data} />;
+}
+function PlayerRecovery({
+  loading = false,
+  retry,
+}: {
+  loading?: boolean;
+  retry: () => void;
+}) {
+  const shell = useShellSession();
+  return (
+    <section className="player player-recovery" aria-busy={loading}>
+      <Link
+        className="shell-link"
+        to="/course/$courseId"
+        params={{ courseId: shell.courseId() }}
+      >
+        Exit lesson
+      </Link>
+      <h1>{loading ? "Loading lesson…" : "Lesson unavailable"}</h1>
+      <p role={loading ? "status" : "alert"}>
+        {loading
+          ? "Getting your slides ready."
+          : "Lesson unavailable. Check your connection and enrollment, then retry."}
+      </p>
+      {!loading && (
+        <button className="duo-button primary" onClick={retry}>
+          Retry
+        </button>
+      )}
+    </section>
+  );
+}
+function ManifestPlayback({ manifest }: { manifest: Manifest }) {
+  const lessonId = manifest.lesson_id;
+  const slides = manifest.slides;
   const { reducedMotion } = useUiPreferences();
   const session = useShellSession();
-  const [index, setIndex] = useState(() => session.slides.get(lessonId) ?? 0);
+  const [index, setIndex] = useState(() =>
+    Math.min(session.slides.get(lessonId) ?? 0, slides.length - 1),
+  );
+  const slide = slides[index];
+  const owner = accountSession.current()?.id ?? "current";
+  const slideDocument = useQuery({
+    queryKey: [
+      "lesson-document",
+      owner,
+      lessonId,
+      manifest.version,
+      slide.slide_id,
+    ],
+    queryFn: () => loadDocument(slide),
+    retry: false,
+    networkMode: "always",
+  });
+  const next = slides[index + 1];
+  const preloaded = useQuery({
+    queryKey: [
+      "lesson-document",
+      owner,
+      lessonId,
+      manifest.version,
+      next?.slide_id,
+    ],
+    queryFn: () => loadDocument(next),
+    enabled: !!next,
+    retry: false,
+    networkMode: "always",
+  });
+  const started = useRef(false);
+  useEffect(() => {
+    if (slideDocument.error)
+      trackPlayer("lesson_player_error", {
+        lesson_id: lessonId,
+        slide_id: slide.slide_id,
+        error_code: "document_unavailable",
+      });
+  }, [slideDocument.error, lessonId, slide.slide_id]);
   useEffect(() => {
     session.slides.set(lessonId, index);
   }, [session, lessonId, index]);
-  const [finished, setFinished] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [speedIndex, setSpeedIndex] = useState(0);
@@ -57,15 +157,13 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
     };
   }, []);
   useEffect(() => {
-    track("lesson_started", { lesson: "sky" });
-  }, []);
-  useEffect(() => {
-    track("slide_viewed", { slide: index + 1 });
-  }, [index]);
-  useEffect(() => {
     const listener = (event: MessageEvent) => {
       if (
-        isSlideMessage(event, frame.current?.contentWindow ?? null) &&
+        isSlideMessage(
+          event,
+          frame.current?.contentWindow ?? null,
+          slide.checkpoints.map((c) => c.id),
+        ) &&
         event.data.type === "ended"
       ) {
         /* Learner advances when ready. */
@@ -73,32 +171,21 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
     };
     window.addEventListener("message", listener);
     return () => window.removeEventListener("message", listener);
-  }, []);
-  if (finished)
-    return (
-      <div className="complete">
-        <div className="big-star">✦</div>
-        <h1>Lesson complete!</h1>
-        <p>Wonderful work. Your universe just got a little bigger.</p>
-        <Link to="/course/$courseId" params={{ courseId: session.courseId() }}>
-          Back to your path
-        </Link>
-      </div>
-    );
+  }, [slide.checkpoints]);
   return (
     <div className="player">
       <header className="focused-context">
         <Link
           className="shell-link"
           to="/course/$courseId"
-          params={{ courseId: session.courseId() }}
+          params={{ courseId: manifest.course_id }}
           onClick={pause}
         >
           Exit lesson
         </Link>
         <span>Course · Lesson</span>
       </header>
-      <h1 tabIndex={-1}>Why the sky changes</h1>
+      <h1 tabIndex={-1}>{manifest.title}</h1>
       <div
         className="progress"
         role="progressbar"
@@ -122,17 +209,7 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
             <p className="feedback badge-warning" role="status">
               Lesson paused
             </p>
-            {panel === "Transcript" && (
-              <p>
-                {
-                  [
-                    "The sky is a map waiting to be explored.",
-                    "Stars are distant suns, shining across space.",
-                    "Notice how the sky changes as Earth turns.",
-                  ][index]
-                }
-              </p>
-            )}
+            {panel === "Transcript" && <p>{slide.narration_text}</p>}
             {panel === "Ask tutor" && (
               <>
                 <p>
@@ -166,26 +243,54 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
           </ResponsivePanel>
         }
       >
-        <iframe
-          ref={frame}
-          title={`Slide ${index + 1}`}
-          sandbox="allow-scripts"
-          srcDoc={slides[index]}
-          onLoad={() => {
-            sendCommand(frame.current?.contentWindow ?? null, {
-              type: "set_motion",
-              reduced: reducedMotion,
-            });
-            sendCommand(frame.current?.contentWindow ?? null, {
-              type: "rate",
-              rate: playbackSpeeds[speedIndex],
-            });
-            if (!isPlaying)
+        {slideDocument.isPending && <p role="status">Loading slide…</p>}
+        {slideDocument.error && (
+          <div role="alert">
+            <p>This slide is unavailable. Check your connection and retry.</p>
+            <button
+              className="duo-button quiet"
+              onClick={() => void slideDocument.refetch()}
+            >
+              Retry slide
+            </button>
+          </div>
+        )}
+        {slideDocument.data && (
+          <iframe
+            key={slide.slide_id}
+            ref={frame}
+            title={`Slide ${index + 1}`}
+            sandbox="allow-scripts"
+            srcDoc={sandboxDocument(
+              slideDocument.data,
+              manifest.asset_origin,
+              reducedMotion,
+            )}
+            referrerPolicy="no-referrer"
+            onLoad={() => {
+              if (!started.current) {
+                started.current = true;
+                trackPlayer("lesson_started", {
+                  lesson_id: lessonId,
+                  course_id: manifest.course_id,
+                });
+              }
               sendCommand(frame.current?.contentWindow ?? null, {
-                type: "pause",
+                type: "set_motion",
+                reduced: reducedMotion,
               });
-          }}
-        />
+              sendCommand(frame.current?.contentWindow ?? null, {
+                type: "rate",
+                rate: playbackSpeeds[speedIndex],
+              });
+              if (!isPlaying)
+                sendCommand(frame.current?.contentWindow ?? null, {
+                  type: "pause",
+                });
+            }}
+          />
+        )}
+        <p className="slide-caption">{slide.narration_text}</p>
         <div className="controls player-controls">
           <button
             onClick={() => goToSlide(Math.max(0, index - 1))}
@@ -222,11 +327,11 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
               className="audio-timeline-slider"
               type="range"
               min={0}
-              max={3000}
+              max={slide.duration_ms}
               step={100}
               value={slideTime}
               aria-label="Slide time"
-              aria-valuetext={`${Math.floor(slideTime / 1000)}:${String(Math.floor((slideTime % 1000) / 100)).padStart(2, "0")} of 0:03`}
+              aria-valuetext={`${Math.floor(slideTime / 1000)}:${String(Math.floor((slideTime % 1000) / 100)).padStart(2, "0")} of ${Math.floor(slide.duration_ms / 1000)} seconds`}
               onChange={(event) => {
                 const time = Number(event.currentTarget.value);
                 setSlideTime(time);
@@ -240,7 +345,7 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
             <span aria-hidden="true">
               {Math.floor(slideTime / 1000)}:
               {String(Math.floor((slideTime % 1000) / 100)).padStart(2, "0")} /
-              0:03
+              {Math.floor(slide.duration_ms / 1000)}s
             </span>
           </div>
           <button
@@ -263,17 +368,23 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
           >
             {isMuted ? "Unmute" : "Mute"}
           </button>
-          <button
-            className="primary"
-            onClick={() => {
-              if (index === slides.length - 1) {
-                track("lesson_completed", { lesson: "sky" });
-                setFinished(true);
-              } else goToSlide(nextSlide(index, slides.length));
-            }}
-          >
-            {index === slides.length - 1 ? "Finish lesson" : "Next"}
-          </button>
+          {index === slides.length - 1 ? (
+            <Link
+              className="duo-button primary"
+              to="/lesson/$lessonId/test"
+              params={{ lessonId }}
+              onClick={pause}
+            >
+              Take lesson test
+            </Link>
+          ) : (
+            <button
+              className="primary"
+              onClick={() => goToSlide(nextSlide(index, slides.length))}
+            >
+              Next
+            </button>
+          )}
         </div>
         <div className="panel-tools" aria-label="Lesson tools">
           {(["Transcript", "Ask tutor", "Quick note"] as const).map((name) => (
@@ -291,12 +402,17 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
           ))}
         </div>
       </PanelLayout>
-      {index + 1 < slides.length && (
+      {preloaded.data && (
         <iframe
           title="Preloaded slide"
           hidden
           sandbox="allow-scripts"
-          srcDoc={slides[index + 1]}
+          srcDoc={sandboxDocument(
+            preloaded.data,
+            manifest.asset_origin,
+            reducedMotion,
+          )}
+          referrerPolicy="no-referrer"
         />
       )}
     </div>
