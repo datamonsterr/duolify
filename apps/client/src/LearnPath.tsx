@@ -30,20 +30,51 @@ export function LearnPath({ courseId }: { courseId: string }) {
             </h2>
           </div>
           <div className="path">
-            {unit.lessons.map((lesson) => (
+            {unit.lessons.map((lesson, index) => (
               <div className="node-row" key={lesson.id}>
                 {lesson.state === "current" ? (
+                  <>
+                    <Link
+                      className="node current"
+                      to="/lesson/$lessonId"
+                      params={{ lessonId: lesson.id }}
+                      aria-label={t("path.start", { name: lesson.title })}
+                    >
+                      ▶
+                    </Link>
+                    <span className="path-start" aria-hidden="true">
+                      {t("path.start_short")}
+                    </span>
+                  </>
+                ) : lesson.state === "done" ? (
                   <Link
-                    className="node current"
+                    className="node done"
                     to="/lesson/$lessonId"
                     params={{ lessonId: lesson.id }}
-                    aria-label={t("path.start", { name: lesson.title })}
+                    aria-label={t("path.review", {
+                      index: index + 1,
+                      name: lesson.title,
+                    })}
                   >
-                    ✦
+                    ✓
                   </Link>
                 ) : (
-                  <span className={`node ${lesson.state}`}>
-                    {lesson.state === "done" ? "✓" : "●"}
+                  <span
+                    className={`node ${lesson.state}`}
+                    role="img"
+                    aria-label={t("path.locked_help", {
+                      index: index + 1,
+                      name: lesson.title,
+                    })}
+                  >
+                    <svg
+                      className="node-icon"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <rect x="4" y="10" width="16" height="11" rx="2" />
+                      <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" />
+                    </svg>
                   </span>
                 )}
                 <div>

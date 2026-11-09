@@ -9,6 +9,9 @@ import {
 } from "@tanstack/react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { useState } from "react";
+import { http, HttpResponse } from "msw";
+import { server } from "./setup";
+import { credentialStore, session } from "../features/accounts/session";
 import { createAppRouter } from "../App";
 import {
   ResponsivePanel,
@@ -71,7 +74,9 @@ it("keeps pending/error recovery inside the shell and retries a failed loader wi
   ).toBeInTheDocument();
 });
 vi.mock("posthog-js/dist/module.no-external", () => ({ default: posthog }));
-afterEach(() => {
+afterEach(async () => {
+  await credentialStore.write(null);
+  session.clear();
   configureUiAnalytics(null);
   vi.clearAllMocks();
   vi.unstubAllGlobals();
@@ -95,12 +100,29 @@ export function media(initial = false) {
 
 it("composes More, pricing and focused routes, restoring scroll and delivering only safe enums", async () => {
   media(true);
-  configureUiAnalytics({
+  await credentialStore.write({
+    access_token: "shell-access",
+    refresh_token: "shell-refresh",
+    expires_in: 900,
+  });
+  server.use(
+    http.get("*/v1/me", () =>
+      HttpResponse.json({
+        id: "c94d6abe-40d0-4d5a-8eb8-9e53c4fb9856",
+        display_name: "Learner",
+        locale: "en",
+        time_zone: "UTC",
+        background: "",
+        analytics_opt_out: false,
+      }),
+    ),
+  );
+  const analyticsContext = {
     learnerId: "c94d6abe-40d0-4d5a-8eb8-9e53c4fb9856",
     enabled: true,
-    platform: "web",
+    platform: "web" as const,
     appVersion: "test",
-  });
+  };
   const router = createAppRouter(
     createMemoryHistory({ initialEntries: ["/more"] }),
   );
@@ -113,6 +135,7 @@ it("composes More, pricing and focused routes, restoring scroll and delivering o
     name: "More",
   });
   await waitFor(() => expect(heading).toHaveFocus());
+  configureUiAnalytics(analyticsContext);
   const main = screen.getByRole("main");
   main.scrollTop = 178;
   fireEvent.scroll(main);

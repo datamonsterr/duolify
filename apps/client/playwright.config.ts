@@ -1,16 +1,17 @@
 import { defineConfig } from "@playwright/test";
+import { apiBase, webBase, webPort } from "./e2e/servers";
 export default defineConfig({
   testDir: "./e2e",
-  use: { baseURL: "http://127.0.0.1:4182" },
+  use: { baseURL: webBase },
   webServer: [
     {
-      command: "pnpm preview --host 127.0.0.1 --port 4182",
-      port: 4182,
+      command: `pnpm preview --host 127.0.0.1 --port ${webPort}`,
+      port: webPort,
       reuseExistingServer: false,
     },
     {
-      command: "mise run api:pricing-e2e-server",
-      url: "http://127.0.0.1:18081/healthz",
+      command: `E2E_API_ADDR=${new URL(apiBase).host} mise run api:pricing-e2e-server`,
+      url: `${apiBase}/healthz`,
       timeout: 120_000,
       reuseExistingServer: false,
     },

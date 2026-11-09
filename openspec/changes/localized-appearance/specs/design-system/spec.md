@@ -20,3 +20,7 @@ The client SHALL emit ui_appearance_changed with mode in system, light or dark a
 #### Scenario: Reset and restore
 - **WHEN** the preference host is reset or recreated without a durable adapter
 - **THEN** defaults return without restoring drafts or sending private data
+
+#### Scenario: Account locale and session navigation
+- **WHEN** E1 mounts the authenticated learner shell
+- **THEN** the initial and reset UI language use the supported account locale with English fallback, and Settings links to the existing `/settings/sessions` route using localized copy

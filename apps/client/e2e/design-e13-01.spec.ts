@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./accounts-fixture";
 import tokens from "../../../docs/design/tokens.json" with { type: "json" };
 import { courses } from "../src/mocks/handlers";
 
@@ -264,7 +264,7 @@ test.describe("mobile touch and preferences", () => {
     await expect(page.getByRole("searchbox")).toHaveValue("Plant");
     await expect(page.locator(".course-icon")).toHaveCSS(
       "background-color",
-      "rgb(108, 212, 58)",
+      "rgb(38, 56, 63)",
     );
     await page.getByRole("link", { name: "Plant science", exact: true }).tap();
     await expect(page).toHaveURL(/\/course\/plants$/);

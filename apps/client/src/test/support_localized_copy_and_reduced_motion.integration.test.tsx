@@ -276,3 +276,19 @@ it("delivers content-free control events through PostHog and respects consent", 
   });
   expect(telemetry.capture).not.toHaveBeenCalled();
 });
+
+it("uses the E1 account locale as the initial and reset language without persisting device preferences", () => {
+  mediaDouble();
+  const view = render(
+    <UiPreferencesProvider initialPreferences={{ locale: "ar" }}>
+      <PreferenceControls />
+    </UiPreferencesProvider>,
+  );
+  expect(document.documentElement.lang).toBe("ar");
+  fireEvent.change(view.container.querySelector('[data-control="locale"]')!, {
+    target: { value: "en" },
+  });
+  expect(document.documentElement.lang).toBe("en");
+  fireEvent.click(view.container.querySelector('[data-control="reset"]')!);
+  expect(document.documentElement.lang).toBe("ar");
+});

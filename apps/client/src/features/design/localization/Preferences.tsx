@@ -70,15 +70,17 @@ export const useUiPreferences = () => useContext(Context);
 export function UiPreferencesProvider({
   children,
   adapter,
+  initialPreferences,
 }: {
   children: ReactNode;
   adapter?: PreferenceAdapter;
+  initialPreferences?: Partial<Preferences>;
 }) {
   const [preferences, setPreferences] = useState<Preferences>(() => {
     try {
-      return sanitizePreferences(adapter?.load());
+      return sanitizePreferences(adapter?.load() ?? initialPreferences);
     } catch {
-      return { ...defaultPreferences };
+      return sanitizePreferences(initialPreferences);
     }
   });
   const [saveError, setSaveError] = useState(false);
@@ -128,7 +130,7 @@ export function UiPreferencesProvider({
     }
     if (preferences.appearance !== "system") trackAppearance("system");
     trackPreference("reset");
-    setPreferences({ ...defaultPreferences });
+    setPreferences(sanitizePreferences(initialPreferences));
   }
   return (
     <Context.Provider

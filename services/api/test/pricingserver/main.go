@@ -4,20 +4,24 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/migrations"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
@@ -58,7 +62,58 @@ func run() (result error) {
 		return err
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server := httpapi.NewServer("127.0.0.1:18081", httpapi.New(httpapi.Dependencies{Pricing: catalogue}, logger))
+	sink := new(accounts.MailSink)
+	auth, err := accounts.New(db.Pool, "test-only-signing-key-at-least-32-bytes", sink)
+	if err != nil {
+		return err
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: catalogue, Quotes: pricing.NewQuotes(db.Pool), Accounts: auth}, logger))
+	// Test-only controls bind to loopback in this disposable fixture binary.
+	mux.HandleFunc("GET /test/mail", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:4182")
+		_ = json.NewEncoder(w).Encode(map[string]string{"code": sink.Code(r.URL.Query().Get("email"))})
+	})
+	mux.HandleFunc("POST /test/expire-access", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			AccessToken string `json:"access_token"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			w.WriteHeader(400)
+			return
+		}
+		claims, err := auth.ParseAccess(in.AccessToken)
+		if err != nil {
+			w.WriteHeader(400)
+			return
+		}
+		claims.ExpiresAt = jwt.NewNumericDate(time.Now().Add(-time.Minute))
+		raw, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("test-only-signing-key-at-least-32-bytes"))
+		if err != nil {
+			w.WriteHeader(500)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"access_token": raw})
+	})
+	mux.HandleFunc("POST /test/expire", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Email string `json:"email"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			w.WriteHeader(400)
+			return
+		}
+		if _, err := db.Pool.Exec(r.Context(), "UPDATE auth_codes SET expires_at=now()-interval '1 second' WHERE email=$1", in.Email); err != nil {
+			w.WriteHeader(500)
+			return
+		}
+		w.WriteHeader(204)
+	})
+	addr := os.Getenv("E2E_API_ADDR")
+	if addr == "" {
+		addr = "127.0.0.1:18081"
+	}
+	server := httpapi.NewServer(addr, mux)
 	listener, err := new(net.ListenConfig).Listen(ctx, "tcp", server.Addr)
 	if err != nil {
 		return err

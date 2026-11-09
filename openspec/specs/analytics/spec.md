@@ -34,7 +34,7 @@ The catalog MUST include: `xp_earned` (amount, source), `daily_goal_met` (goal_x
 - **THEN** `streak_broken` carries `previous_length`
 
 ### Requirement: Credits and AI feature events
-The catalog MUST include: `credits_reserved`, `credits_settled`, `credits_released` (feature, amount), `credits_insufficient` (feature, balance, estimate), `credits_purchased` (amount, currency, price), `credits_purchase_failed` (reason), `reward_credits_granted` (reason, amount), `tutor_message_sent` (has_lesson_context), `tutor_reply_completed`, `tutor_reply_stopped`, `tutor_reply_failed` (error_code), `quick_note_created` (source, length), `quick_note_enriched`, `quick_note_enrichment_failed`, `quick_note_reviewed`, `quick_note_deleted`, `bookmark_added`, `bookmark_removed`, `bookmark_opened` (target_type) and `learner_profile_updated` (fields_changed).
+The catalog MUST include: `credits_reserved`, `credits_settled`, `credits_released` (feature, amount), `credits_insufficient` (feature, balance, estimate), `credits_purchased` (amount, currency, price), `credits_purchase_failed` (reason), `reward_credits_granted` (reason, amount), `tutor_message_sent` (has_lesson_context), `tutor_reply_completed`, `tutor_reply_stopped`, `tutor_reply_failed` (error_code), `quick_note_created` (source, length), `quick_note_enriched`, `quick_note_enrichment_failed`, `quick_note_reviewed`, `quick_note_deleted`, `bookmark_added`, `bookmark_removed`, `bookmark_opened` (target_type), `learner_profile_updated` (fields_changed) and `onboarding_completed` (no domain properties).
 
 #### Scenario: Purchase event
 - **WHEN** a webhook confirms a purchase
@@ -74,3 +74,8 @@ PostHog is a derived store and MUST NOT be the only copy of any product state. E
 #### Scenario: Account deleted
 - **WHEN** a Learner deletes their account
 - **THEN** a PostHog person deletion request is made
+
+#### Scenario: Authoritative quote terms exposed
+- **WHEN** an action quote is displayed or renewed
+- **THEN** `pricing_version_exposed` uses surface `quote` and the quote's original version, deduplicated by authenticated session, surface and version; common UUID/platform/app_version/source properties are present and opt-out prevents delivery
+- **AND** action input, learner text, model mappings and quote payloads are excluded

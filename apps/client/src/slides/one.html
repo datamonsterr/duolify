@@ -71,6 +71,8 @@
         const animations = document.getAnimations();
         if (e.data.type === "pause") animations.forEach((a) => a.pause());
         if (e.data.type === "play") animations.forEach((a) => a.play());
+        if (e.data.type === "rate" && typeof e.data.rate === "number")
+          animations.forEach((a) => (a.playbackRate = e.data.rate));
         if (e.data.type === "seek" && typeof e.data.time === "number")
           animations.forEach((a) => {
             a.currentTime = e.data.time;

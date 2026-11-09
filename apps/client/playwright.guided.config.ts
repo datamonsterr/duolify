@@ -1,12 +1,11 @@
 import { defineConfig } from "@playwright/test";
+import config from "./playwright.config";
 
 export default defineConfig({
-  testDir: "./e2e",
+  ...config,
   testMatch: ["design-e13-03.spec.ts", "design-e13-04.spec.ts"],
-  use: { baseURL: "http://127.0.0.1:4183" },
-  webServer: {
-    command: "pnpm exec vite --host 127.0.0.1 --port 4183",
-    port: 4183,
-    reuseExistingServer: false,
-  },
+  // The authored fixture shares the built web server and needs no API process.
+  webServer: Array.isArray(config.webServer)
+    ? config.webServer[0]
+    : config.webServer,
 });

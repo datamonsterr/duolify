@@ -1,13 +1,22 @@
 import { UiPreferencesProvider } from "./features/design/localization/Preferences";
+import { resolveLocale } from "./features/design/localization/messages";
+import { session } from "./features/accounts/session";
 import { SettingsPage } from "./features/design/localization/PreferenceControls";
 import {
   createRootRoute,
   createRoute,
   createRouter,
   RouterProvider,
+  Outlet,
+  useLocation,
   useParams,
   type RouterHistory,
 } from "@tanstack/react-router";
+import { Sessions } from "./features/accounts/Sessions";
+import { SignIn } from "./features/accounts/SignIn";
+import { RouteGuard } from "./features/accounts/RouteGuard";
+import { SetupProfile } from "./features/accounts/LearnerProfile";
+import { AccountProfile } from "./features/accounts/AccountProfile";
 import { LearnPath } from "./LearnPath";
 import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
 import { Courses } from "./features/design/Courses";
@@ -19,12 +28,26 @@ import {
   RoutePending,
   RouteUnavailable,
 } from "./features/shell/RouteBoundary";
-const root = createRootRoute({
-  component: () => (
-    <UiPreferencesProvider>
+function AccountShell() {
+  return (
+    <UiPreferencesProvider
+      initialPreferences={{ locale: resolveLocale(session.current()?.locale) }}
+    >
       <AppShell />
     </UiPreferencesProvider>
-  ),
+  );
+}
+function AuthenticatedShell() {
+  const path = useLocation({ select: (location) => location.pathname });
+  if (path === "/sign-in") return <Outlet />;
+  return (
+    <RouteGuard path={path}>
+      <AccountShell />
+    </RouteGuard>
+  );
+}
+const root = createRootRoute({
+  component: AuthenticatedShell,
   pendingComponent: RoutePending,
   errorComponent: RouteError,
   notFoundComponent: RouteUnavailable,
@@ -60,13 +83,12 @@ const lesson = createRoute({
 const profile = createRoute({
   getParentRoute: () => root,
   path: "/profile",
-  component: () => (
-    <>
-      <div className="eyebrow">YOUR SPACE</div>
-      <h1>Profile</h1>
-      <p>Your learning journey starts here.</p>
-    </>
-  ),
+  component: AccountProfile,
+});
+const profileSetup = createRoute({
+  getParentRoute: () => root,
+  path: "/profile/setup",
+  component: SetupProfile,
 });
 const credits = createRoute({
   getParentRoute: () => root,
@@ -103,6 +125,11 @@ const settings = createRoute({
   path: "/settings",
   component: SettingsPage,
 });
+const sessions = createRoute({
+  getParentRoute: () => root,
+  path: "/settings/sessions",
+  component: Sessions,
+});
 const streak = createRoute({
   getParentRoute: () => root,
   path: "/streak",
@@ -120,6 +147,11 @@ const lessonTest = createRoute({
     </>
   ),
 });
+const signIn = createRoute({
+  getParentRoute: () => root,
+  path: "/sign-in",
+  component: SignIn,
+});
 export const createAppRouter = (history?: RouterHistory) =>
   createRouter({
     history,
@@ -133,6 +165,7 @@ export const createAppRouter = (history?: RouterHistory) =>
       course,
       lesson,
       profile,
+      profileSetup,
       credits,
       more,
       friends,
@@ -140,8 +173,10 @@ export const createAppRouter = (history?: RouterHistory) =>
       notes,
       bookmarks,
       settings,
+      sessions,
       streak,
       lessonTest,
+      signIn,
     ]),
   });
 const router = createAppRouter();

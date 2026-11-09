@@ -12,9 +12,11 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
@@ -128,8 +130,34 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	defer func() { result = errors.Join(result, events.Close()) }()
+	secret := os.Getenv("JWT_SECRET")
+	if len(secret) < 32 {
+		return errors.New("JWT_SECRET must contain at least 32 bytes")
+	}
+	var mailer accounts.Mailer = accounts.LogMailer{Logger: logger}
+	if os.Getenv("DUOLIFY_ENV") == "production" {
+		if strings.HasPrefix(secret, "change-me") {
+			return errors.New("production JWT_SECRET must replace the development placeholder")
+		}
+		if os.Getenv("RESEND_API_KEY") == "" || os.Getenv("AUTH_MAIL_FROM") == "" {
+			return errors.New("production auth requires RESEND_API_KEY and AUTH_MAIL_FROM")
+		}
+		mailer = accounts.ResendMailer{APIKey: os.Getenv("RESEND_API_KEY"), From: os.Getenv("AUTH_MAIL_FROM")}
+	}
+	profileOptions, err := accounts.ProfileOptionsFromEnv(os.Getenv)
+	if err != nil {
+		return err
+	}
+	profileOptions.Events = events
+	auth, err := accounts.New(db.Pool, secret, mailer)
+	if err != nil {
+		return err
+	}
+	auth.ConfigureProfile(profileOptions)
 	handler := httpapi.New(httpapi.Dependencies{
+		Accounts: auth,
 		Pricing:  catalogue,
+		Quotes:   pricing.NewQuotes(db.Pool),
 		Postgres: db.Ping,
 		Redis:    func(ctx context.Context) error { return redis.Ping(ctx).Err() },
 		Engine:   backend,

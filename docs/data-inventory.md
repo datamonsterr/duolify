@@ -2,18 +2,18 @@
 
 Owner specs are authoritative for collection and deletion. Every feature adding
 data must update this table and its restore checks. Bootstrap currently creates
-`learners`, `credit_entries`, immutable `pricing_versions`, Goose/River metadata and River's queue tables;
+`learners`, email-code auth/profile/session tables, `credit_entries`, immutable `pricing_versions`, Goose/River metadata and River's queue tables;
 the other product records below are planned. E11-01 implements the local nightly
 worker dump/upload and synthetic recovery proof; cloud keys, lifecycle policies
 and production drills still require provisioning. See [backup tooling](../infra/backup/README.md).
 
 | Store | Data held | Backup method | Retention / deletion | Owner spec |
 | --- | --- | --- | --- | --- |
-| Postgres | `learners`, future auth/session and learner profile rows | Nightly encrypted dump to separate backup bucket; Railway volume snapshots | Personal data removed within 30 days of account deletion; backup copies roll off in 14 days | [learner-profile](../openspec/specs/learner-profile/spec.md), [data-backup](../openspec/specs/data-backup/spec.md) |
+| Postgres | `learners`, `auth_identities` (normalized email), `learner_profiles` (device locale/time zone; optional current goal, topic, background, level, daily minutes/XP, reminder enabled/local time; setup completion flag; age confirmation timestamp and analytics preference), `auth_codes` (keyed hashes, expiry and attempts), `auth_sessions`, `auth_refresh_tokens` (SHA256 hashes only), `auth_rate_limits` (HMAC email/IP keys only) | Full encrypted nightly dump to separate backup bucket; Railway volume snapshots; real custom-format dump/restore check in `internal/accounts/sign_in_with_an_email_code_integration_test.go` | Codes expire after 10 minutes/five attempts; rate windows expire after one hour; sessions and refresh secrets expire after 30 days, access JWTs after 15 minutes. Expired codes/rates/sessions pruned on code requests; expiry enforced on every use even before cleanup. Identity/profile/session/token rows cascade with Learner deletion; identity deletion removes pending codes by email. Rate keys contain no reversible identity and expire within one hour. Personal data removed within 30 days; encrypted backup copies roll off after 14 days. No profile history or draft answers are stored. Authenticated profile export returns current context only. Restore checks populate and compare every context field, and verify cascade deletion, hashes, defaults and authentication expiry/revocation. Profile API/unit checks verify explicit confirmation, partial clear and preference preservation. Session families use the existing auth_sessions table; GET /v1/auth/sessions returns only owned active IDs, timestamps and current-device flags. Individual/all-device DELETE updates revoked_at; protected requests read Postgres directly with no authorization cache. No email, IP or user-agent device labels are collected. | [email-code-sign-in](../openspec/changes/email-code-sign-in/specs/accounts/spec.md), [learner-profile](../openspec/specs/learner-profile/spec.md), [data-backup](../openspec/specs/data-backup/spec.md) |
 | Postgres | Append-only `credit_entries`; derived purchased/reward balances | Same dump; PITR where available; reconcile balances with sum of entries after restore | At least 7 years per credits spec; preserve financial records while removing/anonymizing personal fields | [credits](../openspec/specs/credits/spec.md) |
 | Postgres | River jobs, queue/leader metadata, Goose/River migration versions; `database_backup` args contain only a UTC date | Included in full database dump; validate schema versions and retry safety on restore; backup date survives retries across midnight | River cleanup policy; no learner content or credentials in backup/dummy jobs. Backup jobs use three attempts and a separate bounded queue | [data-backup](../openspec/specs/data-backup/spec.md), [ADR 0003](adr/0003-data-stores.md) |
 | Postgres | Immutable `pricing_versions`: approved version, effective time, JSON action prices, packs, plans, benefits, limits and development-only synthetic product mappings | Included in full nightly encrypted database dumps; financial snapshots rotate after 35 days; resolver equality checked by a custom-format dump/restore integration test | Financial catalogue history retained at least 7 years in the live DB and subsequent dumps; UPDATE/DELETE/TRUNCATE refused; no learner/admin identity or content, so account deletion retains the catalogue unchanged | [pricing-config](../openspec/changes/pricing-config/specs/pricing-config/spec.md), [ADR 0007](adr/0007-credits-and-payments.md) |
-| Browser session storage | Last known public pricing DTO with version/effective time; exposure dedupe keys scoped to UUID/session/surface/version | Disposable cache; pricing recovered from API; no backup | Session lifetime; offline prices explicitly labelled; no learner content, provider mappings or payment details | [pricing-config](../openspec/changes/pricing-config/specs/pricing-config/spec.md), [analytics](../openspec/specs/analytics/spec.md) |
+| Browser session storage | Last known public pricing DTO with version/effective time and its ETag; exposure dedupe keys scoped to UUID/session/surface/version | Disposable cache; pricing recovered and revalidated from API; no backup | Session lifetime; offline prices explicitly labelled; no learner content, provider mappings or payment details. Clear cache and dedupe keys with the browser session; restore checks verify an empty session starts from the API. | [pricing-config](../openspec/changes/pricing-config/specs/pricing-config/spec.md), [analytics](../openspec/specs/analytics/spec.md) |
 | Postgres (planned) | Courses, units, lesson stubs, enrollment and generated lesson metadata | Nightly dump plus object-key consistency checks | Course soft-delete, then hard-delete after 30 days | [course-creation](../openspec/specs/course-creation/spec.md) |
 | Postgres (planned) | Lesson test attempts, answers, scores | Nightly dump | Life of account; delete within 30 days of account deletion | [lesson-test](../openspec/specs/lesson-test/spec.md) |
 | Postgres (planned) | XP events, streaks, freezes, daily goals, league membership | Nightly dump; source for rebuilding Redis | XP events for account life; personal rows deleted within 30 days of account deletion | [gamification](../openspec/specs/gamification/spec.md) |
@@ -24,7 +24,8 @@ and production drills still require provisioning. See [backup tooling](../infra/
 | S3 separate backup bucket | age-encrypted custom Postgres dumps at `YYYY-MM-DD/schema-<Goose version>.dump.age`; includes learner, append-only ledger and migration/queue state | Worker at 02:00 UTC plus startup catch-up; public X25519 recipient only, conditional whole-object upload, no multipart remnants. Railway snapshots remain a separately provisioned second layer | General backups 14 days; financial backup policy 35 days per ADR 0011. API has no backup access; writer can read/put but cannot delete or administer buckets. Separate retention administrator owns expiry; cloud lifecycle automation remains a follow-up | [data-backup](../openspec/specs/data-backup/spec.md), [ADR 0011](adr/0011-owner-decisions-2026-11-09.md) |
 | Worker temporary filesystem | Ciphertext-only private staging file (0600); no plaintext database archive | Disposable, never a recovery source; removed on success, dump failure and upload failure | One bounded job (30 minutes, at most 4 GiB encrypted output); container filesystem is ephemeral after abnormal process termination | [worker backup change](../openspec/changes/worker-database-backup/design.md) |
 | Local RustFS IAM metadata | Separate application, backup writer and root/retention identities and policies; local fixture secrets are environment settings | Reprovisioned by the development-only initializer; production IAM/keys managed separately | Never pass root or backup credentials to API containers; private age recovery key is never in worker images or environment | [worker backup change](../openspec/changes/worker-database-backup/design.md) |
-| Device cache / OS credential store | Cached slide copies; eventual login tokens | Disposable cache; tokens reissued via auth | Cache eviction/logout; never only copy of lesson assets | [lesson-player](../openspec/specs/lesson-player/spec.md), [ADR 0004](adr/0004-auth.md) |
+| Device OS credential store / browser session fallback | Access/refresh token pair in desktop OS keyring through fixed-service Tauri commands; web build only uses sessionStorage with an in-memory fallback. Analytics preference is a non-secret local boolean. Native mobile storage fails closed pending a supported implementation. | Credentials excluded from app backups; reissued by email-code sign-in | Logout revokes server session and deletes device credentials. Browser fallback ends with the browser session. No localStorage tokens; native keyring failures never fall back to browser storage. | [email-code-sign-in](../openspec/changes/email-code-sign-in/specs/accounts/spec.md), [ADR 0004](adr/0004-auth.md) |
+| Device cache | Cached slide copies | Disposable cache; never the sole copy of lesson assets | Cache eviction/logout | [lesson-player](../openspec/specs/lesson-player/spec.md) |
 | Hugging Face + CI artifacts | Golden-set revisions; eval reports | Versioned dataset; optional pinned mirror in S3; reports as CI artifacts | Keep dataset revisions; eval artifacts 90 days | [ai-reliability](../openspec/specs/ai-reliability/spec.md) |
 | PostHog | Product events, backup/drill results, AI token/latency metadata | Derived store; never sole product-state copy | Project-plan event retention; request person deletion on account deletion; no note/chat/profile text | [analytics](../openspec/specs/analytics/spec.md) |
 
@@ -34,7 +35,9 @@ deletion need an explicit anonymization design when auth/credits features ship;
 the current non-null ledger-to-learner foreign key does not implement it.
 
 E11-01 recovery checks decrypt an actual worker-image backup into a different
-synthetic database, check Goose/River metadata, exact learner/ledger counts and
+synthetic database, compare complete non-empty identity/profile/code/session/
+refresh-token/rate-limit rows (including hashes, expiry and analytics preference),
+reject an expired restored code, and check Goose/River metadata, exact learner/ledger counts and
 balance (120 - 35 = 85), compare the complete approved pricing catalogue, and
 reject ledger/catalogue UPDATE/DELETE/TRUNCATE after restore. Archive names and
 restored schema versions must match the fixture's applied migration version.
@@ -71,13 +74,38 @@ no additional persisted-data restore/deletion checks are needed. PostHog receive
 only allowlisted UI control/sheet IDs and common identity properties through the
 existing opt-out boundary; no learner content or duplicate API outcomes.
 
+E12-02 action quotes: Postgres `pricing_quote_policies` extends each immutable
+Pricing config version with token-class nanodollar rates, model/context/voice
+allowlists, conversion and TTL. `pricing_quotes` stores the complete immutable
+terms, component ceilings, eligible bucket, request counts, expiry and a version
+foreign key; `pricing_quote_consents` records approval independently of wallet
+reservations. All three tables are financial history retained at least seven
+years in the live database and fresh encrypted nightly dumps (35-day snapshot
+rotation per ADR 0011). Account deletion nulls the learner FK while preserving a
+SHA-256 pseudonymous owner reference. No prompt, topic, note or chat text is held.
+Backup fixtures include non-empty accepted quotes and compare full restored rows,
+version policy and consent; restored history rejects mutation. Focused deletion
+checks verify quotes survive with null identity. Client quote state is disposable
+React memory; no device quote persistence. Existing AI eval/fallback gates apply;
+quote creation makes no provider call.
+
+E1-04 session recovery retains safe drafts only in the mounted feature tree, hidden
+and inert while authorization is unavailable. Reauthentication as a different
+Learner remounts the feature tree. Shared refresh work and serialized SecureStore
+writes prevent stale responses from restoring credentials after logout. Navigation
+and focus recheck authorization. Explicit sign-out removes device credentials only
+after server revocation succeeds; offline failures retain them for Retry. No device
+secret or draft is added to server backups. The encrypted worker restore fixture
+includes consumed refresh hashes and a revoked family and proves they cannot
+restore access; learner deletion still cascades families and refresh hashes.
+
 E13-04 localization and appearance: typed English/Arabic messages and expansion
 fixtures live in Git with the semantic tokens. Restore them from the same commit
 and run `mise run client:test-localization` and `mise run client:build`.
 Locale, appearance and motion choices are disposable React host memory by default;
 no local storage or learner text is written. The `PreferenceAdapter` boundary lets
-E1 supply validated account preference load/save/clear when available. E1 currently
-has no durable preference API in this checkout. Adapter exceptions keep the local
+E1 supply validated account preference load/save/clear when available. The mounted E1 account supplies the initial locale;
+appearance and motion have no durable E1 API yet. Adapter exceptions keep the local
 choice and expose retry/reset; reset clears the adapter and restores defaults.
 Focused tests cover adapter restore, allowlisted saves, clear/reset, corrupt input
 and host recreation. Account deletion/logout must clear any future E1 adapter;

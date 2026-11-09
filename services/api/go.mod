@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.16
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.9
 	github.com/aws/smithy-go v1.28.8
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/minio/madmin-go/v3 v3.0.110
 	github.com/minio/minio-go/v7 v7.0.90

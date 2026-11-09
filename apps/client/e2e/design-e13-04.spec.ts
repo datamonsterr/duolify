@@ -1,4 +1,31 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+async function seedLocalizedAccount(page: Page, locale = "en") {
+  await page.addInitScript(() =>
+    sessionStorage.setItem(
+      "duolify.auth",
+      JSON.stringify({
+        access_token: "localization-access",
+        refresh_token: "localization-refresh",
+        expires_in: 900,
+      }),
+    ),
+  );
+  await page.route("**/v1/me", (route) =>
+    route.fulfill({
+      json: {
+        id: "10000000-0000-4000-8000-000000000001",
+        display_name: "Learner",
+        locale,
+        time_zone: "UTC",
+        background: "",
+        analytics_opt_out: true,
+      },
+    }),
+  );
+  await page.route("**/v1/auth/sessions", (route) =>
+    route.fulfill({ json: [] }),
+  );
+}
 
 for (const width of [1280, 320]) {
   test(`locale and appearance preserve guided state at ${width}px`, async ({
@@ -107,6 +134,7 @@ test("system motion overrides user choice and responds live", async ({
 test("real lesson preserves position, note and static explanation through preferences", async ({
   page,
 }) => {
+  await seedLocalizedAccount(page);
   await page.goto("/lesson/sky");
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await expect(page.getByText("Slide 2 of 3", { exact: true })).toBeVisible();
@@ -259,3 +287,22 @@ for (const width of [1280, 320])
         });
       });
     }
+
+for (const locale of ["en", "ar"])
+  test(`Settings links to account sessions and inherits ${locale}`, async ({
+    page,
+  }) => {
+    await seedLocalizedAccount(page, locale);
+    await page.goto("/settings");
+    await expect(page.locator("html")).toHaveAttribute("lang", locale);
+    const link = page.getByRole("link", {
+      name: locale === "ar" ? "إدارة الجلسات" : "Manage sessions",
+      exact: true,
+    });
+    await expect(link).toHaveAttribute("href", "/settings/sessions");
+    await link.click();
+    await expect(page).toHaveURL(/\/settings\/sessions$/);
+    await expect(
+      page.getByRole("heading", { name: "Sessions", exact: true }),
+    ).toBeVisible();
+  });

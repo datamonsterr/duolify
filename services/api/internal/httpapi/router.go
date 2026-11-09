@@ -27,17 +27,36 @@ type Dependencies struct {
 	Postgres, Redis func(context.Context) error
 	Engine          Engine
 	Pricing         http.Handler
+	Quotes          http.Handler
+	Accounts        interface {
+		http.Handler
+		Protect(http.Handler) http.Handler
+	}
 }
 
 // New creates the scaffold routes. Courses are static demonstration data.
 func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
+	if deps.Accounts != nil {
+		mux.Handle("/v1/auth/", deps.Accounts)
+		mux.Handle("GET /v1/me", deps.Accounts)
+		mux.Handle("/v1/me/", deps.Accounts)
+	} else {
+		mux.HandleFunc("GET /v1/me", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})
+		})
+	}
 	if deps.Pricing != nil {
 		mux.Handle("GET /v1/pricing", deps.Pricing)
 	} else {
 		mux.HandleFunc("GET /v1/pricing", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "pricing unavailable"})
 		})
+	}
+	if deps.Quotes != nil {
+		mux.Handle("POST /v1/quotes", deps.Quotes)
+		mux.Handle("GET /v1/quotes/{id}", deps.Quotes)
+		mux.Handle("POST /v1/quotes/{id}/accept", deps.Quotes)
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -105,7 +124,19 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			logger.DebugContext(r.Context(), "response write failed", "request_id", RequestID(r.Context()))
 		}
 	})
-	return Middleware(logger, mux)
+	// Public health and pricing stay available; learner-owned routes require auth.
+	guard := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/v1/courses") || strings.HasPrefix(r.URL.Path, "/v1/quotes") {
+			if deps.Accounts == nil {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})
+				return
+			}
+			deps.Accounts.Protect(mux).ServeHTTP(w, r)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})
+	return Middleware(logger, guard)
 }
 func writeJSON(w http.ResponseWriter, code int, value any) {
 	w.Header().Set("Content-Type", "application/json")

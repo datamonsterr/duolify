@@ -1,6 +1,7 @@
 export type SlideCommand =
   | { type: "play" | "pause" }
   | { type: "seek"; time: number }
+  | { type: "rate"; rate: number }
   | { type: "set_motion"; reduced: boolean };
 export type SlideMessage =
   { type: "ended" } | { type: "checkpoint"; name: string };

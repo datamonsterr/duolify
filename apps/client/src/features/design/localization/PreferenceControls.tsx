@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useId } from "react";
 import { useUiPreferences } from "./Preferences";
 import { Button } from "../Button";
@@ -80,6 +81,9 @@ export function SettingsPage() {
     <>
       <h1>{t("settings.title")}</h1>
       <PreferenceControls />
+      <Link className="shell-link" to="/settings/sessions">
+        {t("settings.sessions")}
+      </Link>
     </>
   );
 }

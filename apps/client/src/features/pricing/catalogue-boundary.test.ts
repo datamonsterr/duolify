@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { hasCommercialPricingLiteral } from "./literal-rule";
+import literalFixtures from "./fixtures/literal-rule.json";
 
 const sources = import.meta.glob<string>(
   [
@@ -10,13 +12,25 @@ const sources = import.meta.glob<string>(
   { query: "?raw", import: "default", eager: true },
 );
 describe("pricing boundary", () => {
-  it("keeps price and credit literals out of application code", () => {
+  it("classifies the authored commercial and documented noncommercial literal fixtures", () => {
+    expect(literalFixtures.commercial.every(hasCommercialPricingLiteral)).toBe(
+      true,
+    );
+    expect(
+      literalFixtures.noncommercial.every(
+        (line) => !hasCommercialPricingLiteral(line),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects commercial amounts outside authored fixtures and documented exceptions", () => {
     for (const [path, source] of Object.entries(sources)) {
-      expect(source, path).not.toMatch(/\$\d|\b\d[\d,.]*\s+credits\b/i);
-      expect(source, path).not.toMatch(
-        /\b(?:credits|amount_minor|monthly_credits|concurrent_generation)\s*:\s*\d/,
-      );
-      expect(source, path).not.toMatch(/\.credits\s*(?:\?\?|\|\||=)\s*\d/);
+      for (const [lineNumber, line] of source.split("\n").entries()) {
+        expect(
+          hasCommercialPricingLiteral(line),
+          `${path}:${lineNumber + 1}`,
+        ).toBe(false);
+      }
       expect(source, path).not.toMatch(
         /import\s+.*from\s+["'][^"']*fixtures\//,
       );

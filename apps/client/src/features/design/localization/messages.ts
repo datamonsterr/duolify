@@ -5,6 +5,12 @@ export type PluralMessage = { other: string } & Partial<
 >;
 export type Message = string | PluralMessage;
 export const en = {
+  "settings.sessions": "Manage sessions",
+  "path.start_short": "Start",
+  "path.review": "Lesson {index}, {name}, completed. Review",
+  "path.locked_help":
+    "Lesson {index}, {name}, locked. Pass the previous lesson test first",
+  "course.position": "Unit {unit} · Lesson {lesson} of {count}",
   "demo.remaining": "Brief · 1 question left",
   "demo.skip_hint": "You can skip any question. Nothing starts automatically.",
   "demo.form": "Course brief form",
@@ -178,6 +184,12 @@ export const en = {
 } satisfies Record<string, Message>;
 export type MessageId = keyof typeof en;
 export const ar: Record<MessageId, Message> = {
+  "settings.sessions": "إدارة الجلسات",
+  "path.start_short": "ابدأ",
+  "path.review": "الدرس {index}، {name}، مكتمل. مراجعة",
+  "path.locked_help":
+    "الدرس {index}، {name}، مقفل. اجتز اختبار الدرس السابق أولًا",
+  "course.position": "الوحدة {unit} · الدرس {lesson} من {count}",
   "demo.remaining": "الملخص · بقي سؤال واحد",
   "demo.skip_hint": "يمكنك تخطّي أي سؤال. لا يبدأ شيء تلقائيًا.",
   "demo.form": "نموذج ملخص الدورة",
