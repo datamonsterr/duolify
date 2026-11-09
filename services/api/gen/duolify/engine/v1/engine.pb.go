@@ -282,8 +282,10 @@ type UsageLimits struct {
 	Model            string                 `protobuf:"bytes,11,opt,name=model,proto3" json:"model,omitempty"`
 	FallbackProvider string                 `protobuf:"bytes,12,opt,name=fallback_provider,json=fallbackProvider,proto3" json:"fallback_provider,omitempty"`
 	FallbackModel    string                 `protobuf:"bytes,13,opt,name=fallback_model,json=fallbackModel,proto3" json:"fallback_model,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Absolute reservation deadline, including API queue and transport time.
+	DeadlineUnixMs uint64 `protobuf:"varint,14,opt,name=deadline_unix_ms,json=deadlineUnixMs,proto3" json:"deadline_unix_ms,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *UsageLimits) Reset() {
@@ -405,6 +407,13 @@ func (x *UsageLimits) GetFallbackModel() string {
 		return x.FallbackModel
 	}
 	return ""
+}
+
+func (x *UsageLimits) GetDeadlineUnixMs() uint64 {
+	if x != nil {
+		return x.DeadlineUnixMs
+	}
+	return 0
 }
 
 type LearnerProfile struct {
@@ -2773,7 +2782,7 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\x06cached\x18\r \x01(\bR\x06cached\x12\x1f\n" +
 	"\vartifact_id\x18\x0e \x01(\tR\n" +
 	"artifactId\x12+\n" +
-	"\x11usage_unavailable\x18\x0f \x01(\bR\x10usageUnavailable\"\xdd\x03\n" +
+	"\x11usage_unavailable\x18\x0f \x01(\bR\x10usageUnavailable\"\x87\x04\n" +
 	"\vUsageLimits\x12!\n" +
 	"\finput_tokens\x18\x01 \x01(\rR\vinputTokens\x12#\n" +
 	"\routput_tokens\x18\x02 \x01(\rR\foutputTokens\x12\x1d\n" +
@@ -2790,7 +2799,8 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	" \x01(\tR\bprovider\x12\x14\n" +
 	"\x05model\x18\v \x01(\tR\x05model\x12+\n" +
 	"\x11fallback_provider\x18\f \x01(\tR\x10fallbackProvider\x12%\n" +
-	"\x0efallback_model\x18\r \x01(\tR\rfallbackModel\"\xd6\x02\n" +
+	"\x0efallback_model\x18\r \x01(\tR\rfallbackModel\x12(\n" +
+	"\x10deadline_unix_ms\x18\x0e \x01(\x04R\x0edeadlineUnixMs\"\xd6\x02\n" +
 	"\x0eLearnerProfile\x12\x1d\n" +
 	"\n" +
 	"learner_id\x18\x01 \x01(\tR\tlearnerId\x12\x16\n" +

@@ -344,7 +344,8 @@ func (s *Service) Limits(ctx context.Context, owner, id, action string) (*engine
 		return nil, ErrReservation
 	}
 	var raw []byte
-	if err := s.pool().QueryRow(ctx, `SELECT q.snapshot FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.id=$1 AND j.learner_id=$2 AND j.state IN ('reserved','running')`, id, owner).Scan(&raw); err != nil {
+	var deadline time.Time
+	if err := s.pool().QueryRow(ctx, `SELECT q.snapshot,j.deadline_at FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.id=$1 AND j.learner_id=$2 AND j.state IN ('reserved','running')`, id, owner).Scan(&raw, &deadline); err != nil {
 		return nil, ErrReservation
 	}
 	var q pricing.Quote
@@ -374,7 +375,7 @@ func (s *Service) Limits(ctx context.Context, owner, id, action string) (*engine
 	if err != nil {
 		return nil, err
 	}
-	return &enginev1.UsageLimits{InputTokens: input, OutputTokens: output, TimeoutMs: timeout, MaxAttempts: attempts, MaxCostNanos: nonnegativeUint64(min(reservationCost(q), q.Bounds["max_cost_nanos"])), InputNanos: nonnegativeUint64(max(q.Rate.Input, fallback.Input)), OutputNanos: nonnegativeUint64(max(q.Rate.Output, fallback.Output)), CacheWriteNanos: nonnegativeUint64(max(q.Rate.CacheWrite, fallback.CacheWrite)), CacheReadNanos: nonnegativeUint64(max(q.Rate.CacheRead, fallback.CacheRead)), Provider: q.Rate.Provider, Model: q.Rate.Model, FallbackProvider: fallback.Provider, FallbackModel: fallback.Model}, nil
+	return &enginev1.UsageLimits{InputTokens: input, OutputTokens: output, TimeoutMs: timeout, MaxAttempts: attempts, MaxCostNanos: nonnegativeUint64(min(reservationCost(q), q.Bounds["max_cost_nanos"])), InputNanos: nonnegativeUint64(max(q.Rate.Input, fallback.Input)), OutputNanos: nonnegativeUint64(max(q.Rate.Output, fallback.Output)), CacheWriteNanos: nonnegativeUint64(max(q.Rate.CacheWrite, fallback.CacheWrite)), CacheReadNanos: nonnegativeUint64(max(q.Rate.CacheRead, fallback.CacheRead)), Provider: q.Rate.Provider, Model: q.Rate.Model, FallbackProvider: fallback.Provider, FallbackModel: fallback.Model, DeadlineUnixMs: nonnegativeUint64(deadline.UnixMilli())}, nil
 }
 
 // Release cancels only queued work; it cannot release another executor's running job.
