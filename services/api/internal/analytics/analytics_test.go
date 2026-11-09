@@ -87,7 +87,7 @@ func TestEventAllowlist(t *testing.T) {
 	for _, name := range []string{
 		"course_outline_generated", "course_enrolled", "course_generation_failed", "ui_recovery_selected",
 		"learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
-		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
+		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed", "ai_cost_budget_alert",
 		"$ai_generation", "ui_control_activated", "ui_navigation_selected",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
@@ -306,5 +306,68 @@ func TestPreviewEventsReachPostHogWithoutPrivateData(t *testing.T) {
 				t.Fatal("opt-out sent analytics")
 			}
 		})
+	}
+}
+
+func TestAICostBudgetAlertReachesPostHogWithoutPrivateData(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	systemID := "00000000-0000-4000-8000-000000000011"
+	props := map[string]any{
+		"source":        "api",
+		"platform":      "web",
+		"app_version":   "development",
+		"scope":         "platform_daily_80",
+		"actual_usd":    40.50,
+		"budget_usd":    50.00,
+		"threshold":     0.80,
+		"status":        "firing",
+		"learner_text":  "forbidden prompt text",
+		"user_question": "forbidden learner question",
+	}
+
+	if err := events.Capture(systemID, "ai_cost_budget_alert", props); err != nil {
+		t.Fatal(err)
+	}
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(received))
+	}
+	ev := received[0]
+	if ev["event"] != "ai_cost_budget_alert" {
+		t.Fatalf("expected ai_cost_budget_alert, got %v", ev["event"])
+	}
+	if ev["distinct_id"] != systemID {
+		t.Fatalf("expected system ID %s, got %v", systemID, ev["distinct_id"])
+	}
+	p := ev["properties"].(map[string]any)
+	if p["scope"] != "platform_daily_80" || p["actual_usd"] != 40.50 || p["budget_usd"] != 50.00 {
+		t.Fatalf("missing or wrong properties: %v", p)
+	}
+	if p["learner_text"] != nil || p["user_question"] != nil {
+		t.Fatalf("leaked private properties: %v", p)
 	}
 }
