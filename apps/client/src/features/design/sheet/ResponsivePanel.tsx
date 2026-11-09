@@ -18,15 +18,24 @@ export function ResponsivePanel({
   sheetId,
   children,
   onPausePlayer,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   title: string;
   triggerLabel: string;
   sheetId: GuidedSheetId;
   children: ReactNode;
   onPausePlayer?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const mobile = useSyncExternalStore(subscribe, snapshot, () => false);
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  function setOpen(value: boolean) {
+    setLocalOpen(value);
+    onOpenChange?.(value);
+  }
   const trigger = useRef<HTMLButtonElement>(null);
   return (
     <div className="guided-responsive-panel">

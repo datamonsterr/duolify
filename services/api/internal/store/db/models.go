@@ -8,6 +8,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AccountDeletionTombstone struct {
+	LearnerReference string             `json:"learner_reference"`
+	RequestedAt      pgtype.Timestamptz `json:"requested_at"`
+	AppliedAt        pgtype.Timestamptz `json:"applied_at"`
+}
+
 type AuthCode struct {
 	Email      string             `json:"email"`
 	CodeHash   string             `json:"code_hash"`
@@ -20,6 +26,24 @@ type AuthIdentity struct {
 	Email     string             `json:"email"`
 	LearnerID pgtype.UUID        `json:"learner_id"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type AuthOauthAttempt struct {
+	StateHash     string             `json:"state_hash"`
+	NonceHash     string             `json:"nonce_hash"`
+	CodeChallenge string             `json:"code_challenge"`
+	RedirectUri   string             `json:"redirect_uri"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt    pgtype.Timestamptz `json:"consumed_at"`
+}
+
+type AuthProviderIdentity struct {
+	Provider      string             `json:"provider"`
+	Subject       string             `json:"subject"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	VerifiedEmail string             `json:"verified_email"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
 type AuthRateLimit struct {
@@ -44,13 +68,23 @@ type AuthSession struct {
 	ReauthenticatedAt pgtype.Timestamptz `json:"reauthenticated_at"`
 }
 
+type CourseBriefRevision struct {
+	ID          pgtype.UUID        `json:"id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	Brief       []byte             `json:"brief"`
+	ContentHash string             `json:"content_hash"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+}
+
 type CreditEntry struct {
-	ID        int64              `json:"id"`
-	LearnerID pgtype.UUID        `json:"learner_id"`
-	Amount    int64              `json:"amount"`
-	Kind      string             `json:"kind"`
-	Reference string             `json:"reference"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID             int64              `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	Amount         int64              `json:"amount"`
+	Kind           string             `json:"kind"`
+	Reference      string             `json:"reference"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OwnerReference pgtype.Text        `json:"owner_reference"`
 }
 
 type Learner struct {
@@ -82,6 +116,11 @@ type LearnerProfile struct {
 	TextSize        pgtype.Numeric     `json:"text_size"`
 	UiSounds        bool               `json:"ui_sounds"`
 	Haptics         string             `json:"haptics"`
+}
+
+type PosthogPersonDeletionRequest struct {
+	DistinctID  pgtype.UUID        `json:"distinct_id"`
+	RequestedAt pgtype.Timestamptz `json:"requested_at"`
 }
 
 type PricingActivationEvent struct {

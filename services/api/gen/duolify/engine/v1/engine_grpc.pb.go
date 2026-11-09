@@ -26,6 +26,7 @@ const (
 	EngineService_Chat_FullMethodName                  = "/duolify.engine.v1.EngineService/Chat"
 	EngineService_EnrichNote_FullMethodName            = "/duolify.engine.v1.EngineService/EnrichNote"
 	EngineService_SetupChat_FullMethodName             = "/duolify.engine.v1.EngineService/SetupChat"
+	EngineService_CourseBriefChat_FullMethodName       = "/duolify.engine.v1.EngineService/CourseBriefChat"
 )
 
 // EngineServiceClient is the client API for EngineService service.
@@ -49,6 +50,8 @@ type EngineServiceClient interface {
 	EnrichNote(ctx context.Context, in *EnrichNoteRequest, opts ...grpc.CallOption) (*EnrichNoteResponse, error)
 	// SetupChat guides onboarding and learner profile configuration.
 	SetupChat(ctx context.Context, in *SetupChatRequest, opts ...grpc.CallOption) (*SetupChatResponse, error)
+	// CourseBriefChat clarifies intent without generating or persisting a course.
+	CourseBriefChat(ctx context.Context, in *CourseBriefChatRequest, opts ...grpc.CallOption) (*CourseBriefChatResponse, error)
 }
 
 type engineServiceClient struct {
@@ -147,6 +150,16 @@ func (c *engineServiceClient) SetupChat(ctx context.Context, in *SetupChatReques
 	return out, nil
 }
 
+func (c *engineServiceClient) CourseBriefChat(ctx context.Context, in *CourseBriefChatRequest, opts ...grpc.CallOption) (*CourseBriefChatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CourseBriefChatResponse)
+	err := c.cc.Invoke(ctx, EngineService_CourseBriefChat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EngineServiceServer is the server API for EngineService service.
 // All implementations must embed UnimplementedEngineServiceServer
 // for forward compatibility.
@@ -168,6 +181,8 @@ type EngineServiceServer interface {
 	EnrichNote(context.Context, *EnrichNoteRequest) (*EnrichNoteResponse, error)
 	// SetupChat guides onboarding and learner profile configuration.
 	SetupChat(context.Context, *SetupChatRequest) (*SetupChatResponse, error)
+	// CourseBriefChat clarifies intent without generating or persisting a course.
+	CourseBriefChat(context.Context, *CourseBriefChatRequest) (*CourseBriefChatResponse, error)
 	mustEmbedUnimplementedEngineServiceServer()
 }
 
@@ -198,6 +213,9 @@ func (UnimplementedEngineServiceServer) EnrichNote(context.Context, *EnrichNoteR
 }
 func (UnimplementedEngineServiceServer) SetupChat(context.Context, *SetupChatRequest) (*SetupChatResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetupChat not implemented")
+}
+func (UnimplementedEngineServiceServer) CourseBriefChat(context.Context, *CourseBriefChatRequest) (*CourseBriefChatResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CourseBriefChat not implemented")
 }
 func (UnimplementedEngineServiceServer) mustEmbedUnimplementedEngineServiceServer() {}
 func (UnimplementedEngineServiceServer) testEmbeddedByValue()                       {}
@@ -332,6 +350,24 @@ func _EngineService_SetupChat_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _EngineService_CourseBriefChat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CourseBriefChatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).CourseBriefChat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_CourseBriefChat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).CourseBriefChat(ctx, req.(*CourseBriefChatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // EngineService_ServiceDesc is the grpc.ServiceDesc for EngineService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -358,6 +394,10 @@ var EngineService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetupChat",
 			Handler:    _EngineService_SetupChat_Handler,
+		},
+		{
+			MethodName: "CourseBriefChat",
+			Handler:    _EngineService_CourseBriefChat_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
