@@ -47,6 +47,13 @@ The catalogue SHALL include `pricing_version_exposed` with `pricing_version` and
 - **WHEN** a signed-in Learner opens the same price surface twice in one session
 - **THEN** one exposure event reaches PostHog, unless analytics is disabled
 
+### Requirement: Pricing lifecycle events
+The catalogue SHALL include `pricing_version_created`, `pricing_version_approved` and `pricing_version_rejected` with `pricing_version`, `change_class` (`adverse` or `non_adverse`), and `actor_id`. The API SHALL emit them through the existing UUID/common-properties wrapper. Events MUST NOT include reasons, full pricing content, credentials or provider mappings. Server opt-out SHALL suppress delivery.
+
+#### Scenario: Pricing lifecycle
+- **WHEN** a pricing administrator creates, approves or rejects a version
+- **THEN** the corresponding lifecycle event is emitted with common properties and no private reason text
+
 ### Requirement: LLM analytics
 Every Engine call SHALL produce a PostHog `$ai_generation` event from the API with `$ai_provider`, `$ai_model`, `$ai_input_tokens`, `$ai_output_tokens`, `$ai_latency`, `feature`, `fallback_used` and `$ai_is_error`. Prompt and completion text MUST NOT be captured.
 

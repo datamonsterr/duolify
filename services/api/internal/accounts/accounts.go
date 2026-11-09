@@ -404,15 +404,30 @@ type sessionKey struct{}
 
 // Protect rejects missing, expired, revoked and deleted-account credentials.
 func (s *Service) Protect(next http.Handler) http.Handler {
+	return s.protect(next, nil)
+}
+
+// ProtectWithDenied invokes the audit hook for missing, invalid or revoked credentials.
+func (s *Service) ProtectWithDenied(next http.Handler, denied func(*http.Request)) http.Handler {
+	return s.protect(next, denied)
+}
+
+func (s *Service) protect(next http.Handler, denied func(*http.Request)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		raw, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if !ok {
+			if denied != nil {
+				denied(r)
+			}
 			failure(w, errCredentials)
 			return
 		}
 		claims, err := s.ParseAccess(raw)
 		if err != nil {
+			if denied != nil {
+				denied(r)
+			}
 			failure(w, errCredentials)
 			return
 		}
@@ -423,6 +438,9 @@ func (s *Service) Protect(next http.Handler) http.Handler {
 			return
 		}
 		if !active {
+			if denied != nil {
+				denied(r)
+			}
 			failure(w, errCredentials)
 			return
 		}
@@ -461,5 +479,11 @@ func respond(w http.ResponseWriter, status int, body any) {
 // LearnerID returns the verified internal UUID supplied by Protect.
 func LearnerID(ctx context.Context) string {
 	id, _ := ctx.Value(learnerKey{}).(string)
+	return id
+}
+
+// SessionID returns the verified session UUID set by Protect.
+func SessionID(ctx context.Context) string {
+	id, _ := ctx.Value(sessionKey{}).(string)
 	return id
 }

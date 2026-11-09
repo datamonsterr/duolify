@@ -28,6 +28,7 @@ Not owner decisions; chosen by the orchestrator so work could continue. Change t
 | Ticket | Default |
 |---|---|
 | E12-02 | Action quotes are independent of wallet reservations. The initial quote TTL is 10 minutes; provider/model rates come from the business-model cost envelope; the logical narration voice key is `default`. Quote policy is an immutable extension owned by each Pricing version. Quoting never enables a model or calls a provider. |
+| E12-05 | Admin routes require reauthentication within 15 minutes. Operators provision `pricing_admin` grants from existing account UUIDs through `PRICING_ADMIN_IDS`; `PRICING_OWNER_ID` identifies the sole-owner adverse self-approval exception. The 70% SKU margin check uses the configured protected cost ceiling per Credit multiplied by each SKU's included Credits; yearly plans use 12 monthly grants. The operator CLI uses a granted actor UUID and required reason without session freshness, because it has no interactive API session. |
 
 ## Still open (owner provisioning)
 

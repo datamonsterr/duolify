@@ -3,12 +3,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -41,9 +43,12 @@ func main() {
 }
 func run(ctx context.Context, args []string) (result error) {
 	if len(args) == 0 {
-		return errors.New("usage: api {serve|worker|migrate|healthcheck}")
+		return errors.New("usage: api {serve|worker|migrate|admin|healthcheck}")
 	}
 	command := args[0]
+	if command == "admin" {
+		return runAdminCLI(ctx, args[1:])
+	}
 	if command == "healthcheck" {
 		return healthcheck(ctx, args[1:])
 	}
@@ -154,13 +159,18 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	auth.ConfigureProfile(profileOptions)
+	if err := pricing.BootstrapAdmins(ctx, db.Pool, pricing.OperatorPricingAdminIDs()); err != nil {
+		return fmt.Errorf("pricing admin bootstrap failed: %w", err)
+	}
+	pricingAdmin := pricing.NewAdmin(db.Pool, events, os.Getenv("PRICING_OWNER_ID"))
 	handler := httpapi.New(httpapi.Dependencies{
-		Accounts: auth,
-		Pricing:  catalogue,
-		Quotes:   pricing.NewQuotes(db.Pool),
-		Postgres: db.Ping,
-		Redis:    func(ctx context.Context) error { return redis.Ping(ctx).Err() },
-		Engine:   backend,
+		Accounts:     auth,
+		Pricing:      catalogue,
+		PricingAdmin: pricingAdmin,
+		Quotes:       pricing.NewQuotes(db.Pool),
+		Postgres:     db.Ping,
+		Redis:        func(ctx context.Context) error { return redis.Ping(ctx).Err() },
+		Engine:       backend,
 	}, logger)
 	server := httpapi.NewServer(cfg.Addr, handler)
 	listener, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.Addr)
@@ -169,6 +179,100 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	logger.InfoContext(ctx, "HTTP server listening", "addr", listener.Addr().String())
 	return httpapi.Serve(ctx, server, listener)
+}
+
+func runAdminCLI(ctx context.Context, args []string) error {
+	if len(args) < 2 || args[0] != "pricing" {
+		return errors.New("usage: api admin pricing {draft|edit|validate|diff|submit|approve|reject|list|show} --actor UUID --reason TEXT [--version ID] [--config FILE]")
+	}
+	operation := args[1]
+	flags := flag.NewFlagSet("admin pricing", flag.ContinueOnError)
+	actor := flags.String("actor", "", "operator account UUID")
+	reason := flags.String("reason", "", "required audit reason")
+	version := flags.String("version", "", "pricing version")
+	configFile := flags.String("config", "", "pricing config JSON file for draft/edit")
+	if err := flags.Parse(args[2:]); err != nil {
+		return err
+	}
+	if *actor == "" || strings.TrimSpace(*reason) == "" {
+		return errors.New("--actor and --reason are required")
+	}
+	path := "/admin/v1/pricing/drafts"
+	method := http.MethodPost
+	var body []byte
+	switch operation {
+	case "draft":
+		if *configFile == "" {
+			return errors.New("--config is required for draft")
+		}
+		config, err := os.ReadFile(*configFile)
+		if err != nil {
+			return err
+		}
+		body, err = json.Marshal(map[string]any{"config": json.RawMessage(config), "reason": *reason})
+		if err != nil {
+			return err
+		}
+	case "list":
+		method = http.MethodGet
+		path += "?reason=" + url.QueryEscape(*reason)
+	case "edit":
+		if *version == "" || *configFile == "" {
+			return errors.New("--version and --config are required for edit")
+		}
+		config, err := os.ReadFile(*configFile)
+		if err != nil {
+			return err
+		}
+		body, err = json.Marshal(map[string]any{"config": json.RawMessage(config), "reason": *reason})
+		if err != nil {
+			return err
+		}
+		method = http.MethodPatch
+		path += "/" + url.PathEscape(*version)
+	case "show":
+		if *version == "" {
+			return errors.New("--version is required for show")
+		}
+		method = http.MethodGet
+		path += "/" + url.PathEscape(*version) + "?reason=" + url.QueryEscape(*reason)
+	case "validate", "diff", "submit", "approve", "reject":
+		if *version == "" {
+			return errors.New("--version is required for this operation")
+		}
+		path += "/" + url.PathEscape(*version) + "/" + operation
+		body, _ = json.Marshal(map[string]string{"reason": *reason})
+	default:
+		return fmt.Errorf("unknown pricing operation %q", operation)
+	}
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return errors.New("DATABASE_URL is required")
+	}
+	db, err := store.New(ctx, databaseURL)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if err = pricing.BootstrapAdmins(ctx, db.Pool, pricing.OperatorPricingAdminIDs()); err != nil {
+		return err
+	}
+	key := os.Getenv("POSTHOG_API_KEY")
+	if strings.EqualFold(os.Getenv("ANALYTICS_OPT_OUT"), "true") {
+		key = ""
+	}
+	events, err := analytics.New(key, os.Getenv("POSTHOG_HOST"))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = events.Close() }()
+	admin := pricing.NewAdmin(db.Pool, events, os.Getenv("PRICING_OWNER_ID"))
+	status, response := admin.ExecuteCLI(ctx, *actor, method, path, body)
+	_, _ = os.Stdout.Write(response)
+	if status < 200 || status >= 300 {
+		return fmt.Errorf("pricing %s failed with HTTP %d", operation, status)
+	}
+	return nil
 }
 
 // healthcheck works in distroless images without a shell or curl. Workers and

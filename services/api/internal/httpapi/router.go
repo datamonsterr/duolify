@@ -27,6 +27,7 @@ type Dependencies struct {
 	Postgres, Redis func(context.Context) error
 	Engine          Engine
 	Pricing         http.Handler
+	PricingAdmin    http.Handler
 	Quotes          http.Handler
 	Accounts        interface {
 		http.Handler
@@ -51,6 +52,23 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	} else {
 		mux.HandleFunc("GET /v1/pricing", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "pricing unavailable"})
+		})
+	}
+	if deps.PricingAdmin != nil && deps.Accounts != nil {
+		if protected, ok := deps.Accounts.(interface {
+			ProtectWithDenied(http.Handler, func(*http.Request)) http.Handler
+		}); ok {
+			if audit, ok := deps.PricingAdmin.(interface{ RecordDenied(*http.Request) }); ok {
+				mux.Handle("/admin/v1/pricing/", protected.ProtectWithDenied(deps.PricingAdmin, audit.RecordDenied))
+			} else {
+				mux.Handle("/admin/v1/pricing/", deps.Accounts.Protect(deps.PricingAdmin))
+			}
+		} else {
+			mux.Handle("/admin/v1/pricing/", deps.Accounts.Protect(deps.PricingAdmin))
+		}
+	} else {
+		mux.HandleFunc("/admin/v1/pricing/", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "pricing administration unavailable"})
 		})
 	}
 	if deps.Quotes != nil {

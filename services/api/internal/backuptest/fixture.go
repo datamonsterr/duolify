@@ -282,6 +282,9 @@ func (f *Fixture) Seed(t *testing.T) {
 		"INSERT INTO auth_sessions (id,learner_id,revoked_at) VALUES ('d4444444-4444-4444-8444-444444444444','a1111111-1111-4111-8111-111111111111',now())",
 		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES ('%x','d4444444-4444-4444-8444-444444444444',now()+interval '30 days')", sha256.Sum256([]byte("synthetic-revoked-refresh"))),
 		"INSERT INTO auth_rate_limits (key_hash,count,expires_at) VALUES (repeat('c',64),3,now()+interval '1 hour')",
+		"INSERT INTO pricing_admin_grants(account_id) VALUES ('a1111111-1111-4111-8111-111111111111')",
+		"INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class) SELECT 'usd-backup-draft',version,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-draft\"'),'{effective_from}',to_jsonb(now()+interval '96 hours')),'a1111111-1111-4111-8111-111111111111','non_adverse' FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
+		fmt.Sprintf("INSERT INTO pricing_audit(actor_id,action,version,change_class,reason,request_id) VALUES ('%x','version_created','usd-backup-draft','non_adverse','synthetic restore audit','restore-fixture')", sha256.Sum256([]byte("a1111111-1111-4111-8111-111111111111"))),
 	} {
 		if _, err := f.DB.Pool.Exec(t.Context(), query); err != nil {
 			t.Fatal(err)
@@ -437,7 +440,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits"} {
+	for _, table := range []string{"pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -449,6 +452,29 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		if before != after || after == "[]" {
 			t.Fatalf("encrypted backup changed or omitted %s", table)
 		}
+	}
+	// Admin deletion removes grants and pseudonymizes retained draft/audit actors.
+	const leavingAdmin = "e5555555-5555-4555-8555-555555555555"
+	for _, query := range []string{
+		`INSERT INTO learners(id,display_name) VALUES($1::uuid,'Leaving pricing admin')`,
+		`INSERT INTO pricing_admin_grants(account_id) VALUES($1::uuid)`,
+		`INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class) SELECT 'usd-deleted-actor-fixture',version,jsonb_set(jsonb_set(config,'{version}','"usd-deleted-actor-fixture"'),'{effective_from}',to_jsonb(now()+interval '96 hours')),$1,'non_adverse' FROM pricing_versions WHERE version='usd-launch-2026-11-08'`,
+		`INSERT INTO pricing_audit(actor_id,action,version,change_class,reason,request_id) VALUES(encode(sha256(convert_to($1,'UTF8')),'hex'),'version_created','usd-deleted-actor-fixture','non_adverse','deletion fixture','deletion-fixture')`,
+	} {
+		if _, err := restored.Pool.Exec(t.Context(), query, leavingAdmin); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", leavingAdmin); err != nil {
+		t.Fatal(err)
+	}
+	var pseudonym string
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT actor_id FROM pricing_audit WHERE request_id='deletion-fixture'").Scan(&pseudonym); err != nil || len(pseudonym) != 64 {
+		t.Fatalf("audit actor was not pseudonymized: %q %v", pseudonym, err)
+	}
+	var draftActor string
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT created_by FROM pricing_drafts WHERE version='usd-deleted-actor-fixture'").Scan(&draftActor); err != nil || !strings.HasPrefix(draftActor, "deleted:") {
+		t.Fatalf("draft author was not pseudonymized: %q %v", draftActor, err)
 	}
 	// Every new context field is populated in Seed and compared byte-for-byte above.
 	// Prove the restored schema also cascades current context on account erasure.
@@ -503,7 +529,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		}
 	}
 
-	for _, query := range []string{"UPDATE pricing_quotes SET snapshot='{}'", "DELETE FROM pricing_quotes", "TRUNCATE pricing_quotes", "DELETE FROM pricing_quote_consents", "DELETE FROM pricing_quote_policies", "UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions"} {
+	for _, query := range []string{"UPDATE pricing_quotes SET snapshot='{}'", "DELETE FROM pricing_quotes", "TRUNCATE pricing_quotes", "DELETE FROM pricing_quote_consents", "DELETE FROM pricing_quote_policies", "UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions", "UPDATE pricing_audit SET reason='rewritten'", "DELETE FROM pricing_audit", "TRUNCATE pricing_audit"} {
 		if _, err := restored.Pool.Exec(t.Context(), query); err == nil {
 			t.Fatalf("restored immutable data accepted mutation: %s", query)
 		}

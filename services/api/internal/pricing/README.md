@@ -7,9 +7,9 @@ Resolution uses Postgres time. The public DTO strips mappings, advertises
 `sales_enabled: false`, includes the next approved scheduled document when one
 exists, and supports ETag conditional reads with a 60-second cache lifetime.
 
-This ticket delivers the read-only launch catalogue. Scheduling/admin workflows,
-runtime activation/reload, quotes and settlement belong to subsequent E12
-tickets. E12-07/E12-08 must verify external billing mappings before live sales;
+E12-01 delivered the read-only launch catalogue. E12-05 adds the audited admin
+workflow below; runtime activation/reload, quotes and settlement remain owned by
+their respective E12 tickets. E12-07/E12-08 must verify external billing mappings before live sales;
 synthetic mappings resolve only with environment exactly `development`.
 
 The client renders wallet policy/empty activity, packs, monthly/yearly plans,
@@ -63,3 +63,26 @@ missing policy/rate fails closed. Development defaults (600 seconds and logical
 (including cache writes/reads), derived from the business model, with USD
 nanodollars per character for audio. Listing a model/voice does not enable it;
 feature eval, provider-route verification and voice provisioning gates still apply.
+
+E12-05 exposes `/admin/v1/pricing/drafts` for create, edit, validate, diff,
+submit, approve, reject, list and show. Each request requires a reason and an
+authenticated account with a `pricing_admin` grant. Admin requests require a
+session authenticated within the previous 15 minutes. Operators grant roles by
+setting `PRICING_ADMIN_IDS` to existing account UUIDs; `PRICING_OWNER_ID` enables
+the ADR 0011 sole-owner adverse self-approval exception. The CLI shares the same
+operations: `api admin pricing <operation> --actor UUID --reason TEXT` (draft and
+edit also require `--config FILE`; version operations require `--version ID`).
+
+Drafts live separately from `pricing_versions`. Approval inserts an immutable
+approved version; audit rows are append-only and keep a SHA-256 actor pseudonym.
+Adverse classification compares learner-facing fields against the active
+config. Adverse approval waits at least 72 hours; an author cannot approve an
+adverse draft unless they are the sole configured pricing administrator and
+owner. Non-adverse self-approval is allowed. Every SKU must meet the 70% margin
+floor computed from the version's protected cost ceiling and included Credits.
+The workflow emits `pricing_version_created`, `pricing_version_approved` and
+`pricing_version_rejected` through the existing server analytics wrapper, with
+no reason text or pricing document in event properties.
+
+Official PostgreSQL 18 documentation consulted for the migration's built-in
+SHA-256 pseudonym function: https://www.postgresql.org/docs/18/functions-binarystring.html.
