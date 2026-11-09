@@ -11,5 +11,6 @@
 | [0007](0007-credits-and-payments.md) | Credits ledger, daily free credits, subscriptions, no credit rewards | Accepted |
 | [0008](0008-ci-and-deploy.md) | Two-tier CI on Namespace runners, Railway deploy | Accepted |
 | [0009](0009-narration-elevenlabs.md) | Slide narration with the ElevenLabs API | Accepted |
+| [0010](0010-custom-characters.md) | Custom characters with a parametric SVG rig and bounded personas | Proposed |
 
 New ADR: copy the newest file, increase the number, keep it under one page.
