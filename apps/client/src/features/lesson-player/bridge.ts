@@ -1,5 +1,7 @@
 export type SlideCommand =
-  { type: "play" | "pause" } | { type: "seek"; time: number };
+  | { type: "play" | "pause" }
+  | { type: "seek"; time: number }
+  | { type: "rate"; rate: number };
 export type SlideMessage =
   { type: "ended" } | { type: "checkpoint"; name: string };
 export function isSlideMessage(

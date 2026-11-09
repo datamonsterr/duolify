@@ -24,20 +24,45 @@ export function LearnPath({ courseId }: { courseId: string }) {
             <h2>{unit.title}</h2>
           </div>
           <div className="path">
-            {unit.lessons.map((lesson) => (
+            {unit.lessons.map((lesson, index) => (
               <div className="node-row" key={lesson.id}>
                 {lesson.state === "current" ? (
+                  <>
+                    <Link
+                      className="node current"
+                      to="/lesson/$lessonId"
+                      params={{ lessonId: lesson.id }}
+                      aria-label={`Start lesson: ${lesson.title}`}
+                    >
+                      ▶
+                    </Link>
+                    <span className="path-start" aria-hidden="true">
+                      Start
+                    </span>
+                  </>
+                ) : lesson.state === "done" ? (
                   <Link
-                    className="node current"
+                    className="node done"
                     to="/lesson/$lessonId"
                     params={{ lessonId: lesson.id }}
-                    aria-label={`Start lesson: ${lesson.title}`}
+                    aria-label={`Lesson ${index + 1}, ${lesson.title}, completed. Review`}
                   >
-                    ✦
+                    ✓
                   </Link>
                 ) : (
-                  <span className={`node ${lesson.state}`}>
-                    {lesson.state === "done" ? "✓" : "●"}
+                  <span
+                    className={`node ${lesson.state}`}
+                    role="img"
+                    aria-label={`Lesson ${index + 1}, ${lesson.title}, locked. Pass the previous lesson test first`}
+                  >
+                    <svg
+                      className="node-icon"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <rect x="4" y="10" width="16" height="11" rx="2" />
+                      <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" />
+                    </svg>
                   </span>
                 )}
                 <div>
