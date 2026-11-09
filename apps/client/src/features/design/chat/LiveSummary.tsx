@@ -1,3 +1,5 @@
+import type { MessageId } from "../localization/messages";
+import { useUiPreferences } from "../localization/Preferences";
 import { trackGuidedUi } from "../../../lib/analytics";
 import { Button } from "../Button";
 import { Field, Feedback } from "./Feedback";
@@ -5,6 +7,7 @@ import { Field, Feedback } from "./Feedback";
 export type SummaryLine = {
   id: string;
   label: string;
+  labelId?: MessageId;
   value: string;
   error?: string;
   required?: boolean;
@@ -26,6 +29,7 @@ export function LiveSummary({
   confirmed?: boolean;
   error?: string;
 }) {
+  const { t } = useUiPreferences();
   return (
     <form
       className="guided-summary"
@@ -42,19 +46,15 @@ export function LiveSummary({
       }}
       noValidate
     >
-      <p>Updates as you chat. You can edit every line.</p>
+      <p>{t("summary.intro")}</p>
       {lines.map((line) => (
         <Field
           key={line.id}
-          label={line.label}
+          label={line.labelId ? t(line.labelId) : line.label}
           value={line.value}
           required={line.required}
           error={line.error}
-          hint={
-            !line.value
-              ? "Waiting for your answer. You can leave this blank."
-              : undefined
-          }
+          hint={!line.value ? t("summary.wait") : undefined}
           onChange={(event) => {
             trackGuidedUi({
               event: "ui_control_activated",
@@ -68,22 +68,19 @@ export function LiveSummary({
       <Feedback
         title={
           pending
-            ? "Confirming brief…"
+            ? t("summary.pending")
             : confirmed
-              ? "Brief confirmed"
+              ? t("summary.confirmed")
               : unsaved
-                ? "Unsaved changes"
-                : "Review before confirming"
+                ? t("summary.unsaved")
+                : t("summary.review")
         }
         tone={confirmed ? "success" : "info"}
       />
       {error && <Feedback tone="danger" title={error} blocking />}
-      <p>
-        Nothing is saved or charged until you explicitly confirm in the course
-        flow.
-      </p>
+      <p>{t("summary.disclosure")}</p>
       <Button type="submit" pending={pending}>
-        Confirm brief
+        {t("summary.confirm")}
       </Button>
     </form>
   );

@@ -70,3 +70,16 @@ and browser checks). No database, object-storage or device persistence is added;
 no additional persisted-data restore/deletion checks are needed. PostHog receives
 only allowlisted UI control/sheet IDs and common identity properties through the
 existing opt-out boundary; no learner content or duplicate API outcomes.
+
+E13-04 localization and appearance: typed English/Arabic messages and expansion
+fixtures live in Git with the semantic tokens. Restore them from the same commit
+and run `mise run client:test-localization` and `mise run client:build`.
+Locale, appearance and motion choices are disposable React host memory by default;
+no local storage or learner text is written. The `PreferenceAdapter` boundary lets
+E1 supply validated account preference load/save/clear when available. E1 currently
+has no durable preference API in this checkout. Adapter exceptions keep the local
+choice and expose retry/reset; reset clears the adapter and restores defaults.
+Focused tests cover adapter restore, allowlisted saves, clear/reset, corrupt input
+and host recreation. Account deletion/logout must clear any future E1 adapter;
+these components never copy chat, summary or outline text into it. Existing feature
+retention, backup, evaluation and fallback gates continue to apply.

@@ -1,3 +1,4 @@
+import { useUiPreferences } from "../design/localization/Preferences";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
@@ -25,11 +26,6 @@ const messages = {
     "Billed once a year; credits granted each paid service month. Renews automatically; cancel any time. Taxes are additional.",
 } as const;
 type Surface = "wallet" | "pack_list" | "plan_list" | "quote";
-const number = (value: number) => new Intl.NumberFormat().format(value);
-const money = (minor: number, currency: string) =>
-  new Intl.NumberFormat(undefined, { style: "currency", currency }).format(
-    minor / 100,
-  );
 function valid(c: Pricing): boolean {
   return (
     !!c &&
@@ -71,6 +67,8 @@ function cached(): Pricing | undefined {
 }
 
 export function PricingView() {
+  const { number, currency, date } = useUiPreferences();
+  const money = (minor: number, code: string) => currency(minor / 100, code);
   const [surface, setSurface] = useState<Surface>("wallet");
   const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
   const [selection, setSelection] = useState("");
@@ -154,20 +152,17 @@ export function PricingView() {
         <>
           <p className="pricing-version">
             {stale ? "Offline · Last known prices" : "Approved pricing"} ·{" "}
-            {c.version} · Effective{" "}
-            {new Intl.DateTimeFormat(undefined, {
-              dateStyle: "medium",
-              timeZone: "UTC",
-            }).format(new Date(c.effective_from))}{" "}
+            {c.version} · Effective {date(new Date(c.effective_from), "UTC")}{" "}
             (UTC)
           </p>
           {c.next_scheduled && (
             <p>
               Next catalogue: {c.next_scheduled.version} ·{" "}
-              {new Intl.DateTimeFormat(undefined, {
-                dateStyle: "medium",
-                timeStyle: "short",
-              }).format(new Date(c.next_scheduled.effective_from))}
+              {date(
+                new Date(c.next_scheduled.effective_from),
+                Intl.DateTimeFormat().resolvedOptions().timeZone,
+                { dateStyle: "medium", timeStyle: "short" },
+              )}
             </p>
           )}
           {surface === "wallet" && (
@@ -261,7 +256,9 @@ export function PricingView() {
                           checked={selection === p[interval].sku}
                           onChange={() => setSelection(p[interval].sku)}
                         />
-                        <h3>{p.name}</h3>
+                        <h3>
+                          <bdi>{p.name}</bdi>
+                        </h3>
                         <strong>
                           {money(
                             p[interval].amount_minor,

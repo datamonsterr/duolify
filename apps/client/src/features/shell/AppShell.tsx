@@ -1,3 +1,5 @@
+import { PreferenceControls } from "../design/localization/PreferenceControls";
+import { useUiPreferences } from "../design/localization/Preferences";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { trackNavigation, trackScreen } from "../../lib/analytics";
@@ -50,6 +52,7 @@ function DestinationLink({
   item: { id: Destination; label: string; to: string; icon: string };
   mobile?: boolean;
 }) {
+  const { t } = useUiPreferences();
   const path = useRouterState({ select: (state) => state.location.pathname });
   return (
     <Link
@@ -61,15 +64,20 @@ function DestinationLink({
       onClick={() => trackNavigation(item.id)}
     >
       <NavIcon name={item.icon} />
-      <span>{item.label}</span>
+      <span>
+        {t(
+          item.id === "notes" && mobile ? "nav.notes_short" : `nav.${item.id}`,
+        )}
+      </span>
     </Link>
   );
 }
 export function MorePage() {
+  const { t } = useUiPreferences();
   return (
     <>
-      <h1 tabIndex={-1}>More</h1>
-      <nav className="more-links" aria-label="More destinations">
+      <h1 tabIndex={-1}>{t("nav.more")}</h1>
+      <nav className="more-links" aria-label={t("shell.more")}>
         {moreDestinations.map((item) => (
           <DestinationLink key={item.id} item={item} />
         ))}
@@ -79,6 +87,7 @@ export function MorePage() {
 }
 
 export function AppShell() {
+  const { t } = useUiPreferences();
   const path = useRouterState({ select: (state) => state.location.pathname });
   const status = useRouterState({ select: (state) => state.status });
   const mobile = useMobileLayout();
@@ -118,20 +127,20 @@ export function AppShell() {
     <ShellSession>
       <div className={`app-frame${focused ? " focused-frame" : ""}`}>
         <a href="#main-content" className="skip-link">
-          Skip to content
+          {t("shell.skip")}
         </a>
         {!focused && (
           <>
             <aside className="sidebar">
               <Brand />
               {!mobile && (
-                <nav aria-label="Main">
+                <nav aria-label={t("shell.main")}>
                   {navigation.map((item) => (
                     <DestinationLink key={item.id} item={item} />
                   ))}
                 </nav>
               )}
-              <p className="sidebar-foot">A little learning, every day.</p>
+              <p className="sidebar-foot">{t("shell.motto")}</p>
             </aside>
             <header className="mobile-header">
               <Brand />
@@ -140,37 +149,44 @@ export function AppShell() {
                 to="/credits"
                 onClick={() => trackNavigation("credits")}
               >
-                Credits <span className="muted">Balance unavailable</span>
+                {t("nav.credits")}{" "}
+                <span className="muted">{t("shell.balance")}</span>
               </Link>
             </header>
           </>
         )}
         <main className="app-main" id="main-content" tabIndex={-1} ref={main}>
+          {path !== "/settings" && (
+            <details className="appearance-menu">
+              <summary>{t("settings.title")}</summary>
+              <PreferenceControls />
+            </details>
+          )}
           <Outlet />
         </main>
         {!focused && (
           <>
-            <aside className="support-rail" aria-label="Your progress">
+            <aside className="support-rail" aria-label={t("shell.progress")}>
               <section className="card">
-                <h2>Your streak</h2>
-                <p>Build a habit, one lesson at a time.</p>
+                <h2>{t("nav.streak")}</h2>
+                <p>{t("shell.habit")}</p>
                 <Link
                   className="shell-link"
                   to="/streak"
                   onClick={() => trackNavigation("streak")}
                 >
-                  View streak
+                  {t("shell.streak")}
                 </Link>
               </section>
               <section className="card">
-                <h2>Daily goal</h2>
-                <p>Your learning, your pace.</p>
+                <h2>{t("shell.goal")}</h2>
+                <p>{t("shell.pace")}</p>
                 <Link
                   className="shell-link"
                   to="/settings"
                   onClick={() => trackNavigation("settings")}
                 >
-                  Daily goal settings
+                  {t("shell.goal_settings")}
                 </Link>
               </section>
               <section className="card">
@@ -186,7 +202,7 @@ export function AppShell() {
               </section>
             </aside>
             {mobile && (
-              <nav className="bottom-tabs" aria-label="Main">
+              <nav className="bottom-tabs" aria-label={t("shell.main")}>
                 {mobileTabs.map((item) => (
                   <DestinationLink key={item.id} item={item} mobile />
                 ))}

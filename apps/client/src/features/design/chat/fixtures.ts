@@ -4,19 +4,36 @@ import type { SummaryLine } from "./LiveSummary";
 export const initialSummary: SummaryLine[] = [
   {
     id: "topic",
+    labelId: "summary.topic",
     label: "Topic",
     value: "Astronomy for curious beginners",
     required: true,
   },
-  { id: "goal", label: "Goal", value: "Explain the night sky to my kids" },
+  {
+    id: "goal",
+    labelId: "summary.goal",
+    label: "Goal",
+    value: "Explain the night sky to my kids",
+  },
   {
     id: "include",
+    labelId: "summary.include",
     label: "Include",
     value: "Constellations · Moon phases · Planets",
   },
-  { id: "skip", label: "Skip topics", value: "History of astronomy" },
-  { id: "viewing", label: "Viewing", value: "" },
-  { id: "lessons", label: "Lessons", value: "About 6 min · English" },
+  {
+    id: "skip",
+    labelId: "summary.skip",
+    label: "Skip topics",
+    value: "History of astronomy",
+  },
+  { id: "viewing", labelId: "summary.viewing", label: "Viewing", value: "" },
+  {
+    id: "lessons",
+    labelId: "summary.lessons",
+    label: "Lessons",
+    value: "About 6 min · English",
+  },
 ];
 export const initialOutline: Outline = [
   {

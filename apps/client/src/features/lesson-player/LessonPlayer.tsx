@@ -1,3 +1,4 @@
+import { useUiPreferences } from "../design/localization/Preferences";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { track } from "../../lib/analytics";
@@ -9,12 +10,19 @@ import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { useShellSession } from "../shell/ShellSession";
 const slides = [slide1, slide2, slide3];
 export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
+  const { reducedMotion } = useUiPreferences();
   const session = useShellSession();
   const [index, setIndex] = useState(() => session.slides.get(lessonId) ?? 0);
   useEffect(() => {
     session.slides.set(lessonId, index);
   }, [session, lessonId, index]);
   const [finished, setFinished] = useState(false);
+  useEffect(() => {
+    sendCommand(frame.current?.contentWindow ?? null, {
+      type: "set_motion",
+      reduced: reducedMotion,
+    });
+  }, [reducedMotion, index]);
   const frame = useRef<HTMLIFrameElement>(null);
   const [panel, setPanel] = useState<
     "Transcript" | "Ask tutor" | "Quick note" | null
@@ -146,6 +154,12 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
       >
         <iframe
           ref={frame}
+          onLoad={() =>
+            sendCommand(frame.current?.contentWindow ?? null, {
+              type: "set_motion",
+              reduced: reducedMotion,
+            })
+          }
           title={`Slide ${index + 1}`}
           sandbox="allow-scripts"
           srcDoc={slides[index]}

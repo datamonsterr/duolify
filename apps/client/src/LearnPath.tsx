@@ -1,7 +1,9 @@
+import { useUiPreferences } from "./features/design/localization/Preferences";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { api } from "./lib/api";
 export function LearnPath({ courseId }: { courseId: string }) {
+  const { t } = useUiPreferences();
   const {
     data: course,
     isPending,
@@ -10,18 +12,22 @@ export function LearnPath({ courseId }: { courseId: string }) {
     queryKey: ["course", courseId],
     queryFn: () => api.course(courseId),
   });
-  if (isPending) return <p>Loading your path…</p>;
-  if (isError) return <p>Could not load this course.</p>;
+  if (isPending) return <p>{t("path.loading")}</p>;
+  if (isError) return <p>{t("path.error")}</p>;
   return (
     <>
-      <div className="eyebrow">YOUR LEARNING PATH</div>
-      <h1>{course.title}</h1>
-      <p>{course.description}</p>
+      <div className="eyebrow">{t("path.title")}</div>
+      <h1>
+        <bdi>{course.title}</bdi>
+      </h1>
+      <p dir="auto">{course.description}</p>
       {course.units.map((unit) => (
         <section key={unit.title}>
           <div className="unit">
-            <small>KEEP EXPLORING</small>
-            <h2>{unit.title}</h2>
+            <small>{t("path.explore")}</small>
+            <h2>
+              <bdi>{unit.title}</bdi>
+            </h2>
           </div>
           <div className="path">
             {unit.lessons.map((lesson) => (
@@ -31,7 +37,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
                     className="node current"
                     to="/lesson/$lessonId"
                     params={{ lessonId: lesson.id }}
-                    aria-label={`Start lesson: ${lesson.title}`}
+                    aria-label={t("path.start", { name: lesson.title })}
                   >
                     ✦
                   </Link>
@@ -41,13 +47,15 @@ export function LearnPath({ courseId }: { courseId: string }) {
                   </span>
                 )}
                 <div>
-                  <strong>{lesson.title}</strong>
+                  <strong>
+                    <bdi>{lesson.title}</bdi>
+                  </strong>
                   <div className="muted">
                     {lesson.state === "locked"
-                      ? "Locked"
+                      ? t("path.locked")
                       : lesson.state === "done"
-                        ? "Completed"
-                        : "Ready to start"}
+                        ? t("path.completed")
+                        : t("path.ready")}
                   </div>
                 </div>
               </div>

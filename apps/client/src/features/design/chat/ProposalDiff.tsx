@@ -1,3 +1,4 @@
+import { useUiPreferences } from "../localization/Preferences";
 import { trackGuidedUi } from "../../../lib/analytics";
 import { Badge } from "../Badge";
 import { Button } from "../Button";
@@ -9,12 +10,6 @@ export type OutlineChange = {
   description: string;
 };
 export type OutlineProposal = { id: string; changes: OutlineChange[] };
-const labels = {
-  added: "Added",
-  removed: "Removed",
-  moved: "Moved",
-  retitled: "Retitled",
-} as const;
 const roles = {
   added: "success",
   removed: "danger",
@@ -32,14 +27,17 @@ export function ProposalDiff({
   onDiscard: () => void;
   pending?: boolean;
 }) {
+  const { t } = useUiPreferences();
   return (
-    <section className="outline-proposal" aria-label="Proposed outline changes">
-      <h3>Here's my suggestion</h3>
+    <section className="outline-proposal" aria-label={t("proposal.title")}>
+      <h3>{t("proposal.suggestion")}</h3>
       <ul>
         {proposal.changes.map((change) => (
           <li key={change.id}>
-            <Badge role={roles[change.kind]}>{labels[change.kind]}</Badge>
-            <span>
+            <Badge role={roles[change.kind]}>
+              {t(`proposal.${change.kind}`)}
+            </Badge>
+            <span dir="auto">
               {change.kind === "removed" ? (
                 <s>{change.description}</s>
               ) : (
@@ -61,7 +59,7 @@ export function ProposalDiff({
             onApply();
           }}
         >
-          Apply
+          {t("proposal.apply")}
         </Button>
         <Button
           variant="quiet"
@@ -75,7 +73,7 @@ export function ProposalDiff({
             onDiscard();
           }}
         >
-          Discard
+          {t("proposal.discard")}
         </Button>
       </div>
     </section>

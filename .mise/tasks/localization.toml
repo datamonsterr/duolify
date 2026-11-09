@@ -1,0 +1,14 @@
+["client:e2e-localization"]
+description = "Run localization and motion acceptance checks without API"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec playwright test --config playwright.guided.config.ts design-e13-04.spec.ts"
+
+["client:test-localization"]
+description = "Run localization unit and integration checks"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec vitest run support_localized_copy_and_reduced_motion"
+
+["client:format-localization"]
+description = "Format localization sources and touched components"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/design/localization src/features/design/chat src/features/design/sheet src/features/design/Button.tsx src/features/design/CourseCard.tsx src/LearnPath.tsx src/features/lesson-player src/features/pricing/PricingView.tsx src/slides src/features/shell/AppShell.tsx src/App.tsx src/styles.css src/lib/analytics.ts src/features/design/support_localized_copy_and_reduced_motion.test.tsx src/test/support_localized_copy_and_reduced_motion.integration.test.tsx e2e/design-e13-04.spec.ts playwright.guided.config.ts"

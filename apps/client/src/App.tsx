@@ -1,3 +1,5 @@
+import { UiPreferencesProvider } from "./features/design/localization/Preferences";
+import { SettingsPage } from "./features/design/localization/PreferenceControls";
 import {
   createRootRoute,
   createRoute,
@@ -18,7 +20,11 @@ import {
   RouteUnavailable,
 } from "./features/shell/RouteBoundary";
 const root = createRootRoute({
-  component: AppShell,
+  component: () => (
+    <UiPreferencesProvider>
+      <AppShell />
+    </UiPreferencesProvider>
+  ),
   pendingComponent: RoutePending,
   errorComponent: RouteError,
   notFoundComponent: RouteUnavailable,
@@ -95,7 +101,7 @@ const bookmarks = createRoute({
 const settings = createRoute({
   getParentRoute: () => root,
   path: "/settings",
-  component: () => <DestinationPage title="Settings" />,
+  component: SettingsPage,
 });
 const streak = createRoute({
   getParentRoute: () => root,
