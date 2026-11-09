@@ -7,7 +7,12 @@ import { http, HttpResponse } from "msw";
 import tokens from "../../../../docs/design/tokens.json";
 import { Courses } from "../features/design/Courses";
 import { server } from "./setup";
-import { configureUiAnalytics } from "../lib/analytics";
+import {
+  configureAnalytics,
+  configureUiAnalytics,
+  exposePricing,
+  trackControl,
+} from "../lib/analytics";
 
 const posthog = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -199,4 +204,41 @@ it("keeps shared dimensions, typography, motion, opacity and breakpoint mappings
       `--breakpoint-${alias}: ${tokens.breakpoint[name].$value.value}rem`,
     );
   expect(declarations["font-family"]).toContain(tokens.font.family.$value[0]);
+});
+
+it("shares configureAnalytics identity and opt-out between pricing and course controls", () => {
+  configureUiAnalytics({
+    learnerId: "56d4e614-7665-4f14-b83e-8b5e9bed384a",
+    platform: "web",
+    appVersion: "0.1.0",
+    enabled: true,
+  });
+  configureAnalytics({
+    learnerId: "56d4e614-7665-4f14-b83e-8b5e9bed384a",
+    platform: "web",
+    optedOut: true,
+  });
+  trackControl("refresh_courses");
+  exposePricing("shared-context-test", "quote");
+  expect(posthog.capture).not.toHaveBeenCalled();
+  configureAnalytics({
+    learnerId: "8c940797-a555-421e-8dad-b4df96b02213",
+    platform: "desktop",
+    optedOut: false,
+  });
+  trackControl("refresh_courses");
+  exposePricing("shared-context-test", "quote");
+  expect(posthog.capture).toHaveBeenCalledTimes(2);
+  for (const [, properties] of posthog.capture.mock.calls)
+    expect(properties).toMatchObject({
+      distinct_id: "8c940797-a555-421e-8dad-b4df96b02213",
+      platform: "desktop",
+      app_version: "0.1.0",
+      source: "client",
+    });
+  posthog.capture.mockClear();
+  configureUiAnalytics(null);
+  trackControl("refresh_courses");
+  exposePricing("signed-out-test", "quote");
+  expect(posthog.capture).not.toHaveBeenCalled();
 });

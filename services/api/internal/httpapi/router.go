@@ -26,11 +26,19 @@ type Engine interface {
 type Dependencies struct {
 	Postgres, Redis func(context.Context) error
 	Engine          Engine
+	Pricing         http.Handler
 }
 
 // New creates the scaffold routes. Courses are static demonstration data.
 func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
+	if deps.Pricing != nil {
+		mux.Handle("GET /v1/pricing", deps.Pricing)
+	} else {
+		mux.HandleFunc("GET /v1/pricing", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "pricing unavailable"})
+		})
+	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})

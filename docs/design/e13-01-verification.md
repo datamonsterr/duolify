@@ -35,14 +35,16 @@ than covering content.
 
 Create and Discover are visible unavailable controls with explanations. The
 parent explicitly confirmed that creation/marketplace implementations belong to
-later tickets. This change leaves `src/features/pricing` untouched. It adds no
+later tickets. The initial E13-01 commit left `src/features/pricing` untouched;
+the merge integration below connects pricing to the shared components. It adds no
 AI/provider behavior, learner persistence or new environment variables.
 
 The existing app-design event catalog precedes these emitters. Stable control
 IDs are checked with a PostHog test double, UUID/common properties, revoked
 consent, disabled/missing context and transport failure. Search/title/description
-text is never passed to analytics. E1-06 may install authenticated consent context
-with `configureUiAnalytics`; the scaffold supplies none and emits no UI events.
+text is never passed to analytics. Auth may install authenticated consent context with `configureAnalytics`;
+`configureUiAnalytics` delegates to that same boundary for compatibility. The
+scaffold supplies no authenticated context and emits no UI events.
 
 ## Commands and results
 
@@ -91,3 +93,47 @@ CI coverage is preserved.
 - [Vitest mocks](https://vitest.dev/api/vi.html)
 - [PostHog capture and opt-out](https://posthog.com/docs/libraries/js/usage)
 - [TypeScript 6 explicit ambient types](https://www.typescriptlang.org/tsconfig/types.html)
+
+## Merge integration with E12-01
+
+Merged `impl/mvp` into the E13-01 run worktree, retaining the `/credits`
+PricingView route, API pricing method, theme/courses, real Postgres/API Playwright
+fixture on ports 4182/18081 and the client web/native task split. The catalogue
+boundary test remains a prerequisite of the client build. No API source changes
+were needed beyond the E12-01 merge.
+
+A new regression test first demonstrated that the automatic merge left separate
+analytics consent states: opting out through `configureAnalytics` still emitted
+a course event. Both pricing and course controls now read that shared boundary;
+logout, identity changes, opt-out and common properties are tested together. The
+theme helper delegates to it and no independent identity remains.
+
+Pricing uses the shared Button for primary, secondary and quiet actions, paired
+info selection colors and the existing semantic credit/warning surfaces. Its
+duplicate theme import was removed so Tailwind processes the canonical mapping
+once. Radio dimensions are scoped to pricing to avoid global input stretching.
+New browser assertions first failed for the old white pricing CTA, then passed
+for primary green and the dark info pair. Font-origin assertions now follow the
+configured preview origin rather than a fixed port.
+
+| Exact command | Merge result |
+| --- | --- |
+| `mise run client:format-pricing` | PASS |
+| `mise run client:lint-web` | PASS |
+| `mise run client:test-web` | PASS, 23 tests / 6 files; includes the consent regression |
+| `mise run client:build` | PASS, catalogue boundary and production assets |
+| `mise run client:e2e` | PASS, 14 tests with real pricing API and migrated Postgres 18 |
+| `mise run api:lint` | PASS, zero issues |
+| `mise run api:test` | PASS, 35 tests with race detector |
+| `mise run api:build` | PASS |
+| `mise run api:test-e2e` | PASS, 10 tests |
+| `mise run api:test-integration` | PASS, 18 tests including pricing dump/restore |
+| `mise run ci:openspec` | PASS, 22 items |
+| `mise run ci:lint` | PASS |
+| `git diff --check` | PASS |
+
+Focused red checks before the fixes: `mise run client:test-web` failed the new
+shared-consent regression; `mise run client:e2e -- pricing-e12-01.spec.ts --grep
+1280px --max-failures=1` failed the primary-token assertion. Neither test was
+weakened. Native checks remain deferred to CI under the prior explicit user
+instruction; no Tauri source files changed.

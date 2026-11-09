@@ -197,7 +197,7 @@ test("Nunito weights load from bundled WOFF2 without a font service", async ({
       .map((entry) => new URL(entry.name).origin),
   );
   expect(fonts.length).toBeGreaterThanOrEqual(3);
-  expect(fonts.every((origin) => origin === "http://127.0.0.1:4173")).toBe(
+  expect(fonts.every((origin) => origin === new URL(page.url()).origin)).toBe(
     true,
   );
 });
