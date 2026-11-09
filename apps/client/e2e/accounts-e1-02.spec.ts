@@ -1,7 +1,8 @@
-import { apiBase } from "./servers";
+import { apiBase, resetAuthRateLimits } from "./servers";
 import { test, expect } from "@playwright/test";
 test.use({ hasTouch: true });
 test.beforeEach(async ({ page, request }) => {
+  await resetAuthRateLimits(request);
   await page.route(/\/v1\/(auth\/|me(?:$|\?))/, async (route) => {
     const original = route.request();
     const target = new URL(original.url());

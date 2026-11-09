@@ -109,6 +109,15 @@ func run() (result error) {
 		}
 		w.WriteHeader(204)
 	})
+	// E2E tests reset request throttles between cases; production API limits remain
+	// unchanged. This fixture server is loopback-only and is never deployed.
+	mux.HandleFunc("POST /test/reset-auth-rate-limits", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := db.Pool.Exec(r.Context(), "DELETE FROM auth_rate_limits"); err != nil {
+			w.WriteHeader(500)
+			return
+		}
+		w.WriteHeader(204)
+	})
 	addr := os.Getenv("E2E_API_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:18081"

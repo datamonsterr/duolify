@@ -171,6 +171,9 @@ test("Google callback completes sign-in with transaction state", async ({
   await page.goto("/sign-in");
   await page.getByLabel("I am 16 or older").check();
   await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(
+    page.getByRole("button", { name: "Cancel Google sign-in" }),
+  ).toBeVisible();
   await page.evaluate(() => {
     const bridge = (
       window as typeof window & {

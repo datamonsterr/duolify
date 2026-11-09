@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 import { apiBase, webBase, webPort } from "./e2e/servers";
 export default defineConfig({
   testDir: "./e2e",
+  workers: Number(process.env.E2E_WORKERS ?? 1),
   use: { baseURL: webBase },
   webServer: [
     {

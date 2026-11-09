@@ -53,7 +53,7 @@ func TestGoogleOAuthRemainsUnavailableUntilProvisioned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := httptest.NewRequest("POST", "/v1/auth/google/start", bytes.NewReader(body))
+	request := httptest.NewRequestWithContext(t.Context(), "POST", "/v1/auth/google/start", bytes.NewReader(body))
 	response := httptest.NewRecorder()
 	auth.ServeHTTP(response, request)
 	if response.Code != 503 {

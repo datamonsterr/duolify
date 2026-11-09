@@ -1,10 +1,11 @@
-import { apiBase } from "./servers";
+import { apiBase, resetAuthRateLimits } from "./servers";
 import { test as base, expect } from "@playwright/test";
 import type { Tokens } from "../src/features/accounts/secure-store";
 let tokens: Tokens | undefined;
 export const test = base.extend<{ authenticated: void }>({
   authenticated: [
     async ({ context, request, page }, use) => {
+      await resetAuthRateLimits(request);
       if (!tokens) {
         const email = `browser-${Date.now()}@example.test`;
         expect(
