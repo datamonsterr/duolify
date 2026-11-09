@@ -16,7 +16,7 @@ run = ["pnpm exec vitest run", "cargo test --manifest-path src-tauri/Cargo.toml"
 ["client:build"]
 description = "Build client web assets"
 dir = "{{config_root}}/apps/client"
-run = "pnpm build"
+run = ["pnpm exec vitest run src/features/pricing/catalogue-boundary.test.ts", "pnpm build"]
 
 ["client:e2e-setup"]
 description = "Install browser for end-to-end tests"
@@ -37,3 +37,18 @@ run = "pnpm tauri build --debug --no-bundle"
 description = "Run Tauri development application"
 dir = "{{config_root}}/apps/client"
 run = "pnpm tauri dev"
+
+["client:format-pricing"]
+description = "Format E12 pricing source and test files"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/pricing src/lib/analytics.ts src/lib/api.ts src/App.tsx e2e/pricing-e12-01.spec.ts playwright.config.ts"
+
+["client:lint-web"]
+description = "Lint, format-check and type-check web client without native toolchain"
+dir = "{{config_root}}/apps/client"
+run = ["pnpm exec eslint .", "pnpm exec prettier --check .", "pnpm exec tsc --noEmit"]
+
+["client:test-web"]
+description = "Run web client unit tests without native toolchain"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec vitest run"

@@ -22,3 +22,11 @@ type Learner struct {
 	DisplayName string             `json:"display_name"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
+
+type PricingVersion struct {
+	Version       string             `json:"version"`
+	EffectiveFrom pgtype.Timestamptz `json:"effective_from"`
+	Approved      bool               `json:"approved"`
+	Config        []byte             `json:"config"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}

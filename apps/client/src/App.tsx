@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "./lib/api";
 import { LearnPath } from "./LearnPath";
 import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
+import { PricingView } from "./features/pricing/PricingView";
 function Layout() {
   return (
     <div className="shell">
@@ -129,13 +130,7 @@ const profile = createRoute({
 const credits = createRoute({
   getParentRoute: () => root,
   path: "/credits",
-  component: () => (
-    <>
-      <div className="eyebrow">YOUR BALANCE</div>
-      <h1>Credits</h1>
-      <p>Credits will power your future learning adventures.</p>
-    </>
-  ),
+  component: PricingView,
 });
 const router = createRouter({
   routeTree: root.addChildren([

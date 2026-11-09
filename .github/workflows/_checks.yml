@@ -379,6 +379,10 @@ jobs:
       - uses: ./.github/actions/setup-client
         with:
           tauri: 'false'
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: go
+          area: pricing-e2e
       - uses: actions/download-artifact@v8
         with:
           name: client-web
