@@ -31,6 +31,14 @@ pub type CompletionStream = Pin<Box<dyn Stream<Item = Result<StreamEvent>> + Sen
 pub trait LlmProvider: Send + Sync {
     fn name(&self) -> &'static str;
     async fn complete(&self, model: &str, input: &str) -> Result<Completion>;
+    async fn complete_bounded(
+        &self,
+        model: &str,
+        input: &str,
+        _max_output: u32,
+    ) -> Result<Completion> {
+        self.complete(model, input).await
+    }
     async fn stream(&self, model: &str, input: &str) -> Result<CompletionStream>;
 }
 pub struct ProviderRouter {
@@ -73,7 +81,11 @@ impl LlmProvider for MockProvider {
         "mock"
     }
     async fn complete(&self, model: &str, input: &str) -> Result<Completion> {
-        let text = if input.contains("setup_chat")
+        let text = if input.contains("course_brief_chat") {
+            let data: serde_json::Value = serde_json::from_str(input)?;
+            let answer = data["answer"].as_str().unwrap_or_default().to_lowercase();
+            serde_json::json!({"is_vague":matches!(answer.as_str(), "something" | "not sure" | "something about space")}).to_string()
+        } else if input.contains("setup_chat")
             || input.contains("is_vague")
             || input.contains("vague")
             || input.contains("scenario")
@@ -185,6 +197,7 @@ impl LlmProvider for MockProvider {
     }
 }
 pub mod accounts;
+pub mod courses;
 pub mod slide;
 #[cfg(test)]
 mod tests;

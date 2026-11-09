@@ -16,3 +16,8 @@ run = "cargo run -p engine-eval --bin duolify-eval -- --offline --provider mock"
 ["engine:eval-live"]
 dir = "engine"
 run = "cargo run -p engine-eval --bin duolify-eval -- --provider live --judge"
+
+["engine:format"]
+description = "Format engine workspace"
+dir = "engine"
+run = "cargo fmt --all"

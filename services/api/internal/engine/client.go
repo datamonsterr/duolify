@@ -62,3 +62,10 @@ func (c *Client) SetupChat(ctx context.Context, request *enginev1.SetupChatReque
 	defer cancel()
 	return c.rpc.SetupChat(ctx, request)
 }
+
+// CourseBriefChat forwards request-local intent with the API deadline.
+func (c *Client) CourseBriefChat(ctx context.Context, request *enginev1.CourseBriefChatRequest) (*enginev1.CourseBriefChatResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	return c.rpc.CourseBriefChat(ctx, request)
+}

@@ -15,6 +15,8 @@ import (
 
 // ClassifiedLearnerTables lists every table holding learner data and its retention policy.
 var ClassifiedLearnerTables = map[string]string{
+	"course_brief_revisions":   "erased",
+	"pricing_admin_grants":     "erased",
 	"learner_profiles":         "erased",
 	"auth_identities":          "erased",
 	"auth_provider_identities": "erased",
@@ -48,6 +50,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		query string
 	}
 	queries := []exportQuery{
+		{table: "course_brief_revisions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(b)),'[]'::jsonb) FROM course_brief_revisions b WHERE learner_id=$1 AND expires_at>now()`},
 		{table: "learners", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'display_name',display_name,'created_at',created_at)),'[]'::jsonb) FROM learners WHERE id=$1`},
 		{table: "learner_profiles", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM learner_profiles p WHERE learner_id=$1`},
 		{table: "auth_identities", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('email',email,'created_at',created_at)),'[]'::jsonb) FROM auth_identities WHERE learner_id=$1`},

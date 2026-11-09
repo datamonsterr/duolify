@@ -232,6 +232,111 @@ impl EngineService for Service {
             usage: usage(&c),
         }))
     }
+    async fn course_brief_chat(
+        &self,
+        request: Request<pb::CourseBriefChatRequest>,
+    ) -> Result<Response<pb::CourseBriefChatResponse>, Status> {
+        let req = request.into_inner();
+        let b = req.brief.unwrap_or_default();
+        let brief = engine_core::courses::Brief {
+            topic: b.topic,
+            goal: b.goal,
+            include_topics: b.include_topics,
+            skip_topics: b.skip_topics,
+            level: b.level,
+            maths: b.maths,
+            viewing_conditions: b.viewing_conditions,
+            lesson_length: b.lesson_length,
+            language: b.language,
+        };
+        let l = req
+            .limits
+            .ok_or_else(|| Status::invalid_argument("missing platform limits"))?;
+        let limits = engine_core::courses::Limits {
+            input_tokens: l.input_tokens,
+            output_tokens: l.output_tokens,
+            attempt_timeout_ms: l.attempt_timeout_ms,
+            max_attempts: l.max_attempts,
+            max_cost_nanos: l.max_cost_nanos,
+            input_nanos_per_token: l.input_nanos_per_token,
+            output_nanos_per_token: l.output_nanos_per_token,
+        };
+        let outcome = engine_core::courses::process(
+            &self.router,
+            brief,
+            &req.current_step,
+            &req.answer,
+            req.skipped,
+            req.is_follow_up,
+            &limits,
+        )
+        .await
+        .map_err(|_| Status::invalid_argument("invalid brief turn or bounds"))?;
+        let attempts = outcome
+            .attempts
+            .into_iter()
+            .map(|a| pb::BriefAttempt {
+                provider: a.provider,
+                model: a.model,
+                usage: a.completion.as_ref().and_then(usage).map(|mut u| {
+                    u.latency_ms = a.latency_ms;
+                    u
+                }),
+                fallback_used: a.fallback,
+                succeeded: a.succeeded,
+            })
+            .collect();
+        let mut response = pb::CourseBriefChatResponse {
+            attempts,
+            ..Default::default()
+        };
+        if let Some(r) = outcome.result {
+            let b = r.brief;
+            response.brief = Some(pb::CourseBrief {
+                topic: b.topic,
+                goal: b.goal,
+                include_topics: b.include_topics,
+                skip_topics: b.skip_topics,
+                level: b.level,
+                maths: b.maths,
+                viewing_conditions: b.viewing_conditions,
+                lesson_length: b.lesson_length,
+                language: b.language,
+            });
+            response.message = r.message;
+            response.next_step = r.next_step;
+            response.is_follow_up = r.is_follow_up;
+            response.is_complete = r.is_complete;
+            let labels: &[&str] = match response.next_step.as_str() {
+                "level" => &["Beginner", "Intermediate", "Advanced"],
+                "maths" => &["No maths", "Light maths", "Detailed maths"],
+                "viewing_conditions" => &["City balcony", "Both", "Dark sky is fine"],
+                "lesson_length" => &["3 minutes", "6 minutes", "10 minutes"],
+                "language" => &["English", "Tiếng Việt"],
+                "include_topics"
+                    if response
+                        .brief
+                        .as_ref()
+                        .is_some_and(|b| b.topic.to_lowercase().contains("astronomy")) =>
+                {
+                    &["Constellations", "Moon phases", "Planets"]
+                }
+                "include_topics" => &["Key ideas", "Practical examples", "Common mistakes"],
+                _ => &[],
+            };
+            response.quick_replies = labels
+                .iter()
+                .map(|label| pb::QuickReply {
+                    id: label.to_string(),
+                    label: label.to_string(),
+                })
+                .collect();
+        } else {
+            response.unavailable = true;
+        }
+        Ok(Response::new(response))
+    }
+
     async fn setup_chat(
         &self,
         request: Request<pb::SetupChatRequest>,

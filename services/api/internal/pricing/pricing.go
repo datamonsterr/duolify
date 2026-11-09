@@ -318,7 +318,7 @@ func FromConfig(c Config) *Catalogue {
 // LoadDevelopment loads the unapproved development pricing version if present.
 func LoadDevelopment(ctx context.Context, pool *pgxpool.Pool) (*Catalogue, error) {
 	var configJSON []byte
-	err := pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version='usd-dev-unapproved'").Scan(&configJSON)
+	err := pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version IN ('usd-dev-unapproved','usd-dev-course-brief-unapproved') ORDER BY (version='usd-dev-course-brief-unapproved') DESC LIMIT 1").Scan(&configJSON)
 	if err != nil {
 		return nil, err
 	}

@@ -97,5 +97,27 @@ async fn all_rpcs() {
         .into_inner();
     assert!(!setup.message.is_empty());
     assert!(setup.is_follow_up);
+    let brief = c
+        .course_brief_chat(pb::CourseBriefChatRequest {
+            brief: Some(pb::CourseBrief::default()),
+            current_step: "topic".into(),
+            answer: "Astronomy".into(),
+            limits: Some(pb::CourseBriefLimits {
+                input_tokens: 2000,
+                output_tokens: 1000,
+                attempt_timeout_ms: 3000,
+                max_attempts: 3,
+                max_cost_nanos: 2100000,
+                input_nanos_per_token: 100,
+                output_nanos_per_token: 500,
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(brief.brief.unwrap().topic, "Astronomy");
+    assert_eq!(brief.next_step, "goal");
+    assert_eq!(brief.attempts.len(), 1);
     task.abort();
 }

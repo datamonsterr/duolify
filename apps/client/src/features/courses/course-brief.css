@@ -1,0 +1,44 @@
+.course-brief {
+  padding: var(--space-4);
+}
+.course-brief h1 {
+  margin: 0;
+}
+.brief-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  list-style: none;
+  padding: 0;
+}
+.brief-steps li {
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: var(--space-2);
+}
+.brief-steps [aria-current] {
+  color: var(--primary);
+  font-weight: var(--weight-strong);
+}
+.course-brief .guided-summary {
+  max-block-size: 70vh;
+  overflow: auto;
+  padding: var(--space-2);
+}
+.course-brief .guided-fallback {
+  max-inline-size: var(--size-shell);
+}
+.course-brief .guided-fallback .guided-summary {
+  max-block-size: none;
+}
+.course-brief :is(p, input, button) {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 47.999rem) {
+  .course-brief {
+    padding: var(--space-2);
+  }
+  .course-brief .guided-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

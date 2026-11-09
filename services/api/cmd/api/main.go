@@ -23,6 +23,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
 	"github.com/datamonsterr/duolify/services/api/internal/config"
+	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -176,8 +177,15 @@ func run(ctx context.Context, args []string) (result error) {
 		Pricing: catalogue,
 		Events:  events,
 	})
+	briefPricing := catalogue
+	if os.Getenv("DUOLIFY_ENV") == "development" {
+		if dev, loadErr := pricing.LoadDevelopment(ctx, db.Pool); loadErr == nil {
+			briefPricing = dev
+		}
+	}
 	handler := httpapi.New(httpapi.Dependencies{
 		Accounts:     auth,
+		CourseBrief:  courses.New(courses.Options{Pool: db.Pool, Engine: backend, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
 		Pricing:      pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events),
 		PricingAdmin: pricingAdmin,
 		Quotes:       pricing.NewQuotes(db.Pool),
