@@ -32,16 +32,20 @@ type Action struct {
 
 // Offer holds the money value for one billing interval.
 type Offer struct {
-	SKU         string `json:"sku"`
-	Currency    string `json:"currency"`
-	AmountMinor int    `json:"amount_minor"`
+	SKU             string            `json:"sku"`
+	Currency        string            `json:"currency"`
+	AmountMinor     int               `json:"amount_minor"`
+	StripePriceID   any               `json:"stripe_price_id,omitempty"`
+	StoreProductIDs map[string]string `json:"store_product_ids,omitempty"`
 }
 
 // Pack is a non-expiring one-time credit offer.
 type Pack struct {
 	Offer
-	Name    string `json:"name"`
-	Credits int    `json:"credits"`
+	Name            string            `json:"name"`
+	Credits         int               `json:"credits"`
+	StripePriceID   any               `json:"stripe_price_id,omitempty"`
+	StoreProductIDs map[string]string `json:"store_product_ids,omitempty"`
 }
 
 // Plan benefits and limits are config-owned, including annual monthly issuance.
@@ -72,16 +76,20 @@ type Config struct {
 		Expires         string   `json:"expires"`
 		SpendFirst      bool     `json:"spend_first"`
 	} `json:"daily_free"`
-	Packs               []Pack            `json:"packs"`
-	Plans               []Plan            `json:"plans"`
-	PaidCredits         json.RawMessage   `json:"paid_credits"`
-	Limits              json.RawMessage   `json:"limits"`
-	DevelopmentMappings map[string]string `json:"development_mappings,omitempty"`
+	Packs               []Pack                       `json:"packs"`
+	Plans               []Plan                       `json:"plans"`
+	PaidCredits         json.RawMessage              `json:"paid_credits"`
+	Limits              json.RawMessage              `json:"limits"`
+	DevelopmentMappings map[string]string            `json:"development_mappings,omitempty"`
+	StripeMappings      map[string]any               `json:"stripe_mappings,omitempty"`
+	StoreMappings       map[string]map[string]string `json:"store_mappings,omitempty"`
 }
 
 // Public strips provider mappings. No sales are activated by this read-only ticket.
 func (c Config) Public() PublicConfig {
 	c.DevelopmentMappings = nil
+	c.StripeMappings = nil
+	c.StoreMappings = nil
 	return PublicConfig{Config: c, SalesEnabled: false}
 }
 

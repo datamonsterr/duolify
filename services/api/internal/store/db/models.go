@@ -507,6 +507,12 @@ type PricingQuotePolicy struct {
 	Policy  []byte `json:"policy"`
 }
 
+type PricingVerificationEvidence struct {
+	Version    string             `json:"version"`
+	Evidence   []byte             `json:"evidence"`
+	VerifiedAt pgtype.Timestamptz `json:"verified_at"`
+}
+
 type PricingVersion struct {
 	Version       string             `json:"version"`
 	EffectiveFrom pgtype.Timestamptz `json:"effective_from"`
