@@ -2,7 +2,7 @@
 use crate::{Completion, ProviderRouter};
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct Limits {
@@ -15,6 +15,8 @@ pub struct Limits {
     pub output_nanos: u64,
     pub cache_write_nanos: u64,
     pub cache_read_nanos: u64,
+    #[serde(default)]
+    pub deadline_unix_ms: u64,
 }
 pub fn validate_limits(l: &Limits) -> Result<()> {
     if l.input_tokens == 0
@@ -72,22 +74,20 @@ pub struct Outcome {
     pub attempts: Vec<Attempt>,
 }
 
-/// A provider error/timeout retains a conservative cost hold. A fallback starts
-/// only when its full worst-case envelope still fits the API's total cap.
-pub async fn run(router: &ProviderRouter, task: &str, input: &str, l: &Limits) -> Result<Outcome> {
-    execute(
-        router,
-        task,
-        input,
-        l,
-        |text| serde_json::from_str::<serde_json::Value>(text).is_ok(),
-        false,
-    )
-    .await
+/// A caller must supply its required schema; JSON syntax alone is insufficient.
+pub async fn run<F: Fn(&str) -> bool>(
+    router: &ProviderRouter,
+    task: &str,
+    input: &str,
+    l: &Limits,
+    validate: F,
+) -> Result<Outcome> {
+    execute(router, task, input, l, validate, false).await
 }
 
 /// Feature validation participates in the same attempt, USD and deadline budget.
 /// Preview leaves time for its evaluated fallback within the total deadline.
+/// Errors, timeouts and missing usage retain a conservative cost hold.
 pub async fn run_validated<F: Fn(&str) -> bool>(
     router: &ProviderRouter,
     task: &str,
@@ -128,6 +128,15 @@ async fn execute<F: Fn(&str) -> bool>(
     };
     let mut spent = 0u64;
     let started = Instant::now();
+    let mut budget = Duration::from_millis(u64::from(l.timeout_ms));
+    if l.deadline_unix_ms != 0 {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
+        let remaining = u128::from(l.deadline_unix_ms).saturating_sub(now);
+        // This conversion is bounded by the relative API timeout (u32).
+        budget = budget.min(Duration::from_millis(
+            remaining.min(u128::from(l.timeout_ms)) as u64,
+        ));
+    }
     for index in 0..l.max_attempts {
         if spent
             .checked_add(worst)
@@ -135,8 +144,7 @@ async fn execute<F: Fn(&str) -> bool>(
         {
             break;
         }
-        let remaining =
-            Duration::from_millis(u64::from(l.timeout_ms)).saturating_sub(started.elapsed());
+        let remaining = budget.saturating_sub(started.elapsed());
         if remaining.is_zero() {
             break;
         }
@@ -179,7 +187,7 @@ async fn execute<F: Fn(&str) -> bool>(
             attempt: index + 1,
             fallback_used: fallback,
             delivered: false,
-            usage_unavailable: completion.is_none(),
+            usage_unavailable: completion.as_ref().is_none_or(|c| c.usage_unavailable),
         };
         let mut cost = worst;
         if let Some(c) = completion {
@@ -194,7 +202,9 @@ async fn execute<F: Fn(&str) -> bool>(
                 c.cache_write_tokens,
                 c.cache_read_tokens,
             ) {
-                cost = actual;
+                if !c.usage_unavailable {
+                    cost = actual;
+                }
                 // Invalid structured output is undelivered and can use one bounded fallback.
                 if validate(&c.text) {
                     attempt.delivered = true;

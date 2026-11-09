@@ -24,6 +24,9 @@ pub struct Completion {
     pub cache_write_tokens: u32,
     #[serde(default)]
     pub cache_read_tokens: u32,
+    /// False includes an explicitly measured zero; true retains the cost hold.
+    #[serde(default)]
+    pub usage_unavailable: bool,
 }
 #[derive(Debug, Clone)]
 pub enum StreamEvent {
@@ -200,6 +203,7 @@ impl LlmProvider for MockProvider {
             output_tokens: 0,
             cache_write_tokens: 0,
             cache_read_tokens: 0,
+            usage_unavailable: false,
         })
     }
     async fn stream(&self, model: &str, _: &str) -> Result<CompletionStream> {
@@ -211,6 +215,7 @@ impl LlmProvider for MockProvider {
             output_tokens: 0,
             cache_write_tokens: 0,
             cache_read_tokens: 0,
+            usage_unavailable: false,
         };
         Ok(Box::pin(futures::stream::iter(vec![
             Ok(StreamEvent::Delta("Sample response".into())),

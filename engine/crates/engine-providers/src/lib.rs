@@ -94,6 +94,25 @@ impl LlmProvider for HttpProvider {
         };
         Ok(Completion {
             text,
+            usage_unavailable: [
+                if self.anthropic {
+                    "input_tokens"
+                } else {
+                    "prompt_tokens"
+                },
+                if self.anthropic {
+                    "output_tokens"
+                } else {
+                    "completion_tokens"
+                },
+            ]
+            .into_iter()
+            .any(|key| {
+                usage[key]
+                    .as_u64()
+                    .and_then(|v| u32::try_from(v).ok())
+                    .is_none()
+            }),
             provider: if self.anthropic {
                 "anthropic"
             } else {
@@ -147,8 +166,8 @@ impl LlmProvider for HttpProvider {
                 Box::pin(response.bytes_stream()),
                 Vec::<u8>::new(),
                 false,
-                0_u32,
-                0_u32,
+                None::<u32>,
+                None::<u32>,
                 0_u32,
                 0_u32,
                 false,
@@ -214,10 +233,10 @@ impl LlmProvider for HttpProvider {
                                         read = n
                                     }
                                     if let Some(n) = count(&v["message"]["usage"]["input_tokens"]) {
-                                        input = n;
+                                        input = Some(n);
                                     }
                                     if let Some(n) = count(&v["usage"]["output_tokens"]) {
-                                        output = n;
+                                        output = Some(n);
                                     }
                                     if v["type"] == "message_stop" {
                                         done = true;
@@ -229,10 +248,10 @@ impl LlmProvider for HttpProvider {
                                         read = n
                                     }
                                     if let Some(n) = count(&v["usage"]["prompt_tokens"]) {
-                                        input = n;
+                                        input = Some(n);
                                     }
                                     if let Some(n) = count(&v["usage"]["completion_tokens"]) {
-                                        output = n;
+                                        output = Some(n);
                                     }
                                 }
                                 let delta = if anthropic {
@@ -257,13 +276,14 @@ impl LlmProvider for HttpProvider {
                                 provider: if anthropic { "anthropic" } else { "openrouter" }.into(),
                                 model,
                                 input_tokens: if anthropic {
-                                    input
+                                    input.unwrap_or(0)
                                 } else {
-                                    input.saturating_sub(read)
+                                    input.unwrap_or(0).saturating_sub(read)
                                 },
-                                output_tokens: output,
+                                output_tokens: output.unwrap_or(0),
                                 cache_write_tokens: write,
                                 cache_read_tokens: read,
+                                usage_unavailable: input.is_none() || output.is_none(),
                             };
                             return Some((
                                 Ok(StreamEvent::Usage(usage)),
