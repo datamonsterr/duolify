@@ -2,6 +2,9 @@ import { apiBase, resetAuthRateLimits } from "./servers";
 import { test as base, expect } from "@playwright/test";
 import type { Tokens } from "../src/features/accounts/secure-store";
 let tokens: Tokens | undefined;
+export function resetTokens() {
+  tokens = undefined;
+}
 export const test = base.extend<{ authenticated: void }>({
   authenticated: [
     async ({ context, request, page }, use) => {

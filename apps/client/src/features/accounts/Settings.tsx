@@ -5,6 +5,8 @@ import {
 } from "../../lib/analytics";
 import { Button } from "../design/Button";
 import { Feedback } from "../design/chat/Feedback";
+import { useUiPreferences } from "../design/localization/Preferences";
+import { AccountPrivacy } from "./AccountPrivacy";
 import {
   emptySettings,
   profileApi,
@@ -42,6 +44,7 @@ function applyVisualPreferences(settings: LearnerSettings) {
 }
 
 export function Settings() {
+  const { t } = useUiPreferences();
   const [saved, setSaved] = useState<LearnerSettings | null>(null);
   const [draft, setDraft] = useState<LearnerSettings>(emptySettings);
   const [pending, setPending] = useState(false);
@@ -355,11 +358,12 @@ export function Settings() {
           </div>
         </form>
       )}
+      <AccountPrivacy />
       <a className="shell-link" href="/profile">
         Profile
       </a>
       <a className="shell-link" href="/settings/sessions">
-        Manage sessions
+        {t("settings.sessions")}
       </a>
     </section>
   );

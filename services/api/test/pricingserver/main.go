@@ -57,6 +57,9 @@ func run() (result error) {
 		return err
 	}
 	defer db.Close()
+	if err := accounts.ApplyDeletionTombstones(boot, db.Pool); err != nil {
+		return err
+	}
 	catalogue, err := pricing.Load(boot, db.Queries)
 	if err != nil {
 		return err

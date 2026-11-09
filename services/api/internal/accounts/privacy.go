@@ -1,0 +1,183 @@
+package accounts
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// ClassifiedLearnerTables lists every table holding learner data and its retention policy.
+var ClassifiedLearnerTables = map[string]string{
+	"learner_profiles":         "erased",
+	"auth_identities":          "erased",
+	"auth_provider_identities": "erased",
+	"auth_sessions":            "revoked_and_erased",
+	"credit_entries":           "financial_retained_pseudonymous",
+	"pricing_quotes":           "financial_retained_anonymized",
+}
+
+// LearnerReference is a stable pseudonym used only for legally retained records.
+func LearnerReference(learnerID string) string {
+	sum := sha256.Sum256([]byte(learnerID))
+	return hex.EncodeToString(sum[:])
+}
+
+func (s *Service) registerPrivacy() {
+	s.mux.Handle("GET /v1/me/data-export", s.Protect(http.HandlerFunc(s.exportAccountData)))
+	s.mux.Handle("POST /v1/me/deletion-request", s.Protect(http.HandlerFunc(s.deleteAccount)))
+}
+
+func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := contextID(r)
+	var learner string
+	if err := s.pool.QueryRow(ctx, "SELECT id::text FROM learners WHERE id=$1", id).Scan(&learner); err != nil {
+		respond(w, 404, map[string]string{"error": "Account data is unavailable."})
+		return
+	}
+	tables := map[string]json.RawMessage{}
+	type exportQuery struct {
+		table string
+		query string
+	}
+	queries := []exportQuery{
+		{table: "learners", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'display_name',display_name,'created_at',created_at)),'[]'::jsonb) FROM learners WHERE id=$1`},
+		{table: "learner_profiles", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM learner_profiles p WHERE learner_id=$1`},
+		{table: "auth_identities", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('email',email,'created_at',created_at)),'[]'::jsonb) FROM auth_identities WHERE learner_id=$1`},
+		{table: "auth_provider_identities", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('provider',provider,'verified_email',verified_email,'created_at',created_at)),'[]'::jsonb) FROM auth_provider_identities WHERE learner_id=$1`},
+		{table: "auth_sessions", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'created_at',created_at,'expires_at',expires_at,'revoked_at',revoked_at)),'[]'::jsonb) FROM auth_sessions WHERE learner_id=$1`},
+		{table: "credit_entries", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'amount',amount,'kind',kind,'reference',reference,'created_at',created_at)),'[]'::jsonb) FROM credit_entries WHERE learner_id=$1`},
+		{table: "pricing_quotes", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',q.id,'pricing_version',q.pricing_version,'snapshot',q.snapshot,'created_at',q.created_at,'expires_at',q.expires_at,'accepted_at',c.accepted_at)),'[]'::jsonb) FROM pricing_quotes q LEFT JOIN pricing_quote_consents c ON c.quote_id=q.id WHERE q.learner_id=$1`},
+	}
+	for _, item := range queries {
+		var raw []byte
+		if err := s.pool.QueryRow(ctx, item.query, id).Scan(&raw); err != nil {
+			respond(w, 503, map[string]string{"error": "Could not prepare account export. Retry."})
+			return
+		}
+		tables[item.table] = json.RawMessage(raw)
+	}
+	now := time.Now().UTC()
+	w.Header().Set("Content-Disposition", `attachment; filename="duolify-account-export.json"`)
+	respond(w, 200, map[string]any{"schema_version": 1, "exported_at": now, "expires_at": now.Add(7 * 24 * time.Hour), "tables": tables})
+}
+
+func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Confirmation string `json:"confirmation"`
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	d := json.NewDecoder(r.Body)
+	d.DisallowUnknownFields()
+	err := d.Decode(&in)
+	var extra any
+	if err != nil || !errors.Is(d.Decode(&extra), io.EOF) || in.Confirmation != "DELETE" {
+		respond(w, 400, map[string]string{"error": "Type DELETE to confirm account removal."})
+		return
+	}
+	ctx := r.Context()
+	id := contextID(r)
+	var learner string
+	if err := s.pool.QueryRow(ctx, "SELECT id::text FROM learners WHERE id=$1", id).Scan(&learner); err != nil {
+		respond(w, 404, map[string]string{"error": "Account data is unavailable."})
+		return
+	}
+	ref := LearnerReference(learner)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		respond(w, 503, map[string]string{"error": "Could not request account removal. Retry."})
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err = tx.Exec(ctx, "UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE learner_id=$1", id); err == nil {
+		_, err = tx.Exec(ctx, "UPDATE credit_entries SET learner_id=NULL,owner_reference=$2 WHERE learner_id=$1", id, ref)
+	}
+	if err == nil {
+		_, err = tx.Exec(ctx, "UPDATE pricing_quotes SET learner_id=NULL WHERE learner_id=$1", id)
+	}
+	if err == nil {
+		_, err = tx.Exec(ctx, "INSERT INTO account_deletion_tombstones(learner_reference) VALUES($1) ON CONFLICT DO NOTHING", ref)
+	}
+	if err == nil {
+		_, err = tx.Exec(ctx, "INSERT INTO posthog_person_deletion_requests(distinct_id) VALUES($1::uuid) ON CONFLICT DO NOTHING", learner)
+	}
+	if err == nil {
+		_, err = tx.Exec(ctx, "DELETE FROM learners WHERE id=$1", id)
+	}
+	if err == nil {
+		err = tx.Commit(ctx)
+	}
+	if err != nil {
+		respond(w, 503, map[string]string{"error": "Could not request account removal. Retry."})
+		return
+	}
+	posthogAccepted := false
+	if s.personDeleter != nil {
+		requestCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+		if s.personDeleter.DeletePerson(requestCtx, learner) == nil {
+			posthogAccepted = true
+			_, _ = s.pool.Exec(ctx, "DELETE FROM posthog_person_deletion_requests WHERE distinct_id=$1::uuid", learner)
+		}
+		cancel()
+	}
+	respond(w, 200, map[string]any{"deleted": true, "deleted_at": time.Now().UTC(), "posthog_deletion_accepted": posthogAccepted, "retained_financial_reference": ref})
+}
+
+// ApplyDeletionTombstones is called after restoring a database and before its
+// HTTP listener opens. It deletes any personal account whose pseudonym matches
+// a durable tombstone, while leaving null-linked financial rows intact.
+func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
+	rows, err := pool.Query(ctx, "SELECT id::text FROM learners")
+	if err != nil {
+		return err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	for _, id := range ids {
+		ref := LearnerReference(id)
+		var exists bool
+		if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM account_deletion_tombstones WHERE learner_reference=$1)", ref).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			continue
+		}
+		if _, err = tx.Exec(ctx, "UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE learner_id=$1::uuid", id); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, "UPDATE credit_entries SET learner_id=NULL,owner_reference=$2 WHERE learner_id=$1::uuid", id, ref); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, "UPDATE pricing_quotes SET learner_id=NULL WHERE learner_id=$1::uuid", id); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, "DELETE FROM learners WHERE id=$1::uuid", id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
