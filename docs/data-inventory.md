@@ -27,3 +27,12 @@ Postgres recovery objectives are RPO 24 hours and RTO 4 hours. Restoring a backu
 into non-production requires prior anonymization. Financial retention and account
 deletion need an explicit anonymization design when auth/credits features ship;
 the current non-null ledger-to-learner foreign key does not implement it.
+
+E13-01 client theme foundation: `docs/design/tokens.json` is the authoritative
+light/dark token artifact; the client imports `docs/design/theme.css` directly.
+Tokens, component sources and licensed bundled Nunito WOFF2 assets are Git-backed
+and restored together from the same revision. Course responses, search input and
+the optional E1-06 analytics context stay in memory and disappear when the app
+closes; this slice adds no device persistence or learner-data deletion work.
+Existing API course retention and backup policies still apply. UI analytics use
+stable control IDs only and remain silent without an enabled UUID context.

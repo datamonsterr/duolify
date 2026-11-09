@@ -4,6 +4,7 @@ export type Lesson = {
   state: "done" | "current" | "locked";
 };
 export type Course = {
+  availability?: "available" | "unavailable";
   id: string;
   title: string;
   description: string;

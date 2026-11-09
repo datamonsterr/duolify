@@ -6,12 +6,14 @@ run = "pnpm install --frozen-lockfile"
 ["client:lint"]
 description = "Check client formatting, types and lint"
 dir = "{{config_root}}/apps/client"
-run = ["pnpm exec eslint .", "pnpm exec prettier --check .", "pnpm exec tsc --noEmit", "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check", "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings"]
+depends = ["client:lint-web"]
+run = ["cargo fmt --manifest-path src-tauri/Cargo.toml -- --check", "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings"]
 
 ["client:test"]
 description = "Run client tests"
 dir = "{{config_root}}/apps/client"
-run = ["pnpm exec vitest run", "cargo test --manifest-path src-tauri/Cargo.toml"]
+depends = ["client:test-web"]
+run = "cargo test --manifest-path src-tauri/Cargo.toml"
 
 ["client:build"]
 description = "Build client web assets"
@@ -37,3 +39,13 @@ run = "pnpm tauri build --debug --no-bundle"
 description = "Run Tauri development application"
 dir = "{{config_root}}/apps/client"
 run = "pnpm tauri dev"
+
+["client:lint-web"]
+description = "Check client web formatting, types and lint without native prerequisites"
+dir = "{{config_root}}/apps/client"
+run = ["pnpm exec eslint .", "pnpm exec prettier --check .", "pnpm exec tsc --noEmit"]
+
+["client:test-web"]
+description = "Run client web unit and integration tests without native prerequisites"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec vitest run"
