@@ -141,7 +141,7 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		go creditService.Maintain(ctx, logger)
-		return worker.Run(ctx, db.Pool, logger, service)
+		return worker.RunWithCredits(ctx, db.Pool, logger, creditService, service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {

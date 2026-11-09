@@ -31,6 +31,8 @@ type SubscriptionInvoice struct {
 	AmountMinor, AmountPaid, Quantity, LineCount                                    int
 	PeriodStart, PeriodEnd                                                          time.Time
 	LiveMode, Proration, StripePaid, Adjusted                                       bool
+	// Refunded/Disputed mean canonical full funded-term revocation, never an unverified notification or partial refund.
+	Refunded, Disputed bool
 }
 
 // ProviderSubscription projects the sole subscription item's current period and
@@ -41,25 +43,30 @@ type ProviderSubscription struct {
 	PeriodStart, PeriodEnd                                             time.Time
 	BillingAnchor                                                      time.Time
 	LiveMode, Trial                                                    bool
+	CancelAtPeriodEnd                                                  bool
 }
 
 // FundedPlan is a database-derived entitlement snapshot, independent of balance.
 type FundedPlan struct {
-	PlanID               string    `json:"plan_id"`
-	Name                 string    `json:"name"`
-	PricingVersion       string    `json:"pricing_version"`
-	EntitlementVersion   string    `json:"entitlement_version"`
-	MonthlyCredits       int       `json:"monthly_credits"`
-	Benefits             []string  `json:"benefits"`
-	ConcurrentGeneration int       `json:"concurrent_generation"`
-	PaidThrough          time.Time `json:"paid_through"`
-	Active               bool      `json:"active"`
-	Channel              string    `json:"channel"`
-	ManagementURL        string    `json:"management_url"`
+	BillingPeriod        string     `json:"billing_period"`
+	CancelAtPeriodEnd    bool       `json:"cancel_at_period_end"`
+	Revoked              bool       `json:"revoked"`
+	NextAllowanceAt      *time.Time `json:"next_allowance_at,omitempty"`
+	PlanID               string     `json:"plan_id"`
+	Name                 string     `json:"name"`
+	PricingVersion       string     `json:"pricing_version"`
+	EntitlementVersion   string     `json:"entitlement_version"`
+	MonthlyCredits       int        `json:"monthly_credits"`
+	Benefits             []string   `json:"benefits"`
+	ConcurrentGeneration int        `json:"concurrent_generation"`
+	PaidThrough          time.Time  `json:"paid_through"`
+	Active               bool       `json:"active"`
+	Channel              string     `json:"channel"`
+	ManagementURL        string     `json:"management_url"`
 }
 
 func paymentMode(period string) string {
-	if period == "monthly" {
+	if period == "monthly" || period == "yearly" {
 		return "subscription"
 	}
 	return "payment"
@@ -77,7 +84,7 @@ func serviceBoundary(year int, month time.Month, anchor time.Time) time.Time {
 }
 
 func monthlyFundingMatches(i SubscriptionInvoice, s ProviderSubscription, r PaymentRequest, now time.Time) bool {
-	return r.Mode == "subscription" && !i.LiveMode && !s.LiveMode && !s.Trial && s.Status == "active" && s.Interval == "month" && s.IntervalCount == 1 && s.Quantity == 1 &&
+	return r.Mode == "subscription" && !i.Refunded && !i.Disputed && !i.LiveMode && !s.LiveMode && !s.Trial && s.Status == "active" && s.Interval == "month" && s.IntervalCount == 1 && s.Quantity == 1 &&
 		i.Status == "paid" && i.StripePaid && !i.Adjusted && !i.Proration && i.Quantity == 1 && i.LineCount == 1 &&
 		(i.BillingReason == "subscription_create" || i.BillingReason == "subscription_cycle") &&
 		paymentIdentifier.MatchString(i.ID) && paymentIdentifier.MatchString(s.ID) && paymentIdentifier.MatchString(s.CustomerID) &&
@@ -111,14 +118,17 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if strings.HasPrefix(kind, "customer.subscription.") {
-		// Lifecycle notifications cannot erase/extend a paid term, including reordered
-		// cancellation snapshots. Later lifecycle tickets handle canonical changes.
+		// Only canonical cancellation may annotate an existing annual paid term.
+		// Cancellation never erases funding or its remaining grants.
 		sub, err := provider.RetrieveSubscription(callCtx, object)
 		if err != nil {
 			return err
 		}
 		if sub.ID != object || sub.LiveMode {
 			return paymentResult(ctx, tx, event, "", "rejected", "", 0)
+		}
+		if err = recordAnnualCancellation(ctx, tx, event, sub); err != nil {
+			return err
 		}
 		return paymentResult(ctx, tx, event, "", "pending", "", 0)
 	}
@@ -157,7 +167,11 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 		return err
 	}
 	request := PaymentRequest{OrderID: order.ID, OwnerReference: ownerRef, SKU: order.SKU, PriceID: price, Currency: order.Currency, AmountMinor: order.AmountMinor, Mode: paymentMode(order.BillingPeriod)}
-	if order.BillingPeriod != "monthly" || !monthlyFundingMatches(invoice, sub, request, now) {
+	if order.BillingPeriod == "yearly" && (invoice.Refunded || invoice.Disputed) {
+		return s.revokeAnnualTerm(ctx, tx, event, invoice, sub, request, order, *owner)
+	}
+	valid := order.BillingPeriod == "monthly" && monthlyFundingMatches(invoice, sub, request, now) || order.BillingPeriod == "yearly" && annualFundingMatches(invoice, sub, request, now)
+	if !valid {
 		return paymentResult(ctx, tx, event, order.ID, "rejected", "", 0)
 	}
 	// Preserve original configured terms even after pricing activation/rollback.
@@ -171,7 +185,7 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 	}
 	var plan *pricing.Plan
 	for _, p := range cfg.Plans {
-		if p.Monthly.SKU == order.SKU {
+		if p.Monthly.SKU == order.SKU || p.Yearly.SKU == order.SKU {
 			value := p
 			plan = &value
 			break
@@ -212,12 +226,27 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 		return err
 	}
 	for _, name := range []string{"plan_purchased", "subscription_grant_issued", "entitlement_changed"} {
-		props := map[string]any{"source": "api", "platform": order.Platform, "app_version": "development", "plan_id": plan.ID, "interval": "monthly", "channel": "stripe", "amount_minor": order.AmountMinor, "currency": order.Currency, "billing_period_start": invoice.PeriodStart.UTC().Format(time.RFC3339), "billing_period_end": invoice.PeriodEnd.UTC().Format(time.RFC3339), "price_table_version": order.PricingVersion, "amount": plan.MonthlyCredits, "period_key": key, "entitlement_version": order.PricingVersion}
+		props := map[string]any{"source": "api", "platform": order.Platform, "app_version": "development", "plan_id": plan.ID, "interval": order.BillingPeriod, "channel": "stripe", "amount_minor": order.AmountMinor, "currency": order.Currency, "billing_period_start": invoice.PeriodStart.UTC().Format(time.RFC3339), "billing_period_end": invoice.PeriodEnd.UTC().Format(time.RFC3339), "price_table_version": order.PricingVersion, "amount": plan.MonthlyCredits, "period_key": key, "entitlement_version": order.PricingVersion}
 		eventKey := key + ":" + name
 		if name == "plan_purchased" {
 			eventKey = "stripe:test:" + sub.ID + ":plan_purchased"
 		}
 		if err = insertOutbox(ctx, tx, *owner, eventKey, name, props); err != nil {
+			return err
+		}
+	}
+	if order.BillingPeriod == "yearly" {
+		for month := 0; month < 12; month++ {
+			due := annualServiceMonth(invoice.PeriodStart, month)
+			grantKey := annualGrantKey(key, month)
+			if !due.Before(invoice.PeriodEnd) {
+				return errStripeEvidence
+			}
+			if _, err = tx.Exec(ctx, `INSERT INTO credit_subscription_schedule(grant_key,period_key,month_index,due_at) VALUES($1,$2,$3,$4)`, grantKey, key, month, due); err != nil {
+				return err
+			}
+		}
+		if err = recordAnnualCancellation(ctx, tx, event, sub); err != nil {
 			return err
 		}
 	}
@@ -234,7 +263,7 @@ func (s *Service) fundedPlan(ctx context.Context, owner string, at time.Time) (*
 	}
 	p := &FundedPlan{Channel: "stripe", ManagementURL: "/credits/billing"}
 	var benefits []byte
-	err := s.pool().QueryRow(ctx, `SELECT t.plan_id,t.plan_name,t.pricing_version,t.entitlement_version,t.monthly_credits,t.benefits,t.concurrent_generation,t.paid_through,t.service_start<=$2 AND t.paid_through>$2 FROM credit_subscription_terms t JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1 ORDER BY t.paid_through DESC LIMIT 1`, owner, at).Scan(&p.PlanID, &p.Name, &p.PricingVersion, &p.EntitlementVersion, &p.MonthlyCredits, &benefits, &p.ConcurrentGeneration, &p.PaidThrough, &p.Active)
+	err := s.pool().QueryRow(ctx, `SELECT t.plan_id,t.plan_name,t.pricing_version,t.entitlement_version,t.monthly_credits,t.benefits,t.concurrent_generation,t.paid_through,t.service_start<=$2 AND t.paid_through>$2 AND NOT EXISTS(SELECT 1 FROM credit_subscription_revocations r WHERE r.period_key=t.period_key),o.billing_period,EXISTS(SELECT 1 FROM credit_subscription_cancellations c WHERE c.period_key=t.period_key),EXISTS(SELECT 1 FROM credit_subscription_revocations r WHERE r.period_key=t.period_key),CASE WHEN NOT EXISTS(SELECT 1 FROM credit_subscription_revocations r WHERE r.period_key=t.period_key) THEN (SELECT min(g.due_at) FROM credit_subscription_schedule g WHERE g.period_key=t.period_key AND NOT EXISTS(SELECT 1 FROM credit_entries e WHERE e.reference=g.grant_key AND e.kind='subscription_grant')) END FROM credit_subscription_terms t JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1 ORDER BY t.paid_through DESC LIMIT 1`, owner, at).Scan(&p.PlanID, &p.Name, &p.PricingVersion, &p.EntitlementVersion, &p.MonthlyCredits, &benefits, &p.ConcurrentGeneration, &p.PaidThrough, &p.Active, &p.BillingPeriod, &p.CancelAtPeriodEnd, &p.Revoked, &p.NextAllowanceAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}

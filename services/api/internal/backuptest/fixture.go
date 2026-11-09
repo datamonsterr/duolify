@@ -361,12 +361,51 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	f.paymentOrderID = order.ID
 	f.replayPayment(t, creditService, "checkout.session.async_payment_succeeded")
 	plan := catalogue.Config().Plans[0]
-	monthly, err := creditService.CreateCheckout(t.Context(), "a1111111-1111-4111-8111-111111111111", credits.CheckoutInput{RequestID: "a8888888-8888-4888-8888-888888888888", SKU: plan.Monthly.SKU, PricingVersion: catalogue.Config().Version, Platform: "web", ReturnTo: "/credits"})
+	// A prior refunded annual term must survive restore without future grants.
+	revoked, err := creditService.CreateCheckout(t.Context(), "a1111111-1111-4111-8111-111111111111", credits.CheckoutInput{RequestID: "a9999999-9999-4999-8999-999999999999", SKU: plan.Yearly.SKU, PricingVersion: catalogue.Config().Version, Platform: "web", ReturnTo: "/credits"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.subscriptionOrderID = monthly.ID
+	oldStart := time.Date(time.Now().UTC().Year()-2, 1, 1, 12, 0, 0, 0, time.UTC)
+	if err = f.paymentFixture.SetAnnualStart("cs_test_"+revoked.ID, oldStart); err != nil {
+		t.Fatal(err)
+	}
+	f.subscriptionOrderID = revoked.ID
 	f.replaySubscription(t, creditService, "invoice.paid")
+	raw, signature, err := f.paymentFixture.Notification("cs_test_"+revoked.ID, "refunded", "invoice.updated")
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipt := httptest.NewRequestWithContext(t.Context(), "POST", "/v1/payments/stripe/webhook", bytes.NewReader(raw))
+	receipt.Header.Set("Stripe-Signature", signature)
+	response := httptest.NewRecorder()
+	creditService.ServeHTTP(response, receipt)
+	if response.Code != 200 {
+		t.Fatal(response.Body.String())
+	}
+	if err = creditService.ProcessPayments(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	annual, err := creditService.CreateCheckout(t.Context(), "a1111111-1111-4111-8111-111111111111", credits.CheckoutInput{RequestID: "a8888888-8888-4888-8888-888888888888", SKU: plan.Yearly.SKU, PricingVersion: catalogue.Config().Version, Platform: "web", ReturnTo: "/credits"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscriptionOrderID = annual.ID
+	f.replaySubscription(t, creditService, "invoice.paid")
+	raw, signature, err = f.paymentFixture.Notification("cs_test_"+annual.ID, "cancel_scheduled", "customer.subscription.updated")
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipt = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/payments/stripe/webhook", bytes.NewReader(raw))
+	receipt.Header.Set("Stripe-Signature", signature)
+	response = httptest.NewRecorder()
+	creditService.ServeHTTP(response, receipt)
+	if response.Code != 200 {
+		t.Fatal(response.Body.String())
+	}
+	if err = creditService.ProcessPayments(t.Context()); err != nil {
+		t.Fatal(err)
+	}
 	// Drain derived delivery markers before taking snapshots; the packaged worker
 	// also dispatches outbox work and must not race the full-row restore comparison.
 	if err = creditService.DispatchOutbox(t.Context()); err != nil {
@@ -530,10 +569,10 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		t.Fatal(err)
 	}
 	var monthlyCredits int64
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT monthly_credits FROM credit_subscription_terms").Scan(&monthlyCredits); err != nil {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT monthly_credits FROM credit_subscription_terms LIMIT 1").Scan(&monthlyCredits); err != nil {
 		t.Fatal(err)
 	}
-	if version != f.schemaVersion || riverVersions < 1 || learners != 1 || entries != 9 || balance != 104+packCredits+monthlyCredits || name != "Synthetic Learner" {
+	if version != f.schemaVersion || riverVersions < 1 || learners != 1 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
 	var pricingVersion string
@@ -574,7 +613,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -596,15 +635,27 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	f.replaySubscription(t, paidService, "invoice.payment_succeeded")
 	f.replaySubscription(t, paidService, "checkout.session.completed")
 	var grants int
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_subscription_terms").Scan(&grants); err != nil || grants != 1 {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_subscription_terms").Scan(&grants); err != nil || grants != 2 {
 		t.Fatalf("restored funded months %d %v", grants, err)
 	}
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_entries WHERE kind='subscription_grant'").Scan(&grants); err != nil || grants != 1 {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_entries WHERE kind='subscription_grant'").Scan(&grants); err != nil || grants != 2 {
 		t.Fatalf("restored grants %d %v", grants, err)
 	}
 	plan, err := paidService.GetWallet(t.Context(), "a1111111-1111-4111-8111-111111111111")
-	if err != nil || plan.Plan == nil || !plan.Plan.Active || plan.Subscription != monthlyCredits {
+	if err != nil || plan.Plan == nil || !plan.Plan.Active || plan.Subscription != 2*monthlyCredits {
 		t.Fatalf("restored entitlement %+v %v", plan, err)
+	}
+	// Catch up part of the funded annual schedule after restore; revoked history
+	// cannot issue any more. Replay and identity deletion must not add credits.
+	var asOf time.Time
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT t.service_start + interval '3 months' FROM credit_subscription_terms t JOIN credit_subscriptions b USING(subscription_id) WHERE b.order_id=$1`, f.subscriptionOrderID).Scan(&asOf); err != nil {
+		t.Fatal(err)
+	}
+	if count, err := paidService.IssueAnnualAllowances(t.Context(), asOf); err != nil || count != 3 {
+		t.Fatalf("restored annual catch-up %d %v", count, err)
+	}
+	if count, err := paidService.IssueAnnualAllowances(t.Context(), asOf); err != nil || count != 0 {
+		t.Fatalf("restored annual replay %d %v", count, err)
 	}
 	var purchases, outbox int
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_payment_results WHERE state='paid'").Scan(&purchases); err != nil || purchases != 1 {
@@ -613,7 +664,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_outbox WHERE event='credits_purchased'").Scan(&outbox); err != nil || outbox != 1 {
 		t.Fatalf("restore duplicated payment analytics: %d %v", outbox, err)
 	}
-	for _, table := range []string{"credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_results"} {
+	for _, table := range []string{"credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_results"} {
 		for _, verb := range []string{"DELETE FROM ", "TRUNCATE "} {
 			if _, err := restored.Pool.Exec(t.Context(), verb+table); err == nil {
 				t.Fatalf("mutable restored payment history %s%s", verb, table)
@@ -728,7 +779,10 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	f.replayPayment(t, paidService, "checkout.session.expired")
 	f.replaySubscription(t, paidService, "customer.subscription.updated")
 	f.replaySubscription(t, paidService, "invoice.payment_succeeded")
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_entries WHERE kind='subscription_grant'").Scan(&grants); err != nil || grants != 1 {
+	if count, err := paidService.IssueAnnualAllowances(t.Context(), asOf.AddDate(2, 0, 0)); err != nil || count != 0 {
+		t.Fatalf("deleted annual schedule granted %d %v", count, err)
+	}
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_entries WHERE kind='subscription_grant'").Scan(&grants); err != nil || grants != 5 {
 		t.Fatalf("deleted restored grant replay %d %v", grants, err)
 	}
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT learner_id IS NULL FROM credit_checkout_orders WHERE id=$1", f.subscriptionOrderID).Scan(&anonymous); err != nil || !anonymous {

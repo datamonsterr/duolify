@@ -150,6 +150,25 @@ func run() (result error) {
 		}
 		w.WriteHeader(200)
 	})
+	mux.HandleFunc("POST /test/annual/{id}", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Month int `json:"month"`
+		}
+		if json.NewDecoder(r.Body).Decode(&in) != nil || in.Month < 0 || in.Month > 24 {
+			w.WriteHeader(400)
+			return
+		}
+		var start time.Time
+		if err := db.Pool.QueryRow(r.Context(), `SELECT t.service_start FROM credit_subscription_terms t JOIN credit_subscriptions b USING(subscription_id) WHERE b.order_id=$1`, r.PathValue("id")).Scan(&start); err != nil {
+			w.WriteHeader(404)
+			return
+		}
+		if _, err := paidCredits.IssueAnnualAllowances(r.Context(), start.AddDate(0, in.Month, 0)); err != nil {
+			w.WriteHeader(503)
+			return
+		}
+		w.WriteHeader(200)
+	})
 	mux.Handle("POST /test/credits/{id}/settle", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		owner := accounts.LearnerID(r.Context())
 		limits, err := creditService.Limits(r.Context(), owner, r.PathValue("id"), "quick_note")

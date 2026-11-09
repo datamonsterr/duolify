@@ -32,6 +32,7 @@ type PaymentProvider interface {
 type PaymentRequest struct {
 	OrderID, OwnerReference, SKU, PriceID, Currency string
 	Mode                                            string
+	BillingPeriod                                   string
 	AmountMinor                                     int
 }
 
@@ -128,10 +129,10 @@ func verifyStripeSignature(raw []byte, header, secret string, now time.Time) err
 }
 
 func (s *Service) preparePayment(ctx context.Context, owner string, order CheckoutOrder, cfg pricing.Config) error {
-	if s.payments.Mode != "test" || (order.BillingPeriod != "one_time" && order.BillingPeriod != "monthly") {
+	if s.payments.Mode != "test" || (order.BillingPeriod != "one_time" && order.BillingPeriod != "monthly" && order.BillingPeriod != "yearly") {
 		return nil
 	}
-	if order.BillingPeriod == "monthly" {
+	if order.BillingPeriod == "monthly" || order.BillingPeriod == "yearly" {
 		if _, ok := s.payments.Provider.(SubscriptionProvider); !ok {
 			return errPaymentConfig
 		}
@@ -156,7 +157,7 @@ func (s *Service) preparePayment(ctx context.Context, owner string, order Checko
 	if exists {
 		return tx.Commit(ctx)
 	}
-	request := PaymentRequest{OrderID: id, OwnerReference: accounts.LearnerReference(owner), SKU: order.SKU, PriceID: price, AmountMinor: order.AmountMinor, Currency: order.Currency, Mode: paymentMode(order.BillingPeriod)}
+	request := PaymentRequest{OrderID: id, OwnerReference: accounts.LearnerReference(owner), SKU: order.SKU, PriceID: price, AmountMinor: order.AmountMinor, Currency: order.Currency, Mode: paymentMode(order.BillingPeriod), BillingPeriod: order.BillingPeriod}
 	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	session, err := s.payments.Provider.CreateSession(callCtx, request)
@@ -208,7 +209,7 @@ func (s *Service) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch event.Type {
-	case "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired", "invoice.paid", "invoice.payment_succeeded", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted":
+	case "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired", "invoice.paid", "invoice.payment_succeeded", "invoice.updated", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted":
 	default:
 		respondJSON(w, 200, map[string]bool{"received": true})
 		return
@@ -314,8 +315,8 @@ func (s *Service) processPayment(ctx context.Context, eventID string) error {
 	if err != nil {
 		return err
 	}
-	expected := PaymentRequest{OrderID: order.ID, OwnerReference: ownerRef, SKU: order.SKU, PriceID: price, AmountMinor: order.AmountMinor, Currency: order.Currency, Mode: paymentMode(order.BillingPeriod)}
-	if order.BillingPeriod == "monthly" {
+	expected := PaymentRequest{OrderID: order.ID, OwnerReference: ownerRef, SKU: order.SKU, PriceID: price, AmountMinor: order.AmountMinor, Currency: order.Currency, Mode: paymentMode(order.BillingPeriod), BillingPeriod: order.BillingPeriod}
+	if order.BillingPeriod == "monthly" || order.BillingPeriod == "yearly" {
 		if canonical.ID != sessionID || !sessionMatches(canonical, expected) || !paymentIdentifier.MatchString(canonical.SubscriptionID) || !paymentIdentifier.MatchString(canonical.CustomerID) {
 			return paymentResult(ctx, tx, eventID, order.ID, "rejected", "", 0)
 		}

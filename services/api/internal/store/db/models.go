@@ -196,6 +196,26 @@ type CreditSubscription struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type CreditSubscriptionCancellation struct {
+	PeriodKey string             `json:"period_key"`
+	EventID   string             `json:"event_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditSubscriptionRevocation struct {
+	PeriodKey string             `json:"period_key"`
+	EventID   string             `json:"event_id"`
+	Reason    string             `json:"reason"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditSubscriptionSchedule struct {
+	GrantKey   string             `json:"grant_key"`
+	PeriodKey  string             `json:"period_key"`
+	MonthIndex int32              `json:"month_index"`
+	DueAt      pgtype.Timestamptz `json:"due_at"`
+}
+
 type CreditSubscriptionTerm struct {
 	PeriodKey            string             `json:"period_key"`
 	SubscriptionID       string             `json:"subscription_id"`

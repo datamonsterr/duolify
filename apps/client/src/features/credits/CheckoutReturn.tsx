@@ -42,7 +42,7 @@ export function CheckoutReturn({
       )}
       <h2 ref={heading} tabIndex={-1}>
         {paid
-          ? order?.billing_period === "monthly"
+          ? order?.billing_period !== "one_time"
             ? "Plan activated"
             : "Credits added"
           : order?.illustrative === false
@@ -61,7 +61,7 @@ export function CheckoutReturn({
         <>
           <p role="status" className="checkout-status">
             {paid
-              ? order?.billing_period === "monthly"
+              ? order?.billing_period !== "one_time"
                 ? "Paid invoice verified. Your plan and monthly credits are ready in your wallet."
                 : "Payment verified. Purchased credits are ready in your wallet."
               : failed

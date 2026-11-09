@@ -12,8 +12,12 @@ export function PlanSummary({ wallet }: { wallet: WalletResponse }) {
         {wallet.unverified
           ? "Plan status awaiting connection"
           : plan.active
-            ? "Active · Monthly"
-            : "Expired · issued credits remain available"}
+            ? plan.billing_period === "yearly"
+              ? "Active · Annual"
+              : "Active · Monthly"
+            : plan.revoked
+              ? "Refunded · issued credits remain available"
+              : "Expired · issued credits remain available"}
       </p>
       <p>
         Paid through{" "}
@@ -23,6 +27,19 @@ export function PlanSummary({ wallet }: { wallet: WalletResponse }) {
         {number(plan.monthly_credits)} credits each service month. Issued
         credits never expire.
       </p>
+      {plan.cancel_at_period_end && !plan.revoked && (
+        <p>
+          Auto-renew off · funded allowances continue through{" "}
+          {date(new Date(plan.paid_through), wallet.daily_free.timezone)}.
+        </p>
+      )}
+      {plan.next_allowance_at && !plan.revoked && (
+        <p>
+          Next allowance:{" "}
+          {date(new Date(plan.next_allowance_at), wallet.daily_free.timezone)} ·{" "}
+          {number(plan.monthly_credits)} credits.
+        </p>
+      )}
       <p>Pricing / entitlement version: {plan.pricing_version}</p>
       {plan.active && !wallet.unverified && (
         <ul>

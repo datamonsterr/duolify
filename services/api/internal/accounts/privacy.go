@@ -15,31 +15,34 @@ import (
 
 // ClassifiedLearnerTables lists every table holding learner data and its retention policy.
 var ClassifiedLearnerTables = map[string]string{
-	"credit_subscriptions":          "financial_retained_via_order",
-	"credit_subscription_terms":     "financial_retained_via_subscription",
-	"credit_payment_sessions":       "financial_retained_via_order",
-	"credit_payment_inbox":          "financial_retained_via_session",
-	"credit_payment_results":        "financial_retained_via_order",
-	"credit_payment_payloads":       "redacted_expire_30_days",
-	"credit_checkout_orders":        "financial_retained_anonymized",
-	"credit_allocations":            "financial_retained_via_job",
-	"credit_usage":                  "financial_retained_via_job",
-	"credit_cost_counters":          "financial_retained_pseudonymous",
-	"credit_artifacts":              "financial_retained_pseudonymous",
-	"credit_jobs":                   "financial_retained_anonymized",
-	"credit_outbox":                 "financial_retained_anonymized",
-	"course_brief_revisions":        "erased",
-	"learner_profiles":              "erased",
-	"auth_identities":               "erased",
-	"auth_provider_identities":      "erased",
-	"auth_sessions":                 "revoked_and_erased",
-	"credit_entries":                "financial_retained_pseudonymous",
-	"pricing_quotes":                "financial_retained_anonymized",
-	"pricing_admin_grants":          "revoked_and_erased",
-	"pricing_drafts":                "financial_retained_pseudonymous",
-	"pricing_audit":                 "financial_retained_pseudonymous",
-	"pricing_version_cancellations": "financial_retained_anonymized",
-	"credit_timezones":              "financial_retained_pseudonymous",
+	"credit_subscription_schedule":      "financial_retained_via_subscription",
+	"credit_subscription_revocations":   "financial_retained_via_subscription",
+	"credit_subscription_cancellations": "financial_retained_via_subscription",
+	"credit_subscriptions":              "financial_retained_via_order",
+	"credit_subscription_terms":         "financial_retained_via_subscription",
+	"credit_payment_sessions":           "financial_retained_via_order",
+	"credit_payment_inbox":              "financial_retained_via_session",
+	"credit_payment_results":            "financial_retained_via_order",
+	"credit_payment_payloads":           "redacted_expire_30_days",
+	"credit_checkout_orders":            "financial_retained_anonymized",
+	"credit_allocations":                "financial_retained_via_job",
+	"credit_usage":                      "financial_retained_via_job",
+	"credit_cost_counters":              "financial_retained_pseudonymous",
+	"credit_artifacts":                  "financial_retained_pseudonymous",
+	"credit_jobs":                       "financial_retained_anonymized",
+	"credit_outbox":                     "financial_retained_anonymized",
+	"course_brief_revisions":            "erased",
+	"learner_profiles":                  "erased",
+	"auth_identities":                   "erased",
+	"auth_provider_identities":          "erased",
+	"auth_sessions":                     "revoked_and_erased",
+	"credit_entries":                    "financial_retained_pseudonymous",
+	"pricing_quotes":                    "financial_retained_anonymized",
+	"pricing_admin_grants":              "revoked_and_erased",
+	"pricing_drafts":                    "financial_retained_pseudonymous",
+	"pricing_audit":                     "financial_retained_pseudonymous",
+	"pricing_version_cancellations":     "financial_retained_anonymized",
+	"credit_timezones":                  "financial_retained_pseudonymous",
 }
 
 // LearnerReference is a stable pseudonym used only for legally retained records.
@@ -83,6 +86,9 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		{table: "pricing_quotes", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',q.id,'pricing_version',q.pricing_version,'snapshot',q.snapshot,'created_at',q.created_at,'expires_at',q.expires_at,'accepted_at',c.accepted_at)),'[]'::jsonb) FROM pricing_quotes q LEFT JOIN pricing_quote_consents c ON c.quote_id=q.id WHERE q.learner_id=$1`},
 		{table: "pricing_admin_grants", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('account_id',account_id,'granted_at',granted_at)),'[]'::jsonb) FROM pricing_admin_grants WHERE account_id=$1`},
 		{table: "credit_timezones", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'time_zone',time_zone,'effective_at',effective_at,'created_at',created_at)),'[]'::jsonb) FROM credit_timezones WHERE learner_id=$1`},
+	}
+	for _, table := range []string{"credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations"} {
+		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(g)),'[]'::jsonb) FROM " + table + " g JOIN credit_subscription_terms t USING(period_key) JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1"})
 	}
 	for _, table := range []string{"credit_checkout_orders", "credit_jobs", "credit_outbox"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM " + table + " t WHERE learner_id=$1"})

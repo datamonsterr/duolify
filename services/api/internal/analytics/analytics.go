@@ -180,7 +180,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "plan_purchased", "subscription_grant_issued", "entitlement_changed":
 		numeric("amount", "amount_minor")
 		ids("plan_id", "interval", "channel", "currency", "price_table_version", "entitlement_version")
-		if value, ok := input["period_key"].(string); ok && len(value) <= 500 && regexp.MustCompile(`^stripe:test:[A-Za-z0-9_-]+:[0-9]+:[0-9]+:0$`).MatchString(value) {
+		if value, ok := input["period_key"].(string); ok && len(value) <= 500 && regexp.MustCompile(`^stripe:test:[A-Za-z0-9_-]+:[0-9]+:[0-9]+:(?:[0-9]|1[01])$`).MatchString(value) {
 			out["period_key"] = value
 		}
 		for _, key := range []string{"billing_period_start", "billing_period_end"} {

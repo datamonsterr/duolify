@@ -23,6 +23,10 @@ export type ActivityPage = {
 
 export type WalletResponse = {
   plan?: {
+    billing_period?: "monthly" | "yearly";
+    cancel_at_period_end?: boolean;
+    revoked?: boolean;
+    next_allowance_at?: string;
     plan_id: string;
     name: string;
     pricing_version: string;

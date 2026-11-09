@@ -118,7 +118,7 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 	concurrency := q.Bounds["concurrency"]
 	// Benefits expire with the funded term; an old non-expiring credit grant is
 	// no longer evidence of an active plan. Honor its original configured limit.
-	err = tx.QueryRow(ctx, `SELECT COALESCE((SELECT t.concurrent_generation FROM credit_subscription_terms t JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1 AND t.service_start<=now() AND t.paid_through>now() ORDER BY t.paid_through DESC LIMIT 1),$2::bigint)`, owner, concurrency).Scan(&concurrency)
+	err = tx.QueryRow(ctx, `SELECT COALESCE((SELECT t.concurrent_generation FROM credit_subscription_terms t JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1 AND t.service_start<=now() AND t.paid_through>now() AND NOT EXISTS(SELECT 1 FROM credit_subscription_revocations r WHERE r.period_key=t.period_key) ORDER BY t.paid_through DESC LIMIT 1),$2::bigint)`, owner, concurrency).Scan(&concurrency)
 	if err != nil {
 		return Reservation{}, err
 	}

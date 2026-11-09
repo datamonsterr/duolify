@@ -93,7 +93,7 @@ func NewObserved(pool *pgxpool.Pool, logger *slog.Logger, monitor *telemetry.Mon
 	return NewWithCredits(pool, logger, monitor, nil, backups...)
 }
 
-// NewWithCredits registers queue workers for backups and daily credit expiry.
+// NewWithCredits registers backups, daily expiry and funded annual allowances.
 func NewWithCredits(pool *pgxpool.Pool, logger *slog.Logger, monitor *telemetry.Monitor, expirer Expirer, backups ...*backup.Service) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &dummyWorker{logger: logger})
@@ -101,6 +101,12 @@ func NewWithCredits(pool *pgxpool.Pool, logger *slog.Logger, monitor *telemetry.
 	if expirer != nil {
 		river.AddWorker(workers, &CreditsWorker{Expirer: expirer, Logger: logger})
 		periodic = append(periodic, PeriodicCreditsJob())
+		if issuer, ok := expirer.(AnnualIssuer); ok {
+			river.AddWorker(workers, &AnnualAllowanceWorker{Issuer: issuer})
+			periodic = append(periodic, river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
+				return AnnualAllowanceArgs{}, &river.InsertOpts{MaxAttempts: 5}
+			}, &river.PeriodicJobOpts{ID: "annual-subscription-allowances", RunOnStart: true}))
+		}
 	}
 	if len(backups) > 0 && backups[0] != nil {
 		river.AddWorker(workers, &backup.Worker{Service: backups[0], Logger: logger})
@@ -127,6 +133,11 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger) error
 
 // Run starts queue processing and waits for a signal context, then drains workers.
 func Run(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, backups ...*backup.Service) error {
+	return RunWithCredits(ctx, pool, logger, nil, backups...)
+}
+
+// RunWithCredits runs durable credit maintenance together with backup workers.
+func RunWithCredits(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, expirer Expirer, backups ...*backup.Service) error {
 	monitor := telemetry.New(logger)
 	if len(backups) > 0 && backups[0] != nil && backups[0].Monitor() != nil {
 		monitor = backups[0].Monitor()
@@ -134,7 +145,7 @@ func Run(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, backups .
 	watchCtx, watchCancel := context.WithCancel(ctx)
 	defer watchCancel()
 	go WatchQueue(watchCtx, monitor, pool.Ping, time.Second*15)
-	client, err := NewObserved(pool, logger, monitor, backups...)
+	client, err := NewWithCredits(pool, logger, monitor, expirer, backups...)
 	if err != nil {
 		return err
 	}

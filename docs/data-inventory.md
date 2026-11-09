@@ -206,3 +206,16 @@ replay after erasure never grants credits or emits analytics. Restore fixtures i
 nonempty rows, full row comparison, immutable-table checks and payment replay checks.
 Client recovery uses existing disposable account-scoped order IDs only. No new AI
 behavior, prompts or model data are introduced; existing eval/fallback gates apply.
+
+E7-08 adds immutable `credit_subscription_schedule` (funded term, month index,
+UTC due date and unique grant key), `credit_subscription_cancellations` (canonical
+renewal-off history), and `credit_subscription_revocations` (canonical full-term
+refund/dispute history). All join identity only through the existing funded term,
+subscription and original order. Account export includes these rows; deletion and
+restore tombstones sever the order identity and prevent further grants/analytics.
+They retain at least seven years in financial history and nightly encrypted dumps
+with 35-day snapshot rotation. Nonempty backup fixtures compare every row, catch up
+the remaining funded months exactly once after restore, and assert revoked terms
+and deleted learners cannot receive further grants. Issued ledger credits remain
+non-expiring. River's minute/start sweep reconstructs due work from these tables;
+queue timers and PostHog are never the recovery source.

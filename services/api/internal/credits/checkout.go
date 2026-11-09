@@ -105,12 +105,12 @@ func (s *Service) CreateCheckout(ctx context.Context, owner string, in CheckoutI
 		return order, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if order.BillingPeriod == "monthly" && s.payments.Mode == "test" {
+	if (order.BillingPeriod == "monthly" || order.BillingPeriod == "yearly") && s.payments.Mode == "test" {
 		if err = financialLock(ctx, tx); err != nil {
 			return order, err
 		}
 		var overlap bool
-		err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_checkout_orders o WHERE o.learner_id=$1 AND o.billing_period='monthly' AND o.request_id<>$2 AND (
+		err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_checkout_orders o WHERE o.learner_id=$1 AND o.billing_period IN ('monthly','yearly') AND o.request_id<>$2 AND (
  EXISTS(SELECT 1 FROM credit_subscriptions s JOIN credit_subscription_terms t USING(subscription_id) WHERE s.order_id=o.id AND t.paid_through>now()) OR
  (NOT EXISTS(SELECT 1 FROM credit_subscriptions s JOIN credit_subscription_terms t USING(subscription_id) WHERE s.order_id=o.id) AND NOT EXISTS(SELECT 1 FROM credit_payment_results r WHERE r.order_id=o.id AND r.state IN ('failed','expired')))))`, owner, in.RequestID).Scan(&overlap)
 		if err != nil {

@@ -5,14 +5,16 @@ Define how Duolify uses PostHog: identity, privacy, the event catalog with names
 
 ## Requirements
 
-### Requirement: Monthly subscription financial events
+### Requirement: Funded subscription financial events
 The catalogue SHALL include `plan_purchased` (plan_id, interval, channel,
 amount_minor, currency, billing_period_start, billing_period_end,
 price_table_version), `subscription_grant_issued` (plan_id, amount, period_key,
 price_table_version), and `entitlement_changed` (plan_id, entitlement_version).
-These events MUST be created in the funding transaction, deduplicated by funded
+These events MUST be created in the funding, scheduled-grant or verified revocation transaction, deduplicated by funded
 service-month business key and delivered through the financial outbox. They MUST
 inherit UUID identity, common properties, opt-out and content-free allowlists.
+
+Annual keys SHALL include the funded term and service-month index 0–11; a term revocation SHALL create one entitlement change without learner content.
 
 #### Scenario: Duplicate monthly invoice notifications
 - **WHEN** paid and payment-succeeded events describe one funded service month

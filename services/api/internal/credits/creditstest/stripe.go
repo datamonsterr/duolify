@@ -50,7 +50,12 @@ func (s *Stripe) CreateSession(_ context.Context, r credits.PaymentRequest) (cre
 		// Fixture starts are safely before the 28th, avoiding billing-anchor ambiguity.
 		start = time.Date(start.Year(), start.Month(), 1, start.Hour(), start.Minute(), start.Second(), 0, time.UTC)
 		end := start.AddDate(0, 1, 0)
-		s.subscriptions[session.SubscriptionID] = credits.ProviderSubscription{ID: session.SubscriptionID, OrderID: r.OrderID, OwnerReference: r.OwnerReference, CustomerID: session.CustomerID, PriceID: r.PriceID, Status: "incomplete", Interval: "month", IntervalCount: 1, Quantity: 1, PeriodStart: start, PeriodEnd: end, BillingAnchor: start}
+		interval := "month"
+		if r.BillingPeriod == "yearly" {
+			interval = "year"
+			end = start.AddDate(1, 0, 0)
+		}
+		s.subscriptions[session.SubscriptionID] = credits.ProviderSubscription{ID: session.SubscriptionID, OrderID: r.OrderID, OwnerReference: r.OwnerReference, CustomerID: session.CustomerID, PriceID: r.PriceID, Status: "incomplete", Interval: interval, IntervalCount: 1, Quantity: 1, PeriodStart: start, PeriodEnd: end, BillingAnchor: start}
 		s.invoices["in_"+r.OrderID] = credits.SubscriptionInvoice{ID: "in_" + r.OrderID, SubscriptionID: session.SubscriptionID, OrderID: r.OrderID, OwnerReference: r.OwnerReference, CustomerID: session.CustomerID, SKU: r.SKU, PriceID: r.PriceID, Currency: r.Currency, AmountMinor: r.AmountMinor, Status: "open", BillingReason: "subscription_create", PeriodStart: start, PeriodEnd: end, Quantity: 1, LineCount: 1}
 	}
 	s.sessions[id] = session
@@ -78,6 +83,8 @@ func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
 		return nil, "", errors.New("unknown fixture session")
 	}
 	switch state {
+	case "cancel_scheduled", "refunded", "disputed":
+		// Canonical subscription/invoice changes are applied below.
 	case "paid":
 		session.PaymentStatus = "paid"
 		session.Status = "complete"
@@ -96,6 +103,12 @@ func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
 		if strings.HasPrefix(kind, "invoice.") {
 			objectID = "in_" + session.OrderID
 			i := s.invoices[objectID]
+			if state == "refunded" {
+				i.Refunded = true
+			}
+			if state == "disputed" {
+				i.Disputed = true
+			}
 			if state == "paid" {
 				i.Status = "paid"
 				i.AmountPaid = i.AmountMinor
@@ -109,6 +122,11 @@ func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
 			s.subscriptions[sub.ID] = sub
 		} else if strings.HasPrefix(kind, "customer.subscription.") {
 			objectID = session.SubscriptionID
+			if state == "cancel_scheduled" {
+				sub := s.subscriptions[objectID]
+				sub.CancelAtPeriodEnd = true
+				s.subscriptions[objectID] = sub
+			}
 		}
 	}
 	sum := sha256.Sum256([]byte(id + state + kind))
@@ -143,4 +161,30 @@ func (s *Stripe) RetrieveSubscription(_ context.Context, id string) (credits.Pro
 		return v, errors.New("unknown fixture subscription")
 	}
 	return v, nil
+}
+
+// SetAnnualStart controls canonical fixture time without changing a process clock.
+// It is used only by test binaries and never by a production payment adapter.
+func (s *Stripe) SetAnnualStart(sessionID string, start time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	session, ok := s.sessions[sessionID]
+	if !ok {
+		return errors.New("unknown fixture session")
+	}
+	sub := s.subscriptions[session.SubscriptionID]
+	if sub.Interval != "year" {
+		return errors.New("not an annual fixture")
+	}
+	sub.PeriodStart = start
+	sub.BillingAnchor = start
+	// Fixture callers use first-of-month dates; leap/month-end validation lives in
+	// the canonical evidence and scheduler integration/unit tests.
+	sub.PeriodEnd = start.AddDate(1, 0, 0)
+	s.subscriptions[sub.ID] = sub
+	i := s.invoices["in_"+session.OrderID]
+	i.PeriodStart = start
+	i.PeriodEnd = sub.PeriodEnd
+	s.invoices[i.ID] = i
+	return nil
 }
