@@ -50,3 +50,14 @@ the optional E1-06 analytics context stay in memory and disappear when the app
 closes; this slice adds no device persistence or learner-data deletion work.
 Existing API course retention and backup policies still apply. UI analytics use
 stable control IDs only and remain silent without an enabled UUID context.
+
+E13-03 shared guided-chat components and authored fixtures are Git-backed under
+`apps/client/src/features/design/chat/` and `sheet/`. Restore component, fixture,
+and token sources from the same Git revision, then build via `mise run client:build`.
+The standalone `guided-chat.html` harness keeps chat/composer, summary, outline,
+Undo history and sheet drafts only in React memory. Unmount or reload deletes
+these inputs and restores authored defaults (covered by the focused integration
+and browser checks). No database, object-storage or device persistence is added;
+no additional persisted-data restore/deletion checks are needed. PostHog receives
+only allowlisted UI control/sheet IDs and common identity properties through the
+existing opt-out boundary; no learner content or duplicate API outcomes.

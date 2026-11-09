@@ -111,3 +111,69 @@ export function trackControl(controlId: CourseControl, courseId?: string) {
     // Analytics is derived data; transport failure must never block the control.
   }
 }
+
+// E13-03 catalogue: openspec/changes/shared-guided-chat/specs/design-system/spec.md.
+// Build properties explicitly so callers cannot smuggle draft values into events.
+const guidedSurfaces = ["guided_chat", "summary", "outline", "sheet"] as const;
+const guidedControls = [
+  "quick_reply",
+  "send",
+  "skip",
+  "form_fallback",
+  "retry",
+  "confirm",
+  "edit",
+  "move_up",
+  "move_down",
+  "drag_reorder",
+  "rename",
+  "remove",
+  "add",
+  "undo",
+  "apply",
+  "discard",
+  "open",
+  "close",
+] as const;
+const guidedSheets = [
+  "course_brief",
+  "setup_summary",
+  "outline_chat",
+  "fixture_sheet",
+] as const;
+export type GuidedSheetId = (typeof guidedSheets)[number];
+export type GuidedUiEvent =
+  | { event: "ui_sheet_opened"; sheetId: GuidedSheetId }
+  | {
+      event: "ui_control_activated";
+      surface: (typeof guidedSurfaces)[number];
+      controlId: (typeof guidedControls)[number];
+    };
+export function trackGuidedUi(value: GuidedUiEvent) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  const properties: Record<string, string> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? "0.1.0",
+    source: "client",
+  };
+  if (
+    value.event === "ui_sheet_opened" &&
+    guidedSheets.includes(value.sheetId)
+  ) {
+    properties.sheet_id = value.sheetId;
+  } else if (
+    value.event === "ui_control_activated" &&
+    guidedSurfaces.includes(value.surface) &&
+    guidedControls.includes(value.controlId)
+  ) {
+    properties.surface = value.surface;
+    properties.control_id = value.controlId;
+  } else return;
+  try {
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture(value.event, properties);
+  } catch {
+    // UI works even when analytics is unavailable.
+  }
+}
