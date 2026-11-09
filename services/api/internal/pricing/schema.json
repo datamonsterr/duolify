@@ -14,7 +14,7 @@
     },
     "narration": {"type":"object", "additionalProperties":false, "required":["credits","characters","rounding"], "properties":{"credits":{"$ref":"#/$defs/positive"},"characters":{"$ref":"#/$defs/positive"},"rounding":{"const":"ceil_once_per_request"}}},
     "daily_free": {"type":"object", "additionalProperties":false, "required":["credits","eligible_actions","expires","spend_first"], "properties":{"credits":{"$ref":"#/$defs/nonnegative"},"eligible_actions":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string"}},"expires":{"const":"learner_local_day_end"},"spend_first":{"const":true}}},
-    "packs": {"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"required":["sku","name","currency","amount_minor","credits"],"properties":{"sku":{"$ref":"#/$defs/id"},"name":{"$ref":"#/$defs/id"},"currency":{"type":"string"},"amount_minor":{"$ref":"#/$defs/positive"},"credits":{"$ref":"#/$defs/positive"}}}},
+    "packs": {"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"required":["sku","name","currency","amount_minor","credits"],"properties":{"sku":{"$ref":"#/$defs/id"},"name":{"$ref":"#/$defs/id"},"currency":{"type":"string"},"amount_minor":{"$ref":"#/$defs/positive"},"credits":{"$ref":"#/$defs/positive"},"stripe_price_id":{"oneOf":[{"type":"string"},{"type":"object","additionalProperties":{"type":"string"}}]},"store_product_ids":{"type":"object","additionalProperties":{"type":"string"}}}}},
     "plans": {"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"required":["id","name","monthly","yearly","monthly_credits","concurrent_generation","benefits"],"properties":{"id":{"$ref":"#/$defs/id"},"name":{"$ref":"#/$defs/id"},"monthly":{"$ref":"#/$defs/offer"},"yearly":{"$ref":"#/$defs/offer"},"monthly_credits":{"$ref":"#/$defs/positive"},"concurrent_generation":{"$ref":"#/$defs/positive"},"benefits":{"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"#/$defs/id"}}}}},
     "paid_credits": {"type":"object","additionalProperties":false,"required":["expire","rollover_cap","grant_interval","annual_grant"],"properties":{"expire":{"const":false},"rollover_cap":{"type":"null"},"grant_interval":{"const":"service_month"},"annual_grant":{"const":"monthly_anniversary_month_end_clamp"}}},
     "limits": {"type":"object","additionalProperties":false,"required":["protected_cost_ceiling_usd_per_credit","free_learner_usd_per_local_day","paid_learner_usd_per_local_day","generation_usd_per_request","platform_usd_per_day","preview","outline","lesson_content","tutor","quick_note","generation_deadline_seconds","tutor_note_deadline_seconds","tts_deadline_seconds","max_repairs_or_fallbacks","timezone_change_delay_hours","adverse_notice_hours","minimum_paid_ai_margin_percent","budget_alert_percent","cost_review_increase_percent","cost_review_days","cache_hit_alert_below_percent"],"properties":{
@@ -22,7 +22,20 @@
       "preview":{"$ref":"#/$defs/envelope"},"outline":{"$ref":"#/$defs/envelope"},"lesson_content":{"$ref":"#/$defs/envelope"},"tutor":{"$ref":"#/$defs/envelope"},"quick_note":{"$ref":"#/$defs/envelope"},"setup_chat":{"$ref":"#/$defs/envelope"}, "course_brief_chat":{"$ref":"#/$defs/envelope"}, "outline_chat_change":{"$ref":"#/$defs/envelope"},
       "free_concurrent_generation":{"$ref":"#/$defs/positive"},"generation_deadline_seconds":{"$ref":"#/$defs/positive"},"tutor_note_deadline_seconds":{"$ref":"#/$defs/positive"},"tts_deadline_seconds":{"$ref":"#/$defs/positive"},"max_repairs_or_fallbacks":{"$ref":"#/$defs/nonnegative"},"timezone_change_delay_hours":{"$ref":"#/$defs/positive"},"adverse_notice_hours":{"$ref":"#/$defs/positive"},"minimum_paid_ai_margin_percent":{"$ref":"#/$defs/percent"},"budget_alert_percent":{"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"#/$defs/percent"}},"cost_review_increase_percent":{"$ref":"#/$defs/percent"},"cost_review_days":{"$ref":"#/$defs/positive"},"cache_hit_alert_below_percent":{"$ref":"#/$defs/percent"}
     }},
-    "development_mappings":{"type":"object","additionalProperties":{"type":"string","pattern":"^synthetic:[a-z0-9_]+$"}}
+    "development_mappings":{"type":"object","additionalProperties":{"type":"string","pattern":"^synthetic:[a-z0-9_]+$"}},
+    "processing_fees": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pack_fee_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "pack_fixed_fee_usd": {"type": "number", "minimum": 0},
+        "subscription_fee_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "subscription_fixed_fee_usd": {"type": "number", "minimum": 0},
+        "refund_reserve_rate": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "stripe_mappings":{"type":"object","additionalProperties":{"oneOf":[{"type":"string"},{"type":"object","additionalProperties":{"type":"string"}}]}},
+    "store_mappings":{"type":"object","additionalProperties":{"type":"object","additionalProperties":{"type":"string"}}}
   },
   "$defs": {
     "id":{"type":"string","minLength":1},
@@ -30,7 +43,7 @@
     "positive":{"type":"integer","minimum":1,"maximum":9007199254740991},
     "percent":{"type":"integer","minimum":0,"maximum":100},
     "action":{"type":"object","additionalProperties":false,"required":["credits"],"properties":{"credits":{"$ref":"#/$defs/nonnegative"}}},
-    "offer":{"type":"object","additionalProperties":false,"required":["sku","currency","amount_minor"],"properties":{"sku":{"$ref":"#/$defs/id"},"currency":{"type":"string"},"amount_minor":{"$ref":"#/$defs/positive"}}},
+    "offer":{"type":"object","additionalProperties":false,"required":["sku","currency","amount_minor"],"properties":{"sku":{"$ref":"#/$defs/id"},"currency":{"type":"string"},"amount_minor":{"$ref":"#/$defs/positive"},"stripe_price_id":{"oneOf":[{"type":"string"},{"type":"object","additionalProperties":{"type":"string"}}]},"store_product_ids":{"type":"object","additionalProperties":{"type":"string"}}}},
     "envelope":{"type":"object","minProperties":1,"additionalProperties":{"$ref":"#/$defs/positive"}}
   }
 }
