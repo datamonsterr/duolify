@@ -1,15 +1,17 @@
 import { isTauri } from "@tauri-apps/api/core";
 
 export type OAuthCallback = { code: string; state: string } | null;
-export interface GoogleOAuthBridge {
+export interface OAuthBridge {
   openSystemBrowser(url: string): Promise<void>;
   listen(callback: (value: OAuthCallback) => void): Promise<() => void>;
   cancel?: () => void;
 }
+export type GoogleOAuthBridge = OAuthBridge;
+export type OAuthProviderName = "google" | "apple";
 
 declare global {
   interface Window {
-    __DUOLIFY_OAUTH_BRIDGE__?: GoogleOAuthBridge & { cancel?: () => void };
+    __DUOLIFY_OAUTH_BRIDGE__?: OAuthBridge & { cancel?: () => void };
   }
 }
 
@@ -32,7 +34,12 @@ function parseCallback(raw: string): OAuthCallback | undefined {
   return code && state ? { code, state } : undefined;
 }
 
-async function nativeBridge(): Promise<GoogleOAuthBridge> {
+const providerHosts: Record<OAuthProviderName, string[]> = {
+  google: ["accounts.google.com", "accounts.google.test"],
+  apple: ["appleid.apple.com", "appleid.apple.test"],
+};
+
+async function nativeBridge(provider: OAuthProviderName): Promise<OAuthBridge> {
   const [{ openUrl }, { getCurrent, onOpenUrl }] = await Promise.all([
     import("@tauri-apps/plugin-opener"),
     import("@tauri-apps/plugin-deep-link"),
@@ -42,9 +49,9 @@ async function nativeBridge(): Promise<GoogleOAuthBridge> {
       const url = new URL(raw);
       if (
         url.protocol !== "https:" ||
-        !["accounts.google.com", "accounts.google.test"].includes(url.hostname)
+        !providerHosts[provider].includes(url.hostname)
       )
-        throw new Error("Google sign-in returned an unsafe browser URL.");
+        throw new Error("OAuth sign-in returned an unsafe browser URL.");
       await openUrl(url.href);
     },
     async listen(callback) {
@@ -63,18 +70,20 @@ async function nativeBridge(): Promise<GoogleOAuthBridge> {
   };
 }
 
-export async function googleOAuthBridge(): Promise<GoogleOAuthBridge> {
+export async function oauthBridge(
+  provider: OAuthProviderName,
+): Promise<OAuthBridge> {
   if (typeof window !== "undefined" && window.__DUOLIFY_OAUTH_BRIDGE__)
     return window.__DUOLIFY_OAUTH_BRIDGE__;
-  if (isTauri()) return nativeBridge();
+  if (isTauri()) return nativeBridge(provider);
   return {
     async openSystemBrowser(raw) {
       const url = new URL(raw);
       if (
         url.protocol !== "https:" ||
-        !["accounts.google.com", "accounts.google.test"].includes(url.hostname)
+        !providerHosts[provider].includes(url.hostname)
       )
-        throw new Error("Google sign-in returned an unsafe browser URL.");
+        throw new Error("OAuth sign-in returned an unsafe browser URL.");
       window.open(url.href, "_blank", "noopener,noreferrer");
     },
     async listen(callback) {
@@ -86,6 +95,11 @@ export async function googleOAuthBridge(): Promise<GoogleOAuthBridge> {
     },
   };
 }
+
+export const googleOAuthBridge = (): Promise<OAuthBridge> =>
+  oauthBridge("google");
+export const appleOAuthBridge = (): Promise<OAuthBridge> =>
+  oauthBridge("apple");
 
 export function createPKCEVerifier(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));

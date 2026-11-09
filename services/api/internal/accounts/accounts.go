@@ -48,6 +48,7 @@ type Service struct {
 	key     []byte
 	mail    Mailer
 	oauth   OAuthProvider
+	apple   AppleOAuthProvider
 	mux     *http.ServeMux
 	profile ProfileOptions
 }
@@ -59,14 +60,28 @@ func New(pool *pgxpool.Pool, secret string, mailer Mailer) (*Service, error) {
 
 // NewWithOAuthProvider injects the provider boundary used by Google and future Apple OAuth.
 func NewWithOAuthProvider(pool *pgxpool.Pool, secret string, mailer Mailer, provider OAuthProvider) (*Service, error) {
-	if len(secret) < 32 || mailer == nil || provider == nil {
-		return nil, errors.New("auth requires a 32-byte secret, Mailer, and OAuth provider")
+	return NewWithOAuthProviders(pool, secret, mailer, provider, unavailableAppleProvider{})
+}
+
+// NewWithOAuthProviders injects independent Google and Apple adapters. Both default
+// to unavailable in production until their respective provisioning gates are met.
+func NewWithOAuthProviders(pool *pgxpool.Pool, secret string, mailer Mailer, google OAuthProvider, apple AppleOAuthProvider) (*Service, error) {
+	if len(secret) < 32 || mailer == nil {
+		return nil, errors.New("auth requires a 32-byte secret, Mailer, and OAuth providers")
 	}
-	s := &Service{pool: pool, key: []byte(secret), mail: mailer, oauth: provider, mux: http.NewServeMux()}
+	if google == nil {
+		google = unavailableOAuthProvider{}
+	}
+	if apple == nil {
+		apple = unavailableAppleProvider{}
+	}
+	s := &Service{pool: pool, key: []byte(secret), mail: mailer, oauth: google, apple: apple, mux: http.NewServeMux()}
 	s.mux.HandleFunc("POST /v1/auth/code", s.requestCode)
 	s.mux.HandleFunc("POST /v1/auth/verify", s.verify)
 	s.mux.HandleFunc("POST /v1/auth/google/start", s.googleOAuthStart)
 	s.mux.HandleFunc("POST /v1/auth/google/complete", s.googleOAuthComplete)
+	s.mux.HandleFunc("POST /v1/auth/apple/start", s.appleOAuthStart)
+	s.mux.HandleFunc("POST /v1/auth/apple/complete", s.appleOAuthComplete)
 	s.mux.HandleFunc("POST /v1/auth/refresh", s.refresh)
 	s.mux.HandleFunc("POST /v1/auth/logout", s.logout)
 	s.mux.Handle("GET /v1/auth/sessions", s.Protect(http.HandlerFunc(s.listSessions)))
