@@ -90,6 +90,17 @@ export const defaultCompanionFixture: CharacterSpec = {
   voice_key: "voice-provisional-companion",
 };
 
+export function isCustomCharactersEnabled(): boolean {
+  const envVal =
+    typeof import.meta !== "undefined" && import.meta.env
+      ? import.meta.env.VITE_FEATURE_CUSTOM_CHARACTERS
+      : undefined;
+  if (!envVal) {
+    return false;
+  }
+  return envVal === "true" || envVal === "1";
+}
+
 export function getDefaultCastFixtures(): CharacterSpec[] {
   return [
     defaultGuideFixture,

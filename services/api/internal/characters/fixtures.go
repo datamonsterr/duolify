@@ -7,10 +7,11 @@ import (
 )
 
 // CustomCharactersEnabled controls whether custom characters are active.
+// Fixture art is not launch approval, so the default must be false (off) when unset.
 func CustomCharactersEnabled() bool {
-	val := os.Getenv("FEATURE_CUSTOM_CHARACTERS")
+	val := strings.TrimSpace(os.Getenv("FEATURE_CUSTOM_CHARACTERS"))
 	if val == "" {
-		return true // Default enabled for development and test
+		return false
 	}
 	return strings.EqualFold(val, "true") || val == "1"
 }

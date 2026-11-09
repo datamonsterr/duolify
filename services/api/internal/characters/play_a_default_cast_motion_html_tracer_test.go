@@ -2,6 +2,7 @@ package characters_test
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -245,5 +246,44 @@ func TestDefaultCastContainsThreeOriginalMascots(t *testing.T) {
 	// 3 distinct body shapes (round, bean, star)
 	if len(seenShapes) != 3 {
 		t.Errorf("expected 3 distinct shapes in default cast, got %d", len(seenShapes))
+	}
+}
+
+func TestCustomCharactersEnabled(t *testing.T) {
+	orig := os.Getenv("FEATURE_CUSTOM_CHARACTERS")
+	defer func() {
+		if orig != "" {
+			_ = os.Setenv("FEATURE_CUSTOM_CHARACTERS", orig)
+		} else {
+			_ = os.Unsetenv("FEATURE_CUSTOM_CHARACTERS")
+		}
+	}()
+
+	// 1. Unset defaults to false (off)
+	_ = os.Unsetenv("FEATURE_CUSTOM_CHARACTERS")
+	if characters.CustomCharactersEnabled() {
+		t.Fatal("expected CustomCharactersEnabled to be false when unset")
+	}
+
+	// 2. Empty string defaults to false
+	_ = os.Setenv("FEATURE_CUSTOM_CHARACTERS", "   ")
+	if characters.CustomCharactersEnabled() {
+		t.Fatal("expected CustomCharactersEnabled to be false when empty")
+	}
+
+	// 3. Explicitly true or 1
+	_ = os.Setenv("FEATURE_CUSTOM_CHARACTERS", "true")
+	if !characters.CustomCharactersEnabled() {
+		t.Fatal("expected CustomCharactersEnabled to be true when set to 'true'")
+	}
+	_ = os.Setenv("FEATURE_CUSTOM_CHARACTERS", "1")
+	if !characters.CustomCharactersEnabled() {
+		t.Fatal("expected CustomCharactersEnabled to be true when set to '1'")
+	}
+
+	// 4. False or other values
+	_ = os.Setenv("FEATURE_CUSTOM_CHARACTERS", "false")
+	if characters.CustomCharactersEnabled() {
+		t.Fatal("expected CustomCharactersEnabled to be false when set to 'false'")
 	}
 }

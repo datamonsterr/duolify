@@ -6,6 +6,7 @@ import {
   getBundledFallbackSpec,
   type CharacterSpec,
 } from "./rig";
+import { isCustomCharactersEnabled } from "./fixtures";
 import {
   trackCharacterRendered,
   trackCharacterRenderFallback,
@@ -206,6 +207,10 @@ describe("E17-01 Client Character Rig & Tracer Unit Tests", () => {
           source: "client",
         }),
       );
+    });
+
+    it("defaults to false (off) when VITE_FEATURE_CUSTOM_CHARACTERS is unset", () => {
+      expect(isCustomCharactersEnabled()).toBe(false);
     });
   });
 });

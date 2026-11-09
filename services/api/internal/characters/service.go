@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -50,56 +49,13 @@ func NewService(pool *pgxpool.Pool, storage *backup.S3, events analytics.Events)
 	}
 }
 
-// ProjectManifest resolves or creates an immutable lesson manifest and pinned cast snapshot.
-func (s *Service) ProjectManifest(ctx context.Context, learnerID, courseID, lessonID string) (*LessonManifest, error) {
+// ProjectManifest resolves the default cast lesson manifest and pinned cast snapshot.
+func (s *Service) ProjectManifest(_ context.Context, learnerID, courseID, lessonID string) (*LessonManifest, error) {
 	if learnerID == "" {
 		return nil, errors.New("unauthorized: learnerID required")
 	}
 
-	manifest, err := ProjectDefaultCastManifest(courseID, lessonID)
-	if err != nil {
-		return nil, err
-	}
-
-	// If database pool is available, check or persist to lesson_cast_snapshots
-	if s.pool != nil {
-		var existingSpeakers []byte
-		var castSource, rigVersion, voiceConfigVersion string
-		var schemaVersion int
-		var fallbackUsed bool
-
-		queryErr := s.pool.QueryRow(ctx, `
-			SELECT cast_source, schema_version, rig_version, voice_config_version, speakers, fallback_used
-			FROM lesson_cast_snapshots
-			WHERE course_id = $1 AND lesson_id = $2
-		`, courseID, lessonID).Scan(&castSource, &schemaVersion, &rigVersion, &voiceConfigVersion, &existingSpeakers, &fallbackUsed)
-
-		if queryErr == nil {
-			var speakers map[string]PinnedSpeaker
-			if err := json.Unmarshal(existingSpeakers, &speakers); err == nil {
-				manifest.Cast.CastSource = castSource
-				manifest.Cast.SchemaVersion = schemaVersion
-				manifest.Cast.RigVersion = rigVersion
-				manifest.Cast.VoiceConfigVersion = voiceConfigVersion
-				manifest.Cast.Speakers = speakers
-				manifest.Cast.FallbackUsed = fallbackUsed
-				return manifest, nil
-			}
-		}
-
-		// Persist new snapshot
-		speakersJSON, err := json.Marshal(manifest.Cast.Speakers)
-		if err == nil {
-			_, _ = s.pool.Exec(ctx, `
-				INSERT INTO lesson_cast_snapshots (
-					learner_id, course_id, lesson_id, cast_source, schema_version, rig_version, voice_config_version, speakers, fallback_used
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-				ON CONFLICT (course_id, lesson_id) DO NOTHING
-			`, learnerID, courseID, lessonID, manifest.Cast.CastSource, manifest.Cast.SchemaVersion, manifest.Cast.RigVersion, manifest.Cast.VoiceConfigVersion, speakersJSON, manifest.Cast.FallbackUsed)
-		}
-	}
-
-	return manifest, nil
+	return ProjectDefaultCastManifest(courseID, lessonID)
 }
 
 // StoreRigAsset stores an object-backed rig or SVG into object storage with SHA-256 checksum.

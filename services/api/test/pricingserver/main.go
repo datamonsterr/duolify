@@ -40,6 +40,7 @@ func main() {
 	}
 }
 func run() (result error) {
+	_ = os.Setenv("FEATURE_CUSTOM_CHARACTERS", "true")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	boot, cancel := context.WithTimeout(ctx, 2*time.Minute)
