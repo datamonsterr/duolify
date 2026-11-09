@@ -5,7 +5,7 @@ import type { Tokens } from "../src/features/accounts/secure-store";
 test.use({ hasTouch: true });
 
 // These scenarios use the real authenticated API and Postgres. Browser requests
-// reach it through Vite's fixture proxy; no Playwright route supplies responses.
+// are transparently forwarded to the real API instance; no mock data is supplied.
 for (const width of [1280, 390]) {
   for (const expired of [false, true]) {
     test(`E7 ${expired ? "expired yesterday" : "fresh"} grant is idempotent and timezone changes are delayed at ${width}px`, async ({
@@ -14,6 +14,20 @@ for (const width of [1280, 390]) {
       request,
     }) => {
       await resetAuthRateLimits(request);
+      await page.route(/\/v1\//, async (route) => {
+        const original = route.request();
+        const target = new URL(original.url());
+        const headers = original.headers();
+        delete headers.origin;
+        target.host = new URL(apiBase).host;
+        await route.fulfill({
+          response: await request.fetch(target.href, {
+            method: original.method(),
+            headers,
+            data: original.postData() ?? undefined,
+          }),
+        });
+      });
       const email = `daily-${width}-${Date.now()}@example.test`;
       expect(
         (
