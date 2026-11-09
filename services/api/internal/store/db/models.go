@@ -383,6 +383,16 @@ type EvalReport struct {
 	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
 }
 
+type GeneratedLesson struct {
+	ID           pgtype.UUID        `json:"id"`
+	LessonStubID pgtype.UUID        `json:"lesson_stub_id"`
+	CourseID     pgtype.UUID        `json:"course_id"`
+	LearnerID    pgtype.UUID        `json:"learner_id"`
+	Title        string             `json:"title"`
+	Manifest     []byte             `json:"manifest"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
 type Learner struct {
 	ID          pgtype.UUID        `json:"id"`
 	DisplayName string             `json:"display_name"`
@@ -413,6 +423,77 @@ type LearnerProfile struct {
 	UiSounds        bool               `json:"ui_sounds"`
 	Haptics         string             `json:"haptics"`
 	ActiveCourseID  pgtype.UUID        `json:"active_course_id"`
+}
+
+type LessonCompletionOutbox struct {
+	ID        pgtype.UUID        `json:"id"`
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	CourseID  pgtype.UUID        `json:"course_id"`
+	LessonID  pgtype.UUID        `json:"lesson_id"`
+	PassedAt  pgtype.Timestamptz `json:"passed_at"`
+	State     string             `json:"state"`
+}
+
+type LessonGeneration struct {
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	CourseID      pgtype.UUID        `json:"course_id"`
+	LessonID      pgtype.UUID        `json:"lesson_id"`
+	QuoteID       pgtype.UUID        `json:"quote_id"`
+	ReservationID pgtype.UUID        `json:"reservation_id"`
+	State         string             `json:"state"`
+	ErrorCode     pgtype.Text        `json:"error_code"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type LessonQuestion struct {
+	ID           pgtype.UUID        `json:"id"`
+	LessonStubID pgtype.UUID        `json:"lesson_stub_id"`
+	LearnerID    pgtype.UUID        `json:"learner_id"`
+	TopicID      string             `json:"topic_id"`
+	Position     int32              `json:"position"`
+	Prompt       string             `json:"prompt"`
+	Choices      []byte             `json:"choices"`
+	AnswerIndex  int32              `json:"answer_index"`
+	Explanation  string             `json:"explanation"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type LessonSlide struct {
+	ID           pgtype.UUID        `json:"id"`
+	LessonStubID pgtype.UUID        `json:"lesson_stub_id"`
+	LearnerID    pgtype.UUID        `json:"learner_id"`
+	Position     int32              `json:"position"`
+	SlideID      string             `json:"slide_id"`
+	Html         string             `json:"html"`
+	DurationMs   int32              `json:"duration_ms"`
+	Narration    string             `json:"narration"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type LessonTestAnswer struct {
+	ID            pgtype.UUID        `json:"id"`
+	SessionID     pgtype.UUID        `json:"session_id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	QuestionID    string             `json:"question_id"`
+	TopicID       string             `json:"topic_id"`
+	SelectedIndex int32              `json:"selected_index"`
+	Correct       bool               `json:"correct"`
+	IsVariant     bool               `json:"is_variant"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type LessonTestSession struct {
+	ID              pgtype.UUID        `json:"id"`
+	LessonStubID    pgtype.UUID        `json:"lesson_stub_id"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	State           string             `json:"state"`
+	QuestionQueue   []byte             `json:"question_queue"`
+	ResolvedTopics  []byte             `json:"resolved_topics"`
+	FirstTryCorrect int32              `json:"first_try_correct"`
+	VariantsServed  int32              `json:"variants_served"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 type OutlineDraft struct {

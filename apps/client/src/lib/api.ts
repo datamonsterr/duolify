@@ -3,7 +3,7 @@ import { isValidPricing, type Pricing } from "../features/pricing/types";
 export type Lesson = {
   id: string;
   title: string;
-  state: "done" | "current" | "locked" | "ready_to_generate";
+  state: "done" | "current" | "locked" | "ready_to_generate" | "generating";
   goal?: string;
 };
 export type Course = {

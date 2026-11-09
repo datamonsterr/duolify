@@ -94,6 +94,7 @@ func TestEventAllowlist(t *testing.T) {
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
 		"daily_credits_granted", "daily_credits_expired",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
+		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 	} {
 		if !allowlisted(name) {
 			t.Errorf("catalogue event %q rejected", name)
@@ -458,5 +459,106 @@ func TestAICostBudgetAlertReachesPostHogWithoutPrivateData(t *testing.T) {
 	}
 	if p["learner_text"] != nil || p["user_question"] != nil {
 		t.Fatalf("leaked private properties: %v", p)
+	}
+}
+
+func TestLessonTestEventsPrivacy(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	learnerID := "22222222-2222-4222-8222-222222222222"
+	tests := []struct {
+		event string
+		props map[string]any
+	}{
+		{
+			event: "lesson_generation_requested",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456",
+				"prompt": "forbidden prompt", "title": "forbidden title",
+			},
+		},
+		{
+			event: "lesson_generated",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456",
+				"slide_count": 5, "duration_ms": 1200, "provider": "mock", "model": "mock-model",
+				"html": "<section>slide</section>", "narration": "forbidden audio text",
+			},
+		},
+		{
+			event: "lesson_test_started",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456",
+				"question_count": 3,
+				"questions":      []string{"forbidden question"},
+			},
+		},
+		{
+			event: "lesson_test_submitted",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456",
+				"topic_id": "topic-789", "correct": true, "is_variant": false,
+				"attempt": 1, "choice_index": 2,
+				"user_answer": "forbidden answer text", "explanation": "forbidden explanation",
+			},
+		},
+		{
+			event: "lesson_test_passed",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456",
+				"first_try_correct": 3, "variants_served": 0, "duration_ms": 45000, "score": 100,
+				"feedback": "forbidden learner feedback",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		if err := events.Capture(learnerID, tc.event, tc.props); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 5 {
+		t.Fatalf("expected 5 events, got %d", len(received))
+	}
+
+	for _, item := range received {
+		raw, _ := json.Marshal(item)
+		if strings.Contains(string(raw), "forbidden") {
+			t.Fatalf("private learner text leaked in %s", string(raw))
+		}
+		p := item["properties"].(map[string]any)
+		if p["source"] != "api" || p["platform"] != "web" || p["course_id"] != "course-123" {
+			t.Fatalf("expected common properties preserved, got %v", p)
+		}
 	}
 }

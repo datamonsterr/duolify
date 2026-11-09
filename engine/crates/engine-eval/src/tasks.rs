@@ -17,6 +17,7 @@ pub fn canonical_task_name(task: &str) -> String {
         "test" | "lesson_test" => "lesson_test".to_string(),
         "chat" | "tutor_chat" => "tutor_chat".to_string(),
         "note" | "note_enrich" => "note_enrich".to_string(),
+        "narration" | "lesson_narration" => "lesson_narration".to_string(),
         other => other.to_string(),
     }
 }
@@ -35,7 +36,7 @@ pub fn model_route_for_task(task: &str) -> String {
         "outline_chat_change" => "outline_chat_change".to_string(),
         "credit_envelope" => "preview".to_string(),
         "variants" => "lesson".to_string(),
-        "narration" => "lesson".to_string(),
+        "narration" | "lesson_narration" => "lesson".to_string(),
         "screening" => "chat".to_string(),
         "steering" => "outline".to_string(),
         other => other.to_string(),
@@ -59,6 +60,7 @@ impl Default for TaskRegistry {
         registered_extensions.insert("course_brief_chat".to_string());
         registered_extensions.insert("outline_chat_change".to_string());
         registered_extensions.insert("credit_envelope".to_string());
+        registered_extensions.insert("lesson_narration".to_string());
 
         Self {
             canonical_tasks,
@@ -108,6 +110,7 @@ mod tests {
         assert_eq!(canonical_task_name("test"), "lesson_test");
         assert_eq!(canonical_task_name("chat"), "tutor_chat");
         assert_eq!(canonical_task_name("note"), "note_enrich");
+        assert_eq!(canonical_task_name("narration"), "lesson_narration");
         assert_eq!(canonical_task_name("custom"), "custom");
     }
 

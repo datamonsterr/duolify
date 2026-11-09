@@ -74,6 +74,7 @@ func (c *client) Close() error {
 func allowlisted(event string) bool {
 	switch event {
 	case "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
+		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed", "ai_cost_budget_alert",
@@ -180,6 +181,21 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "course_outline_generated", "course_enrolled":
 		ids("course_id", "provider", "model")
 		numeric("unit_count", "lesson_count", "latency_ms")
+	case "lesson_generation_requested":
+		ids("course_id", "lesson_id")
+	case "lesson_generated":
+		ids("course_id", "lesson_id", "provider", "model")
+		numeric("slide_count", "duration_ms", "latency_ms")
+	case "lesson_test_started":
+		ids("course_id", "lesson_id")
+		numeric("question_count")
+	case "lesson_test_submitted":
+		ids("course_id", "lesson_id", "topic_id")
+		boolean("correct", "is_variant")
+		numeric("attempt", "choice_index")
+	case "lesson_test_passed":
+		ids("course_id", "lesson_id")
+		numeric("first_try_correct", "variants_served", "duration_ms", "score")
 	case "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone":
 		ids("proposal_id")
 		numeric("base_revision")

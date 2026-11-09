@@ -1,6 +1,6 @@
 import { useUiPreferences } from "../design/localization/Preferences";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { track } from "../../lib/analytics";
 import { isSlideMessage, nextSlide, sendCommand } from "./bridge";
 import slide1 from "../../slides/one.html?raw";
@@ -8,16 +8,62 @@ import slide2 from "../../slides/two.html?raw";
 import slide3 from "../../slides/three.html?raw";
 import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { useShellSession } from "../shell/ShellSession";
-const slides = [slide1, slide2, slide3];
+import { authRequest } from "../accounts/session";
+
+interface DynamicLesson {
+  id: string;
+  title: string;
+  slides: {
+    slide_id: string;
+    html: string;
+    duration_ms: number;
+    narration: string;
+  }[];
+}
+
+const staticSlides = [slide1, slide2, slide3];
 const playbackSpeeds = [1, 1.25, 1.5, 2];
 export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
+  const navigate = useNavigate();
   const { reducedMotion } = useUiPreferences();
   const session = useShellSession();
+  const [dynamicLesson, setDynamicLesson] = useState<DynamicLesson | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let active = true;
+    if (!lessonId || lessonId === "sky") return;
+    authRequest<DynamicLesson>(`/v1/lessons/${encodeURIComponent(lessonId)}`)
+      .then((data) => {
+        if (active && data?.slides && data.slides.length > 0) {
+          setDynamicLesson(data);
+        }
+      })
+      .catch(() => {
+        /* Fallback to static slides */
+      });
+    return () => {
+      active = false;
+    };
+  }, [lessonId]);
+
+  const currentSlides = dynamicLesson?.slides?.length
+    ? dynamicLesson.slides.map((s) => s.html)
+    : staticSlides;
+  const currentNarrations = dynamicLesson?.slides?.length
+    ? dynamicLesson.slides.map((s) => s.narration)
+    : [
+        "The sky is a map waiting to be explored.",
+        "Stars are distant suns, shining across space.",
+        "Notice how the sky changes as Earth turns.",
+      ];
+  const lessonTitle = dynamicLesson?.title ?? "Why the sky changes";
+
   const [index, setIndex] = useState(() => session.slides.get(lessonId) ?? 0);
   useEffect(() => {
     session.slides.set(lessonId, index);
   }, [session, lessonId, index]);
-  const [finished, setFinished] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [speedIndex, setSpeedIndex] = useState(0);
@@ -57,8 +103,8 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
     };
   }, []);
   useEffect(() => {
-    track("lesson_started", { lesson: "sky" });
-  }, []);
+    track("lesson_started", { lesson: lessonId });
+  }, [lessonId]);
   useEffect(() => {
     track("slide_viewed", { slide: index + 1 });
   }, [index]);
@@ -74,17 +120,6 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
     window.addEventListener("message", listener);
     return () => window.removeEventListener("message", listener);
   }, []);
-  if (finished)
-    return (
-      <div className="complete">
-        <div className="big-star">✦</div>
-        <h1>Lesson complete!</h1>
-        <p>Wonderful work. Your universe just got a little bigger.</p>
-        <Link to="/course/$courseId" params={{ courseId: session.courseId() }}>
-          Back to your path
-        </Link>
-      </div>
-    );
   return (
     <div className="player">
       <header className="focused-context">
@@ -98,19 +133,21 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
         </Link>
         <span>Course · Lesson</span>
       </header>
-      <h1 tabIndex={-1}>Why the sky changes</h1>
+      <h1 tabIndex={-1}>{lessonTitle}</h1>
       <div
         className="progress"
         role="progressbar"
         aria-label="Lesson slides"
         aria-valuemin={0}
-        aria-valuemax={slides.length}
+        aria-valuemax={currentSlides.length}
         aria-valuenow={index + 1}
       >
-        <span style={{ width: `${((index + 1) / slides.length) * 100}%` }} />
+        <span
+          style={{ width: `${((index + 1) / currentSlides.length) * 100}%` }}
+        />
       </div>
       <p>
-        Slide {index + 1} of {slides.length}
+        Slide {index + 1} of {currentSlides.length}
       </p>
       <PanelLayout
         panel={
@@ -122,17 +159,7 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
             <p className="feedback badge-warning" role="status">
               Lesson paused
             </p>
-            {panel === "Transcript" && (
-              <p>
-                {
-                  [
-                    "The sky is a map waiting to be explored.",
-                    "Stars are distant suns, shining across space.",
-                    "Notice how the sky changes as Earth turns.",
-                  ][index]
-                }
-              </p>
-            )}
+            {panel === "Transcript" && <p>{currentNarrations[index] ?? ""}</p>}
             {panel === "Ask tutor" && (
               <>
                 <p>
@@ -170,7 +197,7 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
           ref={frame}
           title={`Slide ${index + 1}`}
           sandbox="allow-scripts"
-          srcDoc={slides[index]}
+          srcDoc={currentSlides[index]}
           onLoad={() => {
             sendCommand(frame.current?.contentWindow ?? null, {
               type: "set_motion",
@@ -266,13 +293,15 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
           <button
             className="primary"
             onClick={() => {
-              if (index === slides.length - 1) {
-                track("lesson_completed", { lesson: "sky" });
-                setFinished(true);
-              } else goToSlide(nextSlide(index, slides.length));
+              if (index === currentSlides.length - 1) {
+                navigate({
+                  to: "/lesson/$lessonId/test",
+                  params: { lessonId },
+                });
+              } else goToSlide(nextSlide(index, currentSlides.length));
             }}
           >
-            {index === slides.length - 1 ? "Finish lesson" : "Next"}
+            {index === currentSlides.length - 1 ? "Take lesson test" : "Next"}
           </button>
         </div>
         <div className="panel-tools" aria-label="Lesson tools">
@@ -291,12 +320,12 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
           ))}
         </div>
       </PanelLayout>
-      {index + 1 < slides.length && (
+      {index + 1 < currentSlides.length && (
         <iframe
           title="Preloaded slide"
           hidden
           sandbox="allow-scripts"
-          srcDoc={slides[index + 1]}
+          srcDoc={currentSlides[index + 1]}
         />
       )}
     </div>

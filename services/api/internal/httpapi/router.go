@@ -42,10 +42,17 @@ type Dependencies struct {
 	Quotes          http.Handler
 	Credits         http.Handler
 	Eval            http.Handler
+	LessonTest      http.Handler
 	Accounts        interface {
 		http.Handler
 		Protect(http.Handler) http.Handler
 	}
+}
+
+// NewWithLessonTest attaches the lesson testing service.
+func NewWithLessonTest(deps Dependencies, lessonTest http.Handler, logger *slog.Logger) http.Handler {
+	deps.LessonTest = lessonTest
+	return New(deps, logger)
 }
 
 // New creates the scaffold routes. Courses are static demonstration data.
@@ -141,6 +148,10 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	}
 	if deps.Eval != nil {
 		mux.Handle("/v1/eval/", deps.Eval)
+	}
+	if deps.LessonTest != nil && deps.Accounts != nil {
+		mux.Handle("/v1/lessons/", deps.Accounts.Protect(deps.LessonTest))
+		mux.Handle("/v1/lesson-generations/", deps.Accounts.Protect(deps.LessonTest))
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

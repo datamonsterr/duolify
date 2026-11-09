@@ -28,6 +28,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/eval"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
+	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
@@ -160,6 +161,19 @@ func run(ctx context.Context, args []string) (result error) {
 			defer cancel()
 			_ = outlineQueue.Stop(stopCtx)
 		}()
+		lessonService := lessontest.New(lessontest.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Events: events})
+		lessonQueue, err := lessonService.LessonQueue(logger)
+		if err != nil {
+			return err
+		}
+		if err = lessonQueue.Start(context.WithoutCancel(ctx)); err != nil {
+			return err
+		}
+		defer func() {
+			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer cancel()
+			_ = lessonQueue.Stop(stopCtx)
+		}()
 		return worker.RunWithCredits(ctx, db.Pool, logger, creditService, service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
@@ -237,6 +251,12 @@ func run(ctx context.Context, args []string) (result error) {
 			briefPricing = dev
 		}
 	}
+	lessonService := lessontest.New(lessontest.Options{
+		Pool:      db.Pool,
+		Engine:    backend,
+		Financial: creditService,
+		Events:    events,
+	})
 	handler := httpapi.New(httpapi.Dependencies{
 		Monitor:       monitor,
 		ObjectStorage: telemetry.StorageProbe(os.Getenv),
@@ -247,6 +267,7 @@ func run(ctx context.Context, args []string) (result error) {
 		PricingAdmin:  pricingAdmin,
 		Quotes:        pricing.NewQuotes(db.Pool),
 		Eval:          eval.NewService(db.Pool, catalogue, monitor, events),
+		LessonTest:    lessonService,
 		Postgres:      db.Ping,
 		Redis:         func(ctx context.Context) error { return redis.Ping(ctx).Err() },
 		Engine:        backend,

@@ -4,7 +4,9 @@ package engine
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"time"
 
@@ -97,4 +99,41 @@ func (c *Client) GenerateCourseOutline(ctx context.Context, r *enginev1.Generate
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	return c.rpc.GenerateCourseOutline(ctx, r)
+}
+
+// GenerateLesson streams lesson generation and returns the completed lesson and usage attempts.
+func (c *Client) GenerateLesson(ctx context.Context, req *enginev1.GenerateLessonRequest) (*enginev1.Lesson, []*enginev1.Usage, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	stream, err := c.rpc.GenerateLesson(ctx, req)
+	if err != nil {
+		return nil, nil, err
+	}
+	var lesson *enginev1.Lesson
+	var attempts []*enginev1.Usage
+	for {
+		ev, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, attempts, err
+		}
+		switch e := ev.Event.(type) {
+		case *enginev1.GenerateLessonEvent_Lesson:
+			lesson = e.Lesson
+		case *enginev1.GenerateLessonEvent_Usage:
+			attempts = append(attempts, e.Usage)
+		case *enginev1.GenerateLessonEvent_Attempt:
+			attempts = append(attempts, e.Attempt)
+		case *enginev1.GenerateLessonEvent_Unavailable:
+			if e.Unavailable {
+				return nil, attempts, errors.New("engine unavailable")
+			}
+		}
+	}
+	if lesson == nil {
+		return nil, attempts, errors.New("no lesson delivered from engine")
+	}
+	return lesson, attempts, nil
 }
