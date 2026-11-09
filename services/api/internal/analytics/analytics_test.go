@@ -92,6 +92,7 @@ func TestEventAllowlist(t *testing.T) {
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
+		"character_rendered", "character_render_fallback",
 		"daily_credits_granted", "daily_credits_expired",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 	} {
@@ -458,5 +459,81 @@ func TestAICostBudgetAlertReachesPostHogWithoutPrivateData(t *testing.T) {
 	}
 	if p["learner_text"] != nil || p["user_question"] != nil {
 		t.Fatalf("leaked private properties: %v", p)
+	}
+}
+
+func TestCharacterRenderAnalyticsDeliveryAndPrivacy(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	learnerID := "11111111-1111-4111-8111-111111111111"
+	renderProps := map[string]any{
+		"source":            "api",
+		"platform":          "web",
+		"app_version":       "development",
+		"speaker_key":       "guide",
+		"character_version": "1",
+		"rig_version":       "original-v1",
+		"expression":        "happy",
+		"offline":           false,
+		"character_text":    "private speech dialogue",
+		"svg_content":       "<svg>private</svg>",
+		"name":              "private name",
+	}
+
+	if err := events.Capture(learnerID, "character_rendered", renderProps); err != nil {
+		t.Fatal(err)
+	}
+
+	fallbackProps := map[string]any{
+		"source":         "api",
+		"platform":       "web",
+		"app_version":    "development",
+		"reason_code":    "missing_rig",
+		"offline":        true,
+		"character_text": "private speech dialogue",
+	}
+
+	if err := events.Capture(learnerID, "character_render_fallback", fallbackProps); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(received))
+	}
+
+	for _, ev := range received {
+		raw, _ := json.Marshal(ev)
+		if strings.Contains(string(raw), "private") {
+			t.Fatalf("private content leaked in character event: %s", string(raw))
+		}
+		p := ev["properties"].(map[string]any)
+		if p["character_text"] != nil || p["svg_content"] != nil || p["name"] != nil {
+			t.Fatalf("unsafe properties leaked: %v", p)
+		}
 	}
 }

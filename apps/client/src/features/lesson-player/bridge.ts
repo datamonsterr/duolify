@@ -2,9 +2,25 @@ export type SlideCommand =
   | { type: "play" | "pause" }
   | { type: "seek"; time: number }
   | { type: "rate"; rate: number }
-  | { type: "set_motion"; reduced: boolean };
+  | { type: "set_motion"; reduced: boolean }
+  | { type: "set_expression"; speaker?: string; expression: string };
 export type SlideMessage =
-  { type: "ended" } | { type: "checkpoint"; name: string };
+  | { type: "ended" }
+  | { type: "checkpoint"; name: string }
+  | {
+      type: "character_rendered";
+      speaker_key: string;
+      character_version: number;
+      rig_version: string;
+      expression: string;
+      offline: boolean;
+      slide_id?: string;
+    }
+  | {
+      type: "character_render_fallback";
+      reason_code: string;
+      offline: boolean;
+    };
 export function isSlideMessage(
   event: MessageEvent,
   frame: Window | null,

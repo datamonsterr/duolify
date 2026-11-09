@@ -81,6 +81,7 @@ func allowlisted(event string) bool {
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
+		"character_rendered", "character_render_fallback",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":
 		return true
 	default:
@@ -270,6 +271,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 				out["next_daily_grant_at"] = reset
 			}
 		}
+	case "character_rendered":
+		ids("speaker_key", "character_version", "rig_version", "expression")
+		boolean("offline")
+	case "character_render_fallback":
+		ids("reason_code")
+		boolean("offline")
 	case "pricing_version_created", "pricing_version_approved", "pricing_version_rejected", "pricing_version_activated", "pricing_version_rolled_back", "price_table_activated":
 		ids("pricing_version")
 		if class := input["change_class"]; class == "adverse" || class == "non_adverse" {

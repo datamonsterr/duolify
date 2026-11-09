@@ -42,6 +42,7 @@ type Dependencies struct {
 	Quotes          http.Handler
 	Credits         http.Handler
 	Eval            http.Handler
+	Characters      http.Handler
 	Accounts        interface {
 		http.Handler
 		Protect(http.Handler) http.Handler
@@ -141,6 +142,11 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	}
 	if deps.Eval != nil {
 		mux.Handle("/v1/eval/", deps.Eval)
+	}
+	if deps.Characters != nil {
+		mux.Handle("/v1/characters/", deps.Characters)
+		mux.Handle("/v1/lessons/", deps.Characters)
+		mux.Handle("/v1/courses/{courseId}/lessons/", deps.Characters)
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

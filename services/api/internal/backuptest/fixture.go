@@ -233,6 +233,19 @@ func (s *faultStore) Put(ctx context.Context, key string, body io.ReadSeeker, si
 // FailNextUpload interrupts one publication to exercise River's durable retry.
 func (f *Fixture) FailNextUpload() { f.faults.fail.Store(true) }
 
+// Events returns the fixture's PostHog events double.
+func (f *Fixture) Events() analytics.Events { return f.events }
+
+// ApplicationStorage returns an S3 client scoped to the application assets bucket.
+func (f *Fixture) ApplicationStorage() *backup.S3 {
+	opts := f.writerOptions
+	opts.Bucket = opts.ApplicationBucket
+	opts.AccessKey = "application-writer"
+	opts.SecretKey = "application-synthetic-secret"
+	s3Client, _ := backup.NewS3(opts)
+	return s3Client
+}
+
 // UsePackagedWorker exercises the actual non-root worker image, pg_dump process,
 // runtime config, schedule and PostHog lifecycle. Host networking is local-only
 // and reaches only this test's randomly published disposable service ports.

@@ -463,3 +463,9 @@ export function trackCourseRecovery(
     /* Telemetry failure never blocks recovery. */
   }
 }
+
+export {
+  trackCharacterRendered,
+  trackCharacterRenderFallback,
+  resetCharacterRenderDeduplication,
+} from "../features/characters/analytics";

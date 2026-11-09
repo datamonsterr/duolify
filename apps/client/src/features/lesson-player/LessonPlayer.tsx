@@ -1,15 +1,23 @@
 import { useUiPreferences } from "../design/localization/Preferences";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { track } from "../../lib/analytics";
+import {
+  track,
+  trackCharacterRendered,
+  trackCharacterRenderFallback,
+} from "../../lib/analytics";
 import { isSlideMessage, nextSlide, sendCommand } from "./bridge";
 import slide1 from "../../slides/one.html?raw";
 import slide2 from "../../slides/two.html?raw";
 import slide3 from "../../slides/three.html?raw";
 import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { useShellSession } from "../shell/ShellSession";
-const slides = [slide1, slide2, slide3];
+import { createDefaultTracerManifest } from "../characters/fixtures";
+import { generateMotionSlideHtml } from "../characters/motion-slide";
+
+const defaultSlides = [slide1, slide2, slide3];
 const playbackSpeeds = [1, 1.25, 1.5, 2];
+
 export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
   const { reducedMotion } = useUiPreferences();
   const session = useShellSession();
@@ -23,6 +31,26 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
   const [speedIndex, setSpeedIndex] = useState(0);
   const [slideTime, setSlideTime] = useState(0);
   const frame = useRef<HTMLIFrameElement>(null);
+
+  const tracerManifest = useMemo(() => {
+    if (lessonId === "tracer-default-cast" || lessonId.startsWith("tracer")) {
+      return createDefaultTracerManifest();
+    }
+    return null;
+  }, [lessonId]);
+
+  const slides = useMemo(() => {
+    if (tracerManifest) {
+      return tracerManifest.slides.map((s) =>
+        generateMotionSlideHtml(s, tracerManifest.cast, {
+          reducedMotion,
+          offline: typeof navigator !== "undefined" ? !navigator.onLine : false,
+        }),
+      );
+    }
+    return defaultSlides;
+  }, [tracerManifest, reducedMotion]);
+
   useEffect(() => {
     sendCommand(frame.current?.contentWindow ?? null, {
       type: "set_motion",
@@ -56,19 +84,98 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
       sendCommand(playerFrame?.contentWindow ?? null, { type: "pause" });
     };
   }, []);
+
+  // Keyboard navigation parity: Space for play/pause, Left/Right for seek
+  const handleKeyAction = (code: string, key: string) => {
+    if (code === "Space" || key === " ") {
+      setIsPlaying((prev) => {
+        const next = !prev;
+        sendCommand(frame.current?.contentWindow ?? null, {
+          type: next ? "play" : "pause",
+        });
+        return next;
+      });
+    } else if (code === "ArrowRight" || key === "ArrowRight") {
+      setSlideTime((prev) => {
+        const next = Math.min(3000, prev + 500);
+        sendCommand(frame.current?.contentWindow ?? null, {
+          type: "seek",
+          time: next,
+        });
+        return next;
+      });
+    } else if (code === "ArrowLeft" || key === "ArrowLeft") {
+      setSlideTime((prev) => {
+        const next = Math.max(0, prev - 500);
+        sendCommand(frame.current?.contentWindow ?? null, {
+          type: "seek",
+          time: next,
+        });
+        return next;
+      });
+    }
+  };
+
   useEffect(() => {
-    track("lesson_started", { lesson: "sky" });
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (
+        e.code === "Space" ||
+        e.key === " " ||
+        e.code === "ArrowRight" ||
+        e.key === "ArrowRight" ||
+        e.code === "ArrowLeft" ||
+        e.key === "ArrowLeft"
+      ) {
+        e.preventDefault();
+        handleKeyAction(e.code, e.key);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  useEffect(() => {
+    track("lesson_started", { lesson: lessonId });
+  }, [lessonId]);
   useEffect(() => {
     track("slide_viewed", { slide: index + 1 });
   }, [index]);
   useEffect(() => {
     const listener = (event: MessageEvent) => {
+      if (!event.data || typeof event.data !== "object") return;
+
       if (
         isSlideMessage(event, frame.current?.contentWindow ?? null) &&
         event.data.type === "ended"
       ) {
         /* Learner advances when ready. */
+      }
+
+      if (event.data.type === "player_keydown") {
+        handleKeyAction(event.data.code, event.data.key);
+      } else if (event.data.type === "character_rendered") {
+        trackCharacterRendered({
+          speaker_key: event.data.speaker_key,
+          character_version: event.data.character_version,
+          rig_version: event.data.rig_version,
+          expression: event.data.expression,
+          offline: Boolean(event.data.offline),
+          slide_id: event.data.slide_id,
+        });
+      } else if (event.data.type === "character_render_fallback") {
+        trackCharacterRenderFallback({
+          reason_code: event.data.reason_code,
+          offline: Boolean(event.data.offline),
+        });
       }
     };
     window.addEventListener("message", listener);
@@ -124,13 +231,15 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
             </p>
             {panel === "Transcript" && (
               <p>
-                {
-                  [
-                    "The sky is a map waiting to be explored.",
-                    "Stars are distant suns, shining across space.",
-                    "Notice how the sky changes as Earth turns.",
-                  ][index]
-                }
+                {tracerManifest
+                  ? tracerManifest.slides[index]?.segments
+                      .map((s) => s.text)
+                      .join(" ")
+                  : [
+                      "The sky is a map waiting to be explored.",
+                      "Stars are distant suns, shining across space.",
+                      "Notice how the sky changes as Earth turns.",
+                    ][index]}
               </p>
             )}
             {panel === "Ask tutor" && (
@@ -267,7 +376,7 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
             className="primary"
             onClick={() => {
               if (index === slides.length - 1) {
-                track("lesson_completed", { lesson: "sky" });
+                track("lesson_completed", { lesson: lessonId });
                 setFinished(true);
               } else goToSlide(nextSlide(index, slides.length));
             }}
