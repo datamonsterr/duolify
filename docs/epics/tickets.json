@@ -4879,5 +4879,34 @@
       "unit": "THIRD — services/api/internal/characters/publish_immutable_character_snapshots_with_safe_lifecycle_test.go; apps/client/src/features/characters/publish_immutable_character_snapshots_with_safe_lifecycle.test.tsx (Vitest); engine/crates/engine-core/src/characters/tests.rs (cargo tests): snapshot projection/hash/diff, private-ID removal, published/fork guards, safety substitution and once-per-version private analytics."
     },
     "size": "L"
+  },
+  {
+    "id": "E1-12",
+    "epic": "E1",
+    "title": "Store session tokens securely on iOS and Android",
+    "areas": [
+      "client"
+    ],
+    "kind": "AFK",
+    "blocked_by": [
+      "E1-02"
+    ],
+    "spec": [
+      "docs/adr/0004-auth.md",
+      "openspec/specs/learner-profile/spec.md"
+    ],
+    "summary": "E1-02 stores tokens in the OS keychain on desktop only; native mobile fails closed. Add a mobile SecureStore backend (iOS Keychain, Android Keystore) behind the same interface, choosing a maintained Tauri 2 mobile-capable plugin or a small custom plugin.",
+    "acceptance": [
+      "SecureStore implementation for iOS and Android with the same interface as desktop; no plaintext fallback.",
+      "Sign-in survives app restart on mobile; sign-out and refresh rotation clear/replace stored tokens.",
+      "Analytics: none new. Data and backup: tokens are device-only, never backed up.",
+      "Write failing tests in e2e → integration → unit order; run client lint/test/build and the Tauri mobile build in CI."
+    ],
+    "tests": {
+      "e2e": "apps/client/e2e: sign-in persistence with the platform store double",
+      "integration": "Rust plugin tests for keychain/keystore adapters (CI mobile targets)",
+      "unit": "apps/client/src/lib/secure-store tests for backend selection and fail-closed behavior"
+    },
+    "size": "M"
   }
 ]
