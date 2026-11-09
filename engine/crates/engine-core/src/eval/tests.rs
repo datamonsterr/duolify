@@ -267,3 +267,123 @@ async fn streaming_no_post_delta_fallback() {
         "stream must terminate with error and no post-delta fallback"
     );
 }
+
+#[test]
+fn alert_evaluation_budget_boundaries() {
+    let cfg = AlertConfig::default();
+
+    // Below 80%: $39.99
+    let (fire_80, fire_100) = evaluate_platform_budget(39.99, &cfg);
+    assert!(!fire_80);
+    assert!(!fire_100);
+
+    // Exactly 80%: $40.00
+    let (fire_80, fire_100) = evaluate_platform_budget(40.00, &cfg);
+    assert!(fire_80);
+    assert!(!fire_100);
+
+    // Between 80% and 100%: $45.00
+    let (fire_80, fire_100) = evaluate_platform_budget(45.00, &cfg);
+    assert!(fire_80);
+    assert!(!fire_100);
+
+    // Exactly 100%: $50.00
+    let (fire_80, fire_100) = evaluate_platform_budget(50.00, &cfg);
+    assert!(fire_80);
+    assert!(fire_100);
+}
+
+#[test]
+fn alert_evaluation_growth_cache_margin_rates() {
+    let cfg = AlertConfig::default();
+
+    // 7-day learner cost increase (+20% boundary)
+    assert!(!evaluate_learner_cost_increase(
+        10.0,
+        11.9,
+        cfg.learner_cost_increase_threshold
+    ));
+    assert!(evaluate_learner_cost_increase(
+        10.0,
+        12.0,
+        cfg.learner_cost_increase_threshold
+    ));
+    assert!(evaluate_learner_cost_increase(
+        10.0,
+        13.0,
+        cfg.learner_cost_increase_threshold
+    ));
+
+    // Cache hit rate (<60% boundary)
+    assert!(!evaluate_cache_hit_rate(
+        60,
+        100,
+        cfg.cache_hit_rate_threshold
+    ));
+    assert!(!evaluate_cache_hit_rate(
+        70,
+        100,
+        cfg.cache_hit_rate_threshold
+    ));
+    assert!(evaluate_cache_hit_rate(
+        59,
+        100,
+        cfg.cache_hit_rate_threshold
+    ));
+
+    // Paid margin (<70% boundary)
+    assert!(!evaluate_paid_margin(
+        100.0,
+        30.0,
+        cfg.paid_margin_threshold
+    ));
+    assert!(!evaluate_paid_margin(
+        100.0,
+        25.0,
+        cfg.paid_margin_threshold
+    ));
+    assert!(evaluate_paid_margin(100.0, 31.0, cfg.paid_margin_threshold));
+
+    // Fallback rate (15% boundary)
+    assert!(!evaluate_rate(14, 100, cfg.fallback_rate_threshold));
+    assert!(evaluate_rate(15, 100, cfg.fallback_rate_threshold));
+
+    // Error rate (5% boundary)
+    assert!(!evaluate_rate(4, 100, cfg.error_rate_threshold));
+    assert!(evaluate_rate(5, 100, cfg.error_rate_threshold));
+}
+
+#[test]
+fn alert_deduplication_and_privacy_assertions() {
+    let key1 = dedupe_alert_key("platform_daily_80", "2026-11-10T14:00");
+    let key2 = dedupe_alert_key("platform_daily_80", "2026-11-10T14:00");
+    let key3 = dedupe_alert_key("platform_daily_80", "2026-11-10T15:00");
+
+    assert_eq!(
+        key1, key2,
+        "keys in same window must match for deduplication"
+    );
+    assert_ne!(key1, key3, "keys in different windows must not match");
+
+    // Assert alert payload contains no private text
+    let payload = serde_json::json!({
+        "event": "ai_cost_budget_alert",
+        "distinct_id": "00000000-0000-4000-8000-000000000011",
+        "properties": {
+            "source": "api",
+            "platform": "web",
+            "app_version": "development",
+            "scope": "platform_daily_80",
+            "actual_usd": 40.50,
+            "budget_usd": 50.00
+        }
+    });
+
+    let raw = payload.to_string();
+    for forbidden in &["prompt", "learner_text", "completion", "email", "chat"] {
+        assert!(
+            !raw.contains(forbidden),
+            "payload must not contain forbidden key {forbidden}"
+        );
+    }
+}

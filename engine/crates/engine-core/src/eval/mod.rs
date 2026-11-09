@@ -10,6 +10,77 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 mod tests;
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AlertConfig {
+    pub platform_daily_budget_usd: f64,
+    pub daily_budget_alert_80_percent: bool,
+    pub daily_budget_alert_100_percent: bool,
+    pub learner_cost_increase_threshold: f64,
+    pub cache_hit_rate_threshold: f64,
+    pub paid_margin_threshold: f64,
+    pub fallback_rate_threshold: f64,
+    pub error_rate_threshold: f64,
+}
+
+impl Default for AlertConfig {
+    fn default() -> Self {
+        Self {
+            platform_daily_budget_usd: 50.0,
+            daily_budget_alert_80_percent: true,
+            daily_budget_alert_100_percent: true,
+            learner_cost_increase_threshold: 0.20,
+            cache_hit_rate_threshold: 0.60,
+            paid_margin_threshold: 0.70,
+            fallback_rate_threshold: 0.15,
+            error_rate_threshold: 0.05,
+        }
+    }
+}
+
+pub fn evaluate_platform_budget(actual_spent_usd: f64, cfg: &AlertConfig) -> (bool, bool) {
+    let fire_80 = cfg.daily_budget_alert_80_percent
+        && actual_spent_usd >= 0.80 * cfg.platform_daily_budget_usd;
+    let fire_100 = cfg.daily_budget_alert_100_percent
+        && actual_spent_usd >= 1.00 * cfg.platform_daily_budget_usd;
+    (fire_80, fire_100)
+}
+
+pub fn evaluate_learner_cost_increase(prior_avg: f64, current_avg: f64, threshold: f64) -> bool {
+    if prior_avg <= 0.0 {
+        return false;
+    }
+    let growth = (current_avg - prior_avg) / prior_avg;
+    growth >= threshold
+}
+
+pub fn evaluate_cache_hit_rate(cache_read_tokens: u64, total_tokens: u64, threshold: f64) -> bool {
+    if total_tokens == 0 {
+        return false;
+    }
+    let rate = (cache_read_tokens as f64) / (total_tokens as f64);
+    rate < threshold
+}
+
+pub fn evaluate_paid_margin(revenue: f64, cost: f64, threshold: f64) -> bool {
+    if revenue <= 0.0 {
+        return false;
+    }
+    let margin = (revenue - cost) / revenue;
+    margin < threshold
+}
+
+pub fn evaluate_rate(count: u64, total: u64, threshold: f64) -> bool {
+    if total == 0 {
+        return false;
+    }
+    let rate = (count as f64) / (total as f64);
+    rate >= threshold
+}
+
+pub fn dedupe_alert_key(scope: &str, window_id: &str) -> String {
+    format!("{}:{}", scope, window_id)
+}
+
 pub fn sanitize_error_code(err_str: &str) -> &'static str {
     let lower = err_str.to_lowercase();
     if lower.contains("429")

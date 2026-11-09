@@ -397,3 +397,66 @@ func TestEvalRunCompletedDeliveryAndMetadata(t *testing.T) {
 		t.Fatalf("opt-out sent analytics: %v", received)
 	}
 }
+
+func TestAICostBudgetAlertReachesPostHogWithoutPrivateData(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	systemID := "00000000-0000-4000-8000-000000000011"
+	props := map[string]any{
+		"source":        "api",
+		"platform":      "web",
+		"app_version":   "development",
+		"scope":         "platform_daily_80",
+		"actual_usd":    40.50,
+		"budget_usd":    50.00,
+		"threshold":     0.80,
+		"status":        "firing",
+		"learner_text":  "forbidden prompt text",
+		"user_question": "forbidden learner question",
+	}
+
+	if err := events.Capture(systemID, "ai_cost_budget_alert", props); err != nil {
+		t.Fatal(err)
+	}
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(received))
+	}
+	ev := received[0]
+	if ev["event"] != "ai_cost_budget_alert" {
+		t.Fatalf("expected ai_cost_budget_alert, got %v", ev["event"])
+	}
+	if ev["distinct_id"] != systemID {
+		t.Fatalf("expected system ID %s, got %v", systemID, ev["distinct_id"])
+	}
+	p := ev["properties"].(map[string]any)
+	if p["scope"] != "platform_daily_80" || p["actual_usd"] != 40.50 || p["budget_usd"] != 50.00 {
+		t.Fatalf("missing or wrong properties: %v", p)
+	}
+	if p["learner_text"] != nil || p["user_question"] != nil {
+		t.Fatalf("leaked private properties: %v", p)
+	}
+}
