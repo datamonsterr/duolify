@@ -2,7 +2,7 @@
 
 Owner specs are authoritative for collection and deletion. Every feature adding
 data must update this table and its restore checks. Bootstrap currently creates
-only `learners`, `credit_entries`, Goose/River metadata and River's queue tables;
+`learners`, `credit_entries`, immutable `pricing_versions`, Goose/River metadata and River's queue tables;
 the other product records below are planned. E11-01 implements the local nightly
 worker dump/upload and synthetic recovery proof; cloud keys, lifecycle policies
 and production drills still require provisioning. See [backup tooling](../infra/backup/README.md).
@@ -12,6 +12,8 @@ and production drills still require provisioning. See [backup tooling](../infra/
 | Postgres | `learners`, future auth/session and learner profile rows | Nightly encrypted dump to separate backup bucket; Railway volume snapshots | Personal data removed within 30 days of account deletion; backup copies roll off in 14 days | [learner-profile](../openspec/specs/learner-profile/spec.md), [data-backup](../openspec/specs/data-backup/spec.md) |
 | Postgres | Append-only `credit_entries`; derived purchased/reward balances | Same dump; PITR where available; reconcile balances with sum of entries after restore | At least 7 years per credits spec; preserve financial records while removing/anonymizing personal fields | [credits](../openspec/specs/credits/spec.md) |
 | Postgres | River jobs, queue/leader metadata, Goose/River migration versions; `database_backup` args contain only a UTC date | Included in full database dump; validate schema versions and retry safety on restore; backup date survives retries across midnight | River cleanup policy; no learner content or credentials in backup/dummy jobs. Backup jobs use three attempts and a separate bounded queue | [data-backup](../openspec/specs/data-backup/spec.md), [ADR 0003](adr/0003-data-stores.md) |
+| Postgres | Immutable `pricing_versions`: approved version, effective time, JSON action prices, packs, plans, benefits, limits and development-only synthetic product mappings | Included in full nightly encrypted database dumps; financial snapshots rotate after 35 days; resolver equality checked by a custom-format dump/restore integration test | Financial catalogue history retained at least 7 years in the live DB and subsequent dumps; UPDATE/DELETE/TRUNCATE refused; no learner/admin identity or content, so account deletion retains the catalogue unchanged | [pricing-config](../openspec/changes/pricing-config/specs/pricing-config/spec.md), [ADR 0007](adr/0007-credits-and-payments.md) |
+| Browser session storage | Last known public pricing DTO with version/effective time; exposure dedupe keys scoped to UUID/session/surface/version | Disposable cache; pricing recovered from API; no backup | Session lifetime; offline prices explicitly labelled; no learner content, provider mappings or payment details | [pricing-config](../openspec/changes/pricing-config/specs/pricing-config/spec.md), [analytics](../openspec/specs/analytics/spec.md) |
 | Postgres (planned) | Courses, units, lesson stubs, enrollment and generated lesson metadata | Nightly dump plus object-key consistency checks | Course soft-delete, then hard-delete after 30 days | [course-creation](../openspec/specs/course-creation/spec.md) |
 | Postgres (planned) | Lesson test attempts, answers, scores | Nightly dump | Life of account; delete within 30 days of account deletion | [lesson-test](../openspec/specs/lesson-test/spec.md) |
 | Postgres (planned) | XP events, streaks, freezes, daily goals, league membership | Nightly dump; source for rebuilding Redis | XP events for account life; personal rows deleted within 30 days of account deletion | [gamification](../openspec/specs/gamification/spec.md) |
@@ -33,7 +35,18 @@ the current non-null ledger-to-learner foreign key does not implement it.
 
 E11-01 recovery checks decrypt an actual worker-image backup into a different
 synthetic database, check Goose/River metadata, exact learner/ledger counts and
-balance (120 - 35 = 85), and reject ledger UPDATE/DELETE/TRUNCATE after restore.
+balance (120 - 35 = 85), compare the complete approved pricing catalogue, and
+reject ledger/catalogue UPDATE/DELETE/TRUNCATE after restore. Archive names and
+restored schema versions must match the fixture's applied migration version.
 The suite also retries interrupted uploads, verifies one complete object and
 checks that writer and API identities receive AccessDenied on backup deletion.
 No production data is restored to local development by these tests.
+
+E13-01 client theme foundation: `docs/design/tokens.json` is the authoritative
+light/dark token artifact; the client imports `docs/design/theme.css` directly.
+Tokens, component sources and licensed bundled Nunito WOFF2 assets are Git-backed
+and restored together from the same revision. Course responses, search input and
+the optional E1-06 analytics context stay in memory and disappear when the app
+closes; this slice adds no device persistence or learner-data deletion work.
+Existing API course retention and backup policies still apply. UI analytics use
+stable control IDs only and remain silent without an enabled UUID context.

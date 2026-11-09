@@ -7,18 +7,25 @@ import {
   RouterProvider,
   useParams,
 } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "./lib/api";
 import { LearnPath } from "./LearnPath";
 import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
+import { Courses } from "./features/design/Courses";
+import { PricingView } from "./features/pricing/PricingView";
 function Layout() {
   return (
     <div className="shell">
+      <a href="#main-content" className="skip-link">
+        Skip to content
+      </a>
       <aside className="sidebar">
         <Link className="brand" to="/">
-          ✦ duolify
+          <span className="brand-mark" aria-hidden="true">
+            <span />
+            <span />
+          </span>
+          duolify
         </Link>
-        <nav>
+        <nav aria-label="Main">
           <Link to="/">◈ Learn</Link>
           <Link to="/courses">▦ Courses</Link>
           <Link to="/profile">◉ Profile</Link>
@@ -26,68 +33,20 @@ function Layout() {
         </nav>
         <p className="sidebar-foot">A little learning, every day.</p>
       </aside>
-      <main className="main">
+      <main className="main" id="main-content" tabIndex={-1}>
         <Outlet />
       </main>
-      <aside className="right">
-        <div className="stats">
-          <span>
-            🔥 7 <small>day streak</small>
-          </span>
-          <span>
-            ✦ 240 <small>XP</small>
-          </span>
-          <span>
-            ♥ 5 <small>hearts</small>
-          </span>
+      <aside className="right" aria-label="Learning tips">
+        <div className="card">
+          <h2>A little learning, every day</h2>
+          <p>Choose a course and continue where you left off.</p>
         </div>
         <div className="card">
-          <div className="eyebrow">DAILY QUEST</div>
-          <h3>Make space to learn</h3>
-          <p>Complete one lesson today.</p>
-          <div className="quest">
-            <span />
-          </div>
-          <small>0 / 1 lessons</small>
-        </div>
-        <div className="card">
-          <h3>Keep your curiosity going</h3>
-          <p>A few minutes a day adds up to something wonderful.</p>
+          <h2>Your learning, your pace</h2>
+          <p>Each lesson is one small discovery.</p>
         </div>
       </aside>
     </div>
-  );
-}
-function Courses() {
-  const { data, isPending, isError } = useQuery({
-    queryKey: ["courses"],
-    queryFn: api.courses,
-  });
-  return (
-    <>
-      <div className="eyebrow">EXPLORE SOMETHING NEW</div>
-      <h1>Courses</h1>
-      <p>What would you like to learn?</p>
-      {isPending && <p>Loading courses…</p>}
-      {isError && <p>Could not load courses.</p>}
-      <div className="course-grid">
-        {data?.map((c) => (
-          <Link
-            className="course-card"
-            key={c.id}
-            to="/course/$courseId"
-            params={{ courseId: c.id }}
-          >
-            <span className="course-icon">
-              {c.id === "astronomy" ? "✦" : "❋"}
-            </span>
-            <h2>{c.title}</h2>
-            <p>{c.description}</p>
-            <strong>Explore course →</strong>
-          </Link>
-        ))}
-      </div>
-    </>
   );
 }
 const root = createRootRoute({ component: Layout });
@@ -129,13 +88,7 @@ const profile = createRoute({
 const credits = createRoute({
   getParentRoute: () => root,
   path: "/credits",
-  component: () => (
-    <>
-      <div className="eyebrow">YOUR BALANCE</div>
-      <h1>Credits</h1>
-      <p>Credits will power your future learning adventures.</p>
-    </>
-  ),
+  component: PricingView,
 });
 const router = createRouter({
   routeTree: root.addChildren([

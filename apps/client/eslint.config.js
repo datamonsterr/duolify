@@ -2,7 +2,15 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import hooks from "eslint-plugin-react-hooks";
 export default tseslint.config(
-  { ignores: ["dist/**", "src-tauri/**", "public/mockServiceWorker.js"] },
+  {
+    ignores: [
+      "dist/**",
+      "test-results/**",
+      "playwright-report/**",
+      "src-tauri/**",
+      "public/mockServiceWorker.js",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

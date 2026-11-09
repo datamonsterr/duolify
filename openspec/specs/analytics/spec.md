@@ -40,6 +40,13 @@ The catalog MUST include: `credits_reserved`, `credits_settled`, `credits_releas
 - **WHEN** a webhook confirms a purchase
 - **THEN** `credits_purchased` is emitted once with `amount`, `currency` and `price`
 
+### Requirement: Pricing exposure events
+The catalogue SHALL include `pricing_version_exposed` with `pricing_version` and `surface` (`paywall`, `quote`, `pack_list`, `plan_list`). The client SHALL emit at most once per authenticated Learner session, surface and version through the existing analytics wrapper, with UUID identity, platform, app_version and source. Opt-out SHALL suppress delivery; no learner text, provider mapping or secrets may be included. Signed-out catalogue browsing SHALL not fabricate a Learner identity.
+
+#### Scenario: Repeated price view
+- **WHEN** a signed-in Learner opens the same price surface twice in one session
+- **THEN** one exposure event reaches PostHog, unless analytics is disabled
+
 ### Requirement: LLM analytics
 Every Engine call SHALL produce a PostHog `$ai_generation` event from the API with `$ai_provider`, `$ai_model`, `$ai_input_tokens`, `$ai_output_tokens`, `$ai_latency`, `feature`, `fallback_used` and `$ai_is_error`. Prompt and completion text MUST NOT be captured.
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -25,6 +26,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/backupadmin"
+	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
@@ -54,6 +56,8 @@ type Fixture struct {
 	posthogURL    string
 	writerOptions backup.S3Options
 	packaged      testcontainers.Container
+	schemaVersion int64
+	lastDate      string
 }
 
 type capture struct {
@@ -86,6 +90,12 @@ func New(t *testing.T) *Fixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(f.DB.Close)
+	if err := f.DB.Pool.QueryRow(ctx, "SELECT max(version_id) FROM goose_db_version WHERE is_applied").Scan(&f.schemaVersion); err != nil {
+		t.Fatal(err)
+	}
+	if f.schemaVersion < 1 {
+		t.Fatal("fixture has no applied application schema")
+	}
 	if err := worker.Migrate(ctx, f.DB.Pool, f.Logger); err != nil {
 		t.Fatal(err)
 	}
@@ -227,6 +237,30 @@ func (f *Fixture) UsePackagedWorker(t *testing.T) {
 		t.Fatal(err)
 	}
 	testcontainers.CleanupContainer(t, f.packaged)
+	// Observe the real startup schedule before manual redelivery. Otherwise a
+	// fast manual job can finish and be cleaned up before RunOnStart inserts,
+	// introducing an unrelated third delivery into the idempotency assertion.
+	date := time.Now().UTC().Format(time.DateOnly)
+	timeout := time.NewTimer(40 * time.Second)
+	defer timeout.Stop()
+	poll := time.NewTicker(50 * time.Millisecond)
+	defer poll.Stop()
+	for {
+		select {
+		case <-poll.C:
+			var count int64
+			if err := f.DB.Pool.QueryRow(t.Context(), "SELECT count(*) FROM river_job WHERE kind=$1 AND args->>'date'=$2", backup.Args{}.Kind(), date).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count > 0 {
+				return
+			}
+		case <-timeout.C:
+			t.Fatal("packaged worker did not schedule its startup backup")
+		case <-t.Context().Done():
+			t.Fatal(t.Context().Err())
+		}
+	}
 }
 
 // Seed adds a deterministic synthetic learner and append-only ledger.
@@ -261,6 +295,7 @@ func (f *Fixture) RunJob(t *testing.T, date string) {
 				t.Fatal(err)
 			}
 			if job.State == "completed" {
+				f.lastDate = date
 				// Simulate queue cleanup between deliveries, proving idempotency
 				// comes from the stored object as well as River uniqueness.
 				if _, err := f.queue.JobDelete(t.Context(), job.ID); err != nil {
@@ -277,6 +312,11 @@ func (f *Fixture) RunJob(t *testing.T, date string) {
 			t.Fatal(t.Context().Err())
 		}
 	}
+}
+
+// ArchiveKey names the fixture's independently observed applied schema version.
+func (f *Fixture) ArchiveKey(date string) string {
+	return fmt.Sprintf("%s/schema-%d.dump.age", date, f.schemaVersion)
 }
 
 // Ciphertext downloads only from this fixture's isolated backup bucket.
@@ -360,12 +400,23 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*),sum(amount) FROM credit_entries WHERE learner_id='a1111111-1111-4111-8111-111111111111'").Scan(&entries, &balance); err != nil {
 		t.Fatal(err)
 	}
-	if version != 1 || riverVersions < 1 || learners != 1 || entries != 2 || balance != 85 || name != "Synthetic Learner" {
+	if version != f.schemaVersion || riverVersions < 1 || learners != 1 || entries != 2 || balance != 85 || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
-	for _, query := range []string{"UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries"} {
+	beforePricing, err := pricing.Load(t.Context(), f.DB.Queries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterPricing, err := pricing.Load(t.Context(), restored.Queries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(beforePricing.Config(), afterPricing.Config()) {
+		t.Fatal("encrypted backup changed the restored pricing catalogue")
+	}
+	for _, query := range []string{"UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions"} {
 		if _, err := restored.Pool.Exec(t.Context(), query); err == nil {
-			t.Fatalf("restored ledger accepted mutation: %s", query)
+			t.Fatalf("restored immutable data accepted mutation: %s", query)
 		}
 	}
 }
@@ -373,7 +424,8 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 // AssertWriterCannotDelete checks real IAM enforcement, including admin boundaries.
 func (f *Fixture) AssertWriterCannotDelete(t *testing.T) {
 	t.Helper()
-	_, err := f.objects.Client.DeleteObject(t.Context(), &s3.DeleteObjectInput{Bucket: aws.String(f.objects.Bucket), Key: aws.String("2026-11-09/schema-1.dump.age")})
+	key := f.ArchiveKey(f.lastDate)
+	_, err := f.objects.Client.DeleteObject(t.Context(), &s3.DeleteObjectInput{Bucket: aws.String(f.objects.Bucket), Key: aws.String(key)})
 	if err == nil || !strings.Contains(err.Error(), "AccessDenied") {
 		t.Fatalf("writer deletion not denied: %v", err)
 	}
@@ -388,7 +440,7 @@ func (f *Fixture) AssertWriterCannotDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = app.Client.DeleteObject(t.Context(), &s3.DeleteObjectInput{Bucket: aws.String(app.Bucket), Key: aws.String("2026-11-09/schema-1.dump.age")})
+	_, err = app.Client.DeleteObject(t.Context(), &s3.DeleteObjectInput{Bucket: aws.String(app.Bucket), Key: aws.String(key)})
 	if err == nil || !strings.Contains(err.Error(), "AccessDenied") {
 		t.Fatalf("API backup deletion not denied: %v", err)
 	}

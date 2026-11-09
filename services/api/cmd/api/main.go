@@ -21,6 +21,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/config"
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
+	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
@@ -104,6 +105,10 @@ func run(ctx context.Context, args []string) (result error) {
 		}
 		return worker.Run(ctx, db.Pool, logger, service)
 	}
+	catalogue, err := pricing.Load(ctx, db.Queries)
+	if err != nil {
+		return fmt.Errorf("pricing boot validation: %w", err)
+	}
 	redis, err := cache.New(cfg.RedisURL)
 	if err != nil {
 		return err
@@ -124,6 +129,7 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	defer func() { result = errors.Join(result, events.Close()) }()
 	handler := httpapi.New(httpapi.Dependencies{
+		Pricing:  catalogue,
 		Postgres: db.Ping,
 		Redis:    func(ctx context.Context) error { return redis.Ping(ctx).Err() },
 		Engine:   backend,

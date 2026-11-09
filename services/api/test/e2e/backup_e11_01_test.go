@@ -15,7 +15,7 @@ func TestBackupWorkerRecoversSyntheticDatabase(t *testing.T) {
 	fixture.Seed(t)
 	fixture.UsePackagedWorker(t)
 	date := time.Now().UTC().Format(time.DateOnly)
-	key := date + "/schema-1.dump.age"
+	key := fixture.ArchiveKey(date)
 	fixture.RunJob(t, date)
 	before := fixture.Ciphertext(t, key)
 	fixture.RunJob(t, date)

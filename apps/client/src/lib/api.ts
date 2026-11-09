@@ -1,9 +1,11 @@
+import type { Pricing } from "../features/pricing/types";
 export type Lesson = {
   id: string;
   title: string;
   state: "done" | "current" | "locked";
 };
 export type Course = {
+  availability?: "available" | "unavailable";
   id: string;
   title: string;
   description: string;
@@ -16,6 +18,7 @@ async function get<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 export const api = {
+  pricing: () => get<Pricing>("/v1/pricing"),
   courses: () => get<Course[]>("/courses"),
   course: (id: string) => get<Course>(`/courses/${encodeURIComponent(id)}`),
 };
