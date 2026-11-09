@@ -15,14 +15,15 @@ import (
 
 // Config contains service settings. Secrets must never be logged.
 type Config struct {
-	Addr            string
-	DatabaseURL     string
-	RedisURL        string
-	EngineAddr      string
-	PostHogKey      string
-	PostHogHost     string
-	LogLevel        slog.Level
-	AnalyticsOptOut bool
+	Addr                    string
+	DatabaseURL             string
+	RedisURL                string
+	EngineAddr              string
+	PostHogKey              string
+	PostHogHost             string
+	LogLevel                slog.Level
+	AnalyticsOptOut         bool
+	LessonTestTracerEnabled bool
 }
 
 // Load reads a supplied environment, allowing tests without process-global mutations.
@@ -40,6 +41,13 @@ func Load(getenv func(string) string) (Config, error) {
 		cfg.AnalyticsOptOut, err = strconv.ParseBool(value)
 		if err != nil {
 			return Config{}, fmt.Errorf("ANALYTICS_OPT_OUT is invalid")
+		}
+	}
+	if value := getenv("LESSON_TEST_TRACER_ENABLED"); value != "" {
+		var err error
+		cfg.LessonTestTracerEnabled, err = strconv.ParseBool(value)
+		if err != nil {
+			return Config{}, fmt.Errorf("LESSON_TEST_TRACER_ENABLED is invalid")
 		}
 	}
 	for _, v := range []struct{ name, value string }{

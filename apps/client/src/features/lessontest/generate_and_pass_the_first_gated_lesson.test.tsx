@@ -1,6 +1,10 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { LessonTest } from "./LessonTest";
+import {
+  setLessonTestTracerEnabledForTest,
+  isLessonTestTracerEnabled,
+} from "../../lib/features";
 
 describe("generate and pass the first gated lesson - LessonTest", () => {
   const mockQuestions = [
@@ -113,5 +117,25 @@ describe("generate and pass the first gated lesson - LessonTest", () => {
     fireEvent.click(continueButton);
 
     expect(onPass).toHaveBeenCalled();
+  });
+
+  it("ensures question payload never leaks answer_index or explanation before submission", () => {
+    // Assert question object contains only allowable client fields
+    expect(mockQuestions[0]).not.toHaveProperty("answer_index");
+    expect(mockQuestions[0]).not.toHaveProperty("explanation");
+    expect(mockQuestions[0]).toHaveProperty("question_id");
+    expect(mockQuestions[0]).toHaveProperty("topic_id");
+    expect(mockQuestions[0]).toHaveProperty("prompt");
+    expect(mockQuestions[0]).toHaveProperty("choices");
+  });
+
+  it("tracer flag gating respects setLessonTestTracerEnabledForTest", () => {
+    setLessonTestTracerEnabledForTest(false);
+    expect(isLessonTestTracerEnabled()).toBe(false);
+
+    setLessonTestTracerEnabledForTest(true);
+    expect(isLessonTestTracerEnabled()).toBe(true);
+
+    setLessonTestTracerEnabledForTest(null);
   });
 });

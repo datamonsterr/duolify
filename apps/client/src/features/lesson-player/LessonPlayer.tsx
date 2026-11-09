@@ -9,6 +9,7 @@ import slide3 from "../../slides/three.html?raw";
 import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { useShellSession } from "../shell/ShellSession";
 import { authRequest } from "../accounts/session";
+import { useLessonTestTracerEnabled } from "../../lib/features";
 
 interface DynamicLesson {
   id: string;
@@ -27,13 +28,15 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
   const navigate = useNavigate();
   const { reducedMotion } = useUiPreferences();
   const session = useShellSession();
+  const tracerEnabled = useLessonTestTracerEnabled();
   const [dynamicLesson, setDynamicLesson] = useState<DynamicLesson | null>(
     null,
   );
+  const [finished, setFinished] = useState(false);
 
   useEffect(() => {
     let active = true;
-    if (!lessonId || lessonId === "sky") return;
+    if (!lessonId || lessonId === "sky" || !tracerEnabled) return;
     authRequest<DynamicLesson>(`/v1/lessons/${encodeURIComponent(lessonId)}`)
       .then((data) => {
         if (active && data?.slides && data.slides.length > 0) {
@@ -46,7 +49,7 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
     return () => {
       active = false;
     };
-  }, [lessonId]);
+  }, [lessonId, tracerEnabled]);
 
   const currentSlides = dynamicLesson?.slides?.length
     ? dynamicLesson.slides.map((s) => s.html)
@@ -120,6 +123,17 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
     window.addEventListener("message", listener);
     return () => window.removeEventListener("message", listener);
   }, []);
+  if (finished)
+    return (
+      <div className="complete">
+        <div className="big-star">✦</div>
+        <h1>Lesson complete!</h1>
+        <p>Wonderful work. Your universe just got a little bigger.</p>
+        <Link to="/course/$courseId" params={{ courseId: session.courseId() }}>
+          Back to your path
+        </Link>
+      </div>
+    );
   return (
     <div className="player">
       <header className="focused-context">
@@ -294,14 +308,22 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
             className="primary"
             onClick={() => {
               if (index === currentSlides.length - 1) {
-                navigate({
-                  to: "/lesson/$lessonId/test",
-                  params: { lessonId },
-                });
+                if (tracerEnabled) {
+                  navigate({
+                    to: "/lesson/$lessonId/test",
+                    params: { lessonId },
+                  });
+                } else {
+                  setFinished(true);
+                }
               } else goToSlide(nextSlide(index, currentSlides.length));
             }}
           >
-            {index === currentSlides.length - 1 ? "Take lesson test" : "Next"}
+            {index === currentSlides.length - 1
+              ? tracerEnabled
+                ? "Take lesson test"
+                : "Finish lesson"
+              : "Next"}
           </button>
         </div>
         <div className="panel-tools" aria-label="Lesson tools">

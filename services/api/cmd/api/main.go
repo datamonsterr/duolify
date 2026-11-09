@@ -161,19 +161,21 @@ func run(ctx context.Context, args []string) (result error) {
 			defer cancel()
 			_ = outlineQueue.Stop(stopCtx)
 		}()
-		lessonService := lessontest.New(lessontest.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Events: events})
-		lessonQueue, err := lessonService.LessonQueue(logger)
-		if err != nil {
-			return err
+		if cfg.LessonTestTracerEnabled {
+			lessonService := lessontest.New(lessontest.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Events: events})
+			lessonQueue, err := lessonService.LessonQueue(logger)
+			if err != nil {
+				return err
+			}
+			if err = lessonQueue.Start(context.WithoutCancel(ctx)); err != nil {
+				return err
+			}
+			defer func() {
+				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+				defer cancel()
+				_ = lessonQueue.Stop(stopCtx)
+			}()
 		}
-		if err = lessonQueue.Start(context.WithoutCancel(ctx)); err != nil {
-			return err
-		}
-		defer func() {
-			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-			defer cancel()
-			_ = lessonQueue.Stop(stopCtx)
-		}()
 		return worker.RunWithCredits(ctx, db.Pool, logger, creditService, service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
@@ -251,26 +253,30 @@ func run(ctx context.Context, args []string) (result error) {
 			briefPricing = dev
 		}
 	}
-	lessonService := lessontest.New(lessontest.Options{
-		Pool:      db.Pool,
-		Engine:    backend,
-		Financial: creditService,
-		Events:    events,
-	})
+	var lessonHandler http.Handler
+	if cfg.LessonTestTracerEnabled {
+		lessonHandler = lessontest.New(lessontest.Options{
+			Pool:      db.Pool,
+			Engine:    backend,
+			Financial: creditService,
+			Events:    events,
+		})
+	}
 	handler := httpapi.New(httpapi.Dependencies{
-		Monitor:       monitor,
-		ObjectStorage: telemetry.StorageProbe(os.Getenv),
-		Accounts:      auth,
-		Credits:       creditService,
-		CourseBrief:   courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
-		Pricing:       pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events),
-		PricingAdmin:  pricingAdmin,
-		Quotes:        pricing.NewQuotes(db.Pool),
-		Eval:          eval.NewService(db.Pool, catalogue, monitor, events),
-		LessonTest:    lessonService,
-		Postgres:      db.Ping,
-		Redis:         func(ctx context.Context) error { return redis.Ping(ctx).Err() },
-		Engine:        backend,
+		Monitor:                 monitor,
+		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
+		Accounts:                auth,
+		Credits:                 creditService,
+		CourseBrief:             courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
+		Pricing:                 pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events),
+		PricingAdmin:            pricingAdmin,
+		Quotes:                  pricing.NewQuotes(db.Pool),
+		Eval:                    eval.NewService(db.Pool, catalogue, monitor, events),
+		LessonTestTracerEnabled: cfg.LessonTestTracerEnabled,
+		LessonTest:              lessonHandler,
+		Postgres:                db.Ping,
+		Redis:                   func(ctx context.Context) error { return redis.Ping(ctx).Err() },
+		Engine:                  backend,
 	}, logger)
 	server := httpapi.NewServer(cfg.Addr, handler)
 	listener, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.Addr)

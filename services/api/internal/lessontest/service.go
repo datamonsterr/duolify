@@ -129,6 +129,24 @@ func ReorderChoices(choices []string, answerIndex int) ([]string, int) {
 	return reordered, newIndex
 }
 
+// PublicQuestion is the client-facing test question schema excluding answer key and explanation.
+type PublicQuestion struct {
+	QuestionID string   `json:"question_id"`
+	TopicID    string   `json:"topic_id"`
+	Prompt     string   `json:"prompt"`
+	Choices    []string `json:"choices"`
+}
+
+// ToPublicQuestion transforms an engine question into a client-safe public question.
+func ToPublicQuestion(q *enginev1.Question, topicID string) PublicQuestion {
+	return PublicQuestion{
+		QuestionID: q.QuestionId,
+		TopicID:    topicID,
+		Prompt:     q.Prompt,
+		Choices:    q.Choices,
+	}
+}
+
 // River queue and worker definitions
 type lessonGenerationArgs struct {
 	ID string `json:"id"`
@@ -638,16 +656,9 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 	}
 	defer rows.Close()
 
-	type qItem struct {
-		QuestionID string   `json:"question_id"`
-		TopicID    string   `json:"topic_id"`
-		Prompt     string   `json:"prompt"`
-		Choices    []string `json:"choices"`
-	}
-
-	var questions []qItem
+	var questions []PublicQuestion
 	for rows.Next() {
-		var q qItem
+		var q PublicQuestion
 		var choicesRaw []byte
 		if err := rows.Scan(&q.QuestionID, &q.TopicID, &q.Prompt, &choicesRaw); err == nil {
 			_ = json.Unmarshal(choicesRaw, &q.Choices)

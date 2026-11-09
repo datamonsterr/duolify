@@ -32,18 +32,19 @@ type Engine interface {
 
 // Dependencies allows readiness probes without coupling HTTP to database drivers.
 type Dependencies struct {
-	Postgres, Redis func(context.Context) error
-	ObjectStorage   func(context.Context) error
-	Monitor         *telemetry.Monitor
-	Engine          Engine
-	Pricing         http.Handler
-	CourseBrief     http.Handler
-	PricingAdmin    http.Handler
-	Quotes          http.Handler
-	Credits         http.Handler
-	Eval            http.Handler
-	LessonTest      http.Handler
-	Accounts        interface {
+	Postgres, Redis         func(context.Context) error
+	ObjectStorage           func(context.Context) error
+	Monitor                 *telemetry.Monitor
+	Engine                  Engine
+	Pricing                 http.Handler
+	CourseBrief             http.Handler
+	PricingAdmin            http.Handler
+	Quotes                  http.Handler
+	Credits                 http.Handler
+	Eval                    http.Handler
+	LessonTestTracerEnabled bool
+	LessonTest              http.Handler
+	Accounts                interface {
 		http.Handler
 		Protect(http.Handler) http.Handler
 	}
@@ -149,7 +150,12 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	if deps.Eval != nil {
 		mux.Handle("/v1/eval/", deps.Eval)
 	}
-	if deps.LessonTest != nil && deps.Accounts != nil {
+	mux.HandleFunc("GET /v1/features", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"lesson_test_tracer_enabled": deps.LessonTestTracerEnabled,
+		})
+	})
+	if deps.LessonTestTracerEnabled && deps.LessonTest != nil && deps.Accounts != nil {
 		mux.Handle("/v1/lessons/", deps.Accounts.Protect(deps.LessonTest))
 		mux.Handle("/v1/lesson-generations/", deps.Accounts.Protect(deps.LessonTest))
 	}

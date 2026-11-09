@@ -157,15 +157,16 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 	_ = lessonQueue
 
 	deps := httpapi.Dependencies{
-		Accounts:    auth,
-		Quotes:      pricing.NewQuotes(db.Pool),
-		CourseBrief: coursesService,
-		Credits:     financial,
+		Accounts:                auth,
+		Quotes:                  pricing.NewQuotes(db.Pool),
+		CourseBrief:             coursesService,
+		Credits:                 financial,
+		LessonTestTracerEnabled: true,
 	}
 	server := httptest.NewServer(httpapi.NewWithLessonTest(deps, lessonService, logger))
 	defer server.Close()
 
-	call := func(method, path string, body any, token string) (int, map[string]any) {
+	call := func(method, path string, body any, token string) (int, map[string]any, string) {
 		var r io.Reader
 		if body != nil {
 			raw, _ := json.Marshal(body)
@@ -184,16 +185,17 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer func() { _ = resp.Body.Close() }()
+		rawBytes, _ := io.ReadAll(resp.Body)
 		var out map[string]any
-		_ = json.NewDecoder(resp.Body).Decode(&out)
-		return resp.StatusCode, out
+		_ = json.Unmarshal(rawBytes, &out)
+		return resp.StatusCode, out, string(rawBytes)
 	}
 
 	login := func(email string) string {
-		if code, _ := call("POST", "/v1/auth/code", map[string]any{"email": email, "age_confirmed": true}, ""); code != 202 {
+		if code, _, _ := call("POST", "/v1/auth/code", map[string]any{"email": email, "age_confirmed": true}, ""); code != 202 {
 			t.Fatal(code)
 		}
-		code, out := call("POST", "/v1/auth/verify", map[string]any{"email": email, "age_confirmed": true, "code": mail.Code(email)}, "")
+		code, out, _ := call("POST", "/v1/auth/verify", map[string]any{"email": email, "age_confirmed": true, "code": mail.Code(email)}, "")
 		if code != 200 {
 			t.Fatal(code, out)
 		}
@@ -252,7 +254,7 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 	}
 
 	// Ineligible lesson (lesson 2) cannot be prepared!
-	quoteCode, quoteResp := call("POST", "/v1/quotes", map[string]any{
+	quoteCode, quoteResp, _ := call("POST", "/v1/quotes", map[string]any{
 		"action":               "lesson_content",
 		"narration_characters": 100,
 	}, token)
@@ -265,7 +267,7 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 	call("POST", "/v1/quotes/"+quoteID+"/accept", nil, token)
 
 	// Attempt to prepare locked lesson 2 -> must reject with 409
-	ineligibleCode, _ := call("POST", "/v1/lessons/"+lesson2ID+"/prepare", map[string]any{
+	ineligibleCode, _, _ := call("POST", "/v1/lessons/"+lesson2ID+"/prepare", map[string]any{
 		"quote_id": quoteID,
 	}, token)
 	if ineligibleCode != 409 {
@@ -273,7 +275,7 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 	}
 
 	// Prepare eligible lesson 1 -> 202 Accepted
-	prepCode, prepResp := call("POST", "/v1/lessons/"+lesson1ID+"/prepare", map[string]any{
+	prepCode, prepResp, _ := call("POST", "/v1/lessons/"+lesson1ID+"/prepare", map[string]any{
 		"quote_id": quoteID,
 	}, token)
 	if prepCode != 202 {
@@ -287,7 +289,7 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 	}
 
 	// Verify lesson is now generated
-	lessonCode, lessonOut := call("GET", "/v1/lessons/"+lesson1ID, nil, token)
+	lessonCode, lessonOut, _ := call("GET", "/v1/lessons/"+lesson1ID, nil, token)
 	if lessonCode != 200 {
 		t.Fatalf("expected 200 from GET /v1/lessons/%s, got %d %v", lesson1ID, lessonCode, lessonOut)
 	}
@@ -301,7 +303,7 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 	}
 
 	// Fetch test questions
-	testCode, testOut := call("GET", "/v1/lessons/"+lesson1ID+"/test", nil, token)
+	testCode, testOut, testRaw := call("GET", "/v1/lessons/"+lesson1ID+"/test", nil, token)
 	if testCode != 200 {
 		t.Fatalf("expected 200 from GET /v1/lessons/%s/test, got %d %v", lesson1ID, testCode, testOut)
 	}
@@ -314,9 +316,13 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 	if q1["answer_index"] != nil || q1["explanation"] != nil {
 		t.Fatalf("GET test exposed answer_index or explanation")
 	}
+	// Confirm answer key and explanation are NEVER returned before submission
+	if strings.Contains(testRaw, "answer_index") || strings.Contains(testRaw, "explanation") {
+		t.Fatalf("GET test raw body leaked answer_index or explanation: %s", testRaw)
+	}
 
 	// Submit wrong answer
-	ans1Code, ans1Out := call("POST", "/v1/lessons/"+lesson1ID+"/test/answer", map[string]any{
+	ans1Code, ans1Out, _ := call("POST", "/v1/lessons/"+lesson1ID+"/test/answer", map[string]any{
 		"question_id":  q1ID,
 		"choice_index": 1,
 	}, token)
@@ -333,8 +339,24 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 		t.Fatalf("expected explanation on wrong answer")
 	}
 
+	// Verify that reaching slides and failing test cannot bypass grading
+	var prePassStatus string
+	if err = db.Pool.QueryRow(ctx, "SELECT status FROM course_lesson_stubs WHERE id=$1::uuid", lesson1ID).Scan(&prePassStatus); err != nil {
+		t.Fatalf("fetch pre-pass status: %v", err)
+	}
+	if prePassStatus == "done" {
+		t.Fatalf("reaching slides or wrong test answer must not mark lesson done (grading bypassed)")
+	}
+	var preOutboxCount int
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM lesson_completion_outbox WHERE learner_id=$1::uuid AND lesson_id=$2::uuid", learnerID, lesson1ID).Scan(&preOutboxCount); err != nil {
+		t.Fatalf("fetch pre-pass outbox: %v", err)
+	}
+	if preOutboxCount != 0 {
+		t.Fatalf("completion outbox must remain empty before passing test, got %d", preOutboxCount)
+	}
+
 	// Submit correct answer
-	ans2Code, ans2Out := call("POST", "/v1/lessons/"+lesson1ID+"/test/answer", map[string]any{
+	ans2Code, ans2Out, _ := call("POST", "/v1/lessons/"+lesson1ID+"/test/answer", map[string]any{
 		"question_id":  q1ID,
 		"choice_index": 0,
 	}, token)
@@ -363,8 +385,27 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 		t.Fatalf("expected lesson 2 status 'ready_to_generate', got %q", l2Status)
 	}
 
+	// Verify that with flag-off, routes return 404
+	disabledServer := httptest.NewServer(httpapi.New(httpapi.Dependencies{
+		Accounts:                auth,
+		LessonTestTracerEnabled: false,
+		LessonTest:              lessonService,
+	}, logger))
+	defer disabledServer.Close()
+
+	disabledReq, _ := http.NewRequestWithContext(ctx, "GET", disabledServer.URL+"/v1/lessons/"+lesson1ID, nil)
+	disabledReq.Header.Set("Authorization", "Bearer "+token)
+	disabledResp, err := disabledServer.Client().Do(disabledReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = disabledResp.Body.Close()
+	if disabledResp.StatusCode != 404 {
+		t.Fatalf("expected 404 from disabled server, got %d", disabledResp.StatusCode)
+	}
+
 	// Duplicate pass submission is idempotent
-	dupCode, dupOut := call("POST", "/v1/lessons/"+lesson1ID+"/test/answer", map[string]any{
+	dupCode, dupOut, _ := call("POST", "/v1/lessons/"+lesson1ID+"/test/answer", map[string]any{
 		"question_id":  q1ID,
 		"choice_index": 0,
 	}, token)

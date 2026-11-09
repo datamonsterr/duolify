@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useShellSession } from "../shell/ShellSession";
 import { authRequest } from "../accounts/session";
 import { track } from "../../lib/analytics";
+import { RouteUnavailable } from "../shell/RouteBoundary";
+import { useLessonTestTracerEnabled } from "../../lib/features";
 
 export interface QuestionItem {
   question_id: string;
@@ -462,11 +464,13 @@ export function LessonTestRoute() {
   const { lessonId } = useParams({ from: "/lesson/$lessonId/test" });
   const navigate = useNavigate();
   const session = useShellSession();
+  const tracerEnabled = useLessonTestTracerEnabled();
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!tracerEnabled) return;
     track("lesson_test_started", { lesson_id: lessonId });
     authRequest<{ questions: QuestionItem[] }>(`/v1/lessons/${lessonId}/test`)
       .then((data) => {
@@ -477,7 +481,7 @@ export function LessonTestRoute() {
         setError(err.message || "Failed to load lesson test");
         setLoading(false);
       });
-  }, [lessonId]);
+  }, [lessonId, tracerEnabled]);
 
   const handleAnswer = async (questionId: string, choiceIndex: number) => {
     track("lesson_test_submitted", {
@@ -500,6 +504,10 @@ export function LessonTestRoute() {
   const handlePass = () => {
     track("lesson_test_passed", { lesson_id: lessonId });
   };
+
+  if (!tracerEnabled) {
+    return <RouteUnavailable />;
+  }
 
   if (loading) {
     return (

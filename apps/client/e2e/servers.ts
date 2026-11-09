@@ -2,13 +2,13 @@
 import type { APIRequestContext } from "@playwright/test";
 
 export const webPort = Number(
-  process.env.E2E_WEB_PORT ?? process.env.DUOLIFY_E2E_WEB_PORT ?? 4020,
+  process.env.E2E_WEB_PORT ?? process.env.DUOLIFY_E2E_WEB_PORT ?? 4040,
 );
 export const webBase = `http://127.0.0.1:${webPort}`;
 export const apiBase =
   process.env.E2E_API_BASE ??
   process.env.DUOLIFY_E2E_API_URL ??
-  "http://127.0.0.1:4021";
+  "http://127.0.0.1:4041";
 
 export const authRateLimits = {
   requestIp: 100000,

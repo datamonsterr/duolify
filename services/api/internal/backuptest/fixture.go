@@ -364,6 +364,27 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_enrollments(learner_id,course_id,level_override) VALUES('a1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','intermediate')`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_generations (id, learner_id, lesson_id, course_id, quote_id, state) VALUES ('f4444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'f1111111-1111-4111-8111-111111111111', $1, 'completed')`, outlineQuote.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO generated_lessons (id, lesson_stub_id, learner_id, course_id, title, manifest) VALUES ('f5555555-5555-4555-8555-555555555555', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'Phases of the Moon', '{"title":"Phases of the Moon"}'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_slides (id, lesson_stub_id, learner_id, position, slide_id, html, duration_ms, narration) VALUES ('f6666666-6666-4666-8666-666666666666', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 0, 's1', '<div id="root"><h1>Moon</h1></div>', 3000, 'The moon orbits Earth.')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_questions (id, lesson_stub_id, learner_id, position, topic_id, prompt, choices, answer_index, explanation) VALUES ('f7777777-7777-4777-8777-777777777777', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 0, 'top-moon', 'What causes moon phases?', '["Sunlight angle", "Earth shadow"]'::jsonb, 0, 'Relative angles between Earth, Moon and Sun.')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_sessions (id, lesson_stub_id, learner_id, state, question_queue, resolved_topics) VALUES ('f8888888-8888-4888-8888-888888888888', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'passed', '[]'::jsonb, '["top-moon"]'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_answers (id, session_id, learner_id, question_id, topic_id, selected_index, correct) VALUES ('f9999999-9999-4999-8999-999999999999', 'f8888888-8888-4888-8888-888888888888', 'a1111111-1111-4111-8111-111111111111', 'q1', 'top-moon', 0, true)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_completion_outbox (id, learner_id, course_id, lesson_id, state) VALUES ('faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'passed')`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `UPDATE learner_profiles SET active_course_id='f1111111-1111-4111-8111-111111111111' WHERE learner_id='a1111111-1111-4111-8111-111111111111'`); err != nil {
 		t.Fatal(err)
 	}

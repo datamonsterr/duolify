@@ -5,10 +5,12 @@ import { Link } from "@tanstack/react-router";
 import { api } from "./lib/api";
 import { session } from "./features/accounts/session";
 import { RouteUnavailable } from "./features/shell/RouteBoundary";
+import { useLessonTestTracerEnabled } from "./lib/features";
 
 export function LearnPath({ courseId }: { courseId: string }) {
   const { t } = useUiPreferences();
   const queryClient = useQueryClient();
+  const tracerEnabled = useLessonTestTracerEnabled();
   const [preparingId, setPreparingId] = useState<string | null>(null);
   const {
     data: course,
@@ -135,7 +137,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
                       {t("path.start_short")}
                     </span>
                   </>
-                ) : lesson.state === "ready_to_generate" ? (
+                ) : lesson.state === "ready_to_generate" && tracerEnabled ? (
                   <button
                     className="node ready"
                     onClick={() => handlePrepareLesson(lesson.id)}
@@ -144,7 +146,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
                   >
                     {preparingId === lesson.id ? "…" : "▶"}
                   </button>
-                ) : lesson.state === "generating" ? (
+                ) : lesson.state === "generating" && tracerEnabled ? (
                   <span
                     className="node blue"
                     role="img"
@@ -193,7 +195,10 @@ export function LearnPath({ courseId }: { courseId: string }) {
                     </div>
                   ) : null}
                   <div className="muted">
-                    {lesson.state === "locked"
+                    {lesson.state === "locked" ||
+                    (!tracerEnabled &&
+                      (lesson.state === "ready_to_generate" ||
+                        lesson.state === "generating"))
                       ? t("path.locked")
                       : lesson.state === "done"
                         ? "Completed · Review"
@@ -203,7 +208,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
                             ? "Preparing…"
                             : t("path.ready")}
                   </div>
-                  {lesson.state === "ready_to_generate" && (
+                  {lesson.state === "ready_to_generate" && tracerEnabled && (
                     <button
                       className="duo-button primary sm2"
                       style={{ marginTop: "6px" }}

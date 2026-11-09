@@ -1,9 +1,16 @@
 package lessontest_test
 
 import (
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
 )
 
@@ -142,5 +149,97 @@ func TestReorderChoicesFallback(t *testing.T) {
 	}
 	if reorderedChoices[newIndex] != choices[answerIndex] {
 		t.Fatalf("newIndex points to %q, expected %q", reorderedChoices[newIndex], choices[answerIndex])
+	}
+}
+
+func TestLessonTestTracerDisabled_Returns404(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	router := httpapi.New(httpapi.Dependencies{
+		LessonTestTracerEnabled: false,
+	}, logger)
+
+	paths := []struct {
+		method string
+		path   string
+	}{
+		{"GET", "/v1/lessons/123"},
+		{"POST", "/v1/lessons/123/prepare"},
+		{"GET", "/v1/lessons/123/test"},
+		{"POST", "/v1/lessons/123/test/answer"},
+		{"GET", "/v1/lesson-generations/123"},
+		{"GET", "/v1/lesson-generations/123/events"},
+	}
+
+	for _, p := range paths {
+		req := httptest.NewRequestWithContext(t.Context(), p.method, p.path, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("expected 404 for %s %s when tracer disabled, got %d", p.method, p.path, rec.Code)
+		}
+	}
+
+	// Verify /v1/features exposes false
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/v1/features", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 from GET /v1/features, got %d", rec.Code)
+	}
+	var feat map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &feat); err != nil {
+		t.Fatalf("unmarshal /v1/features: %v", err)
+	}
+	if feat["lesson_test_tracer_enabled"] != false {
+		t.Fatalf("expected lesson_test_tracer_enabled false, got %v", feat["lesson_test_tracer_enabled"])
+	}
+}
+
+func TestLessonTestTracerEnabled_Features(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	router := httpapi.New(httpapi.Dependencies{
+		LessonTestTracerEnabled: true,
+	}, logger)
+
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/v1/features", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 from GET /v1/features, got %d", rec.Code)
+	}
+	var feat map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &feat); err != nil {
+		t.Fatalf("unmarshal /v1/features: %v", err)
+	}
+	if feat["lesson_test_tracer_enabled"] != true {
+		t.Fatalf("expected lesson_test_tracer_enabled true, got %v", feat["lesson_test_tracer_enabled"])
+	}
+}
+
+func TestLessonTestQuestionExcludesAnswerAndExplanation(t *testing.T) {
+	// A Question serialized for test taking must never leak answer_index or explanation
+	engineQ := &enginev1.Question{
+		QuestionId:  "q1",
+		Prompt:      "Which star is brightest?",
+		Choices:     []string{"Sirius", "Vega", "Polaris"},
+		AnswerIndex: 0,
+		Explanation: "Sirius is the brightest star in Earth's night sky.",
+	}
+	publicQ := lessontest.ToPublicQuestion(engineQ, "top-stars")
+
+	raw, err := json.Marshal(publicQ)
+	if err != nil {
+		t.Fatalf("marshal public question: %v", err)
+	}
+
+	rawStr := string(raw)
+	if strings.Contains(rawStr, "answer_index") {
+		t.Fatalf("public question leaked answer_index: %s", rawStr)
+	}
+	if strings.Contains(rawStr, "explanation") {
+		t.Fatalf("public question leaked explanation: %s", rawStr)
+	}
+	if strings.Contains(rawStr, "Sirius is the brightest") {
+		t.Fatalf("public question leaked explanation text: %s", rawStr)
 	}
 }

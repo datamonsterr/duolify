@@ -26,7 +26,7 @@ dir = "{{config_root}}/apps/client"
 run = "pnpm exec playwright install chromium"
 
 ["client:e2e"]
-env = { E2E_WEB_PORT = "{{env.E2E_WEB_PORT | default(value='4020')}}", E2E_API_BASE = "{{env.E2E_API_BASE | default(value='http://127.0.0.1:4021')}}" }
+env = { E2E_WEB_PORT = "{{env.E2E_WEB_PORT | default(value='4040')}}", E2E_API_BASE = "{{env.E2E_API_BASE | default(value='http://127.0.0.1:4041')}}", LESSON_TEST_TRACER_ENABLED = "true", VITE_LESSON_TEST_TRACER_ENABLED = "true" }
 description = "Run end-to-end tests against the web build"
 depends = ["client:build"]
 dir = "{{config_root}}/apps/client"

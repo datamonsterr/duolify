@@ -76,6 +76,10 @@ for (const mobile of [false, true]) {
     ];
 
     // Mock API routes
+    await page.route("**/v1/features", (r) => {
+      return r.fulfill({ json: { lesson_test_tracer_enabled: true } });
+    });
+
     await page.route("**/v1/courses", (r) => {
       if (r.request().method() === "GET") {
         return r.fulfill({
@@ -267,3 +271,82 @@ for (const mobile of [false, true]) {
     expect(answersSubmitted).toBeGreaterThanOrEqual(2);
   });
 }
+
+test("hides generate/test entry points when tracer flag is disabled", async ({
+  page,
+}) => {
+  const courseId = "c1111111-1111-4111-8111-111111111111";
+  const lesson1Id = "l1111111-1111-4111-8111-111111111111";
+
+  await page.route("**/v1/features", (r) =>
+    r.fulfill({ json: { lesson_test_tracer_enabled: false } }),
+  );
+  await page.route("**/v1/courses", (r) =>
+    r.fulfill({
+      json: {
+        courses: [
+          {
+            id: courseId,
+            title: "Astronomy for curious beginners",
+            description: "Explore the night sky.",
+            units: [
+              {
+                id: "u1",
+                title: "Finding your bearings",
+                lessons: [
+                  {
+                    id: lesson1Id,
+                    title: "A map of the night",
+                    goal: "Recognize night sky coordinates",
+                    state: "ready_to_generate",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        active_course_id: courseId,
+      },
+    }),
+  );
+  await page.route(`**/v1/courses/${courseId}`, (r) =>
+    r.fulfill({
+      json: {
+        id: courseId,
+        title: "Astronomy for curious beginners",
+        description: "Explore the night sky.",
+        units: [
+          {
+            id: "u1",
+            title: "Finding your bearings",
+            lessons: [
+              {
+                id: lesson1Id,
+                title: "A map of the night",
+                goal: "Recognize night sky coordinates",
+                state: "ready_to_generate",
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/v1/lessons/**", (r) =>
+    r.fulfill({ status: 404, json: { error: "not found" } }),
+  );
+
+  await page.goto(`/course/${courseId}`);
+  // Prepare lesson button must NOT be visible
+  await expect(
+    page.getByRole("button", { name: /Prepare lesson/i }),
+  ).not.toBeVisible();
+  // Status is displayed as Locked
+  await expect(page.getByText("Locked")).toBeVisible();
+
+  // Directly navigating to test route shows Route unavailable
+  await page.goto(`/lesson/${lesson1Id}/test`);
+  await expect(
+    page.getByRole("heading", { name: /This page isn't available/i }),
+  ).toBeVisible();
+});

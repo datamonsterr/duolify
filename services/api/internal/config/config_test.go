@@ -18,6 +18,8 @@ func TestLoad(t *testing.T) {
 		{"bad log level", "LOG_LEVEL", "bogus", "LOG_LEVEL"},
 		{"bad analytics opt out", "ANALYTICS_OPT_OUT", "bogus", "ANALYTICS_OPT_OUT"},
 		{"analytics opt out", "ANALYTICS_OPT_OUT", "true", ""},
+		{"bad tracer flag", "LESSON_TEST_TRACER_ENABLED", "bogus", "LESSON_TEST_TRACER_ENABLED"},
+		{"tracer enabled", "LESSON_TEST_TRACER_ENABLED", "true", ""},
 		{"tls engine", "ENGINE_ADDR", "https://engine:50051", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -40,6 +42,12 @@ func TestLoad(t *testing.T) {
 			}
 			if tt.key == "ANALYTICS_OPT_OUT" && tt.value == "true" && !cfg.AnalyticsOptOut {
 				t.Fatal("analytics opt-out ignored")
+			}
+			if tt.key == "LESSON_TEST_TRACER_ENABLED" && tt.value == "true" && !cfg.LessonTestTracerEnabled {
+				t.Fatal("lesson test tracer enabled ignored")
+			}
+			if tt.name == "defaults" && cfg.LessonTestTracerEnabled {
+				t.Fatal("lesson test tracer enabled should default to false")
 			}
 		})
 	}

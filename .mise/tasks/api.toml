@@ -43,6 +43,7 @@ run = "go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate"
 ["api:pricing-e2e-server"]
 description = "Serve pricing from a freshly migrated disposable Postgres for Playwright"
 dir = "{{config_root}}/services/api"
+env = { LESSON_TEST_TRACER_ENABLED = "{{env.LESSON_TEST_TRACER_ENABLED | default(value='true')}}" }
 run = "go run ./test/pricingserver"
 
 ["api:format"]
