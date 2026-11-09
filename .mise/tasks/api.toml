@@ -16,7 +16,7 @@ run = "gotestsum -- -race -count=1 ./test/e2e/..."
 ["api:test-integration"]
 description = "Test migrations, store and queue against Postgres 18 (Docker)"
 dir = "{{config_root}}/services/api"
-run = "gotestsum -- -race -count=1 -tags integration ./internal/store/..."
+run = "gotestsum -- -race -count=1 -tags integration ./internal/store/... ./internal/pricing/..."
 
 ["api:build"]
 description = "Build the statically linked API binary"
@@ -38,3 +38,13 @@ run = "go run ./cmd/api migrate"
 description = "Regenerate pinned sqlc queries"
 dir = "{{config_root}}/services/api"
 run = "go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate"
+
+["api:pricing-e2e-server"]
+description = "Serve pricing from a freshly migrated disposable Postgres for Playwright"
+dir = "{{config_root}}/services/api"
+run = "go run ./test/pricingserver"
+
+["api:format"]
+description = "Format Go source"
+dir = "{{config_root}}/services/api"
+run = "gofmt -w internal/pricing internal/httpapi/router.go internal/httpapi/middleware.go cmd/api/main.go test/pricingserver"
