@@ -49,3 +49,10 @@
 - [x] Existing pricing analytics catalogue/wrapper, UUID/opt-out test-double checks.
 - [x] Encrypted restore fixtures include policy, quote and consent; account FK pseudonymization.
 - [x] Preserve AI gates: quote-only work invokes no model or provider.
+
+## E12-03 cached client consumption
+
+- [x] `GET /v1/pricing` exposes the current loaded version and its next approved scheduled version; the client refreshes and displays both when present.
+- [x] ETag conditional reads return `304` for an unchanged DTO and a new DTO after the database resolver crosses a scheduled effective time.
+- [x] Client price/credit literal gate has authored commercial and documented noncommercial rule fixtures.
+- [ ] Runtime catalogue reload, scheduled activation, and consistency of the next-change display after activation are deferred to E12-06. E12-03 verifies request-time DTO/ETag behavior; it does not add an API scheduler or reload path.

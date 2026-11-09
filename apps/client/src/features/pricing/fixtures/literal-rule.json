@@ -1,0 +1,12 @@
+{
+  "commercial": [
+    "const price = 12;",
+    "const amount = '$9.99';",
+    "const label = '15 credits';",
+    "const yearly = 'USD 96';"
+  ],
+  "noncommercial": [
+    "const year = 2026; // @noncommercial-number: release year",
+    "const inputLimit = 1200; // @noncommercial-number: byte limit"
+  ]
+}
