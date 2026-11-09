@@ -43,6 +43,19 @@ describe("learn path", () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByText("Look up")).toBeTruthy();
+    expect(
+      await screen.findByRole("link", {
+        name: "Lesson 1, Begin exploring, completed. Review",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Start lesson: Look up" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("img", {
+        name: "Lesson 3, Meet the stars, locked. Pass the previous lesson test first",
+      }),
+    ).toBeTruthy();
     expect(screen.getAllByText("Locked")[0]).toBeTruthy();
   });
 });
