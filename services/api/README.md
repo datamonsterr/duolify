@@ -9,7 +9,7 @@ Copy the root `.env.example` to `.env`; mise loads it. `DATABASE_URL`, `REDIS_UR
 and `ENGINE_ADDR` are required and validated before startup. `ENGINE_ADDR` accepts
 `http://host:port` for private plaintext gRPC or `https://host:port` for TLS.
 `API_ADDR`, `LOG_LEVEL`, `POSTHOG_API_KEY`, and `POSTHOG_HOST` use the documented
-root defaults. An empty PostHog key disables analytics. No learner events are
+root defaults. An empty PostHog key or `ANALYTICS_OPT_OUT=true` disables server analytics. No learner events are
 emitted by this scaffold. CORS allows the Tauri localhost origins and Vite port 1420.
 
 Run all commands from the repository root:
@@ -20,12 +20,13 @@ mise run api:generate       # pinned sqlc; commit generated queries
 mise run api:migrate        # embedded Goose application schema + River schema
 mise run api:run            # serve
 mise run api:build          # services/api/bin/api
-mise exec go -- services/api/bin/api worker
+# Worker requires BACKUP_S3_* and BACKUP_AGE_RECIPIENT; use its packaged tools:
+mise exec -- docker compose --profile workers up -d --build --wait
 mise run api:lint
 mise run api:test           # unit tests only, race detector
-mise run api:test-e2e       # real HTTP server, in-process gRPC engine
-mise run api:test-integration # Postgres 18 via Docker/testcontainers, race detector
-docker build -f services/api/Dockerfile services/api
+mise run api:test-e2e       # real HTTP/gRPC plus packaged worker backup/restore
+mise run api:test-integration # Postgres 18, River, RustFS via disposable containers
+mise run infra:build-worker # pinned pg_dump 18.6, age 1.3.2, local IAM initializer
 ```
 
 The binary accepts `serve`, `worker`, and `migrate`. Run migrations as a separate
@@ -39,8 +40,10 @@ database details and engine diagnostics are not returned to clients.
 and `sqlc.yaml` generate `internal/store/db`. Amounts are signed integer units;
 pricing, reservation/settlement rules and billing are follow-up features. Reward
 and purchased entries retain distinct kinds. Destructive rollback requires a
-backup; production backups and restore drills remain infrastructure follow-up
-work under ADR 0003. The integration test uses disposable data only.
+backup. The worker now performs encrypted nightly dumps with date/schema names,
+atomic S3 publication, idempotent retries and private operations events; see
+[backup setup](../../infra/backup/README.md). Production provisioning, retention
+and automated drills remain E11 follow-ups. Tests use disposable synthetic data.
 
 Dependency and generator versions are pinned in `go.mod`, `buf.gen.yaml` and the
 area task file. The existing streaming `*Event` contract needs a narrow Buf

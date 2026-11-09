@@ -2,62 +2,41 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
-  Link,
-  Outlet,
   RouterProvider,
-  useParams,
+  Outlet,
   useLocation,
+  useParams,
+  type RouterHistory,
 } from "@tanstack/react-router";
+import { SignIn } from "./features/accounts/SignIn";
+import { RouteGuard } from "./features/accounts/RouteGuard";
+import { AccountProfile } from "./features/accounts/AccountProfile";
 import { LearnPath } from "./LearnPath";
 import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
 import { Courses } from "./features/design/Courses";
 import { PricingView } from "./features/pricing/PricingView";
-import { SignIn } from "./features/accounts/SignIn";
-import { RouteGuard } from "./features/accounts/RouteGuard";
-import { AccountProfile } from "./features/accounts/AccountProfile";
-function Layout() {
+import { AppShell, MorePage } from "./features/shell/AppShell";
+import {
+  DestinationPage,
+  RouteError,
+  RoutePending,
+  RouteUnavailable,
+} from "./features/shell/RouteBoundary";
+function AuthenticatedShell() {
   const path = useLocation({ select: (location) => location.pathname });
   if (path === "/sign-in") return <Outlet />;
   return (
     <RouteGuard>
-      <div className="shell">
-        <a href="#main-content" className="skip-link">
-          Skip to content
-        </a>
-        <aside className="sidebar">
-          <Link className="brand" to="/">
-            <span className="brand-mark" aria-hidden="true">
-              <span />
-              <span />
-            </span>
-            duolify
-          </Link>
-          <nav aria-label="Main">
-            <Link to="/">◈ Learn</Link>
-            <Link to="/courses">▦ Courses</Link>
-            <Link to="/profile">◉ Profile</Link>
-            <Link to="/credits">◇ Credits</Link>
-          </nav>
-          <p className="sidebar-foot">A little learning, every day.</p>
-        </aside>
-        <main className="main" id="main-content" tabIndex={-1}>
-          <Outlet />
-        </main>
-        <aside className="right" aria-label="Learning tips">
-          <div className="card">
-            <h2>A little learning, every day</h2>
-            <p>Choose a course and continue where you left off.</p>
-          </div>
-          <div className="card">
-            <h2>Your learning, your pace</h2>
-            <p>Each lesson is one small discovery.</p>
-          </div>
-        </aside>
-      </div>
+      <AppShell />
     </RouteGuard>
   );
 }
-const root = createRootRoute({ component: Layout });
+const root = createRootRoute({
+  component: AuthenticatedShell,
+  pendingComponent: RoutePending,
+  errorComponent: RouteError,
+  notFoundComponent: RouteUnavailable,
+});
 const index = createRoute({
   getParentRoute: () => root,
   path: "/",
@@ -77,10 +56,14 @@ const course = createRoute({
   path: "/course/$courseId",
   component: CoursePath,
 });
+function LessonRoute() {
+  const { lessonId } = useParams({ from: "/lesson/$lessonId" });
+  return <LessonPlayer key={lessonId} lessonId={lessonId} />;
+}
 const lesson = createRoute({
   getParentRoute: () => root,
   path: "/lesson/$lessonId",
-  component: LessonPlayer,
+  component: LessonRoute,
 });
 const profile = createRoute({
   getParentRoute: () => root,
@@ -92,22 +75,84 @@ const credits = createRoute({
   path: "/credits",
   component: PricingView,
 });
+const more = createRoute({
+  getParentRoute: () => root,
+  path: "/more",
+  component: MorePage,
+});
+const friends = createRoute({
+  getParentRoute: () => root,
+  path: "/friends",
+  component: () => <DestinationPage title="Friends" />,
+});
+const leagues = createRoute({
+  getParentRoute: () => root,
+  path: "/leagues",
+  component: () => <DestinationPage title="Leagues" />,
+});
+const notes = createRoute({
+  getParentRoute: () => root,
+  path: "/notes",
+  component: () => <DestinationPage title="Quick notes" />,
+});
+const bookmarks = createRoute({
+  getParentRoute: () => root,
+  path: "/bookmarks",
+  component: () => <DestinationPage title="Bookmarks" />,
+});
+const settings = createRoute({
+  getParentRoute: () => root,
+  path: "/settings",
+  component: () => <DestinationPage title="Settings" />,
+});
+const streak = createRoute({
+  getParentRoute: () => root,
+  path: "/streak",
+  component: () => <DestinationPage title="Your streak" />,
+});
+const lessonTest = createRoute({
+  getParentRoute: () => root,
+  path: "/lesson/$lessonId/test",
+  component: () => (
+    <>
+      <a className="shell-link" href="/course/astronomy">
+        Exit test
+      </a>
+      <DestinationPage title="Lesson test" />
+    </>
+  ),
+});
 const signIn = createRoute({
   getParentRoute: () => root,
   path: "/sign-in",
   component: SignIn,
 });
-const router = createRouter({
-  routeTree: root.addChildren([
-    index,
-    courses,
-    course,
-    lesson,
-    profile,
-    credits,
-    signIn,
-  ]),
-});
+export const createAppRouter = (history?: RouterHistory) =>
+  createRouter({
+    history,
+    defaultPendingComponent: RoutePending,
+    defaultErrorComponent: RouteError,
+    defaultNotFoundComponent: RouteUnavailable,
+    notFoundMode: "root",
+    routeTree: root.addChildren([
+      index,
+      courses,
+      course,
+      lesson,
+      profile,
+      credits,
+      more,
+      friends,
+      leagues,
+      notes,
+      bookmarks,
+      settings,
+      streak,
+      lessonTest,
+      signIn,
+    ]),
+  });
+const router = createAppRouter();
 declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router;

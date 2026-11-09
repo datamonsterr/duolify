@@ -16,6 +16,8 @@ func TestLoad(t *testing.T) {
 		{"bad engine", "ENGINE_ADDR", "ftp://localhost", "ENGINE_ADDR"},
 		{"bad listen", "API_ADDR", "invalid", "API_ADDR"},
 		{"bad log level", "LOG_LEVEL", "bogus", "LOG_LEVEL"},
+		{"bad analytics opt out", "ANALYTICS_OPT_OUT", "bogus", "ANALYTICS_OPT_OUT"},
+		{"analytics opt out", "ANALYTICS_OPT_OUT", "true", ""},
 		{"tls engine", "ENGINE_ADDR", "https://engine:50051", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -35,6 +37,9 @@ func TestLoad(t *testing.T) {
 			}
 			if cfg.Addr != ":8080" || cfg.PostHogHost != "https://us.i.posthog.com" {
 				t.Fatalf("bad defaults: %+v", cfg)
+			}
+			if tt.key == "ANALYTICS_OPT_OUT" && tt.value == "true" && !cfg.AnalyticsOptOut {
+				t.Fatal("analytics opt-out ignored")
 			}
 		})
 	}

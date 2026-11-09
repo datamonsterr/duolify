@@ -1,3 +1,4 @@
+import { apiBase } from "./servers";
 import { test, expect } from "@playwright/test";
 test.use({ hasTouch: true });
 test.beforeEach(async ({ page, request }) => {
@@ -6,7 +7,7 @@ test.beforeEach(async ({ page, request }) => {
     const target = new URL(original.url());
     const headers = original.headers();
     delete headers.origin;
-    target.host = "127.0.0.1:18084";
+    target.host = new URL(apiBase).host;
     await route.fulfill({
       response: await request.fetch(target.href, {
         method: original.method(),
@@ -44,7 +45,7 @@ for (const width of [1280, 390]) {
       await page.getByRole("button", { name: "Sign in", exact: true }).click();
       await expect(page.getByRole("alert")).toContainText("invalid or expired");
       const sink = await request.get(
-        `http://127.0.0.1:18084/test/mail?email=${encodeURIComponent(email)}`,
+        `${apiBase}/test/mail?email=${encodeURIComponent(email)}`,
       );
       const { code } = await sink.json();
       await page.getByLabel("One-time code").fill(code);
@@ -89,11 +90,9 @@ test("expired code and unsafe destination preserve recovery", async ({
   await page.getByRole("button", { name: "Send code" }).click();
   await expect(page.getByLabel("One-time code")).toBeVisible();
   const mail = await (
-    await request.get(
-      "http://127.0.0.1:18084/test/mail?email=expired@example.test",
-    )
+    await request.get(apiBase + "/test/mail?email=expired@example.test")
   ).json();
-  await request.post("http://127.0.0.1:18084/test/expire", {
+  await request.post(apiBase + "/test/expire", {
     data: { email: "expired@example.test" },
   });
   await page.getByLabel("One-time code").fill(mail.code);
@@ -102,9 +101,7 @@ test("expired code and unsafe destination preserve recovery", async ({
   await page.getByRole("button", { name: "Resend code" }).click();
   await expect(page.getByLabel("One-time code")).toHaveValue("");
   const fresh = await (
-    await request.get(
-      "http://127.0.0.1:18084/test/mail?email=expired@example.test",
-    )
+    await request.get(apiBase + "/test/mail?email=expired@example.test")
   ).json();
   await page.getByLabel("One-time code").fill(fresh.code);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();

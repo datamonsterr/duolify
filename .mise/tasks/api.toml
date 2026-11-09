@@ -9,20 +9,21 @@ dir = "{{config_root}}/services/api"
 run = "gotestsum -- -race -count=1 ./internal/... ./migrations/..."
 
 ["api:test-e2e"]
-description = "Run real authenticated HTTP, Postgres and fake gRPC end-to-end tests"
+description = "Run authenticated HTTP/gRPC and packaged worker backup/restore end-to-end tests"
+depends = ["infra:build-worker"]
 dir = "{{config_root}}/services/api"
 run = "gotestsum -- -race -count=1 ./test/e2e/..."
 
 ["api:test-integration"]
 description = "Test migrations, store and queue against Postgres 18 (Docker)"
 dir = "{{config_root}}/services/api"
-run = "gotestsum -- -race -count=1 -tags integration ./internal/store/... ./internal/pricing/... ./internal/accounts/..."
+run = "gotestsum -- -race -count=1 -tags integration ./internal/store/... ./internal/backup/... ./internal/pricing/... ./internal/accounts/..."
 
 ["api:build"]
 description = "Build the statically linked API binary"
 dir = "{{config_root}}/services/api"
 env = { CGO_ENABLED = "0" }
-run = "go build -trimpath -o bin/api ./cmd/api"
+run = ["go build -trimpath -o bin/api ./cmd/api", "go build -trimpath -o bin/backup-init ./cmd/backup-init"]
 
 ["api:run"]
 description = "Run the HTTP API"
@@ -47,4 +48,4 @@ run = "go run ./test/pricingserver"
 ["api:format"]
 description = "Format Go source"
 dir = "{{config_root}}/services/api"
-run = "gofmt -w internal/accounts internal/pricing internal/httpapi/router.go internal/httpapi/middleware.go cmd/api/main.go test/pricingserver test/e2e"
+run = "gofmt -w internal/accounts internal/backuptest internal/pricing internal/httpapi/router.go internal/httpapi/middleware.go cmd/api/main.go test/pricingserver test/e2e"

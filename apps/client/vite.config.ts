@@ -4,6 +4,11 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { port: 1420, strictPort: true },
+  build: {
+    rollupOptions: {
+      input: { app: "index.html", guidedChat: "guided-chat.html" },
+    },
+  },
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],

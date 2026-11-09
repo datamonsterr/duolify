@@ -1,0 +1,260 @@
+/* Grid rows reserve the actual wrapped tab height; viewport/safe areas are platform geometry. */
+.app-frame {
+  display: grid;
+  grid-template-columns: var(--size-sidebar) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  max-inline-size: var(--size-shell);
+  block-size: 100dvh;
+  margin-inline: auto;
+}
+.app-main {
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  padding: var(--space-10) var(--space-8);
+  scroll-behavior: auto;
+}
+.app-frame > .sidebar {
+  display: flex;
+  min-block-size: 0;
+  overflow-y: auto;
+  padding-block-start: max(var(--space-6), env(safe-area-inset-top));
+}
+.app-frame .sidebar nav a,
+.bottom-tabs a,
+.more-links a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: var(--size-target);
+  min-block-size: var(--size-target);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-weight: var(--weight-heavy);
+}
+.app-frame .sidebar nav a[aria-current="page"],
+.bottom-tabs a[aria-current="page"],
+.more-links a[aria-current="page"] {
+  color: var(--info);
+  border-color: var(--info);
+  background: var(--info-bg);
+}
+.nav-icon {
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mobile-header,
+.support-rail {
+  display: none;
+}
+.support-rail {
+  padding: var(--space-10) var(--space-4);
+  overflow-y: auto;
+}
+.shell-link,
+.shell-links a,
+.more-links a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--size-target);
+  min-inline-size: var(--size-target);
+  padding: var(--space-2);
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+.shell-links,
+.more-links {
+  display: grid;
+  gap: var(--space-3);
+}
+.focused-frame {
+  grid-template-columns: minmax(0, 1fr);
+  max-inline-size: var(--size-focused);
+}
+.focused-context,
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.panel-layout,
+.list-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--size-rail));
+  gap: var(--space-6);
+  align-items: start;
+}
+.panel-layout:has(> .panel-host[hidden]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.panel-main,
+.list-detail-layout > div {
+  min-inline-size: 0;
+}
+.panel-host[hidden] {
+  display: none;
+}
+.adaptive-panel {
+  min-inline-size: 0;
+  max-block-size: 100%;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+.panel-heading {
+  margin-block-end: var(--space-4);
+}
+.panel-heading h2 {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+}
+.panel-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block: var(--space-4);
+}
+.app-frame > .skip-link {
+  z-index: 3;
+  min-block-size: var(--size-target);
+  min-inline-size: var(--size-target);
+}
+.adaptive-panel textarea {
+  font: inherit;
+  display: block;
+  inline-size: 100%;
+  min-block-size: var(--size-timeline-min);
+  margin-block: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--surface);
+  color: var(--text);
+}
+textarea:focus-visible,
+select:focus-visible {
+  outline: var(--size-focus-width) solid var(--focus);
+  outline-offset: var(--size-focus-offset);
+}
+@media (width >= 75rem) {
+  .app-frame:not(.focused-frame) {
+    grid-template-columns: var(--size-sidebar) minmax(0, 1fr) var(--size-rail);
+  }
+  .support-rail {
+    display: block;
+  }
+}
+@media (width < 48rem) {
+  .app-frame {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+  .app-frame > .sidebar {
+    display: none;
+  }
+  .mobile-header {
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-4)
+      var(--space-3);
+    border-block-end: 1px solid var(--line);
+  }
+  .credit-shortcut {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: var(--size-target);
+    min-block-size: var(--size-target);
+    color: var(--credit);
+    font-weight: var(--weight-strong);
+  }
+  .credit-shortcut .muted {
+    margin: 0;
+  }
+  .app-main {
+    grid-row: 2;
+    padding: var(--space-4);
+  }
+  .bottom-tabs {
+    grid-row: 3;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-2)
+      calc(var(--space-2) + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-block-start: 1px solid var(--line);
+  }
+  .bottom-tabs a {
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--space-1);
+    padding: var(--space-2) 0;
+    text-align: center;
+    font-size: var(--font-size-caption);
+    overflow-wrap: anywhere;
+  }
+  .bottom-tabs a span {
+    max-inline-size: 100%;
+  }
+  .focused-frame {
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .focused-frame .app-main {
+    grid-row: 1;
+    padding-block-start: max(var(--space-4), env(safe-area-inset-top));
+    padding-block-end: calc(var(--space-4) + env(safe-area-inset-bottom));
+  }
+  .panel-layout,
+  .list-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .panel-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: flex-end;
+    background: color-mix(
+      in srgb,
+      var(--canvas) calc(var(--opacity-overlay) * 100%),
+      transparent
+    );
+  }
+  .panel-step {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    background: var(--canvas);
+  }
+  .panel-step .adaptive-panel {
+    block-size: 100dvh;
+    border-radius: 0;
+    padding-block-start: max(var(--space-4), env(safe-area-inset-top));
+    padding-block-end: calc(var(--space-4) + env(safe-area-inset-bottom));
+  }
+  .panel-sheet .adaptive-panel {
+    inline-size: 100%;
+    max-block-size: 85dvh;
+    padding-block-end: calc(var(--space-4) + env(safe-area-inset-bottom));
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+  }
+}

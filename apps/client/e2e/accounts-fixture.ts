@@ -1,3 +1,4 @@
+import { apiBase } from "./servers";
 import { test as base, expect } from "@playwright/test";
 import type { Tokens } from "../src/features/accounts/secure-store";
 let tokens: Tokens | undefined;
@@ -8,18 +9,17 @@ export const test = base.extend<{ authenticated: void }>({
         const email = `browser-${Date.now()}@example.test`;
         expect(
           (
-            await request.post("http://127.0.0.1:18084/v1/auth/code", {
+            await request.post(apiBase + "/v1/auth/code", {
               data: { email, age_confirmed: true },
             })
           ).status(),
         ).toBe(202);
         const { code } = await (
-          await request.get(`http://127.0.0.1:18084/test/mail?email=${email}`)
+          await request.get(`${apiBase}/test/mail?email=${email}`)
         ).json();
-        const response = await request.post(
-          "http://127.0.0.1:18084/v1/auth/verify",
-          { data: { email, code, age_confirmed: true } },
-        );
+        const response = await request.post(apiBase + "/v1/auth/verify", {
+          data: { email, code, age_confirmed: true },
+        });
         expect(response.status()).toBe(200);
         tokens = (await response.json()) as Tokens;
       }
@@ -31,7 +31,7 @@ export const test = base.extend<{ authenticated: void }>({
         const target = new URL(original.url());
         const headers = original.headers();
         delete headers.origin;
-        target.host = "127.0.0.1:18084";
+        target.host = new URL(apiBase).host;
         await route.fulfill({
           response: await request.fetch(target.href, {
             method: original.method(),

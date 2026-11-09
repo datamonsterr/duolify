@@ -1,0 +1,14 @@
+["client:format-guided"]
+description = "Format shared guided-chat components and fixtures"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/design/chat src/features/design/sheet src/features/design/share_accessible_forms_feedback_and_sheets.test.tsx src/test/share_accessible_forms_feedback_and_sheets.integration.test.tsx e2e/design-e13-03.spec.ts guided-chat.html playwright.guided.config.ts vite.config.ts src/lib/analytics.ts"
+
+["client:test-guided"]
+description = "Run focused guided-chat unit and integration tests"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec vitest run share_accessible_forms_feedback_and_sheets"
+
+["client:e2e-guided"]
+description = "Run authored guided-chat fixtures without an API dependency"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec playwright test --config playwright.guided.config.ts"

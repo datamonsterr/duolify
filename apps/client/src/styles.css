@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "../../../docs/design/theme.css";
 @import "./features/design/fonts.css";
+@import "./features/shell/shell.css";
 
 :root {
   font-family: var(--font-family);
