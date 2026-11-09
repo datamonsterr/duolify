@@ -1,11 +1,13 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { trackNavigation, trackScreen } from "../../lib/analytics";
+import { Badge } from "../design/Badge";
 import {
+  accountNavigation,
   currentDestination,
+  learningNavigation,
   mobileTabs,
   moreDestinations,
-  navigation,
   screenForPath,
   type Destination,
 } from "./navigation";
@@ -25,9 +27,21 @@ const icons: Record<string, string> = {
   settings: "M4 7h16 M4 17h16 M8 4v6 M16 14v6",
   more: "M4 6h16 M4 12h16 M4 18h16",
 };
+const iconAccents: Record<string, string> = {
+  home: "primary",
+  courses: "secondary",
+  note: "secondary",
+  gem: "credit-icon",
+  profile: "muted",
+  settings: "muted",
+};
 function NavIcon({ name }: { name: string }) {
   return (
-    <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <svg
+      className={`nav-icon nav-icon-${iconAccents[name] ?? "secondary"}`}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
       <path d={icons[name]} />
     </svg>
   );
@@ -126,9 +140,17 @@ export function AppShell() {
               <Brand />
               {!mobile && (
                 <nav aria-label="Main">
-                  {navigation.map((item) => (
-                    <DestinationLink key={item.id} item={item} />
-                  ))}
+                  <div role="group" aria-label="Learning">
+                    {learningNavigation.map((item) => (
+                      <DestinationLink key={item.id} item={item} />
+                    ))}
+                  </div>
+                  <hr role="separator" />
+                  <div role="group" aria-label="Account">
+                    {accountNavigation.map((item) => (
+                      <DestinationLink key={item.id} item={item} />
+                    ))}
+                  </div>
                 </nav>
               )}
               <p className="sidebar-foot">A little learning, every day.</p>
@@ -153,7 +175,14 @@ export function AppShell() {
             <aside className="support-rail" aria-label="Your progress">
               <section className="card">
                 <h2>Your streak</h2>
-                <p>Build a habit, one lesson at a time.</p>
+                <Badge role="streak">Preview</Badge>
+                <p>Example: 3 of 7 days this week</p>
+                <progress
+                  className="support-progress"
+                  value={3}
+                  max={7}
+                  aria-label="Example weekly streak progress"
+                />
                 <Link
                   className="shell-link"
                   to="/streak"
@@ -164,7 +193,14 @@ export function AppShell() {
               </section>
               <section className="card">
                 <h2>Daily goal</h2>
-                <p>Your learning, your pace.</p>
+                <Badge role="success">Preview</Badge>
+                <p>Example: 10 of 20 XP today</p>
+                <progress
+                  className="support-progress"
+                  value={10}
+                  max={20}
+                  aria-label="Example daily goal progress"
+                />
                 <Link
                   className="shell-link"
                   to="/settings"
@@ -175,7 +211,8 @@ export function AppShell() {
               </section>
               <section className="card">
                 <h2>Credit options</h2>
-                <p>View daily free credits and credit options.</p>
+                <Badge role="credit">Balance unavailable</Badge>
+                <p>Check your balance and available credits.</p>
                 <Link
                   className="shell-link"
                   to="/credits"

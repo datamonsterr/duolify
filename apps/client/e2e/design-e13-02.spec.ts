@@ -121,6 +121,32 @@ test("sidebar becomes five tabs with More, preserving route draft and scroll", a
   await expect(page).toHaveURL(/\/courses$/);
 });
 
+test("desktop navigation groups learning and account links and shows compact progress widgets", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/courses");
+
+  const nav = page.getByRole("navigation", { name: "Main" });
+  await expect(
+    nav.getByRole("group", { name: "Learning" }).getByRole("link"),
+  ).toHaveText(["Learn", "Courses", "Quick notes"]);
+  await expect(
+    nav.getByRole("group", { name: "Account" }).getByRole("link"),
+  ).toHaveText(["Credits", "Profile", "Settings"]);
+  await expect(nav.getByRole("separator")).toHaveCount(1);
+  await expect(nav.locator(".nav-icon").first()).toHaveCSS(
+    "color",
+    "rgb(31, 122, 13)",
+  );
+
+  const rail = page.getByRole("complementary", { name: "Your progress" });
+  await expect(rail.getByRole("progressbar")).toHaveCount(2);
+  await expect(rail.getByText("3 of 7 days")).toBeVisible();
+  await expect(rail.getByText("10 of 20 XP")).toBeVisible();
+  await expect(rail.getByText(/\$|€|£/)).toHaveCount(0);
+});
+
 for (const mode of ["light", "dark"] as const) {
   test(`focused player panel becomes sheet, preserving slide and keyboard recovery in ${mode}`, async ({
     page,
