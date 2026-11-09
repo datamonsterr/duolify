@@ -47,3 +47,4 @@ One term, one meaning. Use these words in code, specs and UI copy.
 | **Course steering** | Learner instructions added during learning (for example "more examples in Go", "skip history") that shape future lesson generation and, on request, the remaining outline. Past lessons do not change. |
 | **Course instruction** | One saved steering entry: text, scope (`next lesson`, `rest of course`) and time added. |
 | **Pricing config** | Versioned configuration that holds every credit price, daily free credit amount, credit pack and subscription tier. Changed without a code deploy. |
+| **Action quote** | An immutable, expiring snapshot of an AI action's Pricing version, eligibility, model/input bounds and separate content/audio credit ceilings. Accepting it records consent only; it does not reserve Credits or start provider work. |

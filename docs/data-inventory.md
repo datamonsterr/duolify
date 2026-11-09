@@ -73,3 +73,18 @@ and browser checks). No database, object-storage or device persistence is added;
 no additional persisted-data restore/deletion checks are needed. PostHog receives
 only allowlisted UI control/sheet IDs and common identity properties through the
 existing opt-out boundary; no learner content or duplicate API outcomes.
+
+E12-02 action quotes: Postgres `pricing_quote_policies` extends each immutable
+Pricing config version with token-class nanodollar rates, model/context/voice
+allowlists, conversion and TTL. `pricing_quotes` stores the complete immutable
+terms, component ceilings, eligible bucket, request counts, expiry and a version
+foreign key; `pricing_quote_consents` records approval independently of wallet
+reservations. All three tables are financial history retained at least seven
+years in the live database and fresh encrypted nightly dumps (35-day snapshot
+rotation per ADR 0011). Account deletion nulls the learner FK while preserving a
+SHA-256 pseudonymous owner reference. No prompt, topic, note or chat text is held.
+Backup fixtures include non-empty accepted quotes and compare full restored rows,
+version policy and consent; restored history rejects mutation. Focused deletion
+checks verify quotes survive with null identity. Client quote state is disposable
+React memory; no device quote persistence. Existing AI eval/fallback gates apply;
+quote creation makes no provider call.

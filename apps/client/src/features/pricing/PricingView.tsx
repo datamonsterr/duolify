@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { exposePricing } from "../../lib/analytics";
+import { QuotePanel } from "./QuotePanel";
 import type { Pricing } from "./types";
 import { Button } from "../design/Button";
 import "./pricing.css";
@@ -102,7 +103,8 @@ export function PricingView() {
     }
   }, [query.data]);
   useEffect(() => {
-    if (c && surface !== "wallet") exposePricing(c.version, surface);
+    if (c && surface !== "wallet" && surface !== "quote")
+      exposePricing(c.version, surface);
   }, [c, surface]);
   function navigate(next: Surface) {
     setSurface(next);
@@ -310,6 +312,7 @@ export function PricingView() {
           {surface === "quote" && (
             <>
               <h2>Create a course · price guide</h2>
+              <QuotePanel narrationCharacters={c.narration.characters} />
               <p>
                 Review costs before confirming any generation. These are
                 catalogue prices; an API quote confirms the final charge.

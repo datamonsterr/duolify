@@ -39,3 +39,13 @@
 - [ ] 5.3 Alert on config load failure and on scheduled-flip failure.
 - [ ] 5.4 Cost-ceiling check in the validator wired to `engine:eval` usage envelopes.
 - [ ] 5.5 `.env.example` entries (Stripe keys by environment) with comments.
+
+## E12-02 authoritative quotes (issue #55)
+
+- [x] Browser, Postgres and unit quote tests; immutable terms across a flip.
+- [x] Config-owned quote policy, integer money/rational audio, input/model bounds.
+- [x] Authenticated create/read/consent with expiry; no wallet reservation.
+- [x] Responsive quote review, errors, renewal and original version disclosure.
+- [x] Existing pricing analytics catalogue/wrapper, UUID/opt-out test-double checks.
+- [x] Encrypted restore fixtures include policy, quote and consent; account FK pseudonymization.
+- [x] Preserve AI gates: quote-only work invokes no model or provider.

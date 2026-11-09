@@ -43,3 +43,23 @@ Official dependency documentation consulted for this implementation:
 - https://vite.dev/guide/features.html#glob-import
 
 No Engine behavior, model routing, evaluation thresholds or fallback gates change.
+
+
+E12-02 (`#55`) adds authenticated `POST /v1/quotes`,
+`GET /v1/quotes/{id}` and `POST /v1/quotes/{id}/accept`.
+Quote requests contain an action plus optional model/voice keys and bounded token/
+character counts, never learner text. The response pins original config version,
+integer content/audio ceilings, eligible bucket, limits, all token-class rates,
+rational audio conversion, selected input and expiry. Consent is append-only and
+requires database-time freshness; it neither reserves credits nor invokes AI.
+E7 must consume this snapshot rather than reprice it. Accepting expired terms
+returns 409; create a new quote and request new consent. Reads remain original
+through price flips. Ownership is guarded by the existing auth session middleware.
+
+`pricing_quote_policies` is an immutable extension keyed by Pricing config version
+so the already-approved E12-01 seed is unchanged. New versions must supply policy;
+missing policy/rate fails closed. Development defaults (600 seconds and logical
+`default` voice) await owner launch review. Rates are USD nanodollars per token
+(including cache writes/reads), derived from the business model, with USD
+nanodollars per character for audio. Listing a model/voice does not enable it;
+feature eval, provider-route verification and voice provisioning gates still apply.

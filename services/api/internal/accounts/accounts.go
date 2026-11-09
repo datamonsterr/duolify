@@ -448,3 +448,9 @@ func respond(w http.ResponseWriter, status int, body any) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(body)
 }
+
+// LearnerID returns the verified internal UUID supplied by Protect.
+func LearnerID(ctx context.Context) string {
+	id, _ := ctx.Value(learnerKey{}).(string)
+	return id
+}

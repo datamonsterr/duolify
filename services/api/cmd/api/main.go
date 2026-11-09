@@ -151,6 +151,7 @@ func run(ctx context.Context, args []string) (result error) {
 	handler := httpapi.New(httpapi.Dependencies{
 		Accounts: auth,
 		Pricing:  catalogue,
+		Quotes:   pricing.NewQuotes(db.Pool),
 		Postgres: db.Ping,
 		Redis:    func(ctx context.Context) error { return redis.Ping(ctx).Err() },
 		Engine:   backend,

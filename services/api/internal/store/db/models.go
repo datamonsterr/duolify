@@ -67,6 +67,26 @@ type LearnerProfile struct {
 	AgeConfirmedAt  pgtype.Timestamptz `json:"age_confirmed_at"`
 }
 
+type PricingQuote struct {
+	ID             pgtype.UUID        `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	OwnerReference string             `json:"owner_reference"`
+	PricingVersion string             `json:"pricing_version"`
+	Snapshot       []byte             `json:"snapshot"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
+type PricingQuoteConsent struct {
+	QuoteID    pgtype.UUID        `json:"quote_id"`
+	AcceptedAt pgtype.Timestamptz `json:"accepted_at"`
+}
+
+type PricingQuotePolicy struct {
+	Version string `json:"version"`
+	Policy  []byte `json:"policy"`
+}
+
 type PricingVersion struct {
 	Version       string             `json:"version"`
 	EffectiveFrom pgtype.Timestamptz `json:"effective_from"`
