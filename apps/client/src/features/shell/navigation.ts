@@ -9,6 +9,12 @@ export const navigation = [
   { id: "profile", label: "Profile", to: "/profile", icon: "profile" },
   { id: "settings", label: "Settings", to: "/settings", icon: "settings" },
 ] as const;
+export const learningNavigation = navigation.filter((item) =>
+  ["learn", "courses", "notes"].includes(item.id),
+);
+export const accountNavigation = navigation.filter((item) =>
+  ["credits", "profile", "settings"].includes(item.id),
+);
 export const moreDestinations = navigation.filter((d) =>
   ["leagues", "bookmarks", "credits", "profile", "settings"].includes(d.id),
 );

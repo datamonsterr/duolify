@@ -335,3 +335,36 @@ export function trackSessionRecovery() {
     action: "sign_in",
   });
 }
+
+// E13-04 catalogue: localized-appearance/specs/design-system/spec.md.
+function trackSettings(
+  event: "ui_appearance_changed" | "ui_control_activated",
+  properties:
+    | { mode: "system" | "light" | "dark" }
+    | { surface: "settings"; control_id: "locale" | "motion" | "reset" },
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture(event, {
+        distinct_id: identity.learnerId,
+        platform: identity.platform,
+        app_version: identity.appVersion ?? "0.1.0",
+        source: "client",
+        ...properties,
+      });
+  } catch {
+    /* Preference changes never depend on telemetry. */
+  }
+}
+export function trackAppearance(mode: "system" | "light" | "dark") {
+  if (!["system", "light", "dark"].includes(mode)) return;
+  trackSettings("ui_appearance_changed", { mode });
+}
+export function trackPreference(control: "locale" | "motion" | "reset") {
+  if (!["locale", "motion", "reset"].includes(control)) return;
+  trackSettings("ui_control_activated", {
+    surface: "settings",
+    control_id: control,
+  });
+}

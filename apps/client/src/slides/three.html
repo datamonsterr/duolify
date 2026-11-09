@@ -29,6 +29,24 @@
       p {
         color: #ccd4f7;
       }
+      :root[data-motion="reduce"] *,
+      :root[data-motion="reduce"] *::before,
+      :root[data-motion="reduce"] *::after {
+        animation: none !important;
+        transition: none !important;
+        transform: none !important;
+        scroll-behavior: auto !important;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
+          transform: none !important;
+          scroll-behavior: auto !important;
+        }
+      }
     </style>
   </head>
   <body>
@@ -39,7 +57,17 @@
     </main>
     <script>
       window.addEventListener("message", (e) => {
-        if (e.source !== parent) return;
+        if (e.source !== parent || !e.data || typeof e.data !== "object")
+          return;
+        if (
+          e.data.type === "set_motion" &&
+          typeof e.data.reduced === "boolean"
+        ) {
+          document.documentElement.dataset.motion = e.data.reduced
+            ? "reduce"
+            : "full";
+          return;
+        }
         const animations = document.getAnimations();
         if (e.data.type === "pause") animations.forEach((a) => a.pause());
         if (e.data.type === "play") animations.forEach((a) => a.play());

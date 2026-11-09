@@ -1,3 +1,4 @@
+import { useUiPreferences } from "../design/localization/Preferences";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { track } from "../../lib/analytics";
@@ -10,6 +11,7 @@ import { useShellSession } from "../shell/ShellSession";
 const slides = [slide1, slide2, slide3];
 const playbackSpeeds = [1, 1.25, 1.5, 2];
 export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
+  const { reducedMotion } = useUiPreferences();
   const session = useShellSession();
   const [index, setIndex] = useState(() => session.slides.get(lessonId) ?? 0);
   useEffect(() => {
@@ -21,6 +23,12 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
   const [speedIndex, setSpeedIndex] = useState(0);
   const [slideTime, setSlideTime] = useState(0);
   const frame = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    sendCommand(frame.current?.contentWindow ?? null, {
+      type: "set_motion",
+      reduced: reducedMotion,
+    });
+  }, [reducedMotion, index]);
   const [panel, setPanel] = useState<
     "Transcript" | "Ask tutor" | "Quick note" | null
   >(null);
@@ -164,6 +172,10 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
           sandbox="allow-scripts"
           srcDoc={slides[index]}
           onLoad={() => {
+            sendCommand(frame.current?.contentWindow ?? null, {
+              type: "set_motion",
+              reduced: reducedMotion,
+            });
             sendCommand(frame.current?.contentWindow ?? null, {
               type: "rate",
               rate: playbackSpeeds[speedIndex],

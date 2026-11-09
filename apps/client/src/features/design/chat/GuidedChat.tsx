@@ -1,3 +1,4 @@
+import { useUiPreferences } from "../localization/Preferences";
 import {
   useEffect,
   useId,
@@ -49,6 +50,7 @@ export function GuidedChat({
   state = "ready",
   onRetry,
 }: GuidedChatProps) {
+  const { t } = useUiPreferences();
   const inputId = useId();
   const composer = useRef<HTMLTextAreaElement>(null);
   const log = useRef<HTMLDivElement>(null);
@@ -90,15 +92,15 @@ export function GuidedChat({
     composer.current?.focus();
   }
   return (
-    <section className="guided-chat" aria-label="Guided chat">
+    <section className="guided-chat" aria-label={t("chat.title")}>
       <div className="guided-chat-header">
         {step && (
           <>
             <Badge role="info">
-              Step {step.current} of {step.total}
+              {t("chat.step", { current: step.current, total: step.total })}
             </Badge>
             <progress
-              aria-label="Chat steps"
+              aria-label={t("chat.steps")}
               value={step.current}
               max={step.total}
             />
@@ -116,25 +118,25 @@ export function GuidedChat({
             onFormFallback?.(event);
           }}
         >
-          Prefer a form?
+          {t("chat.form")}
         </a>
       </div>
       <div
         className="guided-transcript"
         role="region"
-        aria-label="Chat transcript"
+        aria-label={t("chat.transcript")}
         aria-live="off"
       >
-        {messages.length === 0 && (
-          <p>No messages yet. You can start with an answer.</p>
-        )}
+        {messages.length === 0 && <p>{t("chat.empty")}</p>}
         {messages.map((message) => (
           <div className={`guided-message ${message.author}`} key={message.id}>
-            <strong>{message.authorLabel}</strong>
-            <div className="guided-bubble">
+            <strong>
+              <bdi>{message.authorLabel}</bdi>
+            </strong>
+            <div className="guided-bubble" dir="auto">
               {message.text}
               {message.status === "streaming" && (
-                <span className="field-hint"> (composing)</span>
+                <span className="field-hint">{t("chat.composing")}</span>
               )}
             </div>
           </div>
@@ -144,29 +146,27 @@ export function GuidedChat({
         ref={log}
         className="guided-sr-only"
         role="log"
-        aria-label="New assistant messages"
+        aria-label={t("chat.new_messages")}
         aria-live="polite"
         aria-relevant="additions"
       />
       {pending && (
-        <Feedback title="Duolify is typing…">
-          Sending is unavailable while a reply is being prepared.
-        </Feedback>
+        <Feedback title={t("chat.typing")}>{t("chat.wait")}</Feedback>
       )}
       {state === "offline" && (
         <Feedback
           tone="warning"
-          title="Offline. Your draft stays here; use the form or retry when connected."
-          action="Retry chat"
+          title={t("chat.offline")}
+          action={t("chat.retry")}
           onAction={onRetry}
         />
       )}
       {state === "error" && (
         <Feedback
           tone="danger"
-          title="Chat is unavailable"
+          title={t("chat.error")}
           blocking
-          action="Retry chat"
+          action={t("chat.retry")}
           onAction={() => {
             trackGuidedUi({
               event: "ui_control_activated",
@@ -176,13 +176,13 @@ export function GuidedChat({
             onRetry?.();
           }}
         >
-          Your answers stay here. Use the form to keep going.
+          {t("chat.recovery")}
         </Feedback>
       )}
       <div
         role="group"
         aria-label={
-          question.multiple ? "Quick replies, choose any" : "Quick replies"
+          question.multiple ? t("chat.multiple_replies") : t("chat.replies")
         }
         className="guided-actions"
       >
@@ -212,7 +212,7 @@ export function GuidedChat({
           </Button>
         ))}
         <Button variant="quiet" onClick={() => answer(true)} disabled={pending}>
-          Skip
+          {t("chat.skip")}
         </Button>
       </div>
       <form
@@ -222,11 +222,12 @@ export function GuidedChat({
           answer();
         }}
       >
-        <label htmlFor={inputId}>Your answer</label>
+        <label htmlFor={inputId}>{t("chat.answer")}</label>
         <textarea
           id={inputId}
           ref={composer}
           rows={2}
+          dir="auto"
           value={draft}
           onChange={(event) => onDraftChange(event.target.value)}
         />
@@ -235,7 +236,7 @@ export function GuidedChat({
           disabled={pending || (!draft.trim() && !selected.length)}
           aria-busy={pending || undefined}
         >
-          Send answer
+          {t("chat.send")}
         </Button>
       </form>
     </section>

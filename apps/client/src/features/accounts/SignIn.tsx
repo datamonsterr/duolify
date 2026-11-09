@@ -495,6 +495,7 @@ export function SignIn({
                 <Button
                   key={item}
                   variant="quiet"
+                  className="auth-legal-link"
                   onClick={() => setInfo(info === item ? null : item)}
                   aria-expanded={info === item}
                 >
