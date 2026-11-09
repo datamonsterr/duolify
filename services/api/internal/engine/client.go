@@ -9,9 +9,11 @@ import (
 	"time"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 // Client owns a reusable gRPC connection and per-call deadline.
@@ -31,11 +33,24 @@ func New(addr string, timeout time.Duration) (*Client, error) {
 	if u.Scheme == "https" {
 		creds = credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12})
 	}
-	conn, err := grpc.NewClient("dns:///"+u.Host, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.NewClient("dns:///"+u.Host, grpc.WithTransportCredentials(creds), grpc.WithUnaryInterceptor(correlate))
 	if err != nil {
 		return nil, fmt.Errorf("create engine client: %w", err)
 	}
 	return &Client{conn: conn, rpc: enginev1.NewEngineServiceClient(conn), timeout: timeout}, nil
+}
+
+// correlate forwards safe metadata only and records status without request/error bodies.
+func correlate(ctx context.Context, method string, req, reply any, conn *grpc.ClientConn, invoke grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	ctx, end := telemetry.FromContext(ctx).Start(ctx, "grpc")
+	c := telemetry.CorrelationFrom(ctx)
+	md, _ := metadata.FromOutgoingContext(ctx)
+	md = md.Copy()
+	md.Set("x-request-id", c.RequestID)
+	md.Set("traceparent", c.Traceparent())
+	err := invoke(metadata.NewOutgoingContext(ctx, md), method, req, reply, conn, opts...)
+	end(err == nil)
+	return err
 }
 
 // Close releases the connection.

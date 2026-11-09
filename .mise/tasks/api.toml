@@ -48,4 +48,4 @@ run = "go run ./test/pricingserver"
 ["api:format"]
 description = "Format Go source"
 dir = "{{config_root}}/services/api"
-run = "gofmt -w internal/accounts internal/backuptest internal/pricing internal/httpapi/router.go internal/httpapi/middleware.go cmd/api/main.go test/pricingserver test/e2e"
+run = "gofmt -w internal/accounts internal/backuptest internal/backup internal/worker internal/telemetry internal/analytics internal/engine internal/pricing internal/httpapi/router.go internal/httpapi/middleware.go cmd/api/main.go test/pricingserver test/e2e"

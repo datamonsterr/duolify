@@ -21,6 +21,7 @@ var ClassifiedLearnerTables = map[string]string{
 	"auth_sessions":            "revoked_and_erased",
 	"credit_entries":           "financial_retained_pseudonymous",
 	"pricing_quotes":           "financial_retained_anonymized",
+	"pricing_admin_grants":     "erased",
 }
 
 // LearnerReference is a stable pseudonym used only for legally retained records.
@@ -53,6 +54,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		{table: "auth_identities", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('email',email,'created_at',created_at)),'[]'::jsonb) FROM auth_identities WHERE learner_id=$1`},
 		{table: "auth_provider_identities", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('provider',provider,'verified_email',verified_email,'created_at',created_at)),'[]'::jsonb) FROM auth_provider_identities WHERE learner_id=$1`},
 		{table: "auth_sessions", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'created_at',created_at,'expires_at',expires_at,'revoked_at',revoked_at)),'[]'::jsonb) FROM auth_sessions WHERE learner_id=$1`},
+		{table: "pricing_admin_grants", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('account_id',account_id,'granted_at',granted_at)),'[]'::jsonb) FROM pricing_admin_grants WHERE account_id=$1`},
 		{table: "credit_entries", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'amount',amount,'kind',kind,'reference',reference,'created_at',created_at)),'[]'::jsonb) FROM credit_entries WHERE learner_id=$1`},
 		{table: "pricing_quotes", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',q.id,'pricing_version',q.pricing_version,'snapshot',q.snapshot,'created_at',q.created_at,'expires_at',q.expires_at,'accepted_at',c.accepted_at)),'[]'::jsonb) FROM pricing_quotes q LEFT JOIN pricing_quote_consents c ON c.quote_id=q.id WHERE q.learner_id=$1`},
 	}

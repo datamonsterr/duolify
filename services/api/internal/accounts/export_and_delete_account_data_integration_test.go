@@ -70,6 +70,9 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 	if err = db.Pool.QueryRow(ctx, "SELECT learner_id::text FROM auth_identities WHERE email=$1", email).Scan(&learnerID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = db.Pool.Exec(ctx, "INSERT INTO pricing_admin_grants(account_id) VALUES($1::uuid)", learnerID); err != nil {
+		t.Fatal(err)
+	}
 	_, err = db.Pool.Exec(ctx, `INSERT INTO auth_provider_identities(provider,subject,learner_id,verified_email) VALUES('google','private-subject',$1::uuid,$2)`, learnerID, email)
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +125,11 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 	if len(providerRows) != 1 || providerRows[0]["subject"] != nil {
 		t.Fatalf("unsafe/missing provider export: %s", exportedTables["auth_provider_identities"])
 	}
-	for _, name := range []string{"learners", "learner_profiles", "auth_identities", "auth_provider_identities", "auth_sessions", "credit_entries", "pricing_quotes"} {
+	var grants []map[string]any
+	if err = json.Unmarshal(exportedTables["pricing_admin_grants"], &grants); err != nil || len(grants) != 1 || grants[0]["account_id"] != learnerID {
+		t.Fatalf("admin grant missing from export: %s err=%v", exportedTables["pricing_admin_grants"], err)
+	}
+	for _, name := range []string{"learners", "learner_profiles", "auth_identities", "auth_provider_identities", "auth_sessions", "credit_entries", "pricing_quotes", "pricing_admin_grants"} {
 		if len(exportedTables[name]) == 0 || string(exportedTables[name]) == "null" {
 			t.Fatalf("export missing %s", name)
 		}
@@ -137,6 +144,10 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 	}
 	if w = call("POST", "/v1/me/deletion-request", map[string]string{"confirmation": "DELETE"}, tokens.AccessToken); w.Code != 200 {
 		t.Fatalf("delete: %d %s", w.Code, w.Body)
+	}
+	var grantCount int
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM pricing_admin_grants WHERE account_id=$1::uuid", learnerID).Scan(&grantCount); err != nil || grantCount != 0 {
+		t.Fatalf("admin grant survived deletion: count=%d err=%v", grantCount, err)
 	}
 	var entryLearner any
 	var owner string

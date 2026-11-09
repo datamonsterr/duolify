@@ -8,9 +8,11 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -26,6 +28,8 @@ type Engine interface {
 // Dependencies allows readiness probes without coupling HTTP to database drivers.
 type Dependencies struct {
 	Postgres, Redis func(context.Context) error
+	ObjectStorage   func(context.Context) error
+	Monitor         *telemetry.Monitor
 	Engine          Engine
 	Pricing         http.Handler
 	PricingAdmin    http.Handler
@@ -38,6 +42,9 @@ type Dependencies struct {
 
 // New creates the scaffold routes. Courses are static demonstration data.
 func New(deps Dependencies, logger *slog.Logger) http.Handler {
+	if deps.Monitor == nil {
+		deps.Monitor = telemetry.New(logger)
+	}
 	mux := http.NewServeMux()
 	if deps.Accounts != nil {
 		mux.Handle("/v1/auth/", deps.Accounts)
@@ -83,7 +90,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
-		checks := map[string]func(context.Context) error{"postgres": deps.Postgres, "redis": deps.Redis}
+		checks := map[string]func(context.Context) error{"postgres": deps.Postgres, "redis": deps.Redis, "object_storage": deps.ObjectStorage}
 		if deps.Engine != nil {
 			checks["engine"] = deps.Engine.Health
 		} else {
@@ -91,14 +98,25 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		}
 		results := make(map[string]string, len(checks))
 		code := http.StatusOK
-		// Every probe receives the same overall deadline, bounding total readiness time.
+		var mu sync.Mutex
+		var probes sync.WaitGroup
+		// Concurrent probes keep a slow dependency from hiding healthy dependencies.
 		for name, check := range checks {
-			results[name] = "ok"
-			if check == nil || check(ctx) != nil {
-				results[name] = "error"
-				code = http.StatusServiceUnavailable
-			}
+			probes.Go(func() {
+				probeCtx, end := deps.Monitor.Start(ctx, "dependency")
+				ok := check != nil && check(probeCtx) == nil
+				end(ok)
+				deps.Monitor.Incident(probeCtx, "dependency", name, ok)
+				mu.Lock()
+				defer mu.Unlock()
+				results[name] = "ok"
+				if !ok {
+					results[name] = "error"
+					code = http.StatusServiceUnavailable
+				}
+			})
 		}
+		probes.Wait()
 		writeJSON(w, code, results)
 	})
 	mux.HandleFunc("GET /v1/courses", func(w http.ResponseWriter, _ *http.Request) {
@@ -155,7 +173,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		}
 		mux.ServeHTTP(w, r)
 	})
-	return Middleware(logger, guard)
+	return Middleware(logger, guard, deps.Monitor)
 }
 func writeJSON(w http.ResponseWriter, code int, value any) {
 	w.Header().Set("Content-Type", "application/json")

@@ -30,6 +30,13 @@ and production drills still require provisioning. See [backup tooling](../infra/
 | Device cache | Cached slide copies | Disposable cache; never the sole copy of lesson assets | Cache eviction/logout | [lesson-player](../openspec/specs/lesson-player/spec.md) |
 | Hugging Face + CI artifacts | Golden-set revisions; eval reports | Versioned dataset; optional pinned mirror in S3; reports as CI artifacts | Keep dataset revisions; eval artifacts 90 days | [ai-reliability](../openspec/specs/ai-reliability/spec.md) |
 | PostHog | Product events, backup/drill results, AI token/latency metadata | Derived store; never sole product-state copy | Project-plan event retention; request person deletion on account deletion; no note/chat/profile text | [analytics](../openspec/specs/analytics/spec.md) |
+| API, worker and engine JSON logs/traces | Opaque server request/trace/span IDs, fixed operation/outcome, elapsed time; worker attempt and safe alert records; no tokens, bodies, URLs, prompts, private text or provider errors | Derived, excluded from recovery; source/config recovered from Git | Docker size rotation: 10 MiB × 3 files per service; deletion/recreation discards telemetry. No learner identity linkage. Production collectors must enforce equivalent bounds | [E11-04 observability](../infra/observability/README.md) |
+| Postgres River job metadata | Validated request_id, trace_id and parent span_id under correlation; backup args remain UTC date only | Existing encrypted nightly database dumps; focused synthetic dump/restore compares the metadata of a completed retried job | Existing River terminal-job cleanup; no learner ID or content. Legacy jobs get fresh correlation; account deletion needs no new personal-data store | [E11-04 change](../openspec/changes/trace-requests-workers-alerts/design.md) |
+| Private operational metrics and incident memory | Fixed-label call/error/duration/alert counters; bounded dedupe keys for terminal jobs and dependency outage state, independent of PostHog | Disposable memory and derived Prometheus volume; scrape/alert config and dashboard queries in infra are Git-backed | In-process counters reset on restart; dedupe capped at 4096 keys. Collector metrics expire after seven days or 256 MB; deletion/recreation resets the derived store | [E11-04 observability](../infra/observability/README.md) |
+
+Pricing administrator grants are included in account exports and the learner-table
+deletion classification; the focused privacy fixture seeds a grant, checks its
+export and verifies its existing ON DELETE CASCADE policy removes it.
 
 Postgres recovery objectives are RPO 24 hours and RTO 4 hours. Restoring a backup
 into non-production requires prior anonymization. E1-07 implements the explicit
