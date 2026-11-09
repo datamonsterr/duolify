@@ -75,6 +75,7 @@ func allowlisted(event string) bool {
 	switch event {
 	case "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
+		"plan_purchased", "subscription_grant_issued", "entitlement_changed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
 		"$ai_generation", "ui_control_activated",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
@@ -176,6 +177,19 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "plan_purchased", "subscription_grant_issued", "entitlement_changed":
+		numeric("amount", "amount_minor")
+		ids("plan_id", "interval", "channel", "currency", "price_table_version", "entitlement_version")
+		if value, ok := input["period_key"].(string); ok && len(value) <= 500 && regexp.MustCompile(`^stripe:test:[A-Za-z0-9_-]+:[0-9]+:[0-9]+:0$`).MatchString(value) {
+			out["period_key"] = value
+		}
+		for _, key := range []string{"billing_period_start", "billing_period_end"} {
+			if value, ok := input[key].(string); ok {
+				if _, err := time.Parse(time.RFC3339, value); err == nil {
+					out[key] = value
+				}
+			}
+		}
 	case "checkout_started", "credits_purchased", "credits_purchase_failed":
 		numeric("amount", "price", "amount_minor")
 		ids("currency", "sku_id", "channel", "price_table_version")

@@ -105,6 +105,21 @@ func (s *Service) CreateCheckout(ctx context.Context, owner string, in CheckoutI
 		return order, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if order.BillingPeriod == "monthly" && s.payments.Mode == "test" {
+		if err = financialLock(ctx, tx); err != nil {
+			return order, err
+		}
+		var overlap bool
+		err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_checkout_orders o WHERE o.learner_id=$1 AND o.billing_period='monthly' AND o.request_id<>$2 AND (
+ EXISTS(SELECT 1 FROM credit_subscriptions s JOIN credit_subscription_terms t USING(subscription_id) WHERE s.order_id=o.id AND t.paid_through>now()) OR
+ (NOT EXISTS(SELECT 1 FROM credit_subscriptions s JOIN credit_subscription_terms t USING(subscription_id) WHERE s.order_id=o.id) AND NOT EXISTS(SELECT 1 FROM credit_payment_results r WHERE r.order_id=o.id AND r.state IN ('failed','expired')))))`, owner, in.RequestID).Scan(&overlap)
+		if err != nil {
+			return order, err
+		}
+		if overlap {
+			return order, errCheckoutInput
+		}
+	}
 	if in.QuoteID != "" {
 		var owned bool
 		err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pricing_quotes WHERE id=$1 AND learner_id=$2)", in.QuoteID, owner).Scan(&owned)
@@ -150,7 +165,7 @@ func (s *Service) GetCheckout(ctx context.Context, owner, id string) (CheckoutOr
 	}
 	err := s.pool().QueryRow(ctx, `SELECT id::text,sku,pricing_version,amount_minor,currency,credits,billing_period,return_to,COALESCE(quote_id::text,''),platform,
  NOT EXISTS(SELECT 1 FROM credit_payment_sessions WHERE order_id=o.id),
- CASE WHEN EXISTS(SELECT 1 FROM credit_payment_results WHERE order_id=o.id AND state='paid') THEN 'paid'
+ CASE WHEN EXISTS(SELECT 1 FROM credit_payment_results WHERE order_id=o.id AND state IN ('paid','funded')) THEN 'paid'
  ELSE COALESCE((SELECT state FROM credit_payment_results WHERE order_id=o.id AND state IN ('failed','expired') ORDER BY created_at DESC LIMIT 1),'pending') END
  FROM credit_checkout_orders o WHERE id=$1 AND learner_id=$2`, id, owner).Scan(&order.ID, &order.SKU, &order.PricingVersion, &order.AmountMinor, &order.Currency, &order.Credits, &order.BillingPeriod, &order.ReturnTo, &order.QuoteID, &order.Platform, &order.Illustrative, &order.State)
 	return order, err

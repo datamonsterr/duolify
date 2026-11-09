@@ -101,6 +101,25 @@ const credits = createRoute({
   path: "/credits",
   component: PricingView,
 });
+const billing = createRoute({
+  getParentRoute: () => root,
+  path: "/credits/billing",
+  component: () => (
+    <section className="pricing">
+      <h1>Manage billing with Stripe</h1>
+      <p>
+        Test billing only. No real subscription, payment, cancellation or plan
+        change is made.
+      </p>
+      <p>
+        Live Stripe billing management becomes available after payment setup and
+        approval. Issued credits remain available after cancellation. Plan
+        changes apply at renewal.
+      </p>
+      <a href="/credits">Return to your wallet</a>
+    </section>
+  ),
+});
 const more = createRoute({
   getParentRoute: () => root,
   path: "/more",
@@ -174,6 +193,7 @@ export const createAppRouter = (history?: RouterHistory) =>
       profile,
       profileSetup,
       credits,
+      billing,
       more,
       friends,
       leagues,

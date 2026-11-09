@@ -48,25 +48,26 @@ import (
 
 // Fixture owns disposable databases, storage, a River worker and PostHog double.
 type Fixture struct {
-	paymentFixture *creditstest.Stripe
-	paymentOrderID string
-	DB             *store.Store
-	Logger         *slog.Logger
-	container      *postgres.PostgresContainer
-	databaseURL    string
-	identity       *age.X25519Identity
-	objects        *backup.S3
-	root           *backup.S3
-	faults         *faultStore
-	queue          *river.Client[pgx.Tx]
-	events         analytics.Events
-	mu             sync.Mutex
-	captured       []capture
-	posthogURL     string
-	writerOptions  backup.S3Options
-	packaged       testcontainers.Container
-	schemaVersion  int64
-	lastDate       string
+	paymentFixture      *creditstest.Stripe
+	paymentOrderID      string
+	subscriptionOrderID string
+	DB                  *store.Store
+	Logger              *slog.Logger
+	container           *postgres.PostgresContainer
+	databaseURL         string
+	identity            *age.X25519Identity
+	objects             *backup.S3
+	root                *backup.S3
+	faults              *faultStore
+	queue               *river.Client[pgx.Tx]
+	events              analytics.Events
+	mu                  sync.Mutex
+	captured            []capture
+	posthogURL          string
+	writerOptions       backup.S3Options
+	packaged            testcontainers.Container
+	schemaVersion       int64
+	lastDate            string
 }
 
 type capture struct {
@@ -359,7 +360,27 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	}
 	f.paymentOrderID = order.ID
 	f.replayPayment(t, creditService, "checkout.session.async_payment_succeeded")
+	plan := catalogue.Config().Plans[0]
+	monthly, err := creditService.CreateCheckout(t.Context(), "a1111111-1111-4111-8111-111111111111", credits.CheckoutInput{RequestID: "a8888888-8888-4888-8888-888888888888", SKU: plan.Monthly.SKU, PricingVersion: catalogue.Config().Version, Platform: "web", ReturnTo: "/credits"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscriptionOrderID = monthly.ID
+	f.replaySubscription(t, creditService, "invoice.paid")
+	// Drain derived delivery markers before taking snapshots; the packaged worker
+	// also dispatches outbox work and must not race the full-row restore comparison.
+	if err = creditService.DispatchOutbox(t.Context()); err != nil {
+		t.Fatal(err)
+	}
 
+}
+
+func (f *Fixture) replaySubscription(t *testing.T, service *credits.Service, kind string) {
+	t.Helper()
+	pack := f.paymentOrderID
+	f.paymentOrderID = f.subscriptionOrderID
+	defer func() { f.paymentOrderID = pack }()
+	f.replayPayment(t, service, kind)
 }
 
 func (f *Fixture) replayPayment(t *testing.T, service *credits.Service, kind string) {
@@ -508,7 +529,11 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT credits FROM credit_checkout_orders WHERE id=$1", f.paymentOrderID).Scan(&packCredits); err != nil {
 		t.Fatal(err)
 	}
-	if version != f.schemaVersion || riverVersions < 1 || learners != 1 || entries != 8 || balance != 104+packCredits || name != "Synthetic Learner" {
+	var monthlyCredits int64
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT monthly_credits FROM credit_subscription_terms").Scan(&monthlyCredits); err != nil {
+		t.Fatal(err)
+	}
+	if version != f.schemaVersion || riverVersions < 1 || learners != 1 || entries != 9 || balance != 104+packCredits+monthlyCredits || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
 	var pricingVersion string
@@ -549,7 +574,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -568,6 +593,19 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	f.replayPayment(t, paidService, "checkout.session.async_payment_succeeded")
 	f.replayPayment(t, paidService, "checkout.session.completed")
+	f.replaySubscription(t, paidService, "invoice.payment_succeeded")
+	f.replaySubscription(t, paidService, "checkout.session.completed")
+	var grants int
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_subscription_terms").Scan(&grants); err != nil || grants != 1 {
+		t.Fatalf("restored funded months %d %v", grants, err)
+	}
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_entries WHERE kind='subscription_grant'").Scan(&grants); err != nil || grants != 1 {
+		t.Fatalf("restored grants %d %v", grants, err)
+	}
+	plan, err := paidService.GetWallet(t.Context(), "a1111111-1111-4111-8111-111111111111")
+	if err != nil || plan.Plan == nil || !plan.Plan.Active || plan.Subscription != monthlyCredits {
+		t.Fatalf("restored entitlement %+v %v", plan, err)
+	}
 	var purchases, outbox int
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_payment_results WHERE state='paid'").Scan(&purchases); err != nil || purchases != 1 {
 		t.Fatalf("restore duplicated payment: %d %v", purchases, err)
@@ -575,7 +613,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_outbox WHERE event='credits_purchased'").Scan(&outbox); err != nil || outbox != 1 {
 		t.Fatalf("restore duplicated payment analytics: %d %v", outbox, err)
 	}
-	for _, table := range []string{"credit_payment_sessions", "credit_payment_inbox", "credit_payment_results"} {
+	for _, table := range []string{"credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_results"} {
 		for _, verb := range []string{"DELETE FROM ", "TRUNCATE "} {
 			if _, err := restored.Pool.Exec(t.Context(), verb+table); err == nil {
 				t.Fatalf("mutable restored payment history %s%s", verb, table)
@@ -688,6 +726,14 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		t.Fatalf("restored payment retained identity: %v %v", anonymous, err)
 	}
 	f.replayPayment(t, paidService, "checkout.session.expired")
+	f.replaySubscription(t, paidService, "customer.subscription.updated")
+	f.replaySubscription(t, paidService, "invoice.payment_succeeded")
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_entries WHERE kind='subscription_grant'").Scan(&grants); err != nil || grants != 1 {
+		t.Fatalf("deleted restored grant replay %d %v", grants, err)
+	}
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT learner_id IS NULL FROM credit_checkout_orders WHERE id=$1", f.subscriptionOrderID).Scan(&anonymous); err != nil || !anonymous {
+		t.Fatalf("restored subscription retained identity %v %v", anonymous, err)
+	}
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_payment_results WHERE state='paid'").Scan(&purchases); err != nil || purchases != 1 {
 		t.Fatalf("erased restore duplicated payment: %d %v", purchases, err)
 	}

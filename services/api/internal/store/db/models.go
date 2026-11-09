@@ -188,6 +188,33 @@ type CreditPaymentSession struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type CreditSubscription struct {
+	SubscriptionID string             `json:"subscription_id"`
+	Environment    string             `json:"environment"`
+	OrderID        pgtype.UUID        `json:"order_id"`
+	CustomerID     string             `json:"customer_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditSubscriptionTerm struct {
+	PeriodKey            string             `json:"period_key"`
+	SubscriptionID       string             `json:"subscription_id"`
+	InvoiceID            string             `json:"invoice_id"`
+	PricingVersion       string             `json:"pricing_version"`
+	PlanID               string             `json:"plan_id"`
+	PlanName             string             `json:"plan_name"`
+	EntitlementVersion   string             `json:"entitlement_version"`
+	ServiceStart         pgtype.Timestamptz `json:"service_start"`
+	PaidThrough          pgtype.Timestamptz `json:"paid_through"`
+	AmountMinor          int32              `json:"amount_minor"`
+	Currency             string             `json:"currency"`
+	MonthlyCredits       int32              `json:"monthly_credits"`
+	Benefits             []byte             `json:"benefits"`
+	ConcurrentGeneration int32              `json:"concurrent_generation"`
+	LedgerID             int64              `json:"ledger_id"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+}
+
 type CreditTimezone struct {
 	ID             int64              `json:"id"`
 	LearnerID      pgtype.UUID        `json:"learner_id"`

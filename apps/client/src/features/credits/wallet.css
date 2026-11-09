@@ -6,6 +6,15 @@
   max-width: 960px;
 }
 
+.wallet-plan {
+  overflow-wrap: anywhere;
+}
+
+.wallet-plan h2,
+.wallet-plan p {
+  margin: 0;
+}
+
 .wallet-top-bar {
   display: flex;
   align-items: center;

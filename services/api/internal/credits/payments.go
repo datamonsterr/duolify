@@ -31,6 +31,7 @@ type PaymentProvider interface {
 // across timeouts/restarts and return the original Session on every retry.
 type PaymentRequest struct {
 	OrderID, OwnerReference, SKU, PriceID, Currency string
+	Mode                                            string
 	AmountMinor                                     int
 }
 
@@ -39,6 +40,7 @@ type PaymentRequest struct {
 type PaymentSession struct {
 	ID, OrderID, OwnerReference, SKU, PriceID, Currency string
 	Mode, Status, PaymentStatus, PaymentID              string
+	SubscriptionID, CustomerID                          string
 	AmountMinor                                         int
 	LiveMode                                            bool
 }
@@ -126,8 +128,13 @@ func verifyStripeSignature(raw []byte, header, secret string, now time.Time) err
 }
 
 func (s *Service) preparePayment(ctx context.Context, owner string, order CheckoutOrder, cfg pricing.Config) error {
-	if s.payments.Mode != "test" || order.BillingPeriod != "one_time" {
+	if s.payments.Mode != "test" || (order.BillingPeriod != "one_time" && order.BillingPeriod != "monthly") {
 		return nil
+	}
+	if order.BillingPeriod == "monthly" {
+		if _, ok := s.payments.Provider.(SubscriptionProvider); !ok {
+			return errPaymentConfig
+		}
 	}
 	price := cfg.ProviderMappings("development")[order.SKU]
 	if price == "" {
@@ -149,7 +156,7 @@ func (s *Service) preparePayment(ctx context.Context, owner string, order Checko
 	if exists {
 		return tx.Commit(ctx)
 	}
-	request := PaymentRequest{OrderID: id, OwnerReference: accounts.LearnerReference(owner), SKU: order.SKU, PriceID: price, AmountMinor: order.AmountMinor, Currency: order.Currency}
+	request := PaymentRequest{OrderID: id, OwnerReference: accounts.LearnerReference(owner), SKU: order.SKU, PriceID: price, AmountMinor: order.AmountMinor, Currency: order.Currency, Mode: paymentMode(order.BillingPeriod)}
 	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	session, err := s.payments.Provider.CreateSession(callCtx, request)
@@ -169,7 +176,11 @@ func (s *Service) preparePayment(ctx context.Context, owner string, order Checko
 }
 
 func sessionMatches(session PaymentSession, request PaymentRequest) bool {
-	return !session.LiveMode && session.Mode == "payment" && session.OrderID == request.OrderID && session.OwnerReference == request.OwnerReference && session.SKU == request.SKU && session.PriceID == request.PriceID && session.AmountMinor == request.AmountMinor && strings.EqualFold(session.Currency, request.Currency)
+	mode := request.Mode
+	if mode == "" {
+		mode = "payment"
+	}
+	return !session.LiveMode && session.Mode == mode && session.OrderID == request.OrderID && session.OwnerReference == request.OwnerReference && session.SKU == request.SKU && session.PriceID == request.PriceID && session.AmountMinor == request.AmountMinor && strings.EqualFold(session.Currency, request.Currency)
 }
 
 func (s *Service) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
@@ -197,7 +208,7 @@ func (s *Service) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch event.Type {
-	case "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired":
+	case "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired", "invoice.paid", "invoice.payment_succeeded", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted":
 	default:
 		respondJSON(w, 200, map[string]bool{"received": true})
 		return
@@ -236,7 +247,7 @@ func (s *Service) ProcessPayments(ctx context.Context) error {
 	}
 	// A provider can deliver before CreateSession's binding transaction commits.
 	// Unmatched signed receipts wait durably, without starving bound work.
-	rows, err := s.pool().Query(ctx, `SELECT i.event_id FROM credit_payment_inbox i JOIN credit_payment_sessions p ON p.session_id=i.session_id AND p.environment=i.environment WHERE NOT EXISTS(SELECT 1 FROM credit_payment_results r WHERE r.event_id=i.event_id) ORDER BY received_at,event_id LIMIT 100`)
+	rows, err := s.pool().Query(ctx, `SELECT i.event_id FROM credit_payment_inbox i WHERE (EXISTS(SELECT 1 FROM credit_payment_sessions p WHERE p.session_id=i.session_id AND p.environment=i.environment) OR i.event_type LIKE 'invoice.%' OR i.event_type LIKE 'customer.subscription.%') AND NOT EXISTS(SELECT 1 FROM credit_payment_results r WHERE r.event_id=i.event_id) ORDER BY received_at,event_id LIMIT 100`)
 	if err != nil {
 		return err
 	}
@@ -281,10 +292,13 @@ func (s *Service) processPayment(ctx context.Context, eventID string) error {
 	if err = tx.QueryRow(ctx, "SELECT event_type,session_id FROM credit_payment_inbox WHERE event_id=$1", eventID).Scan(&kind, &sessionID); err != nil {
 		return err
 	}
+	if strings.HasPrefix(kind, "invoice.") || strings.HasPrefix(kind, "customer.subscription.") {
+		return s.processSubscriptionEvent(ctx, tx, eventID, kind, sessionID)
+	}
 	var order CheckoutOrder
 	var owner *string
 	var ownerRef, price string
-	err = tx.QueryRow(ctx, `SELECT o.id::text,o.learner_id::text,o.owner_reference,o.sku,o.pricing_version,o.amount_minor,o.currency,o.credits,o.platform,p.price_id FROM credit_payment_sessions p JOIN credit_checkout_orders o ON o.id=p.order_id WHERE p.session_id=$1 AND p.environment='test' FOR UPDATE OF o`, sessionID).Scan(&order.ID, &owner, &ownerRef, &order.SKU, &order.PricingVersion, &order.AmountMinor, &order.Currency, &order.Credits, &order.Platform, &price)
+	err = tx.QueryRow(ctx, `SELECT o.id::text,o.learner_id::text,o.owner_reference,o.sku,o.pricing_version,o.amount_minor,o.currency,o.credits,o.platform,p.price_id,o.billing_period FROM credit_payment_sessions p JOIN credit_checkout_orders o ON o.id=p.order_id WHERE p.session_id=$1 AND p.environment='test' FOR UPDATE OF o`, sessionID).Scan(&order.ID, &owner, &ownerRef, &order.SKU, &order.PricingVersion, &order.AmountMinor, &order.Currency, &order.Credits, &order.Platform, &price, &order.BillingPeriod)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return paymentResult(ctx, tx, eventID, "", "rejected", "", 0)
 	}
@@ -300,7 +314,25 @@ func (s *Service) processPayment(ctx context.Context, eventID string) error {
 	if err != nil {
 		return err
 	}
-	expected := PaymentRequest{OrderID: order.ID, OwnerReference: ownerRef, SKU: order.SKU, PriceID: price, AmountMinor: order.AmountMinor, Currency: order.Currency}
+	expected := PaymentRequest{OrderID: order.ID, OwnerReference: ownerRef, SKU: order.SKU, PriceID: price, AmountMinor: order.AmountMinor, Currency: order.Currency, Mode: paymentMode(order.BillingPeriod)}
+	if order.BillingPeriod == "monthly" {
+		if canonical.ID != sessionID || !sessionMatches(canonical, expected) || !paymentIdentifier.MatchString(canonical.SubscriptionID) || !paymentIdentifier.MatchString(canonical.CustomerID) {
+			return paymentResult(ctx, tx, eventID, order.ID, "rejected", "", 0)
+		}
+		if err = bindSubscription(ctx, tx, canonical.SubscriptionID, canonical.CustomerID, order.ID); err != nil {
+			if errors.Is(err, errStripeEvidence) {
+				return paymentResult(ctx, tx, eventID, order.ID, "rejected", "", 0)
+			}
+			return err
+		}
+		state := "pending"
+		if canonical.Status == "expired" {
+			state = "expired"
+		} else if kind == "checkout.session.async_payment_failed" && canonical.PaymentStatus != "paid" {
+			state = "failed"
+		}
+		return paymentResult(ctx, tx, eventID, order.ID, state, "", 0)
+	}
 	if canonical.ID != sessionID || !sessionMatches(canonical, expected) || (canonical.PaymentStatus == "paid" && (!paymentIdentifier.MatchString(canonical.PaymentID) || canonical.Status != "complete")) {
 		if err = purchaseOutbox(ctx, tx, *owner, order.ID+":failed", "credits_purchase_failed", order, "invalid_evidence"); err != nil {
 			return err

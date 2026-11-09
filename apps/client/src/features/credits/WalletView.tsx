@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { WalletResponse, ActivityItem } from "./types";
+import { PlanSummary } from "./PlanSummary";
 import { trackScreen } from "../../lib/analytics";
 import { Button } from "../design/Button";
 import { useUiPreferences } from "../design/localization/Preferences";
@@ -78,6 +79,7 @@ export function WalletView({
       </div>
 
       {/* Cards Grid */}
+      <PlanSummary wallet={wallet} />
       <div className="wallet-cards-grid">
         {/* Card 1: Available */}
         <div className="wallet-card wallet-card-available">

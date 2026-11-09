@@ -9,6 +9,7 @@ import { QuotePanel } from "./QuotePanel";
 import { pricingQueryOptions } from "./query";
 import { Button } from "../design/Button";
 import { WalletView } from "../credits/WalletView";
+import { PlanSummary } from "../credits/PlanSummary";
 import type { WalletResponse } from "../credits/types";
 import { credentialStore, session } from "../accounts/session";
 import "./pricing.css";
@@ -282,6 +283,13 @@ export function PricingView() {
             {(surface === "pack_list" || surface === "plan_list") && (
               <>
                 <h2>Make room for your next idea.</h2>
+                <PlanSummary wallet={activeWallet} />
+                {activeWallet.plan?.active && (
+                  <p role="status">
+                    Your funded plan is already active. Manage billing to review
+                    renewal options.
+                  </p>
+                )}
                 <div className="pricing-card pricing-credit">
                   <p>
                     Current balance:{" "}
@@ -487,7 +495,8 @@ export function PricingView() {
                     stale ||
                     native ||
                     checkoutBusy ||
-                    query.isFetching
+                    query.isFetching ||
+                    (surface === "plan_list" && !!activeWallet.plan?.active)
                   }
                   aria-describedby="sale-requirements"
                   onClick={() => void checkout()}

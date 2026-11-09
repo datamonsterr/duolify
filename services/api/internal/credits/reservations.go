@@ -111,32 +111,20 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 		return Reservation{}, err
 	}
 	var paid bool
-	var plan string
-	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_entries WHERE learner_id=$1 AND kind IN ('purchase','subscription_grant')),COALESCE((SELECT provenance->>'plan_id' FROM credit_entries WHERE learner_id=$1 AND kind='subscription_grant' ORDER BY id DESC LIMIT 1),'')`, owner).Scan(&paid, &plan)
+	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_entries WHERE learner_id=$1 AND kind IN ('purchase','subscription_grant'))`, owner).Scan(&paid)
 	if err != nil {
 		return Reservation{}, err
 	}
 	concurrency := q.Bounds["concurrency"]
-	// Only server-issued subscription provenance may select a plan; never a request field.
-	var configJSON []byte
-	if err = tx.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version=$1", q.PricingVersion).Scan(&configJSON); err != nil {
-		return Reservation{}, err
-	}
-	config, err := pricing.Parse(configJSON)
+	// Benefits expire with the funded term; an old non-expiring credit grant is
+	// no longer evidence of an active plan. Honor its original configured limit.
+	err = tx.QueryRow(ctx, `SELECT COALESCE((SELECT t.concurrent_generation FROM credit_subscription_terms t JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1 AND t.service_start<=now() AND t.paid_through>now() ORDER BY t.paid_through DESC LIMIT 1),$2::bigint)`, owner, concurrency).Scan(&concurrency)
 	if err != nil {
 		return Reservation{}, err
-	}
-	for _, p := range config.Plans {
-		if p.ID == plan {
-			concurrency = int64(p.ConcurrentGeneration)
-		}
 	}
 	var active int64
 	if err = tx.QueryRow(ctx, "SELECT count(*) FROM credit_jobs WHERE learner_id=$1 AND state IN ('reserved','running')", owner).Scan(&active); err != nil {
 		return Reservation{}, err
-	}
-	if active >= concurrency {
-		return Reservation{}, ErrConcurrency
 	}
 	hold := reservationCost(q)
 	if hold < 0 || hold > q.Bounds["max_cost_nanos"] {
@@ -174,6 +162,9 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 			_ = s.refusal(ctx, owner, quoteID, q)
 		}
 		return Reservation{}, err
+	}
+	if active >= concurrency {
+		return Reservation{}, ErrConcurrency
 	}
 	raw, _ := json.Marshal(result)
 	if _, err = tx.Exec(ctx, "UPDATE credit_jobs SET result=$2 WHERE id=$1", result.ID, raw); err != nil {

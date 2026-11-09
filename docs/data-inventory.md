@@ -165,6 +165,25 @@ replay that same erasure after restore. No prompts or generated learner content
 are stored by this boundary. Device reservation state is disposable React state.
 # E7-06 payment fulfillment
 
+E7-07 extends the same receipt/outcome pipeline to monthly subscriptions.
+`credit_subscriptions` holds immutable provider/environment/customer bindings via
+the original order; `credit_subscription_terms` holds paid invoice references,
+funded service-month keys, service periods, Pricing/entitlement version, configured
+allowance, benefit/concurrency snapshots and the original ledger grant ID. Both
+tables reject UPDATE/DELETE/TRUNCATE. They contain no email, learner content or
+direct learner UUID. Account export follows the owned order (including invoice
+and lifecycle receipts); deletion and restored tombstones sever the order's
+learner link, preserving the financial pseudonym and dedupe history.
+
+These tables enter nightly encrypted Postgres financial backups, retained at
+least seven years in the live financial history, with 35-day snapshot rotation.
+The nonempty backup fixture compares complete restored rows, reconciles allowance
+and entitlements and replays duplicate funding before and after identity deletion.
+Entitlements are read from funded periods using database time; Redis wallet caches
+remain disposable and cannot extend benefits. Issued plan credits never expire.
+Fixture-only management URLs contain no provider secrets or personal data.
+No new environment variables or AI behavior are introduced.
+
 `credit_payment_sessions` pins an immutable test-environment Session and configured
 price to `credit_checkout_orders`. `credit_payment_inbox` stores only event ID,
 event type, environment, Session ID and receipt time. `credit_payment_results`

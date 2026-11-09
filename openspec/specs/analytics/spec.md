@@ -5,6 +5,19 @@ Define how Duolify uses PostHog: identity, privacy, the event catalog with names
 
 ## Requirements
 
+### Requirement: Monthly subscription financial events
+The catalogue SHALL include `plan_purchased` (plan_id, interval, channel,
+amount_minor, currency, billing_period_start, billing_period_end,
+price_table_version), `subscription_grant_issued` (plan_id, amount, period_key,
+price_table_version), and `entitlement_changed` (plan_id, entitlement_version).
+These events MUST be created in the funding transaction, deduplicated by funded
+service-month business key and delivered through the financial outbox. They MUST
+inherit UUID identity, common properties, opt-out and content-free allowlists.
+
+#### Scenario: Duplicate monthly invoice notifications
+- **WHEN** paid and payment-succeeded events describe one funded service month
+- **THEN** one occurrence of each financial event is created and delivered
+
 ### Requirement: Identity and common properties
 Events SHALL use the internal Learner id (UUID) as `distinct_id`, never email. Every event MUST include `platform` (`desktop`, `ios`, `android`, `web`), `app_version` and `source` (`client` or `api`). Events about a Course or Lesson MUST include `course_id` and `lesson_id` when known.
 

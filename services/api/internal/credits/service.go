@@ -68,6 +68,7 @@ type DailyFreeSummary struct {
 
 // WalletResponse carries the complete bucketed wallet balances and recent activity overview.
 type WalletResponse struct {
+	Plan           *FundedPlan       `json:"plan,omitempty"`
 	Available      int64             `json:"available"`
 	DailyFree      DailyFreeSummary  `json:"daily_free"`
 	Purchased      int64             `json:"purchased"`
@@ -354,11 +355,26 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // GetWallet derives or loads cached wallet balances and activity.
 func (s *Service) GetWallet(ctx context.Context, learnerID string) (*WalletResponse, error) {
-	return s.GetWalletAt(ctx, learnerID, time.Now())
+	now := time.Now()
+	if s.pool() != nil {
+		if err := s.pool().QueryRow(ctx, "SELECT now()").Scan(&now); err != nil {
+			return nil, err
+		}
+	}
+	return s.GetWalletAt(ctx, learnerID, now)
 }
 
 // GetWalletAt derives wallet balances as of a specific point in time.
 func (s *Service) GetWalletAt(ctx context.Context, learnerID string, at time.Time) (*WalletResponse, error) {
+	wallet, err := s.walletBalanceAt(ctx, learnerID, at)
+	if err != nil {
+		return nil, err
+	}
+	wallet.Plan, err = s.fundedPlan(ctx, learnerID, at)
+	return wallet, err
+}
+
+func (s *Service) walletBalanceAt(ctx context.Context, learnerID string, at time.Time) (*WalletResponse, error) {
 	tz := "Asia/Ho_Chi_Minh"
 	if s.store != nil {
 		if eff, err := s.store.GetEffectiveTimezone(ctx, learnerID, at); err == nil && eff != "" {

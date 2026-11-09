@@ -15,6 +15,8 @@ import (
 
 // ClassifiedLearnerTables lists every table holding learner data and its retention policy.
 var ClassifiedLearnerTables = map[string]string{
+	"credit_subscriptions":          "financial_retained_via_order",
+	"credit_subscription_terms":     "financial_retained_via_subscription",
 	"credit_payment_sessions":       "financial_retained_via_order",
 	"credit_payment_inbox":          "financial_retained_via_session",
 	"credit_payment_results":        "financial_retained_via_order",
@@ -65,10 +67,12 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		query string
 	}
 	queries := []exportQuery{
+		{table: "credit_subscriptions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(s)),'[]'::jsonb) FROM credit_subscriptions s JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1`},
+		{table: "credit_subscription_terms", query: `SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM credit_subscription_terms t JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1`},
 		{table: "credit_payment_sessions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM credit_payment_sessions p JOIN credit_checkout_orders o ON o.id=p.order_id WHERE o.learner_id=$1`},
-		{table: "credit_payment_inbox", query: `SELECT COALESCE(jsonb_agg(to_jsonb(i)),'[]'::jsonb) FROM credit_payment_inbox i JOIN credit_payment_sessions p ON p.session_id=i.session_id JOIN credit_checkout_orders o ON o.id=p.order_id WHERE o.learner_id=$1`},
+		{table: "credit_payment_inbox", query: `SELECT COALESCE(jsonb_agg(to_jsonb(i)),'[]'::jsonb) FROM credit_payment_inbox i WHERE EXISTS(SELECT 1 FROM credit_checkout_orders o LEFT JOIN credit_payment_sessions s ON s.order_id=o.id LEFT JOIN credit_subscriptions b ON b.order_id=o.id LEFT JOIN credit_subscription_terms t ON t.subscription_id=b.subscription_id LEFT JOIN credit_payment_results r ON r.order_id=o.id WHERE o.learner_id=$1 AND (i.session_id=s.session_id OR i.session_id=b.subscription_id OR i.session_id=t.invoice_id OR i.event_id=r.event_id))`},
 		{table: "credit_payment_results", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM credit_payment_results p JOIN credit_checkout_orders o ON o.id=p.order_id WHERE o.learner_id=$1`},
-		{table: "credit_payment_payloads", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM credit_payment_payloads p JOIN credit_payment_inbox i ON i.event_id=p.event_id JOIN credit_payment_sessions s ON s.session_id=i.session_id JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1 AND p.expires_at>now()`},
+		{table: "credit_payment_payloads", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM credit_payment_payloads p JOIN credit_payment_inbox i ON i.event_id=p.event_id WHERE p.expires_at>now() AND EXISTS(SELECT 1 FROM credit_checkout_orders o LEFT JOIN credit_payment_sessions s ON s.order_id=o.id LEFT JOIN credit_subscriptions b ON b.order_id=o.id LEFT JOIN credit_subscription_terms t ON t.subscription_id=b.subscription_id LEFT JOIN credit_payment_results r ON r.order_id=o.id WHERE o.learner_id=$1 AND (i.session_id=s.session_id OR i.session_id=b.subscription_id OR i.session_id=t.invoice_id OR i.event_id=r.event_id))`},
 		{table: "course_brief_revisions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(b)),'[]'::jsonb) FROM course_brief_revisions b WHERE learner_id=$1 AND expires_at>now()`},
 		{table: "learners", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'display_name',display_name,'created_at',created_at)),'[]'::jsonb) FROM learners WHERE id=$1`},
 		{table: "learner_profiles", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM learner_profiles p WHERE learner_id=$1`},
