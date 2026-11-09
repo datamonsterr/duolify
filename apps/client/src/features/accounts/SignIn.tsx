@@ -17,9 +17,10 @@ import {
 import type { Tokens } from "./secure-store";
 import {
   createPKCEVerifier,
-  googleOAuthBridge,
+  oauthBridge,
   pkceChallenge,
   type OAuthCallback,
+  type OAuthProviderName,
 } from "./google-oauth";
 import "./accounts.css";
 
@@ -52,6 +53,8 @@ export function SignIn({
   );
   const [online, setOnline] = useState(navigator.onLine);
   const [oauthActive, setOAuthActive] = useState(false);
+  const [oauthProviderName, setOAuthProviderName] =
+    useState<OAuthProviderName>("google");
   const [info, setInfo] = useState<
     "Privacy" | "Terms" | "Analytics preference" | null
   >(null);
@@ -65,6 +68,7 @@ export function SignIn({
     verifier: string;
   } | null>(null);
   const oauthCompleting = useRef(false);
+  const oauthProvider = useRef<OAuthProviderName>("google");
   const analyticsID = useRef(crypto.randomUUID());
   const destination = safeReturnTo(
     new URLSearchParams(location.search).get("returnTo"),
@@ -155,7 +159,9 @@ export function SignIn({
     trackOAuthCancelled(analyticsID.current, optOut);
     requestAnimationFrame(() =>
       document
-        .querySelector<HTMLButtonElement>("[data-google-sign-in]")
+        .querySelector<HTMLButtonElement>(
+          `[data-${oauthProvider.current}-sign-in]`,
+        )
         ?.focus(),
     );
   }
@@ -181,17 +187,20 @@ export function SignIn({
     setPending(true);
     setError("");
     try {
-      const tokens = await authRequest<Tokens>("/v1/auth/google/complete", {
-        state: value.state,
-        nonce: current.nonce,
-        code: value.code,
-        code_verifier: current.verifier,
-        redirect_uri: "duolify://oauth/callback",
-        age_confirmed: age,
-        locale: navigator.language || "en",
-        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-        analytics_opt_out: optOut,
-      });
+      const tokens = await authRequest<Tokens>(
+        `/v1/auth/${oauthProvider.current}/complete`,
+        {
+          state: value.state,
+          nonce: current.nonce,
+          code: value.code,
+          code_verifier: current.verifier,
+          redirect_uri: "duolify://oauth/callback",
+          age_confirmed: age,
+          locale: navigator.language || "en",
+          time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+          analytics_opt_out: optOut,
+        },
+      );
       setAnalyticsOptOut(optOut);
       await session.accept(tokens);
       trackAuthScreen("sign_in");
@@ -201,7 +210,7 @@ export function SignIn({
       setError(
         cause instanceof Error
           ? cause.message
-          : "Google sign-in is unavailable. Please retry.",
+          : `${oauthProvider.current === "apple" ? "Apple" : "Google"} sign-in is unavailable. Please retry.`,
       );
     } finally {
       oauthCleanup.current?.();
@@ -213,8 +222,10 @@ export function SignIn({
       setPending(false);
     }
   }
-  async function signInWithGoogle() {
+  async function signInWithOAuth(provider: OAuthProviderName) {
     if (pending || !online || !age) return;
+    oauthProvider.current = provider;
+    setOAuthProviderName(provider);
     setPending(true);
     setError("");
     setNotice("");
@@ -225,7 +236,7 @@ export function SignIn({
         state: string;
         nonce: string;
         authorization_url: string;
-      }>("/v1/auth/google/start", {
+      }>(`/v1/auth/${provider}/start`, {
         redirect_uri: "duolify://oauth/callback",
         code_challenge: await pkceChallenge(verifier),
       });
@@ -235,7 +246,7 @@ export function SignIn({
         verifier,
       };
       oauthCompleting.current = false;
-      const bridge = await googleOAuthBridge();
+      const bridge = await oauthBridge(provider);
       oauthCleanup.current = await bridge.listen(
         (value) => void finishOAuth(value),
       );
@@ -243,7 +254,7 @@ export function SignIn({
       setOAuthActive(true);
       await bridge.openSystemBrowser(transaction.authorization_url);
       setNotice(
-        "Sign-in opens in your browser. Come back here when you're done.",
+        `${provider === "apple" ? "Apple" : "Google"} sign-in opens in your browser. Come back here when you're done.`,
       );
       setPending(false);
     } catch (cause) {
@@ -254,7 +265,7 @@ export function SignIn({
       setError(
         cause instanceof Error
           ? cause.message
-          : "Google sign-in is unavailable. Please retry.",
+          : `${provider === "apple" ? "Apple" : "Google"} sign-in is unavailable. Please retry.`,
       );
       setPending(false);
     }
@@ -312,9 +323,18 @@ export function SignIn({
                   variant="secondary"
                   pending={pending && !oauthActive}
                   disabled={!age || !online || pending}
-                  onClick={() => void signInWithGoogle()}
+                  onClick={() => void signInWithOAuth("google")}
                 >
                   Continue with Google
+                </Button>
+                <Button
+                  data-apple-sign-in
+                  variant="secondary"
+                  pending={pending && !oauthActive}
+                  disabled={!age || !online || pending}
+                  onClick={() => void signInWithOAuth("apple")}
+                >
+                  Continue with Apple
                 </Button>
                 {oauthActive && (
                   <Button
@@ -324,7 +344,8 @@ export function SignIn({
                       else finishOAuthCancel();
                     }}
                   >
-                    Cancel Google sign-in
+                    Cancel {oauthProviderName === "apple" ? "Apple" : "Google"}{" "}
+                    sign-in
                   </Button>
                 )}
                 <Button data-welcome-primary onClick={() => open(false)}>
@@ -460,7 +481,7 @@ export function SignIn({
                   void (step === "code"
                     ? verify()
                     : step === "welcome"
-                      ? signInWithGoogle()
+                      ? signInWithOAuth(oauthProvider.current)
                       : send())
                 }
               >

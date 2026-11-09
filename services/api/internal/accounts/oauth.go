@@ -35,12 +35,36 @@ type OAuthExchangeRequest struct {
 type ProviderIdentity struct {
 	Provider, Subject, Email, Nonce string
 	EmailVerified                   bool
+	Name, Issuer, Audience, KeyID   string
+	ExpiresAt                       time.Time
 }
 
 // OAuthProvider is provider-neutral so Apple can be added without changing sessions.
 type OAuthProvider interface {
 	AuthorizationURL(context.Context, OAuthAuthorizationRequest) (string, error)
 	Exchange(context.Context, OAuthExchangeRequest) (ProviderIdentity, error)
+}
+
+// AppleOAuthProvider verifies Apple identity-token signatures and resolves unknown
+// signing key IDs against a refreshed key set before returning claims. The API
+// independently checks issuer, configured audience, nonce, and verified email.
+type AppleOAuthProvider interface {
+	OAuthProvider
+	Audience() string
+}
+
+// AppleClientSecretSigner is the only boundary permitted to create Apple's
+// ES256 client-secret JWT. The live signer belongs to E1-10 provisioning.
+type AppleClientSecretSigner interface {
+	SignClientSecret(context.Context) (string, error)
+}
+
+// FixtureAppleClientSecret provides a non-credential token-shaped test value.
+type FixtureAppleClientSecret struct{}
+
+// SignClientSecret returns a deterministic placeholder for adapter tests.
+func (FixtureAppleClientSecret) SignClientSecret(context.Context) (string, error) {
+	return "fixture.apple.client-secret", nil
 }
 
 type unavailableOAuthProvider struct{}
@@ -52,6 +76,16 @@ func (unavailableOAuthProvider) AuthorizationURL(context.Context, OAuthAuthoriza
 func (unavailableOAuthProvider) Exchange(context.Context, OAuthExchangeRequest) (ProviderIdentity, error) {
 	return ProviderIdentity{}, ErrOAuthProvider
 }
+
+type unavailableAppleProvider struct{}
+
+func (unavailableAppleProvider) AuthorizationURL(context.Context, OAuthAuthorizationRequest) (string, error) {
+	return "", errors.New("apple OAuth is not provisioned")
+}
+func (unavailableAppleProvider) Exchange(context.Context, OAuthExchangeRequest) (ProviderIdentity, error) {
+	return ProviderIdentity{}, ErrOAuthProvider
+}
+func (unavailableAppleProvider) Audience() string { return "" }
 
 // OAuthTransaction is returned once to the initiating client and is never persisted
 // in plaintext except for values that are not credentials (nonce and redirect URI).
@@ -108,13 +142,38 @@ func ValidateProviderIdentity(identity ProviderIdentity, expectedNonce string) e
 	if identity.Provider != "google" && identity.Provider != "apple" {
 		return ErrOAuthProvider
 	}
-	if identity.Subject == "" || len(identity.Subject) > 255 || identity.Email == "" || len(identity.Email) > 254 || !identity.EmailVerified || expectedNonce == "" {
+	if identity.Provider == "google" && (identity.Email == "" || !identity.EmailVerified) {
+		return ErrOAuthProvider
+	}
+	if identity.Subject == "" || len(identity.Subject) > 255 || expectedNonce == "" {
 		return ErrOAuthProvider
 	}
 	if subtle.ConstantTimeCompare([]byte(identity.Nonce), []byte(expectedNonce)) != 1 {
 		return ErrOAuthProvider
 	}
-	if _, err := NormalizeEmail(identity.Email); err != nil {
+	if identity.Email != "" {
+		if !identity.EmailVerified {
+			return ErrOAuthProvider
+		}
+		if _, err := NormalizeEmail(identity.Email); err != nil {
+			return ErrOAuthProvider
+		}
+	} else if identity.EmailVerified {
+		return ErrOAuthProvider
+	}
+	return nil
+}
+
+// ValidateAppleIdentity validates provider claims returned only after signature
+// verification by AppleOAuthProvider. Email is optional for an already-bound subject.
+func ValidateAppleIdentity(identity ProviderIdentity, expectedNonce, expectedAudience string) error {
+	if identity.Provider != "apple" || identity.Issuer != "https://appleid.apple.com" || expectedAudience == "" || identity.Audience != expectedAudience || identity.KeyID == "" || identity.ExpiresAt.IsZero() || !identity.ExpiresAt.After(time.Now()) {
+		return ErrOAuthProvider
+	}
+	if err := ValidateProviderIdentity(identity, expectedNonce); err != nil {
+		return err
+	}
+	if len(identity.Name) > 160 || strings.ContainsAny(identity.Name, "\x00\r\n") {
 		return ErrOAuthProvider
 	}
 	return nil
@@ -141,6 +200,41 @@ func (p *FixtureGoogleProvider) Exchange(_ context.Context, request OAuthExchang
 	return ProviderIdentity{Provider: "google", Subject: "fixture-google-subject", Email: "learner@example.test", EmailVerified: true, Nonce: request.Nonce}, nil
 }
 
+// FixtureAppleProvider models Apple's first-login profile claims and stable subject
+// without contacting Apple or requiring client credentials.
+type FixtureAppleProvider struct{ SigningKeyID string }
+
+// Audience returns the fixed fixture client identifier.
+func (p *FixtureAppleProvider) Audience() string { return "com.duolify.client" }
+
+// AuthorizationURL builds a synthetic Apple authorization URL for offline tests.
+func (p *FixtureAppleProvider) AuthorizationURL(_ context.Context, request OAuthAuthorizationRequest) (string, error) {
+	if !ValidOAuthRedirect(request.RedirectURI) || request.State == "" || request.Nonce == "" || !ValidPKCEChallenge(request.CodeChallenge) {
+		return "", ErrOAuthProvider
+	}
+	values := url.Values{"state": {request.State}, "nonce": {request.Nonce}, "code_challenge": {request.CodeChallenge}, "redirect_uri": {request.RedirectURI}, "response_mode": {"form_post"}, "response_type": {"code"}, "scope": {"name email"}}
+	return "https://appleid.apple.test/authorize?" + values.Encode(), nil
+}
+
+// Exchange returns deterministic first or returning Apple claims for fixture codes.
+func (p *FixtureAppleProvider) Exchange(_ context.Context, request OAuthExchangeRequest) (ProviderIdentity, error) {
+	if (request.Code != "fixture-apple-code" && request.Code != "fixture-apple-returning-code") || !validateOAuthVerifier(request.CodeVerifier) || !ValidOAuthRedirect(request.RedirectURI) {
+		return ProviderIdentity{}, ErrOAuthProvider
+	}
+	keyID := p.SigningKeyID
+	if keyID == "" {
+		keyID = "fixture-apple-key"
+	}
+	identity := ProviderIdentity{Provider: "apple", Subject: "fixture-apple-subject", Email: "learner@privaterelay.appleid.com", EmailVerified: true, Issuer: "https://appleid.apple.com", Audience: p.Audience(), KeyID: keyID, Nonce: request.Nonce, ExpiresAt: time.Now().Add(time.Hour)}
+	if request.Code == "fixture-apple-returning-code" {
+		identity.Email = ""
+		identity.EmailVerified = false
+	} else {
+		identity.Name = "Apple Learner"
+	}
+	return identity, nil
+}
+
 func randomOAuthValue() (string, error) {
 	var value [32]byte
 	if _, err := rand.Read(value[:]); err != nil {
@@ -163,11 +257,19 @@ func validateOAuthVerifier(value string) bool {
 }
 
 func (s *Service) googleOAuthStart(w http.ResponseWriter, r *http.Request) {
+	s.oauthStart(w, r, s.oauth)
+}
+
+func (s *Service) appleOAuthStart(w http.ResponseWriter, r *http.Request) {
+	s.oauthStart(w, r, s.apple)
+}
+
+func (s *Service) oauthStart(w http.ResponseWriter, r *http.Request, provider OAuthProvider) {
 	var in oauthStartInput
 	if !decode(w, r, &in) {
 		return
 	}
-	if s.oauth == nil || !ValidOAuthRedirect(in.RedirectURI) || !ValidPKCEChallenge(in.CodeChallenge) {
+	if provider == nil || !ValidOAuthRedirect(in.RedirectURI) || !ValidPKCEChallenge(in.CodeChallenge) {
 		respond(w, http.StatusBadRequest, map[string]string{"error": "Invalid sign-in request."})
 		return
 	}
@@ -182,7 +284,7 @@ func (s *Service) googleOAuthStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	transaction := OAuthAuthorizationRequest{State: state, Nonce: nonce, CodeChallenge: in.CodeChallenge, RedirectURI: in.RedirectURI}
-	urlValue, err := s.oauth.AuthorizationURL(r.Context(), transaction)
+	urlValue, err := provider.AuthorizationURL(r.Context(), transaction)
 	if err != nil {
 		failure(w, err)
 		return
@@ -200,11 +302,19 @@ func (s *Service) googleOAuthStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) googleOAuthComplete(w http.ResponseWriter, r *http.Request) {
+	s.oauthComplete(w, r, s.oauth, "google", "")
+}
+
+func (s *Service) appleOAuthComplete(w http.ResponseWriter, r *http.Request) {
+	s.oauthComplete(w, r, s.apple, "apple", s.apple.Audience())
+}
+
+func (s *Service) oauthComplete(w http.ResponseWriter, r *http.Request, provider OAuthProvider, expectedProvider, appleAudience string) {
 	var in oauthCompleteInput
 	if !decode(w, r, &in) {
 		return
 	}
-	if s.oauth == nil || !ValidOAuthRedirect(in.RedirectURI) || !in.AgeConfirmed || !validateOAuthVerifier(in.CodeVerifier) || len(in.State) < 32 || len(in.Nonce) < 32 || len(in.Code) == 0 || len(in.Code) > 2048 {
+	if provider == nil || !ValidOAuthRedirect(in.RedirectURI) || !in.AgeConfirmed || !validateOAuthVerifier(in.CodeVerifier) || len(in.State) < 32 || len(in.Nonce) < 32 || len(in.Code) == 0 || len(in.Code) > 2048 {
 		respond(w, http.StatusBadRequest, map[string]string{"error": "Invalid sign-in request."})
 		return
 	}
@@ -243,14 +353,24 @@ func (s *Service) googleOAuthComplete(w http.ResponseWriter, r *http.Request) {
 		failure(w, err)
 		return
 	}
-	identity, err := s.oauth.Exchange(ctx, OAuthExchangeRequest{Code: in.Code, CodeVerifier: in.CodeVerifier, RedirectURI: in.RedirectURI, Nonce: in.Nonce})
-	if err != nil || identity.Provider != "google" || ValidateProviderIdentity(identity, identity.Nonce) != nil || subtle.ConstantTimeCompare([]byte(nonceHash), []byte(s.hmac(identity.Nonce))) != 1 {
+	identity, err := provider.Exchange(ctx, OAuthExchangeRequest{Code: in.Code, CodeVerifier: in.CodeVerifier, RedirectURI: in.RedirectURI, Nonce: in.Nonce})
+	validIdentity := err == nil && identity.Provider == expectedProvider
+	if validIdentity && expectedProvider == "apple" {
+		validIdentity = ValidateAppleIdentity(identity, identity.Nonce, appleAudience) == nil
+	} else if validIdentity {
+		validIdentity = ValidateProviderIdentity(identity, identity.Nonce) == nil
+	}
+	if !validIdentity || subtle.ConstantTimeCompare([]byte(nonceHash), []byte(s.hmac(identity.Nonce))) != 1 {
 		respond(w, http.StatusUnauthorized, map[string]string{"error": "Sign-in could not be verified. Please retry."})
 		return
 	}
 	tokens, err := s.bindProviderAndIssue(ctx, identity, in)
 	if errors.Is(err, errOAuthLinking) {
 		respond(w, http.StatusConflict, map[string]string{"error": "This account needs to be linked before sign-in. Use another sign-in method."})
+		return
+	}
+	if errors.Is(err, ErrOAuthProvider) {
+		respond(w, http.StatusUnauthorized, map[string]string{"error": "Sign-in could not be verified. Please retry."})
 		return
 	}
 	if err != nil {
@@ -269,6 +389,9 @@ func (s *Service) bindProviderAndIssue(ctx context.Context, identity ProviderIde
 	var learnerID string
 	err = tx.QueryRow(ctx, "SELECT learner_id::text FROM auth_provider_identities WHERE provider=$1 AND subject=$2", identity.Provider, identity.Subject).Scan(&learnerID)
 	if errors.Is(err, pgx.ErrNoRows) {
+		if identity.Email == "" || !identity.EmailVerified {
+			return Tokens{}, ErrOAuthProvider
+		}
 		email, emailErr := NormalizeEmail(identity.Email)
 		if emailErr != nil {
 			return Tokens{}, ErrOAuthProvider
@@ -280,7 +403,11 @@ func (s *Service) bindProviderAndIssue(ctx context.Context, identity ProviderIde
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return Tokens{}, err
 		}
-		err = tx.QueryRow(ctx, "INSERT INTO learners(display_name) VALUES('Learner') RETURNING id::text").Scan(&learnerID)
+		displayName := strings.TrimSpace(identity.Name)
+		if displayName == "" {
+			displayName = "Learner"
+		}
+		err = tx.QueryRow(ctx, "INSERT INTO learners(display_name) VALUES($1) RETURNING id::text", displayName).Scan(&learnerID)
 		if err != nil {
 			return Tokens{}, err
 		}

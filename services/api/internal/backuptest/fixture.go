@@ -276,6 +276,7 @@ func (f *Fixture) Seed(t *testing.T) {
 		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
 		"INSERT INTO auth_identities (email,learner_id) VALUES ('synthetic@example.test','a1111111-1111-4111-8111-111111111111')",
 		"INSERT INTO auth_provider_identities (provider,subject,learner_id,verified_email) VALUES ('google','synthetic-google-subject','a1111111-1111-4111-8111-111111111111','synthetic@example.test')",
+		"INSERT INTO auth_provider_identities (provider,subject,learner_id,verified_email) VALUES ('apple','synthetic-apple-subject','a1111111-1111-4111-8111-111111111111','relay@privaterelay.appleid.com')",
 		"INSERT INTO auth_oauth_attempts (state_hash,nonce_hash,code_challenge,redirect_uri,expires_at) VALUES (repeat('d',64),repeat('e',64),repeat('f',43),'duolify://oauth/callback',now()+interval '5 minutes')",
 		"INSERT INTO auth_codes (email,code_hash,expires_at,attempts) VALUES ('synthetic@example.test',repeat('a',64),now()-interval '1 minute',5)",
 		"INSERT INTO auth_sessions (id,learner_id) VALUES ('b2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111')",
