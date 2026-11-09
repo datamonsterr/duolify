@@ -44,20 +44,28 @@ type Profile = db.GetAuthenticatedLearnerRow
 
 // Service owns stateless HTTP authentication backed by Postgres.
 type Service struct {
-	pool *pgxpool.Pool
-	key  []byte
-	mail Mailer
-	mux  *http.ServeMux
+	pool  *pgxpool.Pool
+	key   []byte
+	mail  Mailer
+	oauth OAuthProvider
+	mux   *http.ServeMux
 }
 
 // New requires a shared signing/HMAC secret of at least 32 bytes.
 func New(pool *pgxpool.Pool, secret string, mailer Mailer) (*Service, error) {
-	if len(secret) < 32 || mailer == nil {
-		return nil, errors.New("auth requires a 32-byte secret and Mailer")
+	return NewWithOAuthProvider(pool, secret, mailer, &FixtureGoogleProvider{})
+}
+
+// NewWithOAuthProvider injects the provider boundary used by Google and future Apple OAuth.
+func NewWithOAuthProvider(pool *pgxpool.Pool, secret string, mailer Mailer, provider OAuthProvider) (*Service, error) {
+	if len(secret) < 32 || mailer == nil || provider == nil {
+		return nil, errors.New("auth requires a 32-byte secret, Mailer, and OAuth provider")
 	}
-	s := &Service{pool: pool, key: []byte(secret), mail: mailer, mux: http.NewServeMux()}
+	s := &Service{pool: pool, key: []byte(secret), mail: mailer, oauth: provider, mux: http.NewServeMux()}
 	s.mux.HandleFunc("POST /v1/auth/code", s.requestCode)
 	s.mux.HandleFunc("POST /v1/auth/verify", s.verify)
+	s.mux.HandleFunc("POST /v1/auth/google/start", s.googleOAuthStart)
+	s.mux.HandleFunc("POST /v1/auth/google/complete", s.googleOAuthComplete)
 	s.mux.HandleFunc("POST /v1/auth/refresh", s.refresh)
 	s.mux.HandleFunc("POST /v1/auth/logout", s.logout)
 	s.mux.Handle("GET /v1/auth/sessions", s.Protect(http.HandlerFunc(s.listSessions)))

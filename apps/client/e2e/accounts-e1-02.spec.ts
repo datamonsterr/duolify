@@ -131,7 +131,8 @@ for (const width of [1280, 320]) {
     });
     await page.goto("/sign-in?returnTo=%2Flesson%2Fsky-changes");
     await page.getByRole("button", { name: "Get started" }).tap();
-    const email = "a-very-long-learner-address-".repeat(6) + "@example.test";
+    const email =
+      `a-very-long-learner-address-${width}-`.repeat(6) + "@example.test";
     await page.getByLabel("Email address").fill(email);
     await page.getByLabel("I am 16 or older").check();
     await page.getByRole("button", { name: "Send code" }).tap();

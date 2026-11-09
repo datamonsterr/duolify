@@ -2,5 +2,9 @@
   "identifier": "default",
   "description": "Main application window",
   "windows": ["main"],
-  "permissions": []
+  "permissions": [
+    "core:event:default",
+    "deep-link:default",
+    "opener:allow-default-urls"
+  ]
 }

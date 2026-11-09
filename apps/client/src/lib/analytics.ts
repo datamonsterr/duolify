@@ -121,6 +121,46 @@ export function trackSignIn() {
     control_id: "sign_in",
   });
 }
+function captureOAuthUI(
+  event: string,
+  properties: Record<string, string>,
+  distinctID: string,
+  optedOut: boolean,
+) {
+  if (optedOut || !uuid.test(distinctID)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture(event, {
+      distinct_id: distinctID,
+      platform:
+        identity?.platform ??
+        (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
+          ? "desktop"
+          : "web"),
+      app_version: identity?.appVersion ?? "0.1.0",
+      source: "client",
+      ...properties,
+    });
+  } catch {
+    /* Sign-in continues if analytics is unavailable. */
+  }
+}
+export function trackOAuthStarted(distinctID: string, optedOut: boolean) {
+  captureOAuthUI(
+    "ui_control_activated",
+    { surface: "sign_in", control_id: "sign_in" },
+    distinctID,
+    optedOut,
+  );
+}
+export function trackOAuthCancelled(distinctID: string, optedOut: boolean) {
+  captureOAuthUI(
+    "ui_recovery_selected",
+    { surface: "sign_in", error_code: "auth_cancelled", action: "retry" },
+    distinctID,
+    optedOut,
+  );
+}
 function captureAuth(event: string, properties: Record<string, string>) {
   if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
   try {
