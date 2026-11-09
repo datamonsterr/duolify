@@ -4,6 +4,7 @@ package playerfixture
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -31,8 +32,9 @@ func Documents() map[string][]byte {
 	for i, name := range []string{"one", "two", "three"} {
 		raw, _ := slides.ReadFile("slides/" + name + ".html")
 		key := "lessons/fixture-v1/" + name + ".html"
+		sum := sha256.Sum256(raw)
 		out[key] = raw
-		m.Slides = append(m.Slides, player.ObjectSlide{ID: fmt.Sprintf("sky-%d", i+1), DurationMS: 3000, HTMLKey: key, Assets: []string{}, Checkpoints: []player.Checkpoint{{ID: "explanation", AtMS: 1500}}, NarrationText: captions[i]})
+		m.Slides = append(m.Slides, player.ObjectSlide{ID: fmt.Sprintf("sky-%d", i+1), DurationMS: 3000, HTMLKey: key, HTMLSHA256: fmt.Sprintf("%x", sum), Assets: []string{}, Checkpoints: []player.Checkpoint{{ID: "explanation", AtMS: 1500}}, NarrationText: captions[i]})
 	}
 	out[ManifestKey], _ = json.Marshal(m)
 	return out

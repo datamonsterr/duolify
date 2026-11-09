@@ -83,12 +83,12 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if slide.ID != r.PathValue("slide") {
 				continue
 			}
-			raw, err := s.opts.Objects.Get(ctx, slide.HTMLKey)
-			if err != nil || ValidateHTML(string(raw), s.opts.AssetOrigin) != nil {
+			raw, assets, _, err := s.document(ctx, slide)
+			if err != nil {
 				failure(w, 503)
 				return
 			}
-			respond(w, 200, map[string]string{"html": string(raw)})
+			respond(w, 200, map[string]any{"html": string(raw), "assets": assets})
 			return
 		}
 		failure(w, 404)
@@ -96,7 +96,12 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	out := Manifest{LessonID: id, CourseID: course, Title: title, Version: version, AssetOrigin: s.opts.AssetOrigin, Slides: make([]Slide, 0, len(m.Slides))}
 	for _, slide := range m.Slides {
-		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: "disabled", NarrationText: slide.NarrationText})
+		raw, _, hashes, err := s.document(ctx, slide)
+		if err != nil {
+			failure(w, 503)
+			return
+		}
+		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: "disabled", NarrationText: slide.NarrationText, HTMLSHA256: checksum(raw), AssetSHA256: hashes})
 	}
 	respond(w, 200, out)
 }

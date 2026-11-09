@@ -20,6 +20,9 @@ const manifest = {
   slides: [
     {
       slide_id: "sky-1",
+      html_sha256:
+        "a58876eb52bda6f6cca061b179aa66c358d8276647ffaba91b2201ae480eb9c2",
+      asset_sha256: {},
       duration_ms: 3000,
       html_url: "/v1/lessons/lesson-1/slides/sky-1",
       assets: [],

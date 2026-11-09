@@ -187,3 +187,10 @@ The catalogue SHALL define `lesson_started` with `lesson_id` and `course_id`, an
 #### Scenario: Content-free playback delivery
 - **WHEN** the authenticated player starts or fails and analytics is enabled
 - **THEN** the PostHog test double receives only registered IDs/codes and common properties; opted-out learners emit nothing
+
+### Requirement: Opened lesson cache recovery catalogue
+The existing lesson_player_error allowlist SHALL include fixed codes offline_uncached, cache_unavailable and checksum_mismatch. The existing ui_recovery_selected allowlist SHALL register surface=lesson_player, error_code=offline_uncached and action=retry|exit. Both events SHALL preserve UUID/common properties and opt-out, and SHALL discard HTML, URLs, titles, narration and learner text.
+
+#### Scenario: Uncached offline recovery
+- **WHEN** an opted-in learner selects Retry or Exit from the offline lesson recovery
+- **THEN** the registered recovery event is delivered with only fixed identifiers and common properties

@@ -284,3 +284,15 @@ owns durable offline caching. Loading/failed/offline content never grants
 completion; Take lesson test is only navigation. PostHog receives opaque IDs and
 fixed error codes, never HTML, captions, titles, notes, URLs or answer keys. No new
 AI behavior or provider calls are introduced.
+
+E3-03 adds disposable per-account Cache API lesson bundles (manifest version,
+SHA-256 document/asset checksums, HTML, assets), capped at five lessons and 40 MiB
+per account, 8 MiB per lesson. One complete response is published after validation;
+failed replacements preserve the prior version. Logout, account changes and account
+deletion clear bundles and invalidate in-flight writes. Minimal offline identity
+(UUID and consent, bound by hash to the existing refresh credential) contains no
+learner text or raw credentials and is removed with device state. Only public
+application shell files enter the service worker cache. All device copies can be
+evicted and are excluded from backups/export. Authoritative immutable server
+objects and existing lesson metadata retain E3-01 backup/export/deletion policies;
+restore fixtures assert byte-identical checksums. No new learner tables or AI calls.

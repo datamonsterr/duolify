@@ -466,6 +466,9 @@ export function trackPlayer(
       | "invalid_manifest"
       | "document_timeout"
       | "position_unavailable"
+      | "offline_uncached"
+      | "cache_unavailable"
+      | "checksum_mismatch"
       | "offline";
   },
 ) {
@@ -493,6 +496,9 @@ export function trackPlayer(
       "invalid_manifest",
       "document_timeout",
       "position_unavailable",
+      "offline_uncached",
+      "cache_unavailable",
+      "checksum_mismatch",
       "offline",
     ].includes(value.error_code)
   )
@@ -516,4 +522,14 @@ export function trackPlayer(
   } catch {
     /* Playback never depends on analytics. */
   }
+}
+
+// Registered by the E3-03 cache recovery catalogue before emitters.
+export function trackPlayerRecovery(action: "retry" | "exit") {
+  if (action !== "retry" && action !== "exit") return;
+  captureAuth("ui_recovery_selected", {
+    surface: "lesson_player",
+    error_code: "offline_uncached",
+    action,
+  });
 }

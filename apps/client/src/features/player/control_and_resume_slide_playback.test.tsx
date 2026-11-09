@@ -9,7 +9,7 @@ import {
   savePosition,
 } from "./position";
 import { isSlideMessage } from "../lesson-player/bridge";
-import { playerManifest } from "../../mocks/player";
+import { playerManifest, playerHTML } from "../../mocks/player";
 import { configureAnalytics, trackPlayer } from "../../lib/analytics";
 import { session } from "../accounts/session";
 import {
@@ -103,7 +103,7 @@ describe("controlled playback clock", () => {
       async (path, method, body) => {
         if (path.endsWith("/manifest")) return playerManifest() as never;
         if (path.includes("/slides/"))
-          return { html: "<p>Private slide text</p>" } as never;
+          return { html: playerHTML, assets: [] } as never;
         return (method === "PUT" ? body : null) as never;
       },
     );

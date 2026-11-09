@@ -1,7 +1,10 @@
 import { session } from "../accounts/session";
 import { bridgeScript } from "../lesson-player/bridge";
+import { openLesson, preparedDocument } from "./cache";
 export type Checkpoint = { id: string; at_ms: number };
 export type ManifestSlide = {
+  html_sha256: string;
+  asset_sha256: Record<string, string>;
   slide_id: string;
   duration_ms: number;
   html_url: string;
@@ -73,16 +76,33 @@ export function isManifest(value: unknown): value is Manifest {
   return value.slides.every((slide) => {
     if (
       !record(slide) ||
-      !keys(slide, [
-        "slide_id",
-        "duration_ms",
-        "html_url",
-        "assets",
-        "checkpoints",
-        "narration_status",
-        "narration_text",
-      ]) ||
+      !(
+        keys(slide, [
+          "slide_id",
+          "html_sha256",
+          "asset_sha256",
+          "duration_ms",
+          "html_url",
+          "assets",
+          "checkpoints",
+          "narration_status",
+          "narration_text",
+        ]) ||
+        keys(slide, [
+          "slide_id",
+          "duration_ms",
+          "html_url",
+          "assets",
+          "checkpoints",
+          "narration_status",
+          "narration_text",
+        ])
+      ) ||
       typeof slide.slide_id !== "string" ||
+      (slide.html_sha256 !== undefined &&
+        (typeof slide.html_sha256 !== "string" ||
+          !/^[a-f0-9]{64}$/.test(slide.html_sha256))) ||
+      (slide.asset_sha256 !== undefined && !record(slide.asset_sha256)) ||
       !id.test(slide.slide_id) ||
       seen.has(slide.slide_id) ||
       !Number.isSafeInteger(slide.duration_ms) ||
@@ -97,6 +117,15 @@ export function isManifest(value: unknown): value is Manifest {
       slide.narration_text.length > 20000 ||
       !Array.isArray(slide.assets) ||
       slide.assets.length > 100 ||
+      (slide.asset_sha256 !== undefined &&
+        (Object.keys(slide.asset_sha256).length !== slide.assets.length ||
+          !slide.assets.every(
+            (a) =>
+              typeof a === "string" &&
+              /^[a-f0-9]{64}$/.test(
+                String((slide.asset_sha256 as Record<string, unknown>)[a]),
+              ),
+          ))) ||
       !slide.assets.every((a) => {
         try {
           const u = new URL(a);
@@ -139,14 +168,11 @@ export function isManifest(value: unknown): value is Manifest {
   });
 }
 export async function loadManifest(lessonId: string): Promise<Manifest> {
-  const value = await session.request<unknown>(
-    `/v1/lessons/${encodeURIComponent(lessonId)}/manifest`,
-  );
-  if (!isManifest(value) || value.lesson_id !== lessonId)
-    throw new Error("invalid_manifest");
-  return value;
+  return openLesson(lessonId);
 }
 export async function loadDocument(slide: ManifestSlide): Promise<string> {
+  const prepared = preparedDocument(slide);
+  if (prepared !== undefined) return prepared;
   const value = await session.request<unknown>(slide.html_url);
   if (
     !record(value) ||
@@ -164,8 +190,10 @@ export function sandboxDocument(
   origin: string,
   reduced: boolean,
   slide?: ManifestSlide,
+  cached = false,
 ) {
   if (!validAssetOrigin(origin)) throw new Error("invalid_manifest");
-  const csp = `default-src 'none'; script-src 'unsafe-inline' ${origin}; style-src 'unsafe-inline' ${origin}; img-src ${origin}; media-src ${origin}; font-src ${origin}; connect-src ${origin}; frame-src 'none'; object-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none';`;
+  const resource = cached ? "data:" : origin;
+  const csp = `default-src 'none'; script-src 'unsafe-inline' ${resource}; style-src 'unsafe-inline' ${resource}; img-src ${resource}; media-src ${resource}; font-src ${resource}; connect-src ${cached ? "'none'" : origin}; frame-src 'none'; object-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none';`;
   return `<!doctype html><html data-motion="${reduced ? "reduce" : "full"}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="referrer" content="no-referrer"><style>:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important} body {overflow-wrap:anywhere}</style>${slide ? bridgeScript({ duration: slide.duration_ms, checkpoints: slide.checkpoints }) : ""}</head><body>${html}</body></html>`;
 }

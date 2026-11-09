@@ -28,12 +28,14 @@ type Checkpoint struct {
 
 // ObjectSlide is the closed storage schema for one slide.
 type ObjectSlide struct {
-	ID            string       `json:"slide_id"`
-	DurationMS    int          `json:"duration_ms"`
-	HTMLKey       string       `json:"html_key"`
-	Assets        []string     `json:"assets"`
-	Checkpoints   []Checkpoint `json:"checkpoints"`
-	NarrationText string       `json:"narration_text"`
+	HTMLSHA256    string            `json:"html_sha256,omitempty"`
+	AssetSHA256   map[string]string `json:"asset_sha256,omitempty"`
+	ID            string            `json:"slide_id"`
+	DurationMS    int               `json:"duration_ms"`
+	HTMLKey       string            `json:"html_key"`
+	Assets        []string          `json:"assets"`
+	Checkpoints   []Checkpoint      `json:"checkpoints"`
+	NarrationText string            `json:"narration_text"`
 }
 
 // ObjectManifest contains ordered immutable document references.
@@ -44,13 +46,15 @@ type ObjectManifest struct {
 
 // Slide is the public manifest projection, without internal object keys.
 type Slide struct {
-	ID              string       `json:"slide_id"`
-	DurationMS      int          `json:"duration_ms"`
-	HTMLURL         string       `json:"html_url"`
-	Assets          []string     `json:"assets"`
-	Checkpoints     []Checkpoint `json:"checkpoints"`
-	NarrationStatus string       `json:"narration_status"`
-	NarrationText   string       `json:"narration_text"`
+	HTMLSHA256      string            `json:"html_sha256"`
+	AssetSHA256     map[string]string `json:"asset_sha256"`
+	ID              string            `json:"slide_id"`
+	DurationMS      int               `json:"duration_ms"`
+	HTMLURL         string            `json:"html_url"`
+	Assets          []string          `json:"assets"`
+	Checkpoints     []Checkpoint      `json:"checkpoints"`
+	NarrationStatus string            `json:"narration_status"`
+	NarrationText   string            `json:"narration_text"`
 }
 
 // Manifest is the authorized lesson playback DTO.

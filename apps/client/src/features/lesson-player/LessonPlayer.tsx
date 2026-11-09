@@ -7,8 +7,9 @@ import {
   useSyncExternalStore,
 } from "react";
 import { Link } from "@tanstack/react-router";
-import { trackPlayer } from "../../lib/analytics";
-import { useQuery } from "@tanstack/react-query";
+import { trackPlayer, trackPlayerRecovery } from "../../lib/analytics";
+import { availableOffline, preparedDocument } from "../player/cache";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { session } from "../accounts/session";
 import {
   loadManifest,
@@ -48,13 +49,21 @@ export function LessonPlayer({
       trackPlayer("lesson_player_error", {
         lesson_id: lessonId,
         error_code:
-          manifest.error.message === "invalid_manifest"
-            ? "invalid_manifest"
-            : "manifest_unavailable",
+          manifest.error.message === "offline_uncached"
+            ? "offline_uncached"
+            : manifest.error.message === "invalid_manifest"
+              ? "invalid_manifest"
+              : "manifest_unavailable",
       });
   }, [manifest.error, lessonId]);
   if (manifest.error)
-    return <PlayerRecovery exit={exit} retry={() => void manifest.refetch()} />;
+    return (
+      <PlayerRecovery
+        offline={manifest.error.message === "offline_uncached"}
+        exit={exit}
+        retry={() => void manifest.refetch()}
+      />
+    );
   if (!manifest.data)
     return (
       <PlayerRecovery
@@ -73,26 +82,48 @@ export function LessonPlayer({
 }
 function PlayerRecovery({
   loading = false,
+  offline = false,
   retry,
   exit,
 }: {
   loading?: boolean;
+  offline?: boolean;
   retry: () => void;
   exit: string;
 }) {
   return (
     <section className="player player-recovery" aria-busy={loading}>
-      <Link className="shell-link" to={exit}>
+      <Link
+        className="shell-link"
+        to={exit}
+        onClick={() => {
+          if (offline) trackPlayerRecovery("exit");
+        }}
+      >
         Exit lesson
       </Link>
-      <h1>{loading ? "Loading lesson…" : "Lesson unavailable"}</h1>
+      <h1>
+        {loading
+          ? "Loading lesson…"
+          : offline
+            ? "This lesson isn't downloaded"
+            : "Lesson unavailable"}
+      </h1>
       <p role={loading ? "status" : "alert"}>
         {loading
           ? "Getting your slides ready."
-          : "Lesson unavailable. Check your connection and enrollment, then retry."}
+          : offline
+            ? "Return to saved lessons, or download this lesson when you're online."
+            : "Lesson unavailable. Check your connection and enrollment, then retry."}
       </p>
       {!loading && (
-        <button className="duo-button primary" onClick={retry}>
+        <button
+          className="duo-button primary"
+          onClick={() => {
+            if (offline) trackPlayerRecovery("retry");
+            retry();
+          }}
+        >
           Retry
         </button>
       )}
@@ -245,13 +276,30 @@ function SlidePlayback({
       slide.slide_id,
     ],
     queryFn: () => loadDocument(slide),
+    initialData: () => preparedDocument(slide),
     retry: false,
     networkMode: "always",
   });
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const nextSlide = manifest.slides[index + 1];
+    if (nextSlide) {
+      void queryClient.prefetchQuery({
+        queryKey: [
+          "lesson-document",
+          owner,
+          lessonId,
+          manifest.version,
+          nextSlide.slide_id,
+        ],
+        queryFn: () => loadDocument(nextSlide),
+      });
+    }
+  }, [index, manifest, owner, lessonId, queryClient]);
   const command = useCallback(
     (value: Parameters<typeof sendCommand>[1]) =>
       sendCommand(frame.current?.contentWindow ?? null, value),
-    [],
+    [frame],
   );
   const persist = useCallback(() => {
     const revision = ++saveRevision.current;
@@ -383,7 +431,7 @@ function SlidePlayback({
       clearInterval(timer);
       window.removeEventListener("message", listener);
     };
-  }, [ready, clock, command, index, lessonId, slide, persist]);
+  }, [ready, clock, command, index, lessonId, slide, persist, frame]);
   const [documentMotion] = useState(reducedMotion);
   const disabled = !ready || !!slideDocument.error || panel !== null;
   return (
@@ -433,6 +481,11 @@ function SlidePlayback({
       </div>
       <p>
         Slide {index + 1} of {manifest.slides.length}
+      </p>
+      <p role="status">
+        {availableOffline(manifest.lesson_id)
+          ? "Available offline"
+          : "Offline download unavailable. Keep this lesson open or retry online."}
       </p>
       {unsaved && (
         <div role="status">
@@ -508,6 +561,7 @@ function SlidePlayback({
               manifest.asset_origin,
               documentMotion,
               slide,
+              availableOffline(manifest.lesson_id),
             )}
             referrerPolicy="no-referrer"
             onLoad={() => {
