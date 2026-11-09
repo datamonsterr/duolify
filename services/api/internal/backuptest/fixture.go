@@ -854,6 +854,16 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := accounts.ApplyDeletionTombstones(t.Context(), restored.Pool); err != nil {
 		t.Fatal(err)
 	}
+	// The backup contains an outstanding preview reservation. Tombstone replay
+	// must finalize it before anonymizing, including both operational counters.
+	var activeJobs int
+	var heldAfterDeletion int64
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM credit_jobs WHERE owner_reference=$1 AND state IN ('reserved','running')`, accounts.LearnerReference(paymentOwner)).Scan(&activeJobs); err != nil || activeJobs != 0 {
+		t.Fatalf("restored deletion stranded jobs: %d %v", activeJobs, err)
+	}
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT COALESCE(sum(held_nanos),0) FROM credit_cost_counters").Scan(&heldAfterDeletion); err != nil || heldAfterDeletion != 0 {
+		t.Fatalf("restored deletion stranded capacity: %d %v", heldAfterDeletion, err)
+	}
 	var outlineSurvived bool
 	var positions int
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM lesson_playback_positions WHERE learner_id::text=$1", paymentOwner).Scan(&positions); err != nil || positions != 0 {

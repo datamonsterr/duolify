@@ -82,6 +82,7 @@ impl engine_core::LlmProvider for RecordedBrief {
             output_tokens: 8,
             cache_write_tokens: 0,
             cache_read_tokens: 0,
+            usage_unavailable: false,
         })
     }
     async fn stream(&self, _model: &str, _input: &str) -> Result<engine_core::CompletionStream> {
@@ -133,6 +134,23 @@ async fn evaluate_brief(input: &serde_json::Value) -> Result<String> {
 struct RecordedCredits(
     std::sync::Mutex<std::collections::VecDeque<Option<engine_core::Completion>>>,
 );
+
+#[cfg(test)]
+#[tokio::test]
+async fn credit_fixture_retries_valid_json_with_invalid_preview_schema() {
+    let input = serde_json::json!({
+        "recorded": [
+            {"text":"{}","provider":"recorded","model":"fixture","input_tokens":0,"output_tokens":0},
+            {"text":"{\"title\":\"Sample\",\"units\":[{\"title\":\"Unit\",\"lessons\":[{\"title\":\"Lesson\",\"goal\":\"Learn\"}]}],\"html\":\"<div id=root>Example</div>\",\"narration\":\"Example\"}","provider":"recorded","model":"fixture","input_tokens":0,"output_tokens":0}
+        ],
+        "limits": {"input_tokens":2000,"output_tokens":2500,"timeout_ms":3000,"max_attempts":2,"max_cost_nanos":60000000,"input_nanos":2000,"output_nanos":10000,"cache_write_nanos":2500,"cache_read_nanos":100}
+    });
+    let result: serde_json::Value =
+        serde_json::from_str(&evaluate_credits(&input).await.unwrap()).unwrap();
+    assert_eq!(result["delivered"], true);
+    assert_eq!(result["attempt_count"], 2);
+    assert_eq!(result["attempts"][0]["delivered"], false);
+}
 #[async_trait::async_trait]
 impl engine_core::LlmProvider for RecordedCredits {
     fn name(&self) -> &'static str {
@@ -156,7 +174,14 @@ async fn evaluate_credits(input: &serde_json::Value) -> Result<String> {
     let provider = std::sync::Arc::new(RecordedCredits(std::sync::Mutex::new(recorded.into())));
     let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
     let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
-    let outcome = engine_core::credits::run(&router, "preview", "fixture", &limits).await;
+    let outcome = engine_core::credits::run(
+        &router,
+        "preview",
+        "fixture",
+        &limits,
+        engine_core::courses::validate_preview,
+    )
+    .await;
     Ok(match outcome {
   Ok(o)=>serde_json::json!({"delivered":o.completion.is_some(),"attempt_count":o.attempts.len(),"fallback_used":o.attempts.iter().any(|a|a.fallback_used),"usage_unavailable":o.attempts.iter().any(|a|a.usage_unavailable),"attempts":o.attempts}),
   Err(_)=>serde_json::json!({"rejected":true,"delivered":false,"attempt_count":0})

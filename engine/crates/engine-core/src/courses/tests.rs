@@ -212,6 +212,7 @@ async fn preview_schema_fallback_respects_the_accepted_cap() {
         output_nanos: 10000,
         cache_write_nanos: 2500,
         cache_read_nanos: 100,
+        deadline_unix_ms: 0,
     };
     let outcome =
         crate::credits::run_validated(&router, "preview", "fixture", &limits, validate_preview)
@@ -362,6 +363,7 @@ async fn outline_recovery_timeout_fallback_and_boundary_cases() {
                 output_tokens: 150,
                 cache_write_tokens: 0,
                 cache_read_tokens: 0,
+                usage_unavailable: false,
             })
         }
         async fn stream(
@@ -399,6 +401,7 @@ async fn outline_recovery_timeout_fallback_and_boundary_cases() {
         output_nanos: 10000,
         cache_write_nanos: 2500,
         cache_read_nanos: 100,
+        deadline_unix_ms: 0,
     };
 
     // 1. Primary fails, fallback succeeds

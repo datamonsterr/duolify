@@ -149,7 +149,10 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err = tx.Exec(ctx, "UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE learner_id=$1", id); err == nil {
+	if _, err = tx.Exec(ctx, "SELECT release_deleted_credit_jobs($1)", ref); err == nil {
+		_, err = tx.Exec(ctx, "UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE learner_id=$1", id)
+	}
+	if err == nil {
 		_, err = tx.Exec(ctx, "UPDATE credit_entries SET learner_id=NULL,owner_reference=$2 WHERE learner_id=$1", id, ref)
 	}
 	if err == nil {
@@ -229,6 +232,9 @@ func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
 		}
 		if !exists {
 			continue
+		}
+		if _, err = tx.Exec(ctx, "SELECT release_deleted_credit_jobs($1)", ref); err != nil {
+			return err
 		}
 		if _, err = tx.Exec(ctx, "UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE learner_id=$1::uuid", id); err != nil {
 			return err

@@ -68,6 +68,8 @@ message UsageLimits {
   string model = 11;
   string fallback_provider = 12;
   string fallback_model = 13;
+  // Absolute reservation deadline, including API queue and transport time.
+  uint64 deadline_unix_ms = 14;
 }
 
 message LearnerProfile {

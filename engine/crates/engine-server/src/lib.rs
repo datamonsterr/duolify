@@ -18,6 +18,7 @@ fn usage(c: &Completion) -> Option<pb::Usage> {
         latency_ms: 0,
         cache_write_tokens: c.cache_write_tokens,
         cache_read_tokens: c.cache_read_tokens,
+        usage_unavailable: c.usage_unavailable,
         ..Default::default()
     })
 }
@@ -133,6 +134,7 @@ impl EngineService for Service {
             output_nanos: bounds.output_nanos,
             cache_write_nanos: bounds.cache_write_nanos,
             cache_read_nanos: bounds.cache_read_nanos,
+            deadline_unix_ms: bounds.deadline_unix_ms,
         };
         let base: Vec<engine_core::courses::outline::Unit> = req
             .outline
@@ -252,6 +254,7 @@ impl EngineService for Service {
             output_nanos: bounds.output_nanos,
             cache_write_nanos: bounds.cache_write_nanos,
             cache_read_nanos: bounds.cache_read_nanos,
+            deadline_unix_ms: bounds.deadline_unix_ms,
         };
         let b = req.brief.unwrap_or_else(|| pb::CourseBrief {
             topic: req.topic,
@@ -359,6 +362,7 @@ impl EngineService for Service {
             output_nanos: bounds.output_nanos,
             cache_write_nanos: bounds.cache_write_nanos,
             cache_read_nanos: bounds.cache_read_nanos,
+            deadline_unix_ms: bounds.deadline_unix_ms,
         };
 
         let base = req

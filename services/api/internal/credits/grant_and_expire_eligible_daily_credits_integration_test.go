@@ -122,6 +122,10 @@ func TestGrantAndExpireEligibleDailyCredits_Integration(t *testing.T) {
 		t.Fatal(err)
 	}
 	learnerAID := uuid.UUID(learnerA.ID.Bytes).String()
+	// Event delivery requires an explicit persisted consent record.
+	if _, err = db.Pool.Exec(ctx, "INSERT INTO learner_profiles(learner_id,time_zone,analytics_opt_out) VALUES($1,'Asia/Ho_Chi_Minh',false)", learnerAID); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("Postgres grant uniqueness under concurrency", func(t *testing.T) {
 		const concurrency = 10

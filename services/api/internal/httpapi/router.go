@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -250,23 +251,33 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 				}
 			}
 		}()
+		// Queueing and quote resolution consume the same budget as provider work.
+		providerCtx, cancel := context.WithDeadline(r.Context(), job.DeadlineAt)
+		defer cancel()
 		// API resolves bounds from the pinned quote.
-		request.Limits, err = financial.Limits(r.Context(), owner, job.ID, "preview")
+		request.Limits, err = financial.Limits(providerCtx, owner, job.ID, "preview")
 		if err != nil {
 			writeJSON(w, 409, map[string]string{"error": "quote bounds unavailable"})
 			return
 		}
-		if err = financial.Claim(r.Context(), owner, job.ID); err != nil {
+		if err = financial.Claim(providerCtx, owner, job.ID); err != nil {
 			writeJSON(w, 409, map[string]string{"error": "Generation queue unavailable. Refresh your wallet and retry."})
 			return
 		}
 		claimed = true
 		started := time.Now()
 		preparer.PreviewEvent(r.Context(), owner, "course_preview_requested", request, job.ID, 0)
-		providerCtx, cancel := context.WithTimeout(r.Context(), time.Duration(request.Limits.TimeoutMs)*time.Millisecond)
-		defer cancel()
+		// The engine's internal attempt budget cannot restart the elapsed API budget.
+		remaining := time.Until(job.DeadlineAt).Milliseconds()
+		if remaining <= 0 || providerCtx.Err() != nil {
+			writeJSON(w, http.StatusGatewayTimeout, map[string]string{"error": "Preview deadline exceeded. Your brief is kept."})
+			return
+		}
+		if remaining <= math.MaxUint32 {
+			request.Limits.TimeoutMs = min(request.Limits.TimeoutMs, uint32(remaining))
+		}
 		response, err := deps.Engine.PreviewCourse(providerCtx, request)
-		valid := err == nil && courses.ValidatePreview(response) == nil && len(response.Attempts) > 0 && response.Attempts[len(response.Attempts)-1].GetDelivered()
+		valid := err == nil && providerCtx.Err() == nil && courses.ValidatePreview(response) == nil && len(response.Attempts) > 0 && response.Attempts[len(response.Attempts)-1].GetDelivered()
 		if !valid && response != nil {
 			for _, attempt := range response.Attempts {
 				if attempt != nil {
@@ -281,8 +292,8 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(r.Context()), time.Duration(request.Limits.TimeoutMs)*time.Millisecond)
 		defer finishCancel()
 		settled, finishErr := financial.Settle(finishCtx, owner, job.ID, attempts)
-		finished = finishErr == nil || settled.State == "released" || settled.State == "settled"
-		if !valid || finishErr != nil {
+		finished = finishErr == nil && (settled.State == "released" || settled.State == "settled")
+		if !valid || finishErr != nil || settled.State != "settled" {
 			preparer.PreviewEvent(finishCtx, owner, "course_generation_failed", request, job.ID, time.Since(started).Milliseconds())
 		}
 		if finishErr != nil {

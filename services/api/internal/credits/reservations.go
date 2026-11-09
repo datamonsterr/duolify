@@ -28,12 +28,13 @@ var (
 
 // Reservation is an idempotent provider job and its durable final result.
 type Reservation struct {
-	ID             string `json:"id"`
-	PricingVersion string `json:"pricing_version"`
-	State          string `json:"state"`
-	ContentSpent   int64  `json:"content_spent"`
-	AudioSpent     int64  `json:"audio_spent"`
-	CostNanos      int64  `json:"cost_nanos"`
+	ID             string    `json:"id"`
+	PricingVersion string    `json:"pricing_version"`
+	State          string    `json:"state"`
+	DeadlineAt     time.Time `json:"deadline_at"`
+	ContentSpent   int64     `json:"content_spent"`
+	AudioSpent     int64     `json:"audio_spent"`
+	CostNanos      int64     `json:"cost_nanos"`
 }
 
 func (s *Service) pool() *pgxpool.Pool {
@@ -84,10 +85,12 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 		return Reservation{}, err
 	}
 	var existing []byte
-	err = tx.QueryRow(ctx, "SELECT result FROM credit_jobs WHERE quote_id=$1", quoteID).Scan(&existing)
+	var existingDeadline time.Time
+	err = tx.QueryRow(ctx, "SELECT result,deadline_at FROM credit_jobs WHERE quote_id=$1", quoteID).Scan(&existing, &existingDeadline)
 	if err == nil {
 		var result Reservation
 		err = json.Unmarshal(existing, &result)
+		result.DeadlineAt = existingDeadline
 		return result, err
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -96,7 +99,7 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 	if !q.Accepted || !now.Before(q.ExpiresAt) || q.Bounds["max_attempts"] <= 0 || q.Bounds["timeout_ms"] <= 0 || q.Bounds["concurrency"] <= 0 {
 		return Reservation{}, ErrReservation
 	}
-	tz, err := s.store.GetEffectiveTimezone(ctx, owner, now)
+	tz, err := effectiveTimezone(ctx, tx, owner, now)
 	if err != nil {
 		return Reservation{}, err
 	}
@@ -151,7 +154,7 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 		}
 	}
 	result := Reservation{PricingVersion: q.PricingVersion, State: "reserved"}
-	err = tx.QueryRow(ctx, `INSERT INTO credit_jobs(quote_id,learner_id,owner_reference,state,local_date,platform_date,held_nanos,deadline_at) VALUES($1,$2,$3,'reserved',$4::date,$5::date,$6,$7) RETURNING id::text`, quoteID, owner, ref, localDay, platformDay, hold, now.Add(time.Duration(q.Bounds["timeout_ms"])*time.Millisecond)).Scan(&result.ID)
+	err = tx.QueryRow(ctx, `INSERT INTO credit_jobs(quote_id,learner_id,owner_reference,state,local_date,platform_date,held_nanos,deadline_at) VALUES($1,$2,$3,'reserved',$4::date,$5::date,$6,$7) RETURNING id::text,deadline_at`, quoteID, owner, ref, localDay, platformDay, hold, now.Add(time.Duration(q.Bounds["timeout_ms"])*time.Millisecond)).Scan(&result.ID, &result.DeadlineAt)
 	if err != nil {
 		return Reservation{}, err
 	}
@@ -341,7 +344,8 @@ func (s *Service) Limits(ctx context.Context, owner, id, action string) (*engine
 		return nil, ErrReservation
 	}
 	var raw []byte
-	if err := s.pool().QueryRow(ctx, `SELECT q.snapshot FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.id=$1 AND j.learner_id=$2 AND j.state IN ('reserved','running')`, id, owner).Scan(&raw); err != nil {
+	var deadline time.Time
+	if err := s.pool().QueryRow(ctx, `SELECT q.snapshot,j.deadline_at FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.id=$1 AND j.learner_id=$2 AND j.state IN ('reserved','running')`, id, owner).Scan(&raw, &deadline); err != nil {
 		return nil, ErrReservation
 	}
 	var q pricing.Quote
@@ -371,7 +375,7 @@ func (s *Service) Limits(ctx context.Context, owner, id, action string) (*engine
 	if err != nil {
 		return nil, err
 	}
-	return &enginev1.UsageLimits{InputTokens: input, OutputTokens: output, TimeoutMs: timeout, MaxAttempts: attempts, MaxCostNanos: nonnegativeUint64(min(reservationCost(q), q.Bounds["max_cost_nanos"])), InputNanos: nonnegativeUint64(max(q.Rate.Input, fallback.Input)), OutputNanos: nonnegativeUint64(max(q.Rate.Output, fallback.Output)), CacheWriteNanos: nonnegativeUint64(max(q.Rate.CacheWrite, fallback.CacheWrite)), CacheReadNanos: nonnegativeUint64(max(q.Rate.CacheRead, fallback.CacheRead)), Provider: q.Rate.Provider, Model: q.Rate.Model, FallbackProvider: fallback.Provider, FallbackModel: fallback.Model}, nil
+	return &enginev1.UsageLimits{InputTokens: input, OutputTokens: output, TimeoutMs: timeout, MaxAttempts: attempts, MaxCostNanos: nonnegativeUint64(min(reservationCost(q), q.Bounds["max_cost_nanos"])), InputNanos: nonnegativeUint64(max(q.Rate.Input, fallback.Input)), OutputNanos: nonnegativeUint64(max(q.Rate.Output, fallback.Output)), CacheWriteNanos: nonnegativeUint64(max(q.Rate.CacheWrite, fallback.CacheWrite)), CacheReadNanos: nonnegativeUint64(max(q.Rate.CacheRead, fallback.CacheRead)), Provider: q.Rate.Provider, Model: q.Rate.Model, FallbackProvider: fallback.Provider, FallbackModel: fallback.Model, DeadlineUnixMs: nonnegativeUint64(deadline.UnixMilli())}, nil
 }
 
 // Release cancels only queued work; it cannot release another executor's running job.
@@ -473,7 +477,7 @@ func (s *Service) finalize(ctx context.Context, owner, id string, usage []*engin
 	if err != nil {
 		return result, err
 	}
-	tz, err := s.store.GetEffectiveTimezone(ctx, owner, now)
+	tz, err := effectiveTimezone(ctx, tx, owner, now)
 	if err != nil {
 		return result, err
 	}
