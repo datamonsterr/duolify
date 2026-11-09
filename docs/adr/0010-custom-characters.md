@@ -1,6 +1,6 @@
 # ADR 0010: Custom characters with a parametric SVG rig and bounded personas
 
-- Status: Proposed
+- Status: Accepted (owner, 2026-11-09; see ADR 0011)
 - Date: 2026-11-09
 
 ## Context
