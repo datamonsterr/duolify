@@ -37,7 +37,7 @@ Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M
 
 | ID | Title | Kind | Size | Blocked by |
 | --- | --- | --- | --- | --- |
-| E2-01 | Preview a quoted course without enrolling | AFK | L | E1-03, E1-06, E7-03, E10-01 |
+| E2-01 | Preview a quoted course without enrolling | AFK | L | E1-03, E1-06, E7-03 |
 | E2-02 | Generate an outline and enroll once | AFK | L | E2-01 |
 | E2-03 | Switch courses and override course level | AFK | M | E2-02 |
 | E2-04 | Recover generation and remove courses | AFK | M | E2-02 |
@@ -58,7 +58,7 @@ Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M
 
 | ID | Title | Kind | Size | Blocked by |
 | --- | --- | --- | --- | --- |
-| E4-01 | Generate and pass the first gated lesson | AFK | L | E2-03, E3-01, E7-03, E10-01 |
+| E4-01 | Generate and pass the first gated lesson | AFK | L | E2-03, E3-01, E7-03 |
 | E4-02 | Generate topic-linked retry pools with lessons | AFK | L | E4-01 |
 | E4-03 | Offer spaced retries and topic recaps | AFK | M | E4-02 |
 | E4-04 | Resume and replay lesson test sessions | AFK | M | E4-03, E3-04 |
@@ -95,7 +95,7 @@ Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M
 | --- | --- | --- | --- | --- |
 | E7-01 | Read an auditable credit wallet | AFK | M | E1-03, E1-06, E12-01 |
 | E7-02 | Grant and expire eligible daily credits | AFK | L | E7-01, E12-02 |
-| E7-03 | Reserve and settle versioned AI quotes | AFK | L | E7-02, E12-02, E10-01 |
+| E7-03 | Reserve and settle versioned AI quotes | AFK | L | E7-02, E12-02 |
 | E7-04 | Show priced purchase and exhaustion recovery | AFK | M | E7-03, E12-03, E13-03 |
 | E7-05 | Approve billing policy and provision provider accounts | HITL | S | — |
 | E7-06 | Fulfill Stripe credit packs exactly once | AFK | L | E7-04 |
@@ -112,7 +112,7 @@ Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M
 
 | ID | Title | Kind | Size | Blocked by |
 | --- | --- | --- | --- | --- |
-| E8-01 | Stream a quoted course tutor reply | AFK | L | E4-05, E7-03, E1-06, E10-01 |
+| E8-01 | Stream a quoted course tutor reply | AFK | L | E4-05, E7-03, E1-06 |
 | E8-02 | Stop and recover partially streamed replies | AFK | L | E8-01 |
 | E8-03 | Retrieve full-course context within tutor limits | AFK | M | E8-01 |
 | E8-04 | Ask the tutor from a paused lesson sheet | AFK | M | E8-02, E3-02, E13-03 |
@@ -123,7 +123,7 @@ Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M
 | ID | Title | Kind | Size | Blocked by |
 | --- | --- | --- | --- | --- |
 | E9-01 | Save raw quick notes before enrichment | AFK | M | E3-01, E7-02, E1-06, E13-03 |
-| E9-02 | Enrich notes with grounded summaries and tags | AFK | L | E9-01, E7-03, E10-01 |
+| E9-02 | Enrich notes with grounded summaries and tags | AFK | L | E9-01, E7-03 |
 | E9-03 | Resume pending enrichment when credits arrive | AFK | M | E9-02 |
 | E9-04 | Find review and export quick notes | AFK | M | E9-02 |
 | E9-05 | Bookmark lessons and exact slides | AFK | M | E3-04, E7-01, E1-06 |
@@ -133,11 +133,11 @@ Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M
 | ID | Title | Kind | Size | Blocked by |
 | --- | --- | --- | --- | --- |
 | E10-01 | Provision the golden dataset and evaluation secrets | HITL | S | — |
-| E10-02 | Score each AI task with critical checks | AFK | M | E2-01, E10-01 |
+| E10-02 | Score each AI task with critical checks | AFK | M | E2-01 |
 | E10-03 | Bound and verify model routing failures | AFK | M | E2-01, E7-03 |
 | E10-04 | Mirror pinned golden revisions for offline recovery | AFK | M | E10-02 |
 | E10-05 | Expose reliability and AI cost dashboards | AFK | M | E10-02, E10-03, E11-04 |
-| E10-06 | Gate AI promotion on reproducible live samples | AFK | M | E10-02, E10-03, E10-04, E10-05 |
+| E10-06 | Gate AI promotion on reproducible live samples | AFK | M | E10-02, E10-03, E10-04, E10-05, E10-01 |
 
 ## E11 — Operations and recovery
 
@@ -179,7 +179,7 @@ Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M
 
 | ID | Title | Kind | Size | Blocked by |
 | --- | --- | --- | --- | --- |
-| E14-01 | Synthesize and play one narrated slide | AFK | L | E3-02, E4-01, E7-03, E10-01 |
+| E14-01 | Synthesize and play one narrated slide | AFK | L | E3-02, E4-01, E7-03 |
 | E14-02 | Deduplicate and recover narration assets | AFK | M | E14-01 |
 | E14-03 | Synchronize audio captions and offline playback | AFK | M | E14-02, E3-03, E3-05 |
 | E14-04 | Connect bounded ElevenLabs synthesis | AFK | M | E14-02 |
@@ -190,14 +190,14 @@ Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M
 
 | ID | Title | Kind | Size | Blocked by |
 | --- | --- | --- | --- | --- |
-| E15-01 | Preview a screened publication draft | AFK | L | E2-03, E6-04, E12-02, E4-02, E10-01 |
+| E15-01 | Preview a screened publication draft | AFK | L | E2-03, E6-04, E12-02, E4-02 |
 | E15-02 | Publish revocable links with public previews | AFK | M | E15-01, E15-12 |
 | E15-03 | Enroll a pinned copy and reuse lessons for free | AFK | M | E15-02, E4-04 |
 | E15-04 | Generate missing published lessons for the learner | AFK | M | E15-03, E4-05, E7-03 |
 | E15-05 | Republish versions and preserve copy progress | AFK | M | E15-03 |
 | E15-06 | Invite friends to courses with notifications | AFK | L | E15-03, E6-07, E15-12 |
 | E15-07 | Browse a filtered public marketplace | AFK | M | E15-03, E15-12 |
-| E15-08 | Rate and screen course reviews | AFK | L | E15-07, E10-01 |
+| E15-08 | Rate and screen course reviews | AFK | L | E15-07 |
 | E15-09 | Report targets and hide reported courses | AFK | M | E15-07, E15-08 |
 | E15-10 | Moderate publications and one-time appeals | AFK | L | E15-09, E15-12 |
 | E15-11 | Retain shared assets through deletion and recovery | AFK | L | E15-04, E15-05, E15-10, E11-05 |
@@ -208,7 +208,7 @@ Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M
 
 | ID | Title | Kind | Size | Blocked by |
 | --- | --- | --- | --- | --- |
-| E16-01 | Steer a future private lesson end to end | AFK | L | E4-05, E7-03, E10-01, E16-04 |
+| E16-01 | Steer a future private lesson end to end | AFK | L | E4-05, E7-03, E16-04 |
 | E16-02 | Edit and scope course instructions safely | AFK | M | E16-01 |
 | E16-03 | Harden steering against prompt injection | AFK | M | E16-02, E10-02 |
 | E16-04 | Confirm steering limits and optional extensions | HITL | S | — |
@@ -223,7 +223,7 @@ Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M
 | --- | --- | --- | --- | --- |
 | E17-01 | Play a default-cast Motion HTML tracer | AFK | L | E3-01 |
 | E17-02 | Approve character architecture pricing limits and original art | HITL | S | — |
-| E17-03 | Edit private characters and choose a Course Cast | AFK | L | E17-01, E17-02, E10-02, E10-03 |
+| E17-03 | Edit private characters and choose a Course Cast | AFK | L | E17-01, E10-02, E10-03 |
 | E17-04 | Create and regenerate a quoted private character | AFK | L | E17-03, E17-02, E7-03, E12-06, E10-02, E10-03 |
 | E17-05 | Pin Course Casts through generated Lesson playback | AFK | L | E17-03, E4-02, E4-05, E3-03, E3-05, E10-02, E10-03 |
 | E17-06 | React to authoritative Lesson answers without changing grading | AFK | M | E17-05, E4-03, E10-02 |
@@ -399,288 +399,278 @@ graph LR
     E17_08["E17-08: Narrate pinned speakers with allowlisted Character voices"]
     E17_09["E17-09: Publish immutable Character snapshots with safe lifecycle"]
   end
-  E1_01 --> E1_02
-  E13_01 --> E1_02
-  E1_02 --> E1_03
-  E1_02 --> E1_04
-  E1_03 --> E1_06
-  E13_02 --> E1_06
-  E1_04 --> E1_07
-  E1_05 --> E1_07
-  E1_06 --> E1_07
-  E1_04 --> E1_08
-  E1_04 --> E1_09
-  E1_02 --> E1_10
-  E1_08 --> E1_10
-  E1_09 --> E1_10
-  E1_05 --> E1_10
-  E1_03 --> E2_01
-  E1_06 --> E2_01
-  E7_03 --> E2_01
-  E10_01 --> E2_01
-  E2_01 --> E2_02
-  E2_02 --> E2_03
-  E2_02 --> E2_04
-  E2_01 --> E2_05
-  E3_01 --> E2_05
-  E12_08 --> E2_05
-  E2_03 --> E3_01
-  E13_03 --> E3_01
-  E3_01 --> E3_02
-  E3_02 --> E3_03
-  E3_03 --> E3_04
-  E3_02 --> E3_05
-  E13_04 --> E3_05
-  E3_03 --> E3_06
-  E7_07 --> E3_06
-  E2_03 --> E4_01
-  E3_01 --> E4_01
-  E7_03 --> E4_01
-  E10_01 --> E4_01
-  E4_01 --> E4_02
-  E4_02 --> E4_03
-  E4_03 --> E4_04
-  E3_04 --> E4_04
-  E4_01 --> E4_05
-  E4_03 --> E4_07
-  E4_06 --> E4_07
-  E7_03 --> E4_07
-  E4_01 --> E5_01
-  E1_06 --> E5_01
-  E5_01 --> E5_02
-  E5_02 --> E5_03
-  E5_01 --> E5_04
-  E5_02 --> E5_04
-  E5_03 --> E5_05
-  E5_04 --> E5_05
-  E5_05 --> E5_06
-  E7_07 --> E5_06
-  E1_03 --> E6_01
-  E5_02 --> E6_01
-  E1_05 --> E6_01
-  E6_01 --> E6_02
-  E6_02 --> E6_03
-  E6_03 --> E6_04
-  E6_04 --> E6_06
-  E6_05 --> E6_06
-  E5_03 --> E6_06
-  E6_06 --> E6_07
-  E1_03 --> E7_01
-  E1_06 --> E7_01
-  E12_01 --> E7_01
-  E7_01 --> E7_02
-  E12_02 --> E7_02
-  E7_02 --> E7_03
-  E12_02 --> E7_03
-  E10_01 --> E7_03
-  E7_03 --> E7_04
-  E12_03 --> E7_04
-  E13_03 --> E7_04
-  E7_04 --> E7_06
-  E7_06 --> E7_07
-  E7_07 --> E7_08
-  E7_07 --> E7_09
-  E7_08 --> E7_09
-  E7_06 --> E7_10
-  E7_09 --> E7_10
-  E1_05 --> E7_10
-  E7_05 --> E7_10
-  E7_10 --> E7_11
-  E11_03 --> E7_11
-  E11_05 --> E7_11
-  E7_09 --> E7_12
-  E7_10 --> E7_12
-  E7_05 --> E7_12
-  E7_11 --> E7_12
-  E12_08 --> E7_12
-  E10_06 --> E7_12
-  E11_07 --> E7_12
-  E7_09 --> E7_13
-  E7_10 --> E7_13
-  E7_05 --> E7_13
-  E7_11 --> E7_13
-  E12_08 --> E7_13
-  E10_06 --> E7_13
-  E11_07 --> E7_13
-  E7_11 --> E7_14
-  E12_08 --> E7_14
-  E11_07 --> E7_14
-  E10_06 --> E7_14
-  E4_05 --> E8_01
-  E7_03 --> E8_01
-  E1_06 --> E8_01
-  E10_01 --> E8_01
-  E8_01 --> E8_02
-  E8_01 --> E8_03
-  E8_02 --> E8_04
-  E3_02 --> E8_04
-  E13_03 --> E8_04
-  E8_04 --> E8_05
-  E9_01 --> E8_05
-  E3_01 --> E9_01
-  E7_02 --> E9_01
-  E1_06 --> E9_01
-  E13_03 --> E9_01
-  E9_01 --> E9_02
-  E7_03 --> E9_02
-  E10_01 --> E9_02
-  E9_02 --> E9_03
-  E9_02 --> E9_04
-  E3_04 --> E9_05
-  E7_01 --> E9_05
-  E1_06 --> E9_05
-  E2_01 --> E10_02
-  E10_01 --> E10_02
-  E2_01 --> E10_03
-  E7_03 --> E10_03
-  E10_02 --> E10_04
-  E10_02 --> E10_05
-  E10_03 --> E10_05
-  E11_04 --> E10_05
-  E10_02 --> E10_06
-  E10_03 --> E10_06
-  E10_04 --> E10_06
-  E10_05 --> E10_06
-  E11_01 --> E11_03
-  E11_02 --> E11_03
-  E1_05 --> E11_03
-  E11_01 --> E11_04
-  E1_06 --> E11_04
-  E11_03 --> E11_05
-  E11_04 --> E11_05
-  E11_04 --> E11_06
-  E11_02 --> E11_06
-  E11_05 --> E11_07
-  E11_06 --> E11_07
-  E12_01 --> E12_02
-  E1_02 --> E12_02
-  E12_02 --> E12_03
-  E13_01 --> E12_03
-  E12_02 --> E12_05
-  E12_04 --> E12_05
-  E1_04 --> E12_05
-  E12_05 --> E12_06
-  E12_05 --> E12_07
-  E10_02 --> E12_07
-  E12_06 --> E12_08
-  E12_07 --> E12_08
-  E7_05 --> E12_08
-  E1_05 --> E12_08
-  E13_01 --> E13_02
-  E13_01 --> E13_03
-  E13_02 --> E13_04
-  E13_03 --> E13_04
-  E13_04 --> E13_06
-  E13_05 --> E13_06
-  E3_02 --> E14_01
-  E4_01 --> E14_01
-  E7_03 --> E14_01
-  E10_01 --> E14_01
-  E14_01 --> E14_02
-  E14_02 --> E14_03
-  E3_03 --> E14_03
-  E3_05 --> E14_03
-  E14_02 --> E14_04
-  E14_04 --> E14_05
-  E10_06 --> E14_05
-  E14_03 --> E14_06
-  E14_05 --> E14_06
-  E7_07 --> E14_06
-  E2_03 --> E15_01
-  E6_04 --> E15_01
-  E12_02 --> E15_01
-  E4_02 --> E15_01
-  E10_01 --> E15_01
-  E15_01 --> E15_02
-  E15_12 --> E15_02
-  E15_02 --> E15_03
-  E4_04 --> E15_03
-  E15_03 --> E15_04
-  E4_05 --> E15_04
-  E7_03 --> E15_04
-  E15_03 --> E15_05
-  E15_03 --> E15_06
-  E6_07 --> E15_06
-  E15_12 --> E15_06
-  E15_03 --> E15_07
-  E15_12 --> E15_07
-  E15_07 --> E15_08
-  E10_01 --> E15_08
-  E15_07 --> E15_09
-  E15_08 --> E15_09
-  E15_09 --> E15_10
-  E15_12 --> E15_10
-  E15_04 --> E15_11
-  E15_05 --> E15_11
-  E15_10 --> E15_11
-  E11_05 --> E15_11
-  E15_11 --> E15_13
-  E15_12 --> E15_13
-  E15_06 --> E15_13
-  E7_14 --> E15_13
-  E10_06 --> E15_13
-  E11_07 --> E15_13
-  E4_05 --> E16_01
-  E7_03 --> E16_01
-  E10_01 --> E16_01
-  E16_04 --> E16_01
-  E16_01 --> E16_02
-  E16_02 --> E16_03
-  E10_02 --> E16_03
-  E16_02 --> E16_05
-  E15_03 --> E16_05
-  E15_04 --> E16_05
-  E16_02 --> E16_07
-  E16_06 --> E16_07
-  E12_06 --> E16_07
-  E16_07 --> E16_08
-  E16_05 --> E16_08
-  E3_01 --> E17_01
-  E17_01 --> E17_03
-  E17_02 --> E17_03
-  E10_02 --> E17_03
-  E10_03 --> E17_03
-  E17_03 --> E17_04
-  E17_02 --> E17_04
-  E7_03 --> E17_04
-  E12_06 --> E17_04
-  E10_02 --> E17_04
-  E10_03 --> E17_04
-  E17_03 --> E17_05
-  E4_02 --> E17_05
-  E4_05 --> E17_05
-  E3_03 --> E17_05
-  E3_05 --> E17_05
-  E10_02 --> E17_05
-  E10_03 --> E17_05
-  E17_05 --> E17_06
-  E4_03 --> E17_06
-  E10_02 --> E17_06
-  E17_05 --> E17_07
-  E8_01 --> E17_07
-  E8_02 --> E17_07
-  E8_05 --> E17_07
-  E10_02 --> E17_07
-  E10_03 --> E17_07
-  E17_05 --> E17_08
-  E14_03 --> E17_08
-  E14_06 --> E17_08
-  E7_03 --> E17_08
-  E10_02 --> E17_08
-  E10_03 --> E17_08
-  E17_05 --> E17_09
-  E17_08 --> E17_09
-  E15_01 --> E17_09
-  E15_03 --> E17_09
-  E15_04 --> E17_09
-  E15_05 --> E17_09
-  E15_11 --> E17_09
-  E16_05 --> E17_09
-  E11_05 --> E17_09
-  E10_02 --> E17_09
-  E10_03 --> E17_09
   classDef hitl fill:#fff0d6,stroke:#774617,color:#38250c
   class E1_01,E1_05,E1_10,E4_06,E6_05,E7_05,E7_12,E7_13,E7_14,E10_01,E11_02,E11_07,E12_04,E12_08,E13_05,E14_05,E15_12,E15_13,E16_04,E16_06,E17_02 hitl
+    E1_01 --> E1_02
+    E13_01 --> E1_02
+    E1_02 --> E1_03
+    E1_02 --> E1_04
+    E1_03 --> E1_06
+    E13_02 --> E1_06
+    E1_04 --> E1_07
+    E1_05 --> E1_07
+    E1_06 --> E1_07
+    E1_04 --> E1_08
+    E1_04 --> E1_09
+    E1_02 --> E1_10
+    E1_08 --> E1_10
+    E1_09 --> E1_10
+    E1_05 --> E1_10
+    E1_03 --> E2_01
+    E1_06 --> E2_01
+    E7_03 --> E2_01
+    E2_01 --> E2_02
+    E2_02 --> E2_03
+    E2_02 --> E2_04
+    E2_01 --> E2_05
+    E3_01 --> E2_05
+    E12_08 --> E2_05
+    E2_03 --> E3_01
+    E13_03 --> E3_01
+    E3_01 --> E3_02
+    E3_02 --> E3_03
+    E3_03 --> E3_04
+    E3_02 --> E3_05
+    E13_04 --> E3_05
+    E3_03 --> E3_06
+    E7_07 --> E3_06
+    E2_03 --> E4_01
+    E3_01 --> E4_01
+    E7_03 --> E4_01
+    E4_01 --> E4_02
+    E4_02 --> E4_03
+    E4_03 --> E4_04
+    E3_04 --> E4_04
+    E4_01 --> E4_05
+    E4_03 --> E4_07
+    E4_06 --> E4_07
+    E7_03 --> E4_07
+    E4_01 --> E5_01
+    E1_06 --> E5_01
+    E5_01 --> E5_02
+    E5_02 --> E5_03
+    E5_01 --> E5_04
+    E5_02 --> E5_04
+    E5_03 --> E5_05
+    E5_04 --> E5_05
+    E5_05 --> E5_06
+    E7_07 --> E5_06
+    E1_03 --> E6_01
+    E5_02 --> E6_01
+    E1_05 --> E6_01
+    E6_01 --> E6_02
+    E6_02 --> E6_03
+    E6_03 --> E6_04
+    E6_04 --> E6_06
+    E6_05 --> E6_06
+    E5_03 --> E6_06
+    E6_06 --> E6_07
+    E1_03 --> E7_01
+    E1_06 --> E7_01
+    E12_01 --> E7_01
+    E7_01 --> E7_02
+    E12_02 --> E7_02
+    E7_02 --> E7_03
+    E12_02 --> E7_03
+    E7_03 --> E7_04
+    E12_03 --> E7_04
+    E13_03 --> E7_04
+    E7_04 --> E7_06
+    E7_06 --> E7_07
+    E7_07 --> E7_08
+    E7_07 --> E7_09
+    E7_08 --> E7_09
+    E7_06 --> E7_10
+    E7_09 --> E7_10
+    E1_05 --> E7_10
+    E7_05 --> E7_10
+    E7_10 --> E7_11
+    E11_03 --> E7_11
+    E11_05 --> E7_11
+    E7_09 --> E7_12
+    E7_10 --> E7_12
+    E7_05 --> E7_12
+    E7_11 --> E7_12
+    E12_08 --> E7_12
+    E10_06 --> E7_12
+    E11_07 --> E7_12
+    E7_09 --> E7_13
+    E7_10 --> E7_13
+    E7_05 --> E7_13
+    E7_11 --> E7_13
+    E12_08 --> E7_13
+    E10_06 --> E7_13
+    E11_07 --> E7_13
+    E7_11 --> E7_14
+    E12_08 --> E7_14
+    E11_07 --> E7_14
+    E10_06 --> E7_14
+    E4_05 --> E8_01
+    E7_03 --> E8_01
+    E1_06 --> E8_01
+    E8_01 --> E8_02
+    E8_01 --> E8_03
+    E8_02 --> E8_04
+    E3_02 --> E8_04
+    E13_03 --> E8_04
+    E8_04 --> E8_05
+    E9_01 --> E8_05
+    E3_01 --> E9_01
+    E7_02 --> E9_01
+    E1_06 --> E9_01
+    E13_03 --> E9_01
+    E9_01 --> E9_02
+    E7_03 --> E9_02
+    E9_02 --> E9_03
+    E9_02 --> E9_04
+    E3_04 --> E9_05
+    E7_01 --> E9_05
+    E1_06 --> E9_05
+    E2_01 --> E10_02
+    E2_01 --> E10_03
+    E7_03 --> E10_03
+    E10_02 --> E10_04
+    E10_02 --> E10_05
+    E10_03 --> E10_05
+    E11_04 --> E10_05
+    E10_02 --> E10_06
+    E10_03 --> E10_06
+    E10_04 --> E10_06
+    E10_05 --> E10_06
+    E10_01 --> E10_06
+    E11_01 --> E11_03
+    E11_02 --> E11_03
+    E1_05 --> E11_03
+    E11_01 --> E11_04
+    E1_06 --> E11_04
+    E11_03 --> E11_05
+    E11_04 --> E11_05
+    E11_04 --> E11_06
+    E11_02 --> E11_06
+    E11_05 --> E11_07
+    E11_06 --> E11_07
+    E12_01 --> E12_02
+    E1_02 --> E12_02
+    E12_02 --> E12_03
+    E13_01 --> E12_03
+    E12_02 --> E12_05
+    E12_04 --> E12_05
+    E1_04 --> E12_05
+    E12_05 --> E12_06
+    E12_05 --> E12_07
+    E10_02 --> E12_07
+    E12_06 --> E12_08
+    E12_07 --> E12_08
+    E7_05 --> E12_08
+    E1_05 --> E12_08
+    E13_01 --> E13_02
+    E13_01 --> E13_03
+    E13_02 --> E13_04
+    E13_03 --> E13_04
+    E13_04 --> E13_06
+    E13_05 --> E13_06
+    E3_02 --> E14_01
+    E4_01 --> E14_01
+    E7_03 --> E14_01
+    E14_01 --> E14_02
+    E14_02 --> E14_03
+    E3_03 --> E14_03
+    E3_05 --> E14_03
+    E14_02 --> E14_04
+    E14_04 --> E14_05
+    E10_06 --> E14_05
+    E14_03 --> E14_06
+    E14_05 --> E14_06
+    E7_07 --> E14_06
+    E2_03 --> E15_01
+    E6_04 --> E15_01
+    E12_02 --> E15_01
+    E4_02 --> E15_01
+    E15_01 --> E15_02
+    E15_12 --> E15_02
+    E15_02 --> E15_03
+    E4_04 --> E15_03
+    E15_03 --> E15_04
+    E4_05 --> E15_04
+    E7_03 --> E15_04
+    E15_03 --> E15_05
+    E15_03 --> E15_06
+    E6_07 --> E15_06
+    E15_12 --> E15_06
+    E15_03 --> E15_07
+    E15_12 --> E15_07
+    E15_07 --> E15_08
+    E15_07 --> E15_09
+    E15_08 --> E15_09
+    E15_09 --> E15_10
+    E15_12 --> E15_10
+    E15_04 --> E15_11
+    E15_05 --> E15_11
+    E15_10 --> E15_11
+    E11_05 --> E15_11
+    E15_11 --> E15_13
+    E15_12 --> E15_13
+    E15_06 --> E15_13
+    E7_14 --> E15_13
+    E10_06 --> E15_13
+    E11_07 --> E15_13
+    E4_05 --> E16_01
+    E7_03 --> E16_01
+    E16_04 --> E16_01
+    E16_01 --> E16_02
+    E16_02 --> E16_03
+    E10_02 --> E16_03
+    E16_02 --> E16_05
+    E15_03 --> E16_05
+    E15_04 --> E16_05
+    E16_02 --> E16_07
+    E16_06 --> E16_07
+    E12_06 --> E16_07
+    E16_07 --> E16_08
+    E16_05 --> E16_08
+    E3_01 --> E17_01
+    E17_01 --> E17_03
+    E10_02 --> E17_03
+    E10_03 --> E17_03
+    E17_03 --> E17_04
+    E17_02 --> E17_04
+    E7_03 --> E17_04
+    E12_06 --> E17_04
+    E10_02 --> E17_04
+    E10_03 --> E17_04
+    E17_03 --> E17_05
+    E4_02 --> E17_05
+    E4_05 --> E17_05
+    E3_03 --> E17_05
+    E3_05 --> E17_05
+    E10_02 --> E17_05
+    E10_03 --> E17_05
+    E17_05 --> E17_06
+    E4_03 --> E17_06
+    E10_02 --> E17_06
+    E17_05 --> E17_07
+    E8_01 --> E17_07
+    E8_02 --> E17_07
+    E8_05 --> E17_07
+    E10_02 --> E17_07
+    E10_03 --> E17_07
+    E17_05 --> E17_08
+    E14_03 --> E17_08
+    E14_06 --> E17_08
+    E7_03 --> E17_08
+    E10_02 --> E17_08
+    E10_03 --> E17_08
+    E17_05 --> E17_09
+    E17_08 --> E17_09
+    E15_01 --> E17_09
+    E15_03 --> E17_09
+    E15_04 --> E17_09
+    E15_05 --> E17_09
+    E15_11 --> E17_09
+    E16_05 --> E17_09
+    E11_05 --> E17_09
+    E10_02 --> E17_09
+    E10_03 --> E17_09
 ```
 
 ## Waves
@@ -714,6 +704,10 @@ These are exact topological layers of the JSON blockers, not estimates of calend
 - **Wave 25:** E15-10
 - **Wave 26:** E15-11
 - **Wave 27:** E15-13, E17-09
+
+## Owner decisions applied
+
+ADR 0011 (2026-11-09) answered E1-01, E1-05, E4-06, E6-05, E12-04, E16-04, E16-06 and the architecture/limits part of E17-02. E10-01 now blocks only the live promotion gate E10-06; AI tickets gate on repo fixtures until then. E17-03 no longer waits on E17-02.
 
 ## HITL owner questions
 

@@ -26,7 +26,8 @@
       "integration": "SECOND — Review ADR 0004, mail delivery and OS credential storage; attach redacted sandbox evidence and environment/owner identifiers, never credentials.",
       "unit": "THIRD — Check answer completeness against cited requirements; no executable implementation or live provider calls in this decision ticket."
     },
-    "size": "S"
+    "size": "S",
+    "decision": "docs/adr/0011-owner-decisions-2026-11-09.md"
   },
   {
     "id": "E1-02",
@@ -152,7 +153,8 @@
       "integration": "SECOND — Review privacy/terms, payment retention and backup policy conflicts; attach redacted sandbox evidence and environment/owner identifiers, never credentials.",
       "unit": "THIRD — Check answer completeness against cited requirements; no executable implementation or live provider calls in this decision ticket."
     },
-    "size": "S"
+    "size": "S",
+    "decision": "docs/adr/0011-owner-decisions-2026-11-09.md"
   },
   {
     "id": "E1-06",
@@ -335,8 +337,7 @@
     "blocked_by": [
       "E1-03",
       "E1-06",
-      "E7-03",
-      "E10-01"
+      "E7-03"
     ],
     "spec": [
       "openspec/specs/course-creation/spec.md",
@@ -703,8 +704,7 @@
     "blocked_by": [
       "E2-03",
       "E3-01",
-      "E7-03",
-      "E10-01"
+      "E7-03"
     ],
     "spec": [
       "openspec/specs/course-creation/spec.md",
@@ -895,7 +895,8 @@
       "integration": "SECOND — Review variant RPC proposal versus monetization A3 retry reuse; attach redacted sandbox evidence and environment/owner identifiers, never credentials.",
       "unit": "THIRD — Check answer completeness against cited requirements; no executable implementation or live provider calls in this decision ticket."
     },
-    "size": "S"
+    "size": "S",
+    "decision": "docs/adr/0011-owner-decisions-2026-11-09.md"
   },
   {
     "id": "E4-07",
@@ -1290,7 +1291,8 @@
       "integration": "SECOND — Review friend-day matching and E5 per-day protection reuse; attach redacted sandbox evidence and environment/owner identifiers, never credentials.",
       "unit": "THIRD — Check answer completeness against cited requirements; no executable implementation or live provider calls in this decision ticket."
     },
-    "size": "S"
+    "size": "S",
+    "decision": "docs/adr/0011-owner-decisions-2026-11-09.md"
   },
   {
     "id": "E6-06",
@@ -1442,8 +1444,7 @@
     "kind": "AFK",
     "blocked_by": [
       "E7-02",
-      "E12-02",
-      "E10-01"
+      "E12-02"
     ],
     "spec": [
       "openspec/specs/credits/spec.md",
@@ -1876,8 +1877,7 @@
     "blocked_by": [
       "E4-05",
       "E7-03",
-      "E1-06",
-      "E10-01"
+      "E1-06"
     ],
     "spec": [
       "openspec/specs/tutor-chat/spec.md",
@@ -2088,8 +2088,7 @@
     "kind": "AFK",
     "blocked_by": [
       "E9-01",
-      "E7-03",
-      "E10-01"
+      "E7-03"
     ],
     "spec": [
       "openspec/specs/quick-notes/spec.md",
@@ -2249,8 +2248,7 @@
     ],
     "kind": "AFK",
     "blocked_by": [
-      "E2-01",
-      "E10-01"
+      "E2-01"
     ],
     "spec": [
       "openspec/specs/ai-reliability/spec.md"
@@ -2389,7 +2387,8 @@
       "E10-02",
       "E10-03",
       "E10-04",
-      "E10-05"
+      "E10-05",
+      "E10-01"
     ],
     "spec": [
       "openspec/specs/ai-reliability/spec.md",
@@ -2770,7 +2769,8 @@
       "integration": "SECOND — Review 72-hour proposal, pricing_admin holders and conflicting override/margin language; attach redacted sandbox evidence and environment/owner identifiers, never credentials.",
       "unit": "THIRD — Check answer completeness against cited requirements; no executable implementation or live provider calls in this decision ticket."
     },
-    "size": "S"
+    "size": "S",
+    "decision": "docs/adr/0011-owner-decisions-2026-11-09.md"
   },
   {
     "id": "E12-05",
@@ -3109,8 +3109,7 @@
     "blocked_by": [
       "E3-02",
       "E4-01",
-      "E7-03",
-      "E10-01"
+      "E7-03"
     ],
     "spec": [
       "openspec/changes/product-rules-v1/specs/narration/spec.md",
@@ -3324,8 +3323,7 @@
       "E2-03",
       "E6-04",
       "E12-02",
-      "E4-02",
-      "E10-01"
+      "E4-02"
     ],
     "spec": [
       "openspec/changes/course-sharing-marketplace/specs/course-sharing/spec.md",
@@ -3561,8 +3559,7 @@
     ],
     "kind": "AFK",
     "blocked_by": [
-      "E15-07",
-      "E10-01"
+      "E15-07"
     ],
     "spec": [
       "openspec/changes/course-sharing-marketplace/specs/marketplace/spec.md"
@@ -3773,7 +3770,6 @@
     "blocked_by": [
       "E4-05",
       "E7-03",
-      "E10-01",
       "E16-04"
     ],
     "spec": [
@@ -3897,7 +3893,8 @@
       "integration": "SECOND — Review steering design questions 2–4 and current no-rejoin requirement; attach redacted sandbox evidence and environment/owner identifiers, never credentials.",
       "unit": "THIRD — Check answer completeness against cited requirements; no executable implementation or live provider calls in this decision ticket."
     },
-    "size": "S"
+    "size": "S",
+    "decision": "docs/adr/0011-owner-decisions-2026-11-09.md"
   },
   {
     "id": "E16-05",
@@ -3963,7 +3960,8 @@
       "integration": "SECOND — Review steering open question 1 and pricing-config approval rules; attach redacted sandbox evidence and environment/owner identifiers, never credentials.",
       "unit": "THIRD — Check answer completeness against cited requirements; no executable implementation or live provider calls in this decision ticket."
     },
-    "size": "S"
+    "size": "S",
+    "decision": "docs/adr/0011-owner-decisions-2026-11-09.md"
   },
   {
     "id": "E16-07",
@@ -4107,7 +4105,8 @@
       "integration": "SECOND — Review new Pricing config approval/version evidence, limits and original-art/age/accessibility evidence; downstream services/api/internal/characters/create_and_regenerate_a_quoted_private_character_integration_test.go must exercise the approved envelope. Attach redacted owner/environment evidence, never credentials.",
       "unit": "THIRD — Check answer completeness against ADR 0010 and design open questions; downstream services/api/internal/characters/edit_private_characters_and_choose_a_course_cast_test.go covers approved bounds. No executable implementation or live provider calls in this decision ticket."
     },
-    "size": "S"
+    "size": "S",
+    "decision_partial": "Architecture and limits decided in ADR 0011; character_create price and final default-cast art still open."
   },
   {
     "id": "E17-03",
@@ -4122,7 +4121,6 @@
     "kind": "AFK",
     "blocked_by": [
       "E17-01",
-      "E17-02",
       "E10-02",
       "E10-03"
     ],
