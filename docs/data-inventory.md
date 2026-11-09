@@ -135,3 +135,18 @@ cascade policies. No chat or profile text enters PostHog; analytics emits only e
 metadata and token counts (`$ai_generation`, `ui_control_activated`). Development pricing
 key `setup_chat` is inserted into immutable `pricing_versions` (`usd-dev-unapproved`,
 `approved=false`, 0 credits) with existing 7-year financial retention.
+
+E7-03 adds `credit_jobs` (quote, source owner pseudonym, job state, dates, deadline
+and finalized amounts), immutable `credit_allocations` (component/source holds),
+immutable `credit_usage` (content-free per-attempt provider/model/cache/token/
+character/fallback counters), `credit_cost_counters` (held and spent integer USD
+nanodollars), immutable `credit_artifacts` (opaque component delivery deduplication)
+and `credit_outbox` (deduplicated content-free financial events). These are
+financial records in encrypted nightly dumps, with 35-day backup rotation and
+seven-year database retention. Nonempty settled and pending jobs, every new table,
+exact balances and immutable rows are compared in the restore fixture. Postgres
+counters survive Redis/analytics loss and are never reconstructed from PostHog.
+Account export includes all six tables; deletion nulls the two learner FKs while
+retaining SHA-256 owner references, source links and the audit trail. Tombstones
+replay that same erasure after restore. No prompts or generated learner content
+are stored by this boundary. Device reservation state is disposable React state.

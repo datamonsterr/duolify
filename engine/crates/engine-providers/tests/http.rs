@@ -41,3 +41,28 @@ async fn parses_anthropic_stream() {
     ));
     assert!(stream.next().await.is_none());
 }
+
+#[tokio::test]
+async fn stream_retains_cache_classes() {
+    use futures::StreamExt;
+    let server = MockServer::start().await;
+    let events = "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":4,\"cache_creation_input_tokens\":6,\"cache_read_input_tokens\":9}}}\n\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":5}}\n\ndata: {\"type\":\"message_stop\"}\n\n";
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(events))
+        .mount(&server)
+        .await;
+    let provider = HttpProvider::anthropic("test".into(), server.uri());
+    let mut stream = provider.stream("m", "input").await.unwrap();
+    let engine_core::StreamEvent::Usage(usage) = stream.next().await.unwrap().unwrap() else {
+        panic!("missing usage")
+    };
+    assert_eq!(
+        (
+            usage.input_tokens,
+            usage.output_tokens,
+            usage.cache_write_tokens,
+            usage.cache_read_tokens
+        ),
+        (4, 5, 6, 9)
+    );
+}

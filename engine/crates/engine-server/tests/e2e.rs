@@ -35,6 +35,21 @@ async fn all_rpcs() {
         .preview_course(pb::PreviewCourseRequest {
             topic: "test".into(),
             learner: None,
+            limits: Some(pb::UsageLimits {
+                input_tokens: 2000,
+                output_tokens: 2500,
+                timeout_ms: 3000,
+                max_attempts: 2,
+                max_cost_nanos: 100000000,
+                input_nanos: 2000,
+                output_nanos: 10000,
+                cache_write_nanos: 2500,
+                cache_read_nanos: 100,
+                provider: "mock".into(),
+                model: "claude-sonnet-5-5".into(),
+                fallback_provider: "mock".into(),
+                fallback_model: "anthropic/claude-sonnet-5.5".into(),
+            }),
         })
         .await
         .unwrap()

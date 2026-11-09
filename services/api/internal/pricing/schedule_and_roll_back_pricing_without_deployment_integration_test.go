@@ -93,7 +93,7 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := read()
-	if before["version"] != "usd-launch-2026-11-08" || before["next_scheduled"] == nil {
+	if before["version"] != "usd-quotes-2026-11-09" || before["next_scheduled"] == nil {
 		t.Fatalf("scheduled response=%v", before)
 	}
 

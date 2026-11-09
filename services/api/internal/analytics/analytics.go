@@ -78,7 +78,7 @@ func allowlisted(event string) bool {
 		"$ai_generation", "ui_control_activated",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
-		"daily_credits_granted", "daily_credits_expired":
+		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":
 		return true
 	default:
 		return false
@@ -174,6 +174,9 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":
+		numeric("amount", "input_tokens", "output_tokens", "balance", "estimate")
+		ids("feature", "model", "pricing_version", "bucket")
 	case "daily_credits_granted", "daily_credits_expired":
 		numeric("amount")
 	case "backup_completed", "backup_failed", "restore_drill_completed":
@@ -187,7 +190,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
 		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available")
 		ids("$ai_provider", "$ai_model", "feature")
-		numeric("input_tokens", "output_tokens", "latency_ms", "attempt")
+		numeric("input_tokens", "output_tokens", "latency_ms", "attempt", "cache_write_tokens", "cache_read_tokens", "narration_characters", "provider_cost_nanos")
 		ids("provider", "model", "task", "pricing_version")
 		for legacy, canonical := range map[string]string{"input_tokens": "$ai_input_tokens", "output_tokens": "$ai_output_tokens", "latency_ms": "$ai_latency", "provider": "$ai_provider", "model": "$ai_model", "task": "feature"} {
 			if out[canonical] == nil && out[legacy] != nil {

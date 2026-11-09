@@ -100,6 +100,25 @@ func run() (result error) {
 	creditService := credits.NewServiceWithCatalogue(db.Pool, nil, catalogue, nil)
 	mux := http.NewServeMux()
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditService, Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"})}, logger))
+	mux.Handle("POST /test/credits/{id}/settle", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		limits, err := creditService.Limits(r.Context(), owner, r.PathValue("id"), "quick_note")
+		if err != nil {
+			result, e := creditService.Settle(r.Context(), owner, r.PathValue("id"), nil)
+			if e != nil {
+				w.WriteHeader(409)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(result)
+			return
+		}
+		result, err := creditService.Settle(r.Context(), owner, r.PathValue("id"), []*enginev1.Usage{{Provider: limits.Provider, Model: limits.Model, InputTokens: 100, OutputTokens: 20, Attempt: 1, Component: "content", Delivered: true}})
+		if err != nil {
+			w.WriteHeader(409)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(result)
+	})))
 	// Test-only controls bind to loopback in this disposable fixture binary.
 	mux.HandleFunc("GET /test/mail", func(w http.ResponseWriter, r *http.Request) {
 		webPort := os.Getenv("E2E_WEB_PORT")

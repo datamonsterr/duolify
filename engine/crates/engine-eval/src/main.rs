@@ -80,6 +80,8 @@ impl engine_core::LlmProvider for RecordedBrief {
             model: model.into(),
             input_tokens: 120,
             output_tokens: 8,
+            cache_write_tokens: 0,
+            cache_read_tokens: 0,
         })
     }
     async fn stream(&self, _model: &str, _input: &str) -> Result<engine_core::CompletionStream> {
@@ -126,6 +128,39 @@ async fn evaluate_brief(input: &serde_json::Value) -> Result<String> {
         );
     }
     Ok(value.to_string())
+}
+
+struct RecordedCredits(
+    std::sync::Mutex<std::collections::VecDeque<Option<engine_core::Completion>>>,
+);
+#[async_trait::async_trait]
+impl engine_core::LlmProvider for RecordedCredits {
+    fn name(&self) -> &'static str {
+        "recorded"
+    }
+    async fn complete(&self, _model: &str, _input: &str) -> Result<engine_core::Completion> {
+        self.0
+            .lock()
+            .unwrap()
+            .pop_front()
+            .flatten()
+            .context("recorded failure")
+    }
+    async fn stream(&self, _model: &str, _input: &str) -> Result<engine_core::CompletionStream> {
+        bail!("envelope fixture is not streaming")
+    }
+}
+async fn evaluate_credits(input: &serde_json::Value) -> Result<String> {
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input["recorded"].clone())?;
+    let provider = std::sync::Arc::new(RecordedCredits(std::sync::Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
+    let outcome = engine_core::credits::run(&router, "preview", "fixture", &limits).await;
+    Ok(match outcome {
+  Ok(o)=>serde_json::json!({"delivered":o.completion.is_some(),"attempt_count":o.attempts.len(),"fallback_used":o.attempts.iter().any(|a|a.fallback_used),"usage_unavailable":o.attempts.iter().any(|a|a.usage_unavailable),"attempts":o.attempts}),
+  Err(_)=>serde_json::json!({"rejected":true,"delivered":false,"attempt_count":0})
+ }.to_string())
 }
 
 #[tokio::main]
@@ -185,7 +220,9 @@ async fn main() -> Result<()> {
     println!("selected {} of {total} cases", cases.len());
     let mut results = Vec::new();
     for case in cases {
-        let response_text = if case.task == "course_brief_chat" && provider == "mock" {
+        let response_text = if case.task == "credit_envelope" && provider == "mock" {
+            evaluate_credits(&case.input).await?
+        } else if case.task == "course_brief_chat" && provider == "mock" {
             evaluate_brief(&case.input).await?
         } else {
             router

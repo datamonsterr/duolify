@@ -7,3 +7,11 @@ Create a dataset on Hugging Face and upload `golden.jsonl` at its root. Set `HF_
 Live evaluations accept `--limit <N>` or `EVAL_SAMPLE_LIMIT=N` to run a small sample. The command-line flag takes precedence over the environment variable. Cases are sorted by `id` before selecting the first N, so the sample is deterministic. An unset limit or `0` runs all cases; values larger than the dataset also run all cases. The runner logs the selected and total case counts. For example, `EVAL_SAMPLE_LIMIT=2 mise run engine:eval-live` evaluates two cases.
 
 E2-06 adds `course_brief_chat` cases. Offline brief cases contain a `recorded` array of classifier JSON responses (or `null` for a failed provider attempt) and run the production stateless brief processor, including schema validation, attempt/USD bounds and deterministic field mapping. `path_equals` uses a JSON-encoded `{ "path": "brief.topic", "expected": "..." }` value to assert exact fields, empty context, bounded follow-ups, confirmation invalidation and terminal form fallback. No provider network call is made in mock mode. Publish these same cases at a pinned `datamonsterr/duolify-golden` revision after E10-01 owner provisioning; E10-06 gates live promotion.
+
+E7-03 `credit_envelope` recorded fixtures execute the production bounded provider
+runner with API-owned limits. They cover uncached/cache-write/cache-read usage,
+malformed output, unknown failed-attempt usage, fallback and cap exhaustion.
+Quote-version pinning, local-midnight release and financial backup invariants run
+against Postgres in the credits integration/restore suites. Publish these fixture
+rows to the pinned `datamonsterr/duolify-golden` revision when E10-01 is provisioned;
+no live promotion is enabled by this ticket.

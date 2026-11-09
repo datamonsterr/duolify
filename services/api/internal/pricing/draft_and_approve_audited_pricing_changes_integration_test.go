@@ -68,6 +68,10 @@ func TestPricingAdminAuditRolesAndVersionImmutability(t *testing.T) {
 			t.Fatalf("sole-owner %s status=%d body=%s", op, status, response)
 		}
 	}
+	var inherited bool
+	if err = db.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pricing_quote_policies child JOIN pricing_drafts d ON d.version=child.version JOIN pricing_quote_policies parent ON parent.version=d.parent_version WHERE child.version='usd-owner-integration' AND child.policy=parent.policy)`).Scan(&inherited); err != nil || !inherited {
+		t.Fatalf("approved quote policy not pinned: %v %v", inherited, err)
+	}
 	if _, err = db.Pool.Exec(ctx, `INSERT INTO pricing_audit(actor_id,action,version,change_class,reason,request_id) VALUES(repeat('a',64),'draft_created','synthetic-version','non_adverse','restore fixture','request-fixture')`); err != nil {
 		t.Fatal(err)
 	}

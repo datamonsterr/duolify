@@ -94,3 +94,18 @@ PostHog is a derived store and MUST NOT be the only copy of any product state. E
 - **WHEN** an action quote is displayed or renewed
 - **THEN** `pricing_version_exposed` uses surface `quote` and the quote's original version, deduplicated by authenticated session, surface and version; common UUID/platform/app_version/source properties are present and opt-out prevents delivery
 - **AND** action input, learner text, model mappings and quote payloads are excluded
+
+### Requirement: Versioned financial job event catalogue
+The API event catalogue SHALL include `credits_reserved`, `credits_settled`,
+`credits_released`, `credits_insufficient` and `credits_exhausted` with feature,
+amount, balance, estimate, bucket and pricing_version, and `$ai_generation` with provider, model, attempt,
+input/output/cache-write/cache-read token counts, newly synthesized character
+count, latency, provider_cost_nanos, fallback_used and usage_available. A transactionally unique outbox
+key SHALL prevent repeated operation events. Delivery SHALL use the existing
+nonblocking wrapper, honor learner/global opt-out, carry Learner UUID/common
+properties, and exclude prompt/completion/profile/note/chat text. Operational
+cost and concurrency state SHALL remain independent of event delivery.
+
+#### Scenario: Repeated settlement
+- **WHEN** a worker repeats finalization after a network interruption
+- **THEN** one financial outcome and one set of per-attempt events exist

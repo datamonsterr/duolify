@@ -209,6 +209,9 @@ test("breakpoints and safe area reserve the full tab height at 200% text", async
     ).toBeVisible({ visible: rail });
   }
   await page.setViewportSize({ width: 320, height: 740 });
+  // The responsive hook mounts mobile tabs on its media-query notification.
+  // Wait for that committed layout before measuring both regions at 200% text.
+  await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "200%";
   });

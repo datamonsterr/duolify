@@ -12,6 +12,8 @@ import (
 	"time"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -90,6 +92,8 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("POST /v1/quotes/{id}/accept", deps.Quotes)
 	}
 	if deps.Credits != nil && deps.Accounts != nil {
+		mux.Handle("POST /v1/quotes/{id}/reserve", deps.Accounts.Protect(deps.Credits))
+		mux.Handle("POST /v1/credits/reservations/{id}/release", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("GET /v1/me/credits", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("GET /v1/me/credits/activity", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("GET /v1/credits/wallet", deps.Accounts.Protect(deps.Credits))
@@ -151,7 +155,54 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "engine unavailable"})
 			return
 		}
-		response, err := deps.Engine.PreviewCourse(r.Context(), request)
+		financial, ok := deps.Credits.(interface {
+			ReserveAction(context.Context, string, string, string) (credits.Reservation, error)
+			Limits(context.Context, string, string, string) (*enginev1.UsageLimits, error)
+			Claim(context.Context, string, string) error
+			Settle(context.Context, string, string, []*enginev1.Usage) (credits.Reservation, error)
+		})
+		if !ok {
+			writeJSON(w, 503, map[string]string{"error": "credit reservation unavailable"})
+			return
+		}
+		owner := accounts.LearnerID(r.Context())
+		job, err := financial.ReserveAction(r.Context(), owner, r.Header.Get("X-Quote-ID"), "preview")
+		if err != nil {
+			writeJSON(w, 409, map[string]string{"error": "accepted eligible quote required"})
+			return
+		}
+		if job.State != "reserved" {
+			writeJSON(w, 409, map[string]string{"error": "quote already finalized"})
+			return
+		}
+		// API overwrites any caller-supplied bounds and learner identity.
+		request.Limits, err = financial.Limits(r.Context(), owner, job.ID, "preview")
+		if err != nil {
+			writeJSON(w, 409, map[string]string{"error": "quote bounds unavailable"})
+			return
+		}
+		request.Learner = &enginev1.LearnerProfile{LearnerId: owner}
+		if err = financial.Claim(r.Context(), owner, job.ID); err != nil {
+			writeJSON(w, 409, map[string]string{"error": "job already started"})
+			return
+		}
+		providerCtx, cancel := context.WithTimeout(r.Context(), time.Duration(request.Limits.TimeoutMs)*time.Millisecond)
+		defer cancel()
+		response, err := deps.Engine.PreviewCourse(providerCtx, request)
+		var attempts []*enginev1.Usage
+		if response != nil {
+			attempts = response.Attempts
+		}
+		finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(r.Context()), time.Duration(request.Limits.TimeoutMs)*time.Millisecond)
+		defer finishCancel()
+		if _, finishErr := financial.Settle(finishCtx, owner, job.ID, attempts); finishErr != nil {
+			writeJSON(w, 502, map[string]string{"error": "usage verification failed"})
+			return
+		}
+		if err == nil && (response == nil || response.Unavailable) {
+			writeJSON(w, 502, map[string]string{"error": "engine preview unavailable"})
+			return
+		}
 		if err != nil {
 			code := http.StatusBadGateway
 			if errors.Is(err, context.DeadlineExceeded) || status.Code(err) == codes.DeadlineExceeded {

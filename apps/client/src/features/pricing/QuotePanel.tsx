@@ -1,3 +1,4 @@
+import { ReservationPanel } from "../credits/ReservationPanel";
 import { useEffect, useState } from "react";
 import { Button } from "../design/Button";
 import { exposePricing } from "../../lib/analytics";
@@ -120,7 +121,10 @@ export function QuotePanel({
           {quote.input?.voice && <p>Voice: {quote.input.voice}</p>}
           <p>Expires: {new Date(quote.expires_at).toLocaleString()}</p>
           {quote.accepted ? (
-            <p role="status">Terms accepted · original version retained.</p>
+            <>
+              <p role="status">Terms accepted · original version retained.</p>
+              <ReservationPanel key={quote.id} quoteId={quote.id} />
+            </>
           ) : expired ? (
             <p role="alert">
               Quote expired. Renew and review before accepting.

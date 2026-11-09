@@ -592,6 +592,13 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES($1,$2,true,$3::jsonb)`, version, parsed.EffectiveFrom, cfg)
 	if err == nil {
+		command, policyErr := tx.Exec(ctx, `INSERT INTO pricing_quote_policies(version,policy) SELECT $1,p.policy FROM pricing_drafts d JOIN pricing_quote_policies p ON p.version=d.parent_version WHERE d.version=$1`, version)
+		err = policyErr
+		if err == nil && command.RowsAffected() != 1 {
+			err = errors.New("quote policy missing from pricing ancestry")
+		}
+	}
+	if err == nil {
 		_, err = tx.Exec(ctx, `UPDATE pricing_drafts SET status='approved',reviewed_by=$2,reviewed_at=now() WHERE version=$1`, version, actor)
 	}
 	if err == nil {

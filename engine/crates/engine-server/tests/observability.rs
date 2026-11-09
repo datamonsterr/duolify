@@ -90,6 +90,7 @@ async fn grpc_spans_correlate_failures_and_stream_polling_without_text() {
         .preview_course(correlated(pb::PreviewCourseRequest {
             topic: "private-prompt".into(),
             learner: None,
+            limits: None,
         }))
         .await
         .unwrap_err();

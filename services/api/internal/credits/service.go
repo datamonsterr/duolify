@@ -336,6 +336,8 @@ func (s *Service) SetStore(store LedgerStore) {
 }
 
 func (s *Service) registerRoutes() {
+	s.mux.HandleFunc("POST /v1/quotes/{id}/reserve", s.handleReserve)
+	s.mux.HandleFunc("POST /v1/credits/reservations/{id}/release", s.handleRelease)
 	s.mux.HandleFunc("GET /v1/me/credits", s.handleGetWallet)
 	s.mux.HandleFunc("GET /v1/me/credits/activity", s.handleGetActivity)
 	s.mux.HandleFunc("GET /v1/credits/wallet", s.handleGetWallet)
@@ -405,6 +407,13 @@ func (s *Service) EnsureDailyGrant(ctx context.Context, learnerID string, now ti
 		return nil, errors.New("pricing catalogue not configured")
 	}
 	cfg := s.catalogue.Config()
+	if s.pool() != nil {
+		active, err := pricing.Load(ctx, dbsql.New(s.pool()))
+		if err != nil {
+			return nil, err
+		}
+		cfg = active.Config()
+	}
 	if cfg.DailyFree.Credits <= 0 {
 		return nil, errors.New("daily free credits disabled in pricing catalogue")
 	}
@@ -493,6 +502,9 @@ func (s *Service) EnsureDailyGrant(ctx context.Context, learnerID string, now ti
 
 // ExpireDailyCredits finds past-day unexpired daily grants and expires unreserved remainders.
 func (s *Service) ExpireDailyCredits(ctx context.Context, asOf time.Time) (int, error) {
+	if s.pool() != nil {
+		return s.expirePostgres(ctx, asOf)
+	}
 	if s.store == nil {
 		return 0, nil
 	}

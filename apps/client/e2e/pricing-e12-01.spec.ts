@@ -2,6 +2,28 @@ import { apiBase } from "./servers";
 import { test, expect } from "./accounts-fixture";
 test.use({ hasTouch: true });
 
+test.beforeEach(async ({ page }) => {
+  // Price-guide empty-state assertions use authored wallet state, independently
+  // of the real daily-grant and reservation tests in the credits suite.
+  await page.route("**/v1/me/credits", (route) =>
+    route.fulfill({
+      json: {
+        available: 46,
+        daily_free: {
+          available: 46,
+          granted: 46,
+          resets_at: "2026-11-10T00:00:00Z",
+          timezone: "UTC",
+        },
+        purchased: 0,
+        subscription: 0,
+        reserved: 0,
+        recent_activity: [],
+      },
+    }),
+  );
+});
+
 for (const width of [1280, 390, 320]) {
   test(`server pricing and recovery parity at ${width}px`, async ({
     page,
@@ -122,7 +144,7 @@ test("loading, stale offline version and long content remain readable", async ({
   );
   await page.reload();
   await expect(
-    page.getByText(/Offline · Last known prices · usd-launch-2026-11-08/),
+    page.getByText(/Offline · Last known prices · usd-quotes-2026-11-09/),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Try again" })).toBeEnabled();
   await page.getByRole("button", { name: "Browse prices" }).tap();

@@ -14,6 +14,10 @@ import (
 )
 
 func signedIn(t *testing.T) (*accounts.Service, string) {
+	auth, token, _ := signedInDatabase(t)
+	return auth, token
+}
+func signedInDatabase(t *testing.T) (*accounts.Service, string, *store.Store) {
 	t.Helper()
 	ctx := t.Context()
 	container, err := postgres.Run(ctx, "postgres:18", postgres.WithDatabase("duolify"), postgres.WithUsername("duolify"), postgres.WithPassword("test-only"), postgres.BasicWaitStrategies())
@@ -55,5 +59,5 @@ func signedIn(t *testing.T) (*accounts.Service, string) {
 	if err := json.Unmarshal(w.Body.Bytes(), &tokens); err != nil {
 		t.Fatal(err)
 	}
-	return auth, tokens.AccessToken
+	return auth, tokens.AccessToken, db
 }

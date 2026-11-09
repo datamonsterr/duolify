@@ -16,6 +16,9 @@ fn usage(c: &Completion) -> Option<pb::Usage> {
         input_tokens: c.input_tokens,
         output_tokens: c.output_tokens,
         latency_ms: 0,
+        cache_write_tokens: c.cache_write_tokens,
+        cache_read_tokens: c.cache_read_tokens,
+        ..Default::default()
     })
 }
 fn content(c: &Completion) -> Result<serde_json::Value, Status> {
@@ -112,17 +115,78 @@ impl EngineService for Service {
         request: Request<pb::PreviewCourseRequest>,
     ) -> Result<Response<pb::PreviewCourseResponse>, Status> {
         let req = request.into_inner();
-        let c = self
+        let bounds = req
+            .limits
+            .as_ref()
+            .ok_or_else(|| Status::invalid_argument("API quote bounds required"))?;
+        let model = self
             .router
-            .complete("preview", &format!("{req:?}"))
+            .models
+            .tasks
+            .get("preview")
+            .ok_or_else(|| Status::failed_precondition("route unavailable"))?;
+        if bounds.model != model.model
+            || bounds.fallback_model != model.fallback_model
+            || bounds.provider != self.router.primary.name()
+            || bounds.fallback_provider != self.router.fallback.name()
+        {
+            return Err(Status::failed_precondition(
+                "quote route differs from evaluated route",
+            ));
+        }
+        let limits = engine_core::credits::Limits {
+            input_tokens: bounds.input_tokens,
+            output_tokens: bounds.output_tokens,
+            timeout_ms: bounds.timeout_ms,
+            max_attempts: bounds.max_attempts,
+            max_cost_nanos: bounds.max_cost_nanos,
+            input_nanos: bounds.input_nanos,
+            output_nanos: bounds.output_nanos,
+            cache_write_nanos: bounds.cache_write_nanos,
+            cache_read_nanos: bounds.cache_read_nanos,
+        };
+        let mut outcome = engine_core::credits::run(&self.router, "preview", &req.topic, &limits)
             .await
-            .map_err(internal)?;
+            .map_err(|_| Status::invalid_argument("invalid API envelope"))?;
+        let parsed = outcome
+            .completion
+            .as_ref()
+            .and_then(|c| Some((outline(c).ok()?, slides(c).ok()?)));
+        if parsed.is_none() {
+            for attempt in &mut outcome.attempts {
+                attempt.delivered = false
+            }
+        }
+        let attempts = outcome
+            .attempts
+            .iter()
+            .map(|a| pb::Usage {
+                provider: a.provider.clone(),
+                model: a.model.clone(),
+                input_tokens: a.input_tokens,
+                output_tokens: a.output_tokens,
+                cache_write_tokens: a.cache_write_tokens,
+                cache_read_tokens: a.cache_read_tokens,
+                latency_ms: a.latency_ms,
+                attempt: a.attempt,
+                fallback_used: a.fallback_used,
+                component: "content".into(),
+                delivered: a.delivered,
+                usage_unavailable: a.usage_unavailable,
+                ..Default::default()
+            })
+            .collect();
+        let (sample_outline, example_slides) =
+            parsed.map(|(o, s)| (Some(o), s)).unwrap_or_default();
         Ok(Response::new(pb::PreviewCourseResponse {
-            sample_outline: Some(outline(&c)?),
-            example_slides: slides(&c)?,
-            usage: usage(&c),
+            unavailable: sample_outline.is_none(),
+            sample_outline,
+            example_slides,
+            usage: outcome.completion.as_ref().and_then(usage),
+            attempts,
         }))
     }
+
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
     async fn generate_course_outline(
         &self,
@@ -436,6 +500,7 @@ impl EngineService for Service {
                 input_tokens: 100,
                 output_tokens: 50,
                 latency_ms: 0,
+                ..Default::default()
             }),
         }))
     }

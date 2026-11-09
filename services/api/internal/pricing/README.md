@@ -86,3 +86,19 @@ no reason text or pricing document in event properties.
 
 Official PostgreSQL 18 documentation consulted for the migration's built-in
 SHA-256 pseudonym function: https://www.postgresql.org/docs/18/functions-binarystring.html.
+
+E7-03 activates successor `usd-quotes-2026-11-09` with unchanged commercial
+prices, a configured five-minute quote TTL and bounded primary/fallback policy.
+After consent, `POST /v1/quotes/{id}/reserve` atomically holds eligible source
+Credits and operational USD with an idempotent provider job. Only pending work
+can be cancelled via `POST /v1/credits/reservations/{id}/release`. Settlements
+consume trusted gRPC attempts internally; there is no client settlement route.
+The existing preview API requires `X-Quote-ID`, claims one job, overrides client
+bounds with the pinned envelope, and releases failed/undelivered components.
+Workers must follow ReserveAction → Limits → Claim → provider → Settle and pass
+all failed attempts as well as the delivered attempt. Cached artifact usage is
+zero; repeated artifact IDs cannot incur another component charge. Started jobs
+with missing/invalid usage conservatively consume their operational hold while
+releasing undelivered customer Credits. Reaping survives process restarts.
+Postgres remains authoritative if Redis or analytics is unavailable; financial
+outbox events use per-learner opt-out and the existing nonblocking wrapper.

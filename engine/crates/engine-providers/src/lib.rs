@@ -105,12 +105,33 @@ impl LlmProvider for HttpProvider {
                 "input_tokens"
             } else {
                 "prompt_tokens"
+            })
+            .saturating_sub(if self.anthropic {
+                0
+            } else {
+                usage["prompt_tokens_details"]["cached_tokens"]
+                    .as_u64()
+                    .and_then(|n| u32::try_from(n).ok())
+                    .unwrap_or(0)
             }),
             output_tokens: count(if self.anthropic {
                 "output_tokens"
             } else {
                 "completion_tokens"
             }),
+            cache_write_tokens: if self.anthropic {
+                count("cache_creation_input_tokens")
+            } else {
+                0
+            },
+            cache_read_tokens: if self.anthropic {
+                count("cache_read_input_tokens")
+            } else {
+                usage["prompt_tokens_details"]["cached_tokens"]
+                    .as_u64()
+                    .and_then(|n| u32::try_from(n).ok())
+                    .unwrap_or(0)
+            },
         })
     }
     async fn stream(&self, model: &str, input: &str) -> Result<CompletionStream> {
@@ -128,9 +149,20 @@ impl LlmProvider for HttpProvider {
                 false,
                 0_u32,
                 0_u32,
+                0_u32,
+                0_u32,
                 false,
             ),
-            move |(mut bytes, mut buffer, mut done, mut input, mut output, mut emitted)| {
+            move |(
+                mut bytes,
+                mut buffer,
+                mut done,
+                mut input,
+                mut output,
+                mut write,
+                mut read,
+                mut emitted,
+            )| {
                 let model = model.clone();
                 async move {
                     loop {
@@ -140,7 +172,7 @@ impl LlmProvider for HttpProvider {
                                 Err(e) => {
                                     return Some((
                                         Err(e.into()),
-                                        (bytes, buffer, true, input, output, emitted),
+                                        (bytes, buffer, true, input, output, write, read, emitted),
                                     ));
                                 }
                             };
@@ -155,19 +187,32 @@ impl LlmProvider for HttpProvider {
                                     Err(e) => {
                                         return Some((
                                             Err(e.into()),
-                                            (bytes, buffer, true, input, output, emitted),
+                                            (
+                                                bytes, buffer, true, input, output, write, read,
+                                                emitted,
+                                            ),
                                         ));
                                     }
                                 };
                                 if v["type"] == "error" || !v["error"].is_null() {
                                     return Some((
                                         Err(anyhow::anyhow!("provider stream error")),
-                                        (bytes, buffer, true, input, output, true),
+                                        (bytes, buffer, true, input, output, write, read, true),
                                     ));
                                 }
                                 let count =
                                     |v: &Value| v.as_u64().and_then(|n| u32::try_from(n).ok());
                                 if anthropic {
+                                    if let Some(n) =
+                                        count(&v["message"]["usage"]["cache_creation_input_tokens"])
+                                    {
+                                        write = n
+                                    }
+                                    if let Some(n) =
+                                        count(&v["message"]["usage"]["cache_read_input_tokens"])
+                                    {
+                                        read = n
+                                    }
                                     if let Some(n) = count(&v["message"]["usage"]["input_tokens"]) {
                                         input = n;
                                     }
@@ -178,6 +223,11 @@ impl LlmProvider for HttpProvider {
                                         done = true;
                                     }
                                 } else {
+                                    if let Some(n) =
+                                        count(&v["usage"]["prompt_tokens_details"]["cached_tokens"])
+                                    {
+                                        read = n
+                                    }
                                     if let Some(n) = count(&v["usage"]["prompt_tokens"]) {
                                         input = n;
                                     }
@@ -193,7 +243,7 @@ impl LlmProvider for HttpProvider {
                                 if let Some(text) = delta {
                                     return Some((
                                         Ok(StreamEvent::Delta(text.to_owned())),
-                                        (bytes, buffer, done, input, output, emitted),
+                                        (bytes, buffer, done, input, output, write, read, emitted),
                                     ));
                                 }
                             }
@@ -206,12 +256,18 @@ impl LlmProvider for HttpProvider {
                                 text: String::new(),
                                 provider: if anthropic { "anthropic" } else { "openrouter" }.into(),
                                 model,
-                                input_tokens: input,
+                                input_tokens: if anthropic {
+                                    input
+                                } else {
+                                    input.saturating_sub(read)
+                                },
                                 output_tokens: output,
+                                cache_write_tokens: write,
+                                cache_read_tokens: read,
                             };
                             return Some((
                                 Ok(StreamEvent::Usage(usage)),
-                                (bytes, buffer, done, input, output, emitted),
+                                (bytes, buffer, done, input, output, write, read, emitted),
                             ));
                         } else {
                             match bytes.next().await {
@@ -219,7 +275,7 @@ impl LlmProvider for HttpProvider {
                                 Some(Err(e)) => {
                                     return Some((
                                         Err(e.into()),
-                                        (bytes, buffer, true, input, output, true),
+                                        (bytes, buffer, true, input, output, write, read, true),
                                     ));
                                 }
                                 None => {
@@ -227,7 +283,7 @@ impl LlmProvider for HttpProvider {
                                         Err(anyhow::anyhow!(
                                             "provider stream ended before completion"
                                         )),
-                                        (bytes, Vec::new(), true, input, output, true),
+                                        (bytes, Vec::new(), true, input, output, write, read, true),
                                     ));
                                 }
                             }

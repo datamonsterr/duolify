@@ -77,6 +77,31 @@ type CourseBriefRevision struct {
 	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
 }
 
+type CreditAllocation struct {
+	ID        int64       `json:"id"`
+	JobID     pgtype.UUID `json:"job_id"`
+	SourceID  int64       `json:"source_id"`
+	Component string      `json:"component"`
+	Bucket    string      `json:"bucket"`
+	GrantDate string      `json:"grant_date"`
+	Amount    int64       `json:"amount"`
+}
+
+type CreditArtifact struct {
+	OwnerReference string      `json:"owner_reference"`
+	ArtifactID     string      `json:"artifact_id"`
+	Component      string      `json:"component"`
+	JobID          pgtype.UUID `json:"job_id"`
+}
+
+type CreditCostCounter struct {
+	Scope          string      `json:"scope"`
+	OwnerReference string      `json:"owner_reference"`
+	Day            pgtype.Date `json:"day"`
+	HeldNanos      int64       `json:"held_nanos"`
+	SpentNanos     int64       `json:"spent_nanos"`
+}
+
 type CreditEntry struct {
 	ID             int64              `json:"id"`
 	LearnerID      pgtype.UUID        `json:"learner_id"`
@@ -89,6 +114,31 @@ type CreditEntry struct {
 	Provenance     []byte             `json:"provenance"`
 }
 
+type CreditJob struct {
+	ID             pgtype.UUID        `json:"id"`
+	QuoteID        pgtype.UUID        `json:"quote_id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	OwnerReference string             `json:"owner_reference"`
+	State          string             `json:"state"`
+	LocalDate      pgtype.Date        `json:"local_date"`
+	PlatformDate   pgtype.Date        `json:"platform_date"`
+	HeldNanos      int64              `json:"held_nanos"`
+	Result         []byte             `json:"result"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	DeadlineAt     pgtype.Timestamptz `json:"deadline_at"`
+	FinishedAt     pgtype.Timestamptz `json:"finished_at"`
+}
+
+type CreditOutbox struct {
+	EventKey       string             `json:"event_key"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	OwnerReference string             `json:"owner_reference"`
+	Event          string             `json:"event"`
+	Properties     []byte             `json:"properties"`
+	DispatchedAt   pgtype.Timestamptz `json:"dispatched_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type CreditTimezone struct {
 	ID             int64              `json:"id"`
 	LearnerID      pgtype.UUID        `json:"learner_id"`
@@ -96,6 +146,13 @@ type CreditTimezone struct {
 	TimeZone       string             `json:"time_zone"`
 	EffectiveAt    pgtype.Timestamptz `json:"effective_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditUsage struct {
+	JobID     pgtype.UUID        `json:"job_id"`
+	Usage     []byte             `json:"usage"`
+	CostNanos int64              `json:"cost_nanos"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type Learner struct {

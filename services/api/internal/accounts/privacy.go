@@ -15,6 +15,12 @@ import (
 
 // ClassifiedLearnerTables lists every table holding learner data and its retention policy.
 var ClassifiedLearnerTables = map[string]string{
+	"credit_allocations":            "financial_retained_via_job",
+	"credit_usage":                  "financial_retained_via_job",
+	"credit_cost_counters":          "financial_retained_pseudonymous",
+	"credit_artifacts":              "financial_retained_pseudonymous",
+	"credit_jobs":                   "financial_retained_anonymized",
+	"credit_outbox":                 "financial_retained_anonymized",
 	"course_brief_revisions":        "erased",
 	"learner_profiles":              "erased",
 	"auth_identities":               "erased",
@@ -64,6 +70,15 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		{table: "pricing_quotes", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',q.id,'pricing_version',q.pricing_version,'snapshot',q.snapshot,'created_at',q.created_at,'expires_at',q.expires_at,'accepted_at',c.accepted_at)),'[]'::jsonb) FROM pricing_quotes q LEFT JOIN pricing_quote_consents c ON c.quote_id=q.id WHERE q.learner_id=$1`},
 		{table: "pricing_admin_grants", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('account_id',account_id,'granted_at',granted_at)),'[]'::jsonb) FROM pricing_admin_grants WHERE account_id=$1`},
 		{table: "credit_timezones", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'time_zone',time_zone,'effective_at',effective_at,'created_at',created_at)),'[]'::jsonb) FROM credit_timezones WHERE learner_id=$1`},
+	}
+	for _, table := range []string{"credit_jobs", "credit_outbox"} {
+		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM " + table + " t WHERE learner_id=$1"})
+	}
+	for _, table := range []string{"credit_allocations", "credit_usage"} {
+		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM " + table + " t JOIN credit_jobs j ON j.id=t.job_id WHERE j.learner_id=$1"})
+	}
+	for _, table := range []string{"credit_cost_counters", "credit_artifacts"} {
+		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM " + table + " t WHERE owner_reference=encode(sha256(convert_to($1::text,'UTF8')),'hex')"})
 	}
 	for _, item := range queries {
 		var raw []byte

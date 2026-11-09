@@ -13,13 +13,17 @@ pub struct Model {
     pub model: String,
     pub fallback_model: String,
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Completion {
     pub text: String,
     pub provider: String,
     pub model: String,
     pub input_tokens: u32,
     pub output_tokens: u32,
+    #[serde(default)]
+    pub cache_write_tokens: u32,
+    #[serde(default)]
+    pub cache_read_tokens: u32,
 }
 #[derive(Debug, Clone)]
 pub enum StreamEvent {
@@ -180,6 +184,8 @@ impl LlmProvider for MockProvider {
             model: model.into(),
             input_tokens: 0,
             output_tokens: 0,
+            cache_write_tokens: 0,
+            cache_read_tokens: 0,
         })
     }
     async fn stream(&self, model: &str, _: &str) -> Result<CompletionStream> {
@@ -189,6 +195,8 @@ impl LlmProvider for MockProvider {
             model: model.into(),
             input_tokens: 0,
             output_tokens: 0,
+            cache_write_tokens: 0,
+            cache_read_tokens: 0,
         };
         Ok(Box::pin(futures::stream::iter(vec![
             Ok(StreamEvent::Delta("Sample response".into())),
@@ -199,6 +207,7 @@ impl LlmProvider for MockProvider {
 pub mod accounts;
 pub mod backup;
 pub mod courses;
+pub mod credits;
 pub mod slide;
 #[cfg(test)]
 mod tests;

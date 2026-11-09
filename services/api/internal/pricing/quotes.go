@@ -30,6 +30,9 @@ type ModelRate struct {
 
 // QuotePolicy is immutable Pricing config data owned by its version.
 type QuotePolicy struct {
+	FreeConcurrency           int64                `json:"free_concurrency"`
+	MaxAttempts               int64                `json:"max_attempts"`
+	FallbackModels            map[string]string    `json:"fallback_models"`
 	TTLSeconds                int64                `json:"ttl_seconds"`
 	USDNanosPerCredit         int64                `json:"usd_nanos_per_credit"`
 	AudioUSDNanosPerCharacter int64                `json:"audio_usd_nanos_per_character"`
@@ -56,6 +59,7 @@ type Quote struct {
 	PricingVersion       string           `json:"pricing_version"`
 	Action               string           `json:"action"`
 	Currency             string           `json:"currency"`
+	ContentMinimum       int64            `json:"content_minimum"`
 	ContentCeiling       int64            `json:"content_ceiling"`
 	AudioCeiling         int64            `json:"audio_ceiling"`
 	DailyFreeEligible    bool             `json:"daily_free_eligible"`
@@ -112,6 +116,9 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 		return q, errQuote
 	}
 	q.Bounds["input_tokens"], q.Bounds["output_tokens"] = maxInput, maxOutput
+	if key == "tutor" {
+		q.Bounds["input_tokens"] += q.Bounds["cached_context_tokens"]
+	}
 	if in.InputTokens > maxInput || in.OutputTokens > maxOutput {
 		return q, errQuote
 	}
@@ -164,10 +171,42 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 		return q, errQuote
 	}
 	q.ContentCeiling = int64(action.Credits)
+	q.ContentMinimum = int64(action.Credits)
 	if in.Action == "narration" {
 		q.ContentCeiling = 0
 	}
+	var operational struct {
+		Job           float64 `json:"generation_usd_per_request"`
+		Free          float64 `json:"free_learner_usd_per_local_day"`
+		Paid          float64 `json:"paid_learner_usd_per_local_day"`
+		Platform      float64 `json:"platform_usd_per_day"`
+		Deadline      int64   `json:"generation_deadline_seconds"`
+		ChatDeadline  int64   `json:"tutor_note_deadline_seconds"`
+		AudioDeadline int64   `json:"tts_deadline_seconds"`
+		Concurrency   int64   `json:"free_concurrent_generation"`
+	}
+	if json.Unmarshal(c.Limits, &operational) != nil {
+		return q, errQuote
+	}
+	q.Bounds["max_cost_nanos"] = int64(operational.Job * 1e9)
+	q.Bounds["free_day_nanos"] = int64(operational.Free * 1e9)
+	q.Bounds["paid_day_nanos"] = int64(operational.Paid * 1e9)
+	q.Bounds["platform_day_nanos"] = int64(operational.Platform * 1e9)
+	q.Bounds["concurrency"] = operational.Concurrency
+	if q.Bounds["concurrency"] == 0 {
+		q.Bounds["concurrency"] = p.FreeConcurrency
+	}
+	q.Bounds["max_attempts"] = p.MaxAttempts
+	deadline := operational.Deadline
+	if key == "tutor" || key == "quick_note" {
+		deadline = operational.ChatDeadline
+	}
+	if in.Action == "narration" {
+		deadline = operational.AudioDeadline
+	}
+	q.Bounds["timeout_ms"] = deadline * 1000
 	q.Input = in
+	q.Bounds["narration_characters"] = in.NarrationCharacters
 	q.NarrationNumerator = int64(c.Narration.Credits)
 	q.NarrationDenominator = int64(c.Narration.Characters)
 	q.DailyFreeEligible = slices.Contains(c.DailyFree.EligibleActions, in.Action)

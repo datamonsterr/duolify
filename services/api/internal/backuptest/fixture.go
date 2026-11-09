@@ -24,10 +24,12 @@ import (
 	"filippo.io/age"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/backupadmin"
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
@@ -318,6 +320,30 @@ func (f *Fixture) Seed(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	catalogue, err := pricing.Load(t.Context(), f.DB.Queries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	creditService := credits.NewServiceWithCatalogue(f.DB.Pool, nil, catalogue, nil)
+	for _, action := range []string{"quick_note", "preview"} {
+		q, e := pricing.NewQuotes(f.DB.Pool).Create(t.Context(), "a1111111-1111-4111-8111-111111111111", pricing.QuoteInput{Action: action})
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = pricing.NewQuotes(f.DB.Pool).Accept(t.Context(), "a1111111-1111-4111-8111-111111111111", q.ID); e != nil {
+			t.Fatal(e)
+		}
+		job, e := creditService.Reserve(t.Context(), "a1111111-1111-4111-8111-111111111111", q.ID)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if action == "quick_note" {
+			if _, e = creditService.Settle(t.Context(), "a1111111-1111-4111-8111-111111111111", job.ID, []*enginev1.Usage{{Provider: q.Rate.Provider, Model: q.Rate.Model, InputTokens: 100, OutputTokens: 20, Component: "content", Attempt: 1, Delivered: true, ArtifactId: "synthetic-backup-artifact"}}); e != nil {
+				t.Fatal(e)
+			}
+		}
+	}
+
 }
 
 // RunJob waits for the real River worker, including failed attempts and retries.
@@ -444,7 +470,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*),sum(amount) FROM credit_entries WHERE learner_id='a1111111-1111-4111-8111-111111111111'").Scan(&entries, &balance); err != nil {
 		t.Fatal(err)
 	}
-	if version != f.schemaVersion || riverVersions < 1 || learners != 1 || entries != 2 || balance != 85 || name != "Synthetic Learner" {
+	if version != f.schemaVersion || riverVersions < 1 || learners != 1 || entries != 7 || balance != 104 || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
 	var pricingVersion string
@@ -485,7 +511,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -577,7 +603,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		}
 	}
 
-	for _, query := range []string{"UPDATE pricing_quotes SET snapshot='{}'", "DELETE FROM pricing_quotes", "TRUNCATE pricing_quotes", "DELETE FROM pricing_quote_consents", "DELETE FROM pricing_quote_policies", "UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE credit_timezones SET time_zone='UTC'", "DELETE FROM credit_timezones", "TRUNCATE credit_timezones", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions", "UPDATE pricing_audit SET reason='rewritten'", "DELETE FROM pricing_audit", "TRUNCATE pricing_audit", "UPDATE pricing_activation_events SET activated_at=now()", "DELETE FROM pricing_activation_events", "TRUNCATE pricing_activation_events", "UPDATE pricing_version_cancellations SET reason='rewritten'", "DELETE FROM pricing_version_cancellations", "TRUNCATE pricing_version_cancellations"} {
+	for _, query := range []string{"DELETE FROM credit_allocations", "DELETE FROM credit_usage", "DELETE FROM credit_artifacts", "UPDATE pricing_quotes SET snapshot='{}'", "DELETE FROM pricing_quotes", "TRUNCATE pricing_quotes", "DELETE FROM pricing_quote_consents", "DELETE FROM pricing_quote_policies", "UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE credit_timezones SET time_zone='UTC'", "DELETE FROM credit_timezones", "TRUNCATE credit_timezones", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions", "UPDATE pricing_audit SET reason='rewritten'", "DELETE FROM pricing_audit", "TRUNCATE pricing_audit", "UPDATE pricing_activation_events SET activated_at=now()", "DELETE FROM pricing_activation_events", "TRUNCATE pricing_activation_events", "UPDATE pricing_version_cancellations SET reason='rewritten'", "DELETE FROM pricing_version_cancellations", "TRUNCATE pricing_version_cancellations"} {
 		if _, err := restored.Pool.Exec(t.Context(), query); err == nil {
 			t.Fatalf("restored immutable data accepted mutation: %s", query)
 		}

@@ -129,6 +129,12 @@ func run(ctx context.Context, args []string) (result error) {
 		if err != nil {
 			return err
 		}
+		catalogue, err := pricing.Load(ctx, db.Queries)
+		if err != nil {
+			return err
+		}
+		creditService := credits.NewServiceWithCatalogue(db.Pool, nil, catalogue, events)
+		go creditService.Maintain(ctx, logger)
 		return worker.Run(ctx, db.Pool, logger, service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
@@ -193,6 +199,7 @@ func run(ctx context.Context, args []string) (result error) {
 		Events:  events,
 	})
 	creditService := credits.NewServiceWithCatalogue(db.Pool, redis, catalogue, events)
+	go creditService.Maintain(ctx, logger)
 	briefPricing := catalogue
 	if os.Getenv("DUOLIFY_ENV") == "development" {
 		if dev, loadErr := pricing.LoadDevelopment(ctx, db.Pool); loadErr == nil {

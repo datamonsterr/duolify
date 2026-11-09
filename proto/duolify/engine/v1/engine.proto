@@ -39,6 +39,33 @@ message Usage {
   uint32 input_tokens = 3;
   uint32 output_tokens = 4;
   uint32 latency_ms = 5;
+  uint32 cache_write_tokens = 6;
+  uint32 cache_read_tokens = 7;
+  uint32 narration_characters = 8;
+  bool fallback_used = 9;
+  uint32 attempt = 10;
+  string component = 11;
+  bool delivered = 12;
+  bool cached = 13;
+  string artifact_id = 14;
+  bool usage_unavailable = 15;
+}
+
+// Bounds come only from the API's immutable Pricing quote, never client prices.
+message UsageLimits {
+  uint32 input_tokens = 1;
+  uint32 output_tokens = 2;
+  uint32 timeout_ms = 3;
+  uint32 max_attempts = 4;
+  uint64 max_cost_nanos = 5;
+  uint64 input_nanos = 6;
+  uint64 output_nanos = 7;
+  uint64 cache_write_nanos = 8;
+  uint64 cache_read_nanos = 9;
+  string provider = 10;
+  string model = 11;
+  string fallback_provider = 12;
+  string fallback_model = 13;
 }
 
 message LearnerProfile {
@@ -99,12 +126,15 @@ message Lesson {
 message PreviewCourseRequest {
   string topic = 1;
   LearnerProfile learner = 2;
+  UsageLimits limits = 3;
 }
 
 message PreviewCourseResponse {
   CourseOutline sample_outline = 1;
   repeated Slide example_slides = 2;
   Usage usage = 3;
+  repeated Usage attempts = 4;
+  bool unavailable = 5;
 }
 
 message GenerateCourseOutlineRequest {
