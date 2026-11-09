@@ -67,3 +67,20 @@
   color: var(--primary);
   font-weight: var(--weight-strong);
 }
+.outline-surface,
+.course-outline {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+.course-outline fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.outline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+}

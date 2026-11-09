@@ -105,6 +105,51 @@ func TestEventAllowlist(t *testing.T) {
 	}
 }
 
+func TestOutlineControlDeliveryAndPrivacy(t *testing.T) {
+	var received []map[string]any
+	var mu sync.Mutex
+	sink := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(200)
+	}))
+	defer sink.Close()
+	events, err := New("fixture-only", sink.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, control := range []string{"outline_move", "outline_rename", "outline_remove", "outline_add", "outline_undo"} {
+		if err = events.Capture("a1111111-1111-4111-8111-111111111111", "ui_control_activated", map[string]any{"surface": "outline", "control_id": control, "source": "api", "platform": "web", "app_version": "0.1.0", "title": "private title", "goal": "private goal", "history": "private history"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = events.Close(); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 5 {
+		t.Fatal("missing outline events", received)
+	}
+	for _, event := range received {
+		props := event["properties"].(map[string]any)
+		if props["surface"] != "outline" || props["source"] != "api" || props["platform"] != "web" || props["app_version"] != "0.1.0" || event["distinct_id"] != "a1111111-1111-4111-8111-111111111111" {
+			t.Fatal("missing common properties", event)
+		}
+		raw, _ := json.Marshal(event)
+		if strings.Contains(string(raw), "private") {
+			t.Fatal("private outline text leaked", string(raw))
+		}
+	}
+}
+
 func TestPaymentPropertiesExcludePrivateData(t *testing.T) {
 	input := map[string]any{"source": "api", "platform": "desktop", "app_version": "0.1.0", "amount": 519, "currency": "EUR", "price": 7.23, "amount_minor": 723, "sku_id": "configured_pack", "channel": "stripe", "price_table_version": "configured", "reason": "failed", "email": "private@example.test", "raw_payload": "private payload", "draft": "private learner text", "payment_id": "pi_private", "url": "https://private.test", "error": "private error"}
 	for _, name := range []string{"checkout_started", "credits_purchased", "credits_purchase_failed"} {

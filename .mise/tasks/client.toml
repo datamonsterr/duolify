@@ -69,7 +69,7 @@ run = "pnpm exec prettier --write src/features/shell src/features/lesson-player/
 ["client:format-courses"]
 description = "Format course brief client and browser tests"
 dir = "{{config_root}}/apps/client"
-run = "pnpm exec prettier --write src/features/courses src/features/design/Courses.tsx src/features/accounts/session.ts src/lib/analytics.ts src/App.tsx e2e/courses-e2-06.spec.ts e2e/courses-e2-01.spec.ts"
+run = "pnpm exec prettier --write src/features/courses src/features/design/Courses.tsx src/features/design/chat/OutlineEditor.tsx src/features/design/localization/messages.ts src/features/accounts/session.ts src/lib/analytics.ts src/App.tsx e2e/courses-e2-06.spec.ts e2e/courses-e2-01.spec.ts e2e/courses-e2-07.spec.ts"
 
 ["client:format-credits"]
 description = "Format credits reservation controls and tests"

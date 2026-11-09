@@ -1,6 +1,7 @@
 import type { MessageId } from "../localization/messages";
 import { useUiPreferences } from "../localization/Preferences";
 import {
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -24,7 +25,17 @@ type Control = Extract<
   { event: "ui_control_activated" }
 >["controlId"];
 type Notice = { id: MessageId; values?: Record<string, string | number> };
-type Snapshot = { value: Outline; focusId: string };
+export type OutlineSnapshot = { value: Outline; focusId: string };
+
+function validHistory(value: Outline) {
+  return value.every(
+    (unit) =>
+      unit.title.trim() &&
+      unit.lessons.every(
+        (lesson) => lesson.title.trim() && lesson.goal?.trim(),
+      ),
+  );
+}
 
 // Features own proposal approval; passing a new proposal snapshot records one
 // undoable edit. onChange returns manual edits and Undo to the owning feature.
@@ -32,21 +43,25 @@ export function OutlineEditor({
   initialValue,
   onChange,
   proposal,
+  initialHistory = [],
+  persistent = false,
 }: {
   initialValue: Outline;
-  onChange?: (value: Outline) => void;
+  initialHistory?: OutlineSnapshot[];
+  persistent?: boolean;
+  onChange?: (value: Outline, history: OutlineSnapshot[]) => void;
   proposal?: Outline | null;
 }) {
   const { t } = useUiPreferences();
   const [internal, setInternal] = useState(initialValue);
   const units = internal;
-  const [history, setHistory] = useState<Snapshot[]>([]);
+  const [history, setHistory] = useState<OutlineSnapshot[]>(initialHistory);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const regionId = useId();
   const root = useRef<HTMLDivElement>(null);
   const undo = useRef<HTMLButtonElement>(null);
   const dragging = useRef<{ id: string; parent?: string } | null>(null);
-  const namespace = useId();
-  const nextId = useRef(0);
   const pendingFocus = useRef<{ id?: string; undo?: boolean } | null>(null);
   useLayoutEffect(() => {
     const target = pendingFocus.current;
@@ -63,23 +78,45 @@ export function OutlineEditor({
         ?.focus();
   });
   const [appliedProposal, setAppliedProposal] = useState<Outline | null>(null);
+  const notifiedProposal = useRef<Outline | null>(null);
+  useEffect(() => {
+    if (appliedProposal && notifiedProposal.current !== appliedProposal) {
+      notifiedProposal.current = appliedProposal;
+      onChange?.(appliedProposal, history);
+    }
+  }, [appliedProposal, history, onChange]);
   // React's documented previous-prop adjustment avoids an effect applying twice.
   if (proposal && proposal !== appliedProposal) {
     setAppliedProposal(proposal);
-    setHistory([...history, { value: units, focusId: units[0]?.id ?? "" }]);
+    setHistory(
+      [...history, { value: units, focusId: units[0]?.id ?? "" }].slice(-50),
+    );
     setInternal(proposal);
   }
   const shown = proposal && proposal !== appliedProposal ? proposal : units;
   function track(controlId: Control) {
+    const control = persistent
+      ? ((
+          {
+            move_up: "outline_move",
+            move_down: "outline_move",
+            drag_reorder: "outline_move",
+            rename: "outline_rename",
+            remove: "outline_remove",
+            add: "outline_add",
+            undo: "outline_undo",
+          } as Partial<Record<Control, Control>>
+        )[controlId] ?? controlId)
+      : controlId;
     trackGuidedUi({
       event: "ui_control_activated",
       surface: "outline",
-      controlId,
+      controlId: control,
     });
   }
-  function publish(next: Outline) {
+  function publish(next: Outline, nextHistory: OutlineSnapshot[]) {
     setInternal(next);
-    onChange?.(next);
+    onChange?.(next, nextHistory);
   }
   function focusTitle(id: string) {
     pendingFocus.current = { id };
@@ -91,8 +128,12 @@ export function OutlineEditor({
     message: Notice,
     focus = false,
   ) {
-    setHistory([...history, { value: units, focusId }]);
-    publish(next);
+    const nextHistory =
+      !persistent || validHistory(units)
+        ? [...history, { value: units, focusId }].slice(-50)
+        : history;
+    setHistory(nextHistory);
+    publish(next, nextHistory);
     setNotice(message);
     track(control);
     if (focus) focusTitle(focusId);
@@ -119,10 +160,16 @@ export function OutlineEditor({
             : unit,
         )
       : (nextList as Outline);
-    change(next, control, id, {
-      id: "outline.moved",
-      values: { name: item.title, position: destination + 1 },
-    });
+    change(
+      next,
+      control,
+      id,
+      {
+        id: "outline.moved",
+        values: { name: item.title, position: destination + 1 },
+      },
+      control === "drag_reorder",
+    );
   }
   function rename(id: string, parent: string | undefined, title: string) {
     const next = parent
@@ -154,7 +201,7 @@ export function OutlineEditor({
     pendingFocus.current = { undo: true };
   }
   function add(parent?: string) {
-    const id = `${namespace}-new-${++nextId.current}`;
+    const id = crypto.randomUUID();
     const next = parent
       ? units.map((unit) =>
           unit.id === parent
@@ -162,7 +209,11 @@ export function OutlineEditor({
                 ...unit,
                 lessons: [
                   ...unit.lessons,
-                  { id, title: t("outline.new_lesson") },
+                  {
+                    id,
+                    title: t("outline.new_lesson"),
+                    ...(persistent ? { goal: t("outline.default_goal") } : {}),
+                  },
                 ],
               }
             : unit,
@@ -273,7 +324,7 @@ export function OutlineEditor({
           onClick={() => {
             const previous = history[history.length - 1];
             if (!previous) return;
-            publish(previous.value);
+            publish(previous.value, history.slice(0, -1));
             setHistory(history.slice(0, -1));
             setNotice({ id: "outline.undone" });
             track("undo");
@@ -297,56 +348,128 @@ export function OutlineEditor({
                   name: unit.title || t("outline.untitled_unit"),
                 })}
                 value={unit.title}
+                maxLength={500}
                 error={!unit.title.trim() ? t("outline.unit_error") : undefined}
                 onChange={(event) =>
                   rename(unit.id, undefined, event.target.value)
                 }
               />
               {controls(unit, index, shown.length)}
+              <Button
+                variant="quiet"
+                aria-expanded={!collapsed.has(unit.id)}
+                aria-controls={`${regionId}-${unit.id}`}
+                aria-label={t(
+                  collapsed.has(unit.id)
+                    ? "outline.expand"
+                    : "outline.collapse",
+                  { name: unit.title || t("outline.untitled_unit") },
+                )}
+                onClick={() =>
+                  setCollapsed((previous) => {
+                    const next = new Set(previous);
+                    if (next.has(unit.id)) next.delete(unit.id);
+                    else next.add(unit.id);
+                    return next;
+                  })
+                }
+              >
+                {collapsed.has(unit.id) ? "+" : "−"}
+              </Button>
             </div>
-            <ol className="outline-lessons">
-              {unit.lessons.map((lesson, lessonIndex) => (
-                <li
-                  key={lesson.id}
-                  data-outline-id={lesson.id}
-                  className="outline-row"
-                >
-                  <span className="outline-position">
-                    {t("outline.lesson", {
-                      unit: index + 1,
-                      lesson: lessonIndex + 1,
-                    })}
-                  </span>
-                  <div>
-                    <Field
-                      label={t("outline.title_for", {
-                        name: lesson.title || t("outline.untitled_lesson"),
+            <div id={`${regionId}-${unit.id}`} hidden={collapsed.has(unit.id)}>
+              <ol className="outline-lessons">
+                {unit.lessons.map((lesson, lessonIndex) => (
+                  <li
+                    key={lesson.id}
+                    data-outline-id={lesson.id}
+                    className="outline-row"
+                  >
+                    <span className="outline-position">
+                      {t("outline.lesson", {
+                        unit: index + 1,
+                        lesson: lessonIndex + 1,
                       })}
-                      value={lesson.title}
-                      error={
-                        !lesson.title.trim()
-                          ? t("outline.lesson_error")
-                          : undefined
-                      }
-                      onChange={(event) =>
-                        rename(lesson.id, unit.id, event.target.value)
-                      }
-                    />
-                    {lesson.goal && <p>{lesson.goal}</p>}
-                  </div>
-                  {controls(lesson, lessonIndex, unit.lessons.length, unit.id)}
-                </li>
-              ))}
-            </ol>
-            <Button variant="quiet" onClick={() => add(unit.id)}>
-              {t("outline.add_lesson", {
-                name: unit.title || t("outline.untitled_unit"),
-              })}
-            </Button>
+                    </span>
+                    <div>
+                      <Field
+                        label={t("outline.title_for", {
+                          name: lesson.title || t("outline.untitled_lesson"),
+                        })}
+                        value={lesson.title}
+                        maxLength={500}
+                        error={
+                          !lesson.title.trim()
+                            ? t("outline.lesson_error")
+                            : undefined
+                        }
+                        onChange={(event) =>
+                          rename(lesson.id, unit.id, event.target.value)
+                        }
+                      />
+                      {persistent ? (
+                        <Field
+                          label={t("outline.goal_for", {
+                            name: lesson.title || t("outline.untitled_lesson"),
+                          })}
+                          value={lesson.goal ?? ""}
+                          maxLength={4000}
+                          error={
+                            !lesson.goal?.trim()
+                              ? t("outline.goal_error")
+                              : undefined
+                          }
+                          onChange={(event) =>
+                            change(
+                              units.map((u) =>
+                                u.id === unit.id
+                                  ? {
+                                      ...u,
+                                      lessons: u.lessons.map((l) =>
+                                        l.id === lesson.id
+                                          ? { ...l, goal: event.target.value }
+                                          : l,
+                                      ),
+                                    }
+                                  : u,
+                              ),
+                              "rename",
+                              lesson.id,
+                              { id: "outline.edited" },
+                            )
+                          }
+                        />
+                      ) : (
+                        lesson.goal && <p>{lesson.goal}</p>
+                      )}
+                    </div>
+                    {controls(
+                      lesson,
+                      lessonIndex,
+                      unit.lessons.length,
+                      unit.id,
+                    )}
+                  </li>
+                ))}
+              </ol>
+              <Button
+                variant="quiet"
+                disabled={persistent && unit.lessons.length >= 20}
+                onClick={() => add(unit.id)}
+              >
+                {t("outline.add_lesson", {
+                  name: unit.title || t("outline.untitled_unit"),
+                })}
+              </Button>
+            </div>
           </li>
         ))}
       </ol>
-      <Button variant="secondary" onClick={() => add()}>
+      <Button
+        variant="secondary"
+        disabled={persistent && shown.length >= 10}
+        onClick={() => add()}
+      >
         {t("outline.add_unit")}
       </Button>
       <p role="status" aria-live="polite" aria-atomic="true">

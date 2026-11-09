@@ -5,6 +5,14 @@ import { quoteAPI, type ActionQuote } from "../pricing/quotes";
 import { sendCommand } from "../lesson-player/bridge";
 import { briefFields, type BriefRevision } from "./brief";
 import { useUiPreferences } from "../design/localization/Preferences";
+import { CourseOutline } from "./CourseOutline";
+import {
+  outlineApi,
+  readWorkingOutline,
+  sampleOutline,
+  type OutlineDraft,
+} from "./outline";
+import type { Outline } from "../design/chat/OutlineEditor";
 
 type PreviewQuote = Pick<
   ActionQuote,
@@ -65,6 +73,38 @@ export function CoursePreview({
   }>();
   const [preview, setPreview] = useState<Preview>();
   const [outline, setOutline] = useState(false);
+  const [savedOutline, setSavedOutline] = useState<OutlineDraft | null>(null);
+  const [workingOutline, setWorkingOutline] = useState(() =>
+    readWorkingOutline(revision.id),
+  );
+  const [editor, setEditor] = useState<{
+    value: Outline;
+    draft?: OutlineDraft;
+  }>();
+  useEffect(() => {
+    let active = true;
+    void outlineApi
+      .latest(revision.id)
+      .then((draft) => {
+        if (active) setSavedOutline(draft);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [revision.id]);
+  function editOutline() {
+    if (!editor)
+      setEditor(
+        workingOutline
+          ? { value: workingOutline.value, draft: workingOutline.draft }
+          : savedOutline
+            ? { value: savedOutline.outline, draft: savedOutline }
+            : { value: sampleOutline(preview?.sample_outline.units ?? []) },
+      );
+    setOutline(true);
+    onStep?.(3);
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [index, setIndex] = useState(0);
@@ -170,48 +210,41 @@ export function CoursePreview({
   const slide = preview?.example_slides[index];
   return (
     <section className="course-preview" aria-label="Personalized preview">
-      {busy && <p role="status">Preparing preview… Your brief is kept.</p>}
-      {error && <p role="alert">{error}</p>}
-      {preview ? (
-        <>
-          <span className="sample-badge">
-            Sample · No course has been created
-          </span>
-          <h2>{outline ? "Sample outline" : "Course preview"}</h2>
-          <p>
-            These examples show the approach. Lesson content is prepared one
-            lesson at a time.
-          </p>
-          {outline ? (
-            <>
-              <h3>{preview.sample_outline.title}</h3>
-              {preview.sample_outline.units.map((unit, i) => (
-                <details key={i} open>
-                  <summary>{unit.title}</summary>
-                  <ol>
-                    {unit.lessons.map((lesson, j) => (
-                      <li key={j}>
-                        <strong>{lesson.title}</strong>
-                        <p>{lesson.goal}</p>
-                      </li>
-                    ))}
-                  </ol>
-                </details>
-              ))}
-              <p>
-                Outline editing and course creation will be available in the
-                next steps.
-              </p>
-              <Button
-                onClick={() => {
-                  setOutline(false);
-                  onStep?.(2);
-                }}
-              >
-                Back to preview
-              </Button>
-            </>
-          ) : (
+      {editor && (
+        <div hidden={!outline} className="outline-surface">
+          <CourseOutline
+            briefRevision={revision.id}
+            initialValue={editor.value}
+            initialDraft={editor.draft}
+            onSaved={(draft) => {
+              setSavedOutline(draft);
+              setWorkingOutline(undefined);
+            }}
+            onBack={() => {
+              setOutline(false);
+              onStep?.(2);
+            }}
+          />
+        </div>
+      )}
+      <div hidden={outline}>
+        {(savedOutline || workingOutline) && !preview && (
+          <Button onClick={editOutline}>
+            {workingOutline ? "Resume unsaved outline" : "Resume saved outline"}
+          </Button>
+        )}
+        {busy && <p role="status">Preparing preview… Your brief is kept.</p>}
+        {error && <p role="alert">{error}</p>}
+        {preview ? (
+          <>
+            <span className="sample-badge">
+              Sample · No course has been created
+            </span>
+            <h2>Course preview</h2>
+            <p>
+              These examples show the approach. Lesson content is prepared one
+              lesson at a time.
+            </p>
             <>
               {slide && (
                 <>
@@ -270,8 +303,7 @@ export function CoursePreview({
               )}
               <Button
                 onClick={() => {
-                  setOutline(true);
-                  onStep?.(3);
+                  editOutline();
                 }}
               >
                 Review sample outline
@@ -280,82 +312,82 @@ export function CoursePreview({
                 Regenerate preview — review fresh cost
               </Button>
             </>
-          )}
-          <Button variant="quiet" onClick={back}>
-            Discard preview
-          </Button>
-        </>
-      ) : (
-        <>
-          {quote && (
-            <div aria-live="polite">
-              <h2>Ready to preview?</h2>
-              <h3>{revision.brief.topic}</h3>
-              <dl>
-                {briefFields
-                  .filter((field) => revision.brief[field.id])
-                  .map((field) => (
-                    <div key={field.id}>
-                      <dt>{field.label}</dt>
-                      <dd>{revision.brief[field.id]}</dd>
-                    </div>
-                  ))}
-              </dl>
-              <p>
-                Up to {number(quote.content_ceiling)} credits · Original terms{" "}
-                {quote.pricing_version}
-              </p>
-              <p>
-                Purchased credits required. Daily free credits cannot pay for
-                previews.
-              </p>
-              {paidBalance !== undefined && (
+            <Button variant="quiet" onClick={back}>
+              Discard preview
+            </Button>
+          </>
+        ) : (
+          <>
+            {quote && (
+              <div aria-live="polite">
+                <h2>Ready to preview?</h2>
+                <h3>{revision.brief.topic}</h3>
+                <dl>
+                  {briefFields
+                    .filter((field) => revision.brief[field.id])
+                    .map((field) => (
+                      <div key={field.id}>
+                        <dt>{field.label}</dt>
+                        <dd>{revision.brief[field.id]}</dd>
+                      </div>
+                    ))}
+                </dl>
                 <p>
-                  Eligible paid balance {number(paidBalance)} →{" "}
-                  {number(Math.max(0, paidBalance - quote.content_ceiling))}{" "}
-                  credits
+                  Up to {number(quote.content_ceiling)} credits · Original terms{" "}
+                  {quote.pricing_version}
                 </p>
-              )}
-              {paidBalance !== undefined &&
-                paidBalance < quote.content_ceiling && (
-                  <p role="alert">
-                    Not enough eligible paid credits. Your brief is kept.
+                <p>
+                  Purchased credits required. Daily free credits cannot pay for
+                  previews.
+                </p>
+                {paidBalance !== undefined && (
+                  <p>
+                    Eligible paid balance {number(paidBalance)} →{" "}
+                    {number(Math.max(0, paidBalance - quote.content_ceiling))}{" "}
+                    credits
                   </p>
                 )}
-              <p>
-                Your confirmed brief stays saved. This preview creates no course
-                or enrollment.
-              </p>
-              <p>Expires {new Date(quote.expires_at).toLocaleString()}</p>
-              {expired ? (
-                <p role="alert">
-                  Quote expired. Review a fresh quote before continuing.
+                {paidBalance !== undefined &&
+                  paidBalance < quote.content_ceiling && (
+                    <p role="alert">
+                      Not enough eligible paid credits. Your brief is kept.
+                    </p>
+                  )}
+                <p>
+                  Your confirmed brief stays saved. This preview creates no
+                  course or enrollment.
                 </p>
-              ) : (
-                <Button
-                  disabled={
-                    busy ||
-                    (paidBalance !== undefined &&
-                      paidBalance < quote.content_ceiling)
-                  }
-                  onClick={() => void generate()}
-                >
-                  Confirm &amp; preview · {number(quote.content_ceiling)}
-                </Button>
-              )}
-            </div>
-          )}
-          <Button disabled={busy} onClick={() => void review()}>
-            {quote ? "Renew preview quote" : "Review preview cost"}
-          </Button>
-          {(quote || error) && (
-            <a href="/credits">Get credits — your brief is kept</a>
-          )}
-          <Button variant="quiet" onClick={back}>
-            Back to brief
-          </Button>
-        </>
-      )}
+                <p>Expires {new Date(quote.expires_at).toLocaleString()}</p>
+                {expired ? (
+                  <p role="alert">
+                    Quote expired. Review a fresh quote before continuing.
+                  </p>
+                ) : (
+                  <Button
+                    disabled={
+                      busy ||
+                      (paidBalance !== undefined &&
+                        paidBalance < quote.content_ceiling)
+                    }
+                    onClick={() => void generate()}
+                  >
+                    Confirm &amp; preview · {number(quote.content_ceiling)}
+                  </Button>
+                )}
+              </div>
+            )}
+            <Button disabled={busy} onClick={() => void review()}>
+              {quote ? "Renew preview quote" : "Review preview cost"}
+            </Button>
+            {(quote || error) && (
+              <a href="/credits">Get credits — your brief is kept</a>
+            )}
+            <Button variant="quiet" onClick={back}>
+              Back to brief
+            </Button>
+          </>
+        )}
+      </div>
     </section>
   );
 }

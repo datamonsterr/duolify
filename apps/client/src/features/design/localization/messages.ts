@@ -5,6 +5,11 @@ export type PluralMessage = { other: string } & Partial<
 >;
 export type Message = string | PluralMessage;
 export const en = {
+  "outline.default_goal": "Describe what you learned.",
+  "outline.goal_for": "Goal for {name}",
+  "outline.goal_error": "Enter a lesson goal.",
+  "outline.expand": "Expand {name}",
+  "outline.collapse": "Collapse {name}",
   "settings.sessions": "Manage sessions",
   "path.start_short": "Start",
   "path.review": "Lesson {index}, {name}, completed. Review",
@@ -191,6 +196,11 @@ export const en = {
 } satisfies Record<string, Message>;
 export type MessageId = keyof typeof en;
 export const ar: Record<MessageId, Message> = {
+  "outline.default_goal": "صِف ما تعلمته.",
+  "outline.goal_for": "هدف {name}",
+  "outline.goal_error": "أدخل هدف الدرس.",
+  "outline.expand": "توسيع {name}",
+  "outline.collapse": "طي {name}",
   "settings.sessions": "إدارة الجلسات",
   "path.start_short": "ابدأ",
   "path.review": "الدرس {index}، {name}، مكتمل. مراجعة",

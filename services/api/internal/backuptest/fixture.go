@@ -29,6 +29,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/backupadmin"
+	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/credits/creditstest"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -284,6 +285,7 @@ func (f *Fixture) UsePackagedWorker(t *testing.T) {
 // Seed adds synthetic learner, auth state and append-only ledger data.
 func (f *Fixture) Seed(t *testing.T) {
 	t.Helper()
+	outline := courses.Outline{{ID: "fixture-unit", Title: "Moon", Lessons: []courses.OutlineLesson{{ID: "fixture-lesson", Title: "Phases", Goal: "Recognize phases"}}}}
 	for _, query := range []string{
 		"INSERT INTO learners (id,display_name) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner')",
 		`INSERT INTO credit_checkout_orders(request_id,learner_id,owner_reference,pricing_version,sku,amount_minor,currency,credits,billing_period,platform,return_to)
@@ -292,6 +294,11 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		"INSERT INTO credit_timezones (learner_id,time_zone,effective_at) VALUES ('a1111111-1111-4111-8111-111111111111','Asia/Ho_Chi_Minh',now())",
 		`INSERT INTO course_brief_revisions(learner_id,brief,content_hash) VALUES ('a1111111-1111-4111-8111-111111111111','{"topic":"Synthetic sky","include_topics":"Moon","skip_topics":"History","maths":"Light maths"}',repeat('b',64))`,
 		`INSERT INTO course_brief_revisions(learner_id,brief,content_hash,expires_at) VALUES ('a1111111-1111-4111-8111-111111111111','{"topic":"Expired synthetic sky"}',repeat('e',64),now()-interval '1 second')`,
+		fmt.Sprintf(`INSERT INTO outline_drafts(id,learner_id,brief_revision,revision,outline,history,confirmed)
+ SELECT 'c7222222-2222-4222-8222-222222222222',learner_id,id,3,'[{"id":"fixture-unit","title":"Moon","lessons":[{"id":"fixture-lesson","title":"Phases","goal":"Recognize phases"}]}]',
+ '[{"value":[{"id":"fixture-unit","title":"Before edit","lessons":[{"id":"fixture-lesson","title":"Phases","goal":"Recognize phases"}]}],"focusId":"fixture-unit"}]',
+ '{"draft_id":"c7222222-2222-4222-8222-222222222222","revision":3,"content_hash":"%s","outline":[{"id":"fixture-unit","title":"Moon","lessons":[{"id":"fixture-lesson","title":"Phases","goal":"Recognize phases"}]}]}'
+ FROM course_brief_revisions WHERE expires_at>now()`, outline.Hash()),
 		"INSERT INTO learner_profiles (learner_id,locale,time_zone,analytics_opt_out) VALUES ('a1111111-1111-4111-8111-111111111111','vi-VN','Asia/Ho_Chi_Minh',true)",
 		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true,appearance='dark',motion='reduce',narration=false,narration_speed=1.25,captions=false,text_size=1.2,ui_sounds=true,haptics='off' WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
 		"INSERT INTO auth_identities (email,learner_id) VALUES ('synthetic@example.test','a1111111-1111-4111-8111-111111111111')",
@@ -625,7 +632,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -639,6 +646,10 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		}
 	}
 	paidService := credits.NewServiceWithCatalogue(restored.Pool, nil, afterPricing, nil)
+	confirmed, err := courses.New(courses.Options{Pool: restored.Pool}).ResolveConfirmed(t.Context(), "a1111111-1111-4111-8111-111111111111", "c7222222-2222-4222-8222-222222222222", 3)
+	if err != nil || confirmed.Outline.Hash() != confirmed.ContentHash || confirmed.Outline[0].Lessons[0].ID != "fixture-lesson" {
+		t.Fatalf("restored confirmed outline unavailable: %+v %v", confirmed, err)
+	}
 	if err := paidService.ConfigurePayments(credits.PaymentOptions{Mode: "test", Provider: f.paymentFixture, WebhookSecret: creditstest.WebhookSecret}); err != nil {
 		t.Fatal(err)
 	}
@@ -724,11 +735,14 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO course_brief_revisions(learner_id,brief,content_hash) VALUES($1::uuid,'{"topic":"Erased brief"}',repeat('c',64))`, erasedID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO outline_drafts(learner_id,brief_revision,outline,history) SELECT learner_id,id,'[]','[]' FROM course_brief_revisions WHERE learner_id=$1::uuid`, erasedID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", erasedID); err != nil {
 		t.Fatal(err)
 	}
 	var survived bool
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
 		t.Fatal("restored context survived account erasure", err)
 	}
 	var valid bool
@@ -783,6 +797,10 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	if err := accounts.ApplyDeletionTombstones(t.Context(), restored.Pool); err != nil {
 		t.Fatal(err)
+	}
+	var outlineSurvived bool
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id::text=$1)", paymentOwner).Scan(&outlineSurvived); err != nil || outlineSurvived {
+		t.Fatal("outline survived restore tombstone", err)
 	}
 	var anonymous bool
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT learner_id IS NULL AND owner_reference=$2 FROM credit_checkout_orders WHERE id=$1", f.paymentOrderID, accounts.LearnerReference(paymentOwner)).Scan(&anonymous); err != nil || !anonymous {

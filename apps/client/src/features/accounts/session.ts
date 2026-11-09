@@ -37,13 +37,14 @@ export async function authRequest<T>(
   });
   if (!response.ok) {
     let message = "Sign-in is unavailable. Please retry.";
+    let details: unknown;
     try {
-      message =
-        ((await response.json()) as { error?: string }).error || message;
+      details = await response.json();
+      message = (details as { error?: string }).error || message;
     } catch {
       /* No server body on offline/proxy errors. */
     }
-    throw new AuthError(message, response.status);
+    throw new AuthError(message, response.status, details);
   }
   return response.status === 204
     ? (undefined as T)
@@ -53,6 +54,7 @@ export class AuthError extends Error {
   constructor(
     message: string,
     public status: number,
+    public details?: unknown,
   ) {
     super(message);
   }
@@ -152,7 +154,11 @@ export const session = {
   clear() {
     try {
       for (const key of Object.keys(sessionStorage))
-        if (key.startsWith("credits:recovery:")) sessionStorage.removeItem(key);
+        if (
+          key.startsWith("credits:recovery:") ||
+          key.startsWith("course-outline:")
+        )
+          sessionStorage.removeItem(key);
     } catch {
       /* Disposable recovery metadata may be unavailable. */
     }

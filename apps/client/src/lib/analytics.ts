@@ -328,6 +328,11 @@ const guidedSurfaces = [
   "course_brief",
 ] as const;
 const guidedControls = [
+  "outline_move",
+  "outline_rename",
+  "outline_remove",
+  "outline_add",
+  "outline_undo",
   "confirm_brief",
   "quick_reply",
   "send",

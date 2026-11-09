@@ -304,6 +304,19 @@ type LearnerProfile struct {
 	Haptics         string             `json:"haptics"`
 }
 
+type OutlineDraft struct {
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	BriefRevision pgtype.UUID        `json:"brief_revision"`
+	Revision      int64              `json:"revision"`
+	Outline       []byte             `json:"outline"`
+	History       []byte             `json:"history"`
+	Confirmed     []byte             `json:"confirmed"`
+	IsRecovery    bool               `json:"is_recovery"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
 type PosthogPersonDeletionRequest struct {
 	DistinctID  pgtype.UUID        `json:"distinct_id"`
 	RequestedAt pgtype.Timestamptz `json:"requested_at"`

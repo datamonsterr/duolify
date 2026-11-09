@@ -244,7 +244,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 			out["fields_changed"] = safe
 		}
 	case "ui_control_activated":
-		ids("control_id", "screen")
+		ids("control_id", "screen", "surface")
 	case "paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested":
 		ids("placement", "feature", "plan_id", "price_table_version", "pricing_version", "surface", "offer_id")
 		numeric("balance")

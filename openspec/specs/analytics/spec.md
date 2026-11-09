@@ -5,6 +5,13 @@ Define how Duolify uses PostHog: identity, privacy, the event catalog with names
 
 ## Requirements
 
+### Requirement: Manual outline controls
+The catalogue SHALL include existing `ui_control_activated` with `surface=outline` and `control_id=outline_move|outline_rename|outline_remove|outline_add|outline_undo`. Move includes drag, arrow keys and move buttons. The API allowlist SHALL retain this event and its surface/control properties. Client events SHALL include Learner UUID, platform, source and app_version, honor opt-out and contain no titles, goals, outline snapshots or other learner text. Manual controls SHALL NOT duplicate generation outcomes or emit model usage.
+
+#### Scenario: Outline moved
+- **WHEN** a learner moves a unit or lesson
+- **THEN** one `ui_control_activated` event carries `surface=outline` and `control_id=outline_move` without its title or goal
+
 ### Requirement: Subscription lifecycle events
 The catalogue SHALL include `subscription_renewed` and `subscription_cancelled`
 (plan_id, interval, channel, billing_period_start/end, entitlement_version),
