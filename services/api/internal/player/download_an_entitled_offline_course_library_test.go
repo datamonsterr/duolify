@@ -101,6 +101,76 @@ func TestDownloadAnEntitledOfflineCourseLibraryEntitlement(t *testing.T) {
 	}
 }
 
+func TestDownloadLessonItemDerivation(t *testing.T) {
+	tests := []struct {
+		name         string
+		status       string
+		hasManifest  bool
+		unlocked     bool
+		downloadable bool
+		hasURL       bool
+	}{
+		{
+			name:         "locked stub without manifest",
+			status:       "locked",
+			hasManifest:  false,
+			unlocked:     false,
+			downloadable: false,
+			hasURL:       false,
+		},
+		{
+			name:         "locked stub even if manifest exists",
+			status:       "locked",
+			hasManifest:  true,
+			unlocked:     false,
+			downloadable: false,
+			hasURL:       false,
+		},
+		{
+			name:         "unlocked ready_to_generate without manifest (ungenerated)",
+			status:       "ready_to_generate",
+			hasManifest:  false,
+			unlocked:     true,
+			downloadable: false,
+			hasURL:       false,
+		},
+		{
+			name:         "unlocked ready_to_generate with manifest (downloadable)",
+			status:       "ready_to_generate",
+			hasManifest:  true,
+			unlocked:     true,
+			downloadable: true,
+			hasURL:       true,
+		},
+		{
+			name:         "unlocked current with manifest (downloadable)",
+			status:       "current",
+			hasManifest:  true,
+			unlocked:     true,
+			downloadable: true,
+			hasURL:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			item := player.ResolveDownloadItem("lesson-1", "unit-1", "Lesson 1", 0, tt.status, tt.hasManifest)
+			if item.Unlocked != tt.unlocked {
+				t.Fatalf("expected Unlocked=%v, got=%v", tt.unlocked, item.Unlocked)
+			}
+			if item.Downloadable != tt.downloadable {
+				t.Fatalf("expected Downloadable=%v, got=%v", tt.downloadable, item.Downloadable)
+			}
+			if tt.hasURL && item.ManifestURL != "/v1/lessons/lesson-1/manifest" {
+				t.Fatalf("expected ManifestURL to be set, got %q", item.ManifestURL)
+			}
+			if !tt.hasURL && item.ManifestURL != "" {
+				t.Fatalf("expected empty ManifestURL, got %q", item.ManifestURL)
+			}
+		})
+	}
+}
+
 func TestDownloadLibraryAnalyticsAllowlist(t *testing.T) {
 	var mu sync.Mutex
 	var received []map[string]any

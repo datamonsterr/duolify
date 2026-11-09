@@ -96,6 +96,19 @@ func TestDownloadAnEntitledOfflineCourseLibraryIntegration(t *testing.T) {
 
 	const courseID = "f1111111-1111-4111-8111-111111111111"
 	const lessonID = "f3333333-3333-4333-8333-333333333333"
+	const lockedLessonID = "f4444444-4444-4444-8444-444444444444"
+	const ungeneratedLessonID = "f5555555-5555-5555-8555-555555555555"
+	const unitID = "f2222222-2222-4222-8222-222222222222"
+	const subscriberID = "a1111111-1111-4111-8111-111111111111"
+
+	// Seed a locked lesson stub and an ungenerated lesson stub
+	_, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_lesson_stubs(id, learner_id, unit_id, authored_id, position, title, goal, status)
+		VALUES($1, $2, $3, 'locked-stub', 1, 'Locked Lesson', 'Locked goal', 'locked'),
+		      ($4, $2, $3, 'ungenerated-stub', 2, 'Ungenerated Lesson', 'Ungenerated goal', 'ready_to_generate')
+		ON CONFLICT DO NOTHING`, lockedLessonID, subscriberID, unitID, ungeneratedLessonID)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// 1. Unauthenticated request to course download library returns 401
 	status, body := call("GET", "/v1/courses/"+courseID+"/download", "", nil)
@@ -133,7 +146,7 @@ func TestDownloadAnEntitledOfflineCourseLibraryIntegration(t *testing.T) {
 	if err := json.Unmarshal(body, &lib); err != nil {
 		t.Fatalf("failed to decode library response: %v, raw: %s", err, body)
 	}
-	if lib.CourseID != courseID || len(lib.Lessons) == 0 {
+	if lib.CourseID != courseID || len(lib.Lessons) < 3 {
 		t.Fatalf("unexpected library payload: %+v", lib)
 	}
 	if !lib.Entitled {
@@ -142,6 +155,58 @@ func TestDownloadAnEntitledOfflineCourseLibraryIntegration(t *testing.T) {
 	// Check that private assessment data / answers are not leaked
 	if strings.Contains(string(body), "answer") || strings.Contains(string(body), "html_key") {
 		t.Fatalf("leaked private fields in course library download: %s", body)
+	}
+
+	// Verify honesty of Unlocked and Downloadable:
+	// - Locked lesson: unlocked=false, downloadable=false, no manifest_url
+	// - Ungenerated lesson: unlocked=true, downloadable=false, no manifest_url
+	// - Generated lesson: unlocked=true, downloadable=true, has manifest_url
+	var foundGenerated, foundLocked, foundUngenerated bool
+	for _, l := range lib.Lessons {
+		switch l.LessonID {
+		case lessonID:
+			foundGenerated = true
+			if !l.Unlocked || !l.Downloadable || l.ManifestURL == "" {
+				t.Fatalf("expected generated lesson to be unlocked and downloadable with manifest URL, got %+v", l)
+			}
+		case lockedLessonID:
+			foundLocked = true
+			if l.Unlocked || l.Downloadable || l.ManifestURL != "" {
+				t.Fatalf("expected locked lesson to NOT be unlocked and NOT downloadable, got %+v", l)
+			}
+		case ungeneratedLessonID:
+			foundUngenerated = true
+			if !l.Unlocked || l.Downloadable || l.ManifestURL != "" {
+				t.Fatalf("expected ungenerated lesson to be unlocked but NOT downloadable, got %+v", l)
+			}
+		}
+	}
+	if !foundGenerated || !foundLocked || !foundUngenerated {
+		t.Fatalf("missing expected lessons in download library: gen=%v locked=%v ungen=%v", foundGenerated, foundLocked, foundUngenerated)
+	}
+
+	// 4b. When Credits service is not provided (nil), download library returns 503
+	nilCreditsPlayer := player.New(player.Options{
+		Pool:        f.DB.Pool,
+		Objects:     f.ApplicationObjects(),
+		AssetOrigin: "https://assets.example.test",
+		Credits:     nil,
+	})
+	nilCreditsServer := httptest.NewServer(httpapi.New(httpapi.Dependencies{
+		Accounts: auth,
+		Player:   nilCreditsPlayer,
+	}, slog.New(slog.NewTextHandler(io.Discard, nil))))
+	defer nilCreditsServer.Close()
+
+	nilReq, _ := http.NewRequestWithContext(t.Context(), "GET", nilCreditsServer.URL+"/v1/courses/"+courseID+"/download", nil)
+	nilReq.Header.Set("Authorization", "Bearer "+subscriberToken)
+	nilResp, err := nilCreditsServer.Client().Do(nilReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = nilResp.Body.Close()
+	if nilResp.StatusCode != 503 {
+		t.Fatalf("expected 503 when Credits is nil, got %d", nilResp.StatusCode)
 	}
 
 	// 5. Expired subscription: record revocation or past paid_through

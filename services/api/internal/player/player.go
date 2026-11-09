@@ -58,6 +58,26 @@ func IsPlanEntitledToDownload(plan *credits.FundedPlan) bool {
 	return false
 }
 
+// ResolveDownloadItem constructs a DownloadLessonItem honestly deriving Unlocked and Downloadable.
+func ResolveDownloadItem(lessonID, unitID, title string, position int, status string, hasManifest bool) DownloadLessonItem {
+	unlocked := status != "locked"
+	downloadable := unlocked && hasManifest
+	manifestURL := ""
+	if downloadable {
+		manifestURL = "/v1/lessons/" + lessonID + "/manifest"
+	}
+	return DownloadLessonItem{
+		LessonID:     lessonID,
+		UnitID:       unitID,
+		Title:        title,
+		Position:     position,
+		Status:       status,
+		Unlocked:     unlocked,
+		Downloadable: downloadable,
+		ManifestURL:  manifestURL,
+	}
+}
+
 // Options supplies storage and the trusted asset origin.
 type Options struct {
 	Pool        *pgxpool.Pool
@@ -163,28 +183,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, out)
 }
 func (s *Service) downloadLibrary(ctx context.Context, w http.ResponseWriter, _ *http.Request, owner, courseID string) {
-	var plan *credits.FundedPlan
-	var err error
-	if s.opts.Credits != nil {
-		plan, err = s.opts.Credits.FundedPlan(ctx, owner, time.Now().UTC())
-		if err != nil {
-			failure(w, 503)
-			return
-		}
-	} else if s.opts.Pool != nil {
-		var benefits []byte
-		p := &credits.FundedPlan{}
-		err = s.opts.Pool.QueryRow(ctx, `SELECT t.plan_id, t.benefits,
-			t.service_start<=$2 AND t.paid_through>$2 AND NOT EXISTS(SELECT 1 FROM credit_subscription_revocations r WHERE r.period_key=t.period_key)
-			FROM credit_subscription_terms t
-			JOIN credit_subscriptions s USING(subscription_id)
-			JOIN credit_checkout_orders o ON o.id=s.order_id
-			WHERE o.learner_id::text=$1
-			ORDER BY t.paid_through DESC LIMIT 1`, owner, time.Now().UTC()).Scan(&p.PlanID, &benefits, &p.Active)
-		if err == nil {
-			_ = json.Unmarshal(benefits, &p.Benefits)
-			plan = p
-		}
+	if s.opts.Credits == nil {
+		failure(w, 503)
+		return
+	}
+	plan, err := s.opts.Credits.FundedPlan(ctx, owner, time.Now().UTC())
+	if err != nil {
+		failure(w, 503)
+		return
 	}
 
 	if !IsPlanEntitledToDownload(plan) {
@@ -223,16 +229,14 @@ func (s *Service) downloadLibrary(ctx context.Context, w http.ResponseWriter, _ 
 
 	items := []DownloadLessonItem{}
 	for rows.Next() {
-		var item DownloadLessonItem
+		var lessonID, unitID, title, status string
+		var position int
 		var hasManifest bool
-		if err := rows.Scan(&item.LessonID, &item.UnitID, &item.Title, &item.Position, &item.Status, &hasManifest); err != nil {
+		if err := rows.Scan(&lessonID, &unitID, &title, &position, &status, &hasManifest); err != nil {
 			failure(w, 503)
 			return
 		}
-		item.Unlocked = true
-		item.Downloadable = hasManifest
-		item.ManifestURL = "/v1/lessons/" + item.LessonID + "/manifest"
-		items = append(items, item)
+		items = append(items, ResolveDownloadItem(lessonID, unitID, title, position, status, hasManifest))
 	}
 
 	planID := ""

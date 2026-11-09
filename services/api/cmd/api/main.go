@@ -240,7 +240,7 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	handler := httpapi.New(httpapi.Dependencies{
 		Monitor:       monitor,
-		Player:        player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN")}),
+		Player:        player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService}),
 		ObjectStorage: telemetry.StorageProbe(os.Getenv),
 		Accounts:      auth,
 		Credits:       creditService,
