@@ -36,11 +36,12 @@ type AuthRefreshToken struct {
 }
 
 type AuthSession struct {
-	ID        pgtype.UUID        `json:"id"`
-	LearnerID pgtype.UUID        `json:"learner_id"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
-	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
+	ID                pgtype.UUID        `json:"id"`
+	LearnerID         pgtype.UUID        `json:"learner_id"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt         pgtype.Timestamptz `json:"revoked_at"`
+	ReauthenticatedAt pgtype.Timestamptz `json:"reauthenticated_at"`
 }
 
 type CreditEntry struct {
@@ -75,6 +76,42 @@ type LearnerProfile struct {
 	SetupCompleted  bool               `json:"setup_completed"`
 }
 
+type PricingActivationEvent struct {
+	Version     string             `json:"version"`
+	ActivatedAt pgtype.Timestamptz `json:"activated_at"`
+}
+
+type PricingAdminGrant struct {
+	AccountID pgtype.UUID        `json:"account_id"`
+	GrantedAt pgtype.Timestamptz `json:"granted_at"`
+}
+
+type PricingAudit struct {
+	ID          int64              `json:"id"`
+	ActorID     string             `json:"actor_id"`
+	Action      string             `json:"action"`
+	Version     pgtype.Text        `json:"version"`
+	ChangeClass pgtype.Text        `json:"change_class"`
+	DiffSummary []byte             `json:"diff_summary"`
+	Reason      string             `json:"reason"`
+	RequestID   string             `json:"request_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type PricingDraft struct {
+	Version               string             `json:"version"`
+	ParentVersion         string             `json:"parent_version"`
+	Config                []byte             `json:"config"`
+	CreatedBy             string             `json:"created_by"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	Status                string             `json:"status"`
+	ChangeClass           string             `json:"change_class"`
+	SubmittedAt           pgtype.Timestamptz `json:"submitted_at"`
+	ReviewedBy            pgtype.Text        `json:"reviewed_by"`
+	ReviewedAt            pgtype.Timestamptz `json:"reviewed_at"`
+	RollbackSourceVersion pgtype.Text        `json:"rollback_source_version"`
+}
+
 type PricingQuote struct {
 	ID             pgtype.UUID        `json:"id"`
 	LearnerID      pgtype.UUID        `json:"learner_id"`
@@ -101,4 +138,11 @@ type PricingVersion struct {
 	Approved      bool               `json:"approved"`
 	Config        []byte             `json:"config"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type PricingVersionCancellation struct {
+	Version     string             `json:"version"`
+	CancelledBy string             `json:"cancelled_by"`
+	CancelledAt pgtype.Timestamptz `json:"cancelled_at"`
+	Reason      string             `json:"reason"`
 }

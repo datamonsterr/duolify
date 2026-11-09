@@ -9,12 +9,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/store/db"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -189,6 +193,83 @@ type Catalogue struct {
 	config Config
 	body   []byte
 	etag   string
+}
+
+// RuntimeCatalogue resolves approved versions using Postgres time on every
+// read. Postgres remains available when the optional Redis cache is down; a
+// rejected reload leaves the last validated response available to clients.
+type RuntimeCatalogue struct {
+	mu      sync.RWMutex
+	queries Queries
+	pool    *pgxpool.Pool
+	events  analytics.Events
+	last    *Catalogue
+}
+
+// NewRuntimeCatalogue creates the database-time pricing resolver with a validated startup fallback.
+func NewRuntimeCatalogue(initial *Catalogue, q Queries, pool *pgxpool.Pool, events analytics.Events) *RuntimeCatalogue {
+	return &RuntimeCatalogue{queries: q, pool: pool, events: events, last: initial}
+}
+
+func (c *RuntimeCatalogue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	loaded, err := Load(r.Context(), c.queries)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "pricing runtime reload failed; serving last known good catalogue", "error", err)
+		c.mu.RLock()
+		last := c.last
+		c.mu.RUnlock()
+		if last == nil {
+			http.Error(w, "pricing unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		last.ServeHTTP(w, r)
+		return
+	}
+	c.mu.Lock()
+	previous := c.last
+	c.last = loaded
+	c.mu.Unlock()
+	if previous == nil || previous.config.Version != loaded.config.Version {
+		c.recordActivation(r.Context(), loaded.config.Version)
+	}
+	loaded.ServeHTTP(w, r)
+}
+
+func (c *RuntimeCatalogue) recordActivation(ctx context.Context, version string) {
+	if c.pool == nil {
+		return
+	}
+	tx, err := c.pool.Begin(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "pricing activation transaction failed", "version", version, "error", err)
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var inserted string
+	err = tx.QueryRow(ctx, `INSERT INTO pricing_activation_events(version) VALUES($1) ON CONFLICT DO NOTHING RETURNING version`, version).Scan(&inserted)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return
+	}
+	if err != nil {
+		slog.ErrorContext(ctx, "pricing activation marker failed", "version", version, "error", err)
+		return
+	}
+	class := "non_adverse"
+	_ = tx.QueryRow(ctx, "SELECT change_class FROM pricing_drafts WHERE version=$1", version).Scan(&class)
+	if _, err = tx.Exec(ctx, `INSERT INTO pricing_audit(actor_id,action,version,change_class,reason,request_id) VALUES($1,'version_activated',$2,$3,'scheduled activation',$4)`, actorHash(systemActor), version, class, "activation-"+version); err != nil {
+		slog.ErrorContext(ctx, "pricing activation audit failed", "version", version, "error", err)
+		return
+	}
+	if err = tx.Commit(ctx); err != nil {
+		slog.ErrorContext(ctx, "pricing activation commit failed", "version", version, "error", err)
+		return
+	}
+	if c.events == nil {
+		return
+	}
+	properties := map[string]any{"pricing_version": version, "change_class": class, "actor_id": systemActor, "platform": "web", "app_version": "development", "source": "api"}
+	_ = c.events.Capture(systemActor, "pricing_version_activated", properties)
+	_ = c.events.Capture(systemActor, "price_table_activated", properties)
 }
 
 // Load is called before listening; absent or corrupt active data is a boot error.

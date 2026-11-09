@@ -283,7 +283,11 @@ func (f *Fixture) Seed(t *testing.T) {
 		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES ('%x','d4444444-4444-4444-8444-444444444444',now()+interval '30 days')", sha256.Sum256([]byte("synthetic-revoked-refresh"))),
 		"INSERT INTO auth_rate_limits (key_hash,count,expires_at) VALUES (repeat('c',64),3,now()+interval '1 hour')",
 		"INSERT INTO pricing_admin_grants(account_id) VALUES ('a1111111-1111-4111-8111-111111111111')",
+		"INSERT INTO pricing_activation_events(version) VALUES ('usd-launch-2026-11-08')",
+		"INSERT INTO pricing_versions(version,effective_from,approved,config) SELECT 'usd-backup-scheduled',now()+interval '96 hours',true,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-scheduled\"'),'{effective_from}',to_jsonb(now()+interval '96 hours')) FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
+		"INSERT INTO pricing_version_cancellations(version,cancelled_by,reason) VALUES ('usd-backup-scheduled','a1111111-1111-4111-8111-111111111111','synthetic restore cancellation')",
 		"INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class) SELECT 'usd-backup-draft',version,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-draft\"'),'{effective_from}',to_jsonb(now()+interval '96 hours')),'a1111111-1111-4111-8111-111111111111','non_adverse' FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
+		"INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class,rollback_source_version) SELECT 'usd-backup-rollback',version,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-rollback\"'),'{effective_from}',to_jsonb(now()+interval '120 hours')),'a1111111-1111-4111-8111-111111111111','non_adverse','usd-launch-2026-11-08' FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
 		fmt.Sprintf("INSERT INTO pricing_audit(actor_id,action,version,change_class,reason,request_id) VALUES ('%x','version_created','usd-backup-draft','non_adverse','synthetic restore audit','restore-fixture')", sha256.Sum256([]byte("a1111111-1111-4111-8111-111111111111"))),
 	} {
 		if _, err := f.DB.Pool.Exec(t.Context(), query); err != nil {
@@ -438,9 +442,22 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if !reflect.DeepEqual(beforePricing.Config(), afterPricing.Config()) {
 		t.Fatal("encrypted backup changed the restored pricing catalogue")
 	}
+	for _, check := range []struct {
+		query string
+		want  int
+	}{
+		{"SELECT count(*) FROM pricing_activation_events WHERE version='usd-launch-2026-11-08'", 1},
+		{"SELECT count(*) FROM pricing_version_cancellations WHERE version='usd-backup-scheduled'", 1},
+		{"SELECT count(*) FROM pricing_drafts WHERE version='usd-backup-rollback' AND parent_version='usd-launch-2026-11-08' AND rollback_source_version='usd-launch-2026-11-08'", 1},
+	} {
+		var got int
+		if err := restored.Pool.QueryRow(t.Context(), check.query).Scan(&got); err != nil || got != check.want {
+			t.Fatalf("restored pricing history count=%d want=%d err=%v", got, check.want, err)
+		}
+	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits"} {
+	for _, table := range []string{"pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -529,7 +546,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		}
 	}
 
-	for _, query := range []string{"UPDATE pricing_quotes SET snapshot='{}'", "DELETE FROM pricing_quotes", "TRUNCATE pricing_quotes", "DELETE FROM pricing_quote_consents", "DELETE FROM pricing_quote_policies", "UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions", "UPDATE pricing_audit SET reason='rewritten'", "DELETE FROM pricing_audit", "TRUNCATE pricing_audit"} {
+	for _, query := range []string{"UPDATE pricing_quotes SET snapshot='{}'", "DELETE FROM pricing_quotes", "TRUNCATE pricing_quotes", "DELETE FROM pricing_quote_consents", "DELETE FROM pricing_quote_policies", "UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions", "UPDATE pricing_audit SET reason='rewritten'", "DELETE FROM pricing_audit", "TRUNCATE pricing_audit", "UPDATE pricing_activation_events SET activated_at=now()", "DELETE FROM pricing_activation_events", "TRUNCATE pricing_activation_events", "UPDATE pricing_version_cancellations SET reason='rewritten'", "DELETE FROM pricing_version_cancellations", "TRUNCATE pricing_version_cancellations"} {
 		if _, err := restored.Pool.Exec(t.Context(), query); err == nil {
 			t.Fatalf("restored immutable data accepted mutation: %s", query)
 		}

@@ -59,6 +59,12 @@ type reasonInput struct {
 	Reason string `json:"reason"`
 }
 
+type rollbackInput struct {
+	Version       string    `json:"version"`
+	EffectiveFrom time.Time `json:"effective_from"`
+	Reason        string    `json:"reason"`
+}
+
 func validateReason(reason string) error {
 	reason = strings.TrimSpace(reason)
 	if len(reason) == 0 || len(reason) > 1000 {
@@ -156,6 +162,10 @@ EXISTS(SELECT 1 FROM auth_sessions WHERE id=$2::uuid AND learner_id=$1::uuid AND
 		adminError(w, http.StatusNotFound, "pricing operation not found")
 		return
 	}
+	if parts[1] == "rollback" {
+		a.rollback(w, r, actor, version)
+		return
+	}
 	a.action(w, r, actor, version, parts[1])
 }
 
@@ -248,7 +258,7 @@ func (a *Admin) create(w http.ResponseWriter, r *http.Request, actor string) {
 	defer func() { _ = tx.Rollback(ctx) }()
 	var parent string
 	var previous []byte
-	err = tx.QueryRow(ctx, `SELECT version,config FROM pricing_versions WHERE approved AND effective_from<=now() ORDER BY effective_from DESC LIMIT 1 FOR SHARE`).Scan(&parent, &previous)
+	err = tx.QueryRow(ctx, `SELECT version,config FROM pricing_versions WHERE approved AND effective_from<=now() AND NOT EXISTS (SELECT 1 FROM pricing_version_cancellations c WHERE c.version=pricing_versions.version) ORDER BY effective_from DESC LIMIT 1 FOR SHARE`).Scan(&parent, &previous)
 	if err != nil {
 		adminError(w, 503, "active pricing unavailable")
 		return
@@ -339,7 +349,7 @@ func (a *Admin) edit(w http.ResponseWriter, r *http.Request, actor, version stri
 		return
 	}
 	var active []byte
-	if err = tx.QueryRow(ctx, `SELECT config FROM pricing_versions WHERE approved AND effective_from<=now() ORDER BY effective_from DESC LIMIT 1`).Scan(&active); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT config FROM pricing_versions WHERE approved AND effective_from<=now() AND NOT EXISTS (SELECT 1 FROM pricing_version_cancellations c WHERE c.version=pricing_versions.version) ORDER BY effective_from DESC LIMIT 1`).Scan(&active); err != nil {
 		adminError(w, 503, "active pricing unavailable")
 		return
 	}
@@ -382,7 +392,11 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		adminError(w, 400, err.Error())
 		return
 	}
-	if action != "validate" && action != "diff" && action != "submit" && action != "approve" && action != "reject" {
+	if action == "cancel" {
+		a.cancel(w, r, actor, version, in.Reason)
+		return
+	}
+	if action != "validate" && action != "diff" && action != "submit" && action != "approve" && action != "schedule" && action != "reject" {
 		adminError(w, 404, "pricing operation not found")
 		return
 	}
@@ -413,7 +427,7 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		return
 	}
 	var activeConfig []byte
-	if err = tx.QueryRow(ctx, `SELECT config FROM pricing_versions WHERE approved AND effective_from<=now() ORDER BY effective_from DESC LIMIT 1 FOR SHARE`).Scan(&activeConfig); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT config FROM pricing_versions WHERE approved AND effective_from<=now() AND NOT EXISTS (SELECT 1 FROM pricing_version_cancellations c WHERE c.version=pricing_versions.version) ORDER BY effective_from DESC LIMIT 1 FOR SHARE`).Scan(&activeConfig); err != nil {
 		adminError(w, 503, "active pricing unavailable")
 		return
 	}
@@ -554,12 +568,38 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		adminError(w, 422, err.Error())
 		return
 	}
+	if action == "schedule" {
+		var databaseNow time.Time
+		if err = tx.QueryRow(ctx, "SELECT now()").Scan(&databaseNow); err != nil {
+			adminError(w, 503, "database clock unavailable")
+			return
+		}
+		if !parsed.EffectiveFrom.After(databaseNow) {
+			a.auditFailure(ctx, actor, "schedule_denied", version, in.Reason, "{}", requestID(r))
+			adminError(w, 409, "scheduled pricing must have a future effective instant")
+			return
+		}
+		var duplicate bool
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pricing_versions WHERE effective_from=$1 AND NOT EXISTS (SELECT 1 FROM pricing_version_cancellations c WHERE c.version=pricing_versions.version))`, parsed.EffectiveFrom).Scan(&duplicate); err != nil {
+			adminError(w, 503, "schedule availability unavailable")
+			return
+		}
+		if duplicate {
+			a.auditFailure(ctx, actor, "schedule_denied", version, in.Reason, "{}", requestID(r))
+			adminError(w, 409, "another pricing version already uses this effective instant")
+			return
+		}
+	}
 	_, err = tx.Exec(ctx, `INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES($1,$2,true,$3::jsonb)`, version, parsed.EffectiveFrom, cfg)
 	if err == nil {
 		_, err = tx.Exec(ctx, `UPDATE pricing_drafts SET status='approved',reviewed_by=$2,reviewed_at=now() WHERE version=$1`, version, actor)
 	}
 	if err == nil {
-		err = insertAudit(ctx, tx, actor, "version_approved", version, class, in.Reason, requestID(r), `{"approved":true}`)
+		auditAction := "version_approved"
+		if action == "schedule" {
+			auditAction = "version_scheduled"
+		}
+		err = insertAudit(ctx, tx, actor, auditAction, version, class, in.Reason, requestID(r), `{"approved":true}`)
 	}
 	if err == nil {
 		err = tx.Commit(ctx)
@@ -570,7 +610,141 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		return
 	}
 	a.emit(ctx, actor, version, "pricing_version_approved", class)
-	adminJSON(w, 200, map[string]string{"version": version, "status": "approved"})
+	statusText := "approved"
+	var future bool
+	if err := a.pool.QueryRow(ctx, "SELECT $1>now()", parsed.EffectiveFrom).Scan(&future); err != nil {
+		future = false
+	}
+	if future {
+		statusText = "scheduled"
+	}
+	adminJSON(w, 200, map[string]string{"version": version, "status": statusText})
+}
+
+func (a *Admin) cancel(w http.ResponseWriter, r *http.Request, actor, version, reason string) {
+	ctx := r.Context()
+	tx, err := a.pool.Begin(ctx)
+	if err != nil {
+		adminError(w, 503, "pricing store unavailable")
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var effective time.Time
+	err = tx.QueryRow(ctx, "SELECT effective_from FROM pricing_versions WHERE version=$1 AND approved FOR UPDATE", version).Scan(&effective)
+	if errors.Is(err, pgx.ErrNoRows) {
+		adminError(w, 404, "approved pricing version not found")
+		return
+	}
+	if err != nil {
+		adminError(w, 503, "pricing version unavailable")
+		return
+	}
+	var now time.Time
+	if err = tx.QueryRow(ctx, "SELECT now()").Scan(&now); err != nil {
+		adminError(w, 503, "database clock unavailable")
+		return
+	}
+	if !effective.After(now) {
+		a.auditFailure(ctx, actor, "cancellation_denied", version, reason, "{}", requestID(r))
+		adminError(w, 409, "only a future scheduled version can be cancelled")
+		return
+	}
+	_, err = tx.Exec(ctx, "INSERT INTO pricing_version_cancellations(version,cancelled_by,reason) VALUES($1,$2,$3)", version, actorHash(actor), reason)
+	if err == nil {
+		err = insertAudit(ctx, tx, actor, "version_cancelled", version, "", reason, requestID(r), `{"cancelled":true}`)
+	}
+	if err == nil {
+		err = tx.Commit(ctx)
+	}
+	if err != nil {
+		adminError(w, 409, "could not cancel scheduled pricing version")
+		return
+	}
+	adminJSON(w, 200, map[string]string{"version": version, "status": "cancelled"})
+}
+
+func (a *Admin) rollback(w http.ResponseWriter, r *http.Request, actor, source string) {
+	var in rollbackInput
+	if !decodeAdmin(w, r, &in) {
+		a.auditFailure(r.Context(), actor, "rollback_denied", source, "invalid request", "{}", requestID(r))
+		return
+	}
+	if err := validateReason(in.Reason); err != nil || in.Version == "" || in.EffectiveFrom.IsZero() {
+		a.auditFailure(r.Context(), actor, "rollback_denied", source, in.Reason, "{}", requestID(r))
+		adminError(w, 400, "version, effective_from and reason are required")
+		return
+	}
+	ctx := r.Context()
+	tx, err := a.pool.Begin(ctx)
+	if err != nil {
+		adminError(w, 503, "pricing store unavailable")
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var historical []byte
+	if err = tx.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version=$1 AND approved", source).Scan(&historical); err != nil {
+		adminError(w, 404, "rollback source not found")
+		return
+	}
+	var parent string
+	var active []byte
+	if err = tx.QueryRow(ctx, `SELECT version,config FROM pricing_versions WHERE approved AND effective_from<=now() AND NOT EXISTS (SELECT 1 FROM pricing_version_cancellations c WHERE c.version=pricing_versions.version) ORDER BY effective_from DESC LIMIT 1 FOR SHARE`).Scan(&parent, &active); err != nil {
+		adminError(w, 503, "active pricing unavailable")
+		return
+	}
+	var duplicate bool
+	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pricing_versions WHERE version=$1) OR EXISTS(SELECT 1 FROM pricing_drafts WHERE version=$1)", in.Version).Scan(&duplicate); err != nil || duplicate {
+		adminError(w, 409, "pricing version already exists")
+		return
+	}
+	var doc map[string]json.RawMessage
+	if err = json.Unmarshal(historical, &doc); err != nil {
+		adminError(w, 422, "rollback source invalid")
+		return
+	}
+	doc["version"], _ = json.Marshal(in.Version)
+	doc["effective_from"], _ = json.Marshal(in.EffectiveFrom.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano))
+	content, _ := json.Marshal(doc)
+	parsed, err := Parse(content)
+	if err != nil {
+		adminError(w, 422, "rollback config invalid")
+		return
+	}
+	content, parsed, err = normalizeEffectiveFrom(content)
+	if err != nil {
+		adminError(w, 422, "rollback config invalid")
+		return
+	}
+	if err = validateMargins(content); err != nil {
+		adminError(w, 422, err.Error())
+		return
+	}
+	adverse, err := classifyAdverse(active, content)
+	if err != nil {
+		adminError(w, 422, "unable to classify rollback")
+		return
+	}
+	class := "non_adverse"
+	if adverse {
+		class = "adverse"
+	}
+	summary, err := diffSummary(active, content)
+	if err != nil {
+		adminError(w, 422, "rollback diff unavailable")
+		return
+	}
+	if _, err = tx.Exec(ctx, "INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class,rollback_source_version) VALUES($1,$2,$3::jsonb,$4,$5,$6)", parsed.Version, parent, content, actor, class, source); err == nil {
+		err = insertAudit(ctx, tx, actor, "version_rolled_back", parsed.Version, class, in.Reason, requestID(r), summary)
+	}
+	if err == nil {
+		err = tx.Commit(ctx)
+	}
+	if err != nil {
+		adminError(w, 409, "could not create rollback draft")
+		return
+	}
+	a.emit(ctx, actor, parsed.Version, "pricing_version_rolled_back", class)
+	adminJSON(w, 201, map[string]string{"version": parsed.Version, "parent_version": parent, "rollback_source": source, "status": "draft", "change_class": class})
 }
 
 func (a *Admin) list(w http.ResponseWriter, r *http.Request, actor string) {

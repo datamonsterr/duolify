@@ -1,0 +1,4 @@
+- [x] Add the pricing client acceptance test for a catalogue flip while a quote retains its original terms.
+- [x] Add Postgres coverage for database-time resolution, concurrent reads, cancellation and rollback ancestry.
+- [x] Add runtime reload fallback coverage and implement schedule, cancel, rollback, activation events and backup retention.
+- [x] Run focused API and web client mise gates; run strict OpenSpec validation.

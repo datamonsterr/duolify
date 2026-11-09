@@ -165,7 +165,7 @@ func run(ctx context.Context, args []string) (result error) {
 	pricingAdmin := pricing.NewAdmin(db.Pool, events, os.Getenv("PRICING_OWNER_ID"))
 	handler := httpapi.New(httpapi.Dependencies{
 		Accounts:     auth,
-		Pricing:      catalogue,
+		Pricing:      pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events),
 		PricingAdmin: pricingAdmin,
 		Quotes:       pricing.NewQuotes(db.Pool),
 		Postgres:     db.Ping,
@@ -183,7 +183,7 @@ func run(ctx context.Context, args []string) (result error) {
 
 func runAdminCLI(ctx context.Context, args []string) error {
 	if len(args) < 2 || args[0] != "pricing" {
-		return errors.New("usage: api admin pricing {draft|edit|validate|diff|submit|approve|reject|list|show} --actor UUID --reason TEXT [--version ID] [--config FILE]")
+		return errors.New("usage: api admin pricing {draft|edit|validate|diff|submit|approve|reject|schedule|cancel|rollback|list|show} --actor UUID --reason TEXT [--version ID] [--new-version ID] [--effective-from RFC3339] [--config FILE]")
 	}
 	operation := args[1]
 	flags := flag.NewFlagSet("admin pricing", flag.ContinueOnError)
@@ -191,6 +191,8 @@ func runAdminCLI(ctx context.Context, args []string) error {
 	reason := flags.String("reason", "", "required audit reason")
 	version := flags.String("version", "", "pricing version")
 	configFile := flags.String("config", "", "pricing config JSON file for draft/edit")
+	newVersion := flags.String("new-version", "", "new version ID for a rollback draft")
+	effectiveFrom := flags.String("effective-from", "", "rollback effective instant in RFC3339")
 	if err := flags.Parse(args[2:]); err != nil {
 		return err
 	}
@@ -236,12 +238,22 @@ func runAdminCLI(ctx context.Context, args []string) error {
 		}
 		method = http.MethodGet
 		path += "/" + url.PathEscape(*version) + "?reason=" + url.QueryEscape(*reason)
-	case "validate", "diff", "submit", "approve", "reject":
+	case "validate", "diff", "submit", "approve", "reject", "schedule", "cancel":
 		if *version == "" {
 			return errors.New("--version is required for this operation")
 		}
 		path += "/" + url.PathEscape(*version) + "/" + operation
 		body, _ = json.Marshal(map[string]string{"reason": *reason})
+	case "rollback":
+		if *version == "" || *newVersion == "" || *effectiveFrom == "" {
+			return errors.New("--version, --new-version and --effective-from are required for rollback")
+		}
+		instant, err := time.Parse(time.RFC3339Nano, *effectiveFrom)
+		if err != nil {
+			return errors.New("--effective-from must be RFC3339")
+		}
+		path += "/" + url.PathEscape(*version) + "/rollback"
+		body, _ = json.Marshal(map[string]any{"version": *newVersion, "effective_from": instant, "reason": *reason})
 	default:
 		return fmt.Errorf("unknown pricing operation %q", operation)
 	}
