@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,13 +15,14 @@ import (
 
 // Config contains service settings. Secrets must never be logged.
 type Config struct {
-	Addr        string
-	DatabaseURL string
-	RedisURL    string
-	EngineAddr  string
-	PostHogKey  string
-	PostHogHost string
-	LogLevel    slog.Level
+	Addr            string
+	DatabaseURL     string
+	RedisURL        string
+	EngineAddr      string
+	PostHogKey      string
+	PostHogHost     string
+	LogLevel        slog.Level
+	AnalyticsOptOut bool
 }
 
 // Load reads a supplied environment, allowing tests without process-global mutations.
@@ -32,6 +34,13 @@ func Load(getenv func(string) string) (Config, error) {
 		EngineAddr:  getenv("ENGINE_ADDR"),
 		PostHogKey:  getenv("POSTHOG_API_KEY"),
 		PostHogHost: defaultValue(getenv("POSTHOG_HOST"), "https://us.i.posthog.com"),
+	}
+	if value := getenv("ANALYTICS_OPT_OUT"); value != "" {
+		var err error
+		cfg.AnalyticsOptOut, err = strconv.ParseBool(value)
+		if err != nil {
+			return Config{}, fmt.Errorf("ANALYTICS_OPT_OUT is invalid")
+		}
 	}
 	for _, v := range []struct{ name, value string }{
 		{"DATABASE_URL", cfg.DatabaseURL},

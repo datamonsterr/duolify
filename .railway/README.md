@@ -25,7 +25,11 @@ them in Railway before switching from mock mode or using real auth/analytics.
 `ENGINE_HOST` is an IaC-only reference used to compose `ENGINE_ADDR`; it is not an
 additional local runtime setting. Bucket credentials use Railway variable
 references and are never committed. The worker's backup credentials remain
-omitted until its backup job and access policy exist.
+omitted until owner provisioning in E11-02/E11-07. E11-01's local worker now
+requires scoped `BACKUP_S3_*` and a public `BACKUP_AGE_RECIPIENT` and fails closed
+without them. The cloud rollout must also select the Dockerfile `worker` stage
+(pg_dump/age tools), rather than its default `api` stage. The scaffold declaration
+does not enable cloud backups; finish E11-03 protection and E11-06 rollout first.
 
 `/api migrate` is the current binary's upward-migration command. Both API and
 worker run it before deploy because Railway does not guarantee service order.
