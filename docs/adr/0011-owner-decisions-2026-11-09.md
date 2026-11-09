@@ -16,11 +16,18 @@ The ticket breakdown (`docs/epics/tickets.md`) found decision tickets that block
 | E10-01 (gate only) | AI tickets develop and gate on golden-set fixtures committed in `evals/fixtures` (offline evals, mock provider). The live Hugging Face eval gate is enabled once the owner provisions the dataset and secrets; E10-01 blocks only that switch. |
 | E4-06 | When a retry pool is exhausted, reuse the pool (reordered) for free. No on-demand paid AI variants at launch. |
 | E6-05 | A shared Friend-streak day is each friend's own local date; it counts when both complete a Lesson on their own local date and those dates overlap in real time. Each friend sees their own local date; rollover is decided by the later day-end (spec rule). |
-| E12-02 | Action quotes are independent of wallet reservations. The initial quote TTL is 10 minutes; provider/model rates come from the business-model cost envelope; the logical narration voice key is `default`. Quote policy is an immutable extension owned by each Pricing version. Quoting never enables a model or calls a provider. |
 | E12-04 | Adverse pricing changes need 72 hours notice. The owner is the sole `pricing_admin` at launch; until a second admin exists the owner may approve adverse versions after the notice window. SKUs below 70% margin always block activation. |
 | E16-04 | Steering limits: 500 characters per instruction, 20 active, 4000 total, 10 adds per course per hour. Regenerating an already generated lesson and rejoining a published course stay deferred. |
 | E16-06 | `outline_replan` costs 55 credits in a new Pricing config version; a successfully produced proposal is charged even if discarded. |
 | E17 | ADR 0010 accepted: original parametric SVG Character rig, no AI image generation in v1. Default limits from `openspec/changes/custom-characters/design.md` accepted. |
+
+## Defaults chosen during implementation (pending owner review)
+
+Not owner decisions; chosen by the orchestrator so work could continue. Change them by a new Pricing config version or ADR.
+
+| Ticket | Default |
+|---|---|
+| E12-02 | Action quotes are independent of wallet reservations. The initial quote TTL is 10 minutes; provider/model rates come from the business-model cost envelope; the logical narration voice key is `default`. Quote policy is an immutable extension owned by each Pricing version. Quoting never enables a model or calls a provider. |
 
 ## Still open (owner provisioning)
 
