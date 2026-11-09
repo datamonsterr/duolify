@@ -107,10 +107,7 @@ export function CourseBrief({
   const [previewStep, setPreviewStepState] = useState(() => {
     try {
       const saved = sessionStorage.getItem(`course-creation-step:${learnerId}`);
-      if (saved) {
-        const num = parseInt(saved, 10);
-        if (num >= 1 && num <= 4) return num;
-      }
+      if (saved === "4") return 4;
     } catch {
       /* ignore */
     }

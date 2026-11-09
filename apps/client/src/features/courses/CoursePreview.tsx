@@ -100,20 +100,14 @@ export function CoursePreview({
         }
         if (step === "4" && draft.confirmed) {
           setCreation(draft.confirmed);
-        } else if (step === "3") {
-          setEditor(
-            workingOutline
-              ? { value: workingOutline.value, draft: workingOutline.draft }
-              : { value: draft.outline, draft },
-          );
-          setOutline(true);
+          onStep?.(4);
         }
       })
       .catch(() => {});
     return () => {
       active = false;
     };
-  }, [revision.id, workingOutline]);
+  }, [revision.id, onStep]);
   function editOutline() {
     if (!editor)
       setEditor(
