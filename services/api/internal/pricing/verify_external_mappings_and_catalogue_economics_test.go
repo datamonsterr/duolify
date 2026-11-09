@@ -202,3 +202,26 @@ func TestOfficialModelCatalogueEvidence(t *testing.T) {
 		t.Fatalf("expected openrouter provider for anthropic/claude-haiku-5.5: %+v", evidence["anthropic/claude-haiku-5.5"])
 	}
 }
+
+func TestConfigurableProcessingFees(t *testing.T) {
+	cfg := loadApprovedConfig(t)
+	// Add custom processing fees with higher fee rates making pack_try fall below 70%
+	cfg["processing_fees"] = map[string]any{
+		"pack_fee_rate":              0.60, // 60% fee
+		"pack_fixed_fee_usd":         1.00,
+		"subscription_fee_rate":      0.036,
+		"subscription_fixed_fee_usd": 0.30,
+		"refund_reserve_rate":        0.05,
+	}
+	raw, _ := json.Marshal(cfg)
+	err := pricing.ValidateEconomics(raw, nil, "")
+	if err == nil || !strings.Contains(err.Error(), "below 70% margin") {
+		t.Fatalf("expected margin rejection with higher configured fee rates, got %v", err)
+	}
+
+	// Verify ResolveProviderRates returns dev-proposed defaults when omitted
+	rates := pricing.ResolveProviderRates(map[string]any{})
+	if rates.PackFeeRate != 0.029 || rates.SubscriptionFeeRate != 0.036 || rates.RefundReserveRate != 0.020 {
+		t.Fatalf("unexpected dev proposed rates: %+v", rates)
+	}
+}

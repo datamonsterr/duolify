@@ -99,6 +99,27 @@ impl StandardActionCost {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderRateConfig {
+    pub pack_fee_rate: f64,
+    pub pack_fixed_fee_usd: f64,
+    pub subscription_fee_rate: f64,
+    pub subscription_fixed_fee_usd: f64,
+    pub refund_reserve_rate: f64,
+}
+
+impl Default for ProviderRateConfig {
+    fn default() -> Self {
+        Self {
+            pack_fee_rate: 0.029,
+            pack_fixed_fee_usd: 0.30,
+            subscription_fee_rate: 0.036,
+            subscription_fixed_fee_usd: 0.30,
+            refund_reserve_rate: 0.020,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SkuEconomics {
     pub sku: String,

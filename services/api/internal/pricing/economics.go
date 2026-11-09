@@ -19,6 +19,51 @@ var standardProtectedCostsUSD = map[string]float64{
 	"quick_note":     0.0003257820,
 }
 
+// ProviderRateConfig defines the payment provider processing fees and refund reserve
+// used for catalogue margin economics calculations.
+type ProviderRateConfig struct {
+	PackFeeRate             float64 `json:"pack_fee_rate"`
+	PackFixedFeeUSD         float64 `json:"pack_fixed_fee_usd"`
+	SubscriptionFeeRate     float64 `json:"subscription_fee_rate"`
+	SubscriptionFixedFeeUSD float64 `json:"subscription_fixed_fee_usd"`
+	RefundReserveRate       float64 `json:"refund_reserve_rate"`
+}
+
+// DevProposedProviderRates represents the development-proposed payment processing fee rates
+// and refund reserve (Stripe standard web fee 2.9% + $0.30 for packs, 3.6% + $0.30 for recurring billing,
+// and 2.0% refund reserve), pending final owner review.
+var DevProposedProviderRates = ProviderRateConfig{
+	PackFeeRate:             0.029,
+	PackFixedFeeUSD:         0.30,
+	SubscriptionFeeRate:     0.036,
+	SubscriptionFixedFeeUSD: 0.30,
+	RefundReserveRate:       0.020,
+}
+
+// ResolveProviderRates resolves provider processing fee rates and refund reserve from the
+// pricing config's processing_fees object if present, falling back to DevProposedProviderRates.
+func ResolveProviderRates(config map[string]any) ProviderRateConfig {
+	rates := DevProposedProviderRates
+	if pf, ok := config["processing_fees"].(map[string]any); ok {
+		if v, ok := number(pf["pack_fee_rate"]); ok && v >= 0 {
+			rates.PackFeeRate = v
+		}
+		if v, ok := number(pf["pack_fixed_fee_usd"]); ok && v >= 0 {
+			rates.PackFixedFeeUSD = v
+		}
+		if v, ok := number(pf["subscription_fee_rate"]); ok && v >= 0 {
+			rates.SubscriptionFeeRate = v
+		}
+		if v, ok := number(pf["subscription_fixed_fee_usd"]); ok && v >= 0 {
+			rates.SubscriptionFixedFeeUSD = v
+		}
+		if v, ok := number(pf["refund_reserve_rate"]); ok && v >= 0 {
+			rates.RefundReserveRate = v
+		}
+	}
+	return rates
+}
+
 // ValidateEconomics performs complete catalogue economics, margin, and external mapping checks.
 func ValidateEconomics(raw []byte, verifier ExternalVerifier, overrideReason string) error {
 	return ValidateEconomicsWithContext(context.Background(), raw, verifier, overrideReason)
@@ -82,6 +127,8 @@ func ValidateEconomicsWithContext(ctx context.Context, raw []byte, verifier Exte
 		return 100.0 * (netReceipts - cost) / netReceipts, nil
 	}
 
+	rates := ResolveProviderRates(config)
+
 	// 3. Packs SKU margin check
 	packs, _ := config["packs"].([]any)
 	for _, item := range packs {
@@ -94,8 +141,7 @@ func ValidateEconomicsWithContext(ctx context.Context, raw []byte, verifier Exte
 		credits, _ := number(m["credits"])
 		priceUSD := priceMinor / 100.0
 
-		// Web pack fee: 2.9% + $0.30; refund reserve: 2.0%
-		mgn, err := calcMargin(priceUSD, 0.029, 0.30, 0.02, int(credits))
+		mgn, err := calcMargin(priceUSD, rates.PackFeeRate, rates.PackFixedFeeUSD, rates.RefundReserveRate, int(credits))
 		if err != nil || mgn < 70.0 {
 			return fmt.Errorf("sku %s is below 70%% margin (got %.2f%%)", sku, mgn)
 		}
@@ -112,8 +158,7 @@ func ValidateEconomicsWithContext(ctx context.Context, raw []byte, verifier Exte
 			sku, _ := monthlyOffer["sku"].(string)
 			priceMinor, _ := number(monthlyOffer["amount_minor"])
 			priceUSD := priceMinor / 100.0
-			// Subscription web fee: 3.6% + $0.30; refund reserve: 2.0%
-			mgn, err := calcMargin(priceUSD, 0.036, 0.30, 0.02, int(monthlyCredits))
+			mgn, err := calcMargin(priceUSD, rates.SubscriptionFeeRate, rates.SubscriptionFixedFeeUSD, rates.RefundReserveRate, int(monthlyCredits))
 			if err != nil || mgn < 70.0 {
 				return fmt.Errorf("sku %s is below 70%% margin (got %.2f%%)", sku, mgn)
 			}
@@ -124,8 +169,7 @@ func ValidateEconomicsWithContext(ctx context.Context, raw []byte, verifier Exte
 			sku, _ := yearlyOffer["sku"].(string)
 			priceMinor, _ := number(yearlyOffer["amount_minor"])
 			priceUSD := priceMinor / 100.0
-			// Subscription web fee: 3.6% + $0.30; refund reserve: 2.0%
-			mgn, err := calcMargin(priceUSD, 0.036, 0.30, 0.02, int(monthlyCredits*12))
+			mgn, err := calcMargin(priceUSD, rates.SubscriptionFeeRate, rates.SubscriptionFixedFeeUSD, rates.RefundReserveRate, int(monthlyCredits*12))
 			if err != nil || mgn < 70.0 {
 				return fmt.Errorf("sku %s is below 70%% margin (got %.2f%%)", sku, mgn)
 			}

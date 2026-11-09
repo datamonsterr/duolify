@@ -28,3 +28,10 @@ Every external mapping check and catalogue economics evaluation SHALL append an 
 #### Scenario: Verification failure audited
 - **WHEN** validation fails due to invalid provider mapping or uneconomic margin
 - **THEN** an audit entry records the failure evidence and `pricing_version_rejected` is emitted with UUID actor and version properties
+
+### Requirement: Configurable payment processing fees and refund reserve
+The pricing catalogue configuration schema SHALL permit a `processing_fees` object specifying payment provider fee rates and refund reserves (`pack_fee_rate`, `pack_fixed_fee_usd`, `subscription_fee_rate`, `subscription_fixed_fee_usd`, `refund_reserve_rate`). When omitted in catalogue versions, the engine and API SHALL use the development-proposed default rates (pack: 2.9% + $0.30, subscription: 3.6% + $0.30, refund reserve: 2.0%) flagged as dev-proposed pending final owner review.
+
+#### Scenario: Catalogue with custom processing fees
+- **WHEN** a catalogue draft provides `processing_fees`
+- **THEN** SKU margin calculations use the configured fee rates and refund reserve rather than hardcoded literals

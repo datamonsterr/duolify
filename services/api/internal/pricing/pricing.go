@@ -80,6 +80,7 @@ type Config struct {
 	Plans               []Plan                       `json:"plans"`
 	PaidCredits         json.RawMessage              `json:"paid_credits"`
 	Limits              json.RawMessage              `json:"limits"`
+	ProcessingFees      *ProviderRateConfig          `json:"processing_fees,omitempty"`
 	DevelopmentMappings map[string]string            `json:"development_mappings,omitempty"`
 	StripeMappings      map[string]any               `json:"stripe_mappings,omitempty"`
 	StoreMappings       map[string]map[string]string `json:"store_mappings,omitempty"`
@@ -88,6 +89,7 @@ type Config struct {
 // Public strips provider mappings. No sales are activated by this read-only ticket.
 func (c Config) Public() PublicConfig {
 	c.DevelopmentMappings = nil
+	c.ProcessingFees = nil
 	c.StripeMappings = nil
 	c.StoreMappings = nil
 	return PublicConfig{Config: c, SalesEnabled: false}
