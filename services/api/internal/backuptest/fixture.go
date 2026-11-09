@@ -273,8 +273,11 @@ func (f *Fixture) Seed(t *testing.T) {
 		"INSERT INTO learners (id,display_name) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner')",
 		"INSERT INTO credit_entries (learner_id,amount,kind,reference) VALUES ('a1111111-1111-4111-8111-111111111111',120,'purchase','synthetic-purchase'),('a1111111-1111-4111-8111-111111111111',-35,'spend','synthetic-spend')",
 		"INSERT INTO learner_profiles (learner_id,locale,time_zone,analytics_opt_out) VALUES ('a1111111-1111-4111-8111-111111111111','vi-VN','Asia/Ho_Chi_Minh',true)",
-		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
+		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true,appearance='dark',motion='reduce',narration=false,narration_speed=1.25,captions=false,text_size=1.2,ui_sounds=true,haptics='off' WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
 		"INSERT INTO auth_identities (email,learner_id) VALUES ('synthetic@example.test','a1111111-1111-4111-8111-111111111111')",
+		"INSERT INTO auth_provider_identities (provider,subject,learner_id,verified_email) VALUES ('google','synthetic-google-subject','a1111111-1111-4111-8111-111111111111','synthetic@example.test')",
+		"INSERT INTO auth_provider_identities (provider,subject,learner_id,verified_email) VALUES ('apple','synthetic-apple-subject','a1111111-1111-4111-8111-111111111111','relay@privaterelay.appleid.com')",
+		"INSERT INTO auth_oauth_attempts (state_hash,nonce_hash,code_challenge,redirect_uri,expires_at) VALUES (repeat('d',64),repeat('e',64),repeat('f',43),'duolify://oauth/callback',now()+interval '5 minutes')",
 		"INSERT INTO auth_codes (email,code_hash,expires_at,attempts) VALUES ('synthetic@example.test',repeat('a',64),now()-interval '1 minute',5)",
 		"INSERT INTO auth_sessions (id,learner_id) VALUES ('b2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111')",
 		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at,consumed_at) VALUES ('%x','b2222222-2222-4222-8222-222222222222',now()+interval '30 days',now())", sha256.Sum256([]byte("synthetic-consumed-refresh"))),
@@ -289,6 +292,7 @@ func (f *Fixture) Seed(t *testing.T) {
 		"INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class) SELECT 'usd-backup-draft',version,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-draft\"'),'{effective_from}',to_jsonb(now()+interval '96 hours')),'a1111111-1111-4111-8111-111111111111','non_adverse' FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
 		"INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class,rollback_source_version) SELECT 'usd-backup-rollback',version,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-rollback\"'),'{effective_from}',to_jsonb(now()+interval '120 hours')),'a1111111-1111-4111-8111-111111111111','non_adverse','usd-launch-2026-11-08' FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
 		fmt.Sprintf("INSERT INTO pricing_audit(actor_id,action,version,change_class,reason,request_id) VALUES ('%x','version_created','usd-backup-draft','non_adverse','synthetic restore audit','restore-fixture')", sha256.Sum256([]byte("a1111111-1111-4111-8111-111111111111"))),
+		"INSERT INTO account_deletion_tombstones (learner_reference) VALUES (repeat('9',64))",
 	} {
 		if _, err := f.DB.Pool.Exec(t.Context(), query); err != nil {
 			t.Fatal(err)
@@ -457,7 +461,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits"} {
+	for _, table := range []string{"pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -499,8 +503,8 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "INSERT INTO learners(display_name) VALUES('Synthetic erasure check') RETURNING id::text").Scan(&erasedID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO learner_profiles(learner_id,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed)
- SELECT $1::uuid,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111'`, erasedID); err != nil {
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO learner_profiles(learner_id,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed,appearance,motion,narration,narration_speed,captions,text_size,ui_sounds,haptics,analytics_opt_out)
+ SELECT $1::uuid,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed,appearance,motion,narration,narration_speed,captions,text_size,ui_sounds,haptics,analytics_opt_out FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111'`, erasedID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", erasedID); err != nil {
@@ -550,6 +554,9 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		if _, err := restored.Pool.Exec(t.Context(), query); err == nil {
 			t.Fatalf("restored immutable data accepted mutation: %s", query)
 		}
+	}
+	if err := accounts.ApplyDeletionTombstones(t.Context(), restored.Pool); err != nil {
+		t.Fatalf("apply deletion tombstones after restore: %v", err)
 	}
 }
 

@@ -17,12 +17,14 @@ export function LearnerContextEditor({
   profile,
   setup = false,
   initialAnswers = {},
+  initialStep,
   onCommit,
   onExport,
 }: {
   profile: LearnerContext;
   setup?: boolean;
   initialAnswers?: Partial<ContextFields>;
+  initialStep?: "intro" | "form" | "summary";
   onCommit: (
     action: "save" | "skip",
     fields: Partial<ContextFields>,
@@ -34,7 +36,7 @@ export function LearnerContextEditor({
     ...initialAnswers,
   }));
   const [step, setStep] = useState<"intro" | "form" | "summary">(
-    setup ? "intro" : "form",
+    initialStep ?? (setup ? "intro" : "form"),
   );
   const [errors, setErrors] = useState<
     Partial<Record<keyof ContextFields, string>>

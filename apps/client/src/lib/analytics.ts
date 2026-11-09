@@ -21,12 +21,45 @@ const uuid =
 export function configureAnalytics(value: Identity | null) {
   if (identity?.learnerId !== value?.learnerId) exposed.clear();
   identity = value ?? undefined;
+  try {
+    if (value?.optedOut) posthog.opt_out_capturing();
+    else if (value) posthog.opt_in_capturing();
+  } catch {
+    /* Consent state is enforced again by the local boundary below. */
+  }
   if (key && value && !value.optedOut && uuid.test(value.learnerId)) {
     try {
       posthog.identify(value.learnerId);
     } catch {
       /* Identity setup must not block the app. */
     }
+  }
+}
+// Apply consent before any network request. PostHog's opt-out disables capture
+// and persistence and clears its stored event queue.
+export function setAnalyticsConsent(enabled: boolean) {
+  if (!identity) return;
+  identity = { ...identity, optedOut: !enabled };
+  try {
+    if (enabled) posthog.opt_in_capturing();
+    else posthog.opt_out_capturing();
+  } catch {
+    /* The local boundary still suppresses events if the SDK is unavailable. */
+  }
+}
+export function trackAppearanceChanged(mode: "system" | "light" | "dark") {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("ui_appearance_changed", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      mode,
+    });
+  } catch {
+    /* Analytics is derived and never blocks settings. */
   }
 }
 export function exposePricing(
@@ -121,6 +154,46 @@ export function trackSignIn() {
     control_id: "sign_in",
   });
 }
+function captureOAuthUI(
+  event: string,
+  properties: Record<string, string>,
+  distinctID: string,
+  optedOut: boolean,
+) {
+  if (optedOut || !uuid.test(distinctID)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture(event, {
+      distinct_id: distinctID,
+      platform:
+        identity?.platform ??
+        (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
+          ? "desktop"
+          : "web"),
+      app_version: identity?.appVersion ?? "0.1.0",
+      source: "client",
+      ...properties,
+    });
+  } catch {
+    /* Sign-in continues if analytics is unavailable. */
+  }
+}
+export function trackOAuthStarted(distinctID: string, optedOut: boolean) {
+  captureOAuthUI(
+    "ui_control_activated",
+    { surface: "sign_in", control_id: "sign_in" },
+    distinctID,
+    optedOut,
+  );
+}
+export function trackOAuthCancelled(distinctID: string, optedOut: boolean) {
+  captureOAuthUI(
+    "ui_recovery_selected",
+    { surface: "sign_in", error_code: "auth_cancelled", action: "retry" },
+    distinctID,
+    optedOut,
+  );
+}
 function captureAuth(event: string, properties: Record<string, string>) {
   if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
   try {
@@ -153,6 +226,26 @@ export function trackControl(controlId: CourseControl, courseId?: string) {
     });
   } catch {
     // Analytics is derived data; transport failure must never block the control.
+  }
+}
+
+// E1-07 catalogue: openspec/changes/export-delete-account-data.
+export function trackPrivacyControl(
+  controlId: "export_data" | "delete_account",
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("ui_control_activated", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      surface: "settings_privacy",
+      control_id: controlId,
+    });
+  } catch {
+    /* A privacy control remains usable when analytics is unavailable. */
   }
 }
 

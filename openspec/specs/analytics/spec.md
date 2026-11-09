@@ -13,7 +13,7 @@ Events SHALL use the internal Learner id (UUID) as `distinct_id`, never email. E
 - **THEN** `distinct_id` is the Learner UUID and no email or free text is in properties
 
 ### Requirement: Privacy rules
-Events MUST NOT contain note text, chat content, profile text, Slide HTML or answers. A Learner opt-out MUST stop all events. Server-side events SHALL be sent by the API through a non-blocking queue so analytics failure never breaks a request.
+Events MUST NOT contain note text, chat content, profile text, Slide HTML or answers. A Learner opt-out MUST stop all events and clear pending client events. Server-side events SHALL be sent by the API through a non-blocking queue so analytics failure never breaks a request. The catalogue includes `analytics_opt_out_changed` (enabled) and `ui_appearance_changed` (mode); the opt-out transition event is delivered only when the learner remains opted in.
 
 #### Scenario: PostHog down
 - **WHEN** PostHog is unreachable

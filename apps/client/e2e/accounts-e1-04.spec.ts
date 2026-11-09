@@ -4,8 +4,11 @@ import {
   type Page,
   type APIRequestContext,
 } from "@playwright/test";
-import { apiBase } from "./servers";
+import { apiBase, resetAuthRateLimits } from "./servers";
 test.use({ hasTouch: true });
+test.beforeEach(async ({ request }) => {
+  await resetAuthRateLimits(request);
+});
 async function login(request: APIRequestContext, email: string) {
   const body = { email, age_confirmed: true };
   expect(

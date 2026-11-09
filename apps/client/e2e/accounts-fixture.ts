@@ -1,10 +1,14 @@
-import { apiBase } from "./servers";
+import { apiBase, resetAuthRateLimits } from "./servers";
 import { test as base, expect } from "@playwright/test";
 import type { Tokens } from "../src/features/accounts/secure-store";
 let tokens: Tokens | undefined;
+export function resetTokens() {
+  tokens = undefined;
+}
 export const test = base.extend<{ authenticated: void }>({
   authenticated: [
     async ({ context, request, page }, use) => {
+      await resetAuthRateLimits(request);
       if (!tokens) {
         const email = `browser-${Date.now()}@example.test`;
         expect(
@@ -26,7 +30,7 @@ export const test = base.extend<{ authenticated: void }>({
       await context.addInitScript((value) => {
         sessionStorage.setItem("duolify.auth", JSON.stringify(value));
       }, tokens);
-      await page.route(/\/v1\/(auth\/|me(?:$|\?))/, async (route) => {
+      await page.route(/\/v1\/(auth\/|me(?:\/|$|\?))/, async (route) => {
         const original = route.request();
         const target = new URL(original.url());
         const headers = original.headers();

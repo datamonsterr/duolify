@@ -187,14 +187,20 @@ func (x *Usage) GetLatencyMs() uint32 {
 }
 
 type LearnerProfile struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	LearnerId     string                 `protobuf:"bytes,1,opt,name=learner_id,json=learnerId,proto3" json:"learner_id,omitempty"`
-	Locale        string                 `protobuf:"bytes,2,opt,name=locale,proto3" json:"locale,omitempty"`
-	Background    string                 `protobuf:"bytes,3,opt,name=background,proto3" json:"background,omitempty"`
-	Goals         string                 `protobuf:"bytes,4,opt,name=goals,proto3" json:"goals,omitempty"`
-	Level         string                 `protobuf:"bytes,5,opt,name=level,proto3" json:"level,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	LearnerId       string                 `protobuf:"bytes,1,opt,name=learner_id,json=learnerId,proto3" json:"learner_id,omitempty"`
+	Locale          string                 `protobuf:"bytes,2,opt,name=locale,proto3" json:"locale,omitempty"`
+	Background      string                 `protobuf:"bytes,3,opt,name=background,proto3" json:"background,omitempty"`
+	Goals           string                 `protobuf:"bytes,4,opt,name=goals,proto3" json:"goals,omitempty"`
+	Level           string                 `protobuf:"bytes,5,opt,name=level,proto3" json:"level,omitempty"`
+	Topic           string                 `protobuf:"bytes,6,opt,name=topic,proto3" json:"topic,omitempty"`
+	DailyMinutes    uint32                 `protobuf:"varint,7,opt,name=daily_minutes,json=dailyMinutes,proto3" json:"daily_minutes,omitempty"`
+	DailyXp         uint32                 `protobuf:"varint,8,opt,name=daily_xp,json=dailyXp,proto3" json:"daily_xp,omitempty"`
+	ReminderEnabled bool                   `protobuf:"varint,9,opt,name=reminder_enabled,json=reminderEnabled,proto3" json:"reminder_enabled,omitempty"`
+	ReminderTime    string                 `protobuf:"bytes,10,opt,name=reminder_time,json=reminderTime,proto3" json:"reminder_time,omitempty"`
+	TimeZone        string                 `protobuf:"bytes,11,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *LearnerProfile) Reset() {
@@ -258,6 +264,48 @@ func (x *LearnerProfile) GetGoals() string {
 func (x *LearnerProfile) GetLevel() string {
 	if x != nil {
 		return x.Level
+	}
+	return ""
+}
+
+func (x *LearnerProfile) GetTopic() string {
+	if x != nil {
+		return x.Topic
+	}
+	return ""
+}
+
+func (x *LearnerProfile) GetDailyMinutes() uint32 {
+	if x != nil {
+		return x.DailyMinutes
+	}
+	return 0
+}
+
+func (x *LearnerProfile) GetDailyXp() uint32 {
+	if x != nil {
+		return x.DailyXp
+	}
+	return 0
+}
+
+func (x *LearnerProfile) GetReminderEnabled() bool {
+	if x != nil {
+		return x.ReminderEnabled
+	}
+	return false
+}
+
+func (x *LearnerProfile) GetReminderTime() string {
+	if x != nil {
+		return x.ReminderTime
+	}
+	return ""
+}
+
+func (x *LearnerProfile) GetTimeZone() string {
+	if x != nil {
+		return x.TimeZone
 	}
 	return ""
 }
@@ -1392,6 +1440,286 @@ func (x *EnrichNoteResponse) GetUsage() *Usage {
 	return nil
 }
 
+type QuickReply struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Label         string                 `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuickReply) Reset() {
+	*x = QuickReply{}
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuickReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuickReply) ProtoMessage() {}
+
+func (x *QuickReply) ProtoReflect() protoreflect.Message {
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuickReply.ProtoReflect.Descriptor instead.
+func (*QuickReply) Descriptor() ([]byte, []int) {
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *QuickReply) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *QuickReply) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+type SetupChatMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Role          string                 `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetupChatMessage) Reset() {
+	*x = SetupChatMessage{}
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetupChatMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetupChatMessage) ProtoMessage() {}
+
+func (x *SetupChatMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetupChatMessage.ProtoReflect.Descriptor instead.
+func (*SetupChatMessage) Descriptor() ([]byte, []int) {
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *SetupChatMessage) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *SetupChatMessage) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+type SetupChatRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Profile       *LearnerProfile        `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	Messages      []*SetupChatMessage    `protobuf:"bytes,2,rep,name=messages,proto3" json:"messages,omitempty"`
+	CurrentStep   string                 `protobuf:"bytes,3,opt,name=current_step,json=currentStep,proto3" json:"current_step,omitempty"`
+	Answer        string                 `protobuf:"bytes,4,opt,name=answer,proto3" json:"answer,omitempty"`
+	Skipped       bool                   `protobuf:"varint,5,opt,name=skipped,proto3" json:"skipped,omitempty"`
+	IsFollowUp    bool                   `protobuf:"varint,6,opt,name=is_follow_up,json=isFollowUp,proto3" json:"is_follow_up,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetupChatRequest) Reset() {
+	*x = SetupChatRequest{}
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetupChatRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetupChatRequest) ProtoMessage() {}
+
+func (x *SetupChatRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetupChatRequest.ProtoReflect.Descriptor instead.
+func (*SetupChatRequest) Descriptor() ([]byte, []int) {
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *SetupChatRequest) GetProfile() *LearnerProfile {
+	if x != nil {
+		return x.Profile
+	}
+	return nil
+}
+
+func (x *SetupChatRequest) GetMessages() []*SetupChatMessage {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+func (x *SetupChatRequest) GetCurrentStep() string {
+	if x != nil {
+		return x.CurrentStep
+	}
+	return ""
+}
+
+func (x *SetupChatRequest) GetAnswer() string {
+	if x != nil {
+		return x.Answer
+	}
+	return ""
+}
+
+func (x *SetupChatRequest) GetSkipped() bool {
+	if x != nil {
+		return x.Skipped
+	}
+	return false
+}
+
+func (x *SetupChatRequest) GetIsFollowUp() bool {
+	if x != nil {
+		return x.IsFollowUp
+	}
+	return false
+}
+
+type SetupChatResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Message        string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	QuickReplies   []*QuickReply          `protobuf:"bytes,2,rep,name=quick_replies,json=quickReplies,proto3" json:"quick_replies,omitempty"`
+	UpdatedProfile *LearnerProfile        `protobuf:"bytes,3,opt,name=updated_profile,json=updatedProfile,proto3" json:"updated_profile,omitempty"`
+	NextStep       string                 `protobuf:"bytes,4,opt,name=next_step,json=nextStep,proto3" json:"next_step,omitempty"`
+	IsFollowUp     bool                   `protobuf:"varint,5,opt,name=is_follow_up,json=isFollowUp,proto3" json:"is_follow_up,omitempty"`
+	IsComplete     bool                   `protobuf:"varint,6,opt,name=is_complete,json=isComplete,proto3" json:"is_complete,omitempty"`
+	Usage          *Usage                 `protobuf:"bytes,7,opt,name=usage,proto3" json:"usage,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SetupChatResponse) Reset() {
+	*x = SetupChatResponse{}
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetupChatResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetupChatResponse) ProtoMessage() {}
+
+func (x *SetupChatResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_duolify_engine_v1_engine_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetupChatResponse.ProtoReflect.Descriptor instead.
+func (*SetupChatResponse) Descriptor() ([]byte, []int) {
+	return file_duolify_engine_v1_engine_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *SetupChatResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *SetupChatResponse) GetQuickReplies() []*QuickReply {
+	if x != nil {
+		return x.QuickReplies
+	}
+	return nil
+}
+
+func (x *SetupChatResponse) GetUpdatedProfile() *LearnerProfile {
+	if x != nil {
+		return x.UpdatedProfile
+	}
+	return nil
+}
+
+func (x *SetupChatResponse) GetNextStep() string {
+	if x != nil {
+		return x.NextStep
+	}
+	return ""
+}
+
+func (x *SetupChatResponse) GetIsFollowUp() bool {
+	if x != nil {
+		return x.IsFollowUp
+	}
+	return false
+}
+
+func (x *SetupChatResponse) GetIsComplete() bool {
+	if x != nil {
+		return x.IsComplete
+	}
+	return false
+}
+
+func (x *SetupChatResponse) GetUsage() *Usage {
+	if x != nil {
+		return x.Usage
+	}
+	return nil
+}
+
 var File_duolify_engine_v1_engine_proto protoreflect.FileDescriptor
 
 const file_duolify_engine_v1_engine_proto_rawDesc = "" +
@@ -1407,7 +1735,7 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\finput_tokens\x18\x03 \x01(\rR\vinputTokens\x12#\n" +
 	"\routput_tokens\x18\x04 \x01(\rR\foutputTokens\x12\x1d\n" +
 	"\n" +
-	"latency_ms\x18\x05 \x01(\rR\tlatencyMs\"\x93\x01\n" +
+	"latency_ms\x18\x05 \x01(\rR\tlatencyMs\"\xd6\x02\n" +
 	"\x0eLearnerProfile\x12\x1d\n" +
 	"\n" +
 	"learner_id\x18\x01 \x01(\tR\tlearnerId\x12\x16\n" +
@@ -1416,7 +1744,14 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"background\x18\x03 \x01(\tR\n" +
 	"background\x12\x14\n" +
 	"\x05goals\x18\x04 \x01(\tR\x05goals\x12\x14\n" +
-	"\x05level\x18\x05 \x01(\tR\x05level\"R\n" +
+	"\x05level\x18\x05 \x01(\tR\x05level\x12\x14\n" +
+	"\x05topic\x18\x06 \x01(\tR\x05topic\x12#\n" +
+	"\rdaily_minutes\x18\a \x01(\rR\fdailyMinutes\x12\x19\n" +
+	"\bdaily_xp\x18\b \x01(\rR\adailyXp\x12)\n" +
+	"\x10reminder_enabled\x18\t \x01(\bR\x0freminderEnabled\x12#\n" +
+	"\rreminder_time\x18\n" +
+	" \x01(\tR\freminderTime\x12\x1b\n" +
+	"\ttime_zone\x18\v \x01(\tR\btimeZone\"R\n" +
 	"\tLessonRef\x12\x1b\n" +
 	"\tlesson_id\x18\x01 \x01(\tR\blessonId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x12\n" +
@@ -1492,7 +1827,32 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12\x12\n" +
 	"\x04tags\x18\x02 \x03(\tR\x04tags\x12\x14\n" +
 	"\x05links\x18\x03 \x03(\tR\x05links\x12.\n" +
-	"\x05usage\x18\x04 \x01(\v2\x18.duolify.engine.v1.UsageR\x05usage2\xc7\x04\n" +
+	"\x05usage\x18\x04 \x01(\v2\x18.duolify.engine.v1.UsageR\x05usage\"2\n" +
+	"\n" +
+	"QuickReply\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\"@\n" +
+	"\x10SetupChatMessage\x12\x12\n" +
+	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"\x87\x02\n" +
+	"\x10SetupChatRequest\x12;\n" +
+	"\aprofile\x18\x01 \x01(\v2!.duolify.engine.v1.LearnerProfileR\aprofile\x12?\n" +
+	"\bmessages\x18\x02 \x03(\v2#.duolify.engine.v1.SetupChatMessageR\bmessages\x12!\n" +
+	"\fcurrent_step\x18\x03 \x01(\tR\vcurrentStep\x12\x16\n" +
+	"\x06answer\x18\x04 \x01(\tR\x06answer\x12\x18\n" +
+	"\askipped\x18\x05 \x01(\bR\askipped\x12 \n" +
+	"\fis_follow_up\x18\x06 \x01(\bR\n" +
+	"isFollowUp\"\xcd\x02\n" +
+	"\x11SetupChatResponse\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\x12B\n" +
+	"\rquick_replies\x18\x02 \x03(\v2\x1d.duolify.engine.v1.QuickReplyR\fquickReplies\x12J\n" +
+	"\x0fupdated_profile\x18\x03 \x01(\v2!.duolify.engine.v1.LearnerProfileR\x0eupdatedProfile\x12\x1b\n" +
+	"\tnext_step\x18\x04 \x01(\tR\bnextStep\x12 \n" +
+	"\fis_follow_up\x18\x05 \x01(\bR\n" +
+	"isFollowUp\x12\x1f\n" +
+	"\vis_complete\x18\x06 \x01(\bR\n" +
+	"isComplete\x12.\n" +
+	"\x05usage\x18\a \x01(\v2\x18.duolify.engine.v1.UsageR\x05usage2\x9f\x05\n" +
 	"\rEngineService\x12M\n" +
 	"\x06Health\x12 .duolify.engine.v1.HealthRequest\x1a!.duolify.engine.v1.HealthResponse\x12b\n" +
 	"\rPreviewCourse\x12'.duolify.engine.v1.PreviewCourseRequest\x1a(.duolify.engine.v1.PreviewCourseResponse\x12z\n" +
@@ -1500,7 +1860,8 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\x0eGenerateLesson\x12(.duolify.engine.v1.GenerateLessonRequest\x1a&.duolify.engine.v1.GenerateLessonEvent0\x01\x12F\n" +
 	"\x04Chat\x12\x1e.duolify.engine.v1.ChatRequest\x1a\x1c.duolify.engine.v1.ChatEvent0\x01\x12Y\n" +
 	"\n" +
-	"EnrichNote\x12$.duolify.engine.v1.EnrichNoteRequest\x1a%.duolify.engine.v1.EnrichNoteResponseBMZKgithub.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1;enginev1b\x06proto3"
+	"EnrichNote\x12$.duolify.engine.v1.EnrichNoteRequest\x1a%.duolify.engine.v1.EnrichNoteResponse\x12V\n" +
+	"\tSetupChat\x12#.duolify.engine.v1.SetupChatRequest\x1a$.duolify.engine.v1.SetupChatResponseBMZKgithub.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1;enginev1b\x06proto3"
 
 var (
 	file_duolify_engine_v1_engine_proto_rawDescOnce sync.Once
@@ -1514,7 +1875,7 @@ func file_duolify_engine_v1_engine_proto_rawDescGZIP() []byte {
 	return file_duolify_engine_v1_engine_proto_rawDescData
 }
 
-var file_duolify_engine_v1_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_duolify_engine_v1_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_duolify_engine_v1_engine_proto_goTypes = []any{
 	(*HealthRequest)(nil),                 // 0: duolify.engine.v1.HealthRequest
 	(*HealthResponse)(nil),                // 1: duolify.engine.v1.HealthResponse
@@ -1537,6 +1898,10 @@ var file_duolify_engine_v1_engine_proto_goTypes = []any{
 	(*ChatEvent)(nil),                     // 18: duolify.engine.v1.ChatEvent
 	(*EnrichNoteRequest)(nil),             // 19: duolify.engine.v1.EnrichNoteRequest
 	(*EnrichNoteResponse)(nil),            // 20: duolify.engine.v1.EnrichNoteResponse
+	(*QuickReply)(nil),                    // 21: duolify.engine.v1.QuickReply
+	(*SetupChatMessage)(nil),              // 22: duolify.engine.v1.SetupChatMessage
+	(*SetupChatRequest)(nil),              // 23: duolify.engine.v1.SetupChatRequest
+	(*SetupChatResponse)(nil),             // 24: duolify.engine.v1.SetupChatResponse
 }
 var file_duolify_engine_v1_engine_proto_depIdxs = []int32{
 	4,  // 0: duolify.engine.v1.Unit.lessons:type_name -> duolify.engine.v1.LessonRef
@@ -1565,23 +1930,30 @@ var file_duolify_engine_v1_engine_proto_depIdxs = []int32{
 	4,  // 23: duolify.engine.v1.EnrichNoteRequest.lesson:type_name -> duolify.engine.v1.LessonRef
 	3,  // 24: duolify.engine.v1.EnrichNoteRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
 	2,  // 25: duolify.engine.v1.EnrichNoteResponse.usage:type_name -> duolify.engine.v1.Usage
-	0,  // 26: duolify.engine.v1.EngineService.Health:input_type -> duolify.engine.v1.HealthRequest
-	10, // 27: duolify.engine.v1.EngineService.PreviewCourse:input_type -> duolify.engine.v1.PreviewCourseRequest
-	12, // 28: duolify.engine.v1.EngineService.GenerateCourseOutline:input_type -> duolify.engine.v1.GenerateCourseOutlineRequest
-	14, // 29: duolify.engine.v1.EngineService.GenerateLesson:input_type -> duolify.engine.v1.GenerateLessonRequest
-	17, // 30: duolify.engine.v1.EngineService.Chat:input_type -> duolify.engine.v1.ChatRequest
-	19, // 31: duolify.engine.v1.EngineService.EnrichNote:input_type -> duolify.engine.v1.EnrichNoteRequest
-	1,  // 32: duolify.engine.v1.EngineService.Health:output_type -> duolify.engine.v1.HealthResponse
-	11, // 33: duolify.engine.v1.EngineService.PreviewCourse:output_type -> duolify.engine.v1.PreviewCourseResponse
-	13, // 34: duolify.engine.v1.EngineService.GenerateCourseOutline:output_type -> duolify.engine.v1.GenerateCourseOutlineResponse
-	15, // 35: duolify.engine.v1.EngineService.GenerateLesson:output_type -> duolify.engine.v1.GenerateLessonEvent
-	18, // 36: duolify.engine.v1.EngineService.Chat:output_type -> duolify.engine.v1.ChatEvent
-	20, // 37: duolify.engine.v1.EngineService.EnrichNote:output_type -> duolify.engine.v1.EnrichNoteResponse
-	32, // [32:38] is the sub-list for method output_type
-	26, // [26:32] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	3,  // 26: duolify.engine.v1.SetupChatRequest.profile:type_name -> duolify.engine.v1.LearnerProfile
+	22, // 27: duolify.engine.v1.SetupChatRequest.messages:type_name -> duolify.engine.v1.SetupChatMessage
+	21, // 28: duolify.engine.v1.SetupChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
+	3,  // 29: duolify.engine.v1.SetupChatResponse.updated_profile:type_name -> duolify.engine.v1.LearnerProfile
+	2,  // 30: duolify.engine.v1.SetupChatResponse.usage:type_name -> duolify.engine.v1.Usage
+	0,  // 31: duolify.engine.v1.EngineService.Health:input_type -> duolify.engine.v1.HealthRequest
+	10, // 32: duolify.engine.v1.EngineService.PreviewCourse:input_type -> duolify.engine.v1.PreviewCourseRequest
+	12, // 33: duolify.engine.v1.EngineService.GenerateCourseOutline:input_type -> duolify.engine.v1.GenerateCourseOutlineRequest
+	14, // 34: duolify.engine.v1.EngineService.GenerateLesson:input_type -> duolify.engine.v1.GenerateLessonRequest
+	17, // 35: duolify.engine.v1.EngineService.Chat:input_type -> duolify.engine.v1.ChatRequest
+	19, // 36: duolify.engine.v1.EngineService.EnrichNote:input_type -> duolify.engine.v1.EnrichNoteRequest
+	23, // 37: duolify.engine.v1.EngineService.SetupChat:input_type -> duolify.engine.v1.SetupChatRequest
+	1,  // 38: duolify.engine.v1.EngineService.Health:output_type -> duolify.engine.v1.HealthResponse
+	11, // 39: duolify.engine.v1.EngineService.PreviewCourse:output_type -> duolify.engine.v1.PreviewCourseResponse
+	13, // 40: duolify.engine.v1.EngineService.GenerateCourseOutline:output_type -> duolify.engine.v1.GenerateCourseOutlineResponse
+	15, // 41: duolify.engine.v1.EngineService.GenerateLesson:output_type -> duolify.engine.v1.GenerateLessonEvent
+	18, // 42: duolify.engine.v1.EngineService.Chat:output_type -> duolify.engine.v1.ChatEvent
+	20, // 43: duolify.engine.v1.EngineService.EnrichNote:output_type -> duolify.engine.v1.EnrichNoteResponse
+	24, // 44: duolify.engine.v1.EngineService.SetupChat:output_type -> duolify.engine.v1.SetupChatResponse
+	38, // [38:45] is the sub-list for method output_type
+	31, // [31:38] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_duolify_engine_v1_engine_proto_init() }
@@ -1605,7 +1977,7 @@ func file_duolify_engine_v1_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_duolify_engine_v1_engine_proto_rawDesc), len(file_duolify_engine_v1_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   21,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

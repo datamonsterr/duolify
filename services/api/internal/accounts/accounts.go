@@ -44,21 +44,47 @@ type Profile = db.GetAuthenticatedLearnerRow
 
 // Service owns stateless HTTP authentication backed by Postgres.
 type Service struct {
-	pool    *pgxpool.Pool
-	key     []byte
-	mail    Mailer
-	mux     *http.ServeMux
-	profile ProfileOptions
+	pool          *pgxpool.Pool
+	key           []byte
+	mail          Mailer
+	oauth         OAuthProvider
+	apple         AppleOAuthProvider
+	mux           *http.ServeMux
+	profile       ProfileOptions
+	limits        RateLimits
+	personDeleter PersonDeleter
+	setupChat     SetupChatOptions
 }
 
 // New requires a shared signing/HMAC secret of at least 32 bytes.
 func New(pool *pgxpool.Pool, secret string, mailer Mailer) (*Service, error) {
+	return NewWithOAuthProvider(pool, secret, mailer, unavailableOAuthProvider{})
+}
+
+// NewWithOAuthProvider injects the provider boundary used by Google and future Apple OAuth.
+func NewWithOAuthProvider(pool *pgxpool.Pool, secret string, mailer Mailer, provider OAuthProvider) (*Service, error) {
+	return NewWithOAuthProviders(pool, secret, mailer, provider, unavailableAppleProvider{})
+}
+
+// NewWithOAuthProviders injects independent Google and Apple adapters. Both default
+// to unavailable in production until their respective provisioning gates are met.
+func NewWithOAuthProviders(pool *pgxpool.Pool, secret string, mailer Mailer, google OAuthProvider, apple AppleOAuthProvider) (*Service, error) {
 	if len(secret) < 32 || mailer == nil {
-		return nil, errors.New("auth requires a 32-byte secret and Mailer")
+		return nil, errors.New("auth requires a 32-byte secret, Mailer, and OAuth providers")
 	}
-	s := &Service{pool: pool, key: []byte(secret), mail: mailer, mux: http.NewServeMux()}
+	if google == nil {
+		google = unavailableOAuthProvider{}
+	}
+	if apple == nil {
+		apple = unavailableAppleProvider{}
+	}
+	s := &Service{pool: pool, key: []byte(secret), mail: mailer, oauth: google, apple: apple, mux: http.NewServeMux(), limits: DefaultRateLimits()}
 	s.mux.HandleFunc("POST /v1/auth/code", s.requestCode)
 	s.mux.HandleFunc("POST /v1/auth/verify", s.verify)
+	s.mux.HandleFunc("POST /v1/auth/google/start", s.googleOAuthStart)
+	s.mux.HandleFunc("POST /v1/auth/google/complete", s.googleOAuthComplete)
+	s.mux.HandleFunc("POST /v1/auth/apple/start", s.appleOAuthStart)
+	s.mux.HandleFunc("POST /v1/auth/apple/complete", s.appleOAuthComplete)
 	s.mux.HandleFunc("POST /v1/auth/refresh", s.refresh)
 	s.mux.HandleFunc("POST /v1/auth/logout", s.logout)
 	s.mux.Handle("GET /v1/auth/sessions", s.Protect(http.HandlerFunc(s.listSessions)))
@@ -67,11 +93,17 @@ func New(pool *pgxpool.Pool, secret string, mailer Mailer) (*Service, error) {
 	s.mux.Handle("GET /v1/me", s.Protect(http.HandlerFunc(s.me)))
 	s.ConfigureProfile(ProfileOptions{TextLimit: 2000})
 	s.registerProfile()
+	s.registerPrivacy()
 	return s, nil
 }
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	s.mux.ServeHTTP(w, r)
+}
+
+// ConfigureRateLimits installs limits validated by RateLimitsFromEnv.
+func (s *Service) ConfigureRateLimits(limits RateLimits) {
+	s.limits = limits
 }
 
 // NormalizeEmail accepts one unadorned mailbox, lowercases it and bounds storage.
@@ -165,7 +197,7 @@ func (s *Service) requestCode(w http.ResponseWriter, r *http.Request) {
 	for _, v := range []struct {
 		key string
 		max int
-	}{{"request-ip:" + ip(r), 20}, {"request-email:" + in.Email, 3}} {
+	}{{"request-ip:" + ip(r), s.limits.RequestIP}, {"request-email:" + in.Email, s.limits.RequestEmail}} {
 		if err = s.limit(ctx, tx, v.key, v.max); err != nil {
 			if errors.Is(err, errLimited) {
 				err = errors.Join(err, tx.Commit(ctx))
@@ -223,7 +255,7 @@ func (s *Service) verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err = s.limit(ctx, tx, "verify-ip:"+ip(r), 60); err != nil {
+	if err = s.limit(ctx, tx, "verify-ip:"+ip(r), s.limits.VerifyIP); err != nil {
 		if errors.Is(err, errLimited) {
 			err = errors.Join(err, tx.Commit(ctx))
 		}

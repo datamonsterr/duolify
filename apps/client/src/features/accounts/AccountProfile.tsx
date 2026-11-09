@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { LearnerProfile } from "./LearnerProfile";
+import { LearnerProfile, SetupProfile } from "./LearnerProfile";
 import { Button } from "../design/Button";
 import { session, type Learner } from "./session";
 export function AccountProfile() {
   const [learner, setLearner] = useState<Learner | null>(session.current());
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   useEffect(() => {
     void session
       .load()
@@ -21,7 +22,21 @@ export function AccountProfile() {
           <a className="shell-link" href="/profile/setup">
             Set up learner context
           </a>
-          <LearnerProfile />
+          <Button variant="secondary" onClick={() => setChatOpen(true)}>
+            Update by chat
+          </Button>
+          <div style={{ display: chatOpen ? "none" : undefined }}>
+            <LearnerProfile />
+          </div>
+          {chatOpen && (
+            <section role="dialog" aria-label="Update profile by chat">
+              <h2>Update by chat</h2>
+              <Button variant="secondary" onClick={() => setChatOpen(false)}>
+                Close chat
+              </Button>
+              <SetupProfile />
+            </section>
+          )}
           <p>
             {learner.locale} · {learner.time_zone}
           </p>

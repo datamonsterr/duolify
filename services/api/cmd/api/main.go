@@ -88,6 +88,9 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	defer db.Close()
+	if err := accounts.ApplyDeletionTombstones(ctx, db.Pool); err != nil {
+		return fmt.Errorf("apply account deletion tombstones: %w", err)
+	}
 	if command == "worker" {
 		backupConfig, err := backup.Load(os.Getenv)
 		if err != nil {
@@ -153,6 +156,10 @@ func run(ctx context.Context, args []string) (result error) {
 	if err != nil {
 		return err
 	}
+	rateLimits, err := accounts.RateLimitsFromEnv(os.Getenv)
+	if err != nil {
+		return err
+	}
 	profileOptions.Events = events
 	auth, err := accounts.New(db.Pool, secret, mailer)
 	if err != nil {
@@ -163,6 +170,12 @@ func run(ctx context.Context, args []string) (result error) {
 		return fmt.Errorf("pricing admin bootstrap failed: %w", err)
 	}
 	pricingAdmin := pricing.NewAdmin(db.Pool, events, os.Getenv("PRICING_OWNER_ID"))
+	auth.ConfigureRateLimits(rateLimits)
+	auth.ConfigureSetupChat(accounts.SetupChatOptions{
+		Engine:  backend,
+		Pricing: catalogue,
+		Events:  events,
+	})
 	handler := httpapi.New(httpapi.Dependencies{
 		Accounts:     auth,
 		Pricing:      pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events),

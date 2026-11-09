@@ -1,5 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { configureAnalytics } from "../../lib/analytics";
+import { configureAnalytics, setAnalyticsConsent } from "../../lib/analytics";
 import { secureStore, type Tokens } from "./secure-store";
 export const credentialStore = secureStore;
 export type Learner = {
@@ -13,7 +13,7 @@ export type Learner = {
 const base = import.meta.env.VITE_API_URL || "http://localhost:8080";
 export function safeReturnTo(raw: string | null | undefined): string {
   if (!raw || /[\\\s%?#]/.test(raw)) return "/profile";
-  return /^(\/|\/profile|\/courses|\/credits|\/more|\/friends|\/leagues|\/notes|\/bookmarks|\/settings|\/settings\/sessions|\/streak|\/course\/[a-zA-Z0-9_-]+|\/lesson\/[a-zA-Z0-9_-]+(?:\/test)?)$/.test(
+  return /^(\/|\/profile|\/profile\/setup|\/courses|\/credits|\/more|\/friends|\/leagues|\/notes|\/bookmarks|\/settings|\/settings\/sessions|\/streak|\/course\/[a-zA-Z0-9_-]+|\/lesson\/[a-zA-Z0-9_-]+(?:\/test)?)$/.test(
     raw,
   )
     ? raw
@@ -68,7 +68,7 @@ export function setAnalyticsOptOut(value: boolean) {
   } catch {
     /* Retain the current UI choice. */
   }
-  if (value) configureAnalytics(null);
+  setAnalyticsConsent(!value);
 }
 let learner: Learner | null = null;
 let expired = false;

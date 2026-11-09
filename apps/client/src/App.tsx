@@ -1,7 +1,6 @@
 import { UiPreferencesProvider } from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
 import { session } from "./features/accounts/session";
-import { SettingsPage } from "./features/design/localization/PreferenceControls";
 import {
   createRootRoute,
   createRoute,
@@ -17,6 +16,7 @@ import { SignIn } from "./features/accounts/SignIn";
 import { RouteGuard } from "./features/accounts/RouteGuard";
 import { SetupProfile } from "./features/accounts/LearnerProfile";
 import { AccountProfile } from "./features/accounts/AccountProfile";
+import { Settings } from "./features/accounts/Settings";
 import { LearnPath } from "./LearnPath";
 import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
 import { Courses } from "./features/design/Courses";
@@ -123,7 +123,7 @@ const bookmarks = createRoute({
 const settings = createRoute({
   getParentRoute: () => root,
   path: "/settings",
-  component: SettingsPage,
+  component: Settings,
 });
 const sessions = createRoute({
   getParentRoute: () => root,

@@ -19,6 +19,8 @@ service EngineService {
   rpc Chat(ChatRequest) returns (stream ChatEvent);
   // EnrichNote turns a quick note into a summary, tags and links.
   rpc EnrichNote(EnrichNoteRequest) returns (EnrichNoteResponse);
+  // SetupChat guides onboarding and learner profile configuration.
+  rpc SetupChat(SetupChatRequest) returns (SetupChatResponse);
 }
 
 message HealthRequest {}
@@ -43,6 +45,12 @@ message LearnerProfile {
   string background = 3;
   string goals = 4;
   string level = 5;
+  string topic = 6;
+  uint32 daily_minutes = 7;
+  uint32 daily_xp = 8;
+  bool reminder_enabled = 9;
+  string reminder_time = 10;
+  string time_zone = 11;
 }
 
 message LessonRef {
@@ -155,4 +163,33 @@ message EnrichNoteResponse {
   repeated string tags = 2;
   repeated string links = 3;
   Usage usage = 4;
+}
+
+message QuickReply {
+  string id = 1;
+  string label = 2;
+}
+
+message SetupChatMessage {
+  string role = 1;
+  string content = 2;
+}
+
+message SetupChatRequest {
+  LearnerProfile profile = 1;
+  repeated SetupChatMessage messages = 2;
+  string current_step = 3;
+  string answer = 4;
+  bool skipped = 5;
+  bool is_follow_up = 6;
+}
+
+message SetupChatResponse {
+  string message = 1;
+  repeated QuickReply quick_replies = 2;
+  LearnerProfile updated_profile = 3;
+  string next_step = 4;
+  bool is_follow_up = 5;
+  bool is_complete = 6;
+  Usage usage = 7;
 }

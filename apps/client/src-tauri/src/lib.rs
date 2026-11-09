@@ -85,11 +85,19 @@ fn mobile_secure_store_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default().invoke_handler(tauri::generate_handler![
-        app_name,
-        read_credentials,
-        write_credentials
-    ]);
+    let builder = tauri::Builder::default();
+
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
+
+    let builder = builder
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
+        .invoke_handler(tauri::generate_handler![
+            app_name,
+            read_credentials,
+            write_credentials
+        ]);
 
     #[cfg(mobile)]
     let builder = builder.plugin(mobile_secure_store_plugin());

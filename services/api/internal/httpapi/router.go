@@ -20,6 +20,7 @@ import (
 type Engine interface {
 	Health(context.Context) error
 	PreviewCourse(context.Context, *enginev1.PreviewCourseRequest) (*enginev1.PreviewCourseResponse, error)
+	SetupChat(context.Context, *enginev1.SetupChatRequest) (*enginev1.SetupChatResponse, error)
 }
 
 // Dependencies allows readiness probes without coupling HTTP to database drivers.

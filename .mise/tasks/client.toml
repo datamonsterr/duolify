@@ -27,6 +27,7 @@ run = "pnpm exec playwright install chromium"
 
 ["client:e2e"]
 description = "Run end-to-end tests against the web build"
+depends = ["client:build"]
 dir = "{{config_root}}/apps/client"
 run = "pnpm exec playwright test"
 

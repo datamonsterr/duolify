@@ -74,6 +74,14 @@ type LearnerProfile struct {
 	ReminderEnabled pgtype.Bool        `json:"reminder_enabled"`
 	ReminderTime    string             `json:"reminder_time"`
 	SetupCompleted  bool               `json:"setup_completed"`
+	Appearance      string             `json:"appearance"`
+	Motion          string             `json:"motion"`
+	Narration       bool               `json:"narration"`
+	NarrationSpeed  pgtype.Numeric     `json:"narration_speed"`
+	Captions        bool               `json:"captions"`
+	TextSize        pgtype.Numeric     `json:"text_size"`
+	UiSounds        bool               `json:"ui_sounds"`
+	Haptics         string             `json:"haptics"`
 }
 
 type PricingActivationEvent struct {

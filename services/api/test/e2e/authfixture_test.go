@@ -38,6 +38,7 @@ func signedIn(t *testing.T) (*accounts.Service, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	auth.ConfigureRateLimits(accounts.RateLimits{RequestIP: 100000, RequestEmail: 100000, VerifyIP: 100000})
 	call := func(path, body string) *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()
 		auth.ServeHTTP(w, httptest.NewRequestWithContext(ctx, "POST", path, strings.NewReader(body)))

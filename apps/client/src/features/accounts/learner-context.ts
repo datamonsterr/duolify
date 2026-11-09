@@ -24,11 +24,29 @@ export type ContextFields = {
   locale: string;
   time_zone: string;
 };
+export type SettingsFields = {
+  analytics_opt_out: boolean;
+  appearance: "system" | "light" | "dark";
+  motion: "system" | "reduce";
+  narration: boolean;
+  narration_speed: number;
+  captions: boolean;
+  text_size: number;
+  ui_sounds: boolean;
+  haptics: "system" | "on" | "off";
+  locale: string;
+  time_zone: string;
+  daily_minutes: number | null;
+  daily_xp: number | null;
+  reminder_enabled: boolean | null;
+  reminder_time: string;
+};
 export type LearnerContext = ContextFields & {
   learner_id: string;
   setup_completed: boolean;
   text_limit: number;
 };
+export type LearnerSettings = SettingsFields & { learner_id: string };
 export const emptyContext = (): LearnerContext => ({
   learner_id: "",
   goal: "",
@@ -44,6 +62,26 @@ export const emptyContext = (): LearnerContext => ({
   setup_completed: false,
   text_limit: 2000,
 });
+export const emptySettings = (): LearnerSettings => {
+  return {
+    learner_id: "",
+    analytics_opt_out: false,
+    appearance: "system",
+    motion: "system",
+    narration: true,
+    narration_speed: 1,
+    captions: true,
+    text_size: 1,
+    ui_sounds: false,
+    haptics: "system",
+    locale: navigator.language || "en",
+    time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    daily_minutes: null,
+    daily_xp: null,
+    reminder_enabled: null,
+    reminder_time: "",
+  };
+};
 export function contextValues(profile: ContextFields): ContextFields {
   return Object.fromEntries(
     contextFields.map(({ id }) => [id, profile[id]]),
@@ -117,10 +155,55 @@ export const profileApi = {
       await accessToken(),
     );
   },
+  async setupChat(turn: {
+    current_step: string;
+    answer?: string;
+    skipped?: boolean;
+    is_follow_up?: boolean;
+    draft?: Partial<ContextFields>;
+  }) {
+    return authRequest<{
+      message: string;
+      quick_replies: { id: string; label: string }[];
+      updated_profile: Partial<ContextFields>;
+      next_step: string;
+      is_follow_up: boolean;
+      is_complete: boolean;
+    }>("/v1/me/setup-chat", turn, await accessToken());
+  },
+  async readSettings() {
+    return authRequest<LearnerSettings>(
+      "/v1/me/settings",
+      undefined,
+      await accessToken(),
+    );
+  },
+  async saveSettings(fields: Partial<SettingsFields>) {
+    return authRequest<LearnerSettings>(
+      "/v1/me/settings",
+      { confirmed: true, fields },
+      await accessToken(),
+    );
+  },
   async export() {
     return authRequest<LearnerContext>(
       "/v1/me/profile/export",
       undefined,
+      await accessToken(),
+    );
+  },
+  async exportData() {
+    return authRequest<{
+      schema_version: number;
+      exported_at: string;
+      expires_at: string;
+      tables: Record<string, unknown>;
+    }>("/v1/me/data-export", undefined, await accessToken());
+  },
+  async deleteAccount(confirmation: string) {
+    return authRequest<{ deleted: boolean }>(
+      "/v1/me/deletion-request",
+      { confirmation },
       await accessToken(),
     );
   },

@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
 import { Badge } from "../design/Badge";
-import { trackSignIn, trackAuthScreen } from "../../lib/analytics";
+import {
+  trackAuthScreen,
+  trackOAuthCancelled,
+  trackOAuthStarted,
+  trackSignIn,
+} from "../../lib/analytics";
 import {
   analyticsOptOut,
   authRequest,
@@ -10,6 +15,13 @@ import {
   setAnalyticsOptOut,
 } from "./session";
 import type { Tokens } from "./secure-store";
+import {
+  createPKCEVerifier,
+  oauthBridge,
+  pkceChallenge,
+  type OAuthCallback,
+  type OAuthProviderName,
+} from "./google-oauth";
 import "./accounts.css";
 
 export function SignIn({
@@ -40,11 +52,24 @@ export function SignIn({
       : "",
   );
   const [online, setOnline] = useState(navigator.onLine);
+  const [oauthActive, setOAuthActive] = useState(false);
+  const [oauthProviderName, setOAuthProviderName] =
+    useState<OAuthProviderName>("google");
   const [info, setInfo] = useState<
     "Privacy" | "Terms" | "Analytics preference" | null
   >(null);
   const field = useRef<HTMLInputElement>(null);
   const actions = useRef<HTMLDivElement>(null);
+  const oauthCleanup = useRef<(() => void) | null>(null);
+  const oauthCancel = useRef<(() => void) | null>(null);
+  const oauthState = useRef<{
+    state: string;
+    nonce: string;
+    verifier: string;
+  } | null>(null);
+  const oauthCompleting = useRef(false);
+  const oauthProvider = useRef<OAuthProviderName>("google");
+  const analyticsID = useRef(crypto.randomUUID());
   const destination = safeReturnTo(
     new URLSearchParams(location.search).get("returnTo"),
   );
@@ -59,7 +84,10 @@ export function SignIn({
   }, []);
   useEffect(() => {
     field.current?.focus();
-    if (step === "welcome") actions.current?.querySelector("button")?.focus();
+    if (step === "welcome")
+      actions.current
+        ?.querySelector<HTMLButtonElement>("[data-welcome-primary]")
+        ?.focus();
     trackAuthScreen(step === "welcome" ? "welcome" : "sign_in");
   }, [step]);
   function open(existing: boolean) {
@@ -115,6 +143,133 @@ export function SignIn({
       setPending(false);
     }
   }
+  function finishOAuthCancel() {
+    if (!oauthState.current || oauthCompleting.current) return;
+    oauthCleanup.current?.();
+    oauthCleanup.current = null;
+    oauthState.current = null;
+    oauthCompleting.current = false;
+    oauthCancel.current = null;
+    setOAuthActive(false);
+    setPending(false);
+    setError("");
+    setNotice(
+      "Sign-in was cancelled. No account changes were made. Try again any time.",
+    );
+    trackOAuthCancelled(analyticsID.current, optOut);
+    requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLButtonElement>(
+          `[data-${oauthProvider.current}-sign-in]`,
+        )
+        ?.focus(),
+    );
+  }
+  async function finishOAuth(value: OAuthCallback) {
+    if (!value) {
+      finishOAuthCancel();
+      return;
+    }
+    const current = oauthState.current;
+    if (oauthCompleting.current) return;
+    if (!current || value.state !== current.state) {
+      setError("Sign-in could not be verified. Please retry.");
+      setOAuthActive(false);
+      setPending(false);
+      oauthCleanup.current?.();
+      oauthCleanup.current = null;
+      oauthState.current = null;
+      oauthCancel.current = null;
+      return;
+    }
+    oauthCompleting.current = true;
+    setOAuthActive(false);
+    setPending(true);
+    setError("");
+    try {
+      const tokens = await authRequest<Tokens>(
+        `/v1/auth/${oauthProvider.current}/complete`,
+        {
+          state: value.state,
+          nonce: current.nonce,
+          code: value.code,
+          code_verifier: current.verifier,
+          redirect_uri: "duolify://oauth/callback",
+          age_confirmed: age,
+          locale: navigator.language || "en",
+          time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+          analytics_opt_out: optOut,
+        },
+      );
+      setAnalyticsOptOut(optOut);
+      await session.accept(tokens);
+      trackAuthScreen("sign_in");
+      if (onSignedIn) onSignedIn(destination);
+      else location.assign(destination);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : `${oauthProvider.current === "apple" ? "Apple" : "Google"} sign-in is unavailable. Please retry.`,
+      );
+    } finally {
+      oauthCleanup.current?.();
+      oauthCleanup.current = null;
+      oauthState.current = null;
+      oauthCompleting.current = false;
+      oauthCancel.current = null;
+      setOAuthActive(false);
+      setPending(false);
+    }
+  }
+  async function signInWithOAuth(provider: OAuthProviderName) {
+    if (pending || !online || !age) return;
+    oauthProvider.current = provider;
+    setOAuthProviderName(provider);
+    setPending(true);
+    setError("");
+    setNotice("");
+    trackOAuthStarted(analyticsID.current, optOut);
+    try {
+      const verifier = createPKCEVerifier();
+      const transaction = await authRequest<{
+        state: string;
+        nonce: string;
+        authorization_url: string;
+      }>(`/v1/auth/${provider}/start`, {
+        redirect_uri: "duolify://oauth/callback",
+        code_challenge: await pkceChallenge(verifier),
+      });
+      oauthState.current = {
+        state: transaction.state,
+        nonce: transaction.nonce,
+        verifier,
+      };
+      oauthCompleting.current = false;
+      const bridge = await oauthBridge(provider);
+      oauthCleanup.current = await bridge.listen(
+        (value) => void finishOAuth(value),
+      );
+      oauthCancel.current = bridge.cancel ? () => bridge.cancel?.() : null;
+      setOAuthActive(true);
+      await bridge.openSystemBrowser(transaction.authorization_url);
+      setNotice(
+        `${provider === "apple" ? "Apple" : "Google"} sign-in opens in your browser. Come back here when you're done.`,
+      );
+      setPending(false);
+    } catch (cause) {
+      oauthCleanup.current?.();
+      oauthCleanup.current = null;
+      oauthState.current = null;
+      setOAuthActive(false);
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : `${provider === "apple" ? "Apple" : "Google"} sign-in is unavailable. Please retry.`,
+      );
+      setPending(false);
+    }
+  }
   function cancel() {
     setStep("welcome");
     setCode("");
@@ -155,7 +310,47 @@ export function SignIn({
                 <Badge role="streak">Learn daily</Badge>
               </div>
               <div className="auth-actions" ref={actions}>
-                <Button onClick={() => open(false)}>Get started</Button>
+                <label className="auth-check">
+                  <input
+                    type="checkbox"
+                    checked={age}
+                    onChange={(event) => setAge(event.target.checked)}
+                  />
+                  I am 16 or older
+                </label>
+                <Button
+                  data-google-sign-in
+                  variant="secondary"
+                  pending={pending && !oauthActive}
+                  disabled={!age || !online || pending}
+                  onClick={() => void signInWithOAuth("google")}
+                >
+                  Continue with Google
+                </Button>
+                <Button
+                  data-apple-sign-in
+                  variant="secondary"
+                  pending={pending && !oauthActive}
+                  disabled={!age || !online || pending}
+                  onClick={() => void signInWithOAuth("apple")}
+                >
+                  Continue with Apple
+                </Button>
+                {oauthActive && (
+                  <Button
+                    variant="quiet"
+                    onClick={() => {
+                      if (oauthCancel.current) oauthCancel.current();
+                      else finishOAuthCancel();
+                    }}
+                  >
+                    Cancel {oauthProviderName === "apple" ? "Apple" : "Google"}{" "}
+                    sign-in
+                  </Button>
+                )}
+                <Button data-welcome-primary onClick={() => open(false)}>
+                  Get started
+                </Button>
                 <Button variant="secondary" onClick={() => open(true)}>
                   I already have an account
                 </Button>
@@ -282,7 +477,13 @@ export function SignIn({
               <Button
                 variant="secondary"
                 disabled={pending || !online}
-                onClick={() => void (step === "code" ? verify() : send())}
+                onClick={() =>
+                  void (step === "code"
+                    ? verify()
+                    : step === "welcome"
+                      ? signInWithOAuth(oauthProvider.current)
+                      : send())
+                }
               >
                 Retry sign-in
               </Button>

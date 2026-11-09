@@ -108,6 +108,32 @@ func ValidateContextPatch(fields map[string]json.RawMessage, limit int) (map[str
 			var value *bool
 			invalid = json.Unmarshal(raw, &value) != nil
 			values[name] = value
+		case "narration", "captions", "ui_sounds":
+			var value bool
+			invalid = json.Unmarshal(raw, &value) != nil
+			values[name] = value
+		case "appearance":
+			var value string
+			invalid = json.Unmarshal(raw, &value) != nil || (value != "system" && value != "light" && value != "dark")
+			values[name] = value
+		case "motion":
+			var value string
+			invalid = json.Unmarshal(raw, &value) != nil || (value != "system" && value != "reduce")
+			values[name] = value
+		case "haptics":
+			var value string
+			invalid = json.Unmarshal(raw, &value) != nil || (value != "system" && value != "on" && value != "off")
+			values[name] = value
+		case "narration_speed", "text_size":
+			var value float64
+			invalid = json.Unmarshal(raw, &value) != nil
+			if name == "narration_speed" {
+				invalid = invalid || value < 0.5 || value > 2.0
+			}
+			if name == "text_size" {
+				invalid = invalid || value < 0.8 || value > 1.5
+			}
+			values[name] = value
 		default:
 			invalid = true
 		}
@@ -121,6 +147,9 @@ func (s *Service) registerProfile() {
 	s.mux.Handle("GET /v1/me/profile", s.Protect(http.HandlerFunc(s.readContext)))
 	s.mux.Handle("GET /v1/me/profile/export", s.Protect(http.HandlerFunc(s.readContext)))
 	s.mux.Handle("POST /v1/me/profile", s.Protect(http.HandlerFunc(s.saveContext)))
+	s.mux.Handle("GET /v1/me/settings", s.Protect(http.HandlerFunc(s.readSettings)))
+	s.mux.Handle("POST /v1/me/settings", s.Protect(http.HandlerFunc(s.saveSettings)))
+	s.mux.Handle("POST /v1/me/setup-chat", s.Protect(http.HandlerFunc(s.handleSetupChat)))
 }
 func contextID(r *http.Request) pgtype.UUID {
 	var id pgtype.UUID
@@ -158,6 +187,12 @@ func (s *Service) saveContext(w http.ResponseWriter, r *http.Request) {
 	if err != nil || !errors.Is(decoder.Decode(&extra), io.EOF) || !in.Confirmed || (in.Action != "save" && in.Action != "skip") {
 		respond(w, 400, map[string]string{"error": "Explicit profile confirmation or Skip is required."})
 		return
+	}
+	for name := range in.Fields {
+		if !profileContextField(name) {
+			respond(w, 400, map[string]string{"error": "Check the highlighted fields."})
+			return
+		}
 	}
 	patch, failures := ValidateContextPatch(in.Fields, s.profile.TextLimit)
 	if in.Action == "save" && len(failures) > 0 {

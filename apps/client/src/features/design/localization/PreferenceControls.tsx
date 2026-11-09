@@ -1,17 +1,24 @@
-import { Link } from "@tanstack/react-router";
 import { useId } from "react";
-import { useUiPreferences } from "./Preferences";
+import { useUiPreferences, type Preferences } from "./Preferences";
 import { Button } from "../Button";
 import "./preferences.css";
+
 export function PreferenceControls({
   testLocales = false,
+  value,
+  onChange,
 }: {
   testLocales?: boolean;
+  value?: Preferences;
+  onChange?: (patch: Partial<Preferences>) => void;
 }) {
   const languageId = useId();
   const appearanceId = useId();
   const { preferences, update, reset, retry, saveError, t } =
     useUiPreferences();
+  const selected = value ?? preferences;
+  const change = onChange ?? update;
+  const persisted = value !== undefined && onChange !== undefined;
   return (
     <section className="preference-controls" aria-label={t("settings.title")}>
       <div className="preference-select">
@@ -19,9 +26,9 @@ export function PreferenceControls({
         <select
           id={languageId}
           data-control="locale"
-          value={preferences.locale}
+          value={selected.locale}
           onChange={(event) =>
-            update({ locale: event.target.value as typeof preferences.locale })
+            change({ locale: event.target.value as Preferences["locale"] })
           }
         >
           <option value="en">English</option>
@@ -36,9 +43,9 @@ export function PreferenceControls({
         <select
           id={appearanceId}
           data-control="appearance"
-          value={preferences.appearance}
+          value={selected.appearance}
           onChange={(event) =>
-            update({
+            change({
               appearance: event.target.value as typeof preferences.appearance,
             })
           }
@@ -54,17 +61,21 @@ export function PreferenceControls({
         <input
           data-control="motion"
           type="checkbox"
-          checked={preferences.reduceMotion}
-          onChange={(event) => update({ reduceMotion: event.target.checked })}
+          checked={selected.reduceMotion}
+          onChange={(event) => change({ reduceMotion: event.target.checked })}
         />
         {t("settings.motion")}
       </label>
       <p>{t("settings.motion_hint")}</p>
-      <Button data-control="reset" variant="quiet" onClick={reset}>
-        {t("settings.reset")}
-      </Button>
-      <p>{t("settings.local")}</p>
-      {saveError && (
+      {!persisted && (
+        <>
+          <Button data-control="reset" variant="quiet" onClick={reset}>
+            {t("settings.reset")}
+          </Button>
+          <p>{t("settings.local")}</p>
+        </>
+      )}
+      {!persisted && saveError && (
         <div role="alert">
           <p>{t("settings.error")}</p>
           <Button variant="quiet" onClick={retry}>
@@ -73,17 +84,5 @@ export function PreferenceControls({
         </div>
       )}
     </section>
-  );
-}
-export function SettingsPage() {
-  const { t } = useUiPreferences();
-  return (
-    <>
-      <h1>{t("settings.title")}</h1>
-      <PreferenceControls />
-      <Link className="shell-link" to="/settings/sessions">
-        {t("settings.sessions")}
-      </Link>
-    </>
   );
 }
