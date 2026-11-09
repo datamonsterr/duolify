@@ -28,12 +28,13 @@ var (
 
 // Reservation is an idempotent provider job and its durable final result.
 type Reservation struct {
-	ID             string `json:"id"`
-	PricingVersion string `json:"pricing_version"`
-	State          string `json:"state"`
-	ContentSpent   int64  `json:"content_spent"`
-	AudioSpent     int64  `json:"audio_spent"`
-	CostNanos      int64  `json:"cost_nanos"`
+	ID             string    `json:"id"`
+	PricingVersion string    `json:"pricing_version"`
+	State          string    `json:"state"`
+	DeadlineAt     time.Time `json:"deadline_at"`
+	ContentSpent   int64     `json:"content_spent"`
+	AudioSpent     int64     `json:"audio_spent"`
+	CostNanos      int64     `json:"cost_nanos"`
 }
 
 func (s *Service) pool() *pgxpool.Pool {
@@ -84,10 +85,12 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 		return Reservation{}, err
 	}
 	var existing []byte
-	err = tx.QueryRow(ctx, "SELECT result FROM credit_jobs WHERE quote_id=$1", quoteID).Scan(&existing)
+	var existingDeadline time.Time
+	err = tx.QueryRow(ctx, "SELECT result,deadline_at FROM credit_jobs WHERE quote_id=$1", quoteID).Scan(&existing, &existingDeadline)
 	if err == nil {
 		var result Reservation
 		err = json.Unmarshal(existing, &result)
+		result.DeadlineAt = existingDeadline
 		return result, err
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -151,7 +154,7 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 		}
 	}
 	result := Reservation{PricingVersion: q.PricingVersion, State: "reserved"}
-	err = tx.QueryRow(ctx, `INSERT INTO credit_jobs(quote_id,learner_id,owner_reference,state,local_date,platform_date,held_nanos,deadline_at) VALUES($1,$2,$3,'reserved',$4::date,$5::date,$6,$7) RETURNING id::text`, quoteID, owner, ref, localDay, platformDay, hold, now.Add(time.Duration(q.Bounds["timeout_ms"])*time.Millisecond)).Scan(&result.ID)
+	err = tx.QueryRow(ctx, `INSERT INTO credit_jobs(quote_id,learner_id,owner_reference,state,local_date,platform_date,held_nanos,deadline_at) VALUES($1,$2,$3,'reserved',$4::date,$5::date,$6,$7) RETURNING id::text,deadline_at`, quoteID, owner, ref, localDay, platformDay, hold, now.Add(time.Duration(q.Bounds["timeout_ms"])*time.Millisecond)).Scan(&result.ID, &result.DeadlineAt)
 	if err != nil {
 		return Reservation{}, err
 	}
