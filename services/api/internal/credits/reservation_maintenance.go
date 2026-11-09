@@ -59,12 +59,6 @@ func outboxTx(ctx context.Context, tx pgx.Tx, owner, key, event string, q pricin
 	return insertOutbox(ctx, tx, owner, key, event, map[string]any{"source": "api", "platform": "web", "app_version": "development", "feature": q.Action, "pricing_version": q.PricingVersion, "amount": amount, "model": q.Rate.Model})
 }
 func (s *Service) refusal(ctx context.Context, owner, id string, q pricing.Quote) error {
-	tx, err := s.pool().Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
 	balance := int64(0)
 	if wallet, e := s.GetWallet(ctx, owner); e == nil {
 		balance = wallet.Purchased + wallet.Subscription
@@ -72,6 +66,11 @@ func (s *Service) refusal(ctx context.Context, owner, id string, q pricing.Quote
 			balance += wallet.DailyFree.Available
 		}
 	}
+	tx, err := s.pool().Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
 	properties := map[string]any{"source": "api", "platform": "web", "app_version": "development", "feature": q.Action, "pricing_version": q.PricingVersion, "balance": balance, "estimate": q.ContentCeiling + q.AudioCeiling, "bucket": "eligible"}
 	for _, event := range []string{"credits_insufficient", "credits_exhausted"} {
 		if err = insertOutbox(ctx, tx, owner, id+":"+event, event, properties); err != nil {
@@ -139,6 +138,12 @@ func (s *Service) DispatchOutbox(ctx context.Context) error {
 // ReapExpired finalizes abandoned jobs after the API-enforced provider deadline.
 // Unknown running usage consumes its held USD; undelivered Credits are released.
 func (s *Service) ReapExpired(ctx context.Context) error {
+	// Older backups can contain holds whose learner was already erased. They
+	// cannot deliver; finalize by retained ownership without requiring a profile.
+	if _, err := s.pool().Exec(ctx, `SELECT release_deleted_credit_jobs(owner_reference) FROM
+ (SELECT DISTINCT owner_reference FROM credit_jobs WHERE learner_id IS NULL AND state IN ('reserved','running')) owners`); err != nil {
+		return err
+	}
 	rows, err := s.pool().Query(ctx, `SELECT id::text,learner_id::text FROM credit_jobs WHERE state IN ('reserved','running') AND deadline_at<=clock_timestamp() AND learner_id IS NOT NULL`)
 	if err != nil {
 		return err
@@ -197,7 +202,7 @@ func (s *Service) expirePostgres(ctx context.Context, asOf time.Time) (int, erro
 		return 0, err
 	}
 	for _, owner := range owners {
-		tz, e := s.store.GetEffectiveTimezone(ctx, owner, asOf)
+		tz, e := effectiveTimezone(ctx, tx, owner, asOf)
 		if e != nil {
 			return 0, e
 		}

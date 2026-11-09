@@ -39,11 +39,15 @@ type outlineProposalEngine struct {
 	last    *enginev1.OutlineChatChangeRequest
 	started chan struct{}
 	resume  chan struct{}
+	check   func(context.Context, *enginev1.OutlineChatChangeRequest)
 }
 
 func (e *outlineProposalEngine) OutlineChatChange(ctx context.Context, r *enginev1.OutlineChatChangeRequest) (*enginev1.OutlineChatChangeResponse, error) {
 	e.calls.Add(1)
 	e.last = r
+	if e.check != nil {
+		e.check(ctx, r)
+	}
 	if r.Request == "concurrent" {
 		close(e.started)
 		select {
@@ -380,6 +384,49 @@ func TestOutlineChatChangeIntegration(t *testing.T) {
 			}
 		}
 	}
+	t.Run("E7 provider uses reservation deadline", func(t *testing.T) {
+		fixture.check = func(callCtx context.Context, r *enginev1.OutlineChatChangeRequest) {
+			var stored time.Time
+			if e := db.Pool.QueryRow(ctx, `SELECT j.deadline_at FROM credit_jobs j JOIN outline_proposals p ON p.quote_id=j.quote_id WHERE p.id::text=$1`, r.ProposalId).Scan(&stored); e != nil {
+				t.Error(e)
+				return
+			}
+			deadline, ok := callCtx.Deadline()
+			// gRPC reconstructs the timeout at its receiving boundary. Millisecond
+			// transport rounding is allowed, but a fresh provider timeout is not.
+			if !ok || deadline.After(stored.Add(10*time.Millisecond)) {
+				t.Errorf("provider deadline %s extends reservation %s", deadline, stored)
+			}
+		}
+		if code, out := call("POST", "/v1/outline-proposals", quoted("deadline"), token); code != 200 {
+			t.Fatal(code, out)
+		}
+		fixture.check = nil
+	})
+	t.Run("E7 cleanup wins before proposal delivery", func(t *testing.T) {
+		fixture.started, fixture.resume = make(chan struct{}), make(chan struct{})
+		in := quoted("concurrent")
+		completed := make(chan int, 1)
+		go func() { code, _ := call("POST", "/v1/outline-proposals", in, token); completed <- code }()
+		select {
+		case <-fixture.started:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		if _, e := db.Pool.Exec(ctx, `UPDATE credit_jobs SET deadline_at=clock_timestamp()-interval '1 second' WHERE quote_id::text=$1`, in["quote_id"]); e != nil {
+			t.Fatal(e)
+		}
+		if e := financial.ReapExpired(ctx); e != nil {
+			t.Fatal(e)
+		}
+		close(fixture.resume)
+		if code := <-completed; code != 502 {
+			t.Fatalf("released proposal delivered: %d", code)
+		}
+		if code, out := call("GET", "/v1/outline-proposals/?quote_id="+in["quote_id"].(string), nil, token); code != 200 || out["state"] != "failed" {
+			t.Fatalf("late proposal recoverable as delivery: %d %v", code, out)
+		}
+	})
 	code, export := call("GET", "/v1/me/data-export", nil, token)
 	if code != 200 || len(export["tables"].(map[string]any)["outline_proposals"].([]any)) < 1 {
 		t.Fatal("proposal export", code, export)

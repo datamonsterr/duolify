@@ -276,22 +276,24 @@ func (x *Usage) GetErrorCode() string {
 
 // Bounds come only from the API's immutable Pricing quote, never client prices.
 type UsageLimits struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	InputTokens         uint32                 `protobuf:"varint,1,opt,name=input_tokens,json=inputTokens,proto3" json:"input_tokens,omitempty"`
-	OutputTokens        uint32                 `protobuf:"varint,2,opt,name=output_tokens,json=outputTokens,proto3" json:"output_tokens,omitempty"`
-	TimeoutMs           uint32                 `protobuf:"varint,3,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
-	MaxAttempts         uint32                 `protobuf:"varint,4,opt,name=max_attempts,json=maxAttempts,proto3" json:"max_attempts,omitempty"`
-	MaxCostNanos        uint64                 `protobuf:"varint,5,opt,name=max_cost_nanos,json=maxCostNanos,proto3" json:"max_cost_nanos,omitempty"`
-	InputNanos          uint64                 `protobuf:"varint,6,opt,name=input_nanos,json=inputNanos,proto3" json:"input_nanos,omitempty"`
-	OutputNanos         uint64                 `protobuf:"varint,7,opt,name=output_nanos,json=outputNanos,proto3" json:"output_nanos,omitempty"`
-	CacheWriteNanos     uint64                 `protobuf:"varint,8,opt,name=cache_write_nanos,json=cacheWriteNanos,proto3" json:"cache_write_nanos,omitempty"`
-	CacheReadNanos      uint64                 `protobuf:"varint,9,opt,name=cache_read_nanos,json=cacheReadNanos,proto3" json:"cache_read_nanos,omitempty"`
-	Provider            string                 `protobuf:"bytes,10,opt,name=provider,proto3" json:"provider,omitempty"`
-	Model               string                 `protobuf:"bytes,11,opt,name=model,proto3" json:"model,omitempty"`
-	FallbackProvider    string                 `protobuf:"bytes,12,opt,name=fallback_provider,json=fallbackProvider,proto3" json:"fallback_provider,omitempty"`
-	FallbackModel       string                 `protobuf:"bytes,13,opt,name=fallback_model,json=fallbackModel,proto3" json:"fallback_model,omitempty"`
-	FirstTokenTimeoutMs uint32                 `protobuf:"varint,14,opt,name=first_token_timeout_ms,json=firstTokenTimeoutMs,proto3" json:"first_token_timeout_ms,omitempty"`
-	IdleTimeoutMs       uint32                 `protobuf:"varint,15,opt,name=idle_timeout_ms,json=idleTimeoutMs,proto3" json:"idle_timeout_ms,omitempty"`
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	InputTokens      uint32                 `protobuf:"varint,1,opt,name=input_tokens,json=inputTokens,proto3" json:"input_tokens,omitempty"`
+	OutputTokens     uint32                 `protobuf:"varint,2,opt,name=output_tokens,json=outputTokens,proto3" json:"output_tokens,omitempty"`
+	TimeoutMs        uint32                 `protobuf:"varint,3,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
+	MaxAttempts      uint32                 `protobuf:"varint,4,opt,name=max_attempts,json=maxAttempts,proto3" json:"max_attempts,omitempty"`
+	MaxCostNanos     uint64                 `protobuf:"varint,5,opt,name=max_cost_nanos,json=maxCostNanos,proto3" json:"max_cost_nanos,omitempty"`
+	InputNanos       uint64                 `protobuf:"varint,6,opt,name=input_nanos,json=inputNanos,proto3" json:"input_nanos,omitempty"`
+	OutputNanos      uint64                 `protobuf:"varint,7,opt,name=output_nanos,json=outputNanos,proto3" json:"output_nanos,omitempty"`
+	CacheWriteNanos  uint64                 `protobuf:"varint,8,opt,name=cache_write_nanos,json=cacheWriteNanos,proto3" json:"cache_write_nanos,omitempty"`
+	CacheReadNanos   uint64                 `protobuf:"varint,9,opt,name=cache_read_nanos,json=cacheReadNanos,proto3" json:"cache_read_nanos,omitempty"`
+	Provider         string                 `protobuf:"bytes,10,opt,name=provider,proto3" json:"provider,omitempty"`
+	Model            string                 `protobuf:"bytes,11,opt,name=model,proto3" json:"model,omitempty"`
+	FallbackProvider string                 `protobuf:"bytes,12,opt,name=fallback_provider,json=fallbackProvider,proto3" json:"fallback_provider,omitempty"`
+	FallbackModel    string                 `protobuf:"bytes,13,opt,name=fallback_model,json=fallbackModel,proto3" json:"fallback_model,omitempty"`
+	// Absolute reservation deadline, including API queue and transport time.
+	DeadlineUnixMs      uint64 `protobuf:"varint,14,opt,name=deadline_unix_ms,json=deadlineUnixMs,proto3" json:"deadline_unix_ms,omitempty"`
+	FirstTokenTimeoutMs uint32 `protobuf:"varint,15,opt,name=first_token_timeout_ms,json=firstTokenTimeoutMs,proto3" json:"first_token_timeout_ms,omitempty"`
+	IdleTimeoutMs       uint32 `protobuf:"varint,16,opt,name=idle_timeout_ms,json=idleTimeoutMs,proto3" json:"idle_timeout_ms,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -415,6 +417,13 @@ func (x *UsageLimits) GetFallbackModel() string {
 		return x.FallbackModel
 	}
 	return ""
+}
+
+func (x *UsageLimits) GetDeadlineUnixMs() uint64 {
+	if x != nil {
+		return x.DeadlineUnixMs
+	}
+	return 0
 }
 
 func (x *UsageLimits) GetFirstTokenTimeoutMs() uint32 {
@@ -2903,7 +2912,7 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"artifactId\x12+\n" +
 	"\x11usage_unavailable\x18\x0f \x01(\bR\x10usageUnavailable\x12\x1d\n" +
 	"\n" +
-	"error_code\x18\x10 \x01(\tR\terrorCode\"\xba\x04\n" +
+	"error_code\x18\x10 \x01(\tR\terrorCode\"\xe4\x04\n" +
 	"\vUsageLimits\x12!\n" +
 	"\finput_tokens\x18\x01 \x01(\rR\vinputTokens\x12#\n" +
 	"\routput_tokens\x18\x02 \x01(\rR\foutputTokens\x12\x1d\n" +
@@ -2920,9 +2929,10 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	" \x01(\tR\bprovider\x12\x14\n" +
 	"\x05model\x18\v \x01(\tR\x05model\x12+\n" +
 	"\x11fallback_provider\x18\f \x01(\tR\x10fallbackProvider\x12%\n" +
-	"\x0efallback_model\x18\r \x01(\tR\rfallbackModel\x123\n" +
-	"\x16first_token_timeout_ms\x18\x0e \x01(\rR\x13firstTokenTimeoutMs\x12&\n" +
-	"\x0fidle_timeout_ms\x18\x0f \x01(\rR\ridleTimeoutMs\"\xd6\x02\n" +
+	"\x0efallback_model\x18\r \x01(\tR\rfallbackModel\x12(\n" +
+	"\x10deadline_unix_ms\x18\x0e \x01(\x04R\x0edeadlineUnixMs\x123\n" +
+	"\x16first_token_timeout_ms\x18\x0f \x01(\rR\x13firstTokenTimeoutMs\x12&\n" +
+	"\x0fidle_timeout_ms\x18\x10 \x01(\rR\ridleTimeoutMs\"\xd6\x02\n" +
 	"\x0eLearnerProfile\x12\x1d\n" +
 	"\n" +
 	"learner_id\x18\x01 \x01(\tR\tlearnerId\x12\x16\n" +

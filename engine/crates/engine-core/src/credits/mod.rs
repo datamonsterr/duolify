@@ -14,6 +14,8 @@ pub struct Limits {
     pub output_nanos: u64,
     pub cache_write_nanos: u64,
     pub cache_read_nanos: u64,
+    #[serde(default)]
+    pub deadline_unix_ms: u64,
 }
 pub fn validate_limits(l: &Limits) -> Result<()> {
     if l.input_tokens == 0
@@ -73,22 +75,20 @@ pub struct Outcome {
     pub attempts: Vec<Attempt>,
 }
 
-/// A provider error/timeout retains a conservative cost hold. A fallback starts
-/// only when its full worst-case envelope still fits the API's total cap.
-pub async fn run(router: &ProviderRouter, task: &str, input: &str, l: &Limits) -> Result<Outcome> {
-    crate::eval::run_bounded_with_policy(
-        router,
-        task,
-        input,
-        l,
-        |text| serde_json::from_str::<serde_json::Value>(text).is_ok(),
-        false,
-    )
-    .await
+/// A caller must supply its required schema; JSON syntax alone is insufficient.
+pub async fn run<F: Fn(&str) -> bool>(
+    router: &ProviderRouter,
+    task: &str,
+    input: &str,
+    l: &Limits,
+    validate: F,
+) -> Result<Outcome> {
+    crate::eval::run_bounded_with_policy(router, task, input, l, validate, false).await
 }
 
 /// Feature validation participates in the same attempt, USD and deadline budget.
 /// Preview leaves time for its evaluated fallback within the total deadline.
+/// Errors, timeouts and missing usage retain a conservative cost hold.
 pub async fn run_validated<F: Fn(&str) -> bool>(
     router: &ProviderRouter,
     task: &str,

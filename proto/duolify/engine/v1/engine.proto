@@ -69,8 +69,10 @@ message UsageLimits {
   string model = 11;
   string fallback_provider = 12;
   string fallback_model = 13;
-  uint32 first_token_timeout_ms = 14;
-  uint32 idle_timeout_ms = 15;
+  // Absolute reservation deadline, including API queue and transport time.
+  uint64 deadline_unix_ms = 14;
+  uint32 first_token_timeout_ms = 15;
+  uint32 idle_timeout_ms = 16;
 }
 
 message LearnerProfile {

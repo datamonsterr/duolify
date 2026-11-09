@@ -194,26 +194,17 @@ func (s *pgStore) InsertCreditEntry(ctx context.Context, e Entry) (Entry, error)
 }
 
 func (s *pgStore) GetEffectiveTimezone(ctx context.Context, learnerID string, at time.Time) (string, error) {
-	var uid pgtype.UUID
-	if err := uid.Scan(learnerID); err != nil {
-		return "", fmt.Errorf("invalid learner id: %w", err)
-	}
-	queries := dbsql.New(s.pool)
-	row, err := queries.GetEffectiveCreditTimezone(ctx, dbsql.GetEffectiveCreditTimezoneParams{
-		LearnerID:   uid,
-		EffectiveAt: pgtype.Timestamptz{Time: at, Valid: true},
-	})
-	if err == nil && row.TimeZone != "" {
-		return row.TimeZone, nil
-	}
+	return effectiveTimezone(ctx, s.pool, learnerID, at)
+}
 
-	// Fallback to learner_profiles.time_zone
+// Use the caller's connection inside financial transactions. Acquiring another
+// pool connection while holding the financial lock can exhaust even large pools.
+func effectiveTimezone(ctx context.Context, conn dbsql.DBTX, learnerID string, at time.Time) (string, error) {
 	var tz string
-	err = s.pool.QueryRow(ctx, "SELECT time_zone FROM learner_profiles WHERE learner_id = $1", uid).Scan(&tz)
-	if err == nil && tz != "" {
-		return tz, nil
-	}
-	return "Asia/Ho_Chi_Minh", nil
+	err := conn.QueryRow(ctx, `SELECT COALESCE(
+ (SELECT NULLIF(time_zone,'') FROM credit_timezones WHERE learner_id=$1 AND effective_at<=$2 ORDER BY effective_at DESC,id DESC LIMIT 1),
+ (SELECT NULLIF(time_zone,'') FROM learner_profiles WHERE learner_id=$1), 'Asia/Ho_Chi_Minh')`, learnerID, at).Scan(&tz)
+	return tz, err
 }
 
 func (s *pgStore) ScheduleTimezoneChange(ctx context.Context, learnerID, tz string, effectiveAt time.Time) error {
@@ -221,12 +212,10 @@ func (s *pgStore) ScheduleTimezoneChange(ctx context.Context, learnerID, tz stri
 	if err := uid.Scan(learnerID); err != nil {
 		return fmt.Errorf("invalid learner id: %w", err)
 	}
-	queries := dbsql.New(s.pool)
-	_, err := queries.InsertCreditTimezone(ctx, dbsql.InsertCreditTimezoneParams{
-		LearnerID:   uid,
-		TimeZone:    tz,
-		EffectiveAt: pgtype.Timestamptz{Time: effectiveAt, Valid: true},
-	})
+	// Use the same policy as every learner_profiles writer, including initializing
+	// the previous zone for accounts that predate timezone history.
+	_, err := s.pool.Exec(ctx, `SELECT schedule_credit_timezone($1,
+ COALESCE((SELECT time_zone FROM learner_profiles WHERE learner_id=$1),'Asia/Ho_Chi_Minh'),$2,$3)`, uid, tz, effectiveAt.Add(-24*time.Hour))
 	return err
 }
 
@@ -518,7 +507,13 @@ func (s *Service) EnsureDailyGrant(ctx context.Context, learnerID string, now ti
 
 	_ = s.InvalidateCache(ctx, learnerID)
 
-	if s.events != nil {
+	optedOut := false
+	if s.pool() != nil {
+		// Fail closed when consent cannot be read; granting never requires analytics.
+		optedOut = true
+		_ = s.pool().QueryRow(ctx, "SELECT analytics_opt_out FROM learner_profiles WHERE learner_id=$1", learnerID).Scan(&optedOut)
+	}
+	if s.events != nil && !optedOut {
 		_ = s.events.Capture(learnerID, "daily_credits_granted", map[string]any{
 			"amount":      int(amount),
 			"source":      "api",
@@ -815,19 +810,23 @@ func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse
 		if date == "" && !e.CreatedAt.IsZero() {
 			date = e.CreatedAt.In(loc).Format(time.DateOnly)
 		}
+		// Daily sources belong to their grant date. An old reservation's release,
+		// spend or expiry cannot change today's allowance, regardless of row order.
+		currentDaily := date == "" || date == currentLocalDate
 
 		switch e.Kind {
 		case "daily_grant":
 			if date == "" || date == currentLocalDate {
 				dailyFreeGranted += e.Amount
 			}
-			dailyFreeAvailable += e.Amount
+			if currentDaily {
+				dailyFreeAvailable += e.Amount
+			}
 
 		case "expire":
 			// Expire entries remove unspent daily free
-			dailyFreeAvailable += e.Amount
-			if dailyFreeAvailable < 0 {
-				dailyFreeAvailable = 0
+			if currentDaily {
+				dailyFreeAvailable += e.Amount
 			}
 
 		case "purchase":
@@ -850,7 +849,9 @@ func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse
 
 			switch bucket {
 			case "daily_free":
-				dailyFreeAvailable += e.Amount
+				if currentDaily {
+					dailyFreeAvailable += e.Amount
+				}
 			case "subscription":
 				subscriptionTotal += e.Amount
 			default:
@@ -877,7 +878,9 @@ func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse
 		case "spend":
 			switch bucket {
 			case "daily_free":
-				dailyFreeAvailable += e.Amount
+				if currentDaily {
+					dailyFreeAvailable += e.Amount
+				}
 			case "subscription":
 				subscriptionTotal += e.Amount
 			default:

@@ -164,12 +164,12 @@ func (s *Service) ServeCreationHTTP(w http.ResponseWriter, r *http.Request) {
 		outlineError(w, 503)
 		return
 	}
-	snapshot, err := s.ResolveConfirmed(ctx, owner, in.DraftID, in.ExpectedRevision)
+	snapshot, err := resolveConfirmed(ctx, tx, owner, in.DraftID, in.ExpectedRevision)
 	if err != nil {
 		outlineError(w, 409)
 		return
 	}
-	q, err := pricing.NewQuotes(s.opts.Pool).Get(ctx, owner, in.QuoteID)
+	q, err := pricing.ReadQuote(ctx, tx, owner, in.QuoteID)
 	if err != nil || q.Action != "outline" || !q.Accepted || q.Expired || q.Input.OutlineDraftID != in.DraftID || q.Input.OutlineRevision != in.ExpectedRevision || q.Input.RequestHash != snapshot.ContentHash {
 		outlineError(w, 409)
 		return
@@ -314,11 +314,17 @@ func (s *Service) RunCreation(ctx context.Context, id string) error {
 	if s.opts.Financial == nil || s.opts.OutlineEngine == nil {
 		return errors.New("outline dependencies unavailable")
 	}
-	conn, err := s.opts.Pool.Acquire(ctx)
+	// The generation lock spans provider work. Keep it outside the work pool so
+	// concurrent lock holders cannot consume the connections needed to finalize.
+	conn, err := pgx.ConnectConfig(ctx, s.opts.Pool.Config().ConnConfig.Copy())
 	if err != nil {
 		return err
 	}
-	defer conn.Release()
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+		defer cancel()
+		_ = conn.Close(closeCtx)
+	}()
 	var locked bool
 	if err = conn.QueryRow(ctx, `SELECT pg_try_advisory_lock(hashtextextended($1,202))`, id).Scan(&locked); err != nil {
 		return err
@@ -354,7 +360,7 @@ func (s *Service) RunCreation(ctx context.Context, id string) error {
 			return s.failCreation(context.WithoutCancel(ctx), owner, id, "", nil)
 		}
 		job, e := s.opts.Financial.ReserveAction(ctx, owner, quoteID, "outline")
-		if e != nil {
+		if e != nil || job.State != "reserved" {
 			return s.failCreation(context.WithoutCancel(ctx), owner, id, "", nil)
 		}
 		reservation = job.ID
@@ -369,12 +375,13 @@ func (s *Service) RunCreation(ctx context.Context, id string) error {
 		if err = s.opts.Financial.Claim(ctx, owner, reservation); err != nil {
 			return s.failCreation(ctx, owner, id, reservation, nil)
 		}
-		callCtx, cancel := context.WithTimeout(ctx, time.Duration(request.Limits.TimeoutMs)*time.Millisecond)
+		callCtx, cancel := context.WithDeadline(ctx, job.DeadlineAt)
 		response, e := s.opts.OutlineEngine.GenerateCourseOutline(callCtx, request)
+		callErr := callCtx.Err()
 		cancel()
 		finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer finishCancel()
-		if e != nil || ctx.Err() != nil || ValidateCreatedOutline(request, response) != nil {
+		if e != nil || callErr != nil || ValidateCreatedOutline(request, response) != nil {
 			var attempts []*enginev1.Usage
 			if response != nil {
 				attempts = response.Attempts

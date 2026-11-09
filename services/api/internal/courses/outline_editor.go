@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/store/db"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -247,7 +248,11 @@ func scanOutline(row pgx.Row) (OutlineDraft, error) {
 }
 
 func (s *Service) readOutline(ctx context.Context, owner, id string) (OutlineDraft, error) {
-	return scanOutline(s.opts.Pool.QueryRow(ctx, `SELECT `+outlineColumns+` FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id::text=$1 AND d.learner_id::text=$2 AND b.expires_at>now()`, id, owner))
+	return readOutline(ctx, s.opts.Pool, owner, id)
+}
+
+func readOutline(ctx context.Context, conn db.DBTX, owner, id string) (OutlineDraft, error) {
+	return scanOutline(conn.QueryRow(ctx, `SELECT `+outlineColumns+` FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id::text=$1 AND d.learner_id::text=$2 AND b.expires_at>now()`, id, owner))
 }
 
 func (s *Service) createOutline(w http.ResponseWriter, r *http.Request, owner string) {
@@ -368,7 +373,11 @@ func (s *Service) confirmOutline(w http.ResponseWriter, r *http.Request, owner, 
 
 // ResolveConfirmed rejects a changed head; future consumers must use this exact revision.
 func (s *Service) ResolveConfirmed(ctx context.Context, owner, id string, expected int64) (ConfirmedOutline, error) {
-	d, err := s.readOutline(ctx, owner, id)
+	return resolveConfirmed(ctx, s.opts.Pool, owner, id, expected)
+}
+
+func resolveConfirmed(ctx context.Context, conn db.DBTX, owner, id string, expected int64) (ConfirmedOutline, error) {
+	d, err := readOutline(ctx, conn, owner, id)
 	if err != nil {
 		return ConfirmedOutline{}, err
 	}

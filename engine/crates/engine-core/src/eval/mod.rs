@@ -5,7 +5,7 @@ use crate::{
 };
 use anyhow::{Context, Result, bail};
 use futures::StreamExt;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(test)]
 mod tests;
@@ -164,6 +164,15 @@ pub async fn run_bounded_with_policy<F: Fn(&str) -> bool>(
     };
     let mut spent = 0u64;
     let started = Instant::now();
+    let mut budget = Duration::from_millis(u64::from(l.timeout_ms));
+    if l.deadline_unix_ms != 0 {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
+        let remaining = u128::from(l.deadline_unix_ms).saturating_sub(now);
+        // This conversion is bounded by the relative API timeout (u32).
+        budget = budget.min(Duration::from_millis(
+            remaining.min(u128::from(l.timeout_ms)) as u64,
+        ));
+    }
 
     // Launch policy: at most 2 attempts total (primary + at most 1 repair/fallback)
     let max_attempts = l.max_attempts.min(2);
@@ -189,8 +198,7 @@ pub async fn run_bounded_with_policy<F: Fn(&str) -> bool>(
             break;
         }
 
-        let remaining =
-            Duration::from_millis(u64::from(l.timeout_ms)).saturating_sub(started.elapsed());
+        let remaining = budget.saturating_sub(started.elapsed());
         if remaining.is_zero() {
             break;
         }
@@ -226,7 +234,7 @@ pub async fn run_bounded_with_policy<F: Fn(&str) -> bool>(
                     attempt: index + 1,
                     fallback_used: fallback,
                     delivered: false,
-                    usage_unavailable: false,
+                    usage_unavailable: c.usage_unavailable,
                     error_code: None,
                 };
 
@@ -240,7 +248,12 @@ pub async fn run_bounded_with_policy<F: Fn(&str) -> bool>(
 
                 match cost_res {
                     Ok(actual_cost) => {
-                        spent += actual_cost;
+                        let cost = if c.usage_unavailable {
+                            worst
+                        } else {
+                            actual_cost
+                        };
+                        spent += cost;
                         if validate(&c.text) {
                             attempt.delivered = true;
                             outcome.completion = Some(c);

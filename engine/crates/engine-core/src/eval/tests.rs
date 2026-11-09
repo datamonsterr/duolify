@@ -40,6 +40,7 @@ impl LlmProvider for DelayedProvider {
             output_tokens: 10,
             cache_write_tokens: 0,
             cache_read_tokens: 0,
+            usage_unavailable: false,
         })
     }
     async fn stream(&self, _model: &str, _input: &str) -> anyhow::Result<crate::CompletionStream> {
@@ -64,6 +65,7 @@ impl LlmProvider for PartialStreamProvider {
             output_tokens: 10,
             cache_write_tokens: 0,
             cache_read_tokens: 0,
+            usage_unavailable: false,
         })
     }
     async fn stream(&self, _model: &str, _input: &str) -> anyhow::Result<crate::CompletionStream> {
@@ -116,6 +118,7 @@ async fn primary_429_recovers_on_fallback_within_2_attempt_ceiling() {
         output_nanos: 500,
         cache_write_nanos: 125,
         cache_read_nanos: 10,
+        deadline_unix_ms: 0,
     };
 
     let outcome = run_bounded(&router, "preview", "test prompt", &limits, |_| true)
@@ -158,6 +161,7 @@ async fn terminal_both_providers_fail_stops_with_typed_error() {
         output_nanos: 500,
         cache_write_nanos: 125,
         cache_read_nanos: 10,
+        deadline_unix_ms: 0,
     };
 
     let outcome = run_bounded(&router, "preview", "test prompt", &limits, |_| true)
@@ -195,6 +199,7 @@ async fn expensive_fallback_halts_before_execution_within_cap() {
         output_nanos: 500,
         cache_write_nanos: 125,
         cache_read_nanos: 10,
+        deadline_unix_ms: 0,
     };
 
     let outcome = run_bounded(&router, "preview", "test prompt", &limits, |_| true)
@@ -228,6 +233,7 @@ async fn timeout_cancels_and_retains_unknown_usage() {
         output_nanos: 500,
         cache_write_nanos: 125,
         cache_read_nanos: 10,
+        deadline_unix_ms: 0,
     };
 
     let outcome = run_bounded(&router, "preview", "test prompt", &limits, |_| true)
