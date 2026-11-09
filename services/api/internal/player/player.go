@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -18,11 +19,51 @@ type Objects interface {
 	Get(context.Context, string) ([]byte, error)
 }
 
+// Entitlements exposes funded subscription snapshot verification.
+type Entitlements interface {
+	FundedPlan(context.Context, string, time.Time) (*credits.FundedPlan, error)
+}
+
+// DownloadLessonItem projects one unlocked lesson available for course download.
+type DownloadLessonItem struct {
+	LessonID     string `json:"lesson_id"`
+	UnitID       string `json:"unit_id"`
+	Title        string `json:"title"`
+	Position     int    `json:"position"`
+	Status       string `json:"status"`
+	Unlocked     bool   `json:"unlocked"`
+	Downloadable bool   `json:"downloadable"`
+	ManifestURL  string `json:"manifest_url"`
+}
+
+// CourseDownloadLibrary represents authorized course download metadata and unlocked lessons.
+type CourseDownloadLibrary struct {
+	CourseID string               `json:"course_id"`
+	Title    string               `json:"title"`
+	Entitled bool                 `json:"entitled"`
+	PlanID   string               `json:"plan_id,omitempty"`
+	Lessons  []DownloadLessonItem `json:"lessons"`
+}
+
+// IsPlanEntitledToDownload checks whether a funded plan entitles the learner to offline library downloads.
+func IsPlanEntitledToDownload(plan *credits.FundedPlan) bool {
+	if plan == nil || !plan.Active || plan.Revoked {
+		return false
+	}
+	for _, b := range plan.Benefits {
+		if strings.EqualFold(b, "Offline course library downloads") {
+			return true
+		}
+	}
+	return false
+}
+
 // Options supplies storage and the trusted asset origin.
 type Options struct {
 	Pool        *pgxpool.Pool
 	Objects     Objects
 	AssetOrigin string
+	Credits     Entitlements
 }
 
 // Service serves enrolled lesson content without granting progress.
@@ -44,6 +85,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+	courseID := r.PathValue("course")
+	if courseID == "" {
+		courseID = r.PathValue("id")
+	}
+	if courseID != "" && strings.HasSuffix(r.URL.Path, "/download") {
+		s.downloadLibrary(ctx, w, r, owner, courseID)
+		return
+	}
 	id := r.PathValue("lesson")
 	var key, course, title string
 	var version int
@@ -113,6 +162,93 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 200, out)
 }
+func (s *Service) downloadLibrary(ctx context.Context, w http.ResponseWriter, _ *http.Request, owner, courseID string) {
+	var plan *credits.FundedPlan
+	var err error
+	if s.opts.Credits != nil {
+		plan, err = s.opts.Credits.FundedPlan(ctx, owner, time.Now().UTC())
+		if err != nil {
+			failure(w, 503)
+			return
+		}
+	} else if s.opts.Pool != nil {
+		var benefits []byte
+		p := &credits.FundedPlan{}
+		err = s.opts.Pool.QueryRow(ctx, `SELECT t.plan_id, t.benefits,
+			t.service_start<=$2 AND t.paid_through>$2 AND NOT EXISTS(SELECT 1 FROM credit_subscription_revocations r WHERE r.period_key=t.period_key)
+			FROM credit_subscription_terms t
+			JOIN credit_subscriptions s USING(subscription_id)
+			JOIN credit_checkout_orders o ON o.id=s.order_id
+			WHERE o.learner_id::text=$1
+			ORDER BY t.paid_through DESC LIMIT 1`, owner, time.Now().UTC()).Scan(&p.PlanID, &benefits, &p.Active)
+		if err == nil {
+			_ = json.Unmarshal(benefits, &p.Benefits)
+			plan = p
+		}
+	}
+
+	if !IsPlanEntitledToDownload(plan) {
+		respond(w, 403, map[string]string{
+			"error":   "subscription_required",
+			"message": "Subscription required to download offline library",
+		})
+		return
+	}
+
+	var courseTitle string
+	err = s.opts.Pool.QueryRow(ctx, `SELECT c.title
+		FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id::text=$2
+		WHERE c.id::text=$1 AND c.deleted_at IS NULL`, courseID, owner).Scan(&courseTitle)
+	if errors.Is(err, pgx.ErrNoRows) {
+		failure(w, 404)
+		return
+	}
+	if err != nil {
+		failure(w, 503)
+		return
+	}
+
+	rows, err := s.opts.Pool.Query(ctx, `SELECT l.id::text, u.id::text, l.title, l.position, l.status,
+		EXISTS(SELECT 1 FROM lesson_manifests m WHERE m.lesson_id=l.id AND m.learner_id::text=$2) AS has_manifest
+		FROM course_lesson_stubs l
+		JOIN course_units u ON u.id=l.unit_id
+		JOIN courses c ON c.id=u.course_id
+		WHERE c.id::text=$1 AND l.learner_id::text=$2
+		ORDER BY u.position, l.position`, courseID, owner)
+	if err != nil {
+		failure(w, 503)
+		return
+	}
+	defer rows.Close()
+
+	items := []DownloadLessonItem{}
+	for rows.Next() {
+		var item DownloadLessonItem
+		var hasManifest bool
+		if err := rows.Scan(&item.LessonID, &item.UnitID, &item.Title, &item.Position, &item.Status, &hasManifest); err != nil {
+			failure(w, 503)
+			return
+		}
+		item.Unlocked = true
+		item.Downloadable = hasManifest
+		item.ManifestURL = "/v1/lessons/" + item.LessonID + "/manifest"
+		items = append(items, item)
+	}
+
+	planID := ""
+	if plan != nil {
+		planID = plan.PlanID
+	}
+
+	respond(w, 200, CourseDownloadLibrary{
+		CourseID: courseID,
+		Title:    courseTitle,
+		Entitled: true,
+		PlanID:   planID,
+		Lessons:  items,
+	})
+}
+
 func failure(w http.ResponseWriter, status int) {
 	message := "lesson unavailable"
 	if status == 401 {

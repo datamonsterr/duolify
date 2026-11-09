@@ -227,7 +227,11 @@ export function trackPurchase(value: {
   }
 }
 type CourseControl =
-  "open_course" | "refresh_courses" | "retry_courses" | "clear_search";
+  | "open_course"
+  | "refresh_courses"
+  | "retry_courses"
+  | "clear_search"
+  | "download_library";
 export function trackControl(controlId: CourseControl, courseId?: string) {
   if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
   try {

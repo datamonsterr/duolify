@@ -30,6 +30,19 @@ or personal learner data are collected; PostHog analytics records only registere
 error codes and recovery actions (`lesson_player_error`, `ui_recovery_selected`)
 without slide or learner text.
 
+E3-06 adds device-disposable course library download index:
+On the client, `localStorage` key `duolify:download-index:<learner ID>` retains the
+device-disposable index of downloaded course IDs, completion timestamps, and lesson IDs
+to enable offline course library playback and storage accounting. This index is disposable,
+cleared on explicit logout or session expiry via `clearDownloadIndex()`, and never backed up to
+servers. Server-side entitlement is derived dynamically from existing subscription terms
+(`credit_subscription_terms`, `credit_subscriptions`, and `credit_subscription_revocations`),
+requiring no new Postgres tables or personal learner data. Unentitled learners or expired
+subscriptions cannot trigger new bulk downloads, but existing downloaded and opened lesson
+artifacts remain playable offline. Analytics allowlist registers `ui_control_activated` with
+`control_id: "download_library"` and `ui_recovery_selected` with error codes
+`"subscription_required"` and `"download_failed"`, strictly excluding learner or slide text.
+
 E2-01: personalized preview output (sample outline and Motion HTML) stays in component
 memory and is discarded on Back/leave; no Course, enrollment, object or new learner
 table is created. The existing immutable `pricing_quotes.snapshot.input.brief_revision`
@@ -77,6 +90,7 @@ and production drills still require provisioning. See [backup tooling](../infra/
 
 | Store | Data held | Backup method | Retention / deletion | Owner spec |
 | --- | --- | --- | --- | --- |
+| Device download library index (`localStorage`, `duolify:download-index:<learner ID>`) | Course IDs, lesson IDs, and completion timestamps for offline course playback | Disposable; never backed up; server subscription terms and object storage are authoritative | Cleared on logout, account deletion, or explicit storage clear; bounded by device storage quota (max 50 lessons, 100 MiB per account) | [download-entitled-offline-course-library](../openspec/changes/download-entitled-offline-course-library/design.md) |
 | Postgres `lesson_playback_sync_events` | Non-authoritative playback progress events with stable action key, manifest version, slide ID, bounded time and UTC occurred_at | Nightly encrypted general dump, 14-day retention; populated backup fixture compares full rows | Read/export for authenticated owner only; immediate account/lesson deletion cascades; restore deletion tombstones erase | [synchronize-offline-playback-progress](../openspec/changes/synchronize-offline-playback-progress/design.md) |
 | Device pending sync queue (`localStorage`, learner UUID + lesson ID) | Non-authoritative playback progress events pending server acknowledgment | Disposable; never backed up; server reconciliation is authoritative | Retained until server ack; cleared on logout or account change | [synchronize-offline-playback-progress](../openspec/changes/synchronize-offline-playback-progress/design.md) |
 | Postgres `course_brief_revisions` | Immutable learner-owned confirmed Course briefs, content hash and expiry; no transcript | Nightly encrypted general dump, 14-day retention; populated backup fixture compares full rows | Read/export for authenticated owner only; expires after 30 days, nightly pre-backup purge (within 24 hours); immediate account cascade and restored deletion tombstones | [E2-06 change](../openspec/changes/clarify-course-brief/design.md) |

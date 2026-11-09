@@ -813,3 +813,89 @@ progress::-moz-progress-bar {
   background: var(--color-primary-light, #ddf1ff);
   color: var(--text, #2b2b2b);
 }
+
+.ban {
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.ban.warn {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.ban.bad {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.ban.info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.ban b,
+.ban strong {
+  display: block;
+  font-size: var(--font-size-body);
+  font-weight: var(--weight-heavy);
+  margin-block-end: 2px;
+}
+.ban p {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  line-height: var(--leading-body);
+  color: inherit;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--size-target);
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: 0 var(--size-press-depth) 0 var(--primary-edge);
+  font-family: inherit;
+  font-weight: var(--weight-heavy);
+  font-size: var(--font-size-caption);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  text-align: center;
+}
+.btn:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(var(--size-press-offset));
+  box-shadow: 0 1px 0 var(--primary-edge);
+}
+.btn.sec {
+  background: var(--surface);
+  color: var(--info);
+  border: 2px solid var(--line);
+  box-shadow: 0 var(--size-press-depth) 0 var(--line);
+}
+.btn.vio {
+  background: var(--credit-icon);
+  color: var(--on-primary);
+  box-shadow: 0 var(--size-press-depth) 0 var(--credit);
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.saved-offline-tag {
+  display: inline-block;
+  font-size: var(--font-size-small);
+  font-weight: var(--weight-heavy);
+  color: var(--warning);
+  background: var(--warning-bg);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  margin-block-start: 2px;
+}

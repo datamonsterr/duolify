@@ -1,8 +1,28 @@
 import { AuthError, session } from "../accounts/session";
 import { isManifest, type Manifest, type ManifestSlide } from "./manifest";
+import { clearDownloadIndex, isLessonSavedOffline } from "./library";
 const cacheName = "duolify-player-v1";
 const maxBundle = 8 * 1024 * 1024;
-const maxAccount = 40 * 1024 * 1024;
+const DEFAULT_MAX_ACCOUNT = 16 * 1024 * 1024;
+const DEFAULT_MAX_LESSONS = 5;
+
+let configuredMaxLessons = DEFAULT_MAX_LESSONS;
+let configuredMaxAccount = DEFAULT_MAX_ACCOUNT;
+
+export function configureCacheBounds(options: {
+  maxLessons?: number;
+  maxAccount?: number;
+}) {
+  if (options.maxLessons !== undefined)
+    configuredMaxLessons = options.maxLessons;
+  if (options.maxAccount !== undefined)
+    configuredMaxAccount = options.maxAccount;
+}
+
+export function resetCacheBounds() {
+  configuredMaxLessons = DEFAULT_MAX_LESSONS;
+  configuredMaxAccount = DEFAULT_MAX_ACCOUNT;
+}
 type Asset = { url: string; mime: string; data: string };
 type Document = { html: string; assets: Asset[] };
 export type LessonBundle = {
@@ -36,7 +56,10 @@ export function preparedDocument(slide: ManifestSlide) {
   return prepared.get(documentKey(slide));
 }
 export function availableOffline(lesson: string) {
-  return saved.has(`${session.current()?.id}:${lesson}`);
+  const owner = session.current()?.id;
+  if (!owner) return false;
+  if (saved.has(`${owner}:${lesson}`)) return true;
+  return isLessonSavedOffline(owner, lesson);
 }
 export async function digest(value: string | Uint8Array): Promise<string> {
   const bytes =
@@ -151,9 +174,13 @@ export async function downloadLesson(
       for (const request of keys.reverse()) {
         const response = await cache.match(request);
         const length = response ? (await response.arrayBuffer()).byteLength : 0;
-        if (++count > 5 || (size += length) > maxAccount)
+        if (
+          ++count > configuredMaxLessons ||
+          (size += length) > configuredMaxAccount
+        )
           await cache.delete(request);
       }
+      saved.add(`${owner}:${manifest.lesson_id}`);
     });
   } catch (error) {
     if (expected !== epoch || session.current()?.id !== owner)
@@ -227,7 +254,22 @@ export function clearLessonCache(): Promise<void> {
   epoch++;
   prepared.clear();
   saved.clear();
+  resetCacheBounds();
+  clearDownloadIndex();
   return serialize(async () => {
     if (typeof caches !== "undefined") await caches.delete(cacheName);
+  });
+}
+
+export function removeCachedLesson(
+  owner: string,
+  lesson: string,
+): Promise<void> {
+  saved.delete(`${owner}:${lesson}`);
+  return serialize(async () => {
+    if (typeof caches !== "undefined") {
+      const cache = await caches.open(cacheName);
+      await cache.delete(key(owner, lesson));
+    }
   });
 }
