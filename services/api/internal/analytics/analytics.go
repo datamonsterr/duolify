@@ -74,6 +74,7 @@ func (c *client) Close() error {
 func allowlisted(event string) bool {
 	switch event {
 	case "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
+		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
 		"$ai_generation", "ui_control_activated",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
@@ -175,6 +176,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "checkout_started", "credits_purchased", "credits_purchase_failed":
+		numeric("amount", "price", "amount_minor")
+		ids("currency", "sku_id", "channel", "price_table_version")
+		if reason, ok := input["reason"].(string); ok && (reason == "failed" || reason == "expired" || reason == "invalid_evidence") {
+			out["reason"] = reason
+		}
 	case "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":
 		numeric("amount", "input_tokens", "output_tokens", "balance", "estimate")
 		ids("feature", "model", "pricing_version", "bucket")

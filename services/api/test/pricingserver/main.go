@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/signal"
 	"strings"
@@ -21,6 +23,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
+	"github.com/datamonsterr/duolify/services/api/internal/credits/creditstest"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
@@ -98,8 +101,55 @@ func run() (result error) {
 		Pricing: setupPricing,
 	})
 	creditService := credits.NewServiceWithCatalogue(db.Pool, nil, catalogue, nil)
+	stripe := creditstest.NewStripe()
+	paidCredits := credits.NewServiceWithCatalogue(db.Pool, nil, catalogue, nil)
+	if err := paidCredits.ConfigurePayments(credits.PaymentOptions{Mode: "test", WebhookSecret: creditstest.WebhookSecret, Provider: stripe}); err != nil {
+		return err
+	}
+	creditHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Test-Stripe-Fixture") == "true" {
+			paidCredits.ServeHTTP(w, r)
+		} else {
+			creditService.ServeHTTP(w, r)
+		}
+	})
 	mux := http.NewServeMux()
-	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditService, Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"})}, logger))
+	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditHandler, Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"})}, logger))
+	mux.HandleFunc("POST /test/stripe/{id}", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			State string `json:"state"`
+			Event string `json:"event"`
+		}
+		if json.NewDecoder(r.Body).Decode(&in) != nil {
+			w.WriteHeader(400)
+			return
+		}
+		var sessionID string
+		if db.Pool.QueryRow(r.Context(), "SELECT session_id FROM credit_payment_sessions WHERE order_id=$1", r.PathValue("id")).Scan(&sessionID) != nil {
+			w.WriteHeader(404)
+			return
+		}
+		raw, signature, err := stripe.Notification(sessionID, in.State, in.Event)
+		if err != nil {
+			w.WriteHeader(400)
+			return
+		}
+		req, _ := http.NewRequestWithContext(r.Context(), http.MethodPost, "/v1/payments/stripe/webhook", bytes.NewReader(raw))
+		req.Header.Set("Stripe-Signature", signature)
+		// Exercise the real public router, without account credentials on webhooks.
+		req.Header.Set("X-Test-Stripe-Fixture", "true")
+		response := httptest.NewRecorder()
+		httpapi.New(httpapi.Dependencies{Credits: creditHandler, Accounts: auth}, logger).ServeHTTP(response, req)
+		if response.Code != 200 {
+			w.WriteHeader(response.Code)
+			return
+		}
+		if paidCredits.ProcessPayments(r.Context()) != nil {
+			w.WriteHeader(503)
+			return
+		}
+		w.WriteHeader(200)
+	})
 	mux.Handle("POST /test/credits/{id}/settle", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		owner := accounts.LearnerID(r.Context())
 		limits, err := creditService.Limits(r.Context(), owner, r.PathValue("id"), "quick_note")

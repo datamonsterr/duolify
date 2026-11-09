@@ -70,7 +70,12 @@ func (p Postgres) Dump(ctx context.Context, destination io.Writer) error {
 	return nil
 }
 
-// PurgeExpiredBriefs applies personal-data retention before either local or packaged dumps.
+// PurgeExpiredBriefs applies personal-data and redacted webhook payload retention
+// before either local or packaged dumps. Financial references are never removed.
 func (p Postgres) PurgeExpiredBriefs(ctx context.Context) error {
-	return db.New(p.Pool).PurgeExpiredCourseBriefs(ctx)
+	if err := db.New(p.Pool).PurgeExpiredCourseBriefs(ctx); err != nil {
+		return err
+	}
+	_, err := p.Pool.Exec(ctx, "DELETE FROM credit_payment_payloads WHERE expires_at<=now()")
+	return err
 }

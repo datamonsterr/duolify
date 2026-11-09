@@ -9,7 +9,7 @@ export type CheckoutInput = {
 };
 export type CheckoutOrder = {
   id: string;
-  state: "pending";
+  state: "pending" | "paid" | "failed" | "expired";
   illustrative: boolean;
   sku: string;
   pricing_version: string;

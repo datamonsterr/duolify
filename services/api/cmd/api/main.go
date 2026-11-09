@@ -134,6 +134,12 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		creditService := credits.NewServiceWithCatalogue(db.Pool, nil, catalogue, events)
+		if err := creditService.ConfigurePaymentEnvironment(os.Getenv); err != nil {
+			return err
+		}
+		if err := creditService.PrunePaymentPayloads(ctx); err != nil {
+			return err
+		}
 		go creditService.Maintain(ctx, logger)
 		return worker.Run(ctx, db.Pool, logger, service)
 	}
@@ -199,6 +205,12 @@ func run(ctx context.Context, args []string) (result error) {
 		Events:  events,
 	})
 	creditService := credits.NewServiceWithCatalogue(db.Pool, redis, catalogue, events)
+	if err := creditService.ConfigurePaymentEnvironment(os.Getenv); err != nil {
+		return err
+	}
+	if err := creditService.PrunePaymentPayloads(ctx); err != nil {
+		return err
+	}
 	go creditService.Maintain(ctx, logger)
 	briefPricing := catalogue
 	if os.Getenv("DUOLIFY_ENV") == "development" {

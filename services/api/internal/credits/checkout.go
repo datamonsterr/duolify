@@ -26,7 +26,7 @@ type CheckoutInput struct {
 	QuoteID        string `json:"quote_id,omitempty"`
 }
 
-// CheckoutOrder is a server-bound illustrative order, never payment evidence.
+// CheckoutOrder exposes immutable terms and derived server payment status.
 type CheckoutOrder struct {
 	ID             string `json:"id"`
 	State          string `json:"state"`
@@ -39,6 +39,7 @@ type CheckoutOrder struct {
 	BillingPeriod  string `json:"billing_period"`
 	ReturnTo       string `json:"return_to"`
 	QuoteID        string `json:"quote_id"`
+	Platform       string `json:"-"`
 }
 
 func safeCheckoutReturn(target string) bool {
@@ -50,7 +51,7 @@ func safeCheckoutReturn(target string) bool {
 }
 
 func checkoutTerms(cfg pricing.Config, in CheckoutInput) (CheckoutOrder, error) {
-	order := CheckoutOrder{State: "pending", Illustrative: true, SKU: in.SKU, PricingVersion: cfg.Version, ReturnTo: in.ReturnTo, QuoteID: in.QuoteID}
+	order := CheckoutOrder{State: "pending", Illustrative: true, SKU: in.SKU, PricingVersion: cfg.Version, ReturnTo: in.ReturnTo, QuoteID: in.QuoteID, Platform: in.Platform}
 	if _, err := uuid.Parse(in.RequestID); err != nil {
 		return order, errCheckoutInput
 	}
@@ -85,7 +86,8 @@ func checkoutTerms(cfg pricing.Config, in CheckoutInput) (CheckoutOrder, error) 
 	return order, errCheckoutInput
 }
 
-// CreateCheckout pins illustrative terms. It never calls a payment service or changes the ledger.
+// CreateCheckout pins terms, optionally prepares an explicitly configured test
+// Session, and never changes the ledger. Only canonical paid processing can grant.
 func (s *Service) CreateCheckout(ctx context.Context, owner string, in CheckoutInput) (CheckoutOrder, error) {
 	if s.pool() == nil {
 		return CheckoutOrder{}, errors.New("checkout store unavailable")
@@ -130,11 +132,14 @@ func (s *Service) CreateCheckout(ctx context.Context, owner string, in CheckoutI
 		return order, err
 	}
 	order.ID = id
-	return order, nil
+	if err = s.preparePayment(ctx, owner, order, catalogue.Config()); err != nil {
+		return order, err
+	}
+	return s.GetCheckout(ctx, owner, id)
 }
 
-// GetCheckout reads authenticated server state. Illustrations cannot become verified,
-// including when callbacks claim success or unrelated purchases change the balance.
+// GetCheckout derives authenticated state from immutable payment outcomes.
+// Callback claims and unrelated purchases never verify an order.
 func (s *Service) GetCheckout(ctx context.Context, owner, id string) (CheckoutOrder, error) {
 	order := CheckoutOrder{State: "pending", Illustrative: true}
 	if _, err := uuid.Parse(id); err != nil {
@@ -143,7 +148,11 @@ func (s *Service) GetCheckout(ctx context.Context, owner, id string) (CheckoutOr
 	if s.pool() == nil {
 		return order, errors.New("checkout store unavailable")
 	}
-	err := s.pool().QueryRow(ctx, `SELECT id::text,sku,pricing_version,amount_minor,currency,credits,billing_period,return_to,COALESCE(quote_id::text,'') FROM credit_checkout_orders WHERE id=$1 AND learner_id=$2`, id, owner).Scan(&order.ID, &order.SKU, &order.PricingVersion, &order.AmountMinor, &order.Currency, &order.Credits, &order.BillingPeriod, &order.ReturnTo, &order.QuoteID)
+	err := s.pool().QueryRow(ctx, `SELECT id::text,sku,pricing_version,amount_minor,currency,credits,billing_period,return_to,COALESCE(quote_id::text,''),platform,
+ NOT EXISTS(SELECT 1 FROM credit_payment_sessions WHERE order_id=o.id),
+ CASE WHEN EXISTS(SELECT 1 FROM credit_payment_results WHERE order_id=o.id AND state='paid') THEN 'paid'
+ ELSE COALESCE((SELECT state FROM credit_payment_results WHERE order_id=o.id AND state IN ('failed','expired') ORDER BY created_at DESC LIMIT 1),'pending') END
+ FROM credit_checkout_orders o WHERE id=$1 AND learner_id=$2`, id, owner).Scan(&order.ID, &order.SKU, &order.PricingVersion, &order.AmountMinor, &order.Currency, &order.Credits, &order.BillingPeriod, &order.ReturnTo, &order.QuoteID, &order.Platform, &order.Illustrative, &order.State)
 	return order, err
 }
 

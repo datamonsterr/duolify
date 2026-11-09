@@ -170,7 +170,13 @@ export function PricingView() {
       {orderId && (
         <CheckoutReturn
           id={orderId}
+          onChooseOption={() => {
+            recoveryID("order", null);
+            setOrderId(undefined);
+            navigate("pack_list");
+          }}
           onReturn={(order) => {
+            if (order?.state === "paid") void walletQuery.refetch();
             recoveryID("order", null);
             setOrderId(undefined);
             if (order?.quote_id) {

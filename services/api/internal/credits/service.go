@@ -287,6 +287,7 @@ func entryFromDB(r dbsql.CreditEntry) Entry {
 
 // Service coordinates auditable wallet derivation, daily grants, expiry, caching and activity.
 type Service struct {
+	payments  PaymentOptions
 	store     LedgerStore
 	redis     *redis.Client
 	catalogue *pricing.Catalogue
@@ -336,6 +337,7 @@ func (s *Service) SetStore(store LedgerStore) {
 }
 
 func (s *Service) registerRoutes() {
+	s.mux.HandleFunc("POST /v1/payments/stripe/webhook", s.handleStripeWebhook)
 	s.mux.HandleFunc("POST /v1/credits/checkouts", s.handleCheckout)
 	s.mux.HandleFunc("GET /v1/credits/checkouts/{id}", s.handleCheckout)
 	s.mux.HandleFunc("POST /v1/quotes/{id}/reserve", s.handleReserve)
@@ -365,6 +367,15 @@ func (s *Service) GetWalletAt(ctx context.Context, learnerID string, at time.Tim
 	}
 
 	cacheKey := fmt.Sprintf("credits:wallet:%s", learnerID)
+	if s.redis != nil && s.pool() != nil {
+		// Version display caches by the authoritative ledger tail. A concurrent
+		// reader cannot repopulate an old balance after payment invalidation.
+		var latest int64
+		if err := s.pool().QueryRow(ctx, "SELECT COALESCE(max(id),0) FROM credit_entries WHERE learner_id=$1", learnerID).Scan(&latest); err != nil {
+			return nil, err
+		}
+		cacheKey = fmt.Sprintf("%s:%d", cacheKey, latest)
+	}
 
 	// Try reading from cache
 	if s.redis != nil {

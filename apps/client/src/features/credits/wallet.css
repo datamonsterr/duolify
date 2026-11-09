@@ -284,3 +284,39 @@
     font-size: 15px;
   }
 }
+.checkout-return {
+  display: grid;
+  gap: var(--space-3);
+}
+.checkout-return p,
+.checkout-return h2 {
+  margin: 0;
+}
+.checkout-return .duo-button {
+  /* Keep labels readable while refresh toggles enabled/disabled colors. */
+  transition-property: transform, box-shadow;
+}
+.checkout-return .checkout-status,
+.checkout-return .checkout-failure {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.checkout-return[data-state="paid"] .checkout-status {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.checkout-return .checkout-failure {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.checkout-verified-mark {
+  justify-self: start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-display);
+  font-weight: var(--weight-strong);
+  background: var(--credit-bg);
+  color: var(--credit);
+}

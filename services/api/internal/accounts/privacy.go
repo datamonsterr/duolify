@@ -15,6 +15,10 @@ import (
 
 // ClassifiedLearnerTables lists every table holding learner data and its retention policy.
 var ClassifiedLearnerTables = map[string]string{
+	"credit_payment_sessions":       "financial_retained_via_order",
+	"credit_payment_inbox":          "financial_retained_via_session",
+	"credit_payment_results":        "financial_retained_via_order",
+	"credit_payment_payloads":       "redacted_expire_30_days",
 	"credit_checkout_orders":        "financial_retained_anonymized",
 	"credit_allocations":            "financial_retained_via_job",
 	"credit_usage":                  "financial_retained_via_job",
@@ -61,6 +65,10 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		query string
 	}
 	queries := []exportQuery{
+		{table: "credit_payment_sessions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM credit_payment_sessions p JOIN credit_checkout_orders o ON o.id=p.order_id WHERE o.learner_id=$1`},
+		{table: "credit_payment_inbox", query: `SELECT COALESCE(jsonb_agg(to_jsonb(i)),'[]'::jsonb) FROM credit_payment_inbox i JOIN credit_payment_sessions p ON p.session_id=i.session_id JOIN credit_checkout_orders o ON o.id=p.order_id WHERE o.learner_id=$1`},
+		{table: "credit_payment_results", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM credit_payment_results p JOIN credit_checkout_orders o ON o.id=p.order_id WHERE o.learner_id=$1`},
+		{table: "credit_payment_payloads", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM credit_payment_payloads p JOIN credit_payment_inbox i ON i.event_id=p.event_id JOIN credit_payment_sessions s ON s.session_id=i.session_id JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1 AND p.expires_at>now()`},
 		{table: "course_brief_revisions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(b)),'[]'::jsonb) FROM course_brief_revisions b WHERE learner_id=$1 AND expires_at>now()`},
 		{table: "learners", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'display_name',display_name,'created_at',created_at)),'[]'::jsonb) FROM learners WHERE id=$1`},
 		{table: "learner_profiles", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM learner_profiles p WHERE learner_id=$1`},
@@ -131,6 +139,8 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.Exec(ctx, "UPDATE pricing_quotes SET learner_id=NULL WHERE learner_id=$1", id)
 	}
 	if err == nil {
+		// Payment Sessions, inbox, outcomes and redacted payloads link through this
+		// immutable order only. Severing it erases their learner identity together.
 		_, err = tx.Exec(ctx, "UPDATE credit_checkout_orders SET learner_id=NULL WHERE learner_id=$1", id)
 	}
 	if err == nil {

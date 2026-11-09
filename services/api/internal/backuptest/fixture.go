@@ -30,6 +30,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/backupadmin"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
+	"github.com/datamonsterr/duolify/services/api/internal/credits/creditstest"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
@@ -47,23 +48,25 @@ import (
 
 // Fixture owns disposable databases, storage, a River worker and PostHog double.
 type Fixture struct {
-	DB            *store.Store
-	Logger        *slog.Logger
-	container     *postgres.PostgresContainer
-	databaseURL   string
-	identity      *age.X25519Identity
-	objects       *backup.S3
-	root          *backup.S3
-	faults        *faultStore
-	queue         *river.Client[pgx.Tx]
-	events        analytics.Events
-	mu            sync.Mutex
-	captured      []capture
-	posthogURL    string
-	writerOptions backup.S3Options
-	packaged      testcontainers.Container
-	schemaVersion int64
-	lastDate      string
+	paymentFixture *creditstest.Stripe
+	paymentOrderID string
+	DB             *store.Store
+	Logger         *slog.Logger
+	container      *postgres.PostgresContainer
+	databaseURL    string
+	identity       *age.X25519Identity
+	objects        *backup.S3
+	root           *backup.S3
+	faults         *faultStore
+	queue          *river.Client[pgx.Tx]
+	events         analytics.Events
+	mu             sync.Mutex
+	captured       []capture
+	posthogURL     string
+	writerOptions  backup.S3Options
+	packaged       testcontainers.Container
+	schemaVersion  int64
+	lastDate       string
 }
 
 type capture struct {
@@ -345,7 +348,36 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 			}
 		}
 	}
+	f.paymentFixture = creditstest.NewStripe()
+	if err := creditService.ConfigurePayments(credits.PaymentOptions{Mode: "test", Provider: f.paymentFixture, WebhookSecret: creditstest.WebhookSecret}); err != nil {
+		t.Fatal(err)
+	}
+	pack := catalogue.Config().Packs[0]
+	order, err := creditService.CreateCheckout(t.Context(), "a1111111-1111-4111-8111-111111111111", credits.CheckoutInput{RequestID: "a7777777-7777-4777-8777-777777777777", SKU: pack.SKU, PricingVersion: catalogue.Config().Version, Platform: "web", ReturnTo: "/credits"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.paymentOrderID = order.ID
+	f.replayPayment(t, creditService, "checkout.session.async_payment_succeeded")
 
+}
+
+func (f *Fixture) replayPayment(t *testing.T, service *credits.Service, kind string) {
+	t.Helper()
+	raw, signature, err := f.paymentFixture.Notification("cs_test_"+f.paymentOrderID, "paid", kind)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequestWithContext(t.Context(), "POST", "/v1/payments/stripe/webhook", bytes.NewReader(raw))
+	req.Header.Set("Stripe-Signature", signature)
+	w := httptest.NewRecorder()
+	service.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("signed restore receipt %d %s", w.Code, w.Body.String())
+	}
+	if err = service.ProcessPayments(t.Context()); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // RunJob waits for the real River worker, including failed attempts and retries.
@@ -472,7 +504,11 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*),sum(amount) FROM credit_entries WHERE learner_id='a1111111-1111-4111-8111-111111111111'").Scan(&entries, &balance); err != nil {
 		t.Fatal(err)
 	}
-	if version != f.schemaVersion || riverVersions < 1 || learners != 1 || entries != 7 || balance != 104 || name != "Synthetic Learner" {
+	var packCredits int64
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT credits FROM credit_checkout_orders WHERE id=$1", f.paymentOrderID).Scan(&packCredits); err != nil {
+		t.Fatal(err)
+	}
+	if version != f.schemaVersion || riverVersions < 1 || learners != 1 || entries != 8 || balance != 104+packCredits || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
 	var pricingVersion string
@@ -513,7 +549,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -524,6 +560,26 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		}
 		if before != after || after == "[]" {
 			t.Fatalf("encrypted backup changed or omitted %s", table)
+		}
+	}
+	paidService := credits.NewServiceWithCatalogue(restored.Pool, nil, afterPricing, nil)
+	if err := paidService.ConfigurePayments(credits.PaymentOptions{Mode: "test", Provider: f.paymentFixture, WebhookSecret: creditstest.WebhookSecret}); err != nil {
+		t.Fatal(err)
+	}
+	f.replayPayment(t, paidService, "checkout.session.async_payment_succeeded")
+	f.replayPayment(t, paidService, "checkout.session.completed")
+	var purchases, outbox int
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_payment_results WHERE state='paid'").Scan(&purchases); err != nil || purchases != 1 {
+		t.Fatalf("restore duplicated payment: %d %v", purchases, err)
+	}
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_outbox WHERE event='credits_purchased'").Scan(&outbox); err != nil || outbox != 1 {
+		t.Fatalf("restore duplicated payment analytics: %d %v", outbox, err)
+	}
+	for _, table := range []string{"credit_payment_sessions", "credit_payment_inbox", "credit_payment_results"} {
+		for _, verb := range []string{"DELETE FROM ", "TRUNCATE "} {
+			if _, err := restored.Pool.Exec(t.Context(), verb+table); err == nil {
+				t.Fatalf("mutable restored payment history %s%s", verb, table)
+			}
 		}
 	}
 	// Admin deletion removes grants and pseudonymizes retained draft/audit actors.
@@ -617,6 +673,33 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	if err := accounts.ApplyDeletionTombstones(t.Context(), restored.Pool); err != nil {
 		t.Fatalf("apply deletion tombstones after restore: %v", err)
+	}
+	// Replay a restored deletion for the actual payment owner. Identity erasure
+	// must leave the paid ledger and business dedupe references usable for audit.
+	const paymentOwner = "a1111111-1111-4111-8111-111111111111"
+	if _, err := restored.Pool.Exec(t.Context(), "INSERT INTO account_deletion_tombstones(learner_reference) VALUES($1) ON CONFLICT DO NOTHING", accounts.LearnerReference(paymentOwner)); err != nil {
+		t.Fatal(err)
+	}
+	if err := accounts.ApplyDeletionTombstones(t.Context(), restored.Pool); err != nil {
+		t.Fatal(err)
+	}
+	var anonymous bool
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT learner_id IS NULL AND owner_reference=$2 FROM credit_checkout_orders WHERE id=$1", f.paymentOrderID, accounts.LearnerReference(paymentOwner)).Scan(&anonymous); err != nil || !anonymous {
+		t.Fatalf("restored payment retained identity: %v %v", anonymous, err)
+	}
+	f.replayPayment(t, paidService, "checkout.session.expired")
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_payment_results WHERE state='paid'").Scan(&purchases); err != nil || purchases != 1 {
+		t.Fatalf("erased restore duplicated payment: %d %v", purchases, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), "UPDATE credit_payment_payloads SET expires_at=now()-interval '1 second'"); err != nil {
+		t.Fatal(err)
+	}
+	if err := paidService.PrunePaymentPayloads(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	var payloads int
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_payment_payloads").Scan(&payloads); err != nil || payloads != 0 {
+		t.Fatalf("restored payload expiry: %d %v", payloads, err)
 	}
 }
 

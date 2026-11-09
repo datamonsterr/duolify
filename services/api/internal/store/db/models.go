@@ -157,6 +157,37 @@ type CreditOutbox struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type CreditPaymentInbox struct {
+	EventID     string             `json:"event_id"`
+	Environment string             `json:"environment"`
+	EventType   string             `json:"event_type"`
+	SessionID   string             `json:"session_id"`
+	ReceivedAt  pgtype.Timestamptz `json:"received_at"`
+}
+
+type CreditPaymentPayload struct {
+	EventID   string             `json:"event_id"`
+	Payload   []byte             `json:"payload"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+type CreditPaymentResult struct {
+	EventID    string             `json:"event_id"`
+	OrderID    pgtype.UUID        `json:"order_id"`
+	State      string             `json:"state"`
+	PaymentKey pgtype.Text        `json:"payment_key"`
+	LedgerID   pgtype.Int8        `json:"ledger_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditPaymentSession struct {
+	OrderID     pgtype.UUID        `json:"order_id"`
+	Environment string             `json:"environment"`
+	SessionID   string             `json:"session_id"`
+	PriceID     string             `json:"price_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type CreditTimezone struct {
 	ID             int64              `json:"id"`
 	LearnerID      pgtype.UUID        `json:"learner_id"`

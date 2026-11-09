@@ -237,10 +237,16 @@ func (s *Service) Maintain(ctx context.Context, logger *slog.Logger) {
 		case <-ctx.Done():
 			return
 		case <-expiryTick.C:
+			if err := s.PrunePaymentPayloads(ctx); err != nil {
+				logger.ErrorContext(ctx, "payment payload cleanup failed")
+			}
 			if _, err := s.ExpireDailyCredits(ctx, time.Now()); err != nil {
 				logger.ErrorContext(ctx, "daily credit cleanup failed", "error", err)
 			}
 		case <-tick.C:
+			if err := s.ProcessPayments(ctx); err != nil {
+				logger.ErrorContext(ctx, "payment inbox work remains for retry")
+			}
 			if err := s.ReapExpired(ctx); err != nil {
 				logger.ErrorContext(ctx, "credit job cleanup failed", "error", err)
 			}

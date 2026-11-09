@@ -163,3 +163,27 @@ Account export includes all six tables; deletion nulls the two learner FKs while
 retaining SHA-256 owner references, source links and the audit trail. Tombstones
 replay that same erasure after restore. No prompts or generated learner content
 are stored by this boundary. Device reservation state is disposable React state.
+# E7-06 payment fulfillment
+
+`credit_payment_sessions` pins an immutable test-environment Session and configured
+price to `credit_checkout_orders`. `credit_payment_inbox` stores only event ID,
+event type, environment, Session ID and receipt time. `credit_payment_results`
+stores immutable processing outcomes, order references, environment-scoped business
+payment keys and the one purchase ledger ID. These financial and dedupe references
+are retained at least seven years, covered by encrypted nightly financial snapshots
+with 35-day rotation and existing PITR/restore procedures.
+
+`credit_payment_payloads` holds only an allowlisted redacted event envelope, never
+customer details, arbitrary metadata, signatures, keys or learner content. It expires
+after 30 days; the credit worker prunes it every minute and backup preparation prunes
+it before dumps. Expiry never removes immutable inbox or dedupe history. Financial
+snapshot rotation may retain a pre-expiry redacted envelope for the documented
+35-day recovery window; restore preparation reapplies expiry before serving.
+
+All four tables are exported through the authenticated original order/Session link.
+Account deletion and restored tombstones null the order's learner FK and retain its
+SHA-256 owner reference. No new payment table stores a learner UUID or email, and
+replay after erasure never grants credits or emits analytics. Restore fixtures include
+nonempty rows, full row comparison, immutable-table checks and payment replay checks.
+Client recovery uses existing disposable account-scoped order IDs only. No new AI
+behavior, prompts or model data are introduced; existing eval/fallback gates apply.

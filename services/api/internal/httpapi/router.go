@@ -92,6 +92,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("POST /v1/quotes/{id}/accept", deps.Quotes)
 	}
 	if deps.Credits != nil && deps.Accounts != nil {
+		mux.Handle("POST /v1/payments/stripe/webhook", deps.Credits)
 		mux.Handle("POST /v1/credits/checkouts", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("GET /v1/credits/checkouts/{id}", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("POST /v1/quotes/{id}/reserve", deps.Accounts.Protect(deps.Credits))

@@ -14,6 +14,7 @@ func TestEventAllowlist(t *testing.T) {
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
 		"daily_credits_granted", "daily_credits_expired",
+		"checkout_started", "credits_purchased", "credits_purchase_failed",
 	} {
 		if !allowlisted(name) {
 			t.Errorf("catalogue event %q rejected", name)
@@ -23,6 +24,27 @@ func TestEventAllowlist(t *testing.T) {
 		if allowlisted(name) {
 			t.Errorf("uncatalogued/API-owned event %q accepted", name)
 		}
+	}
+}
+
+func TestPaymentPropertiesExcludePrivateData(t *testing.T) {
+	input := map[string]any{"source": "api", "platform": "desktop", "app_version": "0.1.0", "amount": 519, "currency": "EUR", "price": 7.23, "amount_minor": 723, "sku_id": "configured_pack", "channel": "stripe", "price_table_version": "configured", "reason": "failed", "email": "private@example.test", "raw_payload": "private payload", "draft": "private learner text", "payment_id": "pi_private", "url": "https://private.test", "error": "private error"}
+	for _, name := range []string{"checkout_started", "credits_purchased", "credits_purchase_failed"} {
+		got := safeProperties(name, input)
+		for _, key := range []string{"source", "platform", "app_version", "amount", "currency", "price", "amount_minor", "sku_id", "channel", "price_table_version", "reason"} {
+			if !reflect.DeepEqual(got[key], input[key]) {
+				t.Errorf("%s lost %s", name, key)
+			}
+		}
+		for _, key := range []string{"email", "raw_payload", "draft", "payment_id", "url", "error"} {
+			if _, ok := got[key]; ok {
+				t.Errorf("%s leaked %s", name, key)
+			}
+		}
+	}
+	input["reason"] = "private learner text"
+	if safeProperties("credits_purchase_failed", input)["reason"] != nil {
+		t.Fatal("private failure reason accepted")
 	}
 }
 
