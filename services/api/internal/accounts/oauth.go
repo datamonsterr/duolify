@@ -43,6 +43,16 @@ type OAuthProvider interface {
 	Exchange(context.Context, OAuthExchangeRequest) (ProviderIdentity, error)
 }
 
+type unavailableOAuthProvider struct{}
+
+func (unavailableOAuthProvider) AuthorizationURL(context.Context, OAuthAuthorizationRequest) (string, error) {
+	return "", errors.New("OAuth provider is not provisioned")
+}
+
+func (unavailableOAuthProvider) Exchange(context.Context, OAuthExchangeRequest) (ProviderIdentity, error) {
+	return ProviderIdentity{}, ErrOAuthProvider
+}
+
 // OAuthTransaction is returned once to the initiating client and is never persisted
 // in plaintext except for values that are not credentials (nonce and redirect URI).
 type OAuthTransaction struct {
@@ -161,10 +171,6 @@ func (s *Service) googleOAuthStart(w http.ResponseWriter, r *http.Request) {
 		respond(w, http.StatusBadRequest, map[string]string{"error": "Invalid sign-in request."})
 		return
 	}
-	if _, err := s.pool.Exec(r.Context(), "DELETE FROM auth_oauth_attempts WHERE expires_at<=now() OR consumed_at IS NOT NULL"); err != nil {
-		failure(w, err)
-		return
-	}
 	state, err := randomOAuthValue()
 	if err != nil {
 		failure(w, err)
@@ -178,6 +184,10 @@ func (s *Service) googleOAuthStart(w http.ResponseWriter, r *http.Request) {
 	transaction := OAuthAuthorizationRequest{State: state, Nonce: nonce, CodeChallenge: in.CodeChallenge, RedirectURI: in.RedirectURI}
 	urlValue, err := s.oauth.AuthorizationURL(r.Context(), transaction)
 	if err != nil {
+		failure(w, err)
+		return
+	}
+	if _, err = s.pool.Exec(r.Context(), "DELETE FROM auth_oauth_attempts WHERE expires_at<=now() OR consumed_at IS NOT NULL"); err != nil {
 		failure(w, err)
 		return
 	}

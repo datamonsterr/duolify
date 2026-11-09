@@ -1,6 +1,9 @@
 package accounts_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -35,5 +38,25 @@ func TestGoogleOAuthBoundaries(t *testing.T) {
 	}
 	if err := accounts.ValidateProviderIdentity(valid, "other-nonce"); err == nil {
 		t.Fatal("nonce substitution accepted")
+	}
+}
+
+func TestGoogleOAuthRemainsUnavailableUntilProvisioned(t *testing.T) {
+	auth, err := accounts.New(nil, strings.Repeat("test-only-key-", 4), new(accounts.MailSink))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(map[string]string{
+		"redirect_uri":   "duolify://oauth/callback",
+		"code_challenge": accounts.PKCEChallenge(strings.Repeat("v", 43)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest("POST", "/v1/auth/google/start", bytes.NewReader(body))
+	response := httptest.NewRecorder()
+	auth.ServeHTTP(response, request)
+	if response.Code != 503 {
+		t.Fatalf("unprovisioned provider enabled: %d %s", response.Code, response.Body)
 	}
 }

@@ -53,7 +53,7 @@ type Service struct {
 
 // New requires a shared signing/HMAC secret of at least 32 bytes.
 func New(pool *pgxpool.Pool, secret string, mailer Mailer) (*Service, error) {
-	return NewWithOAuthProvider(pool, secret, mailer, &FixtureGoogleProvider{})
+	return NewWithOAuthProvider(pool, secret, mailer, unavailableOAuthProvider{})
 }
 
 // NewWithOAuthProvider injects the provider boundary used by Google and future Apple OAuth.
