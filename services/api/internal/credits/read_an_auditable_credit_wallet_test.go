@@ -69,6 +69,9 @@ func TestWallet_BoundaryCasesAndCalculations(t *testing.T) {
 		if wallet.DailyFree.Available != 0 {
 			t.Fatalf("expected 0 daily free available, got %d", wallet.DailyFree.Available)
 		}
+		if wallet.DailyFree.Granted != 0 {
+			t.Fatalf("expected 0 daily free granted for empty ledger, got %d", wallet.DailyFree.Granted)
+		}
 	})
 
 	t.Run("historical reward is unspendable", func(t *testing.T) {

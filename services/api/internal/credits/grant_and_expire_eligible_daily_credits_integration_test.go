@@ -184,22 +184,23 @@ func TestGrantAndExpireEligibleDailyCredits_Integration(t *testing.T) {
 		_, err = db.Pool.Exec(ctx, `
 			INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
 			VALUES
-				($1, 600, 'subscription_grant', 'sub-grant-1', 'usd-launch-2026-11-08', '{"bucket":"subscription"}'::jsonb),
-				($1, 400, 'purchase', 'pack-400', 'usd-launch-2026-11-08', '{"bucket":"purchase"}'::jsonb)
-		`, learnerB.ID)
+				($1, 600, 'subscription_grant', 'sub-grant-1', $2, '{"bucket":"subscription"}'::jsonb),
+				($1, 400, 'purchase', 'pack-400', $2, '{"bucket":"purchase"}'::jsonb)
+		`, learnerB.ID, catalogue.Config().Version)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		wallet, err := svc.GetWallet(ctx, learnerBID)
+		wallet, err := svc.GetWalletAt(ctx, learnerBID, now)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if wallet.DailyFree.Available != 46 || wallet.Subscription != 600 || wallet.Purchased != 400 {
-			t.Fatalf("expected 46 daily, 600 sub, 400 purchased; got %+v", wallet)
+		expectedDaily := int64(catalogue.Config().DailyFree.Credits)
+		if wallet.DailyFree.Available != expectedDaily || wallet.Subscription != 600 || wallet.Purchased != 400 {
+			t.Fatalf("expected %d daily, 600 sub, 400 purchased; got %+v", expectedDaily, wallet)
 		}
-		if wallet.Available != 1046 {
-			t.Fatalf("expected total available 1046, got %d", wallet.Available)
+		if wallet.Available != expectedDaily+1000 {
+			t.Fatalf("expected total available %d, got %d", expectedDaily+1000, wallet.Available)
 		}
 
 		// Verify eligibility: note and chat are eligible for daily free, preview/outline are not
@@ -227,19 +228,20 @@ func TestGrantAndExpireEligibleDailyCredits_Integration(t *testing.T) {
 		}
 		learnerCID := uuid.UUID(learnerC.ID.Bytes).String()
 
-		// Day 1: grant 46, spend 8 on tutor chat, reserve 15 for note
+		// Day 1: grant daily credits, spend 8 on tutor chat, reserve 15 for note
 		day1 := time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC)
 		_, err = svc.EnsureDailyGrant(ctx, learnerCID, day1)
 		if err != nil {
 			t.Fatal(err)
 		}
 
+		pricingVer := catalogue.Config().Version
 		_, err = db.Pool.Exec(ctx, `
 			INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
 			VALUES
-				($1, -8, 'spend', 'chat-1', 'usd-launch-2026-11-08', '{"bucket":"daily_free","date":"2026-11-09"}'::jsonb),
-				($1, -15, 'reserve', 'res-1', 'usd-launch-2026-11-08', '{"bucket":"daily_free","date":"2026-11-09"}'::jsonb)
-		`, learnerC.ID)
+				($1, -8, 'spend', 'chat-1', $2, '{"bucket":"daily_free","date":"2026-11-09"}'::jsonb),
+				($1, -15, 'reserve', 'res-1', $2, '{"bucket":"daily_free","date":"2026-11-09"}'::jsonb)
+		`, learnerC.ID, pricingVer)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -254,7 +256,8 @@ func TestGrantAndExpireEligibleDailyCredits_Integration(t *testing.T) {
 			t.Fatalf("expected at least 1 expired entry, got %d", expiredCount)
 		}
 
-		// Unreserved remainder for Day 1 was 46 - 8 - 15 = 23 credits
+		// Unreserved remainder for Day 1 was DailyFree.Credits - 8 - 15
+		expectedRemainder := -(int64(catalogue.Config().DailyFree.Credits) - 8 - 15)
 		var expireAmount int64
 		err = db.Pool.QueryRow(ctx, `
 			SELECT amount FROM credit_entries
@@ -263,39 +266,40 @@ func TestGrantAndExpireEligibleDailyCredits_Integration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected expire row in Postgres: %v", err)
 		}
-		if expireAmount != -23 {
-			t.Fatalf("expected expire amount -23 (unreserved remainder), got %d", expireAmount)
+		if expireAmount != expectedRemainder {
+			t.Fatalf("expected expire amount %d (unreserved remainder), got %d", expectedRemainder, expireAmount)
 		}
 
-		// Ensure Day 2 grant provides fresh 46 credits independent of Day 1
+		// Ensure Day 2 grant provides fresh credits independent of Day 1
 		_, err = svc.EnsureDailyGrant(ctx, learnerCID, day2)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		wallet, err := svc.GetWallet(ctx, learnerCID)
+		wallet, err := svc.GetWalletAt(ctx, learnerCID, day2)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if wallet.DailyFree.Available != 46 {
-			t.Fatalf("expected fresh 46 daily free on Day 2, got %d", wallet.DailyFree.Available)
+		expectedFreshDaily := int64(catalogue.Config().DailyFree.Credits)
+		if wallet.DailyFree.Available != expectedFreshDaily {
+			t.Fatalf("expected fresh %d daily free on Day 2, got %d", expectedFreshDaily, wallet.DailyFree.Available)
 		}
 
 		// When the 15 reservation releases 5 after Day 1 expired, it must NOT roll over into Day 2
 		_, err = db.Pool.Exec(ctx, `
 			INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
 			VALUES
-				($1, 5, 'release', 'res-1', 'usd-launch-2026-11-08', '{"bucket":"daily_free","date":"2026-11-09"}'::jsonb)
-		`, learnerC.ID)
+				($1, 5, 'release', 'res-1', $2, '{"bucket":"daily_free","date":"2026-11-09"}'::jsonb)
+		`, learnerC.ID, pricingVer)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		walletAfterRelease, err := svc.GetWallet(ctx, learnerCID)
+		walletAfterRelease, err := svc.GetWalletAt(ctx, learnerCID, day2)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if walletAfterRelease.DailyFree.Available > 46 {
+		if walletAfterRelease.DailyFree.Available > expectedFreshDaily {
 			t.Fatalf("released expired allocation leaked into Day 2: got %d", walletAfterRelease.DailyFree.Available)
 		}
 	})

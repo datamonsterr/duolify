@@ -401,6 +401,19 @@ func (s *Service) EnsureDailyGrant(ctx context.Context, learnerID string, now ti
 		return nil, nil
 	}
 
+	if s.catalogue == nil {
+		return nil, errors.New("pricing catalogue not configured")
+	}
+	cfg := s.catalogue.Config()
+	if cfg.DailyFree.Credits <= 0 {
+		return nil, errors.New("daily free credits disabled in pricing catalogue")
+	}
+	amount := int64(cfg.DailyFree.Credits)
+	pricingVersion := cfg.Version
+	if pricingVersion == "" {
+		return nil, errors.New("pricing catalogue version not configured")
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -429,18 +442,6 @@ func (s *Service) EnsureDailyGrant(ctx context.Context, learnerID string, now ti
 	// Check anti-farming guard: if previous grant exists, check elapsed time across timezone change
 	if !s.canGrantDailyCreditsLocked(ctx, learnerID, now, tz) {
 		return nil, nil
-	}
-
-	amount := int64(46)
-	pricingVersion := "usd-launch-2026-11-08"
-	if s.catalogue != nil {
-		cfg := s.catalogue.Config()
-		if cfg.DailyFree.Credits > 0 {
-			amount = int64(cfg.DailyFree.Credits)
-		}
-		if cfg.Version != "" {
-			pricingVersion = cfg.Version
-		}
 	}
 
 	newEntry := Entry{
@@ -505,7 +506,7 @@ func (s *Service) ExpireDailyCredits(ctx context.Context, asOf time.Time) (int, 
 	}
 
 	expiredCount := 0
-	pricingVersion := "usd-launch-2026-11-08"
+	var pricingVersion string
 	if s.catalogue != nil && s.catalogue.Config().Version != "" {
 		pricingVersion = s.catalogue.Config().Version
 	}
@@ -564,12 +565,22 @@ func (s *Service) ExpireDailyCredits(ctx context.Context, asOf time.Time) (int, 
 
 		unreservedRemainder := totalGranted - totalSpent - activeHeld
 		if unreservedRemainder > 0 {
+			entryPricingVersion := pricingVersion
+			if entryPricingVersion == "" {
+				for _, e := range entries {
+					if e.Kind == "daily_grant" && e.PricingVersion != "" {
+						entryPricingVersion = e.PricingVersion
+						break
+					}
+				}
+			}
+
 			expireEntry := Entry{
 				LearnerID:      sum.LearnerID,
 				Amount:         -unreservedRemainder,
 				Kind:           "expire",
 				Reference:      fmt.Sprintf("daily_expire:%s:%s", sum.LearnerID, sum.Date),
-				PricingVersion: pricingVersion,
+				PricingVersion: entryPricingVersion,
 				Provenance: map[string]any{
 					"bucket":   "daily_free",
 					"date":     sum.Date,
@@ -647,7 +658,7 @@ func (s *Service) canGrantDailyCreditsLocked(ctx context.Context, learnerID stri
 // IsActionEligibleForDailyFree checks if an action key may draw from daily free credits.
 func (s *Service) IsActionEligibleForDailyFree(action string) bool {
 	if s.catalogue == nil {
-		return action == "quick_note" || action == "tutor_short" || action == "tutor_long"
+		return false
 	}
 	for _, el := range s.catalogue.Config().DailyFree.EligibleActions {
 		if el == action {
@@ -723,7 +734,7 @@ func CalculateWallet(entries []Entry, tz string) *WalletResponse {
 // CalculateWalletAt derives bucket totals and recent activity as of a specific point in time.
 func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse {
 	var (
-		dailyFreeGranted   int64 = 46
+		dailyFreeGranted   int64
 		dailyFreeAvailable int64
 		purchasedAvailable int64
 		subscriptionTotal  int64
@@ -759,10 +770,15 @@ func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse
 				date = d
 			}
 		}
+		if date == "" && !e.CreatedAt.IsZero() {
+			date = e.CreatedAt.In(loc).Format(time.DateOnly)
+		}
 
 		switch e.Kind {
 		case "daily_grant":
-			dailyFreeGranted = e.Amount
+			if date == "" || date == currentLocalDate {
+				dailyFreeGranted += e.Amount
+			}
 			dailyFreeAvailable += e.Amount
 
 		case "expire":

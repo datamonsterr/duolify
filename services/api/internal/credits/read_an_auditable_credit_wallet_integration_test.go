@@ -9,6 +9,7 @@ import (
 
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
+	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/google/uuid"
@@ -72,7 +73,12 @@ func TestReadAuditableCreditWallet_Integration(t *testing.T) {
 	}
 	defer func() { _ = redisClient.Close() }()
 
-	svc := credits.NewService(db.Pool, redisClient)
+	catalogue, err := pricing.Load(ctx, db.Queries)
+	if err != nil {
+		t.Fatalf("load pricing catalogue: %v", err)
+	}
+
+	svc := credits.NewServiceWithCatalogue(db.Pool, redisClient, catalogue, nil)
 
 	// Create test learners
 	learnerA, err := db.Queries.CreateLearner(ctx, "Learner A")
@@ -94,12 +100,15 @@ func TestReadAuditableCreditWallet_Integration(t *testing.T) {
 			t.Fatal("expected insert with kind 'reward' to fail, but it succeeded")
 		}
 
+		testPricingVer := catalogue.Config().Version
+		dailyCredits := int64(catalogue.Config().DailyFree.Credits)
+
 		// Valid kinds: daily_grant, subscription_grant, expire, purchase, spend, reserve, release, refund
 		validKinds := []struct {
 			kind   string
 			amount int64
 		}{
-			{"daily_grant", 46},
+			{"daily_grant", dailyCredits},
 			{"purchase", 400},
 			{"subscription_grant", 60},
 			{"reserve", -55},
@@ -113,7 +122,7 @@ func TestReadAuditableCreditWallet_Integration(t *testing.T) {
 			_, err := db.Pool.Exec(ctx, `
 				INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
 				VALUES ($1, $2, $3, $4, $5, $6)
-			`, learnerA.ID, k.amount, k.kind, "ref-"+k.kind, "usd-launch-2026-11-08", `{"channel":"test"}`)
+			`, learnerA.ID, k.amount, k.kind, "ref-"+k.kind, testPricingVer, `{"channel":"test"}`)
 			if err != nil {
 				t.Fatalf("failed to insert valid kind %q: %v", k.kind, err)
 			}
@@ -208,19 +217,21 @@ func TestReadAuditableCreditWallet_Integration(t *testing.T) {
 
 	t.Run("Balance queries, Redis caching, Redis loss and learner isolation", func(t *testing.T) {
 		// Learner B ledger entries:
-		// daily_grant: 46
+		// daily_grant: dailyCredits
 		// spend: -8 (daily free)
 		// purchase: 400
 		// subscription_grant: 60
 		// reserve: -55 (reference: res-100)
 		// release: 3 (reference: res-100, outline settled at 52)
+		dailyGrantAmt := int64(catalogue.Config().DailyFree.Credits)
+		testVer := catalogue.Config().Version
 		entries := []struct {
 			amount int64
 			kind   string
 			ref    string
 			prov   string
 		}{
-			{46, "daily_grant", "dg-2026-11-09", `{"bucket":"daily_free"}`},
+			{dailyGrantAmt, "daily_grant", "dg-2026-11-09", `{"bucket":"daily_free"}`},
 			{-8, "spend", "spend-tutor", `{"bucket":"daily_free"}`},
 			{400, "purchase", "stripe-ch-1", `{"bucket":"purchase"}`},
 			{60, "subscription_grant", "sub-grant-1", `{"bucket":"subscription"}`},
@@ -231,29 +242,31 @@ func TestReadAuditableCreditWallet_Integration(t *testing.T) {
 		for _, e := range entries {
 			_, err := db.Pool.Exec(ctx, `
 				INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
-				VALUES ($1, $2, $3, $4, 'usd-launch-2026-11-08', $5::jsonb)
-			`, learnerB.ID, e.amount, e.kind, e.ref, e.prov)
+				VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+			`, learnerB.ID, e.amount, e.kind, e.ref, testVer, e.prov)
 			if err != nil {
 				t.Fatalf("failed to insert entry: %v", err)
 			}
 		}
 
 		// Expected totals:
-		// Daily free: 46 - 8 = 38
+		// Daily free: dailyGrantAmt - 8
 		// Purchased: 400 - 55 + 3 = 348 (52 spent net)
 		// Subscription: 60
 		// Reserved: 0 (since release offset the remaining 3 of 55, settled)
-		// Available: 38 + 348 + 60 = 446
+		// Available: (dailyGrantAmt - 8) + 348 + 60
+		expectedDailyAvail := dailyGrantAmt - 8
+		expectedTotalAvail := expectedDailyAvail + 348 + 60
 		wallet1, err := svc.GetWallet(ctx, learnerB.ID.String())
 		if err != nil {
 			t.Fatalf("GetWallet failed: %v", err)
 		}
 
-		if wallet1.Available != 446 {
-			t.Fatalf("expected available 446, got %d", wallet1.Available)
+		if wallet1.Available != expectedTotalAvail {
+			t.Fatalf("expected available %d, got %d", expectedTotalAvail, wallet1.Available)
 		}
-		if wallet1.DailyFree.Available != 38 || wallet1.DailyFree.Granted != 46 {
-			t.Fatalf("expected daily free 38/46, got %d/%d", wallet1.DailyFree.Available, wallet1.DailyFree.Granted)
+		if wallet1.DailyFree.Available != expectedDailyAvail || wallet1.DailyFree.Granted != dailyGrantAmt {
+			t.Fatalf("expected daily free %d/%d, got %d/%d", expectedDailyAvail, dailyGrantAmt, wallet1.DailyFree.Available, wallet1.DailyFree.Granted)
 		}
 		if wallet1.Purchased != 348 {
 			t.Fatalf("expected purchased 348, got %d", wallet1.Purchased)

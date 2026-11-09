@@ -248,15 +248,17 @@ func TestDailyGrant_GrantConcurrently(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	expectedGrantAmount := int64(catalogue.Config().DailyFree.Credits)
+	expectedVersion := catalogue.Config().Version
 	dailyGrants := 0
 	for _, e := range entries {
 		if e.Kind == "daily_grant" {
 			dailyGrants++
-			if e.Amount != 46 {
-				t.Fatalf("expected 46 credits granted, got %d", e.Amount)
+			if e.Amount != expectedGrantAmount {
+				t.Fatalf("expected %d credits granted, got %d", expectedGrantAmount, e.Amount)
 			}
-			if e.PricingVersion != "usd-launch-2026-11-08" {
-				t.Fatalf("expected pricing version usd-launch-2026-11-08, got %s", e.PricingVersion)
+			if e.PricingVersion != expectedVersion {
+				t.Fatalf("expected pricing version %s, got %s", expectedVersion, e.PricingVersion)
 			}
 		}
 	}
@@ -332,15 +334,17 @@ func TestDailyCredits_CrossMidnight(t *testing.T) {
 	if expireEntry == nil {
 		t.Fatal("expected expire entry to be created")
 	}
-	if expireEntry.Amount != -23 {
-		t.Fatalf("expected expire amount -23 (unreserved remainder), got %d", expireEntry.Amount)
+	expectedDay1Grant := int64(catalogue.Config().DailyFree.Credits)
+	expectedExpire := -(expectedDay1Grant - 8 - 15)
+	if expireEntry.Amount != expectedExpire {
+		t.Fatalf("expected expire amount %d (unreserved remainder), got %d", expectedExpire, expireEntry.Amount)
 	}
 
 	if events.Count("daily_credits_expired") != 1 {
 		t.Fatalf("expected 1 daily_credits_expired event, got %d", events.Count("daily_credits_expired"))
 	}
 
-	// Day 2 grant gives fresh 46 credits
+	// Day 2 grant gives fresh credits
 	_, err = svc.EnsureDailyGrant(ctx, learnerID, day2)
 	if err != nil {
 		t.Fatal(err)
@@ -350,15 +354,15 @@ func TestDailyCredits_CrossMidnight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if wallet.DailyFree.Available != 46 {
-		t.Fatalf("expected fresh 46 on Day 2, got %d", wallet.DailyFree.Available)
+	if wallet.DailyFree.Available != expectedDay1Grant {
+		t.Fatalf("expected fresh %d on Day 2, got %d", expectedDay1Grant, wallet.DailyFree.Available)
 	}
 
 	// When Day 1's 15 reservation releases 5 on Day 2:
 	// "released expired allocations never become spendable tomorrow"
 	_, _ = store.InsertCreditEntry(ctx, credits.Entry{
 		LearnerID: learnerID, Amount: 5, Kind: "release", Reference: "res-1",
-		PricingVersion: "usd-launch-2026-11-08",
+		PricingVersion: catalogue.Config().Version,
 		Provenance:     map[string]any{"bucket": "daily_free", "date": "2026-11-09"},
 	})
 
@@ -366,8 +370,8 @@ func TestDailyCredits_CrossMidnight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if walletAfterRelease.DailyFree.Available != 46 {
-		t.Fatalf("released expired credits must not become spendable today; expected 46, got %d", walletAfterRelease.DailyFree.Available)
+	if walletAfterRelease.DailyFree.Available != expectedDay1Grant {
+		t.Fatalf("released expired credits must not become spendable today; expected %d, got %d", expectedDay1Grant, walletAfterRelease.DailyFree.Available)
 	}
 }
 
@@ -469,16 +473,17 @@ func TestDailyCredits_SpendOrderAndSizing(t *testing.T) {
 	svc := credits.NewServiceWithCatalogue(nil, nil, catalogue, nil)
 
 	// Sizing validation:
+	expectedSizingCredits := catalogue.Config().DailyFree.Credits
 	// 3 quick notes (3*2 = 6) + 8 short tutor messages (8*5 = 40) = 46
 	costNotesShort := 3*catalogue.Config().Actions["quick_note"].Credits + 8*catalogue.Config().Actions["tutor_short"].Credits
-	if costNotesShort != 46 {
-		t.Fatalf("expected 3 notes + 8 short messages to equal 46, got %d", costNotesShort)
+	if costNotesShort != expectedSizingCredits {
+		t.Fatalf("expected 3 notes + 8 short messages to equal %d, got %d", expectedSizingCredits, costNotesShort)
 	}
 
 	// 3 quick notes (3*2 = 6) + 5 long tutor messages (5*8 = 40) = 46
 	costNotesLong := 3*catalogue.Config().Actions["quick_note"].Credits + 5*catalogue.Config().Actions["tutor_long"].Credits
-	if costNotesLong != 46 {
-		t.Fatalf("expected 3 notes + 5 long messages to equal 46, got %d", costNotesLong)
+	if costNotesLong != expectedSizingCredits {
+		t.Fatalf("expected 3 notes + 5 long messages to equal %d, got %d", expectedSizingCredits, costNotesLong)
 	}
 
 	// Verify eligibility
@@ -492,4 +497,132 @@ func TestDailyCredits_SpendOrderAndSizing(t *testing.T) {
 			t.Fatalf("expected %s NOT to be eligible for daily free", act)
 		}
 	}
+}
+
+func TestDailyGrant_CatalogueRequirements(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns clear error when catalogue is nil", func(t *testing.T) {
+		svc := credits.NewServiceWithCatalogue(nil, nil, nil, nil)
+		svc.SetStore(newMockMemoryStore())
+		entry, err := svc.EnsureDailyGrant(ctx, "00000000-0000-0000-0000-000000000001", time.Now())
+		if err == nil {
+			t.Fatal("expected error when catalogue is nil, got nil")
+		}
+		if entry != nil {
+			t.Fatalf("expected nil entry when catalogue is nil, got %+v", entry)
+		}
+	})
+
+	t.Run("returns clear error when DailyFree.Credits <= 0", func(t *testing.T) {
+		cat := pricing.FromConfig(pricing.Config{
+			Version: "usd-custom-2026",
+			DailyFree: struct {
+				Credits         int      `json:"credits"`
+				EligibleActions []string `json:"eligible_actions"`
+				Expires         string   `json:"expires"`
+				SpendFirst      bool     `json:"spend_first"`
+			}{
+				Credits: 0,
+			},
+		})
+		svc := credits.NewServiceWithCatalogue(nil, nil, cat, nil)
+		svc.SetStore(newMockMemoryStore())
+		entry, err := svc.EnsureDailyGrant(ctx, "00000000-0000-0000-0000-000000000001", time.Now())
+		if err == nil {
+			t.Fatal("expected error when DailyFree.Credits <= 0, got nil")
+		}
+		if entry != nil {
+			t.Fatalf("expected nil entry when DailyFree.Credits <= 0, got %+v", entry)
+		}
+	})
+
+	t.Run("uses custom amount and active version from catalogue fixture", func(t *testing.T) {
+		cat := pricing.FromConfig(pricing.Config{
+			Version: "usd-pricing-custom-version",
+			DailyFree: struct {
+				Credits         int      `json:"credits"`
+				EligibleActions []string `json:"eligible_actions"`
+				Expires         string   `json:"expires"`
+				SpendFirst      bool     `json:"spend_first"`
+			}{
+				Credits:         75,
+				EligibleActions: []string{"quick_note"},
+			},
+		})
+		store := newMockMemoryStore()
+		svc := credits.NewServiceWithCatalogue(nil, nil, cat, nil)
+		svc.SetStore(store)
+		learnerID := "00000000-0000-0000-0000-000000000099"
+		entry, err := svc.EnsureDailyGrant(ctx, learnerID, time.Now())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if entry.Amount != 75 {
+			t.Fatalf("expected custom amount 75 from catalogue, got %d", entry.Amount)
+		}
+		if entry.PricingVersion != "usd-pricing-custom-version" {
+			t.Fatalf("expected custom pricing version from catalogue, got %s", entry.PricingVersion)
+		}
+	})
+}
+
+func TestCalculateWalletAt_DailyFreeDerivedFromCurrentLocalDateEntries(t *testing.T) {
+	ctx := context.Background()
+	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+	today := time.Date(2026, 11, 10, 10, 0, 0, 0, loc)
+	yesterday := time.Date(2026, 11, 9, 10, 0, 0, 0, loc)
+
+	t.Run("past day grant without today grant results in zero dailyFreeGranted", func(t *testing.T) {
+		store := newMockMemoryStore()
+		_, _ = store.InsertCreditEntry(ctx, credits.Entry{
+			LearnerID:  "00000000-0000-0000-0000-000000000001",
+			Amount:     50,
+			Kind:       "daily_grant",
+			Reference:  "dg-yesterday",
+			CreatedAt:  yesterday,
+			Provenance: map[string]any{"bucket": "daily_free", "date": "2026-11-09"},
+		})
+		_, _ = store.InsertCreditEntry(ctx, credits.Entry{
+			LearnerID:  "00000000-0000-0000-0000-000000000001",
+			Amount:     -50,
+			Kind:       "expire",
+			Reference:  "exp-yesterday",
+			CreatedAt:  time.Date(2026, 11, 9, 23, 59, 0, 0, loc),
+			Provenance: map[string]any{"bucket": "daily_free", "date": "2026-11-09"},
+		})
+
+		svc := credits.NewServiceWithStore(store, nil)
+		wallet, err := svc.GetWalletAt(ctx, "00000000-0000-0000-0000-000000000001", today)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if wallet.DailyFree.Granted != 0 {
+			t.Fatalf("expected 0 daily free granted today when no grant for today, got %d", wallet.DailyFree.Granted)
+		}
+	})
+
+	t.Run("today grant amount is reflected in dailyFreeGranted", func(t *testing.T) {
+		store := newMockMemoryStore()
+		_, _ = store.InsertCreditEntry(ctx, credits.Entry{
+			LearnerID:  "00000000-0000-0000-0000-000000000002",
+			Amount:     65,
+			Kind:       "daily_grant",
+			Reference:  "dg-today",
+			CreatedAt:  today,
+			Provenance: map[string]any{"bucket": "daily_free", "date": "2026-11-10"},
+		})
+
+		svc := credits.NewServiceWithStore(store, nil)
+		wallet, err := svc.GetWalletAt(ctx, "00000000-0000-0000-0000-000000000002", today)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if wallet.DailyFree.Granted != 65 {
+			t.Fatalf("expected 65 daily free granted from today's entry, got %d", wallet.DailyFree.Granted)
+		}
+		if wallet.DailyFree.Available != 65 {
+			t.Fatalf("expected 65 daily free available, got %d", wallet.DailyFree.Available)
+		}
+	})
 }
