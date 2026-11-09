@@ -13,7 +13,7 @@ Legend: **Done**, **Partial** (works, with a gap listed), **Blocked** (needs the
 | 3 | Find and configure agentic skills (OtherSkill) | Partial | 51 project skills in `.otherskill/bank` (Go, Tauri, PostHog, tickets, reverse engineering), global bank, list in `docs/agents/skills.md`. Gap: routing hook gets HTTP 401 because a stale `OPENROUTER_API_KEY` in `~/.config/environment.d/60-opencode-providers.conf` overrides the new key (works when that variable is unset) |
 | 4 | OpenSpec, OtherSkill config, AGENTS.md + CLAUDE.md, mise.toml | Done | `openspec/` (17 capability specs, 8 changes, strict validation passes), `otherskill.config.json`, `AGENTS.md`, `CLAUDE.md` → `@AGENTS.md`, `mise.toml` + `.mise/tasks/*.toml` |
 | 5 | Scaffold Go service, Rust engine, Tauri app, infra | Done | `services/api`, `engine` (5 crates), `apps/client` (Tauri 2 + React), `proto`, `infra`, `.railway/railway.ts` |
-| 6 | Dummy tests per part, full CI/CD, Docker images, compose, Railway deploy config | Partial | Tests: api (unit, e2e, Postgres integration), engine (9 tests + offline eval), client (Vitest, Playwright, Rust). Compose stack healthy locally. Draft CI green. Gap: the ready pipeline (integration, Playwright, Docker images, Tauri build, live evals, Railway plan) has not run yet; it runs when the PR is marked ready |
+| 6 | Dummy tests per part, full CI/CD, Docker images, compose, Railway deploy config | Done | Draft and ready pipelines green on PR #1 (integration, Playwright, both Docker images, Tauri build, all on Namespace). Live evals and `infra:plan` skip until secrets exist |
 | 7 | Install CLI tools via mise | Done | `mise install` installs all 16 pinned tools; `cargo:tauri-cli` dropped in favour of `@tauri-apps/cli` from pnpm |
 
 ## Principles
@@ -60,5 +60,5 @@ Legend: **Done**, **Partial** (works, with a gap listed), **Blocked** (needs the
 3. GitHub secrets: `OPENROUTER_API_KEY` (the `duolify-ci` key), `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `HF_TOKEN`, `RAILWAY_TOKEN`, `POSTHOG_API_KEY`.
 4. Create the Hugging Face dataset `datamonsterr/duolify-golden` and upload `evals/fixtures/golden.sample.jsonl`.
 5. Branch protection on `main` requiring `ci-ok`.
-6. Mark PR #1 ready to run the full pipeline; then merge.
+6. Review and merge PR #1 (full pipeline green).
 7. Rotate the keys pasted into chat once setup is stable.
