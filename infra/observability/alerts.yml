@@ -1,0 +1,16 @@
+groups:
+  - name: duolify-operations
+    rules:
+      - alert: DuolifyOperationalIncident
+        expr: increase(duolify_alerts_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "Duolify {{ $labels.kind }} incident on {{ $labels.job }}"
+      - alert: DuolifyOperationalTargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Duolify {{ $labels.job }} metrics unavailable"

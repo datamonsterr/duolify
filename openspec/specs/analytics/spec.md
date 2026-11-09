@@ -60,6 +60,10 @@ The catalogue SHALL include `pricing_version_created`, `pricing_version_approved
 
 ### Requirement: LLM analytics
 Every Engine call SHALL produce a PostHog `$ai_generation` event from the API with `$ai_provider`, `$ai_model`, `$ai_input_tokens`, `$ai_output_tokens`, `$ai_latency`, `feature`, `fallback_used` and `$ai_is_error`. Prompt and completion text MUST NOT be captured.
+The existing setup-chat emitter's `provider`, `model`, `input_tokens`,
+`output_tokens`, `latency_ms` and `task` properties SHALL remain compatibility
+aliases; the adapter SHALL also supply their canonical fields above. Neither
+representation permits prompt, completion or learner text.
 
 #### Scenario: Fallback call
 - **WHEN** the Engine used the fallback provider

@@ -151,10 +151,12 @@ func (s *Service) handleSetupChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// PostHog analytics: $ai_generation without prompt/answer content
-	var optOut bool
+	optOut := true
 	learnerID, _ := r.Context().Value(learnerKey{}).(string)
 	if s.pool != nil {
-		_ = s.pool.QueryRow(ctx, "SELECT analytics_opt_out FROM learner_profiles WHERE learner_id=$1", contextID(r)).Scan(&optOut)
+		if err := s.pool.QueryRow(ctx, "SELECT analytics_opt_out FROM learner_profiles WHERE learner_id=$1", contextID(r)).Scan(&optOut); err != nil {
+			optOut = true
+		}
 	}
 	if !optOut && s.setupChat.Events != nil && learnerID != "" {
 		_ = s.setupChat.Events.Capture(learnerID, "$ai_generation", map[string]any{

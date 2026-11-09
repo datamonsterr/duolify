@@ -40,7 +40,8 @@ An epic controller is a Claude session that owns one epic (`E<n>`) end to end. I
 - `proto/` changes only with matching api and engine changes in the same ticket.
 - AI features: mock provider in tests, golden-set cases in `evals/fixtures/`, `mise run engine:eval` green, spec fallback implemented. Live Hugging Face evals are not available yet (ADR 0011).
 - Prices and credits only from the Pricing config. External services (Resend, Stripe, ElevenLabs, OAuth, HF) behind interfaces with fakes; no secrets; new env vars in `.env.example`.
-- PostHog through existing wrappers; never send learner text.
+- PostHog through existing wrappers; never send learner text. The API analytics client drops events not in its allowlist (`services/api/internal/analytics/analytics.go`): add every new event there and to the analytics catalogue in the same ticket.
+- Every new table linked to a learner needs an export/deletion policy in `services/api/internal/accounts/privacy.go` (the E1-07 coverage test fails otherwise).
 - No PRs, no report files in the repo; report in the final message.
 
 ## Never

@@ -28,6 +28,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 )
@@ -84,6 +85,19 @@ func run(ctx context.Context, args []string) (result error) {
 		defer db.Close()
 		return worker.Migrate(migrationCtx, db.Pool, logger)
 	}
+	monitor := telemetry.New(logger)
+	metricsAddr := os.Getenv("OPERATIONS_ADDR")
+	if metricsAddr == "" {
+		metricsAddr = "127.0.0.1:9091"
+		if command == "worker" {
+			metricsAddr = "127.0.0.1:9092"
+		}
+	}
+	stopMetrics, err := monitor.Listen(ctx, metricsAddr)
+	if err != nil {
+		return err
+	}
+	defer stopMetrics()
 	db, err := store.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
@@ -110,7 +124,7 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		defer func() { result = errors.Join(result, events.Close()) }()
-		service, err := backup.New(backup.Options{Source: backup.Postgres{Pool: db.Pool, DatabaseURL: cfg.DatabaseURL}, Objects: objects, Recipient: backupConfig.Recipient, Events: events, OptOut: backupConfig.OptOut})
+		service, err := backup.New(backup.Options{Source: backup.Postgres{Pool: db.Pool, DatabaseURL: cfg.DatabaseURL}, Objects: objects, Recipient: backupConfig.Recipient, Events: events, OptOut: backupConfig.OptOut, Monitor: monitor})
 		if err != nil {
 			return err
 		}
@@ -179,14 +193,16 @@ func run(ctx context.Context, args []string) (result error) {
 	})
 	creditService := credits.NewService(db.Pool, redis)
 	handler := httpapi.New(httpapi.Dependencies{
-		Accounts:     auth,
-		Credits:      creditService,
-		Pricing:      pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events),
-		PricingAdmin: pricingAdmin,
-		Quotes:       pricing.NewQuotes(db.Pool),
-		Postgres:     db.Ping,
-		Redis:        func(ctx context.Context) error { return redis.Ping(ctx).Err() },
-		Engine:       backend,
+		Monitor:       monitor,
+		ObjectStorage: telemetry.StorageProbe(os.Getenv),
+		Accounts:      auth,
+		Credits:       creditService,
+		Pricing:       pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events),
+		PricingAdmin:  pricingAdmin,
+		Quotes:        pricing.NewQuotes(db.Pool),
+		Postgres:      db.Ping,
+		Redis:         func(ctx context.Context) error { return redis.Ping(ctx).Err() },
+		Engine:        backend,
 	}, logger)
 	server := httpapi.NewServer(cfg.Addr, handler)
 	listener, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.Addr)

@@ -12,6 +12,7 @@ import (
 
 	"filippo.io/age"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 )
 
 // Source isolates the database and pg_dump process.
@@ -28,6 +29,7 @@ type Objects interface {
 
 // Options supplies external boundaries and the public encryption recipient.
 type Options struct {
+	Monitor   *telemetry.Monitor
 	Source    Source
 	Objects   Objects
 	Recipient string
@@ -41,6 +43,9 @@ type Service struct {
 	options   Options
 	recipient *age.X25519Recipient
 }
+
+// Monitor exposes the shared worker operational boundary, never analytics consent.
+func (s *Service) Monitor() *telemetry.Monitor { return s.options.Monitor }
 
 // New validates the key before any database or object operation.
 func New(options Options) (*Service, error) {

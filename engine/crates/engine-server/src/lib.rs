@@ -3,6 +3,7 @@ use engine_proto::{self as pb, engine_service_server::EngineService};
 use futures::{Stream, StreamExt};
 use std::{pin::Pin, sync::Arc};
 use tonic::{Request, Response, Status};
+use tracing::Instrument;
 
 pub struct Service {
     pub router: Arc<ProviderRouter>,
@@ -86,15 +87,16 @@ fn strings(v: &serde_json::Value) -> Vec<String> {
         .filter_map(|x| x.as_str().map(str::to_owned))
         .collect()
 }
-fn internal(e: anyhow::Error) -> Status {
-    tracing::error!(error = %e, "provider failed");
+fn internal(_: anyhow::Error) -> Status {
+    tracing::error!(code = "provider_failed", "provider failed");
     Status::internal("provider failed")
 }
 #[tonic::async_trait]
 impl EngineService for Service {
+    #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&_request).request_id, trace_id = %correlation(&_request).trace_id, parent_span_id = %correlation(&_request).parent_span_id, span_id = %span_id()))]
     async fn health(
         &self,
-        _: Request<pb::HealthRequest>,
+        _request: Request<pb::HealthRequest>,
     ) -> Result<Response<pb::HealthResponse>, Status> {
         Ok(Response::new(pb::HealthResponse {
             version: env!("CARGO_PKG_VERSION").into(),
@@ -104,6 +106,7 @@ impl EngineService for Service {
             ],
         }))
     }
+    #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
     async fn preview_course(
         &self,
         request: Request<pb::PreviewCourseRequest>,
@@ -120,6 +123,7 @@ impl EngineService for Service {
             usage: usage(&c),
         }))
     }
+    #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
     async fn generate_course_outline(
         &self,
         request: Request<pb::GenerateCourseOutlineRequest>,
@@ -136,6 +140,7 @@ impl EngineService for Service {
         }))
     }
     type GenerateLessonStream = RpcStream<pb::GenerateLessonEvent>;
+    #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
     async fn generate_lesson(
         &self,
         request: Request<pb::GenerateLessonRequest>,
@@ -189,17 +194,26 @@ impl EngineService for Service {
         ))))
     }
     type ChatStream = RpcStream<pb::ChatEvent>;
+    #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
     async fn chat(
         &self,
         request: Request<pb::ChatRequest>,
     ) -> Result<Response<Self::ChatStream>, Status> {
         let input = format!("{:?}", request.into_inner());
-        let stream = self
-            .router
-            .stream("chat", &input)
-            .await
-            .map_err(internal)?
-            .map(|r| {
+        let span = tracing::Span::current();
+        let stream = self.router.stream("chat", &input).await.map_err(internal)?;
+        // Enter the request span while polling the provider as well as mapping
+        // its output; a map closure alone runs after provider work has finished.
+        let map_span = span.clone();
+        let stream = futures::stream::unfold((stream, span), |(mut stream, span)| async move {
+            stream
+                .next()
+                .instrument(span.clone())
+                .await
+                .map(|value| (value, (stream, span)))
+        })
+        .map(move |r| {
+            map_span.in_scope(|| {
                 r.map(|part| pb::ChatEvent {
                     event: Some(match part {
                         StreamEvent::Delta(delta) => pb::chat_event::Event::Delta(delta),
@@ -209,9 +223,11 @@ impl EngineService for Service {
                     }),
                 })
                 .map_err(internal)
-            });
+            })
+        });
         Ok(Response::new(Box::pin(stream)))
     }
+    #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
     async fn enrich_note(
         &self,
         request: Request<pb::EnrichNoteRequest>,
@@ -232,6 +248,7 @@ impl EngineService for Service {
             usage: usage(&c),
         }))
     }
+    #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
     async fn setup_chat(
         &self,
         request: Request<pb::SetupChatRequest>,
@@ -316,4 +333,21 @@ impl EngineService for Service {
             }),
         }))
     }
+}
+
+fn correlation<T>(request: &Request<T>) -> engine_core::backup::Correlation {
+    let metadata = request.metadata();
+    let value = || {
+        engine_core::backup::Correlation::parse(
+            metadata.get("x-request-id")?.to_str().ok()?,
+            metadata.get("traceparent")?.to_str().ok()?,
+        )
+    };
+    value().unwrap_or_default()
+}
+
+fn span_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    format!("{:016x}", NEXT.fetch_add(1, Ordering::Relaxed))
 }
