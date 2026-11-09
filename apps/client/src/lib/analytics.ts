@@ -283,8 +283,15 @@ export function trackScreen(screenId: ScreenId) {
 
 // E13-03 catalogue: openspec/changes/shared-guided-chat/specs/design-system/spec.md.
 // Build properties explicitly so callers cannot smuggle draft values into events.
-const guidedSurfaces = ["guided_chat", "summary", "outline", "sheet"] as const;
+const guidedSurfaces = [
+  "guided_chat",
+  "summary",
+  "outline",
+  "sheet",
+  "course_brief",
+] as const;
 const guidedControls = [
+  "confirm_brief",
   "quick_reply",
   "send",
   "skip",

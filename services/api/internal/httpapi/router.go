@@ -32,6 +32,7 @@ type Dependencies struct {
 	Monitor         *telemetry.Monitor
 	Engine          Engine
 	Pricing         http.Handler
+	CourseBrief     http.Handler
 	PricingAdmin    http.Handler
 	Quotes          http.Handler
 	Accounts        interface {
@@ -78,6 +79,9 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.HandleFunc("/admin/v1/pricing/", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "pricing administration unavailable"})
 		})
+	}
+	if deps.CourseBrief != nil && deps.Accounts != nil {
+		mux.Handle("/v1/course-brief/", deps.Accounts.Protect(deps.CourseBrief))
 	}
 	if deps.Quotes != nil {
 		mux.Handle("POST /v1/quotes", deps.Quotes)

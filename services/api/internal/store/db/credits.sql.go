@@ -13,7 +13,7 @@ import (
 
 const createCreditEntry = `-- name: CreateCreditEntry :one
 INSERT INTO credit_entries (learner_id, amount, kind, reference)
-VALUES ($1, $2, $3, $4) RETURNING id, learner_id, amount, kind, reference, created_at
+VALUES ($1, $2, $3, $4) RETURNING id, learner_id, amount, kind, reference, created_at, owner_reference
 `
 
 type CreateCreditEntryParams struct {
@@ -38,12 +38,13 @@ func (q *Queries) CreateCreditEntry(ctx context.Context, arg CreateCreditEntryPa
 		&i.Kind,
 		&i.Reference,
 		&i.CreatedAt,
+		&i.OwnerReference,
 	)
 	return i, err
 }
 
 const listCreditEntries = `-- name: ListCreditEntries :many
-SELECT id, learner_id, amount, kind, reference, created_at FROM credit_entries WHERE learner_id = $1 ORDER BY id
+SELECT id, learner_id, amount, kind, reference, created_at, owner_reference FROM credit_entries WHERE learner_id = $1 ORDER BY id
 `
 
 func (q *Queries) ListCreditEntries(ctx context.Context, learnerID pgtype.UUID) ([]CreditEntry, error) {
@@ -62,6 +63,7 @@ func (q *Queries) ListCreditEntries(ctx context.Context, learnerID pgtype.UUID) 
 			&i.Kind,
 			&i.Reference,
 			&i.CreatedAt,
+			&i.OwnerReference,
 		); err != nil {
 			return nil, err
 		}

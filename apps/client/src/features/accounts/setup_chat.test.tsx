@@ -86,7 +86,9 @@ it("handles single follow-up, skipped fields, summary validation, bounded failur
   });
 
   // Announcement count: follow-up message announced once
-  expect(log.textContent?.split("Space is a great pick!").length - 1).toBe(1);
+  await waitFor(() => {
+    expect(log.textContent?.split("Space is a great pick!").length - 1).toBe(1);
+  });
 
   // 3. Single follow-up bound: answering follow-up advances to next question without second follow-up
   fireEvent.change(input, { target: { value: "For fun" } });

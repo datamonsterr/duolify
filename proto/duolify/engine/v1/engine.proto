@@ -21,6 +21,8 @@ service EngineService {
   rpc EnrichNote(EnrichNoteRequest) returns (EnrichNoteResponse);
   // SetupChat guides onboarding and learner profile configuration.
   rpc SetupChat(SetupChatRequest) returns (SetupChatResponse);
+  // CourseBriefChat clarifies intent without generating or persisting a course.
+  rpc CourseBriefChat(CourseBriefChatRequest) returns (CourseBriefChatResponse);
 }
 
 message HealthRequest {}
@@ -192,4 +194,58 @@ message SetupChatResponse {
   bool is_follow_up = 5;
   bool is_complete = 6;
   Usage usage = 7;
+}
+
+// CourseBrief is learner-authored intent. Empty strings mean unanswered or skipped.
+message CourseBrief {
+  string topic = 1;
+  string goal = 2;
+  string include_topics = 3;
+  string skip_topics = 4;
+  string level = 5;
+  string maths = 6;
+  string viewing_conditions = 7;
+  string lesson_length = 8;
+  string language = 9;
+}
+
+// Limits are resolved from the selected Pricing config by the trusted API.
+message CourseBriefLimits {
+  uint32 input_tokens = 1;
+  uint32 output_tokens = 2;
+  uint32 attempt_timeout_ms = 3;
+  uint32 max_attempts = 4;
+  uint64 max_cost_nanos = 5;
+  uint64 input_nanos_per_token = 6;
+  uint64 output_nanos_per_token = 7;
+}
+
+message CourseBriefChatRequest {
+  CourseBrief brief = 1;
+  string current_step = 2;
+  string answer = 3;
+  bool skipped = 4;
+  bool is_follow_up = 5;
+  CourseBriefLimits limits = 6;
+}
+
+// Failed attempts retain available usage, without prompt or completion capture.
+message BriefAttempt {
+  Usage usage = 1;
+  bool fallback_used = 2;
+  bool succeeded = 3;
+  // Route identifiers remain known even when token usage is unavailable.
+  string provider = 4;
+  string model = 5;
+}
+
+message CourseBriefChatResponse {
+  CourseBrief brief = 1;
+  string message = 2;
+  repeated QuickReply quick_replies = 3;
+  string next_step = 4;
+  bool is_follow_up = 5;
+  bool is_complete = 6;
+  repeated BriefAttempt attempts = 7;
+  bool unavailable = 8;
 }

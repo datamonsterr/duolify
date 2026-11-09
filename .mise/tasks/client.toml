@@ -26,6 +26,7 @@ dir = "{{config_root}}/apps/client"
 run = "pnpm exec playwright install chromium"
 
 ["client:e2e"]
+env = { E2E_WEB_PORT = "4020", E2E_API_BASE = "http://127.0.0.1:4021" }
 description = "Run end-to-end tests against the web build"
 depends = ["client:build"]
 dir = "{{config_root}}/apps/client"
@@ -64,3 +65,8 @@ run = ["pnpm exec prettier --write src/features/accounts src/lib/analytics.ts sr
 description = "Format responsive shell sources and acceptance tests"
 dir = "{{config_root}}/apps/client"
 run = "pnpm exec prettier --write src/features/shell src/features/lesson-player/LessonPlayer.tsx src/lib/analytics.ts src/App.tsx src/LearnPath.tsx src/styles.css src/test/learn-path.test.tsx src/test/implement_responsive_navigation_shells.integration.test.tsx src/features/design/implement_responsive_navigation_shells.test.tsx e2e/design-e13-02.spec.ts"
+
+["client:format-courses"]
+description = "Format course brief client and browser tests"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/courses src/features/design/Courses.tsx src/features/accounts/session.ts src/lib/analytics.ts src/App.tsx e2e/courses-e2-06.spec.ts"

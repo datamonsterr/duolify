@@ -29,12 +29,17 @@ impl HttpProvider {
             anthropic: false,
         }
     }
-    fn request(&self, model: &str, input: &str, streaming: bool) -> reqwest::RequestBuilder {
-        let mut body =
-            json!({"model":model,"messages":[{"role":"user","content":input}],"stream":streaming});
+    fn request(
+        &self,
+        model: &str,
+        input: &str,
+        streaming: bool,
+        max_output: u32,
+    ) -> reqwest::RequestBuilder {
+        let mut body = json!({"model":model,"messages":[{"role":"user","content":input}],"stream":streaming,"max_tokens":max_output});
         let mut req = self.client.post(&self.url);
         if self.anthropic {
-            body["max_tokens"] = json!(4096);
+            body["max_tokens"] = json!(max_output);
             req = req
                 .header("x-api-key", &self.key)
                 .header("anthropic-version", "2023-06-01");
@@ -57,8 +62,16 @@ impl LlmProvider for HttpProvider {
         }
     }
     async fn complete(&self, model: &str, input: &str) -> Result<Completion> {
+        self.complete_bounded(model, input, 4096).await
+    }
+    async fn complete_bounded(
+        &self,
+        model: &str,
+        input: &str,
+        max_output: u32,
+    ) -> Result<Completion> {
         let value: Value = self
-            .request(model, input, false)
+            .request(model, input, false, max_output)
             .send()
             .await?
             .error_for_status()?
@@ -102,7 +115,7 @@ impl LlmProvider for HttpProvider {
     }
     async fn stream(&self, model: &str, input: &str) -> Result<CompletionStream> {
         let response = self
-            .request(model, input, true)
+            .request(model, input, true, 4096)
             .send()
             .await?
             .error_for_status()?;
