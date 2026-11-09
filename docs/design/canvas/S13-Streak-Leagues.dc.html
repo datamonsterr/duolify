@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Streak, freezes and leagues</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Nunito',system-ui,sans-serif;color:#3C3C3C}
+*{box-sizing:border-box}
+a{color:#1667AB}a:hover{color:#0F5A99}
+.i{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sm{width:18px;height:18px}
+.st{width:390px;display:flex;flex-direction:column;gap:12px;flex:none}
+.lb{display:flex;flex-direction:column;gap:2px;min-height:64px}
+.lb b{font-size:17px;font-weight:900;color:#2B2B2B}
+.lb span{font-size:14px;color:#555;line-height:1.35}
+.ph{width:390px;height:844px;background:#fff;border:2px solid #DADADA;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.top{display:flex;align-items:center;gap:12px;padding:18px 18px 12px;border-bottom:2px solid #EFEFEF}
+.top b{font-size:18px;font-weight:900;color:#2B2B2B;flex:1}
+.ib{width:44px;height:44px;border-radius:14px;border:2px solid #E0E0E0;background:#fff;display:flex;align-items:center;justify-content:center;color:#3C3C3C;flex:none}
+.mn{flex:1;min-height:0;padding:16px 20px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+.tabs{display:flex;gap:2px;border-top:2px solid #EFEFEF;padding:8px 6px 18px}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;font-weight:800;color:#5E5E5E;text-decoration:none;padding:6px 0;border:2px solid transparent;border-radius:14px}
+.tab.on{color:#0D5592;background:#DDF1FF;border-color:#8CCBF7}
+.hero{border-radius:22px;padding:18px;display:flex;align-items:center;gap:14px}
+.big{font-size:44px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.wk{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;list-style:none;margin:0;padding:0}
+.wk li{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:900;color:#555}
+.d{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.d.done{background:#FF8A00;color:#fff}
+.d.frz{background:#DDF1FF;color:#0D5592;border:2px solid #8CCBF7}
+.d.miss{background:#fff;border:2px dashed #C9C9C9;color:#555}
+.d.today{background:#fff;border:3px solid #FF8A00;color:#A44E00}
+.card{background:#fff;border:2px solid #E3E3E3;border-radius:18px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.help{font-size:13px;font-weight:600;color:#5E5E5E}
+.ban{border-radius:16px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start}
+.ban b{display:block;font-size:15px;font-weight:900;margin-bottom:2px}
+.ban p{margin:0;font-size:13px;line-height:1.45}
+.bok{background:#E3F8D3;color:#1E6E0C}.bwarn{background:#FFF1D1;color:#704400}.binfo{background:#DDF1FF;color:#0D5592}.bbad{background:#FDECEC;color:#B3261E}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;padding:0 16px;border:none;border-radius:16px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:15px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;cursor:pointer;text-align:center}
+.btn.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:12px;font-weight:800;font-size:12px;background:#F1F1F1;color:#444}
+.rk{display:flex;flex-direction:column;list-style:none;margin:0;padding:0}
+.rk li{display:flex;align-items:center;gap:12px;padding:9px 6px;border-bottom:2px solid #F3F3F3;font-weight:800}
+.rk .n{width:26px;text-align:center;font-weight:900;color:#555;font-variant-numeric:tabular-nums}
+.rk .av{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;flex:none}
+.rk .xp{font-variant-numeric:tabular-nums;color:#555;font-weight:800;font-size:14px}
+.rk li.me{background:#DDF1FF;border-radius:14px;border:2px solid #8CCBF7}
+.zone{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;padding:6px 0}
+.zone::before,.zone::after{content:"";flex:1;height:2px}
+.zone.up{color:#1E6E0C}.zone.up::before,.zone.up::after{background:#9BDB78}
+.zone.dn{color:#B3261E}.zone.dn::before,.zone.dn::after{background:#E39B9B}
+.badge{width:64px;height:64px;border-radius:20px;display:flex;align-items:center;justify-content:center;flex:none}
+.dk{width:1280px;height:800px;background:#fff;border:2px solid #DADADA;border-radius:20px;overflow:hidden;display:flex;flex:none;position:relative}
+.dks{width:224px;flex:none;border-right:2px solid #EFEFEF;padding:20px 12px;display:flex;flex-direction:column;gap:4px}
+.dkn{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;border:2px solid transparent;text-decoration:none;color:#3C3C3C;font-weight:900;font-size:13px;letter-spacing:.5px;text-transform:uppercase}
+.dkn.on{background:#DDF1FF;border-color:#8CCBF7;color:#0D5592}
+.dkm{flex:1;min-width:0;padding:28px 36px;display:flex;flex-direction:column;gap:16px;overflow:hidden}
+.dkr{width:300px;flex:none;padding:28px 22px;display:flex;flex-direction:column;gap:14px;border-left:2px solid #EFEFEF;background:#FCFCFA}
+.dki{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.dkb{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border:none;border-radius:16px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:14px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;cursor:pointer;white-space:nowrap}
+.dkb.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.dkb.blue{background:#1677C9;box-shadow:0 4px 0 #0F5A99}
+.dkb.vio{background:#7B3FE4;box-shadow:0 4px 0 #5A2BB0}
+.dkb.red{background:#C62828;box-shadow:0 4px 0 #8E1B1B}
+.dkb.off{background:#E5E5E5;color:#555;box-shadow:0 4px 0 #CFCFCF;border:2px dashed #9A9A9A}
+.dkb.q{background:none;box-shadow:none;color:#1667AB}
+.dkb.sm{min-height:38px;padding:0 14px;font-size:12px}
+.dkc{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:12px;font-weight:800;font-size:12px;background:#F1F1F1;color:#444;white-space:nowrap}
+.dkx{border-radius:16px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start}
+.dkx b{display:block;font-size:15px;font-weight:900;margin-bottom:2px}
+.dkx p{margin:0;font-size:13px;line-height:1.45}
+.dkk{background:#fff;border:2px solid #E3E3E3;border-radius:18px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.t-ok{background:#E3F8D3;color:#1E6E0C}.t-info{background:#DDF1FF;color:#0D5592}.t-warn{background:#FFF1D1;color:#704400}.t-bad{background:#FDECEC;color:#B3261E}.t-vi{background:#F0E7FF;color:#5B2BB5}
+.dkh{margin:0;font-size:30px;font-weight:900;color:#2B2B2B;line-height:1.15}
+.dkp{margin:0;font-size:15px;line-height:1.5;color:#555}
+.dkhelp{font-size:13px;font-weight:600;color:#5E5E5E}
+.dkbar{height:14px;border-radius:999px;background:#E5E5E5;overflow:hidden}
+.dkbar i{display:block;height:100%;border-radius:999px;background:#58C322}
+.dkin{font-family:inherit;font-size:15px;font-weight:600;color:#2B2B2B;background:#F7F7F7;border:2px solid #CFCFCF;border-radius:14px;padding:10px 12px;width:100%}
+.dkf{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:800;color:#2B2B2B}
+.dktop{display:flex;align-items:center;gap:14px;padding:16px 28px;border-bottom:2px solid #EFEFEF}
+.dkib{width:44px;height:44px;border-radius:14px;border:2px solid #E0E0E0;background:#fff;display:flex;align-items:center;justify-content:center;color:#3C3C3C;flex:none;cursor:pointer}
+.dkbub{max-width:560px;padding:12px 15px;border-radius:18px;font-size:15px;line-height:1.5;font-weight:600}
+.dkme{align-self:flex-end;background:#DDF1FF;color:#0D5592}
+.dkai{background:#fff;border:2px solid #E3E3E3;color:#2B2B2B}
+.dkqr{border:2px solid #E0E0E0;border-bottom-width:4px;border-radius:14px;padding:8px 14px;font-family:inherit;font-weight:800;font-size:14px;background:#fff;color:#2B2B2B;cursor:pointer}
+.dkqr.on{background:#DDF1FF;border-color:#8CCBF7;color:#0D5592}
+.dkst{font-size:15px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:#555}
+.dkstat{display:inline-flex;align-items:center;gap:6px;font-weight:900;font-size:16px;text-decoration:none}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="fl" viewBox="0 0 24 24"><path d="M12 2c1.5 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2.5 1.2-4 2.5-5 .2 2 1 3 2.2 3.3C11.5 7.8 11 5 12 2z"></path></symbol>
+<symbol id="snow" viewBox="0 0 24 24"><path d="M12 2v20M3.3 7l17.4 10M20.7 7 3.3 17M9 4l3 2 3-2M9 20l3-2 3 2"></path></symbol>
+<symbol id="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></symbol>
+<symbol id="back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"></path></symbol>
+<symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></symbol>
+<symbol id="flg" viewBox="0 0 24 24"><path d="M5 21V3M5 4h12l-2.5 4L17 12H5"></path></symbol>
+<symbol id="up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"></path></symbol>
+<symbol id="spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 1-9 9"></path></symbol>
+<symbol id="off" viewBox="0 0 24 24"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.6a10 10 0 0 1 4.2-2.3M14.8 10.3A10 10 0 0 1 19 12.6M2 8.8a15 15 0 0 1 4-2.3M12 20h.01"></path></symbol>
+<symbol id="home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"></path></symbol>
+<symbol id="crs" viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5z"></path><path d="M2 12.5l10 5 10-5M2 17l10 5 10-5"></path></symbol>
+<symbol id="frn" viewBox="0 0 24 24"><circle cx="8" cy="9" r="3.2"></circle><circle cx="16.5" cy="9" r="3.2"></circle><path d="M2 20c.5-3 3-5 6-5s5.5 2 6 5M15 15.2c.5-.1 1-.2 1.5-.2 3 0 5.5 2 6 5"></path></symbol>
+<symbol id="nt" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle></symbol>
+</defs></svg>
+
+<div style="width: 2696px; height: 2080px; background: #F3F5EF; padding: 48px; display: flex; flex-direction: column; gap: 28px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 14px; font-weight: 900; letter-spacing: 1.2px; text-transform: uppercase; color: #1E6E0C;">S13 · S15 · E5 Gamification</span>
+<h1 style="margin: 0; font-size: 40px; font-weight: 900; color: #2B2B2B;">Streak, freezes and weekly league</h1>
+<p style="margin: 0; font-size: 17px; color: #4F4F4F;">Days follow the learner's local time zone. Freezes are earned at milestones, capped, applied automatically — no activation button, no paid freeze. Leagues compare XP only and never award credits.</p>
+</div>
+<span class="dkst">Desktop · ≥ 48rem</span>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="q-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"></path></symbol>
+<symbol id="q-crs" viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5z"></path><path d="M2 12.5l10 5 10-5M2 17l10 5 10-5"></path></symbol>
+<symbol id="q-glb" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3.5 3.5 3.5 14.5 0 18M12 3c-3.5 3.5-3.5 14.5 0 18"></path></symbol>
+<symbol id="q-frn" viewBox="0 0 24 24"><circle cx="8" cy="9" r="3.2"></circle><circle cx="16.5" cy="9" r="3.2"></circle><path d="M2 20c.5-3 3-5 6-5s5.5 2 6 5M15 15.2c.5-.1 1-.2 1.5-.2 3 0 5.5 2 6 5"></path></symbol>
+<symbol id="q-flg" viewBox="0 0 24 24"><path d="M5 21V3M5 4h12l-2.5 4L17 12H5"></path></symbol>
+<symbol id="q-nt" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></symbol>
+<symbol id="q-bk" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"></path></symbol>
+<symbol id="q-gm" viewBox="0 0 24 24"><path d="M7 4h10l4 5-9 11L3 9z"></path><path d="M3 9h18M10 4 8 9l4 11 4-11-2-5"></path></symbol>
+<symbol id="q-usr" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c.5-4 4-6 8-6s7.5 2 8 6"></path></symbol>
+<symbol id="q-gr" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"></path></symbol>
+<symbol id="q-fl" viewBox="0 0 24 24"><path d="M12 2c1.5 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2.5 1.2-4 2.5-5 .2 2 1 3 2.2 3.3C11.5 7.8 11 5 12 2z"></path></symbol>
+<symbol id="q-xp" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"></path></symbol>
+<symbol id="q-snw" viewBox="0 0 24 24"><path d="M12 2v20M3.3 7l17.4 10M20.7 7 3.3 17M9 4l3 2 3-2M9 20l3-2 3 2"></path></symbol>
+<symbol id="q-ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></symbol>
+<symbol id="q-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"></path></symbol>
+<symbol id="q-bck" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"></path></symbol>
+<symbol id="q-chv" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></symbol>
+<symbol id="q-ply" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></symbol>
+<symbol id="q-pse" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"></path></symbol>
+<symbol id="q-rp" viewBox="0 0 24 24"><path d="M4 4v6h6"></path><path d="M5.5 15A8 8 0 1 0 7 7.5L4 10"></path></symbol>
+<symbol id="q-lk" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></symbol>
+<symbol id="q-cht" viewBox="0 0 24 24"><path d="M4 5h16v11H10l-6 4z"></path></symbol>
+<symbol id="q-snd" viewBox="0 0 24 24"><path d="M4 12 20 4l-5 16-3.5-6.5z"></path><path d="M11.5 13.5 20 4"></path></symbol>
+<symbol id="q-stp" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></symbol>
+<symbol id="q-spn" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 1-9 9"></path></symbol>
+<symbol id="q-alr" viewBox="0 0 24 24"><path d="M12 3 2 20.5h20z"></path><path d="M12 10v4.5M12 17.5h.01"></path></symbol>
+<symbol id="q-off" viewBox="0 0 24 24"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.6a10 10 0 0 1 4.2-2.3M14.8 10.3A10 10 0 0 1 19 12.6M2 8.8a15 15 0 0 1 4-2.3M12 20h.01"></path></symbol>
+<symbol id="q-pls" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+<symbol id="q-src" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M20.5 20.5 16 16"></path></symbol>
+<symbol id="q-str" viewBox="0 0 24 24"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z"></path></symbol>
+<symbol id="q-sl" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path><circle cx="15" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></symbol>
+<symbol id="q-tr" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10M4 18h13"></path></symbol>
+<symbol id="q-cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M10.5 10.2a2.2 2.2 0 1 0 0 3.6M17 10.2a2.2 2.2 0 1 0 0 3.6"></path></symbol>
+<symbol id="q-vol" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"></path><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"></path></symbol>
+<symbol id="q-clk" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></symbol>
+<symbol id="q-edt" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5l-4-4L4 16z"></path></symbol>
+<symbol id="q-trs" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4h5v3M6 7l1 14h10l1-14"></path></symbol>
+<symbol id="q-lnk" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"></path><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"></path></symbol>
+<symbol id="q-cpy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5"></rect><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"></path></symbol>
+<symbol id="q-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"></path></symbol>
+<symbol id="q-mor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle></symbol>
+<symbol id="q-bel" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></symbol>
+<symbol id="q-dl" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></symbol>
+<symbol id="q-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"></path></symbol>
+<symbol id="q-spk" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"></path></symbol>
+<symbol id="q-fork" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"></circle><circle cx="18" cy="5" r="2"></circle><circle cx="12" cy="19" r="2"></circle><path d="M6 7v2a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4V7M12 13v4"></path></symbol>
+<symbol id="q-map" viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"></path><path d="M9 4v14M15 6v14"></path></symbol>
+<symbol id="q-trophy" viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"></path><path d="M8 6H4v2a4 4 0 0 0 4 4M16 6h4v2a4 4 0 0 1-4 4M12 13v4M8 21h8M9 17h6v4H9z"></path></symbol>
+<symbol id="q-tgt" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></symbol>
+</defs></svg>
+<div style="display: flex; gap: 40px; align-items: flex-start;">
+<div class="dk"><nav class="dks" aria-label="Main"><div style="display: flex; align-items: center; gap: 8px; padding: 4px 12px 18px;"><div aria-hidden="true" style="position: relative; width: 30px; height: 28px;"><div style="position: absolute; left: 0; top: 6px; width: 20px; height: 20px; border-radius: 6px; background: #58C322;"></div><div style="position: absolute; left: 10px; top: 0; width: 20px; height: 20px; border-radius: 6px; background: #1677C9;"></div></div><span style="font-size: 24px; font-weight: 900; color: #2E9A12; letter-spacing: -.5px;">duolify</span></div><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1F7A0D;"><use href="#q-home"></use></svg>Learn</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-crs"></use></svg>Courses</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-glb"></use></svg>Marketplace</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-frn"></use></svg>Friends</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #A44E00;"><use href="#q-flg"></use></svg>Leagues</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-nt"></use></svg>Quick notes</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-bk"></use></svg>Bookmarks</a><div style="height: 2px; background: #EFEFEF; margin: 8px 0;"></div><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #7B3FE4;"><use href="#q-gm"></use></svg>Credits</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #555555;"><use href="#q-usr"></use></svg>Profile</a></nav>
+<div class="dkm">
+<h2 class="dkh">Your streak</h2>
+<div style="display: flex; gap: 16px;">
+<div style="flex: 1; background: #FFF1D1; border-radius: 22px; padding: 18px 22px; display: flex; align-items: center; gap: 16px;"><svg class="dki" aria-hidden="true" style="width: 64px; height: 64px; color: #FF8A00; fill: #FF8A00;"><use href="#q-fl"></use></svg><div><div style="font-size: 52px; font-weight: 900; color: #A44E00; line-height: 1;">7</div><b style="color: #704400;">day streak · longest 23</b></div></div>
+<div class="dkk" style="width: 300px;"><b style="color: #2B2B2B;">Streak freezes · 1 of 2</b><span class="dkhelp">Next one at your 14-day milestone. Used automatically on a missed day.</span></div>
+</div>
+<div class="dkx t-info" role="status"><svg class="dki" aria-hidden="true"><use href="#q-snw"></use></svg><div><b>A freeze covered Wed, Nov 5</b><p>Your streak stayed at 7. Freezes left: 1 of 2.</p></div><button class="dkb sec sm" type="button" style="margin-left: auto;">Got it</button></div>
+<div class="dkk"><div style="display: flex; align-items: center;"><b style="flex: 1; color: #2B2B2B;">November 2026</b><span class="dkhelp">Time zone: Asia/Ho_Chi_Minh · <a href="#">Change</a></span></div>
+<ol style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; text-align: center; font-size: 12px; font-weight: 900; color: #555;">
+<li>Mo</li><li>Tu</li><li>We</li><li>Th</li><li>Fr</li><li>Sa</li><li>Su</li>
+<li><span role="img" aria-label="Nov 3 completed" style="display: inline-flex; width: 44px; height: 44px; border-radius: 50%; background: #FF8A00; color: #fff; align-items: center; justify-content: center;">3</span></li>
+<li><span role="img" aria-label="Nov 4 completed" style="display: inline-flex; width: 44px; height: 44px; border-radius: 50%; background: #FF8A00; color: #fff; align-items: center; justify-content: center;">4</span></li>
+<li><span role="img" aria-label="Nov 5 covered by freeze" style="display: inline-flex; width: 44px; height: 44px; border-radius: 50%; background: #DDF1FF; border: 2px solid #8CCBF7; color: #0D5592; align-items: center; justify-content: center;"><svg class="dki" aria-hidden="true" style="width: 18px; height: 18px;"><use href="#q-snw"></use></svg></span></li>
+<li><span role="img" aria-label="Nov 6 completed" style="display: inline-flex; width: 44px; height: 44px; border-radius: 50%; background: #FF8A00; color: #fff; align-items: center; justify-content: center;">6</span></li>
+<li><span role="img" aria-label="Nov 7 completed" style="display: inline-flex; width: 44px; height: 44px; border-radius: 50%; background: #FF8A00; color: #fff; align-items: center; justify-content: center;">7</span></li>
+<li><span role="img" aria-label="Nov 8 completed" style="display: inline-flex; width: 44px; height: 44px; border-radius: 50%; background: #FF8A00; color: #fff; align-items: center; justify-content: center;">8</span></li>
+<li><span role="img" aria-label="Nov 9 today, not yet complete" style="display: inline-flex; width: 44px; height: 44px; border-radius: 50%; border: 3px solid #FF8A00; color: #A44E00; align-items: center; justify-content: center;">9</span></li>
+</ol><span class="dkhelp">Done · Freeze-covered · Missed · Today. <a href="#">Show as list</a></span></div>
+<div class="dkx t-warn"><svg class="dki" aria-hidden="true"><use href="#q-clk"></use></svg><div><b>Today isn't done yet</b><p>Finish one lesson before 23:59 Ho Chi Minh City to make it 8.</p></div><a class="dkb sm" href="#" style="margin-left: auto;">Start a lesson</a></div>
+</div>
+<aside class="dkr" aria-label="Your progress"><div style="display: flex; justify-content: space-between;"><a class="dkstat" href="#" style="color: #A44E00;" aria-label="7 day streak"><svg class="dki" aria-hidden="true" style="color: #FF8A00; fill: #FF8A00;"><use href="#q-fl"></use></svg>7</a><a class="dkstat" href="#" style="color: #5B2BB5;" aria-label="212 credits"><svg class="dki" aria-hidden="true" style="color: #7B3FE4;"><use href="#q-gm"></use></svg>212</a></div><div class="dkk"><b style="color: #2B2B2B;">Daily goal</b><div class="dkbar"><i style="width: 50%; background: #FFC233;"></i></div><span class="dkhelp">10 / 20 XP today</span></div><div class="dkk"><b style="color: #2B2B2B;">Streak freezes</b><span class="dkhelp">1 of 2 Â· applied automatically</span></div><div class="dkk"><b style="color: #2B2B2B;">Credits</b><div class="dkbar"><i style="width: 61%; background: #7B3FE4;"></i></div><span class="dkhelp">Daily free 28 / 46 Â· purchased 124</span></div><div class="dkk"><b style="color: #2B2B2B;">Sun league Â· rank 5</b><span class="dkhelp">240 XP Â· promotion zone</span></div></aside></div>
+<div class="dk"><nav class="dks" aria-label="Main"><div style="display: flex; align-items: center; gap: 8px; padding: 4px 12px 18px;"><div aria-hidden="true" style="position: relative; width: 30px; height: 28px;"><div style="position: absolute; left: 0; top: 6px; width: 20px; height: 20px; border-radius: 6px; background: #58C322;"></div><div style="position: absolute; left: 10px; top: 0; width: 20px; height: 20px; border-radius: 6px; background: #1677C9;"></div></div><span style="font-size: 24px; font-weight: 900; color: #2E9A12; letter-spacing: -.5px;">duolify</span></div><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1F7A0D;"><use href="#q-home"></use></svg>Learn</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-crs"></use></svg>Courses</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-glb"></use></svg>Marketplace</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-frn"></use></svg>Friends</a><a class="dkn on" href="#" aria-current="page"><svg class="dki" aria-hidden="true" style="color: #A44E00;"><use href="#q-flg"></use></svg>Leagues</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-nt"></use></svg>Quick notes</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-bk"></use></svg>Bookmarks</a><div style="height: 2px; background: #EFEFEF; margin: 8px 0;"></div><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #7B3FE4;"><use href="#q-gm"></use></svg>Credits</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #555555;"><use href="#q-usr"></use></svg>Profile</a></nav>
+<div class="dkm">
+<div style="display: flex; align-items: center; gap: 14px;"><span style="width: 64px; height: 64px; border-radius: 20px; background: #FFC233; color: #4A2E00; box-shadow: 0 5px 0 #D99A00; display: flex; align-items: center; justify-content: center;"><svg class="dki" aria-hidden="true" style="width: 34px; height: 34px;"><use href="#q-flg"></use></svg></span><div style="flex: 1;"><h2 class="dkh">Sun league</h2><span class="dkhelp">Ends Sun 23:59 · 2 days left · top 5 move up</span></div><label class="dkhelp">Week <select class="dkin" style="width: auto; padding: 6px 10px;"><option>This week</option><option>Last week</option></select></label></div>
+<table style="width: 100%; border-collapse: collapse; font-weight: 800;">
+<thead><tr><th style="text-align: left; padding: 8px; font-size: 12px; color: #555;">Rank</th><th style="text-align: left; padding: 8px; font-size: 12px; color: #555;">Learner</th><th style="text-align: right; padding: 8px; font-size: 12px; color: #555;">Weekly XP</th></tr></thead>
+<tbody>
+<tr><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3;">1</td><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3;">Mina</td><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3; text-align: right;">420</td></tr>
+<tr><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3;">2</td><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3;">Kai</td><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3; text-align: right;">388</td></tr>
+<tr><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3;">3</td><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3;">Linh</td><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3; text-align: right;">301</td></tr>
+<tr><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3;">4</td><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3;">Sam</td><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3; text-align: right;">270</td></tr>
+<tr style="background: #DDF1FF; color: #0D5592;"><td style="padding: 9px 8px;">5</td><td style="padding: 9px 8px;">You</td><td style="padding: 9px 8px; text-align: right;">240</td></tr>
+<tr><td colspan="3" style="padding: 6px 8px; color: #1E6E0C; font-size: 12px; font-weight: 900; letter-spacing: .6px; text-transform: uppercase; border-top: 2px solid #9BDB78;">Promotion zone above</td></tr>
+<tr><td style="padding: 9px 8px;">6</td><td style="padding: 9px 8px;">Ana</td><td style="padding: 9px 8px; text-align: right;">240 · tie</td></tr>
+<tr><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3;">7</td><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3;">Ravi</td><td style="padding: 9px 8px; border-top: 2px solid #F3F3F3; text-align: right;">198</td></tr>
+<tr><td colspan="3" style="padding: 6px 8px; color: #B3261E; font-size: 12px; font-weight: 900; letter-spacing: .6px; text-transform: uppercase; border-top: 2px solid #E39B9B;">Demotion zone below · ranks 26–30</td></tr>
+</tbody></table>
+<span class="dkhelp">Not joined, rollover pending, promoted / stayed / demoted and offline as-of states match mobile.</span>
+</div>
+<aside class="dkr" aria-label="Your progress"><div style="display: flex; justify-content: space-between;"><a class="dkstat" href="#" style="color: #A44E00;" aria-label="7 day streak"><svg class="dki" aria-hidden="true" style="color: #FF8A00; fill: #FF8A00;"><use href="#q-fl"></use></svg>7</a><a class="dkstat" href="#" style="color: #5B2BB5;" aria-label="212 credits"><svg class="dki" aria-hidden="true" style="color: #7B3FE4;"><use href="#q-gm"></use></svg>212</a></div><div class="dkk"><b style="color: #2B2B2B;">Daily goal</b><div class="dkbar"><i style="width: 50%; background: #FFC233;"></i></div><span class="dkhelp">10 / 20 XP today</span></div><div class="dkk"><b style="color: #2B2B2B;">Streak freezes</b><span class="dkhelp">1 of 2 Â· applied automatically</span></div><div class="dkk"><b style="color: #2B2B2B;">Credits</b><div class="dkbar"><i style="width: 61%; background: #7B3FE4;"></i></div><span class="dkhelp">Daily free 28 / 46 Â· purchased 124</span></div><div class="dkk"><b style="color: #2B2B2B;">Sun league Â· rank 5</b><span class="dkhelp">240 XP Â· promotion zone</span></div></aside></div>
+</div>
+<span class="dkst" style="margin-top: 12px;">Mobile · &lt; 48rem · same actions</span>
+<div style="display: flex; gap: 40px; align-items: flex-start;">
+
+<div class="st">
+<div class="lb"><b>Streak — active, today incomplete</b><span>Calendar marks have labels, not just color. List alternative available.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><b>Your streak</b></div>
+<div class="mn">
+<div class="hero" style="background: #FFF1D1;"><svg class="i" aria-hidden="true" style="width: 56px; height: 56px; color: #FF8A00; fill: #FF8A00;"><use href="#fl"></use></svg><div><div class="big" style="color: #A44E00;">7</div><b style="color: #704400;">day streak</b></div></div>
+<div class="ban bwarn"><svg class="i" aria-hidden="true"><use href="#clock"></use></svg><div><b>Today isn't done yet</b><p>Finish one lesson before 23:59 Ho Chi Minh City to make it 8.</p></div></div>
+<div class="card"><b style="color: #2B2B2B;">This week</b>
+<ol class="wk">
+<li><span class="d done" role="img" aria-label="Monday Nov 3, completed"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span>Mo</li>
+<li><span class="d done" role="img" aria-label="Tuesday, completed"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span>Tu</li>
+<li><span class="d frz" role="img" aria-label="Wednesday, covered by freeze"><svg class="i sm" aria-hidden="true"><use href="#snow"></use></svg></span>We</li>
+<li><span class="d done" role="img" aria-label="Thursday, completed"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span>Th</li>
+<li><span class="d done" role="img" aria-label="Friday, completed"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span>Fr</li>
+<li><span class="d done" role="img" aria-label="Saturday, completed"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span>Sa</li>
+<li><span class="d today" role="img" aria-label="Sunday, today, not yet complete">9</span>Su</li>
+</ol>
+<span class="help">Done · Freeze-covered · Missed · Today</span>
+</div>
+<div class="card" style="flex-direction: row; align-items: center; gap: 12px;"><span class="badge" style="background: #DDF1FF; color: #0D5592;"><svg class="i" aria-hidden="true" style="width: 34px; height: 34px;"><use href="#snow"></use></svg></span><div style="flex: 1;"><b style="color: #2B2B2B;">Streak freezes · 1 of 2</b><br><span class="help">Next one at your 14-day milestone. Applied automatically on a missed day.</span></div></div>
+<span class="help">Longest streak: 23 days · Time zone: Asia/Ho_Chi_Minh · <a href="#">Change</a></span>
+</div>
+<div style="padding: 0 20px 22px;"><a class="btn" href="#">Start a lesson</a></div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>Freeze used · cap reached</b><span>Persistent notice names the covered date and what's left. Freeze preserves, never increments.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><b>Your streak</b></div>
+<div class="mn">
+<div class="ban binfo" role="status"><svg class="i" aria-hidden="true"><use href="#snow"></use></svg><div><b>A freeze covered Wed, Nov 5</b><p>Your streak stayed at 7. Freezes left: 0 of 2.</p></div></div>
+<div class="hero" style="background: #FFF1D1;"><svg class="i" aria-hidden="true" style="width: 56px; height: 56px; color: #FF8A00; fill: #FF8A00;"><use href="#fl"></use></svg><div><div class="big" style="color: #A44E00;">7</div><b style="color: #704400;">day streak · safe</b></div></div>
+<button class="btn sec" type="button">Got it</button>
+<div style="border-top: 2px solid #F0F0F0; padding-top: 14px; display: flex; flex-direction: column; gap: 10px;">
+<b style="color: #2B2B2B;">Cap reached variant</b>
+<div class="card" style="flex-direction: row; gap: 12px; align-items: center;"><span class="badge" style="background: #DDF1FF; color: #0D5592;"><svg class="i" aria-hidden="true" style="width: 34px; height: 34px;"><use href="#snow"></use></svg></span><div><b style="color: #2B2B2B;">2 of 2 freezes</b><br><span class="help">You're holding the most freezes. Milestones still celebrate your streak.</span></div></div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>Streak reset · time zone changed</b><span>Welcome back without guilt. Time zone change waits for server reconciliation.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><b>Your streak</b></div>
+<div class="mn">
+<div class="hero" style="background: #F7F7F7;"><svg class="i" aria-hidden="true" style="width: 56px; height: 56px; color: #9A9A9A;"><use href="#fl"></use></svg><div><div class="big" style="color: #555;">0</div><b style="color: #555;">day streak</b></div></div>
+<div class="ban bok"><svg class="i" aria-hidden="true"><use href="#ck"></use></svg><div><b>Welcome back</b><p>Start with one small lesson. Your longest streak (23 days) is still on record.</p></div></div>
+<a class="btn" href="#">Start a lesson</a>
+<div class="ban binfo" role="status"><svg class="i" aria-hidden="true"><use href="#spin"></use></svg><div><b>Time zone changed to Europe/Berlin</b><p>Checking your days. Daily resets switch after 24 hours so no day is counted twice.</p></div></div>
+<div class="ban bwarn"><svg class="i" aria-hidden="true"><use href="#clock"></use></svg><div><b>Rollover in progress</b><p>Updating your streak for the new day…</p></div></div>
+</div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>League — active week</b><span>Ordered list, highlighted self row, text zone boundaries. No auto-scroll.</span></div>
+<div class="ph">
+<div class="mn" style="gap: 10px;">
+<div style="display: flex; align-items: center; gap: 12px;"><span class="badge" style="background: #FFC233; color: #4A2E00; box-shadow: 0 5px 0 #D99A00;"><svg class="i" aria-hidden="true" style="width: 34px; height: 34px;"><use href="#flg"></use></svg></span><div><b style="font-size: 22px; font-weight: 900; color: #2B2B2B;">Sun league</b><br><span class="help">Ends Sun 23:59 · 2 days left</span></div></div>
+<p style="margin: 0; font-size: 14px; color: #555;">Every completed lesson adds to your week. Top 5 move up.</p>
+<ol class="rk">
+<li><span class="n">1</span><span class="av" style="background: #1677C9;">M</span><span style="flex: 1;">Mina</span><span class="xp">420 XP</span></li>
+<li><span class="n">2</span><span class="av" style="background: #7B3FE4;">K</span><span style="flex: 1;">Kai</span><span class="xp">388 XP</span></li>
+<li><span class="n">3</span><span class="av" style="background: #A44E00;">L</span><span style="flex: 1;">Linh</span><span class="xp">301 XP</span></li>
+<li><span class="n">4</span><span class="av" style="background: #1F7A0D;">S</span><span style="flex: 1;">Sam</span><span class="xp">270 XP</span></li>
+<li class="me"><span class="n">5</span><span class="av" style="background: #0D5592;">D</span><span style="flex: 1;">You</span><span class="xp">240 XP</span></li>
+</ol>
+<div class="zone up">Promotion zone</div>
+<ol class="rk" start="6">
+<li><span class="n">6</span><span class="av" style="background: #5E5E5E;">A</span><span style="flex: 1;">Ana</span><span class="xp">240 XP · tie</span></li>
+<li><span class="n">7</span><span class="av" style="background: #8E1B1B;">R</span><span style="flex: 1;">Ravi</span><span class="xp">198 XP</span></li>
+</ol>
+<div class="zone dn">Demotion zone</div>
+<ol class="rk" start="29"><li><span class="n">29</span><span class="av" style="background: #9A9A9A;">J</span><span style="flex: 1;">Jo</span><span class="xp">12 XP</span></li></ol>
+</div>
+<nav class="tabs" aria-label="Main"><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#home"></use></svg>Learn</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#crs"></use></svg>Courses</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#frn"></use></svg>Friends</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#nt"></use></svg>Notes</a><a class="tab on" href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#more"></use></svg>More</a></nav>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>League — not joined · offline</b><span>“Complete a lesson to join.” Offline shows cached ranks with as-of time.</span></div>
+<div class="ph">
+<div class="mn" style="align-items: center; text-align: center; padding-top: 50px;">
+<span class="badge" style="width: 110px; height: 110px; border-radius: 34px; background: #E5E5E5; color: #555;"><svg class="i" aria-hidden="true" style="width: 56px; height: 56px;"><use href="#flg"></use></svg></span>
+<h2 style="margin: 0; font-size: 26px; font-weight: 900; color: #2B2B2B;">Join this week's league</h2>
+<p style="margin: 0; font-size: 15px; color: #555; line-height: 1.5;">Complete a lesson to join a group of learners at your pace. It's optional — your streak doesn't depend on it.</p>
+<a class="btn" href="#">Start a lesson</a>
+<div class="ban bwarn" style="text-align: left;"><svg class="i" aria-hidden="true"><use href="#off"></use></svg><div><b>Offline variant</b><p>Ranks as of 08:42. They'll refresh when you reconnect.</p></div></div>
+</div>
+<nav class="tabs" aria-label="Main"><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#home"></use></svg>Learn</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#crs"></use></svg>Courses</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#frn"></use></svg>Friends</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#nt"></use></svg>Notes</a><a class="tab on" href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#more"></use></svg>More</a></nav>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>Week result · rollover pending</b><span>No final rank shown until rollover completes. Promoted / stayed / demoted as text.</span></div>
+<div class="ph">
+<div class="mn" style="align-items: center; text-align: center; padding-top: 40px;">
+<div class="ban binfo" style="text-align: left;" role="status"><svg class="i" aria-hidden="true"><use href="#spin"></use></svg><div><b>Week is closing</b><p>Final ranks appear after every time zone finishes the day.</p></div></div>
+<span class="badge" style="width: 120px; height: 120px; border-radius: 36px; background: #1677C9; color: #fff; box-shadow: 0 7px 0 #0F5A99;"><svg class="i" aria-hidden="true" style="width: 60px; height: 60px;"><use href="#up"></use></svg></span>
+<h2 style="margin: 0; font-size: 28px; font-weight: 900; color: #2B2B2B;">Promoted to Sky league</h2>
+<p style="margin: 0; font-size: 15px; color: #555;">You finished 4th with 312 XP last week.</p>
+<div style="display: flex; gap: 8px;"><span class="chip" style="background: #E3F8D3; color: #1E6E0C;">Promoted</span><span class="chip">Stayed</span><span class="chip" style="background: #FDECEC; color: #B3261E;">Demoted</span></div>
+<a class="btn" href="#">See new league</a>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2696,"height":2080}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

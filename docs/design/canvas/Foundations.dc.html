@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Foundations</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Nunito',system-ui,sans-serif;color:#3C3C3C}
+*{box-sizing:border-box}
+.h2{margin:0;font-size:28px;font-weight:900;color:#2B2B2B}
+.sw{display:flex;flex-direction:column;gap:8px}
+.chipc{height:96px;border-radius:18px;border:2px solid rgba(0,0,0,.08);display:flex;align-items:flex-end;padding:12px;font-weight:900;font-size:15px}
+.sw b{font-size:15px;font-weight:900;color:#2B2B2B}
+.sw span{font-size:13px;color:#555;font-family:ui-monospace,Consolas,monospace}
+.i{width:28px;height:28px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.ic{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:800;color:#3C3C3C;padding:12px 4px;background:#fff;border:2px solid #E3E3E3;border-radius:16px}
+.card{background:#fff;border:2px solid #E3E3E3;border-radius:22px;padding:24px;display:flex;flex-direction:column;gap:14px}
+.tr{display:flex;align-items:baseline;gap:20px;border-bottom:2px solid #F0F0F0;padding-bottom:10px}
+.tr code{width:150px;font-size:13px;color:#555;flex:none}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="fl" viewBox="0 0 24 24"><path d="M12 2c1.5 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2.5 1.2-4 2.5-5 .2 2 1 3 2.2 3.3C11.5 7.8 11 5 12 2z"></path></symbol>
+<symbol id="gm" viewBox="0 0 24 24"><path d="M7 4h10l4 5-9 11L3 9z"></path><path d="M3 9h18M10 4 8 9l4 11 4-11-2-5"></path></symbol>
+<symbol id="xp" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"></path></symbol>
+<symbol id="home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"></path></symbol>
+<symbol id="crs" viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5z"></path><path d="M2 12.5l10 5 10-5M2 17l10 5 10-5"></path></symbol>
+<symbol id="frn" viewBox="0 0 24 24"><circle cx="8" cy="9" r="3.2"></circle><circle cx="16.5" cy="9" r="3.2"></circle><path d="M2 20c.5-3 3-5 6-5s5.5 2 6 5M15 15.2c.5-.1 1-.2 1.5-.2 3 0 5.5 2 6 5"></path></symbol>
+<symbol id="flg" viewBox="0 0 24 24"><path d="M5 21V3M5 4h12l-2.5 4L17 12H5"></path></symbol>
+<symbol id="nt" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></symbol>
+<symbol id="bk" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"></path></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle></symbol>
+<symbol id="lk" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></symbol>
+<symbol id="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></symbol>
+<symbol id="pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"></path></symbol>
+<symbol id="rp" viewBox="0 0 24 24"><path d="M4 4v6h6"></path><path d="M5.5 15A8 8 0 1 0 7 7.5L4 10"></path></symbol>
+<symbol id="snow" viewBox="0 0 24 24"><path d="M12 2v20M3.3 7l17.4 10M20.7 7 3.3 17M9 4l3 2 3-2M9 20l3-2 3 2"></path></symbol>
+<symbol id="chat" viewBox="0 0 24 24"><path d="M4 5h16v11H10l-6 4z"></path></symbol>
+<symbol id="cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M10.5 10.2a2.2 2.2 0 1 0 0 3.6M17 10.2a2.2 2.2 0 1 0 0 3.6"></path></symbol>
+<symbol id="vol" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"></path><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"></path></symbol>
+<symbol id="off" viewBox="0 0 24 24"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.6a10 10 0 0 1 4.2-2.3M14.8 10.3A10 10 0 0 1 19 12.6M2 8.8a15 15 0 0 1 4-2.3M12 20h.01"></path></symbol>
+<symbol id="share" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 13v8h14v-8"></path></symbol>
+<symbol id="sl" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path><circle cx="15" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></symbol>
+<symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"></path></symbol>
+<symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z"></path></symbol>
+<symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3.5 3.5 3.5 14.5 0 18M12 3c-3.5 3.5-3.5 14.5 0 18"></path></symbol>
+</defs></svg>
+<div style="width: 1600px; height: 1500px; background: #F3F5EF; padding: 64px; display: flex; flex-direction: column; gap: 40px;">
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<span style="font-size: 14px; font-weight: 900; letter-spacing: 1.2px; text-transform: uppercase; color: #1E6E0C;">Foundations</span>
+<h1 style="margin: 0; font-size: 44px; font-weight: 900; color: #2B2B2B;">Color, type, shape and icons</h1>
+<p style="margin: 0; font-size: 18px; color: #4F4F4F; max-width: 1000px; line-height: 1.5;">Playful and bright, but every text pair passes WCAG 4.5:1. Bright fills (lime, sky, sun) are surfaces and decoration; the darker shade of each hue carries labels. Status is never color alone — always an icon plus text.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<h2 class="h2">Color roles · light</h2>
+<div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 16px;">
+<div class="sw"><div class="chipc" style="background: #1F7A0D; color: #FFFFFF;">Aa 5.5:1</div><b>primary</b><span>#1F7A0D · edge #145208</span></div>
+<div class="sw"><div class="chipc" style="background: #58C322; color: #1B3D08;">Aa</div><b>lime (decor, progress)</b><span>#58C322 · edge #46A01A</span></div>
+<div class="sw"><div class="chipc" style="background: #1677C9; color: #FFFFFF;">Aa 4.7:1</div><b>sky · secondary</b><span>#1677C9 · edge #0F5A99</span></div>
+<div class="sw"><div class="chipc" style="background: #FFC233; color: #4A2E00;">Aa 8.9:1</div><b>sun · current, XP</b><span>#FFC233 / on #4A2E00</span></div>
+<div class="sw"><div class="chipc" style="background: #FF8A00; color: #3A1C00;">Aa</div><b>flame · streak</b><span>#FF8A00 (icon) / #A44E00 text</span></div>
+<div class="sw"><div class="chipc" style="background: #7B3FE4; color: #FFFFFF;">Aa 5.9:1</div><b>gem · credits</b><span>#7B3FE4 · bg #F0E7FF</span></div>
+<div class="sw"><div class="chipc" style="background: #C62828; color: #FFFFFF;">Aa 5.6:1</div><b>danger · correction</b><span>#C62828 · bg #FDECEC</span></div>
+<div class="sw"><div class="chipc" style="background: #FFF1D1; color: #704400;">Aa 7.1:1</div><b>warning · offline</b><span>#704400 on #FFF1D1</span></div>
+<div class="sw"><div class="chipc" style="background: #FFFFFF; color: #2B2B2B;">Aa 14:1</div><b>surface / text</b><span>#FFFFFF / #2B2B2B</span></div>
+<div class="sw"><div class="chipc" style="background: #F7F9F4; color: #555555;">Aa 7.0:1</div><b>canvas / muted</b><span>#F7F9F4 / #555555</span></div>
+<div class="sw"><div class="chipc" style="background: #E3F8D3; color: #1E6E0C;">Aa 5.6:1</div><b>success banner</b><span>#1E6E0C on #E3F8D3</span></div>
+<div class="sw"><div class="chipc" style="background: #DDF1FF; color: #0D5592;">Aa 6.8:1</div><b>info / selected</b><span>#0D5592 on #DDF1FF</span></div>
+<div class="sw"><div class="chipc" style="background: #E5E5E5; color: #555555;">Aa 5.5:1</div><b>locked / unavailable</b><span>#555 on #E5E5E5</span></div>
+<div class="sw"><div class="chipc" style="background: #FFFFFF; border: 2px solid #7A7A7A; color: #2B2B2B;">line</div><b>line · control edge</b><span>#7A7A7A · decor #E3E3E3</span></div>
+<div class="sw"><div class="chipc" style="background: #FFFFFF; outline: 3px solid #1677C9; outline-offset: 3px; color: #2B2B2B;">focus</div><b>focus ring</b><span>3px #1677C9, 3px gap</span></div>
+<div class="sw"><div class="chipc" style="background: #131F24; color: #F1F7F2;">Aa 16:1</div><b>dark canvas / text</b><span>#131F24 / #F1F7F2 · action #6CD43A</span></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
+<div class="card">
+<h2 class="h2" style="font-size: 22px;">Type · Nunito</h2>
+<div class="tr"><code>display 40/44 · 900</code><span style="font-size: 40px; font-weight: 900; color: #2B2B2B;">One idea clearer</span></div>
+<div class="tr"><code>heading 26/30 · 900</code><span style="font-size: 26px; font-weight: 900; color: #2B2B2B;">Why the sky changes</span></div>
+<div class="tr"><code>title 19/24 · 900</code><span style="font-size: 19px; font-weight: 900; color: #2B2B2B;">Unit 1 · Finding your bearings</span></div>
+<div class="tr"><code>body 16/24 · 600</code><span style="font-size: 16px; font-weight: 600;">Earth turns. Your view changes.</span></div>
+<div class="tr"><code>caption 14/20 · 700</code><span style="font-size: 14px; font-weight: 700; color: #555;">Pass this lesson test to prepare the next lesson.</span></div>
+<div class="tr" style="border: none;"><code>button 15 · 900 caps</code><span style="font-size: 15px; font-weight: 900; letter-spacing: .8px; text-transform: uppercase; color: #1F7A0D;">Check answer</span></div>
+<span style="font-size: 13px; color: #555;">Uppercase only on short button labels. Tabular numbers for XP, credits and time.</span>
+</div>
+<div class="card">
+<h2 class="h2" style="font-size: 22px;">Shape, depth, spacing</h2>
+<div style="display: flex; gap: 16px; align-items: flex-end;">
+<div style="width: 80px; height: 56px; border-radius: 8px; background: #DDF1FF;"></div>
+<div style="width: 80px; height: 56px; border-radius: 16px; background: #DDF1FF;"></div>
+<div style="width: 80px; height: 56px; border-radius: 24px; background: #DDF1FF;"></div>
+<div style="width: 56px; height: 56px; border-radius: 999px; background: #DDF1FF;"></div>
+</div>
+<span style="font-size: 14px; color: #555;">Radius 8 · 16 (buttons, inputs) · 24 (cards, sheets) · pill</span>
+<div style="display: flex; gap: 20px; align-items: center; padding-top: 6px;">
+<div style="width: 120px; height: 50px; border-radius: 16px; background: #1F7A0D; box-shadow: 0 4px 0 #145208;"></div>
+<div style="width: 120px; height: 50px; border-radius: 16px; background: #1F7A0D; box-shadow: 0 1px 0 #145208; transform: translateY(3px);"></div>
+<div style="width: 120px; height: 50px; border-radius: 16px; background: #fff; border: 2px solid #E3E3E3; border-bottom-width: 6px;"></div>
+</div>
+<span style="font-size: 14px; color: #555;">Tactile depth: solid 4px edge in a darker shade, press moves 3px down (90ms). Cards use a thicker bottom border. No blur shadows.</span>
+<span style="font-size: 14px; color: #555;">Spacing 4px base: 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48. Phone gutter 20px, card padding 16px. Targets ≥ 44px; path node 72px.</span>
+</div>
+<div class="card">
+<h2 class="h2" style="font-size: 22px;">Motion &amp; sound</h2>
+<span style="font-size: 15px; line-height: 1.55;">press 90ms · hover 140ms · sheet / progress 240ms · one completion accent 420ms (bouncy check + XP count-up). No shake on wrong answers, no confetti storm, no continuous loops outside Motion HTML slides.</span>
+<span style="font-size: 15px; line-height: 1.55;">Reduced motion (OS or setting, stricter wins): no press travel, static check, instant sheets.</span>
+<span style="font-size: 15px; line-height: 1.55;">Sound off by default: soft tap on select, two rising notes on completion, neutral tap on correction. Narration only after Play.</span>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+<h2 class="h2">Icons · 24px grid, 2.2px rounded stroke, always with a label in navigation</h2>
+<div style="display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 12px;">
+<div class="ic"><svg class="i" style="color: #1F7A0D;" aria-hidden="true"><use href="#home"></use></svg>Learn</div>
+<div class="ic"><svg class="i" style="color: #1677C9;" aria-hidden="true"><use href="#crs"></use></svg>Courses</div>
+<div class="ic"><svg class="i" style="color: #1677C9;" aria-hidden="true"><use href="#globe"></use></svg>Market</div>
+<div class="ic"><svg class="i" style="color: #1677C9;" aria-hidden="true"><use href="#frn"></use></svg>Friends</div>
+<div class="ic"><svg class="i" style="color: #A44E00;" aria-hidden="true"><use href="#flg"></use></svg>Leagues</div>
+<div class="ic"><svg class="i" style="color: #1677C9;" aria-hidden="true"><use href="#nt"></use></svg>Notes</div>
+<div class="ic"><svg class="i" style="color: #1677C9;" aria-hidden="true"><use href="#bk"></use></svg>Bookmark</div>
+<div class="ic"><svg class="i" style="color: #FF8A00; fill: #FF8A00;" aria-hidden="true"><use href="#fl"></use></svg>Streak</div>
+<div class="ic"><svg class="i" style="color: #7B3FE4;" aria-hidden="true"><use href="#gm"></use></svg>Credits</div>
+<div class="ic"><svg class="i" style="color: #D99A00; fill: #FFC233;" aria-hidden="true"><use href="#xp"></use></svg>XP</div>
+<div class="ic"><svg class="i" style="color: #1677C9;" aria-hidden="true"><use href="#snow"></use></svg>Freeze</div>
+<div class="ic"><svg class="i" style="color: #555;" aria-hidden="true"><use href="#lk"></use></svg>Locked</div>
+<div class="ic"><svg class="i" style="color: #1F7A0D;" aria-hidden="true"><use href="#ck"></use></svg>Done</div>
+<div class="ic"><svg class="i" style="color: #2B2B2B; fill: #2B2B2B;" aria-hidden="true"><use href="#play"></use></svg>Play</div>
+<div class="ic"><svg class="i" style="color: #2B2B2B;" aria-hidden="true"><use href="#pause"></use></svg>Pause</div>
+<div class="ic"><svg class="i" style="color: #2B2B2B;" aria-hidden="true"><use href="#rp"></use></svg>Replay</div>
+<div class="ic"><svg class="i" style="color: #2B2B2B;" aria-hidden="true"><use href="#cc"></use></svg>Captions</div>
+<div class="ic"><svg class="i" style="color: #2B2B2B;" aria-hidden="true"><use href="#vol"></use></svg>Narration</div>
+<div class="ic"><svg class="i" style="color: #1677C9;" aria-hidden="true"><use href="#chat"></use></svg>Tutor</div>
+<div class="ic"><svg class="i" style="color: #704400;" aria-hidden="true"><use href="#off"></use></svg>Offline</div>
+<div class="ic"><svg class="i" style="color: #1677C9;" aria-hidden="true"><use href="#share"></use></svg>Share</div>
+<div class="ic"><svg class="i" style="color: #1677C9;" aria-hidden="true"><use href="#sl"></use></svg>Steer</div>
+<div class="ic"><svg class="i" style="color: #D99A00; fill: #FFC233;" aria-hidden="true"><use href="#star"></use></svg>Rating</div>
+<div class="ic"><svg class="i" style="color: #555;" aria-hidden="true"><use href="#gear"></use></svg>Settings</div>
+<div class="ic"><svg class="i" style="color: #555;" aria-hidden="true"><use href="#more"></use></svg>More</div>
+<div class="ic"><div aria-hidden="true" style="position: relative; width: 30px; height: 28px;"><div style="position: absolute; left: 0; top: 6px; width: 20px; height: 20px; border-radius: 6px; background: #58C322;"></div><div style="position: absolute; left: 10px; top: 0; width: 20px; height: 20px; border-radius: 6px; background: #1677C9;"></div></div>Mark</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":1500}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

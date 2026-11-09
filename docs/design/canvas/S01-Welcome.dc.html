@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Welcome and chat onboarding</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Nunito',system-ui,sans-serif;color:#3C3C3C}
+*{box-sizing:border-box}
+a{color:#1667AB}a:hover{color:#0F5A99}
+.i{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sm{width:18px;height:18px}
+.st{width:390px;display:flex;flex-direction:column;gap:12px;flex:none}
+.lb{display:flex;flex-direction:column;gap:2px;min-height:64px}
+.lb b{font-size:17px;font-weight:900;color:#2B2B2B}
+.lb span{font-size:14px;color:#555;line-height:1.35}
+.ph{width:390px;height:844px;background:#fff;border:2px solid #DADADA;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.top{display:flex;align-items:center;gap:12px;padding:18px 18px 12px;border-bottom:2px solid #EFEFEF}
+.mn{flex:1;min-height:0;padding:16px 18px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.foot{padding:16px 20px 24px;border-top:2px solid #EFEFEF;display:flex;flex-direction:column;gap:10px}
+.t{margin:0;font-size:26px;font-weight:900;line-height:1.15;color:#2B2B2B}
+.s{margin:0;font-size:15px;line-height:1.5;color:#555}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;padding:0 18px;border:none;border-radius:16px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:15px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;cursor:pointer;text-align:center}
+.btn.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.btn.q{background:none;box-shadow:none;color:#1667AB;min-height:44px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:12px;font-weight:800;font-size:13px;background:#F1F1F1;color:#444}
+.ok{background:#E3F8D3;color:#1E6E0C}.bad{background:#FDECEC;color:#B3261E}.warn{background:#FFF1D1;color:#704400}.info{background:#DDF1FF;color:#0D5592}
+.ban{border-radius:18px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start}
+.ban b{display:block;font-size:16px;font-weight:900;margin-bottom:2px}
+.ban p{margin:0;font-size:14px;line-height:1.45}
+.help{font-size:13px;font-weight:600;color:#5E5E5E}
+.ib{width:44px;height:44px;border-radius:14px;border:2px solid #E0E0E0;background:#fff;display:flex;align-items:center;justify-content:center;color:#3C3C3C;flex:none}
+.bar{height:14px;border-radius:999px;background:#E5E5E5;overflow:hidden;flex:1}
+.bar i{display:block;height:100%;border-radius:999px;background:#58C322}
+.bub{max-width:300px;padding:11px 13px;border-radius:18px;font-size:15px;line-height:1.45;font-weight:600}
+.me{align-self:flex-end;background:#DDF1FF;color:#0D5592}
+.ai{background:#fff;border:2px solid #E3E3E3;color:#2B2B2B}
+.who{font-size:12px;font-weight:900;color:#555}
+.qr{display:flex;flex-wrap:wrap;gap:8px}
+.q{border:2px solid #E0E0E0;border-bottom-width:4px;border-radius:14px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:14px;background:#fff;color:#2B2B2B}
+.q.on{background:#DDF1FF;border-color:#8CCBF7;color:#0D5592}
+.cmp{border-top:2px solid #EFEFEF;padding:10px 14px 20px;display:flex;gap:8px;align-items:flex-end}
+.in{font-family:inherit;font-size:16px;font-weight:600;color:#2B2B2B;background:#F7F7F7;border:2px solid #CFCFCF;border-radius:14px;padding:11px 14px;width:100%;resize:none}
+.send{width:50px;height:50px;border-radius:16px;border:none;background:#1F7A0D;box-shadow:0 4px 0 #145208;color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.sumr{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:2px solid #F3F3F3}
+.sumr b{font-size:12px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#555;width:90px;flex:none;padding-top:2px}
+.sumr span{flex:1;font-size:15px;font-weight:700;color:#2B2B2B}
+.dots{display:inline-flex;gap:4px;padding:12px 14px;border:2px solid #E3E3E3;border-radius:18px;align-self:flex-start}
+.dots i{width:8px;height:8px;border-radius:50%;background:#9A9A9A;display:block}
+.dk{width:1280px;height:800px;background:#fff;border:2px solid #DADADA;border-radius:20px;overflow:hidden;display:flex;flex:none;position:relative}
+.dkm{flex:1;min-width:0;padding:28px 36px;display:flex;flex-direction:column;gap:16px;overflow:hidden}
+.dkr{width:320px;flex:none;padding:28px 22px;display:flex;flex-direction:column;gap:14px;border-left:2px solid #EFEFEF;background:#FCFCFA}
+.dkb{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border:none;border-radius:16px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:14px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;cursor:pointer;white-space:nowrap}
+.dkb.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.dkb.q{background:none;box-shadow:none;color:#1667AB}
+.dkb.sm{min-height:38px;padding:0 14px;font-size:12px}
+.dktop{display:flex;align-items:center;gap:14px;padding:16px 28px;border-bottom:2px solid #EFEFEF}
+.dkst{font-size:15px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:#555}
+.step{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;font-weight:800;font-size:14px;color:#2B2B2B}
+.step .m{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none;font-size:13px;font-weight:900}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></symbol>
+<symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"></path></symbol>
+<symbol id="back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"></path></symbol>
+<symbol id="off" viewBox="0 0 24 24"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.6a10 10 0 0 1 4.2-2.3M14.8 10.3A10 10 0 0 1 19 12.6M2 8.8a15 15 0 0 1 4-2.3M12 20h.01"></path></symbol>
+<symbol id="alert" viewBox="0 0 24 24"><path d="M12 3 2 20.5h20z"></path><path d="M12 10v4.5M12 17.5h.01"></path></symbol>
+<symbol id="ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"></path></symbol>
+<symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></symbol>
+<symbol id="send" viewBox="0 0 24 24"><path d="M4 12 20 4l-5 16-3.5-6.5z"></path><path d="M11.5 13.5 20 4"></path></symbol>
+<symbol id="edit" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5l-4-4L4 16z"></path></symbol>
+<symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6M12 7.5h.01"></path></symbol>
+<symbol id="tr" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10M4 18h13"></path></symbol>
+<symbol id="spark" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"></path></symbol>
+<symbol id="rp" viewBox="0 0 24 24"><path d="M4 4v6h6"></path><path d="M5.5 15A8 8 0 1 0 7 7.5L4 10"></path></symbol>
+</defs></svg>
+
+<div style="width: 2696px; height: 2080px; background: #F3F5EF; padding: 48px; display: flex; flex-direction: column; gap: 24px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 14px; font-weight: 900; letter-spacing: 1.2px; text-transform: uppercase; color: #1E6E0C;">S01–S02 · E1 Accounts &amp; learner profile</span>
+<h1 style="margin: 0; font-size: 40px; font-weight: 900; color: #2B2B2B;">Welcome &amp; chat onboarding</h1>
+<p style="margin: 0; font-size: 17px; color: #4F4F4F; max-width: 1500px;">Setup is a friendly chat, not a form. The assistant asks one question at a time with quick replies, follows up only when an answer is vague, and shows a live summary the learner confirms or edits. Every question can be skipped; “Prefer a form?” opens the same fields as a form. The setup chat is free. Desktop and mobile have the same steps and actions — desktop shows the summary panel side by side, mobile opens it as a sheet.</p>
+</div>
+
+<span class="dkst">Desktop · ≥ 48rem</span>
+<div style="display: flex; gap: 40px; align-items: flex-start;">
+
+<div class="dk">
+<div style="flex: 1; display: flex; flex-direction: column;">
+<div class="dktop"><div aria-hidden="true" style="position: relative; width: 36px; height: 32px;"><div style="position: absolute; left: 0; top: 6px; width: 24px; height: 24px; border-radius: 8px; background: #58C322;"></div><div style="position: absolute; left: 12px; top: 0; width: 24px; height: 24px; border-radius: 8px; background: #1677C9;"></div></div><span style="font-size: 28px; font-weight: 900; color: #2E9A12; letter-spacing: -.6px;">duolify</span><span style="flex: 1;"></span><a class="dkb sec sm" href="#">I have an account</a></div>
+<div style="flex: 1; display: flex; align-items: center; gap: 60px; padding: 40px 90px;">
+<div style="flex: 1; display: flex; flex-direction: column; gap: 20px;">
+<h2 style="margin: 0; font-size: 52px; font-weight: 900; line-height: 1.05; color: #2B2B2B;">Learn any topic, a little at a time.</h2>
+<p class="s" style="font-size: 19px;">Tell us what you're curious about. We'll chat for a minute, then build short lessons, quick tests and a streak that grows with you.</p>
+<div style="display: flex; gap: 10px;"><span class="chip ok">Pick a topic</span><span class="chip info">Chat to set it up</span><span class="chip warn">Learn daily</span></div>
+<div style="display: flex; gap: 14px; margin-top: 8px;"><a class="dkb" href="#" style="min-width: 260px;">Get started</a><a class="dkb sec" href="#">I already have an account</a></div>
+<p class="help" style="margin: 0;"><a href="#">Privacy</a> · <a href="#">Terms</a> · <a href="#">Analytics preference</a></p>
+</div>
+<div aria-hidden="true" style="position: relative; width: 420px; height: 380px; flex: none;">
+<div style="position: absolute; left: 40px; top: 30px; width: 330px; height: 330px; border-radius: 50%; border: 4px dashed #C9EFB2;"></div>
+<div style="position: absolute; left: 120px; top: 110px; width: 170px; height: 170px; border-radius: 44px; background: #58C322; box-shadow: 0 12px 0 #46A01A;"></div>
+<div style="position: absolute; left: 190px; top: 70px; width: 110px; height: 110px; border-radius: 32px; background: #1677C9; box-shadow: 0 9px 0 #0F5A99;"></div>
+<div style="position: absolute; left: 30px; top: 190px; width: 64px; height: 64px; border-radius: 20px; background: #FFC233; box-shadow: 0 7px 0 #D99A00;"></div>
+<div style="position: absolute; left: 320px; top: 280px; width: 50px; height: 50px; border-radius: 16px; background: #FF8A00;"></div>
+<div style="position: absolute; left: 310px; top: 20px; width: 36px; height: 36px; border-radius: 12px; background: #7B3FE4;"></div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dk">
+<div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+<div class="dktop"><a class="ib" href="#" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><b style="font-size: 18px; font-weight: 900; color: #2B2B2B;">Let's set things up</b><div class="bar" role="progressbar" aria-label="Setup 3 of 5" aria-valuenow="3" aria-valuemax="5" style="max-width: 360px;"><i style="width: 60%;"></i></div><span class="help">3 of 5</span><span style="flex: 1;"></span><a href="#" class="help" style="font-weight: 900;">Prefer a form?</a><a href="#" class="help" style="font-weight: 900;">Skip setup</a></div>
+<div style="flex: 1; display: flex; min-height: 0;">
+<nav aria-label="Setup steps" style="width: 230px; flex: none; padding: 24px 16px; display: flex; flex-direction: column; gap: 4px; border-right: 2px solid #EFEFEF;">
+<div class="step"><span class="m" style="background: #E3F8D3; color: #1E6E0C;"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span>Your goal</div>
+<div class="step"><span class="m" style="background: #E3F8D3; color: #1E6E0C;"><svg class="i sm" aria-hidden="true"><use href="#ck"></use></svg></span>What you know</div>
+<div class="step" style="background: #DDF1FF; color: #0D5592;" aria-current="step"><span class="m" style="background: #1677C9; color: #fff;">3</span>Daily time</div>
+<div class="step"><span class="m" style="background: #F1F1F1; color: #555;">4</span>Reminders</div>
+<div class="step"><span class="m" style="background: #F1F1F1; color: #555;">5</span>Time zone</div>
+</nav>
+<div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+<div class="dkm" style="gap: 12px; padding: 24px 40px;">
+<div style="display: flex; flex-direction: column; gap: 3px;"><span class="who">Duolify</span><div class="bub ai" style="max-width: 560px;">Hi! I'll ask a few quick questions so lessons fit you. You can skip any of them. What would you like to get better at?</div></div>
+<div style="align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: 3px;"><span class="who">You</span><div class="bub me" style="max-width: 560px;">Something about space I guess</div></div>
+<div style="display: flex; flex-direction: column; gap: 3px;"><span class="who">Duolify</span><div class="bub ai" style="max-width: 560px;">Space is a great pick! Is this for fun, for school, or for work?</div></div>
+<div style="align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: 3px;"><span class="who">You</span><div class="bub me">Fun — I want to explain the night sky to my kids</div></div>
+<div style="display: flex; flex-direction: column; gap: 3px;"><span class="who">Duolify</span><div class="bub ai" style="max-width: 560px;">Love it. How much time can you give it on a normal day?</div></div>
+<div class="qr" role="group" aria-label="Quick replies"><button class="q" type="button">5 min · Casual</button><button class="q on" type="button" aria-pressed="true">10 min · Regular</button><button class="q" type="button">15 min · Serious</button><button class="q" type="button">20+ min · Intense</button><button class="q" type="button">Skip</button></div>
+</div>
+<div class="cmp" style="padding: 12px 40px 20px;"><label style="flex: 1;"><span style="position: absolute; left: -9999px;">Your answer</span><textarea class="in" rows="1">Or type your own answer…</textarea></label><button class="send" type="button" aria-label="Send"><svg class="i" aria-hidden="true"><use href="#send"></use></svg></button></div>
+</div>
+<aside class="dkr" aria-label="What I've understood">
+<div style="display: flex; align-items: center; gap: 8px;"><svg class="i" aria-hidden="true" style="color: #1677C9;"><use href="#spark"></use></svg><b style="font-size: 17px; font-weight: 900; color: #2B2B2B;">What I've understood</b></div>
+<span class="help">Updates as you chat. Tap any line to change it.</span>
+<div class="sumr"><b>Goal</b><span>Explain the night sky to my kids</span><a href="#" aria-label="Edit goal"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Topic</b><span>Astronomy</span><a href="#" aria-label="Edit topic"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Level</b><span>Beginner <span class="help">(from your answers)</span></span><a href="#" aria-label="Edit level"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Daily time</b><span class="help">Waiting for your answer</span></div>
+<div class="sumr"><b>Time zone</b><span>Ho Chi Minh City <span class="help">(detected)</span></span></div>
+<div class="ban info" style="padding: 10px 12px;"><svg class="i sm" aria-hidden="true"><use href="#info"></use></svg><p>AI uses these to tailor examples. Setup chat is free. <a href="#" style="color: #0D5592; font-weight: 900;">Privacy</a></p></div>
+</aside>
+</div>
+</div>
+</div>
+
+</div>
+
+<span class="dkst" style="margin-top: 12px;">Mobile · &lt; 48rem · same steps and actions</span>
+<div style="display: flex; gap: 40px; align-items: flex-start;">
+
+<div class="st">
+<div class="lb"><b>S01 · Welcome</b><span>Same copy and actions as desktop. Returning learners see “Welcome back”.</span></div>
+<div class="ph">
+<div class="mn" style="align-items: center; text-align: center; padding-top: 44px; gap: 20px;">
+<div style="display: flex; align-items: center; gap: 10px;"><div aria-hidden="true" style="position: relative; width: 40px; height: 36px;"><div style="position: absolute; left: 0; top: 7px; width: 26px; height: 26px; border-radius: 8px; background: #58C322;"></div><div style="position: absolute; left: 14px; top: 0; width: 26px; height: 26px; border-radius: 8px; background: #1677C9;"></div></div><span style="font-size: 34px; font-weight: 900; color: #2E9A12; letter-spacing: -.8px;">duolify</span></div>
+<div aria-hidden="true" style="position: relative; width: 240px; height: 210px;">
+<div style="position: absolute; left: 20px; top: 20px; width: 190px; height: 190px; border-radius: 50%; border: 3px dashed #C9EFB2;"></div>
+<div style="position: absolute; left: 70px; top: 70px; width: 96px; height: 96px; border-radius: 28px; background: #58C322; box-shadow: 0 8px 0 #46A01A;"></div>
+<div style="position: absolute; left: 106px; top: 46px; width: 62px; height: 62px; border-radius: 20px; background: #1677C9; box-shadow: 0 6px 0 #0F5A99;"></div>
+<div style="position: absolute; left: 10px; top: 104px; width: 38px; height: 38px; border-radius: 12px; background: #FFC233; box-shadow: 0 5px 0 #D99A00;"></div>
+<div style="position: absolute; left: 184px; top: 160px; width: 30px; height: 30px; border-radius: 10px; background: #FF8A00;"></div>
+</div>
+<h2 class="t" style="font-size: 30px;">Learn any topic, a little at a time.</h2>
+<p class="s">Tell us what you're curious about. We'll chat for a minute, then build short lessons for you.</p>
+</div>
+<div class="foot" style="border: none;">
+<a class="btn" href="#">Get started</a>
+<a class="btn sec" href="#">I already have an account</a>
+<p class="help" style="margin: 4px 0 0; text-align: center;"><a href="#">Privacy</a> · <a href="#">Terms</a> · <a href="#">Analytics preference</a></p>
+</div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>S01 · Auth cancelled · expired · offline</b><span>External sign-in notice. Cancel keeps the intended destination.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><b style="font-size: 18px; font-weight: 900; color: #2B2B2B;">Sign in</b></div>
+<div class="mn">
+<div class="ban info"><svg class="i" aria-hidden="true"><use href="#ext"></use></svg><div><b>Sign-in opens in your browser</b><p>Come back here when you're done. We never see your password.</p></div></div>
+<div class="ban bad" role="alert"><svg class="i" aria-hidden="true"><use href="#x"></use></svg><div><b>Sign-in was cancelled</b><p>No account changes were made. Try again any time.</p></div></div>
+<div class="ban warn"><svg class="i" aria-hidden="true"><use href="#lock"></use></svg><div><b>Session expired</b><p>Sign in again and we'll take you back to “Why the sky changes”.</p></div></div>
+<div class="ban warn"><svg class="i" aria-hidden="true"><use href="#off"></use></svg><div><b>Offline</b><p>Connect to sign in. Saved lessons open after sign-in.</p></div></div>
+<div style="flex: 1;"></div>
+<a class="btn" href="#">Retry sign-in</a>
+<a class="btn q" href="#">Back to welcome</a>
+</div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>S02 · Chat — first question</b><span>One question, quick replies, free-text composer. “Prefer a form?” and Skip are always visible.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><div class="bar" role="progressbar" aria-label="Setup 1 of 5" aria-valuenow="1" aria-valuemax="5"><i style="width: 20%;"></i></div><a href="#" class="help" style="font-weight: 900;">Skip</a></div>
+<div class="mn">
+<div style="display: flex; justify-content: space-between;"><span class="chip info">1 of 5 · Your goal</span><a href="#" class="help" style="font-weight: 900;">Prefer a form?</a></div>
+<div style="display: flex; flex-direction: column; gap: 3px;"><span class="who">Duolify</span><div class="bub ai">Hi! I'll ask a few quick questions so lessons fit you. You can skip any of them.</div></div>
+<div style="display: flex; flex-direction: column; gap: 3px;"><div class="bub ai">What would you like to get better at?</div></div>
+<div class="qr" role="group" aria-label="Quick replies"><button class="q" type="button">Science</button><button class="q" type="button">A language</button><button class="q" type="button">Coding</button><button class="q" type="button">History</button><button class="q" type="button">Something else</button></div>
+<div style="flex: 1;"></div>
+<div class="ban info" style="padding: 10px 12px;"><svg class="i sm" aria-hidden="true"><use href="#info"></use></svg><p>AI uses your answers to tailor examples. Setup chat is free.</p></div>
+</div>
+<div class="cmp"><label style="flex: 1;"><span style="position: absolute; left: -9999px;">Your answer</span><textarea class="in" rows="1">Type your answer…</textarea></label><button class="send" type="button" aria-label="Send"><svg class="i" aria-hidden="true"><use href="#send"></use></svg></button></div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>S02 · Follow-up for a vague answer</b><span>Asks a follow-up only when needed. “Summary” opens the same panel as desktop's right side.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><div class="bar"><i style="width: 60%;"></i></div><a href="#" class="help" style="font-weight: 900;">Skip</a></div>
+<div class="mn" style="gap: 10px;">
+<div style="display: flex; justify-content: space-between;"><span class="chip info">3 of 5 · Daily time</span><a href="#" class="chip" style="text-decoration: none;"><svg class="i sm" aria-hidden="true"><use href="#spark"></use></svg>Summary</a></div>
+<div class="bub me" style="align-self: flex-end;">Something about space I guess</div>
+<div class="bub ai">Space is a great pick! Is this for fun, for school, or for work?</div>
+<div class="bub me" style="align-self: flex-end;">Fun — I want to explain the night sky to my kids</div>
+<div class="bub ai">Love it. How much time can you give it on a normal day?</div>
+<div class="qr" role="group" aria-label="Quick replies"><button class="q" type="button">5 min</button><button class="q on" type="button" aria-pressed="true">10 min</button><button class="q" type="button">15 min</button><button class="q" type="button">20+ min</button><button class="q" type="button">Skip</button></div>
+<div class="dots" role="status" aria-label="Duolify is typing"><i></i><i></i><i></i></div>
+</div>
+<div class="cmp"><label style="flex: 1;"><span style="position: absolute; left: -9999px;">Your answer</span><textarea class="in" rows="1">Or type your own…</textarea></label><button class="send" type="button" aria-label="Send"><svg class="i" aria-hidden="true"><use href="#send"></use></svg></button></div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>S02 · Confirm summary</b><span>Before saving, the learner confirms or edits each line. “Change something” returns to chat.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back to chat"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><div class="bar"><i style="width: 100%;"></i></div></div>
+<div class="mn">
+<div class="bub ai">Here's what I've got. Does this look right?</div>
+<div style="border: 2px solid #8CCBF7; background: #F4FAFF; border-radius: 20px; padding: 6px 14px;">
+<div class="sumr"><b>Goal</b><span>Explain the night sky to my kids</span><a href="#" aria-label="Edit goal"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Topic</b><span>Astronomy</span><a href="#" aria-label="Edit topic"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Level</b><span>Beginner</span><a href="#" aria-label="Edit level"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Daily goal</b><span>10 min · 20 XP</span><a href="#" aria-label="Edit daily goal"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr"><b>Reminder</b><span>8:00 pm</span><a href="#" aria-label="Edit reminder"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+<div class="sumr" style="border: none;"><b>Time zone</b><span>Ho Chi Minh City · 14:05</span><a href="#" aria-label="Edit time zone"><svg class="i sm" aria-hidden="true"><use href="#edit"></use></svg></a></div>
+</div>
+<span class="help">You can change these any time in Profile.</span>
+</div>
+<div class="foot"><a class="btn" href="#">Looks good — plan my first course</a><a class="btn sec" href="#">Change something</a></div>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>S02 · Chat unavailable · form fallback</b><span>If the assistant fails, answers are kept and the same fields open as a form. Saving errors keep drafts.</span></div>
+<div class="ph">
+<div class="top"><a class="ib" href="#" aria-label="Back"><svg class="i" aria-hidden="true"><use href="#back"></use></svg></a><b style="font-size: 18px; font-weight: 900; color: #2B2B2B;">Set up with a form</b></div>
+<div class="mn">
+<div class="ban warn" role="status"><svg class="i" aria-hidden="true"><use href="#alert"></use></svg><div><b>The setup chat isn't responding</b><p>Your answers so far are kept below. <a href="#" style="color: #704400; font-weight: 900;">Try chat again</a></p></div></div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 800;">Goal<textarea class="in" rows="2">Explain the night sky to my kids</textarea></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 800;">Topic<input class="in" value="Astronomy"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 800;">Level<select class="in"><option>Beginner</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 800;">Daily goal<select class="in"><option>10 min · 20 XP</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 800;">Time zone<select class="in"><option>Ho Chi Minh City · 14:05</option></select></label>
+</div>
+<div class="foot" style="flex-direction: row;"><a class="btn sec" href="#">Skip for now</a><a class="btn" href="#">Save</a></div>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2696,"height":2080}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

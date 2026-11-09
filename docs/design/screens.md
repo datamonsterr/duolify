@@ -1,6 +1,6 @@
 # Screen and state catalog
 
-Each numbered surface specifies purpose, layout, components, copy, analytics and accessibility. Wireframes show content order inside the responsive shell from [information-architecture.md](information-architecture.md). On mobile, rails become inline summaries and secondary panes become sheets. The common recovery matrix at the end applies to **every** surface, including wizard steps, not just primary routes. All amounts below are explanatory placeholders; production reads E12 config and the authoritative ledger.
+Each numbered surface specifies purpose, layout, components, copy, analytics and accessibility. Every surface is designed desktop first and then mobile, with the same functions on both: desktop side panels become mobile sheets, list + detail becomes two screens, the sidebar becomes bottom tabs plus More. Visual reference for every screen and state: the [Duolify App Design canvas](https://claude.ai/artifact/FggicArBXWkRVSfQnk7Ukn). Wireframes show content order inside the responsive shell from [information-architecture.md](information-architecture.md). On mobile, rails become inline summaries and secondary panes become sheets. The common recovery matrix at the end applies to **every** surface, including wizard steps, not just primary routes. All amounts below are explanatory placeholders; production reads E12 config and the authoritative ledger.
 
 Analytics below distinguish proposed client UI events (`ui_*`, catalogued in the design-system delta) from existing domain outcome events (catalogued in `analytics/spec.md`). Use `screen_id`, common platform/app_version/source properties and known course/lesson IDs. Outcome ownership stays with its implementing API/client contract. Never send text, answers or profile values. The static prototype emits no events.
 
@@ -18,19 +18,23 @@ Privacy · Terms · Analytics preference
 
 Components: brand, original geometric diagram, primary auth action, legal links, consent control. Copy: “Learn a topic a little at a time.” States: new/returning learner, opening auth, auth cancelled, expired link/session, offline. Recover with Retry sign-in; retain safe intended destination, never credentials. Analytics: `ui_screen_viewed(screen_id=welcome)`, `ui_control_activated(control_id=sign_in)`. Accessibility: auth has a labelled external-flow notice, focus returns after cancel, status does not depend on illustration.
 
-## 2. Onboarding and learner profile
+## 2. Chat onboarding and learner profile
 
-Purpose: collect optional personalization with informed control. Editing later uses the same form and includes export/delete/clear.
+Purpose: collect optional personalization through a friendly guided chat, with informed control. Revised 2026-11-09: the earlier single form is now the fallback and the later profile editor.
 
 ```text
-Your learning, your starting point
-AI uses these details to tailor examples. [Privacy]
-Background [textarea]  Goal [textarea]
-Level [select]  Locale [select]  Time zone [select]
-[Skip for now]                         [Save profile]
+[Back] Let's set things up  [3 of 5]        Prefer a form? · Skip setup
+Steps: Goal ✓ · What you know ✓ · Daily time ● · Reminders · Time zone
+Duolify: Hi! I'll ask a few quick questions… What would you like to get better at?
+You: Something about space I guess
+Duolify: Space is a great pick! For fun, school or work?      ← follow-up only when vague
+[5 min] [10 min] [15 min] [20+ min] [Skip]                   ← quick replies
+[Type your own answer…]                              [Send]
+Desktop right panel / mobile sheet: What I've understood (each line editable)
+→ Confirm summary: [Looks good — plan my first course] [Change something]
 ```
 
-Components: labelled fields, character counters from config, daily XP goal, preference controls; profile view shows active courses and per-course level overrides. Copy: “You can leave any learning detail blank.” States: empty device defaults, populated, validation, saving, saved, unsaved/error, export pending/ready, clear confirmation. Clearing sends empty fields and keeps unrelated preferences. Analytics: `learner_profile_updated(fields_changed names only)`, `onboarding_completed`, `ui_recovery_selected`. Accessibility: help text describes AI use before free-text entry; errors link to fields, timezone displays a city/zone plus local time, use no placeholder-only fields.
+Components: guided chat (C14) with author-labelled bubbles, quick-reply buttons with pressed state, typing indicator, step chips, free-text composer; live summary card (C15). Questions: goal, what you already know (level), daily time (daily XP goal), reminder time, time zone (detected, confirmable). Copy: “You can skip any of them.” “AI uses your answers to tailor examples.” States: first question, vague answer → one follow-up, typing, skipped item, summary updating, confirm summary, edit a line, chat unavailable → answers carried into the form fallback, saving/saved/error with draft kept. The setup chat is platform-paid (proposed; confirm in E12). Profile editing later (Settings › Profile) uses the form plus “Update by chat”, per-course level overrides, export and clear; clearing sends empty fields and keeps unrelated preferences. Analytics: `learner_profile_updated(fields_changed names only)`, `onboarding_completed`, proposed `ui_control_activated(control_id=quick_reply|skip|form_fallback)`; never send answer text. Accessibility: the transcript is a log region announcing new assistant messages once, quick replies are real buttons, every step works by typing alone, focus stays in the composer, the form fallback is always one link away.
 
 ## 3. Course catalog and course switcher
 
@@ -43,6 +47,10 @@ Courses                              [+ Create a course]
 ```
 
 Components: searchable course cards, enrolled/discovery tabs, current-course marker, empty CTA. Copy: “What would you like to keep learning?” States: no enrollment (“Start with a topic”), no results (“Try another search”), loading cards, stale offline list, unavailable/deleted course, request error with Retry. Analytics: `ui_navigation_selected(destination=course)`, `ui_control_activated(control_id=create_course)`. Accessibility: one linked title per card, no nested interactive card, search label and result count announced politely; long titles wrap.
+
+## 4–7. Create course (revised 2026-11-09)
+
+The flow is now **Brief → Preview → Outline → Create**: a clarifying chat fills a course brief (starting from onboarding answers: topics to include and skip, depth, maths level, viewing conditions, lesson length, language); the learner confirms the brief before the paid preview; after the preview they shape the sample outline — reorder units and lessons by drag handle or move-up/down buttons, rename, remove, add, undo, or ask the outline chat for changes, which come back as a diff (added, removed, moved, retitled) to Apply or Discard; then they confirm the outline job. Desktop shows the brief and the outline chat as docked side panels; mobile shows the same content as a sheet and as step screens with identical actions. Proposed pricing to confirm in E12: the clarifying chat is free; each outline chat change costs about 5 credits and may use daily free credits; manual edits are free. The confirmed outline job uses the edited outline. The sections below remain the contract for the paid preview and outline job; where they mention a topic form or a read-only outline review, the chat brief and the outline editor replace them.
 
 ## 4. Create course — topic
 
