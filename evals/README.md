@@ -33,3 +33,14 @@ released failed reservations, stale/duplicate Apply, Discard and Undo; backup
 fixtures preserve full proposal rows and replay deletion. Git pins these fixtures
 until E10-01 provisions the same cases in `datamonsterr/duolify-golden`; live
 publication and E10-06 promotion remain deferred.
+
+E2-02 `course_outline` fixtures validate that confirmed edited outlines are
+preserved exactly without content injection or data loss. Cases cover valid
+structure, empty title rejection (input schema and output fallback), rejection of
+slides and lesson tests, profile handling (beginner, expert, empty), exact
+adherence to manual unit reordering and lesson renaming, and rejection of stale or
+invalid revision numbers before provider calls. The offline gate runs the production
+`creation_prompt` and validates outputs via `validate_created` within bounded limits.
+Terminal failure releases undelivered reservations without partial enrollment in the
+API integration suite. Revision rows remain Git-pinned until E10-01 Hugging Face
+provisioning; E10-06 gates live promotion.

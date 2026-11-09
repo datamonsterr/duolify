@@ -239,7 +239,9 @@ async fn main() -> Result<()> {
     println!("selected {} of {total} cases", cases.len());
     let mut results = Vec::new();
     for case in cases {
-        let response_text = if case.task == "outline_chat_change" && provider == "mock" {
+        let response_text = if case.task == "course_outline" && provider == "mock" {
+            evaluate_course_outline(&case.input).await?
+        } else if case.task == "outline_chat_change" && provider == "mock" {
             evaluate_outline_change(&case.input).await?
         } else if case.task == "course_preview" && provider == "mock" {
             evaluate_preview(&case.input).await?
@@ -260,11 +262,16 @@ async fn main() -> Result<()> {
                     let spec: serde_json::Value =
                         serde_json::from_str(check.value.as_deref().context("path check")?)?;
                     let value: serde_json::Value = serde_json::from_str(&response_text)?;
-                    let actual = spec["path"]
-                        .as_str()
-                        .unwrap_or_default()
-                        .split('.')
-                        .fold(&value, |v, key| &v[key]);
+                    let actual = spec["path"].as_str().unwrap_or_default().split('.').fold(
+                        &value,
+                        |v, key| {
+                            if let Ok(idx) = key.parse::<usize>() {
+                                v.get(idx).unwrap_or(&serde_json::Value::Null)
+                            } else {
+                                &v[key]
+                            }
+                        },
+                    );
                     actual == &spec["expected"]
                 }
                 "contains" => response_text.contains(check.value.as_deref().unwrap_or("")),
@@ -321,6 +328,101 @@ async fn main() -> Result<()> {
         bail!("score below threshold");
     }
     Ok(())
+}
+
+async fn evaluate_course_outline(input: &serde_json::Value) -> Result<String> {
+    use engine_core::courses::outline;
+    let revision = input["revision"].as_i64().unwrap_or(1);
+    let expected_revision = input["expected_revision"].as_i64().unwrap_or(revision);
+    if revision != expected_revision || revision < 1 {
+        return Ok(serde_json::json!({
+            "delivered": false,
+            "stale_revision": true,
+            "rejected": true,
+            "attempt_count": 0,
+        })
+        .to_string());
+    }
+    let base: Vec<outline::Unit> = match serde_json::from_value(input["outline"].clone()) {
+        Ok(units) => units,
+        Err(_) => {
+            return Ok(serde_json::json!({
+                "delivered": false,
+                "invalid_structure": true,
+                "rejected": true,
+                "attempt_count": 0,
+            })
+            .to_string());
+        }
+    };
+    let brief = input
+        .get("brief")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let profile = input
+        .get("profile")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let prompt = match outline::creation_prompt(&base, brief, profile) {
+        Ok(p) => p,
+        Err(_) => {
+            return Ok(serde_json::json!({
+                "delivered": false,
+                "invalid_structure": true,
+                "rejected": true,
+                "attempt_count": 0,
+            })
+            .to_string());
+        }
+    };
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input.get("recorded").cloned().unwrap_or_default())
+            .unwrap_or_default();
+    let provider = std::sync::Arc::new(RecordedCredits(std::sync::Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let limits: engine_core::credits::Limits =
+        serde_json::from_value(input.get("limits").cloned().unwrap_or_else(|| {
+            serde_json::json!({
+                "input_tokens": 12000,
+                "output_tokens": 2000,
+                "timeout_ms": 10000,
+                "max_attempts": 2,
+                "max_cost_nanos": 100000000,
+                "input_nanos": 100,
+                "output_nanos": 500,
+                "cache_write_nanos": 125,
+                "cache_read_nanos": 10
+            })
+        }))?;
+    let outcome =
+        engine_core::credits::run_validated(&router, "outline", &prompt, &limits, |text| {
+            outline::validate_created(&base, text)
+        })
+        .await;
+    match outcome {
+        Ok(o) => {
+            let units: Option<Vec<outline::Unit>> = o
+                .completion
+                .as_ref()
+                .and_then(|c| serde_json::from_str::<serde_json::Value>(&c.text).ok())
+                .and_then(|v| serde_json::from_value(v["units"].clone()).ok());
+            let adhered = units.as_ref().is_some_and(|u| u == &base);
+            Ok(serde_json::json!({
+                "delivered": o.completion.is_some(),
+                "attempt_count": o.attempts.len(),
+                "fallback_used": o.attempts.iter().any(|a| a.fallback_used),
+                "adhered": adhered,
+                "units": units,
+            })
+            .to_string())
+        }
+        Err(_) => Ok(serde_json::json!({
+            "delivered": false,
+            "rejected": true,
+            "attempt_count": 0,
+        })
+        .to_string()),
+    }
 }
 
 async fn evaluate_outline_change(input: &serde_json::Value) -> Result<String> {

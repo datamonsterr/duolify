@@ -295,11 +295,38 @@ fn confirmed_outline_exact_structure_and_no_lesson_content() {
     for invalid in [
         serde_json::json!({"units":[], "slides":[]}),
         serde_json::json!({"units":base,"test":[]}),
+        serde_json::json!({"units":base,"tests":[{"question":"What is space?"}]}),
+        serde_json::json!({"units":base,"slides":[{"html":"<div>slide</div>"}]}),
+        serde_json::json!({"units":base,"content":"Here are the slides"}),
+        serde_json::json!({"units":base,"lesson_test":{"questions":[]}}),
         serde_json::json!({"units":[{"id":"u","title":"Changed","lessons":[]}]}),
+        serde_json::json!({"units":[{"id":"u","title":"","lessons":[{"id":"added","title":"Manual","goal":"Learn"}]}]}),
+        serde_json::json!({"units":[{"id":"u","title":"日本語","lessons":[{"id":"added","title":"","goal":"Learn"}]}]}),
+        serde_json::json!({"units":[{"id":"u","title":"日本語","lessons":[{"id":"added","title":"Manual","goal":""}]}]}),
     ] {
-        assert!(!super::outline::validate_created(
-            &units,
-            &invalid.to_string()
-        ));
+        assert!(
+            !super::outline::validate_created(&units, &invalid.to_string()),
+            "expected rejection for: {}",
+            invalid
+        );
     }
+
+    // creation_prompt rejects empty titles and empty structures
+    let empty_title_units = vec![super::outline::Unit {
+        id: "u1".into(),
+        title: "   ".into(),
+        lessons: vec![super::outline::Lesson {
+            id: "l1".into(),
+            title: "Lesson".into(),
+            goal: "Goal".into(),
+        }],
+    }];
+    assert!(
+        super::outline::creation_prompt(
+            &empty_title_units,
+            serde_json::json!({}),
+            serde_json::json!({})
+        )
+        .is_err()
+    );
 }
