@@ -99,7 +99,7 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 	if !q.Accepted || !now.Before(q.ExpiresAt) || q.Bounds["max_attempts"] <= 0 || q.Bounds["timeout_ms"] <= 0 || q.Bounds["concurrency"] <= 0 {
 		return Reservation{}, ErrReservation
 	}
-	tz, err := s.store.GetEffectiveTimezone(ctx, owner, now)
+	tz, err := effectiveTimezone(ctx, tx, owner, now)
 	if err != nil {
 		return Reservation{}, err
 	}
@@ -477,7 +477,7 @@ func (s *Service) finalize(ctx context.Context, owner, id string, usage []*engin
 	if err != nil {
 		return result, err
 	}
-	tz, err := s.store.GetEffectiveTimezone(ctx, owner, now)
+	tz, err := effectiveTimezone(ctx, tx, owner, now)
 	if err != nil {
 		return result, err
 	}

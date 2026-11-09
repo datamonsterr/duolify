@@ -269,7 +269,7 @@ func (s *Service) generateProposal(w http.ResponseWriter, r *http.Request, owner
 		}
 		outline.Units = append(outline.Units, unit)
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(limits.TimeoutMs)*time.Millisecond+time.Second)
+	ctx, cancel := context.WithDeadline(r.Context(), job.DeadlineAt)
 	defer cancel()
 	response, engineErr := s.opts.ProposalEngine.OutlineChatChange(ctx, &enginev1.OutlineChatChangeRequest{ProposalId: p.ID, DraftId: d.ID, BaseRevision: d.Revision, Outline: outline, Request: in.Request, Limits: limits})
 	var attempts []*enginev1.Usage

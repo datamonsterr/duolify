@@ -87,6 +87,12 @@ func CalculateSettlement(q pricing.Quote, usage []*enginev1.Usage) (Reservation,
 			return result, ErrUsage
 		}
 		result.ContentSpent = min(q.ContentCeiling, max(q.ContentMinimum, ceil(contentNanos, q.Policy.USDNanosPerCredit)))
+		for _, u := range usage {
+			if u.Component == "content" && u.Delivered && !u.Cached && u.UsageUnavailable {
+				result.ContentSpent = q.ContentCeiling
+				break
+			}
+		}
 	}
 	if characters > 0 {
 		if q.NarrationDenominator <= 0 {
