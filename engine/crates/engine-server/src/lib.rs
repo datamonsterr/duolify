@@ -327,14 +327,101 @@ impl EngineService for Service {
         request: Request<pb::GenerateCourseOutlineRequest>,
     ) -> Result<Response<pb::GenerateCourseOutlineResponse>, Status> {
         let req = request.into_inner();
-        let c = self
+        if req.outline_revision < 1 || req.draft_id.is_empty() {
+            return Err(Status::invalid_argument("confirmed revision required"));
+        }
+        let bounds = req
+            .limits
+            .as_ref()
+            .ok_or_else(|| Status::invalid_argument("API quote bounds required"))?;
+        let model = self
             .router
-            .complete("outline", &format!("{req:?}"))
-            .await
-            .map_err(internal)?;
+            .models
+            .tasks
+            .get("outline")
+            .ok_or_else(|| Status::failed_precondition("route unavailable"))?;
+        if bounds.model != model.model
+            || bounds.fallback_model != model.fallback_model
+            || bounds.provider != self.router.primary.name()
+            || bounds.fallback_provider != self.router.fallback.name()
+        {
+            return Err(Status::failed_precondition(
+                "quote route differs from evaluated route",
+            ));
+        }
+        let limits = engine_core::credits::Limits {
+            input_tokens: bounds.input_tokens,
+            output_tokens: bounds.output_tokens,
+            timeout_ms: bounds.timeout_ms,
+            max_attempts: bounds.max_attempts,
+            max_cost_nanos: bounds.max_cost_nanos,
+            input_nanos: bounds.input_nanos,
+            output_nanos: bounds.output_nanos,
+            cache_write_nanos: bounds.cache_write_nanos,
+            cache_read_nanos: bounds.cache_read_nanos,
+        };
+
+        let base = req
+            .edited_outline
+            .as_ref()
+            .ok_or_else(|| Status::invalid_argument("edited outline required"))?;
+        if !base.course_id.is_empty() || base.title.trim().is_empty() {
+            return Err(Status::invalid_argument("invalid outline"));
+        }
+        let units: Vec<engine_core::courses::outline::Unit> = base
+            .units
+            .iter()
+            .map(|u| engine_core::courses::outline::Unit {
+                id: u.unit_id.clone(),
+                title: u.title.clone(),
+                lessons: u
+                    .lessons
+                    .iter()
+                    .map(|l| engine_core::courses::outline::Lesson {
+                        id: l.lesson_id.clone(),
+                        title: l.title.clone(),
+                        goal: l.goal.clone(),
+                    })
+                    .collect(),
+            })
+            .collect();
+        let b = req.brief.unwrap_or_default();
+        let p = req.learner.unwrap_or_default();
+        let prompt=engine_core::courses::outline::creation_prompt(&units,serde_json::json!({"topic":b.topic,"goal":b.goal,"include_topics":b.include_topics,"skip_topics":b.skip_topics,"level":b.level,"maths":b.maths,"viewing_conditions":b.viewing_conditions,"lesson_length":b.lesson_length,"language":b.language}),serde_json::json!({"locale":p.locale,"background":p.background,"goals":p.goals,"level":p.level})).map_err(|_|Status::invalid_argument("invalid outline"))?;
+        let outcome = engine_core::credits::run_validated(
+            &self.router,
+            "outline",
+            &prompt,
+            &limits,
+            |text| engine_core::courses::outline::validate_created(&units, text),
+        )
+        .await
+        .map_err(|_| Status::invalid_argument("invalid API envelope"))?;
+        let attempts = outcome
+            .attempts
+            .iter()
+            .map(|a| pb::Usage {
+                provider: a.provider.clone(),
+                model: a.model.clone(),
+                input_tokens: a.input_tokens,
+                output_tokens: a.output_tokens,
+                cache_write_tokens: a.cache_write_tokens,
+                cache_read_tokens: a.cache_read_tokens,
+                latency_ms: a.latency_ms,
+                attempt: a.attempt,
+                fallback_used: a.fallback_used,
+                component: "content".into(),
+                delivered: a.delivered,
+                usage_unavailable: a.usage_unavailable,
+                ..Default::default()
+            })
+            .collect();
         Ok(Response::new(pb::GenerateCourseOutlineResponse {
-            outline: Some(outline(&c)?),
-            usage: usage(&c),
+            outline: outcome.completion.as_ref().map(|_| base.clone()),
+            usage: outcome.completion.as_ref().and_then(usage),
+            attempts,
+            unavailable: outcome.completion.is_none(),
+            outline_revision: req.outline_revision,
         }))
     }
     type GenerateLessonStream = RpcStream<pb::GenerateLessonEvent>;

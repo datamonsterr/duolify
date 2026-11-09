@@ -67,6 +67,9 @@ type Catalogue interface{ Config() pricing.Config }
 
 // Options wires the platform-funded assistant; forms need only Postgres.
 type Options struct {
+	OutlineEngine interface {
+		GenerateCourseOutline(context.Context, *enginev1.GenerateCourseOutlineRequest) (*enginev1.GenerateCourseOutlineResponse, error)
+	}
 	ProposalEngine interface {
 		OutlineChatChange(context.Context, *enginev1.OutlineChatChangeRequest) (*enginev1.OutlineChatChangeResponse, error)
 	}

@@ -60,7 +60,38 @@ async fn all_rpcs() {
     assert!(
         c.generate_course_outline(pb::GenerateCourseOutlineRequest {
             topic: "test".into(),
-            learner: None
+            learner: None,
+            edited_outline: Some(pb::CourseOutline {
+                title: "Edited".into(),
+                units: vec![pb::Unit {
+                    unit_id: "u".into(),
+                    title: "Manual".into(),
+                    lessons: vec![pb::LessonRef {
+                        lesson_id: "l".into(),
+                        title: "Added".into(),
+                        goal: "Learn".into()
+                    }]
+                }],
+                ..Default::default()
+            }),
+            draft_id: "draft".into(),
+            outline_revision: 7,
+            limits: Some(pb::UsageLimits {
+                input_tokens: 6000,
+                output_tokens: 4000,
+                timeout_ms: 3000,
+                max_attempts: 2,
+                max_cost_nanos: 100000000,
+                input_nanos: 200,
+                output_nanos: 500,
+                cache_write_nanos: 200,
+                cache_read_nanos: 50,
+                provider: "mock".into(),
+                model: "claude-sonnet-5-5".into(),
+                fallback_provider: "mock".into(),
+                fallback_model: "anthropic/claude-sonnet-5.5".into()
+            }),
+            ..Default::default()
         })
         .await
         .unwrap()

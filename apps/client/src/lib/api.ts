@@ -1,8 +1,9 @@
+import { session } from "../features/accounts/session";
 import { isValidPricing, type Pricing } from "../features/pricing/types";
 export type Lesson = {
   id: string;
   title: string;
-  state: "done" | "current" | "locked";
+  state: "done" | "current" | "locked" | "ready_to_generate";
 };
 export type Course = {
   availability?: "available" | "unavailable";
@@ -62,5 +63,8 @@ export const api = {
     return pricing;
   },
   courses: () => get<Course[]>("/courses"),
-  course: (id: string) => get<Course>(`/courses/${encodeURIComponent(id)}`),
+  course: (id: string) =>
+    /^[0-9a-f-]{36}$/.test(id)
+      ? session.request<Course>(`/v1/courses/${encodeURIComponent(id)}`)
+      : get<Course>(`/courses/${encodeURIComponent(id)}`),
 };

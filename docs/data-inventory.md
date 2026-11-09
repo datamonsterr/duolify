@@ -245,3 +245,6 @@ Backup fixtures seed cancellation/resumption transitions and compare complete
 rows after restore, including dedupe/effective dates; replay never reissues funded
 Credits. Redis wallet state and priority are disposable derived data. No card data,
 raw notification bodies or learner content enter these tables or analytics.
+
+| Postgres `course_creations` | Owned immutable confirmed outline/revision, quote/reservation IDs, durable stages and validated response; no lesson content | Nightly encrypted general dumps, 14 days; populated fixture restored and compared in full | Owner export; account cascade erasure and restore tombstones; financial usage stays separately anonymized for seven years / 35-day financial snapshots | [E2-02](../openspec/changes/create-confirmed-outline/design.md) |
+| Postgres `courses`, `course_units`, `course_lesson_stubs`, `course_enrollments` | Owned Course and exact ordered Units/stubs/goals; first ready_to_generate, others locked; single enrollment | Nightly encrypted general dumps, 14 days; full-row fixture comparison and deletion replay | Owner export; account cascade erasure; Course soft-delete metadata, 30-day grace before hard deletion (removal UI E2-04) | [E2-02](../openspec/changes/create-confirmed-outline/design.md) |

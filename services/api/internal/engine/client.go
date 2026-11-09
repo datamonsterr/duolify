@@ -91,3 +91,10 @@ func (c *Client) CourseBriefChat(ctx context.Context, request *enginev1.CourseBr
 	defer cancel()
 	return c.rpc.CourseBriefChat(ctx, request)
 }
+
+// GenerateCourseOutline forwards the exact authored outline within the API deadline.
+func (c *Client) GenerateCourseOutline(ctx context.Context, r *enginev1.GenerateCourseOutlineRequest) (*enginev1.GenerateCourseOutlineResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	return c.rpc.GenerateCourseOutline(ctx, r)
+}

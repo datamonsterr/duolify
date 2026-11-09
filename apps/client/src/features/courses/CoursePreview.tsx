@@ -5,6 +5,8 @@ import { quoteAPI, type ActionQuote } from "../pricing/quotes";
 import { sendCommand } from "../lesson-player/bridge";
 import { briefFields, type BriefRevision } from "./brief";
 import { useUiPreferences } from "../design/localization/Preferences";
+import { CourseCreate } from "./CourseCreate";
+import type { ConfirmedOutline } from "./outline";
 import { CourseOutline } from "./CourseOutline";
 import {
   outlineApi,
@@ -77,6 +79,7 @@ export function CoursePreview({
   const [workingOutline, setWorkingOutline] = useState(() =>
     readWorkingOutline(revision.id),
   );
+  const [creation, setCreation] = useState<ConfirmedOutline>();
   const [editor, setEditor] = useState<{
     value: Outline;
     draft?: OutlineDraft;
@@ -208,6 +211,17 @@ export function CoursePreview({
     }
   }
   const slide = preview?.example_slides[index];
+  if (creation)
+    return (
+      <CourseCreate
+        key={`${creation.draft_id}:${creation.revision}`}
+        snapshot={creation}
+        onBack={() => {
+          setCreation(undefined);
+          onStep?.(3);
+        }}
+      />
+    );
   return (
     <section className="course-preview" aria-label="Personalized preview">
       {editor && (
@@ -216,6 +230,10 @@ export function CoursePreview({
             briefRevision={revision.id}
             initialValue={editor.value}
             initialDraft={editor.draft}
+            onConfirmed={(snapshot) => {
+              setCreation(snapshot);
+              onStep?.(4);
+            }}
             onSaved={(draft) => {
               setSavedOutline(draft);
               setWorkingOutline(undefined);

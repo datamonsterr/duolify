@@ -346,7 +346,7 @@ func TestVersionedReservationTransactions(t *testing.T) {
 	})
 
 	t.Run("outbox wrapper delivers once with UUID and opt-out", func(t *testing.T) {
-		if _, err = database.Pool.Exec(ctx, `INSERT INTO learner_profiles(learner_id,analytics_opt_out) VALUES($1,false) ON CONFLICT(learner_id) DO UPDATE SET analytics_opt_out=false`, owner); err != nil {
+		if _, err = database.Pool.Exec(ctx, `INSERT INTO learner_profiles(learner_id,analytics_opt_out,time_zone) VALUES($1,false,'Asia/Ho_Chi_Minh') ON CONFLICT(learner_id) DO UPDATE SET analytics_opt_out=false,time_zone='Asia/Ho_Chi_Minh'`, owner); err != nil {
 			t.Fatal(err)
 		}
 		unaffordable := acceptedQuote(t, quotes, owner, "preview")

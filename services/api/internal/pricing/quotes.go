@@ -249,7 +249,7 @@ func (s *Quotes) CreateDevelopmentOutline(ctx context.Context, owner string, in 
 
 func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput, version string) (Quote, error) {
 	queries := db.New(s.pool)
-	if in.Action == "outline_chat_change" {
+	if in.Action == "outline_chat_change" || in.Action == "outline" {
 		var exists bool
 		if len(in.RequestHash) != 64 || in.OutlineRevision < 1 || s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id::text=$1 AND d.learner_id::text=$2 AND d.revision=$3 AND b.expires_at>now())`, in.OutlineDraftID, owner, in.OutlineRevision).Scan(&exists) != nil || !exists {
 			return Quote{}, errQuote

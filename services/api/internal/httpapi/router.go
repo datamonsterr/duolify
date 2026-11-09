@@ -86,6 +86,15 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	}
 	if deps.CourseBrief != nil && deps.Accounts != nil {
 		mux.Handle("/v1/course-brief/", deps.Accounts.Protect(deps.CourseBrief))
+		if creation, ok := deps.CourseBrief.(interface {
+			ServeCreationHTTP(http.ResponseWriter, *http.Request)
+			ServeCourseHTTP(http.ResponseWriter, *http.Request)
+		}); ok {
+			h := deps.Accounts.Protect(http.HandlerFunc(creation.ServeCreationHTTP))
+			mux.Handle("/v1/course-creations", h)
+			mux.Handle("/v1/course-creations/", h)
+			mux.Handle("GET /v1/courses/{id}", deps.Accounts.Protect(http.HandlerFunc(creation.ServeCourseHTTP)))
+		}
 		if outlines, ok := deps.CourseBrief.(interface {
 			ServeOutlineHTTP(http.ResponseWriter, *http.Request)
 		}); ok {

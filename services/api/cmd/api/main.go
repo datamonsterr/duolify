@@ -141,6 +141,24 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		go creditService.Maintain(ctx, logger)
+		backend, err := engine.New(cfg.EngineAddr, 10*time.Second)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = backend.Close() }()
+		outlineService := courses.New(courses.Options{Pool: db.Pool, OutlineEngine: backend, Financial: creditService, Events: events})
+		outlineQueue, err := outlineService.CreationQueue(logger)
+		if err != nil {
+			return err
+		}
+		if err = outlineQueue.Start(context.WithoutCancel(ctx)); err != nil {
+			return err
+		}
+		defer func() {
+			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer cancel()
+			_ = outlineQueue.Stop(stopCtx)
+		}()
 		return worker.RunWithCredits(ctx, db.Pool, logger, creditService, service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
@@ -223,7 +241,7 @@ func run(ctx context.Context, args []string) (result error) {
 		ObjectStorage: telemetry.StorageProbe(os.Getenv),
 		Accounts:      auth,
 		Credits:       creditService,
-		CourseBrief:   courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
+		CourseBrief:   courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
 		Pricing:       pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events),
 		PricingAdmin:  pricingAdmin,
 		Quotes:        pricing.NewQuotes(db.Pool),

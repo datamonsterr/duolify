@@ -46,6 +46,14 @@ export function LearnPath({ courseId }: { courseId: string }) {
                       {t("path.start_short")}
                     </span>
                   </>
+                ) : lesson.state === "ready_to_generate" ? (
+                  <button
+                    className="node current"
+                    disabled
+                    aria-label={`Ready to generate: ${lesson.title}`}
+                  >
+                    ▶
+                  </button>
                 ) : lesson.state === "done" ? (
                   <Link
                     className="node done"

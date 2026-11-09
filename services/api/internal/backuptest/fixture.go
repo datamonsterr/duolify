@@ -342,6 +342,29 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		t.Fatal(err)
 	}
 
+	outlineQuote, err := pricing.NewQuotes(f.DB.Pool).Create(t.Context(), "a1111111-1111-4111-8111-111111111111", pricing.QuoteInput{Action: "outline", OutlineDraftID: "c7222222-2222-4222-8222-222222222222", OutlineRevision: 3, RequestHash: outline.Hash()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pricing.NewQuotes(f.DB.Pool).Accept(t.Context(), "a1111111-1111-4111-8111-111111111111", outlineQuote.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_creations(id,learner_id,draft_id,revision,quote_id,request,state,course_id) VALUES('e1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','c7222222-2222-4222-8222-222222222222',3,$1,'{"draft_id":"c7222222-2222-4222-8222-222222222222"}','enrolled','f1111111-1111-4111-8111-111111111111')`, outlineQuote.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO courses(id,learner_id,creation_id,title,description) VALUES('f1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','e1111111-1111-4111-8111-111111111111','Synthetic sky','')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_units(id,learner_id,course_id,authored_id,position,title) VALUES('f2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','fixture-unit',0,'Moon')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status) VALUES('f3333333-3333-4333-8333-333333333333','a1111111-1111-4111-8111-111111111111','f2222222-2222-4222-8222-222222222222','fixture-lesson',0,'Phases','Recognize phases','ready_to_generate')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_enrollments(learner_id,course_id) VALUES('a1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111')`); err != nil {
+		t.Fatal(err)
+	}
+
 	catalogue, err := pricing.Load(t.Context(), f.DB.Queries)
 	if err != nil {
 		t.Fatal(err)
@@ -641,7 +664,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -751,7 +774,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		t.Fatal(err)
 	}
 	var survived bool
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_creations WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM courses WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
 		t.Fatal("restored context survived account erasure", err)
 	}
 	var valid bool

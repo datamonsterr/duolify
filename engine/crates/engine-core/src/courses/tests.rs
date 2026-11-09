@@ -285,3 +285,21 @@ fn outline_request_is_untrusted_data_with_strict_operation_schema() {
         assert!(outline::parse(&base, text).is_err());
     }
 }
+
+#[test]
+fn confirmed_outline_exact_structure_and_no_lesson_content() {
+    let base = serde_json::json!([{"id":"u", "title":"日本語", "lessons":[{"id":"added", "title":"Manual", "goal":"Learn"}]}]);
+    let units: Vec<super::outline::Unit> = serde_json::from_value(base.clone()).unwrap();
+    let valid = serde_json::json!({"units":base});
+    assert!(super::outline::validate_created(&units, &valid.to_string()));
+    for invalid in [
+        serde_json::json!({"units":[], "slides":[]}),
+        serde_json::json!({"units":base,"test":[]}),
+        serde_json::json!({"units":[{"id":"u","title":"Changed","lessons":[]}]}),
+    ] {
+        assert!(!super::outline::validate_created(
+            &units,
+            &invalid.to_string()
+        ));
+    }
+}

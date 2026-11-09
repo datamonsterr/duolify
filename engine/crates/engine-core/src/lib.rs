@@ -85,7 +85,10 @@ impl LlmProvider for MockProvider {
         "mock"
     }
     async fn complete(&self, model: &str, input: &str) -> Result<Completion> {
-        let text = if serde_json::from_str::<serde_json::Value>(input)
+        let data = serde_json::from_str::<serde_json::Value>(input).ok();
+        let text = if data.as_ref().is_some_and(|v| v["task"] == "course_outline") {
+            serde_json::json!({"units":data.unwrap()["outline"]}).to_string()
+        } else if serde_json::from_str::<serde_json::Value>(input)
             .ok()
             .is_some_and(|v| v["task"] == "outline_chat_change")
         {

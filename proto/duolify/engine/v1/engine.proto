@@ -145,11 +145,19 @@ message PreviewCourseResponse {
 message GenerateCourseOutlineRequest {
   string topic = 1;
   LearnerProfile learner = 2;
+  CourseOutline edited_outline = 3;
+  int64 outline_revision = 4;
+  string draft_id = 5;
+  UsageLimits limits = 6;
+  CourseBrief brief = 7;
 }
 
 message GenerateCourseOutlineResponse {
   CourseOutline outline = 1;
   Usage usage = 2;
+  repeated Usage attempts = 3;
+  bool unavailable = 4;
+  int64 outline_revision = 5;
 }
 
 message GenerateLessonRequest {
