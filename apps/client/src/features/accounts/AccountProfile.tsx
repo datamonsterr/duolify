@@ -6,6 +6,7 @@ export function AccountProfile() {
   const [learner, setLearner] = useState<Learner | null>(session.current());
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   useEffect(() => {
     void session
       .load()
@@ -21,7 +22,22 @@ export function AccountProfile() {
           <a className="shell-link" href="/profile/setup">
             Set up learner context
           </a>
+          <Button variant="secondary" onClick={() => setChatOpen(true)}>
+            Update by chat
+          </Button>
           <LearnerProfile />
+          {chatOpen && (
+            <section role="dialog" aria-label="Update profile by chat">
+              <h2>Update by chat</h2>
+              <p>
+                Chat profile updates are coming in E1-11. Your form draft is
+                still here.
+              </p>
+              <Button variant="secondary" onClick={() => setChatOpen(false)}>
+                Close chat
+              </Button>
+            </section>
+          )}
           <p>
             {learner.locale} · {learner.time_zone}
           </p>

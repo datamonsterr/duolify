@@ -1,0 +1,52 @@
+.settings-page {
+  max-width: 760px;
+  display: grid;
+  gap: var(--space-4);
+}
+.settings-page form {
+  display: grid;
+  gap: var(--space-5);
+}
+.settings-page fieldset {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+.settings-page legend {
+  font-weight: var(--weight-heavy);
+  padding-inline: var(--space-2);
+}
+.settings-page label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-target);
+}
+.settings-page label:has(select) {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.settings-page select {
+  min-height: var(--size-target);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-target);
+}
+@media (max-width: 48rem) {
+  .settings-page fieldset {
+    grid-template-columns: 1fr;
+  }
+}

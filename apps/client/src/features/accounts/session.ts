@@ -1,5 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { configureAnalytics } from "../../lib/analytics";
+import { configureAnalytics, setAnalyticsConsent } from "../../lib/analytics";
 import { secureStore, type Tokens } from "./secure-store";
 export const credentialStore = secureStore;
 export type Learner = {
@@ -68,7 +68,7 @@ export function setAnalyticsOptOut(value: boolean) {
   } catch {
     /* Retain the current UI choice. */
   }
-  if (value) configureAnalytics(null);
+  setAnalyticsConsent(!value);
 }
 let learner: Learner | null = null;
 let expired = false;

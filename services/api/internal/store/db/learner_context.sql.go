@@ -12,12 +12,24 @@ import (
 )
 
 const getLearnerContext = `-- name: GetLearnerContext :one
-SELECT (to_jsonb(p) - 'age_confirmed_at' - 'analytics_opt_out')::jsonb AS context
+SELECT (to_jsonb(p) - 'age_confirmed_at' - 'analytics_opt_out' - 'appearance' - 'motion' - 'narration' - 'narration_speed' - 'captions' - 'text_size' - 'ui_sounds' - 'haptics')::jsonb AS context
 FROM learner_profiles p WHERE learner_id=$1::uuid FOR UPDATE
 `
 
 func (q *Queries) GetLearnerContext(ctx context.Context, learnerID pgtype.UUID) ([]byte, error) {
 	row := q.db.QueryRow(ctx, getLearnerContext, learnerID)
+	var context []byte
+	err := row.Scan(&context)
+	return context, err
+}
+
+const getLearnerSettings = `-- name: GetLearnerSettings :one
+SELECT (to_jsonb(p) - 'age_confirmed_at' - 'goal' - 'topic' - 'background' - 'level' - 'setup_completed')::jsonb AS context
+FROM learner_profiles p WHERE learner_id=$1::uuid FOR UPDATE
+`
+
+func (q *Queries) GetLearnerSettings(ctx context.Context, learnerID pgtype.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, getLearnerSettings, learnerID)
 	var context []byte
 	err := row.Scan(&context)
 	return context, err
@@ -46,5 +58,35 @@ type SaveLearnerContextParams struct {
 
 func (q *Queries) SaveLearnerContext(ctx context.Context, arg SaveLearnerContextParams) error {
 	_, err := q.db.Exec(ctx, saveLearnerContext, arg.Context, arg.LearnerID)
+	return err
+}
+
+const saveLearnerSettings = `-- name: SaveLearnerSettings :exec
+UPDATE learner_profiles SET
+ locale=$1::jsonb->>'locale',
+ time_zone=$1::jsonb->>'time_zone',
+ daily_minutes=($1::jsonb->>'daily_minutes')::integer,
+ daily_xp=($1::jsonb->>'daily_xp')::integer,
+ reminder_enabled=($1::jsonb->>'reminder_enabled')::boolean,
+ reminder_time=$1::jsonb->>'reminder_time',
+ analytics_opt_out=($1::jsonb->>'analytics_opt_out')::boolean,
+ appearance=$1::jsonb->>'appearance',
+ motion=$1::jsonb->>'motion',
+ narration=($1::jsonb->>'narration')::boolean,
+ narration_speed=($1::jsonb->>'narration_speed')::numeric,
+ captions=($1::jsonb->>'captions')::boolean,
+ text_size=($1::jsonb->>'text_size')::numeric,
+ ui_sounds=($1::jsonb->>'ui_sounds')::boolean,
+ haptics=$1::jsonb->>'haptics'
+WHERE learner_id=$2::uuid
+`
+
+type SaveLearnerSettingsParams struct {
+	Context   []byte      `json:"context"`
+	LearnerID pgtype.UUID `json:"learner_id"`
+}
+
+func (q *Queries) SaveLearnerSettings(ctx context.Context, arg SaveLearnerSettingsParams) error {
+	_, err := q.db.Exec(ctx, saveLearnerSettings, arg.Context, arg.LearnerID)
 	return err
 }

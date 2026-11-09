@@ -26,7 +26,7 @@ export const test = base.extend<{ authenticated: void }>({
       await context.addInitScript((value) => {
         sessionStorage.setItem("duolify.auth", JSON.stringify(value));
       }, tokens);
-      await page.route(/\/v1\/(auth\/|me(?:$|\?))/, async (route) => {
+      await page.route(/\/v1\/(auth\/|me(?:\/|$|\?))/, async (route) => {
         const original = route.request();
         const target = new URL(original.url());
         const headers = original.headers();

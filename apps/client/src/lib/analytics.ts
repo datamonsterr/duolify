@@ -21,12 +21,45 @@ const uuid =
 export function configureAnalytics(value: Identity | null) {
   if (identity?.learnerId !== value?.learnerId) exposed.clear();
   identity = value ?? undefined;
+  try {
+    if (value?.optedOut) posthog.opt_out_capturing();
+    else if (value) posthog.opt_in_capturing();
+  } catch {
+    /* Consent state is enforced again by the local boundary below. */
+  }
   if (key && value && !value.optedOut && uuid.test(value.learnerId)) {
     try {
       posthog.identify(value.learnerId);
     } catch {
       /* Identity setup must not block the app. */
     }
+  }
+}
+// Apply consent before any network request. PostHog's opt-out disables capture
+// and persistence and clears its stored event queue.
+export function setAnalyticsConsent(enabled: boolean) {
+  if (!identity) return;
+  identity = { ...identity, optedOut: !enabled };
+  try {
+    if (enabled) posthog.opt_in_capturing();
+    else posthog.opt_out_capturing();
+  } catch {
+    /* The local boundary still suppresses events if the SDK is unavailable. */
+  }
+}
+export function trackAppearanceChanged(mode: "system" | "light" | "dark") {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("ui_appearance_changed", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      mode,
+    });
+  } catch {
+    /* Analytics is derived and never blocks settings. */
   }
 }
 export function exposePricing(

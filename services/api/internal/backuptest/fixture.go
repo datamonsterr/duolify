@@ -273,7 +273,7 @@ func (f *Fixture) Seed(t *testing.T) {
 		"INSERT INTO learners (id,display_name) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner')",
 		"INSERT INTO credit_entries (learner_id,amount,kind,reference) VALUES ('a1111111-1111-4111-8111-111111111111',120,'purchase','synthetic-purchase'),('a1111111-1111-4111-8111-111111111111',-35,'spend','synthetic-spend')",
 		"INSERT INTO learner_profiles (learner_id,locale,time_zone,analytics_opt_out) VALUES ('a1111111-1111-4111-8111-111111111111','vi-VN','Asia/Ho_Chi_Minh',true)",
-		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
+		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true,appearance='dark',motion='reduce',narration=false,narration_speed=1.25,captions=false,text_size=1.2,ui_sounds=true,haptics='off' WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
 		"INSERT INTO auth_identities (email,learner_id) VALUES ('synthetic@example.test','a1111111-1111-4111-8111-111111111111')",
 		"INSERT INTO auth_codes (email,code_hash,expires_at,attempts) VALUES ('synthetic@example.test',repeat('a',64),now()-interval '1 minute',5)",
 		"INSERT INTO auth_sessions (id,learner_id) VALUES ('b2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111')",
@@ -448,8 +448,8 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "INSERT INTO learners(display_name) VALUES('Synthetic erasure check') RETURNING id::text").Scan(&erasedID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO learner_profiles(learner_id,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed)
- SELECT $1::uuid,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111'`, erasedID); err != nil {
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO learner_profiles(learner_id,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed,appearance,motion,narration,narration_speed,captions,text_size,ui_sounds,haptics,analytics_opt_out)
+ SELECT $1::uuid,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed,appearance,motion,narration,narration_speed,captions,text_size,ui_sounds,haptics,analytics_opt_out FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111'`, erasedID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", erasedID); err != nil {
