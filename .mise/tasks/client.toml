@@ -53,7 +53,7 @@ run = "pnpm exec vitest run"
 ["client:format-pricing"]
 description = "Format pricing source and shared client integration files"
 dir = "{{config_root}}/apps/client"
-run = "pnpm exec prettier --write src/features/pricing src/lib/analytics.ts src/lib/api.ts src/App.tsx src/test/apply_design_tokens_to_a_real_course_card.integration.test.tsx e2e/pricing-e12-01.spec.ts e2e/pricing-e12-02.spec.ts e2e/design-e13-01.spec.ts playwright.config.ts"
+run = "pnpm exec prettier --write src/features/pricing src/lib/analytics.ts src/lib/api.ts src/App.tsx src/test/apply_design_tokens_to_a_real_course_card.integration.test.tsx e2e/pricing-e12-01.spec.ts e2e/pricing-e12-02.spec.ts e2e/pricing-e12-03.spec.ts e2e/design-e13-01.spec.ts playwright.config.ts"
 
 ["client:format-accounts"]
 description = "Format email sign-in and its shared integration boundaries"
