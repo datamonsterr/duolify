@@ -74,4 +74,4 @@ run = "pnpm exec prettier --write src/features/courses src/features/design/Cours
 ["client:format-credits"]
 description = "Format credits reservation controls and tests"
 dir = "{{config_root}}/apps/client"
-run = "pnpm exec prettier --write src/features/credits src/features/pricing/QuotePanel.tsx e2e/credits-e7-03.spec.ts"
+run = "pnpm exec prettier --write src/features/credits src/features/pricing/PricingView.tsx src/features/pricing/QuotePanel.tsx src/features/pricing/quotes.ts src/features/pricing/pricing.css src/features/accounts/session.ts src/lib/analytics.ts e2e/credits*.spec.ts e2e/pricing-e12-01.spec.ts"

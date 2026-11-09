@@ -109,6 +109,9 @@
 .pricing-credit p {
   color: inherit;
 }
+.pricing-credit p {
+  margin-block: var(--space-2);
+}
 .pricing-warning {
   background: var(--warning-bg);
   color: var(--warning);

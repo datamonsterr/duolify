@@ -209,6 +209,43 @@ function captureAuth(event: string, properties: Record<string, string>) {
     /* Analytics delivery cannot block sign-in. */
   }
 }
+
+// E7-04: a closed projection excludes drafts, notes, URLs and callback data.
+export function trackPurchase(value: {
+  event:
+    | "paywall_viewed"
+    | "credits_upsell_shown"
+    | "ui_purchase_option_selected"
+    | "ui_checkout_requested";
+  pricingVersion: string;
+  feature?: string;
+  balance?: number;
+  nextReset?: string;
+  offerId?: string;
+  billingPeriod?: "one_time" | "monthly" | "yearly";
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture(value.event, {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      price_table_version: value.pricingVersion,
+      ...(value.feature ? { feature: value.feature } : {}),
+      ...(value.balance !== undefined ? { balance: value.balance } : {}),
+      ...(value.nextReset ? { next_daily_grant_at: value.nextReset } : {}),
+      ...(value.offerId ? { offer_id: value.offerId } : {}),
+      ...(value.billingPeriod ? { billing_period: value.billingPeriod } : {}),
+      ...(value.event === "paywall_viewed"
+        ? { placement: "credits_recovery", plan_id: "none" }
+        : {}),
+    });
+  } catch {
+    /* Analytics must not interrupt recovery. */
+  }
+}
 type CourseControl =
   "open_course" | "refresh_courses" | "retry_courses" | "clear_search";
 export function trackControl(controlId: CourseControl, courseId?: string) {

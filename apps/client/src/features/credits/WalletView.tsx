@@ -2,12 +2,14 @@ import { useEffect } from "react";
 import type { WalletResponse, ActivityItem } from "./types";
 import { trackScreen } from "../../lib/analytics";
 import { Button } from "../design/Button";
+import { useUiPreferences } from "../design/localization/Preferences";
 import "./wallet.css";
 
 export type WalletViewProps = {
   wallet: WalletResponse;
   onViewOptions?: () => void;
   onLoadMore?: () => void;
+  onWait?: () => void;
   hasMore?: boolean;
   trackView?: boolean;
 };
@@ -16,9 +18,11 @@ export function WalletView({
   wallet,
   onViewOptions,
   onLoadMore,
+  onWait,
   hasMore,
   trackView = true,
 }: WalletViewProps) {
+  const { number } = useUiPreferences();
   useEffect(() => {
     if (trackView) {
       trackScreen("credits");
@@ -39,6 +43,14 @@ export function WalletView({
     ? dailyFree.timezone.split("/")[1].replace(/_/g, " ")
     : dailyFree.timezone;
   const timezoneCity = rawCity === "Ho Chi Minh" ? "Ho Chi Minh City" : rawCity;
+  const resetTime = Number.isFinite(Date.parse(dailyFree.resets_at))
+    ? new Intl.DateTimeFormat(undefined, {
+        timeZone: dailyFree.timezone,
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).format(new Date(dailyFree.resets_at))
+    : "Confirm after reconnect";
 
   return (
     <div className="wallet-container">
@@ -70,7 +82,7 @@ export function WalletView({
         {/* Card 1: Available */}
         <div className="wallet-card wallet-card-available">
           <span className="wallet-card-label">Available</span>
-          <b className="wallet-card-value">{wallet.available}</b>
+          <b className="wallet-card-value">{number(wallet.available)}</b>
           {wallet.reserved > 0 && (
             <span className="wallet-card-subtext">
               {wallet.reserved_note ||
@@ -107,15 +119,19 @@ export function WalletView({
             />
           </div>
           <span className="wallet-card-subtext">
-            {isExhausted ? "Used for today" : "Resets 00:00 " + timezoneCity}
+            {isExhausted
+              ? "Used for today"
+              : "Resets " + resetTime + " " + timezoneCity}
           </span>
         </div>
 
-        {/* Card 3 (Desktop): Purchased · Plus plan */}
+        {/* Purchased and subscription balances do not prove active entitlements. */}
         <div className="wallet-card wallet-desktop-only">
-          <span className="wallet-card-label">Purchased · Plus plan</span>
+          <span className="wallet-card-label">
+            Purchased · Subscription credits
+          </span>
           <b className="wallet-card-value">
-            {wallet.purchased} · {wallet.subscription}
+            {number(wallet.purchased)} · {number(wallet.subscription)}
           </b>
           <span className="wallet-card-subtext">Never expire</span>
         </div>
@@ -139,12 +155,10 @@ export function WalletView({
             <span className="wallet-card-subtext">Never expires</span>
           </div>
           <div className="wallet-card">
-            <span className="wallet-card-label">Plus plan</span>
+            <span className="wallet-card-label">Subscription credits</span>
             <b className="wallet-card-value">{wallet.subscription}</b>
             <span className="wallet-card-subtext">
-              {wallet.subscription > 0
-                ? "Renews monthly · Dec 1"
-                : "No active plan"}
+              Issued credits never expire
             </span>
           </div>
         </div>
@@ -152,9 +166,9 @@ export function WalletView({
 
       {/* Helper Guidance Text */}
       <p className="wallet-reset-info">
-        Daily free credits reset at 00:00 {timezoneCity}, fund notes and tutor
-        chat only (about 3 notes and 5–8 messages), are spent first and don't
-        carry over.
+        Daily free credits reset at {resetTime} {timezoneCity}, fund notes and
+        tutor chat only (about 3 notes and 5–8 messages), are spent first and
+        don't carry over.
       </p>
 
       {/* Exhausted Recovery Banner */}
@@ -188,7 +202,7 @@ export function WalletView({
       {/* Recovery Buttons */}
       {isExhausted && (
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <Button variant="secondary" onClick={() => {}}>
+          <Button variant="secondary" onClick={onWait}>
             Wait for daily reset
           </Button>
         </div>
@@ -201,7 +215,7 @@ export function WalletView({
             margin: "0 0 8px",
             fontSize: "16px",
             fontWeight: "900",
-            color: "#2B2B2B",
+            color: "var(--text)",
           }}
         >
           Recent activity
@@ -212,7 +226,13 @@ export function WalletView({
             <p style={{ margin: "0 0 4px", fontWeight: "700" }}>
               No wallet activity yet.
             </p>
-            <p style={{ margin: "0 0 16px", color: "#777", fontSize: "13px" }}>
+            <p
+              style={{
+                margin: "0 0 16px",
+                color: "var(--muted)",
+                fontSize: "13px",
+              }}
+            >
               Balances and reservations appear here when your wallet is
               connected.
             </p>
@@ -268,7 +288,11 @@ export function WalletView({
           <div style={{ padding: "12px 0", textAlign: "center" }}>
             <Button
               variant="quiet"
-              style={{ color: "#1667AB", fontWeight: 800, fontSize: "13px" }}
+              style={{
+                color: "var(--info)",
+                fontWeight: 800,
+                fontSize: "13px",
+              }}
               onClick={onLoadMore}
             >
               Load more activity

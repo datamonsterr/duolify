@@ -30,6 +30,18 @@ async function request<T>(path: string, body: unknown): Promise<T> {
   return response.json() as Promise<T>;
 }
 export const quoteAPI = {
+  get: (id: string) => {
+    return (async () => {
+      const tokens = await secureStore.read();
+      const response = await fetch(
+        `${base}/v1/quotes/${encodeURIComponent(id)}`,
+        { headers: { Authorization: `Bearer ${tokens?.access_token ?? ""}` } },
+      );
+      if (!response.ok)
+        throw new Error("Quote unavailable; renew quote and review terms.");
+      return response.json() as Promise<ActionQuote>;
+    })();
+  },
   create: (action: string, narrationCharacters?: number) =>
     request<ActionQuote>("/v1/quotes", {
       action,

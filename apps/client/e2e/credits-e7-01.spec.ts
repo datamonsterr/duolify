@@ -98,7 +98,9 @@ test.describe("E7-01 Read an auditable credit wallet", () => {
 
       // Verify Purchased & subscription totals
       if (width >= 768) {
-        await expect(page.getByText("Purchased · Plus plan")).toBeVisible();
+        await expect(
+          page.getByText("Purchased · Subscription credits"),
+        ).toBeVisible();
         await expect(page.getByText("124 · 60")).toBeVisible();
         await expect(
           page.getByText("Never expire", { exact: true }),
@@ -112,7 +114,7 @@ test.describe("E7-01 Read an auditable credit wallet", () => {
         ).toBeVisible();
         await expect(cardsGrid.getByText("124", { exact: true })).toBeVisible();
         await expect(
-          cardsGrid.getByText("Plus plan", { exact: true }),
+          cardsGrid.getByText("Subscription credits", { exact: true }),
         ).toBeVisible();
         await expect(cardsGrid.getByText("60", { exact: true })).toBeVisible();
       }

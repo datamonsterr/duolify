@@ -47,6 +47,13 @@ The catalogue SHALL include `pricing_version_exposed` with `pricing_version` and
 - **WHEN** a signed-in Learner opens the same price surface twice in one session
 - **THEN** one exposure event reaches PostHog, unless analytics is disabled
 
+### Requirement: Purchase recovery events
+The catalogue SHALL include client-owned `paywall_viewed` (placement, feature, balance, plan_id, price_table_version), `credits_upsell_shown` (feature, next_daily_grant_at, price_table_version), `ui_purchase_option_selected` and `ui_checkout_requested` (offer_id, billing_period, price_table_version). These events SHALL include UUID/common properties and respect opt-out. No draft, raw note, prompt, URL or callback parameter SHALL be included. Illustrative checkout SHALL NOT emit a financial purchase event.
+
+#### Scenario: Pending preview
+- **WHEN** a learner requests an illustrative checkout
+- **THEN** only the UI request is captured, with configured identifiers and no payment success event
+
 ### Requirement: Pricing lifecycle events
 The catalogue SHALL include `pricing_version_created`, `pricing_version_approved`, `pricing_version_rejected`, `pricing_version_activated`, `pricing_version_rolled_back` and `price_table_activated` with `pricing_version`, `change_class` (`adverse` or `non_adverse`), and `actor_id`. The API SHALL emit them through the existing UUID/common-properties wrapper. Events MUST NOT include reasons, full pricing content, credentials or provider mappings. Server opt-out SHALL suppress delivery. Activation events SHALL be recorded once per version in Postgres before delivery.
 

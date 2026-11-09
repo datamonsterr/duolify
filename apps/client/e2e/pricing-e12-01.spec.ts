@@ -52,7 +52,7 @@ for (const width of [1280, 390, 320]) {
     await expect(page.getByText("$9.99", { exact: true })).toBeVisible();
     await page.getByLabel("Yearly", { exact: true }).check();
     await expect(page.getByText("$384.00", { exact: true })).toBeVisible();
-    await page.getByLabel("Plus", { exact: true }).check();
+    await page.getByLabel("Plus · yearly", { exact: true }).check();
     await expect(
       page.getByRole("button", { name: "Checkout unavailable" }),
     ).toBeDisabled();

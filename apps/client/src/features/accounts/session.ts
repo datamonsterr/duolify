@@ -148,6 +148,12 @@ export const session = {
     };
   },
   clear() {
+    try {
+      for (const key of Object.keys(sessionStorage))
+        if (key.startsWith("credits:recovery:")) sessionStorage.removeItem(key);
+    } catch {
+      /* Disposable recovery metadata may be unavailable. */
+    }
     generation++;
     learner = null;
     expired = false;

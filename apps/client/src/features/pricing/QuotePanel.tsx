@@ -5,8 +5,14 @@ import { exposePricing } from "../../lib/analytics";
 import { quoteAPI, type ActionQuote } from "./quotes";
 export function QuotePanel({
   narrationCharacters,
+  recoveryQuoteId,
+  onInsufficient,
+  onQuoteRecovered,
 }: {
   narrationCharacters?: number;
+  recoveryQuoteId?: string;
+  onInsufficient?: (quote: ActionQuote) => void;
+  onQuoteRecovered?: (quote: ActionQuote) => void;
 }) {
   const [quote, setQuote] = useState<ActionQuote>();
   const [action, setAction] = useState("lesson_content");
@@ -14,6 +20,25 @@ export function QuotePanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!recoveryQuoteId) return;
+    let cancelled = false;
+    void quoteAPI
+      .get(recoveryQuoteId)
+      .then((saved) => {
+        if (!cancelled) {
+          setQuote(saved);
+          setAction(saved.action);
+          onQuoteRecovered?.(saved);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [recoveryQuoteId, onQuoteRecovered]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -123,7 +148,19 @@ export function QuotePanel({
           {quote.accepted ? (
             <>
               <p role="status">Terms accepted · original version retained.</p>
-              <ReservationPanel key={quote.id} quoteId={quote.id} />
+              {expired ? (
+                <p role="alert">
+                  Quote expired. Renew and review before reserving.
+                </p>
+              ) : (
+                <ReservationPanel
+                  key={quote.id}
+                  quoteId={quote.id}
+                  onInsufficient={
+                    onInsufficient ? () => onInsufficient(quote) : undefined
+                  }
+                />
+              )}
             </>
           ) : expired ? (
             <p role="alert">

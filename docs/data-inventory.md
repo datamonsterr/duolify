@@ -1,5 +1,18 @@
 # Data inventory
 
+E7-04: `credit_checkout_orders` stores immutable illustrative pending order IDs,
+request dedupe keys, pseudonymous owner references, optional quote IDs and original
+catalogue SKU, amount, currency, Credits, billing period and fixed internal return
+destination. It contains no draft text, raw notes, card data or provider secrets.
+Included in encrypted nightly financial dumps (35-day snapshot retention, PITR where
+available), with at least seven-year live retention. Backup fixtures seed non-empty
+orders and compare complete restored rows. Account export includes owned orders;
+deletion and restore tombstones null learner IDs while retaining pseudonymous
+financial provenance. These illustrative orders never fulfill or grant Credits.
+Client recovery stores only account-scoped order/quote IDs in session storage;
+logout/deletion clears them. Mounted work remains local to its owning feature,
+and no local state or callback can verify payment. No new AI data or eval behavior.
+
 Owner specs are authoritative for collection and deletion. Every feature adding
 data must update this table and its restore checks. Bootstrap currently creates
 `learners`, email-code auth/profile/session tables, `credit_entries`, immutable `pricing_versions`, Goose/River metadata and River's queue tables;

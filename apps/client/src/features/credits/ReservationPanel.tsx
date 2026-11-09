@@ -2,13 +2,21 @@ import { useState } from "react";
 import { Button } from "../design/Button";
 import { reservationAPI, type Reservation } from "./reservations";
 
-export function ReservationPanel({ quoteId }: { quoteId: string }) {
+export function ReservationPanel({
+  quoteId,
+  onInsufficient,
+}: {
+  quoteId: string;
+  onInsufficient?: () => void;
+}) {
   const [job, setJob] = useState<Reservation>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [insufficient, setInsufficient] = useState(false);
   async function act(release = false) {
     setBusy(true);
     setError(undefined);
+    setInsufficient(false);
     try {
       setJob(
         await (release && job
@@ -16,6 +24,11 @@ export function ReservationPanel({ quoteId }: { quoteId: string }) {
           : reservationAPI.reserve(quoteId)),
       );
     } catch (cause) {
+      setInsufficient(
+        cause instanceof Error &&
+          (cause.message.includes("Not enough eligible credits") ||
+            cause.message.includes("insufficient_credits")),
+      );
       setError(
         cause instanceof Error
           ? cause.message
@@ -28,6 +41,11 @@ export function ReservationPanel({ quoteId }: { quoteId: string }) {
   return (
     <div className="reservation-panel">
       {error && <p role="alert">{error}</p>}
+      {insufficient && onInsufficient && (
+        <Button variant="secondary" onClick={onInsufficient}>
+          View credit options
+        </Button>
+      )}
       {busy && <p role="status">Confirming reservation…</p>}
       {job ? (
         <>

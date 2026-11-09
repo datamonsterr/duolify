@@ -94,6 +94,24 @@ type CreditArtifact struct {
 	JobID          pgtype.UUID `json:"job_id"`
 }
 
+type CreditCheckoutOrder struct {
+	ID             pgtype.UUID        `json:"id"`
+	RequestID      pgtype.UUID        `json:"request_id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	OwnerReference string             `json:"owner_reference"`
+	PricingVersion string             `json:"pricing_version"`
+	Sku            string             `json:"sku"`
+	AmountMinor    int64              `json:"amount_minor"`
+	Currency       string             `json:"currency"`
+	Credits        int64              `json:"credits"`
+	BillingPeriod  string             `json:"billing_period"`
+	Platform       string             `json:"platform"`
+	ReturnTo       string             `json:"return_to"`
+	QuoteID        pgtype.UUID        `json:"quote_id"`
+	Illustrative   bool               `json:"illustrative"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type CreditCostCounter struct {
 	Scope          string      `json:"scope"`
 	OwnerReference string      `json:"owner_reference"`

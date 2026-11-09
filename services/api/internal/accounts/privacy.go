@@ -15,6 +15,7 @@ import (
 
 // ClassifiedLearnerTables lists every table holding learner data and its retention policy.
 var ClassifiedLearnerTables = map[string]string{
+	"credit_checkout_orders":        "financial_retained_anonymized",
 	"credit_allocations":            "financial_retained_via_job",
 	"credit_usage":                  "financial_retained_via_job",
 	"credit_cost_counters":          "financial_retained_pseudonymous",
@@ -71,7 +72,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		{table: "pricing_admin_grants", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('account_id',account_id,'granted_at',granted_at)),'[]'::jsonb) FROM pricing_admin_grants WHERE account_id=$1`},
 		{table: "credit_timezones", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'time_zone',time_zone,'effective_at',effective_at,'created_at',created_at)),'[]'::jsonb) FROM credit_timezones WHERE learner_id=$1`},
 	}
-	for _, table := range []string{"credit_jobs", "credit_outbox"} {
+	for _, table := range []string{"credit_checkout_orders", "credit_jobs", "credit_outbox"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM " + table + " t WHERE learner_id=$1"})
 	}
 	for _, table := range []string{"credit_allocations", "credit_usage"} {
@@ -128,6 +129,9 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil {
 		_, err = tx.Exec(ctx, "UPDATE pricing_quotes SET learner_id=NULL WHERE learner_id=$1", id)
+	}
+	if err == nil {
+		_, err = tx.Exec(ctx, "UPDATE credit_checkout_orders SET learner_id=NULL WHERE learner_id=$1", id)
 	}
 	if err == nil {
 		_, err = tx.Exec(ctx, "DELETE FROM pricing_admin_grants WHERE account_id=$1", id)
@@ -206,6 +210,9 @@ func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "UPDATE pricing_quotes SET learner_id=NULL WHERE learner_id=$1::uuid", id); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, "UPDATE credit_checkout_orders SET learner_id=NULL WHERE learner_id=$1::uuid", id); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "DELETE FROM pricing_admin_grants WHERE account_id=$1::uuid", id); err != nil {

@@ -282,6 +282,8 @@ func (f *Fixture) Seed(t *testing.T) {
 	t.Helper()
 	for _, query := range []string{
 		"INSERT INTO learners (id,display_name) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner')",
+		`INSERT INTO credit_checkout_orders(request_id,learner_id,owner_reference,pricing_version,sku,amount_minor,currency,credits,billing_period,platform,return_to)
+SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(convert_to('a1111111-1111-4111-8111-111111111111','UTF8')),'hex'),version,config->'packs'->0->>'sku',(config->'packs'->0->>'amount_minor')::bigint,config->'packs'->0->>'currency',(config->'packs'->0->>'credits')::bigint,'one_time','web','/credits' FROM pricing_versions WHERE version='usd-launch-2026-11-08'`,
 		"INSERT INTO credit_entries (learner_id,amount,kind,reference,pricing_version,provenance) VALUES ('a1111111-1111-4111-8111-111111111111',120,'purchase','synthetic-purchase','2026-11-09.approved.v1','{\"channel\":\"web\"}'::jsonb),('a1111111-1111-4111-8111-111111111111',-35,'spend','synthetic-spend','2026-11-09.approved.v1','{\"action\":\"lesson\"}'::jsonb)",
 		"INSERT INTO credit_timezones (learner_id,time_zone,effective_at) VALUES ('a1111111-1111-4111-8111-111111111111','Asia/Ho_Chi_Minh',now())",
 		`INSERT INTO course_brief_revisions(learner_id,brief,content_hash) VALUES ('a1111111-1111-4111-8111-111111111111','{"topic":"Synthetic sky","include_topics":"Moon","skip_topics":"History","maths":"Light maths"}',repeat('b',64))`,
@@ -511,7 +513,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -525,6 +527,11 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		}
 	}
 	// Admin deletion removes grants and pseudonymizes retained draft/audit actors.
+	for _, query := range []string{"UPDATE credit_checkout_orders SET amount_minor=1", "DELETE FROM credit_checkout_orders", "TRUNCATE credit_checkout_orders"} {
+		if _, err := restored.Pool.Exec(t.Context(), query); err == nil {
+			t.Fatalf("restored order mutation permitted: %s", query)
+		}
+	}
 	const leavingAdmin = "e5555555-5555-4555-8555-555555555555"
 	for _, query := range []string{
 		`INSERT INTO learners(id,display_name) VALUES($1::uuid,'Leaving pricing admin')`,

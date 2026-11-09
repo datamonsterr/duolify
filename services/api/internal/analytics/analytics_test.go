@@ -10,6 +10,7 @@ func TestEventAllowlist(t *testing.T) {
 		"learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
 		"$ai_generation", "ui_control_activated",
+		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
 		"daily_credits_granted", "daily_credits_expired",
@@ -21,6 +22,23 @@ func TestEventAllowlist(t *testing.T) {
 	for _, name := range []string{"private_text", "ui_appearance_changed", "unknown_event"} {
 		if allowlisted(name) {
 			t.Errorf("uncatalogued/API-owned event %q accepted", name)
+		}
+	}
+}
+
+func TestPurchaseRecoveryPropertiesExcludeWorkAndURLs(t *testing.T) {
+	input := map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "price_table_version": "version-a", "offer_id": "pack_try", "billing_period": "yearly", "balance": 12, "next_daily_grant_at": "2026-11-10T00:00:00+07:00", "draft": "private draft", "raw_note": "private note", "return_to": "/notes?secret=private", "payment": "success"}
+	for _, event := range []string{"paywall_viewed", "credits_upsell_shown", "ui_purchase_option_selected", "ui_checkout_requested"} {
+		got := safeProperties(event, input)
+		for _, key := range []string{"price_table_version", "offer_id", "billing_period", "balance", "next_daily_grant_at"} {
+			if !reflect.DeepEqual(got[key], input[key]) {
+				t.Fatalf("%s missing %s", event, key)
+			}
+		}
+		for _, key := range []string{"draft", "raw_note", "return_to", "payment"} {
+			if _, exists := got[key]; exists {
+				t.Fatalf("private %s in %s", key, event)
+			}
 		}
 	}
 }

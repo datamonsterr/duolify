@@ -88,6 +88,11 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 	}
 
 	// Every table with a direct learner reference must have an export/deletion classification.
+	_, err = db.Pool.Exec(ctx, `INSERT INTO credit_checkout_orders(request_id,learner_id,owner_reference,pricing_version,sku,amount_minor,currency,credits,billing_period,platform,return_to)
+SELECT gen_random_uuid(),$1::uuid,encode(sha256(convert_to($1::text,'UTF8')),'hex'),version,config->'packs'->0->>'sku',(config->'packs'->0->>'amount_minor')::bigint,config->'packs'->0->>'currency',(config->'packs'->0->>'credits')::bigint,'one_time','web','/credits' FROM pricing_versions WHERE version='usd-launch-2026-11-08'`, learnerID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var linked []string
 	rows, err := db.Pool.Query(ctx, `SELECT DISTINCT tc.table_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu USING(constraint_catalog,constraint_schema,constraint_name,table_name) JOIN information_schema.constraint_column_usage ccu USING(constraint_catalog,constraint_schema,constraint_name) WHERE tc.constraint_type='FOREIGN KEY' AND tc.table_schema='public' AND ccu.table_name='learners' AND ccu.column_name='id' ORDER BY 1`)
 	if err != nil {
@@ -136,6 +141,10 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 			t.Fatalf("export exposed %q", forbidden)
 		}
 	}
+	var orders []map[string]any
+	if err = json.Unmarshal(exportedTables["credit_checkout_orders"], &orders); err != nil || len(orders) != 1 {
+		t.Fatalf("missing order export: %s %v", exportedTables["credit_checkout_orders"], err)
+	}
 	if w = call("POST", "/v1/me/deletion-request", map[string]string{"confirmation": "no"}, tokens.AccessToken); w.Code != 400 {
 		t.Fatalf("unconfirmed delete status=%d", w.Code)
 	}
@@ -150,6 +159,10 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 	h := sha256.Sum256([]byte(learnerID))
 	if entryLearner != nil || owner != hex.EncodeToString(h[:]) {
 		t.Fatalf("ledger not pseudonymized: learner=%v owner=%q", entryLearner, owner)
+	}
+	var anonymized bool
+	if err = db.Pool.QueryRow(ctx, "SELECT learner_id IS NULL AND owner_reference=$1 FROM credit_checkout_orders", owner).Scan(&anonymized); err != nil || !anonymized {
+		t.Fatalf("order not anonymized: %v %v", anonymized, err)
 	}
 	var grantCount int
 	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM pricing_admin_grants WHERE account_id=$1::uuid", learnerID).Scan(&grantCount); err != nil || grantCount != 0 {

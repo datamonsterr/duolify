@@ -92,6 +92,11 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	if _, err = db.Pool.Exec(ctx, "INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES($1,$2,true,$3)", "usd-runtime-flip", scheduledAt, encoded); err != nil {
 		t.Fatal(err)
 	}
+	// Mirror approval's execution-policy inheritance: E7-03 requires every
+	// approved successor to retain its parent's operational bounds.
+	if _, err = db.Pool.Exec(ctx, "INSERT INTO pricing_quote_policies(version,policy) SELECT 'usd-runtime-flip',policy FROM pricing_quote_policies WHERE version=$1", initial.Config().Version); err != nil {
+		t.Fatal(err)
+	}
 	before := read()
 	if before["version"] != "usd-quotes-2026-11-09" || before["next_scheduled"] == nil {
 		t.Fatalf("scheduled response=%v", before)

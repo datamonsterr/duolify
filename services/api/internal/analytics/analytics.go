@@ -76,6 +76,7 @@ func allowlisted(event string) bool {
 	case "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
 		"$ai_generation", "ui_control_activated",
+		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":
@@ -219,6 +220,17 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "ui_control_activated":
 		ids("control_id", "screen")
+	case "paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested":
+		ids("placement", "feature", "plan_id", "price_table_version", "pricing_version", "surface", "offer_id")
+		numeric("balance")
+		if period := input["billing_period"]; period == "one_time" || period == "monthly" || period == "yearly" {
+			out["billing_period"] = period
+		}
+		if reset, ok := input["next_daily_grant_at"].(string); ok {
+			if _, err := time.Parse(time.RFC3339, reset); err == nil {
+				out["next_daily_grant_at"] = reset
+			}
+		}
 	case "pricing_version_created", "pricing_version_approved", "pricing_version_rejected", "pricing_version_activated", "pricing_version_rolled_back", "price_table_activated":
 		ids("pricing_version")
 		if class := input["change_class"]; class == "adverse" || class == "non_adverse" {
