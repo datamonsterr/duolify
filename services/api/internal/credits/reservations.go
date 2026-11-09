@@ -540,12 +540,15 @@ func (s *Service) finalize(ctx context.Context, owner, id string, usage []*engin
 		}
 	}
 	if len(usage) == 0 && state == "running" {
-		if err = insertOutbox(ctx, tx, owner, id+":usage:unavailable", "$ai_generation", map[string]any{"source": "api", "platform": "web", "app_version": "development", "feature": q.Action, "pricing_version": q.PricingVersion, "provider": q.Rate.Provider, "model": q.Rate.Model, "usage_available": false, "succeeded": false, "provider_cost_nanos": hold}); err != nil {
+		if err = insertOutbox(ctx, tx, owner, id+":usage:unavailable", "$ai_generation", map[string]any{"source": "api", "platform": "web", "app_version": "development", "feature": q.Action, "pricing_version": q.PricingVersion, "provider": q.Rate.Provider, "model": q.Rate.Model, "usage_available": false, "succeeded": false, "provider_cost_nanos": hold, "error_code": "timeout"}); err != nil {
 			return result, err
 		}
 	}
 	for i, u := range usage {
 		properties := map[string]any{"source": "api", "platform": "web", "app_version": "development", "feature": q.Action, "pricing_version": q.PricingVersion, "provider": u.Provider, "model": u.Model, "input_tokens": u.InputTokens, "output_tokens": u.OutputTokens, "cache_write_tokens": u.CacheWriteTokens, "cache_read_tokens": u.CacheReadTokens, "narration_characters": u.NarrationCharacters, "fallback_used": u.FallbackUsed, "attempt": u.Attempt, "latency_ms": u.LatencyMs, "succeeded": u.Delivered && validationErr == nil, "usage_available": !u.UsageUnavailable}
+		if u.ErrorCode != "" {
+			properties["error_code"] = u.ErrorCode
+		}
 		if priced, e := CalculateSettlement(q, []*enginev1.Usage{u}); e == nil {
 			properties["provider_cost_nanos"] = priced.CostNanos
 		}

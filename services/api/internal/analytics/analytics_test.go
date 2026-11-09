@@ -199,11 +199,17 @@ func TestCourseBriefAttemptProperties(t *testing.T) {
 			"fallback_used": true, "succeeded": succeeded, "usage_available": succeeded,
 			"answer": "private answer", "brief": map[string]string{"topic": "private topic"},
 		}
+		if !succeeded {
+			input["error_code"] = "rate_limited"
+		}
 		got := safeProperties("$ai_generation", input)
 		for _, key := range []string{"task", "pricing_version", "attempt", "provider", "model", "input_tokens", "output_tokens", "latency_ms", "fallback_used", "succeeded", "usage_available"} {
 			if !reflect.DeepEqual(got[key], input[key]) {
 				t.Errorf("%s: got %v, want %v", key, got[key], input[key])
 			}
+		}
+		if !succeeded && got["error_code"] != "rate_limited" {
+			t.Errorf("error_code: got %v, want rate_limited", got["error_code"])
 		}
 		if got["$ai_is_error"] != !succeeded || got["feature"] != "course_brief_chat" {
 			t.Errorf("incorrect canonical attempt properties: %v", got)

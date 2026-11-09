@@ -243,7 +243,11 @@ func (s *Service) attemptEvents(ctx context.Context, owner, version string, atte
 		if u == nil {
 			provider, model = a.GetProvider(), a.GetModel()
 		}
-		_ = s.opts.Events.Capture(owner, "$ai_generation", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "task": "course_brief_chat", "pricing_version": version, "attempt": i + 1, "provider": provider, "model": model, "input_tokens": u.GetInputTokens(), "output_tokens": u.GetOutputTokens(), "latency_ms": u.GetLatencyMs(), "fallback_used": a.FallbackUsed, "succeeded": a.Succeeded, "usage_available": u != nil})
+		props := map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "task": "course_brief_chat", "pricing_version": version, "attempt": i + 1, "provider": provider, "model": model, "input_tokens": u.GetInputTokens(), "output_tokens": u.GetOutputTokens(), "latency_ms": u.GetLatencyMs(), "fallback_used": a.FallbackUsed, "succeeded": a.Succeeded, "usage_available": u != nil}
+		if u != nil && u.GetErrorCode() != "" {
+			props["error_code"] = u.GetErrorCode()
+		}
+		_ = s.opts.Events.Capture(owner, "$ai_generation", props)
 	}
 }
 func (s *Service) confirm(w http.ResponseWriter, r *http.Request, owner string) {

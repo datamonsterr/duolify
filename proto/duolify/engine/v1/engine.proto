@@ -51,6 +51,7 @@ message Usage {
   bool cached = 13;
   string artifact_id = 14;
   bool usage_unavailable = 15;
+  string error_code = 16;
 }
 
 // Bounds come only from the API's immutable Pricing quote, never client prices.
@@ -68,6 +69,8 @@ message UsageLimits {
   string model = 11;
   string fallback_provider = 12;
   string fallback_model = 13;
+  uint32 first_token_timeout_ms = 14;
+  uint32 idle_timeout_ms = 15;
 }
 
 message LearnerProfile {
@@ -166,6 +169,7 @@ message GenerateLessonRequest {
   LearnerProfile learner = 3;
   // Summaries of completed lessons and test results, oldest first.
   repeated string history = 4;
+  UsageLimits limits = 5;
 }
 
 message GenerateLessonEvent {
@@ -174,6 +178,8 @@ message GenerateLessonEvent {
     Slide slide = 2;
     Lesson lesson = 3;
     Usage usage = 4;
+    Usage attempt = 5;
+    bool unavailable = 6;
   }
 }
 
@@ -188,12 +194,15 @@ message ChatRequest {
   LearnerProfile learner = 3;
   repeated string history = 4;
   repeated ChatMessage messages = 5;
+  UsageLimits limits = 6;
 }
 
 message ChatEvent {
   oneof event {
     string delta = 1;
     Usage usage = 2;
+    Usage attempt = 3;
+    string error_code = 4;
   }
 }
 
@@ -201,6 +210,7 @@ message EnrichNoteRequest {
   string note = 1;
   LessonRef lesson = 2;
   LearnerProfile learner = 3;
+  UsageLimits limits = 4;
 }
 
 message EnrichNoteResponse {
@@ -208,6 +218,8 @@ message EnrichNoteResponse {
   repeated string tags = 2;
   repeated string links = 3;
   Usage usage = 4;
+  repeated Usage attempts = 5;
+  bool unavailable = 6;
 }
 
 message QuickReply {
