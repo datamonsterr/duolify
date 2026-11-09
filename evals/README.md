@@ -8,6 +8,13 @@ Live evaluations accept `--limit <N>` or `EVAL_SAMPLE_LIMIT=N` to run a small sa
 
 E2-06 adds `course_brief_chat` cases. Offline brief cases contain a `recorded` array of classifier JSON responses (or `null` for a failed provider attempt) and run the production stateless brief processor, including schema validation, attempt/USD bounds and deterministic field mapping. `path_equals` uses a JSON-encoded `{ "path": "brief.topic", "expected": "..." }` value to assert exact fields, empty context, bounded follow-ups, confirmation invalidation and terminal form fallback. No provider network call is made in mock mode. Publish these same cases at a pinned `datamonsterr/duolify-golden` revision after E10-01 owner provisioning; E10-06 gates live promotion.
 
+E10-04 recorded fixtures cover pinned source fallback, terminal failure with undelivered
+reservation release, and mirror integrity validation. Live runs require pinned 40-character
+hex revisions, verify SHA-256 checksums of mirror and cache artifacts, and fall back to the
+RustFS/S3 mirror during Hugging Face outages. Mock fixtures remain deterministic and never
+substitute silently for a requested live run. Pinned revision cases remain Git-pinned until
+E10-01 provisions them on Hugging Face; E10-06 gates live promotion.
+
 E7-03 `credit_envelope` recorded fixtures execute the production bounded provider
 runner with API-owned limits. They cover uncached/cache-write/cache-read usage,
 malformed output, unknown failed-attempt usage, fallback and cap exhaustion.

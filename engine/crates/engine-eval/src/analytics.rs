@@ -3,6 +3,7 @@ use serde_json::json;
 
 pub const SYSTEM_OPERATIONAL_UUID: &str = "00000000-0000-4000-8000-000000000011";
 
+#[allow(clippy::too_many_arguments)]
 pub async fn emit_eval_run_completed(
     host: &str,
     api_key: &str,
@@ -10,6 +11,8 @@ pub async fn emit_eval_run_completed(
     score: f64,
     threshold: f64,
     passed: bool,
+    dataset_revision: &str,
+    dataset_source: &str,
 ) -> Result<bool> {
     let opt_out = std::env::var("ANALYTICS_OPT_OUT")
         .map(|v| v.eq_ignore_ascii_case("true"))
@@ -30,6 +33,8 @@ pub async fn emit_eval_run_completed(
         "score": score,
         "threshold": threshold,
         "passed": passed,
+        "dataset_revision": dataset_revision,
+        "dataset_source": dataset_source,
         "source": "ci",
         "platform": "web",
         "app_version": app_version
@@ -87,6 +92,8 @@ mod tests {
             1.0,
             1.0,
             true,
+            "0123456789abcdef0123456789abcdef01234567",
+            "mirror",
         )
         .await
         .unwrap();
@@ -104,6 +111,11 @@ mod tests {
         assert_eq!(event["properties"]["score"], 1.0);
         assert_eq!(event["properties"]["threshold"], 1.0);
         assert_eq!(event["properties"]["passed"], true);
+        assert_eq!(
+            event["properties"]["dataset_revision"],
+            "0123456789abcdef0123456789abcdef01234567"
+        );
+        assert_eq!(event["properties"]["dataset_source"], "mirror");
         assert_eq!(event["properties"]["source"], "ci");
         assert_eq!(event["properties"]["platform"], "web");
         assert_eq!(event["properties"]["app_version"], "development");
@@ -117,6 +129,8 @@ mod tests {
             1.0,
             1.0,
             true,
+            "0123456789abcdef0123456789abcdef01234567",
+            "mirror",
         )
         .await
         .unwrap();

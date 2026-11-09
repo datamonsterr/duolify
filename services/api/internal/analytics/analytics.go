@@ -217,7 +217,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "eval_run_completed":
 		numeric("score", "threshold")
 		boolean("passed")
-		ids("task")
+		ids("task", "dataset_revision", "dataset_source")
 	case "$ai_generation":
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
 		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available")

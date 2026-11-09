@@ -1,7 +1,8 @@
 use anyhow::{Context, Result, bail};
 use engine_eval::{
-    Case, Runner, TaskRegistry, Thresholds, emit_eval_run_completed, fetch_dataset,
-    generate_json_report, generate_markdown_report, sample_limit_from_args, select_cases,
+    Case, Runner, TaskRegistry, Thresholds, emit_eval_run_completed, fetch_dataset_with_mirror,
+    generate_json_report, generate_markdown_report, is_pinned_commit, sample_limit_from_args,
+    select_cases,
 };
 use std::path::PathBuf;
 
@@ -37,11 +38,11 @@ async fn main() -> Result<()> {
     let limit = sample_limit_from_args(&args, std::env::var("EVAL_SAMPLE_LIMIT").ok().as_deref())?;
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../evals");
 
-    let (data, dataset_name, dataset_revision) = if let Some(path) = custom_data {
+    let (data, dataset_name, dataset_revision, dataset_source) = if let Some(path) = custom_data {
         let content = std::fs::read_to_string(&path)
             .with_context(|| format!("failed to read custom data file at {path}"))?;
-        (content, path, "custom".to_string())
-    } else if offline || std::env::var("HF_TOKEN").unwrap_or_default().is_empty() {
+        (content, path, "custom".to_string(), "custom".to_string())
+    } else if offline {
         let path = root.join("fixtures/golden.sample.jsonl");
         let content = std::fs::read_to_string(&path)
             .with_context(|| format!("failed to read sample fixtures at {:?}", path))?;
@@ -49,23 +50,36 @@ async fn main() -> Result<()> {
             content,
             "evals/fixtures/golden.sample.jsonl".to_string(),
             "sample".to_string(),
+            "fixture".to_string(),
         )
     } else {
         let dataset = std::env::var("HF_GOLDEN_DATASET")
             .unwrap_or_else(|_| "datamonsterr/duolify-golden".into());
-        let revision = std::env::var("HF_GOLDEN_REVISION").unwrap_or_else(|_| "main".into());
-        let token = std::env::var("HF_TOKEN")?;
-        let cache_dir = root.join(".cache");
+        let revision = std::env::var("HF_GOLDEN_REVISION")
+            .context("HF_GOLDEN_REVISION must be set for live evaluation")?;
+        if !is_pinned_commit(&revision) {
+            bail!("dataset revision must be a pinned 40-character commit hash: '{revision}'");
+        }
+        let token = std::env::var("HF_TOKEN").unwrap_or_default();
+        let cache_dir = std::env::var("EVAL_CACHE_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| root.join(".cache"));
+        let base_url =
+            std::env::var("HF_BASE_URL").unwrap_or_else(|_| "https://huggingface.co".to_string());
+        let mirror_url = std::env::var("HF_GOLDEN_MIRROR_URL")
+            .or_else(|_| std::env::var("GOLDEN_MIRROR_URL"))
+            .ok();
 
-        let content = fetch_dataset(
-            "https://huggingface.co",
+        let fetched = fetch_dataset_with_mirror(
+            &base_url,
+            mirror_url.as_deref(),
             &dataset,
             &revision,
             &token,
             &cache_dir,
         )
         .await?;
-        (content, dataset, revision)
+        (fetched.content, dataset, revision, fetched.source)
     };
 
     let mut cases = Vec::new();
@@ -115,6 +129,7 @@ async fn main() -> Result<()> {
     let mut runner = Runner::new(provider, judge);
     runner.dataset_name = dataset_name;
     runner.dataset_revision = dataset_revision;
+    runner.dataset_source = dataset_source;
     runner.prompt_revision = prompt_rev;
 
     let report = runner.run_cases(cases, &thresholds).await?;
@@ -146,6 +161,8 @@ async fn main() -> Result<()> {
             tr.score,
             tr.threshold,
             tr.passed,
+            &report.dataset_revision,
+            &report.dataset_source,
         )
         .await;
         println!(
@@ -257,14 +274,25 @@ lesson_test = 1.00
         );
 
         let valid_sha1 = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
-        let is_immutable =
-            valid_sha1.len() == 40 && valid_sha1.bytes().all(|b| b.is_ascii_hexdigit());
+        let is_immutable = is_pinned_commit(valid_sha1);
         assert!(is_immutable);
 
         let branch_rev = "main";
-        let is_branch_immutable =
-            branch_rev.len() == 40 && branch_rev.bytes().all(|b| b.is_ascii_hexdigit());
+        let is_branch_immutable = is_pinned_commit(branch_rev);
         assert!(!is_branch_immutable);
+    }
+
+    #[test]
+    fn checksum_verification_computes_sha256_and_detects_mismatch() {
+        use engine_eval::compute_sha256;
+        let data = b"hello world\n";
+        let computed = compute_sha256(data);
+        assert_eq!(
+            computed,
+            "a948904f2f0f479b8f8197694b30184b0d2ed1c1cd2a1ec0fb85d299a192a447"
+        );
+        let mismatched = "0000000000000000000000000000000000000000000000000000000000000000";
+        assert_ne!(computed, mismatched);
     }
 
     #[tokio::test]
@@ -285,6 +313,8 @@ lesson_test = 1.00
             1.0,
             1.0,
             true,
+            "0123456789abcdef0123456789abcdef01234567",
+            "mirror",
         )
         .await
         .unwrap();
@@ -305,6 +335,11 @@ lesson_test = 1.00
         assert_eq!(props["score"], 1.0);
         assert_eq!(props["threshold"], 1.0);
         assert_eq!(props["passed"], true);
+        assert_eq!(
+            props["dataset_revision"],
+            "0123456789abcdef0123456789abcdef01234567"
+        );
+        assert_eq!(props["dataset_source"], "mirror");
         assert_eq!(props["source"], "ci");
         assert_eq!(props["platform"], "web");
         assert_eq!(props["app_version"], "development");

@@ -81,11 +81,17 @@ pub struct TaskReport {
     pub judge_score: Option<f64>,
 }
 
+fn default_dataset_source() -> String {
+    "fixture".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvalReport {
     pub timestamp_millis: u128,
     pub dataset: String,
     pub dataset_revision: String,
+    #[serde(default = "default_dataset_source")]
+    pub dataset_source: String,
     pub prompt_revision: String,
     pub passed: bool,
     pub critical_failure: bool,

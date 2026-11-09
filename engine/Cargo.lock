@@ -285,6 +285,7 @@ dependencies = [
  "engine-providers",
  "regex",
  "reqwest",
+ "ring",
  "serde",
  "serde_json",
  "tokio",

@@ -308,3 +308,92 @@ func TestPreviewEventsReachPostHogWithoutPrivateData(t *testing.T) {
 		})
 	}
 }
+
+func TestEvalRunCompletedDeliveryAndMetadata(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	systemUUID := "00000000-0000-4000-8000-000000000011"
+	props := map[string]any{
+		"source":           "ci",
+		"platform":         "web",
+		"app_version":      "development",
+		"task":             "course_preview",
+		"score":            1.0,
+		"threshold":        1.0,
+		"passed":           true,
+		"dataset_revision": "0123456789abcdef0123456789abcdef01234567",
+		"dataset_source":   "mirror",
+		"learner_text":     "private prompt content",
+		"prompt":           "private prompt",
+	}
+
+	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = events.Capture(systemUUID, "eval_run_completed", props); err != nil {
+		t.Fatal(err)
+	}
+	if err = events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 1 {
+		t.Fatalf("expected 1 event, got %v", received)
+	}
+
+	event := received[0]
+	if event["distinct_id"] != systemUUID {
+		t.Fatalf("expected distinct_id %s, got %v", systemUUID, event["distinct_id"])
+	}
+	p := event["properties"].(map[string]any)
+	if p["task"] != "course_preview" || p["score"] != 1.0 || p["threshold"] != 1.0 || p["passed"] != true {
+		t.Fatalf("eval properties mismatch: %v", p)
+	}
+	if p["dataset_revision"] != "0123456789abcdef0123456789abcdef01234567" {
+		t.Fatalf("dataset_revision mismatch: %v", p["dataset_revision"])
+	}
+	if p["dataset_source"] != "mirror" {
+		t.Fatalf("dataset_source mismatch: %v", p["dataset_source"])
+	}
+	if p["source"] != "ci" || p["platform"] != "web" || p["app_version"] != "development" {
+		t.Fatalf("common properties mismatch: %v", p)
+	}
+
+	// Verify no private text leaked
+	raw, _ := json.Marshal(event)
+	if strings.Contains(string(raw), "private") {
+		t.Fatalf("private text leaked in eval_run_completed: %s", string(raw))
+	}
+
+	// Test opt-out
+	opted, err := NewWithOptions("fixture-only", server.URL, Options{OptOut: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = opted.Capture(systemUUID, "eval_run_completed", props); err != nil {
+		t.Fatal(err)
+	}
+	if err = opted.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if len(received) != 1 {
+		t.Fatalf("opt-out sent analytics: %v", received)
+	}
+}

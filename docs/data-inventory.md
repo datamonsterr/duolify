@@ -23,6 +23,13 @@ Client recovery stores only account-scoped order/quote IDs in session storage;
 logout/deletion clears them. Mounted work remains local to its owning feature,
 and no local state or callback can verify payment. No new AI data or eval behavior.
 
+E10-04: pinned Golden set dataset revisions on Hugging Face are mirrored to versioned
+S3 object storage (RustFS locally) with SHA-256 checksum verification. Live eval runs
+download only immutable 40-character hex commit hashes, reject corrupt or unrelated
+fallbacks, and fall back to the verified mirror during Hugging Face outages. Eval
+reports are retained for 90 days as CI artifacts. No learner data is created, mirrored,
+or held; account deletion/export policies are unaffected.
+
 Owner specs are authoritative for collection and deletion. Every feature adding
 data must update this table and its restore checks. Bootstrap currently creates
 `learners`, email-code auth/profile/session tables, `credit_entries`, immutable `pricing_versions`, Goose/River metadata and River's queue tables;
@@ -57,7 +64,7 @@ and production drills still require provisioning. See [backup tooling](../infra/
 | Local RustFS IAM metadata | Separate application, backup writer and root/retention identities and policies; local fixture secrets are environment settings | Reprovisioned by the development-only initializer; production IAM/keys managed separately | Never pass root or backup credentials to API containers; private age recovery key is never in worker images or environment | [worker backup change](../openspec/changes/worker-database-backup/design.md) |
 | Device OS credential store / browser session fallback | Access/refresh token pair in desktop OS keyring through fixed-service Tauri commands; web build only uses sessionStorage with an in-memory fallback. Analytics preference is a non-secret local boolean. Native mobile storage fails closed pending a supported implementation. | Credentials excluded from app backups; reissued by email-code sign-in | Logout revokes server session and deletes device credentials. Browser fallback ends with the browser session. No localStorage tokens; native keyring failures never fall back to browser storage. | [email-code-sign-in](../openspec/changes/email-code-sign-in/specs/accounts/spec.md), [ADR 0004](adr/0004-auth.md) |
 | Device cache | Cached slide copies | Disposable cache; never the sole copy of lesson assets | Cache eviction/logout | [lesson-player](../openspec/specs/lesson-player/spec.md) |
-| Hugging Face + CI artifacts | Golden-set revisions; eval reports | Versioned dataset; optional pinned mirror in S3; reports as CI artifacts | Keep dataset revisions; eval artifacts 90 days | [ai-reliability](../openspec/specs/ai-reliability/spec.md) |
+| Hugging Face + S3 mirror + CI artifacts | Golden-set revisions; eval reports | Versioned dataset; verified pinned SHA-256 mirror in S3 (RustFS locally); reports as CI artifacts | Keep dataset revisions; eval artifacts 90 days | [ai-reliability](../openspec/specs/ai-reliability/spec.md) |
 | PostHog | Product events, backup/drill results, AI token/latency metadata | Derived store; never sole product-state copy | Project-plan event retention; request person deletion on account deletion; no note/chat/profile text | [analytics](../openspec/specs/analytics/spec.md) |
 | API, worker and engine JSON logs/traces | Opaque server request/trace/span IDs, fixed operation/outcome, elapsed time; worker attempt and safe alert records; no tokens, bodies, URLs, prompts, private text or provider errors | Derived, excluded from recovery; source/config recovered from Git | Docker size rotation: 10 MiB × 3 files per service; deletion/recreation discards telemetry. No learner identity linkage. Production collectors must enforce equivalent bounds | [E11-04 observability](../infra/observability/README.md) |
 | Postgres River job metadata | Validated request_id, trace_id and parent span_id under correlation; backup args remain UTC date only | Existing encrypted nightly database dumps; focused synthetic dump/restore compares the metadata of a completed retried job | Existing River terminal-job cleanup; no learner ID or content. Legacy jobs get fresh correlation; account deletion needs no new personal-data store | [E11-04 change](../openspec/changes/trace-requests-workers-alerts/design.md) |

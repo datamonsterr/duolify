@@ -22,6 +22,10 @@ pub fn generate_markdown_report(report: &EvalReport) -> String {
         report.dataset_revision
     ));
     md.push_str(&format!(
+        "- **Dataset Source**: {}\n",
+        report.dataset_source
+    ));
+    md.push_str(&format!(
         "- **Prompt Revision**: {}\n\n",
         report.prompt_revision
     ));
@@ -90,6 +94,7 @@ mod tests {
             timestamp_millis: 1000,
             dataset: "datamonsterr/duolify-golden".into(),
             dataset_revision: "rev123".into(),
+            dataset_source: "mirror".into(),
             prompt_revision: "git-abc".into(),
             passed: true,
             critical_failure: false,

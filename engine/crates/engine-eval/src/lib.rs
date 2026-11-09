@@ -8,7 +8,10 @@ pub mod tasks;
 pub use analytics::{SYSTEM_OPERATIONAL_UUID, emit_eval_run_completed};
 pub use judge::parse_judge_verdict;
 pub use report::{generate_json_report, generate_markdown_report};
-pub use runner::{Runner, fetch_dataset, sample_limit_from_args, select_cases};
+pub use runner::{
+    FetchedDataset, Runner, compute_sha256, fetch_dataset, fetch_dataset_with_mirror,
+    is_pinned_commit, sample_limit_from_args, select_cases,
+};
 pub use scoring::{
     Case, CaseResult, Check, EvalReport, TaskReport, Thresholds, aggregate_task_reports,
 };

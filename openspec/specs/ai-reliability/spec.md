@@ -73,8 +73,8 @@ The system SHALL emit `$ai_generation` for every call (with `fallback_used`) and
 - **THEN** an alert is raised
 
 ### Requirement: Eval data backup and retention
-The Golden set dataset is versioned on Hugging Face and its revisions MUST be kept. Eval reports MUST be stored as CI artifacts for 90 days. A copy of the pinned dataset revision SHOULD be mirrored to object storage.
+The Golden set dataset is versioned on Hugging Face and its revisions MUST be kept. Eval reports MUST be stored as CI artifacts for 90 days. A copy of the pinned dataset revision MUST be mirrored to object storage. The eval runner MUST verify the SHA-256 checksum of mirrored and cached datasets and reject corrupt or unrelated fallback datasets.
 
 #### Scenario: Hugging Face unavailable
 - **WHEN** the dataset cannot be downloaded
-- **THEN** the eval uses the mirrored copy of the pinned revision
+- **THEN** the eval uses the mirrored copy of the pinned revision and records the dataset source in the report

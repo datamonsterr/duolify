@@ -40,13 +40,75 @@ pub fn sample_limit_from_args(args: &[String], env_var: Option<&str>) -> Result<
     Ok(limit)
 }
 
+pub fn compute_sha256(data: &[u8]) -> String {
+    let digest = ring::digest::digest(&ring::digest::SHA256, data);
+    digest
+        .as_ref()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect()
+}
+
+pub fn is_pinned_commit(revision: &str) -> bool {
+    revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FetchedDataset {
+    pub content: String,
+    pub source: String, // "cache", "hf", "mirror", "fixture"
+    pub revision: String,
+    pub checksum: String,
+}
+
+impl std::ops::Deref for FetchedDataset {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        &self.content
+    }
+}
+
+impl AsRef<str> for FetchedDataset {
+    fn as_ref(&self) -> &str {
+        &self.content
+    }
+}
+
+impl From<FetchedDataset> for String {
+    fn from(f: FetchedDataset) -> Self {
+        f.content
+    }
+}
+
 pub async fn fetch_dataset(
     base_url: &str,
     dataset: &str,
     revision: &str,
     token: &str,
     cache_dir: &Path,
-) -> Result<String> {
+) -> Result<FetchedDataset> {
+    let mirror = std::env::var("HF_GOLDEN_MIRROR_URL")
+        .or_else(|_| std::env::var("GOLDEN_MIRROR_URL"))
+        .ok();
+    fetch_dataset_with_mirror(
+        base_url,
+        mirror.as_deref(),
+        dataset,
+        revision,
+        token,
+        cache_dir,
+    )
+    .await
+}
+
+pub async fn fetch_dataset_with_mirror(
+    base_url: &str,
+    mirror_url: Option<&str>,
+    dataset: &str,
+    revision: &str,
+    token: &str,
+    cache_dir: &Path,
+) -> Result<FetchedDataset> {
     if !dataset
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || "-_/".contains(c))
@@ -57,25 +119,194 @@ pub async fn fetch_dataset(
         bail!("invalid dataset or revision");
     }
 
-    std::fs::create_dir_all(cache_dir)?;
-    let cache_file = cache_dir.join(format!("{}-{revision}.jsonl", dataset.replace('/', "--")));
-    let immutable = revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit());
-
-    if immutable && cache_file.is_file() {
-        return Ok(std::fs::read_to_string(cache_file)?);
+    if !is_pinned_commit(revision) {
+        bail!("dataset revision must be a pinned 40-character commit hash: '{revision}'");
     }
 
-    let url = format!(
+    std::fs::create_dir_all(cache_dir)?;
+    let cache_file = cache_dir.join(format!("{}-{revision}.jsonl", dataset.replace('/', "--")));
+    let checksum_file = cache_dir.join(format!("{}-{revision}.sha256", dataset.replace('/', "--")));
+
+    // 1. Check local cache
+    if cache_file.is_file() {
+        let content = std::fs::read_to_string(&cache_file)
+            .with_context(|| format!("failed to read cache file at {}", cache_file.display()))?;
+        let computed = compute_sha256(content.as_bytes());
+
+        if checksum_file.is_file() {
+            let expected = std::fs::read_to_string(&checksum_file)?.trim().to_string();
+            if computed != expected {
+                bail!(
+                    "cache corruption detected: checksum mismatch for {} (got {computed}, expected {expected})",
+                    cache_file.display()
+                );
+            }
+        } else {
+            std::fs::write(&checksum_file, &computed)?;
+        }
+
+        return Ok(FetchedDataset {
+            content,
+            source: "cache".to_string(),
+            revision: revision.to_string(),
+            checksum: computed,
+        });
+    }
+
+    // 2. Try primary Hugging Face endpoint
+    let hf_url = format!(
         "{}/datasets/{dataset}/resolve/{revision}/golden.jsonl",
         base_url.trim_end_matches('/')
     );
-    let mut req = reqwest::Client::new().get(url);
+    let mut req = reqwest::Client::new().get(&hf_url);
     if !token.is_empty() {
         req = req.bearer_auth(token);
     }
-    let body = req.send().await?.error_for_status()?.text().await?;
-    std::fs::write(cache_file, &body)?;
-    Ok(body)
+
+    let hf_result: Result<String> = async {
+        let res = req.send().await?;
+        let status = res.status();
+        if !status.is_success() {
+            bail!("HTTP status {status} for url ({hf_url})");
+        }
+        let body = res.text().await?;
+        Ok(body)
+    }
+    .await;
+
+    match hf_result {
+        Ok(body) => {
+            let checksum = compute_sha256(body.as_bytes());
+            std::fs::write(&cache_file, &body)?;
+            std::fs::write(&checksum_file, &checksum)?;
+            Ok(FetchedDataset {
+                content: body,
+                source: "hf".to_string(),
+                revision: revision.to_string(),
+                checksum,
+            })
+        }
+        Err(hf_err) => {
+            // 3. Fallback to mirror if available
+            let mirror_base = mirror_url
+                .map(|s| s.to_string())
+                .or_else(|| std::env::var("HF_GOLDEN_MIRROR_URL").ok())
+                .or_else(|| std::env::var("GOLDEN_MIRROR_URL").ok());
+
+            let mirror_base = match mirror_base {
+                Some(m) if !m.trim().is_empty() => m,
+                _ => {
+                    bail!("Hugging Face download failed ({hf_err}) and no mirror configured");
+                }
+            };
+
+            let candidate_urls = if mirror_base.contains("{revision}") {
+                vec![
+                    mirror_base
+                        .replace("{dataset}", dataset)
+                        .replace("{revision}", revision),
+                ]
+            } else {
+                let m = mirror_base.trim_end_matches('/');
+                vec![
+                    format!("{m}/{dataset}/{revision}/golden.jsonl"),
+                    format!("{m}/datasets/{dataset}/resolve/{revision}/golden.jsonl"),
+                    format!("{m}/{revision}/golden.jsonl"),
+                ]
+            };
+
+            let mut last_mirror_err = None;
+            for candidate_url in candidate_urls {
+                let client = reqwest::Client::new();
+                let resp = match client.get(&candidate_url).send().await {
+                    Ok(r) if r.status().is_success() => r,
+                    Ok(r) => {
+                        last_mirror_err =
+                            Some(format!("HTTP status {} for {}", r.status(), candidate_url));
+                        continue;
+                    }
+                    Err(e) => {
+                        last_mirror_err = Some(e.to_string());
+                        continue;
+                    }
+                };
+
+                let advertised_checksum = resp
+                    .headers()
+                    .get("x-checksum-sha256")
+                    .or_else(|| resp.headers().get("x-amz-meta-checksum-sha256"))
+                    .or_else(|| resp.headers().get("x-amz-checksum-sha256"))
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.trim().to_string());
+
+                let body = match resp.text().await {
+                    Ok(b) => b,
+                    Err(e) => {
+                        last_mirror_err = Some(e.to_string());
+                        continue;
+                    }
+                };
+
+                let checksum = compute_sha256(body.as_bytes());
+
+                // If advertised checksum was provided in header, verify it
+                if advertised_checksum
+                    .as_deref()
+                    .is_some_and(|exp| exp != checksum)
+                {
+                    bail!(
+                        "mirror integrity failure: checksum mismatch for mirror dataset at {candidate_url} (computed {checksum}, advertised {})",
+                        advertised_checksum.as_deref().unwrap_or_default()
+                    );
+                }
+
+                // If mirror provides a separate .sha256 file, check it
+                let checksum_url = format!("{candidate_url}.sha256");
+                if let Ok(chk_resp) = client.get(&checksum_url).send().await
+                    && chk_resp.status().is_success()
+                    && let Ok(chk_text) = chk_resp.text().await
+                {
+                    let expected = chk_text.trim();
+                    if !expected.is_empty() && expected != checksum {
+                        bail!(
+                            "mirror integrity failure: checksum mismatch for mirror dataset at {candidate_url} (computed {checksum}, expected in .sha256 {expected})"
+                        );
+                    }
+                }
+
+                // Verify dataset content is valid JSONL rows
+                let mut lines_count = 0;
+                let mut has_json_error = false;
+                for line in body.lines().filter(|l| !l.trim().is_empty()) {
+                    lines_count += 1;
+                    if serde_json::from_str::<serde_json::Value>(line).is_err() {
+                        has_json_error = true;
+                        break;
+                    }
+                }
+                if has_json_error || lines_count == 0 {
+                    bail!(
+                        "mirror dataset at {candidate_url} is corrupt: invalid JSON lines or empty"
+                    );
+                }
+
+                std::fs::write(&cache_file, &body)?;
+                std::fs::write(&checksum_file, &checksum)?;
+
+                return Ok(FetchedDataset {
+                    content: body,
+                    source: "mirror".to_string(),
+                    revision: revision.to_string(),
+                    checksum,
+                });
+            }
+
+            bail!(
+                "failed to fetch golden set revision {revision}: Hugging Face failed ({hf_err}) and mirror recovery failed ({})",
+                last_mirror_err.unwrap_or_else(|| "no mirror candidate matched".into())
+            );
+        }
+    }
 }
 
 // Recorded provider output runs through production processors
@@ -345,6 +576,7 @@ pub struct Runner {
     pub judge: bool,
     pub dataset_name: String,
     pub dataset_revision: String,
+    pub dataset_source: String,
     pub prompt_revision: String,
     pub judge_fixtures: HashMap<String, String>,
 }
@@ -356,6 +588,7 @@ impl Runner {
             judge,
             dataset_name: "datamonsterr/duolify-golden".to_string(),
             dataset_revision: "pinned".to_string(),
+            dataset_source: "fixture".to_string(),
             prompt_revision: "head".to_string(),
             judge_fixtures: HashMap::new(),
         }
@@ -507,6 +740,7 @@ impl Runner {
             timestamp_millis: stamp,
             dataset: self.dataset_name.clone(),
             dataset_revision: self.dataset_revision.clone(),
+            dataset_source: self.dataset_source.clone(),
             prompt_revision: self.prompt_revision.clone(),
             passed: overall_passed,
             critical_failure,
