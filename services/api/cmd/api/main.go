@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
 	"github.com/datamonsterr/duolify/services/api/internal/config"
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
@@ -81,7 +82,28 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	defer db.Close()
 	if command == "worker" {
-		return worker.Run(ctx, db.Pool, logger)
+		backupConfig, err := backup.Load(os.Getenv)
+		if err != nil {
+			return err
+		}
+		objects, err := backup.NewS3(backupConfig.S3)
+		if err != nil {
+			return err
+		}
+		key := cfg.PostHogKey
+		if backupConfig.OptOut {
+			key = ""
+		}
+		events, err := analytics.New(key, cfg.PostHogHost)
+		if err != nil {
+			return err
+		}
+		defer func() { result = errors.Join(result, events.Close()) }()
+		service, err := backup.New(backup.Options{Source: backup.Postgres{Pool: db.Pool, DatabaseURL: cfg.DatabaseURL}, Objects: objects, Recipient: backupConfig.Recipient, Events: events, OptOut: backupConfig.OptOut})
+		if err != nil {
+			return err
+		}
+		return worker.Run(ctx, db.Pool, logger, service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {
@@ -97,7 +119,11 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	defer func() { result = errors.Join(result, backend.Close()) }()
-	events, err := analytics.New(cfg.PostHogKey, cfg.PostHogHost)
+	analyticsKey := cfg.PostHogKey
+	if cfg.AnalyticsOptOut {
+		analyticsKey = ""
+	}
+	events, err := analytics.New(analyticsKey, cfg.PostHogHost)
 	if err != nil {
 		return err
 	}

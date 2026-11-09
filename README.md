@@ -11,7 +11,7 @@ Tauri 2 + React client ── HTTP / SSE ── Go API (public)
                                         ├── Postgres 18: product data + River jobs
                                         ├── Redis 8: reconstructible caches
                                         └── S3: lesson assets + separate backup bucket
-Go API worker ── River jobs / future nightly backups ── Postgres + S3
+Go API worker ── River jobs / encrypted nightly backups ── Postgres + S3
 ```
 
 ## Repository
@@ -164,12 +164,13 @@ migrations also run independently before startup. Provider/JWT/PostHog secrets
 are preserved, never embedded in source. Production is outside bootstrap scope.
 See [.railway/README.md](.railway/README.md) for target guards and SDK setup.
 
-Nightly encrypted Postgres dumps, 14-day retention and Railway snapshots are
-planned in the API worker per ADR 0003. They are **not active yet**. See the
-[backup stub and restore drill](infra/backup/README.md),
+The worker implements nightly encrypted Postgres dumps and synthetic recovery
+checks locally. Cloud keys, retention policies and Railway snapshots still need
+owner provisioning before real data is enabled. See the
+[backup setup and restore drill](infra/backup/README.md),
 [data inventory](docs/data-inventory.md) and [backup spec](openspec/specs/data-backup/spec.md).
 Redis is reconstructible; lesson assets need object versioning. Real data must
-wait for backup scheduling, access controls and cloud versioning verification.
+wait for cloud backup configuration, access controls and versioning verification.
 
 ## Agentic workflow
 
