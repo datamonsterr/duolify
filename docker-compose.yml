@@ -1,9 +1,17 @@
 name: duolify
 
+x-operational-logs: &operational-logs
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-api-env: &api-env
   DUOLIFY_ENV: ${DUOLIFY_ENV:-development}
   LOG_LEVEL: ${LOG_LEVEL:-info}
   API_ADDR: :8080
+  # Private Compose network only; no metrics host port is published.
+  OPERATIONS_ADDR: :9091
   # Host-side .env URLs use localhost; containers always use service DNS.
   DATABASE_URL: postgres://duolify:duolify@postgres:5432/duolify?sslmode=disable
   REDIS_URL: redis://redis:6379/0
@@ -25,6 +33,7 @@ x-api: &api
     dockerfile: Dockerfile
     target: api
   environment: *api-env
+  logging: *operational-logs
 
 x-health: &health
   interval: 5s
@@ -101,6 +110,7 @@ services:
       test: [CMD, /api, healthcheck, --database]
 
   engine:
+    logging: *operational-logs
     image: duolify-engine:local
     build:
       context: .
@@ -141,6 +151,7 @@ services:
     command: [worker]
     environment:
       <<: *api-env
+      OPERATIONS_ADDR: :9092
       # The worker receives only scoped backup credentials; no RustFS root key.
       S3_ACCESS_KEY_ID: ""
       S3_SECRET_ACCESS_KEY: ""
@@ -161,6 +172,20 @@ services:
       <<: *health
       # Worker has no HTTP listener; verify its durable queue dependency.
       test: [CMD, /api, healthcheck, --database]
+
+  prometheus:
+    image: prom/prometheus:v3.8.0
+    profiles: [observability]
+    logging: *operational-logs
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.size=256MB
+    ports: ["127.0.0.1:9090:9090"]
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - operational-metrics:/prometheus
 
   backup-init:
     image: duolify-backup-init:local
@@ -189,3 +214,4 @@ volumes:
   redis-data:
   objectstore-data:
   objectstore-logs:
+  operational-metrics:

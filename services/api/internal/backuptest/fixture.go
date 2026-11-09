@@ -30,6 +30,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/backupadmin"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/golang-jwt/jwt/v5"
@@ -71,10 +72,15 @@ type capture struct {
 
 // New starts isolated containers and all production migrations, never live providers.
 func New(t *testing.T) *Fixture {
+	return NewObserved(t, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+}
+
+// NewObserved shares the real worker's operational collector with an HTTP action.
+func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) *Fixture {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	t.Cleanup(cancel)
-	f := &Fixture{Logger: slog.New(slog.NewJSONHandler(io.Discard, nil))}
+	f := &Fixture{Logger: logger}
 	var err error
 	f.container, err = postgres.Run(ctx, "postgres:18", postgres.WithDatabase("duolify"), postgres.WithUsername("duolify"), postgres.WithPassword("synthetic-only"), postgres.BasicWaitStrategies())
 	if err != nil {
@@ -161,7 +167,7 @@ func New(t *testing.T) *Fixture {
 	t.Cleanup(func() { _ = f.events.Close() })
 	f.faults = &faultStore{Objects: f.objects}
 	source := containerSource{Postgres: backup.Postgres{Pool: f.DB.Pool}, container: f.container}
-	service, err := backup.New(backup.Options{Source: source, Objects: f.faults, Recipient: f.identity.Recipient().String(), Events: f.events, TempDir: t.TempDir()})
+	service, err := backup.New(backup.Options{Source: source, Objects: f.faults, Recipient: f.identity.Recipient().String(), Events: f.events, TempDir: t.TempDir(), Monitor: monitor})
 	if err != nil {
 		t.Fatal(err)
 	}

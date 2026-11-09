@@ -185,6 +185,7 @@ impl LlmProvider for MockProvider {
     }
 }
 pub mod accounts;
+pub mod backup;
 pub mod slide;
 #[cfg(test)]
 mod tests;

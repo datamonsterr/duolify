@@ -23,6 +23,7 @@ set -eu
 docker compose config -q
 git ls-files --cached --others --exclude-standard -z -- '*Dockerfile' | xargs -0 hadolint
 shellcheck infra/backup/restore-drill.sh infra/hooks/*.sh infra/s3/*.sh
+docker compose --profile observability run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
 '''
 
 ["infra:test"]

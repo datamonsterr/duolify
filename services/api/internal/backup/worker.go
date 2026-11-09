@@ -28,14 +28,9 @@ type Worker struct {
 	Logger  *slog.Logger
 }
 
-// Work reports a safe terminal alert after bounded failures; River preserves the
-// failed job for inspection and retry without carrying provider diagnostics.
+// Work delegates to the service; global worker middleware traces and alerts retries.
 func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
-	err := w.Service.Run(ctx, job.Args.Date)
-	if err != nil && job.Attempt >= job.MaxAttempts {
-		w.Logger.ErrorContext(ctx, "backup retries exhausted", "job_id", job.ID, "alert", "backup_failed")
-	}
-	return err
+	return w.Service.Run(ctx, job.Args.Date)
 }
 
 // RetryAfter backs off briefly before durable retries (2 s, then 4 s).
