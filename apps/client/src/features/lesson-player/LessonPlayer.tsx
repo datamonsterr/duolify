@@ -8,6 +8,7 @@ import slide2 from "../../slides/two.html?raw";
 import slide3 from "../../slides/three.html?raw";
 import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { useShellSession } from "../shell/ShellSession";
+import { QuickNotePanel } from "../notes/QuickNotePanel";
 const slides = [slide1, slide2, slide3];
 const playbackSpeeds = [1, 1.25, 1.5, 2];
 export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
@@ -32,7 +33,6 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
   const [panel, setPanel] = useState<
     "Transcript" | "Ask tutor" | "Quick note" | null
   >(null);
-  const [note, setNote] = useState("");
   const pause = () => {
     setIsPlaying(false);
     sendCommand(frame.current?.contentWindow ?? null, { type: "pause" });
@@ -114,56 +114,53 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
       </p>
       <PanelLayout
         panel={
-          <ResponsivePanel
-            title={panel ?? "Transcript"}
-            open={panel !== null}
-            onClose={() => setPanel(null)}
-          >
-            <p className="feedback badge-warning" role="status">
-              Lesson paused
-            </p>
-            {panel === "Transcript" && (
-              <p>
-                {
-                  [
-                    "The sky is a map waiting to be explored.",
-                    "Stars are distant suns, shining across space.",
-                    "Notice how the sky changes as Earth turns.",
-                  ][index]
-                }
+          panel === "Quick note" ? (
+            <QuickNotePanel
+              open={true}
+              onClose={() => setPanel(null)}
+              context={{
+                source: "slide",
+                lessonId,
+                slideId: index,
+                slideTitle: `Slide ${index + 1} · Why the sky changes`,
+              }}
+            />
+          ) : (
+            <ResponsivePanel
+              title={panel ?? "Transcript"}
+              open={panel !== null}
+              onClose={() => setPanel(null)}
+            >
+              <p className="feedback badge-warning" role="status">
+                Lesson paused
               </p>
-            )}
-            {panel === "Ask tutor" && (
-              <>
+              {panel === "Transcript" && (
                 <p>
-                  Tutor chat is not available yet. You can keep learning or read
-                  the transcript.
+                  {
+                    [
+                      "The sky is a map waiting to be explored.",
+                      "Stars are distant suns, shining across space.",
+                      "Notice how the sky changes as Earth turns.",
+                    ][index]
+                  }
                 </p>
-                <button
-                  className="duo-button quiet"
-                  onClick={() => setPanel("Transcript")}
-                >
-                  Read transcript
-                </button>
-              </>
-            )}
-            <div hidden={panel !== "Quick note"}>
-              <label>
-                Your note
-                <textarea
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                />
-              </label>
-              <p>
-                This draft stays here until you leave the lesson. Saving isn't
-                available yet.
-              </p>
-              <button className="duo-button quiet" disabled>
-                Save quick note unavailable
-              </button>
-            </div>
-          </ResponsivePanel>
+              )}
+              {panel === "Ask tutor" && (
+                <>
+                  <p>
+                    Tutor chat is not available yet. You can keep learning or
+                    read the transcript.
+                  </p>
+                  <button
+                    className="duo-button quiet"
+                    onClick={() => setPanel("Transcript")}
+                  >
+                    Read transcript
+                  </button>
+                </>
+              )}
+            </ResponsivePanel>
+          )
         }
       >
         <iframe

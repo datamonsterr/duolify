@@ -361,6 +361,7 @@ const guidedSheets = [
   "setup_summary",
   "outline_chat",
   "fixture_sheet",
+  "quick_note",
 ] as const;
 export type GuidedSheetId = (typeof guidedSheets)[number];
 export type GuidedUiEvent =
@@ -461,5 +462,24 @@ export function trackCourseRecovery(
     });
   } catch {
     /* Telemetry failure never blocks recovery. */
+  }
+}
+
+export function trackQuickNoteCreated(value: {
+  source: "slide" | "lesson" | "chat";
+  length: number;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("quick_note_created", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: value.source,
+      length: value.length,
+    });
+  } catch {
+    /* Analytics failure never blocks note creation. */
   }
 }

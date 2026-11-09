@@ -521,3 +521,19 @@ type PricingVersionCancellation struct {
 	CancelledAt pgtype.Timestamptz `json:"cancelled_at"`
 	Reason      string             `json:"reason"`
 }
+
+type QuickNote struct {
+	ID         pgtype.UUID        `json:"id"`
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	ActionKey  string             `json:"action_key"`
+	CourseID   pgtype.UUID        `json:"course_id"`
+	LessonID   pgtype.UUID        `json:"lesson_id"`
+	SlideID    pgtype.Int4        `json:"slide_id"`
+	SlideTitle string             `json:"slide_title"`
+	Source     string             `json:"source"`
+	RawText    string             `json:"raw_text"`
+	Status     string             `json:"status"`
+	Reviewed   bool               `json:"reviewed"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}

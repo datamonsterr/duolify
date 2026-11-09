@@ -25,6 +25,7 @@ import { LearnPath } from "./LearnPath";
 import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
 import { Courses } from "./features/design/Courses";
 import { PricingView } from "./features/pricing/PricingView";
+import { NotesPage } from "./features/notes/NotesPage";
 import { AppShell, MorePage } from "./features/shell/AppShell";
 import {
   DestinationPage,
@@ -175,7 +176,7 @@ const leagues = createRoute({
 const notes = createRoute({
   getParentRoute: () => root,
   path: "/notes",
-  component: () => <DestinationPage title="Quick notes" />,
+  component: NotesPage,
 });
 const bookmarks = createRoute({
   getParentRoute: () => root,

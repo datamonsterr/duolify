@@ -81,7 +81,8 @@ func allowlisted(event string) bool {
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
-		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":
+		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
+		"quick_note_created", "ui_sheet_opened":
 		return true
 	default:
 		return false
@@ -128,6 +129,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 		switch key {
 		case "source":
+			if event == "quick_note_created" {
+				if v == "slide" || v == "lesson" || v == "chat" || v == "api" || v == "ci" || v == "client" {
+					out[key] = v
+				}
+				continue
+			}
 			if v != "api" && v != "ci" {
 				continue
 			}
@@ -280,6 +287,16 @@ func safeProperties(event string, input map[string]any) map[string]any {
 				out["actor_id"] = id.String()
 			}
 		}
+	case "quick_note_created":
+		numeric("length")
+		if src, ok := input["source"].(string); ok && (src == "slide" || src == "lesson" || src == "chat") {
+			out["source"] = src
+		}
+		if src, ok := input["note_source"].(string); ok && (src == "slide" || src == "lesson" || src == "chat") {
+			out["source"] = src
+		}
+	case "ui_sheet_opened":
+		ids("sheet_id")
 	}
 	return out
 }
