@@ -229,6 +229,7 @@ pub mod courses;
 pub mod credits;
 pub mod eval;
 pub mod lessontest;
+pub mod pricing;
 pub mod slide;
 #[cfg(test)]
 mod tests;
