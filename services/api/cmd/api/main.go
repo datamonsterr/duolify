@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
 	"github.com/datamonsterr/duolify/services/api/internal/config"
@@ -102,7 +103,23 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	defer func() { result = errors.Join(result, events.Close()) }()
+	secret := os.Getenv("JWT_SECRET")
+	if len(secret) < 32 {
+		return errors.New("JWT_SECRET must contain at least 32 bytes")
+	}
+	var mailer accounts.Mailer = accounts.LogMailer{Logger: logger}
+	if os.Getenv("DUOLIFY_ENV") == "production" {
+		if os.Getenv("RESEND_API_KEY") == "" || os.Getenv("AUTH_MAIL_FROM") == "" {
+			return errors.New("production auth requires RESEND_API_KEY and AUTH_MAIL_FROM")
+		}
+		mailer = accounts.ResendMailer{APIKey: os.Getenv("RESEND_API_KEY"), From: os.Getenv("AUTH_MAIL_FROM")}
+	}
+	auth, err := accounts.New(db.Pool, secret, mailer)
+	if err != nil {
+		return err
+	}
 	handler := httpapi.New(httpapi.Dependencies{
+		Accounts: auth,
 		Pricing:  catalogue,
 		Postgres: db.Ping,
 		Redis:    func(ctx context.Context) error { return redis.Ping(ctx).Err() },

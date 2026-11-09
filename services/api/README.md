@@ -1,7 +1,7 @@
 # Go API scaffold
 
-The public HTTP router fronts the private gRPC engine. This bootstrap has no auth
-or real course/credit behavior. `GET /v1/courses` returns demonstration data;
+The public HTTP router fronts the private gRPC engine. Email-code sign-in protects
+Learner routes; course/credit behavior remains a scaffold. `GET /v1/courses` returns demonstration data;
 `POST /v1/courses/preview` forwards a protobuf JSON request such as
 `{"topic":"Physics"}` and returns protobuf JSON with snake_case field names.
 
@@ -45,3 +45,24 @@ work under ADR 0003. The integration test uses disposable data only.
 Dependency and generator versions are pinned in `go.mod`, `buf.gen.yaml` and the
 area task file. The existing streaming `*Event` contract needs a narrow Buf
 `RPC_RESPONSE_STANDARD_NAME` exception; `engine.proto` is unchanged.
+
+Email sign-in (E1-02): `POST /v1/auth/code` accepts `email` and
+`age_confirmed=true`; development logs the six-digit code without contacting a
+provider. `POST /v1/auth/verify` accepts these fields plus `code`, optional
+`locale`, `time_zone`, and `analytics_opt_out`. It returns `access_token`,
+`refresh_token`, and `expires_in=900`. Send the access token as `Authorization:
+Bearer …` to `GET /v1/me` and all `/v1/courses` routes. `POST /v1/auth/refresh`
+rotates a `refresh_token`; `POST /v1/auth/logout` revokes its entire session.
+Codes last 10 minutes/five attempts, refresh sessions 30 days; reusing a rotated
+refresh token revokes the family. Limits are shared in Postgres: three requests
+per email/hour, twenty per direct peer IP/hour and sixty verifications per IP/hour.
+Forwarded IP headers are deliberately untrusted; a future trusted-proxy deployment
+must configure the edge so rate limits retain per-client meaning.
+
+`JWT_SECRET` must contain at least 32 bytes. `DUOLIFY_ENV=production` requires
+`RESEND_API_KEY` and a verified `AUTH_MAIL_FROM`; all other environments use the
+local log Mailer. Tests use an in-memory MailSink or a local HTTP Resend double,
+never the live provider. The Playwright fixture also runs real auth against a
+disposable migrated Postgres; `/test/*` mailbox/expiry controls exist only in that
+loopback-only test binary, never in the production router. Data expiry, backup
+and cascade deletion are recorded in `docs/data-inventory.md`.

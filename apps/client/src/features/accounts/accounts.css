@@ -1,0 +1,199 @@
+.auth-page {
+  min-height: 100dvh;
+  background: var(--canvas);
+  color: var(--text);
+  padding: var(--space-8);
+}
+.auth-header {
+  max-width: var(--size-shell);
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.auth-main {
+  max-width: var(--size-shell);
+  margin: auto;
+  padding: var(--space-16) var(--space-8);
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  min-height: 75dvh;
+}
+.auth-copy {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.auth-copy h1 {
+  font-size: var(--font-size-display);
+  font-weight: var(--weight-heavy);
+  line-height: var(--leading-heading);
+  margin-bottom: var(--space-6);
+}
+.auth-copy p {
+  color: var(--muted);
+  line-height: var(--leading-body);
+}
+.auth-actions,
+.auth-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-block: var(--space-6);
+}
+.auth-steps {
+  max-width: var(--size-dialog);
+  align-items: flex-start;
+}
+.auth-copy form,
+.auth-copy label:not(.auth-check) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.auth-copy form {
+  gap: var(--space-5);
+  margin-block: var(--space-6);
+}
+.auth-copy input:not([type="checkbox"]) {
+  width: 100%;
+  min-height: var(--size-target);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.auth-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-target);
+}
+.auth-check input {
+  width: var(--space-6);
+  height: var(--space-6);
+  accent-color: var(--primary);
+}
+.auth-error,
+.auth-warning,
+.auth-info {
+  padding: var(--space-4);
+  margin-block: var(--space-4);
+  border-radius: var(--radius-md);
+}
+.auth-error {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.auth-error p {
+  color: inherit;
+}
+.auth-warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+.auth-info {
+  background: var(--surface);
+  border: 2px solid var(--line);
+}
+.auth-legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.auth-art {
+  position: relative;
+  width: 26rem;
+  height: 24rem;
+  flex: none;
+}
+/* S01's original geometric illustration is authored geometry. Colors are token roles. */
+.auth-orbit {
+  position: absolute;
+  inset: 8%;
+  border: 4px dashed var(--success-bg);
+  border-radius: 50%;
+}
+.auth-art i {
+  display: block;
+  position: absolute;
+  border-radius: var(--radius-lg);
+}
+.auth-art i:nth-of-type(1) {
+  left: 27%;
+  top: 30%;
+  width: 42%;
+  height: 45%;
+  background: var(--lime);
+  box-shadow: 0 10px 0 var(--lime-edge);
+}
+.auth-art i:nth-of-type(2) {
+  left: 47%;
+  top: 18%;
+  width: 27%;
+  height: 29%;
+  background: var(--secondary);
+  box-shadow: 0 8px 0 var(--secondary-edge);
+}
+.auth-art i:nth-of-type(3) {
+  left: 5%;
+  top: 53%;
+  width: 16%;
+  height: 17%;
+  background: var(--accent);
+}
+.auth-art i:nth-of-type(4) {
+  left: 79%;
+  top: 75%;
+  width: 12%;
+  height: 13%;
+  background: var(--streak-icon);
+}
+.auth-art i:nth-of-type(5) {
+  left: 77%;
+  top: 7%;
+  width: 9%;
+  height: 10%;
+  background: var(--credit-icon);
+}
+@media (max-width: 47.999rem) {
+  .auth-page {
+    padding: var(--space-5);
+  }
+  .auth-header > button {
+    display: none;
+  }
+  .auth-main {
+    padding: var(--space-8) 0;
+    gap: var(--space-6);
+    min-height: auto;
+  }
+  .auth-welcome {
+    flex-direction: column-reverse;
+    text-align: center;
+  }
+  .auth-copy h1 {
+    font-size: var(--font-size-heading);
+  }
+  .auth-art {
+    width: 15rem;
+    height: 13rem;
+    max-width: 100%;
+  }
+  .auth-chips {
+    justify-content: center;
+  }
+  .auth-actions {
+    flex-direction: column;
+  }
+  .auth-legal {
+    justify-content: center;
+  }
+  .auth-steps {
+    padding-top: var(--space-6);
+  }
+}

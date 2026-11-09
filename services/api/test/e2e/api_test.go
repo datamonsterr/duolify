@@ -62,7 +62,8 @@ func TestHTTPAPI(t *testing.T) {
 		}
 	})
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	handler := httpapi.New(httpapi.Dependencies{Engine: client, Postgres: func(context.Context) error { return nil }, Redis: func(context.Context) error { return errors.New("unavailable") }}, logger)
+	auth, access := signedIn(t)
+	handler := httpapi.New(httpapi.Dependencies{Accounts: auth, Engine: client, Postgres: func(context.Context) error { return nil }, Redis: func(context.Context) error { return errors.New("unavailable") }}, logger)
 	server := httpapi.NewServer("127.0.0.1:0", handler)
 	listener, err := new(net.ListenConfig).Listen(t.Context(), "tcp", server.Addr)
 	if err != nil {
@@ -87,6 +88,8 @@ func TestHTTPAPI(t *testing.T) {
 	}{
 		{"health", http.MethodGet, "/healthz", "", 200, `"status":"ok"`},
 		{"courses", http.MethodGet, "/v1/courses", "", 200, `"title"`},
+		{"anonymous courses", http.MethodGet, "/v1/courses", "", 401, `"error"`},
+		{"learner", http.MethodGet, "/v1/me", "", 200, `"display_name":"Learner"`},
 		{"preview", http.MethodPost, "/v1/courses/preview", `{"topic":"Physics"}`, 200, `"Physics"`},
 		{"readiness", http.MethodGet, "/readyz", "", 503, `"redis":"error"`},
 		{"invalid", http.MethodPost, "/v1/courses/preview", `{`, 400, `"error"`},
@@ -99,6 +102,9 @@ func TestHTTPAPI(t *testing.T) {
 			req, err := http.NewRequestWithContext(t.Context(), tt.method, "http://"+listener.Addr().String()+tt.path, strings.NewReader(tt.body))
 			if err != nil {
 				t.Fatal(err)
+			}
+			if tt.name != "anonymous courses" {
+				req.Header.Set("Authorization", "Bearer "+access)
 			}
 			resp, err := httpClient.Do(req)
 			if err != nil {

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./accounts-fixture";
 test.use({ hasTouch: true });
 
 for (const width of [1280, 390, 320]) {
@@ -9,7 +9,7 @@ for (const width of [1280, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ colorScheme: "light" });
     await page.route("**/v1/pricing", async (route) => {
-      const response = await request.get("http://127.0.0.1:18081/v1/pricing");
+      const response = await request.get("http://127.0.0.1:18084/v1/pricing");
       await route.fulfill({ response });
     });
     await page.goto("/credits");
@@ -67,7 +67,7 @@ test("loading, unavailable and retry preserve server authority", async ({
       await route.fulfill({ status: 503, json: { error: "unavailable" } });
     else
       await route.fulfill({
-        response: await request.get("http://127.0.0.1:18081/v1/pricing"),
+        response: await request.get("http://127.0.0.1:18084/v1/pricing"),
       });
   });
   await page.goto("/credits");
@@ -89,7 +89,7 @@ test("loading, stale offline version and long content remain readable", async ({
   });
   await page.route("**/v1/pricing", async (route) => {
     await gate;
-    const response = await request.get("http://127.0.0.1:18081/v1/pricing");
+    const response = await request.get("http://127.0.0.1:18084/v1/pricing");
     const data = await response.json();
     data.plans[0].benefits = [
       "Offline library access and learning history export with expanded translated labels. ".repeat(

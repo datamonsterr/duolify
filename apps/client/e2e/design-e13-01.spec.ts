@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./accounts-fixture";
 import tokens from "../../../docs/design/tokens.json" with { type: "json" };
 import { courses } from "../src/mocks/handlers";
 

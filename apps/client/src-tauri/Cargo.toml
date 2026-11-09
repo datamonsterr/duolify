@@ -14,3 +14,6 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
+keyring = { version = "=4.2.0", default-features = false, features = ["v1"] }

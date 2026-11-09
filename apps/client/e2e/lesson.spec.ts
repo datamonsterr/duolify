@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./accounts-fixture";
 import { courses } from "../src/mocks/handlers";
 
 test("a learner opens a course and completes a lesson", async ({ page }) => {

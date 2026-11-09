@@ -8,6 +8,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AuthCode struct {
+	Email      string             `json:"email"`
+	CodeHash   string             `json:"code_hash"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	Attempts   int32              `json:"attempts"`
+	ConsumedAt pgtype.Timestamptz `json:"consumed_at"`
+}
+
+type AuthIdentity struct {
+	Email     string             `json:"email"`
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type AuthRateLimit struct {
+	KeyHash   string             `json:"key_hash"`
+	Count     int32              `json:"count"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+type AuthRefreshToken struct {
+	TokenHash  string             `json:"token_hash"`
+	SessionID  pgtype.UUID        `json:"session_id"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt pgtype.Timestamptz `json:"consumed_at"`
+}
+
+type AuthSession struct {
+	ID        pgtype.UUID        `json:"id"`
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
+}
+
 type CreditEntry struct {
 	ID        int64              `json:"id"`
 	LearnerID pgtype.UUID        `json:"learner_id"`
@@ -21,6 +56,15 @@ type Learner struct {
 	ID          pgtype.UUID        `json:"id"`
 	DisplayName string             `json:"display_name"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type LearnerProfile struct {
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	Locale          string             `json:"locale"`
+	TimeZone        string             `json:"time_zone"`
+	Background      string             `json:"background"`
+	AnalyticsOptOut bool               `json:"analytics_opt_out"`
+	AgeConfirmedAt  pgtype.Timestamptz `json:"age_confirmed_at"`
 }
 
 type PricingVersion struct {

@@ -70,7 +70,20 @@ export function track(
   event: "lesson_started" | "slide_viewed" | "lesson_completed",
   properties: Record<string, string | number>,
 ) {
-  if (key) posthog.capture(event, properties);
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    if (key)
+      posthog.capture(event, {
+        ...properties,
+        distinct_id: identity.learnerId,
+        platform: identity.platform,
+        app_version: identity.appVersion ?? "0.1.0",
+        source: "client",
+      });
+  } catch {
+    /* Analytics must not interrupt a lesson. */
+  }
 }
 
 // Compatibility with the theme foundation; auth has one shared analytics boundary.
@@ -91,6 +104,31 @@ export function configureUiAnalytics(context: UiAnalyticsContext | null) {
         }
       : null,
   );
+}
+// E1-02 catalogue: stable identifiers, authenticated UUID, no learner text.
+export function trackAuthScreen(screenId: "welcome" | "sign_in") {
+  captureAuth("ui_screen_viewed", { screen_id: screenId });
+}
+export function trackSignIn() {
+  captureAuth("ui_control_activated", {
+    surface: "sign_in",
+    control_id: "sign_in",
+  });
+}
+function captureAuth(event: string, properties: Record<string, string>) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture(event, {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      ...properties,
+    });
+  } catch {
+    /* Analytics delivery cannot block sign-in. */
+  }
 }
 type CourseControl =
   "open_course" | "refresh_courses" | "retry_courses" | "clear_search";
