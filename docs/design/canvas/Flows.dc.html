@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>User flows</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Nunito',system-ui,sans-serif;color:#3C3C3C}
+*{box-sizing:border-box}
+.fw{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:center;background:#fff;border:2px solid #E3E3E3;border-radius:20px;padding:14px 18px}
+.fw h2{margin:0;font-size:18px;font-weight:900;color:#2B2B2B}
+.fw .e{font-size:12px;font-weight:900;letter-spacing:.8px;color:#555;text-transform:uppercase}
+.ch{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.s{display:inline-flex;flex-direction:column;padding:7px 11px;border-radius:14px;border:2px solid #E0E0E0;border-bottom-width:4px;background:#fff;font-size:13px;font-weight:800;color:#2B2B2B;line-height:1.25}
+.s b{font-size:11px;font-weight:900;letter-spacing:.6px;color:#1E6E0C}
+.s.alt{border-style:dashed;background:#F7F7F7}
+.s.alt b{color:#704400}
+.s.end{background:#E3F8D3;border-color:#9BDB78}
+.a{font-weight:900;color:#58A82B;font-size:18px}
+</style>
+</helmet>
+<div style="width: 1600px; height: 2000px; background: #F3F5EF; padding: 64px; display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+<span style="font-size: 14px; font-weight: 900; letter-spacing: 1.2px; text-transform: uppercase; color: #1E6E0C;">User flows</span>
+<h1 style="margin: 0; font-size: 44px; font-weight: 900; color: #2B2B2B;">Every use case, end to end</h1>
+<p style="margin: 0; font-size: 18px; color: #4F4F4F; max-width: 1150px; line-height: 1.5;">Each chain uses the screen IDs on this canvas. Solid tiles are the main path; dashed tiles are branches (errors, offline, paid gates). Green tiles are where the flow ends.</p>
+</div>
+
+<div class="fw"><div><span class="e">UC1 · E1–E2</span><h2>First run → first course</h2></div><div class="ch">
+<span class="s"><b>S01</b>Welcome</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S01</b>Sign in (browser)</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S02</b>Setup chat</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S02</b>Confirm summary</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S04</b>Clarifying chat</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S05</b>Confirm brief · preview 25</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S06</b>Edit outline (drag / chat)</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S07</b>Create · 55</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S08</b>Learn path</span>
+<span class="s alt"><b>S02</b>Vague → follow-up</span><span class="s alt"><b>S02</b>Chat down → form</span><span class="s alt"><b>S05</b>Insufficient → S17</span><span class="s alt"><b>S06</b>Proposal → apply / discard</span><span class="s alt"><b>S07</b>Failed · released</span></div></div>
+
+<div class="fw"><div><span class="e">UC2 · E3–E5</span><h2>Daily lesson</h2></div><div class="ch">
+<span class="s"><b>S08</b>Start lesson</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S09</b>Slides + narration</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S09</b>Take lesson test</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S10</b>Questions</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S12</b>Finish · XP · streak</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S08</b>Next lesson preparing</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S08</b>Next ready</span>
+<span class="s alt"><b>S09</b>Audio unavailable</span><span class="s alt"><b>S09</b>Slide failed · retry</span></div></div>
+
+<div class="fw"><div><span class="e">UC3 · E4</span><h2>Mistake → retry variant</h2></div><div class="ch">
+<span class="s"><b>S10</b>Wrong answer</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S11</b>Correction</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S10</b>Other topics first</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S11</b>Retry variant</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S11</b>Correct → resolved</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S12</b>Finish</span>
+<span class="s alt"><b>S11</b>Wrong again → new variant</span><span class="s alt"><b>S11</b>Variant failed · queue kept</span></div></div>
+
+<div class="fw"><div><span class="e">UC4 · E7, E12</span><h2>Out of credits → buy → resume</h2></div><div class="ch">
+<span class="s"><b>S08</b>Needs 190</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S17</b>Packs / plans</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S18</b>Checkout pending</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S18</b>Verified</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S18</b>Resume? (asks)</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S08</b>Lesson preparing</span>
+<span class="s alt"><b>S18</b>Cancelled · draft kept</span><span class="s alt"><b>S16</b>Wait for daily reset</span></div></div>
+
+<div class="fw"><div><span class="e">UC5 · E8, E9</span><h2>Ask &amp; note during a lesson</h2></div><div class="ch">
+<span class="s"><b>S09</b>Ask tutor (pauses)</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S09s</b>Estimate · send</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S09s</b>Streaming · Stop</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S19</b>Save as quick note</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S20</b>Saved · enrich</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S21</b>Review note</span>
+<span class="s alt"><b>S09s</b>0 credits · draft kept</span><span class="s alt"><b>S20</b>Offline · device-saved</span></div></div>
+
+<div class="fw"><div><span class="e">UC6 · E9</span><h2>Bookmark → return</h2></div><div class="ch">
+<span class="s"><b>S09</b>Bookmark slide</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S09</b>Toast · Undo</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S22</b>Bookmarks</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S09</b>Exact slide</span>
+<span class="s alt"><b>S22</b>Not downloaded offline</span><span class="s alt"><b>S22</b>Unavailable · remove</span></div></div>
+
+<div class="fw"><div><span class="e">UC7 · E5</span><h2>Streak, freeze, league</h2></div><div class="ch">
+<span class="s"><b>S12</b>Milestone · freeze earned</span><span class="a" aria-hidden="true">›</span><span class="s"><b>—</b>Missed day</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S13</b>Freeze applied notice</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S15</b>Weekly XP</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S15</b>Promoted / stayed</span>
+<span class="s alt"><b>S13</b>No freeze → reset · welcome back</span><span class="s alt"><b>S13</b>Time zone change reconciles</span></div></div>
+
+<div class="fw"><div><span class="e">UC8 · E6</span><h2>Friends &amp; friend streak</h2></div><div class="ch">
+<span class="s"><b>S14</b>Add by username / link</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S14</b>Request</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S14</b>Accept</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S14</b>Both finish today</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S14</b>Friend streak +1</span>
+<span class="s alt"><b>S14</b>Not found (neutral)</span><span class="s alt"><b>S14</b>Nudge · limited</span><span class="s alt"><b>S14</b>Block / remove</span></div></div>
+
+<div class="fw"><div><span class="e">UC9 · E15</span><h2>Share a course by link / invite</h2></div><div class="ch">
+<span class="s"><b>M01</b>Visibility: link</span><span class="a" aria-hidden="true">›</span><span class="s"><b>M01</b>Copy link / invite friend</span><span class="a" aria-hidden="true">›</span><span class="s"><b>M01</b>Visitor preview</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S01</b>Sign in</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S08</b>Enrolled copy</span>
+<span class="s alt"><b>M01</b>Revoked link</span><span class="s alt"><b>S14</b>Invite in Requests</span></div></div>
+
+<div class="fw"><div><span class="e">UC10 · E15</span><h2>Publish publicly &amp; moderate</h2></div><div class="ch">
+<span class="s"><b>M01</b>Public · eligibility</span><span class="a" aria-hidden="true">›</span><span class="s"><b>M01</b>Screening</span><span class="a" aria-hidden="true">›</span><span class="s"><b>M01</b>Live</span><span class="a" aria-hidden="true">›</span><span class="s"><b>M02</b>Listed · reviews</span><span class="a" aria-hidden="true">›</span><span class="s"><b>M02</b>Report</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>D03</b>Moderator action</span>
+<span class="s alt"><b>M01</b>Blocked · fix</span><span class="s alt"><b>M01</b>Needs review (48 h)</span></div></div>
+
+<div class="fw"><div><span class="e">UC11 · E15</span><h2>Discover &amp; enroll</h2></div><div class="ch">
+<span class="s"><b>S03</b>Discover</span><span class="a" aria-hidden="true">›</span><span class="s"><b>M02</b>Browse / search</span><span class="a" aria-hidden="true">›</span><span class="s"><b>M02</b>Course page</span><span class="a" aria-hidden="true">›</span><span class="s"><b>M02</b>Enroll · free to start</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S08</b>Ready lessons free</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S08</b>Beyond snapshot: paid</span>
+<span class="s alt"><b>M02</b>Update available</span><span class="s alt"><b>S03</b>No results · create it</span></div></div>
+
+<div class="fw"><div><span class="e">UC12 · E16</span><h2>Steer a course</h2></div><div class="ch">
+<span class="s"><b>S08</b>Steer</span><span class="a" aria-hidden="true">›</span><span class="s"><b>M03</b>Add instruction</span><span class="a" aria-hidden="true">›</span><span class="s"><b>M03</b>Screening (free)</span><span class="a" aria-hidden="true">›</span><span class="s"><b>M03</b>Active</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S08</b>Next lesson uses it</span>
+<span class="s alt"><b>M03</b>Fork warning (copy)</span><span class="s alt"><b>M03</b>Rejected</span><span class="s alt"><b>M03</b>Re-plan · diff · apply</span></div></div>
+
+<div class="fw"><div><span class="e">UC13 · E3</span><h2>Learn offline</h2></div><div class="ch">
+<span class="s"><b>S08</b>Offline banner</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S09</b>Cached lesson</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S10</b>Answers held</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S12</b>Waiting to sync</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S08</b>Synced · XP added</span>
+<span class="s alt"><b>S09</b>Uncached slide</span></div></div>
+
+<div class="fw"><div><span class="e">UC14 · E12</span><h2>Subscribe &amp; manage plan</h2></div><div class="ch">
+<span class="s"><b>S16</b>Wallet</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S17</b>Plans · yearly</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S18</b>Checkout</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S17</b>Active plan</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S17</b>Change at renewal / auto-renew off</span>
+<span class="s alt"><b>S18</b>Failed</span></div></div>
+
+<div class="fw"><div><span class="e">UC15 · E1</span><h2>Account &amp; data</h2></div><div class="ch">
+<span class="s"><b>S23</b>Settings</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S23</b>Export data</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S02</b>Edit / clear profile</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>S23</b>Delete account (30 days)</span>
+<span class="s alt"><b>S23</b>Sign out · unsynced warning</span></div></div>
+
+<div class="fw"><div><span class="e">UC16 · all</span><h2>Deep links &amp; access</h2></div><div class="ch">
+<span class="s"><b>—</b>Open link</span><span class="a" aria-hidden="true">›</span><span class="s"><b>S01</b>Sign in if needed</span><span class="a" aria-hidden="true">›</span><span class="s"><b>—</b>Access check</span><span class="a" aria-hidden="true">›</span><span class="s end"><b>Target</b>Slide / note / invite</span>
+<span class="s alt"><b>S24</b>Not found</span><span class="s alt"><b>S24</b>Locked lesson</span><span class="s alt"><b>S14</b>Expired invite</span></div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":2000}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Desktop lesson player</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Nunito',system-ui,sans-serif;color:#3C3C3C;background:#fff}
+*{box-sizing:border-box}
+a{color:#1667AB}a:hover{color:#0F5A99}
+.i{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sm{width:18px;height:18px}
+.ib{width:46px;height:46px;border-radius:14px;border:2px solid #E0E0E0;background:#fff;display:flex;align-items:center;justify-content:center;color:#3C3C3C;flex:none;cursor:pointer;font-family:inherit;font-weight:900;font-size:14px}
+.ib.on{background:#DDF1FF;border-color:#8CCBF7;color:#0D5592}
+.bar{height:16px;border-radius:999px;background:#E5E5E5;overflow:hidden;flex:1}
+.bar i{display:block;height:100%;border-radius:999px;background:#58C322}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;padding:0 24px;border:none;border-radius:16px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:15px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;cursor:pointer}
+.btn.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.tool{display:flex;align-items:center;gap:8px;padding:10px 14px;border:2px solid #E0E0E0;border-radius:14px;background:#fff;font-family:inherit;font-weight:900;font-size:13px;color:#3C3C3C;cursor:pointer}
+.help{font-size:13px;font-weight:600;color:#5E5E5E}
+.bub{max-width:300px;padding:11px 13px;border-radius:18px;font-size:15px;line-height:1.45;font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:12px;font-weight:800;font-size:12px;background:#F1F1F1;color:#444}
+.in{font-family:inherit;font-size:15px;font-weight:600;color:#2B2B2B;background:#F7F7F7;border:2px solid #CFCFCF;border-radius:14px;padding:10px 12px;width:100%}
+.dot{position:absolute;border-radius:50%}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"></path></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></symbol>
+<symbol id="pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"></path></symbol>
+<symbol id="rp" viewBox="0 0 24 24"><path d="M4 4v6h6"></path><path d="M5.5 15A8 8 0 1 0 7 7.5L4 10"></path></symbol>
+<symbol id="vol" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"></path><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"></path></symbol>
+<symbol id="cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M10.5 10.2a2.2 2.2 0 1 0 0 3.6M17 10.2a2.2 2.2 0 1 0 0 3.6"></path></symbol>
+<symbol id="tr" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10M4 18h13"></path></symbol>
+<symbol id="bk" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"></path></symbol>
+<symbol id="chat" viewBox="0 0 24 24"><path d="M4 5h16v11H10l-6 4z"></path></symbol>
+<symbol id="nt" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></symbol>
+<symbol id="send" viewBox="0 0 24 24"><path d="M4 12 20 4l-5 16-3.5-6.5z"></path><path d="M11.5 13.5 20 4"></path></symbol>
+<symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6M12 7.5h.01"></path></symbol>
+</defs></svg>
+
+<div style="min-height: 960px; display: flex; flex-direction: column; background: #fff;">
+<header style="display: flex; align-items: center; gap: 18px; padding: 20px 32px; border-bottom: 2px solid #EFEFEF;">
+<button class="ib" type="button" aria-label="Exit lesson, keeps your place"><svg class="i" aria-hidden="true"><use href="#x"></use></svg></button>
+<div style="display: flex; flex-direction: column;"><span class="help">Astronomy · Unit 1 · Lesson 2</span><b style="font-size: 18px; font-weight: 900; color: #2B2B2B;">Why the sky changes</b></div>
+<div class="bar" role="progressbar" aria-label="Slide 2 of 5" aria-valuenow="2" aria-valuemax="5" style="max-width: 640px; margin-left: auto;"><i style="width: 40%;"></i></div>
+<span class="help" style="font-weight: 900;">Slide 2 of 5</span>
+</header>
+<div style="flex: 1; display: flex; flex-wrap: wrap; align-items: flex-start;">
+<main style="flex: 999 1 560px; min-width: 0; padding: 28px 32px; display: flex; justify-content: center;">
+<div style="width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 16px;">
+<div role="img" aria-label="Slide: Earth rotating, the view sweeping across the stars" style="aspect-ratio: 16 / 9; border-radius: 24px; background: #0F2A3D; position: relative; overflow: hidden;">
+<div class="dot" style="left: 38%; top: 36%; width: 180px; height: 180px; background: #1677C9; border: 9px solid #58C322;"></div>
+<div style="position: absolute; left: 30%; top: 18%; width: 40%; height: 40%; border: 5px dashed #FFC233; border-bottom: none; border-radius: 999px 999px 0 0;"></div>
+<div class="dot" style="left: 10%; top: 14%; width: 12px; height: 12px; background: #FFC233;"></div><div class="dot" style="left: 82%; top: 20%; width: 10px; height: 10px; background: #fff;"></div><div class="dot" style="left: 70%; top: 70%; width: 8px; height: 8px; background: #fff;"></div>
+<span class="chip" style="position: absolute; left: 14px; bottom: 14px; background: #fff;"><svg class="i sm" aria-hidden="true"><use href="#pause"></use></svg>Paused while tutor is open</span>
+</div>
+<div style="background: #fff; border: 2px solid #E3E3E3; border-radius: 16px; padding: 12px 16px; font-size: 18px; font-weight: 700; color: #2B2B2B;">Earth turns once a day. Your view of the stars turns with it.</div>
+<div style="display: flex; align-items: center; gap: 10px;">
+<button class="ib" type="button" aria-label="Replay slide"><svg class="i" aria-hidden="true"><use href="#rp"></use></svg></button>
+<button class="btn" type="button" aria-label="Play" style="width: 60px; padding: 0; border-radius: 50%;"><svg class="i" aria-hidden="true" style="fill: #fff;"><use href="#play"></use></svg></button>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 3px;"><div class="bar" style="height: 10px;" role="slider" aria-label="Slide time" aria-valuetext="0:04 of 0:09"><i style="width: 45%; background: #1677C9;"></i></div><span class="help">0:04 / 0:09 · Space play/pause · ← → seek</span></div>
+<button class="ib" type="button" aria-label="Speed 1x">1×</button>
+<button class="ib" type="button" aria-label="Mute narration"><svg class="i" aria-hidden="true"><use href="#vol"></use></svg></button>
+</div>
+<div style="display: flex; gap: 10px; flex-wrap: wrap;">
+<button class="tool" type="button" aria-pressed="true" style="background: #DDF1FF; border-color: #8CCBF7; color: #0D5592;"><svg class="i sm" aria-hidden="true"><use href="#cc"></use></svg>Captions</button>
+<button class="tool" type="button"><svg class="i sm" aria-hidden="true"><use href="#tr"></use></svg>Transcript</button>
+<button class="tool" type="button"><svg class="i sm" aria-hidden="true"><use href="#bk"></use></svg>Bookmark</button>
+<button class="tool" type="button" aria-pressed="true" style="background: #DDF1FF; border-color: #8CCBF7; color: #0D5592;"><svg class="i sm" aria-hidden="true"><use href="#chat"></use></svg>Ask tutor</button>
+<button class="tool" type="button"><svg class="i sm" aria-hidden="true"><use href="#nt"></use></svg>Add note</button>
+</div>
+<div style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 2px solid #EFEFEF;"><button class="btn sec" type="button">Previous</button><button class="btn" type="button">Next slide</button></div>
+</div>
+</main>
+<aside aria-label="Tutor" style="flex: 1 1 360px; max-width: 420px; border-left: 2px solid #EFEFEF; padding: 24px; display: flex; flex-direction: column; gap: 12px; min-height: 860px;">
+<div style="display: flex; align-items: center; gap: 10px;"><b style="flex: 1; font-size: 19px; font-weight: 900; color: #2B2B2B;">Ask tutor</b><button class="ib" type="button" aria-label="Close tutor"><svg class="i" aria-hidden="true"><use href="#x"></use></svg></button></div>
+<span class="chip" style="background: #DDF1FF; color: #0D5592; align-self: flex-start;"><svg class="i sm" aria-hidden="true"><use href="#info"></use></svg>Uses this course, slide 2 and your profile</span>
+<div style="align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: 2px;"><span class="help" style="font-weight: 900;">You</span><div class="bub" style="background: #DDF1FF; color: #0D5592;">So the stars don't move at all?</div></div>
+<div style="display: flex; flex-direction: column; gap: 3px;"><span class="help" style="font-weight: 900;">Tutor</span><div class="bub" style="background: #fff; border: 2px solid #E3E3E3;">Over one night, almost all the motion you see is Earth turning. Stars do move through space, but far too slowly to notice.</div><a href="#" class="help" style="color: #1667AB; font-weight: 900;">Save as quick note</a></div>
+<div style="flex: 1;"></div>
+<div style="display: flex; gap: 8px;"><label style="flex: 1;"><span style="position: absolute; left: -9999px;">Message</span><textarea class="in" rows="2">Then why does the Moon move differently?</textarea></label><button class="btn" type="button" aria-label="Send" style="width: 52px; padding: 0;"><svg class="i" aria-hidden="true"><use href="#send"></use></svg></button></div>
+<span class="help">Short reply about 5 credits · Daily free 28 left</span>
+</aside>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

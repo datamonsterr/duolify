@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Course catalog</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Nunito',system-ui,sans-serif;color:#3C3C3C}
+*{box-sizing:border-box}
+a{color:#1667AB}a:hover{color:#0F5A99}
+.i{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sm{width:18px;height:18px}
+.st{width:390px;display:flex;flex-direction:column;gap:12px;flex:none}
+.lb{display:flex;flex-direction:column;gap:2px;min-height:64px}
+.lb b{font-size:17px;font-weight:900;color:#2B2B2B}
+.lb span{font-size:14px;color:#555;line-height:1.35}
+.ph{width:390px;height:844px;background:#fff;border:2px solid #DADADA;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.top{display:flex;align-items:center;gap:12px;padding:18px 20px 14px;border-bottom:2px solid #EFEFEF}
+.mn{flex:1;min-height:0;padding:20px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+.tabs{display:flex;gap:2px;border-top:2px solid #EFEFEF;padding:8px 6px 18px}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;font-weight:800;color:#5E5E5E;text-decoration:none;padding:6px 0;border:2px solid transparent;border-radius:14px}
+.tab.on{color:#0D5592;background:#DDF1FF;border-color:#8CCBF7}
+.t{margin:0;font-size:26px;font-weight:900;line-height:1.15;color:#2B2B2B}
+.s{margin:0;font-size:15px;line-height:1.5;color:#555}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;padding:0 18px;border:none;border-radius:16px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:15px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;cursor:pointer}
+.btn.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.btn.sm2{min-height:40px;font-size:13px;width:auto;padding:0 14px}
+.crd{display:flex;gap:12px;align-items:center;padding:14px;border:2px solid #E3E3E3;border-bottom-width:5px;border-radius:18px;background:#fff}
+.crd.cur{border-color:#8CCBF7;background:#F4FAFF}
+.tile{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:#fff;flex:none}
+.crd h3{margin:0;font-size:17px;font-weight:900;color:#2B2B2B}
+.crd a.ttl{text-decoration:none;color:#2B2B2B}
+.help{font-size:13px;font-weight:600;color:#5E5E5E}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:12px;font-weight:800;font-size:12px;background:#F1F1F1;color:#444}
+.ok{background:#E3F8D3;color:#1E6E0C}.warn{background:#FFF1D1;color:#704400}.info{background:#DDF1FF;color:#0D5592}.bad{background:#FDECEC;color:#B3261E}
+.ban{border-radius:18px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start}
+.ban b{display:block;font-size:16px;font-weight:900;margin-bottom:2px}
+.ban p{margin:0;font-size:14px;line-height:1.45}
+.seg{display:flex;background:#F1F1F1;border-radius:14px;padding:4px}
+.seg button{flex:1;border:none;background:none;padding:9px;font-family:inherit;font-weight:800;font-size:14px;color:#555;border-radius:11px}
+.seg button.on{background:#fff;border:2px solid #E0E0E0;font-weight:900;color:#2B2B2B}
+.srch{display:flex;align-items:center;gap:8px;border:2px solid #CFCFCF;background:#F7F7F7;border-radius:14px;padding:10px 12px;font-weight:600;color:#555}
+.bar{height:10px;border-radius:999px;background:#E5E5E5;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:999px;background:#58C322}
+.sk{background:#ECECEC;border-radius:10px}
+.dk{width:1280px;height:800px;background:#fff;border:2px solid #DADADA;border-radius:20px;overflow:hidden;display:flex;flex:none;position:relative}
+.dks{width:224px;flex:none;border-right:2px solid #EFEFEF;padding:20px 12px;display:flex;flex-direction:column;gap:4px}
+.dkn{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;border:2px solid transparent;text-decoration:none;color:#3C3C3C;font-weight:900;font-size:13px;letter-spacing:.5px;text-transform:uppercase}
+.dkn.on{background:#DDF1FF;border-color:#8CCBF7;color:#0D5592}
+.dkm{flex:1;min-width:0;padding:28px 36px;display:flex;flex-direction:column;gap:16px;overflow:hidden}
+.dkr{width:300px;flex:none;padding:28px 22px;display:flex;flex-direction:column;gap:14px;border-left:2px solid #EFEFEF;background:#FCFCFA}
+.dki{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.dkb{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border:none;border-radius:16px;background:#1F7A0D;color:#fff;box-shadow:0 4px 0 #145208;font-family:inherit;font-weight:900;font-size:14px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;cursor:pointer;white-space:nowrap}
+.dkb.sec{background:#fff;color:#1667AB;border:2px solid #D3D3D3;box-shadow:0 4px 0 #D3D3D3}
+.dkb.blue{background:#1677C9;box-shadow:0 4px 0 #0F5A99}
+.dkb.vio{background:#7B3FE4;box-shadow:0 4px 0 #5A2BB0}
+.dkb.red{background:#C62828;box-shadow:0 4px 0 #8E1B1B}
+.dkb.off{background:#E5E5E5;color:#555;box-shadow:0 4px 0 #CFCFCF;border:2px dashed #9A9A9A}
+.dkb.q{background:none;box-shadow:none;color:#1667AB}
+.dkb.sm{min-height:38px;padding:0 14px;font-size:12px}
+.dkc{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:12px;font-weight:800;font-size:12px;background:#F1F1F1;color:#444;white-space:nowrap}
+.dkx{border-radius:16px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start}
+.dkx b{display:block;font-size:15px;font-weight:900;margin-bottom:2px}
+.dkx p{margin:0;font-size:13px;line-height:1.45}
+.dkk{background:#fff;border:2px solid #E3E3E3;border-radius:18px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.t-ok{background:#E3F8D3;color:#1E6E0C}.t-info{background:#DDF1FF;color:#0D5592}.t-warn{background:#FFF1D1;color:#704400}.t-bad{background:#FDECEC;color:#B3261E}.t-vi{background:#F0E7FF;color:#5B2BB5}
+.dkh{margin:0;font-size:30px;font-weight:900;color:#2B2B2B;line-height:1.15}
+.dkp{margin:0;font-size:15px;line-height:1.5;color:#555}
+.dkhelp{font-size:13px;font-weight:600;color:#5E5E5E}
+.dkbar{height:14px;border-radius:999px;background:#E5E5E5;overflow:hidden}
+.dkbar i{display:block;height:100%;border-radius:999px;background:#58C322}
+.dkin{font-family:inherit;font-size:15px;font-weight:600;color:#2B2B2B;background:#F7F7F7;border:2px solid #CFCFCF;border-radius:14px;padding:10px 12px;width:100%}
+.dkf{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:800;color:#2B2B2B}
+.dktop{display:flex;align-items:center;gap:14px;padding:16px 28px;border-bottom:2px solid #EFEFEF}
+.dkib{width:44px;height:44px;border-radius:14px;border:2px solid #E0E0E0;background:#fff;display:flex;align-items:center;justify-content:center;color:#3C3C3C;flex:none;cursor:pointer}
+.dkbub{max-width:560px;padding:12px 15px;border-radius:18px;font-size:15px;line-height:1.5;font-weight:600}
+.dkme{align-self:flex-end;background:#DDF1FF;color:#0D5592}
+.dkai{background:#fff;border:2px solid #E3E3E3;color:#2B2B2B}
+.dkqr{border:2px solid #E0E0E0;border-bottom-width:4px;border-radius:14px;padding:8px 14px;font-family:inherit;font-weight:800;font-size:14px;background:#fff;color:#2B2B2B;cursor:pointer}
+.dkqr.on{background:#DDF1FF;border-color:#8CCBF7;color:#0D5592}
+.dkst{font-size:15px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:#555}
+.dkstat{display:inline-flex;align-items:center;gap:6px;font-weight:900;font-size:16px;text-decoration:none}
+</style>
+</helmet>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"></path></symbol>
+<symbol id="crs" viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5z"></path><path d="M2 12.5l10 5 10-5M2 17l10 5 10-5"></path></symbol>
+<symbol id="frn" viewBox="0 0 24 24"><circle cx="8" cy="9" r="3.2"></circle><circle cx="16.5" cy="9" r="3.2"></circle><path d="M2 20c.5-3 3-5 6-5s5.5 2 6 5M15 15.2c.5-.1 1-.2 1.5-.2 3 0 5.5 2 6 5"></path></symbol>
+<symbol id="nt" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle></symbol>
+<symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z"></path></symbol>
+<symbol id="leaf" viewBox="0 0 24 24"><path d="M5 19C5 10 10 5 20 4c0 10-5 15-14 15z"></path><path d="M5 19 13 11"></path></symbol>
+<symbol id="code" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"></path></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+<symbol id="srch" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M20.5 20.5 16 16"></path></symbol>
+<symbol id="off" viewBox="0 0 24 24"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.6a10 10 0 0 1 4.2-2.3M14.8 10.3A10 10 0 0 1 19 12.6M2 8.8a15 15 0 0 1 4-2.3M12 20h.01"></path></symbol>
+<symbol id="alert" viewBox="0 0 24 24"><path d="M12 3 2 20.5h20z"></path><path d="M12 10v4.5M12 17.5h.01"></path></symbol>
+<symbol id="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></symbol>
+<symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3.5 3.5 3.5 14.5 0 18M12 3c-3.5 3.5-3.5 14.5 0 18"></path></symbol>
+</defs></svg>
+
+<div style="width: 1776px; height: 2080px; background: #F3F5EF; padding: 48px; display: flex; flex-direction: column; gap: 28px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 14px; font-weight: 900; letter-spacing: 1.2px; text-transform: uppercase; color: #1E6E0C;">S03 · E2 Courses</span>
+<h1 style="margin: 0; font-size: 40px; font-weight: 900; color: #2B2B2B;">Course catalog &amp; switcher</h1>
+<p style="margin: 0; font-size: 17px; color: #4F4F4F;">Each card has one linked title (no nested buttons). Switching courses never overwrites another course's progress. Discover links into the marketplace (E15).</p>
+</div>
+<span class="dkst">Desktop · ≥ 48rem</span>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="q-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9h-6v-6H9v6H3z"></path></symbol>
+<symbol id="q-crs" viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5z"></path><path d="M2 12.5l10 5 10-5M2 17l10 5 10-5"></path></symbol>
+<symbol id="q-glb" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3.5 3.5 3.5 14.5 0 18M12 3c-3.5 3.5-3.5 14.5 0 18"></path></symbol>
+<symbol id="q-frn" viewBox="0 0 24 24"><circle cx="8" cy="9" r="3.2"></circle><circle cx="16.5" cy="9" r="3.2"></circle><path d="M2 20c.5-3 3-5 6-5s5.5 2 6 5M15 15.2c.5-.1 1-.2 1.5-.2 3 0 5.5 2 6 5"></path></symbol>
+<symbol id="q-flg" viewBox="0 0 24 24"><path d="M5 21V3M5 4h12l-2.5 4L17 12H5"></path></symbol>
+<symbol id="q-nt" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path></symbol>
+<symbol id="q-bk" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"></path></symbol>
+<symbol id="q-gm" viewBox="0 0 24 24"><path d="M7 4h10l4 5-9 11L3 9z"></path><path d="M3 9h18M10 4 8 9l4 11 4-11-2-5"></path></symbol>
+<symbol id="q-usr" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c.5-4 4-6 8-6s7.5 2 8 6"></path></symbol>
+<symbol id="q-gr" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"></path></symbol>
+<symbol id="q-fl" viewBox="0 0 24 24"><path d="M12 2c1.5 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2.5 1.2-4 2.5-5 .2 2 1 3 2.2 3.3C11.5 7.8 11 5 12 2z"></path></symbol>
+<symbol id="q-xp" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"></path></symbol>
+<symbol id="q-snw" viewBox="0 0 24 24"><path d="M12 2v20M3.3 7l17.4 10M20.7 7 3.3 17M9 4l3 2 3-2M9 20l3-2 3 2"></path></symbol>
+<symbol id="q-ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></symbol>
+<symbol id="q-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"></path></symbol>
+<symbol id="q-bck" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"></path></symbol>
+<symbol id="q-chv" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></symbol>
+<symbol id="q-ply" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></symbol>
+<symbol id="q-pse" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"></path></symbol>
+<symbol id="q-rp" viewBox="0 0 24 24"><path d="M4 4v6h6"></path><path d="M5.5 15A8 8 0 1 0 7 7.5L4 10"></path></symbol>
+<symbol id="q-lk" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></symbol>
+<symbol id="q-cht" viewBox="0 0 24 24"><path d="M4 5h16v11H10l-6 4z"></path></symbol>
+<symbol id="q-snd" viewBox="0 0 24 24"><path d="M4 12 20 4l-5 16-3.5-6.5z"></path><path d="M11.5 13.5 20 4"></path></symbol>
+<symbol id="q-stp" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></symbol>
+<symbol id="q-spn" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 1-9 9"></path></symbol>
+<symbol id="q-alr" viewBox="0 0 24 24"><path d="M12 3 2 20.5h20z"></path><path d="M12 10v4.5M12 17.5h.01"></path></symbol>
+<symbol id="q-off" viewBox="0 0 24 24"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.6a10 10 0 0 1 4.2-2.3M14.8 10.3A10 10 0 0 1 19 12.6M2 8.8a15 15 0 0 1 4-2.3M12 20h.01"></path></symbol>
+<symbol id="q-pls" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+<symbol id="q-src" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M20.5 20.5 16 16"></path></symbol>
+<symbol id="q-str" viewBox="0 0 24 24"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.3l1-6.2L3 9.7l6.2-.9z"></path></symbol>
+<symbol id="q-sl" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path><circle cx="15" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></symbol>
+<symbol id="q-tr" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10M4 18h13"></path></symbol>
+<symbol id="q-cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M10.5 10.2a2.2 2.2 0 1 0 0 3.6M17 10.2a2.2 2.2 0 1 0 0 3.6"></path></symbol>
+<symbol id="q-vol" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"></path><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"></path></symbol>
+<symbol id="q-clk" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></symbol>
+<symbol id="q-edt" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5l-4-4L4 16z"></path></symbol>
+<symbol id="q-trs" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4h5v3M6 7l1 14h10l1-14"></path></symbol>
+<symbol id="q-lnk" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"></path><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"></path></symbol>
+<symbol id="q-cpy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5"></rect><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"></path></symbol>
+<symbol id="q-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"></path></symbol>
+<symbol id="q-mor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"></circle><circle cx="12" cy="12" r="1.3"></circle><circle cx="19" cy="12" r="1.3"></circle></symbol>
+<symbol id="q-bel" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></symbol>
+<symbol id="q-dl" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></symbol>
+<symbol id="q-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"></path></symbol>
+<symbol id="q-spk" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"></path></symbol>
+<symbol id="q-fork" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"></circle><circle cx="18" cy="5" r="2"></circle><circle cx="12" cy="19" r="2"></circle><path d="M6 7v2a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4V7M12 13v4"></path></symbol>
+<symbol id="q-map" viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"></path><path d="M9 4v14M15 6v14"></path></symbol>
+<symbol id="q-trophy" viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0z"></path><path d="M8 6H4v2a4 4 0 0 0 4 4M16 6h4v2a4 4 0 0 1-4 4M12 13v4M8 21h8M9 17h6v4H9z"></path></symbol>
+<symbol id="q-tgt" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></symbol>
+</defs></svg>
+<div style="display: flex; gap: 40px; align-items: flex-start;">
+<div class="dk"><nav class="dks" aria-label="Main"><div style="display: flex; align-items: center; gap: 8px; padding: 4px 12px 18px;"><div aria-hidden="true" style="position: relative; width: 30px; height: 28px;"><div style="position: absolute; left: 0; top: 6px; width: 20px; height: 20px; border-radius: 6px; background: #58C322;"></div><div style="position: absolute; left: 10px; top: 0; width: 20px; height: 20px; border-radius: 6px; background: #1677C9;"></div></div><span style="font-size: 24px; font-weight: 900; color: #2E9A12; letter-spacing: -.5px;">duolify</span></div><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1F7A0D;"><use href="#q-home"></use></svg>Learn</a><a class="dkn on" href="#" aria-current="page"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-crs"></use></svg>Courses</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-glb"></use></svg>Marketplace</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-frn"></use></svg>Friends</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #A44E00;"><use href="#q-flg"></use></svg>Leagues</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-nt"></use></svg>Quick notes</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #1677C9;"><use href="#q-bk"></use></svg>Bookmarks</a><div style="height: 2px; background: #EFEFEF; margin: 8px 0;"></div><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #7B3FE4;"><use href="#q-gm"></use></svg>Credits</a><a class="dkn" href="#"><svg class="dki" aria-hidden="true" style="color: #555555;"><use href="#q-usr"></use></svg>Profile</a></nav>
+<div class="dkm">
+<div style="display: flex; align-items: center; gap: 14px;"><h2 class="dkh" style="flex: 1;">Courses</h2><label style="display: flex; align-items: center; gap: 8px; border: 2px solid #CFCFCF; background: #F7F7F7; border-radius: 14px; padding: 9px 12px; width: 320px;"><svg class="dki" aria-hidden="true"><use href="#q-src"></use></svg><span style="position: absolute; left: -9999px;">Search courses</span><input style="border: none; background: none; font: inherit; font-weight: 700; flex: 1; outline: none;" placeholder="Search courses"></label><a class="dkb" href="#"><svg class="dki" aria-hidden="true"><use href="#q-pls"></use></svg>Create a course</a></div>
+<div role="tablist" style="display: flex; background: #F1F1F1; border-radius: 14px; padding: 4px; width: 360px;"><button role="tab" aria-selected="true" type="button" style="flex: 1; border: 2px solid #E0E0E0; background: #fff; border-radius: 11px; padding: 8px; font-family: inherit; font-weight: 900; color: #2B2B2B;">My courses</button><button role="tab" aria-selected="false" type="button" style="flex: 1; border: none; background: none; padding: 8px; font-family: inherit; font-weight: 800; color: #555;">Discover</button></div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+<div class="dkk" style="border-bottom-width: 5px; border-color: #8CCBF7; background: #F4FAFF;"><div style="display: flex; gap: 12px; align-items: center;"><span style="width: 56px; height: 56px; border-radius: 16px; background: #1677C9; color: #fff; display: flex; align-items: center; justify-content: center;"><svg class="dki" aria-hidden="true" style="fill: #fff;"><use href="#q-str"></use></svg></span><div style="flex: 1;"><a href="#" style="font-size: 17px; font-weight: 900; color: #2B2B2B; text-decoration: none;">Astronomy for curious beginners</a><br><span class="dkhelp">Unit 1 · Lesson 2 of 4</span></div><span class="dkc t-info">Current</span></div><div class="dkbar"><i style="width: 30%;"></i></div></div>
+<div class="dkk" style="border-bottom-width: 5px;"><div style="display: flex; gap: 12px; align-items: center;"><span style="width: 56px; height: 56px; border-radius: 16px; background: #1F7A0D; color: #fff; display: flex; align-items: center; justify-content: center;"><svg class="dki" aria-hidden="true"><use href="#q-crs"></use></svg></span><div style="flex: 1;"><a href="#" style="font-size: 17px; font-weight: 900; color: #2B2B2B; text-decoration: none;">Plant care at home</a><br><span class="dkhelp">Unit 3 · Lesson 1 · 2 days ago</span></div></div><div class="dkbar"><i style="width: 62%;"></i></div></div>
+<div class="dkk" style="border-bottom-width: 5px;"><div style="display: flex; gap: 12px; align-items: center;"><span style="width: 56px; height: 56px; border-radius: 16px; background: #7B3FE4; color: #fff; display: flex; align-items: center; justify-content: center;"><svg class="dki" aria-hidden="true"><use href="#q-glb"></use></svg></span><div style="flex: 1;"><a href="#" style="font-size: 17px; font-weight: 900; color: #2B2B2B; text-decoration: none;">Distributed systems</a><br><span class="dkhelp">Shared by @mina · v3 · 6 of 24 lessons ready</span></div><span class="dkc t-ok">Update available</span></div></div>
+<div class="dkk" style="border-bottom-width: 5px; background: #F7F7F7;"><div style="display: flex; gap: 12px; align-items: center;"><span style="width: 56px; height: 56px; border-radius: 16px; background: #9A9A9A; color: #fff; display: flex; align-items: center; justify-content: center;"><svg class="dki" aria-hidden="true"><use href="#q-alr"></use></svg></span><div style="flex: 1;"><b style="font-size: 17px; color: #555;">Course unavailable</b><br><span class="dkhelp">The owner removed it. Your notes stay in Quick notes.</span></div></div></div>
+</div>
+<span class="dkhelp">Same states as mobile: no enrollment, Discover search with no results, loading skeleton, offline as-of list and request error.</span>
+</div>
+<aside class="dkr" aria-label="Your progress"><div style="display: flex; justify-content: space-between;"><a class="dkstat" href="#" style="color: #A44E00;" aria-label="7 day streak"><svg class="dki" aria-hidden="true" style="color: #FF8A00; fill: #FF8A00;"><use href="#q-fl"></use></svg>7</a><a class="dkstat" href="#" style="color: #5B2BB5;" aria-label="212 credits"><svg class="dki" aria-hidden="true" style="color: #7B3FE4;"><use href="#q-gm"></use></svg>212</a></div><div class="dkk"><b style="color: #2B2B2B;">Daily goal</b><div class="dkbar"><i style="width: 50%; background: #FFC233;"></i></div><span class="dkhelp">10 / 20 XP today</span></div><div class="dkk"><b style="color: #2B2B2B;">Streak freezes</b><span class="dkhelp">1 of 2 Â· applied automatically</span></div><div class="dkk"><b style="color: #2B2B2B;">Credits</b><div class="dkbar"><i style="width: 61%; background: #7B3FE4;"></i></div><span class="dkhelp">Daily free 28 / 46 Â· purchased 124</span></div><div class="dkk"><b style="color: #2B2B2B;">Sun league Â· rank 5</b><span class="dkhelp">240 XP Â· promotion zone</span></div></aside></div>
+</div>
+<span class="dkst" style="margin-top: 12px;">Mobile · &lt; 48rem · same actions</span>
+<div style="display: flex; gap: 40px; align-items: flex-start;">
+
+<div class="st">
+<div class="lb"><b>My courses — enrolled</b><span>Current course marked by text and border. Long titles wrap.</span></div>
+<div class="ph">
+<div class="mn">
+<div style="display: flex; align-items: center; justify-content: space-between;"><h2 class="t">Courses</h2><a class="btn sm2" href="#"><svg class="i sm" aria-hidden="true"><use href="#plus"></use></svg>Create</a></div>
+<div class="seg" role="tablist"><button class="on" type="button" role="tab" aria-selected="true">My courses</button><button type="button" role="tab" aria-selected="false">Discover</button></div>
+<div class="crd cur"><div class="tile" style="background: #1677C9;"><svg class="i" aria-hidden="true" style="fill: #fff;"><use href="#star"></use></svg></div><div style="flex: 1; display: flex; flex-direction: column; gap: 4px;"><h3><a class="ttl" href="#">Astronomy for curious beginners</a></h3><span class="help">Unit 1 · Lesson 2 of 4</span><div class="bar"><i style="width: 30%;"></i></div></div><span class="chip info">Current</span></div>
+<div class="crd"><div class="tile" style="background: #1F7A0D;"><svg class="i" aria-hidden="true"><use href="#leaf"></use></svg></div><div style="flex: 1; display: flex; flex-direction: column; gap: 4px;"><h3><a class="ttl" href="#">Plant care at home</a></h3><span class="help">Unit 3 · Lesson 1 · Last opened 2 days ago</span><div class="bar"><i style="width: 62%;"></i></div></div></div>
+<div class="crd"><div class="tile" style="background: #7B3FE4;"><svg class="i" aria-hidden="true"><use href="#code"></use></svg></div><div style="flex: 1; display: flex; flex-direction: column; gap: 4px;"><h3><a class="ttl" href="#">Distributed systems, from consensus to queues</a></h3><span class="help">Shared by @mina · Version 3 · 6 of 24 lessons ready</span><span class="chip ok" style="align-self: flex-start;">Update available</span></div></div>
+<div class="crd" style="background: #F7F7F7;"><div class="tile" style="background: #9A9A9A;"><svg class="i" aria-hidden="true"><use href="#alert"></use></svg></div><div style="flex: 1;"><h3 style="color: #555;">Course unavailable</h3><span class="help">The owner removed this course. Your notes stay in Quick notes.</span></div></div>
+</div>
+<nav class="tabs" aria-label="Main"><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#home"></use></svg>Learn</a><a class="tab on" href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#crs"></use></svg>Courses</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#frn"></use></svg>Friends</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#nt"></use></svg>Notes</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#more"></use></svg>More</a></nav>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>Discover · search + no results</b><span>Search label and result count announced. No results keeps the query and offers Clear.</span></div>
+<div class="ph">
+<div class="mn">
+<h2 class="t">Courses</h2>
+<div class="seg" role="tablist"><button type="button" role="tab" aria-selected="false">My courses</button><button class="on" type="button" role="tab" aria-selected="true">Discover</button></div>
+<label class="srch"><svg class="i" aria-hidden="true"><use href="#srch"></use></svg><span style="position: absolute; left: -9999px;">Search courses</span><input value="volcano poetry" style="border: none; background: none; font: inherit; font-weight: 700; color: #2B2B2B; flex: 1; outline: none;"></label>
+<span class="help" role="status">0 courses found</span>
+<div style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 24px 8px;">
+<div aria-hidden="true" style="position: relative; width: 90px; height: 70px;"><div style="position: absolute; left: 0; top: 18px; width: 52px; height: 52px; border-radius: 16px; background: #FFE3A3;"></div><div style="position: absolute; left: 34px; top: 0; width: 52px; height: 52px; border-radius: 16px; background: #9FD3FF;"></div></div>
+<b style="font-size: 19px; font-weight: 900; color: #2B2B2B;">Try another search</b>
+<p class="s">No public course matches “volcano poetry” yet.</p>
+<a class="btn sec" href="#" style="width: auto;">Clear search</a>
+<a class="btn" href="#">Create this course</a>
+</div>
+<b style="font-size: 15px; font-weight: 900; color: #2B2B2B;">Popular in Science</b>
+<div class="crd"><div class="tile" style="background: #FF8A00;"><svg class="i" aria-hidden="true"><use href="#globe"></use></svg></div><div style="flex: 1;"><h3><a class="ttl" href="#">Earth's climate, simply</a></h3><span class="help">by @kai · ★ 4.7 (212) · 1.2k learners</span></div></div>
+</div>
+<nav class="tabs" aria-label="Main"><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#home"></use></svg>Learn</a><a class="tab on" href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#crs"></use></svg>Courses</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#frn"></use></svg>Friends</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#nt"></use></svg>Notes</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#more"></use></svg>More</a></nav>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>No enrollment — first use</b><span>One heading, one line, one action. Also shown on Learn when no course exists.</span></div>
+<div class="ph">
+<div class="mn" style="justify-content: center; align-items: center; text-align: center; gap: 18px;">
+<div aria-hidden="true" style="position: relative; width: 200px; height: 170px;">
+<div style="position: absolute; left: 20px; top: 50px; width: 110px; height: 110px; border-radius: 30px; background: #58C322; box-shadow: 0 8px 0 #46A01A;"></div>
+<div style="position: absolute; left: 90px; top: 20px; width: 90px; height: 90px; border-radius: 26px; background: #1677C9; box-shadow: 0 7px 0 #0F5A99;"></div>
+<div style="position: absolute; left: 150px; top: 120px; width: 36px; height: 36px; border-radius: 11px; background: #FFC233;"></div>
+</div>
+<h2 class="t">What would you like to keep learning?</h2>
+<p class="s">Start with a topic. You'll see a preview before anything is created.</p>
+<a class="btn" href="#">Create a course</a>
+<a class="btn sec" href="#">Browse public courses</a>
+</div>
+<nav class="tabs" aria-label="Main"><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#home"></use></svg>Learn</a><a class="tab on" href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#crs"></use></svg>Courses</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#frn"></use></svg>Friends</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#nt"></use></svg>Notes</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#more"></use></svg>More</a></nav>
+</div>
+</div>
+
+<div class="st">
+<div class="lb"><b>Loading · offline stale · error</b><span>Static skeleton (no shimmer in reduced motion). Offline list shows as-of time; request error keeps Retry.</span></div>
+<div class="ph">
+<div class="mn">
+<h2 class="t">Courses</h2>
+<div class="ban warn"><svg class="i" aria-hidden="true"><use href="#off"></use></svg><div><b>Offline · as of 08:42</b><p>Saved lessons are available. Creating a course needs a connection.</p></div></div>
+<div aria-busy="true" style="display: flex; flex-direction: column; gap: 12px;">
+<span class="help" role="status">Loading your courses…</span>
+<div class="crd"><div class="sk" style="width: 52px; height: 52px; border-radius: 14px;"></div><div style="flex: 1; display: flex; flex-direction: column; gap: 8px;"><div class="sk" style="height: 16px; width: 70%;"></div><div class="sk" style="height: 12px; width: 45%;"></div></div></div>
+<div class="crd"><div class="sk" style="width: 52px; height: 52px; border-radius: 14px;"></div><div style="flex: 1; display: flex; flex-direction: column; gap: 8px;"><div class="sk" style="height: 16px; width: 60%;"></div><div class="sk" style="height: 12px; width: 35%;"></div></div></div>
+</div>
+<div class="ban bad" role="alert"><svg class="i" aria-hidden="true"><use href="#alert"></use></svg><div><b>Couldn't load Discover</b><p>Check your connection and try again. Details: ID c41b</p></div></div>
+<a class="btn sec" href="#">Retry</a>
+</div>
+<nav class="tabs" aria-label="Main"><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#home"></use></svg>Learn</a><a class="tab on" href="#" aria-current="page"><svg class="i" aria-hidden="true"><use href="#crs"></use></svg>Courses</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#frn"></use></svg>Friends</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#nt"></use></svg>Notes</a><a class="tab" href="#"><svg class="i" aria-hidden="true"><use href="#more"></use></svg>More</a></nav>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1776,"height":2080}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

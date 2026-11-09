@@ -1,6 +1,6 @@
 # Duolify brand
 
-Duolify makes room for a small discovery every day. It is a patient learning companion: curious, precise, optimistic and respectful of a learner's time. The product can teach astronomy, gardening or distributed systems with the same calm structure. It celebrates understanding and returning, rather than speed or perfection on the first try.
+Duolify makes room for a small discovery every day. It is a playful, patient learning companion: bright, curious, precise, optimistic and respectful of a learner's time. The look is Duolingo-style — chunky, colorful and game-like — but the brand, name, logo and illustrations are entirely Duolify's own. The product can teach astronomy, gardening or distributed systems with the same calm structure. It celebrates understanding and returning, rather than speed or perfection on the first try.
 
 ## Voice and tone
 
@@ -45,9 +45,13 @@ A compact lowercase wordmark with open counters and a slightly lifted dot over t
 
 ## Palette and illustration
 
-Ink violet is the action color; warm paper is the canvas. Apricot marks a current step or a small milestone. Forest, berry and ochre carry labelled success, correction and attention. Dark mode uses plum-black surfaces and pale violet actions. Exact values and approved pairings live in the design system.
+Green is the action color (theme revision, 2026-11-09): a deep, readable green for buttons and links, with a bright lime used only for progress fills and illustration. Sky blue marks selection, secondary actions and information; sun yellow marks completed lessons, XP and the daily goal; flame orange is the streak; gem violet is credits. Labelled forest, red and amber carry success, correction and attention. Dark mode uses deep teal-black surfaces with bright green actions. Exact values and approved pairings live in the design system and [tokens.json](tokens.json).
 
-Use original editorial diagrams: soft-edged tiles, orbital lines, cut-paper geometry, small annotations. Illustrations explain a concept, with a text equivalent; they never carry essential information alone. A course can vary its shapes, but action colors stay constant. Avoid mascots, borrowed assets, green-led branding, familiar owl silhouettes or copied copy. The [reference repository](https://github.com/sanidhyy/duolingo-clone) informs only sidebar, learning-path rhythm and tactile button patterns; no assets, code or text are reused.
+Use original, chunky geometric illustration: rounded tiles with a solid darker edge, orbital lines, simple shapes and small annotations. Illustrations explain a concept, with a text equivalent; they never carry essential information alone. A course can vary its shapes, but action colors stay constant. Avoid mascots, characters, borrowed assets, owl or bird silhouettes, Duolingo's name, logo, fonts or copy. The [reference repository](https://github.com/sanidhyy/duolingo-clone) informs only sidebar, learning-path rhythm and tactile button patterns; no assets, code or text are reused.
+
+## Conversational setup
+
+Onboarding and course creation are guided chats, not forms. The assistant asks one short question at a time, offers tappable quick replies, asks follow-ups only when an answer is vague, and lets the learner skip anything. Before any paid step it shows a plain summary of what it understood and waits for the learner to confirm or edit it. Assistant copy follows the voice above: friendly, brief, never pushy.
 
 ## Iconography
 
