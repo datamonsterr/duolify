@@ -65,6 +65,34 @@ type LearnerProfile struct {
 	Background      string             `json:"background"`
 	AnalyticsOptOut bool               `json:"analytics_opt_out"`
 	AgeConfirmedAt  pgtype.Timestamptz `json:"age_confirmed_at"`
+	Goal            string             `json:"goal"`
+	Topic           string             `json:"topic"`
+	Level           string             `json:"level"`
+	DailyMinutes    pgtype.Int4        `json:"daily_minutes"`
+	DailyXp         pgtype.Int4        `json:"daily_xp"`
+	ReminderEnabled pgtype.Bool        `json:"reminder_enabled"`
+	ReminderTime    string             `json:"reminder_time"`
+	SetupCompleted  bool               `json:"setup_completed"`
+}
+
+type PricingQuote struct {
+	ID             pgtype.UUID        `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	OwnerReference string             `json:"owner_reference"`
+	PricingVersion string             `json:"pricing_version"`
+	Snapshot       []byte             `json:"snapshot"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
+type PricingQuoteConsent struct {
+	QuoteID    pgtype.UUID        `json:"quote_id"`
+	AcceptedAt pgtype.Timestamptz `json:"accepted_at"`
+}
+
+type PricingQuotePolicy struct {
+	Version string `json:"version"`
+	Policy  []byte `json:"policy"`
 }
 
 type PricingVersion struct {

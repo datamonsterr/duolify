@@ -1,3 +1,7 @@
+import { UiPreferencesProvider } from "./features/design/localization/Preferences";
+import { resolveLocale } from "./features/design/localization/messages";
+import { session } from "./features/accounts/session";
+import { SettingsPage } from "./features/design/localization/PreferenceControls";
 import {
   createRootRoute,
   createRoute,
@@ -8,8 +12,10 @@ import {
   useParams,
   type RouterHistory,
 } from "@tanstack/react-router";
+import { Sessions } from "./features/accounts/Sessions";
 import { SignIn } from "./features/accounts/SignIn";
 import { RouteGuard } from "./features/accounts/RouteGuard";
+import { SetupProfile } from "./features/accounts/LearnerProfile";
 import { AccountProfile } from "./features/accounts/AccountProfile";
 import { LearnPath } from "./LearnPath";
 import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
@@ -22,12 +28,21 @@ import {
   RoutePending,
   RouteUnavailable,
 } from "./features/shell/RouteBoundary";
+function AccountShell() {
+  return (
+    <UiPreferencesProvider
+      initialPreferences={{ locale: resolveLocale(session.current()?.locale) }}
+    >
+      <AppShell />
+    </UiPreferencesProvider>
+  );
+}
 function AuthenticatedShell() {
   const path = useLocation({ select: (location) => location.pathname });
   if (path === "/sign-in") return <Outlet />;
   return (
-    <RouteGuard>
-      <AppShell />
+    <RouteGuard path={path}>
+      <AccountShell />
     </RouteGuard>
   );
 }
@@ -70,6 +85,11 @@ const profile = createRoute({
   path: "/profile",
   component: AccountProfile,
 });
+const profileSetup = createRoute({
+  getParentRoute: () => root,
+  path: "/profile/setup",
+  component: SetupProfile,
+});
 const credits = createRoute({
   getParentRoute: () => root,
   path: "/credits",
@@ -103,7 +123,12 @@ const bookmarks = createRoute({
 const settings = createRoute({
   getParentRoute: () => root,
   path: "/settings",
-  component: () => <DestinationPage title="Settings" />,
+  component: SettingsPage,
+});
+const sessions = createRoute({
+  getParentRoute: () => root,
+  path: "/settings/sessions",
+  component: Sessions,
 });
 const streak = createRoute({
   getParentRoute: () => root,
@@ -140,6 +165,7 @@ export const createAppRouter = (history?: RouterHistory) =>
       course,
       lesson,
       profile,
+      profileSetup,
       credits,
       more,
       friends,
@@ -147,6 +173,7 @@ export const createAppRouter = (history?: RouterHistory) =>
       notes,
       bookmarks,
       settings,
+      sessions,
       streak,
       lessonTest,
       signIn,

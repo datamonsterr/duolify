@@ -21,6 +21,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/migrations"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
@@ -67,11 +68,32 @@ func run() (result error) {
 		return err
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: catalogue, Accounts: auth}, logger))
+	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: catalogue, Quotes: pricing.NewQuotes(db.Pool), Accounts: auth}, logger))
 	// Test-only controls bind to loopback in this disposable fixture binary.
 	mux.HandleFunc("GET /test/mail", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:4182")
 		_ = json.NewEncoder(w).Encode(map[string]string{"code": sink.Code(r.URL.Query().Get("email"))})
+	})
+	mux.HandleFunc("POST /test/expire-access", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			AccessToken string `json:"access_token"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			w.WriteHeader(400)
+			return
+		}
+		claims, err := auth.ParseAccess(in.AccessToken)
+		if err != nil {
+			w.WriteHeader(400)
+			return
+		}
+		claims.ExpiresAt = jwt.NewNumericDate(time.Now().Add(-time.Minute))
+		raw, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("test-only-signing-key-at-least-32-bytes"))
+		if err != nil {
+			w.WriteHeader(500)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"access_token": raw})
 	})
 	mux.HandleFunc("POST /test/expire", func(w http.ResponseWriter, r *http.Request) {
 		var in struct {

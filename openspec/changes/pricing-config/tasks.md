@@ -39,3 +39,20 @@
 - [ ] 5.3 Alert on config load failure and on scheduled-flip failure.
 - [ ] 5.4 Cost-ceiling check in the validator wired to `engine:eval` usage envelopes.
 - [ ] 5.5 `.env.example` entries (Stripe keys by environment) with comments.
+
+## E12-02 authoritative quotes (issue #55)
+
+- [x] Browser, Postgres and unit quote tests; immutable terms across a flip.
+- [x] Config-owned quote policy, integer money/rational audio, input/model bounds.
+- [x] Authenticated create/read/consent with expiry; no wallet reservation.
+- [x] Responsive quote review, errors, renewal and original version disclosure.
+- [x] Existing pricing analytics catalogue/wrapper, UUID/opt-out test-double checks.
+- [x] Encrypted restore fixtures include policy, quote and consent; account FK pseudonymization.
+- [x] Preserve AI gates: quote-only work invokes no model or provider.
+
+## E12-03 cached client consumption
+
+- [x] `GET /v1/pricing` exposes the current loaded version and its next approved scheduled version; the client refreshes and displays both when present.
+- [x] ETag conditional reads return `304` for an unchanged DTO and a new DTO after the database resolver crosses a scheduled effective time.
+- [x] Client price/credit literal gate has authored commercial and documented noncommercial rule fixtures.
+- [ ] Runtime catalogue reload, scheduled activation, and consistency of the next-change display after activation are deferred to E12-06. E12-03 verifies request-time DTO/ETag behavior; it does not add an API scheduler or reload path.

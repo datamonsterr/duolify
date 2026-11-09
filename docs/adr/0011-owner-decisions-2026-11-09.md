@@ -21,6 +21,14 @@ The ticket breakdown (`docs/epics/tickets.md`) found decision tickets that block
 | E16-06 | `outline_replan` costs 55 credits in a new Pricing config version; a successfully produced proposal is charged even if discarded. |
 | E17 | ADR 0010 accepted: original parametric SVG Character rig, no AI image generation in v1. Default limits from `openspec/changes/custom-characters/design.md` accepted. |
 
+## Defaults chosen during implementation (pending owner review)
+
+Not owner decisions; chosen by the orchestrator so work could continue. Change them by a new Pricing config version or ADR.
+
+| Ticket | Default |
+|---|---|
+| E12-02 | Action quotes are independent of wallet reservations. The initial quote TTL is 10 minutes; provider/model rates come from the business-model cost envelope; the logical narration voice key is `default`. Quote policy is an immutable extension owned by each Pricing version. Quoting never enables a model or calls a provider. |
+
 ## Still open (owner provisioning)
 
 Live credentials and accounts: E1-10 (Resend, Google, Apple), E7-05/E7-12/E7-13/E7-14 (billing), E10-01 dataset and secrets, E11-02/E11-07 (backup keys, environment secrets), E12-08 (launch catalogue), E13-05 (brand assets), E14-05 (voices), E15-12/E15-13 (marketplace policy and pilot), the `character_create` price and final default-cast art (E17).

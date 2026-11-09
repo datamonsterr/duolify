@@ -139,3 +139,24 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+.quote-panel {
+  margin-block: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+.quote-panel label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--size-target);
+}
+.quote-panel select {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  min-block-size: var(--size-target);
+  max-inline-size: 100%;
+}

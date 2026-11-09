@@ -1,3 +1,4 @@
+import { useUiPreferences } from "../localization/Preferences";
 import {
   useEffect,
   useEffectEvent,
@@ -33,6 +34,7 @@ export function Sheet({
   modal = true,
   returnFocusRef,
 }: SheetProps) {
+  const { t } = useUiPreferences();
   const dialog = useRef<HTMLDialogElement>(null);
   const reportedOpen = useRef(false);
   const editorFocus = useRef<HTMLElement | null>(null);
@@ -126,8 +128,12 @@ export function Sheet({
       <header className="guided-panel-header">
         <h2 id={titleId}>{title}</h2>
         {modal && (
-          <Button variant="quiet" onClick={close} aria-label={`Close ${title}`}>
-            Close
+          <Button
+            variant="quiet"
+            onClick={close}
+            aria-label={t("common.close_named", { name: title })}
+          >
+            {t("common.close")}
           </Button>
         )}
       </header>

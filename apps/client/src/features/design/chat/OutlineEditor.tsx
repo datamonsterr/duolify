@@ -1,3 +1,5 @@
+import type { MessageId } from "../localization/messages";
+import { useUiPreferences } from "../localization/Preferences";
 import {
   useId,
   useLayoutEffect,
@@ -21,6 +23,7 @@ type Control = Extract<
   GuidedUiEvent,
   { event: "ui_control_activated" }
 >["controlId"];
+type Notice = { id: MessageId; values?: Record<string, string | number> };
 type Snapshot = { value: Outline; focusId: string };
 
 // Features own proposal approval; passing a new proposal snapshot records one
@@ -34,10 +37,11 @@ export function OutlineEditor({
   onChange?: (value: Outline) => void;
   proposal?: Outline | null;
 }) {
+  const { t } = useUiPreferences();
   const [internal, setInternal] = useState(initialValue);
   const units = internal;
   const [history, setHistory] = useState<Snapshot[]>([]);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<Notice | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const undo = useRef<HTMLButtonElement>(null);
   const dragging = useRef<{ id: string; parent?: string } | null>(null);
@@ -84,7 +88,7 @@ export function OutlineEditor({
     next: Outline,
     control: Control,
     focusId: string,
-    message: string,
+    message: Notice,
     focus = false,
   ) {
     setHistory([...history, { value: units, focusId }]);
@@ -115,12 +119,10 @@ export function OutlineEditor({
             : unit,
         )
       : (nextList as Outline);
-    change(
-      next,
-      control,
-      id,
-      `${item.title} moved to position ${destination + 1}`,
-    );
+    change(next, control, id, {
+      id: "outline.moved",
+      values: { name: item.title, position: destination + 1 },
+    });
   }
   function rename(id: string, parent: string | undefined, title: string) {
     const next = parent
@@ -135,7 +137,7 @@ export function OutlineEditor({
             : unit,
         )
       : units.map((unit) => (unit.id === id ? { ...unit, title } : unit));
-    change(next, "rename", id, "Title edited. Unsaved changes.");
+    change(next, "rename", id, { id: "outline.edited" });
   }
   function remove(id: string, parent?: string) {
     const next = parent
@@ -148,7 +150,7 @@ export function OutlineEditor({
             : unit,
         )
       : units.filter((unit) => unit.id !== id);
-    change(next, "remove", id, "Item removed. Undo available.");
+    change(next, "remove", id, { id: "outline.removed" });
     pendingFocus.current = { undo: true };
   }
   function add(parent?: string) {
@@ -158,18 +160,19 @@ export function OutlineEditor({
           unit.id === parent
             ? {
                 ...unit,
-                lessons: [...unit.lessons, { id, title: "New lesson" }],
+                lessons: [
+                  ...unit.lessons,
+                  { id, title: t("outline.new_lesson") },
+                ],
               }
             : unit,
         )
-      : [...units, { id, title: "New unit", lessons: [] }];
+      : [...units, { id, title: t("outline.new_unit"), lessons: [] }];
     change(
       next,
       "add",
       id,
-      parent
-        ? "Lesson added. Unsaved changes."
-        : "Unit added. Unsaved changes.",
+      { id: parent ? "outline.lesson_added" : "outline.unit_added" },
       true,
     );
   }
@@ -190,14 +193,16 @@ export function OutlineEditor({
     length: number,
     parent?: string,
   ) {
-    const title = item.title || (parent ? "Untitled lesson" : "Untitled unit");
+    const title =
+      item.title ||
+      (parent ? t("outline.untitled_lesson") : t("outline.untitled_unit"));
     return (
       <div className="outline-controls">
         <Button
           variant="quiet"
           draggable
-          aria-label={`Reorder ${title}`}
-          title="Drag, use arrow keys or move buttons"
+          aria-label={t("outline.reorder", { name: title })}
+          title={t("outline.drag_help")}
           onDragStart={(event) => {
             dragging.current = { id: item.id, parent };
             event.dataTransfer.setData("text/plain", item.id);
@@ -226,32 +231,32 @@ export function OutlineEditor({
         </Button>
         <Button
           variant="quiet"
-          aria-label={`Move ${title} up`}
+          aria-label={t("outline.move_up", { name: title })}
           aria-disabled={index === 0}
           onClick={() => move(item.id, parent, index - 1, "move_up")}
         >
           ↑{" "}
           <span className="guided-sr-only">
-            {index === 0 ? "Unavailable, first position" : "Move up"}
+            {index === 0 ? t("outline.first") : t("outline.up")}
           </span>
         </Button>
         <Button
           variant="quiet"
-          aria-label={`Move ${title} down`}
+          aria-label={t("outline.move_down", { name: title })}
           aria-disabled={index === length - 1}
           onClick={() => move(item.id, parent, index + 1, "move_down")}
         >
           ↓{" "}
           <span className="guided-sr-only">
-            {index === length - 1 ? "Unavailable, last position" : "Move down"}
+            {index === length - 1 ? t("outline.last") : t("outline.down")}
           </span>
         </Button>
         <Button
           variant="quiet"
-          aria-label={`Remove ${title}`}
+          aria-label={t("outline.remove_named", { name: title })}
           onClick={() => remove(item.id, parent)}
         >
-          Remove
+          {t("outline.remove")}
         </Button>
       </div>
     );
@@ -259,7 +264,7 @@ export function OutlineEditor({
   return (
     <div ref={root} className="outline-editor">
       <header className="guided-panel-header">
-        <h2>Shape your outline</h2>
+        <h2>{t("outline.title")}</h2>
         <button
           type="button"
           ref={undo}
@@ -270,28 +275,29 @@ export function OutlineEditor({
             if (!previous) return;
             publish(previous.value);
             setHistory(history.slice(0, -1));
-            setNotice("Change undone. Unsaved changes.");
+            setNotice({ id: "outline.undone" });
             track("undo");
             focusTitle(previous.focusId);
           }}
         >
-          Undo
+          {t("common.undo")}
         </button>
       </header>
-      <p>
-        Sample outline. Drag units or lessons, use arrow keys on a handle, or
-        use move buttons. Lesson content is prepared later.
-      </p>
-      {shown.length === 0 && <p>No units yet. Add a unit to start.</p>}
+      <p>{t("outline.intro")}</p>
+      {shown.length === 0 && <p>{t("outline.empty")}</p>}
       <ol className="outline-units">
         {shown.map((unit, index) => (
           <li key={unit.id} data-outline-id={unit.id} className="outline-unit">
             <div className="outline-row">
-              <span className="outline-position">Unit {index + 1}</span>
+              <span className="outline-position">
+                {t("outline.unit", { index: index + 1 })}
+              </span>
               <Field
-                label={`Title for ${unit.title || "Untitled unit"}`}
+                label={t("outline.title_for", {
+                  name: unit.title || t("outline.untitled_unit"),
+                })}
                 value={unit.title}
-                error={!unit.title.trim() ? "Enter a unit title." : undefined}
+                error={!unit.title.trim() ? t("outline.unit_error") : undefined}
                 onChange={(event) =>
                   rename(unit.id, undefined, event.target.value)
                 }
@@ -306,15 +312,20 @@ export function OutlineEditor({
                   className="outline-row"
                 >
                   <span className="outline-position">
-                    Lesson {index + 1}.{lessonIndex + 1}
+                    {t("outline.lesson", {
+                      unit: index + 1,
+                      lesson: lessonIndex + 1,
+                    })}
                   </span>
                   <div>
                     <Field
-                      label={`Title for ${lesson.title || "Untitled lesson"}`}
+                      label={t("outline.title_for", {
+                        name: lesson.title || t("outline.untitled_lesson"),
+                      })}
                       value={lesson.title}
                       error={
                         !lesson.title.trim()
-                          ? "Enter a lesson title."
+                          ? t("outline.lesson_error")
                           : undefined
                       }
                       onChange={(event) =>
@@ -328,16 +339,18 @@ export function OutlineEditor({
               ))}
             </ol>
             <Button variant="quiet" onClick={() => add(unit.id)}>
-              Add a lesson to {unit.title || "Untitled unit"}
+              {t("outline.add_lesson", {
+                name: unit.title || t("outline.untitled_unit"),
+              })}
             </Button>
           </li>
         ))}
       </ol>
       <Button variant="secondary" onClick={() => add()}>
-        Add a unit
+        {t("outline.add_unit")}
       </Button>
       <p role="status" aria-live="polite" aria-atomic="true">
-        {notice}
+        {notice ? t(notice.id, notice.values) : ""}
       </p>
     </div>
   );

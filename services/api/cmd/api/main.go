@@ -144,13 +144,20 @@ func run(ctx context.Context, args []string) (result error) {
 		}
 		mailer = accounts.ResendMailer{APIKey: os.Getenv("RESEND_API_KEY"), From: os.Getenv("AUTH_MAIL_FROM")}
 	}
+	profileOptions, err := accounts.ProfileOptionsFromEnv(os.Getenv)
+	if err != nil {
+		return err
+	}
+	profileOptions.Events = events
 	auth, err := accounts.New(db.Pool, secret, mailer)
 	if err != nil {
 		return err
 	}
+	auth.ConfigureProfile(profileOptions)
 	handler := httpapi.New(httpapi.Dependencies{
 		Accounts: auth,
 		Pricing:  catalogue,
+		Quotes:   pricing.NewQuotes(db.Pool),
 		Postgres: db.Ping,
 		Redis:    func(ctx context.Context) error { return redis.Ping(ctx).Err() },
 		Engine:   backend,

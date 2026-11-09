@@ -5,6 +5,7 @@ package backuptest
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/moby/moby/api/types/container"
 	"github.com/riverqueue/river"
@@ -271,16 +273,28 @@ func (f *Fixture) Seed(t *testing.T) {
 		"INSERT INTO learners (id,display_name) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner')",
 		"INSERT INTO credit_entries (learner_id,amount,kind,reference) VALUES ('a1111111-1111-4111-8111-111111111111',120,'purchase','synthetic-purchase'),('a1111111-1111-4111-8111-111111111111',-35,'spend','synthetic-spend')",
 		"INSERT INTO learner_profiles (learner_id,locale,time_zone,analytics_opt_out) VALUES ('a1111111-1111-4111-8111-111111111111','vi-VN','Asia/Ho_Chi_Minh',true)",
+		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
 		"INSERT INTO auth_identities (email,learner_id) VALUES ('synthetic@example.test','a1111111-1111-4111-8111-111111111111')",
 		"INSERT INTO auth_codes (email,code_hash,expires_at,attempts) VALUES ('synthetic@example.test',repeat('a',64),now()-interval '1 minute',5)",
 		"INSERT INTO auth_sessions (id,learner_id) VALUES ('b2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111')",
-		"INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES (repeat('b',64),'b2222222-2222-4222-8222-222222222222',now()+interval '30 days')",
+		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at,consumed_at) VALUES ('%x','b2222222-2222-4222-8222-222222222222',now()+interval '30 days',now())", sha256.Sum256([]byte("synthetic-consumed-refresh"))),
+		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES ('%x','b2222222-2222-4222-8222-222222222222',now()+interval '30 days')", sha256.Sum256([]byte("synthetic-active-refresh"))),
+		"INSERT INTO auth_sessions (id,learner_id,revoked_at) VALUES ('d4444444-4444-4444-8444-444444444444','a1111111-1111-4111-8111-111111111111',now())",
+		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES ('%x','d4444444-4444-4444-8444-444444444444',now()+interval '30 days')", sha256.Sum256([]byte("synthetic-revoked-refresh"))),
 		"INSERT INTO auth_rate_limits (key_hash,count,expires_at) VALUES (repeat('c',64),3,now()+interval '1 hour')",
 	} {
 		if _, err := f.DB.Pool.Exec(t.Context(), query); err != nil {
 			t.Fatal(err)
 		}
 	}
+	quote, err := pricing.NewQuotes(f.DB.Pool).Create(t.Context(), "a1111111-1111-4111-8111-111111111111", pricing.QuoteInput{Action: "lesson_content", NarrationCharacters: 1440})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pricing.NewQuotes(f.DB.Pool).Accept(t.Context(), "a1111111-1111-4111-8111-111111111111", quote.ID); err != nil {
+		t.Fatal(err)
+	}
+
 }
 
 // RunJob waits for the real River worker, including failed attempts and retries.
@@ -423,7 +437,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits"} {
+	for _, table := range []string{"pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -435,6 +449,23 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		if before != after || after == "[]" {
 			t.Fatalf("encrypted backup changed or omitted %s", table)
 		}
+	}
+	// Every new context field is populated in Seed and compared byte-for-byte above.
+	// Prove the restored schema also cascades current context on account erasure.
+	var erasedID string
+	if err := restored.Pool.QueryRow(t.Context(), "INSERT INTO learners(display_name) VALUES('Synthetic erasure check') RETURNING id::text").Scan(&erasedID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO learner_profiles(learner_id,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed)
+ SELECT $1::uuid,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111'`, erasedID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", erasedID); err != nil {
+		t.Fatal(err)
+	}
+	var survived bool
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
+		t.Fatal("restored context survived account erasure", err)
 	}
 	var valid bool
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT length(c.code_hash)=64 AND c.expires_at<now() AND c.attempts=5 AND length(t.token_hash)=64 AND t.expires_at>now() AND length(r.key_hash)=64 AND r.expires_at>now() FROM auth_codes c CROSS JOIN auth_refresh_tokens t CROSS JOIN auth_rate_limits r`).Scan(&valid); err != nil || !valid {
@@ -449,7 +480,30 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if response.Code != http.StatusUnauthorized {
 		t.Fatal("restored expired challenge became usable")
 	}
-	for _, query := range []string{"UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions"} {
+	// A restored revoked session rejects even a correctly signed, unexpired JWT.
+	access, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
+		Issuer: "duolify", Audience: jwt.ClaimStrings{"duolify-client"}, Subject: "a1111111-1111-4111-8111-111111111111", ID: "d4444444-4444-4444-8444-444444444444", ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+	}).SignedString([]byte("synthetic-backup-auth-signing-key-32-bytes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequestWithContext(t.Context(), "GET", "/v1/me", nil)
+	request.Header.Set("Authorization", "Bearer "+access)
+	response = httptest.NewRecorder()
+	auth.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatal("restored revoked access became usable")
+	}
+	// Replay must retain its consumed state and revoke its restored family too.
+	for _, secret := range []string{"synthetic-consumed-refresh", "synthetic-active-refresh", "synthetic-revoked-refresh"} {
+		response = httptest.NewRecorder()
+		auth.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "POST", "/v1/auth/refresh", strings.NewReader(`{"refresh_token":"`+secret+`"}`)))
+		if response.Code != http.StatusUnauthorized {
+			t.Fatal("restored consumed/revoked refresh became usable")
+		}
+	}
+
+	for _, query := range []string{"UPDATE pricing_quotes SET snapshot='{}'", "DELETE FROM pricing_quotes", "TRUNCATE pricing_quotes", "DELETE FROM pricing_quote_consents", "DELETE FROM pricing_quote_policies", "UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions"} {
 		if _, err := restored.Pool.Exec(t.Context(), query); err == nil {
 			t.Fatalf("restored immutable data accepted mutation: %s", query)
 		}

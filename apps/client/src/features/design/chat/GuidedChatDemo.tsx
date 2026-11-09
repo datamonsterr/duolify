@@ -1,3 +1,5 @@
+import { useUiPreferences } from "../localization/Preferences";
+import { PreferenceControls } from "../localization/PreferenceControls";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "../Button";
 import { Badge } from "../Badge";
@@ -44,6 +46,18 @@ const start: ChatMessage = {
 
 // Authored demo only. Feature consumers own AI, saving, prices and authoritative outcomes.
 export function GuidedChatDemo() {
+  const { t } = useUiPreferences();
+  const localizedQuestion = {
+    ...question,
+    replies: question.replies.map((reply, index) => ({
+      ...reply,
+      label: t(
+        (["demo.city", "demo.both", "demo.dark_sky", "demo.unsure"] as const)[
+          index
+        ],
+      ),
+    })),
+  };
   const [lines, setLines] = useState(initialSummary);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([start]);
@@ -81,7 +95,7 @@ export function GuidedChatDemo() {
       setLines(
         lines.map((line) =>
           line.id === "topic"
-            ? { ...line, error: "Enter a topic before confirming." }
+            ? { ...line, error: t("demo.topic_error") }
             : line,
         ),
       );
@@ -100,19 +114,18 @@ export function GuidedChatDemo() {
       confirmed={confirmed}
       pending={fixtureState === "pending"}
       error={
-        fixtureState === "confirm-error"
-          ? "Could not confirm. Your draft is kept; try again."
-          : undefined
+        fixtureState === "confirm-error" ? t("demo.confirm_error") : undefined
       }
     />
   );
   return (
     <main className="guided-demo">
+      <PreferenceControls testLocales />
       <header className="guided-demo-top">
         <div>
           <span className="eyebrow">COMPONENT FIXTURES · E13-03</span>
-          <h1>Let's shape your course</h1>
-          <p>Brief → Preview → Outline → Create</p>
+          <h1>{t("demo.title")}</h1>
+          <p>{t("demo.path")}</p>
         </div>
         <label className="guided-field">
           Fixture state
@@ -131,13 +144,13 @@ export function GuidedChatDemo() {
         </label>
       </header>
       <div className="guided-step-label">
-        <Badge role="info">Brief · 1 question left</Badge>
-        <p>You can skip any question. Nothing starts automatically.</p>
+        <Badge role="info">{t("demo.remaining")}</Badge>
+        <p>{t("demo.skip_hint")}</p>
       </div>
       {form ? (
         <section id="brief-form" className="guided-fallback">
           <h2 ref={formHeading} tabIndex={-1}>
-            Course brief form
+            {t("demo.form")}
           </h2>
           <a
             href="#chat"
@@ -147,25 +160,27 @@ export function GuidedChatDemo() {
               setForm(false);
             }}
           >
-            Back to chat
+            {t("demo.back")}
           </a>
           <fieldset>
-            <legend>Starting level</legend>
-            {["beginner", "intermediate", "advanced"].map((value) => (
-              <label className="guided-choice" key={value}>
-                <input
-                  type="radio"
-                  name="level"
-                  checked={level === value}
-                  onChange={() => {
-                    setLevel(value);
-                    setUnsaved(true);
-                    setConfirmed(false);
-                  }}
-                />
-                {value[0].toUpperCase() + value.slice(1)}
-              </label>
-            ))}
+            <legend>{t("demo.level")}</legend>
+            {(["beginner", "intermediate", "advanced"] as const).map(
+              (value) => (
+                <label className="guided-choice" key={value}>
+                  <input
+                    type="radio"
+                    name="level"
+                    checked={level === value}
+                    onChange={() => {
+                      setLevel(value);
+                      setUnsaved(true);
+                      setConfirmed(false);
+                    }}
+                  />
+                  {t(`demo.${value}`)}
+                </label>
+              ),
+            )}
           </fieldset>
           <label className="guided-choice">
             <input
@@ -177,7 +192,7 @@ export function GuidedChatDemo() {
                 setConfirmed(false);
               }}
             />
-            Send learning reminders
+            {t("demo.reminders")}
           </label>
           {summary}
         </section>
@@ -198,18 +213,19 @@ export function GuidedChatDemo() {
                     ]
                   : messages
             }
-            question={question}
+            question={localizedQuestion}
             draft={draft}
             onDraftChange={setDraft}
             onAnswer={(answer) => {
               const text = answer.skipped
-                ? "Skipped"
+                ? t("demo.skipped")
                 : [
                     answer.text.trim(),
                     ...answer.replyIds.map(
                       (id) =>
-                        question.replies.find((reply) => reply.id === id)
-                          ?.label,
+                        localizedQuestion.replies.find(
+                          (reply) => reply.id === id,
+                        )?.label,
                     ),
                   ]
                     .filter(Boolean)
@@ -219,7 +235,7 @@ export function GuidedChatDemo() {
                 {
                   id: crypto.randomUUID(),
                   author: "learner",
-                  authorLabel: "You",
+                  authorLabel: t("demo.you"),
                   text,
                   status: "complete",
                 },
@@ -227,7 +243,7 @@ export function GuidedChatDemo() {
                   id: crypto.randomUUID(),
                   author: "assistant",
                   authorLabel: "Duolify",
-                  text: "Thanks. Review your brief and confirm when you're ready.",
+                  text: t("demo.thanks"),
                   status: "complete",
                 },
               ]);
@@ -253,8 +269,8 @@ export function GuidedChatDemo() {
             onRetry={() => setFixtureState("ready")}
           />
           <ResponsivePanel
-            title="Course brief"
-            triggerLabel="Open course brief"
+            title={t("demo.brief")}
+            triggerLabel={t("demo.open_brief")}
             sheetId="course_brief"
           >
             {summary}
@@ -268,12 +284,12 @@ export function GuidedChatDemo() {
           proposal={proposalValue}
         />
         <ResponsivePanel
-          title="Outline chat"
-          triggerLabel="Open outline chat"
+          title={t("demo.outline_chat")}
+          triggerLabel={t("demo.open_outline")}
           sheetId="outline_chat"
         >
           <div className="guided-message learner">
-            <strong>You</strong>
+            <strong>{t("demo.you")}</strong>
             <div className="guided-bubble">
               Add a short unit on choosing a first telescope at the end.
             </div>
@@ -295,15 +311,15 @@ export function GuidedChatDemo() {
                 tone={proposalStatus === "applied" ? "success" : "info"}
                 title={
                   proposalStatus === "applied"
-                    ? "Proposal applied. Undo available."
-                    : "Proposal discarded. Outline unchanged."
+                    ? t("demo.applied")
+                    : t("demo.discarded")
                 }
               />
               <Button
                 variant="quiet"
                 onClick={() => setProposalStatus("ready")}
               >
-                Show suggestion
+                {t("demo.show")}
               </Button>
             </>
           )}
@@ -314,24 +330,24 @@ export function GuidedChatDemo() {
         </ResponsivePanel>
       </div>
       <section className="guided-sheet-host" aria-label="Player host fixture">
-        <h2>Sheet keyboard example</h2>
-        <p>{paused ? "Player paused" : "Player ready"}</p>
+        <h2>{t("demo.keyboard")}</h2>
+        <p>{paused ? t("demo.paused") : t("demo.ready")}</p>
         <Button variant="secondary" onClick={() => setSheetOpen(true)}>
-          Open keyboard sheet
+          {t("demo.open_keyboard")}
         </Button>
         <Sheet
           open={sheetOpen}
           onClose={() => setSheetOpen(false)}
-          title="Keyboard sheet"
+          title={t("demo.sheet")}
           sheetId="fixture_sheet"
           onPausePlayer={pausePlayer}
         >
-          <p>Opening a sheet pauses the player and keeps the slide position.</p>
+          <p>{t("demo.sheet_hint")}</p>
           <label className="guided-field">
-            Your note
+            {t("demo.note")}
             <textarea rows={3} />
           </label>
-          <Button variant="quiet">Last action</Button>
+          <Button variant="quiet">{t("demo.last")}</Button>
         </Sheet>
       </section>
     </main>
