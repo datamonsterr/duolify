@@ -1,6 +1,6 @@
-# E1–E16 implementation tickets
+# E1–E17 implementation tickets
 
-119 tickets. The authoritative ticket bodies, acceptance and ordered tests are in [tickets.json](tickets.json); this file is the matching dependency view. E0 is merged and is not a blocker. E17 is excluded. No GitHub issues are created by this plan.
+128 tickets. The authoritative ticket bodies, acceptance and ordered tests are in [tickets.json](tickets.json); this file is the matching dependency view. E0 is merged and is not a blocker. No GitHub issues are created by this plan.
 
 Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M ≈ half a day, L ≈ one day. E7 has 14 tickets and E15 has 13 because native billing channels and moderation/recovery require separate bounded PRs. Most HITL tickets produce an owner decision or redacted provisioning evidence, so those decisions can happen early. E7-12/E7-13 are native-billing implementation PRs with executable TDD tests plus a final owner/device verification step. Downstream tickets list the decisions and implementations they need. Tests are written e2e → integration → unit, then implementation. Test paths in JSON are proposed locations in existing area suites, not a claim those files already exist.
 
@@ -14,7 +14,8 @@ Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M
 - Data-owning tickets update the actual inventory at `docs/data-inventory.md` (some change task lists incorrectly say `docs/business/data-inventory.md`). Add focused backup/restore/deletion checks with each persisted feature; do not wait for a later broad hardening ticket.
 - AI merges require feature cases in the pinned Hugging Face dataset (owner setup E10-01), recorded fixtures and `mise run engine:eval`. Existing scaffold mock evaluation supports early slices; E10 upgrades the harness and E10-06 provides the reusable live promotion gate. Feature-specific live cases are added and run by each feature PR; E10 is not a substitute for them.
 - Fixture-driven auth/payment/speech implementation does not consume real secrets. Live auth E1-10, dataset/provider setup E10-01, billing policy/keys E7-05, native owner/device verification E7-12/E7-13 and desktop/web pilot E7-14, catalogue E12-08, narration E14-05 and infrastructure E11-07 provide owner gates. Desktop/web sales require E7-14 after pricing activation, financial restore/reconciliation, live eval gates and reviewed infrastructure rollout. Apple and Google sales separately require their HITL E7-12/E7-13 owner/device acceptance plus the same pricing, recovery and rollout gates; mobile does not block web.
-- No public marketplace release before HITL E15-13, which depends on E15-11 deletion/restore, E15-12 rights/age/domain policy, notifications, verified billing/evals and reviewed infrastructure. E15-07 remains behind its release flag until then. Paid marketplace courses/revenue sharing, fork updates/rejoining, speculative future lesson generation and E17 custom characters are out of scope.
+- No public marketplace release before HITL E15-13, which depends on E15-11 deletion/restore, E15-12 rights/age/domain policy, notifications, verified billing/evals and reviewed infrastructure. E15-07 remains behind its release flag until then. Paid marketplace courses/revenue sharing, fork updates/rejoining and speculative future lesson generation are out of scope.
+- E17-01 is the default-cast tracer after E3-01 Motion HTML manifest playback: provisional original fixtures stay behind a flag and are unblocked by E17 HITL work. E17-02 is the single owner gate for ADR 0010, a new character_create pricing version, limits and final original cast art; E17-03 needs the rig/limits/art answer and E17-04 additionally needs the price answer. Free editing/selection does not require an active paid key; the remaining integrations inherit approved Character versions rather than waiting on a separate owner gate. E17 uses E10-03’s stricter launch attempt/USD ceiling within its retry/fallback upper bounds, and retains E14 narration rights/quality and E15 publication/recovery gates. No image generation, standalone Character sharing or retroactive Lesson regeneration is added.
 - Implement only the specified narrow behavior per ticket; use mocks for upstream optional integrations and feature flags for not-yet-approved live paths. Follow focused mise checks, draft PRs and one PR per ticket when this plan is executed. This deliverable is local planning and the requested commit only; it does not open/merge PRs or remove this worktree.
 
 ## E1 — Accounts and learner profile
@@ -216,6 +217,20 @@ Each AFK ticket is one reviewable PR and one agent session: S ≈ 1–2 hours, M
 | E16-07 | Quote and propose an immutable remaining-outline diff | AFK | L | E16-02, E16-06, E12-06 |
 | E16-08 | Confirm discard and expire outline proposals | AFK | M | E16-07, E16-05 |
 
+## E17 — Custom characters
+
+| ID | Title | Kind | Size | Blocked by |
+| --- | --- | --- | --- | --- |
+| E17-01 | Play a default-cast Motion HTML tracer | AFK | L | E3-01 |
+| E17-02 | Approve character architecture pricing limits and original art | HITL | S | — |
+| E17-03 | Edit private characters and choose a Course Cast | AFK | L | E17-01, E17-02, E10-02, E10-03 |
+| E17-04 | Create and regenerate a quoted private character | AFK | L | E17-03, E17-02, E7-03, E12-06, E10-02, E10-03 |
+| E17-05 | Pin Course Casts through generated Lesson playback | AFK | L | E17-03, E4-02, E4-05, E3-03, E3-05, E10-02, E10-03 |
+| E17-06 | React to authoritative Lesson answers without changing grading | AFK | M | E17-05, E4-03, E10-02 |
+| E17-07 | Pin safe Character personas for Tutor chat turns | AFK | L | E17-05, E8-01, E8-02, E8-05, E10-02, E10-03 |
+| E17-08 | Narrate pinned speakers with allowlisted Character voices | AFK | M | E17-05, E14-03, E14-06, E7-03, E10-02, E10-03 |
+| E17-09 | Publish immutable Character snapshots with safe lifecycle | AFK | L | E17-05, E17-08, E15-01, E15-03, E15-04, E15-05, E15-11, E16-05, E11-05, E10-02, E10-03 |
+
 ## Full ticket dependency DAG
 
 Arrows run from blocker to dependent. HITL nodes are shaded; subgraphs group epics, not additional dependencies.
@@ -372,6 +387,17 @@ graph LR
     E16_06["E16-06: Approve a versioned outline replan price"]
     E16_07["E16-07: Quote and propose an immutable remaining-outline diff"]
     E16_08["E16-08: Confirm discard and expire outline proposals"]
+  end
+  subgraph E17["E17: Custom characters"]
+    E17_01["E17-01: Play a default-cast Motion HTML tracer"]
+    E17_02["E17-02: Approve character architecture pricing limits and original art"]
+    E17_03["E17-03: Edit private characters and choose a Course Cast"]
+    E17_04["E17-04: Create and regenerate a quoted private character"]
+    E17_05["E17-05: Pin Course Casts through generated Lesson playback"]
+    E17_06["E17-06: React to authoritative Lesson answers without changing grading"]
+    E17_07["E17-07: Pin safe Character personas for Tutor chat turns"]
+    E17_08["E17-08: Narrate pinned speakers with allowlisted Character voices"]
+    E17_09["E17-09: Publish immutable Character snapshots with safe lifecycle"]
   end
   E1_01 --> E1_02
   E13_01 --> E1_02
@@ -609,15 +635,59 @@ graph LR
   E12_06 --> E16_07
   E16_07 --> E16_08
   E16_05 --> E16_08
+  E3_01 --> E17_01
+  E17_01 --> E17_03
+  E17_02 --> E17_03
+  E10_02 --> E17_03
+  E10_03 --> E17_03
+  E17_03 --> E17_04
+  E17_02 --> E17_04
+  E7_03 --> E17_04
+  E12_06 --> E17_04
+  E10_02 --> E17_04
+  E10_03 --> E17_04
+  E17_03 --> E17_05
+  E4_02 --> E17_05
+  E4_05 --> E17_05
+  E3_03 --> E17_05
+  E3_05 --> E17_05
+  E10_02 --> E17_05
+  E10_03 --> E17_05
+  E17_05 --> E17_06
+  E4_03 --> E17_06
+  E10_02 --> E17_06
+  E17_05 --> E17_07
+  E8_01 --> E17_07
+  E8_02 --> E17_07
+  E8_05 --> E17_07
+  E10_02 --> E17_07
+  E10_03 --> E17_07
+  E17_05 --> E17_08
+  E14_03 --> E17_08
+  E14_06 --> E17_08
+  E7_03 --> E17_08
+  E10_02 --> E17_08
+  E10_03 --> E17_08
+  E17_05 --> E17_09
+  E17_08 --> E17_09
+  E15_01 --> E17_09
+  E15_03 --> E17_09
+  E15_04 --> E17_09
+  E15_05 --> E17_09
+  E15_11 --> E17_09
+  E16_05 --> E17_09
+  E11_05 --> E17_09
+  E10_02 --> E17_09
+  E10_03 --> E17_09
   classDef hitl fill:#fff0d6,stroke:#774617,color:#38250c
-  class E1_01,E1_05,E1_10,E4_06,E6_05,E7_05,E7_12,E7_13,E7_14,E10_01,E11_02,E11_07,E12_04,E12_08,E13_05,E14_05,E15_12,E15_13,E16_04,E16_06 hitl
+  class E1_01,E1_05,E1_10,E4_06,E6_05,E7_05,E7_12,E7_13,E7_14,E10_01,E11_02,E11_07,E12_04,E12_08,E13_05,E14_05,E15_12,E15_13,E16_04,E16_06,E17_02 hitl
 ```
 
 ## Waves
 
 These are exact topological layers of the JSON blockers, not estimates of calendar duration. Wave 1 has no blockers; each subsequent wave becomes startable after all prior waves are complete. Same-wave tickets can run in parallel; coordinate overlapping files when executing.
 
-- **Wave 1:** E1-01, E1-05, E4-06, E6-05, E7-05, E10-01, E11-01, E11-02, E12-01, E12-04, E13-01, E13-05, E15-12, E16-04, E16-06
+- **Wave 1:** E1-01, E1-05, E4-06, E6-05, E7-05, E10-01, E11-01, E11-02, E12-01, E12-04, E13-01, E13-05, E15-12, E16-04, E16-06, E17-02
 - **Wave 2:** E1-02, E11-03, E13-02, E13-03
 - **Wave 3:** E1-03, E1-04, E12-02, E13-04
 - **Wave 4:** E1-06, E1-08, E1-09, E12-03, E12-05, E13-06
@@ -628,13 +698,13 @@ These are exact topological layers of the JSON blockers, not estimates of calend
 - **Wave 9:** E2-02, E7-06, E10-02, E10-03
 - **Wave 10:** E2-03, E2-04, E7-07, E10-04, E10-05, E12-07
 - **Wave 11:** E3-01, E7-08, E10-06, E12-08
-- **Wave 12:** E2-05, E3-02, E4-01, E7-09, E9-01
-- **Wave 13:** E3-03, E3-05, E4-02, E4-05, E5-01, E7-10, E9-02, E14-01
-- **Wave 14:** E3-04, E3-06, E4-03, E5-02, E7-11, E8-01, E9-03, E9-04, E14-02, E16-01
-- **Wave 15:** E4-04, E4-07, E5-03, E5-04, E6-01, E7-12, E7-13, E7-14, E8-02, E8-03, E9-05, E14-03, E14-04, E16-02
+- **Wave 12:** E2-05, E3-02, E4-01, E7-09, E9-01, E17-01
+- **Wave 13:** E3-03, E3-05, E4-02, E4-05, E5-01, E7-10, E9-02, E14-01, E17-03
+- **Wave 14:** E3-04, E3-06, E4-03, E5-02, E7-11, E8-01, E9-03, E9-04, E14-02, E16-01, E17-04, E17-05
+- **Wave 15:** E4-04, E4-07, E5-03, E5-04, E6-01, E7-12, E7-13, E7-14, E8-02, E8-03, E9-05, E14-03, E14-04, E16-02, E17-06
 - **Wave 16:** E5-05, E6-02, E8-04, E14-05, E16-03, E16-07
 - **Wave 17:** E5-06, E6-03, E8-05, E14-06
-- **Wave 18:** E6-04
+- **Wave 18:** E6-04, E17-07, E17-08
 - **Wave 19:** E6-06, E15-01
 - **Wave 20:** E6-07, E15-02
 - **Wave 21:** E15-03
@@ -643,7 +713,7 @@ These are exact topological layers of the JSON blockers, not estimates of calend
 - **Wave 24:** E15-09, E16-08
 - **Wave 25:** E15-10
 - **Wave 26:** E15-11
-- **Wave 27:** E15-13
+- **Wave 27:** E15-13, E17-09
 
 ## HITL owner questions
 
@@ -669,7 +739,8 @@ Record answers on the decision/provisioning ticket before starting its dependent
 - **E15-13 — Approve the moderated marketplace pilot:** After the demonstrated privacy, screening, moderation, billing and restore checks, do you authorize the bounded public marketplace/share-link pilot with the approved rights/age policy, domains and staffed copyright/moderation process?
 - **E16-04 — Confirm steering limits and optional extensions:** Are 500 characters, 20 active instructions, 4000 total and 10 adds/course/hour approved; should paid regeneration of an already-generated unstarted next lesson and rejoining a published course after deleting all instructions stay deferred as current v1 requires?
 - **E16-06 — Approve a versioned outline replan price:** What price and usage envelope should outline_replan use, is the proposed 55 Credits approved in a new Pricing config version, and do you approve charging for a successfully produced proposal even when the learner discards it?
+- **E17-02 — Approve character architecture pricing limits and original art:** Do you approve ADR 0010 parametric SVG rigs instead of image generation, what character_create price, Daily free credits eligibility and provider-cost envelope should a new Pricing config version use, which Character/count/rate/text/Cast limits and eval thresholds are approved, and which three final original Default cast names/art, rig controls and age/accessibility/language coverage may ship?
 
 ## Validation
 
-Verified with a one-off Python command: 119 unique tickets, 236 existing non-E0 blocker edges, no self/duplicate edges, an acyclic graph, 27 exact topological waves and 20 HITL tickets. Schema fields/enums, 2–4 sentence summaries, spec paths, paired API/engine proto scope, all E1–E16 and transitive epic prerequisites pass. Markdown tables, Mermaid nodes/edges, Waves and exact HITL questions match JSON. `mise run ci:openspec` also passed all 20 specs/changes with strict validation. No validator script is committed.
+Verified with a one-off Python command via mise: 128 unique tickets, 280 existing non-E0 blocker edges, no self/duplicate edges, an acyclic graph, 27 recomputed exact topological waves and 21 HITL tickets. All 119 E1–E16 JSON tickets and Markdown epic tables are unchanged; E17 appends eight AFK tickets and one HITL decision. Schema fields/enums, 2–4 sentence summaries, spec paths, concrete ordered TDD locations, paired API/engine proto scope, ticket-level cross-epic blockers and the E17-01 tracer’s independence from E17-02 pass. Markdown tables, Mermaid nodes/edges/HITL styling, Waves and exact owner questions match JSON. No implementation tests or live calls were run for this planning-only change. No validator script is committed.
