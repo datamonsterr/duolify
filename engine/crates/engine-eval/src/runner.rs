@@ -1,0 +1,517 @@
+use crate::{
+    judge::parse_judge_verdict,
+    scoring::{Case, CaseResult, EvalReport, Thresholds, aggregate_task_reports},
+    tasks::{canonical_task_name, model_route_for_task},
+};
+use anyhow::{Context, Result, bail};
+use std::{
+    collections::{HashMap, VecDeque},
+    path::Path,
+    sync::{Arc, Mutex},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+pub fn select_cases(mut cases: Vec<Case>, limit: Option<usize>) -> (Vec<Case>, usize) {
+    let total = cases.len();
+    cases.sort_by(|a, b| a.id.cmp(&b.id));
+    if let Some(limit) = limit.filter(|&n| n > 0) {
+        cases.truncate(limit);
+    }
+    (cases, total)
+}
+
+pub fn sample_limit_from_args(args: &[String], env_var: Option<&str>) -> Result<Option<usize>> {
+    let mut limit = env_var
+        .map(|v| {
+            v.parse::<usize>()
+                .context("EVAL_SAMPLE_LIMIT must be an integer")
+        })
+        .transpose()?;
+
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--limit" {
+            let val = args.get(i + 1).context("--limit requires a value")?;
+            limit = Some(val.parse().context("--limit must be an integer")?);
+            i += 1;
+        }
+        i += 1;
+    }
+    Ok(limit)
+}
+
+pub async fn fetch_dataset(
+    base_url: &str,
+    dataset: &str,
+    revision: &str,
+    token: &str,
+    cache_dir: &Path,
+) -> Result<String> {
+    if !dataset
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || "-_/".contains(c))
+        || !revision
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c))
+    {
+        bail!("invalid dataset or revision");
+    }
+
+    std::fs::create_dir_all(cache_dir)?;
+    let cache_file = cache_dir.join(format!("{}-{revision}.jsonl", dataset.replace('/', "--")));
+    let immutable = revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit());
+
+    if immutable && cache_file.is_file() {
+        return Ok(std::fs::read_to_string(cache_file)?);
+    }
+
+    let url = format!(
+        "{}/datasets/{dataset}/resolve/{revision}/golden.jsonl",
+        base_url.trim_end_matches('/')
+    );
+    let mut req = reqwest::Client::new().get(url);
+    if !token.is_empty() {
+        req = req.bearer_auth(token);
+    }
+    let body = req.send().await?.error_for_status()?.text().await?;
+    std::fs::write(cache_file, &body)?;
+    Ok(body)
+}
+
+// Recorded provider output runs through production processors
+struct RecordedBrief(Mutex<VecDeque<Option<String>>>);
+#[async_trait::async_trait]
+impl engine_core::LlmProvider for RecordedBrief {
+    fn name(&self) -> &'static str {
+        "recorded"
+    }
+    async fn complete(&self, model: &str, _input: &str) -> Result<engine_core::Completion> {
+        let text = self
+            .0
+            .lock()
+            .unwrap()
+            .pop_front()
+            .flatten()
+            .context("recorded provider outage")?;
+        Ok(engine_core::Completion {
+            text,
+            provider: "recorded".into(),
+            model: model.into(),
+            input_tokens: 120,
+            output_tokens: 8,
+            cache_write_tokens: 0,
+            cache_read_tokens: 0,
+        })
+    }
+    async fn stream(&self, _model: &str, _input: &str) -> Result<engine_core::CompletionStream> {
+        bail!("brief is not streaming")
+    }
+}
+
+async fn evaluate_brief(input: &serde_json::Value) -> Result<String> {
+    use engine_core::courses::{Brief, Limits, process};
+    let recorded: Vec<Option<String>> = serde_json::from_value(input["recorded"].clone())?;
+    let provider = Arc::new(RecordedBrief(Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let brief: Brief = serde_json::from_value(input["brief"].clone())?;
+    let limits = Limits {
+        input_tokens: 2000,
+        output_tokens: 1000,
+        attempt_timeout_ms: 3000,
+        max_attempts: 3,
+        max_cost_nanos: 2100000,
+        input_nanos_per_token: 100,
+        output_nanos_per_token: 500,
+    };
+    let outcome = process(
+        &router,
+        brief,
+        input["step"].as_str().context("step")?,
+        input["answer"].as_str().unwrap_or_default(),
+        input["skipped"].as_bool().unwrap_or(false),
+        input["is_follow_up"].as_bool().unwrap_or(false),
+        &limits,
+    )
+    .await?;
+    let mut value = if let Some(result) = outcome.result {
+        serde_json::to_value(result)?
+    } else {
+        serde_json::json!({"form_fallback":true})
+    };
+    value["attempt_count"] = serde_json::json!(outcome.attempts.len());
+    if let Some(confirmed) = input.get("confirmed_brief") {
+        let confirmed: Brief = serde_json::from_value(confirmed.clone())?;
+        value["confirmation_valid"] = serde_json::json!(
+            serde_json::from_value::<Brief>(value["brief"].clone())
+                .ok()
+                .is_some_and(|b| b == confirmed)
+        );
+    }
+    Ok(value.to_string())
+}
+
+struct RecordedCredits(Mutex<VecDeque<Option<engine_core::Completion>>>);
+#[async_trait::async_trait]
+impl engine_core::LlmProvider for RecordedCredits {
+    fn name(&self) -> &'static str {
+        "recorded"
+    }
+    async fn complete(&self, _model: &str, _input: &str) -> Result<engine_core::Completion> {
+        self.0
+            .lock()
+            .unwrap()
+            .pop_front()
+            .flatten()
+            .context("recorded failure")
+    }
+    async fn stream(&self, _model: &str, _input: &str) -> Result<engine_core::CompletionStream> {
+        bail!("envelope fixture is not streaming")
+    }
+}
+
+async fn evaluate_credits(input: &serde_json::Value) -> Result<String> {
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input["recorded"].clone())?;
+    let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
+    let outcome = engine_core::credits::run(&router, "preview", "fixture", &limits).await;
+    Ok(match outcome {
+        Ok(o) => serde_json::json!({
+            "delivered": o.completion.is_some(),
+            "attempt_count": o.attempts.len(),
+            "fallback_used": o.attempts.iter().any(|a| a.fallback_used),
+            "usage_unavailable": o.attempts.iter().any(|a| a.usage_unavailable),
+            "attempts": o.attempts
+        }),
+        Err(_) => serde_json::json!({"rejected": true, "delivered": false, "attempt_count": 0}),
+    }
+    .to_string())
+}
+
+async fn evaluate_preview(input: &serde_json::Value) -> Result<String> {
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input["recorded"].clone())?;
+    let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
+    let brief: engine_core::courses::Brief = serde_json::from_value(input["brief"].clone())?;
+    let prompt = engine_core::courses::preview_prompt(&brief, input["profile"].clone());
+    let outcome = engine_core::credits::run_validated(
+        &router,
+        "preview",
+        &prompt,
+        &limits,
+        engine_core::courses::validate_preview,
+    )
+    .await?;
+    Ok(serde_json::json!({
+        "delivered": outcome.completion.is_some(),
+        "attempt_count": outcome.attempts.len(),
+        "fallback_used": outcome.attempts.iter().any(|a| a.fallback_used),
+        "preview": outcome.completion.and_then(|c| serde_json::from_str::<serde_json::Value>(&c.text).ok())
+    })
+    .to_string())
+}
+
+async fn evaluate_course_outline(input: &serde_json::Value) -> Result<String> {
+    use engine_core::courses::outline;
+    let revision = input["revision"].as_i64().unwrap_or(1);
+    let expected_revision = input["expected_revision"].as_i64().unwrap_or(revision);
+    if revision != expected_revision || revision < 1 {
+        return Ok(serde_json::json!({
+            "delivered": false,
+            "stale_revision": true,
+            "rejected": true,
+            "attempt_count": 0,
+        })
+        .to_string());
+    }
+    let base: Vec<outline::Unit> = match serde_json::from_value(input["outline"].clone()) {
+        Ok(units) => units,
+        Err(_) => {
+            return Ok(serde_json::json!({
+                "delivered": false,
+                "invalid_structure": true,
+                "rejected": true,
+                "attempt_count": 0,
+            })
+            .to_string());
+        }
+    };
+    let brief = input
+        .get("brief")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let profile = input
+        .get("profile")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let prompt = match outline::creation_prompt(&base, brief, profile) {
+        Ok(p) => p,
+        Err(_) => {
+            return Ok(serde_json::json!({
+                "delivered": false,
+                "invalid_structure": true,
+                "rejected": true,
+                "attempt_count": 0,
+            })
+            .to_string());
+        }
+    };
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input.get("recorded").cloned().unwrap_or_default())
+            .unwrap_or_default();
+    let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let limits: engine_core::credits::Limits =
+        serde_json::from_value(input.get("limits").cloned().unwrap_or_else(|| {
+            serde_json::json!({
+                "input_tokens": 12000,
+                "output_tokens": 2000,
+                "timeout_ms": 10000,
+                "max_attempts": 2,
+                "max_cost_nanos": 100000000,
+                "input_nanos": 100,
+                "output_nanos": 500,
+                "cache_write_nanos": 125,
+                "cache_read_nanos": 10
+            })
+        }))?;
+    let outcome =
+        engine_core::credits::run_validated(&router, "outline", &prompt, &limits, |text| {
+            outline::validate_created(&base, text)
+        })
+        .await;
+    match outcome {
+        Ok(o) => {
+            let units: Option<Vec<outline::Unit>> = o
+                .completion
+                .as_ref()
+                .and_then(|c| serde_json::from_str::<serde_json::Value>(&c.text).ok())
+                .and_then(|v| serde_json::from_value(v["units"].clone()).ok());
+            let adhered = units.as_ref().is_some_and(|u| u == &base);
+            Ok(serde_json::json!({
+                "delivered": o.completion.is_some(),
+                "attempt_count": o.attempts.len(),
+                "fallback_used": o.attempts.iter().any(|a| a.fallback_used),
+                "adhered": adhered,
+                "units": units,
+            })
+            .to_string())
+        }
+        Err(_) => Ok(serde_json::json!({
+            "delivered": false,
+            "rejected": true,
+            "attempt_count": 0,
+        })
+        .to_string()),
+    }
+}
+
+async fn evaluate_outline_change(input: &serde_json::Value) -> Result<String> {
+    use engine_core::courses::outline;
+    let base: Vec<outline::Unit> = serde_json::from_value(input["outline"].clone())?;
+    let prompt = outline::prompt(&base, input["request"].as_str().context("request")?)?;
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input["recorded"].clone())?;
+    let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
+    let outcome = engine_core::credits::run_validated(
+        &router,
+        "outline_chat_change",
+        &prompt,
+        &limits,
+        |text| outline::parse(&base, text).is_ok(),
+    )
+    .await?;
+    let result = outcome
+        .completion
+        .as_ref()
+        .and_then(|c| outline::parse(&base, &c.text).ok())
+        .and_then(|ops| outline::apply(&base, &ops).ok());
+    Ok(serde_json::json!({
+        "delivered": result.is_some(),
+        "result": result,
+        "attempt_count": outcome.attempts.len(),
+        "fallback_used": outcome.attempts.iter().any(|a| a.fallback_used)
+    })
+    .to_string())
+}
+
+pub struct Runner {
+    pub provider_name: String,
+    pub judge: bool,
+    pub dataset_name: String,
+    pub dataset_revision: String,
+    pub prompt_revision: String,
+    pub judge_fixtures: HashMap<String, String>,
+}
+
+impl Runner {
+    pub fn new(provider_name: &str, judge: bool) -> Self {
+        Self {
+            provider_name: provider_name.to_string(),
+            judge,
+            dataset_name: "datamonsterr/duolify-golden".to_string(),
+            dataset_revision: "pinned".to_string(),
+            prompt_revision: "head".to_string(),
+            judge_fixtures: HashMap::new(),
+        }
+    }
+
+    pub fn mock_with_judge_judgments(judgments: Vec<(String, String)>) -> Self {
+        let mut r = Self::new("mock", true);
+        for (id, verdict) in judgments {
+            r.judge_fixtures.insert(id, verdict);
+        }
+        r
+    }
+
+    pub async fn run_cases(&self, cases: Vec<Case>, thresholds: &Thresholds) -> Result<EvalReport> {
+        let router = engine_providers::router(&self.provider_name)?;
+        let mut results = Vec::new();
+        let mut models = HashMap::new();
+
+        for case in &cases {
+            let canonical = canonical_task_name(&case.task);
+            let route = model_route_for_task(&case.task);
+            models
+                .entry(canonical.clone())
+                .or_insert_with(|| route.clone());
+
+            let response_text =
+                if case.input.get("recorded").is_some() && self.provider_name == "mock" {
+                    if canonical == "course_outline" {
+                        evaluate_course_outline(&case.input).await?
+                    } else if canonical == "course_preview" {
+                        evaluate_preview(&case.input).await?
+                    } else if case.task == "outline_chat_change" {
+                        evaluate_outline_change(&case.input).await?
+                    } else if case.task == "credit_envelope" {
+                        evaluate_credits(&case.input).await?
+                    } else if case.task == "course_brief_chat" {
+                        evaluate_brief(&case.input).await?
+                    } else {
+                        router.complete(&route, &case.input.to_string()).await?.text
+                    }
+                } else if canonical == "course_outline"
+                    && self.provider_name == "mock"
+                    && case.input.get("outline").is_some()
+                {
+                    evaluate_course_outline(&case.input).await?
+                } else {
+                    router.complete(&route, &case.input.to_string()).await?.text
+                };
+
+            let mut errors = Vec::new();
+            let mut critical_failed = false;
+
+            for check in &case.checks {
+                let valid = match check.kind.as_str() {
+                    "path_equals" => {
+                        let spec: serde_json::Value = serde_json::from_str(
+                            check.value.as_deref().context("missing path_equals spec")?,
+                        )?;
+                        let value: serde_json::Value = serde_json::from_str(&response_text)?;
+                        let actual = spec["path"].as_str().unwrap_or_default().split('.').fold(
+                            &value,
+                            |v, key| {
+                                if let Ok(idx) = key.parse::<usize>() {
+                                    v.get(idx).unwrap_or(&serde_json::Value::Null)
+                                } else {
+                                    &v[key]
+                                }
+                            },
+                        );
+                        actual == &spec["expected"]
+                    }
+                    "contains" => response_text.contains(check.value.as_deref().unwrap_or("")),
+                    "regex" => regex::Regex::new(check.value.as_deref().context("missing regex")?)?
+                        .is_match(&response_text),
+                    "json" => serde_json::from_str::<serde_json::Value>(&response_text).is_ok(),
+                    "field" => serde_json::from_str::<serde_json::Value>(&response_text)
+                        .ok()
+                        .is_some_and(|v| v.get(check.value.as_deref().unwrap_or("")).is_some()),
+                    "slide" => serde_json::from_str::<serde_json::Value>(&response_text)
+                        .ok()
+                        .and_then(|v| v["html"].as_str().map(str::to_owned))
+                        .is_some_and(|h| engine_core::slide::validate(&h, &[]).is_ok()),
+                    _ => false,
+                };
+
+                if !valid {
+                    let err = format!("{} check failed", check.kind);
+                    if check.critical {
+                        critical_failed = true;
+                        errors.push(format!("CRITICAL: {err}"));
+                    } else {
+                        errors.push(err);
+                    }
+                }
+            }
+
+            let deterministic_passed = errors.is_empty();
+
+            let judge_passed = if self.judge {
+                let verdict_str = if let Some(preset) = self.judge_fixtures.get(&case.id) {
+                    preset.clone()
+                } else if self.provider_name == "mock" {
+                    // In mock mode without an explicit calibration preset, default to PASS
+                    "PASS".to_string()
+                } else {
+                    let judgment = router
+                        .complete(
+                            "chat",
+                            &format!(
+                                "Judge this response against the rubric. Reply PASS or FAIL. Rubric: {}\nResponse: {}",
+                                case.rubric, response_text
+                            ),
+                        )
+                        .await?;
+                    judgment.text
+                };
+
+                let pass = parse_judge_verdict(&verdict_str).unwrap_or(false);
+                if !pass {
+                    errors.push("judge check failed".into());
+                }
+                Some(pass)
+            } else {
+                None
+            };
+
+            let passed = deterministic_passed && judge_passed.unwrap_or(true);
+
+            results.push(CaseResult {
+                id: case.id.clone(),
+                task: canonical,
+                passed,
+                critical_failed,
+                deterministic_passed,
+                judge_passed,
+                errors,
+            });
+        }
+
+        let (task_reports, overall_passed, critical_failure) =
+            aggregate_task_reports(&results, thresholds, &models);
+
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+
+        Ok(EvalReport {
+            timestamp_millis: stamp,
+            dataset: self.dataset_name.clone(),
+            dataset_revision: self.dataset_revision.clone(),
+            prompt_revision: self.prompt_revision.clone(),
+            passed: overall_passed,
+            critical_failure,
+            task_reports,
+            results,
+        })
+    }
+}

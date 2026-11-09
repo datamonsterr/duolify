@@ -294,6 +294,12 @@ jobs:
       - uses: ./.github/actions/setup-engine
       - run: mise run engine:eval
         timeout-minutes: 12
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: eval-reports
+          path: evals/reports
+          retention-days: 90
       - name: Summary
         if: always()
         env:
@@ -333,6 +339,12 @@ jobs:
           HF_GOLDEN_DATASET: ${{ vars.HF_GOLDEN_DATASET || 'datamonsterr/duolify-golden' }}
           HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || 'main' }}
           EVAL_SAMPLE_LIMIT: '10'
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.credentials.outputs.enabled == 'true'
+        with:
+          name: eval-live-reports
+          path: evals/reports
+          retention-days: 90
       - name: Summary
         if: always() && steps.credentials.outputs.enabled == 'true'
         env:

@@ -249,3 +249,15 @@ raw notification bodies or learner content enter these tables or analytics.
 | Postgres `course_creations` | Owned immutable confirmed outline/revision, quote/reservation IDs, durable stages and validated response; no lesson content | Nightly encrypted general dumps, 14 days; populated fixture restored and compared in full | Owner export; account cascade erasure and restore tombstones; financial usage stays separately anonymized for seven years / 35-day financial snapshots | [E2-02](../openspec/changes/create-confirmed-outline/design.md) |
 | Postgres `courses`, `course_units`, `course_lesson_stubs`, `course_enrollments` | Owned Course and exact ordered Units/stubs/goals; first ready_to_generate, others locked; single enrollment | Nightly encrypted general dumps, 14 days; full-row fixture comparison and deletion replay | Owner export; account cascade erasure; Course soft-delete metadata, 30-day grace before hard deletion (removal UI and automated purge) | [E2-02](../openspec/changes/create-confirmed-outline/design.md), [E2-04](../openspec/changes/recover-generation-and-remove-courses/design.md) |
 | Postgres `course_enrollments.level_override`, `course_enrollments.last_active_at`, `learner_profiles.active_course_id` | Per-course level overrides, enrollment access timestamps and persisted active course selection; feeds effective AI context without mutating global profile | Nightly encrypted general dumps, 14 days; full-row fixture comparison and deletion replay | Owner export; account cascade erasure; level override reset to global | [E2-03](../openspec/changes/switch-courses-override-level/design.md) |
+
+E10-02: Score each AI task with critical checks. Versioned golden-set revisions
+are maintained on Hugging Face (or Git-pinned in `evals/fixtures/golden.sample.jsonl`
+for offline runs). Evaluation reports (JSON and Markdown) are written to
+`evals/reports/` and retained for 90 days as CI artifacts. Reports record per-task
+deterministic and judge scores, per-task thresholds, critical check outcomes, dataset
+name, dataset revision, prompt revision, and model route mappings. Reports and analytics
+strictly exclude any learner personal text or prompt/completion bodies. The operational
+analytics event `eval_run_completed` emits only task name, score, threshold, and passed flag
+under the reserved system UUID `00000000-0000-4000-8000-000000000011` with opt-out
+enforcement. No new database tables or personal learner data stores are created.
+

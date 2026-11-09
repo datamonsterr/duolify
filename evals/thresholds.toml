@@ -1,1 +1,13 @@
 minimum_score = 1.0
+
+[tasks]
+course_preview = 1.0
+course_outline = 1.0
+lesson_slides = 1.0
+lesson_test = 1.0
+tutor_chat = 1.0
+note_enrich = 1.0
+setup_chat = 1.0
+course_brief_chat = 1.0
+credit_envelope = 1.0
+outline_chat_change = 1.0
