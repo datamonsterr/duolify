@@ -65,6 +65,14 @@ type LearnerProfile struct {
 	Background      string             `json:"background"`
 	AnalyticsOptOut bool               `json:"analytics_opt_out"`
 	AgeConfirmedAt  pgtype.Timestamptz `json:"age_confirmed_at"`
+	Goal            string             `json:"goal"`
+	Topic           string             `json:"topic"`
+	Level           string             `json:"level"`
+	DailyMinutes    pgtype.Int4        `json:"daily_minutes"`
+	DailyXp         pgtype.Int4        `json:"daily_xp"`
+	ReminderEnabled pgtype.Bool        `json:"reminder_enabled"`
+	ReminderTime    string             `json:"reminder_time"`
+	SetupCompleted  bool               `json:"setup_completed"`
 }
 
 type PricingQuote struct {
