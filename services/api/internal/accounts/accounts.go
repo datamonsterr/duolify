@@ -60,6 +60,9 @@ func New(pool *pgxpool.Pool, secret string, mailer Mailer) (*Service, error) {
 	s.mux.HandleFunc("POST /v1/auth/verify", s.verify)
 	s.mux.HandleFunc("POST /v1/auth/refresh", s.refresh)
 	s.mux.HandleFunc("POST /v1/auth/logout", s.logout)
+	s.mux.Handle("GET /v1/auth/sessions", s.Protect(http.HandlerFunc(s.listSessions)))
+	s.mux.Handle("DELETE /v1/auth/sessions", s.Protect(http.HandlerFunc(s.revokeSessions)))
+	s.mux.Handle("DELETE /v1/auth/sessions/{sessionID}", s.Protect(http.HandlerFunc(s.revokeSession)))
 	s.mux.Handle("GET /v1/me", s.Protect(http.HandlerFunc(s.me)))
 	return s, nil
 }
@@ -394,6 +397,7 @@ func (s *Service) ParseAccess(raw string) (*jwt.RegisteredClaims, error) {
 }
 
 type learnerKey struct{}
+type sessionKey struct{}
 
 // Protect rejects missing, expired, revoked and deleted-account credentials.
 func (s *Service) Protect(next http.Handler) http.Handler {
@@ -419,7 +423,9 @@ func (s *Service) Protect(next http.Handler) http.Handler {
 			failure(w, errCredentials)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), learnerKey{}, claims.Subject)))
+		ctx := context.WithValue(r.Context(), learnerKey{}, claims.Subject)
+		ctx = context.WithValue(ctx, sessionKey{}, claims.ID)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 func (s *Service) me(w http.ResponseWriter, r *http.Request) {

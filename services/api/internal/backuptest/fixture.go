@@ -5,6 +5,7 @@ package backuptest
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/moby/moby/api/types/container"
 	"github.com/riverqueue/river"
@@ -274,7 +276,10 @@ func (f *Fixture) Seed(t *testing.T) {
 		"INSERT INTO auth_identities (email,learner_id) VALUES ('synthetic@example.test','a1111111-1111-4111-8111-111111111111')",
 		"INSERT INTO auth_codes (email,code_hash,expires_at,attempts) VALUES ('synthetic@example.test',repeat('a',64),now()-interval '1 minute',5)",
 		"INSERT INTO auth_sessions (id,learner_id) VALUES ('b2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111')",
-		"INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES (repeat('b',64),'b2222222-2222-4222-8222-222222222222',now()+interval '30 days')",
+		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at,consumed_at) VALUES ('%x','b2222222-2222-4222-8222-222222222222',now()+interval '30 days',now())", sha256.Sum256([]byte("synthetic-consumed-refresh"))),
+		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES ('%x','b2222222-2222-4222-8222-222222222222',now()+interval '30 days')", sha256.Sum256([]byte("synthetic-active-refresh"))),
+		"INSERT INTO auth_sessions (id,learner_id,revoked_at) VALUES ('d4444444-4444-4444-8444-444444444444','a1111111-1111-4111-8111-111111111111',now())",
+		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES ('%x','d4444444-4444-4444-8444-444444444444',now()+interval '30 days')", sha256.Sum256([]byte("synthetic-revoked-refresh"))),
 		"INSERT INTO auth_rate_limits (key_hash,count,expires_at) VALUES (repeat('c',64),3,now()+interval '1 hour')",
 	} {
 		if _, err := f.DB.Pool.Exec(t.Context(), query); err != nil {
@@ -449,6 +454,29 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if response.Code != http.StatusUnauthorized {
 		t.Fatal("restored expired challenge became usable")
 	}
+	// A restored revoked session rejects even a correctly signed, unexpired JWT.
+	access, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
+		Issuer: "duolify", Audience: jwt.ClaimStrings{"duolify-client"}, Subject: "a1111111-1111-4111-8111-111111111111", ID: "d4444444-4444-4444-8444-444444444444", ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+	}).SignedString([]byte("synthetic-backup-auth-signing-key-32-bytes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequestWithContext(t.Context(), "GET", "/v1/me", nil)
+	request.Header.Set("Authorization", "Bearer "+access)
+	response = httptest.NewRecorder()
+	auth.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatal("restored revoked access became usable")
+	}
+	// Replay must retain its consumed state and revoke its restored family too.
+	for _, secret := range []string{"synthetic-consumed-refresh", "synthetic-active-refresh", "synthetic-revoked-refresh"} {
+		response = httptest.NewRecorder()
+		auth.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "POST", "/v1/auth/refresh", strings.NewReader(`{"refresh_token":"`+secret+`"}`)))
+		if response.Code != http.StatusUnauthorized {
+			t.Fatal("restored consumed/revoked refresh became usable")
+		}
+	}
+
 	for _, query := range []string{"UPDATE credit_entries SET amount=1", "DELETE FROM credit_entries", "TRUNCATE credit_entries", "UPDATE pricing_versions SET config='{}'", "DELETE FROM pricing_versions", "TRUNCATE pricing_versions"} {
 		if _, err := restored.Pool.Exec(t.Context(), query); err == nil {
 			t.Fatalf("restored immutable data accepted mutation: %s", query)
