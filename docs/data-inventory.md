@@ -1,5 +1,16 @@
 # Data inventory
 
+E3-02 adds `lesson_playback_positions`: one learner/lesson cursor containing the
+immutable manifest version, opaque slide ID, bounded time in milliseconds and
+UTC `updated_at`. This is navigation state and cannot award XP or completion.
+It joins encrypted nightly Postgres dumps retained for 14 days. Backup fixtures
+compare the entire restored row and verify deletion tombstones erase it. Learner
+exports include the row; account/lesson deletion cascades immediate erasure.
+Device `sessionStorage` keys `player:position:<learner UUID>:<lesson UUID>` are
+disposable recovery cursors, cleared on logout. Save failures visibly offer Retry;
+durable offline reconciliation and lesson caching remain E3-04/E3-03. Analytics
+records only registered IDs, numeric watch time/index, offline and fixed codes.
+
 E2-01: personalized preview output (sample outline and Motion HTML) stays in component
 memory and is discarded on Back/leave; no Course, enrollment, object or new learner
 table is created. The existing immutable `pricing_quotes.snapshot.input.brief_revision`

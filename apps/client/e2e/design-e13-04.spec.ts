@@ -171,6 +171,10 @@ test("real lesson preserves position, note and static explanation through prefer
   await expect(
     slide.getByText("Stars are distant suns, shining across space."),
   ).toBeVisible();
+  // Playback stays paused until the panel closes and the learner presses Play.
+  await page
+    .getByRole("button", { name: "Close Quick note", exact: true })
+    .click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect(slide.locator(".star")).toHaveCSS("animation-name", "none");
   await expect(page).toHaveURL(/\/lesson\/sky$/);

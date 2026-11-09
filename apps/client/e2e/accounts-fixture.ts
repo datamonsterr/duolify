@@ -69,7 +69,11 @@ export const test = base.extend<{ authenticated: void }>({
             `/lessons/${demoLesson}/`,
           );
         }
-        const response = await request.fetch(target.href, { headers });
+        const response = await request.fetch(target.href, {
+          method: original.method(),
+          headers,
+          data: original.postData() ?? undefined,
+        });
         if (demo && target.pathname.endsWith("/manifest") && response.ok()) {
           const manifest = await response.json();
           manifest.lesson_id = "sky";

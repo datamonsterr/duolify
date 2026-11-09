@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
@@ -71,6 +72,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m, err := decodeManifest(raw, s.opts.AssetOrigin)
 	if err != nil || m.Version != version {
 		failure(w, 503)
+		return
+	}
+	if r.PathValue("slide") == "" && strings.HasSuffix(r.URL.Path, "/position") {
+		s.position(ctx, w, r, owner, id, m)
 		return
 	}
 	if r.PathValue("slide") != "" {

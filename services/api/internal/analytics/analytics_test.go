@@ -324,7 +324,8 @@ func TestPlayerEventsReachPostHogWithClosedProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	props := map[string]any{"lesson_id": "lesson-1", "course_id": "course-1", "slide_id": "slide-1", "error_code": "document_unavailable", "source": "api", "platform": "web", "app_version": "0.1.0", "html": "private slide", "narration_text": "private narration", "answer_key": "private answer", "message": "private learner text"}
-	for _, event := range []string{"lesson_started", "lesson_player_error"} {
+	props["index"], props["watch_ms"], props["offline"] = 0, 1250, true
+	for _, event := range []string{"lesson_started", "lesson_player_error", "slide_viewed", "slide_replayed", "slide_paused"} {
 		if err := events.Capture("a1111111-1111-4111-8111-111111111111", event, props); err != nil {
 			t.Fatal(err)
 		}
@@ -335,7 +336,7 @@ func TestPlayerEventsReachPostHogWithClosedProjection(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(received) != 2 {
+	if len(received) != 5 {
 		t.Fatal("missing/invalid events", received)
 	}
 	for _, event := range received {
@@ -353,14 +354,20 @@ func TestPlayerEventsReachPostHogWithClosedProjection(t *testing.T) {
 		if event["event"] == "lesson_player_error" && (p["course_id"] != nil || p["error_code"] != "document_unavailable") {
 			t.Fatal("error schema mismatch", event)
 		}
+		if event["event"] == "slide_viewed" && (p["watch_ms"] != float64(1250) || p["offline"] != true || p["index"] != float64(0)) {
+			t.Fatal("view schema mismatch", event)
+		}
 	}
 	opted, err := NewWithOptions("fixture-only", server.URL, Options{OptOut: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = opted.Capture("a1111111-1111-4111-8111-111111111111", "lesson_started", props)
+	for _, event := range []string{"slide_viewed", "slide_replayed", "slide_paused", "lesson_player_error"} {
+		_ = opted.Capture("a1111111-1111-4111-8111-111111111111", event, props)
+	}
 	_ = opted.Close()
-	if len(received) != 2 {
+	if len(received) != 5 {
 		t.Fatal("opt-out emitted")
 	}
 }

@@ -384,6 +384,9 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		t.Fatal(err)
 	}
 	f.BackupPlayerObjects(t)
+	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_playback_positions(learner_id,lesson_id,version,slide_id,time_ms) VALUES('a1111111-1111-4111-8111-111111111111','f3333333-3333-4333-8333-333333333333',1,'sky-2',1800)`); err != nil {
+		t.Fatal(err)
+	}
 	catalogue, err := pricing.Load(t.Context(), f.DB.Queries)
 	if err != nil {
 		t.Fatal(err)
@@ -618,6 +621,7 @@ func (f *Fixture) Restore(t *testing.T, ciphertext []byte) *store.Store {
 func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	t.Helper()
 	f.AssertPlayerObjectsRestored(t)
+	f.AssertPlaybackPositionRestored(t, restored.Pool)
 	var version, learners, entries, balance, riverVersions int64
 	var name string
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT max(version_id) FROM goose_db_version WHERE is_applied").Scan(&version); err != nil {
@@ -851,6 +855,10 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		t.Fatal(err)
 	}
 	var outlineSurvived bool
+	var positions int
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM lesson_playback_positions WHERE learner_id::text=$1", paymentOwner).Scan(&positions); err != nil || positions != 0 {
+		t.Fatal("playback position survived restore tombstone", positions, err)
+	}
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id::text=$1) OR EXISTS(SELECT 1 FROM outline_proposals WHERE learner_id::text=$1) OR EXISTS(SELECT 1 FROM lesson_manifests WHERE learner_id::text=$1)", paymentOwner).Scan(&outlineSurvived); err != nil || outlineSurvived {
 		t.Fatal("outline survived restore tombstone", err)
 	}

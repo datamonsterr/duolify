@@ -447,21 +447,30 @@ export function trackCourseRecovery(
 // E3-01 catalogue: authorized-lesson-manifest/specs/lesson-player/spec.md.
 // Deliberately closed projection: no captions, titles, drafts, HTML or URLs.
 export function trackPlayer(
-  event: "lesson_started" | "lesson_player_error",
+  event:
+    | "lesson_started"
+    | "lesson_player_error"
+    | "slide_viewed"
+    | "slide_replayed"
+    | "slide_paused",
   value: {
     lesson_id: string;
     course_id?: string;
     slide_id?: string;
+    index?: number;
+    watch_ms?: number;
+    offline?: boolean;
     error_code?:
       | "manifest_unavailable"
       | "document_unavailable"
       | "invalid_manifest"
       | "document_timeout"
+      | "position_unavailable"
       | "offline";
   },
 ) {
   if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
-  const properties: Record<string, string> = {
+  const properties: Record<string, string | number | boolean> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
     app_version: identity.appVersion ?? "0.1.0",
@@ -483,10 +492,25 @@ export function trackPlayer(
       "document_unavailable",
       "invalid_manifest",
       "document_timeout",
+      "position_unavailable",
       "offline",
     ].includes(value.error_code)
   )
     properties.error_code = value.error_code;
+  if (["slide_viewed", "slide_replayed", "slide_paused"].includes(event)) {
+    if (
+      Number.isSafeInteger(value.index) &&
+      value.index! >= 0 &&
+      value.index! < 100
+    )
+      properties.index = value.index!;
+    if (event === "slide_viewed") {
+      if (Number.isSafeInteger(value.watch_ms) && value.watch_ms! >= 0)
+        properties.watch_ms = value.watch_ms!;
+      if (typeof value.offline === "boolean")
+        properties.offline = value.offline;
+    }
+  }
   try {
     if (!posthog.has_opted_out_capturing()) posthog.capture(event, properties);
   } catch {

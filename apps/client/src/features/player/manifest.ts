@@ -1,4 +1,5 @@
 import { session } from "../accounts/session";
+import { bridgeScript } from "../lesson-player/bridge";
 export type Checkpoint = { id: string; at_ms: number };
 export type ManifestSlide = {
   slide_id: string;
@@ -162,8 +163,9 @@ export function sandboxDocument(
   html: string,
   origin: string,
   reduced: boolean,
+  slide?: ManifestSlide,
 ) {
   if (!validAssetOrigin(origin)) throw new Error("invalid_manifest");
   const csp = `default-src 'none'; script-src 'unsafe-inline' ${origin}; style-src 'unsafe-inline' ${origin}; img-src ${origin}; media-src ${origin}; font-src ${origin}; connect-src ${origin}; frame-src 'none'; object-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none';`;
-  return `<!doctype html><html data-motion="${reduced ? "reduce" : "full"}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="referrer" content="no-referrer"><style>:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important} body {overflow-wrap:anywhere}</style></head><body>${html}</body></html>`;
+  return `<!doctype html><html data-motion="${reduced ? "reduce" : "full"}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="referrer" content="no-referrer"><style>:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important} body {overflow-wrap:anywhere}</style>${slide ? bridgeScript({ duration: slide.duration_ms, checkpoints: slide.checkpoints }) : ""}</head><body>${html}</body></html>`;
 }

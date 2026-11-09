@@ -1,10 +1,11 @@
 import { useUiPreferences } from "./features/design/localization/Preferences";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { api } from "./lib/api";
 import { RouteUnavailable } from "./features/shell/RouteBoundary";
 
 export function LearnPath({ courseId }: { courseId: string }) {
+  const returnTo = useLocation({ select: (location) => location.pathname });
   const { t } = useUiPreferences();
   const {
     data: course,
@@ -56,6 +57,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
                       className="node current"
                       to="/lesson/$lessonId"
                       params={{ lessonId: lesson.id }}
+                      search={{ returnTo }}
                       aria-label={t("path.start", { name: lesson.title })}
                     >
                       ▶
@@ -77,6 +79,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
                     className="node done"
                     to="/lesson/$lessonId"
                     params={{ lessonId: lesson.id }}
+                    search={{ returnTo }}
                     aria-label={t("path.review", {
                       index: index + 1,
                       name: lesson.title,

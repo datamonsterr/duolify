@@ -1,5 +1,8 @@
-import { test, expect } from "./accounts-fixture";
+import { test, expect, resetTokens } from "./accounts-fixture";
 import { apiBase } from "./servers";
+// Persistent cursors require independent learners between acceptance cases.
+resetTokens();
+test.afterEach(() => resetTokens());
 
 for (const width of [1280, 390]) {
   test(`authorized object lesson at ${width}px reaches test without completion`, async ({

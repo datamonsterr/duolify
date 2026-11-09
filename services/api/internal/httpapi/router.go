@@ -139,6 +139,8 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	}
 	if deps.Player != nil && deps.Accounts != nil {
 		mux.Handle("GET /v1/lessons/{lesson}/manifest", deps.Accounts.Protect(deps.Player))
+		mux.Handle("GET /v1/lessons/{lesson}/position", deps.Accounts.Protect(deps.Player))
+		mux.Handle("PUT /v1/lessons/{lesson}/position", deps.Accounts.Protect(deps.Player))
 		mux.Handle("GET /v1/lessons/{lesson}/slides/{slide}", deps.Accounts.Protect(deps.Player))
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {

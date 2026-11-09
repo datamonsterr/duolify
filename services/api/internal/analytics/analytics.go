@@ -73,6 +73,8 @@ func (c *client) Close() error {
 
 func allowlisted(event string) bool {
 	switch event {
+	case "slide_viewed", "slide_replayed", "slide_paused":
+		return true
 	case "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
@@ -177,13 +179,20 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "slide_viewed", "slide_replayed", "slide_paused":
+		ids("lesson_id", "slide_id")
+		numeric("index")
+		if event == "slide_viewed" {
+			numeric("watch_ms")
+			boolean("offline")
+		}
 	case "lesson_started":
 		ids("lesson_id", "course_id")
 	case "lesson_player_error":
 		ids("lesson_id", "slide_id")
 		if code, ok := input["error_code"].(string); ok {
 			switch code {
-			case "manifest_unavailable", "document_unavailable", "invalid_manifest", "document_timeout", "offline":
+			case "manifest_unavailable", "document_unavailable", "invalid_manifest", "document_timeout", "offline", "position_unavailable":
 				out["error_code"] = code
 			}
 		}

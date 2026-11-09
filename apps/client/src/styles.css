@@ -649,6 +649,10 @@ progress::-moz-progress-bar {
   block-size: var(--size-target);
   accent-color: var(--secondary);
 }
+.audio-timeline span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .complete {
   text-align: center;
   padding-block: var(--space-16);

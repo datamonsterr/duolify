@@ -12,6 +12,7 @@ import {
   Outlet,
   useLocation,
   useParams,
+  useSearch,
   type RouterHistory,
 } from "@tanstack/react-router";
 import { CourseBriefPage } from "./features/courses/CourseBrief";
@@ -116,11 +117,17 @@ const course = createRoute({
 });
 function LessonRoute() {
   const { lessonId } = useParams({ from: "/lesson/$lessonId" });
-  return <LessonPlayer key={lessonId} lessonId={lessonId} />;
+  const { returnTo } = useSearch({ from: "/lesson/$lessonId" });
+  return (
+    <LessonPlayer key={lessonId} lessonId={lessonId} returnTo={returnTo} />
+  );
 }
 const lesson = createRoute({
   getParentRoute: () => root,
   path: "/lesson/$lessonId",
+  validateSearch: (search: Record<string, unknown>): { returnTo?: string } => ({
+    returnTo: typeof search.returnTo === "string" ? search.returnTo : undefined,
+  }),
   component: LessonRoute,
 });
 const profile = createRoute({

@@ -5,6 +5,13 @@ Define how Duolify uses PostHog: identity, privacy, the event catalog with names
 
 ## Requirements
 
+### Requirement: Playback control telemetry
+The catalogue SHALL include slide_viewed with lesson_id, slide_id, zero-based index, measured playing wall-clock watch_ms and offline; slide_replayed and slide_paused with lesson_id, slide_id and index; and lesson_player_error with fixed error codes including position_unavailable. Events SHALL use authenticated UUID/common properties and honor opt-out. The wrapper SHALL discard text, HTML, URLs and unregistered properties. Only ended SHALL emit slide_viewed, once per attempt; playback SHALL never emit lesson_completed.
+
+#### Scenario: End and replay
+- **WHEN** a slide ends and duplicate ended messages arrive before Replay
+- **THEN** one slide_viewed emits and replay begins a new attempt with slide_replayed
+
 ### Requirement: Sample outline proposal lifecycle
 The catalogue SHALL include API-owned `outline_proposal_requested`, `outline_proposal_delivered`, `outline_proposal_failed`, `outline_proposal_applied`, `outline_proposal_discarded`, and `outline_proposal_undone`, carrying only proposal_id and base_revision plus UUID/common properties. The existing client `ui_control_activated` SHALL allow surface=outline and control_id=outline_change_requested|proposal_apply|proposal_discard|outline_undo. All events honor current opt-out and exclude request text, titles, goals and diffs. Canonical credits_reserved/settled/released and $ai_generation remain owned by the financial outbox.
 

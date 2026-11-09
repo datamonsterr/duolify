@@ -12,7 +12,7 @@ export function playerManifest(lessonId = "sky") {
       html_url: `/v1/lessons/${lessonId}/slides/sky-${n}`,
       assets: [],
       checkpoints: [],
-      narration_status: "disabled",
+      narration_status: "disabled" as const,
       narration_text: [
         "The sky is a map waiting to be explored.",
         "Stars are distant suns, shining across space.",

@@ -1,21 +1,41 @@
 import { useUiPreferences } from "../design/localization/Preferences";
-import { useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { Link } from "@tanstack/react-router";
 import { trackPlayer } from "../../lib/analytics";
 import { useQuery } from "@tanstack/react-query";
-import { session as accountSession } from "../accounts/session";
+import { session } from "../accounts/session";
 import {
   loadManifest,
   loadDocument,
   sandboxDocument,
   type Manifest,
 } from "../player/manifest";
-import { isSlideMessage, nextSlide, sendCommand } from "./bridge";
+import {
+  loadPosition,
+  readLocalPosition,
+  savePosition,
+  playerReturnPath,
+  type Position,
+} from "../player/position";
+import { PlaybackClock } from "../player/playback";
+import { isSlideMessage, sendCommand } from "./bridge";
 import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { useShellSession } from "../shell/ShellSession";
-const playbackSpeeds = [1, 1.25, 1.5, 2];
-export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
-  const owner = accountSession.current()?.id ?? "current";
+const speeds = [1, 1.25, 1.5, 2, 0.75];
+
+export function LessonPlayer({
+  lessonId = "sky",
+  returnTo,
+}: { lessonId?: string; returnTo?: string } = {}) {
+  const owner = session.current()?.id ?? "current";
+  const shell = useShellSession();
+  const exit = playerReturnPath(returnTo, shell.courseId());
   const manifest = useQuery({
     queryKey: ["lesson-manifest", owner, lessonId],
     queryFn: () => loadManifest(lessonId),
@@ -34,26 +54,35 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
       });
   }, [manifest.error, lessonId]);
   if (manifest.error)
-    return <PlayerRecovery retry={() => void manifest.refetch()} />;
+    return <PlayerRecovery exit={exit} retry={() => void manifest.refetch()} />;
   if (!manifest.data)
-    return <PlayerRecovery loading retry={() => void manifest.refetch()} />;
-  return <ManifestPlayback key={lessonId} manifest={manifest.data} />;
+    return (
+      <PlayerRecovery
+        exit={exit}
+        loading
+        retry={() => void manifest.refetch()}
+      />
+    );
+  return (
+    <ResumePlayback
+      key={`${owner}:${lessonId}:${manifest.data.version}`}
+      manifest={manifest.data}
+      returnTo={returnTo}
+    />
+  );
 }
 function PlayerRecovery({
   loading = false,
   retry,
+  exit,
 }: {
   loading?: boolean;
   retry: () => void;
+  exit: string;
 }) {
-  const shell = useShellSession();
   return (
     <section className="player player-recovery" aria-busy={loading}>
-      <Link
-        className="shell-link"
-        to="/course/$courseId"
-        params={{ courseId: shell.courseId() }}
-      >
+      <Link className="shell-link" to={exit}>
         Exit lesson
       </Link>
       <h1>{loading ? "Loading lesson…" : "Lesson unavailable"}</h1>
@@ -70,16 +99,143 @@ function PlayerRecovery({
     </section>
   );
 }
-function ManifestPlayback({ manifest }: { manifest: Manifest }) {
-  const lessonId = manifest.lesson_id;
-  const slides = manifest.slides;
-  const { reducedMotion } = useUiPreferences();
-  const session = useShellSession();
-  const [index, setIndex] = useState(() =>
-    Math.min(session.slides.get(lessonId) ?? 0, slides.length - 1),
+function ResumePlayback({
+  manifest,
+  returnTo,
+}: {
+  manifest: Manifest;
+  returnTo?: string;
+}) {
+  const owner = session.current()?.id ?? "current";
+  const position = useQuery({
+    queryKey: ["lesson-position", owner, manifest.lesson_id, manifest.version],
+    queryFn: () => loadPosition(manifest),
+    retry: false,
+    networkMode: "always",
+    staleTime: 0,
+  });
+  if (position.isPending)
+    return (
+      <PlayerRecovery
+        loading
+        retry={() => void position.refetch()}
+        exit={playerReturnPath(returnTo, manifest.course_id)}
+      />
+    );
+  return (
+    <ManifestPlayback
+      manifest={manifest}
+      returnTo={returnTo}
+      initial={readLocalPosition(owner, manifest) ?? position.data ?? null}
+      restoreError={!!position.error}
+    />
   );
-  const slide = slides[index];
-  const owner = accountSession.current()?.id ?? "current";
+}
+function ManifestPlayback({
+  manifest,
+  returnTo,
+  initial,
+  restoreError,
+}: {
+  manifest: Manifest;
+  returnTo?: string;
+  initial: Position | null;
+  restoreError: boolean;
+}) {
+  const [index, setIndex] = useState(() =>
+    Math.max(
+      0,
+      manifest.slides.findIndex((s) => s.slide_id === initial?.slide_id),
+    ),
+  );
+  const [rate, setRate] = useState(1);
+  const [note, setNote] = useState("");
+  const [muted, setMuted] = useState(false);
+  const [resuming, setResuming] = useState(!!initial);
+  const started = useRef(false);
+  return (
+    <SlidePlayback
+      key={manifest.slides[index].slide_id}
+      manifest={manifest}
+      index={index}
+      initialTime={resuming ? (initial?.time_ms ?? 0) : 0}
+      autoplay={!resuming}
+      rate={rate}
+      onRate={setRate}
+      note={note}
+      onNote={setNote}
+      muted={muted}
+      onMute={setMuted}
+      restoreError={restoreError}
+      exit={playerReturnPath(returnTo, manifest.course_id)}
+      onNavigate={(next) => {
+        setResuming(false);
+        setIndex(next);
+      }}
+      onStart={() => {
+        if (!started.current) {
+          started.current = true;
+          trackPlayer("lesson_started", {
+            lesson_id: manifest.lesson_id,
+            course_id: manifest.course_id,
+          });
+        }
+      }}
+    />
+  );
+}
+
+function SlidePlayback({
+  manifest,
+  index,
+  initialTime,
+  autoplay,
+  rate,
+  onRate,
+  onNavigate,
+  onStart,
+  restoreError,
+  exit,
+  note,
+  onNote,
+  muted,
+  onMute,
+}: {
+  manifest: Manifest;
+  index: number;
+  initialTime: number;
+  autoplay: boolean;
+  rate: number;
+  onRate: (rate: number) => void;
+  onNavigate: (index: number) => void;
+  onStart: () => void;
+  restoreError: boolean;
+  exit: string;
+  note: string;
+  onNote: (note: string) => void;
+  muted: boolean;
+  onMute: (muted: boolean) => void;
+}) {
+  const lessonId = manifest.lesson_id,
+    slide = manifest.slides[index];
+  const owner = session.current()?.id ?? "current";
+  const { reducedMotion } = useUiPreferences();
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [clock] = useState(() => {
+    const c = new PlaybackClock(slide.duration_ms, initialTime);
+    c.rate(rate, performance.now());
+    return c;
+  });
+  const playback = useSyncExternalStore(clock.subscribe, clock.snapshot);
+  const [ready, setReady] = useState(false);
+  const [unsaved, setUnsaved] = useState(restoreError);
+  const [checkpoint, setCheckpoint] = useState(false);
+  const [panel, setPanel] = useState<
+    "Transcript" | "Ask tutor" | "Quick note" | null
+  >(null);
+  const viewed = useRef(initialTime === slide.duration_ms);
+  const reached = useRef(new Set<string>());
+  const saveRevision = useRef(0);
   const slideDocument = useQuery({
     queryKey: [
       "lesson-document",
@@ -92,21 +248,61 @@ function ManifestPlayback({ manifest }: { manifest: Manifest }) {
     retry: false,
     networkMode: "always",
   });
-  const next = slides[index + 1];
-  const preloaded = useQuery({
-    queryKey: [
-      "lesson-document",
-      owner,
-      lessonId,
-      manifest.version,
-      next?.slide_id,
-    ],
-    queryFn: () => loadDocument(next),
-    enabled: !!next,
-    retry: false,
-    networkMode: "always",
-  });
-  const started = useRef(false);
+  const command = useCallback(
+    (value: Parameters<typeof sendCommand>[1]) =>
+      sendCommand(frame.current?.contentWindow ?? null, value),
+    [],
+  );
+  const persist = useCallback(() => {
+    const revision = ++saveRevision.current;
+    const position = {
+      version: manifest.version,
+      slide_id: slide.slide_id,
+      time_ms: Math.round(clock.snapshot().time),
+    };
+    void savePosition(owner, lessonId, position).then(
+      () => {
+        if (revision === saveRevision.current) setUnsaved(false);
+      },
+      () => {
+        if (revision === saveRevision.current) setUnsaved(true);
+        trackPlayer("lesson_player_error", {
+          lesson_id: lessonId,
+          slide_id: slide.slide_id,
+          error_code: "position_unavailable",
+        });
+      },
+    );
+  }, [clock, owner, lessonId, manifest.version, slide.slide_id]);
+  const pause = useCallback(() => {
+    const wasPlaying = clock.snapshot().playing;
+    clock.pause(performance.now());
+    command({
+      type: wasPlaying ? "tick" : "seek",
+      time: clock.snapshot().time,
+    });
+    command({ type: "pause" });
+    if (wasPlaying)
+      trackPlayer("slide_paused", {
+        lesson_id: lessonId,
+        slide_id: slide.slide_id,
+        index,
+      });
+    persist();
+  }, [clock, command, index, lessonId, slide.slide_id, persist]);
+  const seek = (time: number) => {
+    clock.seek(time, performance.now());
+    command({ type: "seek", time: clock.snapshot().time });
+    command({ type: clock.snapshot().playing ? "play" : "pause" });
+    persist();
+  };
+  const toggle = () => {
+    if (clock.snapshot().playing) pause();
+    else if (!document.hidden && !panel) {
+      clock.play(performance.now());
+      command({ type: "play" });
+    }
+  };
   useEffect(() => {
     if (slideDocument.error)
       trackPlayer("lesson_player_error", {
@@ -116,89 +312,136 @@ function ManifestPlayback({ manifest }: { manifest: Manifest }) {
       });
   }, [slideDocument.error, lessonId, slide.slide_id]);
   useEffect(() => {
-    session.slides.set(lessonId, index);
-  }, [session, lessonId, index]);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(false);
-  const [speedIndex, setSpeedIndex] = useState(0);
-  const [slideTime, setSlideTime] = useState(0);
-  const frame = useRef<HTMLIFrameElement>(null);
+    command({ type: "set_motion", reduced: reducedMotion });
+  }, [command, reducedMotion]);
   useEffect(() => {
-    sendCommand(frame.current?.contentWindow ?? null, {
-      type: "set_motion",
-      reduced: reducedMotion,
-    });
-  }, [reducedMotion, index]);
-  const [panel, setPanel] = useState<
-    "Transcript" | "Ask tutor" | "Quick note" | null
-  >(null);
-  const [note, setNote] = useState("");
-  const pause = () => {
-    setIsPlaying(false);
-    sendCommand(frame.current?.contentWindow ?? null, { type: "pause" });
-  };
-  const goToSlide = (nextIndex: number) => {
-    setIndex(nextIndex);
-    setSlideTime(0);
-    setIsPlaying(true);
-  };
-  useEffect(() => {
-    const playerFrame = frame.current;
-    const onVisibility = () => {
-      if (document.hidden) {
-        setIsPlaying(false);
-        sendCommand(frame.current?.contentWindow ?? null, { type: "pause" });
-      }
+    const visibility = () => {
+      if (document.hidden) pause();
     };
-    document.addEventListener("visibilitychange", onVisibility);
+    const pagehide = () => pause();
+    document.addEventListener("visibilitychange", visibility);
+    window.addEventListener("pagehide", pagehide);
     return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      sendCommand(playerFrame?.contentWindow ?? null, { type: "pause" });
+      document.removeEventListener("visibilitychange", visibility);
+      window.removeEventListener("pagehide", pagehide);
+      clock.pause(performance.now());
+      persist();
     };
-  }, []);
+  }, [clock, pause, persist]);
   useEffect(() => {
+    if (!ready) return;
+    let lastSave = performance.now();
+    const timer = window.setInterval(() => {
+      if (!clock.snapshot().playing) return;
+      clock.tick(performance.now());
+      command({ type: "tick", time: clock.snapshot().time });
+      if (performance.now() - lastSave >= 2000) {
+        persist();
+        lastSave = performance.now();
+      }
+    }, 50);
     const listener = (event: MessageEvent) => {
       if (
-        isSlideMessage(
+        !isSlideMessage(
           event,
           frame.current?.contentWindow ?? null,
           slide.checkpoints.map((c) => c.id),
-        ) &&
-        event.data.type === "ended"
+        )
+      )
+        return;
+      if (event.data.type === "checkpoint") {
+        const name = event.data.name;
+        const point = slide.checkpoints.find((c) => c.id === name);
+        if (
+          point &&
+          clock.snapshot().time >= point.at_ms &&
+          !reached.current.has(name)
+        ) {
+          reached.current.add(name);
+          setCheckpoint(true);
+          persist();
+        }
+      } else if (
+        !viewed.current &&
+        clock.snapshot().time >= slide.duration_ms
       ) {
-        /* Learner advances when ready. */
+        viewed.current = true;
+        clock.end();
+        command({ type: "pause" });
+        trackPlayer("slide_viewed", {
+          lesson_id: lessonId,
+          slide_id: slide.slide_id,
+          index,
+          watch_ms: Math.round(clock.snapshot().watch),
+          offline: !navigator.onLine,
+        });
+        persist();
       }
     };
     window.addEventListener("message", listener);
-    return () => window.removeEventListener("message", listener);
-  }, [slide.checkpoints]);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("message", listener);
+    };
+  }, [ready, clock, command, index, lessonId, slide, persist]);
+  const [documentMotion] = useState(reducedMotion);
+  const disabled = !ready || !!slideDocument.error || panel !== null;
   return (
-    <div className="player">
+    <div
+      className="player"
+      role="region"
+      aria-label="Lesson playback"
+      tabIndex={0}
+      aria-keyshortcuts="Space ArrowLeft ArrowRight"
+      onKeyDown={(event) => {
+        if (
+          disabled ||
+          (event.target instanceof HTMLElement &&
+            event.target.closest("button, a, input, textarea, select"))
+        )
+          return;
+        if (event.code === "Space") {
+          event.preventDefault();
+          toggle();
+        }
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          seek(
+            clock.snapshot().time + (event.key === "ArrowRight" ? 1000 : -1000),
+          );
+        }
+      }}
+    >
       <header className="focused-context">
-        <Link
-          className="shell-link"
-          to="/course/$courseId"
-          params={{ courseId: manifest.course_id }}
-          onClick={pause}
-        >
+        <Link className="shell-link" to={exit} onClick={pause}>
           Exit lesson
         </Link>
         <span>Course · Lesson</span>
       </header>
-      <h1 tabIndex={-1}>{manifest.title}</h1>
+      <h1>{manifest.title}</h1>
       <div
         className="progress"
         role="progressbar"
         aria-label="Lesson slides"
         aria-valuemin={0}
-        aria-valuemax={slides.length}
+        aria-valuemax={manifest.slides.length}
         aria-valuenow={index + 1}
       >
-        <span style={{ width: `${((index + 1) / slides.length) * 100}%` }} />
+        <span
+          style={{ width: `${((index + 1) / manifest.slides.length) * 100}%` }}
+        />
       </div>
       <p>
-        Slide {index + 1} of {slides.length}
+        Slide {index + 1} of {manifest.slides.length}
       </p>
+      {unsaved && (
+        <div role="status">
+          <p>Position saved on this device only.</p>
+          <button className="duo-button quiet" onClick={persist}>
+            Retry saving position
+          </button>
+        </div>
+      )}
       <PanelLayout
         panel={
           <ResponsivePanel
@@ -229,7 +472,7 @@ function ManifestPlayback({ manifest }: { manifest: Manifest }) {
                 Your note
                 <textarea
                   value={note}
-                  onChange={(event) => setNote(event.target.value)}
+                  onChange={(event) => onNote(event.target.value)}
                 />
               </label>
               <p>
@@ -257,70 +500,71 @@ function ManifestPlayback({ manifest }: { manifest: Manifest }) {
         )}
         {slideDocument.data && (
           <iframe
-            key={slide.slide_id}
             ref={frame}
             title={`Slide ${index + 1}`}
             sandbox="allow-scripts"
             srcDoc={sandboxDocument(
               slideDocument.data,
               manifest.asset_origin,
-              reducedMotion,
+              documentMotion,
+              slide,
             )}
             referrerPolicy="no-referrer"
             onLoad={() => {
-              if (!started.current) {
-                started.current = true;
-                trackPlayer("lesson_started", {
-                  lesson_id: lessonId,
-                  course_id: manifest.course_id,
-                });
-              }
-              sendCommand(frame.current?.contentWindow ?? null, {
-                type: "set_motion",
-                reduced: reducedMotion,
-              });
-              sendCommand(frame.current?.contentWindow ?? null, {
-                type: "rate",
-                rate: playbackSpeeds[speedIndex],
-              });
-              if (!isPlaying)
-                sendCommand(frame.current?.contentWindow ?? null, {
-                  type: "pause",
-                });
+              setReady(true);
+              onStart();
+              command({ type: "set_motion", reduced: reducedMotion });
+              command({ type: "rate", rate });
+              command({ type: "seek", time: clock.snapshot().time });
+              if (autoplay && !document.hidden && !panel) {
+                clock.play(performance.now());
+                command({ type: "play" });
+              } else command({ type: "pause" });
             }}
           />
         )}
         <p className="slide-caption">{slide.narration_text}</p>
+        <p role="status">
+          {playback.ended
+            ? "Slide ended. Continue when you’re ready."
+            : checkpoint
+              ? "Checkpoint reached"
+              : playback.playing
+                ? "Playing"
+                : "Paused"}
+        </p>
         <div className="controls player-controls">
           <button
-            onClick={() => goToSlide(Math.max(0, index - 1))}
-            disabled={index === 0}
+            onClick={() => {
+              pause();
+              onNavigate(index - 1);
+            }}
+            disabled={index === 0 || panel !== null}
           >
             Previous
           </button>
           <button
             aria-label="Replay slide"
+            disabled={disabled}
             onClick={() => {
-              setSlideTime(0);
-              setIsPlaying(true);
-              sendCommand(frame.current?.contentWindow ?? null, {
-                type: "seek",
-                time: 0,
+              viewed.current = false;
+              reached.current.clear();
+              setCheckpoint(false);
+              clock.replay(performance.now());
+              command({ type: "seek", time: 0 });
+              command({ type: "play" });
+              trackPlayer("slide_replayed", {
+                lesson_id: lessonId,
+                slide_id: slide.slide_id,
+                index,
               });
+              persist();
             }}
           >
             Replay
           </button>
-          <button
-            onClick={() => {
-              const nextPlaying = !isPlaying;
-              setIsPlaying(nextPlaying);
-              sendCommand(frame.current?.contentWindow ?? null, {
-                type: nextPlaying ? "play" : "pause",
-              });
-            }}
-          >
-            {isPlaying ? "Pause" : "Play"}
+          <button disabled={disabled || playback.ended} onClick={toggle}>
+            {playback.playing ? "Pause" : "Play"}
           </button>
           <div className="audio-timeline">
             <input
@@ -329,46 +573,36 @@ function ManifestPlayback({ manifest }: { manifest: Manifest }) {
               min={0}
               max={slide.duration_ms}
               step={100}
-              value={slideTime}
+              value={Math.round(playback.time)}
               aria-label="Slide time"
-              aria-valuetext={`${Math.floor(slideTime / 1000)}:${String(Math.floor((slideTime % 1000) / 100)).padStart(2, "0")} of ${Math.floor(slide.duration_ms / 1000)} seconds`}
-              onChange={(event) => {
-                const time = Number(event.currentTarget.value);
-                setSlideTime(time);
-                setIsPlaying(true);
-                sendCommand(frame.current?.contentWindow ?? null, {
-                  type: "seek",
-                  time,
-                });
-              }}
+              aria-valuetext={`${(playback.time / 1000).toFixed(1)} of ${slide.duration_ms / 1000} seconds`}
+              disabled={disabled}
+              onChange={(event) => seek(Number(event.currentTarget.value))}
             />
             <span aria-hidden="true">
-              {Math.floor(slideTime / 1000)}:
-              {String(Math.floor((slideTime % 1000) / 100)).padStart(2, "0")} /
-              {Math.floor(slide.duration_ms / 1000)}s
+              {(playback.time / 1000).toFixed(1)} / {slide.duration_ms / 1000}s
             </span>
           </div>
           <button
-            aria-label={`Speed ${playbackSpeeds[speedIndex]}x`}
+            aria-label={`Speed ${rate}x`}
+            disabled={disabled}
             onClick={() => {
-              const nextIndex = (speedIndex + 1) % playbackSpeeds.length;
-              setSpeedIndex(nextIndex);
-              sendCommand(frame.current?.contentWindow ?? null, {
-                type: "rate",
-                rate: playbackSpeeds[nextIndex],
-              });
+              const next = speeds[(speeds.indexOf(rate) + 1) % speeds.length];
+              clock.rate(next, performance.now());
+              onRate(next);
+              command({ type: "rate", rate: next });
             }}
           >
-            {playbackSpeeds[speedIndex]}×
+            {rate}×
           </button>
           <button
-            aria-label={isMuted ? "Unmute narration" : "Mute narration"}
-            aria-pressed={isMuted}
-            onClick={() => setIsMuted(!isMuted)}
+            aria-label={muted ? "Unmute narration" : "Mute narration"}
+            aria-pressed={muted}
+            onClick={() => onMute(!muted)}
           >
-            {isMuted ? "Unmute" : "Mute"}
+            {muted ? "Unmute" : "Mute"}
           </button>
-          {index === slides.length - 1 ? (
+          {index === manifest.slides.length - 1 ? (
             <Link
               className="duo-button primary"
               to="/lesson/$lessonId/test"
@@ -380,7 +614,11 @@ function ManifestPlayback({ manifest }: { manifest: Manifest }) {
           ) : (
             <button
               className="primary"
-              onClick={() => goToSlide(nextSlide(index, slides.length))}
+              onClick={() => {
+                pause();
+                onNavigate(index + 1);
+              }}
+              disabled={panel !== null}
             >
               Next
             </button>
@@ -402,19 +640,6 @@ function ManifestPlayback({ manifest }: { manifest: Manifest }) {
           ))}
         </div>
       </PanelLayout>
-      {preloaded.data && (
-        <iframe
-          title="Preloaded slide"
-          hidden
-          sandbox="allow-scripts"
-          srcDoc={sandboxDocument(
-            preloaded.data,
-            manifest.asset_origin,
-            reducedMotion,
-          )}
-          referrerPolicy="no-referrer"
-        />
-      )}
     </div>
   );
 }

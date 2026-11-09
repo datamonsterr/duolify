@@ -35,6 +35,10 @@ export const courses: Course[] = [
   },
 ];
 export const handlers = [
+  http.get("*/v1/lessons/:lesson/position", () => HttpResponse.json(null)),
+  http.put("*/v1/lessons/:lesson/position", async ({ request }) =>
+    HttpResponse.json(await request.json()),
+  ),
   http.get("*/v1/lessons/:lesson/manifest", ({ params }) =>
     HttpResponse.json(playerManifest(String(params.lesson))),
   ),

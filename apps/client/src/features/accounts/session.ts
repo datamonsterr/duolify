@@ -156,6 +156,7 @@ export const session = {
       for (const key of Object.keys(sessionStorage))
         if (
           key.startsWith("credits:recovery:") ||
+          key.startsWith("player:position:") ||
           key.startsWith("course-outline:")
         )
           sessionStorage.removeItem(key);
