@@ -11,6 +11,7 @@ import {
 import { Sessions } from "./features/accounts/Sessions";
 import { SignIn } from "./features/accounts/SignIn";
 import { RouteGuard } from "./features/accounts/RouteGuard";
+import { SetupProfile } from "./features/accounts/LearnerProfile";
 import { AccountProfile } from "./features/accounts/AccountProfile";
 import { LearnPath } from "./LearnPath";
 import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
@@ -70,6 +71,11 @@ const profile = createRoute({
   getParentRoute: () => root,
   path: "/profile",
   component: AccountProfile,
+});
+const profileSetup = createRoute({
+  getParentRoute: () => root,
+  path: "/profile/setup",
+  component: SetupProfile,
 });
 const credits = createRoute({
   getParentRoute: () => root,
@@ -153,6 +159,7 @@ export const createAppRouter = (history?: RouterHistory) =>
       course,
       lesson,
       profile,
+      profileSetup,
       credits,
       more,
       friends,

@@ -44,11 +44,12 @@ type Profile = db.GetAuthenticatedLearnerRow
 
 // Service owns stateless HTTP authentication backed by Postgres.
 type Service struct {
-	pool  *pgxpool.Pool
-	key   []byte
-	mail  Mailer
-	oauth OAuthProvider
-	mux   *http.ServeMux
+	pool    *pgxpool.Pool
+	key     []byte
+	mail    Mailer
+	oauth   OAuthProvider
+	mux     *http.ServeMux
+	profile ProfileOptions
 }
 
 // New requires a shared signing/HMAC secret of at least 32 bytes.
@@ -72,6 +73,8 @@ func NewWithOAuthProvider(pool *pgxpool.Pool, secret string, mailer Mailer, prov
 	s.mux.Handle("DELETE /v1/auth/sessions", s.Protect(http.HandlerFunc(s.revokeSessions)))
 	s.mux.Handle("DELETE /v1/auth/sessions/{sessionID}", s.Protect(http.HandlerFunc(s.revokeSession)))
 	s.mux.Handle("GET /v1/me", s.Protect(http.HandlerFunc(s.me)))
+	s.ConfigureProfile(ProfileOptions{TextLimit: 2000})
+	s.registerProfile()
 	return s, nil
 }
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {

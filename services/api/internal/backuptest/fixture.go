@@ -273,6 +273,7 @@ func (f *Fixture) Seed(t *testing.T) {
 		"INSERT INTO learners (id,display_name) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner')",
 		"INSERT INTO credit_entries (learner_id,amount,kind,reference) VALUES ('a1111111-1111-4111-8111-111111111111',120,'purchase','synthetic-purchase'),('a1111111-1111-4111-8111-111111111111',-35,'spend','synthetic-spend')",
 		"INSERT INTO learner_profiles (learner_id,locale,time_zone,analytics_opt_out) VALUES ('a1111111-1111-4111-8111-111111111111','vi-VN','Asia/Ho_Chi_Minh',true)",
+		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
 		"INSERT INTO auth_identities (email,learner_id) VALUES ('synthetic@example.test','a1111111-1111-4111-8111-111111111111')",
 		"INSERT INTO auth_provider_identities (provider,subject,learner_id,verified_email) VALUES ('google','synthetic-google-subject','a1111111-1111-4111-8111-111111111111','synthetic@example.test')",
 		"INSERT INTO auth_oauth_attempts (state_hash,nonce_hash,code_challenge,redirect_uri,expires_at) VALUES (repeat('d',64),repeat('e',64),repeat('f',43),'duolify://oauth/callback',now()+interval '5 minutes')",
@@ -442,6 +443,23 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		if before != after || after == "[]" {
 			t.Fatalf("encrypted backup changed or omitted %s", table)
 		}
+	}
+	// Every new context field is populated in Seed and compared byte-for-byte above.
+	// Prove the restored schema also cascades current context on account erasure.
+	var erasedID string
+	if err := restored.Pool.QueryRow(t.Context(), "INSERT INTO learners(display_name) VALUES('Synthetic erasure check') RETURNING id::text").Scan(&erasedID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO learner_profiles(learner_id,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed)
+ SELECT $1::uuid,locale,time_zone,background,goal,topic,level,daily_minutes,daily_xp,reminder_enabled,reminder_time,setup_completed FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111'`, erasedID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", erasedID); err != nil {
+		t.Fatal(err)
+	}
+	var survived bool
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
+		t.Fatal("restored context survived account erasure", err)
 	}
 	var valid bool
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT length(c.code_hash)=64 AND c.expires_at<now() AND c.attempts=5 AND length(t.token_hash)=64 AND t.expires_at>now() AND length(r.key_hash)=64 AND r.expires_at>now() FROM auth_codes c CROSS JOIN auth_refresh_tokens t CROSS JOIN auth_rate_limits r`).Scan(&valid); err != nil || !valid {
