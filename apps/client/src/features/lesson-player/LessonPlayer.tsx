@@ -813,13 +813,9 @@ function SlidePlayback({
           "POST",
           {
             action_key: queued.actionKey,
-            course_id: queued.courseId,
             lesson_id: lessonId,
             slide_id: index,
             target_type: "slide",
-            course_title: queued.courseTitle,
-            lesson_title: queued.lessonTitle,
-            slide_title: queued.slideTitle,
           },
         );
         if (res?.id) {

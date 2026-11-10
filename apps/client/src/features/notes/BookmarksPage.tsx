@@ -84,13 +84,9 @@ export function BookmarksPage() {
               "POST",
               {
                 action_key: item.actionKey,
-                course_id: item.courseId,
                 lesson_id: item.lessonId,
                 slide_id: item.slideId,
                 target_type: item.targetType,
-                course_title: item.courseTitle,
-                lesson_title: item.lessonTitle,
-                slide_title: item.slideTitle,
               },
             );
             if (res?.id) {

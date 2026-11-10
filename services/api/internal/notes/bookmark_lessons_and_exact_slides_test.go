@@ -10,6 +10,7 @@ import (
 func TestValidateBookmarkInputBoundaries(t *testing.T) {
 	validUUID := "11111111-1111-4111-8111-111111111111"
 	slide0 := 0
+	slideTooLarge := 10001
 	negativeSlide := -1
 
 	tests := []struct {
@@ -26,6 +27,16 @@ func TestValidateBookmarkInputBoundaries(t *testing.T) {
 				TargetType: "slide",
 			},
 			wantErr: notes.ErrMissingActionKey,
+		},
+		{
+			name: "action key exceeds length",
+			input: notes.SaveBookmarkInput{
+				ActionKey:  strings.Repeat("a", 129),
+				LessonID:   validUUID,
+				SlideID:    &slide0,
+				TargetType: "slide",
+			},
+			wantErr: notes.ErrInvalidActionKey,
 		},
 		{
 			name: "missing lesson id",
@@ -66,6 +77,37 @@ func TestValidateBookmarkInputBoundaries(t *testing.T) {
 				TargetType: "slide",
 			},
 			wantErr: notes.ErrInvalidSlide,
+		},
+		{
+			name: "slide target slide_id exceeds bound",
+			input: notes.SaveBookmarkInput{
+				ActionKey:  "act-1",
+				LessonID:   validUUID,
+				SlideID:    &slideTooLarge,
+				TargetType: "slide",
+			},
+			wantErr: notes.ErrInvalidSlide,
+		},
+		{
+			name: "lesson target with slide_id must be rejected",
+			input: notes.SaveBookmarkInput{
+				ActionKey:  "act-1",
+				LessonID:   validUUID,
+				SlideID:    &slide0,
+				TargetType: "lesson",
+			},
+			wantErr: notes.ErrInvalidSlide,
+		},
+		{
+			name: "title exceeds bound",
+			input: notes.SaveBookmarkInput{
+				ActionKey:   "act-1",
+				LessonID:    validUUID,
+				SlideID:     &slide0,
+				TargetType:  "slide",
+				CourseTitle: strings.Repeat("x", 501),
+			},
+			wantErr: notes.ErrTitleTooLong,
 		},
 		{
 			name: "valid slide target",

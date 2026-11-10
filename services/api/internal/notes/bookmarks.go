@@ -14,6 +14,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/store/db"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -24,6 +25,12 @@ var (
 	ErrInvalidTargetType = errors.New("invalid target type")
 	// ErrBookmarkNotFound indicates that the requested bookmark was not found.
 	ErrBookmarkNotFound = errors.New("bookmark not found")
+	// ErrInvalidActionKey indicates that the action key is invalid or too long.
+	ErrInvalidActionKey = errors.New("invalid action key")
+	// ErrTitleTooLong indicates that a title exceeds the maximum length.
+	ErrTitleTooLong = errors.New("title exceeds maximum length")
+	// ErrActionKeyConflict indicates an action_key replay with a different target.
+	ErrActionKeyConflict = errors.New("action key conflict")
 )
 
 // SaveBookmarkInput contains parameters for creating or synchronizing a bookmark.
@@ -43,16 +50,24 @@ func (in SaveBookmarkInput) Validate() error {
 	if strings.TrimSpace(in.ActionKey) == "" {
 		return ErrMissingActionKey
 	}
+	if len(in.ActionKey) > 128 {
+		return ErrInvalidActionKey
+	}
 	if strings.TrimSpace(in.LessonID) == "" {
 		return ErrMissingLesson
 	}
+	if len(in.CourseTitle) > 500 || len(in.LessonTitle) > 500 || len(in.SlideTitle) > 500 {
+		return ErrTitleTooLong
+	}
 	switch in.TargetType {
 	case "slide":
-		if in.SlideID == nil || *in.SlideID < 0 || *in.SlideID > math.MaxInt32 {
+		if in.SlideID == nil || *in.SlideID < 0 || *in.SlideID > 10000 {
 			return ErrInvalidSlide
 		}
 	case "lesson":
-		// Valid target without slide_id
+		if in.SlideID != nil {
+			return ErrInvalidSlide
+		}
 	default:
 		return ErrInvalidTargetType
 	}
@@ -87,24 +102,11 @@ func (s *Service) SaveBookmark(ctx context.Context, learnerID string, input Save
 		return nil, errors.New("invalid learner id")
 	}
 
-	var lessonPgUUID pgtype.UUID
-	courseTitle := input.CourseTitle
-	lessonTitle := input.LessonTitle
-	slideTitle := input.SlideTitle
-
-	var coursePgUUID pgtype.UUID
-	if strings.TrimSpace(input.CourseID) != "" {
-		parsed, err := parseUUID(input.CourseID)
-		if err == nil {
-			coursePgUUID = parsed
-		}
-	}
-
 	parsedLesson, err := parseUUID(input.LessonID)
 	if err != nil {
 		return nil, ErrUnauthorizedSource
 	}
-	lessonPgUUID = parsedLesson
+	lessonPgUUID := parsedLesson
 
 	// Verify learner authorization for this lesson
 	authorized, err := s.queries.CheckLessonAuthorization(ctx, db.CheckLessonAuthorizationParams{
@@ -115,26 +117,26 @@ func (s *Service) SaveBookmark(ctx context.Context, learnerID string, input Save
 		return nil, ErrUnauthorizedSource
 	}
 
-	// Retrieve authoritative titles
+	// Authoritatively derive course and titles on the server (do not trust client fields)
 	info, err := s.queries.GetLessonContext(ctx, lessonPgUUID)
-	if err == nil {
-		if lessonTitle == "" {
-			lessonTitle = info.LessonTitle
-		}
-		if courseTitle == "" {
-			courseTitle = info.CourseTitle
-		}
-		if !coursePgUUID.Valid && info.CourseID.Valid {
-			coursePgUUID = info.CourseID
-		}
+	if err != nil {
+		return nil, ErrUnauthorizedSource
+	}
+	coursePgUUID := info.CourseID
+	courseTitle := info.CourseTitle
+	lessonTitle := info.LessonTitle
+	if len(courseTitle) > 500 {
+		courseTitle = courseTitle[:500]
+	}
+	if len(lessonTitle) > 500 {
+		lessonTitle = lessonTitle[:500]
 	}
 
+	var slideTitle string
 	var slideID pgtype.Int4
-	if input.TargetType == "slide" && input.SlideID != nil && *input.SlideID >= 0 && *input.SlideID <= math.MaxInt32 {
+	if input.TargetType == "slide" && input.SlideID != nil && *input.SlideID >= 0 && *input.SlideID <= 10000 {
 		slideID = pgtype.Int4{Int32: int32(*input.SlideID), Valid: true}
-		if slideTitle == "" {
-			slideTitle = fmt.Sprintf("Slide %d", *input.SlideID+1)
-		}
+		slideTitle = fmt.Sprintf("Slide %d", *input.SlideID+1)
 	}
 
 	// 1. Check if bookmark with action_key already exists
@@ -143,6 +145,14 @@ func (s *Service) SaveBookmark(ctx context.Context, learnerID string, input Save
 		ActionKey: input.ActionKey,
 	})
 	if err == nil {
+		// An action_key replay with a different target must not return the old row silently (return a conflict)
+		sameLesson := existingByActionKey.LessonID == lessonPgUUID
+		sameTargetType := existingByActionKey.TargetType == input.TargetType
+		sameSlide := (!existingByActionKey.SlideID.Valid && !slideID.Valid) ||
+			(existingByActionKey.SlideID.Valid && slideID.Valid && existingByActionKey.SlideID.Int32 == slideID.Int32)
+		if !sameLesson || !sameTargetType || !sameSlide {
+			return nil, ErrActionKeyConflict
+		}
 		dto := toBookmarkDTO(existingByActionKey, true)
 		return &dto, nil
 	}
@@ -171,10 +181,37 @@ func (s *Service) SaveBookmark(ctx context.Context, learnerID string, input Save
 		SlideTitle:  slideTitle,
 	})
 	if err != nil {
+		// Handle unique violation race (Postgres code 23505) -> returns existing/409, not 500
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			if existing, getErr := s.queries.GetBookmarkByActionKey(ctx, db.GetBookmarkByActionKeyParams{
+				LearnerID: learnerUUID,
+				ActionKey: input.ActionKey,
+			}); getErr == nil {
+				sameLesson := existing.LessonID == lessonPgUUID
+				sameTargetType := existing.TargetType == input.TargetType
+				sameSlide := (!existing.SlideID.Valid && !slideID.Valid) ||
+					(existing.SlideID.Valid && slideID.Valid && existing.SlideID.Int32 == slideID.Int32)
+				if !sameLesson || !sameTargetType || !sameSlide {
+					return nil, ErrActionKeyConflict
+				}
+				dto := toBookmarkDTO(existing, true)
+				return &dto, nil
+			}
+			if existing, getErr := s.queries.GetBookmarkByTarget(ctx, db.GetBookmarkByTargetParams{
+				LearnerID: learnerUUID,
+				LessonID:  lessonPgUUID,
+				SlideID:   slideID,
+			}); getErr == nil {
+				dto := toBookmarkDTO(existing, true)
+				return &dto, nil
+			}
+			return nil, ErrConflict
+		}
 		return nil, err
 	}
 
-	_ = EmitBookmarkAdded(s.events, learnerID, input.TargetType, input.CourseID, input.LessonID, input.SlideID, "api", "0.1.0")
+	_ = EmitBookmarkAdded(s.events, learnerID, input.TargetType, formatUUID(coursePgUUID), input.LessonID, input.SlideID, "api", "0.1.0")
 
 	dto := toBookmarkDTO(created, true)
 	return &dto, nil
@@ -401,10 +438,28 @@ func (s *Service) ServeBookmarksHTTP(w http.ResponseWriter, r *http.Request) {
 				respondError(w, http.StatusBadRequest, "invalid request body")
 				return
 			}
+			if in.SlideID != nil && (*in.SlideID < 0 || *in.SlideID > 10000) {
+				respondError(w, http.StatusBadRequest, "invalid slide id")
+				return
+			}
+			if in.ID == "" && in.LessonID == "" {
+				respondError(w, http.StatusBadRequest, "missing id or lesson_id")
+				return
+			}
 			if in.ID != "" {
-				_ = s.DeleteBookmark(r.Context(), learnerID, in.ID)
+				if err := s.DeleteBookmark(r.Context(), learnerID, in.ID); err != nil {
+					if errors.Is(err, ErrBookmarkNotFound) {
+						respondError(w, http.StatusNotFound, "bookmark not found")
+						return
+					}
+					respondError(w, http.StatusInternalServerError, "failed to delete bookmark")
+					return
+				}
 			} else if in.LessonID != "" {
-				_ = s.DeleteBookmarkByTarget(r.Context(), learnerID, in.LessonID, in.SlideID)
+				if err := s.DeleteBookmarkByTarget(r.Context(), learnerID, in.LessonID, in.SlideID); err != nil {
+					respondError(w, http.StatusInternalServerError, "failed to delete bookmark")
+					return
+				}
 			}
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]any{"removed": true})
@@ -426,10 +481,15 @@ func (s *Service) ServeBookmarksHTTP(w http.ResponseWriter, r *http.Request) {
 			case errors.Is(err, ErrMissingActionKey),
 				errors.Is(err, ErrMissingLesson),
 				errors.Is(err, ErrInvalidTargetType),
-				errors.Is(err, ErrInvalidSlide):
+				errors.Is(err, ErrInvalidSlide),
+				errors.Is(err, ErrInvalidActionKey),
+				errors.Is(err, ErrTitleTooLong):
 				respondError(w, http.StatusBadRequest, err.Error())
 			case errors.Is(err, ErrUnauthorizedSource):
 				respondError(w, http.StatusForbidden, err.Error())
+			case errors.Is(err, ErrActionKeyConflict),
+				errors.Is(err, ErrConflict):
+				respondError(w, http.StatusConflict, err.Error())
 			default:
 				respondError(w, http.StatusInternalServerError, "failed to save bookmark")
 			}

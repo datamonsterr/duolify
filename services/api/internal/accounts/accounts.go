@@ -557,6 +557,11 @@ func LearnerIDFromContext(ctx context.Context) (string, bool) {
 	return id, ok && id != ""
 }
 
+// WithLearnerID injects the learner UUID into context for tests or internal calls.
+func WithLearnerID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, learnerKey{}, id)
+}
+
 // SessionIDFromContext extracts the active session UUID from context.
 func SessionIDFromContext(ctx context.Context) (string, bool) {
 	id, ok := ctx.Value(sessionKey{}).(string)
