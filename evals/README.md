@@ -4,6 +4,30 @@ Each JSONL row has an `id`, `task` (preview, outline, lesson, chat or note), JSO
 
 Create a dataset on Hugging Face and upload `golden.jsonl` at its root. Set `HF_GOLDEN_DATASET`, `HF_GOLDEN_REVISION` to an explicit 40-character commit hash (missing revision reports explicit `missing_config` status; `main` is not allowed), and `HF_TOKEN` with dataset read access. Run `mise run engine:eval-live` with provider keys. The runner downloads that revision into `evals/.cache`; reports are written to `evals/reports`. Use `mise run engine:eval` for the offline mock fixtures. `--judge` additionally requests a PASS/FAIL judgment against the rubric using word-boundary parsing (`\bPASS\b` / `\bFAIL\b`).
 
+Before using a remote revision, commit its expected SHA-256 in
+[`pinned-datasets.toml`](pinned-datasets.toml). Each quoted dataset table maps an
+exact 40-character revision to the 64-character hex digest of the exact UTF-8
+`golden.jsonl` bytes, including final newlines. Review those source bytes and their
+digest independently before committing the pin; never derive a pin from a cache
+sidecar or the mirror being verified. The manifest is embedded when the eval
+binary builds. Unknown dataset/revision pairs fail before cache access or download.
+The current entries are synthetic HF/RustFS test doubles under
+`duolify-fixtures/*`; production `datamonsterr/duolify-golden` remains disabled until
+E10-01 provisions a reviewed revision and digest. Do not reuse a synthetic pin as
+a production revision.
+
+Every HF, mirror and cache payload must match that repository pin. An existing
+cache without its `.sha256` sidecar fails explicitly and is never self-signed;
+remove both cache files and refetch from a verified source to recover. A sidecar
+must also match the pin. Mirrors require a checksum header or nonempty `.sha256`
+object, and their bytes must still match the repository pin. HF fallback is
+limited to network failures, timeouts (including HTTP 408), and HTTP 5xx;
+401/403/404 and other client errors or integrity failures stop evaluation.
+JSON reports include `dataset_verified`, and Markdown displays Dataset Verified.
+It is false for custom files, offline fixtures, missing configuration/secrets and
+legacy reports without the field. Promotion requires it to be true; rejected
+remote downloads produce no passing report and never populate the cache.
+
 Live evaluation budget sums provider-reported usage (primary and judge) using the configured price table in `engine/config/prices.toml` (overridable via `EVAL_PRICES_CONFIG`), failing closed with a critical failure if usage is unavailable. Spend is bounded by `--budget <USD>` or `EVAL_BUDGET_USD=USD`; execution halts immediately upon reaching the budget.
 
 Live evaluations accept `--limit <N>` or `EVAL_SAMPLE_LIMIT=N` to run a small sample. The command-line flag takes precedence over the environment variable. When a limit is set, cases are task-stratified using deterministic round-robin selection ordered by case `id` within each task, while still strictly enforcing minimum per-task coverage for every required canonical task. An unset limit or `0` runs all cases; values larger than the dataset also run all cases. In ready pipeline mode (`--mode ready`), missing credentials report an explicit missing-secret status and keep the `ci-ok` CI aggregate passing while keeping feature activation disabled without fabricating a pass.
@@ -22,6 +46,7 @@ The promotion gate exits 0 only if:
 3. Provider was `live` and dataset source was live (`hf`, `mirror`, or `cache`), never mock fixtures.
 4. Dataset revision is an immutable 40-character hex commit hash.
 5. Every required canonical task (`course_preview`, `course_outline`, `lesson_slides`, `lesson_test`, `tutor_chat`, `note_enrich`) is present with minimum per-task coverage (`total_cases >= 1`) and passing score above threshold.
+6. `dataset_verified = true`: dataset bytes were verified against the repository digest pin. Missing verification in older reports fails closed.
 
 E10-06 adds live promotion gating on reproducible live samples. Evaluation reports record case, revision, provider, usage, budget, and thresholds, retained as 90-day artifacts. Critical safety, ledger, and cost check failures immediately reject the evaluation. Promotion of models or narration voices requires passing live cases on a pinned immutable commit hash; offline fixtures or missing credentials leave production feature activation disabled. Recorded mock fixtures gate development under ADR 0011 until E10-01 provisions live secrets and dataset.
 

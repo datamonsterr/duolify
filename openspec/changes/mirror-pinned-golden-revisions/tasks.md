@@ -15,3 +15,11 @@
 
 ## 3. Validation
 - [x] 3.1 Verify `engine:lint`, `engine:test`, `engine:build`, `engine:eval`, `infra:lint`, `ci:openspec`.
+
+## 4. Issue #160 defect 5: repository-trusted dataset integrity
+- [x] 4.1 Reproduce checksum bypasses with failing E10-04 e2e/integration tests and a promotion-gate unit test before implementation.
+- [x] 4.2 Embed repository-reviewed dataset/revision SHA-256 pins; verify exact HF, mirror and cache bytes, reject unknown pins and missing cache/mirror checksums.
+- [x] 4.3 Restrict HF mirror fallback to network/timeout/5xx; reject 401/403/404 and integrity errors without mirror access.
+- [x] 4.4 Carry dataset verification into JSON/Markdown reports; fail promotion closed for unverified and legacy reports; update synthetic fixtures without weakening assertions.
+- [x] 4.5 Document pin provisioning/recovery, backup/retention and unchanged content-free analytics in eval README and data inventory.
+- [x] 4.6 Run engine:lint, engine:test, engine:eval, engine:build and ci:openspec with offline fake services only (114 workspace tests, 97 eval cases, 63 OpenSpec items passed).

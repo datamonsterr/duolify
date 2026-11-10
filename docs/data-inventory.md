@@ -421,3 +421,19 @@ their existing export/erasure/retention boundaries; the demo does not copy them.
 Quote consent stays disposable and is invalidated on demo entry. Live pricing
 and catalogue activation remain gated by E12-08; no effort Credit rewards exist.
 
+
+E10-04 / issue #160 defect 5: `evals/pinned-datasets.toml` stores reviewed
+(dataset, immutable revision, SHA-256) integrity metadata in Git, embedded in the
+eval binary. Fixture-only identities remain separate from future E10-01 production
+pins. Hugging Face revisions and protected versioned RustFS/S3 mirror objects
+retain their existing backup policy and immutable keys. Mirror headers/sidecars
+are required transport integrity metadata; repository pins are the trust source.
+Disposable `evals/.cache` bytes and sidecars must both match the pin; missing
+sidecars are rejected and never generated from existing cache bytes. Recovery
+removes incomplete cache files and refetches verified source bytes; restored
+mirror/cache data receives the same verification before evaluation. No learner
+content, credentials or new database state is added. Eval JSON/Markdown reports
+include `dataset_verified` under the existing 90-day artifact retention policy;
+legacy/custom/offline inputs are unverified and excluded from live promotion.
+Remote integrity failures produce no passing report. Existing content-free
+`eval_run_completed` analytics and account export/deletion policies are unchanged.

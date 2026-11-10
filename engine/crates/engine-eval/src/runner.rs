@@ -146,12 +146,46 @@ pub fn is_pinned_commit(revision: &str) -> bool {
     revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
+// Embedded at build time: remote metadata and cache sidecars cannot change trust.
+fn pinned_dataset_digest(dataset: &str, revision: &str) -> Result<String> {
+    let pins: HashMap<String, HashMap<String, String>> =
+        toml::from_str(include_str!("../../../../evals/pinned-datasets.toml"))?;
+    let digest = pins
+        .get(dataset)
+        .and_then(|revisions| revisions.get(revision))
+        .with_context(|| {
+            format!("no repo-pinned digest for dataset {dataset} revision {revision}")
+        })?;
+    if digest.len() != 64 || !digest.bytes().all(|b| b.is_ascii_hexdigit()) {
+        bail!("invalid repo-pinned digest for dataset {dataset} revision {revision}");
+    }
+    Ok(digest.to_ascii_lowercase())
+}
+
+fn verify_pinned_digest(bytes: &[u8], expected: &str, source: &str) -> Result<String> {
+    let checksum = compute_sha256(bytes);
+    if checksum != expected {
+        bail!(
+            "{source} integrity failure: checksum mismatch against repo-pinned digest (got {checksum}, expected {expected})"
+        );
+    }
+    Ok(checksum)
+}
+
+fn hf_outage(error: &reqwest::Error) -> bool {
+    if let Some(status) = error.status() {
+        return status.is_server_error() || status == reqwest::StatusCode::REQUEST_TIMEOUT;
+    }
+    error.is_timeout() || error.is_connect() || error.is_request() || error.is_body()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FetchedDataset {
     pub content: String,
     pub source: String, // "cache", "hf", "mirror", "fixture"
     pub revision: String,
     pub checksum: String,
+    pub verified: bool,
 }
 
 impl std::ops::Deref for FetchedDataset {
@@ -216,6 +250,8 @@ pub async fn fetch_dataset_with_mirror(
         bail!("dataset revision must be a pinned 40-character commit hash: '{revision}'");
     }
 
+    let pinned_digest = pinned_dataset_digest(dataset, revision)?;
+
     std::fs::create_dir_all(cache_dir)?;
     let cache_file = cache_dir.join(format!("{}-{revision}.jsonl", dataset.replace('/', "--")));
     let checksum_file = cache_dir.join(format!("{}-{revision}.sha256", dataset.replace('/', "--")));
@@ -224,18 +260,12 @@ pub async fn fetch_dataset_with_mirror(
     if cache_file.is_file() {
         let content = std::fs::read_to_string(&cache_file)
             .with_context(|| format!("failed to read cache file at {}", cache_file.display()))?;
-        let computed = compute_sha256(content.as_bytes());
-
-        if checksum_file.is_file() {
-            let expected = std::fs::read_to_string(&checksum_file)?.trim().to_string();
-            if computed != expected {
-                bail!(
-                    "cache corruption detected: checksum mismatch for {} (got {computed}, expected {expected})",
-                    cache_file.display()
-                );
-            }
-        } else {
-            std::fs::write(&checksum_file, &computed)?;
+        // A missing sidecar is an incomplete cache, never an opportunity to self-sign.
+        let sidecar = std::fs::read_to_string(&checksum_file)
+            .context("cache checksum sidecar missing or unreadable; remove cache and refetch from a verified source")?;
+        let computed = verify_pinned_digest(content.as_bytes(), &pinned_digest, "cache")?;
+        if sidecar.trim() != pinned_digest {
+            bail!("cache corruption detected: checksum sidecar does not match repo-pinned digest");
         }
 
         return Ok(FetchedDataset {
@@ -243,6 +273,7 @@ pub async fn fetch_dataset_with_mirror(
             source: "cache".to_string(),
             revision: revision.to_string(),
             checksum: computed,
+            verified: true,
         });
     }
 
@@ -251,25 +282,24 @@ pub async fn fetch_dataset_with_mirror(
         "{}/datasets/{dataset}/resolve/{revision}/golden.jsonl",
         base_url.trim_end_matches('/')
     );
-    let mut req = reqwest::Client::new().get(&hf_url);
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()?;
+    let mut req = client.get(&hf_url);
     if !token.is_empty() {
         req = req.bearer_auth(token);
     }
 
-    let hf_result: Result<String> = async {
-        let res = req.send().await?;
-        let status = res.status();
-        if !status.is_success() {
-            bail!("HTTP status {status} for url ({hf_url})");
-        }
-        let body = res.text().await?;
-        Ok(body)
+    let hf_result: std::result::Result<Vec<u8>, reqwest::Error> = async {
+        let res = req.send().await?.error_for_status()?;
+        Ok(res.bytes().await?.to_vec())
     }
     .await;
 
     match hf_result {
-        Ok(body) => {
-            let checksum = compute_sha256(body.as_bytes());
+        Ok(bytes) => {
+            let checksum = verify_pinned_digest(&bytes, &pinned_digest, "hf")?;
+            let body = String::from_utf8(bytes).context("HF dataset is not UTF-8")?;
             std::fs::write(&cache_file, &body)?;
             std::fs::write(&checksum_file, &checksum)?;
             Ok(FetchedDataset {
@@ -277,10 +307,16 @@ pub async fn fetch_dataset_with_mirror(
                 source: "hf".to_string(),
                 revision: revision.to_string(),
                 checksum,
+                verified: true,
             })
         }
         Err(hf_err) => {
-            // 3. Fallback to mirror if available
+            if !hf_outage(&hf_err) {
+                return Err(hf_err).context(
+                    "Hugging Face download failed; mirror fallback only allowed for outages",
+                );
+            }
+            // 3. Fallback to mirror only for primary outages
             let mirror_base = mirror_url
                 .map(|s| s.to_string())
                 .or_else(|| std::env::var("HF_GOLDEN_MIRROR_URL").ok())
@@ -309,9 +345,7 @@ pub async fn fetch_dataset_with_mirror(
             };
 
             let mut last_mirror_err = None;
-            let mirror_client = reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(15))
-                .build()?;
+            let mirror_client = client;
             for candidate_url in candidate_urls {
                 let resp = match mirror_client.get(&candidate_url).send().await {
                     Ok(r) if r.status().is_success() => r,
@@ -334,7 +368,7 @@ pub async fn fetch_dataset_with_mirror(
                     .and_then(|v| v.to_str().ok())
                     .map(|s| s.trim().to_string());
 
-                let body = match resp.text().await {
+                let bytes = match resp.bytes().await {
                     Ok(b) => b,
                     Err(e) => {
                         last_mirror_err = Some(e.to_string());
@@ -342,7 +376,9 @@ pub async fn fetch_dataset_with_mirror(
                     }
                 };
 
-                let checksum = compute_sha256(body.as_bytes());
+                let checksum = verify_pinned_digest(&bytes, &pinned_digest, "mirror")?;
+                let body =
+                    String::from_utf8(bytes.to_vec()).context("mirror dataset is not UTF-8")?;
 
                 // If advertised checksum was provided in header, verify it
                 if advertised_checksum
@@ -355,18 +391,24 @@ pub async fn fetch_dataset_with_mirror(
                     );
                 }
 
-                // If mirror provides a separate .sha256 file, check it
+                let mut has_checksum = advertised_checksum.is_some();
+                // A checksum header or sidecar is mandatory, but neither supplies trust.
                 let checksum_url = format!("{candidate_url}.sha256");
                 if let Ok(chk_resp) = mirror_client.get(&checksum_url).send().await
                     && chk_resp.status().is_success()
                     && let Ok(chk_text) = chk_resp.text().await
                 {
                     let expected = chk_text.trim();
+                    has_checksum |= !expected.is_empty();
                     if !expected.is_empty() && expected != checksum {
                         bail!(
                             "mirror integrity failure: checksum mismatch for mirror dataset at {candidate_url} (computed {checksum}, expected in .sha256 {expected})"
                         );
                     }
+                }
+
+                if !has_checksum {
+                    bail!("mirror integrity failure: missing checksum for {candidate_url}");
                 }
 
                 // Verify dataset content is valid JSONL rows
@@ -393,6 +435,7 @@ pub async fn fetch_dataset_with_mirror(
                     source: "mirror".to_string(),
                     revision: revision.to_string(),
                     checksum,
+                    verified: true,
                 });
             }
 
@@ -770,6 +813,7 @@ pub struct Runner {
     pub dataset_name: String,
     pub dataset_revision: String,
     pub dataset_source: String,
+    pub dataset_verified: bool,
     pub prompt_revision: String,
     pub judge_fixtures: HashMap<String, String>,
     pub budget_usd: Option<f64>,
@@ -786,6 +830,7 @@ impl Runner {
             dataset_name: "datamonsterr/duolify-golden".to_string(),
             dataset_revision: "pinned".to_string(),
             dataset_source: "fixture".to_string(),
+            dataset_verified: false,
             prompt_revision: "head".to_string(),
             judge_fixtures: HashMap::new(),
             budget_usd: None,
@@ -806,6 +851,7 @@ impl Runner {
             dataset_name: "datamonsterr/duolify-golden".to_string(),
             dataset_revision: "pinned".to_string(),
             dataset_source: "fixture".to_string(),
+            dataset_verified: false,
             prompt_revision: "head".to_string(),
             judge_fixtures: HashMap::new(),
             budget_usd: None,
@@ -1173,6 +1219,7 @@ impl Runner {
             dataset: self.dataset_name.clone(),
             dataset_revision: self.dataset_revision.clone(),
             dataset_source: self.dataset_source.clone(),
+            dataset_verified: self.dataset_verified,
             prompt_revision: self.prompt_revision.clone(),
             provider: self.provider_name.clone(),
             budget_usd: self.budget_usd,

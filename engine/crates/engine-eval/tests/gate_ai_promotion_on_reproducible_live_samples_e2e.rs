@@ -368,6 +368,7 @@ fn promotion_gate_cli_subcommand_verifies_report() {
         "dataset": "datamonsterr/duolify-golden",
         "dataset_revision": "0123456789abcdef0123456789abcdef01234567",
         "dataset_source": "hf",
+        "dataset_verified": true,
         "prompt_revision": "head",
         "provider": "live",
         "status": "passed",
@@ -464,6 +465,26 @@ fn promotion_gate_cli_subcommand_verifies_report() {
     );
     let valid_stdout = String::from_utf8_lossy(&output_valid.stdout);
     assert!(valid_stdout.contains("promotion gate: PASSED"));
+
+    for verified in [None, Some(false)] {
+        let mut unverified = valid_report.clone();
+        unverified
+            .as_object_mut()
+            .unwrap()
+            .remove("dataset_verified");
+        if let Some(value) = verified {
+            unverified["dataset_verified"] = value.into();
+        }
+        let unverified_path = temp_dir.join("unverified.json");
+        std::fs::write(&unverified_path, serde_json::to_vec(&unverified).unwrap()).unwrap();
+        let output = Command::new(bin)
+            .arg("gate")
+            .arg(unverified_path)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("unverified"));
+    }
 
     // 3b. Report missing a required canonical task exits non-zero
     let mut missing_task_report = valid_report.clone();

@@ -106,6 +106,9 @@ pub struct EvalReport {
     pub dataset_revision: String,
     #[serde(default = "default_dataset_source")]
     pub dataset_source: String,
+    /// True only after the dataset bytes match the repository digest pin.
+    #[serde(default)]
+    pub dataset_verified: bool,
     pub prompt_revision: String,
     #[serde(default = "default_provider")]
     pub provider: String,
@@ -132,6 +135,7 @@ impl Default for EvalReport {
             dataset: "datamonsterr/duolify-golden".to_string(),
             dataset_revision: "pinned".to_string(),
             dataset_source: "fixture".to_string(),
+            dataset_verified: false,
             prompt_revision: "head".to_string(),
             provider: "mock".to_string(),
             budget_usd: None,
@@ -148,6 +152,9 @@ impl Default for EvalReport {
 }
 
 pub fn check_promotion_gate(report: &EvalReport) -> anyhow::Result<()> {
+    if !report.dataset_verified {
+        anyhow::bail!("promotion gate failed: dataset is unverified against a repo-pinned digest");
+    }
     if report.status != "passed" && report.status != "live" {
         anyhow::bail!(
             "promotion gate failed: report status is '{}', expected 'passed' or 'live'",
@@ -311,6 +318,46 @@ pub fn aggregate_task_reports(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn promotion_refuses_missing_or_false_dataset_verification() {
+        let mut report = EvalReport {
+            passed: true,
+            provider: "live".into(),
+            dataset_source: "mirror".into(),
+            dataset_revision: "0123456789abcdef0123456789abcdef01234567".into(),
+            ..Default::default()
+        };
+        for task in crate::tasks::CANONICAL_TASKS {
+            report.task_reports.insert(
+                task.into(),
+                TaskReport {
+                    task: task.into(),
+                    model: "recorded".into(),
+                    score: 1.0,
+                    threshold: 1.0,
+                    passed: true,
+                    critical_failure: false,
+                    total_cases: 1,
+                    passed_cases: 1,
+                    deterministic_score: 1.0,
+                    judge_score: None,
+                },
+            );
+        }
+        let mut json = serde_json::to_value(&report).unwrap();
+        for verified in [None, Some(false), Some(true)] {
+            json.as_object_mut().unwrap().remove("dataset_verified");
+            if let Some(value) = verified {
+                json["dataset_verified"] = value.into();
+            }
+            let parsed: EvalReport = serde_json::from_value(json.clone()).unwrap();
+            assert_eq!(
+                check_promotion_gate(&parsed).is_ok(),
+                verified == Some(true)
+            );
+        }
+    }
 
     #[test]
     fn threshold_boundaries_evaluate_correctly() {

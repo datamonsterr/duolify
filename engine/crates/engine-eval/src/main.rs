@@ -131,6 +131,7 @@ async fn main() -> Result<()> {
                 dataset,
                 dataset_revision: "none".to_string(),
                 dataset_source: "none".to_string(),
+                dataset_verified: false,
                 prompt_revision: std::env::var("PROMPT_REVISION")
                     .unwrap_or_else(|_| "git-head".to_string()),
                 provider: "none".to_string(),
@@ -190,6 +191,7 @@ async fn main() -> Result<()> {
                 dataset,
                 dataset_revision: "none".to_string(),
                 dataset_source: "none".to_string(),
+                dataset_verified: false,
                 prompt_revision: std::env::var("PROMPT_REVISION")
                     .unwrap_or_else(|_| "git-head".to_string()),
                 provider: "none".to_string(),
@@ -225,49 +227,63 @@ async fn main() -> Result<()> {
         }
     }
 
-    let (data, dataset_name, dataset_revision, dataset_source) = if let Some(path) = custom_data {
-        let content = std::fs::read_to_string(&path)
-            .with_context(|| format!("failed to read custom data file at {path}"))?;
-        (content, path, "custom".to_string(), "custom".to_string())
-    } else if offline {
-        let path = root.join("fixtures/golden.sample.jsonl");
-        let content = std::fs::read_to_string(&path)
-            .with_context(|| format!("failed to read sample fixtures at {:?}", path))?;
-        (
-            content,
-            "evals/fixtures/golden.sample.jsonl".to_string(),
-            "sample".to_string(),
-            "fixture".to_string(),
-        )
-    } else {
-        let dataset = std::env::var("HF_GOLDEN_DATASET")
-            .unwrap_or_else(|_| "datamonsterr/duolify-golden".into());
-        let revision = std::env::var("HF_GOLDEN_REVISION")
-            .context("HF_GOLDEN_REVISION must be set for live evaluation")?;
-        if !is_pinned_commit(&revision) {
-            bail!("dataset revision must be a pinned 40-character commit hash: '{revision}'");
-        }
-        let token = std::env::var("HF_TOKEN").unwrap_or_default();
-        let cache_dir = std::env::var("EVAL_CACHE_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| root.join(".cache"));
-        let base_url =
-            std::env::var("HF_BASE_URL").unwrap_or_else(|_| "https://huggingface.co".to_string());
-        let mirror_url = std::env::var("HF_GOLDEN_MIRROR_URL")
-            .or_else(|_| std::env::var("GOLDEN_MIRROR_URL"))
-            .ok();
+    let (data, dataset_name, dataset_revision, dataset_source, dataset_verified) =
+        if let Some(path) = custom_data {
+            let content = std::fs::read_to_string(&path)
+                .with_context(|| format!("failed to read custom data file at {path}"))?;
+            (
+                content,
+                path,
+                "custom".to_string(),
+                "custom".to_string(),
+                false,
+            )
+        } else if offline {
+            let path = root.join("fixtures/golden.sample.jsonl");
+            let content = std::fs::read_to_string(&path)
+                .with_context(|| format!("failed to read sample fixtures at {:?}", path))?;
+            (
+                content,
+                "evals/fixtures/golden.sample.jsonl".to_string(),
+                "sample".to_string(),
+                "fixture".to_string(),
+                false,
+            )
+        } else {
+            let dataset = std::env::var("HF_GOLDEN_DATASET")
+                .unwrap_or_else(|_| "datamonsterr/duolify-golden".into());
+            let revision = std::env::var("HF_GOLDEN_REVISION")
+                .context("HF_GOLDEN_REVISION must be set for live evaluation")?;
+            if !is_pinned_commit(&revision) {
+                bail!("dataset revision must be a pinned 40-character commit hash: '{revision}'");
+            }
+            let token = std::env::var("HF_TOKEN").unwrap_or_default();
+            let cache_dir = std::env::var("EVAL_CACHE_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| root.join(".cache"));
+            let base_url = std::env::var("HF_BASE_URL")
+                .unwrap_or_else(|_| "https://huggingface.co".to_string());
+            let mirror_url = std::env::var("HF_GOLDEN_MIRROR_URL")
+                .or_else(|_| std::env::var("GOLDEN_MIRROR_URL"))
+                .ok();
 
-        let fetched = fetch_dataset_with_mirror(
-            &base_url,
-            mirror_url.as_deref(),
-            &dataset,
-            &revision,
-            &token,
-            &cache_dir,
-        )
-        .await?;
-        (fetched.content, dataset, revision, fetched.source)
-    };
+            let fetched = fetch_dataset_with_mirror(
+                &base_url,
+                mirror_url.as_deref(),
+                &dataset,
+                &revision,
+                &token,
+                &cache_dir,
+            )
+            .await?;
+            (
+                fetched.content,
+                dataset,
+                revision,
+                fetched.source,
+                fetched.verified,
+            )
+        };
 
     let mut cases = Vec::new();
     for line in data.lines().filter(|l| !l.trim().is_empty()) {
@@ -328,6 +344,7 @@ async fn main() -> Result<()> {
     runner.dataset_name = dataset_name;
     runner.dataset_revision = dataset_revision;
     runner.dataset_source = dataset_source;
+    runner.dataset_verified = dataset_verified;
     runner.prompt_revision = prompt_rev;
     runner.budget_usd = budget;
 
