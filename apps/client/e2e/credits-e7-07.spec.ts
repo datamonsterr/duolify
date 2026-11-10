@@ -72,7 +72,7 @@ for (const [width, invoiceFirst] of [
       page.getByRole("link", { name: "Manage billing with Stripe" }),
     ).toBeVisible();
     const tokens = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("duolify.auth")!),
+      JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!),
     );
     const wallet = await (
       await request.get(`${apiBase}/v1/me/credits`, {

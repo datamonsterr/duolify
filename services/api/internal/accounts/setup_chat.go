@@ -57,9 +57,23 @@ func (s *Service) handleSetupChat(w http.ResponseWriter, r *http.Request) {
 	if textLimit <= 0 {
 		textLimit = 2000
 	}
-	if err := decoder.Decode(&in); err != nil || (!in.Skipped && utf8.RuneCountInString(in.Answer) > textLimit) {
+	if err := decoder.Decode(&in); err != nil || (utf8.RuneCountInString(in.Answer) > textLimit) {
 		respond(w, http.StatusBadRequest, map[string]string{"error": "Invalid setup chat answer or length limit exceeded."})
 		return
+	}
+
+	if in.Draft != nil {
+		for _, field := range []struct {
+			value string
+			limit int
+		}{
+			{in.Draft.Goal, textLimit}, {in.Draft.Topic, textLimit}, {in.Draft.Background, textLimit}, {in.Draft.Level, 64}, {in.Draft.Locale, 64}, {in.Draft.TimeZone, 64}, {in.Draft.ReminderTime, 5},
+		} {
+			if !utf8.ValidString(field.value) || utf8.RuneCountInString(field.value) > field.limit {
+				respond(w, 400, map[string]string{"error": "Invalid setup chat draft or length limit exceeded."})
+				return
+			}
+		}
 	}
 
 	validSteps := map[string]bool{

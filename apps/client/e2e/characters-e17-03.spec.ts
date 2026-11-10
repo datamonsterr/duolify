@@ -12,7 +12,7 @@ for (const mobile of [false, true]) {
     await page.goto("/settings/characters");
     const token = await page.evaluate(
       () =>
-        JSON.parse(sessionStorage.getItem("duolify.auth")!)
+        JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!)
           .access_token as string,
     );
     const headers = { Authorization: `Bearer ${token}` };

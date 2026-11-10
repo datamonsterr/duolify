@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./native-store-fixture";
 import { apiBase, resetAuthRateLimits, webBase } from "./servers";
 import type { Tokens } from "../src/features/accounts/secure-store";
 
@@ -58,7 +58,10 @@ for (const width of [1280, 390]) {
         ).toBe(204);
       }
       await context.addInitScript((value) => {
-        sessionStorage.setItem("duolify.auth", JSON.stringify(value));
+        sessionStorage.setItem(
+          "duolify.native-store-fixture",
+          JSON.stringify(value),
+        );
       }, tokens);
       await page.setViewportSize({ width, height: 900 });
       const wallets = await Promise.all(

@@ -18,7 +18,9 @@ for (const width of [1280, 390]) {
 
     await page.goto("/profile");
     const token = await page.evaluate(
-      () => JSON.parse(sessionStorage.getItem("duolify.auth")!).access_token,
+      () =>
+        JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!)
+          .access_token,
     );
     const headers = { Authorization: `Bearer ${token}` };
     const seed = await request.post(`${apiBase}/test/player/fixture`, {

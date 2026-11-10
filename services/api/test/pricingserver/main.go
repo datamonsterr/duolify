@@ -5,6 +5,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/hkdf"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -92,6 +94,9 @@ func run() (result error) {
 	}
 	if os.Getenv("AUTH_CODE_REQUESTS_PER_EMAIL_PER_HOUR") == "" {
 		rateLimits.RequestEmail = 100000
+	}
+	if os.Getenv("AUTH_CODE_DELIVERIES_PER_EMAIL_PER_HOUR") == "" {
+		rateLimits.DeliveryEmail = 100000
 	}
 	if os.Getenv("AUTH_CODE_VERIFICATIONS_PER_IP_PER_HOUR") == "" {
 		rateLimits.VerifyIP = 100000
@@ -382,7 +387,12 @@ func run() (result error) {
 			return
 		}
 		claims.ExpiresAt = jwt.NewNumericDate(time.Now().Add(-time.Minute))
-		raw, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("test-only-signing-key-at-least-32-bytes"))
+		signingKey, keyErr := hkdf.Key(sha256.New, []byte("test-only-signing-key-at-least-32-bytes"), nil, "duolify/auth/v1/jwt", 32)
+		if keyErr != nil {
+			http.Error(w, "test signing key unavailable", 500)
+			return
+		}
+		raw, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(signingKey)
 		if err != nil {
 			w.WriteHeader(500)
 			return

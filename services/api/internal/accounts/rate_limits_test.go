@@ -17,6 +17,7 @@ func TestRateLimitsFromEnvRejectsInvalidValues(t *testing.T) {
 		"AUTH_CODE_REQUESTS_PER_IP_PER_HOUR",
 		"AUTH_CODE_REQUESTS_PER_EMAIL_PER_HOUR",
 		"AUTH_CODE_VERIFICATIONS_PER_IP_PER_HOUR",
+		"AUTH_CODE_DELIVERIES_PER_EMAIL_PER_HOUR",
 	} {
 		for _, value := range []string{"0", "-1", "-100", "many", "1.5", "abc"} {
 			t.Run(envVar+"="+value, func(t *testing.T) {
@@ -31,6 +32,32 @@ func TestRateLimitsFromEnvRejectsInvalidValues(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestTrustedProxyHopConfiguration(t *testing.T) {
+	for _, raw := range []string{"-1", "33", "one", "1.5"} {
+		if _, err := RateLimitsFromEnv(func(key string) string {
+			if key == "AUTH_TRUSTED_PROXY_HOPS" {
+				return raw
+			}
+			return ""
+		}); err == nil {
+			t.Errorf("accepted invalid trusted-hop count %q", raw)
+		}
+	}
+	limits, err := RateLimitsFromEnv(func(key string) string {
+		switch key {
+		case "AUTH_TRUSTED_PROXY_HOPS":
+			return "2"
+		case "AUTH_CODE_DELIVERIES_PER_EMAIL_PER_HOUR":
+			return "15"
+		default:
+			return ""
+		}
+	})
+	if err != nil || limits.TrustedProxyHops != 2 || limits.DeliveryEmail != 15 {
+		t.Fatalf("configured limits: %+v, %v", limits, err)
 	}
 }
 

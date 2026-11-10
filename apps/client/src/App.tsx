@@ -11,6 +11,7 @@ import {
   RouterProvider,
   Outlet,
   useLocation,
+  useNavigate,
   useParams,
   useSearch,
   type RouterHistory,
@@ -260,8 +261,12 @@ const lessonTest = createRoute({
 const signIn = createRoute({
   getParentRoute: () => root,
   path: "/sign-in",
-  component: SignIn,
+  component: SignInRoute,
 });
+function SignInRoute() {
+  const navigate = useNavigate();
+  return <SignIn onSignedIn={(path) => void navigate({ to: path })} />;
+}
 export const createAppRouter = (history?: RouterHistory) =>
   createRouter({
     history,

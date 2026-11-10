@@ -78,3 +78,25 @@ func TestMiddleware(t *testing.T) {
 		})
 	}
 }
+
+func TestProductionCORSAndUnknownRouteFailClosed(t *testing.T) {
+	for _, environment := range []string{"", "production", "staging"} {
+		t.Setenv("DUOLIFY_ENV", environment)
+		router := New(Dependencies{}, slog.Default())
+		for _, origin := range []string{"http://localhost:1420", "http://127.0.0.1:1420"} {
+			r := httptest.NewRequestWithContext(t.Context(), "GET", "/healthz", nil)
+			r.Header.Set("Origin", origin)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r)
+			if w.Code != 403 {
+				t.Errorf("%q origin %q got %d", environment, origin, w.Code)
+			}
+		}
+		r := httptest.NewRequestWithContext(t.Context(), "GET", "/v1/future-private-route", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+		if w.Code != 401 {
+			t.Errorf("unguarded unknown route: %d", w.Code)
+		}
+	}
+}

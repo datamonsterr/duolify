@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -201,6 +202,9 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.Exec(ctx, "INSERT INTO posthog_person_deletion_requests(distinct_id) VALUES($1::uuid) ON CONFLICT DO NOTHING", learner)
 	}
 	if err == nil {
+		err = s.clearEmailAuthentication(ctx, tx, learner)
+	}
+	if err == nil {
 		_, err = tx.Exec(ctx, "DELETE FROM learners WHERE id=$1", id)
 	}
 	if err == nil {
@@ -284,4 +288,37 @@ func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
 		}
 	}
 	return tx.Commit(ctx)
+}
+
+// clearEmailAuthentication erases pending codes and email-linked throttle hashes
+// before identity cascades remove the email. Shared IP budgets stay intact.
+func (s *Service) clearEmailAuthentication(ctx context.Context, tx pgx.Tx, learner string) error {
+	rows, err := tx.Query(ctx, "SELECT email FROM auth_identities WHERE learner_id=$1::uuid", learner)
+	if err != nil {
+		return err
+	}
+	var emails []string
+	for rows.Next() {
+		var email string
+		if err = rows.Scan(&email); err != nil {
+			rows.Close()
+			return err
+		}
+		emails = append(emails, email)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, email := range emails {
+		if _, err = tx.Exec(ctx, "DELETE FROM auth_codes WHERE email=$1", email); err != nil {
+			return err
+		}
+		// Per-email/IP keys are registered alongside their email-wide delivery key.
+		if _, err = tx.Exec(ctx, "DELETE FROM auth_rate_limits WHERE key_hash=$1 OR email_hash=$1", keyedHash(s.rateKey, "delivery-email:"+email)); err != nil {
+			return err
+		}
+	}
+	return nil
 }

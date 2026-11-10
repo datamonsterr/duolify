@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./native-store-fixture";
 import { apiBase, resetAuthRateLimits } from "./servers";
 
 test.use({ hasTouch: true });

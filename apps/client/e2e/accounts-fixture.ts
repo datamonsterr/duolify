@@ -1,5 +1,5 @@
 import { apiBase, resetAuthRateLimits } from "./servers";
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect } from "./native-store-fixture";
 import type { Tokens } from "../src/features/accounts/secure-store";
 let tokens: Tokens | undefined;
 export function resetTokens() {
@@ -10,7 +10,7 @@ export const test = base.extend<{ authenticated: void }>({
     async ({ context, request, page }, use) => {
       await resetAuthRateLimits(request);
       if (!tokens) {
-        const email = `browser-${Date.now()}@example.test`;
+        const email = `browser-${crypto.randomUUID()}@example.test`;
         expect(
           (
             await request.post(apiBase + "/v1/auth/code", {
@@ -28,7 +28,10 @@ export const test = base.extend<{ authenticated: void }>({
         tokens = (await response.json()) as Tokens;
       }
       await context.addInitScript((value) => {
-        sessionStorage.setItem("duolify.auth", JSON.stringify(value));
+        sessionStorage.setItem(
+          "duolify.native-store-fixture",
+          JSON.stringify(value),
+        );
       }, tokens);
       await page.route(/\/v1\/(auth\/|me(?:\/|$|\?))/, async (route) => {
         const original = route.request();
