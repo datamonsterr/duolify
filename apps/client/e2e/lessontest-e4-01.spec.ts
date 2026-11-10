@@ -219,9 +219,9 @@ for (const mobile of [false, true]) {
     await expect(
       page.getByRole("button", { name: "Finish lesson" }),
     ).not.toBeVisible();
-    const takeTestButton = page.getByRole("button", {
-      name: /Take lesson test/i,
-    });
+    const takeTestButton = page
+      .getByRole("button", { name: /Take lesson test/i })
+      .or(page.getByRole("link", { name: /Take lesson test/i }));
     await expect(takeTestButton).toBeVisible();
 
     // 3. Click Take lesson test

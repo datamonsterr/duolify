@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { playerManifest } from "../src/mocks/player";
 import { expect, test, type Page } from "@playwright/test";
 async function seedLocalizedAccount(page: Page, locale = "en") {
   await page.addInitScript(() =>
@@ -135,6 +137,21 @@ test("real lesson preserves position, note and static explanation through prefer
   page,
 }) => {
   await seedLocalizedAccount(page);
+  await page.route("**/v1/lessons/sky/manifest", (route) =>
+    route.fulfill({ json: playerManifest() }),
+  );
+  await page.route("**/v1/lessons/sky/slides/*", (route) => {
+    const number = Number(route.request().url().split("sky-").pop());
+    const name = ["one", "two", "three"][number - 1];
+    const html = readFileSync(
+      new URL(
+        `../../../services/api/internal/player/playerfixture/slides/${name}.html`,
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    return route.fulfill({ json: { html } });
+  });
   await page.goto("/lesson/sky");
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await expect(page.getByText("Slide 2 of 3", { exact: true })).toBeVisible();
@@ -154,6 +171,10 @@ test("real lesson preserves position, note and static explanation through prefer
   await expect(
     slide.getByText("Stars are distant suns, shining across space."),
   ).toBeVisible();
+  // Playback stays paused until the panel closes and the learner presses Play.
+  await page
+    .getByRole("button", { name: "Close Quick note", exact: true })
+    .click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect(slide.locator(".star")).toHaveCSS("animation-name", "none");
   await expect(page).toHaveURL(/\/lesson\/sky$/);

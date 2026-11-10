@@ -73,7 +73,9 @@ func (c *client) Close() error {
 
 func allowlisted(event string) bool {
 	switch event {
-	case "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
+	case "slide_viewed", "slide_replayed", "slide_paused":
+		return true
+	case "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "lesson_test_recap_shown",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
@@ -179,6 +181,23 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "slide_viewed", "slide_replayed", "slide_paused":
+		ids("lesson_id", "slide_id")
+		numeric("index")
+		if event == "slide_viewed" {
+			numeric("watch_ms")
+			boolean("offline")
+		}
+	case "lesson_started":
+		ids("lesson_id", "course_id")
+	case "lesson_player_error":
+		ids("lesson_id", "slide_id")
+		if code, ok := input["error_code"].(string); ok {
+			switch code {
+			case "manifest_unavailable", "document_unavailable", "invalid_manifest", "document_timeout", "offline", "position_unavailable", "offline_uncached", "cache_unavailable", "checksum_mismatch", "asset_unavailable", "slide_failure", "subscription_required", "download_failed":
+				out["error_code"] = code
+			}
+		}
 	case "course_outline_generated", "course_enrolled":
 		ids("course_id", "provider", "model")
 		numeric("unit_count", "lesson_count", "latency_ms")
@@ -216,6 +235,10 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("proposal_id")
 		numeric("base_revision")
 	case "course_preview_requested", "course_preview_viewed", "course_generation_failed":
+		if event == "course_preview_viewed" && input["preview_kind"] == "shared_demo" {
+			out["preview_kind"] = "shared_demo"
+			ids("demo_version")
+		}
 		numeric("topic_length", "duration_ms")
 		boolean("has_profile")
 		ids("stage", "error_code", "preview_id")
