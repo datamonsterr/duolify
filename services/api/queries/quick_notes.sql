@@ -85,7 +85,7 @@ SET status = $2,
     reservation_id = $3,
     quote_id = $4,
     updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND learner_id = $5
 RETURNING id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, reviewed_at, version, raw_version, reservation_id, quote_id, created_at, updated_at;
 
 -- name: ListPendingNotesForLearner :many
@@ -98,7 +98,7 @@ FOR UPDATE SKIP LOCKED;
 -- name: GetQuickNoteForUpdate :one
 SELECT id, learner_id, course_id, lesson_id, slide_title, raw_text, status, raw_version, version, reservation_id, quote_id
 FROM quick_notes
-WHERE id = $1
+WHERE id = $1 AND learner_id = $2
 FOR UPDATE;
 
 -- name: ListCourseLessonsForCourse :many

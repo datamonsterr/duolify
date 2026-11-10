@@ -208,6 +208,7 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 	}
 	if s.riverClient != nil {
 		_, _ = s.riverClient.Insert(ctx, NoteEnrichArgs{
+			LearnerID:       learnerID,
 			NoteID:          formatUUID(note.ID),
 			ExpectedVersion: int(note.RawVersion),
 		}, &river.InsertOpts{
@@ -296,6 +297,7 @@ func (s *Service) UpdateNoteRawText(ctx context.Context, learnerID, noteID, rawT
 
 	if s.riverClient != nil {
 		_, _ = s.riverClient.Insert(ctx, NoteEnrichArgs{
+			LearnerID:       learnerID,
 			NoteID:          noteID,
 			ExpectedVersion: int(res.RawVersion),
 		}, &river.InsertOpts{
@@ -322,7 +324,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		if strings.HasSuffix(path, "/enrich") {
 			noteID := strings.TrimSuffix(path, "/enrich")
-			_ = s.ProcessEnrichment(r.Context(), noteID)
+			if err := s.ProcessEnrichment(r.Context(), learnerID, noteID); err != nil {
+				if errors.Is(err, ErrNotFound) {
+					respondError(w, http.StatusNotFound, "note not found")
+				} else {
+					respondError(w, http.StatusInternalServerError, "failed to enrich note")
+				}
+				return
+			}
 			refreshed, err := s.GetNote(r.Context(), learnerID, noteID)
 			if err != nil {
 				respondError(w, http.StatusNotFound, "note not found")

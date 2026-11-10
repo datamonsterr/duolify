@@ -266,7 +266,7 @@ func TestResumePendingEnrichmentWhenCreditsArriveIntegration(t *testing.T) {
 		_ = creditsSvc.InvalidateCache(ctx, learnerID)
 
 		// Attempt enrichment with stale expected version 1
-		err = notesSvc.ProcessEnrichmentWithVersion(ctx, noteC.ID, 1)
+		err = notesSvc.ProcessEnrichmentWithVersion(ctx, learnerID, noteC.ID, 1)
 		// Should fail or safely terminate because raw version is now 2
 		if err == nil {
 			t.Fatal("expected stale version to be rejected")
@@ -295,7 +295,7 @@ func TestResumePendingEnrichmentWhenCreditsArriveIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_ = notesSvc.ProcessEnrichment(ctx, noteD.ID)
+		_ = notesSvc.ProcessEnrichment(ctx, learnerID, noteD.ID)
 
 		refreshedD, err := notesSvc.GetNote(ctx, learnerID, noteD.ID)
 		if err != nil {
@@ -322,7 +322,7 @@ func TestResumePendingEnrichmentWhenCreditsArriveIntegration(t *testing.T) {
 		}
 
 		// Enrich once
-		err = notesSvc.ProcessEnrichment(ctx, noteE.ID)
+		err = notesSvc.ProcessEnrichment(ctx, learnerID, noteE.ID)
 		if err != nil {
 			t.Fatalf("initial enrichment failed: %v", err)
 		}
@@ -337,7 +337,7 @@ func TestResumePendingEnrichmentWhenCreditsArriveIntegration(t *testing.T) {
 		_ = database.Pool.QueryRow(ctx, "SELECT count(*) FROM credit_jobs WHERE learner_id=$1", learnerID).Scan(&reservationsBefore)
 
 		// Retry without editing raw text
-		err = notesSvc.ProcessEnrichment(ctx, noteE.ID)
+		err = notesSvc.ProcessEnrichment(ctx, learnerID, noteE.ID)
 		if err != nil {
 			t.Fatalf("retry on delivered note returned error: %v", err)
 		}

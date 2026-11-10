@@ -192,7 +192,7 @@ func TestEnrichNotesWithGroundedSummariesAndTagsIntegration(t *testing.T) {
 	}
 
 	// 2. Process enrichment job
-	err = notesService.ProcessEnrichment(ctx, savedNote.ID)
+	err = notesService.ProcessEnrichment(ctx, learnerID, savedNote.ID)
 	if err != nil {
 		t.Fatalf("ProcessEnrichment failed: %v", err)
 	}
@@ -270,7 +270,7 @@ func TestEnrichNotesWithGroundedSummariesAndTagsIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_ = notesService.ProcessEnrichment(ctx, failingNote.ID)
+	_ = notesService.ProcessEnrichment(ctx, learnerID, failingNote.ID)
 
 	refreshedFailing, err := notesService.GetNote(ctx, learnerID, failingNote.ID)
 	if err != nil {

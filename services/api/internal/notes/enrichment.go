@@ -127,6 +127,7 @@ func EmitQuickNoteEnrichmentFailed(events analytics.Events, learnerID, noteID, r
 // NoteEnrichArgs contains the queue payload for enriching a note asynchronously.
 type NoteEnrichArgs struct {
 	NoteID          string `json:"note_id"`
+	LearnerID       string `json:"learner_id"`
 	ExpectedVersion int    `json:"expected_version,omitempty"`
 }
 
@@ -141,7 +142,7 @@ type NoteEnrichWorker struct {
 
 // Work implements the River worker interface.
 func (w *NoteEnrichWorker) Work(ctx context.Context, j *river.Job[NoteEnrichArgs]) error {
-	err := w.service.ProcessEnrichmentWithVersion(ctx, j.Args.NoteID, j.Args.ExpectedVersion)
+	err := w.service.ProcessEnrichmentWithVersion(ctx, j.Args.LearnerID, j.Args.NoteID, j.Args.ExpectedVersion)
 	if err != nil && (errors.Is(err, credits.ErrInsufficient) || errors.Is(err, ErrStaleVersion)) {
 		return nil
 	}
@@ -166,13 +167,18 @@ func (s *Service) NotesQueue(logger *slog.Logger) (*river.Client[pgx.Tx], error)
 }
 
 // ProcessEnrichment processes credit reservation, engine gRPC invocation, grounded link filtering, and settlement.
-func (s *Service) ProcessEnrichment(ctx context.Context, noteID string) error {
-	return s.ProcessEnrichmentWithVersion(ctx, noteID, 0)
+func (s *Service) ProcessEnrichment(ctx context.Context, learnerID, noteID string) error {
+	return s.ProcessEnrichmentWithVersion(ctx, learnerID, noteID, 0)
 }
 
 // ProcessEnrichmentWithVersion processes credit reservation and AI enrichment while ensuring raw_version integrity.
-func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, noteID string, expectedVersion int) error {
+func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, noteID string, expectedVersion int) error {
 	noteUUID, err := parseUUID(noteID)
+	if err != nil {
+		return ErrNotFound
+	}
+
+	learnerUUID, err := parseUUID(learnerID)
 	if err != nil {
 		return ErrNotFound
 	}
@@ -191,8 +197,8 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, noteID strin
 	err = s.pool.QueryRow(ctx, `
 		SELECT id, learner_id, course_id, lesson_id, slide_title, raw_text, status, raw_version
 		FROM quick_notes
-		WHERE id = $1
-	`, noteUUID).Scan(
+		WHERE id = $1 AND learner_id = $2
+	`, noteUUID, learnerUUID).Scan(
 		&note.ID,
 		&note.LearnerID,
 		&note.CourseID,
@@ -254,6 +260,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, noteID strin
 	// Update status to enriching
 	_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
 		ID:            noteUUID,
+		LearnerID:     learnerUUID,
 		Status:        "enriching",
 		ReservationID: resUUID,
 		QuoteID:       quoteUUID,
@@ -264,6 +271,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, noteID strin
 		_, _ = s.credits.Release(ctx, learnerIDStr, res.ID)
 		_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
 			ID:            noteUUID,
+			LearnerID:     learnerUUID,
 			Status:        "enrichment_failed",
 			ReservationID: pgtype.UUID{},
 			QuoteID:       pgtype.UUID{},
@@ -313,6 +321,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, noteID strin
 		_, _ = s.credits.Release(ctx, learnerIDStr, res.ID)
 		_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
 			ID:            noteUUID,
+			LearnerID:     learnerUUID,
 			Status:        "enrichment_failed",
 			ReservationID: pgtype.UUID{},
 			QuoteID:       pgtype.UUID{},
@@ -353,6 +362,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, noteID strin
 		_, _ = s.credits.Settle(ctx, learnerIDStr, res.ID, nil)
 		_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
 			ID:            noteUUID,
+			LearnerID:     learnerUUID,
 			Status:        "enrichment_failed",
 			ReservationID: pgtype.UUID{},
 			QuoteID:       pgtype.UUID{},
@@ -378,6 +388,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, noteID strin
 		_, _ = s.credits.Settle(ctx, learnerIDStr, res.ID, nil)
 		_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
 			ID:            noteUUID,
+			LearnerID:     learnerUUID,
 			Status:        "enrichment_failed",
 			ReservationID: pgtype.UUID{},
 			QuoteID:       pgtype.UUID{},
@@ -398,7 +409,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, noteID strin
 
 	// Check if raw note was modified while engine was running
 	var currentVersion int32
-	_ = s.pool.QueryRow(ctx, "SELECT raw_version FROM quick_notes WHERE id = $1", noteUUID).Scan(&currentVersion)
+	_ = s.pool.QueryRow(ctx, "SELECT raw_version FROM quick_notes WHERE id = $1 AND learner_id = $2", noteUUID, learnerUUID).Scan(&currentVersion)
 	if currentVersion != note.RawVersion {
 		return ErrStaleVersion
 	}
@@ -420,6 +431,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, noteID strin
 
 	_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
 		ID:            noteUUID,
+		LearnerID:     learnerUUID,
 		Status:        "enriched",
 		ReservationID: resUUID,
 		QuoteID:       quoteUUID,
@@ -486,15 +498,15 @@ func (s *Service) ResumePendingEnrichments(ctx context.Context, learnerID string
 		noteIDStr := formatUUID(noteID)
 
 		// Process enrichment
-		enrichErr := s.ProcessEnrichmentWithVersion(ctx, noteIDStr, int(rawVersion))
+		enrichErr := s.ProcessEnrichmentWithVersion(ctx, learnerID, noteIDStr, int(rawVersion))
 		if enrichErr != nil {
 			if errors.Is(enrichErr, credits.ErrInsufficient) {
 				// Reset back to enrichment_pending
 				_, _ = s.pool.Exec(ctx, `
 					UPDATE quick_notes
 					SET status = 'enrichment_pending', updated_at = now()
-					WHERE id = $1 AND status = 'enriching'
-				`, noteID)
+					WHERE id = $1 AND learner_id = $2 AND status = 'enriching'
+				`, noteID, learnerUUID)
 				// Budget exhausted
 				break
 			}

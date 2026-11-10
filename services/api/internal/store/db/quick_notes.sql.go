@@ -237,9 +237,14 @@ func (q *Queries) GetQuickNoteByID(ctx context.Context, arg GetQuickNoteByIDPara
 const getQuickNoteForUpdate = `-- name: GetQuickNoteForUpdate :one
 SELECT id, learner_id, course_id, lesson_id, slide_title, raw_text, status, raw_version, version, reservation_id, quote_id
 FROM quick_notes
-WHERE id = $1
+WHERE id = $1 AND learner_id = $2
 FOR UPDATE
 `
+
+type GetQuickNoteForUpdateParams struct {
+	ID        pgtype.UUID `json:"id"`
+	LearnerID pgtype.UUID `json:"learner_id"`
+}
 
 type GetQuickNoteForUpdateRow struct {
 	ID            pgtype.UUID `json:"id"`
@@ -255,8 +260,8 @@ type GetQuickNoteForUpdateRow struct {
 	QuoteID       pgtype.UUID `json:"quote_id"`
 }
 
-func (q *Queries) GetQuickNoteForUpdate(ctx context.Context, id pgtype.UUID) (GetQuickNoteForUpdateRow, error) {
-	row := q.db.QueryRow(ctx, getQuickNoteForUpdate, id)
+func (q *Queries) GetQuickNoteForUpdate(ctx context.Context, arg GetQuickNoteForUpdateParams) (GetQuickNoteForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getQuickNoteForUpdate, arg.ID, arg.LearnerID)
 	var i GetQuickNoteForUpdateRow
 	err := row.Scan(
 		&i.ID,
@@ -698,7 +703,7 @@ SET status = $2,
     reservation_id = $3,
     quote_id = $4,
     updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND learner_id = $5
 RETURNING id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, reviewed_at, version, raw_version, reservation_id, quote_id, created_at, updated_at
 `
 
@@ -707,6 +712,7 @@ type UpdateQuickNoteStatusParams struct {
 	Status        string      `json:"status"`
 	ReservationID pgtype.UUID `json:"reservation_id"`
 	QuoteID       pgtype.UUID `json:"quote_id"`
+	LearnerID     pgtype.UUID `json:"learner_id"`
 }
 
 type UpdateQuickNoteStatusRow struct {
@@ -736,6 +742,7 @@ func (q *Queries) UpdateQuickNoteStatus(ctx context.Context, arg UpdateQuickNote
 		arg.Status,
 		arg.ReservationID,
 		arg.QuoteID,
+		arg.LearnerID,
 	)
 	var i UpdateQuickNoteStatusRow
 	err := row.Scan(

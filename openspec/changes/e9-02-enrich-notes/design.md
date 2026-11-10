@@ -71,3 +71,7 @@ E9-01 implemented raw quick note capture and offline synchronization. E9-02 impl
 - Never include raw note text or AI summary in PostHog payloads.
 - Update `ClassifiedLearnerTables` and `exportAccountData` in `services/api/internal/accounts/privacy.go` to include `quick_note_enrichments`.
 - Update backup fixture in `services/api/internal/backuptest/fixture.go` and `docs/data-inventory.md`.
+## Review corrections: learner ownership
+
+Enrichment entry points and River payloads carry the authenticated learner ID. Reads, status updates and locking reads require both note and learner IDs; a foreign note returns 404 before creating a quote or reservation. Legacy jobs without a learner ID fail closed. This preserves the existing backup inventory, analytics privacy policy and mock-provider reliability coverage.
+
