@@ -15,6 +15,7 @@ Operating AI generation at scale requires continuous visibility into model relia
 - Add `ai_cost_budget_alert` (with `scope`, `actual_usd`, and `budget_usd`) alongside `$ai_generation` and `eval_run_completed` to the API analytics allowlist and catalogue.
 - Preserve independent server operational counters and ensure operational enforcement continues when analytics is unavailable or a learner opts out.
 - Persist operational aggregates, alert configurations, and evaluation reports in Postgres dumps with reports retained for 90 days.
+- Require authenticated admin access for every eval dashboard, alert list, and report list, using the pricing admin grant and recent-authentication policy. Restrict report ingest to a separate service bearer token, disable it when unconfigured, cap bodies at 1 MiB, and log internal errors while returning generic HTTP 500 responses (issue #160, defect 1).
 
 ## Impact
 Touches API eval and telemetry services, database migrations and sqlc queries, analytics allowlist, and data inventory documentation. No new AI model behaviors or changes to existing evaluation gates.

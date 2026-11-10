@@ -2,14 +2,21 @@ package eval
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"math"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store/db"
@@ -207,24 +214,26 @@ type AlertResult struct {
 
 // Service provides dashboard aggregations, alert evaluation, and report persistence.
 type Service struct {
-	pool      *pgxpool.Pool
-	queries   *db.Queries
-	catalogue *pricing.Catalogue
-	monitor   *telemetry.Monitor
-	events    analytics.Events
-	mu        sync.Mutex
-	dedupe    map[string]time.Time
+	pool               *pgxpool.Pool
+	queries            *db.Queries
+	catalogue          *pricing.Catalogue
+	monitor            *telemetry.Monitor
+	events             analytics.Events
+	mu                 sync.Mutex
+	dedupe             map[string]time.Time
+	reportServiceToken string
 }
 
 // NewService constructs a new eval Service.
 func NewService(pool *pgxpool.Pool, catalogue *pricing.Catalogue, monitor *telemetry.Monitor, events analytics.Events) *Service {
 	return &Service{
-		pool:      pool,
-		queries:   db.New(pool),
-		catalogue: catalogue,
-		monitor:   monitor,
-		events:    events,
-		dedupe:    make(map[string]time.Time),
+		pool:               pool,
+		queries:            db.New(pool),
+		catalogue:          catalogue,
+		monitor:            monitor,
+		events:             events,
+		dedupe:             make(map[string]time.Time),
+		reportServiceToken: os.Getenv("EVAL_REPORT_SERVICE_TOKEN"),
 	}
 }
 
@@ -599,14 +608,41 @@ func (s *Service) GetDashboards(ctx context.Context) (Dashboards, error) {
 // ServeHTTP handles HTTP routes under /v1/eval/.
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	path := strings.TrimPrefix(r.URL.Path, "/v1/eval")
 	path = strings.TrimPrefix(path, "/")
+	if path == "reports" && r.Method == http.MethodPost {
+		token, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		provided := sha256.Sum256([]byte(token))
+		expected := sha256.Sum256([]byte(s.reportServiceToken))
+		matches := subtle.ConstantTimeCompare(provided[:], expected[:])
+		if s.reportServiceToken == "" || !bearer || matches != 1 {
+			respondJSON(w, http.StatusUnauthorized, map[string]string{"error": "service token required"})
+			return
+		}
+	} else {
+		actor := accounts.LearnerID(r.Context())
+		if actor == "" {
+			respondJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})
+			return
+		}
+		admin, err := pricing.HasAdminAccess(r.Context(), s.pool, actor, accounts.SessionID(r.Context()))
+		if err != nil {
+			internalError(w, r, err)
+			return
+		}
+		if !admin {
+			respondJSON(w, http.StatusForbidden, map[string]string{"error": "administrator access required"})
+			return
+		}
+	}
 
 	switch {
 	case path == "dashboards" && r.Method == http.MethodGet:
 		d, err := s.GetDashboards(r.Context())
 		if err != nil {
-			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			internalError(w, r, err)
 			return
 		}
 		respondJSON(w, http.StatusOK, d)
@@ -614,7 +650,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case path == "dashboards/reliability" && r.Method == http.MethodGet:
 		d, err := s.GetDashboards(r.Context())
 		if err != nil {
-			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			internalError(w, r, err)
 			return
 		}
 		respondJSON(w, http.StatusOK, d.Reliability)
@@ -622,7 +658,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case path == "dashboards/cost" && r.Method == http.MethodGet:
 		d, err := s.GetDashboards(r.Context())
 		if err != nil {
-			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			internalError(w, r, err)
 			return
 		}
 		respondJSON(w, http.StatusOK, d.Cost)
@@ -630,20 +666,30 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case path == "alerts" && r.Method == http.MethodGet:
 		alerts, err := s.queries.ListRecentAlertEvents(r.Context(), 50)
 		if err != nil {
-			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			internalError(w, r, err)
 			return
 		}
 		respondJSON(w, http.StatusOK, alerts)
 
 	case path == "reports" && r.Method == http.MethodPost:
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			var oversized *http.MaxBytesError
+			if errors.As(err, &oversized) {
+				respondJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "report body too large"})
+			} else {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid report json"})
+			}
+			return
+		}
 		var rep Report
-		if err := json.NewDecoder(r.Body).Decode(&rep); err != nil {
+		if err := json.Unmarshal(body, &rep); err != nil {
 			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid report json"})
 			return
 		}
 		id, err := s.SaveReport(r.Context(), rep)
 		if err != nil {
-			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			internalError(w, r, err)
 			return
 		}
 		respondJSON(w, http.StatusCreated, map[string]string{"id": id})
@@ -651,7 +697,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case path == "reports" && r.Method == http.MethodGet:
 		reports, err := s.queries.ListEvalReports(r.Context(), 50)
 		if err != nil {
-			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			internalError(w, r, err)
 			return
 		}
 		respondJSON(w, http.StatusOK, reports)
@@ -659,6 +705,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		respondJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	}
+}
+
+func internalError(w http.ResponseWriter, r *http.Request, err error) {
+	slog.ErrorContext(r.Context(), "eval request failed", "method", r.Method, "path", r.URL.Path, "error", err)
+	respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 }
 
 func respondJSON(w http.ResponseWriter, code int, v any) {
