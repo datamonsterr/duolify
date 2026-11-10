@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -153,8 +154,7 @@ func (h *Handler) handleManifest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	lessonID := "fixture-lesson"
-	courseID := "c7222222-2222-4222-8222-222222222222"
+	var lessonID, courseID string
 
 	for i, part := range parts {
 		if part == "lessons" && i+1 < len(parts) {
@@ -165,11 +165,21 @@ func (h *Handler) handleManifest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if lessonID == "" || courseID == "" {
+		http.NotFound(w, r)
+		return
+	}
+
 	manifest, err := h.service.ProjectManifest(r.Context(), learnerID, courseID, lessonID)
 	if err != nil {
+		if errors.Is(err, ErrNotFound) || err.Error() == "not_found" {
+			http.NotFound(w, r)
+			return
+		}
+		slog.Error("manifest projection failed", "error", err, "course_id", courseID, "lesson_id", lessonID)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "manifest_unavailable"})
 		return
 	}
 

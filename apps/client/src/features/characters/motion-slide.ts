@@ -10,6 +10,17 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
+function escapeJsonForScript(data: unknown): string {
+  return JSON.stringify(data)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+const SLIDE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+
 export interface MotionSlideOptions {
   reducedMotion?: boolean;
   offline?: boolean;
@@ -60,9 +71,15 @@ export function generateMotionSlideHtml(
     duration_ms: 3000,
   };
 
-  const segmentsJson = JSON.stringify(slide.segments);
-  const guideSvgsJson = JSON.stringify(guideSvgs);
-  const supporterSvgsJson = JSON.stringify(supporterSvgs);
+  const safeSlideId =
+    typeof slide?.slide_id === "string" && SLIDE_ID_PATTERN.test(slide.slide_id)
+      ? slide.slide_id
+      : "fallback";
+
+  const segmentsJson = escapeJsonForScript(slide.segments);
+  const guideSvgsJson = escapeJsonForScript(guideSvgs);
+  const supporterSvgsJson = escapeJsonForScript(supporterSvgs);
+  const fallbackSvgJson = escapeJsonForScript(fallbackSvg);
 
   return `<!doctype html>
 <html>
@@ -208,7 +225,7 @@ export function generateMotionSlideHtml(
       const segments = ${segmentsJson};
       const guideSvgs = ${guideSvgsJson};
       const supporterSvgs = ${supporterSvgsJson};
-      const fallbackSvg = ${JSON.stringify(fallbackSvg)};
+      const fallbackSvg = ${fallbackSvgJson};
       const offline = ${offline ? "true" : "false"};
 
       let currentSegmentIndex = 0;
@@ -249,7 +266,7 @@ export function generateMotionSlideHtml(
             rig_version: "original-v1",
             expression: seg.expression,
             offline: offline,
-            slide_id: "${escapeHtml(slide.slide_id)}"
+            slide_id: "${safeSlideId}"
           }, "*");
         } catch(e) {}
       }
@@ -346,7 +363,7 @@ export function generateMotionSlideHtml(
           rig_version: "original-v1",
           expression: initialSegment.expression,
           offline: offline,
-          slide_id: "${escapeHtml(slide.slide_id)}"
+          slide_id: "${safeSlideId}"
         }, "*");
       } catch(e) {}
     </script>

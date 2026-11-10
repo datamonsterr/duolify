@@ -139,7 +139,7 @@ func run() (result error) {
 	mux := http.NewServeMux()
 	characterService := characters.NewService(db.Pool, nil, nil)
 	characterService.ConfigureScreening(characterScreenFixture{})
-	characterService.ConfigureCreation(creditService, characterMapFixture{}, "development")
+	characterService.ConfigureCreation(creditService, characterMapFixture{}, "development", true)
 	go characterService.Maintain(boot)
 	charHandler := characters.NewHandler(characterService)
 	mux.Handle("POST /test/characters/fund", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

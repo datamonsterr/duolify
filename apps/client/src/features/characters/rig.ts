@@ -14,7 +14,7 @@ export function compileRigSvg(
   expression: Expression = "idle",
 ): string {
   const validation = validateCharacterSpec(spec);
-  if (!validation.valid || spec.info?.name === "Safe Mascot") {
+  if (!validation.valid) {
     return getBundledFallbackSvg(expression);
   }
 

@@ -7,7 +7,7 @@ run = "pnpm exec playwright test e2e/characters-e17-03.spec.ts e2e/characters-e1
 
 ["api:test-characters-integration"]
 dir = "{{config_root}}/services/api"
-run = "gotestsum -- -race -count=1 -tags integration ./internal/characters/... -run 'TestPrivate|TestEdit|TestCharacterCreate'"
+run = "gotestsum -- -race -count=1 -tags integration ./internal/characters/..."
 
 ["api:test-characters"]
 dir = "{{config_root}}/services/api"

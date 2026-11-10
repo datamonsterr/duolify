@@ -11,6 +11,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -87,12 +89,33 @@ func TestCharacterCreateIdempotencyAtomicSettlementAndRestore(t *testing.T) {
 	mapper := new(createMapper)
 	s := characters.NewService(f.DB.Pool, f.ApplicationStorage(), f.Events())
 	s.ConfigureScreening(newScreeningRPC(t))
-	s.ConfigureCreation(wallet, newMappingRPC(t, mapper), "production")
+	// 1. Refuse unapproved creation in production even if flag is true
+	s.ConfigureCreation(wallet, newMappingRPC(t, mapper), "production", true)
 	in := characters.CreateRequest{RequestKey: "create-once", Prompt: "An original patient moon gardener"}
 	if _, err = s.QuoteCreate(ctx, owner, in); err == nil {
 		t.Fatal("unapproved production creation enabled")
 	}
-	s.ConfigureCreation(wallet, newMappingRPC(t, mapper), "development")
+
+	// 2. Refuse unapproved creation in development if flag is false
+	s.ConfigureCreation(wallet, newMappingRPC(t, mapper), "development", false)
+	if _, err = s.QuoteCreate(ctx, owner, in); err == nil {
+		t.Fatal("unapproved creation enabled with flag false")
+	}
+
+	// 3. Refuse unapproved creation in misspelled env even if flag is true
+	s.ConfigureCreation(wallet, newMappingRPC(t, mapper), "devlopment", true)
+	if _, err = s.QuoteCreate(ctx, owner, in); err == nil {
+		t.Fatal("unapproved creation enabled with misspelled env")
+	}
+
+	// 4. Refuse unapproved creation in empty env even if flag is true
+	s.ConfigureCreation(wallet, newMappingRPC(t, mapper), "", true)
+	if _, err = s.QuoteCreate(ctx, owner, in); err == nil {
+		t.Fatal("unapproved creation enabled with empty env")
+	}
+
+	// 5. Development with explicit flag true succeeds
+	s.ConfigureCreation(wallet, newMappingRPC(t, mapper), "development", true)
 	job, err := s.QuoteCreate(ctx, owner, in)
 	if err != nil {
 		t.Fatal(err)
@@ -147,7 +170,7 @@ func TestCharacterCreateIdempotencyAtomicSettlementAndRestore(t *testing.T) {
 		t.Fatal(e)
 	}
 	restoredWallet := credits.NewServiceWithCatalogue(restored.Pool, nil, restoredCatalogue, f.Events())
-	restoredService.ConfigureCreation(restoredWallet, newMappingRPC(t, mapper), "development")
+	restoredService.ConfigureCreation(restoredWallet, newMappingRPC(t, mapper), "development", true)
 	saved, err := restoredService.GetCreate(ctx, owner, job.ID)
 	if err != nil || saved.Character.ID != result.Character.ID {
 		t.Fatal("restored result lost", err)
@@ -208,7 +231,7 @@ func TestCharacterCreateGuardsAndCancellation(t *testing.T) {
 		mapper := new(createMapper)
 		s := characters.NewService(f.DB.Pool, nil, f.Events())
 		s.ConfigureScreening(newScreeningRPC(t))
-		s.ConfigureCreation(wallet, newMappingRPC(t, mapper), "test")
+		s.ConfigureCreation(wallet, newMappingRPC(t, mapper), "test", true)
 		return owner, s, mapper
 	}
 	quote := func(t *testing.T, s *characters.Service, owner, key, prompt string) characters.CreateJob {
@@ -406,6 +429,109 @@ func TestCharacterCreateGuardsAndCancellation(t *testing.T) {
 		var spent int64
 		if e = f.DB.Pool.QueryRow(ctx, `SELECT pricing_version,-sum(amount) FROM credit_entries WHERE learner_id=$1 AND kind='spend' GROUP BY pricing_version`, owner).Scan(&version, &spent); e != nil || version != j.Quote.PricingVersion || spent != j.Quote.ContentCeiling {
 			t.Fatal("repriced accepted quote", version, spent, e)
+		}
+	})
+
+	t.Run("failed tx in ConfirmCreate leaves no held reservation", func(t *testing.T) {
+		owner, s, _ := setup(t, true)
+		j := quote(t, s, owner, "tx-fail-job", "A moon gardener for tx failure test")
+
+		// Force the transaction inside ConfirmCreate to fail by adding a temporary check constraint
+		_, err := f.DB.Pool.Exec(ctx, `ALTER TABLE character_create_jobs ADD CONSTRAINT test_fail_tx CHECK (state != 'queued')`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_, _ = f.DB.Pool.Exec(ctx, `ALTER TABLE character_create_jobs DROP CONSTRAINT IF EXISTS test_fail_tx`)
+		}()
+
+		// ConfirmCreate creates the reservation, but tx.Exec fails on updating character_create_jobs to 'queued'
+		_, err = s.ConfirmCreate(ctx, owner, j.ID, j.Quote.ID)
+		if err == nil {
+			t.Fatal("expected ConfirmCreate to fail with constraint violation")
+		}
+
+		// Verify no held reservation remains in reserved state
+		var heldCount int
+		err = f.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM credit_jobs WHERE learner_id=$1 AND state='reserved'`, owner).Scan(&heldCount)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if heldCount != 0 {
+			t.Fatalf("expected 0 held reservations, got %d", heldCount)
+		}
+
+		// Verify the reservation was released
+		var releasedCount int
+		err = f.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM credit_jobs WHERE learner_id=$1 AND state='released'`, owner).Scan(&releasedCount)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if releasedCount == 0 {
+			t.Fatal("expected at least 1 released credit job")
+		}
+	})
+
+	t.Run("manifest endpoint errors and fixture defaults removal", func(t *testing.T) {
+		mail := new(accounts.MailSink)
+		auth, err := accounts.New(f.DB.Pool, strings.Repeat("manifest-test-key-", 3), mail)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Login via auth service
+		reqCode := httptest.NewRequestWithContext(ctx, "POST", "/v1/auth/code", strings.NewReader(`{"email":"manifest-test@example.com","age_confirmed":true}`))
+		recCode := httptest.NewRecorder()
+		auth.ServeHTTP(recCode, reqCode)
+		if recCode.Code != http.StatusAccepted {
+			t.Fatalf("expected 202, got %d: %s", recCode.Code, recCode.Body.String())
+		}
+		code := mail.Code("manifest-test@example.com")
+		reqVerify := httptest.NewRequestWithContext(ctx, "POST", "/v1/auth/verify", strings.NewReader(fmt.Sprintf(`{"email":"manifest-test@example.com","code":"%s","age_confirmed":true}`, code)))
+		recVerify := httptest.NewRecorder()
+		auth.ServeHTTP(recVerify, reqVerify)
+		if recVerify.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", recVerify.Code, recVerify.Body.String())
+		}
+		var tokens accounts.Tokens
+		if err := json.Unmarshal(recVerify.Body.Bytes(), &tokens); err != nil {
+			t.Fatal(err)
+		}
+
+		_, charService, _ := setup(t, false)
+		charHandler := characters.NewHandler(charService)
+		app := auth.Protect(charHandler)
+
+		// 1. Unauthenticated request -> 401
+		{
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/v1/courses/c1/lessons/l1/manifest", nil)
+			rec := httptest.NewRecorder()
+			app.ServeHTTP(rec, req)
+			if rec.Code != http.StatusUnauthorized {
+				t.Errorf("unauthenticated request code = %d, want 401", rec.Code)
+			}
+		}
+
+		// 2. Missing course in path -> 404 (does NOT default to fixture course)
+		{
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/v1/lessons/fixture-lesson/manifest", nil)
+			req.Header.Set("Authorization", "Bearer "+tokens.AccessToken)
+			rec := httptest.NewRecorder()
+			app.ServeHTTP(rec, req)
+			if rec.Code != http.StatusNotFound {
+				t.Errorf("missing course in path code = %d, want 404", rec.Code)
+			}
+		}
+
+		// 3. Non-existent course in DB -> 404
+		{
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/v1/courses/00000000-0000-0000-0000-000000000099/lessons/fixture-lesson/manifest", nil)
+			req.Header.Set("Authorization", "Bearer "+tokens.AccessToken)
+			rec := httptest.NewRecorder()
+			app.ServeHTTP(rec, req)
+			if rec.Code != http.StatusNotFound {
+				t.Errorf("non-existent course in db code = %d, want 404", rec.Code)
+			}
 		}
 	})
 
