@@ -40,6 +40,12 @@ func TestValidateEnrichmentBounds(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "summary exceeds 500 chars (501 chars)",
+			summary: strings.Repeat("a", 501),
+			tags:    []string{"astronomy"},
+			wantErr: true,
+		},
+		{
 			name:    "summary too long (over 1000 chars)",
 			summary: strings.Repeat("a", 1001),
 			tags:    []string{"astronomy"},

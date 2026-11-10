@@ -225,3 +225,47 @@ async fn test_enrich_note_retry_after_failure_delivers_successfully() {
     assert_eq!(res.summary, "Apparent star motion from Earth rotation.");
     assert_eq!(res.links, vec!["lesson-1"]);
 }
+
+#[test]
+fn test_prompt_contains_untrusted_data_instruction() {
+    let p = prompt("Learner note", None, None, &[]);
+    assert!(
+        p.contains("untrusted data"),
+        "prompt missing untrusted data instruction: {}",
+        p
+    );
+}
+
+#[tokio::test]
+async fn test_enrich_rejects_empty_or_whitespace_note() {
+    let provider = Arc::new(MockNotesProvider {
+        output: "{}".into(),
+        should_fail: false,
+    });
+    let router = ProviderRouter::new(provider.clone(), provider).unwrap();
+    for empty in ["", "   ", "\t\n  "] {
+        let res = enrich(&router, empty, None, None, &[], &test_limits()).await;
+        assert!(res.is_err(), "expected error for empty note {:?}", empty);
+    }
+}
+
+#[tokio::test]
+async fn test_enrich_trims_and_dedupes_tags() {
+    let raw_output = serde_json::json!({
+        "summary": "Valid summary.",
+        "tags": [" astronomy ", "astronomy", "STARS", "stars", "  sky  "],
+        "links": []
+    })
+    .to_string();
+
+    let provider = Arc::new(MockNotesProvider {
+        output: raw_output,
+        should_fail: false,
+    });
+    let router = ProviderRouter::new(provider.clone(), provider).unwrap();
+    let outcome = enrich(&router, "Valid note", None, None, &[], &test_limits())
+        .await
+        .unwrap();
+    let res = outcome.result.expect("result");
+    assert_eq!(res.tags, vec!["astronomy", "stars", "sky"]);
+}

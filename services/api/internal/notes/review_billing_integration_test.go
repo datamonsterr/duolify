@@ -359,7 +359,7 @@ func TestNotesReviewBillingAtomicity(t *testing.T) {
 					response.Attempts = nil
 				}
 				if mode == "bounds" {
-					response.Summary = strings.Repeat("x", 1001)
+					response.Summary = strings.Repeat("x", 501)
 				}
 				if mode == "stale-edit" {
 					if _, err := service.UpdateNote(ctx, learner, note.ID, notes.UpdateNoteInput{RawText: "Edited while running", ExpectedVersion: note.Version}); err != nil {
@@ -443,5 +443,32 @@ func TestNotesReviewBillingAtomicity(t *testing.T) {
 				t.Error("note stuck enriching")
 			}
 		})
+	}
+}
+
+func TestNotesReviewEmptyNoteRejectionDoesNotReserveCredits(t *testing.T) {
+	database := reviewDatabase(t)
+	learner, financial := reviewLearner(t, database)
+	service := notes.NewServiceWithEnrichment(database.Pool, nil, financial, nil)
+	before := reviewBalance(t, database, learner)
+	for _, text := range []string{"", "   ", "\t\n  "} {
+		_, err := service.SaveNote(t.Context(), learner, notes.SaveNoteInput{
+			ActionKey: uuid.NewString(),
+			Source:    "chat",
+			RawText:   text,
+		})
+		if !errors.Is(err, notes.ErrInvalidText) {
+			t.Errorf("SaveNote(%q) got %v; want ErrInvalidText", text, err)
+		}
+	}
+	if delta := reviewBalance(t, database, learner) - before; delta != 0 {
+		t.Errorf("empty note save ledger delta=%d; want 0", delta)
+	}
+	var reservations int
+	if err := database.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_jobs WHERE learner_id=$1", learner).Scan(&reservations); err != nil {
+		t.Fatal(err)
+	}
+	if reservations != 0 {
+		t.Errorf("empty note processing created %d reservations; want 0", reservations)
 	}
 }

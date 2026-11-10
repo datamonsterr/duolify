@@ -75,8 +75,8 @@ func ValidateEnrichmentBounds(summary string, tags []string) error {
 	if trimmed == "" {
 		return errors.New("enrichment summary cannot be empty")
 	}
-	if len(summary) > 1000 {
-		return errors.New("enrichment summary exceeds 1000 characters")
+	if len(summary) > 500 {
+		return errors.New("enrichment summary exceeds 500 characters")
 	}
 	if len(tags) > 10 {
 		return errors.New("enrichment tags exceed limit of 10")
@@ -266,6 +266,9 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 	courseID, err := s.authorizedNoteCourse(ctx, learnerUUID, note.CourseID, note.LessonID)
 	if err != nil {
 		return err
+	}
+	if strings.TrimSpace(note.RawText) == "" {
+		return ErrInvalidText
 	}
 
 	quotes := pricing.NewQuotes(s.pool)
