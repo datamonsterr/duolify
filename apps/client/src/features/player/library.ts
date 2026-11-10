@@ -3,6 +3,7 @@ import {
   configureCacheBounds,
   downloadLesson,
   removeCachedLesson,
+  resetCacheBounds,
 } from "./cache";
 import { trackControl, trackPlayerRecovery } from "../../lib/analytics";
 import type { Manifest } from "./manifest";
@@ -51,25 +52,12 @@ function storageKey(owner: string) {
 }
 
 export function getDownloadedCourses(
-  owner?: string,
+  owner: string,
 ): Record<string, DownloadedCourse> {
   try {
-    if (owner) {
-      const raw = localStorage.getItem(storageKey(owner));
-      return raw ? JSON.parse(raw) : {};
-    }
-    const all: Record<string, DownloadedCourse> = {};
-    for (const k of Object.keys(localStorage)) {
-      if (k.startsWith(STORAGE_KEY_PREFIX)) {
-        try {
-          const raw = localStorage.getItem(k);
-          if (raw) Object.assign(all, JSON.parse(raw));
-        } catch {
-          /* ignore corrupted entry */
-        }
-      }
-    }
-    return all;
+    if (!owner) return {};
+    const raw = localStorage.getItem(storageKey(owner));
+    return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
@@ -145,109 +133,112 @@ export async function downloadCourseLibrary(
 
   // Configure bounded cache for bulk library download
   configureCacheBounds({ maxLessons: 50, maxAccount: 100 * 1024 * 1024 });
-
-  onProgress?.({
-    courseId,
-    completed: 0,
-    total: 0,
-    status: "downloading",
-  });
-
-  let library: CourseDownloadResponse;
   try {
-    library = await session.request<CourseDownloadResponse>(
-      `/v1/courses/${encodeURIComponent(courseId)}/download`,
-    );
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status;
-    const errorCode =
-      status === 403 ? "subscription_required" : "download_failed";
-    trackPlayerRecovery("retry", errorCode);
     onProgress?.({
       courseId,
       completed: 0,
       total: 0,
-      status: "error",
-      error: errorCode,
-    });
-    return { success: false, downloadedCount: 0, error: errorCode };
-  }
-
-  const downloadable = library.lessons.filter((l) => l.downloadable);
-  const total = downloadable.length;
-  if (total === 0) {
-    onProgress?.({
-      courseId,
-      completed: 0,
-      total: 0,
-      status: "completed",
-    });
-    return { success: true, downloadedCount: 0 };
-  }
-
-  let completed = 0;
-  const downloadedIds: string[] = [];
-
-  for (const item of downloadable) {
-    onProgress?.({
-      courseId,
-      completed,
-      total,
-      currentLessonTitle: item.title,
       status: "downloading",
     });
 
+    let library: CourseDownloadResponse;
     try {
-      // 1. Fetch manifest
-      const manifest = await session.request<Manifest>(item.manifest_url);
-      // 2. Download and verify lesson bundle into cache
-      await downloadLesson(manifest, owner);
-      completed++;
-      downloadedIds.push(item.lesson_id);
-    } catch {
-      trackPlayerRecovery("retry", "download_failed");
+      library = await session.request<CourseDownloadResponse>(
+        `/v1/courses/${encodeURIComponent(courseId)}/download`,
+      );
+    } catch (err: unknown) {
+      const status = (err as { status?: number })?.status;
+      const errorCode =
+        status === 403 ? "subscription_required" : "download_failed";
+      trackPlayerRecovery("retry", errorCode);
+      onProgress?.({
+        courseId,
+        completed: 0,
+        total: 0,
+        status: "error",
+        error: errorCode,
+      });
+      return { success: false, downloadedCount: 0, error: errorCode };
+    }
+
+    const downloadable = library.lessons.filter((l) => l.downloadable);
+    const total = downloadable.length;
+    if (total === 0) {
+      onProgress?.({
+        courseId,
+        completed: 0,
+        total: 0,
+        status: "completed",
+      });
+      return { success: true, downloadedCount: 0 };
+    }
+
+    let completed = 0;
+    const downloadedIds: string[] = [];
+
+    for (const item of downloadable) {
       onProgress?.({
         courseId,
         completed,
         total,
         currentLessonTitle: item.title,
-        status: "error",
-        error: "download_failed",
+        status: "downloading",
       });
-      return {
-        success: false,
-        downloadedCount: completed,
-        error: "download_failed",
-      };
+
+      try {
+        // 1. Fetch manifest
+        const manifest = await session.request<Manifest>(item.manifest_url);
+        // 2. Download and verify lesson bundle into cache
+        await downloadLesson(manifest, owner);
+        completed++;
+        downloadedIds.push(item.lesson_id);
+      } catch {
+        trackPlayerRecovery("retry", "download_failed");
+        onProgress?.({
+          courseId,
+          completed,
+          total,
+          currentLessonTitle: item.title,
+          status: "error",
+          error: "download_failed",
+        });
+        return {
+          success: false,
+          downloadedCount: completed,
+          error: "download_failed",
+        };
+      }
     }
-  }
 
-  let courseDataToSave = courseData;
-  if (!courseDataToSave) {
-    try {
-      courseDataToSave = await session.request<Course>(
-        `/v1/courses/${encodeURIComponent(courseId)}`,
-      );
-    } catch {
-      /* course data optional for offline store */
+    let courseDataToSave = courseData;
+    if (!courseDataToSave) {
+      try {
+        courseDataToSave = await session.request<Course>(
+          `/v1/courses/${encodeURIComponent(courseId)}`,
+        );
+      } catch {
+        /* course data optional for offline store */
+      }
     }
+
+    // Record course in download index
+    saveDownloadedCourse(owner, {
+      courseId,
+      title: library.title,
+      downloadedAt: new Date().toISOString(),
+      lessonIds: downloadedIds,
+      courseData: courseDataToSave,
+    });
+
+    onProgress?.({
+      courseId,
+      completed: total,
+      total,
+      status: "completed",
+    });
+
+    return { success: true, downloadedCount: completed };
+  } finally {
+    resetCacheBounds();
   }
-
-  // Record course in download index
-  saveDownloadedCourse(owner, {
-    courseId,
-    title: library.title,
-    downloadedAt: new Date().toISOString(),
-    lessonIds: downloadedIds,
-    courseData: courseDataToSave,
-  });
-
-  onProgress?.({
-    courseId,
-    completed: total,
-    total,
-    status: "completed",
-  });
-
-  return { success: true, downloadedCount: completed };
 }

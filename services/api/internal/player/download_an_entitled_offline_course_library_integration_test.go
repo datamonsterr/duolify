@@ -230,6 +230,12 @@ func TestDownloadAnEntitledOfflineCourseLibraryIntegration(t *testing.T) {
 		t.Fatalf("expected 403 subscription_required after expiry, got %d: %s", status, body)
 	}
 
+	// Direct slide delivery also remains enrollment-only after expiry.
+	status, body = call("GET", "/v1/lessons/"+lessonID+"/slides/sky-1", subscriberToken, nil)
+	if status != 200 || !bytes.Contains(body, []byte(`"html"`)) {
+		t.Fatalf("enrolled slide delivery must survive subscription expiry: %d %s", status, body)
+	}
+
 	// BUT individual opened lesson manifest remains accessible for enrolled learner
 	status, _ = call("GET", "/v1/lessons/"+lessonID+"/manifest", subscriberToken, nil)
 	if status != 200 {

@@ -69,7 +69,9 @@ export const api = {
     writePricingCache(pricing, response.headers.get("ETag"));
     return pricing;
   },
-  courses: async (): Promise<CoursesResponse> => {
+  courses: async (options?: {
+    authenticatedOnly?: boolean;
+  }): Promise<CoursesResponse> => {
     let list: Course[] = [];
     let activeCourseId: string | undefined;
 
@@ -87,7 +89,8 @@ export const api = {
         list = data.courses;
         activeCourseId = data.active_course_id;
       }
-    } catch {
+    } catch (error) {
+      if (options?.authenticatedOnly) throw error;
       const fallback = await get<
         Course[] | { courses?: Course[]; active_course_id?: string }
       >("/courses");

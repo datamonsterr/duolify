@@ -41,6 +41,15 @@ func TestValidateGeneratedLesson(t *testing.T) {
 		t.Fatalf("expected valid lesson to pass validation, got %v", err)
 	}
 
+	t.Run("Review161RejectDuplicateTopics", func(t *testing.T) {
+		duplicate := &enginev1.Lesson{Slides: validLesson.Slides, Test: []*enginev1.Question{validLesson.Test[0], {
+			QuestionId: "q-other", TopicId: "top-sky", Prompt: "Another question?", Choices: []string{"A", "B"}, Explanation: "Because A",
+		}}}
+		if err := lessontest.ValidateGeneratedLesson(duplicate); err == nil {
+			t.Fatal("duplicate topics would let one correct answer pass multiple questions")
+		}
+	})
+
 	// Rejects nil lesson or empty slides
 	if err := lessontest.ValidateGeneratedLesson(nil); err == nil {
 		t.Fatal("expected error for nil lesson")

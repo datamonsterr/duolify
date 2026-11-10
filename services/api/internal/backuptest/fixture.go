@@ -345,7 +345,7 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		"INSERT INTO pricing_verification_evidence(version,evidence) VALUES ('usd-backup-scheduled','{\"margin_floor_verified\":true,\"economics_verified\":true,\"mappings_verified\":true}'::jsonb)",
 		"INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class) SELECT 'usd-backup-draft',version,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-draft\"'),'{effective_from}',to_jsonb(now()+interval '96 hours')),'a1111111-1111-4111-8111-111111111111','non_adverse' FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
 		"INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class,rollback_source_version) SELECT 'usd-backup-rollback',version,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-rollback\"'),'{effective_from}',to_jsonb(now()+interval '120 hours')),'a1111111-1111-4111-8111-111111111111','non_adverse','usd-launch-2026-11-08' FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
-		fmt.Sprintf("INSERT INTO pricing_audit(actor_id,action,version,change_class,reason,request_id) VALUES ('%x','version_created','usd-backup-draft','non_adverse','synthetic restore audit','restore-fixture')", sha256.Sum256([]byte("a1111111-1111-4111-8111-111111111111"))),
+		fmt.Sprintf("INSERT INTO pricing_audit(actor_id,action,version,change_class,reason,request_id,override_reason) VALUES ('%x','version_created','usd-backup-draft','non_adverse','synthetic restore audit','restore-fixture','synthetic audited override')", sha256.Sum256([]byte("a1111111-1111-4111-8111-111111111111"))),
 		"INSERT INTO account_deletion_tombstones (learner_reference) VALUES (repeat('9',64))",
 	} {
 		if _, err := f.DB.Pool.Exec(t.Context(), query); err != nil {
@@ -417,7 +417,7 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_enrollments(learner_id,course_id,level_override) VALUES('a1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','intermediate')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_generations (id, learner_id, lesson_id, course_id, quote_id, state) VALUES ('f4444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'f1111111-1111-4111-8111-111111111111', $1, 'completed')`, outlineQuote.ID); err != nil {
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_generations (id, learner_id, lesson_id, course_id, quote_id, state, result_checkpoint) VALUES ('f4444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'f1111111-1111-4111-8111-111111111111', $1, 'validated', '{"lesson":{"slides":[]},"attempts":[],"title":"Restorable pending lesson"}'::jsonb)`, outlineQuote.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO generated_lessons (id, lesson_stub_id, learner_id, course_id, title, manifest) VALUES ('f5555555-5555-4555-8555-555555555555', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'Phases of the Moon', '{"title":"Phases of the Moon"}'::jsonb)`); err != nil {
@@ -432,9 +432,13 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_retry_pools (id, lesson_stub_id, learner_id, topic_id, variants) VALUES ('fbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'top-moon', '[{"question_id":"v1-q1","prompt":"Moon phases?","choices":["Earth shadow","Sun angle"],"answer_index":1,"explanation":"Sun angle"}]'::jsonb)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_sessions (id, lesson_stub_id, learner_id, state, question_queue, resolved_topics) VALUES ('f8888888-8888-4888-8888-888888888888', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'passed', '[]'::jsonb, '["top-moon"]'::jsonb)`); err != nil {
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_sessions (id, lesson_stub_id, learner_id, state, question_queue, resolved_topics) VALUES ('f8888888-8888-4888-8888-888888888888', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'passed', '[]'::jsonb, '["f7777777-7777-4777-8777-777777777777"]'::jsonb)`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_sessions (id, lesson_stub_id, learner_id, state, question_queue, resolved_topics) VALUES ('f8888888-8888-4888-8888-888888888889', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'in_progress', '[{"question_id":"c41b8f99-8338-427e-b275-3f8533cc5640","source_id":"f7777777-7777-4777-8777-777777777777","original_id":"f7777777-7777-4777-8777-777777777777","topic_id":"top-moon","prompt":"What causes moon phases?","choices":["Sunlight angle","Earth shadow"]}]'::jsonb, '[]'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_answers (id, session_id, learner_id, question_id, topic_id, selected_index, correct) VALUES ('f9999999-9999-4999-8999-999999999999', 'f8888888-8888-4888-8888-888888888888', 'a1111111-1111-4111-8111-111111111111', 'q1', 'top-moon', 0, true)`); err != nil {
 		t.Fatal(err)
 	}
@@ -763,6 +767,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		query string
 		want  int
 	}{
+		{"SELECT count(*) FROM pricing_audit WHERE request_id='restore-fixture' AND override_reason='synthetic audited override'", 1},
 		{"SELECT count(*) FROM pricing_activation_events WHERE version='usd-launch-2026-11-08'", 1},
 		{"SELECT count(*) FROM pricing_version_cancellations WHERE version='usd-backup-scheduled'", 1},
 		{"SELECT count(*) FROM pricing_drafts WHERE version='usd-backup-rollback' AND parent_version='usd-launch-2026-11-08' AND rollback_source_version='usd-launch-2026-11-08'", 1},

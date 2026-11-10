@@ -156,3 +156,61 @@ describe("offline playback progress synchronization", () => {
     );
   });
 });
+
+it("drops acknowledged and permanently rejected events while retaining transient failures", async () => {
+  for (const action_key of ["accepted", "invalid", "retry"])
+    enqueueSyncEvent(owner, {
+      action_key,
+      lesson_id: lessonId,
+      version: 1,
+      slide_id: "sky-1",
+      time_ms: 0,
+      occurred_at: new Date().toISOString(),
+    });
+  vi.spyOn(session, "request").mockResolvedValueOnce({
+    synced: true,
+    acked_keys: ["accepted"],
+    rejected_keys: ["invalid"],
+  });
+  await synchronizeProgress(owner, lessonId);
+  expect(readSyncQueue(owner, lessonId).map((e) => e.action_key)).toEqual([
+    "retry",
+  ]);
+});
+
+it("drains a large backlog in bounded batches and discards an oversized corrupt event", async () => {
+  enqueueSyncEvent(owner, {
+    action_key: "oversized",
+    lesson_id: lessonId,
+    version: 1,
+    slide_id: "x".repeat(70000),
+    time_ms: 0,
+    occurred_at: new Date().toISOString(),
+  });
+  for (let i = 0; i < 400; i++)
+    enqueueSyncEvent(owner, {
+      action_key: `event-${i}`,
+      lesson_id: lessonId,
+      version: 1,
+      slide_id: "sky-1",
+      time_ms: 0,
+      occurred_at: new Date().toISOString(),
+    });
+  const request = vi
+    .spyOn(session, "request")
+    .mockImplementation(async (_path, _method, body) => {
+      expect(
+        new TextEncoder().encode(JSON.stringify(body)).length,
+      ).toBeLessThan(65536);
+      const events = (body as { events: PlaybackSyncEvent[] }).events;
+      expect(events.some((e) => e.action_key === "oversized")).toBe(false);
+      return {
+        synced: true,
+        acked_keys: events.map((e) => e.action_key),
+        rejected_keys: [],
+      } as never;
+    });
+  await synchronizeProgress(owner, lessonId);
+  expect(request.mock.calls.length).toBeGreaterThan(1);
+  expect(readSyncQueue(owner, lessonId)).toEqual([]);
+});

@@ -165,3 +165,59 @@ describe("opened lesson atomic cache", () => {
     expect(posthog.capture).toHaveBeenCalledTimes(2);
   });
 });
+
+it("contains dynamic HTML without a network origin and scopes prepared documents to the owner", async () => {
+  const { AuthError } = await import("../accounts/session");
+  const { openLesson, preparedDocument } = await import("./cache");
+  vi.mocked(session.request)
+    .mockRejectedValueOnce(new AuthError("missing", 404))
+    .mockResolvedValueOnce({
+      id: "dynamic",
+      course_id: "course",
+      slides: [
+        {
+          slide_id: "s1",
+          html: "<p>Private dynamic lesson</p>",
+          duration_ms: 1000,
+          narration: "",
+        },
+      ],
+    });
+  const m = await openLesson("dynamic");
+  expect(m.asset_origin).toBe("");
+  expect(preparedDocument(m.slides[0])).toContain("Private dynamic lesson");
+  vi.mocked(session.current).mockReturnValue({
+    ...session.current()!,
+    id: "other",
+  });
+  expect(preparedDocument(m.slides[0])).toBeUndefined();
+  vi.mocked(session.current).mockReturnValue({
+    ...session.current()!,
+    id: owner,
+  });
+  session.clear();
+  expect(preparedDocument(m.slides[0])).toBeUndefined();
+});
+
+it("does not republish a dynamic document after logout during retrieval", async () => {
+  const { AuthError } = await import("../accounts/session");
+  const { openLesson, preparedDocument } = await import("./cache");
+  const slide = (await manifest()).slides[0];
+  vi.mocked(session.request)
+    .mockRejectedValueOnce(new AuthError("missing", 404))
+    .mockImplementationOnce(async () => {
+      session.clear();
+      return {
+        id: "sky",
+        slides: [
+          {
+            slide_id: slide.slide_id,
+            html: "late private HTML",
+            duration_ms: 1000,
+          },
+        ],
+      };
+    });
+  await expect(openLesson("sky")).rejects.toThrow();
+  expect(preparedDocument(slide)).toBeUndefined();
+});

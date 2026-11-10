@@ -102,3 +102,45 @@ with missing/invalid usage conservatively consume their operational hold while
 releasing undelivered customer Credits. Reaping survives process restarts.
 Postgres remains authoritative if Redis or analytics is unavailable; financial
 outbox events use per-learner opt-out and the existing nonblocking wrapper.
+
+Issue #165 E12 corrections: HTTP and CLI configure the same verifier from
+`STRIPE_PRICING_TEST_SECRET_KEY` / `STRIPE_PRICING_LIVE_SECRET_KEY`. Each SKU
+requires a mapping and every declared `test`/`live` environment is checked against
+Stripe's canonical active price, amount, currency and recurrence. Missing keys,
+provider errors, incomplete mappings and failed evidence writes refuse approval.
+No provider API calls enable checkout or change the billing promotion gates.
+`ALLOW_FAKE_PRICING_VERIFIER=true` is accepted only in explicitly selected
+`development`/`test`, without Stripe keys; it recognizes only the existing
+`synthetic:<sku>` development mappings. Evidence labels this mode and records
+actual checks rather than copying model-catalogue claims.
+
+`PRICING_ECONOMICS_MINIMUMS` optionally supplies an operator JSON object with
+`protected_cost_ceiling_usd_per_credit`, `minimum_paid_ai_margin_percent`, and
+`processing_fees`. Omitted fields use ADR 0011 defaults. Configuration below
+those minima is rejected. Drafts cannot reduce SKU cost, fees, or the 70% floor;
+a stricter draft margin floor and fees apply. A draft's lower action cost ceiling
+is honored while a higher ceiling cannot relax the platform limit. An action
+cost override requires a different granted admin and its private reason is kept
+in `pricing_audit.override_reason`, including encrypted financial restores.
+Margin-floor failures never permit overrides or the sole-owner exception.
+
+Approval and rollback require an effective instant later than the active version
+and database current time. There is no implicit backdated immediate operation.
+List/show reflect cancellations. The API activator checks due versions every
+200ms independently of GET traffic, verifies them again, and transactionally
+inserts one activation marker and audit row per version across replicas. Audit
+and marker timestamps preserve the scheduled effective instant; missed approvals
+are reconciled after restart. Unverified successors keep the last good public
+catalogue. Anonymous/non-admin access-denial audit is sampled globally per
+process to one row/minute; granted admins retain complete immutable auditing.
+
+Canonical provider API reference: https://docs.stripe.com/api/prices/retrieve
+
+Scoped follow-up: `ActiveQuoteConfig` still resolves approved due versions by
+Postgres time independently of activation markers. The admin path now requires
+successful provider checks and durable evidence before any version is approved.
+Removing credentials or a provider price becoming invalid *after* approval stops
+the activator/public catalogue flip, but does not suspend that previously
+approved version in the quote resolver. Unifying quote selection with activation
+state requires a separate resolver/fixture change; this review intentionally
+keeps other epics' quote fixtures and resolver contracts unchanged.

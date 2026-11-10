@@ -216,3 +216,14 @@ The existing lesson_player_error allowlist SHALL include fixed codes offline_unc
 #### Scenario: Uncached offline recovery
 - **WHEN** an opted-in learner selects Retry or Exit from the offline lesson recovery
 - **THEN** the registered recovery event is delivered with only fixed identifiers and common properties
+
+### Requirement: Lesson test retry and completion telemetry
+The catalogue SHALL include API-owned `retry_variant_pool_exhausted` with course_id, lesson_id, topic_id and fixed error_code=pool_exhausted. Exhaustion SHALL NOT be reported as a provider generation failure. `retry_variant_served` SHALL use variant_source for pool provenance and retain the common source=api property. Lesson test lifecycle events SHALL be emitted only after their transaction commits, with no duplicate client lifecycle events. `lesson_test_passed` SHALL emit once when the completion outbox entry is first inserted, with measured session duration_ms, first-try score and validated app_version (or unknown when absent). All properties MUST pass the allowlist, honor opt-out and exclude learner text and selected answer values.
+
+#### Scenario: Exhaustion is free pool reuse
+- **WHEN** a pre-generated retry pool is exhausted and reused for free
+- **THEN** retry_variant_pool_exhausted and retry_variant_served identify the topic and source without reporting a provider failure or exposing question text
+
+#### Scenario: Replayed completion
+- **WHEN** a final answer or completed session is replayed
+- **THEN** no duplicate lesson_test_passed event is emitted and the original summary is retained

@@ -136,7 +136,8 @@ func TestOutlineChatChangeIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	financial := credits.NewServiceWithCatalogue(db.Pool, nil, cat, events)
-	server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, Quotes: pricing.NewQuotes(db.Pool), Credits: financial, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Environment: "test", ProposalEngine: engine, Financial: financial, Events: events})}, slog.New(slog.NewTextHandler(io.Discard, nil))))
+	service := courses.New(courses.Options{Pool: db.Pool, Environment: "test", ProposalEngine: engine, Financial: financial, Events: events})
+	server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, Quotes: pricing.NewQuotes(db.Pool), Credits: financial, CourseBrief: service}, slog.New(slog.NewTextHandler(io.Discard, nil))))
 	defer server.Close()
 	call := func(method, path string, body any, token string) (int, map[string]any) {
 		raw, _ := json.Marshal(body)
@@ -344,10 +345,109 @@ func TestOutlineChatChangeIntegration(t *testing.T) {
 	if err = db.Pool.QueryRow(ctx, "SELECT state FROM credit_jobs WHERE quote_id::text=$1", concurrent["quote_id"]).Scan(&running); err != nil || running != "running" {
 		t.Fatal("duplicate released original", running, err)
 	}
+	// Capture a pending reaper snapshot, then let validation win before the
+	// reaper can finalize. A stale pending->failed update must roll back release.
+	gate, e := db.Pool.Begin(ctx)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer func() { _ = gate.Rollback(context.WithoutCancel(ctx)) }()
+	if _, e = gate.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('credits:financial',0))`); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = db.Pool.Exec(ctx, `UPDATE credit_jobs SET deadline_at=clock_timestamp()-interval '1 second' WHERE quote_id::text=$1`, concurrent["quote_id"]); e != nil {
+		t.Fatal(e)
+	}
+	reaped := make(chan error, 1)
+	go func() { reaped <- service.ReapExpired(ctx) }()
+	until := time.Now().Add(5 * time.Second)
+	blocked := false
+	for time.Now().Before(until) {
+		if e = db.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory' AND query LIKE '%credits:financial%')`).Scan(&blocked); e != nil {
+			t.Fatal(e)
+		}
+		if blocked {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !blocked {
+		t.Fatal("proposal reaper never reached financial lock")
+	}
 	close(fixture.resume)
+	until = time.Now().Add(5 * time.Second)
+	validated := false
+	for time.Now().Before(until) {
+		var state string
+		if e = db.Pool.QueryRow(ctx, `SELECT state FROM outline_proposals WHERE id::text=$1`, pending["id"]).Scan(&state); e != nil {
+			t.Fatal(e)
+		}
+		if state == "validated" {
+			validated = true
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if e = gate.Rollback(ctx); e != nil {
+		t.Fatal(e)
+	}
+	if !validated {
+		t.Fatal("worker failed to validate during stale reaper pause")
+	}
+	if e = <-reaped; e != nil {
+		t.Fatal(e)
+	}
 	if code = <-completed; code != 200 {
 		t.Fatal("original delivery", code)
 	}
+	t.Run("E2 worker delivery beats expiry", func(t *testing.T) {
+		if _, e := db.Pool.Exec(ctx, `UPDATE credit_jobs SET deadline_at=clock_timestamp()-interval '1 second' WHERE quote_id::text=$1`, concurrent["quote_id"]); e != nil {
+			t.Fatal(e)
+		}
+		for range 2 {
+			if e := service.ReapExpired(ctx); e != nil {
+				t.Fatal(e)
+			}
+		}
+		if code, out := call("GET", "/v1/outline-proposals/"+pending["id"].(string), nil, token); code != 200 || out["state"] != "delivered" {
+			t.Fatal("reaper overwrote delivery", code, out)
+		}
+		var n int
+		if e := db.Pool.QueryRow(ctx, `SELECT count(*) FROM credit_usage WHERE job_id=(SELECT id FROM credit_jobs WHERE quote_id::text=$1)`, concurrent["quote_id"]).Scan(&n); e != nil || n != 1 {
+			t.Fatal("duplicate finalization", n, e)
+		}
+	})
+	t.Run("E2 validated GET never settles", func(t *testing.T) {
+		in := quoted("validated recovery")
+		job, e := financial.ReserveAction(ctx, owner, in["quote_id"].(string), "outline_chat_change")
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = financial.Claim(ctx, owner, job.ID); e != nil {
+			t.Fatal(e)
+		}
+		var id string
+		if e = db.Pool.QueryRow(ctx, `INSERT INTO outline_proposals(learner_id,draft_id,quote_id,base_revision,base_outline,request,operations,result_outline,attempts,state) SELECT learner_id,draft_id,$2,base_revision,base_outline,'validated recovery',operations,result_outline,attempts,'validated' FROM outline_proposals WHERE id::text=$1 RETURNING id::text`, pending["id"], in["quote_id"]).Scan(&id); e != nil {
+			t.Fatal(e)
+		}
+		for range 2 {
+			if code, out := call("GET", "/v1/outline-proposals/"+id, nil, token); code != 200 || out["state"] != "validated" {
+				t.Fatal("GET settled validated output", code, out)
+			}
+		}
+		var state string
+		if e = db.Pool.QueryRow(ctx, `SELECT state FROM credit_jobs WHERE id=$1`, job.ID).Scan(&state); e != nil || state != "running" {
+			t.Fatal("GET finalized credits", state, e)
+		}
+		for range 2 {
+			if e = service.ReapExpired(ctx); e != nil {
+				t.Fatal(e)
+			}
+		}
+		if code, out := call("GET", "/v1/outline-proposals/"+id, nil, token); code != 200 || out["state"] != "delivered" {
+			t.Fatal("validated recovery failed", code, out)
+		}
+	})
 	// Crash recovery must release once and never repeat generation, whether the
 	// process stopped before reserve or after claiming its running reservation.
 	for _, claimed := range []bool{false, true} {
@@ -368,6 +468,22 @@ func TestOutlineChatChangeIntegration(t *testing.T) {
 			if _, e = db.Pool.Exec(ctx, "UPDATE credit_jobs SET deadline_at=clock_timestamp()-interval '1 second' WHERE id::text=$1", job.ID); e != nil {
 				t.Fatal(e)
 			}
+		}
+		// Reads cannot terminate a running executor or settle its reservation.
+		if code, out := call("GET", "/v1/outline-proposals/"+id, nil, token); code != 200 || out["state"] != "pending" {
+			t.Error("GET changed expired proposal", code, out)
+		}
+		if claimed {
+			if e := db.Pool.QueryRow(ctx, "SELECT state FROM credit_jobs WHERE quote_id::text=$1", in["quote_id"]).Scan(&running); e != nil || running != "running" {
+				t.Error("GET settled running proposal", running, e)
+			}
+		}
+		recovery, ok := any(service).(interface{ ReapExpired(context.Context) error })
+		if !ok {
+			t.Fatal("proposal reaper missing")
+		}
+		if e := recovery.ReapExpired(ctx); e != nil {
+			t.Fatal(e)
 		}
 		before = fixture.calls.Load()
 		for range 2 {
@@ -416,7 +532,7 @@ func TestOutlineChatChangeIntegration(t *testing.T) {
 		if _, e := db.Pool.Exec(ctx, `UPDATE credit_jobs SET deadline_at=clock_timestamp()-interval '1 second' WHERE quote_id::text=$1`, in["quote_id"]); e != nil {
 			t.Fatal(e)
 		}
-		if e := financial.ReapExpired(ctx); e != nil {
+		if e := service.ReapExpired(ctx); e != nil {
 			t.Fatal(e)
 		}
 		close(fixture.resume)
@@ -426,6 +542,16 @@ func TestOutlineChatChangeIntegration(t *testing.T) {
 		if code, out := call("GET", "/v1/outline-proposals/?quote_id="+in["quote_id"].(string), nil, token); code != 200 || out["state"] != "failed" {
 			t.Fatalf("late proposal recoverable as delivery: %d %v", code, out)
 		}
+		for range 2 {
+			if e := service.ReapExpired(ctx); e != nil {
+				t.Fatal(e)
+			}
+		}
+		var n int
+		if e := db.Pool.QueryRow(ctx, `SELECT count(*) FROM credit_usage WHERE job_id=(SELECT id FROM credit_jobs WHERE quote_id::text=$1)`, in["quote_id"]).Scan(&n); e != nil || n != 1 {
+			t.Fatal("reaper/worker finalized twice", n, e)
+		}
+
 	})
 	code, export := call("GET", "/v1/me/data-export", nil, token)
 	if code != 200 || len(export["tables"].(map[string]any)["outline_proposals"].([]any)) < 1 {

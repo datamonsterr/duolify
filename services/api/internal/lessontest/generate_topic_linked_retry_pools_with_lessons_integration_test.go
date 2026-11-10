@@ -308,7 +308,7 @@ func TestGenerateTopicLinkedRetryPoolsIntegration(t *testing.T) {
 	}
 
 	// 3. GET /v1/lessons/{id}/test does NOT leak private answers or explanations
-	code, _, rawJSON := call("GET", fmt.Sprintf("/v1/lessons/%s/test", lessonID), nil, token)
+	code, publicTest, rawJSON := call("GET", fmt.Sprintf("/v1/lessons/%s/test", lessonID), nil, token)
 	if code != 200 {
 		t.Fatalf("get test code %d", code)
 	}
@@ -318,7 +318,7 @@ func TestGenerateTopicLinkedRetryPoolsIntegration(t *testing.T) {
 
 	// 4. Submit wrong answer for Q1 -> returns correction and queues retry variant
 	code, answerOut, _ := call("POST", fmt.Sprintf("/v1/lessons/%s/test/answer", lessonID), map[string]any{
-		"question_id":  "q1",
+		"question_id":  publicTest["questions"].([]any)[0].(map[string]any)["question_id"],
 		"choice_index": 0, // Wrong choice
 	}, token)
 	if code != 200 {

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useShellSession } from "../shell/ShellSession";
-import { authRequest } from "../accounts/session";
+import { version as appVersion } from "../../../package.json";
+import { authRequest, AuthError } from "../accounts/session";
 import { track } from "../../lib/analytics";
 import { RouteUnavailable } from "../shell/RouteBoundary";
 import { useLessonTestTracerEnabled } from "../../lib/features";
@@ -50,6 +51,16 @@ export interface QueuedOfflineAnswer {
 
 const queueStorageKey = (lessonId: string) =>
   `lessontest:sync-queue:${lessonId}`;
+
+function isNetworkError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    !(error instanceof AuthError) &&
+    /Failed to fetch|NetworkError|Network request failed|Load failed/i.test(
+      error.message,
+    )
+  );
+}
 
 export function generateOperationKey(): string {
   if (
@@ -109,6 +120,7 @@ export interface LessonTestProps {
   resolvedTopics?: number;
   totalTopics?: number;
   minGap?: number;
+  passed?: boolean;
   onPass: () => void;
   onExit?: () => void;
   onAnswer?: (
@@ -126,6 +138,7 @@ export function LessonTest({
   resolvedTopics: initialResolvedTopics,
   totalTopics: initialTotalTopics,
   minGap = 2,
+  passed = false,
   onPass,
   onExit,
   onAnswer,
@@ -143,9 +156,10 @@ export function LessonTest({
   const [queueIndex, setQueueIndex] = useState(0);
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<AnswerResult | null>(null);
+  const [pendingOffline, setPendingOffline] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
-  const [finished, setFinished] = useState(false);
+  const [finished, setFinished] = useState(passed);
   const [resolvedTopics, setResolvedTopics] = useState(
     initialResolvedTopics ?? 0,
   );
@@ -157,43 +171,96 @@ export function LessonTest({
   const [offlineAnswerCount, setOfflineAnswerCount] = useState(
     () => getOfflineAnswers(effectiveLessonId).length,
   );
-  const [waitingToSync, setWaitingToSync] = useState(false);
+  const [waitingToSync, setWaitingToSync] = useState(
+    () => getOfflineAnswers(effectiveLessonId).length > 0,
+  );
 
   const currentQuestion = queue[queueIndex];
+
+  const applyResult = useCallback(
+    (result: AnswerResult, questionId: string) => {
+      if (typeof result.total_topics === "number")
+        setTotalTopics(result.total_topics);
+      if (typeof result.resolved_topics === "number")
+        setResolvedTopics(result.resolved_topics);
+      if (typeof result.retry_queue_count === "number")
+        setRetryQueueCount(result.retry_queue_count);
+      if (result.retry_variant) {
+        const variant = result.retry_variant;
+        setQueue((prev) => {
+          if (prev.some((q) => q.question_id === variant.question_id))
+            return prev;
+          const sourceIndex = prev.findIndex(
+            (q) => q.question_id === questionId,
+          );
+          const target = Math.min(
+            prev.length,
+            Math.max(queueIndex, sourceIndex + 1) + minGap,
+          );
+          const next = [...prev];
+          next.splice(target, 0, variant);
+          return next;
+        });
+      }
+    },
+    [minGap, queueIndex],
+  );
 
   const handleReplaySync = useCallback(async () => {
     if (isSubmitting || !onAnswer) return;
     const queued = getOfflineAnswers(effectiveLessonId);
     if (queued.length === 0) return;
-
     setIsSubmitting(true);
+    setSubmissionError(null);
     try {
-      let finalResult: AnswerResult | null = null;
       for (const item of queued) {
-        if (onAnswer.length >= 3) {
-          finalResult = await onAnswer(
-            item.question_id,
-            item.choice_index,
-            item.operation_key,
-          );
-        } else {
-          finalResult = await onAnswer(item.question_id, item.choice_index);
+        const result =
+          onAnswer.length >= 3
+            ? await onAnswer(
+                item.question_id,
+                item.choice_index,
+                item.operation_key,
+              )
+            : await onAnswer(item.question_id, item.choice_index);
+        applyResult(result, item.question_id);
+        // Remove only acknowledged operations so a partial replay is resumable.
+        const remaining = getOfflineAnswers(effectiveLessonId).filter(
+          (q) => q.operation_key !== item.operation_key,
+        );
+        localStorage.setItem(
+          queueStorageKey(effectiveLessonId),
+          JSON.stringify(remaining),
+        );
+        setOfflineAnswerCount(remaining.length);
+        setWaitingToSync(false);
+        setPendingOffline(false);
+        if (currentQuestion?.question_id === item.question_id)
+          setFeedback(result);
+        if (result.passed) {
+          setFeedback(result);
+          setFinished(true);
+          onPass();
+          break;
         }
       }
-      clearOfflineAnswers(effectiveLessonId);
-      setOfflineAnswerCount(0);
-      if (finalResult && finalResult.passed) {
+    } catch (err) {
+      if (!isNetworkError(err)) {
         setWaitingToSync(false);
-        setFeedback(finalResult);
-        setFinished(true);
-        onPass();
+        setSubmissionError(
+          err instanceof Error ? err.message : "Could not sync answer",
+        );
       }
-    } catch {
-      // Remain offline
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, onAnswer, effectiveLessonId, onPass]);
+  }, [
+    isSubmitting,
+    onAnswer,
+    effectiveLessonId,
+    onPass,
+    applyResult,
+    currentQuestion,
+  ]);
 
   useEffect(() => {
     window.addEventListener("online", handleReplaySync);
@@ -214,15 +281,21 @@ export function LessonTest({
 
   const handleSelectChoice = useCallback(
     (idx: number) => {
-      if (feedback !== null) return;
+      if (feedback !== null || pendingOffline) return;
       setSubmissionError(null);
       setSelectedChoice(idx);
     },
-    [feedback],
+    [feedback, pendingOffline],
   );
 
   const handleCheck = useCallback(async () => {
-    if (selectedChoice === null || !currentQuestion || isSubmitting) return;
+    if (
+      selectedChoice === null ||
+      !currentQuestion ||
+      isSubmitting ||
+      pendingOffline
+    )
+      return;
 
     setIsSubmitting(true);
     setSubmissionError(null);
@@ -239,60 +312,17 @@ export function LessonTest({
                 )
               : await onAnswer(currentQuestion.question_id, selectedChoice);
           setFeedback(result);
-          if (typeof result.total_topics === "number") {
-            setTotalTopics(result.total_topics);
-          }
-          if (typeof result.resolved_topics === "number") {
-            setResolvedTopics(result.resolved_topics);
-          }
-          if (typeof result.retry_queue_count === "number") {
-            setRetryQueueCount(result.retry_queue_count);
-          }
-          if (!result.correct) {
-            const variant: QuestionItem = result.retry_variant || {
-              ...currentQuestion,
-              question_id: `${currentQuestion.question_id}-retry`,
-              variant_of: currentQuestion.question_id,
-              is_variant: true,
-              choices: currentQuestion.choices.map(
-                (_, i) =>
-                  currentQuestion.choices[
-                    (i + 1) % currentQuestion.choices.length
-                  ],
-              ),
-            };
-            // Min gap rule: retry variant is queued after at least minGap remaining questions (or at end)
-            const gap = minGap ?? 2;
-            setQueue((prev) => {
-              const targetIdx = Math.min(prev.length, queueIndex + 1 + gap);
-              const next = [...prev];
-              next.splice(targetIdx, 0, variant);
-              return next;
-            });
-          }
-        } catch {
-          // Offline / network failure -> buffer answer
+          applyResult(result, currentQuestion.question_id);
+        } catch (err) {
+          if (!isNetworkError(err)) throw err;
           enqueueOfflineAnswer(effectiveLessonId, {
             operation_key: opKey,
             question_id: currentQuestion.question_id,
             choice_index: selectedChoice,
-            choice_text: currentQuestion.choices[selectedChoice],
           });
-          const count = getOfflineAnswers(effectiveLessonId).length;
-          setOfflineAnswerCount(count);
-
-          const isLastInQueue = queueIndex + 1 >= queue.length;
-          if (isLastInQueue) {
-            setWaitingToSync(true);
-            return;
-          }
-
-          setFeedback({
-            correct: true,
-            passed: false,
-            explanation:
-              "Answer saved offline. Verification will occur upon reconnection.",
-          });
+          setOfflineAnswerCount(getOfflineAnswers(effectiveLessonId).length);
+          if (queueIndex + 1 >= queue.length) setWaitingToSync(true);
+          else setPendingOffline(true);
         }
       } else {
         // Fallback local grading if onAnswer not provided
@@ -319,11 +349,18 @@ export function LessonTest({
     queueIndex,
     queue.length,
     totalTopics,
-    minGap,
     effectiveLessonId,
+    applyResult,
+    pendingOffline,
   ]);
 
   const handleContinue = useCallback(() => {
+    if (pendingOffline) {
+      setPendingOffline(false);
+      setSelectedChoice(null);
+      setQueueIndex((prev) => prev + 1);
+      return;
+    }
     if (!feedback) return;
 
     if (feedback.passed) {
@@ -336,7 +373,7 @@ export function LessonTest({
     setSelectedChoice(null);
     setShowRecap(false);
     setQueueIndex((prev) => prev + 1);
-  }, [feedback, onPass]);
+  }, [feedback, onPass, pendingOffline]);
 
   // Keyboard accessibility: 1-9 to select choice, Enter to Check/Continue
   useEffect(() => {
@@ -350,7 +387,7 @@ export function LessonTest({
         return;
       }
 
-      if (feedback) {
+      if (feedback || pendingOffline) {
         if (e.key === "Enter") {
           e.preventDefault();
           handleContinue();
@@ -384,6 +421,7 @@ export function LessonTest({
     handleCheck,
     handleContinue,
     handleSelectChoice,
+    pendingOffline,
   ]);
 
   if (waitingToSync) {
@@ -448,8 +486,8 @@ export function LessonTest({
             fontWeight: 600,
           }}
         >
-          You answered every question. We'll verify your answers when you're
-          back online, then add XP and your streak.
+          Your answers are saved. We'll verify your answers when you're back
+          online before continuing the test.
         </p>
 
         <div
@@ -796,9 +834,16 @@ export function LessonTest({
         >
           Exit test
         </a>
-        <span style={{ fontSize: "14px", fontWeight: 700, color: "#666" }}>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "14px",
+            fontWeight: 700,
+            color: "#666",
+          }}
+        >
           {title}
-        </span>
+        </h1>
       </header>
 
       <div
@@ -1054,7 +1099,7 @@ export function LessonTest({
                     name="choice"
                     value={choice}
                     checked={isSelected}
-                    disabled={feedback !== null}
+                    disabled={feedback !== null || pendingOffline}
                     onChange={() => handleSelectChoice(idx)}
                     style={{
                       position: "absolute",
@@ -1242,6 +1287,9 @@ export function LessonTest({
                       lineHeight: "1.45",
                     }}
                   >
+                    {submissionError}
+                  </p>
+                  <p>
                     Your progress and queue are saved. No credits are charged
                     for retries.
                   </p>
@@ -1297,6 +1345,14 @@ export function LessonTest({
                   </button>
                 </div>
               </div>
+            ) : pendingOffline ? (
+              <button
+                type="button"
+                className="btn primary"
+                onClick={handleContinue}
+              >
+                Continue
+              </button>
             ) : feedback === null ? (
               <div
                 style={{ display: "flex", flexDirection: "column", gap: "6px" }}
@@ -1393,24 +1449,28 @@ export function LessonTestRoute() {
     undefined,
   );
   const [minGap, setMinGap] = useState(2);
+  const [passed, setPassed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tracerEnabled) return;
-    track("lesson_test_started", { lesson_id: lessonId });
     authRequest<{
       course_id?: string;
       questions: QuestionItem[];
       total_topics?: number;
       resolved_topics?: number;
       min_gap?: number;
-    }>(`/v1/lessons/${lessonId}/test`)
+      passed?: boolean;
+    }>(`/v1/lessons/${lessonId}/test`, undefined, undefined, "GET", {
+      "X-App-Version": appVersion,
+    })
       .then((data) => {
         if (data.course_id) {
           setCourseId(data.course_id);
         }
         setQuestions(data.questions || []);
+        setPassed(data.passed === true);
         if (typeof data.total_topics === "number") {
           setTotalTopics(data.total_topics);
         }
@@ -1433,11 +1493,6 @@ export function LessonTestRoute() {
     choiceIndex: number,
     operationKey: string | undefined,
   ) => {
-    track("lesson_test_submitted", {
-      lesson_id: lessonId,
-      choice_index: choiceIndex,
-    });
-    const currentQ = questions.find((q) => q.question_id === questionId);
     const opKey = operationKey || generateOperationKey();
     const res = await authRequest<AnswerResult>(
       `/v1/lessons/${lessonId}/test/answer`,
@@ -1445,14 +1500,16 @@ export function LessonTestRoute() {
         question_id: questionId,
         choice_index: choiceIndex,
         operation_key: opKey,
-        ...(currentQ ? { choice_text: currentQ.choices[choiceIndex] } : {}),
       },
+      undefined,
+      "POST",
+      { "X-App-Version": appVersion },
     );
     return res;
   };
 
   const handlePass = () => {
-    track("lesson_test_passed", { lesson_id: lessonId });
+    // Completion analytics are owned by the committing API transaction.
   };
 
   if (!tracerEnabled) {
@@ -1489,6 +1546,7 @@ export function LessonTestRoute() {
       totalTopics={totalTopics}
       resolvedTopics={resolvedTopics}
       minGap={minGap}
+      passed={passed}
       onAnswer={handleAnswer}
       onPass={handlePass}
       onExit={() =>
