@@ -368,6 +368,8 @@ enforcement. No new database tables or personal learner data stores are created.
 
 E10-05: Expose reliability and AI cost dashboards. Introduces `eval_alert_configs` (alert thresholds and windows), `eval_alert_events` (deduplicated operational alert history), `eval_reports` (golden-set evaluation runs with 90-day retention), and `eval_operational_aggregates` (daily rollup counters for total calls, fallback calls, error calls, latency, tokens, cost nanos, and credit revenue cents). Dashboards and alerts are derived purely from operational aggregations, pricing catalogue prices, and evaluation reports. Neither prompts, completions, nor learner-submitted text are stored in these tables or exposed via endpoints. Operational recording and server-side counter increments continue independently even if PostHog analytics is down or if the learner opted out of analytics.
 
+All `/v1/eval/` reads require a live account session, a `pricing_admin_grants` grant, and authentication within the last 15 minutes, using the same policy as pricing administration. `POST /v1/eval/reports` instead requires `Authorization: Bearer <EVAL_REPORT_SERVICE_TOKEN>` from a trusted eval service. Configure that secret independently of account credentials; ingest is disabled when it is unset. The API compares tokens in constant time, caps report bodies at 1 MiB (HTTP 413 on overflow), and logs internal errors while returning only `internal server error` for HTTP 500. The service token grants no dashboard access and is never stored in reports or analytics. Backup, report retention, PostHog schemas, and model eval/fallback behavior remain unchanged.
+
 # E17-03 private Characters and Course Casts
 
 `characters` stores private ownership/current version and a soft deletion date;
