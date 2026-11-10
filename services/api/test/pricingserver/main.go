@@ -94,6 +94,8 @@ func run() (result error) {
 	}
 	if os.Getenv("AUTH_CODE_REQUESTS_PER_EMAIL_PER_HOUR") == "" {
 		rateLimits.RequestEmail = 100000
+	}
+	if os.Getenv("AUTH_CODE_DELIVERIES_PER_EMAIL_PER_HOUR") == "" {
 		rateLimits.DeliveryEmail = 100000
 	}
 	if os.Getenv("AUTH_CODE_VERIFICATIONS_PER_IP_PER_HOUR") == "" {

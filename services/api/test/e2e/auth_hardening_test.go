@@ -1,18 +1,30 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 )
 
+type countingAuthMailer struct {
+	accounts.MailSink
+	deliveries atomic.Int32
+}
+
+func (m *countingAuthMailer) SendCode(ctx context.Context, email, code string) error {
+	m.deliveries.Add(1)
+	return m.MailSink.SendCode(ctx, email, code)
+}
+
 func TestAuthHardeningConcurrentRefreshAndEmailIsolation(t *testing.T) {
 	_, _, database := signedInDatabase(t)
-	sink := new(accounts.MailSink)
+	sink := new(countingAuthMailer)
 	auth, err := accounts.New(database.Pool, "test-only-auth-hardening-key-at-least-32-bytes", sink)
 	if err != nil {
 		t.Fatal(err)
@@ -33,14 +45,23 @@ func TestAuthHardeningConcurrentRefreshAndEmailIsolation(t *testing.T) {
 		t.Fatal(w.Code, w.Body)
 	}
 	code := sink.Code("victim@example.test")
-	for range 4 {
-		call("/v1/auth/code", body, "198.51.100.1")
+	for i := range 4 {
+		want := 202
+		if i >= 2 {
+			want = 429
+		}
+		if w := call("/v1/auth/code", body, "198.51.100.1"); w.Code != want {
+			t.Fatal("per-caller request limit", w.Code, want)
+		}
 	}
 	if w := call("/v1/auth/code", body, "198.51.100.2"); w.Code != 202 {
 		t.Fatal("attacker locked out victim", w.Code, w.Body)
 	}
 	if sink.Code("victim@example.test") != code {
 		t.Fatal("unexpired code overwritten")
+	}
+	if sink.deliveries.Load() != 1 {
+		t.Fatal("resend cooldown did not suppress delivery")
 	}
 	w := call("/v1/auth/verify", `{"email":"victim@example.test","age_confirmed":true,"code":"`+code+`"}`, "198.51.100.2")
 	if w.Code != 200 {
@@ -86,5 +107,24 @@ func TestAuthHardeningConcurrentRefreshAndEmailIsolation(t *testing.T) {
 	}
 	if w := call("/v1/auth/refresh", `{"refresh_token":"`+first.RefreshToken+`"}`, "198.51.100.2"); w.Code != 401 {
 		t.Fatal("late reuse did not revoke family", w.Code)
+	}
+	limits.DeliveryEmail = 1
+	auth.ConfigureRateLimits(limits)
+	const capped = `{"email":"delivery-cap@example.test","age_confirmed":true}`
+	if w := call("/v1/auth/code", capped, "198.51.100.3"); w.Code != 202 {
+		t.Fatal("first delivery", w.Code)
+	}
+	cappedCode := sink.Code("delivery-cap@example.test")
+	if _, err := database.Pool.Exec(t.Context(), "UPDATE auth_codes SET last_sent_at=now()-interval '61 seconds' WHERE email='delivery-cap@example.test'"); err != nil {
+		t.Fatal(err)
+	}
+	if w := call("/v1/auth/code", capped, "198.51.100.4"); w.Code != 202 {
+		t.Fatal("delivery cap must be opaque", w.Code)
+	}
+	if sink.deliveries.Load() != 2 || sink.Code("delivery-cap@example.test") != cappedCode {
+		t.Fatal("email delivery cap bypassed or active code replaced")
+	}
+	if w := call("/v1/auth/verify", `{"email":"delivery-cap@example.test","age_confirmed":true,"code":"`+cappedCode+`"}`, "198.51.100.4"); w.Code != 200 {
+		t.Fatal("delivery cap blocked verification", w.Code)
 	}
 }

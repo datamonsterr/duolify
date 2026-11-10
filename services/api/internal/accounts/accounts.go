@@ -84,10 +84,12 @@ func NewWithOAuthProviders(pool *pgxpool.Pool, secret string, mailer Mailer, goo
 		apple = unavailableAppleProvider{}
 	}
 	if os.Getenv("DUOLIFY_ENV") != "development" {
-		if _, ok := google.(*FixtureGoogleProvider); ok {
+		switch google.(type) {
+		case *FixtureGoogleProvider, *FixtureAppleProvider:
 			return nil, errors.New("fixture Google provider requires development")
 		}
-		if _, ok := apple.(*FixtureAppleProvider); ok {
+		switch apple.(type) {
+		case *FixtureGoogleProvider, *FixtureAppleProvider:
 			return nil, errors.New("fixture Apple provider requires development")
 		}
 	}

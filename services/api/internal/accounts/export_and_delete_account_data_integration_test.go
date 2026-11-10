@@ -148,8 +148,30 @@ SELECT gen_random_uuid(),$1::uuid,encode(sha256(convert_to($1::text,'UTF8')),'he
 	if w = call("POST", "/v1/me/deletion-request", map[string]string{"confirmation": "no"}, tokens.AccessToken); w.Code != 400 {
 		t.Fatalf("unconfirmed delete status=%d", w.Code)
 	}
+	// Pending codes and email-linked limits must be removed without clearing
+	// another learner's limits or the shared IP budget.
+	if w = call("POST", "/v1/auth/code", map[string]any{"email": email, "age_confirmed": true}, ""); w.Code != 202 {
+		t.Fatal("pending deletion code", w.Code)
+	}
+	if w = call("POST", "/v1/auth/code", map[string]any{"email": "unrelated@example.test", "age_confirmed": true}, ""); w.Code != 202 {
+		t.Fatal("unrelated code", w.Code)
+	}
+	var linkedRates, retainedRates int
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FILTER (WHERE email_hash IS NOT NULL),count(*) FILTER (WHERE email_hash IS NULL) FROM auth_rate_limits").Scan(&linkedRates, &retainedRates); err != nil || linkedRates != 4 || retainedRates < 1 {
+		t.Fatal("missing cleanup fixtures", linkedRates, retainedRates, err)
+	}
 	if w = call("POST", "/v1/me/deletion-request", map[string]string{"confirmation": "DELETE"}, tokens.AccessToken); w.Code != 200 {
 		t.Fatalf("delete: %d %s", w.Code, w.Body)
+	}
+	var remainingLinked, remainingShared, remainingCodes int
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FILTER (WHERE email_hash IS NOT NULL),count(*) FILTER (WHERE email_hash IS NULL) FROM auth_rate_limits").Scan(&remainingLinked, &remainingShared); err != nil || remainingLinked != 2 || remainingShared != retainedRates {
+		t.Fatal("email throttles survived deletion or shared budgets changed", remainingLinked, remainingShared, err)
+	}
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM auth_codes WHERE email=$1", email).Scan(&remainingCodes); err != nil || remainingCodes != 0 {
+		t.Fatal("pending code survived deletion", remainingCodes, err)
+	}
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM auth_codes WHERE email='unrelated@example.test'").Scan(&remainingCodes); err != nil || remainingCodes != 1 {
+		t.Fatal("unrelated code removed", remainingCodes, err)
 	}
 	var entryLearner any
 	var owner string

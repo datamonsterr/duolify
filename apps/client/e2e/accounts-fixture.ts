@@ -10,7 +10,7 @@ export const test = base.extend<{ authenticated: void }>({
     async ({ context, request, page }, use) => {
       await resetAuthRateLimits(request);
       if (!tokens) {
-        const email = `browser-${Date.now()}@example.test`;
+        const email = `browser-${crypto.randomUUID()}@example.test`;
         expect(
           (
             await request.post(apiBase + "/v1/auth/code", {

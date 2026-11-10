@@ -13,6 +13,7 @@ export const apiBase =
 export const authRateLimits = {
   requestIp: 100000,
   requestEmail: 100000,
+  deliveryEmail: 100000,
   verifyIp: 100000,
 };
 

@@ -83,6 +83,21 @@ func TestSignInRacesRotationRestoreAndDeletion(t *testing.T) {
 	if err := db.Pool.QueryRow(ctx, "SELECT code_hash FROM auth_codes WHERE email=$1", email).Scan(&preservedHash); err != nil || preservedHash != originalHash {
 		t.Fatal("resend overwrote code", err)
 	}
+	var originalExpiry time.Time
+	// This scenario performs extra resends to inspect preservation; request-IP
+	// enforcement is still checked below, and email/IP isolation has its own test.
+	auth.ConfigureRateLimits(accounts.RateLimits{RequestIP: 20, RequestEmail: 100, VerifyIP: 60})
+	if err := db.Pool.QueryRow(ctx, "UPDATE auth_codes SET attempts=2,last_sent_at=now()-interval '61 seconds' WHERE email=$1 RETURNING expires_at", email).Scan(&originalExpiry); err != nil {
+		t.Fatal(err)
+	}
+	if w := call("/v1/auth/code", map[string]any{"email": email, "age_confirmed": true}, ""); w.Code != 202 {
+		t.Fatal("resend after cooldown", w.Code)
+	}
+	var preservedExpiry time.Time
+	var preservedAttempts int
+	if err := db.Pool.QueryRow(ctx, "SELECT code_hash,expires_at,attempts FROM auth_codes WHERE email=$1", email).Scan(&preservedHash, &preservedExpiry, &preservedAttempts); err != nil || preservedHash != originalHash || !preservedExpiry.Equal(originalExpiry) || preservedAttempts != 2 || sink.Code(email) != code {
+		t.Fatal("resend changed active code, expiry or attempts", err)
+	}
 	var winners atomic.Int32
 	var wg sync.WaitGroup
 	var session accounts.Tokens

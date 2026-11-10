@@ -35,9 +35,16 @@ func TestSetupChatUnit(t *testing.T) {
 
 	for _, field := range []string{"goal", "topic", "background", "level", "locale", "time_zone", "reminder_time"} {
 		t.Run("reject oversized draft "+field, func(t *testing.T) {
+			limit := 64
+			switch field {
+			case "goal", "topic", "background":
+				limit = 2000
+			case "reminder_time":
+				limit = 5
+			}
 			service := accounts.NewTestService(t)
 			service.ConfigureSetupChat(accounts.SetupChatOptions{Engine: &testEngineClient{err: errors.New("must not call")}, Pricing: catalogue})
-			body, _ := json.Marshal(map[string]any{"current_step": "goal", "answer": "ok", "draft": map[string]string{field: strings.Repeat("x", 2001)}})
+			body, _ := json.Marshal(map[string]any{"current_step": "goal", "answer": "ok", "draft": map[string]string{field: strings.Repeat("x", limit+1)}})
 			r := httptest.NewRequestWithContext(t.Context(), "POST", "/v1/me/setup-chat", strings.NewReader(string(body)))
 			r = r.WithContext(accounts.WithTestLearner(r.Context(), "a52c3fe5-fdbb-4d40-9a4f-56bbcf79df72"))
 			w := httptest.NewRecorder()

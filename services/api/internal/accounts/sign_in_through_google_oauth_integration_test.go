@@ -19,8 +19,9 @@ import (
 )
 
 type googleFixture struct {
-	subject string
-	email   string
+	subject      string
+	email        string
+	invalidClaim string
 }
 
 func (p *googleFixture) Audience() string { return "test-google-client" }
@@ -33,7 +34,18 @@ func (p *googleFixture) Exchange(_ context.Context, request accounts.OAuthExchan
 	if request.Code != "fixture-code" || request.CodeVerifier != strings.Repeat("v", 43) || request.RedirectURI != "duolify://oauth/callback" {
 		return accounts.ProviderIdentity{}, accounts.ErrOAuthProvider
 	}
-	return accounts.ProviderIdentity{Provider: "google", Subject: p.subject, Email: p.email, EmailVerified: true, Nonce: request.Nonce, Issuer: "https://accounts.google.com", Audience: p.Audience(), ExpiresAt: time.Now().Add(time.Hour)}, nil
+	identity := accounts.ProviderIdentity{Provider: "google", Subject: p.subject, Email: p.email, EmailVerified: true, Nonce: request.Nonce, Issuer: "https://accounts.google.com", Audience: p.Audience(), ExpiresAt: time.Now().Add(time.Hour)}
+	switch p.invalidClaim {
+	case "issuer":
+		identity.Issuer = "https://evil.test"
+	case "audience":
+		identity.Audience = "another-client"
+	case "nonce":
+		identity.Nonce = "another-transaction"
+	case "expiry":
+		identity.ExpiresAt = time.Now().Add(-time.Minute)
+	}
+	return identity, nil
 }
 
 func TestGoogleOAuthReplayAndVerifiedEmailCollision(t *testing.T) {
@@ -72,6 +84,26 @@ func TestGoogleOAuthReplayAndVerifiedEmailCollision(t *testing.T) {
 		t.Fatalf("unsafe redirect accepted: %d %s", rejected.Code, rejected.Body)
 	}
 	verifier := strings.Repeat("v", 43)
+	for _, claim := range []string{"issuer", "audience", "nonce", "expiry"} {
+		provider.invalidClaim = claim
+		start := call("/v1/auth/google/start", map[string]any{"redirect_uri": "duolify://oauth/callback", "code_challenge": accounts.PKCEChallenge(verifier)})
+		if start.Code != 200 {
+			t.Fatalf("negative claim start: %d %s", start.Code, start.Body)
+		}
+		var transaction accounts.OAuthTransaction
+		if err := json.Unmarshal(start.Body.Bytes(), &transaction); err != nil {
+			t.Fatal(err)
+		}
+		complete := map[string]any{"state": transaction.State, "nonce": transaction.Nonce, "code": "fixture-code", "code_verifier": verifier, "redirect_uri": "duolify://oauth/callback", "age_confirmed": true}
+		if rejected := call("/v1/auth/google/complete", complete); rejected.Code != 401 {
+			t.Fatalf("accepted wrong provider %s: %d %s", claim, rejected.Code, rejected.Body)
+		}
+		var count int
+		if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM learners").Scan(&count); err != nil || count != 0 {
+			t.Fatal("invalid claims persisted an identity", count, err)
+		}
+	}
+	provider.invalidClaim = ""
 	start := call("/v1/auth/google/start", map[string]any{"redirect_uri": "duolify://oauth/callback", "code_challenge": accounts.PKCEChallenge(verifier)})
 	if start.Code != 200 {
 		t.Fatalf("start: %d %s", start.Code, start.Body)
