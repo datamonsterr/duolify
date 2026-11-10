@@ -276,7 +276,7 @@ impl LlmProvider for MockProvider {
                                 "question_id": "v1-q1",
                                 "topic_id": "top-1",
                                 "variant_of": "q1",
-                                "prompt": "Sample? (rephrased)",
+                                "prompt": "Which option correctly confirms the example?",
                                 "choices": ["No", "Yes"],
                                 "answer_index": 1,
                                 "explanation": "Sample variant"

@@ -381,10 +381,11 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 		_, _ = conn.Exec(unlockCtx, `SELECT pg_advisory_unlock(hashtextextended($1, 401))`, id)
 	}()
 
-	var owner, courseID, lessonID, quoteID, state, reservation string
+	var owner, courseID, lessonID, quoteID, state, reservation, failureCode string
+	var checkpoint []byte
 	err = s.opts.Pool.QueryRow(ctx, `
-		SELECT learner_id::text, course_id::text, lesson_id::text, quote_id::text, state, COALESCE(reservation_id::text, '')
-		FROM lesson_generations WHERE id::text=$1`, id).Scan(&owner, &courseID, &lessonID, &quoteID, &state, &reservation)
+		SELECT learner_id::text, course_id::text, lesson_id::text, quote_id::text, state, COALESCE(reservation_id::text, ''), COALESCE(error_code, ''), result_checkpoint
+		FROM lesson_generations WHERE id::text=$1`, id).Scan(&owner, &courseID, &lessonID, &quoteID, &state, &reservation, &failureCode, &checkpoint)
 	if errors.Is(err, pgx.ErrNoRows) || state == "completed" || state == "failed" {
 		return nil
 	}
@@ -392,11 +393,31 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 		return err
 	}
 
+	fail := func(code string, cause error) error {
+		finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		return errors.Join(cause, s.failGeneration(finishCtx, owner, id, reservation, code))
+	}
+	if failureCode != "" {
+		return fail(failureCode, nil)
+	}
+	if len(checkpoint) > 0 {
+		var saved generationCheckpoint
+		if err := json.Unmarshal(checkpoint, &saved); err != nil {
+			return err
+		}
+		return s.completeGeneration(ctx, owner, courseID, lessonID, id, reservation, saved)
+	}
+	// A process may have died after starting a provider. Never repeat an untracked
+	// paid call: release customer funds and conservatively account for the held USD.
+	if state == "generating" {
+		return fail("generation_interrupted", errors.New("generation interrupted before checkpoint"))
+	}
+
 	if state == "queued" {
 		job, e := s.opts.Financial.ReserveAction(ctx, owner, quoteID, "lesson_content")
 		if e != nil || job.State != "reserved" {
-			_ = s.failGeneration(ctx, id, reservation, "insufficient_credits")
-			return fmt.Errorf("reserve credits failed: %w", e)
+			return fail("insufficient_credits", fmt.Errorf("reserve credits failed: %w", e))
 		}
 		reservation = job.ID
 		if _, err = s.opts.Pool.Exec(ctx, `UPDATE lesson_generations SET reservation_id=$2::uuid, state='generating' WHERE id::text=$1`, id, reservation); err != nil {
@@ -405,20 +426,17 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 
 		limits, e := s.opts.Financial.Limits(ctx, owner, reservation, "lesson_content")
 		if e != nil {
-			_ = s.failGeneration(ctx, id, reservation, "limits_error")
-			return fmt.Errorf("limits error: %w", e)
+			return fail("limits_error", fmt.Errorf("limits error: %w", e))
 		}
 		if e = s.opts.Financial.Claim(ctx, owner, reservation); e != nil {
-			_ = s.failGeneration(ctx, id, reservation, "claim_error")
-			return fmt.Errorf("claim error: %w", e)
+			return fail("claim_error", fmt.Errorf("claim error: %w", e))
 		}
 
 		var authoredID, title, goal string
 		var pos int
 		err = s.opts.Pool.QueryRow(ctx, `SELECT authored_id, title, goal, position FROM course_lesson_stubs WHERE id::text=$1`, lessonID).Scan(&authoredID, &title, &goal, &pos)
 		if err != nil {
-			_ = s.failGeneration(ctx, id, reservation, "lesson_not_found")
-			return fmt.Errorf("lesson not found: %w", err)
+			return fail("lesson_not_found", fmt.Errorf("lesson not found: %w", err))
 		}
 
 		// Build CourseOutline
@@ -537,27 +555,54 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 		defer finishCancel()
 
 		if genErr != nil {
-			_ = s.failGeneration(finishCtx, id, reservation, "generation_failed")
-			return fmt.Errorf("engine generate lesson error: %w", genErr)
+			return fail("generation_failed", fmt.Errorf("engine generate lesson error: %w", genErr))
 		}
 		if valErr := ValidateGeneratedLesson(lesson); valErr != nil {
-			_ = s.failGeneration(finishCtx, id, reservation, "validation_failed")
-			return fmt.Errorf("validate generated lesson error: %w", valErr)
+			return fail("validation_failed", fmt.Errorf("validate generated lesson error: %w", valErr))
 		}
 
-		settled, settleErr := s.opts.Financial.Settle(finishCtx, owner, reservation, attempts)
-		if settleErr != nil || settled.State != "settled" {
-			_ = s.failGeneration(finishCtx, id, reservation, "settle_failed")
-			return fmt.Errorf("settle error: %w", settleErr)
+		availableTopics := make(map[string]bool)
+		for _, pool := range lesson.VariantPool {
+			if pool != nil && len(pool.Variants) > 0 {
+				availableTopics[pool.TopicId] = true
+			}
+		}
+		for _, question := range lesson.Test {
+			if !availableTopics[question.TopicId] {
+				return fail("validation_failed", errors.New("validated retry pool required"))
+			}
+		}
+
+		saved := generationCheckpoint{Lesson: lesson, Attempts: attempts, Title: title}
+		raw, marshalErr := json.Marshal(saved)
+		if marshalErr != nil {
+			return fail("checkpoint_failed", marshalErr)
+		}
+		if _, err = s.opts.Pool.Exec(finishCtx, `UPDATE lesson_generations SET result_checkpoint=$2 WHERE id=$1::uuid`, id, raw); err != nil {
+			return err
+		}
+		return s.completeGeneration(finishCtx, owner, courseID, lessonID, id, reservation, saved)
+	}
+	return nil
+}
+
+type generationCheckpoint struct {
+	Lesson   *enginev1.Lesson  `json:"lesson"`
+	Attempts []*enginev1.Usage `json:"attempts"`
+	Title    string            `json:"title"`
+}
+
+func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lessonID, id, reservation string, saved generationCheckpoint) error {
+	finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	lesson, attempts, title := saved.Lesson, saved.Attempts, saved.Title
+	var err error
+	settled, settleErr := s.opts.Financial.SettleWith(finishCtx, owner, reservation, attempts, func(tx pgx.Tx, result credits.Reservation) error {
+		if result.State != "settled" {
+			return credits.ErrUsage
 		}
 
 		// Save generated lesson and its slides / questions in transaction
-		tx, txErr := s.opts.Pool.Begin(finishCtx)
-		if txErr != nil {
-			return txErr
-		}
-		defer func() { _ = tx.Rollback(finishCtx) }()
-
 		manifest := map[string]any{
 			"slide_count":    len(lesson.Slides),
 			"question_count": len(lesson.Test),
@@ -573,7 +618,9 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 			return err
 		}
 
-		_, _ = tx.Exec(finishCtx, `DELETE FROM lesson_slides WHERE lesson_stub_id = $1::uuid`, lessonID)
+		if _, err = tx.Exec(finishCtx, `DELETE FROM lesson_slides WHERE lesson_stub_id = $1::uuid`, lessonID); err != nil {
+			return err
+		}
 		for i, slide := range lesson.Slides {
 			topicIDs := slide.TopicIds
 			if len(topicIDs) == 0 {
@@ -587,7 +634,9 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 			}
 		}
 
-		_, _ = tx.Exec(finishCtx, `DELETE FROM lesson_questions WHERE lesson_stub_id = $1::uuid`, lessonID)
+		if _, err = tx.Exec(finishCtx, `DELETE FROM lesson_questions WHERE lesson_stub_id = $1::uuid`, lessonID); err != nil {
+			return err
+		}
 		for i, q := range lesson.Test {
 			choicesRaw, _ := json.Marshal(q.Choices)
 			topicID := q.TopicId
@@ -603,7 +652,9 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 		}
 
 		// Save private retry pools in Postgres
-		_, _ = tx.Exec(finishCtx, `DELETE FROM lesson_retry_pools WHERE lesson_stub_id = $1::uuid`, lessonID)
+		if _, err = tx.Exec(finishCtx, `DELETE FROM lesson_retry_pools WHERE lesson_stub_id = $1::uuid`, lessonID); err != nil {
+			return err
+		}
 		poolsByTopic := make(map[string][]*enginev1.Question)
 		for _, tp := range lesson.VariantPool {
 			if tp != nil && tp.TopicId != "" {
@@ -616,38 +667,9 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 			if topicID == "" {
 				topicID = fmt.Sprintf("topic_%s", q.QuestionId)
 			}
-			variants, exists := poolsByTopic[topicID]
-			if !exists || len(variants) == 0 {
-				reordered1, newAns1 := ReorderChoices(q.Choices, int(q.AnswerIndex))
-				reordered2, newAns2 := ReorderChoices(reordered1, newAns1)
-				ans1 := uint32(0)
-				if newAns1 >= 0 {
-					ans1 = uint32(newAns1) //nolint:gosec // bounds checked
-				}
-				ans2 := uint32(0)
-				if newAns2 >= 0 {
-					ans2 = uint32(newAns2) //nolint:gosec // bounds checked
-				}
-				variants = []*enginev1.Question{
-					{
-						QuestionId:  fmt.Sprintf("v1-%s", q.QuestionId),
-						TopicId:     topicID,
-						VariantOf:   q.QuestionId,
-						Prompt:      fmt.Sprintf("%s (rephrased)", q.Prompt),
-						Choices:     reordered1,
-						AnswerIndex: ans1,
-						Explanation: q.Explanation,
-					},
-					{
-						QuestionId:  fmt.Sprintf("v2-%s", q.QuestionId),
-						TopicId:     topicID,
-						VariantOf:   q.QuestionId,
-						Prompt:      fmt.Sprintf("In other words: %s", q.Prompt),
-						Choices:     reordered2,
-						AnswerIndex: ans2,
-						Explanation: q.Explanation,
-					},
-				}
+			variants := poolsByTopic[topicID]
+			if len(variants) == 0 {
+				return errors.New("validated retry pool required")
 			}
 
 			variantsRaw, _ := json.Marshal(variants)
@@ -664,62 +686,82 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 			return err
 		}
 
-		if _, err = tx.Exec(finishCtx, `UPDATE lesson_generations SET state = 'completed' WHERE id = $1::uuid`, id); err != nil {
+		if _, err = tx.Exec(finishCtx, `UPDATE lesson_generations SET state = 'completed', result_checkpoint=NULL WHERE id = $1::uuid`, id); err != nil {
 			return err
 		}
 
-		if err = tx.Commit(finishCtx); err != nil {
-			return err
+		return nil
+	})
+	if settleErr != nil {
+		if errors.Is(settleErr, credits.ErrUsage) {
+			return errors.Join(settleErr, s.failGeneration(finishCtx, owner, id, reservation, "settle_failed"))
 		}
+		return settleErr
+	}
+	if settled.State != "settled" {
+		return s.failGeneration(finishCtx, owner, id, reservation, "settle_failed")
+	}
 
-		// Analytics
-		if s.opts.Events != nil {
-			var totalDuration int
-			for _, slide := range lesson.Slides {
-				totalDuration += int(slide.DurationMs)
-			}
-			provider := "engine"
-			model := "default"
-			if len(attempts) > 0 && attempts[0] != nil {
-				provider = attempts[0].Provider
-				model = attempts[0].Model
-			}
-			_ = s.opts.Events.Capture(owner, "lesson_generated", map[string]any{
-				"source":      "api",
-				"platform":    "web",
-				"app_version": "1.0.0",
-				"course_id":   courseID,
-				"lesson_id":   lessonID,
-				"slide_count": len(lesson.Slides),
-				"duration_ms": totalDuration,
-				"provider":    provider,
-				"model":       model,
-			})
+	// Analytics
+	if s.opts.Events != nil {
+		var totalDuration int
+		for _, slide := range lesson.Slides {
+			totalDuration += int(slide.DurationMs)
 		}
+		provider := "engine"
+		model := "default"
+		if len(attempts) > 0 && attempts[0] != nil {
+			provider = attempts[0].Provider
+			model = attempts[0].Model
+		}
+		_ = s.opts.Events.Capture(owner, "lesson_generated", map[string]any{
+			"source":      "api",
+			"platform":    "web",
+			"app_version": "1.0.0",
+			"course_id":   courseID,
+			"lesson_id":   lessonID,
+			"slide_count": len(lesson.Slides),
+			"duration_ms": totalDuration,
+			"provider":    provider,
+			"model":       model,
+		})
 	}
 
 	return nil
 }
 
-func (s *Service) failGeneration(ctx context.Context, id, reservation, errorCode string) error {
-	if reservation != "" {
-		_, _ = s.opts.Financial.Release(ctx, "", reservation)
+func (s *Service) failGeneration(ctx context.Context, owner, id, reservation, errorCode string) error {
+	// Persist cleanup intent before releasing, so a transient ledger failure is resumable.
+	if _, err := s.opts.Pool.Exec(ctx, `UPDATE lesson_generations SET error_code=$2 WHERE id=$1::uuid`, id, errorCode); err != nil {
+		return err
 	}
-	_, _ = s.opts.Pool.Exec(ctx, `UPDATE lesson_generations SET state = 'failed', error_code = $2 WHERE id::text = $1`, id, errorCode)
-	// Return lesson stub back to ready_to_generate
-	_, _ = s.opts.Pool.Exec(ctx, `UPDATE course_lesson_stubs SET status = 'ready_to_generate' WHERE id = (SELECT lesson_id FROM lesson_generations WHERE id::text = $1)`, id)
-
+	if reservation != "" {
+		// Release only accepts queued reservations. Settle with no delivered usage also
+		// releases running work, retaining its conservative operational cost hold.
+		if _, err := s.opts.Financial.Settle(ctx, owner, reservation, nil); err != nil {
+			return fmt.Errorf("release failed generation: %w", err)
+		}
+	}
+	tx, err := s.opts.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err = tx.Exec(ctx, `UPDATE lesson_generations SET state='failed', result_checkpoint=NULL WHERE id=$1::uuid`, id); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs SET status='ready_to_generate' WHERE id=(SELECT lesson_id FROM lesson_generations WHERE id=$1::uuid) AND status='generating'`, id); err != nil {
+		return err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return err
+	}
 	if s.opts.Events != nil {
-		var failOwner, failCourseID, failLessonID string
-		_ = s.opts.Pool.QueryRow(ctx, `SELECT learner_id::text, course_id::text, lesson_id::text FROM lesson_generations WHERE id::text=$1`, id).Scan(&failOwner, &failCourseID, &failLessonID)
-		_ = s.opts.Events.Capture(failOwner, "course_generation_failed", map[string]any{
-			"source":      "api",
-			"platform":    "web",
-			"app_version": "1.0.0",
-			"course_id":   failCourseID,
-			"lesson_id":   failLessonID,
-			"error_code":  errorCode,
-		})
+		var courseID, lessonID string
+		if err = s.opts.Pool.QueryRow(ctx, `SELECT course_id::text,lesson_id::text FROM lesson_generations WHERE id=$1::uuid`, id).Scan(&courseID, &lessonID); err != nil {
+			return err
+		}
+		_ = s.opts.Events.Capture(owner, "course_generation_failed", map[string]any{"source": "api", "platform": "web", "app_version": "development", "course_id": courseID, "lesson_id": lessonID, "error_code": errorCode})
 	}
 	return nil
 }
@@ -873,17 +915,30 @@ func (s *Service) handlePrepare(w http.ResponseWriter, r *http.Request, owner, l
 	}
 
 	ctx := r.Context()
+	// Verify quote
+	quote, err := pricing.ReadQuote(ctx, s.opts.Pool, owner, body.QuoteID)
+	if err != nil || quote.Action != "lesson_content" || !quote.Accepted || quote.Expired {
+		http.Error(w, `{"error":"invalid or expired quote"}`, http.StatusConflict)
+		return
+	}
+
+	tx, err := s.opts.Pool.Begin(ctx)
+	if err != nil {
+		http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Check stub eligibility
 	var unitID string
 	var lessonPos, unitPos int
 	var status string
 	var courseID string
-	err := s.opts.Pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		SELECT cls.unit_id::text, cls.position, cls.status, cu.position, cu.course_id::text
 		FROM course_lesson_stubs cls
 		JOIN course_units cu ON cu.id = cls.unit_id
-		WHERE cls.id::text=$1 AND cls.learner_id::text=$2`, lessonID, owner).Scan(&unitID, &lessonPos, &status, &unitPos, &courseID)
+		WHERE cls.id::text=$1 AND cls.learner_id::text=$2 FOR UPDATE OF cls`, lessonID, owner).Scan(&unitID, &lessonPos, &status, &unitPos, &courseID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, `{"error":"lesson not found"}`, http.StatusNotFound)
 		return
@@ -893,17 +948,8 @@ func (s *Service) handlePrepare(w http.ResponseWriter, r *http.Request, owner, l
 		return
 	}
 
-	if status == "done" {
-		http.Error(w, `{"error":"lesson already completed"}`, http.StatusConflict)
-		return
-	}
-
-	var activeGenCount int
-	_ = s.opts.Pool.QueryRow(ctx, `
-		SELECT count(*) FROM lesson_generations
-		WHERE lesson_id::text=$1 AND state IN ('queued', 'generating')`, lessonID).Scan(&activeGenCount)
-	if activeGenCount > 0 {
-		http.Error(w, `{"error":"lesson generation already in progress"}`, http.StatusConflict)
+	if status != "ready_to_generate" {
+		http.Error(w, `{"error":"lesson not ready to generate"}`, http.StatusConflict)
 		return
 	}
 
@@ -912,11 +958,11 @@ func (s *Service) handlePrepare(w http.ResponseWriter, r *http.Request, owner, l
 	if !isFirstLesson {
 		var predID, predStatus string
 		if lessonPos > 0 {
-			_ = s.opts.Pool.QueryRow(ctx, `
+			_ = tx.QueryRow(ctx, `
 				SELECT id::text, status FROM course_lesson_stubs
 				WHERE unit_id::text=$1 AND position=$2`, unitID, lessonPos-1).Scan(&predID, &predStatus)
 		} else if unitPos > 0 {
-			_ = s.opts.Pool.QueryRow(ctx, `
+			_ = tx.QueryRow(ctx, `
 				SELECT cls.id::text, cls.status FROM course_lesson_stubs cls
 				JOIN course_units cu ON cu.id = cls.unit_id
 				WHERE cu.course_id::text=$1 AND cu.position=$2
@@ -925,7 +971,7 @@ func (s *Service) handlePrepare(w http.ResponseWriter, r *http.Request, owner, l
 
 		var outboxExists bool
 		if predID != "" {
-			_ = s.opts.Pool.QueryRow(ctx, `
+			_ = tx.QueryRow(ctx, `
 				SELECT EXISTS(SELECT 1 FROM lesson_completion_outbox WHERE learner_id=$1::uuid AND lesson_id=$2::uuid)`,
 				owner, predID).Scan(&outboxExists)
 		}
@@ -936,29 +982,37 @@ func (s *Service) handlePrepare(w http.ResponseWriter, r *http.Request, owner, l
 		}
 	}
 
-	// Verify quote
-	quote, err := pricing.ReadQuote(ctx, s.opts.Pool, owner, body.QuoteID)
-	if err != nil || quote.Action != "lesson_content" || !quote.Accepted || quote.Expired {
-		http.Error(w, `{"error":"invalid or expired quote"}`, http.StatusConflict)
-		return
-	}
-
 	// Enqueue generation
 	var genID string
-	err = s.opts.Pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO lesson_generations (learner_id, course_id, lesson_id, quote_id, state)
 		VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'queued')
-		RETURNING id::text`, owner, courseID, lessonID, body.QuoteID).Scan(&genID)
+		ON CONFLICT (lesson_id) WHERE state IN ('queued', 'generating') DO NOTHING
+ RETURNING id::text`, owner, courseID, lessonID, body.QuoteID).Scan(&genID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		http.Error(w, `{"error":"lesson generation already in progress"}`, http.StatusConflict)
+		return
+	}
 	if err != nil {
 		http.Error(w, `{"error":"failed to create generation"}`, http.StatusInternalServerError)
 		return
 	}
 
-	_, _ = s.opts.Pool.Exec(ctx, `UPDATE course_lesson_stubs SET status = 'generating' WHERE id::text = $1`, lessonID)
-
+	if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs SET status='generating' WHERE id=$1::uuid`, lessonID); err != nil {
+		http.Error(w, `{"error":"database error"}`, 500)
+		return
+	}
 	queue, err := s.LessonQueue(slog.Default())
 	if err == nil {
-		_, _ = queue.Insert(ctx, lessonGenerationArgs{ID: genID}, &river.InsertOpts{Queue: "lessons", MaxAttempts: 5})
+		_, err = queue.InsertTx(ctx, tx, lessonGenerationArgs{ID: genID}, &river.InsertOpts{Queue: "lessons", MaxAttempts: 5})
+	}
+	if err != nil {
+		http.Error(w, `{"error":"failed to enqueue generation"}`, 500)
+		return
+	}
+	if err = tx.Commit(ctx); err != nil {
+		http.Error(w, `{"error":"database error"}`, 500)
+		return
 	}
 
 	if s.opts.Events != nil {
@@ -1536,18 +1590,8 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 				variantSource = "pool_exhausted_fallback"
 				variantReason = "pool_exhausted"
 			} else {
-				reordered, newIdx := ReorderChoices(choices, answerIndex)
-				selectedVariant = &variantItem{
-					QuestionID:  fmt.Sprintf("v-reorder-%s-%d", qID, attemptForTopic),
-					TopicID:     topicID,
-					VariantOf:   qID,
-					Prompt:      prompt,
-					Choices:     reordered,
-					AnswerIndex: newIdx,
-					Explanation: explanation,
-				}
-				variantSource = "safe_source_fallback"
-				variantReason = "safe_source_fallback"
+				http.Error(w, `{"error":"approved retry pool unavailable"}`, http.StatusServiceUnavailable)
+				return
 			}
 
 			if s.opts.Events != nil {
@@ -1928,8 +1972,8 @@ func (s *Service) handleRecap(w http.ResponseWriter, r *http.Request, owner, les
 	rows, err := s.opts.Pool.Query(ctx, `
 		SELECT slide_id, html, duration_ms, narration, topic_ids
 		FROM lesson_slides
-		WHERE lesson_stub_id::text=$1 AND $2 = ANY(topic_ids)
-		ORDER BY position ASC`, lessonID, topicID)
+		WHERE lesson_stub_id::text=$1 AND $2 = ANY(topic_ids) AND learner_id::text=$3
+		ORDER BY position ASC`, lessonID, topicID, owner)
 	if err != nil {
 		http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
 		return

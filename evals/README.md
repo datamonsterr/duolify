@@ -95,3 +95,12 @@ invalid revision numbers before provider calls. The offline gate runs the produc
 Terminal failure releases undelivered reservations without partial enrollment in the
 API integration suite. Revision rows remain Git-pinned until E10-01 Hugging Face
 provisioning; E10-06 gates live promotion.
+
+Review #161 adds eight `lesson_test_variant` recorded cases that call the same
+production paraphrase processor as GenerateRetryVariants and GenerateLesson pool
+repair. Critical checks reject source-prompt reuse, cosmetic prefixes, incorrect
+answers, untaught/missing topics and a third attempt. Initial pool failure releases
+undelivered customer Credits; approved pool exhaustion remains free. Checkpoints,
+atomic credit/content commits and cleanup retries are exercised against Postgres
+in the lesson-test, backup, accounts and credits suites. Git pins these fixtures
+until E10-01 provisions the matching live dataset; no live promotion is implied.

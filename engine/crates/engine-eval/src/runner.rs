@@ -717,6 +717,34 @@ async fn evaluate_outline_change(input: &serde_json::Value) -> Result<String> {
     .to_string())
 }
 
+async fn evaluate_retry_variants(input: &serde_json::Value) -> Result<String> {
+    use engine_core::lessontest::retry;
+    let source: retry::Question = serde_json::from_value(input["source"].clone())?;
+    if retry::validate_source(&source).is_err() {
+        return Ok(
+            serde_json::json!({"delivered":false,"attempt_count":0,"variants":[]}).to_string(),
+        );
+    }
+    let previous: Vec<retry::Question> = serde_json::from_value(
+        input
+            .get("previous_variants")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!([])),
+    )?;
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input["recorded"].clone())?;
+    let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
+    let outcome = retry::generate(&router, &source, &previous, &limits).await?;
+    let variants = outcome
+        .completion
+        .as_ref()
+        .and_then(|c| retry::parse_variants(&source, &previous, &c.text).ok())
+        .unwrap_or_default();
+    Ok(serde_json::json!({"delivered":!variants.is_empty(),"variants":variants,"attempt_count":outcome.attempts.len()}).to_string())
+}
+
 async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<String> {
     let spec = input["spec"].to_string();
     let valid = engine_core::characters::valid_spec(&spec);
@@ -905,7 +933,9 @@ impl Runner {
                 && self.provider_name == "mock"
                 && self.custom_router.is_none()
             {
-                if canonical == "course_outline" {
+                if canonical == "lesson_test_variant" {
+                    evaluate_retry_variants(&case.input).await?
+                } else if canonical == "course_outline" {
                     evaluate_course_outline(&case.input).await?
                 } else if canonical == "course_preview" {
                     evaluate_preview(&case.input).await?

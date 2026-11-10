@@ -505,15 +505,16 @@ type LessonCompletionSummary struct {
 }
 
 type LessonGeneration struct {
-	ID            pgtype.UUID        `json:"id"`
-	LearnerID     pgtype.UUID        `json:"learner_id"`
-	CourseID      pgtype.UUID        `json:"course_id"`
-	LessonID      pgtype.UUID        `json:"lesson_id"`
-	QuoteID       pgtype.UUID        `json:"quote_id"`
-	ReservationID pgtype.UUID        `json:"reservation_id"`
-	State         string             `json:"state"`
-	ErrorCode     pgtype.Text        `json:"error_code"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ID               pgtype.UUID        `json:"id"`
+	LearnerID        pgtype.UUID        `json:"learner_id"`
+	CourseID         pgtype.UUID        `json:"course_id"`
+	LessonID         pgtype.UUID        `json:"lesson_id"`
+	QuoteID          pgtype.UUID        `json:"quote_id"`
+	ReservationID    pgtype.UUID        `json:"reservation_id"`
+	State            string             `json:"state"`
+	ErrorCode        pgtype.Text        `json:"error_code"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	ResultCheckpoint []byte             `json:"result_checkpoint"`
 }
 
 type LessonManifest struct {
