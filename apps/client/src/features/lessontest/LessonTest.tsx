@@ -35,6 +35,10 @@ export interface AnswerResult {
   offer_recap?: boolean;
   recap_slides?: RecapSlide[];
   offer_leave_resume?: boolean;
+  next_lesson_id?: string;
+  next_lesson_status?: string;
+  required_credits?: number;
+  available_credits?: number;
 }
 
 export interface LessonTestProps {
@@ -234,38 +238,221 @@ export function LessonTest({
   ]);
 
   if (finished) {
+    const nextStatus = feedback?.next_lesson_status;
+    const reqCredits = feedback?.required_credits ?? 190;
+    const availCredits = feedback?.available_credits ?? 12;
+
     return (
       <div
-        className="complete"
-        style={{ padding: "40px 20px", textAlign: "center" }}
+        className="finish-screen"
+        style={{
+          maxWidth: "480px",
+          margin: "0 auto",
+          padding: "40px 20px 24px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          textAlign: "center",
+          gap: "16px",
+        }}
       >
         <div
-          className="big-star"
-          style={{ fontSize: "48px", marginBottom: "16px" }}
-        >
-          ✦
-        </div>
-        <h1 style={{ fontSize: "28px", fontWeight: 900, marginBottom: "8px" }}>
-          Lesson complete!
-        </h1>
-        <p style={{ color: "#555", fontSize: "16px", marginBottom: "24px" }}>
-          Wonderful work. Your universe just got a little bigger.
-        </p>
-        <a
-          href={`/course/${effectiveCourseId}`}
-          className="btn"
+          aria-hidden="true"
           style={{
-            display: "inline-block",
-            padding: "14px 28px",
+            width: "120px",
+            height: "120px",
+            borderRadius: "50%",
             background: "#1F7A0D",
+            boxShadow: "0 8px 0 #145208",
             color: "#fff",
-            textDecoration: "none",
-            borderRadius: "16px",
-            fontWeight: 900,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          Back to your path
-        </a>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ width: "64px", height: "64px" }}
+          >
+            <path d="M5 12.5l4.5 4.5L19 7.5" />
+          </svg>
+        </div>
+
+        <h2
+          style={{
+            margin: 0,
+            fontSize: "30px",
+            fontWeight: 900,
+            color: "#2B2B2B",
+            lineHeight: 1.1,
+          }}
+        >
+          Lesson complete!
+        </h2>
+        <p
+          style={{
+            margin: 0,
+            fontSize: "15px",
+            lineHeight: 1.5,
+            color: "#555",
+          }}
+        >
+          +15 XP · 8-day streak
+        </p>
+
+        {nextStatus === "insufficient_credits" && (
+          <>
+            <div
+              className="ban bvi"
+              style={{
+                borderRadius: "16px",
+                padding: "12px 14px",
+                display: "flex",
+                gap: "10px",
+                alignItems: "flex-start",
+                textAlign: "left",
+                width: "100%",
+                background: "#F0E7FF",
+                color: "#5B2BB5",
+              }}
+            >
+              <div>
+                <b
+                  style={{
+                    display: "block",
+                    fontSize: "15px",
+                    fontWeight: 900,
+                    marginBottom: "2px",
+                  }}
+                >
+                  Next lesson needs {reqCredits} credits
+                </b>
+                <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.45 }}>
+                  Purchased balance: {availCredits}. Your progress is saved;
+                  prepare it whenever you're ready.
+                </p>
+              </div>
+            </div>
+            <a
+              href="/credits"
+              className="btn vio"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
+                minHeight: "50px",
+                padding: "0 16px",
+                border: "none",
+                borderRadius: "16px",
+                background: "#7B3FE4",
+                boxShadow: "0 4px 0 #5A2BB0",
+                color: "#fff",
+                fontWeight: 900,
+                fontSize: "15px",
+                letterSpacing: ".8px",
+                textTransform: "uppercase",
+                textDecoration: "none",
+                cursor: "pointer",
+              }}
+            >
+              See credit options
+            </a>
+          </>
+        )}
+
+        {nextStatus === "failed" && (
+          <>
+            <div
+              className="ban bbad"
+              role="alert"
+              style={{
+                borderRadius: "16px",
+                padding: "12px 14px",
+                display: "flex",
+                gap: "10px",
+                alignItems: "flex-start",
+                textAlign: "left",
+                width: "100%",
+                background: "#FDECEC",
+                color: "#B3261E",
+              }}
+            >
+              <div>
+                <b
+                  style={{
+                    display: "block",
+                    fontSize: "15px",
+                    fontWeight: 900,
+                    marginBottom: "2px",
+                  }}
+                >
+                  Failure variant · next lesson couldn't be prepared
+                </b>
+                <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.45 }}>
+                  Reserved credits were released. This lesson is still complete.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn sec"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
+                minHeight: "50px",
+                padding: "0 16px",
+                border: "2px solid #D3D3D3",
+                borderRadius: "16px",
+                background: "#fff",
+                boxShadow: "0 4px 0 #D3D3D3",
+                color: "#1667AB",
+                fontWeight: 900,
+                fontSize: "15px",
+                letterSpacing: ".8px",
+                textTransform: "uppercase",
+                cursor: "pointer",
+              }}
+            >
+              Try again · new estimate
+            </button>
+          </>
+        )}
+
+        <div style={{ width: "100%", marginTop: "12px" }}>
+          <a
+            href={`/course/${effectiveCourseId}`}
+            className="btn sec"
+            aria-label="Back to your path — Back to learn path"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "100%",
+              minHeight: "50px",
+              padding: "0 16px",
+              border: "2px solid #D3D3D3",
+              borderRadius: "16px",
+              background: "#fff",
+              boxShadow: "0 4px 0 #D3D3D3",
+              color: "#1667AB",
+              fontWeight: 900,
+              fontSize: "15px",
+              letterSpacing: ".8px",
+              textTransform: "uppercase",
+              textDecoration: "none",
+            }}
+          >
+            Back to your path
+          </a>
+        </div>
       </div>
     );
   }
@@ -742,6 +929,7 @@ export function LessonTestRoute() {
   const navigate = useNavigate();
   const session = useShellSession();
   const tracerEnabled = useLessonTestTracerEnabled();
+  const [courseId, setCourseId] = useState<string | undefined>(undefined);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [totalTopics, setTotalTopics] = useState<number | undefined>(undefined);
   const [resolvedTopics, setResolvedTopics] = useState<number | undefined>(
@@ -755,12 +943,16 @@ export function LessonTestRoute() {
     if (!tracerEnabled) return;
     track("lesson_test_started", { lesson_id: lessonId });
     authRequest<{
+      course_id?: string;
       questions: QuestionItem[];
       total_topics?: number;
       resolved_topics?: number;
       min_gap?: number;
     }>(`/v1/lessons/${lessonId}/test`)
       .then((data) => {
+        if (data.course_id) {
+          setCourseId(data.course_id);
+        }
         setQuestions(data.questions || []);
         if (typeof data.total_topics === "number") {
           setTotalTopics(data.total_topics);
@@ -812,11 +1004,13 @@ export function LessonTestRoute() {
     );
   }
 
+  const effectiveCourseId = courseId || session.courseId() || "astronomy";
+
   if (error) {
     return (
       <div style={{ padding: "32px", textAlign: "center" }}>
         <p>{error}</p>
-        <Link to="/course/$courseId" params={{ courseId: session.courseId() }}>
+        <Link to="/course/$courseId" params={{ courseId: effectiveCourseId }}>
           Exit test
         </Link>
       </div>
@@ -827,7 +1021,7 @@ export function LessonTestRoute() {
     <LessonTest
       key={questions.map((q) => q.question_id).join(",") || lessonId}
       lessonId={lessonId}
-      courseId={session.courseId()}
+      courseId={effectiveCourseId}
       questions={questions}
       totalTopics={totalTopics}
       resolvedTopics={resolvedTopics}
@@ -837,7 +1031,7 @@ export function LessonTestRoute() {
       onExit={() =>
         navigate({
           to: "/course/$courseId",
-          params: { courseId: session.courseId() },
+          params: { courseId: effectiveCourseId },
         })
       }
     />

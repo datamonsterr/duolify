@@ -265,12 +265,12 @@ func run() (result error) {
 		Player:                  lessonPlayer,
 		LessonTestTracerEnabled: tracerEnabled,
 		LessonTest:              lessonHandler,
+		Characters:              charHandler,
 		Pricing:                 pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil),
 		Quotes:                  pricing.NewQuotes(db.Pool),
 		Credits:                 creditHandler,
 		Accounts:                auth,
 		CourseBrief:             courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"}),
-		Characters:              charHandler,
 	}, logger))
 	// Exercise the real expiry worker across a historical local date. Only the
 	// disposable fixture exposes this clock control; amounts stay config-owned.

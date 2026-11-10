@@ -166,6 +166,9 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			"lesson_test_tracer_enabled": deps.LessonTestTracerEnabled,
 		})
 	})
+	if deps.LessonTestTracerEnabled && deps.LessonTest != nil && deps.Accounts != nil {
+		mux.Handle("/v1/lesson-generations/", deps.Accounts.Protect(deps.LessonTest))
+	}
 	if deps.Characters != nil {
 		mux.Handle("GET /v1/characters/default-cast", deps.Characters)
 		if deps.Accounts != nil {
@@ -186,29 +189,22 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			mux.Handle("/v1/courses/{courseId}/lessons/", deps.Accounts.Protect(deps.Characters))
 		}
 	}
-	var lessonsHandler http.Handler
-	if deps.Characters != nil {
-		lessonsHandler = deps.Characters
-	}
-	if deps.LessonTestTracerEnabled && deps.LessonTest != nil && deps.Accounts != nil {
-		testProtected := deps.Accounts.Protect(deps.LessonTest)
-		if lessonsHandler != nil {
-			charHandler := lessonsHandler
-			lessonsHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if strings.HasSuffix(r.URL.Path, "/manifest") {
-					charHandler.ServeHTTP(w, r)
-					return
-				}
-				testProtected.ServeHTTP(w, r)
-			})
-		} else {
-			lessonsHandler = testProtected
+	lessonMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/manifest") && deps.Characters != nil {
+			deps.Characters.ServeHTTP(w, r)
+			return
 		}
-		mux.Handle("/v1/lesson-generations/", deps.Accounts.Protect(deps.LessonTest))
-	}
-	if lessonsHandler != nil {
-		mux.Handle("/v1/lessons/", lessonsHandler)
-	}
+		if deps.LessonTestTracerEnabled && deps.LessonTest != nil && deps.Accounts != nil {
+			deps.Accounts.Protect(deps.LessonTest).ServeHTTP(w, r)
+			return
+		}
+		if deps.Characters != nil {
+			deps.Characters.ServeHTTP(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})
+	mux.Handle("/v1/lessons/", lessonMux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})

@@ -198,3 +198,23 @@ fn test_validate_variant_duplicate_choices_rejected() {
     );
     assert!(res.is_err());
 }
+
+#[test]
+fn test_validate_history_valid() {
+    let hist = vec![
+        "Lesson 1: Sky Coordinates. Passed. Weak topics: celestial-altitude.".to_string(),
+        "Lesson 2: Star Navigation. Passed.".to_string(),
+    ];
+    assert!(validate_history(&hist).is_ok());
+}
+
+#[test]
+fn test_validate_history_empty_item_rejected() {
+    let hist = vec!["Lesson 1: Sky Coordinates.".to_string(), "   ".to_string()];
+    assert!(validate_history(&hist).is_err());
+}
+
+#[test]
+fn test_validate_history_empty_slice_valid() {
+    assert!(validate_history(&[]).is_ok());
+}

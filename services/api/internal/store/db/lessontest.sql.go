@@ -98,6 +98,81 @@ func (q *Queries) GetLessonStub(ctx context.Context, id pgtype.UUID) (CourseLess
 	return i, err
 }
 
+const insertLessonCompletionSummary = `-- name: InsertLessonCompletionSummary :one
+INSERT INTO lesson_completion_summaries (learner_id, course_id, lesson_id, summary, weak_topics)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (learner_id, lesson_id) DO UPDATE SET summary = EXCLUDED.summary, weak_topics = EXCLUDED.weak_topics
+RETURNING id, learner_id, course_id, lesson_id, summary, weak_topics, completed_at
+`
+
+type InsertLessonCompletionSummaryParams struct {
+	LearnerID  pgtype.UUID `json:"learner_id"`
+	CourseID   pgtype.UUID `json:"course_id"`
+	LessonID   pgtype.UUID `json:"lesson_id"`
+	Summary    string      `json:"summary"`
+	WeakTopics []byte      `json:"weak_topics"`
+}
+
+func (q *Queries) InsertLessonCompletionSummary(ctx context.Context, arg InsertLessonCompletionSummaryParams) (LessonCompletionSummary, error) {
+	row := q.db.QueryRow(ctx, insertLessonCompletionSummary,
+		arg.LearnerID,
+		arg.CourseID,
+		arg.LessonID,
+		arg.Summary,
+		arg.WeakTopics,
+	)
+	var i LessonCompletionSummary
+	err := row.Scan(
+		&i.ID,
+		&i.LearnerID,
+		&i.CourseID,
+		&i.LessonID,
+		&i.Summary,
+		&i.WeakTopics,
+		&i.CompletedAt,
+	)
+	return i, err
+}
+
+const listCourseLessonCompletionSummaries = `-- name: ListCourseLessonCompletionSummaries :many
+SELECT id, learner_id, course_id, lesson_id, summary, weak_topics, completed_at FROM lesson_completion_summaries
+WHERE learner_id = $1 AND course_id = $2
+ORDER BY completed_at ASC
+`
+
+type ListCourseLessonCompletionSummariesParams struct {
+	LearnerID pgtype.UUID `json:"learner_id"`
+	CourseID  pgtype.UUID `json:"course_id"`
+}
+
+func (q *Queries) ListCourseLessonCompletionSummaries(ctx context.Context, arg ListCourseLessonCompletionSummariesParams) ([]LessonCompletionSummary, error) {
+	rows, err := q.db.Query(ctx, listCourseLessonCompletionSummaries, arg.LearnerID, arg.CourseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LessonCompletionSummary{}
+	for rows.Next() {
+		var i LessonCompletionSummary
+		if err := rows.Scan(
+			&i.ID,
+			&i.LearnerID,
+			&i.CourseID,
+			&i.LessonID,
+			&i.Summary,
+			&i.WeakTopics,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLessonRetryPools = `-- name: ListLessonRetryPools :many
 SELECT id, lesson_stub_id, learner_id, topic_id, variants, created_at FROM lesson_retry_pools WHERE lesson_stub_id = $1
 `

@@ -112,6 +112,7 @@ export function track(
     | "lesson_completed"
     | "lesson_generation_requested"
     | "lesson_generated"
+    | "course_generation_failed"
     | "lesson_test_started"
     | "lesson_test_submitted"
     | "lesson_test_passed"

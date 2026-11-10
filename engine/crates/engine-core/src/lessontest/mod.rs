@@ -288,5 +288,14 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
     Ok(())
 }
 
+pub fn validate_history(history: &[String]) -> Result<()> {
+    for (i, item) in history.iter().enumerate() {
+        if item.trim().is_empty() {
+            bail!("history item {i} must not be empty");
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 pub mod tests;
