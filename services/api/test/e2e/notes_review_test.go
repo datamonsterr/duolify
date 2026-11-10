@@ -12,12 +12,16 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/google/uuid"
 )
 
 func TestNotesReviewForeignEnrichDoesNotBillOwner(t *testing.T) {
 	auth, attackerToken, database := signedInDatabase(t)
 	ctx := t.Context()
+	if err := worker.Migrate(ctx, database.Pool, slog.Default()); err != nil {
+		t.Fatal(err)
+	}
 	owner := uuid.NewString()
 	if _, err := database.Pool.Exec(ctx, "INSERT INTO learners(id,display_name) VALUES($1,'note owner')", owner); err != nil {
 		t.Fatal(err)

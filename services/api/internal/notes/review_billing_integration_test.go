@@ -5,7 +5,9 @@ package notes_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/google/uuid"
 	"github.com/testcontainers/testcontainers-go"
@@ -24,6 +27,101 @@ import (
 type reviewEngine struct {
 	enginev1.EngineServiceClient
 	enrich func(context.Context, *enginev1.EnrichNoteRequest) (*enginev1.EnrichNoteResponse, error)
+}
+
+func TestNotesReviewEnrichmentClaim(t *testing.T) {
+	database := reviewDatabase(t)
+	learner, financial := reviewLearner(t, database)
+	entered, finish := make(chan struct{}, 10), make(chan struct{})
+	var calls atomic.Int64
+	fixture := &reviewEngine{enrich: func(ctx context.Context, req *enginev1.EnrichNoteRequest) (*enginev1.EnrichNoteResponse, error) {
+		calls.Add(1)
+		entered <- struct{}{}
+		select {
+		case <-finish:
+			return reviewResponse(req), nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}}
+	service := notes.NewServiceWithEnrichment(database.Pool, nil, financial, fixture)
+	input := notes.SaveNoteInput{ActionKey: uuid.NewString(), Source: "chat", RawText: "A concurrent note"}
+	note, err := service.SaveNote(t.Context(), learner, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.SaveNote(t.Context(), learner, input); err != nil {
+		t.Fatal(err)
+	}
+	var queued int
+	if err = database.Pool.QueryRow(t.Context(), "SELECT count(*) FROM river_job WHERE kind='note_enrich' AND args->>'note_id'=$1", note.ID).Scan(&queued); err != nil {
+		t.Fatal(err)
+	}
+	if queued != 1 {
+		t.Errorf("idempotent save queued %d jobs; want 1", queued)
+	}
+	first := make(chan error, 1)
+	go func() { first <- service.ProcessEnrichment(t.Context(), learner, note.ID) }()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("engine did not start")
+	}
+	queue, err := service.NotesQueue(slog.Default())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = queue.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+		defer cancel()
+		if e := queue.Stop(ctx); e != nil {
+			t.Error(e)
+		}
+	}()
+	results := make(chan error, 3)
+	go func() { results <- service.ProcessEnrichment(t.Context(), learner, note.ID) }()
+	go func() {
+		results <- service.ProcessEnrichmentWithVersion(t.Context(), learner, note.ID, note.RawVersion)
+	}()
+	go func() { _, e := service.ResumePendingEnrichments(t.Context(), learner); results <- e }()
+	for range 3 {
+		select {
+		case e := <-results:
+			if e != nil {
+				t.Errorf("competing enrichment: %v", e)
+			}
+		case <-time.After(5 * time.Second):
+			t.Error("competing entry point did not yield to active claim")
+		}
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var state string
+		if err = database.Pool.QueryRow(t.Context(), "SELECT state FROM river_job WHERE kind='note_enrich' AND args->>'note_id'=$1", note.ID).Scan(&state); err != nil {
+			t.Fatal(err)
+		}
+		if state == "completed" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("worker did not yield to existing enrichment claim: ", state)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	close(finish)
+	if err = <-first; err != nil {
+		t.Fatal(err)
+	}
+	var reservations int
+	if err = database.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_jobs WHERE learner_id=$1", learner).Scan(&reservations); err != nil {
+		t.Fatal(err)
+	}
+	if reservations != 1 || calls.Load() != 1 {
+		t.Errorf("reservations=%d engine calls=%d; want one each", reservations, calls.Load())
+	}
 }
 
 func (e *reviewEngine) EnrichNote(ctx context.Context, req *enginev1.EnrichNoteRequest, _ ...grpc.CallOption) (*enginev1.EnrichNoteResponse, error) {
@@ -50,6 +148,9 @@ func reviewDatabase(t *testing.T) *store.Store {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
+	if err = worker.Migrate(ctx, database.Pool, slog.Default()); err != nil {
+		t.Fatal(err)
+	}
 	return database
 }
 

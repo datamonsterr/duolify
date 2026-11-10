@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
@@ -107,6 +108,7 @@ type Service struct {
 	credits      *credits.Service
 	engineClient enginev1.EngineServiceClient
 	riverClient  *river.Client[pgx.Tx]
+	queueMu      sync.Mutex
 }
 
 // NewService constructs a new notes Service instance.
@@ -186,7 +188,16 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 		slideID = pgtype.Int4{Int32: int32(*input.SlideID), Valid: true}
 	}
 
-	note, err := s.queries.UpsertQuickNote(ctx, db.UpsertQuickNoteParams{
+	queue, err := s.NotesQueue(slog.Default())
+	if err != nil {
+		return nil, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	note, err := s.queries.WithTx(tx).UpsertQuickNote(ctx, db.UpsertQuickNoteParams{
 		LearnerID:  learnerUUID,
 		ActionKey:  input.ActionKey,
 		CourseID:   coursePgUUID,
@@ -197,24 +208,26 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 		RawText:    input.RawText,
 		Status:     "enrichment_pending",
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		if err = tx.Rollback(ctx); err != nil {
+			return nil, err
+		}
+		existing, e := s.queries.GetQuickNoteByActionKey(ctx, db.GetQuickNoteByActionKeyParams{LearnerID: learnerUUID, ActionKey: input.ActionKey})
+		if e != nil {
+			return nil, e
+		}
+		return s.GetNote(ctx, learnerID, formatUUID(existing))
+	}
 	if err != nil {
 		return nil, err
 	}
-
+	if _, err = queue.InsertTx(ctx, tx, NoteEnrichArgs{LearnerID: learnerID, NoteID: formatUUID(note.ID), ExpectedVersion: int(note.RawVersion)}, nil); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
 	_ = EmitQuickNoteCreated(s.events, learnerID, input.Source, len(input.RawText), "web", "0.1.0")
-
-	if s.riverClient == nil && s.pool != nil {
-		_, _ = s.NotesQueue(slog.Default())
-	}
-	if s.riverClient != nil {
-		_, _ = s.riverClient.Insert(ctx, NoteEnrichArgs{
-			LearnerID:       learnerID,
-			NoteID:          formatUUID(note.ID),
-			ExpectedVersion: int(note.RawVersion),
-		}, &river.InsertOpts{
-			Queue: "notes",
-		})
-	}
 
 	dto := toDTO(note)
 	return &dto, nil

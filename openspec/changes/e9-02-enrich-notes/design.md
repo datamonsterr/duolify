@@ -77,3 +77,5 @@ Enrichment entry points and River payloads carry the authenticated learner ID. R
 
 Non-delivery settles an explicit zero-cost, non-delivered attempt, including after Claim; nil usage retains its shared meaning of unknown provider cost. Cleanup uses a bounded context independent of request cancellation and propagates settlement and status errors. Accepted enrichment, raw-version validation and final status commit together with the ledger through SettleWith. Mock-provider regression cases assert zero ledger delta for provider errors, rejected output, concurrent edits and failed database writes, and one charge for successful delivery.
 
+A conditional UPDATE RETURNING claims a pending or failed raw revision before quoting. Competing enrichment entry points yield to that claim. River uniqueness uses note ID and raw version; saving an idempotent replay returns the existing note without inserting another job. A new raw note and its River job commit in one transaction; queue failures are returned and roll back the insert. Fixtures migrate River alongside the application schema.
+

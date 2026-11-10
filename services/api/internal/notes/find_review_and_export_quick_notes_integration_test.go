@@ -18,6 +18,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -52,6 +53,9 @@ func TestFindReviewAndExportQuickNotesIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
+	if err = worker.Migrate(ctx, db.Pool, slog.Default()); err != nil {
+		t.Fatal(err)
+	}
 
 	mail := new(accounts.MailSink)
 	auth, err := accounts.New(db.Pool, strings.Repeat("test-key-32-chars-long-minimum!", 2), mail)

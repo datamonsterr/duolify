@@ -5,6 +5,7 @@ package notes_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/google/uuid"
 	"github.com/testcontainers/testcontainers-go"
@@ -103,6 +105,9 @@ func TestResumePendingEnrichmentWhenCreditsArriveIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer database.Close()
+	if err = worker.Migrate(ctx, database.Pool, slog.Default()); err != nil {
+		t.Fatal(err)
+	}
 
 	catalogue, err := pricing.Load(ctx, database.Queries)
 	if err != nil {

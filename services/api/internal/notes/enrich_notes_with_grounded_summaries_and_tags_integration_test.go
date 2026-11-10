@@ -5,6 +5,7 @@ package notes_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/google/uuid"
 	"github.com/testcontainers/testcontainers-go"
@@ -104,6 +106,9 @@ func TestEnrichNotesWithGroundedSummariesAndTagsIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
+	if err = worker.Migrate(ctx, db.Pool, slog.Default()); err != nil {
+		t.Fatal(err)
+	}
 
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {

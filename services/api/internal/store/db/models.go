@@ -15,11 +15,13 @@ type AccountDeletionTombstone struct {
 }
 
 type AuthCode struct {
-	Email      string             `json:"email"`
-	CodeHash   string             `json:"code_hash"`
-	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
-	Attempts   int32              `json:"attempts"`
-	ConsumedAt pgtype.Timestamptz `json:"consumed_at"`
+	Email          string             `json:"email"`
+	CodeHash       string             `json:"code_hash"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	Attempts       int32              `json:"attempts"`
+	ConsumedAt     pgtype.Timestamptz `json:"consumed_at"`
+	CodeCiphertext []byte             `json:"code_ciphertext"`
+	LastSentAt     pgtype.Timestamptz `json:"last_sent_at"`
 }
 
 type AuthIdentity struct {
@@ -50,13 +52,15 @@ type AuthRateLimit struct {
 	KeyHash   string             `json:"key_hash"`
 	Count     int32              `json:"count"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	EmailHash pgtype.Text        `json:"email_hash"`
 }
 
 type AuthRefreshToken struct {
-	TokenHash  string             `json:"token_hash"`
-	SessionID  pgtype.UUID        `json:"session_id"`
-	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
-	ConsumedAt pgtype.Timestamptz `json:"consumed_at"`
+	TokenHash           string             `json:"token_hash"`
+	SessionID           pgtype.UUID        `json:"session_id"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt          pgtype.Timestamptz `json:"consumed_at"`
+	SuccessorCiphertext []byte             `json:"successor_ciphertext"`
 }
 
 type AuthSession struct {

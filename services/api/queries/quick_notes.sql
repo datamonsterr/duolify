@@ -12,8 +12,7 @@ INSERT INTO quick_notes (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
-ON CONFLICT (learner_id, action_key) DO UPDATE
-SET updated_at = quick_notes.updated_at
+ON CONFLICT (learner_id, action_key) DO NOTHING
 RETURNING id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, reviewed_at, version, raw_version, created_at, updated_at;
 
 -- name: GetQuickNoteByID :one
@@ -161,3 +160,6 @@ WHERE qn.learner_id = sqlc.arg('learner_id')
     ))
   )
 ORDER BY qn.created_at DESC;
+
+-- name: GetQuickNoteByActionKey :one
+SELECT id FROM quick_notes WHERE learner_id=$1 AND action_key=$2;

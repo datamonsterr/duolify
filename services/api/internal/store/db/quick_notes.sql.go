@@ -180,6 +180,22 @@ func (q *Queries) GetCourseIDForLesson(ctx context.Context, id pgtype.UUID) (pgt
 	return course_id, err
 }
 
+const getQuickNoteByActionKey = `-- name: GetQuickNoteByActionKey :one
+SELECT id FROM quick_notes WHERE learner_id=$1 AND action_key=$2
+`
+
+type GetQuickNoteByActionKeyParams struct {
+	LearnerID pgtype.UUID `json:"learner_id"`
+	ActionKey string      `json:"action_key"`
+}
+
+func (q *Queries) GetQuickNoteByActionKey(ctx context.Context, arg GetQuickNoteByActionKeyParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getQuickNoteByActionKey, arg.LearnerID, arg.ActionKey)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getQuickNoteByID = `-- name: GetQuickNoteByID :one
 SELECT id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, reviewed_at, version, raw_version, created_at, updated_at
 FROM quick_notes
@@ -782,8 +798,7 @@ INSERT INTO quick_notes (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
-ON CONFLICT (learner_id, action_key) DO UPDATE
-SET updated_at = quick_notes.updated_at
+ON CONFLICT (learner_id, action_key) DO NOTHING
 RETURNING id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, reviewed_at, version, raw_version, created_at, updated_at
 `
 

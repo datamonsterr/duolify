@@ -126,9 +126,14 @@ func EmitQuickNoteEnrichmentFailed(events analytics.Events, learnerID, noteID, r
 
 // NoteEnrichArgs contains the queue payload for enriching a note asynchronously.
 type NoteEnrichArgs struct {
-	NoteID          string `json:"note_id"`
+	NoteID          string `json:"note_id" river:"unique"`
 	LearnerID       string `json:"learner_id"`
-	ExpectedVersion int    `json:"expected_version,omitempty"`
+	ExpectedVersion int    `json:"expected_version" river:"unique"`
+}
+
+// InsertOpts keeps retries and competing producers unique per raw revision.
+func (NoteEnrichArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{Queue: "notes", UniqueOpts: river.UniqueOpts{ByArgs: true}}
 }
 
 // Kind identifies the job kind for River.
@@ -151,6 +156,11 @@ func (w *NoteEnrichWorker) Work(ctx context.Context, j *river.Job[NoteEnrichArgs
 
 // NotesQueue creates a River queue client for asynchronous note enrichment.
 func (s *Service) NotesQueue(logger *slog.Logger) (*river.Client[pgx.Tx], error) {
+	s.queueMu.Lock()
+	defer s.queueMu.Unlock()
+	if s.riverClient != nil {
+		return s.riverClient, nil
+	}
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &NoteEnrichWorker{service: s})
 	client, err := river.NewClient(riverpgxv5.New(s.pool), &river.Config{
@@ -193,6 +203,14 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 	}
 	if note.Status == "raw_only" || note.Status == "enriched" {
 		return nil
+	}
+	var claimed pgtype.UUID
+	err = s.pool.QueryRow(ctx, `UPDATE quick_notes SET status='enriching', reservation_id=NULL, quote_id=NULL,updated_at=now() WHERE id=$1 AND learner_id=$2 AND raw_version=$3 AND status IN ('enrichment_pending','enrichment_failed') RETURNING id`, noteUUID, learnerUUID, note.RawVersion).Scan(&claimed)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
 	}
 	if s.credits == nil {
 		return errors.New("credits service not configured")
@@ -340,54 +358,25 @@ func (s *Service) ResumePendingEnrichments(ctx context.Context, learnerID string
 	if err != nil {
 		return 0, errors.New("invalid learner id")
 	}
-
 	processed := 0
 	for {
-		// Claim the oldest pending note atomically using FOR UPDATE SKIP LOCKED
-		var noteID pgtype.UUID
+		var id pgtype.UUID
 		var rawVersion int32
-		err := s.pool.QueryRow(ctx, `
-			UPDATE quick_notes
-			SET status = 'enriching', updated_at = now()
-			WHERE id = (
-				SELECT id
-				FROM quick_notes
-				WHERE learner_id = $1 AND status = 'enrichment_pending'
-				ORDER BY created_at ASC
-				LIMIT 1
-				FOR UPDATE SKIP LOCKED
-			)
-			RETURNING id, raw_version
-		`, learnerUUID).Scan(&noteID, &rawVersion)
+		err = s.pool.QueryRow(ctx, `SELECT id,raw_version FROM quick_notes WHERE learner_id=$1 AND status='enrichment_pending' ORDER BY created_at,id LIMIT 1`, learnerUUID).Scan(&id, &rawVersion)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return processed, nil
+		}
 		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				// No more pending notes
-				break
-			}
 			return processed, err
 		}
-
-		noteIDStr := formatUUID(noteID)
-
-		// Process enrichment
-		enrichErr := s.ProcessEnrichmentWithVersion(ctx, learnerID, noteIDStr, int(rawVersion))
-		if enrichErr != nil {
-			if errors.Is(enrichErr, credits.ErrInsufficient) {
-				// Reset back to enrichment_pending
-				_, _ = s.pool.Exec(ctx, `
-					UPDATE quick_notes
-					SET status = 'enrichment_pending', updated_at = now()
-					WHERE id = $1 AND learner_id = $2 AND status = 'enriching'
-				`, noteID, learnerUUID)
-				// Budget exhausted
-				break
-			}
-			// Stale version or failure already handled in ProcessEnrichmentWithVersion
-			continue
+		err = s.ProcessEnrichmentWithVersion(ctx, learnerID, formatUUID(id), int(rawVersion))
+		if errors.Is(err, credits.ErrInsufficient) {
+			_, resetErr := s.pool.Exec(ctx, `UPDATE quick_notes SET status='enrichment_pending',updated_at=now() WHERE id=$1 AND learner_id=$2 AND raw_version=$3 AND status='enrichment_failed'`, id, learnerUUID, rawVersion)
+			return processed, resetErr
 		}
-
+		if err != nil {
+			return processed, err
+		}
 		processed++
 	}
-
-	return processed, nil
 }
