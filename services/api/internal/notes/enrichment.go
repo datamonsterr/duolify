@@ -218,6 +218,8 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 	delivered := false
 	var reservationID string
 	var rate pricing.ModelRate
+	recoveryReservationID, recoveryQuoteID := note.ReservationID, note.QuoteID
+	preserveReservation := note.ReservationID.Valid
 	// A claim covers failures before quoting or reserving as well as provider work.
 	defer func() {
 		if delivered {
@@ -228,20 +230,17 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		var settleErr error
 		if reservationID != "" {
 			_, settleErr = s.credits.Settle(cleanupCtx, learnerID, reservationID, []*enginev1.Usage{{Provider: rate.Provider, Model: rate.Model, Attempt: 1, Component: "content"}})
+			preserveReservation = settleErr != nil
 		}
 		status := "enrichment_failed"
 		if errors.Is(resultErr, credits.ErrInsufficient) {
 			status = "enrichment_pending"
 		}
-		_, statusErr := s.pool.Exec(cleanupCtx, `UPDATE quick_notes SET status=$4,reservation_id=NULL,quote_id=NULL,enrichment_claim_id=NULL,enrichment_lease_until=NULL,updated_at=now() WHERE id=$1 AND learner_id=$2 AND enrichment_claim_id=$3`, noteUUID, learnerUUID, claimID, status)
+		_, statusErr := s.pool.Exec(cleanupCtx, `UPDATE quick_notes SET status=$4,reservation_id=CASE WHEN $5 THEN $6::uuid ELSE NULL END,quote_id=CASE WHEN $5 THEN $7::uuid ELSE NULL END,enrichment_claim_id=NULL,enrichment_lease_until=NULL,updated_at=now() WHERE id=$1 AND learner_id=$2 AND enrichment_claim_id=$3`, noteUUID, learnerUUID, claimID, status, preserveReservation, recoveryReservationID, recoveryQuoteID)
 		if settleErr != nil || statusErr != nil {
 			resultErr = errors.Join(resultErr, settleErr, statusErr)
 		}
 	}()
-	courseID, err := s.authorizedNoteCourse(ctx, learnerUUID, note.CourseID, note.LessonID)
-	if err != nil {
-		return err
-	}
 	if s.credits == nil {
 		return errors.New("credits service not configured")
 	}
@@ -251,10 +250,18 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		if err != nil {
 			return err
 		}
-		if _, err = s.credits.Settle(ctx, learnerID, formatUUID(note.ReservationID), []*enginev1.Usage{{Provider: previous.Rate.Provider, Model: previous.Rate.Model, Attempt: 1, Component: "content"}}); err != nil {
+		reservationID, rate = formatUUID(note.ReservationID), previous.Rate
+		if _, err = s.credits.Settle(ctx, learnerID, reservationID, []*enginev1.Usage{{Provider: rate.Provider, Model: rate.Model, Attempt: 1, Component: "content"}}); err != nil {
 			return err
 		}
+		reservationID = ""
+		preserveReservation = false
 	}
+	courseID, err := s.authorizedNoteCourse(ctx, learnerUUID, note.CourseID, note.LessonID)
+	if err != nil {
+		return err
+	}
+
 	quotes := pricing.NewQuotes(s.pool)
 	quote, err := quotes.Create(ctx, learnerID, pricing.QuoteInput{Action: "quick_note"})
 	if err != nil {
@@ -276,6 +283,8 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		return err
 	}
 	reservationID, rate = res.ID, quote.Rate
+	recoveryReservationID, recoveryQuoteID = resUUID, quoteUUID
+	preserveReservation = true
 	command, err := s.pool.Exec(ctx, `UPDATE quick_notes SET reservation_id=$4,quote_id=$5,enrichment_lease_until=$6 WHERE id=$1 AND learner_id=$2 AND enrichment_claim_id=$3 AND raw_version=$7 AND status='enriching'`, noteUUID, learnerUUID, claimID, resUUID, quoteUUID, res.DeadlineAt.Add(15*time.Second), note.RawVersion)
 	if err != nil {
 		return err

@@ -100,12 +100,21 @@ type NoteDTO struct {
 	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
+// EnrichmentCredits is the trusted financial boundary used by note workers.
+type EnrichmentCredits interface {
+	ReserveAction(context.Context, string, string, string) (credits.Reservation, error)
+	Claim(context.Context, string, string) error
+	Limits(context.Context, string, string, string) (*enginev1.UsageLimits, error)
+	Settle(context.Context, string, string, []*enginev1.Usage) (credits.Reservation, error)
+	SettleWith(context.Context, string, string, []*enginev1.Usage, func(pgx.Tx, credits.Reservation) error) (credits.Reservation, error)
+}
+
 // Service manages quick notes persistence and HTTP endpoints.
 type Service struct {
 	pool         *pgxpool.Pool
 	queries      *db.Queries
 	events       analytics.Events
-	credits      *credits.Service
+	credits      EnrichmentCredits
 	engineClient enginev1.EngineServiceClient
 	riverClient  *river.Client[pgx.Tx]
 	queueMu      sync.Mutex
@@ -121,7 +130,7 @@ func NewService(pool *pgxpool.Pool, events analytics.Events) *Service {
 }
 
 // NewServiceWithEnrichment constructs a new notes Service instance with credit and AI enrichment capabilities.
-func NewServiceWithEnrichment(pool *pgxpool.Pool, events analytics.Events, creditsSvc *credits.Service, engineClient enginev1.EngineServiceClient) *Service {
+func NewServiceWithEnrichment(pool *pgxpool.Pool, events analytics.Events, creditsSvc EnrichmentCredits, engineClient enginev1.EngineServiceClient) *Service {
 	return &Service{
 		pool:         pool,
 		queries:      db.New(pool),

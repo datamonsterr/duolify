@@ -18,10 +18,11 @@ func TestNotesReviewEarlyFailuresResetStatus(t *testing.T) {
 	for _, mode := range []string{"missing-credits", "quote-error", "consent-error", "insufficient-credits"} {
 		t.Run(mode, func(t *testing.T) {
 			learner, financial := reviewLearner(t, database)
+			var creditClient notes.EnrichmentCredits = financial
 			if mode == "missing-credits" {
-				financial = nil
+				creditClient = nil
 			}
-			service := notes.NewServiceWithEnrichment(database.Pool, nil, financial, nil)
+			service := notes.NewServiceWithEnrichment(database.Pool, nil, creditClient, nil)
 			note, err := service.SaveNote(t.Context(), learner, notes.SaveNoteInput{ActionKey: uuid.NewString(), Source: "chat", RawText: "Recover this note"})
 			if err != nil {
 				t.Fatal(err)
