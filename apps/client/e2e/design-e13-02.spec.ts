@@ -124,6 +124,19 @@ test("sidebar becomes five tabs with More, preserving route draft and scroll", a
 test("desktop navigation groups learning and account links and shows compact progress widgets", async ({
   page,
 }) => {
+  await page.route("**/v1/gamification", (r) =>
+    r.fulfill({
+      json: {
+        total_xp: 23,
+        daily_xp: 23,
+        daily_goal: 46,
+        goal_options: [23, 46],
+        goal_met: false,
+        local_date: "2026-11-10",
+        time_zone: "UTC",
+      },
+    }),
+  );
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/courses");
 
@@ -143,7 +156,7 @@ test("desktop navigation groups learning and account links and shows compact pro
   const rail = page.getByRole("complementary", { name: "Your progress" });
   await expect(rail.getByRole("progressbar")).toHaveCount(2);
   await expect(rail.getByText("3 of 7 days")).toBeVisible();
-  await expect(rail.getByText("10 of 20 XP")).toBeVisible();
+  await expect(rail.getByText("23 / 46 XP today")).toBeVisible();
   await expect(rail.getByText(/\$|€|£/)).toHaveCount(0);
 });
 

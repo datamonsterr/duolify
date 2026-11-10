@@ -395,6 +395,16 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 		t.Fatalf("expected correct=true and passed=true, got %v", ans2Out)
 	}
 
+	// E5 consumes this authoritative non-perfect pass, including retries, once.
+	var award, configuredBase, awardCount int
+	var retainedPerfect bool
+	if err = db.Pool.QueryRow(ctx, `SELECT x.amount,c.base_xp,s.first_try_perfect FROM xp_events x JOIN lesson_completion_summaries s USING(learner_id,lesson_id) CROSS JOIN gamification_config c WHERE x.learner_id=$1::uuid AND x.lesson_id=$2::uuid`, learnerID, lesson1ID).Scan(&award, &configuredBase, &retainedPerfect); err != nil || award != configuredBase || retainedPerfect {
+		t.Fatalf("non-perfect XP: %d %d %t %v", award, configuredBase, retainedPerfect, err)
+	}
+	if err = db.Pool.QueryRow(ctx, `SELECT count(*) FROM xp_events WHERE learner_id=$1::uuid AND lesson_id=$2::uuid`, learnerID, lesson1ID).Scan(&awardCount); err != nil || awardCount != 1 {
+		t.Fatal(awardCount, err)
+	}
+
 	// Verify completion outbox has 1 row
 	var outboxCount int
 	err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM lesson_completion_outbox WHERE learner_id=$1::uuid AND lesson_id=$2::uuid", learnerID, lesson1ID).Scan(&outboxCount)

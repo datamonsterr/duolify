@@ -473,7 +473,6 @@ function TracerLessonPlayer({
             className="primary"
             onClick={() => {
               if (index === slides.length - 1) {
-                track("lesson_completed", { lesson: lessonId });
                 setFinished(true);
               } else goToSlide(nextSlide(index, slides.length));
             }}

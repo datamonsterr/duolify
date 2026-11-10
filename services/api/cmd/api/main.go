@@ -28,6 +28,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/eval"
+	"github.com/datamonsterr/duolify/services/api/internal/gamification"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
@@ -147,6 +148,8 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		go creditService.Maintain(ctx, logger)
+		xpService := gamification.New(db.Pool, events)
+		go xpService.Maintain(ctx, logger)
 		backend, err := engine.New(cfg.EngineAddr, 10*time.Second)
 		if err != nil {
 			return err
@@ -250,6 +253,8 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	go creditService.Maintain(ctx, logger)
+	xpService := gamification.New(db.Pool, events)
+	go xpService.Maintain(ctx, logger)
 	briefPricing := catalogue
 	if os.Getenv("DUOLIFY_ENV") == "development" {
 		if dev, loadErr := pricing.LoadDevelopment(ctx, db.Pool); loadErr == nil {
@@ -287,6 +292,7 @@ func run(ctx context.Context, args []string) (result error) {
 
 	handler := httpapi.New(httpapi.Dependencies{
 		Characters:              characters.NewHandler(characterService),
+		Gamification:            xpService,
 		Monitor:                 monitor,
 		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService}),
 		ObjectStorage:           telemetry.StorageProbe(os.Getenv),

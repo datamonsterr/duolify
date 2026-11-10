@@ -157,7 +157,7 @@ const insertLessonCompletionSummary = `-- name: InsertLessonCompletionSummary :o
 INSERT INTO lesson_completion_summaries (learner_id, course_id, lesson_id, summary, weak_topics)
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (learner_id, lesson_id) DO UPDATE SET summary = EXCLUDED.summary, weak_topics = EXCLUDED.weak_topics
-RETURNING id, learner_id, course_id, lesson_id, summary, weak_topics, completed_at
+RETURNING id, learner_id, course_id, lesson_id, summary, weak_topics, completed_at, first_try_perfect, duration_ms
 `
 
 type InsertLessonCompletionSummaryParams struct {
@@ -185,6 +185,8 @@ func (q *Queries) InsertLessonCompletionSummary(ctx context.Context, arg InsertL
 		&i.Summary,
 		&i.WeakTopics,
 		&i.CompletedAt,
+		&i.FirstTryPerfect,
+		&i.DurationMs,
 	)
 	return i, err
 }
@@ -257,7 +259,7 @@ func (q *Queries) InsertLessonTestVariantSnapshot(ctx context.Context, arg Inser
 }
 
 const listCourseLessonCompletionSummaries = `-- name: ListCourseLessonCompletionSummaries :many
-SELECT id, learner_id, course_id, lesson_id, summary, weak_topics, completed_at FROM lesson_completion_summaries
+SELECT id, learner_id, course_id, lesson_id, summary, weak_topics, completed_at, first_try_perfect, duration_ms FROM lesson_completion_summaries
 WHERE learner_id = $1 AND course_id = $2
 ORDER BY completed_at ASC
 `
@@ -284,6 +286,8 @@ func (q *Queries) ListCourseLessonCompletionSummaries(ctx context.Context, arg L
 			&i.Summary,
 			&i.WeakTopics,
 			&i.CompletedAt,
+			&i.FirstTryPerfect,
+			&i.DurationMs,
 		); err != nil {
 			return nil, err
 		}
