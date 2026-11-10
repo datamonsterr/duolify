@@ -60,16 +60,6 @@ export function availableOffline(lesson: string) {
   const owner = session.current()?.id;
   if (!owner) return false;
   if (saved.has(`${owner}:${lesson}`)) return true;
-  try {
-    if (
-      typeof localStorage !== "undefined" &&
-      localStorage.getItem(`duolify:lesson-cached:${lesson}`) === "true"
-    ) {
-      return true;
-    }
-  } catch {
-    // ignore
-  }
   return isLessonSavedOffline(owner, lesson);
 }
 export async function digest(value: string | Uint8Array): Promise<string> {
@@ -138,19 +128,7 @@ function activate(bundle: LessonBundle, owner: string, durable: boolean) {
   prepared.clear();
   for (const slide of bundle.manifest.slides)
     prepared.set(documentKey(slide), materialize(bundle, slide));
-  if (durable) {
-    saved.add(`${owner}:${bundle.manifest.lesson_id}`);
-    try {
-      if (typeof localStorage !== "undefined") {
-        localStorage.setItem(
-          `duolify:lesson-cached:${bundle.manifest.lesson_id}`,
-          "true",
-        );
-      }
-    } catch {
-      // ignore
-    }
-  }
+  if (durable) saved.add(`${owner}:${bundle.manifest.lesson_id}`);
   return bundle.manifest;
 }
 export async function downloadLesson(
@@ -200,35 +178,10 @@ export async function downloadLesson(
         if (
           ++count > configuredMaxLessons ||
           (size += length) > configuredMaxAccount
-        ) {
+        )
           await cache.delete(request);
-          const match = request.url.match(/__lesson_cache\/[^/]+\/([^/?#]+)/);
-          if (match && match[1]) {
-            const evictedLesson = decodeURIComponent(match[1]);
-            saved.delete(`${owner}:${evictedLesson}`);
-            try {
-              if (typeof localStorage !== "undefined") {
-                localStorage.removeItem(
-                  `duolify:lesson-cached:${evictedLesson}`,
-                );
-              }
-            } catch {
-              // ignore
-            }
-          }
-        }
       }
       saved.add(`${owner}:${manifest.lesson_id}`);
-      try {
-        if (typeof localStorage !== "undefined") {
-          localStorage.setItem(
-            `duolify:lesson-cached:${manifest.lesson_id}`,
-            "true",
-          );
-        }
-      } catch {
-        // ignore
-      }
     });
   } catch (error) {
     if (expected !== epoch || session.current()?.id !== owner)
@@ -356,17 +309,6 @@ export function clearLessonCache(): Promise<void> {
   epoch++;
   prepared.clear();
   saved.clear();
-  try {
-    if (typeof localStorage !== "undefined") {
-      for (const k of Object.keys(localStorage)) {
-        if (k.startsWith("duolify:lesson-cached:")) {
-          localStorage.removeItem(k);
-        }
-      }
-    }
-  } catch {
-    // ignore
-  }
   resetCacheBounds();
   clearDownloadIndex();
   return serialize(async () => {
@@ -379,13 +321,6 @@ export function removeCachedLesson(
   lesson: string,
 ): Promise<void> {
   saved.delete(`${owner}:${lesson}`);
-  try {
-    if (typeof localStorage !== "undefined") {
-      localStorage.removeItem(`duolify:lesson-cached:${lesson}`);
-    }
-  } catch {
-    // ignore
-  }
   return serialize(async () => {
     if (typeof caches !== "undefined") {
       const cache = await caches.open(cacheName);
