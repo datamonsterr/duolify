@@ -211,7 +211,8 @@ func (s *Service) SaveBookmark(ctx context.Context, learnerID string, input Save
 		return nil, err
 	}
 
-	_ = EmitBookmarkAdded(s.events, learnerID, input.TargetType, formatUUID(coursePgUUID), input.LessonID, input.SlideID, "api", "0.1.0")
+	meta := s.AnalyticsMetadata(ctx)
+	_ = EmitBookmarkAdded(s.events, learnerID, input.TargetType, formatUUID(coursePgUUID), input.LessonID, input.SlideID, meta.Platform, meta.AppVersion)
 
 	dto := toBookmarkDTO(created, true)
 	return &dto, nil
@@ -244,7 +245,8 @@ func (s *Service) DeleteBookmark(ctx context.Context, learnerID, bookmarkID stri
 		val := int(deleted.SlideID.Int32)
 		slideID = &val
 	}
-	_ = EmitBookmarkRemoved(s.events, learnerID, deleted.TargetType, formatUUID(deleted.CourseID), formatUUID(deleted.LessonID), slideID, "api", "0.1.0")
+	meta := s.AnalyticsMetadata(ctx)
+	_ = EmitBookmarkRemoved(s.events, learnerID, deleted.TargetType, formatUUID(deleted.CourseID), formatUUID(deleted.LessonID), slideID, meta.Platform, meta.AppVersion)
 	return nil
 }
 
@@ -280,7 +282,8 @@ func (s *Service) DeleteBookmarkByTarget(ctx context.Context, learnerID, lessonI
 		return err
 	}
 
-	_ = EmitBookmarkRemoved(s.events, learnerID, deleted.TargetType, formatUUID(deleted.CourseID), formatUUID(deleted.LessonID), slideID, "api", "0.1.0")
+	meta := s.AnalyticsMetadata(ctx)
+	_ = EmitBookmarkRemoved(s.events, learnerID, deleted.TargetType, formatUUID(deleted.CourseID), formatUUID(deleted.LessonID), slideID, meta.Platform, meta.AppVersion)
 	return nil
 }
 
@@ -342,43 +345,44 @@ func (s *Service) ListBookmarks(ctx context.Context, learnerID string, courseID 
 
 	if courseID != nil && strings.TrimSpace(*courseID) != "" {
 		coursePgUUID, err := parseUUID(*courseID)
-		if err == nil {
-			rows, err := s.queries.ListBookmarksByLearnerAndCourse(ctx, db.ListBookmarksByLearnerAndCourseParams{
-				LearnerID: learnerUUID,
-				CourseID:  coursePgUUID,
-			})
-			if err != nil {
-				return nil, err
-			}
-			dtos := make([]BookmarkDTO, len(rows))
-			for i, r := range rows {
-				dtos[i] = BookmarkDTO{
-					ID:          formatUUID(r.ID),
-					LearnerID:   formatUUID(r.LearnerID),
-					ActionKey:   r.ActionKey,
-					CourseTitle: r.CourseTitle,
-					LessonTitle: r.LessonTitle,
-					SlideTitle:  r.SlideTitle,
-					TargetType:  r.TargetType,
-					Available:   r.Available.Valid && r.Available.Bool,
-					CreatedAt:   r.CreatedAt.Time,
-					UpdatedAt:   r.UpdatedAt.Time,
-				}
-				if r.CourseID.Valid {
-					cID := formatUUID(r.CourseID)
-					dtos[i].CourseID = &cID
-				}
-				if r.LessonID.Valid {
-					lID := formatUUID(r.LessonID)
-					dtos[i].LessonID = &lID
-				}
-				if r.SlideID.Valid {
-					sID := int(r.SlideID.Int32)
-					dtos[i].SlideID = &sID
-				}
-			}
-			return dtos, nil
+		if err != nil {
+			return nil, ErrInvalidFilter
 		}
+		rows, err := s.queries.ListBookmarksByLearnerAndCourse(ctx, db.ListBookmarksByLearnerAndCourseParams{
+			LearnerID: learnerUUID,
+			CourseID:  coursePgUUID,
+		})
+		if err != nil {
+			return nil, err
+		}
+		dtos := make([]BookmarkDTO, len(rows))
+		for i, r := range rows {
+			dtos[i] = BookmarkDTO{
+				ID:          formatUUID(r.ID),
+				LearnerID:   formatUUID(r.LearnerID),
+				ActionKey:   r.ActionKey,
+				CourseTitle: r.CourseTitle,
+				LessonTitle: r.LessonTitle,
+				SlideTitle:  r.SlideTitle,
+				TargetType:  r.TargetType,
+				Available:   r.Available.Valid && r.Available.Bool,
+				CreatedAt:   r.CreatedAt.Time,
+				UpdatedAt:   r.UpdatedAt.Time,
+			}
+			if r.CourseID.Valid {
+				cID := formatUUID(r.CourseID)
+				dtos[i].CourseID = &cID
+			}
+			if r.LessonID.Valid {
+				lID := formatUUID(r.LessonID)
+				dtos[i].LessonID = &lID
+			}
+			if r.SlideID.Valid {
+				sID := int(r.SlideID.Int32)
+				dtos[i].SlideID = &sID
+			}
+		}
+		return dtos, nil
 	}
 
 	rows, err := s.queries.ListBookmarksByLearner(ctx, learnerUUID)
@@ -423,11 +427,18 @@ func (s *Service) ServeBookmarksHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	meta := AnalyticsMetadata{
+		Platform:   s.resolvePlatform(r),
+		AppVersion: s.resolveAppVersion(r),
+	}
+	r = r.WithContext(WithAnalyticsMetadata(r.Context(), meta))
+
 	path := strings.TrimPrefix(r.URL.Path, "/v1/bookmarks")
 	path = strings.TrimPrefix(path, "/")
 
 	switch r.Method {
 	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 		if path == "remove" {
 			var in struct {
 				ID       string `json:"id,omitempty"`
@@ -435,6 +446,11 @@ func (s *Service) ServeBookmarksHTTP(w http.ResponseWriter, r *http.Request) {
 				SlideID  *int   `json:"slide_id,omitempty"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+				var maxBytesErr *http.MaxBytesError
+				if errors.As(err, &maxBytesErr) {
+					respondError(w, http.StatusRequestEntityTooLarge, "request body too large")
+					return
+				}
 				respondError(w, http.StatusBadRequest, "invalid request body")
 				return
 			}
@@ -472,6 +488,11 @@ func (s *Service) ServeBookmarksHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		var in SaveBookmarkInput
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(err, &maxBytesErr) {
+				respondError(w, http.StatusRequestEntityTooLarge, "request body too large")
+				return
+			}
 			respondError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
@@ -508,6 +529,10 @@ func (s *Service) ServeBookmarksHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			list, err := s.ListBookmarks(r.Context(), learnerID, courseID)
 			if err != nil {
+				if errors.Is(err, ErrInvalidFilter) {
+					respondError(w, http.StatusBadRequest, err.Error())
+					return
+				}
 				respondError(w, http.StatusInternalServerError, "failed to list bookmarks")
 				return
 			}

@@ -242,9 +242,10 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		if settleErr != nil || statusErr != nil {
 			resultErr = errors.Join(resultErr, settleErr, statusErr)
 		}
-		_ = EmitQuickNoteEnrichmentFailed(s.events, learnerID, noteID, failureReason, "web", "0.1.0")
+		meta := s.AnalyticsMetadata(cleanupCtx)
+		_ = EmitQuickNoteEnrichmentFailed(s.events, learnerID, noteID, failureReason, meta.Platform, meta.AppVersion)
 		if s.events != nil && !engineStarted.IsZero() {
-			_ = s.events.Capture(learnerID, "$ai_generation", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "feature": "quick_note", "succeeded": false, "$ai_is_error": true, "error_code": failureReason, "latency_ms": time.Since(engineStarted).Milliseconds()})
+			_ = s.events.Capture(learnerID, "$ai_generation", map[string]any{"source": "api", "platform": meta.Platform, "app_version": meta.AppVersion, "feature": "quick_note", "succeeded": false, "$ai_is_error": true, "error_code": failureReason, "latency_ms": time.Since(engineStarted).Milliseconds()})
 		}
 	}()
 	if s.credits == nil {
@@ -373,6 +374,16 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		if response.Usage != nil {
 			model, provider = response.Usage.Model, response.Usage.Provider
 		}
+		if model == "" && len(response.Attempts) > 0 {
+			last := response.Attempts[len(response.Attempts)-1]
+			model, provider = last.Model, last.Provider
+		}
+		if model == "" {
+			model = rate.Model
+		}
+		if provider == "" {
+			provider = rate.Provider
+		}
 		if _, e = qtx.UpsertQuickNoteEnrichment(ctx, db.UpsertQuickNoteEnrichmentParams{NoteID: noteUUID, LearnerID: learnerUUID, Summary: response.Summary, Tags: response.Tags, Links: FilterGroundedLinks(response.Links, allowedIDs), Version: note.RawVersion, Model: model, Provider: provider}); e != nil {
 			return e
 		}
@@ -389,9 +400,10 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		return credits.ErrReservation
 	}
 	delivered = true
-	_ = EmitQuickNoteEnriched(s.events, learnerID, noteID, "web", "0.1.0")
+	meta := s.AnalyticsMetadata(ctx)
+	_ = EmitQuickNoteEnriched(s.events, learnerID, noteID, meta.Platform, meta.AppVersion)
 	if s.events != nil {
-		_ = s.events.Capture(learnerID, "$ai_generation", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "feature": "quick_note", "succeeded": true, "$ai_is_error": false, "latency_ms": time.Since(engineStarted).Milliseconds()})
+		_ = s.events.Capture(learnerID, "$ai_generation", map[string]any{"source": "api", "platform": meta.Platform, "app_version": meta.AppVersion, "feature": "quick_note", "succeeded": true, "$ai_is_error": false, "latency_ms": time.Since(engineStarted).Milliseconds()})
 	}
 	return nil
 }

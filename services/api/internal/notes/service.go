@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -109,6 +110,27 @@ type EnrichmentCredits interface {
 	SettleWith(context.Context, string, string, []*enginev1.Usage, func(pgx.Tx, credits.Reservation) error) (credits.Reservation, error)
 }
 
+const maxRequestBodyBytes = 64 * 1024 // 64 KB limit on notes/bookmarks request bodies
+
+// AnalyticsConfig holds configurable analytics metadata defaults.
+type AnalyticsConfig struct {
+	Platform   string
+	AppVersion string
+}
+
+// AnalyticsMetadata holds the resolved platform and application version for analytics.
+type AnalyticsMetadata struct {
+	Platform   string
+	AppVersion string
+}
+
+type analyticsContextKey struct{}
+
+// WithAnalyticsMetadata injects analytics metadata into the context.
+func WithAnalyticsMetadata(ctx context.Context, meta AnalyticsMetadata) context.Context {
+	return context.WithValue(ctx, analyticsContextKey{}, meta)
+}
+
 // Service manages quick notes persistence and HTTP endpoints.
 type Service struct {
 	pool         *pgxpool.Pool
@@ -118,6 +140,55 @@ type Service struct {
 	engineClient enginev1.EngineServiceClient
 	riverClient  *river.Client[pgx.Tx]
 	queueMu      sync.Mutex
+	analyticsCfg AnalyticsConfig
+}
+
+// ConfigureAnalytics configures default analytics properties for the service.
+func (s *Service) ConfigureAnalytics(cfg AnalyticsConfig) {
+	s.analyticsCfg = cfg
+}
+
+func (s *Service) resolvePlatform(r *http.Request) string {
+	if r != nil {
+		if p := r.Header.Get("X-Platform"); p != "" {
+			return p
+		}
+	}
+	if s.analyticsCfg.Platform != "" {
+		return s.analyticsCfg.Platform
+	}
+	if env := os.Getenv("DUOLIFY_PLATFORM"); env != "" {
+		return env
+	}
+	return "web"
+}
+
+func (s *Service) resolveAppVersion(r *http.Request) string {
+	if r != nil {
+		if v := r.Header.Get("X-App-Version"); v != "" {
+			return v
+		}
+	}
+	if s.analyticsCfg.AppVersion != "" {
+		return s.analyticsCfg.AppVersion
+	}
+	if env := os.Getenv("DUOLIFY_APP_VERSION"); env != "" {
+		return env
+	}
+	return "0.1.0"
+}
+
+// AnalyticsMetadata resolves analytics metadata from context, headers, config or environment.
+func (s *Service) AnalyticsMetadata(ctx context.Context) AnalyticsMetadata {
+	if ctx != nil {
+		if val, ok := ctx.Value(analyticsContextKey{}).(AnalyticsMetadata); ok && val.Platform != "" && val.AppVersion != "" {
+			return val
+		}
+	}
+	return AnalyticsMetadata{
+		Platform:   s.resolvePlatform(nil),
+		AppVersion: s.resolveAppVersion(nil),
+	}
 }
 
 // NewService constructs a new notes Service instance.
@@ -226,7 +297,8 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 	if err = tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	_ = EmitQuickNoteCreated(s.events, learnerID, input.Source, len(input.RawText), "web", "0.1.0")
+	meta := s.AnalyticsMetadata(ctx)
+	_ = EmitQuickNoteCreated(s.events, learnerID, input.Source, len(input.RawText), meta.Platform, meta.AppVersion)
 
 	dto := toDTO(note)
 	return &dto, nil
@@ -313,6 +385,12 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	meta := AnalyticsMetadata{
+		Platform:   s.resolvePlatform(r),
+		AppVersion: s.resolveAppVersion(r),
+	}
+	r = r.WithContext(WithAnalyticsMetadata(r.Context(), meta))
+
 	path := strings.TrimPrefix(r.URL.Path, "/v1/notes")
 	path = strings.TrimPrefix(path, "/")
 
@@ -358,8 +436,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 		var in SaveNoteInput
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(err, &maxBytesErr) {
+				respondError(w, http.StatusRequestEntityTooLarge, "request body too large")
+				return
+			}
 			respondError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
@@ -388,8 +472,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "note id required")
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 		var in UpdateNoteInput
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(err, &maxBytesErr) {
+				respondError(w, http.StatusRequestEntityTooLarge, "request body too large")
+				return
+			}
 			respondError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
@@ -442,12 +532,20 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			filter.Status = q.Get("status")
 			if q.Has("reviewed") {
 				val := q.Get("reviewed")
+				if val != "true" && val != "false" && val != "1" && val != "0" {
+					respondError(w, http.StatusBadRequest, "invalid reviewed filter")
+					return
+				}
 				b := val == "true" || val == "1"
 				filter.Reviewed = &b
 			}
 
 			notesList, err := s.FilterNotes(r.Context(), learnerID, filter)
 			if err != nil {
+				if errors.Is(err, ErrInvalidFilter) {
+					respondError(w, http.StatusBadRequest, err.Error())
+					return
+				}
 				respondError(w, http.StatusInternalServerError, "failed to list notes")
 				return
 			}

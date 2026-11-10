@@ -135,7 +135,8 @@ func (s *Service) MarkReviewed(ctx context.Context, learnerID, noteID string) (*
 		return nil, err
 	}
 
-	_ = EmitQuickNoteReviewed(s.events, learnerID, noteID, "web", "0.1.0")
+	meta := s.AnalyticsMetadata(ctx)
+	_ = EmitQuickNoteReviewed(s.events, learnerID, noteID, meta.Platform, meta.AppVersion)
 
 	return s.GetNote(ctx, learnerID, noteID)
 }
@@ -170,8 +171,24 @@ func (s *Service) DeleteNote(ctx context.Context, learnerID, noteID string) erro
 		return err
 	}
 
-	_ = EmitQuickNoteDeleted(s.events, learnerID, noteID, "web", "0.1.0")
+	meta := s.AnalyticsMetadata(ctx)
+	_ = EmitQuickNoteDeleted(s.events, learnerID, noteID, meta.Platform, meta.AppVersion)
 	return nil
+}
+
+func escapeILIKE(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
+var validNoteStatuses = map[string]bool{
+	"enrichment_pending": true,
+	"enriching":          true,
+	"enriched":           true,
+	"enrichment_failed":  true,
+	"raw_only":           true,
 }
 
 // FilterNotes queries notes for the learner matching multi-facet filters and search query.
@@ -206,7 +223,11 @@ func (s *Service) FilterNotes(ctx context.Context, learnerID string, filter Filt
 	}
 
 	if strings.TrimSpace(filter.Status) != "" {
-		params.Status = pgtype.Text{String: filter.Status, Valid: true}
+		st := strings.TrimSpace(filter.Status)
+		if !validNoteStatuses[st] {
+			return nil, ErrInvalidFilter
+		}
+		params.Status = pgtype.Text{String: st, Valid: true}
 	}
 
 	if strings.TrimSpace(filter.Tag) != "" {
@@ -214,7 +235,8 @@ func (s *Service) FilterNotes(ctx context.Context, learnerID string, filter Filt
 	}
 
 	if strings.TrimSpace(filter.Query) != "" {
-		params.SearchQuery = pgtype.Text{String: filter.Query, Valid: true}
+		escaped := escapeILIKE(strings.TrimSpace(filter.Query))
+		params.SearchQuery = pgtype.Text{String: escaped, Valid: true}
 	}
 
 	rows, err := s.queries.FilterQuickNotes(ctx, params)
