@@ -146,6 +146,12 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	if deps.Notes != nil && deps.Accounts != nil {
 		mux.Handle("/v1/notes", deps.Accounts.Protect(deps.Notes))
 		mux.Handle("/v1/notes/", deps.Accounts.Protect(deps.Notes))
+		if bmHandler, ok := deps.Notes.(interface {
+			ServeBookmarksHTTP(http.ResponseWriter, *http.Request)
+		}); ok {
+			mux.Handle("/v1/bookmarks", deps.Accounts.Protect(http.HandlerFunc(bmHandler.ServeBookmarksHTTP)))
+			mux.Handle("/v1/bookmarks/", deps.Accounts.Protect(http.HandlerFunc(bmHandler.ServeBookmarksHTTP)))
+		}
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

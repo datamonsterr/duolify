@@ -1,0 +1,594 @@
+package notes
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/store/db"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+var (
+	// ErrMissingLesson indicates that the lesson ID was missing or empty.
+	ErrMissingLesson = errors.New("missing lesson id")
+	// ErrInvalidTargetType indicates that the target type is not 'slide' or 'lesson'.
+	ErrInvalidTargetType = errors.New("invalid target type")
+	// ErrBookmarkNotFound indicates that the requested bookmark was not found.
+	ErrBookmarkNotFound = errors.New("bookmark not found")
+)
+
+// SaveBookmarkInput contains parameters for creating or synchronizing a bookmark.
+type SaveBookmarkInput struct {
+	ActionKey   string `json:"action_key"`
+	CourseID    string `json:"course_id,omitempty"`
+	LessonID    string `json:"lesson_id"`
+	SlideID     *int   `json:"slide_id,omitempty"`
+	TargetType  string `json:"target_type"`
+	CourseTitle string `json:"course_title,omitempty"`
+	LessonTitle string `json:"lesson_title,omitempty"`
+	SlideTitle  string `json:"slide_title,omitempty"`
+}
+
+// Validate verifies constraints for bookmark input.
+func (in SaveBookmarkInput) Validate() error {
+	if strings.TrimSpace(in.ActionKey) == "" {
+		return ErrMissingActionKey
+	}
+	if strings.TrimSpace(in.LessonID) == "" {
+		return ErrMissingLesson
+	}
+	switch in.TargetType {
+	case "slide":
+		if in.SlideID == nil || *in.SlideID < 0 || *in.SlideID > math.MaxInt32 {
+			return ErrInvalidSlide
+		}
+	case "lesson":
+		// Valid target without slide_id
+	default:
+		return ErrInvalidTargetType
+	}
+	return nil
+}
+
+// BookmarkDTO represents a persisted bookmark returned over the API.
+type BookmarkDTO struct {
+	ID          string    `json:"id"`
+	LearnerID   string    `json:"learner_id"`
+	ActionKey   string    `json:"action_key"`
+	CourseID    *string   `json:"course_id,omitempty"`
+	CourseTitle string    `json:"course_title"`
+	LessonID    *string   `json:"lesson_id,omitempty"`
+	LessonTitle string    `json:"lesson_title"`
+	SlideID     *int      `json:"slide_id,omitempty"`
+	SlideTitle  string    `json:"slide_title"`
+	TargetType  string    `json:"target_type"`
+	Available   bool      `json:"available"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// SaveBookmark persists or idempotently returns an existing bookmark.
+func (s *Service) SaveBookmark(ctx context.Context, learnerID string, input SaveBookmarkInput) (*BookmarkDTO, error) {
+	if err := input.Validate(); err != nil {
+		return nil, err
+	}
+
+	learnerUUID, err := parseUUID(learnerID)
+	if err != nil {
+		return nil, errors.New("invalid learner id")
+	}
+
+	var lessonPgUUID pgtype.UUID
+	courseTitle := input.CourseTitle
+	lessonTitle := input.LessonTitle
+	slideTitle := input.SlideTitle
+
+	var coursePgUUID pgtype.UUID
+	if strings.TrimSpace(input.CourseID) != "" {
+		parsed, err := parseUUID(input.CourseID)
+		if err == nil {
+			coursePgUUID = parsed
+		}
+	}
+
+	if input.LessonID != "sky" {
+		parsed, err := parseUUID(input.LessonID)
+		if err != nil {
+			return nil, ErrUnauthorizedSource
+		}
+		lessonPgUUID = parsed
+
+		// Verify learner authorization for this lesson
+		authorized, err := s.queries.CheckLessonAuthorization(ctx, db.CheckLessonAuthorizationParams{
+			ID:        lessonPgUUID,
+			LearnerID: learnerUUID,
+		})
+		if err != nil || !authorized {
+			return nil, ErrUnauthorizedSource
+		}
+
+		// Retrieve authoritative titles
+		info, err := s.queries.GetLessonContext(ctx, lessonPgUUID)
+		if err == nil {
+			if lessonTitle == "" {
+				lessonTitle = info.LessonTitle
+			}
+			if courseTitle == "" {
+				courseTitle = info.CourseTitle
+			}
+			if !coursePgUUID.Valid && info.CourseID.Valid {
+				coursePgUUID = info.CourseID
+			}
+		}
+	} else {
+		// Built-in demo lesson "sky"
+		if lessonTitle == "" {
+			lessonTitle = "Why the sky changes"
+		}
+		if courseTitle == "" {
+			courseTitle = "Astronomy"
+		}
+	}
+
+	var slideID pgtype.Int4
+	if input.TargetType == "slide" && input.SlideID != nil && *input.SlideID >= 0 && *input.SlideID <= math.MaxInt32 {
+		slideID = pgtype.Int4{Int32: int32(*input.SlideID), Valid: true}
+		if slideTitle == "" {
+			slideTitle = fmt.Sprintf("Slide %d", *input.SlideID+1)
+		}
+	}
+
+	// 1. Check if bookmark with action_key already exists
+	existingByActionKey, err := s.queries.GetBookmarkByActionKey(ctx, db.GetBookmarkByActionKeyParams{
+		LearnerID: learnerUUID,
+		ActionKey: input.ActionKey,
+	})
+	if err == nil {
+		dto := toBookmarkDTO(existingByActionKey, true)
+		return &dto, nil
+	}
+
+	// 2. Check if bookmark with the same target already exists (duplicate bookmark)
+	existingByTarget, err := s.queries.GetBookmarkByTarget(ctx, db.GetBookmarkByTargetParams{
+		LearnerID: learnerUUID,
+		LessonID:  lessonPgUUID,
+		SlideID:   slideID,
+	})
+	if err == nil {
+		dto := toBookmarkDTO(existingByTarget, true)
+		return &dto, nil
+	}
+
+	// 3. Upsert bookmark
+	created, err := s.queries.UpsertBookmark(ctx, db.UpsertBookmarkParams{
+		LearnerID:   learnerUUID,
+		ActionKey:   input.ActionKey,
+		CourseID:    coursePgUUID,
+		LessonID:    lessonPgUUID,
+		SlideID:     slideID,
+		TargetType:  input.TargetType,
+		CourseTitle: courseTitle,
+		LessonTitle: lessonTitle,
+		SlideTitle:  slideTitle,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	_ = EmitBookmarkAdded(s.events, learnerID, input.TargetType, input.CourseID, input.LessonID, input.SlideID, "api", "0.1.0")
+
+	dto := toBookmarkDTO(created, true)
+	return &dto, nil
+}
+
+// DeleteBookmark removes a bookmark by ID.
+func (s *Service) DeleteBookmark(ctx context.Context, learnerID, bookmarkID string) error {
+	learnerUUID, err := parseUUID(learnerID)
+	if err != nil {
+		return errors.New("invalid learner id")
+	}
+	bmUUID, err := parseUUID(bookmarkID)
+	if err != nil {
+		return ErrBookmarkNotFound
+	}
+
+	deleted, err := s.queries.DeleteBookmarkByID(ctx, db.DeleteBookmarkByIDParams{
+		ID:        bmUUID,
+		LearnerID: learnerUUID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil // idempotent deletion
+		}
+		return err
+	}
+
+	var slideID *int
+	if deleted.SlideID.Valid {
+		val := int(deleted.SlideID.Int32)
+		slideID = &val
+	}
+	_ = EmitBookmarkRemoved(s.events, learnerID, deleted.TargetType, formatUUID(deleted.CourseID), formatUUID(deleted.LessonID), slideID, "api", "0.1.0")
+	return nil
+}
+
+// DeleteBookmarkByTarget removes a bookmark by target pointer.
+func (s *Service) DeleteBookmarkByTarget(ctx context.Context, learnerID, lessonID string, slideID *int) error {
+	learnerUUID, err := parseUUID(learnerID)
+	if err != nil {
+		return errors.New("invalid learner id")
+	}
+
+	var lessonPgUUID pgtype.UUID
+	if lessonID != "" && lessonID != "sky" {
+		parsed, err := parseUUID(lessonID)
+		if err == nil {
+			lessonPgUUID = parsed
+		}
+	}
+
+	var slidePgInt4 pgtype.Int4
+	if slideID != nil && *slideID >= 0 && *slideID <= math.MaxInt32 {
+		slidePgInt4 = pgtype.Int4{Int32: int32(*slideID), Valid: true}
+	}
+
+	deleted, err := s.queries.DeleteBookmarkByTarget(ctx, db.DeleteBookmarkByTargetParams{
+		LearnerID: learnerUUID,
+		LessonID:  lessonPgUUID,
+		SlideID:   slidePgInt4,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+
+	_ = EmitBookmarkRemoved(s.events, learnerID, deleted.TargetType, formatUUID(deleted.CourseID), formatUUID(deleted.LessonID), slideID, "api", "0.1.0")
+	return nil
+}
+
+// GetBookmark retrieves a bookmark by ID.
+func (s *Service) GetBookmark(ctx context.Context, learnerID, bookmarkID string) (*BookmarkDTO, error) {
+	learnerUUID, err := parseUUID(learnerID)
+	if err != nil {
+		return nil, errors.New("invalid learner id")
+	}
+	bmUUID, err := parseUUID(bookmarkID)
+	if err != nil {
+		return nil, ErrBookmarkNotFound
+	}
+
+	row, err := s.queries.GetBookmarkByID(ctx, db.GetBookmarkByIDParams{
+		ID:        bmUUID,
+		LearnerID: learnerUUID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrBookmarkNotFound
+		}
+		return nil, err
+	}
+
+	dto := BookmarkDTO{
+		ID:          formatUUID(row.ID),
+		LearnerID:   formatUUID(row.LearnerID),
+		ActionKey:   row.ActionKey,
+		CourseTitle: row.CourseTitle,
+		LessonTitle: row.LessonTitle,
+		SlideTitle:  row.SlideTitle,
+		TargetType:  row.TargetType,
+		Available:   row.Available.Valid && row.Available.Bool,
+		CreatedAt:   row.CreatedAt.Time,
+		UpdatedAt:   row.UpdatedAt.Time,
+	}
+	if row.CourseID.Valid {
+		cID := formatUUID(row.CourseID)
+		dto.CourseID = &cID
+	}
+	if row.LessonID.Valid {
+		lID := formatUUID(row.LessonID)
+		dto.LessonID = &lID
+	}
+	if row.SlideID.Valid {
+		sID := int(row.SlideID.Int32)
+		dto.SlideID = &sID
+	}
+	return &dto, nil
+}
+
+// ListBookmarks lists bookmarks for the learner, optionally filtered by course.
+func (s *Service) ListBookmarks(ctx context.Context, learnerID string, courseID *string) ([]BookmarkDTO, error) {
+	learnerUUID, err := parseUUID(learnerID)
+	if err != nil {
+		return nil, errors.New("invalid learner id")
+	}
+
+	if courseID != nil && strings.TrimSpace(*courseID) != "" {
+		coursePgUUID, err := parseUUID(*courseID)
+		if err == nil {
+			rows, err := s.queries.ListBookmarksByLearnerAndCourse(ctx, db.ListBookmarksByLearnerAndCourseParams{
+				LearnerID: learnerUUID,
+				CourseID:  coursePgUUID,
+			})
+			if err != nil {
+				return nil, err
+			}
+			dtos := make([]BookmarkDTO, len(rows))
+			for i, r := range rows {
+				dtos[i] = BookmarkDTO{
+					ID:          formatUUID(r.ID),
+					LearnerID:   formatUUID(r.LearnerID),
+					ActionKey:   r.ActionKey,
+					CourseTitle: r.CourseTitle,
+					LessonTitle: r.LessonTitle,
+					SlideTitle:  r.SlideTitle,
+					TargetType:  r.TargetType,
+					Available:   r.Available.Valid && r.Available.Bool,
+					CreatedAt:   r.CreatedAt.Time,
+					UpdatedAt:   r.UpdatedAt.Time,
+				}
+				if r.CourseID.Valid {
+					cID := formatUUID(r.CourseID)
+					dtos[i].CourseID = &cID
+				}
+				if r.LessonID.Valid {
+					lID := formatUUID(r.LessonID)
+					dtos[i].LessonID = &lID
+				}
+				if r.SlideID.Valid {
+					sID := int(r.SlideID.Int32)
+					dtos[i].SlideID = &sID
+				}
+			}
+			return dtos, nil
+		}
+	}
+
+	rows, err := s.queries.ListBookmarksByLearner(ctx, learnerUUID)
+	if err != nil {
+		return nil, err
+	}
+	dtos := make([]BookmarkDTO, len(rows))
+	for i, r := range rows {
+		dtos[i] = BookmarkDTO{
+			ID:          formatUUID(r.ID),
+			LearnerID:   formatUUID(r.LearnerID),
+			ActionKey:   r.ActionKey,
+			CourseTitle: r.CourseTitle,
+			LessonTitle: r.LessonTitle,
+			SlideTitle:  r.SlideTitle,
+			TargetType:  r.TargetType,
+			Available:   r.Available.Valid && r.Available.Bool,
+			CreatedAt:   r.CreatedAt.Time,
+			UpdatedAt:   r.UpdatedAt.Time,
+		}
+		if r.CourseID.Valid {
+			cID := formatUUID(r.CourseID)
+			dtos[i].CourseID = &cID
+		}
+		if r.LessonID.Valid {
+			lID := formatUUID(r.LessonID)
+			dtos[i].LessonID = &lID
+		}
+		if r.SlideID.Valid {
+			sID := int(r.SlideID.Int32)
+			dtos[i].SlideID = &sID
+		}
+	}
+	return dtos, nil
+}
+
+// ServeBookmarksHTTP handles /v1/bookmarks HTTP requests.
+func (s *Service) ServeBookmarksHTTP(w http.ResponseWriter, r *http.Request) {
+	learnerID := accounts.LearnerID(r.Context())
+	if learnerID == "" {
+		respondError(w, http.StatusUnauthorized, "sign in required")
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/v1/bookmarks")
+	path = strings.TrimPrefix(path, "/")
+
+	switch r.Method {
+	case http.MethodPost:
+		if path == "remove" {
+			var in struct {
+				ID       string `json:"id,omitempty"`
+				LessonID string `json:"lesson_id,omitempty"`
+				SlideID  *int   `json:"slide_id,omitempty"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+				respondError(w, http.StatusBadRequest, "invalid request body")
+				return
+			}
+			if in.ID != "" {
+				_ = s.DeleteBookmark(r.Context(), learnerID, in.ID)
+			} else if in.LessonID != "" {
+				_ = s.DeleteBookmarkByTarget(r.Context(), learnerID, in.LessonID, in.SlideID)
+			}
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"removed": true})
+			return
+		}
+
+		if path != "" && path != "sync" {
+			http.NotFound(w, r)
+			return
+		}
+		var in SaveBookmarkInput
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			respondError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		bm, err := s.SaveBookmark(r.Context(), learnerID, in)
+		if err != nil {
+			switch {
+			case errors.Is(err, ErrMissingActionKey),
+				errors.Is(err, ErrMissingLesson),
+				errors.Is(err, ErrInvalidTargetType),
+				errors.Is(err, ErrInvalidSlide):
+				respondError(w, http.StatusBadRequest, err.Error())
+			case errors.Is(err, ErrUnauthorizedSource):
+				respondError(w, http.StatusForbidden, err.Error())
+			default:
+				respondError(w, http.StatusInternalServerError, "failed to save bookmark")
+			}
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(bm)
+
+	case http.MethodGet:
+		if path == "" {
+			courseIDParam := r.URL.Query().Get("course_id")
+			var courseID *string
+			if courseIDParam != "" {
+				courseID = &courseIDParam
+			}
+			list, err := s.ListBookmarks(r.Context(), learnerID, courseID)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, "failed to list bookmarks")
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(list)
+			return
+		}
+
+		bm, err := s.GetBookmark(r.Context(), learnerID, path)
+		if err != nil {
+			if errors.Is(err, ErrBookmarkNotFound) {
+				respondError(w, http.StatusNotFound, "bookmark not found")
+				return
+			}
+			respondError(w, http.StatusInternalServerError, "failed to get bookmark")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(bm)
+
+	case http.MethodDelete:
+		if path == "" {
+			respondError(w, http.StatusBadRequest, "missing bookmark id")
+			return
+		}
+		err := s.DeleteBookmark(r.Context(), learnerID, path)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to delete bookmark")
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{"removed": true})
+
+	default:
+		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func toBookmarkDTO(r db.Bookmark, available bool) BookmarkDTO {
+	dto := BookmarkDTO{
+		ID:          formatUUID(r.ID),
+		LearnerID:   formatUUID(r.LearnerID),
+		ActionKey:   r.ActionKey,
+		CourseTitle: r.CourseTitle,
+		LessonTitle: r.LessonTitle,
+		SlideTitle:  r.SlideTitle,
+		TargetType:  r.TargetType,
+		Available:   available,
+		CreatedAt:   r.CreatedAt.Time,
+		UpdatedAt:   r.UpdatedAt.Time,
+	}
+	if r.CourseID.Valid {
+		cID := formatUUID(r.CourseID)
+		dto.CourseID = &cID
+	}
+	if r.LessonID.Valid {
+		lID := formatUUID(r.LessonID)
+		dto.LessonID = &lID
+	}
+	if r.SlideID.Valid {
+		sID := int(r.SlideID.Int32)
+		dto.SlideID = &sID
+	}
+	return dto
+}
+
+// EmitBookmarkAdded emits the bookmark_added analytics event.
+func EmitBookmarkAdded(events analytics.Events, learnerID, targetType, courseID, lessonID string, slideID *int, platform, appVersion string) error {
+	if events == nil {
+		return nil
+	}
+	props := map[string]any{
+		"target_type": targetType,
+		"source":      "api",
+		"platform":    platform,
+		"app_version": appVersion,
+	}
+	if courseID != "" {
+		props["course_id"] = courseID
+	}
+	if lessonID != "" {
+		props["lesson_id"] = lessonID
+	}
+	if slideID != nil {
+		props["slide_id"] = *slideID
+	}
+	return events.Capture(learnerID, "bookmark_added", props)
+}
+
+// EmitBookmarkRemoved emits the bookmark_removed analytics event.
+func EmitBookmarkRemoved(events analytics.Events, learnerID, targetType, courseID, lessonID string, slideID *int, platform, appVersion string) error {
+	if events == nil {
+		return nil
+	}
+	props := map[string]any{
+		"target_type": targetType,
+		"source":      "api",
+		"platform":    platform,
+		"app_version": appVersion,
+	}
+	if courseID != "" {
+		props["course_id"] = courseID
+	}
+	if lessonID != "" {
+		props["lesson_id"] = lessonID
+	}
+	if slideID != nil {
+		props["slide_id"] = *slideID
+	}
+	return events.Capture(learnerID, "bookmark_removed", props)
+}
+
+// EmitBookmarkOpened emits the bookmark_opened analytics event.
+func EmitBookmarkOpened(events analytics.Events, learnerID, targetType, courseID, lessonID string, slideID *int, platform, appVersion string) error {
+	if events == nil {
+		return nil
+	}
+	props := map[string]any{
+		"target_type": targetType,
+		"source":      "api",
+		"platform":    platform,
+		"app_version": appVersion,
+	}
+	if courseID != "" {
+		props["course_id"] = courseID
+	}
+	if lessonID != "" {
+		props["lesson_id"] = lessonID
+	}
+	if slideID != nil {
+		props["slide_id"] = *slideID
+	}
+	return events.Capture(learnerID, "bookmark_opened", props)
+}

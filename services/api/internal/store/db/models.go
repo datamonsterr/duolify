@@ -68,6 +68,21 @@ type AuthSession struct {
 	ReauthenticatedAt pgtype.Timestamptz `json:"reauthenticated_at"`
 }
 
+type Bookmark struct {
+	ID          pgtype.UUID        `json:"id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	ActionKey   string             `json:"action_key"`
+	CourseID    pgtype.UUID        `json:"course_id"`
+	LessonID    pgtype.UUID        `json:"lesson_id"`
+	SlideID     pgtype.Int4        `json:"slide_id"`
+	TargetType  string             `json:"target_type"`
+	CourseTitle string             `json:"course_title"`
+	LessonTitle string             `json:"lesson_title"`
+	SlideTitle  string             `json:"slide_title"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Course struct {
 	ID          pgtype.UUID        `json:"id"`
 	LearnerID   pgtype.UUID        `json:"learner_id"`

@@ -26,6 +26,7 @@ import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
 import { Courses } from "./features/design/Courses";
 import { PricingView } from "./features/pricing/PricingView";
 import { NotesPage } from "./features/notes/NotesPage";
+import { BookmarksPage } from "./features/notes/BookmarksPage";
 import { AppShell, MorePage } from "./features/shell/AppShell";
 import {
   DestinationPage,
@@ -117,7 +118,20 @@ const course = createRoute({
 });
 function LessonRoute() {
   const { lessonId } = useParams({ from: "/lesson/$lessonId" });
-  return <LessonPlayer key={lessonId} lessonId={lessonId} />;
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const slideParam = searchParams.get("slide");
+  const initialSlide =
+    slideParam !== null && !isNaN(parseInt(slideParam, 10))
+      ? parseInt(slideParam, 10)
+      : undefined;
+  return (
+    <LessonPlayer
+      key={`${lessonId}-${initialSlide ?? "default"}`}
+      lessonId={lessonId}
+      initialSlide={initialSlide}
+    />
+  );
 }
 const lesson = createRoute({
   getParentRoute: () => root,
@@ -181,7 +195,7 @@ const notes = createRoute({
 const bookmarks = createRoute({
   getParentRoute: () => root,
   path: "/bookmarks",
-  component: () => <DestinationPage title="Bookmarks" />,
+  component: BookmarksPage,
 });
 const settings = createRoute({
   getParentRoute: () => root,

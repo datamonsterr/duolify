@@ -483,3 +483,75 @@ export function trackQuickNoteCreated(value: {
     /* Analytics failure never blocks note creation. */
   }
 }
+
+export function trackBookmarkAdded(value: {
+  targetType: "slide" | "lesson";
+  courseId?: string;
+  lessonId?: string;
+  slideId?: number | string;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("bookmark_added", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      target_type: value.targetType,
+      ...(value.courseId ? { course_id: value.courseId } : {}),
+      ...(value.lessonId ? { lesson_id: value.lessonId } : {}),
+      ...(value.slideId !== undefined ? { slide_id: value.slideId } : {}),
+    });
+  } catch {
+    /* Analytics failure never blocks bookmarking. */
+  }
+}
+
+export function trackBookmarkRemoved(value: {
+  targetType: "slide" | "lesson";
+  courseId?: string;
+  lessonId?: string;
+  slideId?: number | string;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("bookmark_removed", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      target_type: value.targetType,
+      ...(value.courseId ? { course_id: value.courseId } : {}),
+      ...(value.lessonId ? { lesson_id: value.lessonId } : {}),
+      ...(value.slideId !== undefined ? { slide_id: value.slideId } : {}),
+    });
+  } catch {
+    /* Analytics failure never blocks bookmark removal. */
+  }
+}
+
+export function trackBookmarkOpened(value: {
+  targetType: "slide" | "lesson";
+  courseId?: string;
+  lessonId?: string;
+  slideId?: number | string;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("bookmark_opened", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      target_type: value.targetType,
+      ...(value.courseId ? { course_id: value.courseId } : {}),
+      ...(value.lessonId ? { lesson_id: value.lessonId } : {}),
+      ...(value.slideId !== undefined ? { slide_id: value.slideId } : {}),
+    });
+  } catch {
+    /* Analytics failure never blocks bookmark opening. */
+  }
+}

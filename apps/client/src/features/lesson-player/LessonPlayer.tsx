@@ -1,5 +1,5 @@
 import { useUiPreferences } from "../design/localization/Preferences";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { track } from "../../lib/analytics";
 import { isSlideMessage, nextSlide, sendCommand } from "./bridge";
@@ -9,12 +9,26 @@ import slide3 from "../../slides/three.html?raw";
 import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { useShellSession } from "../shell/ShellSession";
 import { QuickNotePanel } from "../notes/QuickNotePanel";
+import { bookmarkQueue } from "../notes/bookmark-queue";
+import { trackBookmarkAdded, trackBookmarkRemoved } from "../../lib/analytics";
+import { session as authSession } from "../accounts/session";
 const slides = [slide1, slide2, slide3];
 const playbackSpeeds = [1, 1.25, 1.5, 2];
-export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
+export function LessonPlayer({
+  lessonId = "sky",
+  initialSlide,
+}: {
+  lessonId?: string;
+  initialSlide?: number;
+} = {}) {
   const { reducedMotion } = useUiPreferences();
   const session = useShellSession();
-  const [index, setIndex] = useState(() => session.slides.get(lessonId) ?? 0);
+  const [index, setIndex] = useState(() => {
+    if (initialSlide !== undefined && !isNaN(initialSlide)) {
+      return initialSlide;
+    }
+    return session.slides.get(lessonId) ?? 0;
+  });
   useEffect(() => {
     session.slides.set(lessonId, index);
   }, [session, lessonId, index]);
@@ -23,7 +37,112 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
   const [isMuted, setIsMuted] = useState(false);
   const [speedIndex, setSpeedIndex] = useState(0);
   const [slideTime, setSlideTime] = useState(0);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [bookmarkVersion, setBookmarkVersion] = useState(0);
   const frame = useRef<HTMLIFrameElement>(null);
+
+  // Derive if current slide is bookmarked directly
+  const isBookmarked = useMemo(() => {
+    void bookmarkVersion;
+    return bookmarkQueue
+      .getQueue()
+      .some(
+        (b) =>
+          b.lessonId === lessonId &&
+          b.slideId === index &&
+          b.status !== "removal_pending",
+      );
+  }, [lessonId, index, bookmarkVersion]);
+
+  const handleToggleBookmark = async () => {
+    if (isBookmarked) {
+      bookmarkQueue.enqueueRemoval({
+        lessonId,
+        slideId: index,
+      });
+      setBookmarkVersion((v) => v + 1);
+      setToastVisible(false);
+      trackBookmarkRemoved({
+        targetType: "slide",
+        courseId: session.courseId(),
+        lessonId,
+        slideId: index,
+      });
+      try {
+        await authSession.request("/v1/bookmarks/remove", "POST", {
+          lesson_id: lessonId,
+          slide_id: index,
+        });
+      } catch {
+        // Offline
+      }
+    } else {
+      const queued = bookmarkQueue.enqueue({
+        courseId: session.courseId(),
+        courseTitle:
+          session.courseId() === "astronomy" ? "Astronomy" : "Course",
+        lessonId,
+        lessonTitle: "Why the sky changes",
+        slideId: index,
+        slideTitle: `Slide ${index + 1}`,
+        targetType: "slide",
+      });
+      setBookmarkVersion((v) => v + 1);
+      setToastMessage("Slide bookmarked");
+      setToastVisible(true);
+      trackBookmarkAdded({
+        targetType: "slide",
+        courseId: session.courseId(),
+        lessonId,
+        slideId: index,
+      });
+      try {
+        const res = await authSession.request<{ id: string }>(
+          "/v1/bookmarks",
+          "POST",
+          {
+            action_key: queued.actionKey,
+            course_id: queued.courseId,
+            lesson_id: lessonId,
+            slide_id: index,
+            target_type: "slide",
+            course_title: queued.courseTitle,
+            lesson_title: queued.lessonTitle,
+            slide_title: queued.slideTitle,
+          },
+        );
+        if (res?.id) {
+          bookmarkQueue.markSynced(queued.actionKey, res.id);
+        }
+      } catch {
+        // Offline
+      }
+    }
+  };
+
+  const handleUndoBookmark = async () => {
+    bookmarkQueue.enqueueRemoval({
+      lessonId,
+      slideId: index,
+    });
+    setBookmarkVersion((v) => v + 1);
+    setToastVisible(false);
+    trackBookmarkRemoved({
+      targetType: "slide",
+      courseId: session.courseId(),
+      lessonId,
+      slideId: index,
+    });
+    try {
+      await authSession.request("/v1/bookmarks/remove", "POST", {
+        lesson_id: lessonId,
+        slide_id: index,
+      });
+    } catch {
+      // Offline
+    }
+  };
   useEffect(() => {
     sendCommand(frame.current?.contentWindow ?? null, {
       type: "set_motion",
@@ -273,6 +392,14 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
           </button>
         </div>
         <div className="panel-tools" aria-label="Lesson tools">
+          <button
+            className={`duo-button quiet ${isBookmarked ? "on" : ""}`}
+            type="button"
+            aria-pressed={isBookmarked}
+            onClick={handleToggleBookmark}
+          >
+            {isBookmarked ? "Saved" : "Bookmark"}
+          </button>
           {(["Transcript", "Ask tutor", "Quick note"] as const).map((name) => (
             <button
               className="duo-button quiet"
@@ -288,6 +415,44 @@ export function LessonPlayer({ lessonId = "sky" }: { lessonId?: string } = {}) {
           ))}
         </div>
       </PanelLayout>
+      {toastVisible && (
+        <div
+          className="toast"
+          role="status"
+          style={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#2B2B2B",
+            color: "#fff",
+            padding: "12px 20px",
+            borderRadius: 14,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            zIndex: 1000,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+          }}
+        >
+          <span style={{ fontSize: 16 }}>🔖</span>
+          <span style={{ flex: 1, fontWeight: 700 }}>{toastMessage}</span>
+          <button
+            type="button"
+            onClick={handleUndoBookmark}
+            style={{
+              color: "#9FD3FF",
+              background: "none",
+              border: "none",
+              fontWeight: 800,
+              cursor: "pointer",
+              padding: 0,
+            }}
+          >
+            Undo
+          </button>
+        </div>
+      )}
       {index + 1 < slides.length && (
         <iframe
           title="Preloaded slide"

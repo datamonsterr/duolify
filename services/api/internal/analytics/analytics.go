@@ -82,7 +82,8 @@ func allowlisted(event string) bool {
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
-		"quick_note_created", "ui_sheet_opened":
+		"quick_note_created", "ui_sheet_opened",
+		"bookmark_added", "bookmark_removed", "bookmark_opened":
 		return true
 	default:
 		return false
@@ -135,7 +136,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 				}
 				continue
 			}
-			if v != "api" && v != "ci" {
+			if v != "api" && v != "ci" && v != "client" {
 				continue
 			}
 		case "platform":
@@ -294,6 +295,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "ui_sheet_opened":
 		ids("sheet_id")
+	case "bookmark_added", "bookmark_removed", "bookmark_opened":
+		ids("course_id", "lesson_id")
+		numeric("slide_id")
+		if tt, ok := input["target_type"].(string); ok && (tt == "slide" || tt == "lesson") {
+			out["target_type"] = tt
+		}
 	}
 	return out
 }

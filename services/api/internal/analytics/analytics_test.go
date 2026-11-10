@@ -95,6 +95,7 @@ func TestEventAllowlist(t *testing.T) {
 		"daily_credits_granted", "daily_credits_expired",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"quick_note_created", "ui_sheet_opened",
+		"bookmark_added", "bookmark_removed", "bookmark_opened",
 	} {
 		if !allowlisted(name) {
 			t.Errorf("catalogue event %q rejected", name)
@@ -589,5 +590,117 @@ func TestQuickNoteAndSheetEventsReachPostHogWithoutPrivateData(t *testing.T) {
 
 	if len(received) != 4 {
 		t.Fatalf("opt-out sent analytics, received %d events", len(received))
+	}
+}
+
+func TestBookmarkEventsReachPostHogWithoutPrivateData(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	learnerID := "22222222-2222-4222-8222-222222222222"
+	courseID := "33333333-3333-4333-8333-333333333333"
+	lessonID := "44444444-4444-4444-8444-444444444444"
+
+	// 1. bookmark_added
+	err = events.Capture(learnerID, "bookmark_added", map[string]any{
+		"target_type":  "slide",
+		"course_id":    courseID,
+		"lesson_id":    lessonID,
+		"slide_id":     1,
+		"source":       "api",
+		"platform":     "web",
+		"app_version":  "0.1.0",
+		"private_data": "secret content that must not leak",
+		"html":         "<script>bad()</script>",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. bookmark_removed
+	err = events.Capture(learnerID, "bookmark_removed", map[string]any{
+		"target_type": "lesson",
+		"course_id":   courseID,
+		"lesson_id":   lessonID,
+		"source":      "client",
+		"platform":    "desktop",
+		"app_version": "0.1.0",
+		"note_text":   "must be excluded",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 3. bookmark_opened
+	err = events.Capture(learnerID, "bookmark_opened", map[string]any{
+		"target_type": "slide",
+		"course_id":   courseID,
+		"lesson_id":   lessonID,
+		"slide_id":    2,
+		"source":      "api",
+		"platform":    "web",
+		"app_version": "0.1.0",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(received) != 3 {
+		t.Fatalf("expected 3 events, got %d", len(received))
+	}
+
+	for i, ev := range received {
+		raw, _ := json.Marshal(ev)
+		if strings.Contains(string(raw), "secret") || strings.Contains(string(raw), "private") || strings.Contains(string(raw), "script") {
+			t.Fatalf("private data leaked in event %d: %s", i, string(raw))
+		}
+		p, ok := ev["properties"].(map[string]any)
+		if !ok {
+			t.Fatalf("missing properties in event %d", i)
+		}
+		for _, forbidden := range []string{"private_data", "html", "note_text"} {
+			if p[forbidden] != nil {
+				t.Fatalf("forbidden key %q found in event %d", forbidden, i)
+			}
+		}
+	}
+
+	// Opt-out test
+	opted, err := NewWithOptions("fixture-only", server.URL, Options{OptOut: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := opted.Capture(learnerID, "bookmark_added", map[string]any{"target_type": "slide"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := opted.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if len(received) != 3 {
+		t.Fatalf("opt-out sent event, received %d", len(received))
 	}
 }
