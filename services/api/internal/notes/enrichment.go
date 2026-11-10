@@ -204,6 +204,10 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 	if note.Status == "raw_only" || note.Status == "enriched" {
 		return nil
 	}
+	courseID, err := s.authorizedNoteCourse(ctx, learnerUUID, note.CourseID, note.LessonID)
+	if err != nil {
+		return err
+	}
 	var claimed pgtype.UUID
 	err = s.pool.QueryRow(ctx, `UPDATE quick_notes SET status='enriching', reservation_id=NULL, quote_id=NULL,updated_at=now() WHERE id=$1 AND learner_id=$2 AND raw_version=$3 AND status IN ('enrichment_pending','enrichment_failed') RETURNING id`, noteUUID, learnerUUID, note.RawVersion).Scan(&claimed)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -255,23 +259,10 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 	if err = s.credits.Claim(ctx, learnerID, res.ID); err != nil {
 		return err
 	}
-	courseID := note.CourseID
-	if !courseID.Valid && note.LessonID.Valid {
-		courseID, err = s.queries.GetCourseIDForLesson(ctx, note.LessonID)
-		if err != nil {
-			return err
-		}
-	}
-	if !courseID.Valid {
-		err = s.pool.QueryRow(ctx, "SELECT c.id FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE e.learner_id=$1 LIMIT 1", learnerUUID).Scan(&courseID)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-	}
 	var allowedLessons []*enginev1.LessonRef
 	var allowedIDs []string
 	if courseID.Valid {
-		lessons, e := s.queries.ListCourseLessonsForCourse(ctx, courseID)
+		lessons, e := s.queries.ListCourseLessonsForCourse(ctx, db.ListCourseLessonsForCourseParams{CourseID: courseID, LearnerID: learnerUUID})
 		if e != nil {
 			return e
 		}

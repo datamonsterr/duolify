@@ -183,6 +183,11 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 		}
 	}
 
+	coursePgUUID, err = s.authorizedNoteCourse(ctx, learnerUUID, coursePgUUID, lessonPgUUID)
+	if err != nil {
+		return nil, err
+	}
+
 	var slideID pgtype.Int4
 	if input.SlideID != nil && *input.SlideID >= 0 && *input.SlideID <= math.MaxInt32 {
 		slideID = pgtype.Int4{Int32: int32(*input.SlideID), Valid: true}
@@ -231,6 +236,33 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 
 	dto := toDTO(note)
 	return &dto, nil
+}
+
+// authorizedNoteCourse rechecks persisted context as well as new note input.
+func (s *Service) authorizedNoteCourse(ctx context.Context, learner, course, lesson pgtype.UUID) (pgtype.UUID, error) {
+	if lesson.Valid {
+		derived, err := s.queries.GetCourseIDForLesson(ctx, db.GetCourseIDForLessonParams{ID: lesson, LearnerID: learner})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.UUID{}, ErrUnauthorizedSource
+		}
+		if err != nil {
+			return pgtype.UUID{}, err
+		}
+		if course.Valid && course != derived {
+			return pgtype.UUID{}, ErrUnauthorizedSource
+		}
+		course = derived
+	}
+	if course.Valid {
+		authorized, err := s.queries.CheckNoteCourseAuthorization(ctx, db.CheckNoteCourseAuthorizationParams{ID: course, LearnerID: learner})
+		if err != nil {
+			return pgtype.UUID{}, err
+		}
+		if !authorized {
+			return pgtype.UUID{}, ErrUnauthorizedSource
+		}
+	}
+	return course, nil
 }
 
 // GetNote retrieves a quick note by ID for an authorized learner.

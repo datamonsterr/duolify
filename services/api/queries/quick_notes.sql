@@ -104,14 +104,18 @@ FOR UPDATE;
 SELECT l.id, l.title
 FROM course_lesson_stubs l
 JOIN course_units u ON u.id = l.unit_id
-WHERE u.course_id = $1
+JOIN courses c ON c.id=u.course_id
+WHERE u.course_id = $1 AND c.deleted_at IS NULL
+  AND (l.learner_id=$2 OR (l.learner_id=c.learner_id AND EXISTS (SELECT 1 FROM course_enrollments e WHERE e.course_id=c.id AND e.learner_id=$2)))
 ORDER BY u.position, l.position;
 
 -- name: GetCourseIDForLesson :one
 SELECT u.course_id
 FROM course_lesson_stubs l
 JOIN course_units u ON u.id = l.unit_id
-WHERE l.id = $1;
+JOIN courses c ON c.id=u.course_id
+WHERE l.id = $1 AND c.deleted_at IS NULL
+  AND (c.learner_id=$2 OR EXISTS (SELECT 1 FROM course_enrollments e WHERE e.course_id=c.id AND e.learner_id=$2));
 
 -- name: UpdateQuickNoteRawText :one
 UPDATE quick_notes
@@ -163,3 +167,7 @@ ORDER BY qn.created_at DESC;
 
 -- name: GetQuickNoteByActionKey :one
 SELECT id FROM quick_notes WHERE learner_id=$1 AND action_key=$2;
+
+-- name: CheckNoteCourseAuthorization :one
+SELECT EXISTS(SELECT 1 FROM courses c WHERE c.id=$1 AND c.deleted_at IS NULL
+ AND (c.learner_id=$2 OR EXISTS(SELECT 1 FROM course_enrollments e WHERE e.course_id=c.id AND e.learner_id=$2)));

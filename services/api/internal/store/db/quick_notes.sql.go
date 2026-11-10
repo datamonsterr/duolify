@@ -34,6 +34,23 @@ func (q *Queries) CheckLessonAuthorization(ctx context.Context, arg CheckLessonA
 	return authorized, err
 }
 
+const checkNoteCourseAuthorization = `-- name: CheckNoteCourseAuthorization :one
+SELECT EXISTS(SELECT 1 FROM courses c WHERE c.id=$1 AND c.deleted_at IS NULL
+ AND (c.learner_id=$2 OR EXISTS(SELECT 1 FROM course_enrollments e WHERE e.course_id=c.id AND e.learner_id=$2)))
+`
+
+type CheckNoteCourseAuthorizationParams struct {
+	ID        pgtype.UUID `json:"id"`
+	LearnerID pgtype.UUID `json:"learner_id"`
+}
+
+func (q *Queries) CheckNoteCourseAuthorization(ctx context.Context, arg CheckNoteCourseAuthorizationParams) (bool, error) {
+	row := q.db.QueryRow(ctx, checkNoteCourseAuthorization, arg.ID, arg.LearnerID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const deleteQuickNote = `-- name: DeleteQuickNote :exec
 DELETE FROM quick_notes
 WHERE id = $1 AND learner_id = $2
@@ -170,11 +187,18 @@ const getCourseIDForLesson = `-- name: GetCourseIDForLesson :one
 SELECT u.course_id
 FROM course_lesson_stubs l
 JOIN course_units u ON u.id = l.unit_id
-WHERE l.id = $1
+JOIN courses c ON c.id=u.course_id
+WHERE l.id = $1 AND c.deleted_at IS NULL
+  AND (c.learner_id=$2 OR EXISTS (SELECT 1 FROM course_enrollments e WHERE e.course_id=c.id AND e.learner_id=$2))
 `
 
-func (q *Queries) GetCourseIDForLesson(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, getCourseIDForLesson, id)
+type GetCourseIDForLessonParams struct {
+	ID        pgtype.UUID `json:"id"`
+	LearnerID pgtype.UUID `json:"learner_id"`
+}
+
+func (q *Queries) GetCourseIDForLesson(ctx context.Context, arg GetCourseIDForLessonParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getCourseIDForLesson, arg.ID, arg.LearnerID)
 	var course_id pgtype.UUID
 	err := row.Scan(&course_id)
 	return course_id, err
@@ -373,17 +397,24 @@ const listCourseLessonsForCourse = `-- name: ListCourseLessonsForCourse :many
 SELECT l.id, l.title
 FROM course_lesson_stubs l
 JOIN course_units u ON u.id = l.unit_id
-WHERE u.course_id = $1
+JOIN courses c ON c.id=u.course_id
+WHERE u.course_id = $1 AND c.deleted_at IS NULL
+  AND (l.learner_id=$2 OR (l.learner_id=c.learner_id AND EXISTS (SELECT 1 FROM course_enrollments e WHERE e.course_id=c.id AND e.learner_id=$2)))
 ORDER BY u.position, l.position
 `
+
+type ListCourseLessonsForCourseParams struct {
+	CourseID  pgtype.UUID `json:"course_id"`
+	LearnerID pgtype.UUID `json:"learner_id"`
+}
 
 type ListCourseLessonsForCourseRow struct {
 	ID    pgtype.UUID `json:"id"`
 	Title string      `json:"title"`
 }
 
-func (q *Queries) ListCourseLessonsForCourse(ctx context.Context, courseID pgtype.UUID) ([]ListCourseLessonsForCourseRow, error) {
-	rows, err := q.db.Query(ctx, listCourseLessonsForCourse, courseID)
+func (q *Queries) ListCourseLessonsForCourse(ctx context.Context, arg ListCourseLessonsForCourseParams) ([]ListCourseLessonsForCourseRow, error) {
+	rows, err := q.db.Query(ctx, listCourseLessonsForCourse, arg.CourseID, arg.LearnerID)
 	if err != nil {
 		return nil, err
 	}

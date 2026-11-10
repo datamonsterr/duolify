@@ -189,6 +189,85 @@ func reviewResponse(req *enginev1.EnrichNoteRequest) *enginev1.EnrichNoteRespons
 	return &enginev1.EnrichNoteResponse{Summary: "Grounded summary", Tags: []string{"tag"}, Usage: usage, Attempts: []*enginev1.Usage{usage}}
 }
 
+func reviewCourse(t *testing.T, database *store.Store, learner string) (string, string) {
+	t.Helper()
+	var course, lesson string
+	err := database.Pool.QueryRow(t.Context(), `WITH q AS (INSERT INTO pricing_quotes(learner_id,owner_reference,pricing_version,snapshot,created_at,expires_at) SELECT $1,'fixture',version,'{}',now(),now()+interval '1 hour' FROM pricing_versions ORDER BY effective_from DESC LIMIT 1 RETURNING id), creation AS (INSERT INTO course_creations(learner_id,draft_id,revision,quote_id,request,state) SELECT $1,gen_random_uuid(),1,id,'{}','enrolled' FROM q RETURNING id) INSERT INTO courses(learner_id,creation_id,title) SELECT $1,id,'Private course' FROM creation RETURNING id::text`, learner).Scan(&course)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = database.Pool.QueryRow(t.Context(), `WITH unit AS (INSERT INTO course_units(learner_id,course_id,authored_id,position,title) VALUES($1,$2,'unit',0,'Private unit') RETURNING id) INSERT INTO course_lesson_stubs(learner_id,unit_id,authored_id,position,title,goal,status) SELECT $1,id,'lesson',0,'Private lesson title','Goal','ready_to_generate' FROM unit RETURNING id::text`, learner, course).Scan(&lesson)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return course, lesson
+}
+
+func TestNotesReviewCourseOwnership(t *testing.T) {
+	database := reviewDatabase(t)
+	learner, financial := reviewLearner(t, database)
+	foreign, _ := reviewLearner(t, database)
+	ownCourse, ownLesson := reviewCourse(t, database, learner)
+	foreignCourse, foreignLesson := reviewCourse(t, database, foreign)
+	var calls atomic.Int64
+	fixture := &reviewEngine{enrich: func(_ context.Context, req *enginev1.EnrichNoteRequest) (*enginev1.EnrichNoteResponse, error) {
+		calls.Add(1)
+		for _, l := range req.AllowedLessons {
+			if l.LessonId == foreignLesson {
+				t.Error("foreign lesson title reached engine")
+			}
+		}
+		response := reviewResponse(req)
+		response.Links = []string{foreignLesson, ownLesson}
+		return response, nil
+	}}
+	service := notes.NewServiceWithEnrichment(database.Pool, nil, financial, fixture)
+	before := reviewBalance(t, database, learner)
+	for _, in := range []notes.SaveNoteInput{
+		{ActionKey: uuid.NewString(), Source: "chat", RawText: "Foreign course", CourseID: &foreignCourse},
+		{ActionKey: uuid.NewString(), Source: "lesson", RawText: "Mismatched course", CourseID: &foreignCourse, LessonID: &ownLesson},
+	} {
+		if _, err := service.SaveNote(t.Context(), learner, in); !errors.Is(err, notes.ErrUnauthorizedSource) {
+			t.Errorf("foreign course accepted: %v", err)
+		}
+	}
+	note, err := service.SaveNote(t.Context(), learner, notes.SaveNoteInput{ActionKey: uuid.NewString(), Source: "lesson", RawText: "Authorized lesson", LessonID: &ownLesson})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if note.CourseID == nil || *note.CourseID != ownCourse {
+		t.Error("course not derived from authorized lesson")
+	}
+	// Old persisted bad references must also fail closed in the worker.
+	if _, err = database.Pool.Exec(t.Context(), "UPDATE quick_notes SET course_id=$2 WHERE id=$1", note.ID, foreignCourse); err != nil {
+		t.Fatal(err)
+	}
+	if err = service.ProcessEnrichment(t.Context(), learner, note.ID); !errors.Is(err, notes.ErrUnauthorizedSource) {
+		t.Errorf("worker accepted foreign course: %v", err)
+	}
+	if calls.Load() != 0 {
+		t.Error("foreign context invoked engine")
+	}
+	if delta := reviewBalance(t, database, learner) - before; delta != 0 {
+		t.Errorf("foreign course ledger delta=%d want 0", delta)
+	}
+	if _, err = database.Pool.Exec(t.Context(), "UPDATE quick_notes SET course_id=$2 WHERE id=$1", note.ID, ownCourse); err != nil {
+		t.Fatal(err)
+	}
+	if err = service.ProcessEnrichment(t.Context(), learner, note.ID); err != nil {
+		t.Fatal(err)
+	}
+	refreshed, err := service.GetNote(t.Context(), learner, note.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, link := range refreshed.Links {
+		if link == foreignLesson {
+			t.Error("foreign lesson link persisted")
+		}
+	}
+}
+
 func TestNotesReviewBillingAtomicity(t *testing.T) {
 	database := reviewDatabase(t)
 	for _, mode := range []string{"engine-error", "bounds", "stale-edit", "persist-error", "success"} {

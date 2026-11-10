@@ -79,3 +79,5 @@ Non-delivery settles an explicit zero-cost, non-delivered attempt, including aft
 
 A conditional UPDATE RETURNING claims a pending or failed raw revision before quoting. Competing enrichment entry points yield to that claim. River uniqueness uses note ID and raw version; saving an idempotent replay returns the existing note without inserting another job. A new raw note and its River job commit in one transaction; queue failures are returned and roll back the insert. Fixtures migrate River alongside the application schema.
 
+Course context is derived from an authorized lesson or checked against ownership/enrollment. A supplied lesson and course must match. Workers recheck persisted references before quoting; allowed lessons are learner-scoped, and context-free notes have no arbitrary enrollment fallback. Foreign context never reaches the engine or stored links.
+
