@@ -6,7 +6,10 @@
    - Confirms that the plan benefits stored in the term (or resolved from active pricing configuration for the plan) include `"Offline course library downloads"`. Learn, Plus, and Pro tiers qualify.
    - Refuses unentitled or expired learners with HTTP 403 Forbidden and JSON payload `{"error": "subscription_required"}`.
    - Reuses existing `credits.Service.FundedPlan` / entitlement logic from E7 without duplicating subscription rules or hardcoding plan names/prices.
-2. Course library download endpoint:
+2. Scope of entitlement:
+   - Entitlement gates the library listing and bulk download convenience only. Individual manifest/slide fetches require enrollment, including after expiry; already-delivered playback is never revoked.
+   - Prepared dynamic HTML and download indexes are scoped to the current account and clear on logout. Home fallback reads only that owner's index after network failure, never HTTP 401/5xx.
+3. Course library download endpoint:
    - `GET /v1/courses/{course}/download`: returns course ID, entitlement status, and an array of unlocked/generated lessons for the course (e.g. `lesson_id`, `title`, `unit_id`, `position`, `status`, `manifest_key`).
    - Only returns generated lessons with valid manifests for enrolled learners.
    - No AI charge or quote is incurred for downloading existing generated lessons.
@@ -14,6 +17,7 @@
 ## Client-Side Resumable Download Controller and Cache
 1. Cache Parameterization & Storage Controls:
    - `cache.ts` bounds are adapted so that bulk-downloaded courses do not evict each other under a strict 5-lesson limit. The account cache limit supports up to 50 lessons or configurable account size (e.g., 80 MiB), while preserving atomic checksum validation per bundle.
+   - Every bulk attempt restores the normal five lessons / 16 MiB bounds in a finally block, including success, empty libraries and failures.
    - Storage controls report downloaded lesson counts and approximate byte size.
    - Learners can clear downloaded courses via storage controls, removing cached bundles from device storage.
 2. Resumable Queue:
@@ -50,3 +54,11 @@
   - `action: "retry" | "exit"`
   - `error_code: "subscription_required" | "download_failed" | "storage_exceeded"`
 - All events use authenticated UUID identity, common properties (`platform`, `app_version`, `source`), respect opt-out, and never emit learner text or slide content.
+
+## Playback containment
+The iframe sandbox grants `allow-scripts` only, without same-origin, top-navigation
+or popup permissions. CSP denies base changes and form actions and requests
+`navigate-to 'none'` where supported. Sandbox and CSP are the primary boundary,
+independent of regex-based HTML screening. Dynamic lessons use an empty network
+origin (data resources only); prepared documents never cross account boundaries.
+No analytics payload, AI behavior, backup authority, or server retention changes.

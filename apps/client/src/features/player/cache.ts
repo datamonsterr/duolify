@@ -53,7 +53,8 @@ function documentKey(slide: ManifestSlide) {
   return `${session.current()?.id}:${slide.html_url}:${slide.html_sha256}`;
 }
 export function preparedDocument(slide: ManifestSlide) {
-  return prepared.get(documentKey(slide)) ?? prepared.get(slide.html_url);
+  if (!session.current()?.id) return undefined;
+  return prepared.get(documentKey(slide));
 }
 export function availableOffline(lesson: string) {
   const owner = session.current()?.id;
@@ -219,6 +220,7 @@ export async function readCachedLesson(
 }
 export async function openLesson(lesson: string): Promise<Manifest> {
   const owner = session.current()?.id;
+  const expected = epoch;
   if (!owner) throw new Error("offline_uncached");
   let value: unknown;
   try {
@@ -240,10 +242,6 @@ export async function openLesson(lesson: string): Promise<Manifest> {
           }[];
         }>(`/v1/lessons/${encodeURIComponent(lesson)}`);
         if (dyn?.slides && dyn.slides.length > 0) {
-          const origin =
-            typeof window !== "undefined"
-              ? window.location.origin
-              : "http://localhost:3000";
           const slides: ManifestSlide[] = await Promise.all(
             dyn.slides.map(async (s) => {
               const html_sha256 = await digest(s.html);
@@ -266,14 +264,15 @@ export async function openLesson(lesson: string): Promise<Manifest> {
             course_id: dyn.course_id || "course",
             title: dyn.title || "Lesson",
             version: 1,
-            asset_origin: origin,
+            asset_origin: "",
             slides,
           };
+          if (expected !== epoch || session.current()?.id !== owner)
+            throw new Error("session_changed", { cause: error });
           for (const s of slides) {
             const raw = dyn.slides.find((x) => x.slide_id === s.slide_id);
             const html = raw?.html ?? "";
             prepared.set(documentKey(s), html);
-            prepared.set(s.html_url, html);
           }
           return synthesized;
         }

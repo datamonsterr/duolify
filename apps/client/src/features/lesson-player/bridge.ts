@@ -24,6 +24,8 @@ export type SlideMessage =
     }
   | { type: "player_keydown"; code: string; key: string }
   | { type: "asset_error" };
+const boundedString = (value: unknown): value is string =>
+  typeof value === "string" && value.length > 0 && value.length <= 100;
 export function isSlideMessage(
   event: MessageEvent,
   frame: Window | null,
@@ -47,17 +49,21 @@ export function isSlideMessage(
       /^[A-Za-z0-9_-]{1,100}$/.test(event.data.name) &&
       (checkpoints === undefined || checkpoints.includes(event.data.name))) ||
     (event.data.type === "character_rendered" &&
-      typeof event.data.speaker_key === "string" &&
-      typeof event.data.character_version === "number" &&
-      typeof event.data.rig_version === "string" &&
-      typeof event.data.expression === "string" &&
-      typeof event.data.offline === "boolean") ||
+      boundedString(event.data.speaker_key) &&
+      Number.isSafeInteger(event.data.character_version) &&
+      event.data.character_version > 0 &&
+      boundedString(event.data.rig_version) &&
+      boundedString(event.data.expression) &&
+      typeof event.data.offline === "boolean" &&
+      (event.data.slide_id === undefined ||
+        (typeof event.data.slide_id === "string" &&
+          /^[A-Za-z0-9_-]{1,100}$/.test(event.data.slide_id)))) ||
     (event.data.type === "character_render_fallback" &&
-      typeof event.data.reason_code === "string" &&
+      boundedString(event.data.reason_code) &&
       typeof event.data.offline === "boolean") ||
     (event.data.type === "player_keydown" &&
-      typeof event.data.code === "string" &&
-      typeof event.data.key === "string")
+      boundedString(event.data.code) &&
+      boundedString(event.data.key))
   );
 }
 export function nextSlide(index: number, count: number) {
