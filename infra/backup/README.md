@@ -29,7 +29,7 @@ The worker:
 - Emits `backup_completed` / `backup_failed` with size, duration and outcome via
   the existing non-blocking PostHog wrapper. The reserved operations UUID is
   `00000000-0000-4000-8000-000000000011`, platform=web, source=api, app_version from
-  build information. `ANALYTICS_OPT_OUT=true` suppresses delivery. No database
+  build information. The shared consent resolver explicitly recognizes this non-learner operations identity; all learner identities require current stored consent. `ANALYTICS_OPT_OUT=true` suppresses delivery. No database
   contents, connection strings, keys or provider diagnostics enter events.
 
 ## Local setup and verification
@@ -101,3 +101,9 @@ The ready-PR pipeline should create a **synthetic** migrated fixture, dump it an
 call this task now that the first real migration exists. A scheduled production
 drill, anonymization tooling, cloud lifecycle policies, key rotation and external
 alert routing remain follow-up work; see [CI](../../docs/ci.md).
+
+## Account deletion ledger
+
+Both API serve and worker startup require the scoped `BACKUP_S3_*` configuration. `account-deletions/v1/<SHA-256>.json` is the authoritative append-only deletion ledger in the backup bucket, separate from restored database snapshots. Each atomic conditional Put contains only the hashed learner reference. The write must succeed before SQL erasure commits; retries preserve the first complete object. If SQL fails after a durable intent, retry/startup replay completes that intent. Never expire, overwrite, delete or restore this prefix; scope 14/35-day retention to dated archives only. Keep the writer without delete/admin permission.
+
+After restoring a dump, start the API against the existing ledger bucket. Before opening HTTP listeners, `ReplayDeletionLedger` migrates legacy SQL tombstones to object intents, checks every restored learner hash against storage, imports matching intents and reapplies full erasure/financial pseudonymization. A storage/replay failure stops startup. Do not expose the restored database through another service until this replay succeeds. The integration fixture restores an actual encrypted pre-deletion dump with no SQL tombstone and proves the independent object intent keeps the learner deleted.

@@ -18,6 +18,7 @@ import (
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/accountstest"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	backend "github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -85,6 +86,8 @@ func TestCourseBriefIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ledger := accountstest.NewDeletionLedger()
+	auth.ConfigureDeletionLedger(ledger)
 	cat, err := pricing.LoadDevelopment(ctx, db.Pool)
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +107,7 @@ func TestCourseBriefIntegration(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer sink.Close()
-	events, err := analytics.New("test-only", sink.URL)
+	events, err := analytics.New("test-only", sink.URL, func(context.Context, string) (bool, error) { return true, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,7 +3,7 @@ import { trackPrivacyControl } from "../../lib/analytics";
 import { Button } from "../design/Button";
 import { Feedback } from "../design/chat/Feedback";
 import { profileApi } from "./learner-context";
-import { credentialStore, session } from "./session";
+import { AuthError, credentialStore, session } from "./session";
 import { encryptAccountExport } from "./encrypted-export";
 
 export function AccountPrivacy() {
@@ -14,6 +14,23 @@ export function AccountPrivacy() {
   const [privacyPending, setPrivacyPending] = useState(false);
   const [privacyError, setPrivacyError] = useState("");
   const [privacyNotice, setPrivacyNotice] = useState("");
+  const [reauthRequired, setReauthRequired] = useState(false);
+
+  function handlePrivacyFailure(cause: unknown, fallback: string) {
+    if (
+      cause instanceof AuthError &&
+      cause.status === 403 &&
+      (cause.details as { code?: string } | undefined)?.code ===
+        "reauth_required"
+    ) {
+      setExportOpen(false);
+      setDeletionOpen(false);
+      setExportPassphrase("");
+      setConfirmation("");
+      setReauthRequired(true);
+    }
+    setPrivacyError(cause instanceof Error ? cause.message : fallback);
+  }
 
   async function downloadExport() {
     if (privacyPending) return;
@@ -37,10 +54,9 @@ export function AccountPrivacy() {
         "Encrypted export downloaded. Keep your passphrase safe; it cannot be recovered.",
       );
     } catch (cause) {
-      setPrivacyError(
-        cause instanceof Error
-          ? cause.message
-          : "Could not prepare export. Connect and retry.",
+      handlePrivacyFailure(
+        cause,
+        "Could not prepare export. Connect and retry.",
       );
     } finally {
       setPrivacyPending(false);
@@ -64,10 +80,9 @@ export function AccountPrivacy() {
       session.clear();
       window.location.assign("/sign-in");
     } catch (cause) {
-      setPrivacyError(
-        cause instanceof Error
-          ? cause.message
-          : "Could not request account removal. Connect and retry.",
+      handlePrivacyFailure(
+        cause,
+        "Could not request account removal. Connect and retry.",
       );
     } finally {
       setPrivacyPending(false);
@@ -85,6 +100,12 @@ export function AccountPrivacy() {
     <>
       {privacyError && <Feedback tone="danger" title={privacyError} />}
       {privacyNotice && <p role="status">{privacyNotice}</p>}
+      {reauthRequired && (
+        <p>
+          Confirm your identity with a fresh sign-in, then return here to retry.{" "}
+          <a href="/sign-in?returnTo=%2Fsettings">Verify your identity</a>
+        </p>
+      )}
       <section aria-label="Account data and privacy">
         <h2>Account</h2>
         <p>

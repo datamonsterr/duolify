@@ -3,6 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { Settings } from "./Settings";
 import { emptySettings, profileApi } from "./learner-context";
 import { encryptAccountExport } from "./encrypted-export";
+import { AuthError } from "./session";
 
 const analytics = vi.hoisted(() => ({
   setAnalyticsConsent: vi.fn(),
@@ -110,3 +111,41 @@ it("validates passphrase length for encrypted exports", async () => {
   expect(result).toContain("duolify-encrypted-export-v1");
   expect(result).toContain("PBKDF2-SHA256/AES-256-GCM");
 });
+
+it.each(["export", "delete"])(
+  "asks for recent reauthentication when %s is denied",
+  async (action) => {
+    vi.mocked(profileApi.exportData).mockRejectedValue(
+      new AuthError("Verify your identity.", 403, { code: "reauth_required" }),
+    );
+    vi.mocked(profileApi.deleteAccount).mockRejectedValue(
+      new AuthError("Verify your identity.", 403, { code: "reauth_required" }),
+    );
+    render(<Settings />);
+    await screen.findByRole("heading", { name: "Settings" });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: action === "export" ? "Export data" : "Delete account",
+      }),
+    );
+    if (action === "export")
+      fireEvent.change(screen.getByLabelText("Export passphrase"), {
+        target: { value: "a-private-export-passphrase" },
+      });
+    else
+      fireEvent.change(screen.getByLabelText("Type DELETE to confirm"), {
+        target: { value: "DELETE" },
+      });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name:
+          action === "export"
+            ? "Download encrypted export"
+            : "Delete permanently",
+      }),
+    );
+    expect(
+      await screen.findByRole("link", { name: "Verify your identity" }),
+    ).toHaveAttribute("href", "/sign-in?returnTo=%2Fsettings");
+  },
+);

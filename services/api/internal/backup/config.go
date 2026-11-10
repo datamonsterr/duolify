@@ -5,7 +5,8 @@ import (
 	"strconv"
 )
 
-// Runtime contains settings used only by the worker, never by serve.
+// Runtime contains shared deletion-ledger storage settings; only the worker uses
+// Recipient to encrypt database archives. Serve needs no recovery private key.
 type Runtime struct {
 	S3        S3Options
 	Recipient string

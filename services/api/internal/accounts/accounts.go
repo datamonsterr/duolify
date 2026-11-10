@@ -44,16 +44,17 @@ type Profile = db.GetAuthenticatedLearnerRow
 
 // Service owns stateless HTTP authentication backed by Postgres.
 type Service struct {
-	pool          *pgxpool.Pool
-	key           []byte
-	mail          Mailer
-	oauth         OAuthProvider
-	apple         AppleOAuthProvider
-	mux           *http.ServeMux
-	profile       ProfileOptions
-	limits        RateLimits
-	personDeleter PersonDeleter
-	setupChat     SetupChatOptions
+	pool           *pgxpool.Pool
+	key            []byte
+	mail           Mailer
+	oauth          OAuthProvider
+	apple          AppleOAuthProvider
+	mux            *http.ServeMux
+	profile        ProfileOptions
+	limits         RateLimits
+	personDeleter  PersonDeleter
+	deletionLedger DeletionLedger
+	setupChat      SetupChatOptions
 }
 
 // New requires a shared signing/HMAC secret of at least 32 bytes.

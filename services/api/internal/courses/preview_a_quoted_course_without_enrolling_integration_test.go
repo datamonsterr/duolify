@@ -135,7 +135,7 @@ func TestQuotedPreviewIntegration(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer sink.Close()
-	events, err := analytics.New("fixture-only", sink.URL)
+	events, err := analytics.New("fixture-only", sink.URL, func(context.Context, string) (bool, error) { return true, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

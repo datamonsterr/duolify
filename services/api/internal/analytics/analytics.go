@@ -96,12 +96,19 @@ func allowlisted(event string) bool {
 }
 
 // New disables analytics completely when the key is empty.
-func New(key, host string) (Events, error) {
-	return NewWithOptions(key, host, Options{OptOut: strings.EqualFold(os.Getenv("ANALYTICS_OPT_OUT"), "true")})
+func New(key, host string, resolver ...ConsentResolver) (Events, error) {
+	options := Options{OptOut: strings.EqualFold(os.Getenv("ANALYTICS_OPT_OUT"), "true")}
+	if len(resolver) > 0 {
+		options.Consent = resolver[0]
+	}
+	return NewWithOptions(key, host, options)
 }
 
 // Options can disable delivery without changing the caller's operational monitor.
-type Options struct{ OptOut bool }
+type Options struct {
+	OptOut  bool
+	Consent ConsentResolver
+}
 
 // NewWithOptions uses the SDK's bounded nonblocking queue (ErrQueueFull drops).
 func NewWithOptions(key, host string, options Options) (Events, error) {
@@ -119,7 +126,7 @@ func NewWithOptions(key, host string, options Options) (Events, error) {
 			_ = sdk.Enqueue(event)
 		}
 	}()
-	return c, nil
+	return WithConsent(c, options.Consent), nil
 }
 
 var identifier = regexp.MustCompile(`^[A-Za-z0-9_./:+-]{1,100}$`)

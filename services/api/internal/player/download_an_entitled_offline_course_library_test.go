@@ -188,7 +188,7 @@ func TestDownloadLibraryAnalyticsAllowlist(t *testing.T) {
 	}))
 	defer server.Close()
 
-	events, err := analytics.NewWithOptions("fixture-only", server.URL, analytics.Options{})
+	events, err := analytics.NewWithOptions("fixture-only", server.URL, analytics.Options{Consent: func(context.Context, string) (bool, error) { return true, nil }})
 	if err != nil {
 		t.Fatal(err)
 	}

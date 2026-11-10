@@ -39,6 +39,13 @@ export default defineRailway((ctx) => {
     S3_REGION: ref(assets, "REGION"),
     S3_ACCESS_KEY_ID: ref(assets, "ACCESS_KEY_ID"),
     S3_SECRET_ACCESS_KEY: ref(assets, "SECRET_ACCESS_KEY"),
+    BACKUP_S3_ENDPOINT: ref(backups, "ENDPOINT"),
+    BACKUP_S3_BUCKET: ref(backups, "BUCKET"),
+    BACKUP_S3_REGION: ref(backups, "REGION"),
+    // Secret-managed scoped get/conditional-put writer, without delete/admin.
+    // Never substitute the bucket's administrative credentials here.
+    BACKUP_S3_ACCESS_KEY_ID: preserve(),
+    BACKUP_S3_SECRET_ACCESS_KEY: preserve(),
     JWT_SECRET: preserve(),
     POSTHOG_API_KEY: preserve(),
     POSTHOG_HOST: "https://us.i.posthog.com",
@@ -60,9 +67,7 @@ export default defineRailway((ctx) => {
     // Idempotent migrations also avoid relying on cross-service deploy order.
     preDeploy: "/api migrate",
     start: "/api worker",
-    env: runtime,
-    // Backup credentials stay omitted until the worker job exists.
-    // The application API must never receive backup-bucket delete credentials.
+    env: { ...runtime, BACKUP_AGE_RECIPIENT: preserve() },
   });
   return project("duolify", { resources: [db, cache, assets, backups, api, worker, engine] });
 });

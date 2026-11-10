@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/accountstest"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/testcontainers/testcontainers-go"
@@ -42,6 +43,8 @@ func signedInDatabase(t *testing.T) (*accounts.Service, string, *store.Store) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ledger := accountstest.NewDeletionLedger()
+	auth.ConfigureDeletionLedger(ledger)
 	auth.ConfigureRateLimits(accounts.RateLimits{RequestIP: 100000, RequestEmail: 100000, VerifyIP: 100000})
 	call := func(path, body string) *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()

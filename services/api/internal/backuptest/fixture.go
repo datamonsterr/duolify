@@ -81,6 +81,35 @@ type capture struct {
 	Properties map[string]any `json:"properties"`
 }
 
+// AssertPreDeletionRestoreErased restores a real dump that predates a deletion.
+// Only object storage knows the deletion; the restored SQL ledger has no record.
+func (f *Fixture) AssertPreDeletionRestoreErased(t *testing.T, ciphertext []byte) {
+	t.Helper()
+	const learner = "a1111111-1111-4111-8111-111111111111"
+	ref := accounts.LearnerReference(learner)
+	ledger := backup.DeletionLedger{Objects: f.objects}
+	if err := ledger.Append(t.Context(), ref); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.DB.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", learner); err != nil {
+		t.Fatal(err)
+	}
+	restored := f.Restore(t, ciphertext)
+	if err := accounts.ReplayDeletionLedger(t.Context(), restored.Pool, ledger); err != nil {
+		t.Fatal(err)
+	}
+	var resurrected bool
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learners WHERE id=$1::uuid)", learner).Scan(&resurrected); err != nil {
+		t.Fatal(err)
+	}
+	if resurrected {
+		t.Fatal("restoring a pre-deletion dump resurrected the learner")
+	}
+	if err := accounts.ReplayDeletionLedger(t.Context(), restored.Pool, ledger); err != nil {
+		t.Fatal("replay must be idempotent", err)
+	}
+}
+
 // New starts isolated containers and all production migrations, never live providers.
 func New(t *testing.T) *Fixture {
 	return NewObserved(t, nil, slog.New(slog.NewJSONHandler(io.Discard, nil)))
@@ -180,7 +209,7 @@ func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) 
 	}))
 	t.Cleanup(posthog.Close)
 	f.posthogURL = posthog.URL
-	f.events, err = analytics.New("synthetic-project-key", posthog.URL)
+	f.events, err = analytics.New("synthetic-project-key", posthog.URL, func(context.Context, string) (bool, error) { return true, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

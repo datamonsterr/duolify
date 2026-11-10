@@ -4,6 +4,30 @@ test.describe("E1-07 account export and deletion", () => {
   test.afterEach(() => {
     resetTokens();
   });
+  test("stale authentication asks for a fresh sign-in before exporting", async ({
+    page,
+  }) => {
+    await page.route("**/v1/me/data-export", (route) =>
+      route.fulfill({
+        status: 403,
+        json: {
+          error: "Sign in again to export or delete account data.",
+          code: "reauth_required",
+        },
+      }),
+    );
+    await page.goto("/settings");
+    await page.getByRole("button", { name: "Export data" }).click();
+    await page
+      .getByLabel("Export passphrase")
+      .fill("a-private-export-passphrase");
+    await page
+      .getByRole("button", { name: "Download encrypted export" })
+      .click();
+    await expect(
+      page.getByRole("link", { name: "Verify your identity" }),
+    ).toHaveAttribute("href", "/sign-in?returnTo=%2Fsettings");
+  });
   test("supports mobile touch and cancel recovery", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/settings");

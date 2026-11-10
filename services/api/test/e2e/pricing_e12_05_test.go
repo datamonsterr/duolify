@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -93,7 +94,7 @@ func TestPricingDraftAndApproveThroughHTTP(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	events, err := analytics.New("synthetic-project-key", sink.URL)
+	events, err := analytics.New("synthetic-project-key", sink.URL, func(context.Context, string) (bool, error) { return true, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

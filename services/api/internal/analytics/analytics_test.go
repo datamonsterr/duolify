@@ -33,7 +33,7 @@ func TestFundedSubscriptionEventsReachPostHogWithoutPrivateData(t *testing.T) {
 				props["period_key"] = "stripe:test:sub_fixture:1800000000:1831536000:11"
 			}
 			id := "11111111-1111-4111-8111-111111111111"
-			events, err := NewWithOptions("fixture-only", server.URL, Options{})
+			events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -125,7 +125,7 @@ func TestOutlineControlDeliveryAndPrivacy(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer sink.Close()
-	events, err := New("fixture-only", sink.URL)
+	events, err := New("fixture-only", sink.URL, allowConsent)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestPreviewEventsReachPostHogWithoutPrivateData(t *testing.T) {
 			defer server.Close()
 			props := map[string]any{"source": "api", "platform": "web", "app_version": "development", "stage": "preview", "error_code": "generation_unavailable", "preview_id": "11111111-1111-4111-8111-111111111111", "topic_length": 20, "has_profile": true, "duration_ms": 42, "topic": "private astronomy", "brief": "private answer", "html": "private slide"}
 			id := "11111111-1111-4111-8111-111111111111"
-			events, err := NewWithOptions("fixture-only", server.URL, Options{})
+			events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -347,7 +347,7 @@ func TestEvalRunCompletedDeliveryAndMetadata(t *testing.T) {
 		"prompt":           "private prompt",
 	}
 
-	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -430,7 +430,7 @@ func TestAICostBudgetAlertReachesPostHogWithoutPrivateData(t *testing.T) {
 	}))
 	defer server.Close()
 
-	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -492,7 +492,7 @@ func TestCharacterRenderAnalyticsDeliveryAndPrivacy(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
-	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -567,7 +567,7 @@ func TestLessonTestEventsPrivacy(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
-	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -699,7 +699,7 @@ func TestPlayerEventsReachPostHogWithClosedProjection(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer server.Close()
-	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
 	if err != nil {
 		t.Fatal(err)
 	}
