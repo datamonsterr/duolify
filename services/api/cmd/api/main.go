@@ -184,6 +184,10 @@ func run(ctx context.Context, args []string) (result error) {
 	if err != nil {
 		return fmt.Errorf("pricing boot validation: %w", err)
 	}
+	allowUnapprovedPricing, _ := strconv.ParseBool(os.Getenv("ALLOW_UNAPPROVED_PRICING"))
+	if err := characters.ValidateStartupPricing(os.Getenv("DUOLIFY_ENV"), allowUnapprovedPricing, catalogue.HasAction("character_create")); err != nil {
+		return fmt.Errorf("characters pricing validation: %w", err)
+	}
 	redis, err := cache.New(cfg.RedisURL)
 	if err != nil {
 		return err
@@ -257,7 +261,7 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	characterService := characters.NewService(db.Pool, nil, events)
 	characterService.ConfigureScreening(backend)
-	characterService.ConfigureCreation(creditService, backend, os.Getenv("DUOLIFY_ENV"))
+	characterService.ConfigureCreation(creditService, backend, os.Getenv("DUOLIFY_ENV"), allowUnapprovedPricing)
 	if err := characterService.Purge(ctx); err != nil {
 		return err
 	}

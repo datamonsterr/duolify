@@ -56,6 +56,11 @@ func (s *Service) ProjectManifest(ctx context.Context, learnerID, courseID, less
 	if learnerID == "" {
 		return nil, errors.New("unauthorized: learnerID required")
 	}
+	if s.pool != nil {
+		if err := s.checkCourse(ctx, learnerID, courseID); err != nil {
+			return nil, err
+		}
+	}
 
 	manifest, err := ProjectDefaultCastManifest(courseID, lessonID)
 	if err != nil {

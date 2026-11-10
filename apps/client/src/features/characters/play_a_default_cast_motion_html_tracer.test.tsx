@@ -6,6 +6,8 @@ import {
   getBundledFallbackSpec,
   type CharacterSpec,
 } from "./rig";
+import { generateMotionSlideHtml } from "./motion-slide";
+import type { SlideManifest, LessonCastSnapshot } from "./types";
 import { isCustomCharactersEnabled } from "./fixtures";
 import {
   trackCharacterRendered,
@@ -150,10 +152,19 @@ describe("E17-01 Client Character Rig & Tracer Unit Tests", () => {
     });
 
     it("compiles safe fallback on missing rig or invalid spec without throwing", () => {
-      const fallbackSpec = getBundledFallbackSpec();
-      const svg = compileRigSvg(fallbackSpec, "idle");
+      const invalidSpec = {
+        ...getBundledFallbackSpec(),
+        schema_version: 999,
+      } as unknown as CharacterSpec;
+      const svg = compileRigSvg(invalidSpec, "idle");
       expect(svg).toContain("fallback-mascot");
       expect(svg).toContain("<svg");
+
+      // Valid spec (including bundled fallback spec) compiles normally without forced fallback
+      const validSpec = getBundledFallbackSpec();
+      const validSvg = compileRigSvg(validSpec, "idle");
+      expect(validSvg).not.toContain("fallback-mascot");
+      expect(validSvg).toContain("<svg");
     });
   });
 
@@ -211,6 +222,69 @@ describe("E17-01 Client Character Rig & Tracer Unit Tests", () => {
 
     it("defaults to false (off) when VITE_FEATURE_CUSTOM_CHARACTERS is unset", () => {
       expect(isCustomCharactersEnabled()).toBe(false);
+    });
+  });
+
+  describe("Motion Slide HTML Escaping and Validation (#165 Item 3)", () => {
+    const sampleCast: LessonCastSnapshot = {
+      cast_source: "default",
+      schema_version: 1,
+      rig_version: "original-v1",
+      voice_config_version: "v1",
+      fallback_used: false,
+      speakers: {},
+    };
+
+    it("escapes </script>, <, >, &, U+2028, and U+2029 in serialized JSON within <script>", () => {
+      const slide: SlideManifest = {
+        slide_id: "valid-slide_1",
+        duration_ms: 3000,
+        segments: [
+          {
+            speaker_key: "guide",
+            speaker_label: "Guide",
+            text: `Exploit </script><script>alert('xss')</script> & symbols \u2028 \u2029`,
+            expression: "happy",
+            start_ms: 0,
+            duration_ms: 3000,
+          },
+        ],
+      };
+
+      const html = generateMotionSlideHtml(slide, sampleCast);
+
+      // Extract content inside <script> tags
+      const scriptMatch = html.match(/<script>([\s\S]*?)<\/script>/);
+      expect(scriptMatch).not.toBeNull();
+      const scriptContent = scriptMatch![1];
+
+      // In script content, </script> must not exist
+      expect(scriptContent).not.toContain("</script>");
+      // Characters <, >, &, U+2028, U+2029 must be escaped in the serialized segments
+      expect(scriptContent).toContain("\\u003c/script\\u003e");
+      expect(scriptContent).toContain("\\u0026");
+      expect(scriptContent).toContain("\\u2028");
+      expect(scriptContent).toContain("\\u2029");
+      expect(scriptContent).not.toContain("<script>");
+    });
+
+    it("validates slide_id against ^[A-Za-z0-9_-]+$ and falls back on invalid values", () => {
+      const validSlide: SlideManifest = {
+        slide_id: "Valid_Slide-123",
+        duration_ms: 3000,
+        segments: [],
+      };
+      const validHtml = generateMotionSlideHtml(validSlide, sampleCast);
+      expect(validHtml).toContain(`slide_id: "Valid_Slide-123"`);
+
+      const invalidSlide: SlideManifest = {
+        slide_id: `bad" onfocus="alert(1)" <script>`,
+        duration_ms: 3000,
+        segments: [],
+      };
+      const invalidHtml = generateMotionSlideHtml(invalidSlide, sampleCast);
+      expect(invalidHtml).not.toContain(`bad" onfocus=`);
+      expect(invalidHtml).toContain(`slide_id: "fallback"`);
     });
   });
 });

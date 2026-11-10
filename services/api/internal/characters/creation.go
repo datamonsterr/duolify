@@ -25,14 +25,40 @@ type Mapper interface {
 	MapCharacter(context.Context, *pb.MapCharacterRequest) (*pb.MapCharacterResponse, error)
 }
 type creation struct {
-	wallet      *credits.Service
-	mapper      Mapper
-	environment string
+	wallet                 *credits.Service
+	mapper                 Mapper
+	environment            string
+	allowUnapprovedPricing bool
 }
 
 // ConfigureCreation injects a server-owned environment, ledger and mapper.
-func (s *Service) ConfigureCreation(wallet *credits.Service, mapper Mapper, environment string) {
-	s.creation = &creation{wallet, mapper, environment}
+func (s *Service) ConfigureCreation(wallet *credits.Service, mapper Mapper, environment string, allowUnapproved ...bool) {
+	var allow bool
+	if len(allowUnapproved) > 0 {
+		allow = allowUnapproved[0]
+	}
+	s.creation = &creation{wallet, mapper, environment, allow}
+}
+
+// ValidateStartupPricing verifies that unapproved pricing is not enabled in production
+// or outside explicit dev/test environments without an approved active character_create key.
+func ValidateStartupPricing(env string, allowUnapproved bool, hasApprovedKey bool) error {
+	if !allowUnapproved {
+		return nil
+	}
+	// Flag is ON.
+	// Treat unknown/empty as production: only "development" and "test" are explicit non-production.
+	isDevOrTest := env == "development" || env == "test"
+	if env == "production" {
+		return errors.New("ALLOW_UNAPPROVED_PRICING is not permitted in production")
+	}
+	if !isDevOrTest {
+		if !hasApprovedKey {
+			return fmt.Errorf("ALLOW_UNAPPROVED_PRICING cannot be enabled in environment %q without approved active character_create key", env)
+		}
+		return fmt.Errorf("ALLOW_UNAPPROVED_PRICING is not permitted in environment %q (treated as production)", env)
+	}
+	return nil
 }
 
 // CreateRequest identifies one learner intent and an optional pinned regeneration.
@@ -81,7 +107,8 @@ func (s *Service) creationConfig(ctx context.Context) (pricing.Config, pricing.Q
 		return c, p, errCreationDisabled
 	}
 	row, err := db.New(s.pool).ActiveQuoteConfig(ctx)
-	if s.creation.environment == "development" || s.creation.environment == "test" {
+	isDevOrTest := s.creation.environment == "development" || s.creation.environment == "test"
+	if s.creation.allowUnapprovedPricing && isDevOrTest {
 		err = s.pool.QueryRow(ctx, `SELECT v.config,p.policy,now() FROM pricing_versions v JOIN pricing_quote_policies p ON p.version=v.version WHERE v.version='usd-dev-character-create-unapproved' AND NOT v.approved`).Scan(&row.Config, &row.Policy, &row.QuotedAt)
 	}
 	if err != nil {
@@ -311,6 +338,12 @@ func (s *Service) ConfirmCreate(ctx context.Context, owner, id, quoteID string) 
 		}
 		return j, err
 	}
+	var committed bool
+	defer func() {
+		if !committed && reservation.ID != "" && s.creation != nil && s.creation.wallet != nil {
+			_, _ = s.creation.wallet.Release(context.WithoutCancel(ctx), owner, reservation.ID)
+		}
+	}()
 	if reservation.State != "reserved" {
 		return j, errors.New("reservation_unavailable")
 	}
@@ -321,6 +354,7 @@ func (s *Service) ConfirmCreate(ctx context.Context, owner, id, quoteID string) 
 	if err = tx.Commit(ctx); err != nil {
 		return j, err
 	}
+	committed = true
 	return s.GetCreate(ctx, owner, id)
 }
 
