@@ -143,7 +143,7 @@ async fn hf_dataset_double_downloads_and_caches_revision() {
     let revision = "0123456789abcdef0123456789abcdef01234567";
     Mock::given(method("GET"))
         .and(path(format!(
-            "/datasets/datamonsterr/duolify-golden/resolve/{revision}/golden.jsonl"
+            "/datasets/duolify-fixtures/e10-02/resolve/{revision}/golden.jsonl"
         )))
         .respond_with(ResponseTemplate::new(200).set_body_string(jsonl_content))
         .expect(1) // must be fetched exactly once
@@ -161,7 +161,7 @@ async fn hf_dataset_double_downloads_and_caches_revision() {
 
     let fetched = engine_eval::fetch_dataset(
         &mock_server.uri(),
-        "datamonsterr/duolify-golden",
+        "duolify-fixtures/e10-02",
         revision,
         "mock-token",
         &temp_cache,
@@ -174,7 +174,7 @@ async fn hf_dataset_double_downloads_and_caches_revision() {
     // Second fetch should read from cache, making zero HTTP calls
     let cached = engine_eval::fetch_dataset(
         &mock_server.uri(),
-        "datamonsterr/duolify-golden",
+        "duolify-fixtures/e10-02",
         revision,
         "mock-token",
         &temp_cache,

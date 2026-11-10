@@ -371,7 +371,7 @@ for offline runs). Evaluation reports (JSON and Markdown) are written to
 deterministic and judge scores, per-task thresholds, critical check outcomes, dataset
 name, dataset revision, prompt revision, and model route mappings. Reports and analytics
 strictly exclude any learner personal text or prompt/completion bodies. The operational
-analytics event `eval_run_completed` emits only task name, score, threshold, and passed flag
+analytics event `eval_run_completed` emits only task name, score, threshold, passed flag, dataset revision, dataset source, provider, status, and budget
 under the reserved system UUID `00000000-0000-4000-8000-000000000011` with opt-out
 enforcement. No new database tables or personal learner data stores are created.
 
@@ -379,6 +379,8 @@ enforcement. No new database tables or personal learner data stores are created.
 | Postgres `eval_reports` | Evaluation run reports (task, dataset revision, prompt revision, model, score, threshold, passed flag, structured metrics details); strictly no personal or prompt text | Included in nightly encrypted database dumps, 14 days general retention; live rows expire after 90 days (`expires_at` column) | Live rows retained for 90 days per eval artifact retention policy; not learner-linked; account deletion leaves eval reports unaffected | [E10-05 change](../openspec/changes/expose-reliability-and-ai-cost-dashboards/specs/ai-reliability/spec.md) |
 
 E10-05: Expose reliability and AI cost dashboards. Introduces `eval_alert_configs` (alert thresholds and windows), `eval_alert_events` (deduplicated operational alert history), `eval_reports` (golden-set evaluation runs with 90-day retention), and `eval_operational_aggregates` (daily rollup counters for total calls, fallback calls, error calls, latency, tokens, cost nanos, and credit revenue cents). Dashboards and alerts are derived purely from operational aggregations, pricing catalogue prices, and evaluation reports. Neither prompts, completions, nor learner-submitted text are stored in these tables or exposed via endpoints. Operational recording and server-side counter increments continue independently even if PostHog analytics is down or if the learner opted out of analytics.
+
+All `/v1/eval/` reads require a live account session, a `pricing_admin_grants` grant, and authentication within the last 15 minutes, using the same policy as pricing administration. `POST /v1/eval/reports` instead requires `Authorization: Bearer <EVAL_REPORT_SERVICE_TOKEN>` from a trusted eval service. Configure that secret independently of account credentials; ingest is disabled when it is unset. The API compares tokens in constant time, caps report bodies at 1 MiB (HTTP 413 on overflow), and logs internal errors while returning only `internal server error` for HTTP 500. The service token grants no dashboard access and is never stored in reports or analytics. Backup, report retention, PostHog schemas, and model eval/fallback behavior remain unchanged.
 
 # E17-03 private Characters and Course Casts
 
@@ -433,3 +435,19 @@ their existing export/erasure/retention boundaries; the demo does not copy them.
 Quote consent stays disposable and is invalidated on demo entry. Live pricing
 and catalogue activation remain gated by E12-08; no effort Credit rewards exist.
 
+
+E10-04 / issue #160 defect 5: `evals/pinned-datasets.toml` stores reviewed
+(dataset, immutable revision, SHA-256) integrity metadata in Git, embedded in the
+eval binary. Fixture-only identities remain separate from future E10-01 production
+pins. Hugging Face revisions and protected versioned RustFS/S3 mirror objects
+retain their existing backup policy and immutable keys. Mirror headers/sidecars
+are required transport integrity metadata; repository pins are the trust source.
+Disposable `evals/.cache` bytes and sidecars must both match the pin; missing
+sidecars are rejected and never generated from existing cache bytes. Recovery
+removes incomplete cache files and refetches verified source bytes; restored
+mirror/cache data receives the same verification before evaluation. No learner
+content, credentials or new database state is added. Eval JSON/Markdown reports
+include `dataset_verified` under the existing 90-day artifact retention policy;
+legacy/custom/offline inputs are unverified and excluded from live promotion.
+Remote integrity failures produce no passing report. Existing content-free
+`eval_run_completed` analytics and account export/deletion policies are unchanged.

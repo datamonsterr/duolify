@@ -175,6 +175,9 @@ func TestReliabilityAndCostDashboardsE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	owner := claims.Subject
+	if _, err = database.Pool.Exec(t.Context(), `INSERT INTO pricing_admin_grants(account_id) VALUES($1::uuid)`, owner); err != nil {
+		t.Fatal(err)
+	}
 
 	var mu sync.Mutex
 	var capturedEvents []map[string]any

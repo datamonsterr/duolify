@@ -323,6 +323,9 @@ pub fn router(mode: &str) -> Result<engine_core::ProviderRouter> {
             Arc::new(engine_core::MockProvider),
         );
     }
+    if mode != "live" {
+        bail!("unknown provider mode: '{mode}'");
+    }
     let anthropic = std::env::var("ANTHROPIC_API_KEY").context("ANTHROPIC_API_KEY missing")?;
     let openrouter = std::env::var("OPENROUTER_API_KEY").context("OPENROUTER_API_KEY missing")?;
     if anthropic.is_empty() || openrouter.is_empty() {

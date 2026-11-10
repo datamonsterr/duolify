@@ -340,6 +340,9 @@ func TestEvalRunCompletedDeliveryAndMetadata(t *testing.T) {
 		"passed":           true,
 		"dataset_revision": "0123456789abcdef0123456789abcdef01234567",
 		"dataset_source":   "mirror",
+		"provider":         "live",
+		"status":           "passed",
+		"budget_usd":       5.0,
 		"learner_text":     "private prompt content",
 		"prompt":           "private prompt",
 	}
@@ -374,6 +377,15 @@ func TestEvalRunCompletedDeliveryAndMetadata(t *testing.T) {
 	}
 	if p["dataset_source"] != "mirror" {
 		t.Fatalf("dataset_source mismatch: %v", p["dataset_source"])
+	}
+	if p["provider"] != "live" {
+		t.Fatalf("provider mismatch: %v", p["provider"])
+	}
+	if p["status"] != "passed" {
+		t.Fatalf("status mismatch: %v", p["status"])
+	}
+	if p["budget_usd"] != 5.0 {
+		t.Fatalf("budget_usd mismatch: %v", p["budget_usd"])
 	}
 	if p["source"] != "ci" || p["platform"] != "web" || p["app_version"] != "development" {
 		t.Fatalf("common properties mismatch: %v", p)

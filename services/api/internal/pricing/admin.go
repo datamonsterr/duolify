@@ -129,8 +129,8 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err = a.pool.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM pricing_admin_grants WHERE account_id=$1::uuid)`, actor).Scan(&admin)
 		fresh = true
 	} else {
-		err = a.pool.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM pricing_admin_grants WHERE account_id=$1::uuid),
-EXISTS(SELECT 1 FROM auth_sessions WHERE id=$2::uuid AND learner_id=$1::uuid AND revoked_at IS NULL AND expires_at>now() AND reauthenticated_at>=now()-interval '15 minutes')`, actor, accounts.SessionID(r.Context())).Scan(&admin, &fresh)
+		admin, err = HasAdminAccess(r.Context(), a.pool, actor, accounts.SessionID(r.Context()))
+		fresh = admin
 	}
 	if err != nil {
 		adminError(w, http.StatusServiceUnavailable, "pricing authorization unavailable")
@@ -176,6 +176,15 @@ EXISTS(SELECT 1 FROM auth_sessions WHERE id=$2::uuid AND learner_id=$1::uuid AND
 		return
 	}
 	a.action(w, r, actor, version, parts[1])
+}
+
+// HasAdminAccess checks the shared HTTP admin grant and recent authentication policy.
+// The caller must first validate the session with accounts.Protect.
+func HasAdminAccess(ctx context.Context, pool *pgxpool.Pool, actor, sessionID string) (bool, error) {
+	var admin, fresh bool
+	err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pricing_admin_grants WHERE account_id=$1::uuid),
+EXISTS(SELECT 1 FROM auth_sessions WHERE id=$2::uuid AND learner_id=$1::uuid AND revoked_at IS NULL AND expires_at>now() AND reauthenticated_at>=now()-interval '15 minutes')`, actor, sessionID).Scan(&admin, &fresh)
+	return admin && fresh, err
 }
 
 // ExecuteCLI uses the same handlers and audit operations as HTTP. The actor

@@ -43,6 +43,10 @@ pub fn generate_markdown_report(report: &EvalReport) -> String {
         report.dataset_source
     ));
     md.push_str(&format!(
+        "- **Dataset Verified**: {}\n",
+        if report.dataset_verified { "YES" } else { "NO" }
+    ));
+    md.push_str(&format!(
         "- **Prompt Revision**: {}\n\n",
         report.prompt_revision
     ));
@@ -112,6 +116,7 @@ mod tests {
             dataset: "datamonsterr/duolify-golden".into(),
             dataset_revision: "rev123".into(),
             dataset_source: "mirror".into(),
+            dataset_verified: true,
             prompt_revision: "git-abc".into(),
             provider: "mock".into(),
             budget_usd: Some(5.0),
@@ -138,6 +143,10 @@ mod tests {
 
         let json_bytes = generate_json_report(&report).unwrap();
         assert!(!json_bytes.is_empty());
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&json_bytes).unwrap()["dataset_verified"],
+            true
+        );
 
         let md = generate_markdown_report(&report);
         assert!(md.contains("# Eval Report"));
@@ -146,5 +155,8 @@ mod tests {
         assert!(md.contains("rev123"));
         assert!(md.contains("git-abc"));
         assert!(md.contains("course_preview"));
+        assert!(md.contains("**Dataset Verified**: YES"));
+        let unverified = EvalReport::default();
+        assert!(generate_markdown_report(&unverified).contains("**Dataset Verified**: NO"));
     }
 }

@@ -9,16 +9,73 @@ use std::path::PathBuf;
 #[tokio::main]
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
+    if args.len() >= 2 && args[1] == "gate" {
+        let report_path = args
+            .get(2)
+            .context("usage: duolify-eval gate <report.json>")?;
+        let path = PathBuf::from(report_path);
+        let resolved = if path.exists() {
+            path
+        } else if let Ok(cwd) = std::env::current_dir() {
+            let candidate = cwd.join(&path);
+            if candidate.exists() {
+                candidate
+            } else if let Some(parent) = cwd.parent() {
+                let parent_candidate = parent.join(&path);
+                if parent_candidate.exists() {
+                    parent_candidate
+                } else {
+                    path
+                }
+            } else {
+                path
+            }
+        } else {
+            path
+        };
+
+        let content = std::fs::read_to_string(&resolved)
+            .with_context(|| format!("failed to read report file at {}", resolved.display()))?;
+        let report: EvalReport = serde_json::from_str(&content)
+            .with_context(|| format!("failed to parse eval report at {}", resolved.display()))?;
+
+        let status_lower = report.status.to_ascii_lowercase();
+        if status_lower.contains("missing")
+            && (status_lower.contains("secret") || status_lower.contains("config"))
+        {
+            let reason = &report.status;
+            println!("live gate disabled: {reason}, feature activation stays disabled");
+            return Ok(());
+        }
+
+        engine_eval::check_promotion_gate(&report)?;
+        println!("promotion gate: PASSED ({})", resolved.display());
+        return Ok(());
+    }
+
     let (mode, allow_missing_secrets) = mode_from_args(&args);
     let mut offline = args.iter().any(|a| a == "--offline") || mode.as_deref() == Some("draft");
-    let mut provider = args
+    let explicit_provider = args
         .windows(2)
         .find(|a| a[0] == "--provider")
-        .map(|a| a[1].as_str())
-        .unwrap_or_else(|| if offline { "mock" } else { "live" });
+        .map(|a| a[1].as_str());
+    if mode.as_deref() == Some("draft") {
+        if let Some(p) = explicit_provider
+            && p != "mock"
+        {
+            bail!(
+                "--mode draft cannot be combined with --provider {p}; draft runs must use mock provider"
+            );
+        }
+        offline = true;
+    }
+    let mut provider = explicit_provider.unwrap_or(if offline { "mock" } else { "live" });
     if mode.as_deref() == Some("draft") {
         offline = true;
         provider = "mock";
+    }
+    if provider != "mock" && provider != "live" {
+        bail!("unknown provider: '{provider}'");
     }
     let judge = args.iter().any(|a| a == "--judge");
 
@@ -43,15 +100,78 @@ async fn main() -> Result<()> {
     let limit = sample_limit_from_args(&args, std::env::var("EVAL_SAMPLE_LIMIT").ok().as_deref())?;
     let budget = budget_from_args(&args, std::env::var("EVAL_BUDGET_USD").ok().as_deref())?;
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../evals");
+    if custom_reports.is_none() {
+        let default_reports = root.join("reports");
+        let _ = std::fs::remove_file(default_reports.join("latest.json"));
+        let _ = std::fs::remove_file(default_reports.join("latest.md"));
+    }
 
-    // Check ready pipeline mode with missing credentials
+    // Check ready pipeline mode with missing credentials or missing revision config
     let is_ready = mode.as_deref() == Some("ready") || allow_missing_secrets;
-    if !offline && custom_data.is_none() && is_ready {
+    if !offline && is_ready {
+        let hf_rev_opt = std::env::var("HF_GOLDEN_REVISION")
+            .ok()
+            .filter(|r| !r.trim().is_empty());
+        let needs_hf = custom_data.is_none();
+        if needs_hf && hf_rev_opt.is_none() {
+            println!(
+                "::notice::Live sample evals skipped: HF_GOLDEN_REVISION missing; feature activation stays disabled without fabricating a live pass."
+            );
+            println!("eval status: missing_config; live promotion disabled");
+
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis();
+            let dataset = std::env::var("HF_GOLDEN_DATASET")
+                .unwrap_or_else(|_| "datamonsterr/duolify-golden".into());
+
+            let report = EvalReport {
+                timestamp_millis: stamp,
+                dataset,
+                dataset_revision: "none".to_string(),
+                dataset_source: "none".to_string(),
+                dataset_verified: false,
+                prompt_revision: std::env::var("PROMPT_REVISION")
+                    .unwrap_or_else(|_| "git-head".to_string()),
+                provider: "none".to_string(),
+                budget_usd: budget,
+                total_cost_usd: 0.0,
+                budget_exceeded: false,
+                status: "missing_config".to_string(),
+                live_promoted: false,
+                passed: false,
+                critical_failure: false,
+                task_reports: std::collections::BTreeMap::new(),
+                results: Vec::new(),
+            };
+
+            let reports_dir = custom_reports
+                .as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("reports"));
+            std::fs::create_dir_all(&reports_dir)?;
+
+            let json_bytes = generate_json_report(&report)?;
+            let md_text = generate_markdown_report(&report);
+
+            std::fs::write(reports_dir.join(format!("{stamp}.json")), &json_bytes)?;
+            std::fs::write(reports_dir.join(format!("{stamp}.md")), &md_text)?;
+            if custom_reports.is_none() {
+                let _ = std::fs::write(reports_dir.join("latest.json"), &json_bytes);
+                let _ = std::fs::write(reports_dir.join("latest.md"), &md_text);
+            }
+
+            // Exit 0 to preserve ci-ok aggregate
+            return Ok(());
+        }
+
         let anthropic_key = std::env::var("ANTHROPIC_API_KEY").unwrap_or_default();
         let openrouter_key = std::env::var("OPENROUTER_API_KEY").unwrap_or_default();
         let hf_token = std::env::var("HF_TOKEN").unwrap_or_default();
-        let has_secrets =
-            !anthropic_key.is_empty() && !openrouter_key.is_empty() && !hf_token.is_empty();
+        let has_secrets = !anthropic_key.is_empty()
+            && !openrouter_key.is_empty()
+            && (!needs_hf || !hf_token.is_empty());
 
         if !has_secrets {
             println!(
@@ -65,17 +185,16 @@ async fn main() -> Result<()> {
                 .as_millis();
             let dataset = std::env::var("HF_GOLDEN_DATASET")
                 .unwrap_or_else(|_| "datamonsterr/duolify-golden".into());
-            let revision = std::env::var("HF_GOLDEN_REVISION")
-                .unwrap_or_else(|_| "0123456789abcdef0123456789abcdef01234567".into());
 
             let report = EvalReport {
                 timestamp_millis: stamp,
                 dataset,
-                dataset_revision: revision,
+                dataset_revision: "none".to_string(),
                 dataset_source: "none".to_string(),
+                dataset_verified: false,
                 prompt_revision: std::env::var("PROMPT_REVISION")
                     .unwrap_or_else(|_| "git-head".to_string()),
-                provider: "live".to_string(),
+                provider: "none".to_string(),
                 budget_usd: budget,
                 total_cost_usd: 0.0,
                 budget_exceeded: false,
@@ -88,6 +207,7 @@ async fn main() -> Result<()> {
             };
 
             let reports_dir = custom_reports
+                .as_ref()
                 .map(PathBuf::from)
                 .unwrap_or_else(|| root.join("reports"));
             std::fs::create_dir_all(&reports_dir)?;
@@ -95,57 +215,75 @@ async fn main() -> Result<()> {
             let json_bytes = generate_json_report(&report)?;
             let md_text = generate_markdown_report(&report);
 
-            std::fs::write(reports_dir.join(format!("{stamp}.json")), json_bytes)?;
-            std::fs::write(reports_dir.join(format!("{stamp}.md")), md_text)?;
+            std::fs::write(reports_dir.join(format!("{stamp}.json")), &json_bytes)?;
+            std::fs::write(reports_dir.join(format!("{stamp}.md")), &md_text)?;
+            if custom_reports.is_none() {
+                let _ = std::fs::write(reports_dir.join("latest.json"), &json_bytes);
+                let _ = std::fs::write(reports_dir.join("latest.md"), &md_text);
+            }
 
             // Exit 0 to preserve ci-ok aggregate
             return Ok(());
         }
     }
 
-    let (data, dataset_name, dataset_revision, dataset_source) = if let Some(path) = custom_data {
-        let content = std::fs::read_to_string(&path)
-            .with_context(|| format!("failed to read custom data file at {path}"))?;
-        (content, path, "custom".to_string(), "custom".to_string())
-    } else if offline {
-        let path = root.join("fixtures/golden.sample.jsonl");
-        let content = std::fs::read_to_string(&path)
-            .with_context(|| format!("failed to read sample fixtures at {:?}", path))?;
-        (
-            content,
-            "evals/fixtures/golden.sample.jsonl".to_string(),
-            "sample".to_string(),
-            "fixture".to_string(),
-        )
-    } else {
-        let dataset = std::env::var("HF_GOLDEN_DATASET")
-            .unwrap_or_else(|_| "datamonsterr/duolify-golden".into());
-        let revision = std::env::var("HF_GOLDEN_REVISION")
-            .context("HF_GOLDEN_REVISION must be set for live evaluation")?;
-        if !is_pinned_commit(&revision) {
-            bail!("dataset revision must be a pinned 40-character commit hash: '{revision}'");
-        }
-        let token = std::env::var("HF_TOKEN").unwrap_or_default();
-        let cache_dir = std::env::var("EVAL_CACHE_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| root.join(".cache"));
-        let base_url =
-            std::env::var("HF_BASE_URL").unwrap_or_else(|_| "https://huggingface.co".to_string());
-        let mirror_url = std::env::var("HF_GOLDEN_MIRROR_URL")
-            .or_else(|_| std::env::var("GOLDEN_MIRROR_URL"))
-            .ok();
+    let (data, dataset_name, dataset_revision, dataset_source, dataset_verified) =
+        if let Some(path) = custom_data {
+            let content = std::fs::read_to_string(&path)
+                .with_context(|| format!("failed to read custom data file at {path}"))?;
+            (
+                content,
+                path,
+                "custom".to_string(),
+                "custom".to_string(),
+                false,
+            )
+        } else if offline {
+            let path = root.join("fixtures/golden.sample.jsonl");
+            let content = std::fs::read_to_string(&path)
+                .with_context(|| format!("failed to read sample fixtures at {:?}", path))?;
+            (
+                content,
+                "evals/fixtures/golden.sample.jsonl".to_string(),
+                "sample".to_string(),
+                "fixture".to_string(),
+                false,
+            )
+        } else {
+            let dataset = std::env::var("HF_GOLDEN_DATASET")
+                .unwrap_or_else(|_| "datamonsterr/duolify-golden".into());
+            let revision = std::env::var("HF_GOLDEN_REVISION")
+                .context("HF_GOLDEN_REVISION must be set for live evaluation")?;
+            if !is_pinned_commit(&revision) {
+                bail!("dataset revision must be a pinned 40-character commit hash: '{revision}'");
+            }
+            let token = std::env::var("HF_TOKEN").unwrap_or_default();
+            let cache_dir = std::env::var("EVAL_CACHE_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| root.join(".cache"));
+            let base_url = std::env::var("HF_BASE_URL")
+                .unwrap_or_else(|_| "https://huggingface.co".to_string());
+            let mirror_url = std::env::var("HF_GOLDEN_MIRROR_URL")
+                .or_else(|_| std::env::var("GOLDEN_MIRROR_URL"))
+                .ok();
 
-        let fetched = fetch_dataset_with_mirror(
-            &base_url,
-            mirror_url.as_deref(),
-            &dataset,
-            &revision,
-            &token,
-            &cache_dir,
-        )
-        .await?;
-        (fetched.content, dataset, revision, fetched.source)
-    };
+            let fetched = fetch_dataset_with_mirror(
+                &base_url,
+                mirror_url.as_deref(),
+                &dataset,
+                &revision,
+                &token,
+                &cache_dir,
+            )
+            .await?;
+            (
+                fetched.content,
+                dataset,
+                revision,
+                fetched.source,
+                fetched.verified,
+            )
+        };
 
     let mut cases = Vec::new();
     for line in data.lines().filter(|l| !l.trim().is_empty()) {
@@ -166,7 +304,7 @@ async fn main() -> Result<()> {
     // Only enforce full canonical task presence if evaluating the full standard dataset
     let is_custom_run =
         args.iter().any(|a| a == "--data") || std::env::var("EVAL_DATA_PATH").is_ok();
-    if !is_custom_run && limit.is_none() {
+    if !is_custom_run {
         let present_tasks: Vec<String> = cases.iter().map(|c| c.task.clone()).collect();
         let missing = task_registry.missing_required_tasks(&present_tasks);
         if !missing.is_empty() {
@@ -179,6 +317,17 @@ async fn main() -> Result<()> {
 
     let (cases, total) = select_cases(cases, limit);
     println!("selected {} of {total} cases", cases.len());
+
+    if !is_custom_run {
+        let selected_tasks: Vec<String> = cases.iter().map(|c| c.task.clone()).collect();
+        let missing = task_registry.missing_required_tasks(&selected_tasks);
+        if !missing.is_empty() {
+            bail!(
+                "sampled run violates minimum per-task coverage: missing canonical tasks {:?}",
+                missing
+            );
+        }
+    }
 
     let thresholds: Thresholds = if let Some(path) = custom_thresholds {
         let content = std::fs::read_to_string(&path)
@@ -195,12 +344,14 @@ async fn main() -> Result<()> {
     runner.dataset_name = dataset_name;
     runner.dataset_revision = dataset_revision;
     runner.dataset_source = dataset_source;
+    runner.dataset_verified = dataset_verified;
     runner.prompt_revision = prompt_rev;
     runner.budget_usd = budget;
 
     let report = runner.run_cases(cases, &thresholds).await?;
 
     let reports_dir = custom_reports
+        .as_ref()
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join("reports"));
     std::fs::create_dir_all(&reports_dir)?;
@@ -209,8 +360,12 @@ async fn main() -> Result<()> {
     let json_bytes = generate_json_report(&report)?;
     let md_text = generate_markdown_report(&report);
 
-    std::fs::write(reports_dir.join(format!("{stamp}.json")), json_bytes)?;
-    std::fs::write(reports_dir.join(format!("{stamp}.md")), md_text)?;
+    std::fs::write(reports_dir.join(format!("{stamp}.json")), &json_bytes)?;
+    std::fs::write(reports_dir.join(format!("{stamp}.md")), &md_text)?;
+    if custom_reports.is_none() {
+        let _ = std::fs::write(reports_dir.join("latest.json"), &json_bytes);
+        let _ = std::fs::write(reports_dir.join("latest.md"), &md_text);
+    }
 
     // Emit analytics for each evaluated task
     let posthog_host =
@@ -220,7 +375,7 @@ async fn main() -> Result<()> {
         .unwrap_or_default();
 
     for (task, tr) in &report.task_reports {
-        let _ = emit_eval_run_completed(
+        if let Err(err) = emit_eval_run_completed(
             &posthog_host,
             &posthog_key,
             task,
@@ -229,8 +384,14 @@ async fn main() -> Result<()> {
             tr.passed,
             &report.dataset_revision,
             &report.dataset_source,
+            &report.provider,
+            &report.status,
+            report.budget_usd,
         )
-        .await;
+        .await
+        {
+            eprintln!("warning: failed to emit eval_run_completed for {task}: {err}");
+        }
         println!(
             "task {}: score {:.2} (threshold {:.2}) -> {}",
             task,
@@ -390,6 +551,9 @@ lesson_test = 1.00
             true,
             "0123456789abcdef0123456789abcdef01234567",
             "mirror",
+            "live",
+            "passed",
+            Some(5.0),
         )
         .await
         .unwrap();
@@ -415,6 +579,9 @@ lesson_test = 1.00
             "0123456789abcdef0123456789abcdef01234567"
         );
         assert_eq!(props["dataset_source"], "mirror");
+        assert_eq!(props["provider"], "live");
+        assert_eq!(props["status"], "passed");
+        assert_eq!(props["budget_usd"], 5.0);
         assert_eq!(props["source"], "ci");
         assert_eq!(props["platform"], "web");
         assert_eq!(props["app_version"], "development");

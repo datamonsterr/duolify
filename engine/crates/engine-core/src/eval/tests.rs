@@ -256,6 +256,7 @@ async fn streaming_no_post_delta_fallback() {
         &router,
         "chat",
         "input",
+        None,
         Duration::from_secs(2),
         Duration::from_secs(1),
     )
@@ -271,6 +272,187 @@ async fn streaming_no_post_delta_fallback() {
     assert!(
         second.is_some_and(|r| r.is_err()),
         "stream must terminate with error and no post-delta fallback"
+    );
+}
+
+struct SlowFirstTokenProvider {
+    delay: Duration,
+}
+
+#[async_trait]
+impl LlmProvider for SlowFirstTokenProvider {
+    fn name(&self) -> &'static str {
+        "slow_first_token"
+    }
+    async fn complete(&self, model: &str, _input: &str) -> anyhow::Result<Completion> {
+        tokio::time::sleep(self.delay).await;
+        Ok(Completion {
+            text: "slow".into(),
+            provider: "slow_first_token".into(),
+            model: model.into(),
+            input_tokens: 10,
+            output_tokens: 10,
+            cache_write_tokens: 0,
+            cache_read_tokens: 0,
+            usage_unavailable: false,
+        })
+    }
+    async fn stream(&self, _model: &str, _input: &str) -> anyhow::Result<crate::CompletionStream> {
+        let delay = self.delay;
+        let s = futures::stream::unfold(false, move |emitted| async move {
+            if !emitted {
+                tokio::time::sleep(delay).await;
+                Some((Ok(StreamEvent::Delta("Primary slow token".into())), true))
+            } else {
+                None
+            }
+        });
+        Ok(Box::pin(s))
+    }
+}
+
+struct InstantFallbackProvider;
+
+#[async_trait]
+impl LlmProvider for InstantFallbackProvider {
+    fn name(&self) -> &'static str {
+        "instant_fallback"
+    }
+    async fn complete(&self, model: &str, _input: &str) -> anyhow::Result<Completion> {
+        Ok(Completion {
+            text: "Fallback ok".into(),
+            provider: "instant_fallback".into(),
+            model: model.into(),
+            input_tokens: 5,
+            output_tokens: 5,
+            cache_write_tokens: 0,
+            cache_read_tokens: 0,
+            usage_unavailable: false,
+        })
+    }
+    async fn stream(&self, _model: &str, _input: &str) -> anyhow::Result<crate::CompletionStream> {
+        let s = futures::stream::iter(vec![Ok(StreamEvent::Delta("Fallback token".into()))]);
+        Ok(Box::pin(s))
+    }
+}
+
+#[tokio::test]
+async fn stream_bounded_falls_back_on_first_token_timeout() {
+    let primary = Arc::new(SlowFirstTokenProvider {
+        delay: Duration::from_millis(300),
+    });
+    let fallback = Arc::new(InstantFallbackProvider);
+    let router = ProviderRouter::new(primary, fallback).unwrap();
+
+    let mut stream = stream_bounded(
+        &router,
+        "chat",
+        "input",
+        None,
+        Duration::from_millis(50),
+        Duration::from_millis(500),
+    )
+    .await
+    .unwrap();
+
+    use futures::StreamExt;
+    let first = stream.next().await;
+    match first {
+        Some(Ok(StreamEvent::Delta(d))) => {
+            assert_eq!(
+                d, "Fallback token",
+                "must have fallen back to secondary stream"
+            );
+        }
+        other => panic!("expected delta from fallback, got {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn stream_bounded_honors_cost_and_deadline_and_envelope() {
+    let primary = Arc::new(crate::MockProvider);
+    let fallback = Arc::new(crate::MockProvider);
+    let router = ProviderRouter::new(primary, fallback).unwrap();
+
+    // 1. Cost limit exceeded
+    let limits_low_budget = Limits {
+        input_tokens: 1000,
+        output_tokens: 500,
+        timeout_ms: 5000,
+        max_attempts: 2,
+        max_cost_nanos: 1, // extremely low max cost
+        input_nanos: 1000,
+        output_nanos: 5000,
+        cache_write_nanos: 1250,
+        cache_read_nanos: 100,
+        deadline_unix_ms: 0,
+    };
+    let res_cost = stream_bounded(
+        &router,
+        "chat",
+        "input",
+        Some(&limits_low_budget),
+        Duration::from_secs(2),
+        Duration::from_secs(1),
+    )
+    .await;
+    assert!(
+        res_cost.is_err(),
+        "must reject when worst-case cost exceeds USD cap"
+    );
+
+    // 2. Deadline already expired
+    let limits_expired = Limits {
+        input_tokens: 1000,
+        output_tokens: 500,
+        timeout_ms: 5000,
+        max_attempts: 2,
+        max_cost_nanos: 1_000_000_000,
+        input_nanos: 1000,
+        output_nanos: 5000,
+        cache_write_nanos: 1250,
+        cache_read_nanos: 100,
+        deadline_unix_ms: 100, // 100ms after unix epoch -> long expired
+    };
+    let res_deadline = stream_bounded(
+        &router,
+        "chat",
+        "input",
+        Some(&limits_expired),
+        Duration::from_secs(2),
+        Duration::from_secs(1),
+    )
+    .await;
+    assert!(
+        res_deadline.is_err(),
+        "must reject when deadline has expired"
+    );
+
+    // 3. Input exceeds envelope
+    let limits_small_envelope = Limits {
+        input_tokens: 2,
+        output_tokens: 500,
+        timeout_ms: 5000,
+        max_attempts: 2,
+        max_cost_nanos: 1_000_000_000,
+        input_nanos: 1000,
+        output_nanos: 5000,
+        cache_write_nanos: 1250,
+        cache_read_nanos: 100,
+        deadline_unix_ms: 0,
+    };
+    let res_envelope = stream_bounded(
+        &router,
+        "chat",
+        "input longer than 2 tokens",
+        Some(&limits_small_envelope),
+        Duration::from_secs(2),
+        Duration::from_secs(1),
+    )
+    .await;
+    assert!(
+        res_envelope.is_err(),
+        "must reject when input exceeds input_tokens envelope"
     );
 }
 

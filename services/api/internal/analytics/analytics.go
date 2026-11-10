@@ -289,9 +289,9 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		numeric("size_bytes", "duration_ms")
 		boolean("ok")
 	case "eval_run_completed":
-		numeric("score", "threshold")
+		numeric("score", "threshold", "budget_usd", "budget")
 		boolean("passed")
-		ids("task", "dataset_revision", "dataset_source")
+		ids("task", "dataset_revision", "dataset_source", "provider", "status")
 	case "ai_cost_budget_alert":
 		ids("scope", "status", "pricing_version")
 		numeric("actual_usd", "budget_usd", "threshold", "actual_percent", "cost_nanos", "budget_nanos", "cache_hit_rate", "paid_margin")
