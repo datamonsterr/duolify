@@ -34,6 +34,20 @@ func (q *Queries) CheckLessonAuthorization(ctx context.Context, arg CheckLessonA
 	return authorized, err
 }
 
+const getCourseIDForLesson = `-- name: GetCourseIDForLesson :one
+SELECT u.course_id
+FROM course_lesson_stubs l
+JOIN course_units u ON u.id = l.unit_id
+WHERE l.id = $1
+`
+
+func (q *Queries) GetCourseIDForLesson(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getCourseIDForLesson, id)
+	var course_id pgtype.UUID
+	err := row.Scan(&course_id)
+	return course_id, err
+}
+
 const getQuickNoteByID = `-- name: GetQuickNoteByID :one
 SELECT id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, created_at, updated_at
 FROM quick_notes
@@ -45,9 +59,25 @@ type GetQuickNoteByIDParams struct {
 	LearnerID pgtype.UUID `json:"learner_id"`
 }
 
-func (q *Queries) GetQuickNoteByID(ctx context.Context, arg GetQuickNoteByIDParams) (QuickNote, error) {
+type GetQuickNoteByIDRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	ActionKey  string             `json:"action_key"`
+	CourseID   pgtype.UUID        `json:"course_id"`
+	LessonID   pgtype.UUID        `json:"lesson_id"`
+	SlideID    pgtype.Int4        `json:"slide_id"`
+	SlideTitle string             `json:"slide_title"`
+	Source     string             `json:"source"`
+	RawText    string             `json:"raw_text"`
+	Status     string             `json:"status"`
+	Reviewed   bool               `json:"reviewed"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetQuickNoteByID(ctx context.Context, arg GetQuickNoteByIDParams) (GetQuickNoteByIDRow, error) {
 	row := q.db.QueryRow(ctx, getQuickNoteByID, arg.ID, arg.LearnerID)
-	var i QuickNote
+	var i GetQuickNoteByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.LearnerID,
@@ -66,6 +96,107 @@ func (q *Queries) GetQuickNoteByID(ctx context.Context, arg GetQuickNoteByIDPara
 	return i, err
 }
 
+const getQuickNoteWithEnrichmentByID = `-- name: GetQuickNoteWithEnrichmentByID :one
+SELECT 
+    qn.id, qn.learner_id, qn.action_key, qn.course_id, qn.lesson_id, qn.slide_id, qn.slide_title, 
+    qn.source, qn.raw_text, qn.status, qn.reviewed, qn.reservation_id, qn.quote_id, qn.created_at, qn.updated_at,
+    e.summary, e.tags, e.links, e.version AS enrichment_version, e.model AS enrichment_model, e.provider AS enrichment_provider
+FROM quick_notes qn
+LEFT JOIN quick_note_enrichments e ON e.note_id = qn.id
+WHERE qn.id = $1 AND qn.learner_id = $2
+`
+
+type GetQuickNoteWithEnrichmentByIDParams struct {
+	ID        pgtype.UUID `json:"id"`
+	LearnerID pgtype.UUID `json:"learner_id"`
+}
+
+type GetQuickNoteWithEnrichmentByIDRow struct {
+	ID                 pgtype.UUID        `json:"id"`
+	LearnerID          pgtype.UUID        `json:"learner_id"`
+	ActionKey          string             `json:"action_key"`
+	CourseID           pgtype.UUID        `json:"course_id"`
+	LessonID           pgtype.UUID        `json:"lesson_id"`
+	SlideID            pgtype.Int4        `json:"slide_id"`
+	SlideTitle         string             `json:"slide_title"`
+	Source             string             `json:"source"`
+	RawText            string             `json:"raw_text"`
+	Status             string             `json:"status"`
+	Reviewed           bool               `json:"reviewed"`
+	ReservationID      pgtype.UUID        `json:"reservation_id"`
+	QuoteID            pgtype.UUID        `json:"quote_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	Summary            pgtype.Text        `json:"summary"`
+	Tags               []string           `json:"tags"`
+	Links              []string           `json:"links"`
+	EnrichmentVersion  pgtype.Int4        `json:"enrichment_version"`
+	EnrichmentModel    pgtype.Text        `json:"enrichment_model"`
+	EnrichmentProvider pgtype.Text        `json:"enrichment_provider"`
+}
+
+func (q *Queries) GetQuickNoteWithEnrichmentByID(ctx context.Context, arg GetQuickNoteWithEnrichmentByIDParams) (GetQuickNoteWithEnrichmentByIDRow, error) {
+	row := q.db.QueryRow(ctx, getQuickNoteWithEnrichmentByID, arg.ID, arg.LearnerID)
+	var i GetQuickNoteWithEnrichmentByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.LearnerID,
+		&i.ActionKey,
+		&i.CourseID,
+		&i.LessonID,
+		&i.SlideID,
+		&i.SlideTitle,
+		&i.Source,
+		&i.RawText,
+		&i.Status,
+		&i.Reviewed,
+		&i.ReservationID,
+		&i.QuoteID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Summary,
+		&i.Tags,
+		&i.Links,
+		&i.EnrichmentVersion,
+		&i.EnrichmentModel,
+		&i.EnrichmentProvider,
+	)
+	return i, err
+}
+
+const listCourseLessonsForCourse = `-- name: ListCourseLessonsForCourse :many
+SELECT l.id, l.title
+FROM course_lesson_stubs l
+JOIN course_units u ON u.id = l.unit_id
+WHERE u.course_id = $1
+ORDER BY u.position, l.position
+`
+
+type ListCourseLessonsForCourseRow struct {
+	ID    pgtype.UUID `json:"id"`
+	Title string      `json:"title"`
+}
+
+func (q *Queries) ListCourseLessonsForCourse(ctx context.Context, courseID pgtype.UUID) ([]ListCourseLessonsForCourseRow, error) {
+	rows, err := q.db.Query(ctx, listCourseLessonsForCourse, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCourseLessonsForCourseRow{}
+	for rows.Next() {
+		var i ListCourseLessonsForCourseRow
+		if err := rows.Scan(&i.ID, &i.Title); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQuickNotesByLearner = `-- name: ListQuickNotesByLearner :many
 SELECT id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, created_at, updated_at
 FROM quick_notes
@@ -73,15 +204,31 @@ WHERE learner_id = $1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListQuickNotesByLearner(ctx context.Context, learnerID pgtype.UUID) ([]QuickNote, error) {
+type ListQuickNotesByLearnerRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	ActionKey  string             `json:"action_key"`
+	CourseID   pgtype.UUID        `json:"course_id"`
+	LessonID   pgtype.UUID        `json:"lesson_id"`
+	SlideID    pgtype.Int4        `json:"slide_id"`
+	SlideTitle string             `json:"slide_title"`
+	Source     string             `json:"source"`
+	RawText    string             `json:"raw_text"`
+	Status     string             `json:"status"`
+	Reviewed   bool               `json:"reviewed"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListQuickNotesByLearner(ctx context.Context, learnerID pgtype.UUID) ([]ListQuickNotesByLearnerRow, error) {
 	rows, err := q.db.Query(ctx, listQuickNotesByLearner, learnerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []QuickNote{}
+	items := []ListQuickNotesByLearnerRow{}
 	for rows.Next() {
-		var i QuickNote
+		var i ListQuickNotesByLearnerRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.LearnerID,
@@ -105,6 +252,146 @@ func (q *Queries) ListQuickNotesByLearner(ctx context.Context, learnerID pgtype.
 		return nil, err
 	}
 	return items, nil
+}
+
+const listQuickNotesWithEnrichmentByLearner = `-- name: ListQuickNotesWithEnrichmentByLearner :many
+SELECT 
+    qn.id, qn.learner_id, qn.action_key, qn.course_id, qn.lesson_id, qn.slide_id, qn.slide_title, 
+    qn.source, qn.raw_text, qn.status, qn.reviewed, qn.reservation_id, qn.quote_id, qn.created_at, qn.updated_at,
+    e.summary, e.tags, e.links, e.version AS enrichment_version, e.model AS enrichment_model, e.provider AS enrichment_provider
+FROM quick_notes qn
+LEFT JOIN quick_note_enrichments e ON e.note_id = qn.id
+WHERE qn.learner_id = $1
+ORDER BY qn.created_at DESC
+`
+
+type ListQuickNotesWithEnrichmentByLearnerRow struct {
+	ID                 pgtype.UUID        `json:"id"`
+	LearnerID          pgtype.UUID        `json:"learner_id"`
+	ActionKey          string             `json:"action_key"`
+	CourseID           pgtype.UUID        `json:"course_id"`
+	LessonID           pgtype.UUID        `json:"lesson_id"`
+	SlideID            pgtype.Int4        `json:"slide_id"`
+	SlideTitle         string             `json:"slide_title"`
+	Source             string             `json:"source"`
+	RawText            string             `json:"raw_text"`
+	Status             string             `json:"status"`
+	Reviewed           bool               `json:"reviewed"`
+	ReservationID      pgtype.UUID        `json:"reservation_id"`
+	QuoteID            pgtype.UUID        `json:"quote_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	Summary            pgtype.Text        `json:"summary"`
+	Tags               []string           `json:"tags"`
+	Links              []string           `json:"links"`
+	EnrichmentVersion  pgtype.Int4        `json:"enrichment_version"`
+	EnrichmentModel    pgtype.Text        `json:"enrichment_model"`
+	EnrichmentProvider pgtype.Text        `json:"enrichment_provider"`
+}
+
+func (q *Queries) ListQuickNotesWithEnrichmentByLearner(ctx context.Context, learnerID pgtype.UUID) ([]ListQuickNotesWithEnrichmentByLearnerRow, error) {
+	rows, err := q.db.Query(ctx, listQuickNotesWithEnrichmentByLearner, learnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListQuickNotesWithEnrichmentByLearnerRow{}
+	for rows.Next() {
+		var i ListQuickNotesWithEnrichmentByLearnerRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LearnerID,
+			&i.ActionKey,
+			&i.CourseID,
+			&i.LessonID,
+			&i.SlideID,
+			&i.SlideTitle,
+			&i.Source,
+			&i.RawText,
+			&i.Status,
+			&i.Reviewed,
+			&i.ReservationID,
+			&i.QuoteID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Summary,
+			&i.Tags,
+			&i.Links,
+			&i.EnrichmentVersion,
+			&i.EnrichmentModel,
+			&i.EnrichmentProvider,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateQuickNoteStatus = `-- name: UpdateQuickNoteStatus :one
+UPDATE quick_notes
+SET status = $2,
+    reservation_id = $3,
+    quote_id = $4,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, reservation_id, quote_id, created_at, updated_at
+`
+
+type UpdateQuickNoteStatusParams struct {
+	ID            pgtype.UUID `json:"id"`
+	Status        string      `json:"status"`
+	ReservationID pgtype.UUID `json:"reservation_id"`
+	QuoteID       pgtype.UUID `json:"quote_id"`
+}
+
+type UpdateQuickNoteStatusRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	ActionKey     string             `json:"action_key"`
+	CourseID      pgtype.UUID        `json:"course_id"`
+	LessonID      pgtype.UUID        `json:"lesson_id"`
+	SlideID       pgtype.Int4        `json:"slide_id"`
+	SlideTitle    string             `json:"slide_title"`
+	Source        string             `json:"source"`
+	RawText       string             `json:"raw_text"`
+	Status        string             `json:"status"`
+	Reviewed      bool               `json:"reviewed"`
+	ReservationID pgtype.UUID        `json:"reservation_id"`
+	QuoteID       pgtype.UUID        `json:"quote_id"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpdateQuickNoteStatus(ctx context.Context, arg UpdateQuickNoteStatusParams) (UpdateQuickNoteStatusRow, error) {
+	row := q.db.QueryRow(ctx, updateQuickNoteStatus,
+		arg.ID,
+		arg.Status,
+		arg.ReservationID,
+		arg.QuoteID,
+	)
+	var i UpdateQuickNoteStatusRow
+	err := row.Scan(
+		&i.ID,
+		&i.LearnerID,
+		&i.ActionKey,
+		&i.CourseID,
+		&i.LessonID,
+		&i.SlideID,
+		&i.SlideTitle,
+		&i.Source,
+		&i.RawText,
+		&i.Status,
+		&i.Reviewed,
+		&i.ReservationID,
+		&i.QuoteID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const upsertQuickNote = `-- name: UpsertQuickNote :one
@@ -138,7 +425,23 @@ type UpsertQuickNoteParams struct {
 	Status     string      `json:"status"`
 }
 
-func (q *Queries) UpsertQuickNote(ctx context.Context, arg UpsertQuickNoteParams) (QuickNote, error) {
+type UpsertQuickNoteRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	ActionKey  string             `json:"action_key"`
+	CourseID   pgtype.UUID        `json:"course_id"`
+	LessonID   pgtype.UUID        `json:"lesson_id"`
+	SlideID    pgtype.Int4        `json:"slide_id"`
+	SlideTitle string             `json:"slide_title"`
+	Source     string             `json:"source"`
+	RawText    string             `json:"raw_text"`
+	Status     string             `json:"status"`
+	Reviewed   bool               `json:"reviewed"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpsertQuickNote(ctx context.Context, arg UpsertQuickNoteParams) (UpsertQuickNoteRow, error) {
 	row := q.db.QueryRow(ctx, upsertQuickNote,
 		arg.LearnerID,
 		arg.ActionKey,
@@ -150,7 +453,7 @@ func (q *Queries) UpsertQuickNote(ctx context.Context, arg UpsertQuickNoteParams
 		arg.RawText,
 		arg.Status,
 	)
-	var i QuickNote
+	var i UpsertQuickNoteRow
 	err := row.Scan(
 		&i.ID,
 		&i.LearnerID,
@@ -163,6 +466,69 @@ func (q *Queries) UpsertQuickNote(ctx context.Context, arg UpsertQuickNoteParams
 		&i.RawText,
 		&i.Status,
 		&i.Reviewed,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertQuickNoteEnrichment = `-- name: UpsertQuickNoteEnrichment :one
+INSERT INTO quick_note_enrichments (
+    note_id,
+    learner_id,
+    summary,
+    tags,
+    links,
+    version,
+    model,
+    provider
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8
+)
+ON CONFLICT (note_id) DO UPDATE
+SET summary = EXCLUDED.summary,
+    tags = EXCLUDED.tags,
+    links = EXCLUDED.links,
+    version = EXCLUDED.version,
+    model = EXCLUDED.model,
+    provider = EXCLUDED.provider,
+    updated_at = now()
+RETURNING id, note_id, learner_id, summary, tags, links, version, model, provider, created_at, updated_at
+`
+
+type UpsertQuickNoteEnrichmentParams struct {
+	NoteID    pgtype.UUID `json:"note_id"`
+	LearnerID pgtype.UUID `json:"learner_id"`
+	Summary   string      `json:"summary"`
+	Tags      []string    `json:"tags"`
+	Links     []string    `json:"links"`
+	Version   int32       `json:"version"`
+	Model     string      `json:"model"`
+	Provider  string      `json:"provider"`
+}
+
+func (q *Queries) UpsertQuickNoteEnrichment(ctx context.Context, arg UpsertQuickNoteEnrichmentParams) (QuickNoteEnrichment, error) {
+	row := q.db.QueryRow(ctx, upsertQuickNoteEnrichment,
+		arg.NoteID,
+		arg.LearnerID,
+		arg.Summary,
+		arg.Tags,
+		arg.Links,
+		arg.Version,
+		arg.Model,
+		arg.Provider,
+	)
+	var i QuickNoteEnrichment
+	err := row.Scan(
+		&i.ID,
+		&i.NoteID,
+		&i.LearnerID,
+		&i.Summary,
+		&i.Tags,
+		&i.Links,
+		&i.Version,
+		&i.Model,
+		&i.Provider,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

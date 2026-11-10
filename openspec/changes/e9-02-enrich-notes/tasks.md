@@ -1,0 +1,13 @@
+## Implementation
+- [ ] Add failing Playwright e2e test for save note and inspect enriched output with foreign link rejected (`apps/client/e2e/notes-e9-02.spec.ts`).
+- [ ] Add failing Postgres integration test for River enrichment, reservation, gRPC payload, and validation (`services/api/internal/notes/enrich_notes_with_grounded_summaries_and_tags_integration_test.go`).
+- [ ] Add failing unit tests for Go API, Vitest client, and Rust engine-core notes module.
+- [ ] Extend proto `EnrichNoteRequest` with `allowed_lessons` and regenerate Go bindings.
+- [ ] Implement `engine-core/src/notes` and `engine-server` enrich_note RPC.
+- [ ] Add Goose migration and sqlc queries for `quick_note_enrichments`.
+- [ ] Implement API River worker `note_enrich`, credit quote/reserve/claim/settle/release lifecycle, and validation.
+- [ ] Implement client notes UI updates for summary, tags, links, and recovery actions.
+- [ ] Add analytics events `quick_note_enriched`, `quick_note_enrichment_failed`, and `$ai_generation`.
+- [ ] Update privacy export/deletion, backup fixtures, and data inventory.
+- [ ] Add Golden set eval cases and verify `mise run engine:eval` passes.
+- [ ] Verify all mise tasks pass.

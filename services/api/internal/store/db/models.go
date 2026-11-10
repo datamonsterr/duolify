@@ -573,17 +573,33 @@ type PricingVersionCancellation struct {
 }
 
 type QuickNote struct {
-	ID         pgtype.UUID        `json:"id"`
-	LearnerID  pgtype.UUID        `json:"learner_id"`
-	ActionKey  string             `json:"action_key"`
-	CourseID   pgtype.UUID        `json:"course_id"`
-	LessonID   pgtype.UUID        `json:"lesson_id"`
-	SlideID    pgtype.Int4        `json:"slide_id"`
-	SlideTitle string             `json:"slide_title"`
-	Source     string             `json:"source"`
-	RawText    string             `json:"raw_text"`
-	Status     string             `json:"status"`
-	Reviewed   bool               `json:"reviewed"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	ActionKey     string             `json:"action_key"`
+	CourseID      pgtype.UUID        `json:"course_id"`
+	LessonID      pgtype.UUID        `json:"lesson_id"`
+	SlideID       pgtype.Int4        `json:"slide_id"`
+	SlideTitle    string             `json:"slide_title"`
+	Source        string             `json:"source"`
+	RawText       string             `json:"raw_text"`
+	Status        string             `json:"status"`
+	Reviewed      bool               `json:"reviewed"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	ReservationID pgtype.UUID        `json:"reservation_id"`
+	QuoteID       pgtype.UUID        `json:"quote_id"`
+}
+
+type QuickNoteEnrichment struct {
+	ID        pgtype.UUID        `json:"id"`
+	NoteID    pgtype.UUID        `json:"note_id"`
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	Summary   string             `json:"summary"`
+	Tags      []string           `json:"tags"`
+	Links     []string           `json:"links"`
+	Version   int32              `json:"version"`
+	Model     string             `json:"model"`
+	Provider  string             `json:"provider"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }

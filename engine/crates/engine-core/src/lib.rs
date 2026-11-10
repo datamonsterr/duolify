@@ -192,6 +192,38 @@ impl LlmProvider for MockProvider {
                 })
                 .to_string()
             }
+        } else if input.contains("note_enrich")
+            || input.contains("foreign-hallucinated-lesson")
+            || input.contains("Stars move")
+            || model.contains("note")
+        {
+            let data = serde_json::from_str::<serde_json::Value>(input).ok();
+            let note = data
+                .as_ref()
+                .and_then(|d| d.get("note").and_then(|n| n.as_str()))
+                .unwrap_or_default();
+            if note.contains("Trái Đất") || input.contains("vi-VN") {
+                serde_json::json!({
+                    "summary": "Trái Đất tự quay quanh trục từ tây sang đông.",
+                    "tags": ["thiên-văn", "trái-đất"],
+                    "links": []
+                })
+                .to_string()
+            } else if note == "example" || note.is_empty() {
+                serde_json::json!({
+                    "summary": "Sample note",
+                    "tags": ["sample"],
+                    "links": []
+                })
+                .to_string()
+            } else {
+                serde_json::json!({
+                    "summary": "Apparent star motion comes from Earth rotation; Polaris barely moves.",
+                    "tags": ["rotation", "polaris"],
+                    "links": ["valid-lesson-id", "lesson-2", "foreign-hallucinated-lesson", "unknown-foreign-lesson"]
+                })
+                .to_string()
+            }
         } else {
             serde_json::json!({"title":"Sample", "narration":"Sample explanation", "summary":"Sample note", "html":"<div id=\"root\">Sample</div>", "units":[{"unit_id":"unit-1","title":"Sample unit","lessons":[{"lesson_id":"lesson-1","title":"Sample lesson","goal":"Learn"}]}], "test":[{"question_id":"q1","prompt":"Sample?","choices":["Yes","No"],"answer_index":0,"explanation":"Sample"}]}).to_string()
         };
@@ -228,6 +260,7 @@ pub mod backup;
 pub mod courses;
 pub mod credits;
 pub mod eval;
+pub mod notes;
 pub mod pricing;
 pub mod slide;
 #[cfg(test)]

@@ -30,10 +30,13 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -76,6 +79,9 @@ func run() (result error) {
 		return err
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := worker.Migrate(boot, db.Pool, logger); err != nil {
+		return err
+	}
 	sink := new(accounts.MailSink)
 	auth, err := accounts.New(db.Pool, "test-only-signing-key-at-least-32-bytes", sink)
 	if err != nil {
@@ -202,7 +208,36 @@ func run() (result error) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"expired": true})
 	})))
-	mux.Handle("/", httpapi.New(httpapi.Dependencies{Player: lessonPlayer, Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditHandler, Accounts: auth, Notes: notes.NewService(db.Pool, nil), CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"})}, logger))
+	grpcServer := grpc.NewServer()
+	enginev1.RegisterEngineServiceServer(grpcServer, &mockE2ENoteServer{})
+	engineLis, err := new(net.ListenConfig).Listen(ctx, "tcp", "127.0.0.1:0")
+	if err != nil {
+		return err
+	}
+	defer grpcServer.Stop()
+	go func() { _ = grpcServer.Serve(engineLis) }()
+	engineConn, err := grpc.NewClient(engineLis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = engineConn.Close() }()
+	engineClient := enginev1.NewEngineServiceClient(engineConn)
+
+	notesService := notes.NewServiceWithEnrichment(db.Pool, nil, paidCredits, engineClient)
+	notesQueue, err := notesService.NotesQueue(logger)
+	if err != nil {
+		return err
+	}
+	if err := notesQueue.Start(ctx); err != nil {
+		return err
+	}
+	defer func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = notesQueue.Stop(stopCtx)
+	}()
+
+	mux.Handle("/", httpapi.New(httpapi.Dependencies{Player: lessonPlayer, Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditHandler, Accounts: auth, Notes: notesService, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"})}, logger))
 	// Exercise the real expiry worker across a historical local date. Only the
 	// disposable fixture exposes this clock control; amounts stay config-owned.
 	mux.Handle("POST /test/credits/yesterday", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -511,4 +546,30 @@ func (f *fixtureObjects) Put(_ context.Context, key string, value []byte) error 
 		return errors.New("fixture mutation")
 	}
 	return nil
+}
+
+type mockE2ENoteServer struct {
+	enginev1.UnimplementedEngineServiceServer
+}
+
+func (mockE2ENoteServer) EnrichNote(_ context.Context, req *enginev1.EnrichNoteRequest) (*enginev1.EnrichNoteResponse, error) {
+	links := []string{"unknown-foreign-lesson"}
+	for _, l := range req.AllowedLessons {
+		links = append(links, l.LessonId)
+		break
+	}
+	return &enginev1.EnrichNoteResponse{
+		Summary: "Stars appear to move westward due to Earth's axial rotation.",
+		Tags:    []string{"rotation", "polaris"},
+		Links:   links,
+		Usage: &enginev1.Usage{
+			Provider:     "mock",
+			Model:        "mock-note-v1",
+			InputTokens:  120,
+			OutputTokens: 35,
+			Attempt:      1,
+			Component:    "note_enrich",
+			Delivered:    true,
+		},
+	}, nil
 }

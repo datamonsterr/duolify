@@ -84,7 +84,7 @@ fn slides(c: &Completion) -> Result<Vec<pb::Slide>, Status> {
         })
         .collect()
 }
-fn strings(v: &serde_json::Value) -> Vec<String> {
+fn _strings(v: &serde_json::Value) -> Vec<String> {
     v.as_array()
         .into_iter()
         .flatten()
@@ -513,22 +513,108 @@ impl EngineService for Service {
         request: Request<pb::EnrichNoteRequest>,
     ) -> Result<Response<pb::EnrichNoteResponse>, Status> {
         let req = request.into_inner();
-        let c = self
-            .router
-            .complete("note", &format!("{req:?}"))
-            .await
-            .map_err(internal)?;
-        Ok(Response::new(pb::EnrichNoteResponse {
-            summary: content(&c)?["summary"]
-                .as_str()
-                .ok_or_else(|| Status::internal("missing summary"))?
-                .into(),
-            tags: strings(&content(&c)?["tags"]),
-            links: strings(&content(&c)?["links"]),
-            usage: usage(&c),
-            attempts: vec![],
-            unavailable: false,
-        }))
+        let lesson = req.lesson.map(|l| engine_core::notes::LessonRef {
+            lesson_id: l.lesson_id,
+            title: l.title,
+            goal: l.goal,
+        });
+        let learner = req.learner.map(|p| engine_core::notes::LearnerProfile {
+            locale: p.locale,
+            level: p.level,
+            goal: p.goals,
+        });
+        let allowed_lessons: Vec<engine_core::notes::LessonRef> = req
+            .allowed_lessons
+            .into_iter()
+            .map(|l| engine_core::notes::LessonRef {
+                lesson_id: l.lesson_id,
+                title: l.title,
+                goal: l.goal,
+            })
+            .collect();
+        let bounds = req.limits.unwrap_or_default();
+        let limits = engine_core::credits::Limits {
+            input_tokens: if bounds.input_tokens > 0 {
+                bounds.input_tokens
+            } else {
+                1200
+            },
+            output_tokens: if bounds.output_tokens > 0 {
+                bounds.output_tokens
+            } else {
+                300
+            },
+            timeout_ms: if bounds.timeout_ms > 0 {
+                bounds.timeout_ms
+            } else {
+                5000
+            },
+            max_attempts: if bounds.max_attempts > 0 {
+                bounds.max_attempts
+            } else {
+                2
+            },
+            max_cost_nanos: if bounds.max_cost_nanos > 0 {
+                bounds.max_cost_nanos
+            } else {
+                2_000_000
+            },
+            input_nanos: if bounds.input_nanos > 0 {
+                bounds.input_nanos
+            } else {
+                100
+            },
+            output_nanos: if bounds.output_nanos > 0 {
+                bounds.output_nanos
+            } else {
+                500
+            },
+            cache_write_nanos: if bounds.cache_write_nanos > 0 {
+                bounds.cache_write_nanos
+            } else {
+                125
+            },
+            cache_read_nanos: if bounds.cache_read_nanos > 0 {
+                bounds.cache_read_nanos
+            } else {
+                10
+            },
+            deadline_unix_ms: bounds.deadline_unix_ms,
+        };
+
+        let outcome = engine_core::notes::enrich(
+            &self.router,
+            &req.note,
+            lesson.as_ref(),
+            learner.as_ref(),
+            &allowed_lessons,
+            &limits,
+        )
+        .await
+        .map_err(internal)?;
+
+        let attempts: Vec<pb::Usage> = outcome.attempts.iter().map(attempt_usage).collect();
+        let usage = outcome.completion.as_ref().and_then(usage);
+
+        if let Some(res) = outcome.result {
+            Ok(Response::new(pb::EnrichNoteResponse {
+                summary: res.summary,
+                tags: res.tags,
+                links: res.links,
+                usage,
+                attempts,
+                unavailable: false,
+            }))
+        } else {
+            Ok(Response::new(pb::EnrichNoteResponse {
+                summary: String::new(),
+                tags: vec![],
+                links: vec![],
+                usage: None,
+                attempts,
+                unavailable: true,
+            }))
+        }
     }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
     async fn course_brief_chat(

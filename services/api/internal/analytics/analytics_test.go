@@ -593,6 +593,85 @@ func TestQuickNoteAndSheetEventsReachPostHogWithoutPrivateData(t *testing.T) {
 	}
 }
 
+func TestQuickNoteEnrichmentEventsReachPostHogWithoutPrivateData(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	learnerID := "11111111-1111-4111-8111-111111111111"
+	noteID := "22222222-2222-4222-8222-222222222222"
+
+	// 1. Capture quick_note_enriched with forbidden private fields
+	err = events.Capture(learnerID, "quick_note_enriched", map[string]any{
+		"source":      "api",
+		"platform":    "web",
+		"app_version": "0.1.0",
+		"note_id":     noteID,
+		"raw_text":    "private learner words",
+		"summary":     "private AI summary",
+		"tags":        []string{"private"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Capture quick_note_enrichment_failed
+	err = events.Capture(learnerID, "quick_note_enrichment_failed", map[string]any{
+		"source":      "api",
+		"platform":    "web",
+		"app_version": "0.1.0",
+		"note_id":     noteID,
+		"reason":      "timeout",
+		"error_code":  "deadline_exceeded",
+		"raw_text":    "private learner words",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(received) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(received))
+	}
+
+	for _, ev := range received {
+		raw, _ := json.Marshal(ev)
+		if strings.Contains(string(raw), "private") {
+			t.Fatalf("private data leaked into analytics: %s", string(raw))
+		}
+		props, ok := ev["properties"].(map[string]any)
+		if !ok {
+			t.Fatal("missing properties map")
+		}
+		if props["note_id"] != noteID {
+			t.Fatalf("expected note_id %s, got %v", noteID, props["note_id"])
+		}
+	}
+}
+
 func TestBookmarkEventsReachPostHogWithoutPrivateData(t *testing.T) {
 	var mu sync.Mutex
 	var received []map[string]any

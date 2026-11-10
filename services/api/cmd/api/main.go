@@ -162,6 +162,19 @@ func run(ctx context.Context, args []string) (result error) {
 			defer cancel()
 			_ = outlineQueue.Stop(stopCtx)
 		}()
+		notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC())
+		notesQueue, err := notesService.NotesQueue(logger)
+		if err != nil {
+			return err
+		}
+		if err = notesQueue.Start(context.WithoutCancel(ctx)); err != nil {
+			return err
+		}
+		defer func() {
+			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer cancel()
+			_ = notesQueue.Stop(stopCtx)
+		}()
 		return worker.RunWithCredits(ctx, db.Pool, logger, creditService, service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
@@ -250,7 +263,7 @@ func run(ctx context.Context, args []string) (result error) {
 		PricingAdmin:  pricingAdmin,
 		Quotes:        pricing.NewQuotes(db.Pool),
 		Eval:          eval.NewService(db.Pool, catalogue, monitor, events),
-		Notes:         notes.NewService(db.Pool, events),
+		Notes:         notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC()),
 		Postgres:      db.Ping,
 		Redis:         func(ctx context.Context) error { return redis.Ping(ctx).Err() },
 		Engine:        backend,

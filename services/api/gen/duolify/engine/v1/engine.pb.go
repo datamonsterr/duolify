@@ -1759,13 +1759,14 @@ func (*ChatEvent_Attempt) isChatEvent_Event() {}
 func (*ChatEvent_ErrorCode) isChatEvent_Event() {}
 
 type EnrichNoteRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Note          string                 `protobuf:"bytes,1,opt,name=note,proto3" json:"note,omitempty"`
-	Lesson        *LessonRef             `protobuf:"bytes,2,opt,name=lesson,proto3" json:"lesson,omitempty"`
-	Learner       *LearnerProfile        `protobuf:"bytes,3,opt,name=learner,proto3" json:"learner,omitempty"`
-	Limits        *UsageLimits           `protobuf:"bytes,4,opt,name=limits,proto3" json:"limits,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Note           string                 `protobuf:"bytes,1,opt,name=note,proto3" json:"note,omitempty"`
+	Lesson         *LessonRef             `protobuf:"bytes,2,opt,name=lesson,proto3" json:"lesson,omitempty"`
+	Learner        *LearnerProfile        `protobuf:"bytes,3,opt,name=learner,proto3" json:"learner,omitempty"`
+	Limits         *UsageLimits           `protobuf:"bytes,4,opt,name=limits,proto3" json:"limits,omitempty"`
+	AllowedLessons []*LessonRef           `protobuf:"bytes,5,rep,name=allowed_lessons,json=allowedLessons,proto3" json:"allowed_lessons,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *EnrichNoteRequest) Reset() {
@@ -1822,6 +1823,13 @@ func (x *EnrichNoteRequest) GetLearner() *LearnerProfile {
 func (x *EnrichNoteRequest) GetLimits() *UsageLimits {
 	if x != nil {
 		return x.Limits
+	}
+	return nil
+}
+
+func (x *EnrichNoteRequest) GetAllowedLessons() []*LessonRef {
+	if x != nil {
+		return x.AllowedLessons
 	}
 	return nil
 }
@@ -3037,12 +3045,13 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\aattempt\x18\x03 \x01(\v2\x18.duolify.engine.v1.UsageH\x00R\aattempt\x12\x1f\n" +
 	"\n" +
 	"error_code\x18\x04 \x01(\tH\x00R\terrorCodeB\a\n" +
-	"\x05event\"\xd2\x01\n" +
+	"\x05event\"\x99\x02\n" +
 	"\x11EnrichNoteRequest\x12\x12\n" +
 	"\x04note\x18\x01 \x01(\tR\x04note\x124\n" +
 	"\x06lesson\x18\x02 \x01(\v2\x1c.duolify.engine.v1.LessonRefR\x06lesson\x12;\n" +
 	"\alearner\x18\x03 \x01(\v2!.duolify.engine.v1.LearnerProfileR\alearner\x126\n" +
-	"\x06limits\x18\x04 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\"\xe0\x01\n" +
+	"\x06limits\x18\x04 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\x12E\n" +
+	"\x0fallowed_lessons\x18\x05 \x03(\v2\x1c.duolify.engine.v1.LessonRefR\x0eallowedLessons\"\xe0\x01\n" +
 	"\x12EnrichNoteResponse\x12\x18\n" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12\x12\n" +
 	"\x04tags\x18\x02 \x03(\tR\x04tags\x12\x14\n" +
@@ -3239,46 +3248,47 @@ var file_duolify_engine_v1_engine_proto_depIdxs = []int32{
 	5,  // 34: duolify.engine.v1.EnrichNoteRequest.lesson:type_name -> duolify.engine.v1.LessonRef
 	4,  // 35: duolify.engine.v1.EnrichNoteRequest.learner:type_name -> duolify.engine.v1.LearnerProfile
 	3,  // 36: duolify.engine.v1.EnrichNoteRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	2,  // 37: duolify.engine.v1.EnrichNoteResponse.usage:type_name -> duolify.engine.v1.Usage
-	2,  // 38: duolify.engine.v1.EnrichNoteResponse.attempts:type_name -> duolify.engine.v1.Usage
-	4,  // 39: duolify.engine.v1.SetupChatRequest.profile:type_name -> duolify.engine.v1.LearnerProfile
-	23, // 40: duolify.engine.v1.SetupChatRequest.messages:type_name -> duolify.engine.v1.SetupChatMessage
-	22, // 41: duolify.engine.v1.SetupChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
-	4,  // 42: duolify.engine.v1.SetupChatResponse.updated_profile:type_name -> duolify.engine.v1.LearnerProfile
-	2,  // 43: duolify.engine.v1.SetupChatResponse.usage:type_name -> duolify.engine.v1.Usage
-	26, // 44: duolify.engine.v1.CourseBriefChatRequest.brief:type_name -> duolify.engine.v1.CourseBrief
-	27, // 45: duolify.engine.v1.CourseBriefChatRequest.limits:type_name -> duolify.engine.v1.CourseBriefLimits
-	2,  // 46: duolify.engine.v1.BriefAttempt.usage:type_name -> duolify.engine.v1.Usage
-	26, // 47: duolify.engine.v1.CourseBriefChatResponse.brief:type_name -> duolify.engine.v1.CourseBrief
-	22, // 48: duolify.engine.v1.CourseBriefChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
-	29, // 49: duolify.engine.v1.CourseBriefChatResponse.attempts:type_name -> duolify.engine.v1.BriefAttempt
-	7,  // 50: duolify.engine.v1.OutlineChatChangeRequest.outline:type_name -> duolify.engine.v1.CourseOutline
-	3,  // 51: duolify.engine.v1.OutlineChatChangeRequest.limits:type_name -> duolify.engine.v1.UsageLimits
-	31, // 52: duolify.engine.v1.OutlineChatChangeResponse.operations:type_name -> duolify.engine.v1.OutlineOperation
-	2,  // 53: duolify.engine.v1.OutlineChatChangeResponse.attempts:type_name -> duolify.engine.v1.Usage
-	0,  // 54: duolify.engine.v1.EngineService.Health:input_type -> duolify.engine.v1.HealthRequest
-	11, // 55: duolify.engine.v1.EngineService.PreviewCourse:input_type -> duolify.engine.v1.PreviewCourseRequest
-	13, // 56: duolify.engine.v1.EngineService.GenerateCourseOutline:input_type -> duolify.engine.v1.GenerateCourseOutlineRequest
-	15, // 57: duolify.engine.v1.EngineService.GenerateLesson:input_type -> duolify.engine.v1.GenerateLessonRequest
-	18, // 58: duolify.engine.v1.EngineService.Chat:input_type -> duolify.engine.v1.ChatRequest
-	20, // 59: duolify.engine.v1.EngineService.EnrichNote:input_type -> duolify.engine.v1.EnrichNoteRequest
-	24, // 60: duolify.engine.v1.EngineService.SetupChat:input_type -> duolify.engine.v1.SetupChatRequest
-	28, // 61: duolify.engine.v1.EngineService.CourseBriefChat:input_type -> duolify.engine.v1.CourseBriefChatRequest
-	32, // 62: duolify.engine.v1.EngineService.OutlineChatChange:input_type -> duolify.engine.v1.OutlineChatChangeRequest
-	1,  // 63: duolify.engine.v1.EngineService.Health:output_type -> duolify.engine.v1.HealthResponse
-	12, // 64: duolify.engine.v1.EngineService.PreviewCourse:output_type -> duolify.engine.v1.PreviewCourseResponse
-	14, // 65: duolify.engine.v1.EngineService.GenerateCourseOutline:output_type -> duolify.engine.v1.GenerateCourseOutlineResponse
-	16, // 66: duolify.engine.v1.EngineService.GenerateLesson:output_type -> duolify.engine.v1.GenerateLessonEvent
-	19, // 67: duolify.engine.v1.EngineService.Chat:output_type -> duolify.engine.v1.ChatEvent
-	21, // 68: duolify.engine.v1.EngineService.EnrichNote:output_type -> duolify.engine.v1.EnrichNoteResponse
-	25, // 69: duolify.engine.v1.EngineService.SetupChat:output_type -> duolify.engine.v1.SetupChatResponse
-	30, // 70: duolify.engine.v1.EngineService.CourseBriefChat:output_type -> duolify.engine.v1.CourseBriefChatResponse
-	33, // 71: duolify.engine.v1.EngineService.OutlineChatChange:output_type -> duolify.engine.v1.OutlineChatChangeResponse
-	63, // [63:72] is the sub-list for method output_type
-	54, // [54:63] is the sub-list for method input_type
-	54, // [54:54] is the sub-list for extension type_name
-	54, // [54:54] is the sub-list for extension extendee
-	0,  // [0:54] is the sub-list for field type_name
+	5,  // 37: duolify.engine.v1.EnrichNoteRequest.allowed_lessons:type_name -> duolify.engine.v1.LessonRef
+	2,  // 38: duolify.engine.v1.EnrichNoteResponse.usage:type_name -> duolify.engine.v1.Usage
+	2,  // 39: duolify.engine.v1.EnrichNoteResponse.attempts:type_name -> duolify.engine.v1.Usage
+	4,  // 40: duolify.engine.v1.SetupChatRequest.profile:type_name -> duolify.engine.v1.LearnerProfile
+	23, // 41: duolify.engine.v1.SetupChatRequest.messages:type_name -> duolify.engine.v1.SetupChatMessage
+	22, // 42: duolify.engine.v1.SetupChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
+	4,  // 43: duolify.engine.v1.SetupChatResponse.updated_profile:type_name -> duolify.engine.v1.LearnerProfile
+	2,  // 44: duolify.engine.v1.SetupChatResponse.usage:type_name -> duolify.engine.v1.Usage
+	26, // 45: duolify.engine.v1.CourseBriefChatRequest.brief:type_name -> duolify.engine.v1.CourseBrief
+	27, // 46: duolify.engine.v1.CourseBriefChatRequest.limits:type_name -> duolify.engine.v1.CourseBriefLimits
+	2,  // 47: duolify.engine.v1.BriefAttempt.usage:type_name -> duolify.engine.v1.Usage
+	26, // 48: duolify.engine.v1.CourseBriefChatResponse.brief:type_name -> duolify.engine.v1.CourseBrief
+	22, // 49: duolify.engine.v1.CourseBriefChatResponse.quick_replies:type_name -> duolify.engine.v1.QuickReply
+	29, // 50: duolify.engine.v1.CourseBriefChatResponse.attempts:type_name -> duolify.engine.v1.BriefAttempt
+	7,  // 51: duolify.engine.v1.OutlineChatChangeRequest.outline:type_name -> duolify.engine.v1.CourseOutline
+	3,  // 52: duolify.engine.v1.OutlineChatChangeRequest.limits:type_name -> duolify.engine.v1.UsageLimits
+	31, // 53: duolify.engine.v1.OutlineChatChangeResponse.operations:type_name -> duolify.engine.v1.OutlineOperation
+	2,  // 54: duolify.engine.v1.OutlineChatChangeResponse.attempts:type_name -> duolify.engine.v1.Usage
+	0,  // 55: duolify.engine.v1.EngineService.Health:input_type -> duolify.engine.v1.HealthRequest
+	11, // 56: duolify.engine.v1.EngineService.PreviewCourse:input_type -> duolify.engine.v1.PreviewCourseRequest
+	13, // 57: duolify.engine.v1.EngineService.GenerateCourseOutline:input_type -> duolify.engine.v1.GenerateCourseOutlineRequest
+	15, // 58: duolify.engine.v1.EngineService.GenerateLesson:input_type -> duolify.engine.v1.GenerateLessonRequest
+	18, // 59: duolify.engine.v1.EngineService.Chat:input_type -> duolify.engine.v1.ChatRequest
+	20, // 60: duolify.engine.v1.EngineService.EnrichNote:input_type -> duolify.engine.v1.EnrichNoteRequest
+	24, // 61: duolify.engine.v1.EngineService.SetupChat:input_type -> duolify.engine.v1.SetupChatRequest
+	28, // 62: duolify.engine.v1.EngineService.CourseBriefChat:input_type -> duolify.engine.v1.CourseBriefChatRequest
+	32, // 63: duolify.engine.v1.EngineService.OutlineChatChange:input_type -> duolify.engine.v1.OutlineChatChangeRequest
+	1,  // 64: duolify.engine.v1.EngineService.Health:output_type -> duolify.engine.v1.HealthResponse
+	12, // 65: duolify.engine.v1.EngineService.PreviewCourse:output_type -> duolify.engine.v1.PreviewCourseResponse
+	14, // 66: duolify.engine.v1.EngineService.GenerateCourseOutline:output_type -> duolify.engine.v1.GenerateCourseOutlineResponse
+	16, // 67: duolify.engine.v1.EngineService.GenerateLesson:output_type -> duolify.engine.v1.GenerateLessonEvent
+	19, // 68: duolify.engine.v1.EngineService.Chat:output_type -> duolify.engine.v1.ChatEvent
+	21, // 69: duolify.engine.v1.EngineService.EnrichNote:output_type -> duolify.engine.v1.EnrichNoteResponse
+	25, // 70: duolify.engine.v1.EngineService.SetupChat:output_type -> duolify.engine.v1.SetupChatResponse
+	30, // 71: duolify.engine.v1.EngineService.CourseBriefChat:output_type -> duolify.engine.v1.CourseBriefChatResponse
+	33, // 72: duolify.engine.v1.EngineService.OutlineChatChange:output_type -> duolify.engine.v1.OutlineChatChangeResponse
+	64, // [64:73] is the sub-list for method output_type
+	55, // [55:64] is the sub-list for method input_type
+	55, // [55:55] is the sub-list for extension type_name
+	55, // [55:55] is the sub-list for extension extendee
+	0,  // [0:55] is the sub-list for field type_name
 }
 
 func init() { file_duolify_engine_v1_engine_proto_init() }
