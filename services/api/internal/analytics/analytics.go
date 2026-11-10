@@ -85,6 +85,9 @@ func allowlisted(event string) bool {
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
+		"character_rendered", "character_render_fallback",
+		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
+		"character_updated", "character_deleted", "character_rejected", "course_cast_selected",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":
 		return true
 	default:
@@ -181,6 +184,46 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "character_updated":
+		ids("character_id")
+		numeric("character_version")
+		if fields, ok := input["fields_changed"].([]string); ok {
+			safe := []string{}
+			for _, field := range fields {
+				switch field {
+				case "info.name", "info.bio", "info.backstory", "personality.traits", "personality.speaking_style", "personality.persona_prompt", "appearance.body_shape", "appearance.palette", "appearance.eyes", "appearance.mouth", "appearance.accessories", "voice_key":
+					safe = append(safe, field)
+				}
+			}
+			out["fields_changed"] = safe
+		}
+	case "character_deleted":
+		ids("character_id")
+	case "character_create_quoted":
+		ids("pricing_version")
+		numeric("credits")
+		if operation := input["operation"]; operation == "create" || operation == "regenerate" {
+			out["operation"] = operation
+		}
+	case "character_created", "character_regenerated":
+		ids("character_id", "pricing_version", "rig_version", "voice_key")
+		numeric("character_version", "credits")
+	case "character_rejected", "character_create_failed":
+		if operation := input["operation"]; operation == "manual_edit" || operation == "create" || operation == "regenerate" {
+			out["operation"] = operation
+		}
+		boolean("fallback_used")
+		if reason, ok := input["reason_code"].(string); ok {
+			switch reason {
+			case "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "prompt_injection", "invalid_spec", "limit_exceeded", "screening_unavailable", "creation_disabled", "cancelled", "timeout", "version_conflict", "provider_unavailable":
+				out["reason_code"] = reason
+			}
+		}
+	case "course_cast_selected":
+		numeric("supporting_count", "cast_version")
+		if source := input["cast_source"]; source == "default" || source == "custom" || source == "mixed" {
+			out["cast_source"] = source
+		}
 	case "slide_viewed", "slide_replayed", "slide_paused":
 		ids("lesson_id", "slide_id")
 		numeric("index")
@@ -325,6 +368,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 				out["next_daily_grant_at"] = reset
 			}
 		}
+	case "character_rendered":
+		ids("speaker_key", "character_version", "rig_version", "expression")
+		boolean("offline")
+	case "character_render_fallback":
+		ids("reason_code")
+		boolean("offline")
 	case "pricing_version_created", "pricing_version_approved", "pricing_version_rejected", "pricing_version_activated", "pricing_version_rolled_back", "price_table_activated":
 		ids("pricing_version")
 		if class := input["change_class"]; class == "adverse" || class == "non_adverse" {

@@ -30,6 +30,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/backupadmin"
+	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/credits/creditstest"
@@ -245,6 +246,19 @@ func (s *faultStore) Put(ctx context.Context, key string, body io.ReadSeeker, si
 // FailNextUpload interrupts one publication to exercise River's durable retry.
 func (f *Fixture) FailNextUpload() { f.faults.fail.Store(true) }
 
+// Events returns the fixture's PostHog events double.
+func (f *Fixture) Events() analytics.Events { return f.events }
+
+// ApplicationStorage returns an S3 client scoped to the application assets bucket.
+func (f *Fixture) ApplicationStorage() *backup.S3 {
+	opts := f.writerOptions
+	opts.Bucket = opts.ApplicationBucket
+	opts.AccessKey = "application-writer"
+	opts.SecretKey = "application-synthetic-secret"
+	s3Client, _ := backup.NewS3(opts)
+	return s3Client
+}
+
 // UsePackagedWorker exercises the actual non-root worker image, pg_dump process,
 // runtime config, schedule and PostHog lifecycle. Host networking is local-only
 // and reaches only this test's randomly published disposable service ports.
@@ -366,6 +380,32 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		t.Fatal(err)
 	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO courses(id,learner_id,creation_id,title,description) VALUES('f1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','e1111111-1111-4111-8111-111111111111','Synthetic sky','')`); err != nil {
+		t.Fatal(err)
+	}
+
+	charSpec := characters.DefaultGuideFixture()
+	charRaw, _ := json.Marshal(charSpec)
+	for _, query := range []string{
+		`INSERT INTO characters(id,learner_id) VALUES('17111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111')`,
+		`INSERT INTO character_versions(character_id,version,spec) VALUES('17111111-1111-4111-8111-111111111111',1,$1)`,
+		`INSERT INTO character_screenings(learner_id,character_id,verdict,policy_version) VALUES('a1111111-1111-4111-8111-111111111111','17111111-1111-4111-8111-111111111111','approved','character-v1')`,
+		`INSERT INTO course_casts(course_id,learner_id,selection) VALUES('f1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','{"guide":"","supporting":[]}')`,
+	} {
+		var args []any
+		if strings.Contains(query, "$1") {
+			args = []any{charRaw}
+		}
+		if _, err = f.DB.Pool.Exec(t.Context(), query, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A deterministically invalid intent has no provider attempt, reservation or raw payload, but
+	// its durable dedupe key and bounded verdict must survive encrypted restore.
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO character_create_jobs(id,learner_id,request_key,operation,state,reason_code,finished_at) VALUES('18111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','synthetic-rejected-create','create','rejected','invalid_spec',now())`); err != nil {
+		t.Fatal(err)
+	}
+	charSvc := characters.NewService(f.DB.Pool, nil, nil)
+	if _, err = charSvc.PinCast(t.Context(), "a1111111-1111-4111-8111-111111111111", "f1111111-1111-4111-8111-111111111111", "fixture-character-lesson"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_units(id,learner_id,course_id,authored_id,position,title) VALUES('f2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','fixture-unit',0,'Moon')`); err != nil {
@@ -727,7 +767,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_completion_outbox", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_completion_outbox", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -837,7 +877,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		t.Fatal(err)
 	}
 	var survived bool
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_creations WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM courses WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_creations WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM courses WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM characters WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM character_screenings WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_casts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM lesson_cast_snapshots WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
 		t.Fatal("restored context survived account erasure", err)
 	}
 	var valid bool

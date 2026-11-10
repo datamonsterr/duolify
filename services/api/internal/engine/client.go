@@ -25,6 +25,18 @@ type Client struct {
 	timeout time.Duration
 }
 
+// ScreenCharacter bounds platform-paid screening independently of learner Credits.
+func (c *Client) ScreenCharacter(ctx context.Context, r *enginev1.ScreenCharacterRequest) (*enginev1.ScreenCharacterResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return c.rpc.ScreenCharacter(ctx, r)
+}
+
+// MapCharacter is bounded by the quote's total job deadline and the engine's per-call ceiling.
+func (c *Client) MapCharacter(ctx context.Context, r *enginev1.MapCharacterRequest) (*enginev1.MapCharacterResponse, error) {
+	return c.rpc.MapCharacter(ctx, r)
+}
+
 // OutlineChatChange uses the same private transport and bounded request context.
 func (c *Client) OutlineChatChange(ctx context.Context, r *enginev1.OutlineChatChangeRequest) (*enginev1.OutlineChatChangeResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)

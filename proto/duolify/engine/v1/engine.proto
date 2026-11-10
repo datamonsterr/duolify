@@ -7,6 +7,9 @@ option go_package = "github.com/datamonsterr/duolify/services/api/gen/duolify/en
 // EngineService is the private AI engine. Only services/api calls it.
 // The engine is stateless: every request carries the context it needs.
 service EngineService {
+  // ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
+  rpc ScreenCharacter(ScreenCharacterRequest) returns (ScreenCharacterResponse);
+  rpc MapCharacter(MapCharacterRequest) returns (MapCharacterResponse);
   // Health reports readiness and configured providers.
   rpc Health(HealthRequest) returns (HealthResponse);
   // PreviewCourse returns a sample outline and example slides before the learner commits.
@@ -27,6 +30,31 @@ service EngineService {
   rpc CourseBriefChat(CourseBriefChatRequest) returns (CourseBriefChatResponse);
   // OutlineChatChange proposes typed edits to an owned pre-creation draft.
   rpc OutlineChatChange(OutlineChatChangeRequest) returns (OutlineChatChangeResponse);
+}
+
+message MapCharacterRequest {
+  string prompt = 1;
+  UsageLimits limits = 2;
+}
+
+message MapCharacterResponse {
+  string spec_json = 1;
+  repeated Usage attempts = 2;
+}
+
+message ScreenCharacterRequest {
+  string spec_json = 1;
+  // Only the API's trusted compiler may populate this value.
+  string compiled_appearance = 2;
+  string raw_prompt = 3;
+  UsageLimits limits = 4;
+}
+
+message ScreenCharacterResponse {
+  bool approved = 1;
+  string reason_code = 2;
+  string policy_version = 3;
+  repeated Usage attempts = 4;
 }
 
 message HealthRequest {}

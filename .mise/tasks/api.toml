@@ -17,7 +17,7 @@ run = "gotestsum -- -race -count=1 ./test/e2e/..."
 ["api:test-integration"]
 description = "Test migrations, store and queue against Postgres 18 (Docker)"
 dir = "{{config_root}}/services/api"
-run = "gotestsum -- -race -count=1 -tags integration ./internal/store/... ./internal/backup/... ./internal/pricing/... ./internal/accounts/... ./internal/courses/... ./internal/credits/... ./internal/player/... ./internal/eval/... ./internal/lessontest/..."
+run = "gotestsum -- -race -count=1 -tags integration ./internal/store/... ./internal/backup/... ./internal/pricing/... ./internal/accounts/... ./internal/courses/... ./internal/credits/... ./internal/player/... ./internal/eval/... ./internal/characters/... ./internal/lessontest/..."
 
 ["api:build"]
 description = "Build the statically linked API binary"

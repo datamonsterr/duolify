@@ -1,0 +1,114 @@
+.characters-page {
+  max-width: 960px;
+  display: grid;
+  gap: var(--space-4);
+}
+.characters-page h1,
+.characters-page h2,
+.characters-page p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.character-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: var(--space-4);
+}
+.character-card,
+.character-editor {
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.character-editor fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.characters-page label {
+  display: grid;
+  gap: var(--space-2);
+  font-weight: var(--weight-heavy);
+}
+.characters-page input,
+.characters-page textarea,
+.characters-page select {
+  min-width: 0;
+  width: 100%;
+  min-height: var(--size-target);
+  padding: var(--space-2);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.characters-page textarea {
+  resize: vertical;
+  min-height: 88px;
+}
+.character-preview {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+.character-preview iframe {
+  border: 0;
+  width: 170px;
+  height: 170px;
+}
+.character-actions,
+.character-accessories {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.character-accessories label {
+  display: flex;
+  align-items: center;
+  min-height: var(--size-target);
+}
+.character-accessories input {
+  width: 24px;
+}
+@media (min-width: 768px) {
+  .character-editor {
+    grid-template-columns: 1fr 1fr;
+  }
+  .character-editor > h2,
+  .character-editor > .character-actions {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 767px) {
+  .character-editor {
+    padding: var(--space-4);
+  }
+  .character-actions > * {
+    flex: 1;
+  }
+}
+
+.character-create,
+.character-quote {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.character-quote {
+  padding: var(--space-4);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.character-quote strong {
+  color: var(--text);
+}

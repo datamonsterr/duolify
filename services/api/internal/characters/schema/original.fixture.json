@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "rig_version": "original-v1",
+  "info": {
+    "name": "Provisional seed",
+    "bio": "A curious original star.",
+    "backstory": "An explorer of a quiet moon garden."
+  },
+  "personality": {
+    "traits": [
+      "curious"
+    ],
+    "speaking_style": "Gentle and clear",
+    "persona_prompt": "Encourage careful observation."
+  },
+  "appearance": {
+    "body_shape": "star",
+    "palette": {
+      "body": "#FFD23F",
+      "accent": "#EE4266",
+      "outline": "#1A1A24"
+    },
+    "eyes": "round",
+    "mouth": "smile",
+    "accessories": [
+      "badge"
+    ]
+  },
+  "expressions": [
+    "idle",
+    "happy",
+    "sad",
+    "thinking",
+    "celebrate"
+  ],
+  "voice_key": "voice-provisional-guide"
+}

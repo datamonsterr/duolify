@@ -209,12 +209,23 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 		deadline = operational.AudioDeadline
 	}
 	q.Bounds["timeout_ms"] = deadline * 1000
-	if in.Action == "outline_chat_change" {
+	if in.Action == "outline_chat_change" || in.Action == "character_create" {
 		var feature map[string]int64
 		if json.Unmarshal(limits[key], &feature) != nil || feature["timeout_ms"] <= 0 || feature["timeout_ms"] >= q.Bounds["timeout_ms"] || feature["max_attempts"] <= 0 || feature["max_attempts"] > p.MaxAttempts || feature["max_cost_nanos"] <= 0 {
 			return q, errQuote
 		}
 		q.Bounds["timeout_ms"] = feature["timeout_ms"]
+		if in.Action == "character_create" {
+			if feature["output_tokens"] > 2000 || feature["max_attempts"] > 2 || feature["timeout_ms"] > 90000 || feature["screen_input_tokens"] > 18000 || feature["screen_output_tokens"] > 200 || feature["screen_timeout_ms"] > 10000 || feature["screen_max_attempts"] > 2 {
+				return q, errQuote
+			}
+			for _, key := range []string{"count", "day_attempts", "minute_attempts", "prompt_chars", "screen_input_tokens", "screen_output_tokens", "screen_timeout_ms", "screen_max_attempts"} {
+				if feature[key] <= 0 {
+					return q, errQuote
+				}
+				q.Bounds[key] = feature[key]
+			}
+		}
 		q.Bounds["max_attempts"] = feature["max_attempts"]
 		q.Bounds["max_cost_nanos"] = min(q.Bounds["max_cost_nanos"], feature["max_cost_nanos"])
 	}
@@ -245,6 +256,15 @@ func (s *Quotes) CreateDevelopmentOutline(ctx context.Context, owner string, in 
 		return Quote{}, errQuote
 	}
 	return s.createVersion(ctx, owner, in, "usd-dev-outline-chat-unapproved")
+}
+
+// CreateDevelopmentCharacter uses only the explicitly UNAPPROVED proposal.
+// Callers must gate this by their server-owned environment.
+func (s *Quotes) CreateDevelopmentCharacter(ctx context.Context, owner string, in QuoteInput) (Quote, error) {
+	if in.Action != "character_create" {
+		return Quote{}, errQuote
+	}
+	return s.createVersion(ctx, owner, in, "usd-dev-character-create-unapproved")
 }
 
 func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput, version string) (Quote, error) {

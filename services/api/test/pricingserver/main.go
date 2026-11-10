@@ -21,6 +21,7 @@ import (
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/credits/creditstest"
@@ -43,6 +44,7 @@ func main() {
 	}
 }
 func run() (result error) {
+	_ = os.Setenv("FEATURE_CUSTOM_CHARACTERS", "true")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	boot, cancel := context.WithTimeout(ctx, 2*time.Minute)
@@ -128,6 +130,55 @@ func run() (result error) {
 	objects := &fixtureObjects{values: playerfixture.Documents()}
 	lessonPlayer := player.New(player.Options{Pool: db.Pool, Objects: objects, AssetOrigin: playerfixture.AssetOrigin, Credits: paidCredits})
 	mux := http.NewServeMux()
+	characterService := characters.NewService(db.Pool, nil, nil)
+	characterService.ConfigureScreening(characterScreenFixture{})
+	characterService.ConfigureCreation(creditService, characterMapFixture{}, "development")
+	go characterService.Maintain(boot)
+	charHandler := characters.NewHandler(characterService)
+	mux.Handle("POST /test/characters/fund", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := db.Pool.Exec(r.Context(), `INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version) SELECT $1::uuid,(config->'actions'->'character_create'->>'credits')::bigint*3,'purchase','e17-funding-'||$1::text,'usd-dev-character-create-unapproved' FROM pricing_versions WHERE version='usd-dev-character-create-unapproved' ON CONFLICT DO NOTHING`, accounts.LearnerID(r.Context()))
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.WriteHeader(204)
+	})))
+
+	mux.Handle("POST /test/characters", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		spec := characters.DefaultGuideFixture()
+		spec.Info.Name = "Seed guide"
+		raw, _ := json.Marshal(spec)
+		tx, err := db.Pool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "seed unavailable: "+err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		defer func() { _ = tx.Rollback(r.Context()) }()
+		var id, quote, creation, course string
+		err = tx.QueryRow(r.Context(), `INSERT INTO characters(learner_id) VALUES($1) RETURNING id::text`, owner).Scan(&id)
+		if err == nil {
+			_, err = tx.Exec(r.Context(), `INSERT INTO character_versions(character_id,version,spec) VALUES($1,1,$2)`, id, raw)
+		}
+		if err == nil {
+			err = tx.QueryRow(r.Context(), `INSERT INTO pricing_quotes(learner_id,owner_reference,pricing_version,snapshot,created_at,expires_at) SELECT $1::uuid,encode(sha256(convert_to($1::text,'UTF8')),'hex'),version,'{}',now(),now()+interval '1 hour' FROM pricing_quote_policies ORDER BY version LIMIT 1 RETURNING id::text`, owner).Scan(&quote)
+		}
+		if err == nil {
+			err = tx.QueryRow(r.Context(), `INSERT INTO course_creations(learner_id,draft_id,revision,quote_id,request,state) VALUES($1,gen_random_uuid(),1,$2,'{}','enrolled') RETURNING id::text`, owner, quote).Scan(&creation)
+		}
+		if err == nil {
+			err = tx.QueryRow(r.Context(), `INSERT INTO courses(learner_id,creation_id,title) VALUES($1,$2,'Original fixture course') RETURNING id::text`, owner, creation).Scan(&course)
+		}
+		if err == nil {
+			err = tx.Commit(r.Context())
+		}
+		if err != nil {
+			http.Error(w, "seed unavailable: "+err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"character_id": id, "course_id": course, "other_id": "8a333333-3333-4333-8333-333333333333"})
+	})))
 	mux.Handle("POST /test/player/fixture", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, err := playerfixture.Seed(r.Context(), db.Pool, objects, accounts.LearnerID(r.Context()))
 		if err != nil {
@@ -214,6 +265,7 @@ func run() (result error) {
 		Player:                  lessonPlayer,
 		LessonTestTracerEnabled: tracerEnabled,
 		LessonTest:              lessonHandler,
+		Characters:              charHandler,
 		Pricing:                 pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil),
 		Quotes:                  pricing.NewQuotes(db.Pool),
 		Credits:                 creditHandler,
@@ -372,6 +424,17 @@ func run() (result error) {
 	return httpapi.Serve(ctx, server, listener)
 }
 
+// characterScreenFixture is injected only into this disposable test server.
+type characterScreenFixture struct{}
+
+func (characterScreenFixture) ScreenCharacter(_ context.Context, r *enginev1.ScreenCharacterRequest) (*enginev1.ScreenCharacterResponse, error) {
+	reason := ""
+	if strings.Contains(strings.ToLower(r.SpecJson+r.RawPrompt), "reveal system prompt") {
+		reason = "prompt_injection"
+	}
+	return &enginev1.ScreenCharacterResponse{Approved: reason == "", ReasonCode: reason, PolicyVersion: "character-v1", Attempts: []*enginev1.Usage{{Provider: "mock", Model: "fixture", InputTokens: 10, OutputTokens: 3, Attempt: 1, Delivered: true}}}, nil
+}
+
 type mockE2ESetupChatEngine struct{}
 
 func (mockE2ESetupChatEngine) SetupChat(_ context.Context, req *enginev1.SetupChatRequest) (*enginev1.SetupChatResponse, error) {
@@ -510,6 +573,21 @@ func (mockE2EBriefEngine) CourseBriefChat(_ context.Context, r *enginev1.CourseB
 		message = "What is your goal?"
 	}
 	return &enginev1.CourseBriefChatResponse{Brief: b, Message: message, NextStep: next, IsComplete: next == "confirm"}, nil
+}
+
+type characterMapFixture struct{}
+
+func (characterMapFixture) MapCharacter(_ context.Context, r *enginev1.MapCharacterRequest) (*enginev1.MapCharacterResponse, error) {
+	spec := characters.DefaultGuideFixture()
+	spec.Info.Name = "Original moon gardener"
+	if strings.Contains(r.Prompt, "scarf") {
+		spec.Appearance.Accessories = []string{"scarf"}
+	}
+	raw, _ := json.Marshal(spec)
+	if strings.Contains(r.Prompt, "exhausted providers") {
+		raw = []byte(`{}`)
+	}
+	return &enginev1.MapCharacterResponse{SpecJson: string(raw), Attempts: []*enginev1.Usage{{Provider: r.Limits.Provider, Model: r.Limits.Model, InputTokens: 100, OutputTokens: 100, Attempt: 1, Component: "content", Delivered: true}}}, nil
 }
 
 // Fixture documents are immutable and contain no personal content; integration

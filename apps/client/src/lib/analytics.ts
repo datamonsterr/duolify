@@ -112,6 +112,7 @@ export function track(
     | "lesson_completed"
     | "lesson_generation_requested"
     | "lesson_generated"
+    | "course_generation_failed"
     | "lesson_test_started"
     | "lesson_test_submitted"
     | "lesson_test_passed",
@@ -489,6 +490,12 @@ export function trackCourseRecovery(
     /* Telemetry failure never blocks recovery. */
   }
 }
+
+export {
+  trackCharacterRendered,
+  trackCharacterRenderFallback,
+  resetCharacterRenderDeduplication,
+} from "../features/characters/analytics";
 
 // E3-01 catalogue: authorized-lesson-manifest/specs/lesson-player/spec.md.
 // Deliberately closed projection: no captions, titles, drafts, HTML or URLs.
