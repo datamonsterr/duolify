@@ -109,7 +109,6 @@ export function track(
   event:
     | "lesson_started"
     | "slide_viewed"
-    | "lesson_completed"
     | "lesson_generation_requested"
     | "lesson_generated"
     | "course_generation_failed"
