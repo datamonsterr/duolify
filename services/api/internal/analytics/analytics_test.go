@@ -495,7 +495,7 @@ func TestQuickNoteAndSheetEventsReachPostHogWithoutPrivateData(t *testing.T) {
 	}))
 	defer server.Close()
 
-	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -625,7 +625,7 @@ func TestQuickNoteEnrichmentEventsReachPostHogWithoutPrivateData(t *testing.T) {
 	}))
 	defer server.Close()
 
-	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -779,7 +779,7 @@ func TestBookmarkEventsReachPostHogWithoutPrivateData(t *testing.T) {
 	}))
 	defer server.Close()
 
-	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1093,7 +1093,7 @@ func TestQuickNoteReviewAndDeleteAnalyticsReachPostHogWithoutPrivateText(t *test
 	}))
 	defer server.Close()
 
-	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
 	if err != nil {
 		t.Fatal(err)
 	}
