@@ -387,12 +387,9 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 			t.Fatal(err)
 		}
 	}
-	// A terminal rejected intent has no quote/reservation or raw payload, but
+	// A deterministically invalid intent has no provider attempt, reservation or raw payload, but
 	// its durable dedupe key and bounded verdict must survive encrypted restore.
-	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO character_create_jobs(id,learner_id,request_key,operation,state,reason_code,finished_at) VALUES('18111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','synthetic-rejected-create','create','rejected','prompt_injection',now())`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO character_screenings(learner_id,operation_id,verdict,reason_code,policy_version) VALUES('a1111111-1111-4111-8111-111111111111','18111111-1111-4111-8111-111111111111','rejected','prompt_injection','character-v1')`); err != nil {
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO character_create_jobs(id,learner_id,request_key,operation,state,reason_code,finished_at) VALUES('18111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','synthetic-rejected-create','create','rejected','invalid_spec',now())`); err != nil {
 		t.Fatal(err)
 	}
 	charSvc := characters.NewService(f.DB.Pool, nil, nil)
