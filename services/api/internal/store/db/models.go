@@ -648,6 +648,8 @@ type QuickNote struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 	ReservationID pgtype.UUID        `json:"reservation_id"`
 	QuoteID       pgtype.UUID        `json:"quote_id"`
+	Version       int32              `json:"version"`
+	ReviewedAt    pgtype.Timestamptz `json:"reviewed_at"`
 	RawVersion    int32              `json:"raw_version"`
 }
 

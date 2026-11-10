@@ -293,7 +293,16 @@ func run() (result error) {
 		_ = notesQueue.Stop(stopCtx)
 	}()
 
-	mux.Handle("/", httpapi.New(httpapi.Dependencies{Player: lessonPlayer, Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditHandler, Accounts: auth, Notes: notesService, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"}), Characters: charHandler}, logger))
+	mux.Handle("/", httpapi.New(httpapi.Dependencies{
+		Player:      lessonPlayer,
+		Pricing:     pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil),
+		Quotes:      pricing.NewQuotes(db.Pool),
+		Credits:     creditHandler,
+		Accounts:    auth,
+		Notes:       notesService,
+		CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"}),
+		Characters:  charHandler,
+	}, logger))
 	// Exercise the real expiry worker across a historical local date. Only the
 	// disposable fixture exposes this clock control; amounts stay config-owned.
 	mux.Handle("POST /test/credits/yesterday", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

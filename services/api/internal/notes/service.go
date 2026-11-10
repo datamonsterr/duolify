@@ -78,23 +78,25 @@ func (in SaveNoteInput) Validate() error {
 
 // NoteDTO represents a quick note returned by the API.
 type NoteDTO struct {
-	ID         string    `json:"id"`
-	LearnerID  string    `json:"learner_id"`
-	ActionKey  string    `json:"action_key"`
-	CourseID   *string   `json:"course_id,omitempty"`
-	LessonID   *string   `json:"lesson_id,omitempty"`
-	SlideID    *int      `json:"slide_id,omitempty"`
-	SlideTitle string    `json:"slide_title"`
-	Source     string    `json:"source"`
-	RawText    string    `json:"raw_text"`
-	RawVersion int       `json:"raw_version"`
-	Status     string    `json:"status"`
-	Reviewed   bool      `json:"reviewed"`
-	Summary    *string   `json:"summary,omitempty"`
-	Tags       []string  `json:"tags,omitempty"`
-	Links      []string  `json:"links,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID         string     `json:"id"`
+	LearnerID  string     `json:"learner_id"`
+	ActionKey  string     `json:"action_key"`
+	CourseID   *string    `json:"course_id,omitempty"`
+	LessonID   *string    `json:"lesson_id,omitempty"`
+	SlideID    *int       `json:"slide_id,omitempty"`
+	SlideTitle string     `json:"slide_title"`
+	Source     string     `json:"source"`
+	RawText    string     `json:"raw_text"`
+	RawVersion int        `json:"raw_version,omitempty"`
+	Status     string     `json:"status"`
+	Reviewed   bool       `json:"reviewed"`
+	ReviewedAt *time.Time `json:"reviewed_at,omitempty"`
+	Version    int32      `json:"version"`
+	Summary    *string    `json:"summary,omitempty"`
+	Tags       []string   `json:"tags,omitempty"`
+	Links      []string   `json:"links,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 // Service manages quick notes persistence and HTTP endpoints.
@@ -331,6 +333,22 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(refreshed)
 			return
 		}
+		if strings.HasSuffix(path, "/review") {
+			noteID := strings.TrimSuffix(path, "/review")
+			reviewed, err := s.MarkReviewed(r.Context(), learnerID, noteID)
+			if err != nil {
+				if errors.Is(err, ErrNotFound) {
+					respondError(w, http.StatusNotFound, "note not found")
+					return
+				}
+				respondError(w, http.StatusInternalServerError, "failed to mark note reviewed")
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(reviewed)
+			return
+		}
 		if path != "" && path != "sync" {
 			http.NotFound(w, r)
 			return
@@ -360,9 +378,78 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(note)
 
+	case http.MethodPatch, http.MethodPut:
+		if path == "" {
+			respondError(w, http.StatusNotFound, "note id required")
+			return
+		}
+		var in UpdateNoteInput
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			respondError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		var note *NoteDTO
+		var err error
+		if in.ExpectedVersion > 0 {
+			note, err = s.UpdateNote(r.Context(), learnerID, path, in)
+		} else {
+			if err = s.UpdateNoteRawText(r.Context(), learnerID, path, in.RawText); err == nil {
+				note, err = s.GetNote(r.Context(), learnerID, path)
+			}
+		}
+		if err != nil {
+			switch {
+			case errors.Is(err, ErrConflict):
+				respondError(w, http.StatusConflict, err.Error())
+			case errors.Is(err, ErrNotFound):
+				respondError(w, http.StatusNotFound, "note not found")
+			case errors.Is(err, ErrInvalidText),
+				errors.Is(err, ErrTextTooLong),
+				errors.Is(err, ErrInvalidVersion):
+				respondError(w, http.StatusBadRequest, err.Error())
+			default:
+				respondError(w, http.StatusInternalServerError, "failed to update note")
+			}
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(note)
+
+	case http.MethodDelete:
+		if path == "" {
+			http.NotFound(w, r)
+			return
+		}
+		err := s.DeleteNote(r.Context(), learnerID, path)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				respondError(w, http.StatusNotFound, "note not found")
+				return
+			}
+			respondError(w, http.StatusInternalServerError, "failed to delete note")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+
 	case http.MethodGet:
 		if path == "" {
-			notesList, err := s.ListNotes(r.Context(), learnerID)
+			q := r.URL.Query()
+			var filter FilterNotesInput
+			filter.Query = q.Get("q")
+			filter.CourseID = q.Get("course_id")
+			filter.LessonID = q.Get("lesson_id")
+			filter.Tag = q.Get("tag")
+			filter.Status = q.Get("status")
+			if q.Has("reviewed") {
+				val := q.Get("reviewed")
+				b := val == "true" || val == "1"
+				filter.Reviewed = &b
+			}
+
+			notesList, err := s.FilterNotes(r.Context(), learnerID, filter)
 			if err != nil {
 				respondError(w, http.StatusInternalServerError, "failed to list notes")
 				return
@@ -371,6 +458,26 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(notesList)
 			return
 		}
+
+		if strings.HasSuffix(path, "/export") {
+			noteID := strings.TrimSuffix(path, "/export")
+			note, err := s.GetNote(r.Context(), learnerID, noteID)
+			if err != nil {
+				if errors.Is(err, ErrNotFound) {
+					respondError(w, http.StatusNotFound, "note not found")
+					return
+				}
+				respondError(w, http.StatusInternalServerError, "failed to get note")
+				return
+			}
+			md := FormatNoteMarkdown(*note)
+			w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+			w.Header().Set("Content-Disposition", `attachment; filename="note.md"`)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(md))
+			return
+		}
+
 		note, err := s.GetNote(r.Context(), learnerID, path)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
@@ -382,38 +489,6 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(note)
-
-	case http.MethodPatch, http.MethodPut:
-		if path == "" {
-			respondError(w, http.StatusNotFound, "note id required")
-			return
-		}
-		var in struct {
-			RawText string `json:"raw_text"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-			respondError(w, http.StatusBadRequest, "invalid request body")
-			return
-		}
-		if err := s.UpdateNoteRawText(r.Context(), learnerID, path, in.RawText); err != nil {
-			if errors.Is(err, ErrNotFound) {
-				respondError(w, http.StatusNotFound, "note not found")
-				return
-			}
-			if errors.Is(err, ErrInvalidText) || errors.Is(err, ErrTextTooLong) {
-				respondError(w, http.StatusBadRequest, err.Error())
-				return
-			}
-			respondError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		refreshed, err := s.GetNote(r.Context(), learnerID, path)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to get note")
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(refreshed)
 
 	default:
 		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -437,8 +512,12 @@ func toDTO(qn db.UpsertQuickNoteRow) NoteDTO {
 		RawVersion: int(qn.RawVersion),
 		Status:     qn.Status,
 		Reviewed:   qn.Reviewed,
+		Version:    qn.Version,
 		CreatedAt:  qn.CreatedAt.Time,
 		UpdatedAt:  qn.UpdatedAt.Time,
+	}
+	if qn.ReviewedAt.Valid {
+		dto.ReviewedAt = &qn.ReviewedAt.Time
 	}
 	if qn.CourseID.Valid {
 		cID := formatUUID(qn.CourseID)
@@ -466,8 +545,12 @@ func toDTOFromEnriched(r db.GetQuickNoteWithEnrichmentByIDRow) NoteDTO {
 		RawVersion: int(r.RawVersion),
 		Status:     r.Status,
 		Reviewed:   r.Reviewed,
+		Version:    r.Version,
 		CreatedAt:  r.CreatedAt.Time,
 		UpdatedAt:  r.UpdatedAt.Time,
+	}
+	if r.ReviewedAt.Valid {
+		dto.ReviewedAt = &r.ReviewedAt.Time
 	}
 	if r.CourseID.Valid {
 		cID := formatUUID(r.CourseID)
@@ -504,8 +587,12 @@ func toDTOFromListEnriched(r db.ListQuickNotesWithEnrichmentByLearnerRow) NoteDT
 		RawVersion: int(r.RawVersion),
 		Status:     r.Status,
 		Reviewed:   r.Reviewed,
+		Version:    r.Version,
 		CreatedAt:  r.CreatedAt.Time,
 		UpdatedAt:  r.UpdatedAt.Time,
+	}
+	if r.ReviewedAt.Valid {
+		dto.ReviewedAt = &r.ReviewedAt.Time
 	}
 	if r.CourseID.Valid {
 		cID := formatUUID(r.CourseID)

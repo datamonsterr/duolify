@@ -88,6 +88,11 @@ for (const width of [1280, 390]) {
     expect(login.status()).toBe(200);
     const tokens = (await login.json()) as Tokens;
 
+    // Ensure learner is in zero-credit state per test specification
+    await request.post(`${apiBase}/test/credits/exhaust`, {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+
     await context.addInitScript((val) => {
       sessionStorage.setItem("duolify.auth", JSON.stringify(val));
     }, tokens);

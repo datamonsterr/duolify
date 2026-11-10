@@ -670,6 +670,45 @@ async fn evaluate_outline_change(input: &serde_json::Value) -> Result<String> {
     .to_string())
 }
 
+async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<String> {
+    let spec = input["spec"].to_string();
+    let valid = engine_core::characters::valid_spec(&spec);
+    if task == "character_spec" && input["mapping"] == true {
+        let recorded: Vec<Option<engine_core::Completion>> =
+            serde_json::from_value(input["recorded"].clone())?;
+        let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
+        let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+        let limits = serde_json::from_value(input["limits"].clone())?;
+        let out = engine_core::characters::map_character(
+            &router,
+            input["prompt"].as_str().unwrap_or_default(),
+            &limits,
+        )
+        .await?;
+        return Ok(serde_json::json!({"valid":out.completion.as_ref().is_some_and(|c|engine_core::characters::valid_spec(&c.text)),"attempt_count":out.attempts.len(),"fallback_used":out.attempts.iter().any(|a|a.fallback_used),"delivered_count":out.attempts.iter().filter(|a|a.delivered).count()}).to_string());
+    }
+    if task == "character_spec" {
+        return Ok(serde_json::json!({"valid":valid}).to_string());
+    }
+    if !valid {
+        return Ok(
+            serde_json::json!({"approved":false,"reason_code":"invalid_spec","attempt_count":0})
+                .to_string(),
+        );
+    }
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input["recorded"].clone())?;
+    let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let outcome = engine_core::characters::screen(&router, &spec, "").await?;
+    let (approved, reason) = outcome
+        .completion
+        .as_ref()
+        .and_then(|c| engine_core::characters::verdict(&c.text))
+        .unwrap_or((false, "screening_unavailable".into()));
+    Ok(serde_json::json!({"approved":approved,"reason_code":reason,"attempt_count":outcome.attempts.len()}).to_string())
+}
+
 async fn evaluate_note_enrich(input: &serde_json::Value) -> Result<String> {
     let recorded: Vec<Option<engine_core::Completion>> =
         serde_json::from_value(input["recorded"].clone())?;
@@ -717,45 +756,6 @@ async fn evaluate_note_enrich(input: &serde_json::Value) -> Result<String> {
     val["attempt_count"] = serde_json::json!(outcome.attempts.len());
     val["fallback_used"] = serde_json::json!(outcome.fallback_used);
     Ok(val.to_string())
-}
-
-async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<String> {
-    let spec = input["spec"].to_string();
-    let valid = engine_core::characters::valid_spec(&spec);
-    if task == "character_spec" && input["mapping"] == true {
-        let recorded: Vec<Option<engine_core::Completion>> =
-            serde_json::from_value(input["recorded"].clone())?;
-        let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
-        let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
-        let limits = serde_json::from_value(input["limits"].clone())?;
-        let out = engine_core::characters::map_character(
-            &router,
-            input["prompt"].as_str().unwrap_or_default(),
-            &limits,
-        )
-        .await?;
-        return Ok(serde_json::json!({"valid":out.completion.as_ref().is_some_and(|c|engine_core::characters::valid_spec(&c.text)),"attempt_count":out.attempts.len(),"fallback_used":out.attempts.iter().any(|a|a.fallback_used),"delivered_count":out.attempts.iter().filter(|a|a.delivered).count()}).to_string());
-    }
-    if task == "character_spec" {
-        return Ok(serde_json::json!({"valid":valid}).to_string());
-    }
-    if !valid {
-        return Ok(
-            serde_json::json!({"approved":false,"reason_code":"invalid_spec","attempt_count":0})
-                .to_string(),
-        );
-    }
-    let recorded: Vec<Option<engine_core::Completion>> =
-        serde_json::from_value(input["recorded"].clone())?;
-    let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
-    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
-    let outcome = engine_core::characters::screen(&router, &spec, "").await?;
-    let (approved, reason) = outcome
-        .completion
-        .as_ref()
-        .and_then(|c| engine_core::characters::verdict(&c.text))
-        .unwrap_or((false, "screening_unavailable".into()));
-    Ok(serde_json::json!({"approved":approved,"reason_code":reason,"attempt_count":outcome.attempts.len()}).to_string())
 }
 
 pub struct Runner {
