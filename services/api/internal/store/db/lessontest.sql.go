@@ -98,6 +98,27 @@ func (q *Queries) GetLessonStub(ctx context.Context, id pgtype.UUID) (CourseLess
 	return i, err
 }
 
+const getTestAnswerOperation = `-- name: GetTestAnswerOperation :one
+SELECT operation_key, session_id, learner_id, lesson_id, question_id, choice_index, response_payload, created_at FROM lesson_test_answer_operations
+WHERE operation_key = $1
+`
+
+func (q *Queries) GetTestAnswerOperation(ctx context.Context, operationKey string) (LessonTestAnswerOperation, error) {
+	row := q.db.QueryRow(ctx, getTestAnswerOperation, operationKey)
+	var i LessonTestAnswerOperation
+	err := row.Scan(
+		&i.OperationKey,
+		&i.SessionID,
+		&i.LearnerID,
+		&i.LessonID,
+		&i.QuestionID,
+		&i.ChoiceIndex,
+		&i.ResponsePayload,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertLessonCompletionSummary = `-- name: InsertLessonCompletionSummary :one
 INSERT INTO lesson_completion_summaries (learner_id, course_id, lesson_id, summary, weak_topics)
 VALUES ($1, $2, $3, $4, $5)
@@ -202,4 +223,33 @@ func (q *Queries) ListLessonRetryPools(ctx context.Context, lessonStubID pgtype.
 		return nil, err
 	}
 	return items, nil
+}
+
+const recordTestAnswerOperation = `-- name: RecordTestAnswerOperation :exec
+INSERT INTO lesson_test_answer_operations (operation_key, session_id, learner_id, lesson_id, question_id, choice_index, response_payload)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (operation_key) DO NOTHING
+`
+
+type RecordTestAnswerOperationParams struct {
+	OperationKey    string      `json:"operation_key"`
+	SessionID       pgtype.UUID `json:"session_id"`
+	LearnerID       pgtype.UUID `json:"learner_id"`
+	LessonID        pgtype.UUID `json:"lesson_id"`
+	QuestionID      string      `json:"question_id"`
+	ChoiceIndex     int32       `json:"choice_index"`
+	ResponsePayload []byte      `json:"response_payload"`
+}
+
+func (q *Queries) RecordTestAnswerOperation(ctx context.Context, arg RecordTestAnswerOperationParams) error {
+	_, err := q.db.Exec(ctx, recordTestAnswerOperation,
+		arg.OperationKey,
+		arg.SessionID,
+		arg.LearnerID,
+		arg.LessonID,
+		arg.QuestionID,
+		arg.ChoiceIndex,
+		arg.ResponsePayload,
+	)
+	return err
 }

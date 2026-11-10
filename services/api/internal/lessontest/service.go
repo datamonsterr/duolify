@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -37,6 +38,7 @@ type Options struct {
 	MinGap              int
 	MaxVariantsPerTopic int
 	MaxVariantsPerTest  int
+	SessionTTL          time.Duration
 }
 
 // Service manages lesson generation, player delivery, and gated testing.
@@ -212,6 +214,29 @@ func ReorderChoices(choices []string, answerIndex int) ([]string, int) {
 	}
 	newIndex := (answerIndex - 1 + n) % n
 	return reordered, newIndex
+}
+
+var opKeyRegex = regexp.MustCompile(`^[A-Za-z0-9_-]{1,100}$`)
+
+// ValidateOperationKey checks that an answer operation key conforms to format requirements.
+func ValidateOperationKey(key string) error {
+	if !opKeyRegex.MatchString(key) {
+		return errors.New("invalid operation key")
+	}
+	return nil
+}
+
+// ReorderQuestions permutes questions for a newly ordered session when abandoned.
+func ReorderQuestions(questions []PublicQuestion) []PublicQuestion {
+	n := len(questions)
+	if n <= 1 {
+		return questions
+	}
+	reordered := make([]PublicQuestion, n)
+	for i := 0; i < n; i++ {
+		reordered[i] = questions[(i+1)%n]
+	}
+	return reordered
 }
 
 // PublicQuestion is the client-facing test question schema excluding answer key and explanation.
@@ -1022,21 +1047,35 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 	var totalTopics int
 	_ = s.opts.Pool.QueryRow(ctx, `SELECT count(DISTINCT topic_id) FROM lesson_questions WHERE lesson_stub_id::text=$1`, lessonID).Scan(&totalTopics)
 
+	sessionTTL := s.opts.SessionTTL
+	if sessionTTL <= 0 {
+		sessionTTL = 7 * 24 * time.Hour
+	}
+
 	var sessionID string
 	var queueJSON, resolvedJSON []byte
+	var createdAt, updatedAt time.Time
 	err := s.opts.Pool.QueryRow(ctx, `
-		SELECT id::text, question_queue, resolved_topics
+		SELECT id::text, question_queue, resolved_topics, created_at, updated_at
 		FROM lesson_test_sessions
 		WHERE lesson_stub_id::text=$1 AND learner_id::text=$2 AND state='in_progress'
-		ORDER BY created_at DESC LIMIT 1`, lessonID, owner).Scan(&sessionID, &queueJSON, &resolvedJSON)
+		ORDER BY created_at DESC LIMIT 1`, lessonID, owner).Scan(&sessionID, &queueJSON, &resolvedJSON, &createdAt, &updatedAt)
 
 	var questions []PublicQuestion
 	var resolvedTopics []string
+	isExpired := false
 
 	if err == nil {
-		_ = json.Unmarshal(queueJSON, &questions)
-		_ = json.Unmarshal(resolvedJSON, &resolvedTopics)
-	} else if errors.Is(err, pgx.ErrNoRows) {
+		if time.Since(updatedAt) > sessionTTL || time.Since(createdAt) > sessionTTL {
+			isExpired = true
+			_, _ = s.opts.Pool.Exec(ctx, `UPDATE lesson_test_sessions SET state='abandoned', updated_at=now() WHERE id::text=$1`, sessionID)
+		} else {
+			_ = json.Unmarshal(queueJSON, &questions)
+			_ = json.Unmarshal(resolvedJSON, &resolvedTopics)
+		}
+	}
+
+	if isExpired || errors.Is(err, pgx.ErrNoRows) {
 		// Ensure generated questions exist
 		rows, qErr := s.opts.Pool.Query(ctx, `
 			SELECT id::text, topic_id, prompt, choices, position
@@ -1070,6 +1109,10 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 			return
 		}
 
+		if isExpired {
+			questions = ReorderQuestions(questions)
+		}
+
 		qJSON, _ := json.Marshal(questions)
 		err = s.opts.Pool.QueryRow(ctx, `
 			INSERT INTO lesson_test_sessions (lesson_stub_id, learner_id, question_queue, resolved_topics)
@@ -1090,7 +1133,7 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 				"question_count": len(questions),
 			})
 		}
-	} else {
+	} else if err != nil {
 		http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -1110,9 +1153,11 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 
 func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner, lessonID string) {
 	var body struct {
-		QuestionID  string `json:"question_id"`
-		ChoiceIndex int    `json:"choice_index"`
-		ChoiceText  string `json:"choice_text,omitempty"`
+		QuestionID   string `json:"question_id"`
+		ChoiceIndex  int    `json:"choice_index"`
+		ChoiceText   string `json:"choice_text,omitempty"`
+		OperationKey string `json:"operation_key,omitempty"`
+		ActionKey    string `json:"action_key,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"error":"invalid answer body"}`, http.StatusBadRequest)
@@ -1120,6 +1165,37 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	}
 
 	ctx := r.Context()
+
+	opKey := body.OperationKey
+	if opKey == "" {
+		opKey = body.ActionKey
+	}
+	if opKey != "" {
+		if err := ValidateOperationKey(opKey); err != nil {
+			http.Error(w, `{"error":"invalid operation key"}`, http.StatusBadRequest)
+			return
+		}
+
+		var opLearnerID string
+		var cachedPayload []byte
+		err := s.opts.Pool.QueryRow(ctx, `
+			SELECT learner_id::text, response_payload
+			FROM lesson_test_answer_operations
+			WHERE operation_key = $1`, opKey).Scan(&opLearnerID, &cachedPayload)
+		if err == nil {
+			if opLearnerID != owner {
+				http.Error(w, `{"error":"foreign operation key rejected"}`, http.StatusBadRequest)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(cachedPayload)
+			return
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
+			return
+		}
+	}
 
 	minGap := s.opts.MinGap
 	if minGap <= 0 {
@@ -1134,6 +1210,11 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		maxTestVariants = 12
 	}
 
+	sessionTTL := s.opts.SessionTTL
+	if sessionTTL <= 0 {
+		sessionTTL = 7 * 24 * time.Hour
+	}
+
 	tx, err := s.opts.Pool.Begin(ctx)
 	if err != nil {
 		http.Error(w, `{"error":"transaction error"}`, http.StatusInternalServerError)
@@ -1145,18 +1226,30 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	var sessionID, sessionState string
 	var queueRaw, resolvedRaw []byte
 	var firstTryCorrect, variantsServed int
+	var createdAt, updatedAt time.Time
 	err = tx.QueryRow(ctx, `
-		SELECT id::text, state, question_queue, resolved_topics, first_try_correct, variants_served
+		SELECT id::text, state, question_queue, resolved_topics, first_try_correct, variants_served, created_at, updated_at
 		FROM lesson_test_sessions
 		WHERE lesson_stub_id::text=$1 AND learner_id::text=$2
 		ORDER BY created_at DESC LIMIT 1
-		FOR UPDATE`, lessonID, owner).Scan(&sessionID, &sessionState, &queueRaw, &resolvedRaw, &firstTryCorrect, &variantsServed)
+		FOR UPDATE`, lessonID, owner).Scan(&sessionID, &sessionState, &queueRaw, &resolvedRaw, &firstTryCorrect, &variantsServed, &createdAt, &updatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, `{"error":"no test session found"}`, http.StatusNotFound)
 		return
 	}
 	if err != nil {
 		http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if sessionState == "in_progress" && (time.Since(updatedAt) > sessionTTL || time.Since(createdAt) > sessionTTL) {
+		_, _ = tx.Exec(ctx, `UPDATE lesson_test_sessions SET state='abandoned', updated_at=now() WHERE id::text=$1`, sessionID)
+		_ = tx.Commit(ctx)
+		http.Error(w, `{"error":"session expired and abandoned"}`, http.StatusGone)
+		return
+	}
+	if sessionState == "abandoned" {
+		http.Error(w, `{"error":"session has been abandoned"}`, http.StatusGone)
 		return
 	}
 
@@ -1167,13 +1260,23 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	_ = tx.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID)
 
 	if sessionState == "passed" {
-		writeJSON(w, http.StatusOK, map[string]any{
+		resp := map[string]any{
 			"correct":           true,
 			"passed":            true,
 			"resolved_topics":   totalTopics,
 			"total_topics":      totalTopics,
 			"retry_queue_count": 0,
-		})
+		}
+		if opKey != "" {
+			payloadBytes, _ := json.Marshal(resp)
+			_, _ = tx.Exec(ctx, `
+				INSERT INTO lesson_test_answer_operations (operation_key, session_id, learner_id, lesson_id, question_id, choice_index, response_payload)
+				VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7)
+				ON CONFLICT (operation_key) DO NOTHING`,
+				opKey, sessionID, owner, lessonID, body.QuestionID, body.ChoiceIndex, payloadBytes)
+			_ = tx.Commit(ctx)
+		}
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 
@@ -1224,14 +1327,14 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		}
 	}
 
-	var remainingQueue []PublicQuestion
-	if foundIdx >= 0 {
-		remainingQueue = make([]PublicQuestion, 0, len(currentQueue)-1)
-		remainingQueue = append(remainingQueue, currentQueue[:foundIdx]...)
-		remainingQueue = append(remainingQueue, currentQueue[foundIdx+1:]...)
-	} else {
-		remainingQueue = currentQueue
+	if foundIdx == -1 {
+		http.Error(w, `{"error":"unserved question key rejected"}`, http.StatusBadRequest)
+		return
 	}
+
+	remainingQueue := make([]PublicQuestion, 0, len(currentQueue)-1)
+	remainingQueue = append(remainingQueue, currentQueue[:foundIdx]...)
+	remainingQueue = append(remainingQueue, currentQueue[foundIdx+1:]...)
 
 	// Lookup question details
 	var qID, topicID, prompt, explanation, variantOf string
@@ -1288,15 +1391,8 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			rows.Close()
 		}
 		if qID == "" {
-			_ = tx.QueryRow(ctx, `
-				SELECT id::text, topic_id, prompt, choices, answer_index, explanation, COALESCE(variant_of, '')
-				FROM lesson_questions
-				WHERE lesson_stub_id::text=$1
-				LIMIT 1`, lessonID).Scan(&qID, &topicID, &prompt, &choicesRaw, &answerIndex, &explanation, &variantOf)
-			if qID == "" {
-				http.Error(w, `{"error":"question not found"}`, http.StatusNotFound)
-				return
-			}
+			http.Error(w, `{"error":"question not found"}`, http.StatusNotFound)
+			return
 		}
 	}
 
@@ -1513,11 +1609,6 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			}
 		}
 
-		if err := tx.Commit(ctx); err != nil {
-			http.Error(w, `{"error":"commit failed"}`, http.StatusInternalServerError)
-			return
-		}
-
 		resp := map[string]any{
 			"correct":           false,
 			"passed":            false,
@@ -1535,6 +1626,21 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		if offerLeaveResume {
 			resp["offer_leave_resume"] = true
 		}
+
+		if opKey != "" {
+			payloadBytes, _ := json.Marshal(resp)
+			_, _ = tx.Exec(ctx, `
+				INSERT INTO lesson_test_answer_operations (operation_key, session_id, learner_id, lesson_id, question_id, choice_index, response_payload)
+				VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7)
+				ON CONFLICT (operation_key) DO NOTHING`,
+				opKey, sessionID, owner, lessonID, qID, body.ChoiceIndex, payloadBytes)
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			http.Error(w, `{"error":"commit failed"}`, http.StatusInternalServerError)
+			return
+		}
+
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
@@ -1598,12 +1704,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			SET question_queue = $2, resolved_topics = $3, first_try_correct = first_try_correct + $4, updated_at = now()
 			WHERE id::text=$1`, sessionID, remainingQueueJSON, newResolvedRaw, firstTryInc)
 
-		if err := tx.Commit(ctx); err != nil {
-			http.Error(w, `{"error":"commit failed"}`, http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, http.StatusOK, map[string]any{
+		resp := map[string]any{
 			"correct":           true,
 			"passed":            false,
 			"answer_index":      answerIndex,
@@ -1611,7 +1712,23 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			"resolved_topics":   len(resolvedTopics),
 			"total_topics":      totalTopics,
 			"retry_queue_count": retryQueueCount,
-		})
+		}
+
+		if opKey != "" {
+			payloadBytes, _ := json.Marshal(resp)
+			_, _ = tx.Exec(ctx, `
+				INSERT INTO lesson_test_answer_operations (operation_key, session_id, learner_id, lesson_id, question_id, choice_index, response_payload)
+				VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7)
+				ON CONFLICT (operation_key) DO NOTHING`,
+				opKey, sessionID, owner, lessonID, qID, body.ChoiceIndex, payloadBytes)
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			http.Error(w, `{"error":"commit failed"}`, http.StatusInternalServerError)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 
@@ -1694,6 +1811,29 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		return
 	}
 
+	resp := map[string]any{
+		"correct":           true,
+		"passed":            true,
+		"answer_index":      answerIndex,
+		"explanation":       explanation,
+		"resolved_topics":   totalTopics,
+		"total_topics":      totalTopics,
+		"retry_queue_count": 0,
+	}
+	if nextLessonID != "" {
+		resp["next_lesson_id"] = nextLessonID
+		resp["next_lesson_status"] = "ready_to_generate"
+	}
+
+	if opKey != "" {
+		payloadBytes, _ := json.Marshal(resp)
+		_, _ = tx.Exec(ctx, `
+			INSERT INTO lesson_test_answer_operations (operation_key, session_id, learner_id, lesson_id, question_id, choice_index, response_payload)
+			VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7)
+			ON CONFLICT (operation_key) DO NOTHING`,
+			opKey, sessionID, owner, lessonID, qID, body.ChoiceIndex, payloadBytes)
+	}
+
 	if err = tx.Commit(ctx); err != nil {
 		http.Error(w, `{"error":"commit failed"}`, http.StatusInternalServerError)
 		return
@@ -1710,21 +1850,8 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			"variants_served":   variantsServed,
 			"duration_ms":       30000,
 			"score":             100,
+			"question_count":    totalTopics,
 		})
-	}
-
-	resp := map[string]any{
-		"correct":           true,
-		"passed":            true,
-		"answer_index":      answerIndex,
-		"explanation":       explanation,
-		"resolved_topics":   totalTopics,
-		"total_topics":      totalTopics,
-		"retry_queue_count": 0,
-	}
-	if nextLessonID != "" {
-		resp["next_lesson_id"] = nextLessonID
-		resp["next_lesson_status"] = "ready_to_generate"
 	}
 
 	writeJSON(w, http.StatusOK, resp)

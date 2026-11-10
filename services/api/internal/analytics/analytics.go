@@ -258,7 +258,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		numeric("attempt", "choice_index")
 	case "lesson_test_passed":
 		ids("course_id", "lesson_id")
-		numeric("first_try_correct", "variants_served", "duration_ms", "score")
+		numeric("first_try_correct", "variants_served", "duration_ms", "score", "question_count")
 	case "lesson_test_answer_wrong":
 		ids("course_id", "lesson_id", "topic_id")
 		boolean("is_variant")

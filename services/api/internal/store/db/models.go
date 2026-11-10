@@ -593,6 +593,17 @@ type LessonTestAnswer struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
+type LessonTestAnswerOperation struct {
+	OperationKey    string             `json:"operation_key"`
+	SessionID       pgtype.UUID        `json:"session_id"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	LessonID        pgtype.UUID        `json:"lesson_id"`
+	QuestionID      string             `json:"question_id"`
+	ChoiceIndex     int32              `json:"choice_index"`
+	ResponsePayload []byte             `json:"response_payload"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
 type LessonTestSession struct {
 	ID              pgtype.UUID        `json:"id"`
 	LessonStubID    pgtype.UUID        `json:"lesson_stub_id"`

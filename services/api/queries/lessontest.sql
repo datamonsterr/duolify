@@ -23,3 +23,12 @@ RETURNING *;
 SELECT * FROM lesson_completion_summaries
 WHERE learner_id = $1 AND course_id = $2
 ORDER BY completed_at ASC;
+
+-- name: RecordTestAnswerOperation :exec
+INSERT INTO lesson_test_answer_operations (operation_key, session_id, learner_id, lesson_id, question_id, choice_index, response_payload)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (operation_key) DO NOTHING;
+
+-- name: GetTestAnswerOperation :one
+SELECT * FROM lesson_test_answer_operations
+WHERE operation_key = $1;

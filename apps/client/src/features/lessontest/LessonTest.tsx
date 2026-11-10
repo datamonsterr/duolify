@@ -41,6 +41,66 @@ export interface AnswerResult {
   available_credits?: number;
 }
 
+export interface QueuedOfflineAnswer {
+  operation_key: string;
+  question_id: string;
+  choice_index: number;
+  choice_text?: string;
+}
+
+const queueStorageKey = (lessonId: string) =>
+  `lessontest:sync-queue:${lessonId}`;
+
+export function generateOperationKey(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+  return (
+    "op-" +
+    Math.random().toString(36).slice(2, 11) +
+    "-" +
+    Date.now().toString(36)
+  );
+}
+
+export function getOfflineAnswers(lessonId: string): QueuedOfflineAnswer[] {
+  try {
+    const raw = localStorage.getItem(queueStorageKey(lessonId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function enqueueOfflineAnswer(
+  lessonId: string,
+  item: QueuedOfflineAnswer,
+) {
+  try {
+    const k = queueStorageKey(lessonId);
+    const existing = getOfflineAnswers(lessonId);
+    if (!existing.some((e) => e.operation_key === item.operation_key)) {
+      existing.push(item);
+      localStorage.setItem(k, JSON.stringify(existing));
+    }
+  } catch {
+    // ignore storage failures
+  }
+}
+
+export function clearOfflineAnswers(lessonId: string) {
+  try {
+    localStorage.removeItem(queueStorageKey(lessonId));
+  } catch {
+    // ignore storage failures
+  }
+}
+
 export interface LessonTestProps {
   lessonId: string;
   courseId?: string;
@@ -51,7 +111,11 @@ export interface LessonTestProps {
   minGap?: number;
   onPass: () => void;
   onExit?: () => void;
-  onAnswer?: (questionId: string, choiceIndex: number) => Promise<AnswerResult>;
+  onAnswer?: (
+    questionId: string,
+    choiceIndex: number,
+    operationKey?: string,
+  ) => Promise<AnswerResult>;
 }
 
 export function LessonTest({
@@ -85,10 +149,55 @@ export function LessonTest({
     initialResolvedTopics ?? 0,
   );
   const [totalTopics, setTotalTopics] = useState(defaultTotalTopics);
-  const [retryQueueCount, setRetryQueueCount] = useState(0);
+  const [retryQueueCount, setRetryQueueCount] = useState(
+    () => initialQuestions.filter((q) => q.is_variant || !!q.variant_of).length,
+  );
   const [showRecap, setShowRecap] = useState(false);
+  const [offlineAnswerCount, setOfflineAnswerCount] = useState(
+    () => getOfflineAnswers(effectiveLessonId).length,
+  );
+  const [waitingToSync, setWaitingToSync] = useState(false);
 
   const currentQuestion = queue[queueIndex];
+
+  const handleReplaySync = useCallback(async () => {
+    if (isSubmitting || !onAnswer) return;
+    const queued = getOfflineAnswers(effectiveLessonId);
+    if (queued.length === 0) return;
+
+    setIsSubmitting(true);
+    try {
+      let finalResult: AnswerResult | null = null;
+      for (const item of queued) {
+        if (onAnswer.length >= 3) {
+          finalResult = await onAnswer(
+            item.question_id,
+            item.choice_index,
+            item.operation_key,
+          );
+        } else {
+          finalResult = await onAnswer(item.question_id, item.choice_index);
+        }
+      }
+      clearOfflineAnswers(effectiveLessonId);
+      setOfflineAnswerCount(0);
+      if (finalResult && finalResult.passed) {
+        setWaitingToSync(false);
+        setFeedback(finalResult);
+        setFinished(true);
+        onPass();
+      }
+    } catch {
+      // Remain offline
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [isSubmitting, onAnswer, effectiveLessonId, onPass]);
+
+  useEffect(() => {
+    window.addEventListener("online", handleReplaySync);
+    return () => window.removeEventListener("online", handleReplaySync);
+  }, [handleReplaySync]);
 
   useEffect(() => {
     if (
@@ -114,42 +223,72 @@ export function LessonTest({
     if (selectedChoice === null || !currentQuestion || isSubmitting) return;
 
     setIsSubmitting(true);
+    const opKey = generateOperationKey();
     try {
       if (onAnswer) {
-        const result = await onAnswer(
-          currentQuestion.question_id,
-          selectedChoice,
-        );
-        setFeedback(result);
-        if (typeof result.total_topics === "number") {
-          setTotalTopics(result.total_topics);
-        }
-        if (typeof result.resolved_topics === "number") {
-          setResolvedTopics(result.resolved_topics);
-        }
-        if (typeof result.retry_queue_count === "number") {
-          setRetryQueueCount(result.retry_queue_count);
-        }
-        if (!result.correct) {
-          const variant: QuestionItem = result.retry_variant || {
-            ...currentQuestion,
-            question_id: `${currentQuestion.question_id}-retry`,
-            variant_of: currentQuestion.question_id,
-            is_variant: true,
-            choices: currentQuestion.choices.map(
-              (_, i) =>
-                currentQuestion.choices[
-                  (i + 1) % currentQuestion.choices.length
-                ],
-            ),
-          };
-          // Min gap rule: retry variant is queued after at least minGap remaining questions (or at end)
-          const gap = minGap ?? 2;
-          setQueue((prev) => {
-            const targetIdx = Math.min(prev.length, queueIndex + 1 + gap);
-            const next = [...prev];
-            next.splice(targetIdx, 0, variant);
-            return next;
+        try {
+          const result =
+            onAnswer.length >= 3
+              ? await onAnswer(
+                  currentQuestion.question_id,
+                  selectedChoice,
+                  opKey,
+                )
+              : await onAnswer(currentQuestion.question_id, selectedChoice);
+          setFeedback(result);
+          if (typeof result.total_topics === "number") {
+            setTotalTopics(result.total_topics);
+          }
+          if (typeof result.resolved_topics === "number") {
+            setResolvedTopics(result.resolved_topics);
+          }
+          if (typeof result.retry_queue_count === "number") {
+            setRetryQueueCount(result.retry_queue_count);
+          }
+          if (!result.correct) {
+            const variant: QuestionItem = result.retry_variant || {
+              ...currentQuestion,
+              question_id: `${currentQuestion.question_id}-retry`,
+              variant_of: currentQuestion.question_id,
+              is_variant: true,
+              choices: currentQuestion.choices.map(
+                (_, i) =>
+                  currentQuestion.choices[
+                    (i + 1) % currentQuestion.choices.length
+                  ],
+              ),
+            };
+            // Min gap rule: retry variant is queued after at least minGap remaining questions (or at end)
+            const gap = minGap ?? 2;
+            setQueue((prev) => {
+              const targetIdx = Math.min(prev.length, queueIndex + 1 + gap);
+              const next = [...prev];
+              next.splice(targetIdx, 0, variant);
+              return next;
+            });
+          }
+        } catch {
+          // Offline / network failure -> buffer answer
+          enqueueOfflineAnswer(effectiveLessonId, {
+            operation_key: opKey,
+            question_id: currentQuestion.question_id,
+            choice_index: selectedChoice,
+            choice_text: currentQuestion.choices[selectedChoice],
+          });
+          const count = getOfflineAnswers(effectiveLessonId).length;
+          setOfflineAnswerCount(count);
+
+          const isLastInQueue = queueIndex + 1 >= queue.length;
+          if (isLastInQueue) {
+            setWaitingToSync(true);
+            return;
+          }
+
+          setFeedback({
+            correct: true,
+            passed: false,
+            explanation:
+              "Answer saved offline. Verification will occur upon reconnection.",
           });
         }
       } else {
@@ -172,6 +311,7 @@ export function LessonTest({
     queue.length,
     totalTopics,
     minGap,
+    effectiveLessonId,
   ]);
 
   const handleContinue = useCallback(() => {
@@ -236,6 +376,161 @@ export function LessonTest({
     handleContinue,
     handleSelectChoice,
   ]);
+
+  if (waitingToSync) {
+    return (
+      <div
+        className="finish-screen waiting-to-sync"
+        style={{
+          maxWidth: "480px",
+          margin: "0 auto",
+          padding: "40px 20px 24px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          textAlign: "center",
+          gap: "16px",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            width: "120px",
+            height: "120px",
+            borderRadius: "50%",
+            background: "#FFF1D1",
+            color: "#704400",
+            boxShadow: "0 8px 0 #F1CD99",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ width: "60px", height: "60px" }}
+          >
+            <path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01" />
+          </svg>
+        </div>
+
+        <h2
+          style={{
+            margin: 0,
+            fontSize: "30px",
+            fontWeight: 900,
+            color: "#2B2B2B",
+            lineHeight: 1.1,
+          }}
+        >
+          Waiting to sync
+        </h2>
+        <p
+          style={{
+            margin: 0,
+            fontSize: "15px",
+            lineHeight: 1.45,
+            color: "#555",
+            fontWeight: 600,
+          }}
+        >
+          You answered every question. We'll verify your answers when you're
+          back online, then add XP and your streak.
+        </p>
+
+        <div
+          className="ban bwarn"
+          role="status"
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "10px",
+            padding: "12px 14px",
+            borderRadius: "14px",
+            backgroundColor: "#FFF7E6",
+            border: "2px solid #FFD591",
+            color: "#873800",
+            textAlign: "left",
+          }}
+        >
+          <div>
+            <b
+              style={{
+                display: "block",
+                fontSize: "14px",
+                marginBottom: "2px",
+              }}
+            >
+              Offline
+            </b>
+            <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.35 }}>
+              Saved lessons are still available. Progress will sync when
+              reconnected.
+            </p>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+            width: "100%",
+            marginTop: "16px",
+          }}
+        >
+          <button
+            type="button"
+            className="btn"
+            disabled={isSubmitting}
+            onClick={handleReplaySync}
+            style={{
+              width: "100%",
+              minHeight: "50px",
+              borderRadius: "16px",
+              backgroundColor: "#1F7A0D",
+              color: "#fff",
+              border: "none",
+              fontWeight: 900,
+              fontSize: "15px",
+              textTransform: "uppercase",
+              letterSpacing: "0.8px",
+              cursor: "pointer",
+            }}
+          >
+            {isSubmitting ? "Syncing..." : "Sync answers"}
+          </button>
+          <button
+            type="button"
+            className="btn sec"
+            onClick={() => {
+              if (onExit) onExit();
+              else window.location.href = `/course/${effectiveCourseId}`;
+            }}
+            style={{
+              width: "100%",
+              minHeight: "44px",
+              borderRadius: "14px",
+              backgroundColor: "#fff",
+              color: "#1667AB",
+              border: "2px solid #D3D3D3",
+              fontWeight: 800,
+              fontSize: "14px",
+              cursor: "pointer",
+            }}
+          >
+            Back to learn path
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (finished) {
     const nextStatus = feedback?.next_lesson_status;
@@ -565,6 +860,41 @@ export function LessonTest({
           Retry queue {retryQueueCount}
         </span>
       </div>
+
+      {offlineAnswerCount > 0 && (
+        <div
+          className="ban bwarn"
+          role="status"
+          style={{
+            marginBottom: "16px",
+            padding: "12px 14px",
+            borderRadius: "14px",
+            backgroundColor: "#FFF7E6",
+            border: "2px solid #FFD591",
+            color: "#873800",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+          }}
+        >
+          <div>
+            <b
+              style={{
+                display: "block",
+                fontSize: "14px",
+                marginBottom: "2px",
+              }}
+            >
+              Offline variant
+            </b>
+            <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.35 }}>
+              {offlineAnswerCount}{" "}
+              {offlineAnswerCount === 1 ? "answer is" : "answers are"} waiting
+              to be checked. You'll see results and XP when you reconnect.
+            </p>
+          </div>
+        </div>
+      )}
 
       {showRecap &&
       feedback?.recap_slides &&
@@ -971,17 +1301,23 @@ export function LessonTestRoute() {
       });
   }, [lessonId, tracerEnabled]);
 
-  const handleAnswer = async (questionId: string, choiceIndex: number) => {
+  const handleAnswer = async (
+    questionId: string,
+    choiceIndex: number,
+    operationKey: string | undefined,
+  ) => {
     track("lesson_test_submitted", {
       lesson_id: lessonId,
       choice_index: choiceIndex,
     });
     const currentQ = questions.find((q) => q.question_id === questionId);
+    const opKey = operationKey || generateOperationKey();
     const res = await authRequest<AnswerResult>(
       `/v1/lessons/${lessonId}/test/answer`,
       {
         question_id: questionId,
         choice_index: choiceIndex,
+        operation_key: opKey,
         ...(currentQ ? { choice_text: currentQ.choices[choiceIndex] } : {}),
       },
     );

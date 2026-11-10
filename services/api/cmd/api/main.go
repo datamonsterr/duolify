@@ -273,6 +273,7 @@ func run(ctx context.Context, args []string) (result error) {
 			MinGap:              cfg.LessonTestMinGap,
 			MaxVariantsPerTopic: cfg.LessonTestMaxVariantsPerTopic,
 			MaxVariantsPerTest:  cfg.LessonTestMaxVariantsPerTest,
+			SessionTTL:          cfg.LessonTestSessionTTL,
 		})
 	}
 	handler := httpapi.New(httpapi.Dependencies{
