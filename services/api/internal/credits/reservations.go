@@ -380,14 +380,20 @@ func (s *Service) Limits(ctx context.Context, owner, id, action string) (*engine
 
 // Release cancels only queued work; it cannot release another executor's running job.
 func (s *Service) Release(ctx context.Context, owner, id string) (Reservation, error) {
-	return s.finalize(ctx, owner, id, nil, true)
+	return s.finalize(ctx, owner, id, nil, true, nil)
 }
 
 // Settle is an internal trusted engine consumer; no public usage submission route exists.
 func (s *Service) Settle(ctx context.Context, owner, id string, usage []*enginev1.Usage) (Reservation, error) {
-	return s.finalize(ctx, owner, id, usage, false)
+	return s.finalize(ctx, owner, id, usage, false, nil)
 }
-func (s *Service) finalize(ctx context.Context, owner, id string, usage []*enginev1.Usage, cancel bool) (Reservation, error) {
+
+// SettleWith commits an accepted product and its ledger result in one transaction.
+// The callback cannot invoke providers and is run only for a new settlement.
+func (s *Service) SettleWith(ctx context.Context, owner, id string, usage []*enginev1.Usage, commit func(pgx.Tx, Reservation) error) (Reservation, error) {
+	return s.finalize(ctx, owner, id, usage, false, commit)
+}
+func (s *Service) finalize(ctx context.Context, owner, id string, usage []*enginev1.Usage, cancel bool, commit func(pgx.Tx, Reservation) error) (Reservation, error) {
 	if s.pool() == nil {
 		return Reservation{}, ErrReservation
 	}
@@ -543,12 +549,15 @@ func (s *Service) finalize(ctx context.Context, owner, id string, usage []*engin
 			return result, err
 		}
 	}
-	if len(usage) == 0 && state == "running" {
+	if len(usage) == 0 && state == "running" && q.Action != "character_create" {
 		if err = insertOutbox(ctx, tx, owner, id+":usage:unavailable", "$ai_generation", map[string]any{"source": "api", "platform": "web", "app_version": "development", "feature": q.Action, "pricing_version": q.PricingVersion, "provider": q.Rate.Provider, "model": q.Rate.Model, "usage_available": false, "succeeded": false, "provider_cost_nanos": hold, "error_code": "timeout"}); err != nil {
 			return result, err
 		}
 	}
 	for i, u := range usage {
+		if q.Action == "character_create" {
+			continue
+		} // Character jobs own late-attempt telemetry too.
 		properties := map[string]any{"source": "api", "platform": "web", "app_version": "development", "feature": q.Action, "pricing_version": q.PricingVersion, "provider": u.Provider, "model": u.Model, "input_tokens": u.InputTokens, "output_tokens": u.OutputTokens, "cache_write_tokens": u.CacheWriteTokens, "cache_read_tokens": u.CacheReadTokens, "narration_characters": u.NarrationCharacters, "fallback_used": u.FallbackUsed, "attempt": u.Attempt, "latency_ms": u.LatencyMs, "succeeded": u.Delivered && validationErr == nil, "usage_available": !u.UsageUnavailable}
 		if u.ErrorCode != "" {
 			properties["error_code"] = u.ErrorCode
@@ -557,6 +566,14 @@ func (s *Service) finalize(ctx context.Context, owner, id string, usage []*engin
 			properties["provider_cost_nanos"] = priced.CostNanos
 		}
 		if err = insertOutbox(ctx, tx, owner, fmt.Sprintf("%s:usage:%d", id, i), "$ai_generation", properties); err != nil {
+			return result, err
+		}
+	}
+	if commit != nil {
+		if validationErr != nil {
+			return result, validationErr
+		}
+		if err = commit(tx, result); err != nil {
 			return result, err
 		}
 	}

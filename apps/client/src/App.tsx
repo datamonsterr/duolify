@@ -22,6 +22,8 @@ import { RouteGuard } from "./features/accounts/RouteGuard";
 import { SetupProfile } from "./features/accounts/LearnerProfile";
 import { AccountProfile } from "./features/accounts/AccountProfile";
 import { Settings } from "./features/accounts/Settings";
+import { CharacterLibrary } from "./features/characters/CharacterLibrary";
+import { CourseCast } from "./features/characters/CourseCast";
 import { LearnPath } from "./LearnPath";
 import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
 import { LessonTestRoute } from "./features/lessontest/LessonTest";
@@ -223,6 +225,20 @@ const sessions = createRoute({
   path: "/settings/sessions",
   component: Sessions,
 });
+const characterSettings = createRoute({
+  getParentRoute: () => root,
+  path: "/settings/characters",
+  component: CharacterLibrary,
+});
+const courseCast = createRoute({
+  getParentRoute: () => root,
+  path: "/courses/$courseId/cast",
+  component: CourseCastRoute,
+});
+function CourseCastRoute() {
+  const { courseId } = useParams({ from: "/courses/$courseId/cast" });
+  return <CourseCast courseId={courseId} />;
+}
 const streak = createRoute({
   getParentRoute: () => root,
   path: "/streak",
@@ -261,6 +277,8 @@ export const createAppRouter = (history?: RouterHistory) =>
       notes,
       bookmarks,
       settings,
+      characterSettings,
+      courseCast,
       sessions,
       streak,
       lessonTest,

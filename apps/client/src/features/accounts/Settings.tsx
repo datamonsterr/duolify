@@ -346,6 +346,9 @@ export function Settings() {
       <a className="shell-link" href="/settings/sessions">
         {t("settings.sessions")}
       </a>
+      <a className="shell-link" href="/settings/characters">
+        Private characters
+      </a>
     </section>
   );
 }

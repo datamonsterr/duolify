@@ -114,7 +114,13 @@ export function track(
     | "lesson_generated"
     | "lesson_test_started"
     | "lesson_test_submitted"
-    | "lesson_test_passed",
+    | "lesson_test_passed"
+    | "lesson_test_answer_wrong"
+    | "retry_variant_queued"
+    | "retry_variant_served"
+    | "retry_variant_answered"
+    | "lesson_test_recap_shown"
+    | "ui_test_retry_presented",
   properties: Record<string, string | number>,
 ) {
   if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
@@ -489,6 +495,12 @@ export function trackCourseRecovery(
     /* Telemetry failure never blocks recovery. */
   }
 }
+
+export {
+  trackCharacterRendered,
+  trackCharacterRenderFallback,
+  resetCharacterRenderDeduplication,
+} from "../features/characters/analytics";
 
 // E3-01 catalogue: authorized-lesson-manifest/specs/lesson-player/spec.md.
 // Deliberately closed projection: no captions, titles, drafts, HTML or URLs.

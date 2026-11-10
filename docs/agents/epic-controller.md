@@ -44,6 +44,10 @@ An epic controller is a Claude session that owns one epic (`E<n>`) end to end. I
 - Every new table linked to a learner needs an export/deletion policy in `services/api/internal/accounts/privacy.go` (the E1-07 coverage test fails otherwise).
 - No PRs, no report files in the repo; report in the final message.
 
+## Host resources
+
+Parallel epics share one disk and a small `/tmp` tmpfs. Rust agents use `CARGO_TARGET_DIR=/home/dat/.cache/<epic>-target` and `RUSTC_WRAPPER=` (empty); nothing large goes in `/tmp`. Delete your target dirs and extra Go caches when the epic finishes. On "no space left on device", stop and tell the parent rather than retrying. If you see "no field `deadline_unix_ms`" (stale generated proto), run `cargo clean -p engine-proto`.
+
 ## Never
 
 Merge into `main` or `impl/mvp`, force-push, open PRs, deploy, create paid resources, or commit secrets.

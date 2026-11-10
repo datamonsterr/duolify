@@ -43,6 +43,7 @@ type Dependencies struct {
 	Credits                 http.Handler
 	Player                  http.Handler
 	Eval                    http.Handler
+	Characters              http.Handler
 	LessonTestTracerEnabled bool
 	LessonTest              http.Handler
 	Accounts                interface {
@@ -165,9 +166,48 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			"lesson_test_tracer_enabled": deps.LessonTestTracerEnabled,
 		})
 	})
+	if deps.Characters != nil {
+		mux.Handle("GET /v1/characters/default-cast", deps.Characters)
+		if deps.Accounts != nil {
+			mux.Handle("/v1/characters", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("POST /v1/characters/jobs", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("GET /v1/characters/jobs/{jobId}", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("DELETE /v1/characters/jobs/{jobId}", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("POST /v1/characters/jobs/{jobId}/confirm", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("GET /v1/characters/creation", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("GET /v1/characters/{id}", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("PATCH /v1/characters/{id}", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("DELETE /v1/characters/{id}", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("GET /v1/courses/{id}/cast", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("PUT /v1/courses/{id}/cast", deps.Accounts.Protect(deps.Characters))
+		}
+		mux.Handle("/v1/characters/", deps.Characters)
+		if deps.Accounts != nil {
+			mux.Handle("/v1/courses/{courseId}/lessons/", deps.Accounts.Protect(deps.Characters))
+		}
+	}
+	var lessonsHandler http.Handler
+	if deps.Characters != nil {
+		lessonsHandler = deps.Characters
+	}
 	if deps.LessonTestTracerEnabled && deps.LessonTest != nil && deps.Accounts != nil {
-		mux.Handle("/v1/lessons/", deps.Accounts.Protect(deps.LessonTest))
+		testProtected := deps.Accounts.Protect(deps.LessonTest)
+		if lessonsHandler != nil {
+			charHandler := lessonsHandler
+			lessonsHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasSuffix(r.URL.Path, "/manifest") {
+					charHandler.ServeHTTP(w, r)
+					return
+				}
+				testProtected.ServeHTTP(w, r)
+			})
+		} else {
+			lessonsHandler = testProtected
+		}
 		mux.Handle("/v1/lesson-generations/", deps.Accounts.Protect(deps.LessonTest))
+	}
+	if lessonsHandler != nil {
+		mux.Handle("/v1/lessons/", lessonsHandler)
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

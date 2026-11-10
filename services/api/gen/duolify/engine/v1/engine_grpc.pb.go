@@ -19,6 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	EngineService_ScreenCharacter_FullMethodName       = "/duolify.engine.v1.EngineService/ScreenCharacter"
+	EngineService_MapCharacter_FullMethodName          = "/duolify.engine.v1.EngineService/MapCharacter"
 	EngineService_Health_FullMethodName                = "/duolify.engine.v1.EngineService/Health"
 	EngineService_PreviewCourse_FullMethodName         = "/duolify.engine.v1.EngineService/PreviewCourse"
 	EngineService_GenerateCourseOutline_FullMethodName = "/duolify.engine.v1.EngineService/GenerateCourseOutline"
@@ -38,6 +40,9 @@ const (
 // EngineService is the private AI engine. Only services/api calls it.
 // The engine is stateless: every request carries the context it needs.
 type EngineServiceClient interface {
+	// ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
+	ScreenCharacter(ctx context.Context, in *ScreenCharacterRequest, opts ...grpc.CallOption) (*ScreenCharacterResponse, error)
+	MapCharacter(ctx context.Context, in *MapCharacterRequest, opts ...grpc.CallOption) (*MapCharacterResponse, error)
 	// Health reports readiness and configured providers.
 	Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
 	// PreviewCourse returns a sample outline and example slides before the learner commits.
@@ -66,6 +71,26 @@ type engineServiceClient struct {
 
 func NewEngineServiceClient(cc grpc.ClientConnInterface) EngineServiceClient {
 	return &engineServiceClient{cc}
+}
+
+func (c *engineServiceClient) ScreenCharacter(ctx context.Context, in *ScreenCharacterRequest, opts ...grpc.CallOption) (*ScreenCharacterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ScreenCharacterResponse)
+	err := c.cc.Invoke(ctx, EngineService_ScreenCharacter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *engineServiceClient) MapCharacter(ctx context.Context, in *MapCharacterRequest, opts ...grpc.CallOption) (*MapCharacterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MapCharacterResponse)
+	err := c.cc.Invoke(ctx, EngineService_MapCharacter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *engineServiceClient) Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error) {
@@ -193,6 +218,9 @@ func (c *engineServiceClient) OutlineChatChange(ctx context.Context, in *Outline
 // EngineService is the private AI engine. Only services/api calls it.
 // The engine is stateless: every request carries the context it needs.
 type EngineServiceServer interface {
+	// ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
+	ScreenCharacter(context.Context, *ScreenCharacterRequest) (*ScreenCharacterResponse, error)
+	MapCharacter(context.Context, *MapCharacterRequest) (*MapCharacterResponse, error)
 	// Health reports readiness and configured providers.
 	Health(context.Context, *HealthRequest) (*HealthResponse, error)
 	// PreviewCourse returns a sample outline and example slides before the learner commits.
@@ -223,6 +251,12 @@ type EngineServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedEngineServiceServer struct{}
 
+func (UnimplementedEngineServiceServer) ScreenCharacter(context.Context, *ScreenCharacterRequest) (*ScreenCharacterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ScreenCharacter not implemented")
+}
+func (UnimplementedEngineServiceServer) MapCharacter(context.Context, *MapCharacterRequest) (*MapCharacterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method MapCharacter not implemented")
+}
 func (UnimplementedEngineServiceServer) Health(context.Context, *HealthRequest) (*HealthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Health not implemented")
 }
@@ -272,6 +306,42 @@ func RegisterEngineServiceServer(s grpc.ServiceRegistrar, srv EngineServiceServe
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&EngineService_ServiceDesc, srv)
+}
+
+func _EngineService_ScreenCharacter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ScreenCharacterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).ScreenCharacter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_ScreenCharacter_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).ScreenCharacter(ctx, req.(*ScreenCharacterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EngineService_MapCharacter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MapCharacterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).MapCharacter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_MapCharacter_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).MapCharacter(ctx, req.(*MapCharacterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _EngineService_Health_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -447,6 +517,14 @@ var EngineService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "duolify.engine.v1.EngineService",
 	HandlerType: (*EngineServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ScreenCharacter",
+			Handler:    _EngineService_ScreenCharacter_Handler,
+		},
+		{
+			MethodName: "MapCharacter",
+			Handler:    _EngineService_MapCharacter_Handler,
+		},
 		{
 			MethodName: "Health",
 			Handler:    _EngineService_Health_Handler,

@@ -1,0 +1,183 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "rig_version",
+    "info",
+    "personality",
+    "appearance",
+    "expressions",
+    "voice_key"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "rig_version": {
+      "type": "string",
+      "const": "original-v1"
+    },
+    "info": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "bio",
+        "backstory"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "bio": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 280
+        },
+        "backstory": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 800
+        }
+      }
+    },
+    "personality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "traits",
+        "speaking_style",
+        "persona_prompt"
+      ],
+      "properties": {
+        "traits": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "minItems": 1,
+          "maxItems": 5,
+          "uniqueItems": true
+        },
+        "speaking_style": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "persona_prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    },
+    "appearance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "body_shape",
+        "palette",
+        "eyes",
+        "mouth",
+        "accessories"
+      ],
+      "properties": {
+        "body_shape": {
+          "type": "string",
+          "enum": [
+            "round",
+            "bean",
+            "star"
+          ]
+        },
+        "palette": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "body",
+            "accent",
+            "outline"
+          ],
+          "properties": {
+            "body": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            },
+            "accent": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            },
+            "outline": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            }
+          }
+        },
+        "eyes": {
+          "type": "string",
+          "enum": [
+            "round",
+            "oval",
+            "sleepy"
+          ]
+        },
+        "mouth": {
+          "type": "string",
+          "enum": [
+            "smile",
+            "line",
+            "open"
+          ]
+        },
+        "accessories": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "glasses",
+              "scarf",
+              "hat",
+              "badge"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 2,
+          "uniqueItems": true
+        }
+      }
+    },
+    "expressions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "idle",
+          "happy",
+          "sad",
+          "thinking",
+          "celebrate"
+        ]
+      },
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true
+    },
+    "voice_key": {
+      "type": "string",
+      "enum": [
+        "voice-provisional-guide",
+        "voice-provisional-supporter",
+        "voice-provisional-companion"
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:duolify:character-spec:v1",
+  "$comment": "Provisional original rig and logical fixture voice keys only. Cross-field contrast, 8 KiB and 2400 code point bounds are enforced by validators. All four accessories occupy distinct rig parts and any unique pair is compatible."
+}

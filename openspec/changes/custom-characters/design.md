@@ -104,8 +104,86 @@ Implementation first ships schema/rig/built-ins and additive stores behind a fla
 
 ## Open Questions
 
+### E17-03 scoped implementation review
+
+S23 Settings hosts the private library and S04 Create/Course hosts a Course Cast
+link. The shared Components buttons, outlined cards, spacing, typography and
+light/dark tokens extend these boards; the boards do not already draw Character
+controls. Desktop uses library cards and a two-column structured editor; mobile
+opens the same editor as a separate step with Cancel and free Save. Native selects,
+labelled controls, all five static expression previews, focus return, a trapped
+delete-confirmation dialog, loading/empty/connect-and-retry states and preserved
+drafts cover keyboard/touch and reduced motion. Preview uses a scriptless sandbox
+and `default-src 'none'`; character text never becomes executable markup.
+
+The original three v1 built-ins, names and logical voices remain explicitly
+PROVISIONAL. The flag defaults off, including `.env.example`. Free editing has no
+Pricing/ledger dependency, while prompt creation remains unavailable. Live semantic
+screening is disabled without E10-06 feature evidence; offline development uses
+explicit mock-provider injection. A closed canonical schema is retained at
+`services/api/internal/characters/schema/v1.json` and consumed by all three stacks.
+All four accessory kinds occupy separate rig parts, so any unique pair is
+compatible; the existing two-accessory cap remains. No new art or voice rights are
+implied. Screens only edit logical voice keys; actual synthesis is E17-08.
+
+The screening envelope is platform operational policy (not a Credit price): ten
+seconds at the API (nine seconds in the Engine), two attempts maximum under the existing E10 launch clamp, 200 output
+tokens and 0.05 USD worst-case ceiling. All usage attempts are reported without
+content. Model/provider activation remains closed in production. Offline fixture
+tasks require 1.00 correctness (stricter than aggregate minimums); publish the same
+cases at a pinned HF revision when E10-01 provisions it, with no invented revision.
+
+Private writes use a committed attempt before validation and compare-and-swap
+version replacement after screening. Database learner-row locks bound concurrent
+quota/count races. Immutable independent snapshots and bundled versioned rigs
+survive private deletion; no new S3 assets require regeneration on restore.
+
+
 1. Approve `character_create` price, Daily free credits eligibility and protected provider-cost ceiling in a new Pricing config version; creation remains disabled until then.
 2. Final Default cast names/art, precise rig controls, palette/accessory constraints and supported learner age policy.
 3. Validate proposed count/rate/text/token limits and adherence/screening thresholds against a representative Golden set.
 4. Confirm per-language voice availability and ElevenLabs redistribution rights for E15; approve the voice allowlist/default mappings.
 5. Consider a direct Cast-driven fork flow for published Course copies later; v1 uses the published Cast until the existing steering fork.
+
+## E17-04 implementation defaults and scoped design review
+
+Owner direction permits creation behind `character_create` without approving a
+price. `usd-dev-character-create-unapproved` is a labelled UNAPPROVED mock-only
+proposal stored in Pricing config; no approved E12 commercial term changes.
+Production requires an approved active version with a supported key, limits,
+rates and eligibility; absent support disables Create/Regenerate while retaining
+free structured edits and built-in selection. No environment value promotes a
+live Character provider without E10-06 feature evidence.
+
+S23 provides the Settings host, S04 the bounded entry/confirmation progression,
+and S17 the credit ceiling/version confirmation. Their canvases do not already
+draw the new Character states. The scoped extension uses existing token-based
+cards/buttons, one column on mobile, wrapped controls, safe preview iframes,
+plain-text long content and reduced-motion static previews. Entry discloses AI,
+private prompt handling and original-only art. Quote review shows the server's
+version, ceiling, expiry and explicit UNAPPROVED proposal label in development.
+Pending jobs expose reconnect/retry and cancellation; rejection, rate/count,
+insufficient balance and provider failures retain the old version and offer free
+Default cast through Course selection. Keyboard labels, visible focus, dark/light
+colors and mobile target sizes inherit the shared design tokens.
+
+Requests have learner-scoped keys. A row lock serializes quota/count reservations
+(rolling 24 hours and one minute); rejected requests consume attempt quota without
+mapping spend. Pending creates hold one ownership slot. API background work claims
+one confirmed reservation; persistence, current-version replacement, settlement
+and success outbox commit atomically. A cancelled/failed job cannot become paid
+success. The 90-second confirmed execution deadline cannot restart after reconnect,
+and every mapping attempt is capped at 45 seconds and 2,000 output tokens; at most
+one repair OR fallback follows primary. Runtime live mapping remains disabled.
+
+`character_create_jobs` stores only transient raw prompt payloads, opaque
+quote/reservation links and immutable accepted results. Prompts are erased on
+terminal outcome or within 24 hours (also before backups); screening verdicts
+expire in 30 days. Private job results follow Character/account erasure, while
+independent Lesson snapshots retain their lifecycle and financial rows keep opaque
+seven-year references. Restore reuses job/result/ledger keys and never remaps a
+terminal job. API mapping/screening events exclude all private text; creation
+outcomes are deduplicated transactionally in the existing financial outbox.
+Offline recorded `character_spec`, `character_screen`, `character_injection`
+cases require every deterministic check to pass; live dataset promotion remains
+gated by E10-06, as recorded in ADR 0011.
