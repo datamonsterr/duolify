@@ -59,3 +59,7 @@ E9-01 implemented raw quick note saving and offline syncing. E9-02 implemented g
   - "Delete" button removes note with confirmation.
 - **States & Accessibility**:
   - Loading, empty ("Keep an idea from your next lesson..."), no-results ("0 notes match... Clear filters"), offline/error ("Waiting to sync"), long content, keyboard/focus, light/dark, and reduced motion.
+## Review correction: edit concurrency
+
+PATCH requires an expected_version of at least one and compares it only with the note's version. raw_version is reserved for enrichment freshness and cannot authorize edits. Raw edits and their unique River enrichment job commit together; queue failures leave the previous text and version intact. Existing backup, account export/deletion and analytics policies remain applicable.
+

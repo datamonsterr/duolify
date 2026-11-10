@@ -124,7 +124,7 @@ SET raw_text = $3,
     raw_version = raw_version + 1,
     status = 'enrichment_pending',
     updated_at = now()
-WHERE id = $1 AND learner_id = $2 AND (version = $4 OR raw_version = $4 OR $4 = 0)
+WHERE id = $1 AND learner_id = $2 AND version = $4 AND $4 >= 1
 RETURNING id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, reviewed_at, version, raw_version, created_at, updated_at;
 
 -- name: MarkQuickNoteReviewed :one

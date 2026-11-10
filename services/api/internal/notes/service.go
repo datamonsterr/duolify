@@ -310,49 +310,6 @@ func (s *Service) ListNotes(ctx context.Context, learnerID string) ([]NoteDTO, e
 	return dtos, nil
 }
 
-// UpdateNoteRawText updates a quick note's raw text, increments raw_version, and sets status back to enrichment_pending.
-func (s *Service) UpdateNoteRawText(ctx context.Context, learnerID, noteID, rawText string) error {
-	trimmed := strings.TrimSpace(rawText)
-	if trimmed == "" {
-		return ErrInvalidText
-	}
-	if len(rawText) > 2000 {
-		return ErrTextTooLong
-	}
-	learnerUUID, err := parseUUID(learnerID)
-	if err != nil {
-		return errors.New("invalid learner id")
-	}
-	noteUUID, err := parseUUID(noteID)
-	if err != nil {
-		return ErrNotFound
-	}
-
-	res, err := s.queries.UpdateQuickNoteRawText(ctx, db.UpdateQuickNoteRawTextParams{
-		ID:        noteUUID,
-		RawText:   rawText,
-		LearnerID: learnerUUID,
-	})
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		return err
-	}
-
-	if s.riverClient != nil {
-		_, _ = s.riverClient.Insert(ctx, NoteEnrichArgs{
-			LearnerID:       learnerID,
-			NoteID:          noteID,
-			ExpectedVersion: int(res.RawVersion),
-		}, &river.InsertOpts{
-			Queue: "notes",
-		})
-	}
-
-	return nil
-}
-
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	learnerID := accounts.LearnerID(r.Context())
 	if learnerID == "" {
@@ -442,15 +399,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusBadRequest, "invalid request body")
 			return
 		}
-		var note *NoteDTO
-		var err error
-		if in.ExpectedVersion > 0 {
-			note, err = s.UpdateNote(r.Context(), learnerID, path, in)
-		} else {
-			if err = s.UpdateNoteRawText(r.Context(), learnerID, path, in.RawText); err == nil {
-				note, err = s.GetNote(r.Context(), learnerID, path)
-			}
-		}
+		note, err := s.UpdateNote(r.Context(), learnerID, path, in)
 		if err != nil {
 			switch {
 			case errors.Is(err, ErrConflict):

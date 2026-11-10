@@ -3,6 +3,7 @@ package notes
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
@@ -78,7 +79,16 @@ func (s *Service) UpdateNote(ctx context.Context, learnerID, noteID string, inpu
 		return nil, ErrConflict
 	}
 
-	_, err = s.queries.UpdateQuickNoteRawText(ctx, db.UpdateQuickNoteRawTextParams{
+	queue, err := s.NotesQueue(slog.Default())
+	if err != nil {
+		return nil, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	updated, err := s.queries.WithTx(tx).UpdateQuickNoteRawText(ctx, db.UpdateQuickNoteRawTextParams{
 		ID:        noteUUID,
 		LearnerID: learnerUUID,
 		RawText:   input.RawText,
@@ -88,6 +98,13 @@ func (s *Service) UpdateNote(ctx context.Context, learnerID, noteID string, inpu
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrConflict
 		}
+		return nil, err
+	}
+
+	if _, err = queue.InsertTx(ctx, tx, NoteEnrichArgs{NoteID: noteID, LearnerID: learnerID, ExpectedVersion: int(updated.RawVersion)}, nil); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 

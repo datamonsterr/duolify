@@ -16,9 +16,12 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/datamonsterr/duolify/services/api/internal/store/db"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"google.golang.org/grpc"
@@ -27,6 +30,32 @@ import (
 type reviewEngine struct {
 	enginev1.EngineServiceClient
 	enrich func(context.Context, *enginev1.EnrichNoteRequest) (*enginev1.EnrichNoteResponse, error)
+}
+
+func TestNotesReviewSQLRequiresCurrentVersion(t *testing.T) {
+	database := reviewDatabase(t)
+	learner, _ := reviewLearner(t, database)
+	service := notes.NewService(database.Pool, nil)
+	note, err := service.SaveNote(t.Context(), learner, notes.SaveNoteInput{ActionKey: uuid.NewString(), Source: "chat", RawText: "Original"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = database.Pool.Exec(t.Context(), "UPDATE quick_notes SET version=5,raw_version=1 WHERE id=$1", note.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, version := range []int32{0, 1} {
+		_, err = database.Queries.UpdateQuickNoteRawText(t.Context(), db.UpdateQuickNoteRawTextParams{ID: pgtype.UUID{Bytes: uuid.MustParse(note.ID), Valid: true}, LearnerID: pgtype.UUID{Bytes: uuid.MustParse(learner), Valid: true}, RawText: "Blind overwrite", Version: version})
+		if !errors.Is(err, pgx.ErrNoRows) {
+			t.Errorf("version %d update got %v; want no row", version, err)
+		}
+	}
+	refreshed, err := service.GetNote(t.Context(), learner, note.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.Version != 5 || refreshed.RawText != "Original" {
+		t.Error("invalid version changed note")
+	}
 }
 
 func TestNotesReviewEnrichmentClaim(t *testing.T) {

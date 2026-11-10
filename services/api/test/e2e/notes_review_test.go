@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,5 +70,45 @@ func TestNotesReviewForeignEnrichDoesNotBillOwner(t *testing.T) {
 	}
 	if jobs != 0 {
 		t.Errorf("foreign enrich created %d reservations, want 0", jobs)
+	}
+}
+
+func TestNotesReviewPatchRequiresVersion(t *testing.T) {
+	auth, token, database := signedInDatabase(t)
+	claims, err := auth.ParseAccess(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = worker.Migrate(t.Context(), database.Pool, slog.Default()); err != nil {
+		t.Fatal(err)
+	}
+	service := notes.NewService(database.Pool, nil)
+	server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, Notes: service}, slog.New(slog.NewTextHandler(io.Discard, nil))))
+	defer server.Close()
+	for _, body := range []string{`{"raw_text":"Blind overwrite"}`, `{"raw_text":"Blind overwrite","expected_version":0}`, `{"raw_text":"Blind overwrite","expected_version":-1}`} {
+		note, e := service.SaveNote(t.Context(), claims.Subject, notes.SaveNoteInput{ActionKey: uuid.NewString(), Source: "chat", RawText: "Original"})
+		if e != nil {
+			t.Fatal(e)
+		}
+		req, e := http.NewRequestWithContext(t.Context(), http.MethodPatch, server.URL+"/v1/notes/"+note.ID, strings.NewReader(body))
+		if e != nil {
+			t.Fatal(e)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		response, e := server.Client().Do(req)
+		if e != nil {
+			t.Fatal(e)
+		}
+		_ = response.Body.Close()
+		if response.StatusCode != http.StatusBadRequest {
+			t.Errorf("PATCH %s returned %d; want 400", body, response.StatusCode)
+		}
+		refreshed, e := service.GetNote(t.Context(), claims.Subject, note.ID)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if refreshed.RawText != "Original" || refreshed.Version != note.Version {
+			t.Error("invalid version overwrote note")
+		}
 	}
 }

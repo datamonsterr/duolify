@@ -255,7 +255,7 @@ func TestResumePendingEnrichmentWhenCreditsArriveIntegration(t *testing.T) {
 		}
 
 		// Edit Note C raw text, bumping raw_version
-		err = notesSvc.UpdateNoteRawText(ctx, learnerID, noteC.ID, "Edited text after queueing")
+		_, err = notesSvc.UpdateNote(ctx, learnerID, noteC.ID, notes.UpdateNoteInput{RawText: "Edited text after queueing", ExpectedVersion: noteC.Version})
 		if err != nil {
 			t.Fatalf("UpdateNoteRawText failed: %v", err)
 		}
