@@ -13,7 +13,7 @@ Course, Unit, Lesson stub, enrollment and generated Lesson rows MUST live in Pos
 - **THEN** the Course, Units, Stubs, Enrollments and unreferenced Creations are purged from Postgres
 
 ### Requirement: Generation is a background job
-Generation SHALL run as a River job, never on the request path. A job MUST be idempotent per Lesson: a retry MUST NOT create a second Lesson or charge Credits twice. Outline creation jobs MUST support authenticated SSE reconnection, automatic terminal failure recovery on deadline expiry, and retry only with fresh quote consent. River cancellation, worker restart, and duplicate job deliveries MUST not produce duplicate enrollments or double charges.
+Generation SHALL run as a River job, never on the request path. A job MUST be idempotent per Lesson: a retry MUST NOT create a second Lesson or charge Credits twice. Outline creation jobs MUST support authenticated SSE reconnection, automatic terminal failure recovery on deadline expiry, and retry only with fresh quote consent. GET and SSE reads SHALL NOT transition jobs or settle Credits. A periodic worker reaper SHALL expire abandoned queued/generating creations and pending proposals using expected-state guards. Validated creation recovery SHALL idempotently complete persistence without repeating provider work, including legacy settled creations with no Course. New settlement SHALL atomically persist the Course, Units, Lesson stubs and enrollment in the Credits transaction. River cancellation, worker restart, and duplicate job deliveries MUST not produce duplicate enrollments or double charges.
 
 #### Scenario: Creation worker restarts or disconnects
 - **WHEN** a client disconnects or worker restarts during course creation
@@ -32,3 +32,11 @@ The system SHALL preserve confirmed briefs, working manual outline edits, undo h
 #### Scenario: Stale proposal recovery
 - **WHEN** an outline proposal failed or timed out during disconnect
 - **THEN** the outline remains intact, reserved proposal credits are released, and no proposal changes are silently applied
+
+#### Scenario: Persistence fails after validation
+- **WHEN** course persistence fails after the engine response is validated
+- **THEN** the settlement and product writes roll back together, and periodic recovery retries the durable response with exactly one enrollment and charge
+
+#### Scenario: Expiry competes with a worker
+- **WHEN** an expired creation or proposal is read while its worker and the reaper compete
+- **THEN** reads leave state and Credits untouched, and only the expected-state winner can settle delivery or release failure

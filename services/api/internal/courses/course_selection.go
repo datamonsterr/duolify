@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -170,13 +171,42 @@ func (s *Service) ServeCourseSelectHTTP(w http.ResponseWriter, r *http.Request) 
 		courseID = strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/courses/"), "/select")
 	}
 
-	tag, err := s.opts.Pool.Exec(r.Context(), `UPDATE course_enrollments SET last_active_at=now() WHERE learner_id::text=$1 AND course_id::text=$2`, owner, courseID)
-	if err != nil || tag.RowsAffected() == 0 {
+	ctx := r.Context()
+	tx, err := s.opts.Pool.Begin(ctx)
+	if err != nil {
+		outlineError(w, 503)
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	// Lock the course against concurrent soft deletion through commit.
+	var locked string
+	err = tx.QueryRow(ctx, `SELECT c.id::text FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE e.learner_id::text=$1 AND c.id::text=$2 AND c.deleted_at IS NULL FOR UPDATE OF c`, owner, courseID).Scan(&locked)
+	if errors.Is(err, pgx.ErrNoRows) {
 		outlineError(w, 404)
 		return
 	}
-
-	_, _ = s.opts.Pool.Exec(r.Context(), `UPDATE learner_profiles SET active_course_id=$2::uuid WHERE learner_id::text=$1`, owner, courseID)
+	if err != nil {
+		outlineError(w, 503)
+		return
+	}
+	tag, err := tx.Exec(ctx, `UPDATE course_enrollments SET last_active_at=now() WHERE learner_id::text=$1 AND course_id::text=$2`, owner, courseID)
+	if err != nil {
+		outlineError(w, 503)
+		return
+	}
+	if tag.RowsAffected() != 1 {
+		outlineError(w, 404)
+		return
+	}
+	tag, err = tx.Exec(ctx, `UPDATE learner_profiles SET active_course_id=$2::uuid WHERE learner_id::text=$1`, owner, courseID)
+	if err != nil || tag.RowsAffected() != 1 {
+		outlineError(w, 503)
+		return
+	}
+	if err = tx.Commit(ctx); err != nil {
+		outlineError(w, 503)
+		return
+	}
 
 	respond(w, 200, map[string]any{
 		"active_course_id": courseID,
@@ -204,21 +234,51 @@ func (s *Service) ServeCourseLevelHTTP(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Level *string `json:"level"`
 	}
-	if r.Body != nil {
-		_ = json.NewDecoder(r.Body).Decode(&in)
-	}
-	level := ""
-	if in.Level != nil {
-		level = strings.TrimSpace(*in.Level)
-	}
-	if err := ValidateCourseLevel(level); err != nil {
+
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&in) != nil || in.Level == nil {
 		outlineError(w, 400)
 		return
 	}
-
-	tag, err := s.opts.Pool.Exec(r.Context(), `UPDATE course_enrollments SET level_override=$3 WHERE learner_id::text=$1 AND course_id::text=$2`, owner, courseID, level)
-	if err != nil || tag.RowsAffected() == 0 {
+	var extra any
+	if decoder.Decode(&extra) != io.EOF {
+		outlineError(w, 400)
+		return
+	}
+	level := *in.Level
+	if ValidateCourseLevel(level) != nil {
+		outlineError(w, 400)
+		return
+	}
+	ctx := r.Context()
+	tx, err := s.opts.Pool.Begin(ctx)
+	if err != nil {
+		outlineError(w, 503)
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var locked string
+	err = tx.QueryRow(ctx, `SELECT c.id::text FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE e.learner_id::text=$1 AND c.id::text=$2 AND c.deleted_at IS NULL FOR UPDATE OF c`, owner, courseID).Scan(&locked)
+	if errors.Is(err, pgx.ErrNoRows) {
 		outlineError(w, 404)
+		return
+	}
+	if err != nil {
+		outlineError(w, 503)
+		return
+	}
+	tag, err := tx.Exec(ctx, `UPDATE course_enrollments SET level_override=$3 WHERE learner_id::text=$1 AND course_id::text=$2`, owner, courseID, level)
+	if err != nil {
+		outlineError(w, 503)
+		return
+	}
+	if tag.RowsAffected() != 1 {
+		outlineError(w, 404)
+		return
+	}
+	if err = tx.Commit(ctx); err != nil {
+		outlineError(w, 503)
 		return
 	}
 

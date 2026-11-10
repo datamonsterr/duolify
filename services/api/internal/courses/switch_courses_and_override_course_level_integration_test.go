@@ -343,4 +343,62 @@ func TestSwitchCoursesAndOverrideCourseLevelIntegration(t *testing.T) {
 	if globalLevel != "beginner" {
 		t.Fatalf("expected global profile level to remain 'beginner', got %s", globalLevel)
 	}
+	t.Run("E2 strict level bodies preserve current override", func(t *testing.T) {
+		if _, e := db.Pool.Exec(ctx, `UPDATE course_enrollments SET level_override='advanced' WHERE course_id=$1`, course1ID); e != nil {
+			t.Fatal(e)
+		}
+		for _, body := range []string{"", `{}`, `null`, `{"level":null}`, `{"level":"beginner","unknown":1}`, `{"level":"beginner"} {}`, `{"level":`, `{"level":"invalid"}`, `{"level":"beginner"}` + strings.Repeat(" ", 8192), `{"level":"` + strings.Repeat("a", 8192) + `"}`} {
+			req, e := http.NewRequestWithContext(ctx, "POST", server.URL+"/v1/courses/"+course1ID+"/level", strings.NewReader(body))
+			if e != nil {
+				t.Fatal(e)
+			}
+			req.Header.Set("Authorization", "Bearer "+tokenA)
+			resp, e := server.Client().Do(req)
+			if e != nil {
+				t.Fatal(e)
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode != 400 {
+				t.Errorf("invalid body of length %d accepted: %d", len(body), resp.StatusCode)
+			}
+		}
+		var level string
+		if e := db.Pool.QueryRow(ctx, `SELECT level_override FROM course_enrollments WHERE course_id=$1`, course1ID).Scan(&level); e != nil || level != "advanced" {
+			t.Fatal("invalid body reset override", level, e)
+		}
+	})
+
+	t.Run("E2 profile update failure rolls back selection", func(t *testing.T) {
+		var before time.Time
+		if e := db.Pool.QueryRow(ctx, `SELECT last_active_at FROM course_enrollments WHERE course_id=$1`, course1ID).Scan(&before); e != nil {
+			t.Fatal(e)
+		}
+		if _, e := db.Pool.Exec(ctx, `CREATE FUNCTION reject_e2_selection() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected profile failure'; END $$; CREATE TRIGGER reject_e2_selection BEFORE UPDATE OF active_course_id ON learner_profiles FOR EACH ROW EXECUTE FUNCTION reject_e2_selection()`); e != nil {
+			t.Fatal(e)
+		}
+		code, _ := call("POST", "/v1/courses/"+course1ID+"/select", nil, tokenA)
+		if _, e := db.Pool.Exec(ctx, `DROP TRIGGER reject_e2_selection ON learner_profiles; DROP FUNCTION reject_e2_selection()`); e != nil {
+			t.Fatal(e)
+		}
+		if code < 500 {
+			t.Error("profile update failure ignored", code)
+		}
+		var after time.Time
+		if e := db.Pool.QueryRow(ctx, `SELECT last_active_at FROM course_enrollments WHERE course_id=$1`, course1ID).Scan(&after); e != nil || !after.Equal(before) {
+			t.Error("partial selection committed", before, after, e)
+		}
+	})
+	t.Run("E2 deleted courses are neutral 404", func(t *testing.T) {
+		if _, e := db.Pool.Exec(ctx, `UPDATE courses SET deleted_at=now() WHERE id=$1`, course1ID); e != nil {
+			t.Fatal(e)
+		}
+		for _, action := range []string{"select", "level"} {
+			for _, tok := range []string{tokenA, tokenB} {
+				if code, out := call("POST", "/v1/courses/"+course1ID+"/"+action, map[string]string{"level": "beginner"}, tok); code != 404 {
+					t.Error("deleted course accepted", action, code, out)
+				}
+			}
+		}
+	})
+
 }
