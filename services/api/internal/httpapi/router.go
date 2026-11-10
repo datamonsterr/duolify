@@ -41,6 +41,7 @@ type Dependencies struct {
 	PricingAdmin    http.Handler
 	Quotes          http.Handler
 	Credits         http.Handler
+	Player          http.Handler
 	Eval            http.Handler
 	Notes           http.Handler
 	Accounts        interface {
@@ -139,6 +140,14 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("GET /v1/me/credits/activity", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("GET /v1/credits/wallet", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("GET /v1/credits/activity", deps.Accounts.Protect(deps.Credits))
+	}
+	if deps.Player != nil && deps.Accounts != nil {
+		mux.Handle("GET /v1/lessons/{lesson}/manifest", deps.Accounts.Protect(deps.Player))
+		mux.Handle("GET /v1/lessons/{lesson}/position", deps.Accounts.Protect(deps.Player))
+		mux.Handle("PUT /v1/lessons/{lesson}/position", deps.Accounts.Protect(deps.Player))
+		mux.Handle("POST /v1/lessons/{lesson}/sync", deps.Accounts.Protect(deps.Player))
+		mux.Handle("GET /v1/lessons/{lesson}/slides/{slide}", deps.Accounts.Protect(deps.Player))
+		mux.Handle("GET /v1/courses/{course}/download", deps.Accounts.Protect(deps.Player))
 	}
 	if deps.Eval != nil {
 		mux.Handle("/v1/eval/", deps.Eval)
@@ -361,7 +370,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	})
 	// Public health and pricing stay available; learner-owned routes require auth.
 	guard := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/v1/courses") || strings.HasPrefix(r.URL.Path, "/v1/quotes") || strings.HasPrefix(r.URL.Path, "/v1/credits") {
+		if strings.HasPrefix(r.URL.Path, "/v1/lessons/") || strings.HasPrefix(r.URL.Path, "/v1/courses") || strings.HasPrefix(r.URL.Path, "/v1/quotes") || strings.HasPrefix(r.URL.Path, "/v1/credits") {
 			if deps.Accounts == nil {
 				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})
 				return

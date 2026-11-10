@@ -5,6 +5,13 @@ Define how Duolify uses PostHog: identity, privacy, the event catalog with names
 
 ## Requirements
 
+### Requirement: Playback control telemetry
+The catalogue SHALL include slide_viewed with lesson_id, slide_id, zero-based index, measured playing wall-clock watch_ms and offline; slide_replayed and slide_paused with lesson_id, slide_id and index; and lesson_player_error with fixed error codes including position_unavailable. Events SHALL use authenticated UUID/common properties and honor opt-out. The wrapper SHALL discard text, HTML, URLs and unregistered properties. Only ended SHALL emit slide_viewed, once per attempt; playback SHALL never emit lesson_completed.
+
+#### Scenario: End and replay
+- **WHEN** a slide ends and duplicate ended messages arrive before Replay
+- **THEN** one slide_viewed emits and replay begins a new attempt with slide_replayed
+
 ### Requirement: Sample outline proposal lifecycle
 The catalogue SHALL include API-owned `outline_proposal_requested`, `outline_proposal_delivered`, `outline_proposal_failed`, `outline_proposal_applied`, `outline_proposal_discarded`, and `outline_proposal_undone`, carrying only proposal_id and base_revision plus UUID/common properties. The existing client `ui_control_activated` SHALL allow surface=outline and control_id=outline_change_requested|proposal_apply|proposal_discard|outline_undo. All events honor current opt-out and exclude request text, titles, goals and diffs. Canonical credits_reserved/settled/released and $ai_generation remain owned by the financial outbox.
 
@@ -183,3 +190,17 @@ The analytics catalogue SHALL include `quick_note_created` (carrying `source` re
 #### Scenario: Quick note sheet opened
 - **WHEN** a learner opens a quick note sheet or panel
 - **THEN** `ui_sheet_opened` is emitted with `sheet_id=quick_note` and common properties, excluding note text
+
+### Requirement: Authorized player event projection
+The catalogue SHALL define `lesson_started` with `lesson_id` and `course_id`, and `lesson_player_error` with `lesson_id`, optional `slide_id`, and fixed `error_code` (`manifest_unavailable`, `document_unavailable`, `invalid_manifest`, `document_timeout`, `offline`). Both SHALL use authenticated Learner UUID/common properties and existing opt-out. The wrapper SHALL discard all other properties, including titles, narration, learner text, HTML and URLs. E3-01 SHALL emit no completion or slide-view events.
+
+#### Scenario: Content-free playback delivery
+- **WHEN** the authenticated player starts or fails and analytics is enabled
+- **THEN** the PostHog test double receives only registered IDs/codes and common properties; opted-out learners emit nothing
+
+### Requirement: Opened lesson cache recovery catalogue
+The existing lesson_player_error allowlist SHALL include fixed codes offline_uncached, cache_unavailable and checksum_mismatch. The existing ui_recovery_selected allowlist SHALL register surface=lesson_player, error_code=offline_uncached and action=retry|exit. Both events SHALL preserve UUID/common properties and opt-out, and SHALL discard HTML, URLs, titles, narration and learner text.
+
+#### Scenario: Uncached offline recovery
+- **WHEN** an opted-in learner selects Retry or Exit from the offline lesson recovery
+- **THEN** the registered recovery event is delivered with only fixed identifiers and common properties

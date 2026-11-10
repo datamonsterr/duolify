@@ -2,7 +2,7 @@ import { UiPreferencesProvider } from "./features/design/localization/Preference
 import { resolveLocale } from "./features/design/localization/messages";
 import { session } from "./features/accounts/session";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "./lib/api";
+import { api, type Course, type CoursesResponse } from "./lib/api";
 import { useShellSession } from "./features/shell/ShellSession";
 import {
   createRootRoute,
@@ -12,6 +12,7 @@ import {
   Outlet,
   useLocation,
   useParams,
+  useSearch,
   type RouterHistory,
 } from "@tanstack/react-router";
 import { CourseBriefPage } from "./features/courses/CourseBrief";
@@ -28,6 +29,7 @@ import { PricingView } from "./features/pricing/PricingView";
 import { NotesPage } from "./features/notes/NotesPage";
 import { BookmarksPage } from "./features/notes/BookmarksPage";
 import { AppShell, MorePage } from "./features/shell/AppShell";
+import { getDownloadedCourses } from "./features/player/library";
 import {
   DestinationPage,
   RouteError,
@@ -62,7 +64,21 @@ function IndexRoute() {
   const session = useShellSession();
   const { data: coursesData } = useQuery({
     queryKey: ["courses"],
-    queryFn: api.courses,
+    queryFn: async () => {
+      try {
+        return await api.courses();
+      } catch (err) {
+        const downloaded = Object.values(getDownloadedCourses());
+        if (downloaded.length > 0 && downloaded[0].courseData) {
+          const list = downloaded.map(
+            (d) => d.courseData as Course,
+          ) as CoursesResponse;
+          list.active_course_id = downloaded[0].courseId;
+          return list;
+        }
+        throw err;
+      }
+    },
     staleTime: 60000,
   });
 
@@ -118,17 +134,17 @@ const course = createRoute({
 });
 function LessonRoute() {
   const { lessonId } = useParams({ from: "/lesson/$lessonId" });
-  const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const slideParam = searchParams.get("slide");
+  const { returnTo, slide } = useSearch({ from: "/lesson/$lessonId" });
   const initialSlide =
-    slideParam !== null && !isNaN(parseInt(slideParam, 10))
-      ? parseInt(slideParam, 10)
+    slide !== undefined && !isNaN(parseInt(slide, 10))
+      ? parseInt(slide, 10)
       : undefined;
   return (
     <LessonPlayer
-      key={`${lessonId}-${initialSlide ?? "default"}`}
+      key={`${lessonId}:${slide ?? ""}`}
       lessonId={lessonId}
+      returnTo={returnTo}
+      targetSlideId={slide}
       initialSlide={initialSlide}
     />
   );
@@ -136,6 +152,17 @@ function LessonRoute() {
 const lesson = createRoute({
   getParentRoute: () => root,
   path: "/lesson/$lessonId",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { returnTo?: string; slide?: string } => ({
+    returnTo: typeof search.returnTo === "string" ? search.returnTo : undefined,
+    slide:
+      typeof search.slide === "string"
+        ? search.slide
+        : typeof search.slide === "number"
+          ? String(search.slide)
+          : undefined,
+  }),
   component: LessonRoute,
 });
 const profile = createRoute({

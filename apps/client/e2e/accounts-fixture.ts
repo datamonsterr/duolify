@@ -44,6 +44,52 @@ export const test = base.extend<{ authenticated: void }>({
           }),
         });
       });
+      // Demo route aliases belong only to the disposable browser fixture. Real
+      // UUID routes exercise the same API authorization and object reader.
+      let demoLesson: string | undefined;
+      await page.route("**/v1/lessons/**", async (route) => {
+        const original = route.request();
+        const target = new URL(original.url());
+        const headers = original.headers();
+        delete headers.origin;
+        target.host = new URL(apiBase).host;
+        const demo = target.pathname.startsWith("/v1/lessons/sky/");
+        if (demo) {
+          if (!demoLesson) {
+            const response = await request.post(
+              `${apiBase}/test/player/fixture`,
+              { headers: { Authorization: headers.authorization } },
+            );
+            if (!response.ok())
+              throw new Error(`Player fixture failed: ${response.status()}`);
+            demoLesson = (await response.json()).lesson_id;
+          }
+          target.pathname = target.pathname.replace(
+            "/lessons/sky/",
+            `/lessons/${demoLesson}/`,
+          );
+        }
+        try {
+          const response = await request.fetch(target.href, {
+            method: original.method(),
+            headers,
+            data: original.postData() ?? undefined,
+          });
+          if (demo && target.pathname.endsWith("/manifest") && response.ok()) {
+            const manifest = await response.json();
+            manifest.lesson_id = "sky";
+            manifest.course_id = "astronomy";
+            for (const slide of manifest.slides)
+              slide.html_url = slide.html_url.replace(
+                `/lessons/${demoLesson}/`,
+                "/lessons/sky/",
+              );
+            await route.fulfill({ json: manifest });
+          } else await route.fulfill({ response });
+        } catch {
+          // Request aborted or response disposed during navigation
+        }
+      });
       await use();
     },
     { auto: true },

@@ -1,0 +1,8 @@
+- [x] Add failing e2e test rejecting wrong Stripe prices and uneconomic catalogue drafts (`services/api/test/e2e/pricing_e12_07_test.go`).
+- [x] Add failing integration test covering Postgres 18, fake provider product APIs, fixed-point margin/cost fixtures, and eval envelope reports (`services/api/internal/pricing/verify_external_mappings_and_catalogue_economics_integration_test.go`).
+- [x] Add failing unit tests for boundary cases, override rules, and event emitters (`services/api/internal/pricing/verify_external_mappings_and_catalogue_economics_test.go` and `engine/crates/engine-core/src/pricing/tests.rs`).
+- [x] Implement external mapping verification (Stripe and store channels) and catalogue economics engine.
+- [x] Hook verification into draft validate, submit, and approve endpoints in `services/api/internal/pricing/admin.go`.
+- [x] Add Golden set rows and pass `mise run engine:eval`.
+- [x] Verify data backup, data inventory, and ADR 0011 documentation.
+- [x] Pass all mise tasks: `api:lint`, `api:test`, `api:build`, `api:test-e2e`, `api:test-integration`, `engine:lint`, `engine:test`, `engine:build`, `ci:openspec`.

@@ -52,3 +52,16 @@ func (q *Queries) NextPricing(ctx context.Context) (NextPricingRow, error) {
 	err := row.Scan(&i.Version, &i.EffectiveFrom, &i.Config)
 	return i, err
 }
+
+const verificationEvidence = `-- name: VerificationEvidence :one
+SELECT version, evidence, verified_at
+FROM pricing_verification_evidence
+WHERE version = $1
+`
+
+func (q *Queries) VerificationEvidence(ctx context.Context, version string) (PricingVerificationEvidence, error) {
+	row := q.db.QueryRow(ctx, verificationEvidence, version)
+	var i PricingVerificationEvidence
+	err := row.Scan(&i.Version, &i.Evidence, &i.VerifiedAt)
+	return i, err
+}

@@ -105,26 +105,6 @@ if (key)
     autocapture: false,
     capture_pageview: false,
   });
-export function track(
-  event: "lesson_started" | "slide_viewed" | "lesson_completed",
-  properties: Record<string, string | number>,
-) {
-  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
-  try {
-    if (posthog.has_opted_out_capturing()) return;
-    if (key)
-      posthog.capture(event, {
-        ...properties,
-        distinct_id: identity.learnerId,
-        platform: identity.platform,
-        app_version: identity.appVersion ?? "0.1.0",
-        source: "client",
-      });
-  } catch {
-    /* Analytics must not interrupt a lesson. */
-  }
-}
-
 // Compatibility with the theme foundation; auth has one shared analytics boundary.
 export type UiAnalyticsContext = {
   learnerId: string;
@@ -247,7 +227,11 @@ export function trackPurchase(value: {
   }
 }
 type CourseControl =
-  "open_course" | "refresh_courses" | "retry_courses" | "clear_search";
+  | "open_course"
+  | "refresh_courses"
+  | "retry_courses"
+  | "clear_search"
+  | "download_library";
 export function trackControl(controlId: CourseControl, courseId?: string) {
   if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
   try {
@@ -554,4 +538,101 @@ export function trackBookmarkOpened(value: {
   } catch {
     /* Analytics failure never blocks bookmark opening. */
   }
+}
+
+// E3-01 catalogue: authorized-lesson-manifest/specs/lesson-player/spec.md.
+// Deliberately closed projection: no captions, titles, drafts, HTML or URLs.
+export function trackPlayer(
+  event:
+    | "lesson_started"
+    | "lesson_player_error"
+    | "slide_viewed"
+    | "slide_replayed"
+    | "slide_paused",
+  value: {
+    lesson_id: string;
+    course_id?: string;
+    slide_id?: string;
+    index?: number;
+    watch_ms?: number;
+    offline?: boolean;
+    error_code?:
+      | "manifest_unavailable"
+      | "document_unavailable"
+      | "invalid_manifest"
+      | "document_timeout"
+      | "position_unavailable"
+      | "offline_uncached"
+      | "cache_unavailable"
+      | "checksum_mismatch"
+      | "asset_unavailable"
+      | "slide_failure"
+      | "offline";
+  },
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  const properties: Record<string, string | number | boolean> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? "0.1.0",
+    source: "client",
+  };
+  for (const name of (event === "lesson_started"
+    ? ["lesson_id", "course_id"]
+    : ["lesson_id", "slide_id"]) as (
+    "lesson_id" | "course_id" | "slide_id"
+  )[]) {
+    const id = value[name];
+    if (id && /^[A-Za-z0-9_-]{1,100}$/.test(id)) properties[name] = id;
+  }
+  if (
+    event === "lesson_player_error" &&
+    value.error_code &&
+    [
+      "manifest_unavailable",
+      "document_unavailable",
+      "invalid_manifest",
+      "document_timeout",
+      "position_unavailable",
+      "offline_uncached",
+      "cache_unavailable",
+      "checksum_mismatch",
+      "asset_unavailable",
+      "slide_failure",
+      "offline",
+    ].includes(value.error_code)
+  )
+    properties.error_code = value.error_code;
+  if (["slide_viewed", "slide_replayed", "slide_paused"].includes(event)) {
+    if (
+      Number.isSafeInteger(value.index) &&
+      value.index! >= 0 &&
+      value.index! < 100
+    )
+      properties.index = value.index!;
+    if (event === "slide_viewed") {
+      if (Number.isSafeInteger(value.watch_ms) && value.watch_ms! >= 0)
+        properties.watch_ms = value.watch_ms!;
+      if (typeof value.offline === "boolean")
+        properties.offline = value.offline;
+    }
+  }
+  try {
+    if (!posthog.has_opted_out_capturing()) posthog.capture(event, properties);
+  } catch {
+    /* Playback never depends on analytics. */
+  }
+}
+
+// Registered by the E3-03 cache recovery and E3-05 static recovery catalogue before emitters.
+export function trackPlayerRecovery(
+  action: "retry" | "exit",
+  errorCode: string = "offline_uncached",
+) {
+  if (action !== "retry" && action !== "exit") return;
+  captureAuth("ui_recovery_selected", {
+    surface: "lesson_player",
+    error_code: errorCode,
+    action,
+  });
 }

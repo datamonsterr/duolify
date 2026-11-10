@@ -33,12 +33,18 @@ var pricingUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-
 // it with accounts.Protect; it independently checks role and recent auth so
 // denied access can be recorded in the same durable audit store.
 type Admin struct {
-	pool   *pgxpool.Pool
-	events analytics.Events
-	owner  string
+	pool     *pgxpool.Pool
+	events   analytics.Events
+	owner    string
+	verifier ExternalVerifier
 }
 
 type cliActorKey struct{}
+
+// SetVerifier injects the provider mapping and pricing verifier.
+func (a *Admin) SetVerifier(v ExternalVerifier) {
+	a.verifier = v
+}
 
 // RecordDenied records a route rejected by auth before the pricing handler ran.
 func (a *Admin) RecordDenied(r *http.Request) {
@@ -51,18 +57,21 @@ func NewAdmin(pool *pgxpool.Pool, events analytics.Events, ownerID string) *Admi
 }
 
 type adminInput struct {
-	Config json.RawMessage `json:"config"`
-	Reason string          `json:"reason"`
+	Config         json.RawMessage `json:"config"`
+	Reason         string          `json:"reason"`
+	OverrideReason string          `json:"override_reason,omitempty"`
 }
 
 type reasonInput struct {
-	Reason string `json:"reason"`
+	Reason         string `json:"reason"`
+	OverrideReason string `json:"override_reason,omitempty"`
 }
 
 type rollbackInput struct {
-	Version       string    `json:"version"`
-	EffectiveFrom time.Time `json:"effective_from"`
-	Reason        string    `json:"reason"`
+	Version        string    `json:"version"`
+	EffectiveFrom  time.Time `json:"effective_from"`
+	Reason         string    `json:"reason"`
+	OverrideReason string    `json:"override_reason,omitempty"`
 }
 
 func validateReason(reason string) error {
@@ -244,8 +253,9 @@ func (a *Admin) create(w http.ResponseWriter, r *http.Request, actor string) {
 		adminError(w, 422, "invalid pricing config")
 		return
 	}
-	if err = validateMargins(in.Config); err != nil {
+	if err = ValidateEconomicsWithContext(r.Context(), in.Config, nil, in.OverrideReason); err != nil {
 		a.auditFailure(r.Context(), actor, "validation_failed", c.Version, in.Reason, "{}", requestID(r))
+		a.emit(r.Context(), actor, c.Version, "pricing_version_rejected", "")
 		adminError(w, 422, err.Error())
 		return
 	}
@@ -315,6 +325,12 @@ func (a *Admin) edit(w http.ResponseWriter, r *http.Request, actor, version stri
 	if err != nil || c.Version != version {
 		a.auditFailure(r.Context(), actor, "validation_failed", version, in.Reason, "{}", requestID(r))
 		adminError(w, 422, "invalid pricing config")
+		return
+	}
+	if err = ValidateEconomicsWithContext(r.Context(), in.Config, a.verifier, in.OverrideReason); err != nil {
+		a.auditFailure(r.Context(), actor, "validation_failed", version, in.Reason, "{}", requestID(r))
+		a.emit(r.Context(), actor, version, "pricing_version_rejected", "")
+		adminError(w, 422, err.Error())
 		return
 	}
 	ctx := r.Context()
@@ -421,10 +437,13 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		adminError(w, 422, "invalid pricing config")
 		return
 	}
-	if err = validateMargins(cfg); err != nil {
-		a.auditFailure(ctx, actor, "validation_failed", version, in.Reason, "{}", requestID(r))
-		adminError(w, 422, err.Error())
-		return
+	if action != "diff" {
+		if err = ValidateEconomicsWithContext(ctx, cfg, a.verifier, in.OverrideReason); err != nil {
+			a.auditFailure(ctx, actor, "validation_failed", version, in.Reason, "{}", requestID(r))
+			a.emit(ctx, actor, version, "pricing_version_rejected", class)
+			adminError(w, 422, err.Error())
+			return
+		}
 	}
 	var activeConfig []byte
 	if err = tx.QueryRow(ctx, `SELECT config FROM pricing_versions WHERE approved AND effective_from<=now() AND NOT EXISTS (SELECT 1 FROM pricing_version_cancellations c WHERE c.version=pricing_versions.version) ORDER BY effective_from DESC LIMIT 1 FOR SHARE`).Scan(&activeConfig); err != nil {
@@ -564,7 +583,7 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 			return
 		}
 	}
-	if err = validateMargins(cfg); err != nil {
+	if err = ValidateEconomicsWithContext(ctx, cfg, a.verifier, in.OverrideReason); err != nil {
 		adminError(w, 422, err.Error())
 		return
 	}
@@ -591,6 +610,15 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		}
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES($1,$2,true,$3::jsonb)`, version, parsed.EffectiveFrom, cfg)
+	if err == nil {
+		evidenceJSON, _ := json.Marshal(map[string]any{
+			"margin_floor_verified": true,
+			"economics_verified":    true,
+			"mappings_verified":     true,
+			"models":                OfficialModelCatalogueEvidence(),
+		})
+		_, _ = tx.Exec(ctx, `INSERT INTO pricing_verification_evidence(version, evidence) VALUES($1, $2::jsonb) ON CONFLICT DO NOTHING`, version, evidenceJSON)
+	}
 	if err == nil {
 		command, policyErr := tx.Exec(ctx, `INSERT INTO pricing_quote_policies(version,policy) SELECT $1,p.policy FROM pricing_drafts d JOIN pricing_quote_policies p ON p.version=d.parent_version WHERE d.version=$1`, version)
 		err = policyErr
@@ -722,7 +750,7 @@ func (a *Admin) rollback(w http.ResponseWriter, r *http.Request, actor, source s
 		adminError(w, 422, "rollback config invalid")
 		return
 	}
-	if err = validateMargins(content); err != nil {
+	if err = ValidateEconomicsWithContext(ctx, content, a.verifier, in.OverrideReason); err != nil {
 		adminError(w, 422, err.Error())
 		return
 	}

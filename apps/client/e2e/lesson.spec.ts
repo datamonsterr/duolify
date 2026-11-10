@@ -1,7 +1,9 @@
 import { test, expect } from "./accounts-fixture";
 import { courses } from "../src/mocks/handlers";
 
-test("a learner opens a course and completes a lesson", async ({ page }) => {
+test("a learner opens a course and proceeds to the lesson test", async ({
+  page,
+}) => {
   await page.route("**/courses", (route) => route.fulfill({ json: courses }));
   await page.route("**/courses/astronomy", (route) =>
     route.fulfill({ json: courses[0] }),
@@ -49,6 +51,7 @@ test("a learner opens a course and completes a lesson", async ({ page }) => {
   ).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Next" }).click();
   await page.getByRole("button", { name: "Next" }).click();
-  await page.getByRole("button", { name: "Finish lesson" }).click();
-  await expect(page.getByText("Lesson complete!")).toBeVisible();
+  await page.getByRole("link", { name: "Take lesson test" }).click();
+  await expect(page).toHaveURL("/lesson/sky/test");
+  await expect(page.getByText("Lesson complete!")).toHaveCount(0);
 });

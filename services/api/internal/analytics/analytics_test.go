@@ -704,3 +704,72 @@ func TestBookmarkEventsReachPostHogWithoutPrivateData(t *testing.T) {
 		t.Fatalf("opt-out sent event, received %d", len(received))
 	}
 }
+
+func TestPlayerEventsReachPostHogWithClosedProjection(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(200)
+	}))
+	defer server.Close()
+	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	props := map[string]any{"lesson_id": "lesson-1", "course_id": "course-1", "slide_id": "slide-1", "error_code": "document_unavailable", "source": "api", "platform": "web", "app_version": "0.1.0", "html": "private slide", "narration_text": "private narration", "answer_key": "private answer", "message": "private learner text"}
+	props["index"], props["watch_ms"], props["offline"] = 0, 1250, true
+	for _, event := range []string{"lesson_started", "lesson_player_error", "slide_viewed", "slide_replayed", "slide_paused"} {
+		if err := events.Capture("a1111111-1111-4111-8111-111111111111", event, props); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = events.Capture("invalid-identity", "lesson_started", props)
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 5 {
+		t.Fatal("missing/invalid events", received)
+	}
+	for _, event := range received {
+		raw, _ := json.Marshal(event)
+		if strings.Contains(string(raw), "private") {
+			t.Fatal("content leaked", string(raw))
+		}
+		p := event["properties"].(map[string]any)
+		if event["distinct_id"] != "a1111111-1111-4111-8111-111111111111" || p["lesson_id"] != "lesson-1" || p["source"] != "api" || p["platform"] != "web" || p["app_version"] != "0.1.0" {
+			t.Fatal(event)
+		}
+		if event["event"] == "lesson_started" && (p["slide_id"] != nil || p["error_code"] != nil) {
+			t.Fatal("start schema expanded", event)
+		}
+		if event["event"] == "lesson_player_error" && (p["course_id"] != nil || p["error_code"] != "document_unavailable") {
+			t.Fatal("error schema mismatch", event)
+		}
+		if event["event"] == "slide_viewed" && (p["watch_ms"] != float64(1250) || p["offline"] != true || p["index"] != float64(0)) {
+			t.Fatal("view schema mismatch", event)
+		}
+	}
+	opted, err := NewWithOptions("fixture-only", server.URL, Options{OptOut: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = opted.Capture("a1111111-1111-4111-8111-111111111111", "lesson_started", props)
+	for _, event := range []string{"slide_viewed", "slide_replayed", "slide_paused", "lesson_player_error"} {
+		_ = opted.Capture("a1111111-1111-4111-8111-111111111111", event, props)
+	}
+	_ = opted.Close()
+	if len(received) != 5 {
+		t.Fatal("opt-out emitted")
+	}
+}

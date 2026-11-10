@@ -1,6 +1,13 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { configureAnalytics, setAnalyticsConsent } from "../../lib/analytics";
 import { secureStore, type Tokens } from "./secure-store";
+import { clearLessonCache } from "../player/cache";
+import { clearSyncQueue } from "../player/sync";
+import {
+  clearOfflineIdentity,
+  readOfflineIdentity,
+  rememberOfflineIdentity,
+} from "./offline-identity";
 export const credentialStore = secureStore;
 export type Learner = {
   id: string;
@@ -111,6 +118,9 @@ async function expire(expected: number) {
   await writeCredentials(null, expected);
   if (expected !== generation) return;
   generation++;
+  clearOfflineIdentity();
+  await clearLessonCache();
+  clearSyncQueue();
   learner = null;
   expired = true;
   // Keep only the last verified analytics identity/consent for the recovery
@@ -152,10 +162,14 @@ export const session = {
     };
   },
   clear() {
+    clearOfflineIdentity();
+    void clearLessonCache().catch(() => {});
+    clearSyncQueue();
     try {
       for (const key of Object.keys(sessionStorage))
         if (
           key.startsWith("credits:recovery:") ||
+          key.startsWith("player:position:") ||
           key.startsWith("course-outline:")
         )
           sessionStorage.removeItem(key);
@@ -188,6 +202,9 @@ export const session = {
       }).catch(() => {});
       throw error;
     }
+    if (learner?.id !== value.id) await clearLessonCache();
+    await rememberOfflineIdentity(value, tokens).catch(() => {});
+    if (expected !== generation) throw new AuthError("Session changed.", 401);
     learner = value;
     expired = false;
     identify(value);
@@ -249,12 +266,27 @@ export const session = {
         const value = await session.request<Learner>("/v1/me");
         if (expected !== generation) return null;
         learner = value;
+        const latest = await credentialStore.read();
+        if (latest && expected === generation)
+          await rememberOfflineIdentity(value, latest).catch(() => {});
+        if (expected !== generation) return null;
         expired = false;
         identify(value);
         publish();
         return value;
       } catch (error) {
         if (error instanceof AuthError && error.status === 401) return null;
+        if (error instanceof TypeError || !navigator.onLine) {
+          const offline = await readOfflineIdentity(tokens);
+          if (expected !== generation) return null;
+          if (offline) {
+            learner = offline;
+            expired = false;
+            identify(offline);
+            publish();
+            return offline;
+          }
+        }
         throw error;
       }
     })();

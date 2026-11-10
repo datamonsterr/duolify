@@ -297,6 +297,11 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 	return nil
 }
 
+// FundedPlan returns the active subscription plan and benefits for an owner at a given time.
+func (s *Service) FundedPlan(ctx context.Context, owner string, at time.Time) (*FundedPlan, error) {
+	return s.fundedPlan(ctx, owner, at)
+}
+
 func (s *Service) fundedPlan(ctx context.Context, owner string, at time.Time) (*FundedPlan, error) {
 	if s.pool() == nil {
 		return nil, nil

@@ -1,5 +1,7 @@
-import { test, expect } from "./accounts-fixture";
+import { test, expect, resetTokens } from "./accounts-fixture";
 import { courses } from "../src/mocks/handlers";
+
+test.afterEach(() => resetTokens());
 
 test("Exit returns to the course and reopening preserves the current slide", async ({
   page,

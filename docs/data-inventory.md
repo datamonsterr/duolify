@@ -4,6 +4,49 @@ E9-05: `bookmarks` stores unique learner-target pointers (lesson or exact stable
 
 E9-01: `quick_notes` stores raw learner quick notes with stable action key, authorized course/lesson/slide references, raw text (up to 2,000 characters), status `enrichment_pending` and review state. Included in nightly encrypted database dumps; restore fixture seeds a note and verifies complete row preservation. Account export includes owned quick notes; account deletion cascade-erases them within 30 days. Restored deletion tombstones remove learner notes before serving. Device-saved drafts and offline queues are ephemeral local state and are not backed up. Analytics catalogue defines `quick_note_created` (source=slide|lesson|chat and character length only) and `ui_sheet_opened` (sheet_id=quick_note); note text is strictly excluded from PostHog. No AI behavior or secrets in this ticket.
 
+E3-02 adds `lesson_playback_positions`: one learner/lesson cursor containing the
+immutable manifest version, opaque slide ID, bounded time in milliseconds and
+UTC `updated_at`. This is navigation state and cannot award XP or completion.
+It joins encrypted nightly Postgres dumps retained for 14 days. Backup fixtures
+compare the entire restored row and verify deletion tombstones erase it. Learner
+exports include the row; account/lesson deletion cascades immediate erasure.
+Device `sessionStorage` keys `player:position:<learner UUID>:<lesson UUID>` are
+disposable recovery cursors, cleared on logout. Save failures visibly offer Retry;
+durable offline reconciliation and lesson caching remain E3-04/E3-03. Analytics
+records only registered IDs, numeric watch time/index, offline and fixed codes.
+
+E3-04 adds `lesson_playback_sync_events`: non-authoritative playback progress events
+with stable action key, learner UUID, lesson UUID, manifest version, slide ID, bounded
+time in milliseconds, UTC `occurred_at`, and `created_at`. It joins encrypted nightly
+Postgres dumps retained for 14 days. Backup fixtures compare the entire restored row
+and verify deletion tombstones erase it. Learner exports include the row; account and
+lesson deletion cascade immediate erasure. Device `localStorage` keys
+`player:sync-queue:<learner UUID>:<lesson UUID>` retain pending offline progress events
+until server acknowledgment and clear on logout. Reconciled events update canonical
+cursors monotonically without granting completion or XP.
+
+E3-05 adds `explanation` per slide in object lesson manifests stored in application object
+storage. Explanations provide accessible static recovery and captions under reduced
+motion or asset failure without learner data, private questions, or assessment leaks.
+It contains bounded course content (<= 20,000 characters per slide), backed up with
+object versioning alongside Motion HTML slides and manifests. No new Postgres tables
+or personal learner data are collected; PostHog analytics records only registered
+error codes and recovery actions (`lesson_player_error`, `ui_recovery_selected`)
+without slide or learner text.
+
+E3-06 adds device-disposable course library download index:
+On the client, `localStorage` key `duolify:download-index:<learner ID>` retains the
+device-disposable index of downloaded course IDs, completion timestamps, and lesson IDs
+to enable offline course library playback and storage accounting. This index is disposable,
+cleared on explicit logout or session expiry via `clearDownloadIndex()`, and never backed up to
+servers. Server-side entitlement is derived dynamically from existing subscription terms
+(`credit_subscription_terms`, `credit_subscriptions`, and `credit_subscription_revocations`),
+requiring no new Postgres tables or personal learner data. Unentitled learners or expired
+subscriptions cannot trigger new bulk downloads, but existing downloaded and opened lesson
+artifacts remain playable offline. Analytics allowlist registers `ui_control_activated` with
+`control_id: "download_library"` and `ui_recovery_selected` with error codes
+`"subscription_required"` and `"download_failed"`, strictly excluding learner or slide text.
+
 E2-01: personalized preview output (sample outline and Motion HTML) stays in component
 memory and is discarded on Back/leave; no Course, enrollment, object or new learner
 table is created. The existing immutable `pricing_quotes.snapshot.input.brief_revision`
@@ -51,6 +94,9 @@ and production drills still require provisioning. See [backup tooling](../infra/
 
 | Store | Data held | Backup method | Retention / deletion | Owner spec |
 | --- | --- | --- | --- | --- |
+| Device download library index (`localStorage`, `duolify:download-index:<learner ID>`) | Course IDs, lesson IDs, and completion timestamps for offline course playback | Disposable; never backed up; server subscription terms and object storage are authoritative | Cleared on logout, account deletion, or explicit storage clear; bounded by device storage quota (max 50 lessons, 100 MiB per account) | [download-entitled-offline-course-library](../openspec/changes/download-entitled-offline-course-library/design.md) |
+| Postgres `lesson_playback_sync_events` | Non-authoritative playback progress events with stable action key, manifest version, slide ID, bounded time and UTC occurred_at | Nightly encrypted general dump, 14-day retention; populated backup fixture compares full rows | Read/export for authenticated owner only; immediate account/lesson deletion cascades; restore deletion tombstones erase | [synchronize-offline-playback-progress](../openspec/changes/synchronize-offline-playback-progress/design.md) |
+| Device pending sync queue (`localStorage`, learner UUID + lesson ID) | Non-authoritative playback progress events pending server acknowledgment | Disposable; never backed up; server reconciliation is authoritative | Retained until server ack; cleared on logout or account change | [synchronize-offline-playback-progress](../openspec/changes/synchronize-offline-playback-progress/design.md) |
 | Postgres `course_brief_revisions` | Immutable learner-owned confirmed Course briefs, content hash and expiry; no transcript | Nightly encrypted general dump, 14-day retention; populated backup fixture compares full rows | Read/export for authenticated owner only; expires after 30 days, nightly pre-backup purge (within 24 hours); immediate account cascade and restored deletion tombstones | [E2-06 change](../openspec/changes/clarify-course-brief/design.md) |
 | Postgres `outline_proposals` | Learner-owned immutable draft/base revision, request, typed diff, result, usage references and Apply/Discard/Undo decision snapshot; unique quote links reconnect without generation | Nightly encrypted general dump, 14 days; populated full-row restore comparison and restored account-erasure checks | Owner-only read/export; draft/account/brief deletion cascades; brief 30-day expiry with nightly pre-backup purge (within 24 hours); restore tombstones replayed before serving. Quotes/reservations/usage retain separate financial policy without learner text | [E2-08 contract](../openspec/changes/outline-chat-change/design.md) |
 | Postgres `outline_drafts` | Learner-owned edited sample outline with stable IDs, revision, last 50 pre-edit snapshots/focus IDs and exact confirmed snapshot/hash; includes recovery copies | Nightly encrypted general dump, 14 days; populated full-row backup comparison and restored deletion checks | Authenticated owner read/export; explicit draft deletion, immediate account/brief cascades; brief 30-day expiry and pre-backup purge bound lifetime; reapply restore tombstones before serving | [E2-07 contract](../openspec/changes/edit-sample-outline/design.md) |
@@ -63,6 +109,7 @@ and production drills still require provisioning. See [backup tooling](../infra/
 | Postgres | River jobs, queue/leader metadata, Goose/River migration versions; `database_backup` args contain only a UTC date | Included in full database dump; validate schema versions and retry safety on restore; backup date survives retries across midnight | River cleanup policy; no learner content or credentials in backup/dummy jobs. Backup jobs use three attempts and a separate bounded queue | [data-backup](../openspec/specs/data-backup/spec.md), [ADR 0003](adr/0003-data-stores.md) |
 | Postgres | Immutable `pricing_versions`: approved version, effective time, JSON action prices, packs, plans, benefits, limits and development-only synthetic product mappings; append-only `pricing_version_cancellations` and `pricing_activation_events` record cancellation and once-only activation | Included in full nightly encrypted database dumps; financial snapshots rotate after 35 days; resolver equality, cancellation and activation history checked by a custom-format dump/restore integration test | Financial catalogue, schedule, cancellation and activation history retained at least 7 years in the live DB and subsequent dumps; UPDATE/DELETE/TRUNCATE refused; no learner/admin identity or content, so account deletion retains the catalogue unchanged | [pricing-config](../openspec/changes/pricing-config/specs/pricing-config/spec.md), [ADR 0007](adr/0007-credits-and-payments.md) |
 | Postgres | `pricing_admin_grants`, mutable `pricing_drafts` (including rollback ancestry), append-only `pricing_audit` with one-way SHA-256 actor IDs, plus `auth_sessions.reauthenticated_at` for recent-auth checks | Included in full nightly encrypted financial dumps; restore fixture compares grants, scheduled and rollback draft ancestry, cancellation, activation and audit rows alongside approved pricing | Drafts, approved versions, schedules, cancellations, activation markers and audit are retained at least 7 years. Audit actor UUIDs are pseudonymized before insertion; admin deletion removes the grant and pseudonymizes draft actor IDs while preserving pricing history. Audit UPDATE/DELETE/TRUNCATE is refused. Authenticated account export includes pricing_admin_grants for granted administrators. | [pricing-admin-workflow](../openspec/changes/pricing-admin-workflow/specs/pricing-admin-workflow/spec.md), [account-privacy](../openspec/changes/export-delete-account-data/specs/account-privacy/spec.md), [ADR 0011](adr/0011-owner-decisions-2026-11-09.md) |
+| Postgres `pricing_verification_evidence` | Immutable verification snapshots of Stripe price mappings, App Store/Google Play store identifiers, official provider rates, and catalogue margin calculations; strictly no learner text, prompt text, or provider API credentials | Included in full nightly encrypted database dumps; financial snapshots rotate after 35 days; verified by backup restore suite | Retained at least 7 years in the live DB and subsequent dumps per financial accounting requirements; immutable trigger prevents UPDATE and DELETE | [E12-07 contract](../openspec/changes/verify-external-mappings-and-catalogue-economics/proposal.md) |
 | Browser session storage | Last known public pricing DTO with version/effective time and its ETag; exposure dedupe keys scoped to UUID/session/surface/version | Disposable cache; pricing recovered and revalidated from API; no backup | Session lifetime; offline prices explicitly labelled; no learner content, provider mappings or payment details. Clear cache and dedupe keys with the browser session; restore checks verify an empty session starts from the API. | [pricing-config](../openspec/changes/pricing-config/specs/pricing-config/spec.md), [analytics](../openspec/specs/analytics/spec.md) |
 | Postgres (planned) | Courses, units, lesson stubs, enrollment and generated lesson metadata | Nightly dump plus object-key consistency checks | Course soft-delete, then hard-delete after 30 days | [course-creation](../openspec/specs/course-creation/spec.md) |
 | Postgres (planned) | Lesson test attempts, answers, scores | Nightly dump | Life of account; delete within 30 days of account deletion | [lesson-test](../openspec/specs/lesson-test/spec.md) |
@@ -72,7 +119,7 @@ and production drills still require provisioning. See [backup tooling](../infra/
 | Postgres `bookmarks` | Learner-owned unique lesson/slide bookmarks, stable action key, course/lesson/slide titles | Full nightly encrypted database dumps, 14-day retention; populated backup fixture compares full rows | Authenticated owner read/export; deleted with the account within 30 days; restore tombstones erase before serving | [E9-05 change](../openspec/changes/e9-05-bookmark-lessons-and-slides/design.md), [bookmarks](../openspec/specs/bookmarks/spec.md) |
 | Postgres (planned) | Tutor chat threads/messages; enrichment tags/links | Nightly dump | Per-item deletion where supported; account deletion within 30 days | [tutor-chat](../openspec/specs/tutor-chat/spec.md) |
 | Redis | Disposable session/cache entries, rate limits, cached balances, leaderboards and streak counters | No backup; rebuild from Postgres | TTL or eviction; never sole copy of product data | [data-backup](../openspec/specs/data-backup/spec.md), [gamification](../openspec/specs/gamification/spec.md) |
-| S3 application bucket | Motion HTML slides, manifests, lesson assets; optional golden-set mirror | Object versioning; tracked regeneration jobs; verify cloud capability before use | Match owning course/account deletion; object-version expiry policy must be specified before real data | [lesson-player](../openspec/specs/lesson-player/spec.md), [course-creation](../openspec/specs/course-creation/spec.md) |
+| S3 application bucket | Motion HTML slides, manifests (including static slide explanations), lesson assets; optional golden-set mirror | Object versioning; tracked regeneration jobs; verify cloud capability before use | Match owning course/account deletion; object-version expiry policy must be specified before real data | [lesson-player](../openspec/specs/lesson-player/spec.md), [course-creation](../openspec/specs/course-creation/spec.md) |
 | S3 separate backup bucket | age-encrypted custom Postgres dumps at `YYYY-MM-DD/schema-<Goose version>.dump.age`; includes learner, append-only ledger and migration/queue state | Worker at 02:00 UTC plus startup catch-up; public X25519 recipient only, conditional whole-object upload, no multipart remnants. Railway snapshots remain a separately provisioned second layer | General backups 14 days; financial backup policy 35 days per ADR 0011. API has no backup access; writer can read/put but cannot delete or administer buckets. Separate retention administrator owns expiry; cloud lifecycle automation remains a follow-up | [data-backup](../openspec/specs/data-backup/spec.md), [ADR 0011](adr/0011-owner-decisions-2026-11-09.md) |
 | Worker temporary filesystem | Ciphertext-only private staging file (0600); no plaintext database archive | Disposable, never a recovery source; removed on success, dump failure and upload failure | One bounded job (30 minutes, at most 4 GiB encrypted output); container filesystem is ephemeral after abnormal process termination | [worker backup change](../openspec/changes/worker-database-backup/design.md) |
 | Local RustFS IAM metadata | Separate application, backup writer and root/retention identities and policies; local fixture secrets are environment settings | Reprovisioned by the development-only initializer; production IAM/keys managed separately | Never pass root or backup credentials to API containers; private age recovery key is never in worker images or environment | [worker backup change](../openspec/changes/worker-database-backup/design.md) |
@@ -275,6 +322,42 @@ raw notification bodies or learner content enter these tables or analytics.
 | Postgres `courses`, `course_units`, `course_lesson_stubs`, `course_enrollments` | Owned Course and exact ordered Units/stubs/goals; first ready_to_generate, others locked; single enrollment | Nightly encrypted general dumps, 14 days; full-row fixture comparison and deletion replay | Owner export; account cascade erasure; Course soft-delete metadata, 30-day grace before hard deletion (removal UI and automated purge) | [E2-02](../openspec/changes/create-confirmed-outline/design.md), [E2-04](../openspec/changes/recover-generation-and-remove-courses/design.md) |
 | Postgres `course_enrollments.level_override`, `course_enrollments.last_active_at`, `learner_profiles.active_course_id` | Per-course level overrides, enrollment access timestamps and persisted active course selection; feeds effective AI context without mutating global profile | Nightly encrypted general dumps, 14 days; full-row fixture comparison and deletion replay | Owner export; account cascade erasure; level override reset to global | [E2-03](../openspec/changes/switch-courses-override-level/design.md) |
 
+E3-01 stores `lesson_manifests` (owned Lesson UUID, content version, immutable
+manifest object key, created timestamp) in encrypted nightly general Postgres
+backups with 14-day rotation. Account export includes these references; direct
+Learner and Lesson cascades erase them on account/course hard deletion. Existing
+account deletion tombstones reapply erasure after restore. Course soft deletion
+and revoked enrollment immediately deny manifest and document reads.
+
+Manifest JSON and Motion HTML use immutable versioned `lessons/…` application
+object keys; assets may load only from configured `LESSON_ASSET_ORIGIN`. They follow
+the data-backup protected nightly asset-copy policy with key/version/SHA-256
+manifests. The disposable RustFS backup fixture includes all four nonempty lesson
+objects, a separately versioned protected copy and checksum manifest, and proves
+recovery after current objects are lost, without generation. Postgres restore
+compares complete metadata and replays deletion. Shared synthetic fixture bytes
+contain no personal data and stay Git-backed; learner-linked content must be
+purged within 30 days when no independent references remain under existing object
+retention policy. This ticket adds no learner-specific asset generation.
+
+The player holds document replicas in account-scoped query memory only; E3-03
+owns durable offline caching. Loading/failed/offline content never grants
+completion; Take lesson test is only navigation. PostHog receives opaque IDs and
+fixed error codes, never HTML, captions, titles, notes, URLs or answer keys. No new
+AI behavior or provider calls are introduced.
+
+E3-03 adds disposable per-account Cache API lesson bundles (manifest version,
+SHA-256 document/asset checksums, HTML, assets), capped at five lessons and 40 MiB
+per account, 8 MiB per lesson. One complete response is published after validation;
+failed replacements preserve the prior version. Logout, account changes and account
+deletion clear bundles and invalidate in-flight writes. Minimal offline identity
+(UUID and consent, bound by hash to the existing refresh credential) contains no
+learner text or raw credentials and is removed with device state. Only public
+application shell files enter the service worker cache. All device copies can be
+evicted and are excluded from backups/export. Authoritative immutable server
+objects and existing lesson metadata retain E3-01 backup/export/deletion policies;
+restore fixtures assert byte-identical checksums. No new learner tables or AI calls.
+
 E10-02: Score each AI task with critical checks. Versioned golden-set revisions
 are maintained on Hugging Face (or Git-pinned in `evals/fixtures/golden.sample.jsonl`
 for offline runs). Evaluation reports (JSON and Markdown) are written to
@@ -290,4 +373,6 @@ enforcement. No new database tables or personal learner data stores are created.
 | Postgres `eval_reports` | Evaluation run reports (task, dataset revision, prompt revision, model, score, threshold, passed flag, structured metrics details); strictly no personal or prompt text | Included in nightly encrypted database dumps, 14 days general retention; live rows expire after 90 days (`expires_at` column) | Live rows retained for 90 days per eval artifact retention policy; not learner-linked; account deletion leaves eval reports unaffected | [E10-05 change](../openspec/changes/expose-reliability-and-ai-cost-dashboards/specs/ai-reliability/spec.md) |
 
 E10-05: Expose reliability and AI cost dashboards. Introduces `eval_alert_configs` (alert thresholds and windows), `eval_alert_events` (deduplicated operational alert history), `eval_reports` (golden-set evaluation runs with 90-day retention), and `eval_operational_aggregates` (daily rollup counters for total calls, fallback calls, error calls, latency, tokens, cost nanos, and credit revenue cents). Dashboards and alerts are derived purely from operational aggregations, pricing catalogue prices, and evaluation reports. Neither prompts, completions, nor learner-submitted text are stored in these tables or exposed via endpoints. Operational recording and server-side counter increments continue independently even if PostHog analytics is down or if the learner opted out of analytics.
+
+E12-07: Verify external mappings and catalogue economics. Introduces `pricing_verification_evidence` table recording immutable verification snapshots of Stripe price mappings, App Store/Google Play store identifiers, official AI provider model rates, and catalogue margin calculations for verified pricing versions. Contains strictly no learner text, prompt text, or provider API credentials. Retained for at least seven (7) years in the primary Postgres store under financial record policy; covered by nightly encrypted dumps; guarded by an immutable SQL trigger against UPDATE or DELETE.
 
