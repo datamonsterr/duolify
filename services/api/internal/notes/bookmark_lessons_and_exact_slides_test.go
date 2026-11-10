@@ -88,10 +88,10 @@ func TestValidateBookmarkInputBoundaries(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "valid sky lesson target",
+			name: "valid slide target with slide_id",
 			input: notes.SaveBookmarkInput{
 				ActionKey:  "act-1",
-				LessonID:   "sky",
+				LessonID:   validUUID,
 				SlideID:    &slide0,
 				TargetType: "slide",
 			},

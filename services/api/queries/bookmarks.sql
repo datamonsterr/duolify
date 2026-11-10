@@ -28,7 +28,7 @@ WHERE learner_id = $1 AND lesson_id IS NOT DISTINCT FROM $2 AND slide_id IS NOT 
 
 -- name: GetBookmarkByID :one
 SELECT b.id, b.learner_id, b.action_key, b.course_id, b.lesson_id, b.slide_id, b.target_type, b.course_title, b.lesson_title, b.slide_title, b.created_at, b.updated_at,
-       (b.lesson_id IS NULL OR (l.id IS NOT NULL AND (c.id IS NULL OR c.deleted_at IS NULL))) AS available
+       (l.id IS NOT NULL AND (c.id IS NULL OR c.deleted_at IS NULL)) AS available
 FROM bookmarks b
 LEFT JOIN course_lesson_stubs l ON l.id = b.lesson_id
 LEFT JOIN courses c ON c.id = b.course_id
@@ -36,7 +36,7 @@ WHERE b.id = $1 AND b.learner_id = $2;
 
 -- name: ListBookmarksByLearner :many
 SELECT b.id, b.learner_id, b.action_key, b.course_id, b.lesson_id, b.slide_id, b.target_type, b.course_title, b.lesson_title, b.slide_title, b.created_at, b.updated_at,
-       (b.lesson_id IS NULL OR (l.id IS NOT NULL AND (c.id IS NULL OR c.deleted_at IS NULL))) AS available
+       (l.id IS NOT NULL AND (c.id IS NULL OR c.deleted_at IS NULL)) AS available
 FROM bookmarks b
 LEFT JOIN course_lesson_stubs l ON l.id = b.lesson_id
 LEFT JOIN courses c ON c.id = b.course_id
@@ -45,7 +45,7 @@ ORDER BY b.created_at DESC;
 
 -- name: ListBookmarksByLearnerAndCourse :many
 SELECT b.id, b.learner_id, b.action_key, b.course_id, b.lesson_id, b.slide_id, b.target_type, b.course_title, b.lesson_title, b.slide_title, b.created_at, b.updated_at,
-       (b.lesson_id IS NULL OR (l.id IS NOT NULL AND (c.id IS NULL OR c.deleted_at IS NULL))) AS available
+       (l.id IS NOT NULL AND (c.id IS NULL OR c.deleted_at IS NULL)) AS available
 FROM bookmarks b
 LEFT JOIN course_lesson_stubs l ON l.id = b.lesson_id
 LEFT JOIN courses c ON c.id = b.course_id

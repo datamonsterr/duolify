@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { session } from "../accounts/session";
 import { bookmarkQueue } from "./bookmark-queue";
 import { trackBookmarkOpened, trackBookmarkRemoved } from "../../lib/analytics";
+import { availableOffline } from "../player/cache";
 
 export type BookmarkItem = {
   id: string;
@@ -21,8 +22,9 @@ export type BookmarkItem = {
 };
 
 export function isLessonCached(lessonId?: string | null): boolean {
-  if (!lessonId || lessonId === "sky") return true;
+  if (!lessonId) return false;
   try {
+    if (availableOffline(lessonId)) return true;
     return localStorage.getItem(`duolify:lesson-cached:${lessonId}`) === "true";
   } catch {
     return false;
@@ -382,12 +384,12 @@ export function BookmarksPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {filteredBookmarks.map((bm) => {
           const cached = isLessonCached(bm.lesson_id);
-          const lessonKey = bm.lesson_id || "sky";
+          const lessonKey = bm.lesson_id || "";
           const slideParam =
             bm.slide_id !== null && bm.slide_id !== undefined
               ? `?slide=${bm.slide_id}`
               : "";
-          const openUrl = `/lesson/${lessonKey}${slideParam}`;
+          const openUrl = lessonKey ? `/lesson/${lessonKey}${slideParam}` : "#";
           const isUnavailable = !bm.available;
 
           return (
@@ -435,7 +437,7 @@ export function BookmarksPage() {
                     marginBottom: 4,
                   }}
                 >
-                  {bm.lesson_title || "Why the sky changes"}
+                  {bm.lesson_title || "Lesson"}
                 </b>
 
                 {isUnavailable ? (

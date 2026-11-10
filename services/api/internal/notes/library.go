@@ -17,6 +17,8 @@ var (
 	ErrInvalidVersion = errors.New("invalid expected version")
 	// ErrConflict indicates the note was modified on another device or concurrent session.
 	ErrConflict = errors.New("note conflict: modified on another device")
+	// ErrInvalidFilter indicates an invalid filter was supplied.
+	ErrInvalidFilter = errors.New("invalid filter")
 )
 
 // UpdateNoteInput contains the parameters to edit a note's raw text.
@@ -184,25 +186,19 @@ func (s *Service) FilterNotes(ctx context.Context, learnerID string, filter Filt
 	}
 
 	if strings.TrimSpace(filter.CourseID) != "" {
-		if cUUID, err := parseUUID(filter.CourseID); err == nil {
-			params.CourseID = cUUID
-		} else if filter.CourseID == "astronomy" {
-			var cID pgtype.UUID
-			if err := s.pool.QueryRow(ctx, "SELECT c.id FROM courses c WHERE c.learner_id = $1 AND c.title ILIKE '%astronomy%' LIMIT 1", learnerUUID).Scan(&cID); err == nil {
-				params.CourseID = cID
-			}
+		cUUID, err := parseUUID(filter.CourseID)
+		if err != nil {
+			return nil, ErrInvalidFilter
 		}
+		params.CourseID = cUUID
 	}
 
 	if strings.TrimSpace(filter.LessonID) != "" {
-		if lUUID, err := parseUUID(filter.LessonID); err == nil {
-			params.LessonID = lUUID
-		} else if filter.LessonID == "sky" {
-			var lID pgtype.UUID
-			if err := s.pool.QueryRow(ctx, "SELECT l.id FROM course_lesson_stubs l WHERE l.learner_id = $1 AND (l.authored_id = 'player-fixture' OR l.title ILIKE '%sky%') LIMIT 1", learnerUUID).Scan(&lID); err == nil {
-				params.LessonID = lID
-			}
+		lUUID, err := parseUUID(filter.LessonID)
+		if err != nil {
+			return nil, ErrInvalidFilter
 		}
+		params.LessonID = lUUID
 	}
 
 	if filter.Reviewed != nil {

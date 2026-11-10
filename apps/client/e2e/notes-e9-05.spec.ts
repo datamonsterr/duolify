@@ -50,19 +50,7 @@ for (const width of [1280, 390]) {
           headers,
           data: original.postData() ?? undefined,
         });
-        if (demo && target.pathname.endsWith("/manifest") && response.ok()) {
-          const manifest = await response.json();
-          manifest.lesson_id = "sky";
-          manifest.course_id = "astronomy";
-          for (const slide of manifest.slides)
-            slide.html_url = slide.html_url.replace(
-              `/lessons/${demoLesson}/`,
-              "/lessons/sky/",
-            );
-          await route.fulfill({ json: manifest });
-        } else {
-          await route.fulfill({ response });
-        }
+        await route.fulfill({ response });
       } catch {
         // Request aborted or closed during navigation
       }
@@ -178,7 +166,7 @@ for (const width of [1280, 390]) {
     await openBtn.click();
 
     // Verify learner returns to the exact Slide 2
-    await expect(page).toHaveURL(/\/lesson\/sky/);
+    await expect(page).toHaveURL(new RegExp(`/lesson/(${demoLesson}|sky)`));
     await expect(page.getByText(/Slide 2 of 3/i)).toBeVisible();
   });
 }

@@ -37,8 +37,8 @@ describe("bookmark_lessons_and_exact_slides", () => {
 
   it("manages offline queue with stable action keys and idempotent deduplication", () => {
     const item1 = bookmarkQueue.enqueue({
-      courseId: "course-astronomy",
-      lessonId: "sky",
+      courseId: "33333333-3333-4333-8333-333333333333",
+      lessonId: "11111111-1111-4111-8111-111111111111",
       slideId: 1,
       targetType: "slide",
       lessonTitle: "Why the sky changes",
@@ -51,8 +51,8 @@ describe("bookmark_lessons_and_exact_slides", () => {
 
     // Replay adding same target
     const item2 = bookmarkQueue.enqueue({
-      courseId: "course-astronomy",
-      lessonId: "sky",
+      courseId: "33333333-3333-4333-8333-333333333333",
+      lessonId: "11111111-1111-4111-8111-111111111111",
       slideId: 1,
       targetType: "slide",
     });
@@ -65,7 +65,7 @@ describe("bookmark_lessons_and_exact_slides", () => {
 
     // Enqueue removal
     bookmarkQueue.enqueueRemoval({
-      lessonId: "sky",
+      lessonId: "11111111-1111-4111-8111-111111111111",
       slideId: 1,
     });
 
@@ -76,8 +76,8 @@ describe("bookmark_lessons_and_exact_slides", () => {
   it("renders bookmarks list, course filter chips, and empty state per canvas S21/S22", async () => {
     // Seed local queue with 2 bookmarks from different courses
     bookmarkQueue.enqueue({
-      courseId: "course-astronomy",
-      lessonId: "sky",
+      courseId: "33333333-3333-4333-8333-333333333333",
+      lessonId: "11111111-1111-4111-8111-111111111111",
       slideId: 1,
       targetType: "slide",
       courseTitle: "Astronomy",

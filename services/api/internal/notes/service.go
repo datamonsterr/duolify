@@ -156,39 +156,24 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 		parsed, err := parseUUID(*input.CourseID)
 		if err == nil {
 			coursePgUUID = parsed
-		} else if *input.CourseID == "astronomy" {
-			var cID pgtype.UUID
-			if err := s.pool.QueryRow(ctx, "SELECT c.id FROM courses c WHERE c.learner_id = $1 AND c.title ILIKE '%astronomy%' LIMIT 1", learnerUUID).Scan(&cID); err == nil {
-				coursePgUUID = cID
-			}
 		}
 	}
 
 	var lessonPgUUID pgtype.UUID
 	if input.LessonID != nil && strings.TrimSpace(*input.LessonID) != "" {
-		if *input.LessonID == "sky" {
-			var lID, cID pgtype.UUID
-			if err := s.pool.QueryRow(ctx, "SELECT l.id, u.course_id FROM course_lesson_stubs l JOIN course_units u ON u.id = l.unit_id WHERE l.learner_id = $1 AND (l.authored_id = 'player-fixture' OR l.title ILIKE '%sky%') LIMIT 1", learnerUUID).Scan(&lID, &cID); err == nil {
-				lessonPgUUID = lID
-				if !coursePgUUID.Valid {
-					coursePgUUID = cID
-				}
-			}
-		} else {
-			parsed, err := parseUUID(*input.LessonID)
-			if err != nil {
-				return nil, ErrUnauthorizedSource
-			}
-			lessonPgUUID = parsed
+		parsed, err := parseUUID(*input.LessonID)
+		if err != nil {
+			return nil, ErrUnauthorizedSource
+		}
+		lessonPgUUID = parsed
 
-			// Validate that the lesson exists and is accessible to this learner
-			authorized, err := s.queries.CheckLessonAuthorization(ctx, db.CheckLessonAuthorizationParams{
-				ID:        lessonPgUUID,
-				LearnerID: learnerUUID,
-			})
-			if err != nil || !authorized {
-				return nil, ErrUnauthorizedSource
-			}
+		// Validate that the lesson exists and is accessible to this learner
+		authorized, err := s.queries.CheckLessonAuthorization(ctx, db.CheckLessonAuthorizationParams{
+			ID:        lessonPgUUID,
+			LearnerID: learnerUUID,
+		})
+		if err != nil || !authorized {
+			return nil, ErrUnauthorizedSource
 		}
 	}
 

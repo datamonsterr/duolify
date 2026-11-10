@@ -100,42 +100,32 @@ func (s *Service) SaveBookmark(ctx context.Context, learnerID string, input Save
 		}
 	}
 
-	if input.LessonID != "sky" {
-		parsed, err := parseUUID(input.LessonID)
-		if err != nil {
-			return nil, ErrUnauthorizedSource
-		}
-		lessonPgUUID = parsed
+	parsedLesson, err := parseUUID(input.LessonID)
+	if err != nil {
+		return nil, ErrUnauthorizedSource
+	}
+	lessonPgUUID = parsedLesson
 
-		// Verify learner authorization for this lesson
-		authorized, err := s.queries.CheckLessonAuthorization(ctx, db.CheckLessonAuthorizationParams{
-			ID:        lessonPgUUID,
-			LearnerID: learnerUUID,
-		})
-		if err != nil || !authorized {
-			return nil, ErrUnauthorizedSource
-		}
+	// Verify learner authorization for this lesson
+	authorized, err := s.queries.CheckLessonAuthorization(ctx, db.CheckLessonAuthorizationParams{
+		ID:        lessonPgUUID,
+		LearnerID: learnerUUID,
+	})
+	if err != nil || !authorized {
+		return nil, ErrUnauthorizedSource
+	}
 
-		// Retrieve authoritative titles
-		info, err := s.queries.GetLessonContext(ctx, lessonPgUUID)
-		if err == nil {
-			if lessonTitle == "" {
-				lessonTitle = info.LessonTitle
-			}
-			if courseTitle == "" {
-				courseTitle = info.CourseTitle
-			}
-			if !coursePgUUID.Valid && info.CourseID.Valid {
-				coursePgUUID = info.CourseID
-			}
-		}
-	} else {
-		// Built-in demo lesson "sky"
+	// Retrieve authoritative titles
+	info, err := s.queries.GetLessonContext(ctx, lessonPgUUID)
+	if err == nil {
 		if lessonTitle == "" {
-			lessonTitle = "Why the sky changes"
+			lessonTitle = info.LessonTitle
 		}
 		if courseTitle == "" {
-			courseTitle = "Astronomy"
+			courseTitle = info.CourseTitle
+		}
+		if !coursePgUUID.Valid && info.CourseID.Valid {
+			coursePgUUID = info.CourseID
 		}
 	}
 
@@ -229,7 +219,7 @@ func (s *Service) DeleteBookmarkByTarget(ctx context.Context, learnerID, lessonI
 	}
 
 	var lessonPgUUID pgtype.UUID
-	if lessonID != "" && lessonID != "sky" {
+	if lessonID != "" {
 		parsed, err := parseUUID(lessonID)
 		if err == nil {
 			lessonPgUUID = parsed
