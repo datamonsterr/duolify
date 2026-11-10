@@ -249,3 +249,6 @@
     flex-direction: column;
   }
 }
+.auth-page[hidden] {
+  display: none;
+}

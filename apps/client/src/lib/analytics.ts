@@ -209,6 +209,21 @@ function captureAuth(event: string, properties: Record<string, string>) {
   }
 }
 
+// Fixed authored identifiers only; catalogue precedes this emitter (E2-05).
+export function trackSharedDemo(
+  surface: "welcome" | "course_brief",
+  viewed = false,
+) {
+  if (surface !== "welcome" && surface !== "course_brief") return;
+  if (!viewed)
+    captureAuth("ui_control_activated", { surface, control_id: "shared_demo" });
+  else
+    captureAuth("course_preview_viewed", {
+      preview_kind: "shared_demo",
+      demo_version: "sky-v1",
+    });
+}
+
 // E7-04: a closed projection excludes drafts, notes, URLs and callback data.
 export function trackPurchase(value: {
   event:

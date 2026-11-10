@@ -404,3 +404,20 @@ or protected versioned objects. Ledger/quote links retain opaque financial histo
 for seven years; no raw prompt enters financial, Course or publication records.
 Focused restore tests replay terminal jobs without mapping/spend and compare
 current immutable versions, dedupe keys and released reservations.
+
+# E2-05 authored shared example
+
+`services/api/internal/courses/demo/sky-v1.json` is an immutable Git-authored public
+outline and Motion HTML bundle, keyed as `lessons/shared-demo/sky-v1/bundle.json` in
+versioned object storage. It contains no learner data. The API embeds the same
+bytes and has no database, wallet, enrollment or engine dependency. The protected
+RustFS asset-copy fixture includes the bundle, version ID and SHA-256, loses the
+current object and restores byte-identical content solely from the protected copy.
+Rebuild from the same Git revision to restore embedded serving. New content uses
+a new key/version; account deletion does not remove public authored content.
+No learner-linked table is introduced, so `accounts/privacy.go` policies and
+database backup fixtures are unchanged. Brief/session and outline drafts keep
+their existing export/erasure/retention boundaries; the demo does not copy them.
+Quote consent stays disposable and is invalidated on demo entry. Live pricing
+and catalogue activation remain gated by E12-08; no effort Credit rewards exist.
+
