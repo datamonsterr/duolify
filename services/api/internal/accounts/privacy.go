@@ -83,8 +83,8 @@ func LearnerReference(learnerID string) string {
 }
 
 func (s *Service) registerPrivacy() {
-	s.mux.Handle("GET /v1/me/data-export", s.Protect(http.HandlerFunc(s.exportAccountData)))
-	s.mux.Handle("POST /v1/me/deletion-request", s.Protect(http.HandlerFunc(s.deleteAccount)))
+	s.mux.Handle("GET /v1/me/data-export", s.Protect(s.privacyAccess("export", s.exportAccountData)))
+	s.mux.Handle("POST /v1/me/deletion-request", s.Protect(s.privacyAccess("delete", s.deleteAccount)))
 }
 
 func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
@@ -169,6 +169,12 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ref := LearnerReference(learner)
+	// The external intent is durable first: a failed SQL commit cannot resurrect
+	// this learner on restore. Retrying writes the same immutable object.
+	if s.deletionLedger == nil || s.deletionLedger.Append(ctx, ref) != nil {
+		respond(w, 503, map[string]string{"error": "Could not request account removal. Retry."})
+		return
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		respond(w, 503, map[string]string{"error": "Could not request account removal. Retry."})
@@ -281,6 +287,9 @@ func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "DELETE FROM pricing_admin_grants WHERE account_id=$1::uuid", id); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, "INSERT INTO posthog_person_deletion_requests(distinct_id) VALUES($1::uuid) ON CONFLICT DO NOTHING", id); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "DELETE FROM learners WHERE id=$1::uuid", id); err != nil {

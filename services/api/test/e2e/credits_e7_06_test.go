@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -44,7 +45,7 @@ func TestStripePackHTTPAnalyticsAndPrivacy(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer posthog.Close()
-	events, err := analytics.NewWithOptions("fixture-posthog-key", posthog.URL, analytics.Options{})
+	events, err := analytics.NewWithOptions("fixture-posthog-key", posthog.URL, analytics.Options{Consent: func(context.Context, string) (bool, error) { return true, nil }})
 	if err != nil {
 		t.Fatal(err)
 	}

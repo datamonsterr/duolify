@@ -221,7 +221,7 @@ func TestPostHogAdapterRejectsPrivatePropertiesAndIsNonblocking(t *testing.T) {
 		_, _ = io.WriteString(w, `{"status":"Ok"}`)
 	}))
 	defer double.Close()
-	events, err := analytics.New("test-key", double.URL)
+	events, err := analytics.New("test-key", double.URL, func(context.Context, string) (bool, error) { return true, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +253,7 @@ func TestPostHogAdapterRejectsPrivatePropertiesAndIsNonblocking(t *testing.T) {
 	}
 	outage := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(503) }))
 	defer outage.Close()
-	adapter, err := analytics.New("test-key", outage.URL)
+	adapter, err := analytics.New("test-key", outage.URL, func(context.Context, string) (bool, error) { return true, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

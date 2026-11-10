@@ -40,7 +40,7 @@ func TestPrivateCharacterEventsDeliverWithConsent(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
-	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
 	if err != nil {
 		t.Fatal(err)
 	}

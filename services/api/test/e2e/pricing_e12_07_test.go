@@ -175,7 +175,7 @@ func TestPricingE12_07_RejectWrongStripePriceAndUneconomicCatalogueDraft(t *test
 		}
 	}
 
-	events, err := analytics.New("synthetic-project-key", sink.URL)
+	events, err := analytics.New("synthetic-project-key", sink.URL, func(context.Context, string) (bool, error) { return true, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

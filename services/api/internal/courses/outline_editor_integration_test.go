@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/accountstest"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
@@ -49,6 +50,8 @@ func TestOutlineEditorIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	deletionLedger := accountstest.NewDeletionLedger()
+	auth.ConfigureDeletionLedger(deletionLedger)
 	// No Engine, Credits or Pricing dependency is supplied. Every edit must work.
 	server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: db.Pool})}, slog.New(slog.NewTextHandler(io.Discard, nil))))
 	defer server.Close()

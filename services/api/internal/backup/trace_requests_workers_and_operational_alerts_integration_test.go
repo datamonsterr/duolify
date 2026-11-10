@@ -53,7 +53,7 @@ func (unavailableCollector) Write([]byte) (int, error) { return 0, io.ErrClosedP
 func TestPostHogOutageNeverBlocksOperationalAlerts(t *testing.T) {
 	double := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(503) }))
 	defer double.Close()
-	events, err := analytics.New("test-project", double.URL)
+	events, err := analytics.New("test-project", double.URL, func(context.Context, string) (bool, error) { return true, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

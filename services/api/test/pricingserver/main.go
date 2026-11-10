@@ -23,6 +23,7 @@ import (
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/accountstest"
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
@@ -85,6 +86,8 @@ func run() (result error) {
 	if err != nil {
 		return err
 	}
+	ledger := accountstest.NewDeletionLedger()
+	auth.ConfigureDeletionLedger(ledger)
 	rateLimits, err := accounts.RateLimitsFromEnv(os.Getenv)
 	if err != nil {
 		return err

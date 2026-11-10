@@ -56,7 +56,7 @@ func TestOptionalContextConfirmationOwnershipAndEvents(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer sinkServer.Close()
-	events, err := analytics.New("test-only", sinkServer.URL)
+	events, err := analytics.New("test-only", sinkServer.URL, func(context.Context, string) (bool, error) { return true, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

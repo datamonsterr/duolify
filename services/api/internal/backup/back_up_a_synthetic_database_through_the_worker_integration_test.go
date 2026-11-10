@@ -19,3 +19,10 @@ func TestPostgresRiverRustFSEncryptedBackupRetry(t *testing.T) {
 	fixture.AssertEvents(t, "backup_failed", "backup_completed")
 	fixture.AssertWriterCannotDelete(t)
 }
+
+func TestRestorePreDeletionDumpKeepsLearnerDeleted(t *testing.T) {
+	fixture := backuptest.New(t)
+	fixture.Seed(t)
+	fixture.RunJob(t, "2026-11-09")
+	fixture.AssertPreDeletionRestoreErased(t, fixture.Ciphertext(t, fixture.ArchiveKey("2026-11-09")))
+}
