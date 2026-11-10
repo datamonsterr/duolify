@@ -751,3 +751,21 @@ func TestPlayerEventsReachPostHogWithClosedProjection(t *testing.T) {
 		t.Fatal("opt-out emitted")
 	}
 }
+
+func TestLessonTestPoolExhaustionAndMetricsAreAllowlistedWithoutText(t *testing.T) {
+	if !allowlisted("retry_variant_pool_exhausted") {
+		t.Fatal("exhaustion event is not allowlisted")
+	}
+	got := safeProperties("retry_variant_pool_exhausted", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "topic_id": "top-1", "error_code": "pool_exhausted", "prompt": "private learner question", "choice_text": "private answer"})
+	if got["topic_id"] != "top-1" || got["prompt"] != nil || got["choice_text"] != nil {
+		t.Fatalf("unsafe exhaustion properties: %v", got)
+	}
+	got = safeProperties("lesson_test_submitted", map[string]any{"duration_ms": int64(1200), "score": 50, "choice_index": 1})
+	if got["duration_ms"] != int64(1200) || got["score"] != 50 || got["choice_index"] != nil {
+		t.Fatalf("incorrect submission metrics: %v", got)
+	}
+	got = safeProperties("retry_variant_served", map[string]any{"source": "api", "variant_source": "pool_exhausted_fallback"})
+	if got["source"] != "api" || got["variant_source"] != "pool_exhausted_fallback" {
+		t.Fatalf("lost variant provenance: %v", got)
+	}
+}

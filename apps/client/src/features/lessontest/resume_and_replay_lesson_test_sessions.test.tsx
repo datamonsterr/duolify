@@ -1,6 +1,12 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { LessonTest, type QuestionItem, type AnswerResult } from "./LessonTest";
+import { AuthError } from "../accounts/session";
+import {
+  LessonTest,
+  getOfflineAnswers,
+  type QuestionItem,
+  type AnswerResult,
+} from "./LessonTest";
 
 describe("Resume and replay lesson test sessions", () => {
   beforeEach(() => {
@@ -35,6 +41,79 @@ describe("Resume and replay lesson test sessions", () => {
     choices: ["Sun climbing", "Earth turning toward Sun", "Sun speeding up"],
   };
 
+  it.each([400, 410, 500])(
+    "does not queue or invent correctness for HTTP %s",
+    async (status) => {
+      const onAnswer = vi
+        .fn()
+        .mockRejectedValue(new AuthError("Server rejected the answer", status));
+      render(
+        <LessonTest
+          lessonId="http-error"
+          questions={[q1Original, q2Original]}
+          onAnswer={onAnswer}
+          onPass={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getByLabelText("Earth spins west to east"));
+      fireEvent.click(screen.getByRole("button", { name: /Check/i }));
+      await screen.findByText("Server rejected the answer");
+      expect(getOfflineAnswers("http-error")).toEqual([]);
+      expect(screen.queryByText("Correct!")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Waiting to sync/)).not.toBeInTheDocument();
+    },
+  );
+
+  it("merges a wrong-answer variant returned during replay", async () => {
+    const onAnswer = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce({
+        correct: false,
+        passed: false,
+        answer_index: 1,
+        explanation: "Earth rotates",
+        retry_variant: v1Sunrise,
+        resolved_topics: 0,
+        retry_queue_count: 1,
+      });
+    render(
+      <LessonTest
+        lessonId="replay-variant"
+        questions={[q1Original]}
+        onAnswer={onAnswer}
+        onPass={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Sun moves eastward"));
+    fireEvent.click(screen.getByRole("button", { name: /Check/i }));
+    await screen.findByText(/Waiting to sync/);
+    fireEvent.click(screen.getByRole("button", { name: /Sync/i }));
+    await screen.findByText("Earth rotates");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByText(v1Sunrise.prompt)).toBeInTheDocument();
+    expect(getOfflineAnswers("replay-variant")).toEqual([]);
+  });
+
+  it("continues offline with neutral pending feedback and never invents a grade", async () => {
+    const onPass = vi.fn();
+    render(
+      <LessonTest
+        lessonId="neutral-offline"
+        questions={[q1Original, q2Original]}
+        onAnswer={vi.fn().mockRejectedValue(new TypeError("Failed to fetch"))}
+        onPass={onPass}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Earth spins west to east"));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    await screen.findByText(/waiting to be checked/);
+    expect(screen.queryByText(/Not quite|Correct!/)).not.toBeInTheDocument();
+    expect(screen.getByText("Resolved 0 of 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByText(q2Original.prompt)).toBeInTheDocument();
+    expect(onPass).not.toHaveBeenCalled();
+  });
   it("resumes next day with persisted queue, resolved count, and retry queue", () => {
     render(
       <LessonTest
