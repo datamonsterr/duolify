@@ -15,26 +15,47 @@ import (
 
 // Config contains service settings. Secrets must never be logged.
 type Config struct {
-	Addr                    string
-	DatabaseURL             string
-	RedisURL                string
-	EngineAddr              string
-	PostHogKey              string
-	PostHogHost             string
-	LogLevel                slog.Level
-	AnalyticsOptOut         bool
-	LessonTestTracerEnabled bool
+	Addr                          string
+	DatabaseURL                   string
+	RedisURL                      string
+	EngineAddr                    string
+	PostHogKey                    string
+	PostHogHost                   string
+	LogLevel                      slog.Level
+	AnalyticsOptOut               bool
+	LessonTestTracerEnabled       bool
+	LessonTestMinGap              int
+	LessonTestMaxVariantsPerTopic int
+	LessonTestMaxVariantsPerTest  int
 }
 
 // Load reads a supplied environment, allowing tests without process-global mutations.
 func Load(getenv func(string) string) (Config, error) {
 	cfg := Config{
-		Addr:        defaultValue(getenv("API_ADDR"), ":8080"),
-		DatabaseURL: getenv("DATABASE_URL"),
-		RedisURL:    getenv("REDIS_URL"),
-		EngineAddr:  getenv("ENGINE_ADDR"),
-		PostHogKey:  getenv("POSTHOG_API_KEY"),
-		PostHogHost: defaultValue(getenv("POSTHOG_HOST"), "https://us.i.posthog.com"),
+		Addr:                          defaultValue(getenv("API_ADDR"), ":8080"),
+		DatabaseURL:                   getenv("DATABASE_URL"),
+		RedisURL:                      getenv("REDIS_URL"),
+		EngineAddr:                    getenv("ENGINE_ADDR"),
+		PostHogKey:                    getenv("POSTHOG_API_KEY"),
+		PostHogHost:                   defaultValue(getenv("POSTHOG_HOST"), "https://us.i.posthog.com"),
+		LessonTestMinGap:              2,
+		LessonTestMaxVariantsPerTopic: 3,
+		LessonTestMaxVariantsPerTest:  12,
+	}
+	if value := getenv("LESSON_TEST_MIN_GAP"); value != "" {
+		if val, err := strconv.Atoi(value); err == nil && val > 0 {
+			cfg.LessonTestMinGap = val
+		}
+	}
+	if value := getenv("LESSON_TEST_MAX_VARIANTS_PER_TOPIC"); value != "" {
+		if val, err := strconv.Atoi(value); err == nil && val > 0 {
+			cfg.LessonTestMaxVariantsPerTopic = val
+		}
+	}
+	if value := getenv("LESSON_TEST_MAX_VARIANTS_PER_TEST"); value != "" {
+		if val, err := strconv.Atoi(value); err == nil && val > 0 {
+			cfg.LessonTestMaxVariantsPerTest = val
+		}
 	}
 	if value := getenv("ANALYTICS_OPT_OUT"); value != "" {
 		var err error

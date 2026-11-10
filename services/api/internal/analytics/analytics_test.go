@@ -96,7 +96,7 @@ func TestEventAllowlist(t *testing.T) {
 		"daily_credits_granted", "daily_credits_expired",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
-		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "lesson_test_recap_shown",
+		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "lesson_test_recap_shown", "ui_test_retry_presented",
 	} {
 		if !allowlisted(name) {
 			t.Errorf("catalogue event %q rejected", name)

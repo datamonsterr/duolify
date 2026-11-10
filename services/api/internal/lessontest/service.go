@@ -29,10 +29,13 @@ type LessonEngine interface {
 
 // Options configures the LessonTest service.
 type Options struct {
-	Pool      *pgxpool.Pool
-	Engine    LessonEngine
-	Financial *credits.Service
-	Events    analytics.Events
+	Pool                *pgxpool.Pool
+	Engine              LessonEngine
+	Financial           *credits.Service
+	Events              analytics.Events
+	MinGap              int
+	MaxVariantsPerTopic int
+	MaxVariantsPerTest  int
 }
 
 // Service manages lesson generation, player delivery, and gated testing.
@@ -228,6 +231,26 @@ func ToPublicQuestion(q *enginev1.Question, topicID string) PublicQuestion {
 		Prompt:     q.Prompt,
 		Choices:    q.Choices,
 	}
+}
+
+// InsertSpacedVariant inserts a retry variant into the remaining questions queue
+// after minGap questions when enough questions remain, or at the end if fewer remain.
+func InsertSpacedVariant(remaining []PublicQuestion, variant PublicQuestion, minGap int) []PublicQuestion {
+	if minGap <= 0 {
+		minGap = 2
+	}
+	if len(remaining) == 0 {
+		return []PublicQuestion{variant}
+	}
+	insertIdx := minGap
+	if insertIdx > len(remaining) {
+		insertIdx = len(remaining)
+	}
+	res := make([]PublicQuestion, 0, len(remaining)+1)
+	res = append(res, remaining[:insertIdx]...)
+	res = append(res, variant)
+	res = append(res, remaining[insertIdx:]...)
+	return res
 }
 
 // River queue and worker definitions
@@ -640,6 +663,12 @@ func (s *Service) handleLessons(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// GET /v1/lessons/{id}/test/recap
+	if len(parts) == 3 && parts[1] == "test" && parts[2] == "recap" && r.Method == http.MethodGet {
+		s.handleRecap(w, r, owner, lessonID)
+		return
+	}
+
 	http.NotFound(w, r)
 }
 
@@ -791,39 +820,73 @@ func (s *Service) handleGetLesson(w http.ResponseWriter, r *http.Request, owner,
 func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, lessonID string) {
 	ctx := r.Context()
 
-	// Ensure generated questions exist
-	rows, err := s.opts.Pool.Query(ctx, `
-		SELECT id::text, topic_id, prompt, choices
-		FROM lesson_questions
-		WHERE lesson_stub_id::text=$1 AND learner_id::text=$2
-		ORDER BY position ASC`, lessonID, owner)
-	if err != nil {
-		http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
-		return
+	minGap := s.opts.MinGap
+	if minGap <= 0 {
+		minGap = 2
 	}
-	defer rows.Close()
+	maxTopicVariants := s.opts.MaxVariantsPerTopic
+	if maxTopicVariants <= 0 {
+		maxTopicVariants = 3
+	}
+	maxTestVariants := s.opts.MaxVariantsPerTest
+	if maxTestVariants <= 0 {
+		maxTestVariants = 12
+	}
+
+	var courseID string
+	_ = s.opts.Pool.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID)
+
+	var totalTopics int
+	_ = s.opts.Pool.QueryRow(ctx, `SELECT count(DISTINCT topic_id) FROM lesson_questions WHERE lesson_stub_id::text=$1`, lessonID).Scan(&totalTopics)
+
+	var sessionID string
+	var queueJSON, resolvedJSON []byte
+	err := s.opts.Pool.QueryRow(ctx, `
+		SELECT id::text, question_queue, resolved_topics
+		FROM lesson_test_sessions
+		WHERE lesson_stub_id::text=$1 AND learner_id::text=$2 AND state='in_progress'
+		ORDER BY created_at DESC LIMIT 1`, lessonID, owner).Scan(&sessionID, &queueJSON, &resolvedJSON)
 
 	var questions []PublicQuestion
-	for rows.Next() {
-		var q PublicQuestion
-		var choicesRaw []byte
-		if err := rows.Scan(&q.QuestionID, &q.TopicID, &q.Prompt, &choicesRaw); err == nil {
-			_ = json.Unmarshal(choicesRaw, &q.Choices)
-			questions = append(questions, q)
+	var resolvedTopics []string
+
+	if err == nil {
+		_ = json.Unmarshal(queueJSON, &questions)
+		_ = json.Unmarshal(resolvedJSON, &resolvedTopics)
+	} else if errors.Is(err, pgx.ErrNoRows) {
+		// Ensure generated questions exist
+		rows, qErr := s.opts.Pool.Query(ctx, `
+			SELECT id::text, topic_id, prompt, choices, position
+			FROM lesson_questions
+			WHERE lesson_stub_id::text=$1 AND learner_id::text=$2
+			ORDER BY position ASC`, lessonID, owner)
+		if qErr != nil {
+			http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
+			return
 		}
-	}
+		defer rows.Close()
 
-	if len(questions) == 0 {
-		http.Error(w, `{"error":"no test questions found for lesson"}`, http.StatusNotFound)
-		return
-	}
+		for rows.Next() {
+			var dbID, topicID, prompt string
+			var choicesRaw []byte
+			var position int
+			if err := rows.Scan(&dbID, &topicID, &prompt, &choicesRaw, &position); err == nil {
+				var choices []string
+				_ = json.Unmarshal(choicesRaw, &choices)
+				questions = append(questions, PublicQuestion{
+					QuestionID: fmt.Sprintf("q%d", position+1),
+					TopicID:    topicID,
+					Prompt:     prompt,
+					Choices:    choices,
+				})
+			}
+		}
 
-	// Create or find in_progress test session
-	var sessionID string
-	err = s.opts.Pool.QueryRow(ctx, `
-		SELECT id::text FROM lesson_test_sessions
-		WHERE lesson_stub_id::text=$1 AND learner_id::text=$2 AND state='in_progress'`, lessonID, owner).Scan(&sessionID)
-	if errors.Is(err, pgx.ErrNoRows) {
+		if len(questions) == 0 {
+			http.Error(w, `{"error":"no test questions found for lesson"}`, http.StatusNotFound)
+			return
+		}
+
 		qJSON, _ := json.Marshal(questions)
 		err = s.opts.Pool.QueryRow(ctx, `
 			INSERT INTO lesson_test_sessions (lesson_stub_id, learner_id, question_queue, resolved_topics)
@@ -833,24 +896,32 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 			http.Error(w, `{"error":"failed to create test session"}`, http.StatusInternalServerError)
 			return
 		}
-	}
 
-	if s.opts.Events != nil {
-		var courseID string
-		_ = s.opts.Pool.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID)
-		_ = s.opts.Events.Capture(owner, "lesson_test_started", map[string]any{
-			"source":         "api",
-			"platform":       "web",
-			"app_version":    "1.0.0",
-			"course_id":      courseID,
-			"lesson_id":      lessonID,
-			"question_count": len(questions),
-		})
+		if s.opts.Events != nil {
+			_ = s.opts.Events.Capture(owner, "lesson_test_started", map[string]any{
+				"source":         "api",
+				"platform":       "web",
+				"app_version":    "1.0.0",
+				"course_id":      courseID,
+				"lesson_id":      lessonID,
+				"question_count": len(questions),
+			})
+		}
+	} else {
+		http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
+		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"session_id": sessionID,
-		"questions":  questions,
+		"session_id":             sessionID,
+		"lesson_id":              lessonID,
+		"course_id":              courseID,
+		"questions":              questions,
+		"resolved_topics":        len(resolvedTopics),
+		"total_topics":           totalTopics,
+		"min_gap":                minGap,
+		"max_variants_per_topic": maxTopicVariants,
+		"max_variants_per_test":  maxTestVariants,
 	})
 }
 
@@ -867,49 +938,127 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 
 	ctx := r.Context()
 
-	// Find active or completed session
+	minGap := s.opts.MinGap
+	if minGap <= 0 {
+		minGap = 2
+	}
+	maxTopicVariants := s.opts.MaxVariantsPerTopic
+	if maxTopicVariants <= 0 {
+		maxTopicVariants = 3
+	}
+	maxTestVariants := s.opts.MaxVariantsPerTest
+	if maxTestVariants <= 0 {
+		maxTestVariants = 12
+	}
+
+	tx, err := s.opts.Pool.Begin(ctx)
+	if err != nil {
+		http.Error(w, `{"error":"transaction error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Find active session with FOR UPDATE to serialize concurrent submissions
 	var sessionID, sessionState string
-	var resolvedRaw []byte
+	var queueRaw, resolvedRaw []byte
 	var firstTryCorrect, variantsServed int
-	err := s.opts.Pool.QueryRow(ctx, `
-		SELECT id::text, state, resolved_topics, first_try_correct, variants_served
+	err = tx.QueryRow(ctx, `
+		SELECT id::text, state, question_queue, resolved_topics, first_try_correct, variants_served
 		FROM lesson_test_sessions
 		WHERE lesson_stub_id::text=$1 AND learner_id::text=$2
-		ORDER BY created_at DESC LIMIT 1`, lessonID, owner).Scan(&sessionID, &sessionState, &resolvedRaw, &firstTryCorrect, &variantsServed)
+		ORDER BY created_at DESC LIMIT 1
+		FOR UPDATE`, lessonID, owner).Scan(&sessionID, &sessionState, &queueRaw, &resolvedRaw, &firstTryCorrect, &variantsServed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, `{"error":"no test session found"}`, http.StatusNotFound)
 		return
 	}
+	if err != nil {
+		http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
+		return
+	}
 
-	// Idempotent completion check
+	var totalTopics int
+	_ = tx.QueryRow(ctx, `SELECT count(DISTINCT topic_id) FROM lesson_questions WHERE lesson_stub_id::text=$1`, lessonID).Scan(&totalTopics)
+
+	var courseID string
+	_ = tx.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID)
+
 	if sessionState == "passed" {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"correct": true,
-			"passed":  true,
+			"correct":           true,
+			"passed":            true,
+			"resolved_topics":   totalTopics,
+			"total_topics":      totalTopics,
+			"retry_queue_count": 0,
 		})
 		return
 	}
 
-	// Lookup question
+	var currentQueue []PublicQuestion
+	_ = json.Unmarshal(queueRaw, &currentQueue)
+
+	var resolvedTopics []string
+	_ = json.Unmarshal(resolvedRaw, &resolvedTopics)
+
+	posVal := -1
+	if strings.HasPrefix(body.QuestionID, "q") {
+		var n int
+		if _, scanErr := fmt.Sscanf(body.QuestionID, "q%d", &n); scanErr == nil && n >= 1 {
+			posVal = n - 1
+		}
+	}
+
+	foundIdx := -1
+	for i, q := range currentQueue {
+		if q.QuestionID == body.QuestionID ||
+			(posVal >= 0 && q.QuestionID == fmt.Sprintf("q%d", posVal+1)) ||
+			q.TopicID == body.QuestionID ||
+			q.Prompt == body.QuestionID ||
+			(q.VariantOf != "" && q.VariantOf == body.QuestionID) {
+			foundIdx = i
+			break
+		}
+	}
+	if foundIdx == -1 {
+		var lookupTopic, lookupPrompt string
+		if qErr := tx.QueryRow(ctx, `SELECT topic_id, prompt FROM lesson_questions WHERE lesson_stub_id::text=$1 AND (id::text=$2 OR position=$3)`, lessonID, body.QuestionID, posVal).Scan(&lookupTopic, &lookupPrompt); qErr == nil {
+			for i, q := range currentQueue {
+				if q.TopicID == lookupTopic || q.Prompt == lookupPrompt {
+					foundIdx = i
+					break
+				}
+			}
+		}
+	}
+	if foundIdx == -1 {
+		http.Error(w, `{"error":"unexpected question"}`, http.StatusBadRequest)
+		return
+	}
+
+	remainingQueue := make([]PublicQuestion, 0, len(currentQueue)-1)
+	remainingQueue = append(remainingQueue, currentQueue[:foundIdx]...)
+	remainingQueue = append(remainingQueue, currentQueue[foundIdx+1:]...)
+
+	// Lookup question details
 	var qID, topicID, prompt, explanation, variantOf string
 	var choicesRaw []byte
 	var answerIndex int
 	var isVariant bool
 
-	err = s.opts.Pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		SELECT id::text, topic_id, prompt, choices, answer_index, explanation, COALESCE(variant_of, '')
 		FROM lesson_questions
-		WHERE lesson_stub_id::text=$1 AND (id::text=$2 OR topic_id=$2 OR prompt=$2)`, lessonID, body.QuestionID).Scan(&qID, &topicID, &prompt, &choicesRaw, &answerIndex, &explanation, &variantOf)
+		WHERE lesson_stub_id::text=$1 AND (id::text=$2 OR topic_id=$2 OR prompt=$2 OR position=$3)`,
+		lessonID, body.QuestionID, posVal).Scan(&qID, &topicID, &prompt, &choicesRaw, &answerIndex, &explanation, &variantOf)
 	if err != nil {
 		// Check private pools in lesson_retry_pools
-		rows, qErr := s.opts.Pool.Query(ctx, `SELECT topic_id, variants FROM lesson_retry_pools WHERE lesson_stub_id::text=$1`, lessonID)
+		rows, qErr := tx.Query(ctx, `SELECT topic_id, variants FROM lesson_retry_pools WHERE lesson_stub_id::text=$1`, lessonID)
 		if qErr == nil {
-			defer rows.Close()
 			for rows.Next() {
 				var pTopic string
 				var poolVariantsRaw []byte
 				if err := rows.Scan(&pTopic, &poolVariantsRaw); err == nil {
-					var vars []struct {
+					type varEntry struct {
 						QuestionID  string   `json:"question_id"`
 						TopicID     string   `json:"topic_id"`
 						VariantOf   string   `json:"variant_of"`
@@ -918,6 +1067,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 						AnswerIndex int      `json:"answer_index"`
 						Explanation string   `json:"explanation"`
 					}
+					var vars []varEntry
 					if json.Unmarshal(poolVariantsRaw, &vars) == nil {
 						for _, v := range vars {
 							if v.QuestionID == body.QuestionID || v.Prompt == body.QuestionID {
@@ -941,9 +1091,10 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 					break
 				}
 			}
+			rows.Close()
 		}
 		if qID == "" {
-			_ = s.opts.Pool.QueryRow(ctx, `
+			_ = tx.QueryRow(ctx, `
 				SELECT id::text, topic_id, prompt, choices, answer_index, explanation, COALESCE(variant_of, '')
 				FROM lesson_questions
 				WHERE lesson_stub_id::text=$1
@@ -966,16 +1117,13 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	}
 
 	// Record answer
-	_, _ = s.opts.Pool.Exec(ctx, `
+	_, _ = tx.Exec(ctx, `
 		INSERT INTO lesson_test_answers (session_id, learner_id, question_id, topic_id, selected_index, correct, is_variant)
 		VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7)`,
 		sessionID, owner, qID, topicID, body.ChoiceIndex, correct, isVariant)
 
-	var courseID string
-	_ = s.opts.Pool.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID)
-
 	var attemptForTopic int
-	_ = s.opts.Pool.QueryRow(ctx, `SELECT count(*) FROM lesson_test_answers WHERE session_id=$1::uuid AND topic_id=$2`, sessionID, topicID).Scan(&attemptForTopic)
+	_ = tx.QueryRow(ctx, `SELECT count(*) FROM lesson_test_answers WHERE session_id=$1::uuid AND topic_id=$2`, sessionID, topicID).Scan(&attemptForTopic)
 
 	if s.opts.Events != nil {
 		_ = s.opts.Events.Capture(owner, "lesson_test_submitted", map[string]any{
@@ -992,12 +1140,13 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		})
 	}
 
-	// Total unique topics
-	var totalTopics int
-	_ = s.opts.Pool.QueryRow(ctx, `SELECT count(DISTINCT topic_id) FROM lesson_questions WHERE lesson_stub_id::text=$1`, lessonID).Scan(&totalTopics)
-
-	var resolvedTopics []string
-	_ = json.Unmarshal(resolvedRaw, &resolvedTopics)
+	type slideResp struct {
+		SlideID    string   `json:"slide_id"`
+		HTML       string   `json:"html"`
+		DurationMs int      `json:"duration_ms"`
+		Narration  string   `json:"narration"`
+		TopicIDs   []string `json:"topic_ids"`
+	}
 
 	if !correct {
 		if s.opts.Events != nil {
@@ -1023,7 +1172,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 
 		// Look up private pool for this topic
 		var poolVariantsRaw []byte
-		_ = s.opts.Pool.QueryRow(ctx, `SELECT variants FROM lesson_retry_pools WHERE lesson_stub_id::text=$1 AND topic_id=$2`, lessonID, topicID).Scan(&poolVariantsRaw)
+		_ = tx.QueryRow(ctx, `SELECT variants FROM lesson_retry_pools WHERE lesson_stub_id::text=$1 AND topic_id=$2`, lessonID, topicID).Scan(&poolVariantsRaw)
 
 		type variantItem struct {
 			QuestionID  string   `json:"question_id"`
@@ -1037,16 +1186,19 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		var poolVariants []variantItem
 		_ = json.Unmarshal(poolVariantsRaw, &poolVariants)
 
-		answeredRows, _ := s.opts.Pool.Query(ctx, `SELECT question_id FROM lesson_test_answers WHERE session_id=$1::uuid AND is_variant=true`, sessionID)
+		answeredRows, _ := tx.Query(ctx, `SELECT question_id FROM lesson_test_answers WHERE session_id=$1::uuid AND is_variant=true`, sessionID)
 		usedVariantIDs := make(map[string]bool)
 		if answeredRows != nil {
-			defer answeredRows.Close()
 			for answeredRows.Next() {
 				var uid string
 				if answeredRows.Scan(&uid) == nil {
 					usedVariantIDs[uid] = true
 				}
 			}
+			answeredRows.Close()
+		}
+		for _, q := range remainingQueue {
+			usedVariantIDs[q.QuestionID] = true
 		}
 
 		var selectedVariant *variantItem
@@ -1097,11 +1249,6 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			})
 		}
 
-		_, _ = s.opts.Pool.Exec(ctx, `
-			UPDATE lesson_test_sessions
-			SET variants_served = variants_served + 1, updated_at = now()
-			WHERE id::text=$1`, sessionID)
-
 		publicVariant := PublicQuestion{
 			QuestionID: selectedVariant.QuestionID,
 			TopicID:    topicID,
@@ -1111,12 +1258,73 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			IsVariant:  true,
 		}
 
-		retryQueueCount := totalTopics - len(resolvedTopics)
-		if retryQueueCount < 1 {
-			retryQueueCount = 1
+		updatedQueue := InsertSpacedVariant(remainingQueue, publicVariant, minGap)
+		updatedQueueJSON, _ := json.Marshal(updatedQueue)
+
+		newVariantsServed := variantsServed + 1
+		_, _ = tx.Exec(ctx, `
+			UPDATE lesson_test_sessions
+			SET question_queue = $2, variants_served = variants_served + 1, updated_at = now()
+			WHERE id::text=$1`, sessionID, updatedQueueJSON)
+
+		// Check consecutive wrong variants for this topic
+		var consecutiveWrongVariants int
+		histRows, err := tx.Query(ctx, `
+			SELECT is_variant, correct
+			FROM lesson_test_answers
+			WHERE session_id=$1::uuid AND topic_id=$2
+			ORDER BY created_at DESC`, sessionID, topicID)
+		if err == nil {
+			for histRows.Next() {
+				var isV, isC bool
+				if err := histRows.Scan(&isV, &isC); err == nil {
+					if isC {
+						break
+					}
+					if isV {
+						consecutiveWrongVariants++
+					} else {
+						break
+					}
+				}
+			}
+			histRows.Close()
 		}
 
-		writeJSON(w, http.StatusOK, map[string]any{
+		offerRecap := (isVariant && consecutiveWrongVariants >= maxTopicVariants)
+		var recapSlides []slideResp
+		if offerRecap {
+			sRows, err := tx.Query(ctx, `
+				SELECT slide_id, html, duration_ms, narration, topic_ids
+				FROM lesson_slides
+				WHERE lesson_stub_id::text=$1 AND $2 = ANY(topic_ids)
+				ORDER BY position ASC`, lessonID, topicID)
+			if err == nil {
+				for sRows.Next() {
+					var sl slideResp
+					if err := sRows.Scan(&sl.SlideID, &sl.HTML, &sl.DurationMs, &sl.Narration, &sl.TopicIDs); err == nil {
+						recapSlides = append(recapSlides, sl)
+					}
+				}
+				sRows.Close()
+			}
+		}
+
+		offerLeaveResume := (newVariantsServed >= maxTestVariants)
+
+		retryQueueCount := 0
+		for _, q := range updatedQueue {
+			if q.IsVariant {
+				retryQueueCount++
+			}
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			http.Error(w, `{"error":"commit failed"}`, http.StatusInternalServerError)
+			return
+		}
+
+		resp := map[string]any{
 			"correct":           false,
 			"passed":            false,
 			"answer_index":      answerIndex,
@@ -1125,7 +1333,15 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			"total_topics":      totalTopics,
 			"retry_queue_count": retryQueueCount,
 			"retry_variant":     publicVariant,
-		})
+		}
+		if offerRecap {
+			resp["offer_recap"] = true
+			resp["recap_slides"] = recapSlides
+		}
+		if offerLeaveResume {
+			resp["offer_leave_resume"] = true
+		}
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 
@@ -1153,19 +1369,33 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		resolvedTopics = append(resolvedTopics, topicID)
 	}
 
-	allResolved := (len(resolvedTopics) >= totalTopics)
-	newResolvedRaw, _ := json.Marshal(resolvedTopics)
-
-	retryQueueCount := totalTopics - len(resolvedTopics)
-	if retryQueueCount < 0 {
-		retryQueueCount = 0
+	firstTryInc := 0
+	if !isVariant {
+		firstTryInc = 1
 	}
 
-	if !allResolved {
-		_, _ = s.opts.Pool.Exec(ctx, `
+	allResolved := (len(resolvedTopics) >= totalTopics)
+	queueEmpty := (len(remainingQueue) == 0)
+	remainingQueueJSON, _ := json.Marshal(remainingQueue)
+	newResolvedRaw, _ := json.Marshal(resolvedTopics)
+
+	retryQueueCount := 0
+	for _, q := range remainingQueue {
+		if q.IsVariant {
+			retryQueueCount++
+		}
+	}
+
+	if !allResolved || !queueEmpty {
+		_, _ = tx.Exec(ctx, `
 			UPDATE lesson_test_sessions
-			SET resolved_topics = $2, first_try_correct = first_try_correct + 1, updated_at = now()
-			WHERE id::text=$1`, sessionID, newResolvedRaw)
+			SET question_queue = $2, resolved_topics = $3, first_try_correct = first_try_correct + $4, updated_at = now()
+			WHERE id::text=$1`, sessionID, remainingQueueJSON, newResolvedRaw, firstTryInc)
+
+		if err := tx.Commit(ctx); err != nil {
+			http.Error(w, `{"error":"commit failed"}`, http.StatusInternalServerError)
+			return
+		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
 			"correct":           true,
@@ -1179,18 +1409,11 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		return
 	}
 
-	// All topics resolved -> PASS!
-	tx, err := s.opts.Pool.Begin(ctx)
-	if err != nil {
-		http.Error(w, `{"error":"transaction error"}`, http.StatusInternalServerError)
-		return
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
+	// All topics resolved and queue empty -> PASS!
 	if _, err = tx.Exec(ctx, `
 		UPDATE lesson_test_sessions
-		SET state = 'passed', resolved_topics = $2, first_try_correct = first_try_correct + 1, updated_at = now()
-		WHERE id::text=$1`, sessionID, newResolvedRaw); err != nil {
+		SET state = 'passed', question_queue = '[]'::jsonb, resolved_topics = $2, first_try_correct = first_try_correct + $3, updated_at = now()
+		WHERE id::text=$1`, sessionID, newResolvedRaw, firstTryInc); err != nil {
 		return
 	}
 
@@ -1245,7 +1468,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			"app_version":       "1.0.0",
 			"course_id":         courseID,
 			"lesson_id":         lessonID,
-			"first_try_correct": firstTryCorrect + 1,
+			"first_try_correct": firstTryCorrect + firstTryInc,
 			"variants_served":   variantsServed,
 			"duration_ms":       30000,
 			"score":             100,
@@ -1260,6 +1483,59 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		"resolved_topics":   totalTopics,
 		"total_topics":      totalTopics,
 		"retry_queue_count": 0,
+	})
+}
+
+func (s *Service) handleRecap(w http.ResponseWriter, r *http.Request, owner, lessonID string) {
+	ctx := r.Context()
+	topicID := r.URL.Query().Get("topic_id")
+	if topicID == "" {
+		http.Error(w, `{"error":"topic_id required"}`, http.StatusBadRequest)
+		return
+	}
+
+	rows, err := s.opts.Pool.Query(ctx, `
+		SELECT slide_id, html, duration_ms, narration, topic_ids
+		FROM lesson_slides
+		WHERE lesson_stub_id::text=$1 AND $2 = ANY(topic_ids)
+		ORDER BY position ASC`, lessonID, topicID)
+	if err != nil {
+		http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type slideResp struct {
+		SlideID    string   `json:"slide_id"`
+		HTML       string   `json:"html"`
+		DurationMs int      `json:"duration_ms"`
+		Narration  string   `json:"narration"`
+		TopicIDs   []string `json:"topic_ids"`
+	}
+	var slides []slideResp
+	for rows.Next() {
+		var sl slideResp
+		if err := rows.Scan(&sl.SlideID, &sl.HTML, &sl.DurationMs, &sl.Narration, &sl.TopicIDs); err == nil {
+			slides = append(slides, sl)
+		}
+	}
+
+	if s.opts.Events != nil {
+		var courseID string
+		_ = s.opts.Pool.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID)
+		_ = s.opts.Events.Capture(owner, "lesson_test_recap_shown", map[string]any{
+			"source":      "api",
+			"platform":    "web",
+			"app_version": "1.0.0",
+			"course_id":   courseID,
+			"lesson_id":   lessonID,
+			"topic_id":    topicID,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"topic_id": topicID,
+		"slides":   slides,
 	})
 }
 

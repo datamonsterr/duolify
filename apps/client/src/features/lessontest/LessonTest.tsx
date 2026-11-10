@@ -15,6 +15,14 @@ export interface QuestionItem {
   choices: string[];
 }
 
+export interface RecapSlide {
+  slide_id: string;
+  html: string;
+  duration_ms: number;
+  narration?: string;
+  topic_ids: string[];
+}
+
 export interface AnswerResult {
   correct: boolean;
   answer_index?: number;
@@ -24,6 +32,9 @@ export interface AnswerResult {
   retry_queue_count?: number;
   passed: boolean;
   retry_variant?: QuestionItem;
+  offer_recap?: boolean;
+  recap_slides?: RecapSlide[];
+  offer_leave_resume?: boolean;
 }
 
 export interface LessonTestProps {
@@ -33,6 +44,7 @@ export interface LessonTestProps {
   questions: QuestionItem[];
   resolvedTopics?: number;
   totalTopics?: number;
+  minGap?: number;
   onPass: () => void;
   onExit?: () => void;
   onAnswer?: (questionId: string, choiceIndex: number) => Promise<AnswerResult>;
@@ -45,6 +57,7 @@ export function LessonTest({
   questions: initialQuestions,
   resolvedTopics: initialResolvedTopics,
   totalTopics: initialTotalTopics,
+  minGap = 2,
   onPass,
   onExit,
   onAnswer,
@@ -69,8 +82,21 @@ export function LessonTest({
   );
   const [totalTopics, setTotalTopics] = useState(defaultTotalTopics);
   const [retryQueueCount, setRetryQueueCount] = useState(0);
+  const [showRecap, setShowRecap] = useState(false);
 
   const currentQuestion = queue[queueIndex];
+
+  useEffect(() => {
+    if (
+      currentQuestion &&
+      (currentQuestion.is_variant || Boolean(currentQuestion.variant_of))
+    ) {
+      track("ui_test_retry_presented", {
+        lesson_id: effectiveLessonId,
+        topic_id: currentQuestion.topic_id,
+      });
+    }
+  }, [currentQuestion, effectiveLessonId]);
 
   const handleSelectChoice = useCallback(
     (idx: number) => {
@@ -113,9 +139,10 @@ export function LessonTest({
                 ],
             ),
           };
-          // Min gap rule: retry variant is queued after at least 2 remaining questions (or at end)
+          // Min gap rule: retry variant is queued after at least minGap remaining questions (or at end)
+          const gap = minGap ?? 2;
           setQueue((prev) => {
-            const targetIdx = Math.min(prev.length, queueIndex + 1 + 2);
+            const targetIdx = Math.min(prev.length, queueIndex + 1 + gap);
             const next = [...prev];
             next.splice(targetIdx, 0, variant);
             return next;
@@ -140,6 +167,7 @@ export function LessonTest({
     queueIndex,
     queue.length,
     totalTopics,
+    minGap,
   ]);
 
   const handleContinue = useCallback(() => {
@@ -153,12 +181,22 @@ export function LessonTest({
 
     setFeedback(null);
     setSelectedChoice(null);
+    setShowRecap(false);
     setQueueIndex((prev) => prev + 1);
   }, [feedback, onPass]);
 
   // Keyboard accessibility: 1-9 to select choice, Enter to Check/Continue
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (showRecap) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          setShowRecap(false);
+          handleContinue();
+        }
+        return;
+      }
+
       if (feedback) {
         if (e.key === "Enter") {
           e.preventDefault();
@@ -186,6 +224,7 @@ export function LessonTest({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
+    showRecap,
     feedback,
     currentQuestion,
     selectedChoice,
@@ -297,253 +336,253 @@ export function LessonTest({
         />
       </div>
 
-      <main>
-        <div
-          className="meta"
+      <div
+        className="meta"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          marginBottom: "14px",
+        }}
+      >
+        <span
+          className="chip cok"
           style={{
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
-            gap: "8px",
-            marginBottom: "14px",
+            gap: "6px",
+            padding: "4px 9px",
+            borderRadius: "12px",
+            fontWeight: 800,
+            fontSize: "12px",
+            backgroundColor: "#E3F8D3",
+            color: "#1E6E0C",
           }}
         >
-          <span
-            className="chip cok"
+          Resolved {resolvedTopics} of {totalTopics}
+        </span>
+        <span
+          className="chip cinfo"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "4px 9px",
+            borderRadius: "12px",
+            fontWeight: 800,
+            fontSize: "12px",
+            backgroundColor: "#DDF1FF",
+            color: "#0D5592",
+          }}
+        >
+          Retry queue {retryQueueCount}
+        </span>
+      </div>
+
+      {showRecap &&
+      feedback?.recap_slides &&
+      feedback.recap_slides.length > 0 ? (
+        <main>
+          <h2
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "4px 9px",
-              borderRadius: "12px",
-              fontWeight: 800,
-              fontSize: "12px",
-              backgroundColor: "#E3F8D3",
-              color: "#1E6E0C",
+              fontSize: "22px",
+              fontWeight: 900,
+              marginBottom: "16px",
+              color: "#2B2B2B",
             }}
           >
-            Resolved {resolvedTopics} of {totalTopics}
-          </span>
-          <span
-            className="chip cinfo"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "4px 9px",
-              borderRadius: "12px",
-              fontWeight: 800,
-              fontSize: "12px",
-              backgroundColor: "#DDF1FF",
-              color: "#0D5592",
-            }}
+            Topic recap
+          </h2>
+          <div
+            className="recap-slides"
+            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
           >
-            Retry queue {retryQueueCount}
-          </span>
-        </div>
-
-        {(currentQuestion.is_variant ||
-          Boolean(currentQuestion.variant_of)) && (
-          <div style={{ marginBottom: "12px" }}>
-            <span
-              className="rv"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                alignSelf: "flex-start",
-                padding: "6px 10px",
-                borderRadius: "12px",
-                backgroundColor: "#F0E7FF",
-                color: "#5B2BB5",
-                fontWeight: 900,
-                fontSize: "13px",
-              }}
-            >
-              Retry variant · Same idea, fresh wording
-            </span>
-          </div>
-        )}
-
-        <h2
-          style={{
-            fontSize: "22px",
-            fontWeight: 900,
-            marginBottom: "20px",
-            color: "#2B2B2B",
-          }}
-        >
-          {currentQuestion.prompt}
-        </h2>
-
-        <fieldset
-          style={{
-            border: "none",
-            margin: 0,
-            padding: 0,
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-          }}
-        >
-          <legend style={{ position: "absolute", left: "-9999px" }}>
-            Question choices
-          </legend>
-          {currentQuestion.choices.map((choice, idx) => {
-            const isSelected = selectedChoice === idx;
-            const isWrong = feedback && !feedback.correct && isSelected;
-            const isGood = feedback && feedback.correct && isSelected;
-
-            let borderColor = "#E0E0E0";
-            let bgColor = "#fff";
-            let color = "#2B2B2B";
-
-            if (isSelected) {
-              borderColor = "#8CCBF7";
-              bgColor = "#DDF1FF";
-              color = "#0D5592";
-            }
-            if (isGood) {
-              borderColor = "#7DCB55";
-              bgColor = "#E3F8D3";
-              color = "#1E6E0C";
-            } else if (isWrong) {
-              borderColor = "#E39B9B";
-              bgColor = "#FDECEC";
-              color = "#B3261E";
-            }
-
-            return (
-              <label
-                key={choice}
-                onClick={() => handleSelectChoice(idx)}
+            {feedback.recap_slides.map((s, idx) => (
+              <div
+                key={s.slide_id || idx}
                 style={{
-                  position: "relative",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: "14px 16px",
-                  border: `2px solid ${borderColor}`,
-                  borderBottomWidth: "5px",
+                  padding: "16px",
                   borderRadius: "16px",
-                  backgroundColor: bgColor,
-                  color,
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  cursor: feedback ? "default" : "pointer",
-                  userSelect: "none",
+                  border: "2px solid #E0E0E0",
+                  backgroundColor: "#FAFAFA",
                 }}
               >
-                <input
-                  type="radio"
-                  name="choice"
-                  value={choice}
-                  checked={isSelected}
-                  disabled={feedback !== null}
-                  onChange={() => handleSelectChoice(idx)}
+                {s.html ? (
+                  <div dangerouslySetInnerHTML={{ __html: s.html }} />
+                ) : (
+                  <p style={{ margin: 0 }}>{s.narration}</p>
+                )}
+                {s.narration && (!s.html || !s.html.includes(s.narration)) && (
+                  <p
+                    style={{
+                      margin: "8px 0 0",
+                      fontSize: "14px",
+                      color: "#555",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {s.narration}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </main>
+      ) : (
+        <main>
+          {(currentQuestion.is_variant ||
+            Boolean(currentQuestion.variant_of)) && (
+            <div style={{ marginBottom: "12px" }}>
+              <span
+                className="rv"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  alignSelf: "flex-start",
+                  padding: "6px 10px",
+                  borderRadius: "12px",
+                  backgroundColor: "#F0E7FF",
+                  color: "#5B2BB5",
+                  fontWeight: 900,
+                  fontSize: "13px",
+                }}
+              >
+                Retry variant · Same idea, fresh wording
+              </span>
+            </div>
+          )}
+
+          <h2
+            style={{
+              fontSize: "22px",
+              fontWeight: 900,
+              marginBottom: "20px",
+              color: "#2B2B2B",
+            }}
+          >
+            {currentQuestion.prompt}
+          </h2>
+
+          <fieldset
+            style={{
+              border: "none",
+              margin: 0,
+              padding: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+            }}
+          >
+            <legend style={{ position: "absolute", left: "-9999px" }}>
+              Question choices
+            </legend>
+            {currentQuestion.choices.map((choice, idx) => {
+              const isSelected = selectedChoice === idx;
+              const isWrong = feedback && !feedback.correct && isSelected;
+              const isGood = feedback && feedback.correct && isSelected;
+
+              let borderColor = "#E0E0E0";
+              let bgColor = "#fff";
+              let color = "#2B2B2B";
+
+              if (isSelected) {
+                borderColor = "#8CCBF7";
+                bgColor = "#DDF1FF";
+                color = "#0D5592";
+              }
+              if (isGood) {
+                borderColor = "#7DCB55";
+                bgColor = "#E3F8D3";
+                color = "#1E6E0C";
+              } else if (isWrong) {
+                borderColor = "#E39B9B";
+                bgColor = "#FDECEC";
+                color = "#B3261E";
+              }
+
+              return (
+                <label
+                  key={choice}
+                  onClick={() => handleSelectChoice(idx)}
                   style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    opacity: 0,
-                    margin: 0,
-                    cursor: feedback ? "default" : "pointer",
-                  }}
-                  aria-label={choice}
-                />
-                <span
-                  style={{
-                    width: "28px",
-                    height: "28px",
-                    borderRadius: "8px",
-                    border: "2px solid #D3D3D3",
+                    position: "relative",
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "13px",
-                    fontWeight: 900,
-                    color: isSelected ? "#0D5592" : "#555",
-                    borderColor: isSelected ? "#1677C9" : "#D3D3D3",
-                    flexShrink: 0,
-                    pointerEvents: "none",
+                    gap: "12px",
+                    padding: "14px 16px",
+                    borderWidth: "2px 2px 5px 2px",
+                    borderStyle: "solid",
+                    borderColor: borderColor,
+                    borderRadius: "16px",
+                    backgroundColor: bgColor,
+                    color,
+                    fontSize: "16px",
+                    fontWeight: 700,
+                    cursor: feedback ? "default" : "pointer",
+                    userSelect: "none",
                   }}
                 >
-                  {idx + 1}
-                </span>
-                <span style={{ pointerEvents: "none" }}>{choice}</span>
-              </label>
-            );
-          })}
-        </fieldset>
-      </main>
+                  <input
+                    type="radio"
+                    name="choice"
+                    value={choice}
+                    checked={isSelected}
+                    disabled={feedback !== null}
+                    onChange={() => handleSelectChoice(idx)}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: "100%",
+                      opacity: 0,
+                      margin: 0,
+                      cursor: feedback ? "default" : "pointer",
+                    }}
+                    aria-label={choice}
+                  />
+                  <span
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "8px",
+                      border: "2px solid #D3D3D3",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "13px",
+                      fontWeight: 900,
+                      color: isSelected ? "#0D5592" : "#555",
+                      borderColor: isSelected ? "#1677C9" : "#D3D3D3",
+                      flexShrink: 0,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {idx + 1}
+                  </span>
+                  <span style={{ pointerEvents: "none" }}>{choice}</span>
+                </label>
+              );
+            })}
+          </fieldset>
+        </main>
+      )}
 
       <footer style={{ marginTop: "28px" }}>
-        {feedback && (
-          <div
-            role="status"
-            style={{
-              padding: "16px",
-              borderRadius: "16px",
-              marginBottom: "16px",
-              backgroundColor: feedback.correct ? "#E3F8D3" : "#FDECEC",
-              color: feedback.correct ? "#1E6E0C" : "#B3261E",
-            }}
-          >
-            <div
-              style={{ fontSize: "18px", fontWeight: 900, marginBottom: "4px" }}
-            >
-              {feedback.correct ? "Correct!" : "Not quite — here's why"}
-            </div>
-            {feedback.explanation && (
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "14px",
-                  lineHeight: 1.45,
-                  fontWeight: 600,
-                }}
-              >
-                {feedback.correct
-                  ? feedback.explanation.replace(/^Correct!?\s*/i, "")
-                  : feedback.explanation}
-              </p>
-            )}
-          </div>
-        )}
-
-        {feedback === null ? (
-          <button
-            type="button"
-            className="btn primary"
-            disabled={selectedChoice === null || isSubmitting}
-            onClick={handleCheck}
-            style={{
-              width: "100%",
-              minHeight: "50px",
-              borderRadius: "16px",
-              backgroundColor: selectedChoice === null ? "#E5E5E5" : "#1F7A0D",
-              color: selectedChoice === null ? "#999" : "#fff",
-              border: "none",
-              fontWeight: 900,
-              fontSize: "15px",
-              textTransform: "uppercase",
-              letterSpacing: "0.8px",
-              cursor: selectedChoice === null ? "not-allowed" : "pointer",
-            }}
-          >
-            Check
-          </button>
-        ) : (
+        {showRecap ? (
           <button
             type="button"
             className="btn"
-            onClick={handleContinue}
+            onClick={() => {
+              setShowRecap(false);
+              handleContinue();
+            }}
             style={{
               width: "100%",
               minHeight: "50px",
               borderRadius: "16px",
-              backgroundColor: feedback.correct ? "#1F7A0D" : "#C62828",
+              backgroundColor: "#1F7A0D",
               color: "#fff",
               border: "none",
               fontWeight: 900,
@@ -553,8 +592,145 @@ export function LessonTest({
               cursor: "pointer",
             }}
           >
-            Continue
+            Return to test
           </button>
+        ) : (
+          <>
+            {feedback && (
+              <div
+                role="status"
+                style={{
+                  padding: "16px",
+                  borderRadius: "16px",
+                  marginBottom: "16px",
+                  backgroundColor: feedback.correct ? "#E3F8D3" : "#FDECEC",
+                  color: feedback.correct ? "#1E6E0C" : "#B3261E",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: 900,
+                    marginBottom: "4px",
+                  }}
+                >
+                  {feedback.correct ? "Correct!" : "Not quite — here's why"}
+                </div>
+                {feedback.explanation && (
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "14px",
+                      lineHeight: 1.45,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {feedback.correct
+                      ? feedback.explanation.replace(/^Correct!?\s*/i, "")
+                      : feedback.explanation}
+                  </p>
+                )}
+                {feedback.offer_recap &&
+                  feedback.recap_slides &&
+                  feedback.recap_slides.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn sec"
+                      onClick={() => {
+                        setShowRecap(true);
+                        track("lesson_test_recap_shown", {
+                          lesson_id: effectiveLessonId,
+                          topic_id: currentQuestion.topic_id,
+                        });
+                      }}
+                      style={{
+                        marginTop: "12px",
+                        width: "100%",
+                        minHeight: "44px",
+                        borderRadius: "14px",
+                        backgroundColor: "#fff",
+                        color: "#1667AB",
+                        border: "2px solid #8CCBF7",
+                        fontWeight: 800,
+                        fontSize: "14px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Review topic recap
+                    </button>
+                  )}
+                {feedback.offer_leave_resume && (
+                  <button
+                    type="button"
+                    className="btn sec"
+                    onClick={() => {
+                      if (onExit) onExit();
+                    }}
+                    style={{
+                      marginTop: "12px",
+                      width: "100%",
+                      minHeight: "44px",
+                      borderRadius: "14px",
+                      backgroundColor: "#fff",
+                      color: "#555",
+                      border: "2px solid #D3D3D3",
+                      fontWeight: 800,
+                      fontSize: "14px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Leave and resume later
+                  </button>
+                )}
+              </div>
+            )}
+
+            {feedback === null ? (
+              <button
+                type="button"
+                className="btn primary"
+                disabled={selectedChoice === null || isSubmitting}
+                onClick={handleCheck}
+                style={{
+                  width: "100%",
+                  minHeight: "50px",
+                  borderRadius: "16px",
+                  backgroundColor:
+                    selectedChoice === null ? "#E5E5E5" : "#1F7A0D",
+                  color: selectedChoice === null ? "#999" : "#fff",
+                  border: "none",
+                  fontWeight: 900,
+                  fontSize: "15px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  cursor: selectedChoice === null ? "not-allowed" : "pointer",
+                }}
+              >
+                Check
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn"
+                onClick={handleContinue}
+                style={{
+                  width: "100%",
+                  minHeight: "50px",
+                  borderRadius: "16px",
+                  backgroundColor: feedback.correct ? "#1F7A0D" : "#C62828",
+                  color: "#fff",
+                  border: "none",
+                  fontWeight: 900,
+                  fontSize: "15px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  cursor: "pointer",
+                }}
+              >
+                Continue
+              </button>
+            )}
+          </>
         )}
       </footer>
     </div>
@@ -571,6 +747,7 @@ export function LessonTestRoute() {
   const [resolvedTopics, setResolvedTopics] = useState<number | undefined>(
     undefined,
   );
+  const [minGap, setMinGap] = useState(2);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -581,6 +758,7 @@ export function LessonTestRoute() {
       questions: QuestionItem[];
       total_topics?: number;
       resolved_topics?: number;
+      min_gap?: number;
     }>(`/v1/lessons/${lessonId}/test`)
       .then((data) => {
         setQuestions(data.questions || []);
@@ -589,6 +767,9 @@ export function LessonTestRoute() {
         }
         if (typeof data.resolved_topics === "number") {
           setResolvedTopics(data.resolved_topics);
+        }
+        if (typeof data.min_gap === "number") {
+          setMinGap(data.min_gap);
         }
         setLoading(false);
       })
@@ -604,13 +785,12 @@ export function LessonTestRoute() {
       choice_index: choiceIndex,
     });
     const currentQ = questions.find((q) => q.question_id === questionId);
-    const choiceText = currentQ ? currentQ.choices[choiceIndex] : undefined;
     const res = await authRequest<AnswerResult>(
       `/v1/lessons/${lessonId}/test/answer`,
       {
         question_id: questionId,
         choice_index: choiceIndex,
-        ...(choiceText ? { choice_text: choiceText } : {}),
+        ...(currentQ ? { choice_text: currentQ.choices[choiceIndex] } : {}),
       },
     );
     return res;
@@ -651,6 +831,7 @@ export function LessonTestRoute() {
       questions={questions}
       totalTopics={totalTopics}
       resolvedTopics={resolvedTopics}
+      minGap={minGap}
       onAnswer={handleAnswer}
       onPass={handlePass}
       onExit={() =>

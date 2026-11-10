@@ -266,10 +266,13 @@ func run(ctx context.Context, args []string) (result error) {
 	var lessonHandler http.Handler
 	if cfg.LessonTestTracerEnabled {
 		lessonHandler = lessontest.New(lessontest.Options{
-			Pool:      db.Pool,
-			Engine:    backend,
-			Financial: creditService,
-			Events:    events,
+			Pool:                db.Pool,
+			Engine:              backend,
+			Financial:           creditService,
+			Events:              events,
+			MinGap:              cfg.LessonTestMinGap,
+			MaxVariantsPerTopic: cfg.LessonTestMaxVariantsPerTopic,
+			MaxVariantsPerTest:  cfg.LessonTestMaxVariantsPerTest,
 		})
 	}
 	handler := httpapi.New(httpapi.Dependencies{
