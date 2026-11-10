@@ -417,7 +417,7 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_enrollments(learner_id,course_id,level_override) VALUES('a1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','intermediate')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_generations (id, learner_id, lesson_id, course_id, quote_id, state) VALUES ('f4444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'f1111111-1111-4111-8111-111111111111', $1, 'completed')`, outlineQuote.ID); err != nil {
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_generations (id, learner_id, lesson_id, course_id, quote_id, state, result_checkpoint) VALUES ('f4444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'f1111111-1111-4111-8111-111111111111', $1, 'validated', '{"lesson":{"slides":[]},"attempts":[],"title":"Restorable pending lesson"}'::jsonb)`, outlineQuote.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO generated_lessons (id, lesson_stub_id, learner_id, course_id, title, manifest) VALUES ('f5555555-5555-4555-8555-555555555555', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'Phases of the Moon', '{"title":"Phases of the Moon"}'::jsonb)`); err != nil {

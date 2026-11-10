@@ -116,6 +116,7 @@ func TestResumeAndReplayLessonTestSessionsIntegration(t *testing.T) {
 				},
 			},
 			VariantPool: []*enginev1.TopicVariants{
+				{TopicId: "top-orbits", Variants: []*enginev1.Question{{QuestionId: "v-orbits", TopicId: "top-orbits", VariantOf: "q2", Prompt: "Which curve describes a planet's path around its star?", Choices: []string{"Ellipses", "Straight lines", "Perfect circles"}, AnswerIndex: 0, Explanation: "Planetary paths are ellipses."}}},
 				{
 					TopicId: "top-sunrise",
 					Variants: []*enginev1.Question{

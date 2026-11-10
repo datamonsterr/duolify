@@ -14,6 +14,7 @@ import (
 )
 
 // ClassifiedLearnerTables lists every table holding learner data and its retention policy.
+// Lesson generation checkpoints join full-row owner export and cascading deletion.
 var ClassifiedLearnerTables = map[string]string{
 	"character_create_jobs":             "erased_prompt_terminal_or_24h",
 	"characters":                        "erased",
