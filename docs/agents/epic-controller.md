@@ -37,7 +37,7 @@ An epic controller is a Claude session that owns one epic (`E<n>`) end to end. I
 
 - TDD: e2e → integration → unit, each failing first, then code until green. Never weaken or skip tests.
 - Only mise tasks. Native Tauri (Rust/WebKit) checks cannot run on this host; run web variants and list skipped native checks (CI runs them).
-- Go migrations: goose with UTC timestamp versions; sqlc via `mise run api:generate`. Add new tables to backup fixtures and `docs/data-inventory.md`.
+- Go migrations: goose versions `YYYYMMDDHH` + two-digit epic number + two-digit sequence (e.g. E7 → `2026111014` `07` `01`), so parallel epics never collide; sqlc via `mise run api:generate`. Add new tables to backup fixtures and `docs/data-inventory.md`.
 - `proto/` changes only with matching api and engine changes in the same ticket.
 - AI features: mock provider in tests, golden-set cases in `evals/fixtures/`, `mise run engine:eval` green, spec fallback implemented. Live Hugging Face evals are not available yet (ADR 0011).
 - Prices and credits only from the Pricing config. External services (Resend, Stripe, ElevenLabs, OAuth, HF) behind interfaces with fakes; no secrets; new env vars in `.env.example`.
