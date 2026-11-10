@@ -404,13 +404,16 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 	if len(checkpoint) > 0 {
 		var saved generationCheckpoint
 		if err := json.Unmarshal(checkpoint, &saved); err != nil {
-			return err
+			return fail("checkpoint_invalid", err)
+		}
+		if err := ValidateGeneratedLesson(saved.Lesson); err != nil {
+			return fail("checkpoint_invalid", err)
 		}
 		return s.completeGeneration(ctx, owner, courseID, lessonID, id, reservation, saved)
 	}
 	// A process may have died after starting a provider. Never repeat an untracked
 	// paid call: release customer funds and conservatively account for the held USD.
-	if state == "generating" {
+	if state == "generating" || state == "validated" {
 		return fail("generation_interrupted", errors.New("generation interrupted before checkpoint"))
 	}
 
@@ -578,7 +581,7 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 		if marshalErr != nil {
 			return fail("checkpoint_failed", marshalErr)
 		}
-		if _, err = s.opts.Pool.Exec(finishCtx, `UPDATE lesson_generations SET result_checkpoint=$2 WHERE id=$1::uuid`, id, raw); err != nil {
+		if _, err = s.opts.Pool.Exec(finishCtx, `UPDATE lesson_generations SET result_checkpoint=$2, state='validated' WHERE id=$1::uuid`, id, raw); err != nil {
 			return err
 		}
 		return s.completeGeneration(finishCtx, owner, courseID, lessonID, id, reservation, saved)
@@ -623,9 +626,6 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 		}
 		for i, slide := range lesson.Slides {
 			topicIDs := slide.TopicIds
-			if len(topicIDs) == 0 {
-				topicIDs = []string{"top-1"}
-			}
 			if _, err = tx.Exec(finishCtx, `
 				INSERT INTO lesson_slides (lesson_stub_id, learner_id, position, slide_id, html, duration_ms, narration, topic_ids)
 				VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)`,
@@ -640,9 +640,6 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 		for i, q := range lesson.Test {
 			choicesRaw, _ := json.Marshal(q.Choices)
 			topicID := q.TopicId
-			if topicID == "" {
-				topicID = fmt.Sprintf("topic_%s", q.QuestionId)
-			}
 			if _, err = tx.Exec(finishCtx, `
 				INSERT INTO lesson_questions (lesson_stub_id, learner_id, topic_id, position, prompt, choices, answer_index, explanation, variant_of)
 				VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9)`,
@@ -664,9 +661,6 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 
 		for _, q := range lesson.Test {
 			topicID := q.TopicId
-			if topicID == "" {
-				topicID = fmt.Sprintf("topic_%s", q.QuestionId)
-			}
 			variants := poolsByTopic[topicID]
 			if len(variants) == 0 {
 				return errors.New("validated retry pool required")
@@ -987,7 +981,7 @@ func (s *Service) handlePrepare(w http.ResponseWriter, r *http.Request, owner, l
 	err = tx.QueryRow(ctx, `
 		INSERT INTO lesson_generations (learner_id, course_id, lesson_id, quote_id, state)
 		VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'queued')
-		ON CONFLICT (lesson_id) WHERE state IN ('queued', 'generating') DO NOTHING
+		ON CONFLICT (lesson_id) WHERE state IN ('queued', 'generating', 'validated') DO NOTHING
  RETURNING id::text`, owner, courseID, lessonID, body.QuoteID).Scan(&genID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, `{"error":"lesson generation already in progress"}`, http.StatusConflict)

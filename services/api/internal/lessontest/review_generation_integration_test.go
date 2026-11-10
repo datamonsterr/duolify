@@ -31,6 +31,7 @@ import (
 )
 
 type reviewFixture struct {
+	financial                    *credits.Service
 	db                           *store.Store
 	engine                       *mockLessonEngine
 	service                      *lessontest.Service
@@ -41,7 +42,7 @@ type reviewFixture struct {
 
 func newReviewFixture(t *testing.T) *reviewFixture {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 	t.Cleanup(cancel)
 
 	container, err := postgres.Run(ctx, "postgres:18",
@@ -259,7 +260,7 @@ func newReviewFixture(t *testing.T) *reviewFixture {
 
 	_ = unitID
 	_ = lesson2ID
-	return &reviewFixture{db: db, engine: mockEngine, service: lessonService, owner: learnerID, lesson: lesson1ID, course: courseID, token: token, call: call, login: login}
+	return &reviewFixture{financial: financial, db: db, engine: mockEngine, service: lessonService, owner: learnerID, lesson: lesson1ID, course: courseID, token: token, call: call, login: login}
 }
 
 func (f *reviewFixture) prepare(t *testing.T) string {
@@ -299,7 +300,7 @@ func TestReviewFailedGenerationReleasesCredits(t *testing.T) {
 func TestReviewPersistenceFailureDoesNotChargeAndResumes(t *testing.T) {
 	f := newReviewFixture(t)
 	id := f.prepare(t)
-	_, err := f.db.Pool.Exec(t.Context(), `CREATE FUNCTION reject_review_content() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'storage unavailable'; END $$; CREATE TRIGGER reject_review_content BEFORE INSERT ON generated_lessons FOR EACH ROW EXECUTE FUNCTION reject_review_content()`)
+	_, err := f.db.Pool.Exec(t.Context(), `CREATE FUNCTION reject_review_content() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'storage unavailable'; END $$; CREATE TRIGGER reject_review_content BEFORE INSERT ON lesson_questions FOR EACH ROW EXECUTE FUNCTION reject_review_content()`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,12 +314,30 @@ func TestReviewPersistenceFailureDoesNotChargeAndResumes(t *testing.T) {
 	if state == "settled" {
 		t.Error("charged before content committed")
 	}
-	if _, err = f.db.Pool.Exec(t.Context(), `DROP TRIGGER reject_review_content ON generated_lessons`); err != nil {
+	var generationState string
+	var hasCheckpoint bool
+	if err = f.db.Pool.QueryRow(t.Context(), `SELECT state,result_checkpoint IS NOT NULL FROM lesson_generations WHERE id=$1::uuid`, id).Scan(&generationState, &hasCheckpoint); err != nil {
 		t.Fatal(err)
 	}
+	if generationState != "validated" || !hasCheckpoint {
+		t.Fatalf("missing durable validated checkpoint: %s %v", generationState, hasCheckpoint)
+	}
+
+	if _, err = f.db.Pool.Exec(t.Context(), `DROP TRIGGER reject_review_content ON lesson_questions`); err != nil {
+		t.Fatal(err)
+	}
+	var partial int
+	if err = f.db.Pool.QueryRow(t.Context(), `SELECT count(*) FROM generated_lessons WHERE lesson_stub_id=$1::uuid`, f.lesson).Scan(&partial); err != nil {
+		t.Fatal(err)
+	}
+	if partial != 0 {
+		t.Fatal("partial lesson persisted after transaction failure")
+	}
+
 	// A persisted provider result must survive a worker restart without another paid call.
 	f.engine.err = errors.New("provider must not run again")
-	if err = f.service.RunLessonGeneration(t.Context(), id); err != nil {
+	resumed := lessontest.New(lessontest.Options{Pool: f.db.Pool, Financial: f.financial, Engine: f.engine})
+	if err = resumed.RunLessonGeneration(t.Context(), id); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 	if err = f.db.Pool.QueryRow(t.Context(), `SELECT state FROM lesson_generations WHERE id=$1::uuid`, id).Scan(&state); err != nil {

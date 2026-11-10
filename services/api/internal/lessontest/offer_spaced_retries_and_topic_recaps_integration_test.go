@@ -129,6 +129,8 @@ func TestOfferSpacedRetriesAndTopicRecapsIntegration(t *testing.T) {
 				},
 			},
 			VariantPool: []*enginev1.TopicVariants{
+				{TopicId: "top-orbits", Variants: []*enginev1.Question{{QuestionId: "v-orbits", TopicId: "top-orbits", VariantOf: "q2", Prompt: "Which curve describes a planet's path around its star?", Choices: []string{"Ellipses", "Straight vectors", "Perfect spheres"}, AnswerIndex: 0, Explanation: "Planetary paths are ellipses."}}},
+				{TopicId: "top-gravity", Variants: []*enginev1.Question{{QuestionId: "v-gravity", TopicId: "top-gravity", VariantOf: "q3", Prompt: "What change does mass cause to the geometry around it?", Choices: []string{"Magnetic poles", "Curving spacetime", "Spinning charges"}, AnswerIndex: 1, Explanation: "Mass curves spacetime."}}},
 				{
 					TopicId: "top-sunrise",
 					Variants: []*enginev1.Question{

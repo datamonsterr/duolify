@@ -317,6 +317,13 @@ func TestPrepareOnlyTheNextLessonAfterAPassIntegration(t *testing.T) {
 		VALUES ($1::uuid, $2::uuid, 'top-coords', 0, 'What is altitude?', '["Horizon","Zenith"]'::jsonb, 0, 'Altitude is from horizon.')
 		RETURNING id::text`, l1ID, learnerID).Scan(&q1ID)
 
+	// The original lesson has an approved paraphrase pool too; missing pools must
+	// fail safely rather than fabricating a repeated source prompt.
+	if _, err = db.Pool.Exec(ctx, `INSERT INTO lesson_retry_pools(lesson_stub_id,learner_id,topic_id,variants)
+ VALUES($1::uuid,$2::uuid,'top-coords','[{"question_id":"v-coords","topic_id":"top-coords","variant_of":"q-coords","prompt":"From which reference do we measure altitude?","choices":["Zenith","Horizon"],"answer_index":1,"explanation":"Altitude is measured above the horizon."}]'::jsonb)`, l1ID, learnerID); err != nil {
+		t.Fatal(err)
+	}
+
 	// Create test session
 	var sessionID string
 	_ = db.Pool.QueryRow(ctx, `
