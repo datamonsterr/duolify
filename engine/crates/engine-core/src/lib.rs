@@ -109,6 +109,14 @@ impl LlmProvider for MockProvider {
             .map(|(_, r)| r)
             .unwrap_or("");
             serde_json::json!({"approved":reason.is_empty(),"reason_code":reason}).to_string()
+        } else if data
+            .as_ref()
+            .is_some_and(|v| v["task"] == "character_create")
+        {
+            include_str!(
+                "../../../../services/api/internal/characters/schema/original.fixture.json"
+            )
+            .to_string()
         } else if data.as_ref().is_some_and(|v| v["task"] == "course_outline") {
             serde_json::json!({"units":data.unwrap()["outline"]}).to_string()
         } else if serde_json::from_str::<serde_json::Value>(input)

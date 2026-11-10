@@ -82,6 +82,7 @@ func allowlisted(event string) bool {
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
 		"character_rendered", "character_render_fallback",
+		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
 		"character_updated", "character_deleted", "character_rejected", "course_cast_selected",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":
 		return true
@@ -194,13 +195,23 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "character_deleted":
 		ids("character_id")
-	case "character_rejected":
-		if input["operation"] == "manual_edit" {
-			out["operation"] = "manual_edit"
+	case "character_create_quoted":
+		ids("pricing_version")
+		numeric("credits")
+		if operation := input["operation"]; operation == "create" || operation == "regenerate" {
+			out["operation"] = operation
 		}
+	case "character_created", "character_regenerated":
+		ids("character_id", "pricing_version", "rig_version", "voice_key")
+		numeric("character_version", "credits")
+	case "character_rejected", "character_create_failed":
+		if operation := input["operation"]; operation == "manual_edit" || operation == "create" || operation == "regenerate" {
+			out["operation"] = operation
+		}
+		boolean("fallback_used")
 		if reason, ok := input["reason_code"].(string); ok {
 			switch reason {
-			case "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "prompt_injection", "invalid_spec", "limit_exceeded", "screening_unavailable":
+			case "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "prompt_injection", "invalid_spec", "limit_exceeded", "screening_unavailable", "creation_disabled", "cancelled", "timeout", "version_conflict", "provider_unavailable":
 				out["reason_code"] = reason
 			}
 		}

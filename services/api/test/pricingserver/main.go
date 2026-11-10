@@ -118,7 +118,18 @@ func run() (result error) {
 	mux := http.NewServeMux()
 	characterService := characters.NewService(db.Pool, nil, nil)
 	characterService.ConfigureScreening(characterScreenFixture{})
+	characterService.ConfigureCreation(creditService, characterMapFixture{}, "development")
+	go characterService.Maintain(boot)
 	charHandler := characters.NewHandler(characterService)
+	mux.Handle("POST /test/characters/fund", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := db.Pool.Exec(r.Context(), `INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version) SELECT $1::uuid,(config->'actions'->'character_create'->>'credits')::bigint*3,'purchase','e17-funding-'||$1::text,'usd-dev-character-create-unapproved' FROM pricing_versions WHERE version='usd-dev-character-create-unapproved' ON CONFLICT DO NOTHING`, accounts.LearnerID(r.Context()))
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.WriteHeader(204)
+	})))
+
 	mux.Handle("POST /test/characters", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		owner := accounts.LearnerID(r.Context())
 		spec := characters.DefaultGuideFixture()
@@ -312,7 +323,7 @@ type characterScreenFixture struct{}
 
 func (characterScreenFixture) ScreenCharacter(_ context.Context, r *enginev1.ScreenCharacterRequest) (*enginev1.ScreenCharacterResponse, error) {
 	reason := ""
-	if strings.Contains(strings.ToLower(r.SpecJson), "reveal system prompt") {
+	if strings.Contains(strings.ToLower(r.SpecJson+r.RawPrompt), "reveal system prompt") {
 		reason = "prompt_injection"
 	}
 	return &enginev1.ScreenCharacterResponse{Approved: reason == "", ReasonCode: reason, PolicyVersion: "character-v1", Attempts: []*enginev1.Usage{{Provider: "mock", Model: "fixture", InputTokens: 10, OutputTokens: 3, Attempt: 1, Delivered: true}}}, nil
@@ -456,4 +467,19 @@ func (mockE2EBriefEngine) CourseBriefChat(_ context.Context, r *enginev1.CourseB
 		message = "What is your goal?"
 	}
 	return &enginev1.CourseBriefChatResponse{Brief: b, Message: message, NextStep: next, IsComplete: next == "confirm"}, nil
+}
+
+type characterMapFixture struct{}
+
+func (characterMapFixture) MapCharacter(_ context.Context, r *enginev1.MapCharacterRequest) (*enginev1.MapCharacterResponse, error) {
+	spec := characters.DefaultGuideFixture()
+	spec.Info.Name = "Original moon gardener"
+	if strings.Contains(r.Prompt, "scarf") {
+		spec.Appearance.Accessories = []string{"scarf"}
+	}
+	raw, _ := json.Marshal(spec)
+	if strings.Contains(r.Prompt, "exhausted providers") {
+		raw = []byte(`{}`)
+	}
+	return &enginev1.MapCharacterResponse{SpecJson: string(raw), Attempts: []*enginev1.Usage{{Provider: r.Limits.Provider, Model: r.Limits.Model, InputTokens: 100, OutputTokens: 100, Attempt: 1, Component: "content", Delivered: true}}}, nil
 }

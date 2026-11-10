@@ -673,6 +673,20 @@ async fn evaluate_outline_change(input: &serde_json::Value) -> Result<String> {
 async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<String> {
     let spec = input["spec"].to_string();
     let valid = engine_core::characters::valid_spec(&spec);
+    if task == "character_spec" && input["mapping"] == true {
+        let recorded: Vec<Option<engine_core::Completion>> =
+            serde_json::from_value(input["recorded"].clone())?;
+        let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
+        let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+        let limits = serde_json::from_value(input["limits"].clone())?;
+        let out = engine_core::characters::map_character(
+            &router,
+            input["prompt"].as_str().unwrap_or_default(),
+            &limits,
+        )
+        .await?;
+        return Ok(serde_json::json!({"valid":out.completion.as_ref().is_some_and(|c|engine_core::characters::valid_spec(&c.text)),"attempt_count":out.attempts.len(),"fallback_used":out.attempts.iter().any(|a|a.fallback_used),"delivered_count":out.attempts.iter().filter(|a|a.delivered).count()}).to_string());
+    }
     if task == "character_spec" {
         return Ok(serde_json::json!({"valid":valid}).to_string());
     }

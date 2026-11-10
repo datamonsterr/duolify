@@ -240,6 +240,7 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	characterService := characters.NewService(db.Pool, nil, events)
 	characterService.ConfigureScreening(backend)
+	characterService.ConfigureCreation(creditService, backend, os.Getenv("DUOLIFY_ENV"))
 	if err := characterService.Purge(ctx); err != nil {
 		return err
 	}

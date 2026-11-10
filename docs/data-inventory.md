@@ -308,3 +308,17 @@ backup/checksum checks remain unchanged. Redis and PostHog/device state are deri
 No financial records, raw prompts, price or `character_create` spend are added.
 E12-07: Verify external mappings and catalogue economics. Introduces `pricing_verification_evidence` table recording immutable verification snapshots of Stripe price mappings, App Store/Google Play store identifiers, official AI provider model rates, and catalogue margin calculations for verified pricing versions. Contains strictly no learner text, prompt text, or provider API credentials. Retained for at least seven (7) years in the primary Postgres store under financial record policy; covered by nightly encrypted dumps; guarded by an immutable SQL trigger against UPDATE or DELETE.
 
+
+E17-04: `character_create_jobs` contains learner-scoped idempotency keys,
+operation/state, pinned quote and opaque reservation references, transient prompt
+payloads and accepted immutable Character results. Private data is exportable;
+account deletion cascades jobs and linked screenings, erasure tombstones replay
+before serving restore. Character deletion purges its job payloads within 30 days;
+independent Lesson snapshots survive under their own policy. Prompts expire at
+terminal state or within 24 hours, including abandoned jobs, with a pre-backup
+purge; screening verdicts expire after 30 days. Jobs/versions/verdicts enter nightly
+encrypted 14-day Postgres dumps and existing original rig assets remain Git-backed
+or protected versioned objects. Ledger/quote links retain opaque financial history
+for seven years; no raw prompt enters financial, Course or publication records.
+Focused restore tests replay terminal jobs without mapping/spend and compare
+current immutable versions, dedupe keys and released reservations.

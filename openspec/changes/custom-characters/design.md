@@ -144,3 +144,46 @@ survive private deletion; no new S3 assets require regeneration on restore.
 3. Validate proposed count/rate/text/token limits and adherence/screening thresholds against a representative Golden set.
 4. Confirm per-language voice availability and ElevenLabs redistribution rights for E15; approve the voice allowlist/default mappings.
 5. Consider a direct Cast-driven fork flow for published Course copies later; v1 uses the published Cast until the existing steering fork.
+
+## E17-04 implementation defaults and scoped design review
+
+Owner direction permits creation behind `character_create` without approving a
+price. `usd-dev-character-create-unapproved` is a labelled UNAPPROVED mock-only
+proposal stored in Pricing config; no approved E12 commercial term changes.
+Production requires an approved active version with a supported key, limits,
+rates and eligibility; absent support disables Create/Regenerate while retaining
+free structured edits and built-in selection. No environment value promotes a
+live Character provider without E10-06 feature evidence.
+
+S23 provides the Settings host, S04 the bounded entry/confirmation progression,
+and S17 the credit ceiling/version confirmation. Their canvases do not already
+draw the new Character states. The scoped extension uses existing token-based
+cards/buttons, one column on mobile, wrapped controls, safe preview iframes,
+plain-text long content and reduced-motion static previews. Entry discloses AI,
+private prompt handling and original-only art. Quote review shows the server's
+version, ceiling, expiry and explicit UNAPPROVED proposal label in development.
+Pending jobs expose reconnect/retry and cancellation; rejection, rate/count,
+insufficient balance and provider failures retain the old version and offer free
+Default cast through Course selection. Keyboard labels, visible focus, dark/light
+colors and mobile target sizes inherit the shared design tokens.
+
+Requests have learner-scoped keys. A row lock serializes quota/count reservations
+(rolling 24 hours and one minute); rejected requests consume attempt quota without
+mapping spend. Pending creates hold one ownership slot. API background work claims
+one confirmed reservation; persistence, current-version replacement, settlement
+and success outbox commit atomically. A cancelled/failed job cannot become paid
+success. The 90-second confirmed execution deadline cannot restart after reconnect,
+and every mapping attempt is capped at 45 seconds and 2,000 output tokens; at most
+one repair OR fallback follows primary. Runtime live mapping remains disabled.
+
+`character_create_jobs` stores only transient raw prompt payloads, opaque
+quote/reservation links and immutable accepted results. Prompts are erased on
+terminal outcome or within 24 hours (also before backups); screening verdicts
+expire in 30 days. Private job results follow Character/account erasure, while
+independent Lesson snapshots retain their lifecycle and financial rows keep opaque
+seven-year references. Restore reuses job/result/ledger keys and never remaps a
+terminal job. API mapping/screening events exclude all private text; creation
+outcomes are deduplicated transactionally in the existing financial outbox.
+Offline recorded `character_spec`, `character_screen`, `character_injection`
+cases require every deterministic check to pass; live dataset promotion remains
+gated by E10-06, as recorded in ADR 0011.

@@ -387,6 +387,14 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 			t.Fatal(err)
 		}
 	}
+	// A terminal rejected intent has no quote/reservation or raw payload, but
+	// its durable dedupe key and bounded verdict must survive encrypted restore.
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO character_create_jobs(id,learner_id,request_key,operation,state,reason_code,finished_at) VALUES('18111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','synthetic-rejected-create','create','rejected','prompt_injection',now())`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO character_screenings(learner_id,operation_id,verdict,reason_code,policy_version) VALUES('a1111111-1111-4111-8111-111111111111','18111111-1111-4111-8111-111111111111','rejected','prompt_injection','character-v1')`); err != nil {
+		t.Fatal(err)
+	}
 	charSvc := characters.NewService(f.DB.Pool, nil, nil)
 	if _, err = charSvc.PinCast(t.Context(), "a1111111-1111-4111-8111-111111111111", "f1111111-1111-4111-8111-111111111111", "fixture-character-lesson"); err != nil {
 		t.Fatal(err)
@@ -714,7 +722,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {

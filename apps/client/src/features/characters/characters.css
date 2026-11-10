@@ -95,3 +95,20 @@
     flex: 1;
   }
 }
+
+.character-create,
+.character-quote {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.character-quote {
+  padding: var(--space-4);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.character-quote strong {
+  color: var(--text);
+}

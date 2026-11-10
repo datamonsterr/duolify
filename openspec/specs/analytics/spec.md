@@ -172,3 +172,19 @@ Preview requested/viewed/failed events SHALL be API-owned and allowlisted, inclu
 #### Scenario: Preview discarded
 - **WHEN** a learner discards a paid preview
 - **THEN** the API-owned viewed event remains derived analytics and no Course or enrollment is created
+
+### Requirement: Private Character creation event catalogue
+The API SHALL emit `character_create_quoted` (operation, credits, pricing_version),
+`character_created` and `character_regenerated` (character_id, character_version,
+rig_version, voice_key, credits, pricing_version), `character_rejected` (operation,
+reason_code) and `character_create_failed` (operation, reason_code, fallback_used).
+Outcome events MUST be deduplicated by operation/result through the transactional
+outbox. `$ai_generation` SHALL use feature=character_create or character_screen
+and actual per-attempt provider/model/token/cache/latency/error/fallback metadata,
+including late attempts after cancellation. UUID/common properties, consent,
+non-blocking delivery and person deletion apply. Prompts, names, bios, backstories,
+personas, SVG and dialogue MUST NOT be captured.
+
+#### Scenario: Failed regeneration
+- **WHEN** bounded providers fail and the old Character stays current
+- **THEN** one failure event and each actual attempt are recorded, with no paid success event or learner text

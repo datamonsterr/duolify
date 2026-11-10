@@ -76,6 +76,26 @@ type Character struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type CharacterCreateJob struct {
+	ID              pgtype.UUID        `json:"id"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	RequestKey      string             `json:"request_key"`
+	CharacterID     pgtype.UUID        `json:"character_id"`
+	ExpectedVersion int32              `json:"expected_version"`
+	Operation       string             `json:"operation"`
+	State           string             `json:"state"`
+	ScreenCostNanos int64              `json:"screen_cost_nanos"`
+	ReasonCode      string             `json:"reason_code"`
+	QuoteID         pgtype.UUID        `json:"quote_id"`
+	ReservationID   pgtype.UUID        `json:"reservation_id"`
+	Prompt          pgtype.Text        `json:"prompt"`
+	PromptExpiresAt pgtype.Timestamptz `json:"prompt_expires_at"`
+	DeadlineAt      pgtype.Timestamptz `json:"deadline_at"`
+	Result          []byte             `json:"result"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	FinishedAt      pgtype.Timestamptz `json:"finished_at"`
+}
+
 type CharacterScreening struct {
 	ID            pgtype.UUID        `json:"id"`
 	LearnerID     pgtype.UUID        `json:"learner_id"`
@@ -84,6 +104,7 @@ type CharacterScreening struct {
 	ReasonCode    string             `json:"reason_code"`
 	PolicyVersion string             `json:"policy_version"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	OperationID   pgtype.UUID        `json:"operation_id"`
 }
 
 type CharacterVersion struct {

@@ -5,6 +5,7 @@ import type { CharacterSpec, Accessory, Expression } from "./types";
 import { compileRigSvg } from "./rig";
 import { validateCharacterSpec } from "./schema";
 import "./characters.css";
+import { CreateCharacter } from "./CreateCharacter";
 
 function failure(error: unknown) {
   return error instanceof Error ? error.message : "Connect and retry.";
@@ -38,6 +39,9 @@ export function CharacterPreview({ spec }: { spec: CharacterSpec }) {
 
 export function CharacterLibrary() {
   const [records, setRecords] = useState<CharacterRecord[] | null>(null);
+  const [regenerating, setRegenerating] = useState<
+    CharacterRecord | undefined
+  >();
   const [selected, setSelected] = useState<CharacterRecord | null>(null);
   const [draft, setDraft] = useState<CharacterSpec | null>(null);
   const [deleting, setDeleting] = useState<CharacterRecord | null>(null);
@@ -105,9 +109,21 @@ export function CharacterLibrary() {
         future lessons and chat.
       </p>
       <p>
-        Original fixture art is provisional. Prompt creation is unavailable
-        pending approval.
+        Original fixture art is provisional. Live AI creation remains gated.
       </p>
+      {!selected && (
+        <CreateCharacter
+          key={regenerating?.id ?? "new"}
+          record={regenerating}
+          onCreated={(record) => {
+            setRecords((current) => [
+              ...(current ?? []).filter((r) => r.id !== record.id),
+              record,
+            ]);
+            setRegenerating(undefined);
+          }}
+        />
+      )}
       {notice && <p role="status">{notice}</p>}
       {error && (
         <div role="alert">
@@ -153,6 +169,15 @@ export function CharacterLibrary() {
                 }}
               >
                 Edit {record.spec.info.name}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setRegenerating(record);
+                  window.scrollTo({ top: 0, behavior: "instant" });
+                }}
+              >
+                Regenerate {record.spec.info.name}
               </Button>
               <Button variant="quiet" onClick={() => setDeleting(record)}>
                 Delete {record.spec.info.name}

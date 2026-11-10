@@ -147,6 +147,11 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("GET /v1/characters/default-cast", deps.Characters)
 		if deps.Accounts != nil {
 			mux.Handle("/v1/characters", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("POST /v1/characters/jobs", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("GET /v1/characters/jobs/{jobId}", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("DELETE /v1/characters/jobs/{jobId}", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("POST /v1/characters/jobs/{jobId}/confirm", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("GET /v1/characters/creation", deps.Accounts.Protect(deps.Characters))
 			mux.Handle("GET /v1/characters/{id}", deps.Accounts.Protect(deps.Characters))
 			mux.Handle("PATCH /v1/characters/{id}", deps.Accounts.Protect(deps.Characters))
 			mux.Handle("DELETE /v1/characters/{id}", deps.Accounts.Protect(deps.Characters))

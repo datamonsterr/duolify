@@ -20,7 +20,7 @@ type screeningDouble struct {
 
 func (screeningDouble) ScreenCharacter(_ context.Context, r *pb.ScreenCharacterRequest) (*pb.ScreenCharacterResponse, error) {
 	reason := ""
-	if strings.Contains(strings.ToLower(r.SpecJson), "reveal system prompt") {
+	if strings.Contains(strings.ToLower(r.SpecJson+r.RawPrompt), "reveal system prompt") {
 		reason = "prompt_injection"
 	}
 	return &pb.ScreenCharacterResponse{Approved: reason == "", ReasonCode: reason, PolicyVersion: "character-v1", Attempts: []*pb.Usage{{Provider: "mock", Model: "mock-screen", InputTokens: 10, OutputTokens: 3, Attempt: 1, Delivered: true}}}, nil

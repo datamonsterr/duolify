@@ -23,13 +23,15 @@ func (s *Service) ConfigureScreening(screen Screener) { s.screener = screen }
 
 // Maintain enforces retention even when no Character endpoint is visited.
 func (s *Service) Maintain(ctx context.Context) {
-	ticker := time.NewTicker(time.Hour)
+	_ = s.RecoverCreateJobs(ctx)
+	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			_ = s.RecoverCreateJobs(ctx)
 			_ = s.Purge(ctx)
 		}
 	}
@@ -131,7 +133,7 @@ func (s *Service) beginAttempt(ctx context.Context, owner, id string) (string, e
 		return "", ErrNotFound
 	}
 	var n int
-	if err = tx.QueryRow(ctx, `SELECT count(*) FROM character_screenings WHERE learner_id=$1 AND created_at>now()-interval '1 hour'`, owner).Scan(&n); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM character_screenings WHERE learner_id=$1 AND operation_id IS NULL AND created_at>now()-interval '1 hour'`, owner).Scan(&n); err != nil {
 		return "", err
 	}
 	if n >= 20 {
@@ -429,6 +431,9 @@ func (s *Service) PinCast(ctx context.Context, owner, course, lesson string) (Le
 // Purge retains independent historical snapshots and erases unreferenced
 // private records within 30 days. Bundled rigs have no per-learner S3 objects.
 func (s *Service) Purge(ctx context.Context) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE character_create_jobs SET prompt=NULL WHERE prompt_expires_at<=now() OR state IN ('succeeded','failed','rejected','cancelled'); DELETE FROM character_create_jobs WHERE character_id IN (SELECT id FROM characters WHERE deleted_at<now()-interval '30 days')`); err != nil {
+		return err
+	}
 	_, err := s.pool.Exec(ctx, `DELETE FROM character_screenings WHERE created_at<now()-interval '30 days'`)
 	if err != nil {
 		return err

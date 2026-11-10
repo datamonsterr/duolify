@@ -1,11 +1,13 @@
 package characters
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 )
@@ -47,6 +49,10 @@ func (h *Handler) library(w http.ResponseWriter, r *http.Request) {
 	if owner == "" {
 		w.WriteHeader(401)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/v1/characters/creation") || strings.HasPrefix(r.URL.Path, "/v1/characters/jobs") {
+		h.creation(w, r, owner)
 		return
 	}
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
@@ -170,4 +176,84 @@ func (h *Handler) handleManifest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(manifest)
+}
+
+func (h *Handler) creation(w http.ResponseWriter, r *http.Request, owner string) {
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	var result any
+	var err error
+	decode := func(out any) error {
+		r.Body = http.MaxBytesReader(w, r.Body, 8192)
+		d := json.NewDecoder(r.Body)
+		d.DisallowUnknownFields()
+		if d.Decode(out) != nil || !errors.Is(d.Decode(new(any)), io.EOF) {
+			return errors.New("invalid_spec")
+		}
+		return nil
+	}
+	switch {
+	case r.URL.Path == "/v1/characters/creation" && r.Method == http.MethodGet:
+		result = h.service.CreateAvailability(r.Context())
+	case r.URL.Path == "/v1/characters/jobs" && r.Method == http.MethodPost:
+		var in CreateRequest
+		err = decode(&in)
+		if err == nil {
+			result, err = h.service.QuoteCreate(r.Context(), owner, in)
+		}
+	case len(parts) == 4 && parts[2] == "jobs":
+		switch r.Method {
+		case http.MethodGet:
+			result, err = h.service.GetCreate(r.Context(), owner, parts[3])
+		case http.MethodDelete:
+			result, err = h.service.CancelCreate(r.Context(), owner, parts[3])
+		default:
+			w.WriteHeader(405)
+			return
+		}
+	case len(parts) == 5 && parts[2] == "jobs" && parts[4] == "confirm" && r.Method == http.MethodPost:
+		var in struct {
+			QuoteID string `json:"quote_id"`
+		}
+		err = decode(&in)
+		if err == nil {
+			var j CreateJob
+			j, err = h.service.ConfirmCreate(r.Context(), owner, parts[3], in.QuoteID)
+			result = j
+			if err == nil && j.State == "queued" {
+				go func() {
+					ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 90*time.Second)
+					defer cancel()
+					_ = h.service.ExecuteCreate(ctx, owner, j.ID)
+				}()
+			}
+		}
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		code := createReason(err.Error())
+		status := http.StatusConflict
+		switch err.Error() {
+		case "creation_disabled":
+			status = 503
+		case "not_found":
+			status = 404
+			code = "not_found"
+		case "limit_exceeded":
+			status = 429
+		case "insufficient_credits":
+			status = 402
+			code = "insufficient_credits"
+		case "invalid_spec", "invalid_request_key":
+			status = 400
+			code = "invalid_spec"
+		case "quote_mismatch", "quote_expired":
+			code = err.Error()
+		}
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": code})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(result)
 }

@@ -3,11 +3,11 @@ description = "Run private Character editor and Course Cast browser acceptance"
 depends = ["client:build"]
 dir = "{{config_root}}/apps/client"
 env = { E2E_WEB_PORT = "4170", E2E_API_BASE = "http://127.0.0.1:4171", VITE_API_URL = "http://127.0.0.1:4171" }
-run = "pnpm exec playwright test e2e/characters-e17-03.spec.ts"
+run = "pnpm exec playwright test e2e/characters-e17-03.spec.ts e2e/characters-e17-04.spec.ts"
 
 ["api:test-characters-integration"]
 dir = "{{config_root}}/services/api"
-run = "gotestsum -- -race -count=1 -tags integration ./internal/characters/... -run 'TestPrivate|TestEdit'"
+run = "gotestsum -- -race -count=1 -tags integration ./internal/characters/... -run 'TestPrivate|TestEdit|TestCharacterCreate'"
 
 ["api:test-characters"]
 dir = "{{config_root}}/services/api"
@@ -18,4 +18,14 @@ dir = "{{config_root}}/apps/client"
 run = "pnpm exec vitest run src/features/characters"
 
 ["characters:format"]
-run = ["gofmt -w services/api/internal/characters", "pnpm --dir apps/client exec prettier --write src/features/characters e2e/characters-e17-03.spec.ts"]
+run = ["gofmt -w services/api/internal/characters", "pnpm --dir apps/client exec prettier --write src/features/characters e2e/characters-e17-03.spec.ts e2e/characters-e17-04.spec.ts"]
+
+["client:e2e-character-create"]
+depends = ["client:build"]
+dir = "{{config_root}}/apps/client"
+env = { E2E_WEB_PORT = "4172", E2E_API_BASE = "http://127.0.0.1:4173", VITE_API_URL = "http://127.0.0.1:4173" }
+run = "pnpm exec playwright test e2e/characters-e17-04.spec.ts"
+
+["proto:breaking-characters"]
+description = "Check additive Character RPCs against the integration contract"
+run = "buf breaking proto --against '.git#branch=origin/impl/mvp,subdir=proto'"

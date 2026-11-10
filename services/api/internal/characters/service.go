@@ -38,6 +38,7 @@ type Service struct {
 	mu       sync.RWMutex
 	memory   map[string][]byte
 	screener Screener
+	creation *creation
 }
 
 // NewService constructs a new character service.

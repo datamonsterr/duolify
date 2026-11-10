@@ -10,7 +10,7 @@ import (
 )
 
 func TestCharacterEventSchemasNeverCaptureContent(t *testing.T) {
-	for _, event := range []string{"character_updated", "character_deleted", "character_rejected", "course_cast_selected"} {
+	for _, event := range []string{"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "character_create_quoted", "character_created", "character_regenerated", "character_create_failed"} {
 		if !allowlisted(event) {
 			t.Fatalf("event dropped: %s", event)
 		}
@@ -45,7 +45,7 @@ func TestPrivateCharacterEventsDeliverWithConsent(t *testing.T) {
 		t.Fatal(err)
 	}
 	owner := "17111111-1111-4111-8111-111111111111"
-	for _, event := range []string{"character_updated", "character_deleted", "character_rejected", "course_cast_selected"} {
+	for _, event := range []string{"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "character_create_quoted", "character_created", "character_regenerated", "character_create_failed"} {
 		if err = events.Capture(owner, event, map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "operation": "manual_edit", "reason_code": "prompt_injection", "fields_changed": []string{"info.name"}, "prompt": "private text"}); err != nil {
 			t.Fatal(err)
 		}
@@ -55,7 +55,7 @@ func TestPrivateCharacterEventsDeliverWithConsent(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(received) != 4 {
+	if len(received) != 8 {
 		t.Fatalf("missing deliveries: %v", received)
 	}
 	for _, event := range received {
@@ -70,7 +70,7 @@ func TestPrivateCharacterEventsDeliverWithConsent(t *testing.T) {
 	}
 	_ = opted.Capture(owner, "character_deleted", map[string]any{})
 	_ = opted.Close()
-	if len(received) != 4 {
+	if len(received) != 8 {
 		t.Fatal("opt-out sent events")
 	}
 }
