@@ -494,6 +494,16 @@ type LessonCompletionOutbox struct {
 	State     string             `json:"state"`
 }
 
+type LessonCompletionSummary struct {
+	ID          pgtype.UUID        `json:"id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	CourseID    pgtype.UUID        `json:"course_id"`
+	LessonID    pgtype.UUID        `json:"lesson_id"`
+	Summary     string             `json:"summary"`
+	WeakTopics  []byte             `json:"weak_topics"`
+	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+}
+
 type LessonGeneration struct {
 	ID            pgtype.UUID        `json:"id"`
 	LearnerID     pgtype.UUID        `json:"learner_id"`

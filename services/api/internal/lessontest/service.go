@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -230,6 +231,59 @@ func ToPublicQuestion(q *enginev1.Question, topicID string) PublicQuestion {
 	}
 }
 
+// AnswerRecord records a single question topic and answer correctness.
+type AnswerRecord struct {
+	TopicID string
+	Correct bool
+}
+
+// ExtractWeakTopics extracts unique topic IDs that were answered incorrectly, in order of first failure.
+func ExtractWeakTopics(answers []AnswerRecord) []string {
+	var weak []string
+	seen := make(map[string]bool)
+	for _, a := range answers {
+		if !a.Correct && strings.TrimSpace(a.TopicID) != "" {
+			if !seen[a.TopicID] {
+				seen[a.TopicID] = true
+				weak = append(weak, a.TopicID)
+			}
+		}
+	}
+	return weak
+}
+
+// FormatLessonSummary formats a completed lesson summary including weak topics.
+func FormatLessonSummary(title string, weakTopics []string, firstTryCorrect, variantsServed int) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Lesson: %s\n", title)
+	fmt.Fprintf(&b, "Score: %d first-try correct, %d retry variants served.\n", firstTryCorrect, variantsServed)
+	if len(weakTopics) > 0 {
+		fmt.Fprintf(&b, "Weak topics: %s\n", strings.Join(weakTopics, ", "))
+	}
+	return b.String()
+}
+
+// LessonHistoryEntry represents a completed lesson summary item with completion timestamp.
+type LessonHistoryEntry struct {
+	LessonTitle   string
+	CompletedUnix int64
+	Summary       string
+}
+
+// OrderHistoryOldestFirst sorts lesson history items oldest first and returns their summary strings.
+func OrderHistoryOldestFirst(items []LessonHistoryEntry) []string {
+	sorted := make([]LessonHistoryEntry, len(items))
+	copy(sorted, items)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].CompletedUnix < sorted[j].CompletedUnix
+	})
+	res := make([]string, len(sorted))
+	for i, item := range sorted {
+		res[i] = item.Summary
+	}
+	return res
+}
+
 // River queue and worker definitions
 type lessonGenerationArgs struct {
 	ID string `json:"id"`
@@ -319,13 +373,112 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 			return fmt.Errorf("lesson not found: %w", err)
 		}
 
+		// Build CourseOutline
+		var courseTitle, courseDesc string
+		_ = s.opts.Pool.QueryRow(ctx, `SELECT title, description FROM courses WHERE id::text=$1`, courseID).Scan(&courseTitle, &courseDesc)
+		outline := &enginev1.CourseOutline{
+			CourseId:    courseID,
+			Title:       courseTitle,
+			Description: courseDesc,
+		}
+
+		type unitInfo struct {
+			id    string
+			title string
+		}
+		var unitsList []unitInfo
+		uRows, uErr := s.opts.Pool.Query(ctx, `SELECT id::text, title FROM course_units WHERE course_id::text=$1 ORDER BY position ASC`, courseID)
+		if uErr == nil {
+			for uRows.Next() {
+				var ui unitInfo
+				if uRows.Scan(&ui.id, &ui.title) == nil {
+					unitsList = append(unitsList, ui)
+				}
+			}
+			uRows.Close()
+		}
+
+		for _, ui := range unitsList {
+			uProto := &enginev1.Unit{
+				UnitId: ui.id,
+				Title:  ui.title,
+			}
+			lRows, lErr := s.opts.Pool.Query(ctx, `SELECT authored_id, title, goal FROM course_lesson_stubs WHERE unit_id::text=$1 ORDER BY position ASC`, ui.id)
+			if lErr == nil {
+				for lRows.Next() {
+					var lAuthID, lTitle, lGoal string
+					if lRows.Scan(&lAuthID, &lTitle, &lGoal) == nil {
+						uProto.Lessons = append(uProto.Lessons, &enginev1.LessonRef{
+							LessonId: lAuthID,
+							Title:    lTitle,
+							Goal:     lGoal,
+						})
+					}
+				}
+				lRows.Close()
+			}
+			outline.Units = append(outline.Units, uProto)
+		}
+
+		// Build LearnerProfile
+		learner := &enginev1.LearnerProfile{LearnerId: owner}
+		var dailyM, dailyX int32
+		var remEn bool
+		_ = s.opts.Pool.QueryRow(ctx, `
+			SELECT locale, background, goal, level, topic, time_zone,
+			       COALESCE(daily_minutes,0), COALESCE(daily_xp,0), COALESCE(reminder_enabled,false), COALESCE(reminder_time,'')
+			FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(
+			&learner.Locale,
+			&learner.Background,
+			&learner.Goals,
+			&learner.Level,
+			&learner.Topic,
+			&learner.TimeZone,
+			&dailyM,
+			&dailyX,
+			&remEn,
+			&learner.ReminderTime,
+		)
+		if dailyM > 0 {
+			learner.DailyMinutes = uint32(dailyM)
+		}
+		if dailyX > 0 {
+			learner.DailyXp = uint32(dailyX)
+		}
+		learner.ReminderEnabled = remEn
+
+		var courseLevelOverride *string
+		_ = s.opts.Pool.QueryRow(ctx, `SELECT course_level_override FROM courses WHERE id::text=$1 AND learner_id::text=$2`, courseID, owner).Scan(&courseLevelOverride)
+		if courseLevelOverride != nil && *courseLevelOverride != "" {
+			learner.Level = *courseLevelOverride
+		}
+
+		// Build History: completed lesson summaries oldest first
+		var history []string
+		hRows, hErr := s.opts.Pool.Query(ctx, `
+			SELECT summary FROM lesson_completion_summaries
+			WHERE learner_id::text=$1 AND course_id::text=$2
+			ORDER BY completed_at ASC`, owner, courseID)
+		if hErr == nil {
+			for hRows.Next() {
+				var sText string
+				if hRows.Scan(&sText) == nil {
+					history = append(history, sText)
+				}
+			}
+			hRows.Close()
+		}
+
 		req := &enginev1.GenerateLessonRequest{
+			Outline: outline,
 			Lesson: &enginev1.LessonRef{
 				LessonId: authoredID,
 				Title:    title,
 				Goal:     goal,
 			},
-			Limits: limits,
+			Learner: learner,
+			History: history,
+			Limits:  limits,
 		}
 
 		callCtx, callCancel := context.WithDeadline(ctx, job.DeadlineAt)
@@ -507,6 +660,19 @@ func (s *Service) failGeneration(ctx context.Context, id, reservation, errorCode
 	_, _ = s.opts.Pool.Exec(ctx, `UPDATE lesson_generations SET state = 'failed', error_code = $2 WHERE id::text = $1`, id, errorCode)
 	// Return lesson stub back to ready_to_generate
 	_, _ = s.opts.Pool.Exec(ctx, `UPDATE course_lesson_stubs SET status = 'ready_to_generate' WHERE id = (SELECT lesson_id FROM lesson_generations WHERE id::text = $1)`, id)
+
+	if s.opts.Events != nil {
+		var failOwner, failCourseID, failLessonID string
+		_ = s.opts.Pool.QueryRow(ctx, `SELECT learner_id::text, course_id::text, lesson_id::text FROM lesson_generations WHERE id::text=$1`, id).Scan(&failOwner, &failCourseID, &failLessonID)
+		_ = s.opts.Events.Capture(failOwner, "course_generation_failed", map[string]any{
+			"source":      "api",
+			"platform":    "web",
+			"app_version": "1.0.0",
+			"course_id":   failCourseID,
+			"lesson_id":   failLessonID,
+			"error_code":  errorCode,
+		})
+	}
 	return nil
 }
 
@@ -673,30 +839,47 @@ func (s *Service) handlePrepare(w http.ResponseWriter, r *http.Request, owner, l
 		return
 	}
 
-	// Eligibility rule: First lesson (unit 0, pos 0) or ready_to_generate or predecessor is done
-	isEligible := (status == "ready_to_generate") || (unitPos == 0 && lessonPos == 0)
-	if !isEligible && status == "locked" {
-		// Check predecessor
-		var predStatus string
-		if lessonPos > 0 {
-			_ = s.opts.Pool.QueryRow(ctx, `
-				SELECT status FROM course_lesson_stubs
-				WHERE unit_id::text=$1 AND position=$2`, unitID, lessonPos-1).Scan(&predStatus)
-		} else if unitPos > 0 {
-			_ = s.opts.Pool.QueryRow(ctx, `
-				SELECT cls.status FROM course_lesson_stubs cls
-				JOIN course_units cu ON cu.id = cls.unit_id
-				WHERE cu.course_id::text=$1 AND cu.position=$2
-				ORDER BY cls.position DESC LIMIT 1`, courseID, unitPos-1).Scan(&predStatus)
-		}
-		if predStatus == "done" {
-			isEligible = true
-		}
+	if status == "done" {
+		http.Error(w, `{"error":"lesson already completed"}`, http.StatusConflict)
+		return
 	}
 
-	if !isEligible {
-		http.Error(w, `{"error":"lesson is locked and not eligible for preparation"}`, http.StatusConflict)
+	var activeGenCount int
+	_ = s.opts.Pool.QueryRow(ctx, `
+		SELECT count(*) FROM lesson_generations
+		WHERE lesson_id::text=$1 AND state IN ('queued', 'generating')`, lessonID).Scan(&activeGenCount)
+	if activeGenCount > 0 {
+		http.Error(w, `{"error":"lesson generation already in progress"}`, http.StatusConflict)
 		return
+	}
+
+	// Eligibility rule: First lesson (unit 0, pos 0) or predecessor has authoritative pass in outbox
+	isFirstLesson := (unitPos == 0 && lessonPos == 0)
+	if !isFirstLesson {
+		var predID, predStatus string
+		if lessonPos > 0 {
+			_ = s.opts.Pool.QueryRow(ctx, `
+				SELECT id::text, status FROM course_lesson_stubs
+				WHERE unit_id::text=$1 AND position=$2`, unitID, lessonPos-1).Scan(&predID, &predStatus)
+		} else if unitPos > 0 {
+			_ = s.opts.Pool.QueryRow(ctx, `
+				SELECT cls.id::text, cls.status FROM course_lesson_stubs cls
+				JOIN course_units cu ON cu.id = cls.unit_id
+				WHERE cu.course_id::text=$1 AND cu.position=$2
+				ORDER BY cls.position DESC LIMIT 1`, courseID, unitPos-1).Scan(&predID, &predStatus)
+		}
+
+		var outboxExists bool
+		if predID != "" {
+			_ = s.opts.Pool.QueryRow(ctx, `
+				SELECT EXISTS(SELECT 1 FROM lesson_completion_outbox WHERE learner_id=$1::uuid AND lesson_id=$2::uuid)`,
+				owner, predID).Scan(&outboxExists)
+		}
+
+		if predStatus != "done" || !outboxExists {
+			http.Error(w, `{"error":"predecessor lesson has not been passed"}`, http.StatusConflict)
+			return
+		}
 	}
 
 	// Verify quote
@@ -835,9 +1018,10 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 		}
 	}
 
+	var courseID string
+	_ = s.opts.Pool.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID)
+
 	if s.opts.Events != nil {
-		var courseID string
-		_ = s.opts.Pool.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID)
 		_ = s.opts.Events.Capture(owner, "lesson_test_started", map[string]any{
 			"source":         "api",
 			"platform":       "web",
@@ -849,6 +1033,7 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
+		"course_id":  courseID,
 		"session_id": sessionID,
 		"questions":  questions,
 	})
@@ -1233,6 +1418,38 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		return
 	}
 
+	// Persist completed-lesson summary with weak topics
+	ansRows, err := tx.Query(ctx, `
+		SELECT topic_id, correct
+		FROM lesson_test_answers
+		WHERE session_id = $1::uuid
+		ORDER BY created_at ASC`, sessionID)
+	var sessionAnswers []AnswerRecord
+	if err == nil {
+		for ansRows.Next() {
+			var rec AnswerRecord
+			if ansRows.Scan(&rec.TopicID, &rec.Correct) == nil {
+				sessionAnswers = append(sessionAnswers, rec)
+			}
+		}
+		ansRows.Close()
+	}
+	weakTopics := ExtractWeakTopics(sessionAnswers)
+
+	var lessonTitle string
+	_ = tx.QueryRow(ctx, `SELECT title FROM course_lesson_stubs WHERE id::text=$1`, lessonID).Scan(&lessonTitle)
+
+	summaryText := FormatLessonSummary(lessonTitle, weakTopics, firstTryCorrect+1, variantsServed)
+	weakTopicsJSON, _ := json.Marshal(weakTopics)
+
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO lesson_completion_summaries (learner_id, course_id, lesson_id, summary, weak_topics)
+		VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5)
+		ON CONFLICT (learner_id, lesson_id) DO UPDATE SET summary = EXCLUDED.summary, weak_topics = EXCLUDED.weak_topics`,
+		owner, courseID, lessonID, summaryText, weakTopicsJSON); err != nil {
+		return
+	}
+
 	if err = tx.Commit(ctx); err != nil {
 		http.Error(w, `{"error":"commit failed"}`, http.StatusInternalServerError)
 		return
@@ -1252,7 +1469,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		})
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	resp := map[string]any{
 		"correct":           true,
 		"passed":            true,
 		"answer_index":      answerIndex,
@@ -1260,7 +1477,13 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		"resolved_topics":   totalTopics,
 		"total_topics":      totalTopics,
 		"retry_queue_count": 0,
-	})
+	}
+	if nextLessonID != "" {
+		resp["next_lesson_id"] = nextLessonID
+		resp["next_lesson_status"] = "ready_to_generate"
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func pathClean(p string) string {
