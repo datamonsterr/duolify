@@ -75,3 +75,5 @@ E9-01 implemented raw quick note capture and offline synchronization. E9-02 impl
 
 Enrichment entry points and River payloads carry the authenticated learner ID. Reads, status updates and locking reads require both note and learner IDs; a foreign note returns 404 before creating a quote or reservation. Legacy jobs without a learner ID fail closed. This preserves the existing backup inventory, analytics privacy policy and mock-provider reliability coverage.
 
+Non-delivery settles an explicit zero-cost, non-delivered attempt, including after Claim; nil usage retains its shared meaning of unknown provider cost. Cleanup uses a bounded context independent of request cancellation and propagates settlement and status errors. Accepted enrichment, raw-version validation and final status commit together with the ledger through SettleWith. Mock-provider regression cases assert zero ledger delta for provider errors, rejected output, concurrent edits and failed database writes, and one charge for successful delivery.
+

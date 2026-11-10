@@ -172,292 +172,164 @@ func (s *Service) ProcessEnrichment(ctx context.Context, learnerID, noteID strin
 }
 
 // ProcessEnrichmentWithVersion processes credit reservation and AI enrichment while ensuring raw_version integrity.
-func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, noteID string, expectedVersion int) error {
+func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, noteID string, expectedVersion int) (resultErr error) {
 	noteUUID, err := parseUUID(noteID)
 	if err != nil {
 		return ErrNotFound
 	}
-
 	learnerUUID, err := parseUUID(learnerID)
 	if err != nil {
 		return ErrNotFound
 	}
-
-	// Fetch raw note
-	var note struct {
-		ID         pgtype.UUID
-		LearnerID  pgtype.UUID
-		CourseID   pgtype.UUID
-		LessonID   pgtype.UUID
-		SlideTitle string
-		RawText    string
-		Status     string
-		RawVersion int32
-	}
-	err = s.pool.QueryRow(ctx, `
-		SELECT id, learner_id, course_id, lesson_id, slide_title, raw_text, status, raw_version
-		FROM quick_notes
-		WHERE id = $1 AND learner_id = $2
-	`, noteUUID, learnerUUID).Scan(
-		&note.ID,
-		&note.LearnerID,
-		&note.CourseID,
-		&note.LessonID,
-		&note.SlideTitle,
-		&note.RawText,
-		&note.Status,
-		&note.RawVersion,
-	)
-	if err != nil {
+	note, err := s.queries.GetQuickNoteWithEnrichmentByID(ctx, db.GetQuickNoteWithEnrichmentByIDParams{ID: noteUUID, LearnerID: learnerUUID})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
-
-	// Validate expected revision before spending credits or touching AI
-	if err := ValidateExpectedVersion(int(note.RawVersion), expectedVersion); err != nil {
-		return err
-	}
-
-	// If raw_only, do not enrich
-	if note.Status == "raw_only" {
-		return nil
-	}
-
-	// If already enriched with this version, do not charge or re-enrich
-	if note.Status == "enriched" {
-		return nil
-	}
-
-	learnerIDStr := formatUUID(note.LearnerID)
-
-	// 1. Create quote for quick_note action from pricing configuration
-	quotes := pricing.NewQuotes(s.pool)
-	quote, err := quotes.Create(ctx, learnerIDStr, pricing.QuoteInput{Action: "quick_note"})
 	if err != nil {
 		return err
 	}
-
-	if err := quotes.Accept(ctx, learnerIDStr, quote.ID); err != nil {
+	if err = ValidateExpectedVersion(int(note.RawVersion), expectedVersion); err != nil {
 		return err
 	}
-
-	quoteUUID, _ := parseUUID(quote.ID)
-
-	// 2. Reserve daily-first eligible credits
+	if note.Status == "raw_only" || note.Status == "enriched" {
+		return nil
+	}
 	if s.credits == nil {
 		return errors.New("credits service not configured")
 	}
-
-	res, err := s.credits.ReserveAction(ctx, learnerIDStr, quote.ID, "quick_note")
+	quotes := pricing.NewQuotes(s.pool)
+	quote, err := quotes.Create(ctx, learnerID, pricing.QuoteInput{Action: "quick_note"})
 	if err != nil {
-		if errors.Is(err, credits.ErrInsufficient) {
-			return credits.ErrInsufficient
+		return err
+	}
+	if err = quotes.Accept(ctx, learnerID, quote.ID); err != nil {
+		return err
+	}
+	quoteUUID, err := parseUUID(quote.ID)
+	if err != nil {
+		return err
+	}
+	res, err := s.credits.ReserveAction(ctx, learnerID, quote.ID, "quick_note")
+	if err != nil {
+		return err
+	}
+	resUUID, err := parseUUID(res.ID)
+	if err != nil {
+		return err
+	}
+	delivered := false
+	// Cleanup has its own bounded context so HTTP cancellation cannot strand a hold.
+	defer func() {
+		if delivered {
+			return
 		}
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		defer cancel()
+		// An explicit non-delivered attempt releases both queued and running work;
+		// nil usage means unknown provider cost in the shared credits API.
+		_, settleErr := s.credits.Settle(cleanupCtx, learnerID, res.ID, []*enginev1.Usage{{Provider: quote.Rate.Provider, Model: quote.Rate.Model, Attempt: 1, Component: "content"}})
+		_, statusErr := s.pool.Exec(cleanupCtx, `UPDATE quick_notes SET status='enrichment_failed', reservation_id=NULL, quote_id=NULL, updated_at=now() WHERE id=$1 AND learner_id=$2 AND raw_version=$3 AND (reservation_id=$4 OR reservation_id IS NULL)`, noteUUID, learnerUUID, note.RawVersion, resUUID)
+		resultErr = errors.Join(resultErr, settleErr, statusErr)
+	}()
+	if _, err = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{ID: noteUUID, LearnerID: learnerUUID, Status: "enriching", ReservationID: resUUID, QuoteID: quoteUUID}); err != nil {
 		return err
 	}
-
-	resUUID, _ := parseUUID(res.ID)
-
-	// Update status to enriching
-	_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
-		ID:            noteUUID,
-		LearnerID:     learnerUUID,
-		Status:        "enriching",
-		ReservationID: resUUID,
-		QuoteID:       quoteUUID,
-	})
-
-	// 3. Claim reservation
-	if err = s.credits.Claim(ctx, learnerIDStr, res.ID); err != nil {
-		_, _ = s.credits.Release(ctx, learnerIDStr, res.ID)
-		_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
-			ID:            noteUUID,
-			LearnerID:     learnerUUID,
-			Status:        "enrichment_failed",
-			ReservationID: pgtype.UUID{},
-			QuoteID:       pgtype.UUID{},
-		})
-		_ = EmitQuickNoteEnrichmentFailed(s.events, learnerIDStr, noteID, "claim_failed", "web", "0.1.0")
+	if err = s.credits.Claim(ctx, learnerID, res.ID); err != nil {
 		return err
 	}
-
-	// 4. Retrieve course lessons for grounding
 	courseID := note.CourseID
 	if !courseID.Valid && note.LessonID.Valid {
-		cID, err := s.queries.GetCourseIDForLesson(ctx, note.LessonID)
-		if err == nil {
-			courseID = cID
+		courseID, err = s.queries.GetCourseIDForLesson(ctx, note.LessonID)
+		if err != nil {
+			return err
 		}
 	}
 	if !courseID.Valid {
-		var cID pgtype.UUID
-		if err := s.pool.QueryRow(ctx, "SELECT c.id FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE e.learner_id=$1 LIMIT 1", note.LearnerID).Scan(&cID); err == nil {
-			courseID = cID
+		err = s.pool.QueryRow(ctx, "SELECT c.id FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE e.learner_id=$1 LIMIT 1", learnerUUID).Scan(&courseID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
 		}
 	}
-
 	var allowedLessons []*enginev1.LessonRef
 	var allowedIDs []string
 	if courseID.Valid {
-		lessons, err := s.queries.ListCourseLessonsForCourse(ctx, courseID)
-		if err == nil {
-			allowedLessons = make([]*enginev1.LessonRef, len(lessons))
-			allowedIDs = make([]string, len(lessons))
-			for i, l := range lessons {
-				lID := formatUUID(l.ID)
-				allowedLessons[i] = &enginev1.LessonRef{
-					LessonId: lID,
-					Title:    l.Title,
-				}
-				allowedIDs[i] = lID
-			}
+		lessons, e := s.queries.ListCourseLessonsForCourse(ctx, courseID)
+		if e != nil {
+			return e
+		}
+		for _, lesson := range lessons {
+			id := formatUUID(lesson.ID)
+			allowedLessons = append(allowedLessons, &enginev1.LessonRef{LessonId: id, Title: lesson.Title})
+			allowedIDs = append(allowedIDs, id)
 		}
 	}
-
-	// 5. Retrieve usage limits from credits reservation
-	limits, _ := s.credits.Limits(ctx, learnerIDStr, res.ID, "quick_note")
-
-	// 6. Call engine gRPC
+	limits, err := s.credits.Limits(ctx, learnerID, res.ID, "quick_note")
+	if err != nil {
+		return err
+	}
 	if s.engineClient == nil {
-		_, _ = s.credits.Release(ctx, learnerIDStr, res.ID)
-		_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
-			ID:            noteUUID,
-			LearnerID:     learnerUUID,
-			Status:        "enrichment_failed",
-			ReservationID: pgtype.UUID{},
-			QuoteID:       pgtype.UUID{},
-		})
-		_ = EmitQuickNoteEnrichmentFailed(s.events, learnerIDStr, noteID, "engine_unavailable", "web", "0.1.0")
 		return errors.New("engine client not configured")
 	}
-
-	deadline := res.DeadlineAt
-	if deadline.IsZero() {
-		deadline = time.Now().Add(15 * time.Second)
-	}
-	callCtx, cancel := context.WithDeadline(ctx, deadline)
+	callCtx, cancel := context.WithDeadline(ctx, res.DeadlineAt)
 	defer cancel()
-
 	var lessonRef *enginev1.LessonRef
 	if note.LessonID.Valid {
-		lessonRef = &enginev1.LessonRef{
-			LessonId: formatUUID(note.LessonID),
-			Title:    note.SlideTitle,
-		}
+		lessonRef = &enginev1.LessonRef{LessonId: formatUUID(note.LessonID), Title: note.SlideTitle}
 	}
-
-	req := &enginev1.EnrichNoteRequest{
-		Note:           note.RawText,
-		Lesson:         lessonRef,
-		Learner:        &enginev1.LearnerProfile{},
-		Limits:         limits,
-		AllowedLessons: allowedLessons,
-	}
-
 	start := time.Now()
-	resp, callErr := s.engineClient.EnrichNote(callCtx, req)
-	latencyMs := time.Since(start).Milliseconds()
-
-	if callErr != nil {
-		// Terminal failure: release reservation, keep raw note, set enrichment_failed
-		_, _ = s.credits.Settle(ctx, learnerIDStr, res.ID, nil)
-		_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
-			ID:            noteUUID,
-			LearnerID:     learnerUUID,
-			Status:        "enrichment_failed",
-			ReservationID: pgtype.UUID{},
-			QuoteID:       pgtype.UUID{},
-		})
-		_ = EmitQuickNoteEnrichmentFailed(s.events, learnerIDStr, noteID, "engine_failure", "web", "0.1.0")
-		if s.events != nil {
-			_ = s.events.Capture(learnerIDStr, "$ai_generation", map[string]any{
-				"source":       "api",
-				"platform":     "web",
-				"app_version":  "0.1.0",
-				"feature":      "quick_note",
-				"succeeded":    false,
-				"$ai_is_error": true,
-				"error_code":   "engine_failure",
-				"latency_ms":   latencyMs,
-			})
+	response, err := s.engineClient.EnrichNote(callCtx, &enginev1.EnrichNoteRequest{Note: note.RawText, Lesson: lessonRef, Learner: &enginev1.LearnerProfile{}, Limits: limits, AllowedLessons: allowedLessons})
+	if err != nil {
+		return err
+	}
+	if response == nil {
+		return errors.New("engine returned no enrichment")
+	}
+	if err = ValidateEnrichmentBounds(response.Summary, response.Tags); err != nil {
+		return err
+	}
+	attempts := response.Attempts
+	if len(attempts) == 0 && response.Usage != nil {
+		attempts = []*enginev1.Usage{response.Usage}
+	}
+	// The financial transaction locks the note before testing the raw revision;
+	// updates and the final status either commit with the charge or all roll back.
+	committed := false
+	_, err = s.credits.SettleWith(ctx, learnerID, res.ID, attempts, func(tx pgx.Tx, _ credits.Reservation) error {
+		qtx := s.queries.WithTx(tx)
+		current, e := qtx.GetQuickNoteForUpdate(ctx, db.GetQuickNoteForUpdateParams{ID: noteUUID, LearnerID: learnerUUID})
+		if errors.Is(e, pgx.ErrNoRows) {
+			return ErrNotFound
 		}
-		return callErr
-	}
-
-	// 7. Validate output bounds
-	if boundsErr := ValidateEnrichmentBounds(resp.Summary, resp.Tags); boundsErr != nil {
-		_, _ = s.credits.Settle(ctx, learnerIDStr, res.ID, nil)
-		_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
-			ID:            noteUUID,
-			LearnerID:     learnerUUID,
-			Status:        "enrichment_failed",
-			ReservationID: pgtype.UUID{},
-			QuoteID:       pgtype.UUID{},
-		})
-		_ = EmitQuickNoteEnrichmentFailed(s.events, learnerIDStr, noteID, "bounds_exceeded", "web", "0.1.0")
-		return boundsErr
-	}
-
-	// 8. Filter grounded links
-	groundedLinks := FilterGroundedLinks(resp.Links, allowedIDs)
-
-	// 9. Settle reservation
-	attempts := resp.Attempts
-	if len(attempts) == 0 && resp.Usage != nil {
-		attempts = []*enginev1.Usage{resp.Usage}
-	}
-	_, _ = s.credits.Settle(ctx, learnerIDStr, res.ID, attempts)
-
-	// Check if raw note was modified while engine was running
-	var currentVersion int32
-	_ = s.pool.QueryRow(ctx, "SELECT raw_version FROM quick_notes WHERE id = $1 AND learner_id = $2", noteUUID, learnerUUID).Scan(&currentVersion)
-	if currentVersion != note.RawVersion {
-		return ErrStaleVersion
-	}
-
-	// 10. Persist enrichment and update status to enriched
-	_, err = s.queries.UpsertQuickNoteEnrichment(ctx, db.UpsertQuickNoteEnrichmentParams{
-		NoteID:    noteUUID,
-		LearnerID: note.LearnerID,
-		Summary:   resp.Summary,
-		Tags:      resp.Tags,
-		Links:     groundedLinks,
-		Version:   note.RawVersion,
-		Model:     "claude-haiku-4.5",
-		Provider:  "anthropic",
+		if e != nil {
+			return e
+		}
+		if current.RawVersion != note.RawVersion || current.ReservationID != resUUID || current.Status != "enriching" {
+			return ErrStaleVersion
+		}
+		model, provider := "", ""
+		if response.Usage != nil {
+			model, provider = response.Usage.Model, response.Usage.Provider
+		}
+		if _, e = qtx.UpsertQuickNoteEnrichment(ctx, db.UpsertQuickNoteEnrichmentParams{NoteID: noteUUID, LearnerID: learnerUUID, Summary: response.Summary, Tags: response.Tags, Links: FilterGroundedLinks(response.Links, allowedIDs), Version: note.RawVersion, Model: model, Provider: provider}); e != nil {
+			return e
+		}
+		if _, e = qtx.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{ID: noteUUID, LearnerID: learnerUUID, Status: "enriched", ReservationID: resUUID, QuoteID: quoteUUID}); e != nil {
+			return e
+		}
+		committed = true
+		return nil
 	})
 	if err != nil {
 		return err
 	}
-
-	_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
-		ID:            noteUUID,
-		LearnerID:     learnerUUID,
-		Status:        "enriched",
-		ReservationID: resUUID,
-		QuoteID:       quoteUUID,
-	})
-
-	// 11. Emit analytics
-	_ = EmitQuickNoteEnriched(s.events, learnerIDStr, noteID, "web", "0.1.0")
-	if s.events != nil {
-		var inTokens, outTokens int64
-		if resp.Usage != nil {
-			inTokens = int64(resp.Usage.InputTokens)
-			outTokens = int64(resp.Usage.OutputTokens)
-		}
-		_ = s.events.Capture(learnerIDStr, "$ai_generation", map[string]any{
-			"source":        "api",
-			"platform":      "web",
-			"app_version":   "0.1.0",
-			"feature":       "quick_note",
-			"succeeded":     true,
-			"$ai_is_error":  false,
-			"input_tokens":  inTokens,
-			"output_tokens": outTokens,
-			"latency_ms":    latencyMs,
-		})
+	if !committed {
+		return credits.ErrReservation
 	}
-
+	delivered = true
+	_ = EmitQuickNoteEnriched(s.events, learnerID, noteID, "web", "0.1.0")
+	if s.events != nil {
+		_ = s.events.Capture(learnerID, "$ai_generation", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "feature": "quick_note", "succeeded": true, "$ai_is_error": false, "latency_ms": time.Since(start).Milliseconds()})
+	}
 	return nil
 }
 
