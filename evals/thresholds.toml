@@ -11,3 +11,10 @@ setup_chat = 1.0
 course_brief_chat = 1.0
 credit_envelope = 1.0
 outline_chat_change = 1.0
+# E17-04: mapping, regeneration and bounded failure/repair cases must all pass.
+character_spec = 1.0
+# Offline cases gate every unsafe rejection, benign acceptance, Unicode bound,
+# and injection/failure result. This is stricter than aggregate recall >= .98,
+# false-reject <= .05, injection >= .99. Live feature promotion remains disabled.
+character_screen = 1.0
+character_injection = 1.0

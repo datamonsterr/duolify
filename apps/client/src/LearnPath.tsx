@@ -116,6 +116,9 @@ export function LearnPath({ courseId }: { courseId: string }) {
         <bdi>{course.title}</bdi>
       </h1>
       <p dir="auto">{course.description}</p>
+      <a className="shell-link" href={`/courses/${courseId}/cast`}>
+        Course Cast
+      </a>
 
       {/* Offline banner matching S08-Path canvas */}
       {!isOnline && (
@@ -251,7 +254,6 @@ export function LearnPath({ courseId }: { courseId: string }) {
           </div>
         )}
       </div>
-
       {course.units.map((unit) => (
         <section key={unit.title}>
           <div className="unit">

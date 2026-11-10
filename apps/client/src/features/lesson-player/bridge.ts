@@ -3,10 +3,26 @@ export type SlideCommand =
   | { type: "seek"; time: number }
   | { type: "tick"; time: number }
   | { type: "rate"; rate: number }
-  | { type: "set_motion"; reduced: boolean };
+  | { type: "set_motion"; reduced: boolean }
+  | { type: "set_expression"; speaker?: string; expression: string };
 export type SlideMessage =
   | { type: "ended" }
   | { type: "checkpoint"; name: string }
+  | {
+      type: "character_rendered";
+      speaker_key: string;
+      character_version: number;
+      rig_version: string;
+      expression: string;
+      offline: boolean;
+      slide_id?: string;
+    }
+  | {
+      type: "character_render_fallback";
+      reason_code: string;
+      offline: boolean;
+    }
+  | { type: "player_keydown"; code: string; key: string }
   | { type: "asset_error" };
 export function isSlideMessage(
   event: MessageEvent,
@@ -29,7 +45,19 @@ export function isSlideMessage(
       Object.keys(event.data).length === 2 &&
       typeof event.data.name === "string" &&
       /^[A-Za-z0-9_-]{1,100}$/.test(event.data.name) &&
-      (checkpoints === undefined || checkpoints.includes(event.data.name)))
+      (checkpoints === undefined || checkpoints.includes(event.data.name))) ||
+    (event.data.type === "character_rendered" &&
+      typeof event.data.speaker_key === "string" &&
+      typeof event.data.character_version === "number" &&
+      typeof event.data.rig_version === "string" &&
+      typeof event.data.expression === "string" &&
+      typeof event.data.offline === "boolean") ||
+    (event.data.type === "character_render_fallback" &&
+      typeof event.data.reason_code === "string" &&
+      typeof event.data.offline === "boolean") ||
+    (event.data.type === "player_keydown" &&
+      typeof event.data.code === "string" &&
+      typeof event.data.key === "string")
   );
 }
 export function nextSlide(index: number, count: number) {
