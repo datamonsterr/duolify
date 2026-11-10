@@ -1239,63 +1239,73 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	var answerIndex int
 	var isVariant bool
 
+	// Check served variant snapshots first
 	err = tx.QueryRow(ctx, `
-		SELECT id::text, topic_id, prompt, choices, answer_index, explanation, COALESCE(variant_of, '')
-		FROM lesson_questions
-		WHERE lesson_stub_id::text=$1 AND (id::text=$2 OR topic_id=$2 OR prompt=$2 OR position=$3)`,
-		lessonID, body.QuestionID, posVal).Scan(&qID, &topicID, &prompt, &choicesRaw, &answerIndex, &explanation, &variantOf)
-	if err != nil {
-		// Check private pools in lesson_retry_pools
-		rows, qErr := tx.Query(ctx, `SELECT topic_id, variants FROM lesson_retry_pools WHERE lesson_stub_id::text=$1`, lessonID)
-		if qErr == nil {
-			for rows.Next() {
-				var pTopic string
-				var poolVariantsRaw []byte
-				if err := rows.Scan(&pTopic, &poolVariantsRaw); err == nil {
-					type varEntry struct {
-						QuestionID  string   `json:"question_id"`
-						TopicID     string   `json:"topic_id"`
-						VariantOf   string   `json:"variant_of"`
-						Prompt      string   `json:"prompt"`
-						Choices     []string `json:"choices"`
-						AnswerIndex int      `json:"answer_index"`
-						Explanation string   `json:"explanation"`
-					}
-					var vars []varEntry
-					if json.Unmarshal(poolVariantsRaw, &vars) == nil {
-						for _, v := range vars {
-							if v.QuestionID == body.QuestionID || v.Prompt == body.QuestionID {
-								qID = v.QuestionID
-								topicID = v.TopicID
-								if topicID == "" {
-									topicID = pTopic
+		SELECT question_id, topic_id, prompt, choices, answer_index, explanation, variant_of
+		FROM lesson_test_variant_snapshots
+		WHERE session_id=$1::uuid AND (question_id=$2 OR prompt=$2)`,
+		sessionID, body.QuestionID).Scan(&qID, &topicID, &prompt, &choicesRaw, &answerIndex, &explanation, &variantOf)
+	if err == nil {
+		isVariant = true
+	} else {
+		err = tx.QueryRow(ctx, `
+			SELECT id::text, topic_id, prompt, choices, answer_index, explanation, COALESCE(variant_of, '')
+			FROM lesson_questions
+			WHERE lesson_stub_id::text=$1 AND (id::text=$2 OR topic_id=$2 OR prompt=$2 OR position=$3)`,
+			lessonID, body.QuestionID, posVal).Scan(&qID, &topicID, &prompt, &choicesRaw, &answerIndex, &explanation, &variantOf)
+		if err != nil {
+			// Check private pools in lesson_retry_pools
+			rows, qErr := tx.Query(ctx, `SELECT topic_id, variants FROM lesson_retry_pools WHERE lesson_stub_id::text=$1`, lessonID)
+			if qErr == nil {
+				for rows.Next() {
+					var pTopic string
+					var poolVariantsRaw []byte
+					if err := rows.Scan(&pTopic, &poolVariantsRaw); err == nil {
+						type varEntry struct {
+							QuestionID  string   `json:"question_id"`
+							TopicID     string   `json:"topic_id"`
+							VariantOf   string   `json:"variant_of"`
+							Prompt      string   `json:"prompt"`
+							Choices     []string `json:"choices"`
+							AnswerIndex int      `json:"answer_index"`
+							Explanation string   `json:"explanation"`
+						}
+						var vars []varEntry
+						if json.Unmarshal(poolVariantsRaw, &vars) == nil {
+							for _, v := range vars {
+								if v.QuestionID == body.QuestionID || v.Prompt == body.QuestionID {
+									qID = v.QuestionID
+									topicID = v.TopicID
+									if topicID == "" {
+										topicID = pTopic
+									}
+									prompt = v.Prompt
+									choicesRaw, _ = json.Marshal(v.Choices)
+									answerIndex = v.AnswerIndex
+									explanation = v.Explanation
+									variantOf = v.VariantOf
+									isVariant = true
+									break
 								}
-								prompt = v.Prompt
-								choicesRaw, _ = json.Marshal(v.Choices)
-								answerIndex = v.AnswerIndex
-								explanation = v.Explanation
-								variantOf = v.VariantOf
-								isVariant = true
-								break
 							}
 						}
 					}
+					if qID != "" {
+						break
+					}
 				}
-				if qID != "" {
-					break
-				}
+				rows.Close()
 			}
-			rows.Close()
-		}
-		if qID == "" {
-			_ = tx.QueryRow(ctx, `
-				SELECT id::text, topic_id, prompt, choices, answer_index, explanation, COALESCE(variant_of, '')
-				FROM lesson_questions
-				WHERE lesson_stub_id::text=$1
-				LIMIT 1`, lessonID).Scan(&qID, &topicID, &prompt, &choicesRaw, &answerIndex, &explanation, &variantOf)
 			if qID == "" {
-				http.Error(w, `{"error":"question not found"}`, http.StatusNotFound)
-				return
+				_ = tx.QueryRow(ctx, `
+					SELECT id::text, topic_id, prompt, choices, answer_index, explanation, COALESCE(variant_of, '')
+					FROM lesson_questions
+					WHERE lesson_stub_id::text=$1
+					LIMIT 1`, lessonID).Scan(&qID, &topicID, &prompt, &choicesRaw, &answerIndex, &explanation, &variantOf)
+				if qID == "" {
+					http.Error(w, `{"error":"question not found"}`, http.StatusNotFound)
+					return
+				}
 			}
 		}
 	}
@@ -1403,31 +1413,50 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			}
 		}
 
+		variantSource := "pool"
+		var variantReason string
+
 		// Owner decision (ADR 0011, E4-06): when a retry pool is exhausted reuse the pool reordered for free; no paid on-demand variants
 		if selectedVariant == nil {
 			if len(poolVariants) > 0 {
 				base := poolVariants[0]
-				reordered, _ := ReorderChoices(base.Choices, base.AnswerIndex)
+				reordered, newIdx := ReorderChoices(base.Choices, base.AnswerIndex)
 				selectedVariant = &variantItem{
 					QuestionID:  fmt.Sprintf("%s-reordered-%d", base.QuestionID, attemptForTopic),
 					TopicID:     topicID,
 					VariantOf:   qID,
 					Prompt:      base.Prompt,
 					Choices:     reordered,
-					AnswerIndex: 0,
+					AnswerIndex: newIdx,
 					Explanation: base.Explanation,
 				}
+				variantSource = "pool_exhausted_fallback"
+				variantReason = "pool_exhausted"
 			} else {
-				reordered, _ := ReorderChoices(choices, answerIndex)
+				reordered, newIdx := ReorderChoices(choices, answerIndex)
 				selectedVariant = &variantItem{
 					QuestionID:  fmt.Sprintf("v-reorder-%s-%d", qID, attemptForTopic),
 					TopicID:     topicID,
 					VariantOf:   qID,
 					Prompt:      prompt,
 					Choices:     reordered,
-					AnswerIndex: 0,
+					AnswerIndex: newIdx,
 					Explanation: explanation,
 				}
+				variantSource = "safe_source_fallback"
+				variantReason = "safe_source_fallback"
+			}
+
+			if s.opts.Events != nil {
+				_ = s.opts.Events.Capture(owner, "retry_variant_generation_failed", map[string]any{
+					"source":      "api",
+					"platform":    "web",
+					"app_version": "1.0.0",
+					"course_id":   courseID,
+					"lesson_id":   lessonID,
+					"topic_id":    topicID,
+					"error_code":  variantReason,
+				})
 			}
 		}
 
@@ -1439,9 +1468,33 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 				"course_id":   courseID,
 				"lesson_id":   lessonID,
 				"topic_id":    topicID,
-				"source_name": "pool",
+				"source_name": variantSource,
 			})
 		}
+
+		// Persist served variant snapshot & provenance with retained instruction snapshot
+		choicesJSON, _ := json.Marshal(selectedVariant.Choices)
+		instrJSON, _ := json.Marshal(map[string]any{
+			"lesson_id":  lessonID,
+			"course_id":  courseID,
+			"topic_id":   topicID,
+			"variant_of": selectedVariant.VariantOf,
+		})
+		var reasonVal *string
+		if variantReason != "" {
+			reasonVal = &variantReason
+		}
+		_, _ = tx.Exec(ctx, `
+			INSERT INTO lesson_test_variant_snapshots (
+				session_id, learner_id, lesson_stub_id, topic_id, question_id, variant_of, source, reason, prompt, choices, answer_index, explanation, instruction_snapshot
+			) VALUES (
+				$1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+			) ON CONFLICT (session_id, question_id) DO UPDATE SET
+				source = EXCLUDED.source,
+				reason = EXCLUDED.reason,
+				choices = EXCLUDED.choices,
+				answer_index = EXCLUDED.answer_index`,
+			sessionID, owner, lessonID, topicID, selectedVariant.QuestionID, selectedVariant.VariantOf, variantSource, reasonVal, selectedVariant.Prompt, choicesJSON, selectedVariant.AnswerIndex, selectedVariant.Explanation, instrJSON)
 
 		publicVariant := PublicQuestion{
 			QuestionID: selectedVariant.QuestionID,

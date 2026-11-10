@@ -297,5 +297,49 @@ pub fn validate_history(history: &[String]) -> Result<()> {
     Ok(())
 }
 
+/// Cyclically shifts choices and calculates the updated answer index for retry pool exhaustion.
+pub fn reorder_choices(choices: &[String], answer_index: u32) -> Result<(Vec<String>, u32)> {
+    let n = choices.len();
+    if !(MIN_CHOICES..=MAX_CHOICES).contains(&n) {
+        bail!("choices count must be between {MIN_CHOICES} and {MAX_CHOICES}");
+    }
+    if (answer_index as usize) >= n {
+        bail!("answer_index out of bounds");
+    }
+    let mut reordered = Vec::with_capacity(n);
+    for i in 0..n {
+        reordered.push(choices[(i + 1) % n].clone());
+    }
+    let new_index = ((answer_index as usize + n - 1) % n) as u32;
+    Ok((reordered, new_index))
+}
+
+/// Validates safe fallback when a retry pool is exhausted or provider is unavailable.
+pub fn validate_exhausted_fallback_variant(
+    source_choices: &[String],
+    source_answer_index: u32,
+    fallback_choices: &[String],
+    fallback_answer_index: u32,
+) -> Result<()> {
+    if source_choices.len() != fallback_choices.len() {
+        bail!("fallback choices length must match source choices length");
+    }
+    if fallback_choices == source_choices {
+        bail!("fallback choices must be reordered from source");
+    }
+    if (source_answer_index as usize) >= source_choices.len() {
+        bail!("source answer index out of bounds");
+    }
+    if (fallback_answer_index as usize) >= fallback_choices.len() {
+        bail!("fallback answer index out of bounds");
+    }
+    let src_ans = normalize_answer(&source_choices[source_answer_index as usize]);
+    let fb_ans = normalize_answer(&fallback_choices[fallback_answer_index as usize]);
+    if src_ans != fb_ans {
+        bail!("fallback correct choice must be identical to source correct choice");
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 pub mod tests;

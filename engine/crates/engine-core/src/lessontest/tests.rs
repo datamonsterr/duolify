@@ -218,3 +218,49 @@ fn test_validate_history_empty_item_rejected() {
 fn test_validate_history_empty_slice_valid() {
     assert!(validate_history(&[]).is_ok());
 }
+
+#[test]
+fn test_reorder_choices_invariance() {
+    let choices = vec![
+        "Earth spins west to east".to_string(),
+        "The Sun orbits Earth daily".to_string(),
+        "The Moon pushes it up".to_string(),
+    ];
+    let (reordered, new_idx) = reorder_choices(&choices, 0).expect("reorder success");
+    assert_ne!(choices, reordered);
+    assert_eq!(reordered[new_idx as usize], choices[0]);
+    assert!(validate_exhausted_fallback_variant(&choices, 0, &reordered, new_idx).is_ok());
+}
+
+#[test]
+fn test_reorder_choices_out_of_bounds() {
+    let choices = vec!["A".to_string(), "B".to_string()];
+    assert!(reorder_choices(&choices, 2).is_err());
+}
+
+#[test]
+fn test_reorder_choices_min_max_bounds() {
+    let single = vec!["Solo".to_string()];
+    assert!(reorder_choices(&single, 0).is_err());
+
+    let too_many = vec![
+        "1".to_string(),
+        "2".to_string(),
+        "3".to_string(),
+        "4".to_string(),
+        "5".to_string(),
+        "6".to_string(),
+        "7".to_string(),
+    ];
+    assert!(reorder_choices(&too_many, 0).is_err());
+}
+
+#[test]
+fn test_validate_exhausted_fallback_mismatched_answer_rejected() {
+    let source = vec!["A".to_string(), "B".to_string()];
+    let fallback = vec!["B".to_string(), "A".to_string()];
+    // Source answer is 0 ("A"), fallback answer claims 0 ("B") -> mismatch!
+    assert!(validate_exhausted_fallback_variant(&source, 0, &fallback, 0).is_err());
+    // Correct fallback answer is 1 ("A") -> ok
+    assert!(validate_exhausted_fallback_variant(&source, 0, &fallback, 1).is_ok());
+}

@@ -606,6 +606,24 @@ type LessonTestSession struct {
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
+type LessonTestVariantSnapshot struct {
+	ID                  pgtype.UUID        `json:"id"`
+	SessionID           pgtype.UUID        `json:"session_id"`
+	LearnerID           pgtype.UUID        `json:"learner_id"`
+	LessonStubID        pgtype.UUID        `json:"lesson_stub_id"`
+	TopicID             string             `json:"topic_id"`
+	QuestionID          string             `json:"question_id"`
+	VariantOf           string             `json:"variant_of"`
+	Source              string             `json:"source"`
+	Reason              pgtype.Text        `json:"reason"`
+	Prompt              string             `json:"prompt"`
+	Choices             []byte             `json:"choices"`
+	AnswerIndex         int32              `json:"answer_index"`
+	Explanation         string             `json:"explanation"`
+	InstructionSnapshot []byte             `json:"instruction_snapshot"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
 type OutlineDraft struct {
 	ID            pgtype.UUID        `json:"id"`
 	LearnerID     pgtype.UUID        `json:"learner_id"`
