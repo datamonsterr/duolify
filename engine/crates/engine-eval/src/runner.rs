@@ -1,6 +1,8 @@
 use crate::{
     judge::parse_judge_verdict,
-    scoring::{Case, CaseResult, EvalReport, Thresholds, aggregate_task_reports},
+    scoring::{
+        Case, CaseResult, EvalReport, Thresholds, aggregate_task_reports, check_promotion_gate,
+    },
     tasks::{canonical_task_name, model_route_for_task},
 };
 use anyhow::{Context, Result, bail};
@@ -307,9 +309,11 @@ pub async fn fetch_dataset_with_mirror(
             };
 
             let mut last_mirror_err = None;
+            let mirror_client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(15))
+                .build()?;
             for candidate_url in candidate_urls {
-                let client = reqwest::Client::new();
-                let resp = match client.get(&candidate_url).send().await {
+                let resp = match mirror_client.get(&candidate_url).send().await {
                     Ok(r) if r.status().is_success() => r,
                     Ok(r) => {
                         last_mirror_err =
@@ -353,7 +357,7 @@ pub async fn fetch_dataset_with_mirror(
 
                 // If mirror provides a separate .sha256 file, check it
                 let checksum_url = format!("{candidate_url}.sha256");
-                if let Ok(chk_resp) = client.get(&checksum_url).send().await
+                if let Ok(chk_resp) = mirror_client.get(&checksum_url).send().await
                     && chk_resp.status().is_success()
                     && let Ok(chk_text) = chk_resp.text().await
                 {
@@ -709,6 +713,57 @@ async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<Str
     Ok(serde_json::json!({"approved":approved,"reason_code":reason,"attempt_count":outcome.attempts.len()}).to_string())
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ModelPrice {
+    #[serde(default)]
+    pub input_nanos: u64,
+    #[serde(default)]
+    pub output_nanos: u64,
+    #[serde(default)]
+    pub cache_write_nanos: u64,
+    #[serde(default)]
+    pub cache_read_nanos: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PriceTable {
+    pub models: HashMap<String, ModelPrice>,
+}
+
+impl PriceTable {
+    pub fn load() -> Self {
+        if let Ok(path) = std::env::var("EVAL_PRICES_CONFIG")
+            && let Ok(content) = std::fs::read_to_string(&path)
+            && let Ok(pt) = toml::from_str(&content)
+        {
+            return pt;
+        }
+        toml::from_str(include_str!("../../../config/prices.toml"))
+            .expect("valid embedded prices.toml")
+    }
+
+    pub fn price_for(&self, model: &str) -> ModelPrice {
+        if let Some(p) = self.models.get(model) {
+            return p.clone();
+        }
+        self.models.get("default").cloned().unwrap_or(ModelPrice {
+            input_nanos: 2000,
+            output_nanos: 10000,
+            cache_write_nanos: 2500,
+            cache_read_nanos: 100,
+        })
+    }
+
+    pub fn cost_usd(&self, c: &engine_core::Completion) -> f64 {
+        let p = self.price_for(&c.model);
+        let nanos = (c.input_tokens as u64 * p.input_nanos)
+            + (c.output_tokens as u64 * p.output_nanos)
+            + (c.cache_write_tokens as u64 * p.cache_write_nanos)
+            + (c.cache_read_tokens as u64 * p.cache_read_nanos);
+        nanos as f64 / 1_000_000_000.0
+    }
+}
+
 pub struct Runner {
     pub provider_name: String,
     pub judge: bool,
@@ -720,6 +775,7 @@ pub struct Runner {
     pub budget_usd: Option<f64>,
     pub total_cost_usd: f64,
     pub budget_exceeded: bool,
+    pub custom_router: Option<engine_core::ProviderRouter>,
 }
 
 impl Runner {
@@ -735,6 +791,27 @@ impl Runner {
             budget_usd: None,
             total_cost_usd: 0.0,
             budget_exceeded: false,
+            custom_router: None,
+        }
+    }
+
+    pub fn with_router(
+        router: engine_core::ProviderRouter,
+        provider_name: &str,
+        judge: bool,
+    ) -> Self {
+        Self {
+            provider_name: provider_name.to_string(),
+            judge,
+            dataset_name: "datamonsterr/duolify-golden".to_string(),
+            dataset_revision: "pinned".to_string(),
+            dataset_source: "fixture".to_string(),
+            prompt_revision: "head".to_string(),
+            judge_fixtures: HashMap::new(),
+            budget_usd: None,
+            total_cost_usd: 0.0,
+            budget_exceeded: false,
+            custom_router: Some(router),
         }
     }
 
@@ -747,7 +824,11 @@ impl Runner {
     }
 
     pub async fn run_cases(&self, cases: Vec<Case>, thresholds: &Thresholds) -> Result<EvalReport> {
-        let router = engine_providers::router(&self.provider_name)?;
+        let router = match &self.custom_router {
+            Some(r) => r.clone(),
+            None => engine_providers::router(&self.provider_name)?,
+        };
+        let price_table = PriceTable::load();
         let mut results = Vec::new();
         let mut models = HashMap::new();
         let mut total_cost_usd = 0.0;
@@ -764,13 +845,20 @@ impl Runner {
                 .entry(canonical.clone())
                 .or_insert_with(|| route.clone());
 
+            let mut _attempts = Vec::new();
+            let mut primary_completion: Option<engine_core::Completion> = None;
+
             let response_text = if matches!(
                 case.task.as_str(),
                 "character_spec" | "character_screen" | "character_injection"
             ) && self.provider_name == "mock"
+                && self.custom_router.is_none()
             {
                 evaluate_character(&case.task, &case.input).await?
-            } else if case.input.get("recorded").is_some() && self.provider_name == "mock" {
+            } else if case.input.get("recorded").is_some()
+                && self.provider_name == "mock"
+                && self.custom_router.is_none()
+            {
                 if canonical == "course_outline" {
                     evaluate_course_outline(&case.input).await?
                 } else if canonical == "course_preview" {
@@ -782,75 +870,142 @@ impl Runner {
                 } else if case.task == "course_brief_chat" {
                     evaluate_brief(&case.input).await?
                 } else {
-                    router.complete(&route, &case.input.to_string()).await?.text
+                    let limits = case
+                        .input
+                        .get("limits")
+                        .and_then(|l| {
+                            serde_json::from_value::<engine_core::credits::Limits>(l.clone()).ok()
+                        })
+                        .unwrap_or(engine_core::credits::Limits {
+                            input_tokens: 16000,
+                            output_tokens: 4000,
+                            timeout_ms: 30000,
+                            max_attempts: 2,
+                            max_cost_nanos: 1_000_000_000,
+                            input_nanos: 2000,
+                            output_nanos: 10000,
+                            cache_write_nanos: 2500,
+                            cache_read_nanos: 100,
+                            deadline_unix_ms: 0,
+                        });
+                    let outcome = engine_core::eval::run_bounded(
+                        &router,
+                        &route,
+                        &case.input.to_string(),
+                        &limits,
+                        |_| true,
+                    )
+                    .await?;
+                    _attempts = outcome.attempts;
+                    let c = outcome
+                        .completion
+                        .context("case execution produced no completion")?;
+                    let text = c.text.clone();
+                    primary_completion = Some(c);
+                    text
                 }
             } else if canonical == "course_outline"
                 && self.provider_name == "mock"
+                && self.custom_router.is_none()
                 && case.input.get("outline").is_some()
             {
                 evaluate_course_outline(&case.input).await?
             } else {
-                router.complete(&route, &case.input.to_string()).await?.text
-            };
-
-            let (input_tokens, output_tokens, case_cost_usd) = if self.provider_name == "mock"
-                && self.budget_usd.is_none()
-                && case.input.get("cost_usd").is_none()
-                && case.input.get("cost_nanos").is_none()
-            {
-                (0, 0, 0.0)
-            } else if let Some(cost) = case.input.get("cost_usd").and_then(|v| v.as_f64()) {
-                (100, 50, cost)
-            } else if let Some(nanos) = case.input.get("cost_nanos").and_then(|v| v.as_f64()) {
-                (100, 50, nanos / 1_000_000_000.0)
-            } else {
-                let in_tok = case
-                    .input
-                    .get("recorded")
-                    .and_then(|r| r.get(0))
-                    .and_then(|c| c.get("input_tokens"))
-                    .and_then(|n| n.as_u64())
-                    .map(|n| n as u32)
-                    .unwrap_or_else(|| (case.input.to_string().len() / 4).max(1) as u32);
-                let out_tok = case
-                    .input
-                    .get("recorded")
-                    .and_then(|r| r.get(0))
-                    .and_then(|c| c.get("output_tokens"))
-                    .and_then(|n| n.as_u64())
-                    .map(|n| n as u32)
-                    .unwrap_or_else(|| (response_text.len() / 4).max(1) as u32);
-
-                let in_nanos = case
+                let limits = case
                     .input
                     .get("limits")
-                    .and_then(|l| l.get("input_nanos"))
-                    .and_then(|n| n.as_u64())
-                    .unwrap_or(3000);
-                let out_nanos = case
-                    .input
-                    .get("limits")
-                    .and_then(|l| l.get("output_nanos"))
-                    .and_then(|n| n.as_u64())
-                    .unwrap_or(15000);
-
-                let cost_nanos = (in_tok as u64 * in_nanos) + (out_tok as u64 * out_nanos);
-                (in_tok, out_tok, cost_nanos as f64 / 1_000_000_000.0)
+                    .and_then(|l| {
+                        serde_json::from_value::<engine_core::credits::Limits>(l.clone()).ok()
+                    })
+                    .unwrap_or(engine_core::credits::Limits {
+                        input_tokens: 16000,
+                        output_tokens: 4000,
+                        timeout_ms: 30000,
+                        max_attempts: 2,
+                        max_cost_nanos: 1_000_000_000,
+                        input_nanos: 2000,
+                        output_nanos: 10000,
+                        cache_write_nanos: 2500,
+                        cache_read_nanos: 100,
+                        deadline_unix_ms: 0,
+                    });
+                let outcome = engine_core::eval::run_bounded(
+                    &router,
+                    &route,
+                    &case.input.to_string(),
+                    &limits,
+                    |_| true,
+                )
+                .await?;
+                _attempts = outcome.attempts;
+                let c = outcome
+                    .completion
+                    .context("case execution produced no completion")?;
+                let text = c.text.clone();
+                primary_completion = Some(c);
+                text
             };
-
-            total_cost_usd += case_cost_usd;
 
             let mut errors = Vec::new();
             let mut critical_failed = false;
 
-            let mut case_budget_exceeded = false;
-            if let Some(budget) = self.budget_usd
-                && total_cost_usd >= budget
-            {
-                budget_exceeded = true;
-                case_budget_exceeded = true;
-                errors.push("eval budget exceeded".into());
-            }
+            let (mut input_tokens, mut output_tokens, mut case_cost_usd) =
+                if self.provider_name != "mock" || self.custom_router.is_some() {
+                    let (in_tok, out_tok, cost) = if let Some(c) = &primary_completion {
+                        if c.usage_unavailable {
+                            errors.push(
+                                "usage_unavailable: provider usage missing or unmeasured".into(),
+                            );
+                            critical_failed = true;
+                        }
+                        (c.input_tokens, c.output_tokens, price_table.cost_usd(c))
+                    } else {
+                        (0, 0, 0.0)
+                    };
+                    (in_tok, out_tok, cost)
+                } else if self.budget_usd.is_none()
+                    && case.input.get("cost_usd").is_none()
+                    && case.input.get("cost_nanos").is_none()
+                {
+                    (0, 0, 0.0)
+                } else if let Some(cost) = case.input.get("cost_usd").and_then(|v| v.as_f64()) {
+                    (100, 50, cost)
+                } else if let Some(nanos) = case.input.get("cost_nanos").and_then(|v| v.as_f64()) {
+                    (100, 50, nanos / 1_000_000_000.0)
+                } else {
+                    let in_tok = case
+                        .input
+                        .get("recorded")
+                        .and_then(|r| r.get(0))
+                        .and_then(|c| c.get("input_tokens"))
+                        .and_then(|n| n.as_u64())
+                        .map(|n| n as u32)
+                        .unwrap_or_else(|| (case.input.to_string().len() / 4).max(1) as u32);
+                    let out_tok = case
+                        .input
+                        .get("recorded")
+                        .and_then(|r| r.get(0))
+                        .and_then(|c| c.get("output_tokens"))
+                        .and_then(|n| n.as_u64())
+                        .map(|n| n as u32)
+                        .unwrap_or_else(|| (response_text.len() / 4).max(1) as u32);
+
+                    let in_nanos = case
+                        .input
+                        .get("limits")
+                        .and_then(|l| l.get("input_nanos"))
+                        .and_then(|n| n.as_u64())
+                        .unwrap_or(2000);
+                    let out_nanos = case
+                        .input
+                        .get("limits")
+                        .and_then(|l| l.get("output_nanos"))
+                        .and_then(|n| n.as_u64())
+                        .unwrap_or(10000);
+
+                    let cost_nanos = (in_tok as u64 * in_nanos) + (out_tok as u64 * out_nanos);
+                    (in_tok, out_tok, cost_nanos as f64 / 1_000_000_000.0)
+                };
 
             for check in &case.checks {
                 let valid = match check.kind.as_str() {
@@ -896,30 +1051,53 @@ impl Runner {
                 }
             }
 
-            if critical_failed {
-                any_critical_failed = true;
-            }
-
-            let deterministic_passed = errors.is_empty();
-
             let judge_passed = if self.judge {
-                let verdict_str = if let Some(preset) = self.judge_fixtures.get(&case.id) {
-                    preset.clone()
-                } else if self.provider_name == "mock" {
+                let (verdict_str, judge_comp) = if let Some(preset) =
+                    self.judge_fixtures.get(&case.id)
+                {
+                    (preset.clone(), None)
+                } else if self.provider_name == "mock" && self.custom_router.is_none() {
                     // In mock mode without an explicit calibration preset, default to PASS
-                    "PASS".to_string()
+                    ("PASS".to_string(), None)
                 } else {
-                    let judgment = router
-                        .complete(
-                            "chat",
-                            &format!(
-                                "Judge this response against the rubric. Reply PASS or FAIL. Rubric: {}\nResponse: {}",
-                                case.rubric, response_text
-                            ),
-                        )
-                        .await?;
-                    judgment.text
+                    let judge_prompt = format!(
+                        "Judge this response against the rubric. Reply PASS or FAIL. Rubric: {}\nResponse: {}",
+                        case.rubric, response_text
+                    );
+                    let judge_limits = engine_core::credits::Limits {
+                        input_tokens: 8000,
+                        output_tokens: 1000,
+                        timeout_ms: 30000,
+                        max_attempts: 2,
+                        max_cost_nanos: 100_000_000,
+                        input_nanos: 1000,
+                        output_nanos: 5000,
+                        cache_write_nanos: 1250,
+                        cache_read_nanos: 100,
+                        deadline_unix_ms: 0,
+                    };
+                    let outcome = engine_core::eval::run_bounded(
+                        &router,
+                        "chat",
+                        &judge_prompt,
+                        &judge_limits,
+                        |_| true,
+                    )
+                    .await?;
+                    let comp = outcome.completion.context("judge produced no completion")?;
+                    let text = comp.text.clone();
+                    (text, Some(comp))
                 };
+
+                if let Some(jc) = &judge_comp {
+                    if jc.usage_unavailable {
+                        errors.push("usage_unavailable: judge usage missing or unmeasured".into());
+                        critical_failed = true;
+                    }
+                    input_tokens += jc.input_tokens;
+                    output_tokens += jc.output_tokens;
+                    case_cost_usd += price_table.cost_usd(jc);
+                }
 
                 let pass = parse_judge_verdict(&verdict_str).unwrap_or(false);
                 if !pass {
@@ -930,8 +1108,26 @@ impl Runner {
                 None
             };
 
-            let passed =
-                deterministic_passed && judge_passed.unwrap_or(true) && !case_budget_exceeded;
+            total_cost_usd += case_cost_usd;
+
+            let mut case_budget_exceeded = false;
+            if let Some(budget) = self.budget_usd
+                && total_cost_usd >= budget
+            {
+                budget_exceeded = true;
+                case_budget_exceeded = true;
+                errors.push("eval budget exceeded".into());
+            }
+
+            if critical_failed {
+                any_critical_failed = true;
+            }
+
+            let deterministic_passed = errors.is_empty();
+            let passed = deterministic_passed
+                && judge_passed.unwrap_or(true)
+                && !case_budget_exceeded
+                && !critical_failed;
 
             results.push(CaseResult {
                 id: case.id.clone(),
@@ -990,10 +1186,7 @@ impl Runner {
             results,
         };
 
-        report.live_promoted = report.passed
-            && report.provider == "live"
-            && report.dataset_source != "fixture"
-            && is_pinned_commit(&report.dataset_revision);
+        report.live_promoted = check_promotion_gate(&report).is_ok();
 
         Ok(report)
     }

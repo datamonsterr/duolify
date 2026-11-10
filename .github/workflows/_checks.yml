@@ -323,10 +323,19 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_GOLDEN_DATASET: ${{ vars.HF_GOLDEN_DATASET || 'datamonsterr/duolify-golden' }}
-          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || 'main' }}
+          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION }}
           EVAL_SAMPLE_LIMIT: '10'
           EVAL_BUDGET_USD: '5.00'
-          ALLOW_MISSING_SECRETS: 'true'
+      - name: Verify promotion gate
+        if: env.ANTHROPIC_API_KEY != '' && env.HF_TOKEN != '' && env.HF_GOLDEN_REVISION != ''
+        run: |
+          if [ -f evals/reports/latest.json ]; then
+            mise run engine:gate evals/reports/latest.json
+          fi
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION }}
       - uses: actions/upload-artifact@v7
         if: always()
         with:

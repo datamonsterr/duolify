@@ -99,5 +99,6 @@ async fn router_retries_then_falls_back() {
         router.complete("note", "test").await.unwrap().provider,
         "mock"
     );
-    assert_eq!(primary.0.load(Ordering::SeqCst), 2);
+    // Must make at most 1 attempt on primary before fallback (never 2 retries = 3 calls)
+    assert_eq!(primary.0.load(Ordering::SeqCst), 1);
 }

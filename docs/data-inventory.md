@@ -359,7 +359,7 @@ for offline runs). Evaluation reports (JSON and Markdown) are written to
 deterministic and judge scores, per-task thresholds, critical check outcomes, dataset
 name, dataset revision, prompt revision, and model route mappings. Reports and analytics
 strictly exclude any learner personal text or prompt/completion bodies. The operational
-analytics event `eval_run_completed` emits only task name, score, threshold, and passed flag
+analytics event `eval_run_completed` emits only task name, score, threshold, passed flag, dataset revision, dataset source, provider, status, and budget
 under the reserved system UUID `00000000-0000-4000-8000-000000000011` with opt-out
 enforcement. No new database tables or personal learner data stores are created.
 

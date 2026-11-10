@@ -17,6 +17,11 @@ run = "cargo run -p engine-eval --bin duolify-eval -- --offline --provider mock"
 dir = "engine"
 run = "cargo run -p engine-eval --bin duolify-eval -- --provider live --judge"
 
+["engine:gate"]
+description = "Verify promotion gate against an evaluation report"
+dir = "engine"
+run = "cargo run -p engine-eval --bin duolify-eval -- gate"
+
 ["engine:format"]
 description = "Format engine workspace"
 dir = "engine"

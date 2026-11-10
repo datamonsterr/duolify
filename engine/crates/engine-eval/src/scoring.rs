@@ -147,41 +147,79 @@ impl Default for EvalReport {
     }
 }
 
-pub fn is_promotable(report: &EvalReport, task: &str) -> bool {
-    let canonical = canonical_task_name(task);
-
-    // 1. Must be executed with live provider
+pub fn check_promotion_gate(report: &EvalReport) -> anyhow::Result<()> {
+    if report.status != "passed" {
+        anyhow::bail!(
+            "promotion gate failed: report status is '{}', expected 'passed'",
+            report.status
+        );
+    }
+    if !report.passed {
+        anyhow::bail!("promotion gate failed: overall eval did not pass");
+    }
+    if report.critical_failure {
+        anyhow::bail!("promotion gate failed: report has critical failure");
+    }
+    if report.budget_exceeded {
+        anyhow::bail!("promotion gate failed: eval budget exceeded");
+    }
     if report.provider != "live" {
-        return false;
+        anyhow::bail!(
+            "promotion gate failed: provider is '{}', expected 'live'",
+            report.provider
+        );
     }
-
-    // 2. Status must be passed (never missing_secrets or budget_exceeded)
-    if report.status != "passed"
-        || !report.passed
-        || report.critical_failure
-        || report.budget_exceeded
-    {
-        return false;
-    }
-
-    // 3. Must be a pinned 40-character commit hash
     if report.dataset_revision.len() != 40
         || !report
             .dataset_revision
             .bytes()
             .all(|b| b.is_ascii_hexdigit())
     {
-        return false;
+        anyhow::bail!(
+            "promotion gate failed: dataset revision must be a pinned 40-character commit hash: '{}'",
+            report.dataset_revision
+        );
     }
-
-    // 4. Dataset source must be live (hf, mirror, or cache), never mock fixture
     if report.dataset_source == "fixture" || report.dataset_source == "custom" {
-        return false;
+        anyhow::bail!(
+            "promotion gate failed: dataset source must be live (hf, mirror, cache), got '{}'",
+            report.dataset_source
+        );
     }
 
-    // 5. Relevant task must exist and have passed without critical failure
+    for task in crate::tasks::CANONICAL_TASKS {
+        let tr = report.task_reports.get(task).ok_or_else(|| {
+            anyhow::anyhow!(
+                "promotion gate failed: missing required canonical task '{}'",
+                task
+            )
+        })?;
+        if tr.total_cases < 1 {
+            anyhow::bail!(
+                "promotion gate failed: required canonical task '{}' has zero evaluated cases",
+                task
+            );
+        }
+        if !tr.passed || tr.critical_failure {
+            anyhow::bail!(
+                "promotion gate failed: required canonical task '{}' did not pass (score: {:.2}, threshold: {:.2})",
+                task,
+                tr.score,
+                tr.threshold
+            );
+        }
+    }
+
+    Ok(())
+}
+
+pub fn is_promotable(report: &EvalReport, task: &str) -> bool {
+    let canonical = canonical_task_name(task);
+    if check_promotion_gate(report).is_err() {
+        return false;
+    }
     if let Some(tr) = report.task_reports.get(&canonical) {
-        tr.passed && !tr.critical_failure
+        tr.passed && !tr.critical_failure && tr.total_cases >= 1
     } else {
         false
     }
