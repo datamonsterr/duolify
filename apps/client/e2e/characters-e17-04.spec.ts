@@ -1,13 +1,13 @@
 import { resetTokens, test, expect } from "./accounts-fixture";
 import { apiBase } from "./servers";
-import type { Page, APIRequestContext } from "@playwright/test";
+import type { Page, APIRequestContext } from "./native-store-fixture";
 
 test.beforeEach(() => resetTokens());
 async function connect(page: Page, request: APIRequestContext) {
   await page.goto("/settings/characters");
   const token = await page.evaluate(
     () =>
-      JSON.parse(sessionStorage.getItem("duolify.auth")!)
+      JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!)
         .access_token as string,
   );
   const headers = { Authorization: `Bearer ${token}` };

@@ -20,7 +20,9 @@ for (const width of [1280, 390]) {
     // 1. Authenticate learner
     await page.goto("/profile");
     const token = await page.evaluate(
-      () => JSON.parse(sessionStorage.getItem("duolify.auth")!).access_token,
+      () =>
+        JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!)
+          .access_token,
     );
     const authHeaders = { Authorization: `Bearer ${token}` };
 
@@ -193,7 +195,9 @@ test("home offline fallback is owner scoped and never masks HTTP errors", async 
 }) => {
   await page.goto("/profile");
   const { owner, own } = await page.evaluate(async (base) => {
-    const tokens = JSON.parse(sessionStorage.getItem("duolify.auth")!);
+    const tokens = JSON.parse(
+      sessionStorage.getItem("duolify.native-store-fixture")!,
+    );
     const response = await fetch(`${base}/v1/me`, {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
     });

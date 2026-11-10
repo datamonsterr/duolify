@@ -5,6 +5,7 @@ package backuptest
 import (
 	"bytes"
 	"context"
+	"crypto/hkdf"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -79,6 +80,35 @@ type capture struct {
 	Event      string         `json:"event"`
 	DistinctID string         `json:"distinct_id"`
 	Properties map[string]any `json:"properties"`
+}
+
+// AssertPreDeletionRestoreErased restores a real dump that predates a deletion.
+// Only object storage knows the deletion; the restored SQL ledger has no record.
+func (f *Fixture) AssertPreDeletionRestoreErased(t *testing.T, ciphertext []byte) {
+	t.Helper()
+	const learner = "a1111111-1111-4111-8111-111111111111"
+	ref := accounts.LearnerReference(learner)
+	ledger := backup.DeletionLedger{Objects: f.objects}
+	if err := ledger.Append(t.Context(), ref); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.DB.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", learner); err != nil {
+		t.Fatal(err)
+	}
+	restored := f.Restore(t, ciphertext)
+	if err := accounts.ReplayDeletionLedger(t.Context(), restored.Pool, ledger); err != nil {
+		t.Fatal(err)
+	}
+	var resurrected bool
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learners WHERE id=$1::uuid)", learner).Scan(&resurrected); err != nil {
+		t.Fatal(err)
+	}
+	if resurrected {
+		t.Fatal("restoring a pre-deletion dump resurrected the learner")
+	}
+	if err := accounts.ReplayDeletionLedger(t.Context(), restored.Pool, ledger); err != nil {
+		t.Fatal("replay must be idempotent", err)
+	}
 }
 
 // New starts isolated containers and all production migrations, never live providers.
@@ -180,7 +210,7 @@ func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) 
 	}))
 	t.Cleanup(posthog.Close)
 	f.posthogURL = posthog.URL
-	f.events, err = analytics.New("synthetic-project-key", posthog.URL)
+	f.events, err = analytics.New("synthetic-project-key", posthog.URL, func(context.Context, string) (bool, error) { return true, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,13 +361,13 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		"INSERT INTO auth_provider_identities (provider,subject,learner_id,verified_email) VALUES ('google','synthetic-google-subject','a1111111-1111-4111-8111-111111111111','synthetic@example.test')",
 		"INSERT INTO auth_provider_identities (provider,subject,learner_id,verified_email) VALUES ('apple','synthetic-apple-subject','a1111111-1111-4111-8111-111111111111','relay@privaterelay.appleid.com')",
 		"INSERT INTO auth_oauth_attempts (state_hash,nonce_hash,code_challenge,redirect_uri,expires_at) VALUES (repeat('d',64),repeat('e',64),repeat('f',43),'duolify://oauth/callback',now()+interval '5 minutes')",
-		"INSERT INTO auth_codes (email,code_hash,expires_at,attempts) VALUES ('synthetic@example.test',repeat('a',64),now()-interval '1 minute',5)",
+		"INSERT INTO auth_codes (email,code_hash,code_ciphertext,last_sent_at,expires_at,attempts) VALUES ('synthetic@example.test',repeat('a',64),decode('01020304','hex'),now()-interval '2 minutes',now()-interval '1 minute',5)",
 		"INSERT INTO auth_sessions (id,learner_id) VALUES ('b2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111')",
-		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at,consumed_at) VALUES ('%x','b2222222-2222-4222-8222-222222222222',now()+interval '30 days',now())", sha256.Sum256([]byte("synthetic-consumed-refresh"))),
+		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at,consumed_at,successor_ciphertext) VALUES ('%x','b2222222-2222-4222-8222-222222222222',now()+interval '30 days',now()-interval '1 minute',decode('05060708','hex'))", sha256.Sum256([]byte("synthetic-consumed-refresh"))),
 		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES ('%x','b2222222-2222-4222-8222-222222222222',now()+interval '30 days')", sha256.Sum256([]byte("synthetic-active-refresh"))),
 		"INSERT INTO auth_sessions (id,learner_id,revoked_at) VALUES ('d4444444-4444-4444-8444-444444444444','a1111111-1111-4111-8111-111111111111',now())",
 		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES ('%x','d4444444-4444-4444-8444-444444444444',now()+interval '30 days')", sha256.Sum256([]byte("synthetic-revoked-refresh"))),
-		"INSERT INTO auth_rate_limits (key_hash,count,expires_at) VALUES (repeat('c',64),3,now()+interval '1 hour')",
+		"INSERT INTO auth_rate_limits (key_hash,email_hash,count,expires_at) VALUES (repeat('c',64),repeat('d',64),3,now()+interval '1 hour')",
 		"INSERT INTO pricing_admin_grants(account_id) VALUES ('a1111111-1111-4111-8111-111111111111')",
 		"INSERT INTO pricing_activation_events(version) VALUES ('usd-launch-2026-11-08')",
 		"INSERT INTO pricing_versions(version,effective_from,approved,config) SELECT 'usd-backup-scheduled',now()+interval '96 hours',true,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-scheduled\"'),'{effective_from}',to_jsonb(now()+interval '96 hours')) FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
@@ -925,7 +955,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	// A restored revoked session rejects even a correctly signed, unexpired JWT.
 	access, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Issuer: "duolify", Audience: jwt.ClaimStrings{"duolify-client"}, Subject: "a1111111-1111-4111-8111-111111111111", ID: "d4444444-4444-4444-8444-444444444444", ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
-	}).SignedString([]byte("synthetic-backup-auth-signing-key-32-bytes"))
+	}).SignedString(backupSigningKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1089,4 +1119,12 @@ func (f *Fixture) AssertEvents(t *testing.T, names ...string) {
 // ApplicationObjects accesses only this fixture's disposable versioned asset bucket.
 func (f *Fixture) ApplicationObjects() *player.S3 {
 	return &player.S3{Client: f.root.Client, Bucket: "application-assets"}
+}
+
+func backupSigningKey() []byte {
+	key, err := hkdf.Key(sha256.New, []byte("synthetic-backup-auth-signing-key-32-bytes"), nil, "duolify/auth/v1/jwt", 32)
+	if err != nil {
+		panic(err)
+	}
+	return key
 }

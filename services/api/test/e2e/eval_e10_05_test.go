@@ -194,7 +194,7 @@ func TestReliabilityAndCostDashboardsE2E(t *testing.T) {
 	}))
 	defer posthog.Close()
 
-	events, err := analytics.NewWithOptions("test-posthog-key", posthog.URL, analytics.Options{})
+	events, err := analytics.NewWithOptions("test-posthog-key", posthog.URL, analytics.Options{Consent: func(context.Context, string) (bool, error) { return true, nil }})
 	if err != nil {
 		t.Fatal(err)
 	}

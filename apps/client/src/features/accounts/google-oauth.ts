@@ -35,8 +35,14 @@ function parseCallback(raw: string): OAuthCallback | undefined {
 }
 
 const providerHosts: Record<OAuthProviderName, string[]> = {
-  google: ["accounts.google.com", "accounts.google.test"],
-  apple: ["appleid.apple.com", "appleid.apple.test"],
+  google: [
+    "accounts.google.com",
+    ...(import.meta.env.DEV ? ["accounts.google.test"] : []),
+  ],
+  apple: [
+    "appleid.apple.com",
+    ...(import.meta.env.DEV ? ["appleid.apple.test"] : []),
+  ],
 };
 
 async function nativeBridge(provider: OAuthProviderName): Promise<OAuthBridge> {

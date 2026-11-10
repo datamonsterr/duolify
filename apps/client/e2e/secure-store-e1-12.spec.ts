@@ -1,5 +1,35 @@
 import { test, expect } from "@playwright/test";
 
+test("browser fallback ignores persisted tokens and starts signed out", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    sessionStorage.setItem(
+      "duolify.auth",
+      JSON.stringify({
+        access_token: "stale",
+        refresh_token: "stale",
+        expires_in: 900,
+      }),
+    );
+  });
+  await page.route("**/v1/me", (route) =>
+    route.fulfill({
+      json: {
+        id: "56d4e614-7665-4f14-b83e-8b5e9bed384a",
+        display_name: "Learner",
+        locale: "en",
+        time_zone: "UTC",
+        analytics_opt_out: false,
+      },
+    }),
+  );
+  await page.goto("/profile");
+  await expect(
+    page.getByRole("heading", { name: "Learn any topic, a little at a time." }),
+  ).toBeVisible();
+});
+
 test("mobile platform store double persists session across restart and clears on sign-out", async ({
   page,
 }) => {

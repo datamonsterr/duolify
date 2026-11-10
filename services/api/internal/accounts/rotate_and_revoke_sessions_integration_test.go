@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
-	"sync/atomic"
+
 	"testing"
 	"time"
 
@@ -110,25 +110,47 @@ func TestRotateAndRevokeSessions(t *testing.T) {
 	if w := call("POST", "/v1/auth/refresh", map[string]string{"refresh_token": other.RefreshToken}, ""); w.Code != 401 {
 		t.Fatal("revoked refresh", w.Code)
 	}
-	var wins atomic.Int32
 	var wg sync.WaitGroup
-	var rotated accounts.Tokens
+	results := make(chan accounts.Tokens, 8)
 	for range 8 {
 		wg.Go(func() {
 			w := call("POST", "/v1/auth/refresh", map[string]string{"refresh_token": first.RefreshToken}, "")
-			if w.Code == 200 {
-				wins.Add(1)
-				if err := json.Unmarshal(w.Body.Bytes(), &rotated); err != nil {
-					t.Error(err)
-				}
-			} else if w.Code != 401 {
+			if w.Code != 200 {
 				t.Error("refresh race", w.Code, w.Body)
+				return
 			}
+			var got accounts.Tokens
+			if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+				t.Error(err)
+				return
+			}
+			results <- got
 		})
 	}
 	wg.Wait()
-	if wins.Load() != 1 {
-		t.Fatal("refresh winners", wins.Load())
+	close(results)
+	var rotated accounts.Tokens
+	countResults := 0
+	for got := range results {
+		countResults++
+		if rotated.RefreshToken == "" {
+			rotated = got
+		}
+		if got != rotated {
+			t.Error("different refresh successor")
+		}
+	}
+	if countResults != 8 {
+		t.Fatalf("refresh successes %d", countResults)
+	}
+	if w := call("GET", "/v1/me", nil, rotated.AccessToken); w.Code != 200 {
+		t.Fatal("grace revoked session", w.Code)
+	}
+	if _, err := db.Pool.Exec(ctx, "UPDATE auth_refresh_tokens SET consumed_at=now()-interval '1 minute' WHERE consumed_at IS NOT NULL"); err != nil {
+		t.Fatal(err)
+	}
+	if w := call("POST", "/v1/auth/refresh", map[string]string{"refresh_token": first.RefreshToken}, ""); w.Code != 401 {
+		t.Fatal("late replay accepted", w.Code)
 	}
 	if w := call("GET", "/v1/me", nil, rotated.AccessToken); w.Code != 401 {
 		t.Fatal("reuse failed to revoke winner", w.Code)

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/accountstest"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/testcontainers/testcontainers-go"
@@ -44,6 +45,8 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ledger := accountstest.NewDeletionLedger()
+	auth.ConfigureDeletionLedger(ledger)
 	call := func(method, path string, body any, token string) *httptest.ResponseRecorder {
 		b, _ := json.Marshal(body)
 		req := httptest.NewRequestWithContext(ctx, method, path, strings.NewReader(string(b)))
@@ -116,6 +119,55 @@ SELECT gen_random_uuid(),$1::uuid,encode(sha256(convert_to($1::text,'UTF8')),'he
 		}
 	}
 
+	// A refreshed access token alone must never make an old authentication fresh.
+	if _, err := db.Pool.Exec(ctx, "UPDATE auth_sessions SET reauthenticated_at=now()-interval '16 minutes' WHERE learner_id=$1", learnerID); err != nil {
+		t.Fatal(err)
+	}
+	w = call("POST", "/v1/auth/refresh", map[string]string{"refresh_token": tokens.RefreshToken}, "")
+	if w.Code != 200 {
+		t.Fatalf("refresh: %d %s", w.Code, w.Body)
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &tokens); err != nil {
+		t.Fatal(err)
+	}
+	for _, action := range []struct {
+		method, path string
+		body         any
+	}{
+		{"GET", "/v1/me/data-export", nil},
+		{"POST", "/v1/me/deletion-request", map[string]string{"confirmation": "DELETE"}},
+	} {
+		if got := call(action.method, action.path, action.body, tokens.AccessToken); got.Code != 403 {
+			t.Fatalf("stale authentication allowed %s: %d %s", action.path, got.Code, got.Body)
+		}
+	}
+	if _, err := db.Pool.Exec(ctx, "UPDATE auth_sessions SET reauthenticated_at=now() WHERE learner_id=$1", learnerID); err != nil {
+		t.Fatal(err)
+	}
+	// Both action budgets are learner-scoped and deny repeated stale attempts.
+	if _, err := db.Pool.Exec(ctx, "UPDATE auth_sessions SET reauthenticated_at=now()-interval '16 minutes' WHERE learner_id=$1", learnerID); err != nil {
+		t.Fatal(err)
+	}
+	for _, action := range []struct {
+		method, path string
+		body         any
+	}{
+		{"GET", "/v1/me/data-export", nil},
+		{"POST", "/v1/me/deletion-request", map[string]string{"confirmation": "DELETE"}},
+	} {
+		for range 2 {
+			if got := call(action.method, action.path, action.body, tokens.AccessToken); got.Code != 403 {
+				t.Fatalf("expected stale denial: %d %s", got.Code, got.Body)
+			}
+		}
+		got := call(action.method, action.path, action.body, tokens.AccessToken)
+		if got.Code != 429 || got.Header().Get("Retry-After") == "" {
+			t.Fatalf("missing per-learner rate limit: %d %s", got.Code, got.Body)
+		}
+	}
+	if _, err := db.Pool.Exec(ctx, "DELETE FROM auth_rate_limits; UPDATE auth_sessions SET reauthenticated_at=now()"); err != nil {
+		t.Fatal(err)
+	}
 	export := call("GET", "/v1/me/data-export", nil, tokens.AccessToken)
 	if export.Code != 200 {
 		t.Fatalf("export: %d %s", export.Code, export.Body)
@@ -148,8 +200,39 @@ SELECT gen_random_uuid(),$1::uuid,encode(sha256(convert_to($1::text,'UTF8')),'he
 	if w = call("POST", "/v1/me/deletion-request", map[string]string{"confirmation": "no"}, tokens.AccessToken); w.Code != 400 {
 		t.Fatalf("unconfirmed delete status=%d", w.Code)
 	}
+	// Pending codes and email-linked limits must be removed without clearing
+	// another learner's limits or the shared IP budget.
+	if w = call("POST", "/v1/auth/code", map[string]any{"email": email, "age_confirmed": true}, ""); w.Code != 202 {
+		t.Fatal("pending deletion code", w.Code)
+	}
+	if w = call("POST", "/v1/auth/code", map[string]any{"email": "unrelated@example.test", "age_confirmed": true}, ""); w.Code != 202 {
+		t.Fatal("unrelated code", w.Code)
+	}
+	var linkedRates, retainedRates int
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FILTER (WHERE email_hash IS NOT NULL),count(*) FILTER (WHERE email_hash IS NULL) FROM auth_rate_limits").Scan(&linkedRates, &retainedRates); err != nil || linkedRates != 4 || retainedRates < 1 {
+		t.Fatal("missing cleanup fixtures", linkedRates, retainedRates, err)
+	}
+	auth.ConfigureDeletionLedger(nil)
+	if got := call("POST", "/v1/me/deletion-request", map[string]string{"confirmation": "DELETE"}, tokens.AccessToken); got.Code != 503 {
+		t.Fatalf("deletion accepted without durable ledger: %d", got.Code)
+	}
+	var stillPresent bool
+	if err := db.Pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM learners WHERE id=$1)", learnerID).Scan(&stillPresent); err != nil || !stillPresent {
+		t.Fatal("ledger failure erased learner", err)
+	}
+	auth.ConfigureDeletionLedger(ledger)
 	if w = call("POST", "/v1/me/deletion-request", map[string]string{"confirmation": "DELETE"}, tokens.AccessToken); w.Code != 200 {
 		t.Fatalf("delete: %d %s", w.Code, w.Body)
+	}
+	var remainingLinked, remainingShared, remainingCodes int
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FILTER (WHERE email_hash IS NOT NULL),count(*) FILTER (WHERE email_hash IS NULL) FROM auth_rate_limits").Scan(&remainingLinked, &remainingShared); err != nil || remainingLinked != 2 || remainingShared != retainedRates {
+		t.Fatal("email throttles survived deletion or shared budgets changed", remainingLinked, remainingShared, err)
+	}
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM auth_codes WHERE email=$1", email).Scan(&remainingCodes); err != nil || remainingCodes != 0 {
+		t.Fatal("pending code survived deletion", remainingCodes, err)
+	}
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM auth_codes WHERE email='unrelated@example.test'").Scan(&remainingCodes); err != nil || remainingCodes != 1 {
+		t.Fatal("unrelated code removed", remainingCodes, err)
 	}
 	var entryLearner any
 	var owner string
@@ -187,7 +270,10 @@ SELECT gen_random_uuid(),$1::uuid,encode(sha256(convert_to($1::text,'UTF8')),'he
 	if _, err = db.Pool.Exec(ctx, `INSERT INTO pricing_admin_grants(account_id) VALUES($1::uuid)`, learnerID); err != nil {
 		t.Fatal(err)
 	}
-	if err = accounts.ApplyDeletionTombstones(ctx, db.Pool); err != nil {
+	if _, err = db.Pool.Exec(ctx, "DELETE FROM account_deletion_tombstones"); err != nil {
+		t.Fatal(err)
+	}
+	if err = accounts.ReplayDeletionLedger(ctx, db.Pool, ledger); err != nil {
 		t.Fatal(err)
 	}
 	var restoredPersonal int

@@ -28,7 +28,7 @@ func TestSharedDemoCatalogueDeliveryAndPrivacy(t *testing.T) {
 	owner := "11111111-1111-4111-8111-111111111111"
 	props := map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "preview_kind": "shared_demo", "demo_version": "sky-v1", "surface": "course_brief", "control_id": "shared_demo", "topic": "private learner topic", "html": "private slide HTML"}
 	for _, optOut := range []bool{false, true} {
-		events, err := NewWithOptions("fixture", sink.URL, Options{OptOut: optOut})
+		events, err := NewWithOptions("fixture", sink.URL, Options{OptOut: optOut, Consent: allowConsent})
 		if err != nil {
 			t.Fatal(err)
 		}

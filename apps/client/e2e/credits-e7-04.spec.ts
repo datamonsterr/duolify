@@ -67,7 +67,7 @@ for (const width of [1280, 390, 320]) {
     expect(order).toBeTruthy();
     // Callback success flags cannot change server truth.
     const tokens = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("duolify.auth")!),
+      JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!),
     );
     const status = await request.get(
       `${apiBase}/v1/credits/checkouts/${order}?payment=success`,

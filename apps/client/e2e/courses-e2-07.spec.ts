@@ -172,7 +172,7 @@ for (const mobile of [false, true]) {
       page.getByText("Outline saved.", { exact: true }),
     ).toBeVisible();
     const credentials = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("duolify.auth")!),
+      JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!),
     );
     const concurrent = await request.put(
       `${apiBase}/v1/outline-drafts/${saved!.id}`,

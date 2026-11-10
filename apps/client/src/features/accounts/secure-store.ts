@@ -12,7 +12,7 @@ type NativeInvoke = (
   command: string,
   args?: Record<string, unknown>,
 ) => Promise<unknown>;
-// Native errors propagate. Only browser builds use the disposable session fallback.
+// Native errors propagate. Browser credentials live only in this store instance.
 export function createSecureStore(native?: NativeInvoke): SecureStore {
   let memory: Tokens | null = null;
   return {
@@ -21,12 +21,7 @@ export function createSecureStore(native?: NativeInvoke): SecureStore {
         const raw = await native("read_credentials");
         return typeof raw === "string" ? (JSON.parse(raw) as Tokens) : null;
       }
-      try {
-        const raw = sessionStorage.getItem("duolify.auth");
-        return raw ? (JSON.parse(raw) as Tokens) : memory;
-      } catch {
-        return memory;
-      }
+      return memory;
     },
     async write(value) {
       if (native) {
@@ -36,13 +31,6 @@ export function createSecureStore(native?: NativeInvoke): SecureStore {
         return;
       }
       memory = value;
-      try {
-        if (value)
-          sessionStorage.setItem("duolify.auth", JSON.stringify(value));
-        else sessionStorage.removeItem("duolify.auth");
-      } catch {
-        /* Memory remains available in restricted browser contexts. */
-      }
     },
   };
 }

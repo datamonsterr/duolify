@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"net/mail"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -32,7 +33,7 @@ var errLimited = errors.New("rate limit exceeded")
 var localePattern = regexp.MustCompile(`^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$`)
 var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
-// Tokens contains credentials delivered once, never persisted in plaintext by the API.
+// Tokens contains issued credentials, never persisted in plaintext by the API.
 type Tokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -44,16 +45,21 @@ type Profile = db.GetAuthenticatedLearnerRow
 
 // Service owns stateless HTTP authentication backed by Postgres.
 type Service struct {
-	pool          *pgxpool.Pool
-	key           []byte
-	mail          Mailer
-	oauth         OAuthProvider
-	apple         AppleOAuthProvider
-	mux           *http.ServeMux
-	profile       ProfileOptions
-	limits        RateLimits
-	personDeleter PersonDeleter
-	setupChat     SetupChatOptions
+	pool           *pgxpool.Pool
+	key            []byte
+	otpKey         []byte
+	oauthKey       []byte
+	rateKey        []byte
+	sealKey        []byte
+	mail           Mailer
+	oauth          OAuthProvider
+	apple          AppleOAuthProvider
+	mux            *http.ServeMux
+	profile        ProfileOptions
+	limits         RateLimits
+	personDeleter  PersonDeleter
+	deletionLedger DeletionLedger
+	setupChat      SetupChatOptions
 }
 
 // New requires a shared signing/HMAC secret of at least 32 bytes.
@@ -78,7 +84,17 @@ func NewWithOAuthProviders(pool *pgxpool.Pool, secret string, mailer Mailer, goo
 	if apple == nil {
 		apple = unavailableAppleProvider{}
 	}
-	s := &Service{pool: pool, key: []byte(secret), mail: mailer, oauth: google, apple: apple, mux: http.NewServeMux(), limits: DefaultRateLimits()}
+	if os.Getenv("DUOLIFY_ENV") != "development" {
+		switch google.(type) {
+		case *FixtureGoogleProvider, *FixtureAppleProvider:
+			return nil, errors.New("fixture Google provider requires development")
+		}
+		switch apple.(type) {
+		case *FixtureGoogleProvider, *FixtureAppleProvider:
+			return nil, errors.New("fixture Apple provider requires development")
+		}
+	}
+	s := &Service{pool: pool, key: authKey(secret, "jwt"), otpKey: authKey(secret, "otp-hash"), oauthKey: authKey(secret, "oauth-hash"), rateKey: authKey(secret, "rate-hash"), sealKey: authKey(secret, "credential-encryption"), mail: mailer, oauth: google, apple: apple, mux: http.NewServeMux(), limits: DefaultRateLimits()}
 	s.mux.HandleFunc("POST /v1/auth/code", s.requestCode)
 	s.mux.HandleFunc("POST /v1/auth/verify", s.verify)
 	s.mux.HandleFunc("POST /v1/auth/google/start", s.googleOAuthStart)
@@ -154,7 +170,10 @@ func input(w http.ResponseWriter, r *http.Request) (codeInput, bool) {
 	return in, true
 }
 func (s *Service) hmac(value string) string {
-	mac := hmac.New(sha256.New, s.key)
+	return keyedHash(s.otpKey, value)
+}
+func keyedHash(key []byte, value string) string {
+	mac := hmac.New(sha256.New, key)
 	_, _ = mac.Write([]byte(value))
 	return hex.EncodeToString(mac.Sum(nil))
 }
@@ -162,25 +181,42 @@ func refreshHash(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])
 }
-func (s *Service) limit(ctx context.Context, tx pgx.Tx, key string, maximum int) error {
+func (s *Service) limit(ctx context.Context, tx pgx.Tx, key string, maximum int, email ...string) error {
 	var count int
 	err := tx.QueryRow(ctx, `INSERT INTO auth_rate_limits(key_hash,count,expires_at) VALUES($1,1,now()+interval '1 hour')
  ON CONFLICT(key_hash) DO UPDATE SET count=CASE WHEN auth_rate_limits.expires_at<=now() THEN 1 ELSE auth_rate_limits.count+1 END,
- expires_at=CASE WHEN auth_rate_limits.expires_at<=now() THEN now()+interval '1 hour' ELSE auth_rate_limits.expires_at END RETURNING count`, s.hmac(key)).Scan(&count)
+ expires_at=CASE WHEN auth_rate_limits.expires_at<=now() THEN now()+interval '1 hour' ELSE auth_rate_limits.expires_at END RETURNING count`, keyedHash(s.rateKey, key)).Scan(&count)
 	if err != nil {
 		return err
+	}
+	if len(email) > 0 && (strings.HasPrefix(key, "request-email-ip:") || strings.HasPrefix(key, "delivery-email:")) {
+		if _, err = tx.Exec(ctx, "UPDATE auth_rate_limits SET email_hash=$2 WHERE key_hash=$1", keyedHash(s.rateKey, key), keyedHash(s.rateKey, "delivery-email:"+email[0])); err != nil {
+			return err
+		}
 	}
 	if count > maximum {
 		return errLimited
 	}
 	return nil
 }
-func ip(r *http.Request) string {
+func (s *Service) clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
 	}
-	return host
+	if s.limits.TrustedProxyHops <= 0 {
+		return host
+	}
+	chain := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+	index := len(chain) - s.limits.TrustedProxyHops
+	if index < 0 {
+		return host
+	}
+	candidate := net.ParseIP(strings.TrimSpace(chain[index]))
+	if candidate == nil {
+		return host
+	}
+	return candidate.String()
 }
 func (s *Service) requestCode(w http.ResponseWriter, r *http.Request) {
 	in, ok := input(w, r)
@@ -197,8 +233,11 @@ func (s *Service) requestCode(w http.ResponseWriter, r *http.Request) {
 	for _, v := range []struct {
 		key string
 		max int
-	}{{"request-ip:" + ip(r), s.limits.RequestIP}, {"request-email:" + in.Email, s.limits.RequestEmail}} {
-		if err = s.limit(ctx, tx, v.key, v.max); err != nil {
+	}{
+		{"request-ip:" + s.clientIP(r), s.limits.RequestIP},
+		{"request-email-ip:" + in.Email + ":" + s.clientIP(r), s.limits.RequestEmail},
+	} {
+		if err = s.limit(ctx, tx, v.key, v.max, in.Email); err != nil {
 			if errors.Is(err, errLimited) {
 				err = errors.Join(err, tx.Commit(ctx))
 			}
@@ -206,19 +245,66 @@ func (s *Service) requestCode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if _, err = tx.Exec(ctx, `DELETE FROM auth_codes WHERE expires_at<now(); DELETE FROM auth_rate_limits WHERE expires_at<now(); DELETE FROM auth_sessions WHERE expires_at<now()`); err != nil {
+	// Serialize even the first insert, when no code row exists to lock yet.
+	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", in.Email); err != nil {
 		failure(w, err)
 		return
 	}
-	n, err := rand.Int(rand.Reader, big.NewInt(900000))
-	if err != nil {
+	if _, err = tx.Exec(ctx, `DELETE FROM auth_codes WHERE expires_at<now(); DELETE FROM auth_rate_limits WHERE expires_at<now(); DELETE FROM auth_sessions WHERE expires_at<now(); UPDATE auth_refresh_tokens SET successor_ciphertext=NULL WHERE consumed_at<now()-interval '5 seconds' AND successor_ciphertext IS NOT NULL`); err != nil {
 		failure(w, err)
 		return
 	}
-	code := fmt.Sprintf("%06d", n.Int64()+100000)
-	hash := s.hmac(in.Email + ":" + code)
-	_, err = tx.Exec(ctx, `INSERT INTO auth_codes(email,code_hash,expires_at) VALUES($1,$2,now()+interval '10 minutes')
- ON CONFLICT(email) DO UPDATE SET code_hash=$2,expires_at=now()+interval '10 minutes',attempts=0,consumed_at=NULL`, in.Email, hash)
+	var sealed []byte
+	var active, cooldown bool
+	err = tx.QueryRow(ctx, `SELECT code_ciphertext,expires_at>now() AND consumed_at IS NULL,last_sent_at>now()-interval '60 seconds' FROM auth_codes WHERE email=$1 FOR UPDATE`, in.Email).Scan(&sealed, &active, &cooldown)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		failure(w, err)
+		return
+	}
+	if active && cooldown {
+		if err = tx.Commit(ctx); err != nil {
+			failure(w, err)
+			return
+		}
+		respond(w, 202, map[string]int{"expires_in": 600})
+		return
+	}
+	// Email-wide delivery throttling is silent and independent of the caller's
+	// budget. It never replaces an active code or prevents its verification.
+	if err = s.limit(ctx, tx, "delivery-email:"+in.Email, s.limits.emailDeliveries(), in.Email); err != nil {
+		if errors.Is(err, errLimited) {
+			if err = tx.Commit(ctx); err == nil {
+				respond(w, 202, map[string]int{"expires_in": 600})
+				return
+			}
+		}
+		failure(w, err)
+		return
+	}
+	var code, hash string
+	if active {
+		raw, openErr := s.unseal(sealed, "otp:"+in.Email)
+		if openErr != nil {
+			failure(w, openErr)
+			return
+		}
+		code = string(raw)
+		hash = s.hmac(in.Email + ":" + code)
+		_, err = tx.Exec(ctx, "UPDATE auth_codes SET last_sent_at=now() WHERE email=$1", in.Email)
+	} else {
+		n, randErr := rand.Int(rand.Reader, big.NewInt(900000))
+		if randErr != nil {
+			failure(w, randErr)
+			return
+		}
+		code = fmt.Sprintf("%06d", n.Int64()+100000)
+		hash = s.hmac(in.Email + ":" + code)
+		sealed, err = s.seal([]byte(code), "otp:"+in.Email)
+		if err == nil {
+			_, err = tx.Exec(ctx, `INSERT INTO auth_codes(email,code_hash,code_ciphertext,last_sent_at,expires_at) VALUES($1,$2,$3,now(),now()+interval '10 minutes')
+ ON CONFLICT(email) DO UPDATE SET code_hash=$2,code_ciphertext=$3,last_sent_at=now(),expires_at=now()+interval '10 minutes',attempts=0,consumed_at=NULL`, in.Email, hash, sealed)
+		}
+	}
 	if err == nil {
 		err = tx.Commit(ctx)
 	}
@@ -227,7 +313,8 @@ func (s *Service) requestCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err = s.mail.SendCode(ctx, in.Email, code); err != nil {
-		_, _ = s.pool.Exec(ctx, "DELETE FROM auth_codes WHERE email=$1 AND code_hash=$2", in.Email, hash)
+		// Preserve the code and attempt count after transient mail failure; allow retry.
+		_, _ = s.pool.Exec(ctx, "UPDATE auth_codes SET last_sent_at=now()-interval '60 seconds' WHERE email=$1 AND code_hash=$2", in.Email, hash)
 		failure(w, err)
 		return
 	}
@@ -255,7 +342,7 @@ func (s *Service) verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err = s.limit(ctx, tx, "verify-ip:"+ip(r), s.limits.VerifyIP); err != nil {
+	if err = s.limit(ctx, tx, "verify-ip:"+s.clientIP(r), s.limits.VerifyIP); err != nil {
 		if errors.Is(err, errLimited) {
 			err = errors.Join(err, tx.Commit(ctx))
 		}
@@ -373,14 +460,33 @@ func (s *Service) refresh(w http.ResponseWriter, r *http.Request) {
 	var learnerID, sessionID string
 	var active, used bool
 	var expiry time.Time
-	err = tx.QueryRow(ctx, `SELECT s.learner_id::text,s.id::text,s.revoked_at IS NULL AND s.expires_at>now() AND t.expires_at>now(),t.consumed_at IS NOT NULL,s.expires_at
- FROM auth_refresh_tokens t JOIN auth_sessions s ON s.id=t.session_id WHERE t.token_hash=$1 FOR UPDATE OF s,t`, refreshHash(in.RefreshToken)).Scan(&learnerID, &sessionID, &active, &used, &expiry)
+	var withinGrace bool
+	var successor []byte
+	err = tx.QueryRow(ctx, `SELECT s.learner_id::text,s.id::text,s.revoked_at IS NULL AND s.expires_at>now() AND t.expires_at>now(),t.consumed_at IS NOT NULL,s.expires_at,COALESCE(t.consumed_at>now()-interval '5 seconds',false),t.successor_ciphertext
+ FROM auth_refresh_tokens t JOIN auth_sessions s ON s.id=t.session_id WHERE t.token_hash=$1 FOR UPDATE OF s,t`, refreshHash(in.RefreshToken)).Scan(&learnerID, &sessionID, &active, &used, &expiry, &withinGrace, &successor)
 	if errors.Is(err, pgx.ErrNoRows) {
 		failure(w, errCredentials)
 		return
 	}
 	if err != nil {
 		failure(w, err)
+		return
+	}
+	if used && active && withinGrace && len(successor) > 0 {
+		raw, openErr := s.unseal(successor, "refresh:"+refreshHash(in.RefreshToken))
+		var tokens Tokens
+		if openErr == nil {
+			openErr = json.Unmarshal(raw, &tokens)
+		}
+		if openErr != nil {
+			failure(w, openErr)
+			return
+		}
+		if err = tx.Commit(ctx); err != nil {
+			failure(w, err)
+			return
+		}
+		respond(w, 200, tokens)
 		return
 	}
 	if used || !active {
@@ -398,6 +504,17 @@ func (s *Service) refresh(w http.ResponseWriter, r *http.Request) {
 	var tokens Tokens
 	if err == nil {
 		tokens, err = s.issue(ctx, tx, learnerID, sessionID, expiry)
+	}
+	if err == nil {
+		// #nosec G117 -- immediately AES-GCM sealed with token-hash AAD; never persisted or logged in plaintext.
+		raw, marshalErr := json.Marshal(tokens)
+		err = marshalErr
+		if err == nil {
+			successor, err = s.seal(raw, "refresh:"+refreshHash(in.RefreshToken))
+		}
+		if err == nil {
+			_, err = tx.Exec(ctx, "UPDATE auth_refresh_tokens SET successor_ciphertext=$2 WHERE token_hash=$1", refreshHash(in.RefreshToken), successor)
+		}
 	}
 	if err == nil {
 		err = tx.Commit(ctx)

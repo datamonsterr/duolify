@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { playerManifest } from "../src/mocks/player";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./native-store-fixture";
 async function seedLocalizedAccount(page: Page, locale = "en") {
   await page.addInitScript(() =>
     sessionStorage.setItem(
-      "duolify.auth",
+      "duolify.native-store-fixture",
       JSON.stringify({
         access_token: "localization-access",
         refresh_token: "localization-refresh",

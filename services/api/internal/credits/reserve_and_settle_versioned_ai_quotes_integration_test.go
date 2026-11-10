@@ -375,7 +375,7 @@ func TestVersionedReservationTransactions(t *testing.T) {
 			_, _ = w.Write([]byte(`{"status":"Ok"}`))
 		}))
 		defer sink.Close()
-		wrapper, e := analytics.New("synthetic-credits-key", sink.URL)
+		wrapper, e := analytics.New("synthetic-credits-key", sink.URL, func(context.Context, string) (bool, error) { return true, nil })
 		if e != nil {
 			t.Fatal(e)
 		}

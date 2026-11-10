@@ -99,33 +99,35 @@ func run(ctx context.Context, args []string) (result error) {
 			metricsAddr = "127.0.0.1:9092"
 		}
 	}
-	stopMetrics, err := monitor.Listen(ctx, metricsAddr)
-	if err != nil {
-		return err
-	}
-	defer stopMetrics()
+
 	db, err := store.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
-	if err := accounts.ApplyDeletionTombstones(ctx, db.Pool); err != nil {
+	backupConfig, err := backup.Load(os.Getenv)
+	if err != nil {
+		return err
+	}
+	objects, err := backup.NewS3(backupConfig.S3)
+	if err != nil {
+		return err
+	}
+	deletionLedger := backup.DeletionLedger{Objects: objects}
+	if err := accounts.ReplayDeletionLedger(ctx, db.Pool, deletionLedger); err != nil {
 		return fmt.Errorf("apply account deletion tombstones: %w", err)
 	}
+	stopMetrics, err := monitor.Listen(ctx, metricsAddr)
+	if err != nil {
+		return err
+	}
+	defer stopMetrics()
 	if command == "worker" {
-		backupConfig, err := backup.Load(os.Getenv)
-		if err != nil {
-			return err
-		}
-		objects, err := backup.NewS3(backupConfig.S3)
-		if err != nil {
-			return err
-		}
 		key := cfg.PostHogKey
 		if backupConfig.OptOut {
 			key = ""
 		}
-		events, err := analytics.New(key, cfg.PostHogHost)
+		events, err := analytics.New(key, cfg.PostHogHost, analytics.DatabaseConsent(db.Pool))
 		if err != nil {
 			return err
 		}
@@ -220,24 +222,14 @@ func run(ctx context.Context, args []string) (result error) {
 	if cfg.AnalyticsOptOut {
 		analyticsKey = ""
 	}
-	events, err := analytics.New(analyticsKey, cfg.PostHogHost)
+	events, err := analytics.New(analyticsKey, cfg.PostHogHost, analytics.DatabaseConsent(db.Pool))
 	if err != nil {
 		return err
 	}
 	defer func() { result = errors.Join(result, events.Close()) }()
-	secret := os.Getenv("JWT_SECRET")
-	if len(secret) < 32 {
-		return errors.New("JWT_SECRET must contain at least 32 bytes")
-	}
-	var mailer accounts.Mailer = accounts.LogMailer{Logger: logger}
-	if os.Getenv("DUOLIFY_ENV") == "production" {
-		if strings.HasPrefix(secret, "change-me") {
-			return errors.New("production JWT_SECRET must replace the development placeholder")
-		}
-		if os.Getenv("RESEND_API_KEY") == "" || os.Getenv("AUTH_MAIL_FROM") == "" {
-			return errors.New("production auth requires RESEND_API_KEY and AUTH_MAIL_FROM")
-		}
-		mailer = accounts.ResendMailer{APIKey: os.Getenv("RESEND_API_KEY"), From: os.Getenv("AUTH_MAIL_FROM")}
+	secret, mailer, err := accounts.AuthFromEnv(os.Getenv, logger)
+	if err != nil {
+		return err
 	}
 	profileOptions, err := accounts.ProfileOptionsFromEnv(os.Getenv)
 	if err != nil {
@@ -253,6 +245,7 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	auth.ConfigureProfile(profileOptions)
+	auth.ConfigureDeletionLedger(deletionLedger)
 	if err := pricing.BootstrapAdmins(ctx, db.Pool, pricing.OperatorPricingAdminIDs()); err != nil {
 		return fmt.Errorf("pricing admin bootstrap failed: %w", err)
 	}
@@ -433,7 +426,7 @@ func runAdminCLI(ctx context.Context, args []string) error {
 	if strings.EqualFold(os.Getenv("ANALYTICS_OPT_OUT"), "true") {
 		key = ""
 	}
-	events, err := analytics.New(key, os.Getenv("POSTHOG_HOST"))
+	events, err := analytics.New(key, os.Getenv("POSTHOG_HOST"), analytics.DatabaseConsent(db.Pool))
 	if err != nil {
 		return err
 	}

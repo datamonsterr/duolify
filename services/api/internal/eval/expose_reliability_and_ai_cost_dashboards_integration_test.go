@@ -64,7 +64,7 @@ func TestExposeReliabilityAndAICostDashboardsIntegration(t *testing.T) {
 	}))
 	defer posthogServer.Close()
 
-	events, err := analytics.NewWithOptions("test-key", posthogServer.URL, analytics.Options{})
+	events, err := analytics.NewWithOptions("test-key", posthogServer.URL, analytics.Options{Consent: func(context.Context, string) (bool, error) { return true, nil }})
 	if err != nil {
 		t.Fatal(err)
 	}

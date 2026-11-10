@@ -128,6 +128,14 @@ services:
   api:
     <<: *api
     command: [serve]
+    environment:
+      <<: *api-env
+      # Scoped append-only ledger access; never use RustFS root credentials.
+      BACKUP_S3_ENDPOINT: http://objectstore:9000
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-us-east-1}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-duolify-backups}
+      BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-duolify-backup-writer}
+      BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-local-backup-writer-only}
     ports: ["127.0.0.1:8080:8080"]
     depends_on:
       postgres: {condition: service_healthy}

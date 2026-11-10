@@ -4,17 +4,20 @@ dir = "{{config_root}}/services/api"
 run = "golangci-lint run --build-tags integration ./..."
 
 ["api:test"]
+env = { DUOLIFY_ENV = "development" }
 description = "Run unit tests with the race detector"
 dir = "{{config_root}}/services/api"
 run = "gotestsum -- -race -count=1 ./internal/... ./migrations/..."
 
 ["api:test-e2e"]
+env = { DUOLIFY_ENV = "development" }
 description = "Run authenticated HTTP/gRPC and packaged worker backup/restore end-to-end tests"
 depends = ["infra:build-worker"]
 dir = "{{config_root}}/services/api"
 run = "gotestsum -- -race -count=1 ./test/e2e/..."
 
 ["api:test-integration"]
+env = { DUOLIFY_ENV = "development" }
 description = "Test migrations, store and queue against Postgres 18 (Docker)"
 dir = "{{config_root}}/services/api"
 run = "gotestsum -- -race -count=1 -tags integration ./internal/store/... ./internal/backup/... ./internal/pricing/... ./internal/accounts/... ./internal/courses/... ./internal/credits/... ./internal/player/... ./internal/eval/... ./internal/lessontest/... ./internal/notes/... ./internal/characters/..."
@@ -26,6 +29,7 @@ env = { CGO_ENABLED = "0" }
 run = ["go build -trimpath -o bin/api ./cmd/api", "go build -trimpath -o bin/backup-init ./cmd/backup-init"]
 
 ["api:run"]
+env = { DUOLIFY_ENV = "{{env.DUOLIFY_ENV | default(value='development')}}" }
 description = "Run the HTTP API"
 dir = "{{config_root}}/services/api"
 run = "go run ./cmd/api serve"
@@ -43,7 +47,7 @@ run = "go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate"
 ["api:pricing-e2e-server"]
 description = "Serve pricing from a freshly migrated disposable Postgres for Playwright"
 dir = "{{config_root}}/services/api"
-env = { LESSON_TEST_TRACER_ENABLED = "{{env.LESSON_TEST_TRACER_ENABLED | default(value='true')}}" }
+env = { DUOLIFY_ENV = "development", LESSON_TEST_TRACER_ENABLED = "{{env.LESSON_TEST_TRACER_ENABLED | default(value='true')}}" }
 run = "go run ./test/pricingserver"
 
 ["api:format"]

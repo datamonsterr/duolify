@@ -11,7 +11,7 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: `ALLOW_UNAPPROVED_PRICING=true FEATURE_CUSTOM_CHARACTERS=true AUTH_CODE_REQUESTS_PER_IP_PER_HOUR=${authRateLimits.requestIp} AUTH_CODE_REQUESTS_PER_EMAIL_PER_HOUR=${authRateLimits.requestEmail} AUTH_CODE_VERIFICATIONS_PER_IP_PER_HOUR=${authRateLimits.verifyIp} E2E_API_ADDR=${new URL(apiBase).host} E2E_WEB_PORT=${webPort} LESSON_TEST_TRACER_ENABLED=true mise run api:pricing-e2e-server`,
+      command: `DUOLIFY_ENV=development ALLOW_UNAPPROVED_PRICING=true FEATURE_CUSTOM_CHARACTERS=true AUTH_CODE_REQUESTS_PER_IP_PER_HOUR=${authRateLimits.requestIp} AUTH_CODE_REQUESTS_PER_EMAIL_PER_HOUR=${authRateLimits.requestEmail} AUTH_CODE_DELIVERIES_PER_EMAIL_PER_HOUR=${authRateLimits.deliveryEmail} AUTH_CODE_VERIFICATIONS_PER_IP_PER_HOUR=${authRateLimits.verifyIp} E2E_API_ADDR=${new URL(apiBase).host} E2E_WEB_PORT=${webPort} LESSON_TEST_TRACER_ENABLED=true mise run api:pricing-e2e-server`,
       url: `${apiBase}/healthz`,
       timeout: 120_000,
       reuseExistingServer: false,
