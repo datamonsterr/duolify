@@ -186,6 +186,25 @@ for (const mode of ["light", "dark"] as const) {
     ).toBe(true);
     await page.getByRole("link", { name: "Exit lesson" }).click();
     await expect(page).toHaveURL(/\/course\/astronomy$/);
+    await page.route("**/v1/features", (route) =>
+      route.fulfill({ json: { lesson_test_tracer_enabled: true } }),
+    );
+    await page.route("**/v1/lessons/sky/test", (route) =>
+      route.fulfill({
+        json: {
+          session_id: "design-session",
+          questions: [
+            {
+              question_id: "design-opaque-item",
+              topic_id: "sky",
+              prompt: "What shines at night?",
+              choices: ["Stars", "Clouds"],
+            },
+          ],
+          total_topics: 1,
+        },
+      }),
+    );
     await page.goto("/lesson/sky/test");
     await expect(
       page.getByRole("heading", { name: "Lesson test" }),

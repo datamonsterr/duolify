@@ -53,7 +53,7 @@ function documentKey(slide: ManifestSlide) {
   return `${session.current()?.id}:${slide.html_url}:${slide.html_sha256}`;
 }
 export function preparedDocument(slide: ManifestSlide) {
-  return prepared.get(documentKey(slide));
+  return prepared.get(documentKey(slide)) ?? prepared.get(slide.html_url);
 }
 export function availableOffline(lesson: string) {
   const owner = session.current()?.id;
@@ -226,7 +226,63 @@ export async function openLesson(lesson: string): Promise<Manifest> {
       `/v1/lessons/${encodeURIComponent(lesson)}/manifest`,
     );
   } catch (error) {
-    if (error instanceof AuthError && [401, 403, 404].includes(error.status))
+    if (error instanceof AuthError && error.status === 404) {
+      try {
+        const dyn = await session.request<{
+          id: string;
+          course_id?: string;
+          title?: string;
+          slides?: {
+            slide_id: string;
+            html: string;
+            duration_ms: number;
+            narration: string;
+          }[];
+        }>(`/v1/lessons/${encodeURIComponent(lesson)}`);
+        if (dyn?.slides && dyn.slides.length > 0) {
+          const origin =
+            typeof window !== "undefined"
+              ? window.location.origin
+              : "http://localhost:3000";
+          const slides: ManifestSlide[] = await Promise.all(
+            dyn.slides.map(async (s) => {
+              const html_sha256 = await digest(s.html);
+              return {
+                slide_id: s.slide_id,
+                html_sha256,
+                asset_sha256: {},
+                duration_ms: s.duration_ms || 3000,
+                html_url: `/v1/lessons/${encodeURIComponent(lesson)}/slides/${encodeURIComponent(s.slide_id)}`,
+                assets: [],
+                checkpoints: [],
+                narration_status: "disabled" as const,
+                narration_text: s.narration || "",
+                explanation: s.narration || "",
+              };
+            }),
+          );
+          const synthesized: Manifest = {
+            lesson_id: dyn.id || lesson,
+            course_id: dyn.course_id || "course",
+            title: dyn.title || "Lesson",
+            version: 1,
+            asset_origin: origin,
+            slides,
+          };
+          for (const s of slides) {
+            const raw = dyn.slides.find((x) => x.slide_id === s.slide_id);
+            const html = raw?.html ?? "";
+            prepared.set(documentKey(s), html);
+            prepared.set(s.html_url, html);
+          }
+          return synthesized;
+        }
+      } catch {
+        // Fall through to error
+      }
+      throw error;
+    }
+    if (error instanceof AuthError && [401, 403].includes(error.status))
       throw error;
     const cached = await readCachedLesson(owner, lesson);
     if (cached) return activate(cached, owner, true);

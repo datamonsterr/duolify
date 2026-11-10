@@ -106,7 +106,22 @@ if (key)
     capture_pageview: false,
   });
 export function track(
-  event: "lesson_started" | "slide_viewed" | "lesson_completed",
+  event:
+    | "lesson_started"
+    | "slide_viewed"
+    | "lesson_completed"
+    | "lesson_generation_requested"
+    | "lesson_generated"
+    | "course_generation_failed"
+    | "lesson_test_started"
+    | "lesson_test_submitted"
+    | "lesson_test_passed"
+    | "lesson_test_answer_wrong"
+    | "retry_variant_queued"
+    | "retry_variant_served"
+    | "retry_variant_answered"
+    | "lesson_test_recap_shown"
+    | "ui_test_retry_presented",
   properties: Record<string, string | number>,
 ) {
   if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;

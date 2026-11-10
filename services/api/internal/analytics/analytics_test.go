@@ -95,6 +95,8 @@ func TestEventAllowlist(t *testing.T) {
 		"character_rendered", "character_render_fallback",
 		"daily_credits_granted", "daily_credits_expired",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
+		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
+		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "lesson_test_recap_shown", "ui_test_retry_presented",
 		"quick_note_created", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened",
 	} {
@@ -873,6 +875,139 @@ func TestBookmarkEventsReachPostHogWithoutPrivateData(t *testing.T) {
 	}
 }
 
+func TestLessonTestEventsPrivacy(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	learnerID := "22222222-2222-4222-8222-222222222222"
+	tests := []struct {
+		event string
+		props map[string]any
+	}{
+		{
+			event: "lesson_generation_requested",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456",
+				"prompt": "forbidden prompt", "title": "forbidden title",
+			},
+		},
+		{
+			event: "lesson_generated",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456",
+				"slide_count": 5, "duration_ms": 1200, "provider": "mock", "model": "mock-model",
+				"html": "<section>slide</section>", "narration": "forbidden audio text",
+			},
+		},
+		{
+			event: "lesson_test_started",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456",
+				"question_count": 3,
+				"questions":      []string{"forbidden question"},
+			},
+		},
+		{
+			event: "lesson_test_submitted",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456",
+				"topic_id": "topic-789", "correct": true, "is_variant": false,
+				"attempt": 1, "choice_index": 2,
+				"user_answer": "forbidden answer text", "explanation": "forbidden explanation",
+			},
+		},
+		{
+			event: "lesson_test_passed",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456",
+				"first_try_correct": 3, "variants_served": 0, "duration_ms": 45000, "score": 100,
+				"feedback": "forbidden learner feedback",
+			},
+		},
+		{
+			event: "lesson_test_answer_wrong",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456", "topic_id": "top-123",
+				"is_variant": false, "attempt_for_topic": 1,
+				"prompt": "forbidden question prompt", "learner_text": "forbidden answer",
+			},
+		},
+		{
+			event: "retry_variant_queued",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456", "topic_id": "top-123",
+				"private_question": "forbidden text",
+			},
+		},
+		{
+			event: "retry_variant_served",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456", "topic_id": "top-123",
+				"source_name": "pool", "choices": []string{"forbidden choice"},
+			},
+		},
+		{
+			event: "retry_variant_answered",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456", "topic_id": "top-123",
+				"correct": true, "notes": "forbidden notes",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		if err := events.Capture(learnerID, tc.event, tc.props); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(received) != len(tests) {
+		t.Fatalf("expected %d events, got %d", len(tests), len(received))
+	}
+
+	for _, item := range received {
+		raw, _ := json.Marshal(item)
+		if strings.Contains(string(raw), "forbidden") {
+			t.Fatalf("private learner text leaked in %s", string(raw))
+		}
+		p := item["properties"].(map[string]any)
+		if p["source"] != "api" || p["platform"] != "web" || p["course_id"] != "course-123" {
+			t.Fatalf("expected common properties preserved, got %v", p)
+		}
+	}
+}
+
 func TestPlayerEventsReachPostHogWithClosedProjection(t *testing.T) {
 	var mu sync.Mutex
 	var received []map[string]any
@@ -1022,5 +1157,23 @@ func TestQuickNoteReviewAndDeleteAnalyticsReachPostHogWithoutPrivateText(t *test
 				t.Fatalf("forbidden key %q found in event", forbidden)
 			}
 		}
+	}
+}
+
+func TestLessonTestPoolExhaustionAndMetricsAreAllowlistedWithoutText(t *testing.T) {
+	if !allowlisted("retry_variant_pool_exhausted") {
+		t.Fatal("exhaustion event is not allowlisted")
+	}
+	got := safeProperties("retry_variant_pool_exhausted", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "topic_id": "top-1", "error_code": "pool_exhausted", "prompt": "private learner question", "choice_text": "private answer"})
+	if got["topic_id"] != "top-1" || got["prompt"] != nil || got["choice_text"] != nil {
+		t.Fatalf("unsafe exhaustion properties: %v", got)
+	}
+	got = safeProperties("lesson_test_submitted", map[string]any{"duration_ms": int64(1200), "score": 50, "choice_index": 1})
+	if got["duration_ms"] != int64(1200) || got["score"] != 50 || got["choice_index"] != nil {
+		t.Fatalf("incorrect submission metrics: %v", got)
+	}
+	got = safeProperties("retry_variant_served", map[string]any{"source": "api", "variant_source": "pool_exhausted_fallback"})
+	if got["source"] != "api" || got["variant_source"] != "pool_exhausted_fallback" {
+		t.Fatalf("lost variant provenance: %v", got)
 	}
 }

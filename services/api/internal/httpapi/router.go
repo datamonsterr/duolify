@@ -32,23 +32,31 @@ type Engine interface {
 
 // Dependencies allows readiness probes without coupling HTTP to database drivers.
 type Dependencies struct {
-	Postgres, Redis func(context.Context) error
-	ObjectStorage   func(context.Context) error
-	Monitor         *telemetry.Monitor
-	Engine          Engine
-	Pricing         http.Handler
-	CourseBrief     http.Handler
-	PricingAdmin    http.Handler
-	Quotes          http.Handler
-	Credits         http.Handler
-	Player          http.Handler
-	Eval            http.Handler
-	Notes           http.Handler
-	Characters      http.Handler
-	Accounts        interface {
+	Postgres, Redis         func(context.Context) error
+	ObjectStorage           func(context.Context) error
+	Monitor                 *telemetry.Monitor
+	Engine                  Engine
+	Pricing                 http.Handler
+	CourseBrief             http.Handler
+	PricingAdmin            http.Handler
+	Quotes                  http.Handler
+	Credits                 http.Handler
+	Player                  http.Handler
+	Notes                   http.Handler
+	Eval                    http.Handler
+	Characters              http.Handler
+	LessonTestTracerEnabled bool
+	LessonTest              http.Handler
+	Accounts                interface {
 		http.Handler
 		Protect(http.Handler) http.Handler
 	}
+}
+
+// NewWithLessonTest attaches the lesson testing service.
+func NewWithLessonTest(deps Dependencies, lessonTest http.Handler, logger *slog.Logger) http.Handler {
+	deps.LessonTest = lessonTest
+	return New(deps, logger)
 }
 
 // New creates the scaffold routes. Courses are static demonstration data.
@@ -173,6 +181,14 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			mux.Handle("/v1/bookmarks/", deps.Accounts.Protect(http.HandlerFunc(bmHandler.ServeBookmarksHTTP)))
 		}
 	}
+	mux.HandleFunc("GET /v1/features", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"lesson_test_tracer_enabled": deps.LessonTestTracerEnabled,
+		})
+	})
+	if deps.LessonTestTracerEnabled && deps.LessonTest != nil && deps.Accounts != nil {
+		mux.Handle("/v1/lesson-generations/", deps.Accounts.Protect(deps.LessonTest))
+	}
 	if deps.Characters != nil {
 		mux.Handle("GET /v1/characters/default-cast", deps.Characters)
 		if deps.Accounts != nil {
@@ -189,11 +205,26 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			mux.Handle("PUT /v1/courses/{id}/cast", deps.Accounts.Protect(deps.Characters))
 		}
 		mux.Handle("/v1/characters/", deps.Characters)
-		mux.Handle("/v1/lessons/", deps.Characters)
 		if deps.Accounts != nil {
 			mux.Handle("/v1/courses/{courseId}/lessons/", deps.Accounts.Protect(deps.Characters))
 		}
 	}
+	lessonMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/manifest") && deps.Characters != nil {
+			deps.Characters.ServeHTTP(w, r)
+			return
+		}
+		if deps.LessonTestTracerEnabled && deps.LessonTest != nil && deps.Accounts != nil {
+			deps.Accounts.Protect(deps.LessonTest).ServeHTTP(w, r)
+			return
+		}
+		if deps.Characters != nil {
+			deps.Characters.ServeHTTP(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})
+	mux.Handle("/v1/lessons/", lessonMux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -409,6 +440,13 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/v1/lessons/") || strings.HasPrefix(r.URL.Path, "/v1/courses") || strings.HasPrefix(r.URL.Path, "/v1/quotes") || strings.HasPrefix(r.URL.Path, "/v1/credits") {
+			if strings.HasPrefix(r.URL.Path, "/v1/lessons/") && !deps.LessonTestTracerEnabled {
+				isPlayerRoute := strings.HasSuffix(r.URL.Path, "/manifest") || strings.HasSuffix(r.URL.Path, "/position") || strings.HasSuffix(r.URL.Path, "/sync") || strings.Contains(r.URL.Path, "/slides/")
+				if !isPlayerRoute {
+					mux.ServeHTTP(w, r)
+					return
+				}
+			}
 			if deps.Accounts == nil {
 				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})
 				return

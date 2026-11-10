@@ -426,6 +426,43 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO bookmarks(id, learner_id, action_key, course_id, lesson_id, slide_id, target_type, course_title, lesson_title, slide_title) VALUES('b1111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'synthetic-bookmark-key', 'f1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 0, 'slide', 'Astronomy', 'Phases', 'Slide 1 · Phases')`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_generations (id, learner_id, lesson_id, course_id, quote_id, state, result_checkpoint) VALUES ('f4444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'f1111111-1111-4111-8111-111111111111', $1, 'validated', '{"lesson":{"slides":[]},"attempts":[],"title":"Restorable pending lesson"}'::jsonb)`, outlineQuote.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO generated_lessons (id, lesson_stub_id, learner_id, course_id, title, manifest) VALUES ('f5555555-5555-4555-8555-555555555555', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'Phases of the Moon', '{"title":"Phases of the Moon"}'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_slides (id, lesson_stub_id, learner_id, position, slide_id, html, duration_ms, narration, topic_ids) VALUES ('f6666666-6666-4666-8666-666666666666', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 0, 's1', '<div id="root"><h1>Moon</h1></div>', 3000, 'The moon orbits Earth.', ARRAY['top-moon'])`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_questions (id, lesson_stub_id, learner_id, position, topic_id, prompt, choices, answer_index, explanation) VALUES ('f7777777-7777-4777-8777-777777777777', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 0, 'top-moon', 'What causes moon phases?', '["Sunlight angle", "Earth shadow"]'::jsonb, 0, 'Relative angles between Earth, Moon and Sun.')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_retry_pools (id, lesson_stub_id, learner_id, topic_id, variants) VALUES ('fbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'top-moon', '[{"question_id":"v1-q1","prompt":"Moon phases?","choices":["Earth shadow","Sun angle"],"answer_index":1,"explanation":"Sun angle"}]'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_sessions (id, lesson_stub_id, learner_id, state, question_queue, resolved_topics) VALUES ('f8888888-8888-4888-8888-888888888888', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'passed', '[]'::jsonb, '["f7777777-7777-4777-8777-777777777777"]'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_sessions (id, lesson_stub_id, learner_id, state, question_queue, resolved_topics) VALUES ('f8888888-8888-4888-8888-888888888889', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'in_progress', '[{"question_id":"c41b8f99-8338-427e-b275-3f8533cc5640","source_id":"f7777777-7777-4777-8777-777777777777","original_id":"f7777777-7777-4777-8777-777777777777","topic_id":"top-moon","prompt":"What causes moon phases?","choices":["Sunlight angle","Earth shadow"]}]'::jsonb, '[]'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_answers (id, session_id, learner_id, question_id, topic_id, selected_index, correct) VALUES ('f9999999-9999-4999-8999-999999999999', 'f8888888-8888-4888-8888-888888888888', 'a1111111-1111-4111-8111-111111111111', 'q1', 'top-moon', 0, true)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_answer_operations (operation_key, session_id, learner_id, lesson_id, question_id, choice_index, response_payload) VALUES ('op-fixture-seed-001', 'f8888888-8888-4888-8888-888888888888', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'q1', 0, '{"correct":true,"passed":true}'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_completion_outbox (id, learner_id, course_id, lesson_id, state) VALUES ('faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'passed')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_completion_summaries (id, learner_id, course_id, lesson_id, summary, weak_topics) VALUES ('fbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'Sample completed summary', '["top-moon"]'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_variant_snapshots (id, session_id, learner_id, lesson_stub_id, topic_id, question_id, variant_of, source, reason, prompt, choices, answer_index, explanation, instruction_snapshot) VALUES ('fccccccc-cccc-4ccc-8ccc-cccccccccccc', 'f8888888-8888-4888-8888-888888888888', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'top-moon', 'v1-top-moon', 'q-moon', 'pool', NULL, 'What causes moon phases?', '["Sun angle", "Earth shadow"]'::jsonb, 0, 'Angle of sunlight on moon', '{"topic":"moon"}'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `UPDATE learner_profiles SET active_course_id='f1111111-1111-4111-8111-111111111111' WHERE learner_id='a1111111-1111-4111-8111-111111111111'`); err != nil {
 		t.Fatal(err)
 	}
@@ -752,7 +789,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "outline_proposals", "outline_drafts", "quick_notes", "quick_note_enrichments", "bookmarks", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"quick_notes", "quick_note_enrichments", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {

@@ -55,6 +55,10 @@ func TestMiddleware(t *testing.T) {
 			if tt.cors && !strings.Contains(recorder.Header().Get("Access-Control-Allow-Headers"), "X-Quote-ID") {
 				t.Error("preview quote header blocked by CORS")
 			}
+			if tt.cors && !strings.Contains(recorder.Header().Get("Access-Control-Allow-Headers"), "X-App-Version") {
+				t.Error("lesson test app version header blocked by CORS")
+			}
+
 			if strings.Contains(recorder.Body.String(), "private panic message") {
 				t.Error("panic exposed")
 			}

@@ -26,6 +26,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/credits/creditstest"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
+	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
@@ -125,6 +126,14 @@ func run() (result error) {
 			creditService.ServeHTTP(w, r)
 		}
 	})
+	tracerEnabled := os.Getenv("LESSON_TEST_TRACER_ENABLED") == "true"
+	var lessonHandler http.Handler
+	if tracerEnabled {
+		lessonHandler = lessontest.New(lessontest.Options{
+			Pool:      db.Pool,
+			Financial: creditService,
+		})
+	}
 	objects := &fixtureObjects{values: playerfixture.Documents()}
 	lessonPlayer := player.New(player.Options{Pool: db.Pool, Objects: objects, AssetOrigin: playerfixture.AssetOrigin, Credits: paidCredits})
 	mux := http.NewServeMux()
@@ -294,14 +303,16 @@ func run() (result error) {
 	}()
 
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{
-		Player:      lessonPlayer,
-		Pricing:     pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil),
-		Quotes:      pricing.NewQuotes(db.Pool),
-		Credits:     creditHandler,
-		Accounts:    auth,
-		Notes:       notesService,
-		CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"}),
-		Characters:  charHandler,
+		Notes:                   notesService,
+		Player:                  lessonPlayer,
+		LessonTestTracerEnabled: tracerEnabled,
+		LessonTest:              lessonHandler,
+		Characters:              charHandler,
+		Pricing:                 pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil),
+		Quotes:                  pricing.NewQuotes(db.Pool),
+		Credits:                 creditHandler,
+		Accounts:                auth,
+		CourseBrief:             courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"}),
 	}, logger))
 	// Exercise the real expiry worker across a historical local date. Only the
 	// disposable fixture exposes this clock control; amounts stay config-owned.

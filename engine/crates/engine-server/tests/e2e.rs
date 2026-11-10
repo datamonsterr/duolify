@@ -178,7 +178,25 @@ async fn all_rpcs() {
         .is_some()
     );
     let mut lesson = c
-        .generate_lesson(pb::GenerateLessonRequest::default())
+        .generate_lesson(pb::GenerateLessonRequest {
+            limits: Some(pb::UsageLimits {
+                input_tokens: 8000,
+                output_tokens: 14000,
+                timeout_ms: 3000,
+                max_attempts: 2,
+                max_cost_nanos: 500_000_000,
+                input_nanos: 2000,
+                output_nanos: 10000,
+                cache_write_nanos: 2500,
+                cache_read_nanos: 100,
+                provider: "mock".into(),
+                fallback_provider: "mock".into(),
+                model: "claude-sonnet-5-5".into(),
+                fallback_model: "anthropic/claude-sonnet-5.5".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
         .await
         .unwrap()
         .into_inner();

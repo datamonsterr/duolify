@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useUiPreferences } from "./features/design/localization/Preferences";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "@tanstack/react-router";
 import { api } from "./lib/api";
 import { session } from "./features/accounts/session";
 import { RouteUnavailable } from "./features/shell/RouteBoundary";
+import { useLessonTestTracerEnabled } from "./lib/features";
 import {
   downloadCourseLibrary,
   getDownloadedCourses,
@@ -16,6 +17,9 @@ import { availableOffline } from "./features/player/cache";
 export function LearnPath({ courseId }: { courseId: string }) {
   const returnTo = useLocation({ select: (location) => location.pathname });
   const { t } = useUiPreferences();
+  const queryClient = useQueryClient();
+  const tracerEnabled = useLessonTestTracerEnabled();
+  const [preparingId, setPreparingId] = useState<string | null>(null);
 
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== "undefined" ? navigator.onLine : true,
@@ -45,6 +49,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
     isPending,
     isError,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["course", courseId],
     queryFn: async () => {
@@ -63,6 +68,72 @@ export function LearnPath({ courseId }: { courseId: string }) {
     },
     retry: false,
   });
+
+  const handlePrepareLesson = async (lessonId: string) => {
+    setPreparingId(lessonId);
+    try {
+      const quote = await session.request<{ id: string }>(
+        "/v1/quotes",
+        "POST",
+        {
+          action: "lesson_content",
+        },
+      );
+      const prep = await session.request<{ id: string }>(
+        `/v1/lessons/${encodeURIComponent(lessonId)}/prepare`,
+        "POST",
+        { quote_id: quote?.id },
+      );
+      if (prep?.id) {
+        const base = import.meta.env.VITE_API_URL || "";
+        const sseUrl = `${base}/v1/lesson-generations/${encodeURIComponent(prep.id)}/events`;
+        try {
+          const es = new EventSource(sseUrl);
+          const finish = () => {
+            es.close();
+            setPreparingId(null);
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ["course", courseId] });
+          };
+          es.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.state === "completed" || data.state === "failed") {
+                finish();
+              }
+            } catch {
+              finish();
+            }
+          };
+          es.addEventListener("stage", (event: MessageEvent) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.state === "completed" || data.state === "failed") {
+                finish();
+              }
+            } catch {
+              finish();
+            }
+          });
+          es.onerror = () => {
+            finish();
+          };
+        } catch {
+          setPreparingId(null);
+          refetch();
+          queryClient.invalidateQueries({ queryKey: ["course", courseId] });
+        }
+      } else {
+        setPreparingId(null);
+        refetch();
+        queryClient.invalidateQueries({ queryKey: ["course", courseId] });
+      }
+    } catch {
+      setPreparingId(null);
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ["course", courseId] });
+    }
+  };
 
   const handleDownload = async () => {
     setDownloadProgress({
@@ -284,6 +355,23 @@ export function LearnPath({ courseId }: { courseId: string }) {
                         {t("path.start_short")}
                       </span>
                     </>
+                  ) : lesson.state === "ready_to_generate" && tracerEnabled ? (
+                    <button
+                      className="node ready"
+                      onClick={() => handlePrepareLesson(lesson.id)}
+                      disabled={preparingId === lesson.id}
+                      aria-label={`Lesson ${index + 1}, ${lesson.title}, ready to prepare`}
+                    >
+                      {preparingId === lesson.id ? "…" : "▶"}
+                    </button>
+                  ) : lesson.state === "generating" && tracerEnabled ? (
+                    <span
+                      className="node blue"
+                      role="img"
+                      aria-label={`Lesson ${index + 1}, preparing`}
+                    >
+                      ⏳
+                    </span>
                   ) : lesson.state === "ready_to_generate" ? (
                     <button
                       className="node current"
@@ -339,12 +427,31 @@ export function LearnPath({ courseId }: { courseId: string }) {
                       </div>
                     ) : null}
                     <div className="muted">
-                      {lesson.state === "locked"
+                      {lesson.state === "locked" ||
+                      (!tracerEnabled &&
+                        (lesson.state === "ready_to_generate" ||
+                          lesson.state === "generating"))
                         ? t("path.locked")
                         : lesson.state === "done"
-                          ? t("path.completed")
-                          : t("path.ready")}
+                          ? "Completed · Review"
+                          : lesson.state === "ready_to_generate"
+                            ? "Ready to prepare"
+                            : lesson.state === "generating"
+                              ? "Preparing…"
+                              : t("path.ready")}
                     </div>
+                    {lesson.state === "ready_to_generate" && tracerEnabled && (
+                      <button
+                        className="duo-button primary sm2"
+                        style={{ marginTop: "6px" }}
+                        onClick={() => handlePrepareLesson(lesson.id)}
+                        disabled={preparingId === lesson.id}
+                      >
+                        {preparingId === lesson.id
+                          ? "Preparing…"
+                          : "Prepare lesson"}
+                      </button>
+                    )}
                   </div>
                 </div>
               );

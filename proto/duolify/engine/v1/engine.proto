@@ -18,6 +18,8 @@ service EngineService {
   rpc GenerateCourseOutline(GenerateCourseOutlineRequest) returns (GenerateCourseOutlineResponse);
   // GenerateLesson builds one lesson (slides + test). Called only after the previous lesson test is passed.
   rpc GenerateLesson(GenerateLessonRequest) returns (stream GenerateLessonEvent);
+  // GenerateRetryVariants produces paraphrased questions for missed topics.
+  rpc GenerateRetryVariants(GenerateRetryVariantsRequest) returns (GenerateRetryVariantsResponse);
   // Chat streams a tutor reply with course, lesson and learner context.
   rpc Chat(ChatRequest) returns (stream ChatEvent);
   // EnrichNote turns a quick note into a summary, tags and links.
@@ -142,6 +144,7 @@ message Slide {
   string html = 2;
   uint32 duration_ms = 3;
   string narration = 4;
+  repeated string topic_ids = 5;
 }
 
 message Question {
@@ -150,12 +153,20 @@ message Question {
   repeated string choices = 3;
   uint32 answer_index = 4;
   string explanation = 5;
+  string topic_id = 6;
+  string variant_of = 7;
+}
+
+message TopicVariants {
+  string topic_id = 1;
+  repeated Question variants = 2;
 }
 
 message Lesson {
   LessonRef ref = 1;
   repeated Slide slides = 2;
   repeated Question test = 3;
+  repeated TopicVariants variant_pool = 4;
 }
 
 message PreviewCourseRequest {
@@ -211,6 +222,20 @@ message GenerateLessonEvent {
     Usage attempt = 5;
     bool unavailable = 6;
   }
+}
+
+message GenerateRetryVariantsRequest {
+  Question source = 1;
+  repeated Question previous_variants = 2;
+  LearnerProfile learner = 3;
+  UsageLimits limits = 4;
+}
+
+message GenerateRetryVariantsResponse {
+  repeated Question variants = 1;
+  Usage usage = 2;
+  repeated Usage attempts = 3;
+  bool unavailable = 4;
 }
 
 message ChatMessage {

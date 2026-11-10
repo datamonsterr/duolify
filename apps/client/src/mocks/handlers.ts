@@ -62,4 +62,7 @@ export const handlers = [
       ? HttpResponse.json(course)
       : new HttpResponse(null, { status: 404 });
   }),
+  http.get("*/v1/features", () =>
+    HttpResponse.json({ lesson_test_tracer_enabled: true }),
+  ),
 ];

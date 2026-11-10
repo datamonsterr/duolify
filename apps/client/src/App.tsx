@@ -26,6 +26,7 @@ import { CharacterLibrary } from "./features/characters/CharacterLibrary";
 import { CourseCast } from "./features/characters/CourseCast";
 import { LearnPath } from "./LearnPath";
 import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
+import { LessonTestRoute } from "./features/lessontest/LessonTest";
 import { Courses } from "./features/design/Courses";
 import { PricingView } from "./features/pricing/PricingView";
 import { NotesPage } from "./features/notes/NotesPage";
@@ -258,14 +259,7 @@ const streak = createRoute({
 const lessonTest = createRoute({
   getParentRoute: () => root,
   path: "/lesson/$lessonId/test",
-  component: () => (
-    <>
-      <a className="shell-link" href="/course/astronomy">
-        Exit test
-      </a>
-      <DestinationPage title="Lesson test" />
-    </>
-  ),
+  component: LessonTestRoute,
 });
 const signIn = createRoute({
   getParentRoute: () => root,
