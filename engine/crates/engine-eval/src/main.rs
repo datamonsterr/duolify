@@ -13,12 +13,43 @@ async fn main() -> Result<()> {
         let report_path = args
             .get(2)
             .context("usage: duolify-eval gate <report.json>")?;
-        let content = std::fs::read_to_string(report_path)
-            .with_context(|| format!("failed to read report file at {report_path}"))?;
+        let path = PathBuf::from(report_path);
+        let resolved = if path.exists() {
+            path
+        } else if let Ok(cwd) = std::env::current_dir() {
+            let candidate = cwd.join(&path);
+            if candidate.exists() {
+                candidate
+            } else if let Some(parent) = cwd.parent() {
+                let parent_candidate = parent.join(&path);
+                if parent_candidate.exists() {
+                    parent_candidate
+                } else {
+                    path
+                }
+            } else {
+                path
+            }
+        } else {
+            path
+        };
+
+        let content = std::fs::read_to_string(&resolved)
+            .with_context(|| format!("failed to read report file at {}", resolved.display()))?;
         let report: EvalReport = serde_json::from_str(&content)
-            .with_context(|| format!("failed to parse eval report at {report_path}"))?;
+            .with_context(|| format!("failed to parse eval report at {}", resolved.display()))?;
+
+        let status_lower = report.status.to_ascii_lowercase();
+        if status_lower.contains("missing")
+            && (status_lower.contains("secret") || status_lower.contains("config"))
+        {
+            let reason = &report.status;
+            println!("live gate disabled: {reason}, feature activation stays disabled");
+            return Ok(());
+        }
+
         engine_eval::check_promotion_gate(&report)?;
-        println!("promotion gate: PASSED ({report_path})");
+        println!("promotion gate: PASSED ({})", resolved.display());
         return Ok(());
     }
 
@@ -69,6 +100,11 @@ async fn main() -> Result<()> {
     let limit = sample_limit_from_args(&args, std::env::var("EVAL_SAMPLE_LIMIT").ok().as_deref())?;
     let budget = budget_from_args(&args, std::env::var("EVAL_BUDGET_USD").ok().as_deref())?;
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../evals");
+    if custom_reports.is_none() {
+        let default_reports = root.join("reports");
+        let _ = std::fs::remove_file(default_reports.join("latest.json"));
+        let _ = std::fs::remove_file(default_reports.join("latest.md"));
+    }
 
     // Check ready pipeline mode with missing credentials or missing revision config
     let is_ready = mode.as_deref() == Some("ready") || allow_missing_secrets;
@@ -110,6 +146,7 @@ async fn main() -> Result<()> {
             };
 
             let reports_dir = custom_reports
+                .as_ref()
                 .map(PathBuf::from)
                 .unwrap_or_else(|| root.join("reports"));
             std::fs::create_dir_all(&reports_dir)?;
@@ -117,8 +154,12 @@ async fn main() -> Result<()> {
             let json_bytes = generate_json_report(&report)?;
             let md_text = generate_markdown_report(&report);
 
-            std::fs::write(reports_dir.join(format!("{stamp}.json")), json_bytes)?;
-            std::fs::write(reports_dir.join(format!("{stamp}.md")), md_text)?;
+            std::fs::write(reports_dir.join(format!("{stamp}.json")), &json_bytes)?;
+            std::fs::write(reports_dir.join(format!("{stamp}.md")), &md_text)?;
+            if custom_reports.is_none() {
+                let _ = std::fs::write(reports_dir.join("latest.json"), &json_bytes);
+                let _ = std::fs::write(reports_dir.join("latest.md"), &md_text);
+            }
 
             // Exit 0 to preserve ci-ok aggregate
             return Ok(());
@@ -164,6 +205,7 @@ async fn main() -> Result<()> {
             };
 
             let reports_dir = custom_reports
+                .as_ref()
                 .map(PathBuf::from)
                 .unwrap_or_else(|| root.join("reports"));
             std::fs::create_dir_all(&reports_dir)?;
@@ -171,8 +213,12 @@ async fn main() -> Result<()> {
             let json_bytes = generate_json_report(&report)?;
             let md_text = generate_markdown_report(&report);
 
-            std::fs::write(reports_dir.join(format!("{stamp}.json")), json_bytes)?;
-            std::fs::write(reports_dir.join(format!("{stamp}.md")), md_text)?;
+            std::fs::write(reports_dir.join(format!("{stamp}.json")), &json_bytes)?;
+            std::fs::write(reports_dir.join(format!("{stamp}.md")), &md_text)?;
+            if custom_reports.is_none() {
+                let _ = std::fs::write(reports_dir.join("latest.json"), &json_bytes);
+                let _ = std::fs::write(reports_dir.join("latest.md"), &md_text);
+            }
 
             // Exit 0 to preserve ci-ok aggregate
             return Ok(());
@@ -288,6 +334,7 @@ async fn main() -> Result<()> {
     let report = runner.run_cases(cases, &thresholds).await?;
 
     let reports_dir = custom_reports
+        .as_ref()
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join("reports"));
     std::fs::create_dir_all(&reports_dir)?;
@@ -298,6 +345,10 @@ async fn main() -> Result<()> {
 
     std::fs::write(reports_dir.join(format!("{stamp}.json")), &json_bytes)?;
     std::fs::write(reports_dir.join(format!("{stamp}.md")), &md_text)?;
+    if custom_reports.is_none() {
+        let _ = std::fs::write(reports_dir.join("latest.json"), &json_bytes);
+        let _ = std::fs::write(reports_dir.join("latest.md"), &md_text);
+    }
 
     // Emit analytics for each evaluated task
     let posthog_host =

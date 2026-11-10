@@ -148,9 +148,9 @@ impl Default for EvalReport {
 }
 
 pub fn check_promotion_gate(report: &EvalReport) -> anyhow::Result<()> {
-    if report.status != "passed" {
+    if report.status != "passed" && report.status != "live" {
         anyhow::bail!(
-            "promotion gate failed: report status is '{}', expected 'passed'",
+            "promotion gate failed: report status is '{}', expected 'passed' or 'live'",
             report.status
         );
     }

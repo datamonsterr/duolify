@@ -389,42 +389,19 @@ fn promotion_gate_cli_subcommand_verifies_report() {
     let valid_path = temp_dir.join("valid_report.json");
     std::fs::write(&valid_path, serde_json::to_string(&valid_report).unwrap()).unwrap();
 
-    // 1. Valid report exits 0
-    let output = Command::new(bin)
+    // Outcome 1: Report file absent exits non-zero
+    let missing_path = temp_dir.join("nonexistent_report.json");
+    let output_absent = Command::new(bin)
         .arg("gate")
-        .arg(&valid_path)
+        .arg(&missing_path)
         .output()
         .expect("failed to execute duolify-eval gate");
     assert!(
-        output.status.success(),
-        "gate check must pass for valid live report: {:?}",
-        String::from_utf8_lossy(&output.stderr)
+        !output_absent.status.success(),
+        "gate check must exit non-zero when report file is absent"
     );
 
-    // 2. Report missing a required canonical task exits non-zero
-    let mut invalid_report = valid_report.clone();
-    invalid_report["task_reports"]
-        .as_object_mut()
-        .unwrap()
-        .remove("note_enrich");
-    let invalid_path = temp_dir.join("invalid_report.json");
-    std::fs::write(
-        &invalid_path,
-        serde_json::to_string(&invalid_report).unwrap(),
-    )
-    .unwrap();
-
-    let output_err = Command::new(bin)
-        .arg("gate")
-        .arg(&invalid_path)
-        .output()
-        .expect("failed to execute duolify-eval gate");
-    assert!(
-        !output_err.status.success(),
-        "gate check must exit non-zero when task is missing"
-    );
-
-    // 3. Report with missing_secrets status exits non-zero
+    // Outcome 2: Report status missing-secrets / missing-config exits 0 with explicit notice
     let mut secrets_report = valid_report.clone();
     secrets_report["status"] = "missing_secrets".into();
     let secrets_path = temp_dir.join("secrets_report.json");
@@ -440,8 +417,115 @@ fn promotion_gate_cli_subcommand_verifies_report() {
         .output()
         .expect("failed to execute duolify-eval gate");
     assert!(
-        !output_sec.status.success(),
-        "gate check must exit non-zero for missing_secrets report"
+        output_sec.status.success(),
+        "gate check must exit 0 for missing_secrets report, stderr: {}",
+        String::from_utf8_lossy(&output_sec.stderr)
+    );
+    let sec_stdout = String::from_utf8_lossy(&output_sec.stdout);
+    assert!(
+        sec_stdout
+            .contains("live gate disabled: missing_secrets, feature activation stays disabled"),
+        "stdout must contain explicit live gate disabled notice: {sec_stdout}"
+    );
+
+    let mut config_report = valid_report.clone();
+    config_report["status"] = "missing_config".into();
+    let config_path = temp_dir.join("config_report.json");
+    std::fs::write(&config_path, serde_json::to_string(&config_report).unwrap()).unwrap();
+
+    let output_cfg = Command::new(bin)
+        .arg("gate")
+        .arg(&config_path)
+        .output()
+        .expect("failed to execute duolify-eval gate");
+    assert!(
+        output_cfg.status.success(),
+        "gate check must exit 0 for missing_config report, stderr: {}",
+        String::from_utf8_lossy(&output_cfg.stderr)
+    );
+    let cfg_stdout = String::from_utf8_lossy(&output_cfg.stdout);
+    assert!(
+        cfg_stdout
+            .contains("live gate disabled: missing_config, feature activation stays disabled"),
+        "stdout must contain explicit live gate disabled notice: {cfg_stdout}"
+    );
+
+    // Outcome 3: Status live exits non-zero unless every required task is present and passing with min coverage
+    // 3a. Valid report exits 0
+    let output_valid = Command::new(bin)
+        .arg("gate")
+        .arg(&valid_path)
+        .output()
+        .expect("failed to execute duolify-eval gate");
+    assert!(
+        output_valid.status.success(),
+        "gate check must pass for valid live report: {:?}",
+        String::from_utf8_lossy(&output_valid.stderr)
+    );
+    let valid_stdout = String::from_utf8_lossy(&output_valid.stdout);
+    assert!(valid_stdout.contains("promotion gate: PASSED"));
+
+    // 3b. Report missing a required canonical task exits non-zero
+    let mut missing_task_report = valid_report.clone();
+    missing_task_report["task_reports"]
+        .as_object_mut()
+        .unwrap()
+        .remove("note_enrich");
+    let missing_task_path = temp_dir.join("missing_task_report.json");
+    std::fs::write(
+        &missing_task_path,
+        serde_json::to_string(&missing_task_report).unwrap(),
+    )
+    .unwrap();
+
+    let output_missing_task = Command::new(bin)
+        .arg("gate")
+        .arg(&missing_task_path)
+        .output()
+        .expect("failed to execute duolify-eval gate");
+    assert!(
+        !output_missing_task.status.success(),
+        "gate check must exit non-zero when task is missing"
+    );
+
+    // 3c. Report with zero coverage on a canonical task exits non-zero
+    let mut zero_cov_report = valid_report.clone();
+    zero_cov_report["task_reports"]["course_preview"]["total_cases"] = 0.into();
+    let zero_cov_path = temp_dir.join("zero_cov_report.json");
+    std::fs::write(
+        &zero_cov_path,
+        serde_json::to_string(&zero_cov_report).unwrap(),
+    )
+    .unwrap();
+
+    let output_zero_cov = Command::new(bin)
+        .arg("gate")
+        .arg(&zero_cov_path)
+        .output()
+        .expect("failed to execute duolify-eval gate");
+    assert!(
+        !output_zero_cov.status.success(),
+        "gate check must exit non-zero when task has zero coverage"
+    );
+
+    // 3d. Report with failing canonical task exits non-zero
+    let mut failing_task_report = valid_report.clone();
+    failing_task_report["task_reports"]["lesson_slides"]["passed"] = false.into();
+    let failing_task_path = temp_dir.join("failing_task_report.json");
+    std::fs::write(
+        &failing_task_path,
+        serde_json::to_string(&failing_task_report).unwrap(),
+    )
+    .unwrap();
+
+    let output_failing = Command::new(bin)
+        .arg("gate")
+        .arg(&failing_task_path)
+        .output()
+        .expect("failed to execute duolify-eval gate");
+    assert!(
+        !output_failing.status.success(),
+        "gate check must exit non-zero when task failed"
     );
 
     let _ = std::fs::remove_dir_all(temp_dir);
