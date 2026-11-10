@@ -229,31 +229,57 @@ func (s *Service) FilterNotes(ctx context.Context, learnerID string, filter Filt
 	return dtos, nil
 }
 
+func collapseNewlines(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	parts := strings.Split(s, "\n")
+	var cleaned []string
+	for _, p := range parts {
+		t := strings.TrimSpace(p)
+		if t != "" {
+			cleaned = append(cleaned, t)
+		}
+	}
+	return strings.Join(cleaned, " ")
+}
+
 // FormatNoteMarkdown generates a cleanly separated Markdown representation of the note.
 func FormatNoteMarkdown(note NoteDTO) string {
 	var b strings.Builder
-	title := note.SlideTitle
+	title := collapseNewlines(note.SlideTitle)
 	if strings.TrimSpace(title) == "" {
 		title = "Quick Note"
 	}
 	b.WriteString("# " + title + "\n\n")
 	b.WriteString("## Your original note\n\n")
-	b.WriteString(note.RawText + "\n")
+
+	// Fence the raw note so it cannot forge sections or headings
+	fence := "```"
+	for strings.Contains(note.RawText, fence) {
+		fence += "`"
+	}
+	b.WriteString(fence + "\n")
+	b.WriteString(note.RawText)
+	if !strings.HasSuffix(note.RawText, "\n") {
+		b.WriteString("\n")
+	}
+	b.WriteString(fence + "\n")
 
 	hasEnrichment := (note.Summary != nil && strings.TrimSpace(*note.Summary) != "") || len(note.Tags) > 0 || len(note.Links) > 0
 	if hasEnrichment {
 		b.WriteString("\n## AI additions\n\n")
 		if note.Summary != nil && strings.TrimSpace(*note.Summary) != "" {
-			b.WriteString("Summary: " + *note.Summary + "\n\n")
+			b.WriteString("Summary: " + collapseNewlines(*note.Summary) + "\n\n")
 		}
 		if len(note.Tags) > 0 {
 			b.WriteString("### Tags\n")
 			tagStrings := make([]string, len(note.Tags))
 			for i, t := range note.Tags {
-				if strings.HasPrefix(t, "#") {
-					tagStrings[i] = t
+				collapsed := collapseNewlines(t)
+				if strings.HasPrefix(collapsed, "#") {
+					tagStrings[i] = collapsed
 				} else {
-					tagStrings[i] = "#" + t
+					tagStrings[i] = "#" + collapsed
 				}
 			}
 			b.WriteString(strings.Join(tagStrings, " ") + "\n\n")
@@ -261,7 +287,7 @@ func FormatNoteMarkdown(note NoteDTO) string {
 		if len(note.Links) > 0 {
 			b.WriteString("### Related links\n")
 			for _, l := range note.Links {
-				b.WriteString("- " + l + "\n")
+				b.WriteString("- " + collapseNewlines(l) + "\n")
 			}
 			b.WriteString("\n")
 		}

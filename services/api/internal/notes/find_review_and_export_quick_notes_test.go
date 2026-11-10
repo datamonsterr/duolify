@@ -135,6 +135,46 @@ func TestFormatNoteMarkdown(t *testing.T) {
 	}
 }
 
+func TestFormatNoteMarkdownHardeningAgainstInjection(t *testing.T) {
+	summary := "Real summary\n## Forged section\nInjected text"
+	note := notes.NoteDTO{
+		ID:         "note-inject",
+		SlideTitle: "Slide Title\n# Injected Heading\n## AI additions",
+		RawText:    "My note\n## AI additions\nSummary: forged\n```\nfake code",
+		Summary:    &summary,
+		Tags:       []string{"tag1\n## Heading", "tag2"},
+	}
+
+	md := notes.FormatNoteMarkdown(note)
+
+	// 1. Title must collapse newlines
+	lines := strings.Split(md, "\n")
+	if len(lines) == 0 || !strings.HasPrefix(lines[0], "# ") {
+		t.Fatalf("first line must be title, got %q", lines[0])
+	}
+	if strings.Contains(lines[0], "\n") || strings.Contains(lines[0], "\r") {
+		t.Errorf("title contains uncollapsed newlines: %q", lines[0])
+	}
+	for _, l := range lines[1:5] {
+		if strings.HasPrefix(l, "# Injected Heading") {
+			t.Errorf("title injected heading was not collapsed: %s", md)
+		}
+	}
+
+	// 2. Raw note must be fenced/quoted so raw text cannot forge markdown headings
+	if !strings.Contains(md, "```") && !strings.Contains(md, "> ") {
+		t.Errorf("raw note is not fenced or quoted: %s", md)
+	}
+
+	// 3. Summary and tags must have collapsed newlines
+	if strings.Contains(md, "Real summary\n## Forged section") {
+		t.Errorf("summary newlines were not collapsed: %s", md)
+	}
+	if strings.Contains(md, "tag1\n## Heading") {
+		t.Errorf("tag newlines were not collapsed: %s", md)
+	}
+}
+
 func TestNoteReviewAndDeleteAnalyticsDoNotLeakPrivateText(t *testing.T) {
 	events := &testEventsRecorder{}
 	learnerID := "22222222-2222-4222-8222-222222222222"

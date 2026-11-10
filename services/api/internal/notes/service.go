@@ -470,6 +470,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			md := FormatNoteMarkdown(*note)
 			w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 			w.Header().Set("Content-Disposition", `attachment; filename="note.md"`)
+			w.Header().Set("X-Content-Type-Options", "nosniff")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(md))
 			return

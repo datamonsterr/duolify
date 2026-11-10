@@ -253,6 +253,9 @@ func TestFindReviewAndExportQuickNotesIntegration(t *testing.T) {
 	if err != nil || resExport.StatusCode != 200 {
 		t.Fatalf("export note: %v, code: %d", err, resExport.StatusCode)
 	}
+	if nosniff := resExport.Header.Get("X-Content-Type-Options"); nosniff != "nosniff" {
+		t.Fatalf("expected X-Content-Type-Options: nosniff, got %q", nosniff)
+	}
 	exportBytes, _ := io.ReadAll(resExport.Body)
 	_ = resExport.Body.Close()
 	markdown := string(exportBytes)
