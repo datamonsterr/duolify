@@ -1,6 +1,6 @@
 import { UiPreferencesProvider } from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
-import { session } from "./features/accounts/session";
+import { AuthError, session } from "./features/accounts/session";
 import { useQuery } from "@tanstack/react-query";
 import { api, type Course, type CoursesResponse } from "./lib/api";
 import { useShellSession } from "./features/shell/ShellSession";
@@ -62,14 +62,22 @@ const root = createRootRoute({
   notFoundComponent: RouteUnavailable,
 });
 function IndexRoute() {
-  const session = useShellSession();
+  const shell = useShellSession();
+  const owner = session.current()?.id ?? "";
   const { data: coursesData } = useQuery({
-    queryKey: ["courses"],
+    queryKey: ["courses", owner],
     queryFn: async () => {
       try {
-        return await api.courses();
+        return await api.courses({ authenticatedOnly: true });
       } catch (err) {
-        const downloaded = Object.values(getDownloadedCourses());
+        if (
+          err instanceof AuthError ||
+          !(err instanceof TypeError || !navigator.onLine)
+        )
+          throw err;
+        const downloaded = Object.values(getDownloadedCourses(owner)).filter(
+          (d) => d.courseData,
+        );
         if (downloaded.length > 0 && downloaded[0].courseData) {
           const list = downloaded.map(
             (d) => d.courseData as Course,
@@ -83,7 +91,7 @@ function IndexRoute() {
     staleTime: 60000,
   });
 
-  const activeId = session.courseId();
+  const activeId = shell.courseId();
   let resolvedCourseId = activeId;
 
   if (coursesData && coursesData.length > 0) {
@@ -96,7 +104,7 @@ function IndexRoute() {
   }
 
   if (resolvedCourseId && resolvedCourseId !== activeId) {
-    session.rememberCourse(resolvedCourseId, false);
+    shell.rememberCourse(resolvedCourseId, false);
   }
 
   if (!resolvedCourseId) {

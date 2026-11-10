@@ -23,6 +23,10 @@ The ticket breakdown (`docs/epics/tickets.md`) found decision tickets that block
 
 ## Defaults chosen during implementation (pending owner review)
 
+- E3 review (#164): Offline download entitlement gates the authenticated library listing and bulk download convenience. Per-lesson manifest and slide delivery require enrollment only, including after subscription expiry; already-delivered playback is never revoked. Bulk downloads temporarily use 50 lessons / 100 MiB and restore the normal five lessons / 16 MiB bounds on success, failure, or cancellation. Playback sync keys are unique per learner; valid events are acknowledged independently and invalid events are permanently rejected. Advisory timestamps clamp to 2000-01-01 UTC through server time plus two minutes.
+- E3 containment (#164/#165 bridge): The opaque-origin iframe sandbox (`allow-scripts` only) and restrictive CSP are the primary boundary, independent of the HTML regex validator. Keep `base-uri` / `form-action` denied and request `navigate-to 'none'` as additional defense where implemented; browsers may ignore that directive. No top navigation, same-origin, or popup sandbox permissions are granted. Dynamic documents use an empty network origin; prepared documents and offline indexes belong to the current account and clear on logout.
+
+
 Not owner decisions; chosen by the orchestrator so work could continue. Change them by a new Pricing config version or ADR.
 
 | Ticket | Default |

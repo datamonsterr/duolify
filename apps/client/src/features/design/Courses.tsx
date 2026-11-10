@@ -26,7 +26,11 @@ export function Courses() {
   const searchInput = useRef<HTMLInputElement>(null);
   const shell = useShellSession();
   const { data, isPending, isError, isFetching, dataUpdatedAt, refetch } =
-    useQuery({ queryKey: ["courses"], queryFn: api.courses, retry: false });
+    useQuery({
+      queryKey: ["courses"],
+      queryFn: () => api.courses(),
+      retry: false,
+    });
   const sessionActiveId = shell.courseId();
   const activeCourseId =
     sessionActiveId && data?.some((c) => c.id === sessionActiveId)

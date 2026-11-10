@@ -153,22 +153,61 @@ export function synchronizeProgress(
   const syncOp = syncingPromise
     .catch(() => null)
     .then(async () => {
-      // Re-read queue in case previous execution cleared it
-      const currentQueue = readSyncQueue(owner, lessonId);
-      if (currentQueue.length === 0) return null;
+      let position: Position | null = null;
+      while (true) {
+        // Re-read queue in case previous execution cleared it
+        const currentQueue = readSyncQueue(owner, lessonId);
+        if (currentQueue.length === 0) return position;
 
-      const body = { events: currentQueue };
-      const response = await session.request<{
-        synced: boolean;
-        action_keys: string[];
-        position: Position;
-      }>(`/v1/lessons/${lessonId}/sync`, "POST", body);
+        // Keep each request below the API's 64 KiB body limit, including the
+        // envelope. A corrupt oversized local event must not block the queue.
+        const events: PlaybackSyncEvent[] = [];
+        const invalid: string[] = [];
+        for (const event of currentQueue) {
+          if (
+            new TextEncoder().encode(JSON.stringify({ events: [event] }))
+              .length > 60000
+          ) {
+            invalid.push(event.action_key);
+            continue;
+          }
+          if (
+            new TextEncoder().encode(
+              JSON.stringify({ events: [...events, event] }),
+            ).length > 60000
+          )
+            break;
+          events.push(event);
+        }
+        removeSyncEvents(owner, lessonId, invalid);
+        if (events.length === 0) return position;
+        const body = { events };
+        const response = await session.request<{
+          synced: boolean;
+          action_keys?: string[];
+          acked_keys?: string[];
+          rejected_keys?: string[];
+          position: Position;
+        }>(`/v1/lessons/${lessonId}/sync`, "POST", body);
 
-      if (response && response.synced && Array.isArray(response.action_keys)) {
-        removeSyncEvents(owner, lessonId, response.action_keys);
+        position = response?.position ?? position;
+        if (!response?.synced) return position;
+        const terminal = new Set([
+          ...(response.acked_keys ?? response.action_keys ?? []),
+          ...(response.rejected_keys ?? []),
+        ]);
+        removeSyncEvents(owner, lessonId, [...terminal]);
+        // Partial acknowledgment leaves transient failures for a later trigger.
+        if (events.some((event) => !terminal.has(event.action_key)))
+          return position;
+        // Storage failures must not create a tight resend loop.
+        if (
+          readSyncQueue(owner, lessonId).some((event) =>
+            terminal.has(event.action_key),
+          )
+        )
+          return position;
       }
-
-      return response?.position ?? null;
     });
 
   syncingPromise = syncOp;

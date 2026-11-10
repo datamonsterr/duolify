@@ -180,6 +180,21 @@ describe("download an entitled offline course library", () => {
     await removeCourseFromStorage(learnerId, "course-1");
     const updated = getDownloadedCourses(learnerId);
     expect(updated["course-1"]).toBeUndefined();
+    // Normal playback returns to the five-lesson bound after a successful bulk download.
+    const { downloadLesson } = await import("./cache");
+    for (let i = 0; i < 6; i++)
+      await downloadLesson(
+        {
+          ...fakeManifest1,
+          lesson_id: `normal-${i}`,
+          slides: fakeManifest1.slides.map((s) => ({
+            ...s,
+            html_url: `/v1/lessons/normal-${i}/slides/${s.slide_id}`,
+          })),
+        } as Manifest,
+        learnerId,
+      );
+    expect(entries.size).toBe(5);
   });
 
   it("refuses new bulk download on unentitled/expired subscription without erasing existing downloads", async () => {
@@ -246,5 +261,48 @@ describe("download an entitled offline course library", () => {
     const cached = await readCachedLesson(learnerId, "lesson-1");
     expect(cached).not.toBeNull();
     expect(cached?.manifest.lesson_id).toBe("lesson-1");
+    // Failed bulk downloads restore the same bounds.
+    for (let i = 0; i < 6; i++)
+      await downloadLesson(
+        {
+          ...existingManifest,
+          lesson_id: `normal-${i}`,
+          slides: existingManifest.slides.map((s) => ({
+            ...s,
+            html_url: `/v1/lessons/normal-${i}/slides/${s.slide_id}`,
+          })),
+        } as Manifest,
+        learnerId,
+      );
+    expect(entries.size).toBe(5);
   });
 });
+
+it("never merges another owner's download index without an owner", () => {
+  localStorage.setItem(
+    "duolify:download-index:alice",
+    JSON.stringify({ private: { courseId: "private" } }),
+  );
+  localStorage.setItem(
+    "duolify:download-index:bob",
+    JSON.stringify({ own: { courseId: "own" } }),
+  );
+  expect(getDownloadedCourses("bob")).toEqual({ own: { courseId: "own" } });
+  expect(getDownloadedCourses("")).toEqual({});
+  localStorage.clear();
+});
+
+it.each([401, 503])(
+  "preserves HTTP %s for the authenticated home listing",
+  async (status) => {
+    const { api } = await import("../../lib/api");
+    const { AuthError } = await import("../accounts/session");
+    vi.spyOn(session, "request").mockRejectedValue(
+      new AuthError("denied", status),
+    );
+    await expect(
+      api.courses({ authenticatedOnly: true }),
+    ).rejects.toMatchObject({ status });
+    vi.restoreAllMocks();
+  },
+);

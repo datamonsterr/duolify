@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -24,6 +25,37 @@ import (
 func TestSynchronizeOfflinePlaybackProgressOnceIntegration(t *testing.T) {
 	f := backuptest.New(t)
 	f.Seed(t)
+	// Exercise the real constraint migration against populated legacy rows.
+	tx, err := f.DB.Pool.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(t.Context()) }()
+	var before, after string
+	const snapshot = "SELECT coalesce(jsonb_agg(to_jsonb(e) ORDER BY action_key), '[]'::jsonb)::text FROM lesson_playback_sync_events e"
+	if err := tx.QueryRow(t.Context(), snapshot).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(t.Context(), `ALTER TABLE lesson_playback_sync_events DROP CONSTRAINT lesson_playback_sync_events_pkey; ALTER TABLE lesson_playback_sync_events ADD PRIMARY KEY(action_key)`); err != nil {
+		t.Fatal(err)
+	}
+	migration, err := os.ReadFile("../../migrations/20261110190000_player_sync_owner_keys.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(t.Context(), strings.Split(string(migration), "-- +goose Down")[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.QueryRow(t.Context(), snapshot).Scan(&after); err != nil || before != after || !strings.Contains(after, "act-11111111") {
+		t.Fatalf("migration changed legacy events: %s => %s (%v)", before, after, err)
+	}
+	if err := tx.Commit(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	// Fixture positions predate the two explicitly ordered progress events.
+	if _, err := f.DB.Pool.Exec(t.Context(), "UPDATE lesson_playback_positions SET occurred_at=now()-interval '1 hour'"); err != nil {
+		t.Fatal(err)
+	}
 	mail := new(accounts.MailSink)
 	auth, err := accounts.New(f.DB.Pool, strings.Repeat("sync-cursor", 4), mail)
 	if err != nil {
@@ -83,8 +115,8 @@ func TestSynchronizeOfflinePlaybackProgressOnceIntegration(t *testing.T) {
 	const syncPath = "/v1/lessons/" + lessonID + "/sync"
 	const posPath = "/v1/lessons/" + lessonID + "/position"
 
-	t0 := time.Now().UTC().Add(1 * time.Minute).Format(time.RFC3339)
-	t1 := time.Now().UTC().Add(5 * time.Minute).Format(time.RFC3339)
+	t0 := time.Now().UTC().Add(-2 * time.Minute).Format(time.RFC3339)
+	t1 := time.Now().UTC().Add(-1 * time.Minute).Format(time.RFC3339)
 
 	// 1. Authorization checks
 	event1 := fmt.Sprintf(`{"action_key":"act-unique-001","version":1,"slide_id":"sky-1","time_ms":1000,"occurred_at":"%s"}`, t0)
@@ -150,9 +182,12 @@ func TestSynchronizeOfflinePlaybackProgressOnceIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	foreignSyncPath := "/v1/lessons/" + otherLessonID + "/sync"
-	// Submitting owner's action_key from 'other' must fail with 400 foreign action key rejected
-	if code, raw := call("POST", foreignSyncPath, other, event1); code != 400 && code != 403 {
-		t.Fatalf("expected foreign action key rejection, got %d: %s", code, raw)
+	// Identical keys are independent between learners, without key-existence errors.
+	if code, raw := call("POST", foreignSyncPath, other, event1); code != 200 || !bytes.Contains(raw, []byte(`"acked_keys":["act-unique-001"]`)) {
+		t.Fatalf("expected independently acknowledged key, got %d: %s", code, raw)
+	}
+	if err := f.DB.Pool.QueryRow(t.Context(), "SELECT count(*) FROM lesson_playback_sync_events WHERE action_key='act-unique-001'").Scan(&count); err != nil || count != 2 {
+		t.Fatalf("expected both learners' events, count=%d err=%v", count, err)
 	}
 
 	// 5. Malformed events fail
@@ -166,8 +201,32 @@ func TestSynchronizeOfflinePlaybackProgressOnceIntegration(t *testing.T) {
 		`{"action_key":"act-m-5","version":1,"slide_id":"sky-1","time_ms":500,"occurred_at":"invalid-date"}`,
 		`{"action_key":"act-m-6","version":1,"slide_id":"sky-1","time_ms":500,"occurred_at":"` + t1 + `","completed":true}`,
 	} {
-		if code, raw := call("POST", syncPath, owner, malformed); code != 400 {
-			t.Fatalf("expected 400 for malformed payload %s, got %d: %s", malformed, code, raw)
+		if code, raw := call("POST", syncPath, owner, `{"events":[`+malformed+`]}`); code != 200 || !bytes.Contains(raw, []byte(`"acked_keys":[]`)) || !bytes.Contains(raw, []byte(`"rejected_keys":[`)) {
+			t.Fatalf("expected individual rejection for %s, got %d: %s", malformed, code, raw)
+		}
+	}
+
+	// A wrong JSON type, unknown field, or invalid event must not poison good events.
+	batch := `{"events":[{"action_key":"bad-type","time_ms":"wrong"},{"action_key":"bad-extra","completed":true},` + strings.Replace(event1, "act-unique-001", "good-batch", 1) + `]}`
+	if code, raw := call("POST", syncPath, owner, batch); code != 200 || !bytes.Contains(raw, []byte(`"acked_keys":["good-batch"]`)) || !bytes.Contains(raw, []byte(`"rejected_keys":["bad-type","bad-extra"]`)) {
+		t.Fatalf("mixed batch did not isolate invalid events: %d %s", code, raw)
+	}
+	if code, raw := call("POST", syncPath, owner, strings.Repeat(" ", 65537)); code != 413 {
+		t.Fatalf("expected 413 for oversized request, got %d: %s", code, raw)
+	}
+	for i, timestamp := range []string{"9999-01-01T00:00:00Z", "0001-01-01T00:00:00Z"} {
+		key := fmt.Sprintf("clamped-%d", i)
+		event := fmt.Sprintf(`{"action_key":"%s","version":1,"slide_id":"sky-1","time_ms":1,"occurred_at":"%s"}`, key, timestamp)
+		before := time.Now().UTC()
+		if code, raw := call("POST", syncPath, owner, event); code != 200 {
+			t.Fatalf("clamp: %d %s", code, raw)
+		}
+		var occurred time.Time
+		if err := f.DB.Pool.QueryRow(t.Context(), "SELECT occurred_at FROM lesson_playback_sync_events WHERE action_key=$1", key).Scan(&occurred); err != nil {
+			t.Fatal(err)
+		}
+		if occurred.After(before.Add(2*time.Minute+time.Second)) || occurred.Before(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)) {
+			t.Fatalf("unbounded timestamp: %v", occurred)
 		}
 	}
 

@@ -128,3 +128,20 @@ describe("authorized lesson boundary", () => {
     configureAnalytics(null);
   });
 });
+
+it("blocks navigation, forms, bases and network access for dynamic documents", () => {
+  const html = sandboxDocument(
+    '<a target="_top" href="https://evil.test">go</a>',
+    "",
+    false,
+  );
+  for (const directive of [
+    "default-src 'none'",
+    "connect-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "navigate-to 'none'",
+  ])
+    expect(html).toContain(directive);
+  expect(html).not.toContain(location.origin);
+});

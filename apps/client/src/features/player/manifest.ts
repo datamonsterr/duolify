@@ -218,8 +218,9 @@ export function sandboxDocument(
   slide?: ManifestSlide,
   cached = false,
 ) {
-  if (!validAssetOrigin(origin)) throw new Error("invalid_manifest");
-  const resource = cached ? "data:" : origin;
-  const csp = `default-src 'none'; script-src 'unsafe-inline' ${resource}; style-src 'unsafe-inline' ${resource}; img-src ${resource}; media-src ${resource}; font-src ${resource}; connect-src ${cached ? "'none'" : origin}; frame-src 'none'; object-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none';`;
+  if (origin !== "" && !validAssetOrigin(origin))
+    throw new Error("invalid_manifest");
+  const resource = cached || origin === "" ? "data:" : origin;
+  const csp = `default-src 'none'; script-src 'unsafe-inline' ${resource}; style-src 'unsafe-inline' ${resource}; img-src ${resource}; media-src ${resource}; font-src ${resource}; connect-src ${cached || origin === "" ? "'none'" : origin}; frame-src 'none'; object-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'; navigate-to 'none';`;
   return `<!doctype html><html data-motion="${reduced ? "reduce" : "full"}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="referrer" content="no-referrer"><style>:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important} body {overflow-wrap:anywhere}</style>${slide ? bridgeScript({ duration: slide.duration_ms, checkpoints: slide.checkpoints }) : ""}</head><body>${html}</body></html>`;
 }
