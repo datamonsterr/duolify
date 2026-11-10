@@ -502,6 +502,55 @@ export function trackQuickNoteCreated(value: {
   }
 }
 
+export function trackQuickNoteReviewed(noteId: string) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("quick_note_reviewed", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      note_id: noteId,
+    });
+  } catch {
+    /* Analytics failure never blocks review. */
+  }
+}
+
+export function trackQuickNoteDeleted(noteId: string) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("quick_note_deleted", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      note_id: noteId,
+    });
+  } catch {
+    /* Analytics failure never blocks delete. */
+  }
+}
+
+export function trackExportNotes() {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("ui_control_activated", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      surface: "quick_notes",
+      control_id: "export_notes",
+    });
+  } catch {
+    /* Analytics failure never blocks export. */
+  }
+}
+
 export function trackBookmarkAdded(value: {
   targetType: "slide" | "lesson";
   courseId?: string;

@@ -929,3 +929,86 @@ func TestPlayerEventsReachPostHogWithClosedProjection(t *testing.T) {
 		t.Fatal("opt-out emitted")
 	}
 }
+
+func TestQuickNoteReviewAndDeleteAnalyticsReachPostHogWithoutPrivateText(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	events, err := NewWithOptions("fixture-only", server.URL, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	learnerID := "11111111-1111-4111-8111-111111111111"
+	noteID := "33333333-3333-4333-8333-333333333333"
+
+	// 1. quick_note_reviewed
+	err = events.Capture(learnerID, "quick_note_reviewed", map[string]any{
+		"source":       "api",
+		"platform":     "web",
+		"app_version":  "0.1.0",
+		"note_id":      noteID,
+		"raw_text":     "private secret note text",
+		"search_query": "secret query",
+		"content":      "forbidden",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. quick_note_deleted
+	err = events.Capture(learnerID, "quick_note_deleted", map[string]any{
+		"source":      "api",
+		"platform":    "desktop",
+		"app_version": "0.1.0",
+		"note_id":     noteID,
+		"raw_text":    "another private note",
+		"query":       "private query",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(received) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(received))
+	}
+
+	for _, ev := range received {
+		raw, _ := json.Marshal(ev)
+		if strings.Contains(string(raw), "private") || strings.Contains(string(raw), "secret") || strings.Contains(string(raw), "forbidden") {
+			t.Fatalf("private data leaked into analytics: %s", string(raw))
+		}
+		props, ok := ev["properties"].(map[string]any)
+		if !ok {
+			t.Fatal("missing properties map")
+		}
+		if props["note_id"] != noteID {
+			t.Fatalf("expected note_id %s, got %v", noteID, props["note_id"])
+		}
+		for _, forbidden := range []string{"raw_text", "search_query", "content", "query"} {
+			if props[forbidden] != nil {
+				t.Fatalf("forbidden key %q found in event", forbidden)
+			}
+		}
+	}
+}
