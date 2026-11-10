@@ -62,11 +62,13 @@ export function CoursePreview({
   service = previewApi,
   onBack,
   onStep,
+  demoEpoch = 0,
 }: {
   revision: BriefRevision;
   service?: PreviewService;
   onBack: () => void;
   onStep?: (step: number) => void;
+  demoEpoch?: number;
 }) {
   const { reducedMotion, number } = useUiPreferences();
   const [quoted, setQuoted] = useState<{
@@ -127,6 +129,17 @@ export function CoursePreview({
   const [playing, setPlaying] = useState(false);
   const [now, setNow] = useState(Date.now);
   const operation = useRef(0);
+  const [previousDemoEpoch, setPreviousDemoEpoch] = useState(demoEpoch);
+  if (previousDemoEpoch !== demoEpoch) {
+    setPreviousDemoEpoch(demoEpoch);
+    setQuoted(undefined);
+    setPreview(undefined);
+    setBusy(false);
+    setError("");
+  }
+  useEffect(() => {
+    operation.current++;
+  }, [demoEpoch]);
   const frame = useRef<HTMLIFrameElement>(null);
   const quote = quoted?.revision === revision.id ? quoted.quote : undefined;
   const expired = !!quote && Date.parse(quote.expires_at) <= now;

@@ -88,6 +88,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "pricing administration unavailable"})
 		})
 	}
+	mux.HandleFunc("GET /v1/courses/shared-demo", courses.ServeSharedDemoHTTP)
 	if deps.CourseBrief != nil && deps.Accounts != nil {
 		mux.Handle("/v1/course-brief/", deps.Accounts.Protect(deps.CourseBrief))
 		if creation, ok := deps.CourseBrief.(interface {
@@ -359,6 +360,12 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	})
 	// Public health and pricing stay available; learner-owned routes require auth.
 	guard := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only this exact authored read is public; all learner course routes below
+		// retain their authorization boundary, including writes to this path.
+		if r.Method == http.MethodGet && r.URL.Path == "/v1/courses/shared-demo" {
+			mux.ServeHTTP(w, r)
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/v1/lessons/") || strings.HasPrefix(r.URL.Path, "/v1/courses") || strings.HasPrefix(r.URL.Path, "/v1/quotes") || strings.HasPrefix(r.URL.Path, "/v1/credits") {
 			if deps.Accounts == nil {
 				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})

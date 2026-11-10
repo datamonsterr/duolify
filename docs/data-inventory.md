@@ -370,3 +370,19 @@ E10-05: Expose reliability and AI cost dashboards. Introduces `eval_alert_config
 
 E12-07: Verify external mappings and catalogue economics. Introduces `pricing_verification_evidence` table recording immutable verification snapshots of Stripe price mappings, App Store/Google Play store identifiers, official AI provider model rates, and catalogue margin calculations for verified pricing versions. Contains strictly no learner text, prompt text, or provider API credentials. Retained for at least seven (7) years in the primary Postgres store under financial record policy; covered by nightly encrypted dumps; guarded by an immutable SQL trigger against UPDATE or DELETE.
 
+# E2-05 authored shared example
+
+`services/api/internal/courses/demo/sky-v1.json` is an immutable Git-authored public
+outline and Motion HTML bundle, keyed as `lessons/shared-demo/sky-v1/bundle.json` in
+versioned object storage. It contains no learner data. The API embeds the same
+bytes and has no database, wallet, enrollment or engine dependency. The protected
+RustFS asset-copy fixture includes the bundle, version ID and SHA-256, loses the
+current object and restores byte-identical content solely from the protected copy.
+Rebuild from the same Git revision to restore embedded serving. New content uses
+a new key/version; account deletion does not remove public authored content.
+No learner-linked table is introduced, so `accounts/privacy.go` policies and
+database backup fixtures are unchanged. Brief/session and outline drafts keep
+their existing export/erasure/retention boundaries; the demo does not copy them.
+Quote consent stays disposable and is invalidated on demo entry. Live pricing
+and catalogue activation remain gated by E12-08; no effort Credit rewards exist.
+

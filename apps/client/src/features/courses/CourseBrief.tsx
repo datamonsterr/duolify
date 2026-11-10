@@ -24,6 +24,7 @@ import {
 } from "./brief";
 import "./course-brief.css";
 import { CoursePreview } from "./CoursePreview";
+import { SharedDemo } from "./SharedDemo";
 
 // Covers a stalled network as well as an assistant failure; API attempts finish sooner.
 async function withDeadline<T>(request: Promise<T>): Promise<T> {
@@ -102,6 +103,9 @@ export function CourseBrief({
   initialBrief?: Brief;
 }) {
   const [draft, setDraft] = useState(() => initial(learnerId, initialBrief));
+  const [demo, setDemo] = useState(false);
+  const [demoEpoch, setDemoEpoch] = useState(0);
+  const demoTrigger = useRef<HTMLButtonElement>(null);
   const [config, setConfig] = useState<BriefConfig | null>(null);
   const [pending, setPending] = useState(false);
   const [previewStep, setPreviewStepState] = useState(() => {
@@ -335,7 +339,7 @@ export function CourseBrief({
       </form>
     );
   }
-  return (
+  const content = (
     <section
       className="course-brief guided-demo"
       aria-labelledby="create-course-title"
@@ -356,6 +360,16 @@ export function CourseBrief({
           </li>
         </ol>
       </header>
+      <Button
+        ref={demoTrigger}
+        variant="secondary"
+        onClick={() => {
+          setDemoEpoch((epoch) => epoch + 1);
+          setDemo(true);
+        }}
+      >
+        Explore shared example
+      </Button>
       <p>
         AI uses your answers to shape your course. You can skip any question or
         use the form.
@@ -415,6 +429,7 @@ export function CourseBrief({
         ))}
       {draft.revision && (
         <CoursePreview
+          demoEpoch={demoEpoch}
           key={draft.revision.id}
           revision={draft.revision}
           onStep={setPreviewStep}
@@ -426,6 +441,22 @@ export function CourseBrief({
         />
       )}
     </section>
+  );
+  return (
+    <>
+      {demo && (
+        <SharedDemo
+          surface="course_brief"
+          onReturn={() => {
+            setDemo(false);
+            requestAnimationFrame(() => demoTrigger.current?.focus());
+          }}
+        />
+      )}
+      <div hidden={demo} inert={demo}>
+        {content}
+      </div>
+    </>
   );
 }
 export function CourseBriefPage() {

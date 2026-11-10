@@ -23,6 +23,7 @@ import {
   type OAuthProviderName,
 } from "./google-oauth";
 import "./accounts.css";
+import { SharedDemo } from "../courses/SharedDemo";
 
 export function SignIn({
   onSignedIn,
@@ -31,6 +32,8 @@ export function SignIn({
   onSignedIn?: (path: string) => void;
   recovery?: boolean;
 }) {
+  const [demo, setDemo] = useState(false);
+  const demoTrigger = useRef<HTMLButtonElement>(null);
   const [step, setStep] = useState<"welcome" | "email" | "code">(
     recovery || new URLSearchParams(location.search).get("returning") === "true"
       ? "email"
@@ -276,8 +279,8 @@ export function SignIn({
     setError("");
     setNotice("Sign-in was cancelled. Try again any time.");
   }
-  return (
-    <div className="auth-page">
+  const content = (
+    <div className="auth-page" hidden={demo} inert={demo}>
       <header className="auth-header">
         <a className="brand" href="/sign-in">
           <span className="brand-mark" aria-hidden="true">
@@ -350,6 +353,13 @@ export function SignIn({
                 )}
                 <Button data-welcome-primary onClick={() => open(false)}>
                   Get started
+                </Button>
+                <Button
+                  ref={demoTrigger}
+                  variant="secondary"
+                  onClick={() => setDemo(true)}
+                >
+                  Explore shared example
                 </Button>
                 <Button variant="secondary" onClick={() => open(true)}>
                   I already have an account
@@ -550,5 +560,19 @@ export function SignIn({
         )}
       </main>
     </div>
+  );
+  return (
+    <>
+      {demo && (
+        <SharedDemo
+          surface="welcome"
+          onReturn={() => {
+            setDemo(false);
+            requestAnimationFrame(() => demoTrigger.current?.focus());
+          }}
+        />
+      )}
+      {content}
+    </>
   );
 }

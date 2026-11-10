@@ -203,6 +203,10 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("proposal_id")
 		numeric("base_revision")
 	case "course_preview_requested", "course_preview_viewed", "course_generation_failed":
+		if event == "course_preview_viewed" && input["preview_kind"] == "shared_demo" {
+			out["preview_kind"] = "shared_demo"
+			ids("demo_version")
+		}
 		numeric("topic_length", "duration_ms")
 		boolean("has_profile")
 		ids("stage", "error_code", "preview_id")
