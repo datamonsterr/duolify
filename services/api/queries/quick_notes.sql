@@ -83,6 +83,8 @@ UPDATE quick_notes
 SET status = $2,
     reservation_id = $3,
     quote_id = $4,
+    enrichment_claim_id = CASE WHEN $2 = 'enriching' THEN enrichment_claim_id ELSE NULL END,
+    enrichment_lease_until = CASE WHEN $2 = 'enriching' THEN enrichment_lease_until ELSE NULL END,
     updated_at = now()
 WHERE id = $1 AND learner_id = $5
 RETURNING id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, reviewed_at, version, raw_version, reservation_id, quote_id, created_at, updated_at;
@@ -95,7 +97,7 @@ ORDER BY created_at ASC
 FOR UPDATE SKIP LOCKED;
 
 -- name: GetQuickNoteForUpdate :one
-SELECT id, learner_id, course_id, lesson_id, slide_title, raw_text, status, raw_version, version, reservation_id, quote_id
+SELECT id, learner_id, course_id, lesson_id, slide_title, raw_text, status, raw_version, version, reservation_id, quote_id, enrichment_claim_id, enrichment_lease_until
 FROM quick_notes
 WHERE id = $1 AND learner_id = $2
 FOR UPDATE;
@@ -123,6 +125,8 @@ SET raw_text = $3,
     version = version + 1,
     raw_version = raw_version + 1,
     status = 'enrichment_pending',
+    reservation_id = NULL, quote_id = NULL,
+    enrichment_claim_id = NULL, enrichment_lease_until = NULL,
     updated_at = now()
 WHERE id = $1 AND learner_id = $2 AND version = $4 AND $4 >= 1
 RETURNING id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, reviewed_at, version, raw_version, created_at, updated_at;

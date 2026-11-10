@@ -45,6 +45,7 @@ func (m *mockEngineServer) EnrichNote(_ context.Context, req *enginev1.EnrichNot
 		Tags:    []string{"rotation", "polaris"},
 		Links:   []string{validLink, "hallucinated-lesson-uuid"},
 		Usage: &enginev1.Usage{
+			Provider: req.Limits.Provider, Model: req.Limits.Model, Attempt: 1,
 			InputTokens:  120,
 			OutputTokens: 60,
 			Delivered:    true,
@@ -52,6 +53,7 @@ func (m *mockEngineServer) EnrichNote(_ context.Context, req *enginev1.EnrichNot
 		},
 		Attempts: []*enginev1.Usage{
 			{
+				Provider: req.Limits.Provider, Model: req.Limits.Model, Attempt: 1,
 				InputTokens:  120,
 				OutputTokens: 60,
 				Delivered:    true,

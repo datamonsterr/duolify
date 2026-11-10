@@ -37,3 +37,8 @@ E9-01 captured raw notes; E9-02 implemented grounded AI enrichment and left zero
   - `note-enrich-stale-version`: Stale version mismatch rejects overwrite.
   - `note-enrich-exhaustion`: Provider credit ceiling limits attempt count within bounds.
   - `note-enrich-retry`: Successful retry after initial failure delivers valid summary.
+## Review correction: fenced enrichment leases
+
+Every claimed raw revision has a unique fencing token and a lease deadline. The initial lease lasts two minutes; attaching a reservation extends it through the configured provider deadline plus fifteen seconds for settlement. Manual enrichment, workers and learner-scoped resume may reclaim expired leases, including legacy enriching rows using updated_at plus two minutes. Before reserving again, recovery settles the previous undelivered reservation at zero.
+
+All failures after claiming reset the status using the claim token, including quote, consent, credits, engine and persistence errors. Insufficient credits leave the note pending. A concurrent edit clears the old claim, and late workers cannot clear or overwrite a replacement claim. Accepted enrichment checks raw version, reservation, claim token and lease inside SettleWith. Backup fixtures preserve the lease fields with the complete note row; existing account deletion and analytics privacy policies apply. Mock-provider integration tests exercise early failures, abandoned work and late responses.

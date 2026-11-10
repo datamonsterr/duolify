@@ -275,7 +275,7 @@ func (q *Queries) GetQuickNoteByID(ctx context.Context, arg GetQuickNoteByIDPara
 }
 
 const getQuickNoteForUpdate = `-- name: GetQuickNoteForUpdate :one
-SELECT id, learner_id, course_id, lesson_id, slide_title, raw_text, status, raw_version, version, reservation_id, quote_id
+SELECT id, learner_id, course_id, lesson_id, slide_title, raw_text, status, raw_version, version, reservation_id, quote_id, enrichment_claim_id, enrichment_lease_until
 FROM quick_notes
 WHERE id = $1 AND learner_id = $2
 FOR UPDATE
@@ -287,17 +287,19 @@ type GetQuickNoteForUpdateParams struct {
 }
 
 type GetQuickNoteForUpdateRow struct {
-	ID            pgtype.UUID `json:"id"`
-	LearnerID     pgtype.UUID `json:"learner_id"`
-	CourseID      pgtype.UUID `json:"course_id"`
-	LessonID      pgtype.UUID `json:"lesson_id"`
-	SlideTitle    string      `json:"slide_title"`
-	RawText       string      `json:"raw_text"`
-	Status        string      `json:"status"`
-	RawVersion    int32       `json:"raw_version"`
-	Version       int32       `json:"version"`
-	ReservationID pgtype.UUID `json:"reservation_id"`
-	QuoteID       pgtype.UUID `json:"quote_id"`
+	ID                   pgtype.UUID        `json:"id"`
+	LearnerID            pgtype.UUID        `json:"learner_id"`
+	CourseID             pgtype.UUID        `json:"course_id"`
+	LessonID             pgtype.UUID        `json:"lesson_id"`
+	SlideTitle           string             `json:"slide_title"`
+	RawText              string             `json:"raw_text"`
+	Status               string             `json:"status"`
+	RawVersion           int32              `json:"raw_version"`
+	Version              int32              `json:"version"`
+	ReservationID        pgtype.UUID        `json:"reservation_id"`
+	QuoteID              pgtype.UUID        `json:"quote_id"`
+	EnrichmentClaimID    pgtype.UUID        `json:"enrichment_claim_id"`
+	EnrichmentLeaseUntil pgtype.Timestamptz `json:"enrichment_lease_until"`
 }
 
 func (q *Queries) GetQuickNoteForUpdate(ctx context.Context, arg GetQuickNoteForUpdateParams) (GetQuickNoteForUpdateRow, error) {
@@ -315,6 +317,8 @@ func (q *Queries) GetQuickNoteForUpdate(ctx context.Context, arg GetQuickNoteFor
 		&i.Version,
 		&i.ReservationID,
 		&i.QuoteID,
+		&i.EnrichmentClaimID,
+		&i.EnrichmentLeaseUntil,
 	)
 	return i, err
 }
@@ -684,6 +688,8 @@ SET raw_text = $3,
     version = version + 1,
     raw_version = raw_version + 1,
     status = 'enrichment_pending',
+    reservation_id = NULL, quote_id = NULL,
+    enrichment_claim_id = NULL, enrichment_lease_until = NULL,
     updated_at = now()
 WHERE id = $1 AND learner_id = $2 AND version = $4 AND $4 >= 1
 RETURNING id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, reviewed_at, version, raw_version, created_at, updated_at
@@ -749,6 +755,8 @@ UPDATE quick_notes
 SET status = $2,
     reservation_id = $3,
     quote_id = $4,
+    enrichment_claim_id = CASE WHEN $2 = 'enriching' THEN enrichment_claim_id ELSE NULL END,
+    enrichment_lease_until = CASE WHEN $2 = 'enriching' THEN enrichment_lease_until ELSE NULL END,
     updated_at = now()
 WHERE id = $1 AND learner_id = $5
 RETURNING id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, reviewed_at, version, raw_version, reservation_id, quote_id, created_at, updated_at

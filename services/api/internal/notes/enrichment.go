@@ -148,7 +148,7 @@ type NoteEnrichWorker struct {
 // Work implements the River worker interface.
 func (w *NoteEnrichWorker) Work(ctx context.Context, j *river.Job[NoteEnrichArgs]) error {
 	err := w.service.ProcessEnrichmentWithVersion(ctx, j.Args.LearnerID, j.Args.NoteID, j.Args.ExpectedVersion)
-	if err != nil && (errors.Is(err, credits.ErrInsufficient) || errors.Is(err, ErrStaleVersion)) {
+	if err == credits.ErrInsufficient || err == ErrStaleVersion {
 		return nil
 	}
 	return err
@@ -204,20 +204,56 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 	if note.Status == "raw_only" || note.Status == "enriched" {
 		return nil
 	}
-	courseID, err := s.authorizedNoteCourse(ctx, learnerUUID, note.CourseID, note.LessonID)
-	if err != nil {
-		return err
-	}
-	var claimed pgtype.UUID
-	err = s.pool.QueryRow(ctx, `UPDATE quick_notes SET status='enriching', reservation_id=NULL, quote_id=NULL,updated_at=now() WHERE id=$1 AND learner_id=$2 AND raw_version=$3 AND status IN ('enrichment_pending','enrichment_failed') RETURNING id`, noteUUID, learnerUUID, note.RawVersion).Scan(&claimed)
+	var claimID pgtype.UUID
+	err = s.pool.QueryRow(ctx, `UPDATE quick_notes SET status='enriching',enrichment_claim_id=gen_random_uuid(),enrichment_lease_until=clock_timestamp()+interval '2 minutes',updated_at=now()
+ WHERE id=$1 AND learner_id=$2 AND raw_version=$3 AND reservation_id IS NOT DISTINCT FROM $4
+ AND (status IN ('enrichment_pending','enrichment_failed') OR (status='enriching' AND coalesce(enrichment_lease_until,updated_at+interval '2 minutes')<clock_timestamp()))
+ RETURNING enrichment_claim_id`, noteUUID, learnerUUID, note.RawVersion, note.ReservationID).Scan(&claimID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
+	delivered := false
+	var reservationID string
+	var rate pricing.ModelRate
+	// A claim covers failures before quoting or reserving as well as provider work.
+	defer func() {
+		if delivered {
+			return
+		}
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		defer cancel()
+		var settleErr error
+		if reservationID != "" {
+			_, settleErr = s.credits.Settle(cleanupCtx, learnerID, reservationID, []*enginev1.Usage{{Provider: rate.Provider, Model: rate.Model, Attempt: 1, Component: "content"}})
+		}
+		status := "enrichment_failed"
+		if errors.Is(resultErr, credits.ErrInsufficient) {
+			status = "enrichment_pending"
+		}
+		_, statusErr := s.pool.Exec(cleanupCtx, `UPDATE quick_notes SET status=$4,reservation_id=NULL,quote_id=NULL,enrichment_claim_id=NULL,enrichment_lease_until=NULL,updated_at=now() WHERE id=$1 AND learner_id=$2 AND enrichment_claim_id=$3`, noteUUID, learnerUUID, claimID, status)
+		if settleErr != nil || statusErr != nil {
+			resultErr = errors.Join(resultErr, settleErr, statusErr)
+		}
+	}()
+	courseID, err := s.authorizedNoteCourse(ctx, learnerUUID, note.CourseID, note.LessonID)
+	if err != nil {
+		return err
+	}
 	if s.credits == nil {
 		return errors.New("credits service not configured")
+	}
+	// Reclaiming a crashed worker first returns its outstanding reservation.
+	if note.ReservationID.Valid {
+		previous, err := pricing.NewQuotes(s.pool).Get(ctx, learnerID, formatUUID(note.QuoteID))
+		if err != nil {
+			return err
+		}
+		if _, err = s.credits.Settle(ctx, learnerID, formatUUID(note.ReservationID), []*enginev1.Usage{{Provider: previous.Rate.Provider, Model: previous.Rate.Model, Attempt: 1, Component: "content"}}); err != nil {
+			return err
+		}
 	}
 	quotes := pricing.NewQuotes(s.pool)
 	quote, err := quotes.Create(ctx, learnerID, pricing.QuoteInput{Action: "quick_note"})
@@ -239,22 +275,13 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 	if err != nil {
 		return err
 	}
-	delivered := false
-	// Cleanup has its own bounded context so HTTP cancellation cannot strand a hold.
-	defer func() {
-		if delivered {
-			return
-		}
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
-		defer cancel()
-		// An explicit non-delivered attempt releases both queued and running work;
-		// nil usage means unknown provider cost in the shared credits API.
-		_, settleErr := s.credits.Settle(cleanupCtx, learnerID, res.ID, []*enginev1.Usage{{Provider: quote.Rate.Provider, Model: quote.Rate.Model, Attempt: 1, Component: "content"}})
-		_, statusErr := s.pool.Exec(cleanupCtx, `UPDATE quick_notes SET status='enrichment_failed', reservation_id=NULL, quote_id=NULL, updated_at=now() WHERE id=$1 AND learner_id=$2 AND raw_version=$3 AND (reservation_id=$4 OR reservation_id IS NULL)`, noteUUID, learnerUUID, note.RawVersion, resUUID)
-		resultErr = errors.Join(resultErr, settleErr, statusErr)
-	}()
-	if _, err = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{ID: noteUUID, LearnerID: learnerUUID, Status: "enriching", ReservationID: resUUID, QuoteID: quoteUUID}); err != nil {
+	reservationID, rate = res.ID, quote.Rate
+	command, err := s.pool.Exec(ctx, `UPDATE quick_notes SET reservation_id=$4,quote_id=$5,enrichment_lease_until=$6 WHERE id=$1 AND learner_id=$2 AND enrichment_claim_id=$3 AND raw_version=$7 AND status='enriching'`, noteUUID, learnerUUID, claimID, resUUID, quoteUUID, res.DeadlineAt.Add(15*time.Second), note.RawVersion)
+	if err != nil {
 		return err
+	}
+	if command.RowsAffected() != 1 {
+		return ErrStaleVersion
 	}
 	if err = s.credits.Claim(ctx, learnerID, res.ID); err != nil {
 		return err
@@ -312,7 +339,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		if e != nil {
 			return e
 		}
-		if current.RawVersion != note.RawVersion || current.ReservationID != resUUID || current.Status != "enriching" {
+		if current.RawVersion != note.RawVersion || current.ReservationID != resUUID || current.Status != "enriching" || current.EnrichmentClaimID != claimID || !current.EnrichmentLeaseUntil.Valid || !time.Now().Before(current.EnrichmentLeaseUntil.Time) {
 			return ErrStaleVersion
 		}
 		model, provider := "", ""
@@ -353,7 +380,7 @@ func (s *Service) ResumePendingEnrichments(ctx context.Context, learnerID string
 	for {
 		var id pgtype.UUID
 		var rawVersion int32
-		err = s.pool.QueryRow(ctx, `SELECT id,raw_version FROM quick_notes WHERE learner_id=$1 AND status='enrichment_pending' ORDER BY created_at,id LIMIT 1`, learnerUUID).Scan(&id, &rawVersion)
+		err = s.pool.QueryRow(ctx, `SELECT id,raw_version FROM quick_notes WHERE learner_id=$1 AND (status='enrichment_pending' OR (status='enriching' AND coalesce(enrichment_lease_until,updated_at+interval '2 minutes')<clock_timestamp())) ORDER BY created_at,id LIMIT 1`, learnerUUID).Scan(&id, &rawVersion)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return processed, nil
 		}
@@ -361,9 +388,8 @@ func (s *Service) ResumePendingEnrichments(ctx context.Context, learnerID string
 			return processed, err
 		}
 		err = s.ProcessEnrichmentWithVersion(ctx, learnerID, formatUUID(id), int(rawVersion))
-		if errors.Is(err, credits.ErrInsufficient) {
-			_, resetErr := s.pool.Exec(ctx, `UPDATE quick_notes SET status='enrichment_pending',updated_at=now() WHERE id=$1 AND learner_id=$2 AND raw_version=$3 AND status='enrichment_failed'`, id, learnerUUID, rawVersion)
-			return processed, resetErr
+		if err == credits.ErrInsufficient {
+			return processed, nil
 		}
 		if err != nil {
 			return processed, err
