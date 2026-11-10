@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
@@ -33,10 +34,12 @@ var pricingUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-
 // it with accounts.Protect; it independently checks role and recent auth so
 // denied access can be recorded in the same durable audit store.
 type Admin struct {
-	pool     *pgxpool.Pool
-	events   analytics.Events
-	owner    string
-	verifier ExternalVerifier
+	pool       *pgxpool.Pool
+	events     analytics.Events
+	owner      string
+	verifier   ExternalVerifier
+	policy     economicsPolicy
+	lastDenied atomic.Int64
 }
 
 type cliActorKey struct{}
@@ -53,7 +56,7 @@ func (a *Admin) RecordDenied(r *http.Request) {
 
 // NewAdmin creates the pricing administrator service over Postgres and analytics.
 func NewAdmin(pool *pgxpool.Pool, events analytics.Events, ownerID string) *Admin {
-	return &Admin{pool: pool, events: events, owner: strings.ToLower(ownerID)}
+	return &Admin{pool: pool, events: events, owner: strings.ToLower(ownerID), policy: defaultEconomicsPolicy()}
 }
 
 type adminInput struct {
@@ -198,6 +201,18 @@ func (a *Admin) ExecuteCLI(ctx context.Context, actor, method, path string, body
 }
 
 func (a *Admin) denied(r *http.Request, actor, reason string) {
+	// Only authenticated granted administrators have unbounded immutable audit.
+	var granted bool
+	if actor != systemActor {
+		_ = a.pool.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM pricing_admin_grants WHERE account_id=$1::uuid)", actor).Scan(&granted)
+	}
+	if !granted {
+		instant := time.Now().UnixNano()
+		previous := a.lastDenied.Load()
+		if instant-previous < int64(time.Minute) || !a.lastDenied.CompareAndSwap(previous, instant) {
+			return
+		}
+	}
 	version := r.PathValue("version")
 	_, _ = a.pool.Exec(r.Context(), `INSERT INTO pricing_audit(actor_id,action,version,reason,request_id)
 VALUES($1,'access_denied',NULLIF($2,''),$3,$4)`, actorHash(actor), version, reason, requestID(r))
@@ -262,7 +277,7 @@ func (a *Admin) create(w http.ResponseWriter, r *http.Request, actor string) {
 		adminError(w, 422, "invalid pricing config")
 		return
 	}
-	if err = ValidateEconomicsWithContext(r.Context(), in.Config, nil, in.OverrideReason); err != nil {
+	if _, err = checkEconomics(r.Context(), in.Config, nil, in.OverrideReason, a.policy, true); err != nil {
 		a.auditFailure(r.Context(), actor, "validation_failed", c.Version, in.Reason, "{}", requestID(r))
 		a.emit(r.Context(), actor, c.Version, "pricing_version_rejected", "")
 		adminError(w, 422, err.Error())
@@ -305,7 +320,7 @@ func (a *Admin) create(w http.ResponseWriter, r *http.Request, actor string) {
 	_, err = tx.Exec(ctx, `INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class)
 VALUES($1,$2,$3::jsonb,$4,$5)`, c.Version, parent, in.Config, actor, class)
 	if err == nil {
-		err = insertAudit(ctx, tx, actor, "version_created", c.Version, class, in.Reason, requestID(r), summary)
+		err = insertAudit(ctx, tx, actor, "version_created", c.Version, class, in.Reason, requestID(r), summary, in.OverrideReason)
 	}
 	if err == nil {
 		err = tx.Commit(ctx)
@@ -336,7 +351,7 @@ func (a *Admin) edit(w http.ResponseWriter, r *http.Request, actor, version stri
 		adminError(w, 422, "invalid pricing config")
 		return
 	}
-	if err = ValidateEconomicsWithContext(r.Context(), in.Config, a.verifier, in.OverrideReason); err != nil {
+	if _, err = checkEconomics(r.Context(), in.Config, a.verifier, in.OverrideReason, a.policy, false); err != nil {
 		a.auditFailure(r.Context(), actor, "validation_failed", version, in.Reason, "{}", requestID(r))
 		a.emit(r.Context(), actor, version, "pricing_version_rejected", "")
 		adminError(w, 422, err.Error())
@@ -394,7 +409,7 @@ func (a *Admin) edit(w http.ResponseWriter, r *http.Request, actor, version stri
 	}
 	_, err = tx.Exec(ctx, `UPDATE pricing_drafts SET config=$2::jsonb,change_class=$3 WHERE version=$1`, version, in.Config, class)
 	if err == nil {
-		err = insertAudit(ctx, tx, actor, "version_edited", version, class, in.Reason, requestID(r), summary)
+		err = insertAudit(ctx, tx, actor, "version_edited", version, class, in.Reason, requestID(r), summary, in.OverrideReason)
 	}
 	if err == nil {
 		err = tx.Commit(ctx)
@@ -446,8 +461,19 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		adminError(w, 422, "invalid pricing config")
 		return
 	}
-	if action != "diff" {
-		if err = ValidateEconomicsWithContext(ctx, cfg, a.verifier, in.OverrideReason); err != nil {
+	if action == "approve" || action == "schedule" {
+		if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(1212)"); err != nil {
+			adminError(w, 503, "pricing lock unavailable")
+			return
+		}
+		if err = validateEffectiveInstant(ctx, tx, parsed.EffectiveFrom); err != nil {
+			adminError(w, 409, err.Error())
+			return
+		}
+	}
+	var evidence verificationEvidence
+	if action != "diff" && action != "reject" {
+		if evidence, err = checkEconomics(ctx, cfg, a.verifier, in.OverrideReason, a.policy, false); err != nil {
 			a.auditFailure(ctx, actor, "validation_failed", version, in.Reason, "{}", requestID(r))
 			a.emit(ctx, actor, version, "pricing_version_rejected", class)
 			adminError(w, 422, err.Error())
@@ -482,9 +508,9 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 			return
 		}
 		if action == "validate" {
-			err = insertAudit(ctx, tx, actor, "validation_passed", version, class, in.Reason, requestID(r), summary)
+			err = insertAudit(ctx, tx, actor, "validation_passed", version, class, in.Reason, requestID(r), summary, in.OverrideReason)
 		} else {
-			err = insertAudit(ctx, tx, actor, "diff_viewed", version, class, in.Reason, requestID(r), summary)
+			err = insertAudit(ctx, tx, actor, "diff_viewed", version, class, in.Reason, requestID(r), summary, in.OverrideReason)
 		}
 		if err == nil {
 			err = tx.Commit(ctx)
@@ -513,7 +539,7 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		}
 		_, err = tx.Exec(ctx, `UPDATE pricing_drafts SET status='submitted',submitted_at=now() WHERE version=$1`, version)
 		if err == nil {
-			err = insertAudit(ctx, tx, actor, "version_submitted", version, class, in.Reason, requestID(r), `{"submitted":true}`)
+			err = insertAudit(ctx, tx, actor, "version_submitted", version, class, in.Reason, requestID(r), `{"submitted":true}`, in.OverrideReason)
 		}
 		if err == nil {
 			err = tx.Commit(ctx)
@@ -533,7 +559,7 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		}
 		_, err = tx.Exec(ctx, `UPDATE pricing_drafts SET status='rejected',reviewed_by=$2,reviewed_at=now() WHERE version=$1`, version, actor)
 		if err == nil {
-			err = insertAudit(ctx, tx, actor, "version_rejected", version, class, in.Reason, requestID(r), `{"rejected":true}`)
+			err = insertAudit(ctx, tx, actor, "version_rejected", version, class, in.Reason, requestID(r), `{"rejected":true}`, in.OverrideReason)
 		}
 		if err == nil {
 			err = tx.Commit(ctx)
@@ -549,6 +575,11 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 	if status != "submitted" {
 		a.auditFailure(ctx, actor, "approval_denied", version, in.Reason, "{}", requestID(r))
 		adminError(w, 409, "only submitted drafts can be approved")
+		return
+	}
+	if strings.TrimSpace(in.OverrideReason) != "" && author == actor {
+		a.auditFailure(ctx, actor, "approval_denied", version, in.Reason, "{}", requestID(r))
+		adminError(w, 403, "overrides require a different pricing administrator")
 		return
 	}
 	if class == "adverse" {
@@ -592,8 +623,8 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 			return
 		}
 	}
-	if err = ValidateEconomicsWithContext(ctx, cfg, a.verifier, in.OverrideReason); err != nil {
-		adminError(w, 422, err.Error())
+	if err = validateEffectiveInstant(ctx, tx, parsed.EffectiveFrom); err != nil {
+		adminError(w, 409, err.Error())
 		return
 	}
 	if action == "schedule" {
@@ -620,13 +651,11 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES($1,$2,true,$3::jsonb)`, version, parsed.EffectiveFrom, cfg)
 	if err == nil {
-		evidenceJSON, _ := json.Marshal(map[string]any{
-			"margin_floor_verified": true,
-			"economics_verified":    true,
-			"mappings_verified":     true,
-			"models":                OfficialModelCatalogueEvidence(),
-		})
-		_, _ = tx.Exec(ctx, `INSERT INTO pricing_verification_evidence(version, evidence) VALUES($1, $2::jsonb) ON CONFLICT DO NOTHING`, version, evidenceJSON)
+		evidenceJSON, marshalErr := json.Marshal(evidence)
+		err = marshalErr
+		if err == nil {
+			_, err = tx.Exec(ctx, `INSERT INTO pricing_verification_evidence(version, evidence) VALUES($1, $2::jsonb)`, version, evidenceJSON)
+		}
 	}
 	if err == nil {
 		command, policyErr := tx.Exec(ctx, `INSERT INTO pricing_quote_policies(version,policy) SELECT $1,p.policy FROM pricing_drafts d JOIN pricing_quote_policies p ON p.version=d.parent_version WHERE d.version=$1`, version)
@@ -643,7 +672,7 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		if action == "schedule" {
 			auditAction = "version_scheduled"
 		}
-		err = insertAudit(ctx, tx, actor, auditAction, version, class, in.Reason, requestID(r), `{"approved":true}`)
+		err = insertAudit(ctx, tx, actor, auditAction, version, class, in.Reason, requestID(r), `{"approved":true}`, in.OverrideReason)
 	}
 	if err == nil {
 		err = tx.Commit(ctx)
@@ -759,7 +788,11 @@ func (a *Admin) rollback(w http.ResponseWriter, r *http.Request, actor, source s
 		adminError(w, 422, "rollback config invalid")
 		return
 	}
-	if err = ValidateEconomicsWithContext(ctx, content, a.verifier, in.OverrideReason); err != nil {
+	if err = validateEffectiveInstant(ctx, tx, parsed.EffectiveFrom); err != nil {
+		adminError(w, 409, err.Error())
+		return
+	}
+	if _, err = checkEconomics(ctx, content, a.verifier, in.OverrideReason, a.policy, false); err != nil {
 		adminError(w, 422, err.Error())
 		return
 	}
@@ -778,7 +811,7 @@ func (a *Admin) rollback(w http.ResponseWriter, r *http.Request, actor, source s
 		return
 	}
 	if _, err = tx.Exec(ctx, "INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class,rollback_source_version) VALUES($1,$2,$3::jsonb,$4,$5,$6)", parsed.Version, parent, content, actor, class, source); err == nil {
-		err = insertAudit(ctx, tx, actor, "version_rolled_back", parsed.Version, class, in.Reason, requestID(r), summary)
+		err = insertAudit(ctx, tx, actor, "version_rolled_back", parsed.Version, class, in.Reason, requestID(r), summary, in.OverrideReason)
 	}
 	if err == nil {
 		err = tx.Commit(ctx)
@@ -798,9 +831,9 @@ func (a *Admin) list(w http.ResponseWriter, r *http.Request, actor string) {
 		adminError(w, 400, "a reason query parameter is required")
 		return
 	}
-	rows, err := a.pool.Query(r.Context(), `SELECT version,status,coalesce(change_class,''),coalesce(created_by,''),created_at FROM pricing_drafts
+	rows, err := a.pool.Query(r.Context(), `SELECT d.version,CASE WHEN c.version IS NOT NULL THEN 'cancelled' ELSE d.status END,coalesce(change_class,''),coalesce(created_by,''),created_at FROM pricing_drafts d LEFT JOIN pricing_version_cancellations c ON c.version=d.version
 UNION ALL
-SELECT p.version,CASE WHEN p.effective_from<=now() THEN 'active' ELSE 'approved' END,coalesce(d.change_class,''),coalesce(d.created_by,''),p.created_at
+SELECT p.version,CASE WHEN EXISTS(SELECT 1 FROM pricing_version_cancellations c WHERE c.version=p.version) THEN 'cancelled' WHEN p.effective_from<=now() THEN 'active' ELSE 'approved' END,coalesce(d.change_class,''),coalesce(d.created_by,''),p.created_at
 FROM pricing_versions p LEFT JOIN pricing_drafts d ON d.version=p.version WHERE d.version IS NULL
 ORDER BY created_at DESC LIMIT 100`)
 	if err != nil {
@@ -842,9 +875,9 @@ func (a *Admin) show(w http.ResponseWriter, r *http.Request, actor, version stri
 	var cfg []byte
 	var status, class, parent, author string
 	var created time.Time
-	err := a.pool.QueryRow(r.Context(), `SELECT config,status,change_class,parent_version,created_by,created_at FROM pricing_drafts WHERE version=$1`, version).Scan(&cfg, &status, &class, &parent, &author, &created)
+	err := a.pool.QueryRow(r.Context(), `SELECT config,CASE WHEN EXISTS(SELECT 1 FROM pricing_version_cancellations c WHERE c.version=d.version) THEN 'cancelled' ELSE status END,change_class,parent_version,created_by,created_at FROM pricing_drafts d WHERE version=$1`, version).Scan(&cfg, &status, &class, &parent, &author, &created)
 	if errors.Is(err, pgx.ErrNoRows) {
-		err = a.pool.QueryRow(r.Context(), `SELECT config,CASE WHEN effective_from<=now() THEN 'active' ELSE 'approved' END,created_at FROM pricing_versions WHERE version=$1`, version).Scan(&cfg, &status, &created)
+		err = a.pool.QueryRow(r.Context(), `SELECT config,CASE WHEN EXISTS(SELECT 1 FROM pricing_version_cancellations c WHERE c.version=pricing_versions.version) THEN 'cancelled' WHEN effective_from<=now() THEN 'active' ELSE 'approved' END,created_at FROM pricing_versions WHERE version=$1`, version).Scan(&cfg, &status, &created)
 		if errors.Is(err, pgx.ErrNoRows) {
 			a.auditFailure(r.Context(), actor, "version_show_denied", version, reason, "{}", requestID(r))
 			adminError(w, 404, "pricing version not found")
@@ -950,15 +983,24 @@ func collectChangedValue(old, next any, path string, paths *[]string) {
 	*paths = append(*paths, path)
 }
 
-func insertAudit(ctx context.Context, tx pgx.Tx, actor, action, version, class, reason, request, summary string) error {
+func insertAudit(ctx context.Context, tx pgx.Tx, actor, action, version, class, reason, request, summary string, overrideReasons ...string) error {
 	if err := validateReason(reasonOrSystem(reason)); err != nil {
 		return err
 	}
 	if strings.TrimSpace(class) == "" {
 		class = ""
 	}
-	_, err := tx.Exec(ctx, `INSERT INTO pricing_audit(actor_id,action,version,change_class,diff_summary,reason,request_id)
-VALUES($1,$2,NULLIF($3,''),NULLIF($4,''),$5::jsonb,$6,$7)`, actorHash(actor), action, version, class, summary, strings.TrimSpace(reasonOrSystem(reason)), request)
+	override := ""
+	if len(overrideReasons) > 0 {
+		override = strings.TrimSpace(overrideReasons[0])
+		if override != "" {
+			if err := validateReason(override); err != nil {
+				return err
+			}
+		}
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO pricing_audit(actor_id,action,version,change_class,diff_summary,reason,request_id,override_reason)
+VALUES($1,$2,NULLIF($3,''),NULLIF($4,''),$5::jsonb,$6,$7,NULLIF($8,''))`, actorHash(actor), action, version, class, summary, strings.TrimSpace(reasonOrSystem(reason)), request, override)
 	return err
 }
 func reasonOrSystem(reason string) string {
@@ -1217,3 +1259,17 @@ func margin(price, cost float64) float64 {
 
 // OperatorPricingAdminIDs exposes the deployment bootstrap setting to startup.
 func OperatorPricingAdminIDs() string { return os.Getenv("PRICING_ADMIN_IDS") }
+
+func validateEffectiveInstant(ctx context.Context, tx pgx.Tx, effective time.Time) error {
+	var active, now time.Time
+	if err := tx.QueryRow(ctx, `SELECT max(effective_from),clock_timestamp() FROM pricing_versions WHERE approved AND effective_from<=clock_timestamp() AND NOT EXISTS(SELECT 1 FROM pricing_version_cancellations c WHERE c.version=pricing_versions.version)`).Scan(&active, &now); err != nil {
+		return errors.New("effective_from validation unavailable")
+	}
+	if !effective.After(active) {
+		return errors.New("effective_from must be after the active pricing effective_from")
+	}
+	if !effective.After(now) {
+		return errors.New("effective_from must be in the future")
+	}
+	return nil
+}

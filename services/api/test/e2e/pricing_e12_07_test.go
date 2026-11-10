@@ -226,6 +226,34 @@ func TestPricingE12_07_RejectWrongStripePriceAndUneconomicCatalogueDraft(t *test
 		t.Fatal(err)
 	}
 
+	// Supply every SKU to the provider fake; preserve the deliberately bad IDs.
+	mappingFor := map[string]any{}
+	addOffer := func(offer map[string]any, interval string) {
+		sku := offer["sku"].(string)
+		id := "price_fixture_" + sku
+		recurring := "one_time"
+		if interval != "one_time" {
+			recurring = "recurring"
+		}
+		fakeStripe.prices[id] = pricing.StripePriceRecord{ID: id, Active: true, Currency: current["currency"].(string), AmountMinor: int(offer["amount_minor"].(float64)), RecurringType: recurring, Interval: interval, IntervalCount: 1, Environment: "test"}
+		mappingFor[sku] = id
+	}
+	for _, pack := range current["packs"].([]any) {
+		addOffer(pack.(map[string]any), "one_time")
+	}
+	for _, plan := range current["plans"].([]any) {
+		p := plan.(map[string]any)
+		addOffer(p["monthly"].(map[string]any), "month")
+		addOffer(p["yearly"].(map[string]any), "year")
+	}
+	mappingsWithPack := func(id string) map[string]any {
+		result := map[string]any{}
+		for sku, value := range mappingFor {
+			result[sku] = value
+		}
+		result["pack_try"] = id
+		return result
+	}
 	t.Run("Reject wrong Stripe price amount", func(t *testing.T) {
 		wrongStripe := make(map[string]any)
 		for k, v := range current {
@@ -233,9 +261,7 @@ func TestPricingE12_07_RejectWrongStripePriceAndUneconomicCatalogueDraft(t *test
 		}
 		wrongStripe["version"] = "usd-e12-wrong-stripe-1"
 		wrongStripe["effective_from"] = time.Now().UTC().Add(74 * time.Hour).Format(time.RFC3339Nano)
-		wrongStripe["stripe_mappings"] = map[string]any{
-			"pack_try": "price_try_wrong_amount", // Mismatched amount
-		}
+		wrongStripe["stripe_mappings"] = mappingsWithPack("price_try_wrong_amount")
 		payload, _ := json.Marshal(map[string]any{
 			"config": wrongStripe,
 			"reason": "draft with wrong stripe price",
@@ -324,9 +350,7 @@ func TestPricingE12_07_RejectWrongStripePriceAndUneconomicCatalogueDraft(t *test
 		}
 		validDraft["version"] = "usd-e12-valid-appr-1"
 		validDraft["effective_from"] = time.Now().UTC().Add(74 * time.Hour).Format(time.RFC3339Nano)
-		validDraft["stripe_mappings"] = map[string]any{
-			"pack_try": "price_try_valid",
-		}
+		validDraft["stripe_mappings"] = mappingsWithPack("price_try_valid")
 		payload, _ := json.Marshal(map[string]any{
 			"config": validDraft,
 			"reason": "valid economics and verified stripe mappings",

@@ -236,6 +236,9 @@ func run(ctx context.Context, args []string) (result error) {
 		return fmt.Errorf("pricing admin bootstrap failed: %w", err)
 	}
 	pricingAdmin := pricing.NewAdmin(db.Pool, events, os.Getenv("PRICING_OWNER_ID"))
+	if err := pricingAdmin.ConfigureVerification(os.Getenv); err != nil {
+		return fmt.Errorf("pricing verifier configuration: %w", err)
+	}
 	auth.ConfigureRateLimits(rateLimits)
 	auth.ConfigureSetupChat(accounts.SetupChatOptions{
 		Engine:  backend,
@@ -277,6 +280,14 @@ func run(ctx context.Context, args []string) (result error) {
 			SessionTTL:          cfg.LessonTestSessionTTL,
 		})
 	}
+	runtimePricing := pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events)
+	if err := runtimePricing.ActivateDue(ctx, pricingAdmin); err != nil {
+		return fmt.Errorf("pricing activation: %w", err)
+	}
+	activatorCtx, stopActivator := context.WithCancel(ctx)
+	defer stopActivator()
+	go runtimePricing.RunActivator(activatorCtx, pricingAdmin)
+
 	handler := httpapi.New(httpapi.Dependencies{
 		Characters:              characters.NewHandler(characterService),
 		Monitor:                 monitor,
@@ -285,7 +296,7 @@ func run(ctx context.Context, args []string) (result error) {
 		Accounts:                auth,
 		Credits:                 creditService,
 		CourseBrief:             courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
-		Pricing:                 pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events),
+		Pricing:                 runtimePricing,
 		PricingAdmin:            pricingAdmin,
 		Quotes:                  pricing.NewQuotes(db.Pool),
 		Eval:                    eval.NewService(db.Pool, catalogue, monitor, events),
@@ -402,6 +413,9 @@ func runAdminCLI(ctx context.Context, args []string) error {
 	}
 	defer func() { _ = events.Close() }()
 	admin := pricing.NewAdmin(db.Pool, events, os.Getenv("PRICING_OWNER_ID"))
+	if err := admin.ConfigureVerification(os.Getenv); err != nil {
+		return fmt.Errorf("pricing verifier configuration: %w", err)
+	}
 	status, response := admin.ExecuteCLI(ctx, *actor, method, path, body)
 	_, _ = os.Stdout.Write(response)
 	if status < 200 || status >= 300 {

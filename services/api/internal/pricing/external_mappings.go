@@ -2,10 +2,17 @@ package pricing
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -139,4 +146,151 @@ func OfficialModelCatalogueEvidence() map[string]OfficialModel {
 			NarrationUSDPerThousandChar: 0.04,
 		},
 	}
+}
+
+// StripeVerifier retrieves canonical Stripe prices; it never trusts draft evidence.
+type StripeVerifier struct {
+	keys   map[string]string
+	client *http.Client
+}
+
+// NewStripeVerifier creates a canonical-price verifier with separate test/live credentials.
+func NewStripeVerifier(testKey, liveKey string, client *http.Client) *StripeVerifier {
+	if client == nil {
+		client = &http.Client{Timeout: 10 * time.Second}
+	}
+	return &StripeVerifier{map[string]string{"test": testKey, "live": liveKey}, client}
+}
+
+// VerifyStripePrice checks the canonical Stripe response against the configured offer.
+func (v *StripeVerifier) VerifyStripePrice(ctx context.Context, env, id string, expected Offer, interval string) error {
+	key := v.keys[env]
+	if key == "" {
+		return fmt.Errorf("stripe credentials missing for %s", env)
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.stripe.com/v1/prices/"+url.PathEscape(id), nil)
+	if err != nil {
+		return err
+	}
+	request.SetBasicAuth(key, "")
+	request.Header.Set("Stripe-Version", "2026-10-28.endive")
+	response, err := v.client.Do(request)
+	if err != nil {
+		return errors.New("stripe price lookup unavailable")
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode == http.StatusNotFound {
+		return ErrStripePriceNotFound
+	}
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("stripe price lookup failed (HTTP %d)", response.StatusCode)
+	}
+	var price struct {
+		ID        string `json:"id"`
+		Active    *bool  `json:"active"`
+		Currency  string `json:"currency"`
+		Amount    *int   `json:"unit_amount"`
+		Live      *bool  `json:"livemode"`
+		Type      string `json:"type"`
+		Recurring *struct {
+			Interval string `json:"interval"`
+			Count    int    `json:"interval_count"`
+			Usage    string `json:"usage_type"`
+		} `json:"recurring"`
+		BillingScheme string          `json:"billing_scheme"`
+		Transform     json.RawMessage `json:"transform_quantity"`
+	}
+	if err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&price); err != nil {
+		return errors.New("invalid Stripe price response")
+	}
+	if price.ID != id || price.Active == nil || price.Live == nil || price.Amount == nil || price.BillingScheme != "per_unit" || (len(price.Transform) > 0 && string(price.Transform) != "null") {
+		return errors.New("unsupported or incomplete Stripe price")
+	}
+	actualEnv := "test"
+	if *price.Live {
+		actualEnv = "live"
+	}
+	record := StripePriceRecord{ID: price.ID, Active: *price.Active, Currency: price.Currency, AmountMinor: *price.Amount, RecurringType: price.Type, Environment: actualEnv}
+	if price.Recurring != nil {
+		record.Interval = price.Recurring.Interval
+		record.IntervalCount = price.Recurring.Count
+		if price.Recurring.Usage != "licensed" {
+			return errors.New("unsupported Stripe usage type")
+		}
+	}
+	if record.RecurringType != "one_time" && record.RecurringType != "recurring" {
+		return errors.New("unsupported Stripe price type")
+	}
+	return record.Matches(env, expected, interval)
+}
+
+// VerifyStoreMapping validates store identifier syntax.
+func (*StripeVerifier) VerifyStoreMapping(_ context.Context, channel, id string) error {
+	return ValidateStoreProductID(channel, id)
+}
+
+// DevelopmentVerifier only recognizes explicit synthetic mappings. Startup must
+// opt in through ALLOW_FAKE_PRICING_VERIFIER in development/test.
+type DevelopmentVerifier struct{}
+
+// VerifyStripePrice recognizes only explicit synthetic test identifiers.
+func (*DevelopmentVerifier) VerifyStripePrice(_ context.Context, env, id string, expected Offer, _ string) error {
+	if env != "test" || id != "synthetic:"+expected.SKU {
+		return errors.New("fake pricing verifier accepts only synthetic test mappings")
+	}
+	return nil
+}
+
+// VerifyStoreMapping validates store identifier syntax in development.
+func (*DevelopmentVerifier) VerifyStoreMapping(_ context.Context, channel, id string) error {
+	return ValidateStoreProductID(channel, id)
+}
+
+// ConfigureVerification wires both HTTP and CLI through the same operator policy.
+func (a *Admin) ConfigureVerification(getenv func(string) string) error {
+	verifier, err := VerifierFromEnvironment(getenv)
+	if err != nil {
+		return err
+	}
+	a.verifier = verifier
+	policy := defaultEconomicsPolicy()
+	if raw := getenv("PRICING_ECONOMICS_MINIMUMS"); raw != "" {
+		decoder := json.NewDecoder(strings.NewReader(raw))
+		decoder.DisallowUnknownFields()
+		if err = decoder.Decode(&policy); err != nil {
+			return errors.New("invalid PRICING_ECONOMICS_MINIMUMS")
+		}
+		defaults := defaultEconomicsPolicy()
+		if math.IsNaN(policy.ProtectedCostCeiling) || policy.ProtectedCostCeiling < defaults.ProtectedCostCeiling || policy.MarginFloor < 70 || policy.MarginFloor > 100 || policy.Fees.PackFeeRate < defaults.Fees.PackFeeRate || policy.Fees.PackFixedFeeUSD < defaults.Fees.PackFixedFeeUSD || policy.Fees.SubscriptionFeeRate < defaults.Fees.SubscriptionFeeRate || policy.Fees.SubscriptionFixedFeeUSD < defaults.Fees.SubscriptionFixedFeeUSD || policy.Fees.RefundReserveRate < defaults.Fees.RefundReserveRate {
+			return errors.New("platform economics cannot weaken minimum protections")
+		}
+	}
+	a.policy = policy
+	return nil
+}
+
+// VerifierFromEnvironment selects real Stripe verification or an explicitly gated fake.
+func VerifierFromEnvironment(getenv func(string) string) (ExternalVerifier, error) {
+	fake := false
+	if raw := getenv("ALLOW_FAKE_PRICING_VERIFIER"); raw != "" {
+		var err error
+		fake, err = strconv.ParseBool(raw)
+		if err != nil {
+			return nil, errors.New("invalid ALLOW_FAKE_PRICING_VERIFIER")
+		}
+	}
+	if fake {
+		env := getenv("DUOLIFY_ENV")
+		if env != "development" && env != "test" {
+			return nil, errors.New("fake pricing verifier requires explicit development or test environment")
+		}
+		if getenv("STRIPE_PRICING_TEST_SECRET_KEY") != "" || getenv("STRIPE_PRICING_LIVE_SECRET_KEY") != "" {
+			return nil, errors.New("fake pricing verifier cannot be combined with Stripe credentials")
+		}
+		return &DevelopmentVerifier{}, nil
+	}
+	if getenv("STRIPE_PRICING_TEST_SECRET_KEY") == "" && getenv("STRIPE_PRICING_LIVE_SECRET_KEY") == "" {
+		return nil, nil
+	}
+	return NewStripeVerifier(getenv("STRIPE_PRICING_TEST_SECRET_KEY"), getenv("STRIPE_PRICING_LIVE_SECRET_KEY"), nil), nil
 }
