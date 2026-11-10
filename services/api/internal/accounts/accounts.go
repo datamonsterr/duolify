@@ -33,7 +33,7 @@ var errLimited = errors.New("rate limit exceeded")
 var localePattern = regexp.MustCompile(`^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$`)
 var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
-// Tokens contains credentials delivered once, never persisted in plaintext by the API.
+// Tokens contains issued credentials, never persisted in plaintext by the API.
 type Tokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`

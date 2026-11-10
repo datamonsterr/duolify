@@ -456,7 +456,18 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})
 			return
 		}
-		deps.Accounts.Protect(mux).ServeHTTP(w, r)
+		protected := deps.Accounts.Protect(mux)
+		// The default guard must preserve the admin boundary's denial audit hook.
+		if strings.HasPrefix(r.URL.Path, "/admin/v1/pricing/") {
+			if auth, ok := deps.Accounts.(interface {
+				ProtectWithDenied(http.Handler, func(*http.Request)) http.Handler
+			}); ok {
+				if audit, ok := deps.PricingAdmin.(interface{ RecordDenied(*http.Request) }); ok {
+					protected = auth.ProtectWithDenied(mux, audit.RecordDenied)
+				}
+			}
+		}
+		protected.ServeHTTP(w, r)
 	})
 
 	return Middleware(logger, guard, deps.Monitor)

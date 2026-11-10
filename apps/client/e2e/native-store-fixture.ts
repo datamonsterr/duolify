@@ -36,3 +36,4 @@ export const test = base.extend<{ nativeCredentialStore: void }>({
   ],
 });
 export { expect };
+export type { APIRequestContext, Page } from "@playwright/test";
