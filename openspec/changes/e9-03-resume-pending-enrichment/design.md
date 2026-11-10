@@ -12,7 +12,7 @@ E9-01 captured raw notes; E9-02 implemented grounded AI enrichment and left zero
 - `quick_note_enrichments.version` records the note's `raw_version` at delivery time.
 
 ### 2. Queue Locking and Concurrency Control
-- Pending enrichments are selected with `SELECT id, raw_text, status, raw_version FROM quick_notes WHERE learner_id = $1 AND status = 'enrichment_pending' ORDER BY created_at ASC FOR UPDATE SKIP LOCKED`.
+- Resume selects the learner's oldest pending note or expired enrichment lease. Every entry point claims the selected raw revision using a conditional `UPDATE ... RETURNING` scoped by note ID, learner ID and raw version, replacing its fencing token and lease. A competing entry point yields to an active claim before quoting or reserving credits.
 - If an enrichment job encounters a note whose current `raw_version` differs from the job's `expected_version`, the stale job safely terminates without writing or charging.
 - If a note is already in `enriched` status with `enrichment.version == note.raw_version`, retries do not charge or re-enrich.
 
@@ -37,6 +37,7 @@ E9-01 captured raw notes; E9-02 implemented grounded AI enrichment and left zero
   - `note-enrich-stale-version`: Stale version mismatch rejects overwrite.
   - `note-enrich-exhaustion`: Provider credit ceiling limits attempt count within bounds.
   - `note-enrich-retry`: Successful retry after initial failure delivers valid summary.
+
 ## Review correction: fenced enrichment leases
 
 Every claimed raw revision has a unique fencing token and a lease deadline. The initial lease lasts two minutes; attaching a reservation extends it through the configured provider deadline plus fifteen seconds for settlement. Manual enrichment, workers and learner-scoped resume may reclaim expired leases, including legacy enriching rows using updated_at plus two minutes. Before reserving again, recovery settles the previous undelivered reservation at zero.

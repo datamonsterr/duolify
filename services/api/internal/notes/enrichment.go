@@ -216,6 +216,8 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		return err
 	}
 	delivered := false
+	failureReason := "enrichment_failed"
+	var engineStarted time.Time
 	var reservationID string
 	var rate pricing.ModelRate
 	recoveryReservationID, recoveryQuoteID := note.ReservationID, note.QuoteID
@@ -239,6 +241,10 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		_, statusErr := s.pool.Exec(cleanupCtx, `UPDATE quick_notes SET status=$4,reservation_id=CASE WHEN $5 THEN $6::uuid ELSE NULL END,quote_id=CASE WHEN $5 THEN $7::uuid ELSE NULL END,enrichment_claim_id=NULL,enrichment_lease_until=NULL,updated_at=now() WHERE id=$1 AND learner_id=$2 AND enrichment_claim_id=$3`, noteUUID, learnerUUID, claimID, status, preserveReservation, recoveryReservationID, recoveryQuoteID)
 		if settleErr != nil || statusErr != nil {
 			resultErr = errors.Join(resultErr, settleErr, statusErr)
+		}
+		_ = EmitQuickNoteEnrichmentFailed(s.events, learnerID, noteID, failureReason, "web", "0.1.0")
+		if s.events != nil && !engineStarted.IsZero() {
+			_ = s.events.Capture(learnerID, "$ai_generation", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "feature": "quick_note", "succeeded": false, "$ai_is_error": true, "error_code": failureReason, "latency_ms": time.Since(engineStarted).Milliseconds()})
 		}
 	}()
 	if s.credits == nil {
@@ -293,6 +299,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		return ErrStaleVersion
 	}
 	if err = s.credits.Claim(ctx, learnerID, res.ID); err != nil {
+		failureReason = "claim_failed"
 		return err
 	}
 	var allowedLessons []*enginev1.LessonRef
@@ -313,6 +320,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 		return err
 	}
 	if s.engineClient == nil {
+		failureReason = "engine_unavailable"
 		return errors.New("engine client not configured")
 	}
 	callCtx, cancel := context.WithDeadline(ctx, res.DeadlineAt)
@@ -321,20 +329,27 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 	if note.LessonID.Valid {
 		lessonRef = &enginev1.LessonRef{LessonId: formatUUID(note.LessonID), Title: note.SlideTitle}
 	}
-	start := time.Now()
+	engineStarted = time.Now()
 	response, err := s.engineClient.EnrichNote(callCtx, &enginev1.EnrichNoteRequest{Note: note.RawText, Lesson: lessonRef, Learner: &enginev1.LearnerProfile{}, Limits: limits, AllowedLessons: allowedLessons})
 	if err != nil {
+		failureReason = "engine_failure"
 		return err
 	}
 	if response == nil {
+		failureReason = "engine_failure"
 		return errors.New("engine returned no enrichment")
 	}
 	if err = ValidateEnrichmentBounds(response.Summary, response.Tags); err != nil {
+		failureReason = "bounds_exceeded"
 		return err
 	}
 	attempts := response.Attempts
 	if len(attempts) == 0 && response.Usage != nil {
 		attempts = []*enginev1.Usage{response.Usage}
+	}
+	if len(attempts) == 0 {
+		failureReason = "usage_unavailable"
+		return credits.ErrUsage
 	}
 	// The financial transaction locks the note before testing the raw revision;
 	// updates and the final status either commit with the charge or all roll back.
@@ -373,7 +388,7 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 	delivered = true
 	_ = EmitQuickNoteEnriched(s.events, learnerID, noteID, "web", "0.1.0")
 	if s.events != nil {
-		_ = s.events.Capture(learnerID, "$ai_generation", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "feature": "quick_note", "succeeded": true, "$ai_is_error": false, "latency_ms": time.Since(start).Milliseconds()})
+		_ = s.events.Capture(learnerID, "$ai_generation", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "feature": "quick_note", "succeeded": true, "$ai_is_error": false, "latency_ms": time.Since(engineStarted).Milliseconds()})
 	}
 	return nil
 }

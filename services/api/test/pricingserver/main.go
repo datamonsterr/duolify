@@ -740,12 +740,12 @@ func (mockE2ENoteServer) EnrichNote(_ context.Context, req *enginev1.EnrichNoteR
 		Tags:    []string{"rotation", "polaris"},
 		Links:   links,
 		Usage: &enginev1.Usage{
-			Provider:     "mock",
-			Model:        "mock-note-v1",
+			Provider:     req.Limits.Provider,
+			Model:        req.Limits.Model,
 			InputTokens:  120,
 			OutputTokens: 35,
 			Attempt:      1,
-			Component:    "note_enrich",
+			Component:    "content",
 			Delivered:    true,
 		},
 	}, nil

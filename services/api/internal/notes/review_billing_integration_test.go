@@ -58,6 +58,39 @@ func TestNotesReviewSQLRequiresCurrentVersion(t *testing.T) {
 	}
 }
 
+func TestNotesReviewWorkerQueryOwnership(t *testing.T) {
+	database := reviewDatabase(t)
+	owner, financial := reviewLearner(t, database)
+	foreign, _ := reviewLearner(t, database)
+	service := notes.NewServiceWithEnrichment(database.Pool, nil, financial, nil)
+	note, err := service.SaveNote(t.Context(), owner, notes.SaveNoteInput{ActionKey: uuid.NewString(), Source: "chat", RawText: "Owner only"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := pgtype.UUID{Bytes: uuid.MustParse(note.ID), Valid: true}
+	foreignID := pgtype.UUID{Bytes: uuid.MustParse(foreign), Valid: true}
+	before := reviewBalance(t, database, owner)
+	if err = service.ProcessEnrichmentWithVersion(t.Context(), foreign, note.ID, note.RawVersion); !errors.Is(err, notes.ErrNotFound) {
+		t.Errorf("foreign worker got %v; want not found", err)
+	}
+	if _, err = database.Queries.GetQuickNoteForUpdate(t.Context(), db.GetQuickNoteForUpdateParams{ID: id, LearnerID: foreignID}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Errorf("foreign locking read got %v", err)
+	}
+	if _, err = database.Queries.UpdateQuickNoteStatus(t.Context(), db.UpdateQuickNoteStatusParams{ID: id, LearnerID: foreignID, Status: "enriched"}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Errorf("foreign status update got %v", err)
+	}
+	refreshed, err := service.GetNote(t.Context(), owner, note.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.Status != "enrichment_pending" {
+		t.Error("foreign worker changed status")
+	}
+	if delta := reviewBalance(t, database, owner) - before; delta != 0 {
+		t.Errorf("foreign worker ledger delta=%d want 0", delta)
+	}
+}
+
 func TestNotesReviewEnrichmentClaim(t *testing.T) {
 	database := reviewDatabase(t)
 	learner, financial := reviewLearner(t, database)
@@ -299,21 +332,32 @@ func TestNotesReviewCourseOwnership(t *testing.T) {
 
 func TestNotesReviewBillingAtomicity(t *testing.T) {
 	database := reviewDatabase(t)
-	for _, mode := range []string{"engine-error", "bounds", "stale-edit", "persist-error", "success"} {
+	for _, mode := range []string{"engine-error", "bounds", "stale-edit", "persist-error", "missing-usage", "cancelled-request", "success"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := t.Context()
 			learner, financial := reviewLearner(t, database)
 			fixture := &reviewEngine{}
-			service := notes.NewServiceWithEnrichment(database.Pool, nil, financial, fixture)
+			events := &testEventsDouble{}
+			service := notes.NewServiceWithEnrichment(database.Pool, events, financial, fixture)
 			note, err := service.SaveNote(ctx, learner, notes.SaveNoteInput{ActionKey: uuid.NewString(), Source: "chat", RawText: "Original note"})
 			if err != nil {
 				t.Fatal(err)
 			}
+			processCtx, cancelProcess := context.WithCancel(ctx)
+			defer cancelProcess()
 			fixture.enrich = func(ctx context.Context, req *enginev1.EnrichNoteRequest) (*enginev1.EnrichNoteResponse, error) {
 				if mode == "engine-error" {
 					return nil, errors.New("provider failed")
 				}
 				response := reviewResponse(req)
+				if mode == "cancelled-request" {
+					cancelProcess()
+					return nil, context.Canceled
+				}
+				if mode == "missing-usage" {
+					response.Usage = nil
+					response.Attempts = nil
+				}
 				if mode == "bounds" {
 					response.Summary = strings.Repeat("x", 1001)
 				}
@@ -336,12 +380,25 @@ func TestNotesReviewBillingAtomicity(t *testing.T) {
 				}()
 			}
 			before := reviewBalance(t, database, learner)
-			err = service.ProcessEnrichment(ctx, learner, note.ID)
+			err = service.ProcessEnrichment(processCtx, learner, note.ID)
 			if mode == "success" && err != nil {
 				t.Fatal(err)
 			}
 			if mode != "success" && err == nil {
 				t.Error("non-delivery returned success")
+			}
+			if mode != "success" {
+				foundFailure := false
+				events.mu.Lock()
+				for _, event := range events.events {
+					if event.Event == "quick_note_enrichment_failed" {
+						foundFailure = true
+					}
+				}
+				events.mu.Unlock()
+				if !foundFailure {
+					t.Error("enrichment failure analytics missing")
+				}
 			}
 			if mode == "stale-edit" && !errors.Is(err, notes.ErrStaleVersion) {
 				t.Errorf("got %v, want stale version", err)
