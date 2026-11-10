@@ -129,6 +129,8 @@ func TestOfferSpacedRetriesAndTopicRecapsIntegration(t *testing.T) {
 				},
 			},
 			VariantPool: []*enginev1.TopicVariants{
+				{TopicId: "top-orbits", Variants: []*enginev1.Question{{QuestionId: "v-orbits", TopicId: "top-orbits", VariantOf: "q2", Prompt: "Which curve describes a planet's path around its star?", Choices: []string{"Ellipses", "Straight vectors", "Perfect spheres"}, AnswerIndex: 0, Explanation: "Planetary paths are ellipses."}}},
+				{TopicId: "top-gravity", Variants: []*enginev1.Question{{QuestionId: "v-gravity", TopicId: "top-gravity", VariantOf: "q3", Prompt: "What change does mass cause to the geometry around it?", Choices: []string{"Magnetic poles", "Curving spacetime", "Spinning charges"}, AnswerIndex: 1, Explanation: "Mass curves spacetime."}}},
 				{
 					TopicId: "top-sunrise",
 					Variants: []*enginev1.Question{
@@ -308,12 +310,16 @@ func TestOfferSpacedRetriesAndTopicRecapsIntegration(t *testing.T) {
 		t.Fatalf("expected 3 questions, got %d", len(questionsRaw))
 	}
 
+	q1ID := questionsRaw[0].(map[string]any)["question_id"]
+	q2ID := questionsRaw[1].(map[string]any)["question_id"]
+	q3ID := questionsRaw[2].(map[string]any)["question_id"]
+
 	// 3. Spaced retry persistence:
 	// Answer Q1 (top-sunrise) wrongly.
 	// Remaining questions were Q2, Q3 (count = 2). min_gap = 2.
 	// So variant for top-sunrise MUST be inserted after Q2 and Q3 (at position 2 of remaining).
 	code, ans1, _ := call("POST", fmt.Sprintf("/v1/lessons/%s/test/answer", lessonID), map[string]any{
-		"question_id":  "q1",
+		"question_id":  q1ID,
 		"choice_index": 1, // Wrong
 	}, token)
 	if code != 200 {
@@ -335,7 +341,7 @@ func TestOfferSpacedRetriesAndTopicRecapsIntegration(t *testing.T) {
 	if len(persistedQueue) != 3 {
 		t.Fatalf("expected 3 items in persistedQueue, got %d", len(persistedQueue))
 	}
-	if persistedQueue[0]["question_id"] != "q2" || persistedQueue[1]["question_id"] != "q3" {
+	if persistedQueue[0]["question_id"] != q2ID || persistedQueue[1]["question_id"] != q3ID {
 		t.Fatalf("expected Q2 and Q3 before variant, got %v, %v", persistedQueue[0]["question_id"], persistedQueue[1]["question_id"])
 	}
 	if persistedQueue[2]["is_variant"] != true || persistedQueue[2]["topic_id"] != "top-sunrise" {
@@ -348,7 +354,7 @@ func TestOfferSpacedRetriesAndTopicRecapsIntegration(t *testing.T) {
 		t.Fatalf("resume test code %d", code)
 	}
 	resumedQuestions := resumeTestOut["questions"].([]any)
-	if len(resumedQuestions) != 3 || resumedQuestions[0].(map[string]any)["question_id"] != "q2" {
+	if len(resumedQuestions) != 3 || resumedQuestions[0].(map[string]any)["question_id"] != q2ID {
 		t.Fatalf("resumed test queue does not match persisted queue: %v", resumedQuestions)
 	}
 
@@ -361,7 +367,7 @@ func TestOfferSpacedRetriesAndTopicRecapsIntegration(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			c, _, _ := call("POST", fmt.Sprintf("/v1/lessons/%s/test/answer", lessonID), map[string]any{
-				"question_id":  "q2",
+				"question_id":  q2ID,
 				"choice_index": 1, // Correct answer
 			}, token)
 			concurrentStatusCodes[idx] = c
@@ -382,7 +388,7 @@ func TestOfferSpacedRetriesAndTopicRecapsIntegration(t *testing.T) {
 
 	// 5. Answer Q3 correctly
 	code, ans3, _ := call("POST", fmt.Sprintf("/v1/lessons/%s/test/answer", lessonID), map[string]any{
-		"question_id":  "q3",
+		"question_id":  q3ID,
 		"choice_index": 0, // Correct
 	}, token)
 	if code != 200 || ans3["correct"] != true {
@@ -392,7 +398,7 @@ func TestOfferSpacedRetriesAndTopicRecapsIntegration(t *testing.T) {
 	// Now only top-sunrise is unresolved.
 	// Miss variant 1
 	code, ansV1, _ := call("POST", fmt.Sprintf("/v1/lessons/%s/test/answer", lessonID), map[string]any{
-		"question_id":  "v1-sunrise",
+		"question_id":  ans1["retry_variant"].(map[string]any)["question_id"],
 		"choice_index": 1, // Wrong
 	}, token)
 	if code != 200 || ansV1["correct"] != false {
@@ -401,7 +407,7 @@ func TestOfferSpacedRetriesAndTopicRecapsIntegration(t *testing.T) {
 
 	// Miss variant 2
 	code, ansV2, _ := call("POST", fmt.Sprintf("/v1/lessons/%s/test/answer", lessonID), map[string]any{
-		"question_id":  "v2-sunrise",
+		"question_id":  ansV1["retry_variant"].(map[string]any)["question_id"],
 		"choice_index": 0, // Wrong
 	}, token)
 	if code != 200 || ansV2["correct"] != false {
@@ -411,7 +417,7 @@ func TestOfferSpacedRetriesAndTopicRecapsIntegration(t *testing.T) {
 	// Miss variant 3 (this is the 3rd consecutive variant wrong answer on top-sunrise)
 	// Must offer taught slide recap!
 	code, ansV3, _ := call("POST", fmt.Sprintf("/v1/lessons/%s/test/answer", lessonID), map[string]any{
-		"question_id":  "v3-sunrise",
+		"question_id":  ansV2["retry_variant"].(map[string]any)["question_id"],
 		"choice_index": 1, // Wrong
 	}, token)
 	if code != 200 {
@@ -443,7 +449,7 @@ func TestOfferSpacedRetriesAndTopicRecapsIntegration(t *testing.T) {
 
 	// Now learner answers the final variant correctly
 	code, ansV4, _ := call("POST", fmt.Sprintf("/v1/lessons/%s/test/answer", lessonID), map[string]any{
-		"question_id":  "v4-sunrise",
+		"question_id":  ansV3["retry_variant"].(map[string]any)["question_id"],
 		"choice_index": 0, // Correct
 	}, token)
 	if code != 200 {

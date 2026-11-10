@@ -384,8 +384,9 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 
 	// Submit correct answer
 	ans2Code, ans2Out, _ := call("POST", "/v1/lessons/"+lesson1ID+"/test/answer", map[string]any{
-		"question_id":  q1ID,
-		"choice_index": 0,
+		"question_id":   ans1Out["retry_variant"].(map[string]any)["question_id"],
+		"operation_key": "first-lesson-final",
+		"choice_index":  0,
 	}, token)
 	if ans2Code != 200 {
 		t.Fatalf("correct answer failed: %d %v", ans2Code, ans2Out)
@@ -433,8 +434,9 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 
 	// Duplicate pass submission is idempotent
 	dupCode, dupOut, _ := call("POST", "/v1/lessons/"+lesson1ID+"/test/answer", map[string]any{
-		"question_id":  q1ID,
-		"choice_index": 0,
+		"question_id":   ans1Out["retry_variant"].(map[string]any)["question_id"],
+		"operation_key": "first-lesson-final",
+		"choice_index":  0,
 	}, token)
 	if dupCode != 200 || dupOut["passed"] != true {
 		t.Fatalf("duplicate submission failed: %d %v", dupCode, dupOut)

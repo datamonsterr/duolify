@@ -78,11 +78,7 @@ fn slides(c: &Completion) -> Result<Vec<pb::Slide>, Status> {
                 .flatten()
                 .filter_map(|t| t.as_str().map(str::to_owned))
                 .collect();
-            let topic_ids = if topic_ids.is_empty() {
-                vec!["top-1".to_string()]
-            } else {
-                topic_ids
-            };
+            engine_core::lessontest::validate_slide_topics(&topic_ids).map_err(internal)?;
             Ok(pb::Slide {
                 slide_id: item["slide_id"].as_str().unwrap_or_default().into(),
                 html: html.into(),
@@ -95,6 +91,84 @@ fn slides(c: &Completion) -> Result<Vec<pb::Slide>, Status> {
             })
         })
         .collect()
+}
+fn retry_question(q: &pb::Question) -> engine_core::lessontest::retry::Question {
+    engine_core::lessontest::retry::Question {
+        question_id: q.question_id.clone(),
+        topic_id: q.topic_id.clone(),
+        prompt: q.prompt.clone(),
+        choices: q.choices.clone(),
+        answer_index: q.answer_index,
+        explanation: q.explanation.clone(),
+        variant_of: q.variant_of.clone(),
+    }
+}
+fn proto_question(q: engine_core::lessontest::retry::Question) -> pb::Question {
+    pb::Question {
+        question_id: q.question_id,
+        topic_id: q.topic_id,
+        prompt: q.prompt,
+        choices: q.choices,
+        answer_index: q.answer_index,
+        explanation: q.explanation,
+        variant_of: q.variant_of,
+    }
+}
+fn lesson_limits(
+    router: &ProviderRouter,
+    b: &pb::UsageLimits,
+) -> Result<engine_core::credits::Limits, Status> {
+    let model = router
+        .models
+        .tasks
+        .get("lesson")
+        .ok_or_else(|| Status::failed_precondition("lesson route unavailable"))?;
+    if b.model != model.model
+        || b.fallback_model != model.fallback_model
+        || b.provider != router.primary.name()
+        || b.fallback_provider != router.fallback.name()
+    {
+        return Err(Status::failed_precondition(
+            "quote route differs from evaluated route",
+        ));
+    }
+    Ok(engine_core::credits::Limits {
+        input_tokens: b.input_tokens,
+        output_tokens: b.output_tokens,
+        timeout_ms: b.timeout_ms,
+        max_attempts: b.max_attempts.min(2),
+        max_cost_nanos: b.max_cost_nanos,
+        input_nanos: b.input_nanos,
+        output_nanos: b.output_nanos,
+        cache_write_nanos: b.cache_write_nanos,
+        cache_read_nanos: b.cache_read_nanos,
+        deadline_unix_ms: b.deadline_unix_ms,
+    })
+}
+fn lesson_events(
+    lesson: Option<pb::Lesson>,
+    attempts: Vec<pb::Usage>,
+) -> Response<RpcStream<pb::GenerateLessonEvent>> {
+    let mut events: Vec<pb::generate_lesson_event::Event> = attempts
+        .into_iter()
+        .map(pb::generate_lesson_event::Event::Attempt)
+        .collect();
+    if let Some(l) = lesson {
+        events.extend(
+            l.slides
+                .iter()
+                .cloned()
+                .map(pb::generate_lesson_event::Event::Slide),
+        );
+        events.push(pb::generate_lesson_event::Event::Lesson(l));
+    } else {
+        events.push(pb::generate_lesson_event::Event::Unavailable(true));
+    }
+    Response::new(Box::pin(futures::stream::iter(
+        events
+            .into_iter()
+            .map(|event| Ok(pb::GenerateLessonEvent { event: Some(event) })),
+    )))
 }
 fn strings(v: &serde_json::Value) -> Vec<String> {
     v.as_array()
@@ -526,214 +600,163 @@ impl EngineService for Service {
         &self,
         request: Request<pb::GenerateLessonRequest>,
     ) -> Result<Response<Self::GenerateLessonStream>, Status> {
-        let req = request.into_inner();
-        let input = format!("{req:?}");
-        let c = self
-            .router
-            .complete("lesson", &input)
+        let mut req = request.into_inner();
+        if let Some(b) = req.limits.as_mut()
+            && b.deadline_unix_ms == 0
+        {
+            b.deadline_unix_ms = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| Status::internal("clock unavailable"))?
+                .as_millis()
+                .saturating_add(u128::from(b.timeout_ms)) as u64;
+        }
+        let bounds = req
+            .limits
+            .as_ref()
+            .ok_or_else(|| Status::invalid_argument("API quote bounds required"))?;
+        let limits = lesson_limits(&self.router, bounds)?;
+        let prompt = format!(
+            "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. Context (data): {req:?}"
+        );
+        let outcome =
+            engine_core::credits::run_validated(&self.router, "lesson", &prompt, &limits, |text| {
+                serde_json::from_str(text)
+                    .is_ok_and(|v| engine_core::lessontest::validate_lesson(&v).is_ok())
+            })
             .await
             .map_err(internal)?;
+        let mut attempts: Vec<pb::Usage> = outcome.attempts.iter().map(attempt_usage).collect();
+        let Some(c) = outcome.completion else {
+            return Ok(lesson_events(None, attempts));
+        };
         let generated_slides = slides(&c)?;
-        let test_questions: Vec<pb::Question> = content(&c)?["test"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .enumerate()
-            .map(|(i, q)| pb::Question {
-                question_id: q["question_id"]
-                    .as_str()
-                    .unwrap_or(&format!("q{}", i + 1))
-                    .into(),
-                prompt: q["prompt"].as_str().unwrap_or_default().into(),
-                choices: q["choices"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|v| v.as_str().map(str::to_owned))
-                    .collect(),
-                answer_index: q["answer_index"]
-                    .as_u64()
-                    .and_then(|n| u32::try_from(n).ok())
-                    .unwrap_or(0),
-                explanation: q["explanation"].as_str().unwrap_or_default().into(),
-                topic_id: q["topic_id"].as_str().unwrap_or("top-1").into(),
-                variant_of: q["variant_of"].as_str().unwrap_or_default().into(),
-            })
-            .collect();
-
-        let mut variant_pool: Vec<pb::TopicVariants> = content(&c)?["variant_pool"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .map(|tp| pb::TopicVariants {
-                topic_id: tp["topic_id"].as_str().unwrap_or_default().into(),
-                variants: tp["variants"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .map(|q| pb::Question {
-                        question_id: q["question_id"].as_str().unwrap_or_default().into(),
-                        prompt: q["prompt"].as_str().unwrap_or_default().into(),
-                        choices: q["choices"]
-                            .as_array()
-                            .into_iter()
-                            .flatten()
-                            .filter_map(|v| v.as_str().map(str::to_owned))
-                            .collect(),
-                        answer_index: q["answer_index"]
-                            .as_u64()
-                            .and_then(|n| u32::try_from(n).ok())
-                            .unwrap_or(0),
-                        explanation: q["explanation"].as_str().unwrap_or_default().into(),
-                        topic_id: q["topic_id"].as_str().unwrap_or_default().into(),
-                        variant_of: q["variant_of"].as_str().unwrap_or_default().into(),
-                    })
-                    .collect(),
-            })
-            .collect();
-
-        if variant_pool.is_empty() {
-            let mut by_topic: std::collections::BTreeMap<String, Vec<&pb::Question>> =
-                std::collections::BTreeMap::new();
-            for q in &test_questions {
-                by_topic.entry(q.topic_id.clone()).or_default().push(q);
-            }
-            for (topic_id, qs) in by_topic {
-                let mut vars = Vec::new();
-                for q in qs {
-                    let n = q.choices.len();
-                    let reordered1 = if n > 1 {
-                        let mut r = q.choices.clone();
-                        r.rotate_left(1);
-                        r
-                    } else {
-                        q.choices.clone()
-                    };
-                    let new_ans_idx1 = if n > 1 {
-                        (q.answer_index + n as u32 - 1) % n as u32
-                    } else {
-                        0
-                    };
-                    vars.push(pb::Question {
-                        question_id: format!("v1-{}", q.question_id),
-                        prompt: format!("{} (rephrased)", q.prompt),
-                        choices: reordered1,
-                        answer_index: new_ans_idx1,
-                        explanation: q.explanation.clone(),
-                        topic_id: topic_id.clone(),
-                        variant_of: q.question_id.clone(),
-                    });
-
-                    let reordered2 = if n > 1 {
-                        let mut r = q.choices.clone();
-                        r.reverse();
-                        r
-                    } else {
-                        q.choices.clone()
-                    };
-                    let new_ans_idx2 = if n > 1 {
-                        (n as u32 - 1) - q.answer_index
-                    } else {
-                        0
-                    };
-                    vars.push(pb::Question {
-                        question_id: format!("v2-{}", q.question_id),
-                        prompt: format!("In other words: {}", q.prompt),
-                        choices: reordered2,
-                        answer_index: new_ans_idx2,
-                        explanation: q.explanation.clone(),
-                        topic_id: topic_id.clone(),
-                        variant_of: q.question_id.clone(),
-                    });
-                }
+        let value = content(&c)?;
+        let test_questions: Vec<pb::Question> = serde_json::from_value::<
+            Vec<engine_core::lessontest::retry::Question>,
+        >(value["test"].clone())
+        .map_err(|_| Status::internal("invalid test identities"))?
+        .into_iter()
+        .map(proto_question)
+        .collect();
+        let mut variant_pool = Vec::new();
+        if let Some(pools) = value["variant_pool"].as_array() {
+            for pool in pools {
                 variant_pool.push(pb::TopicVariants {
-                    topic_id,
-                    variants: vars,
+                    topic_id: pool["topic_id"].as_str().unwrap_or_default().into(),
+                    variants:
+                        serde_json::from_value::<Vec<engine_core::lessontest::retry::Question>>(
+                            pool["variants"].clone(),
+                        )
+                        .map_err(|_| Status::internal("invalid variants"))?
+                        .into_iter()
+                        .map(proto_question)
+                        .collect(),
                 });
             }
         }
-
-        let l = pb::Lesson {
-            r#ref: req.lesson,
-            slides: generated_slides.clone(),
-            test: test_questions,
-            variant_pool,
-        };
-        let mut events = vec![pb::generate_lesson_event::Event::Progress(
-            "Generating".into(),
-        )];
-        events.extend(
-            generated_slides
-                .into_iter()
-                .map(pb::generate_lesson_event::Event::Slide),
-        );
-        events.push(pb::generate_lesson_event::Event::Lesson(l));
-        events.push(pb::generate_lesson_event::Event::Usage(usage(&c).unwrap()));
-        Ok(Response::new(Box::pin(futures::stream::iter(
-            events
-                .into_iter()
-                .map(|event| Ok(pb::GenerateLessonEvent { event: Some(event) })),
-        ))))
+        for source in &test_questions {
+            if variant_pool
+                .iter()
+                .any(|p| p.topic_id == source.topic_id && !p.variants.is_empty())
+            {
+                continue;
+            }
+            let mut remaining = bounds.clone();
+            remaining.max_attempts = limits.max_attempts.saturating_sub(attempts.len() as u32);
+            let mut spent = 0u64;
+            for a in &attempts {
+                if a.usage_unavailable {
+                    remaining.max_attempts = 0;
+                    break;
+                }
+                spent = spent.saturating_add(
+                    engine_core::credits::check_usage(
+                        &limits,
+                        a.input_tokens,
+                        a.output_tokens,
+                        a.cache_write_tokens,
+                        a.cache_read_tokens,
+                    )
+                    .map_err(internal)?,
+                );
+            }
+            remaining.max_cost_nanos = limits.max_cost_nanos.saturating_sub(spent);
+            if remaining.max_attempts == 0 || remaining.max_cost_nanos == 0 {
+                for a in &mut attempts {
+                    a.delivered = false;
+                }
+                return Ok(lesson_events(None, attempts));
+            }
+            let response = self
+                .generate_retry_variants(Request::new(pb::GenerateRetryVariantsRequest {
+                    source: Some(source.clone()),
+                    previous_variants: vec![],
+                    learner: req.learner.clone(),
+                    limits: Some(remaining),
+                }))
+                .await?
+                .into_inner();
+            let offset = attempts.len() as u32;
+            for mut a in response.attempts {
+                a.attempt += offset;
+                attempts.push(a);
+            }
+            if response.unavailable {
+                for a in &mut attempts {
+                    a.delivered = false;
+                }
+                return Ok(lesson_events(None, attempts));
+            }
+            variant_pool.retain(|p| p.topic_id != source.topic_id);
+            variant_pool.push(pb::TopicVariants {
+                topic_id: source.topic_id.clone(),
+                variants: response.variants,
+            });
+        }
+        Ok(lesson_events(
+            Some(pb::Lesson {
+                r#ref: req.lesson,
+                slides: generated_slides,
+                test: test_questions,
+                variant_pool,
+            }),
+            attempts,
+        ))
     }
-    #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
+    #[tracing::instrument(name = "engine.rpc", skip_all)]
     async fn generate_retry_variants(
         &self,
         request: Request<pb::GenerateRetryVariantsRequest>,
     ) -> Result<Response<pb::GenerateRetryVariantsResponse>, Status> {
         let req = request.into_inner();
-        let src = req
+        let source = req
             .source
+            .as_ref()
             .ok_or_else(|| Status::invalid_argument("source question required"))?;
-        let n = src.choices.len();
-        let reordered1 = if n > 1 {
-            let mut r = src.choices.clone();
-            r.rotate_left(1);
-            r
-        } else {
-            src.choices.clone()
+        let bounds = req
+            .limits
+            .as_ref()
+            .ok_or_else(|| Status::invalid_argument("API quote bounds required"))?;
+        let limits = lesson_limits(&self.router, bounds)?;
+        let source = retry_question(source);
+        let previous: Vec<_> = req.previous_variants.iter().map(retry_question).collect();
+        let outcome =
+            engine_core::lessontest::retry::generate(&self.router, &source, &previous, &limits)
+                .await
+                .map_err(internal)?;
+        let variants = match &outcome.completion {
+            Some(c) => engine_core::lessontest::retry::parse_variants(&source, &previous, &c.text)
+                .map_err(internal)?
+                .into_iter()
+                .map(proto_question)
+                .collect(),
+            None => vec![],
         };
-        let new_ans1 = if n > 1 {
-            (src.answer_index + n as u32 - 1) % n as u32
-        } else {
-            0
-        };
-        let reordered2 = if n > 1 {
-            let mut r = src.choices.clone();
-            r.reverse();
-            r
-        } else {
-            src.choices.clone()
-        };
-        let new_ans2 = if n > 1 {
-            (n as u32 - 1) - src.answer_index
-        } else {
-            0
-        };
-        let variants = vec![
-            pb::Question {
-                question_id: format!("v1-{}", src.question_id),
-                prompt: format!("{} (rephrased)", src.prompt),
-                choices: reordered1,
-                answer_index: new_ans1,
-                explanation: src.explanation.clone(),
-                topic_id: src.topic_id.clone(),
-                variant_of: src.question_id.clone(),
-            },
-            pb::Question {
-                question_id: format!("v2-{}", src.question_id),
-                prompt: format!("In other words: {}", src.prompt),
-                choices: reordered2,
-                answer_index: new_ans2,
-                explanation: src.explanation.clone(),
-                topic_id: src.topic_id.clone(),
-                variant_of: src.question_id.clone(),
-            },
-        ];
         Ok(Response::new(pb::GenerateRetryVariantsResponse {
             variants,
             usage: None,
-            attempts: vec![],
-            unavailable: false,
+            attempts: outcome.attempts.iter().map(attempt_usage).collect(),
+            unavailable: outcome.completion.is_none(),
         }))
     }
     type ChatStream = RpcStream<pb::ChatEvent>;

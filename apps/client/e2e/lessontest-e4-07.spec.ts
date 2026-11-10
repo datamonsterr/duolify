@@ -51,7 +51,7 @@ for (const mobile of [false, true]) {
     };
 
     const q1Original = {
-      question_id: "q1",
+      question_id: "47003cdd-b2f6-4c74-a36e-6367ba8f9cf4",
       topic_id: "top-sunrise",
       prompt: "What makes the Sun rise in the east?",
       choices: [
@@ -62,9 +62,9 @@ for (const mobile of [false, true]) {
     };
 
     const v1Sunrise = {
-      question_id: "v1-sunrise",
+      question_id: "bc855c32-e31a-4db7-ae5c-c61dbe530bbe",
       topic_id: "top-sunrise",
-      variant_of: "q1",
+      variant_of: "47003cdd-b2f6-4c74-a36e-6367ba8f9cf4",
       is_variant: true,
       prompt:
         "You watch a sunrise from a beach facing east. What is really happening?",
@@ -77,9 +77,9 @@ for (const mobile of [false, true]) {
 
     // Reordered recycled variant after pool exhaustion
     const vReorderedFallback = {
-      question_id: "v1-sunrise-reordered-2",
+      question_id: "d75d5c0a-23c8-429e-bac8-76ab4d3bdd1e",
       topic_id: "top-sunrise",
-      variant_of: "q1",
+      variant_of: "47003cdd-b2f6-4c74-a36e-6367ba8f9cf4",
       is_variant: true,
       prompt:
         "You watch a sunrise from a beach facing east. What is really happening?",
@@ -159,7 +159,7 @@ for (const mobile of [false, true]) {
     await page.route(`**/v1/lessons/${lessonId}/test/answer`, async (r) => {
       const body = r.request().postDataJSON();
 
-      if (body.question_id === "q1") {
+      if (body.question_id === "47003cdd-b2f6-4c74-a36e-6367ba8f9cf4") {
         answerAttempts++;
         return r.fulfill({
           json: {
@@ -176,7 +176,7 @@ for (const mobile of [false, true]) {
         });
       }
 
-      if (body.question_id === "v1-sunrise") {
+      if (body.question_id === "bc855c32-e31a-4db7-ae5c-c61dbe530bbe") {
         answerAttempts++;
         // First attempt on v1-sunrise fails with transient provider error to verify canvas recovery
         if (simulateFailureOnce) {
@@ -184,8 +184,8 @@ for (const mobile of [false, true]) {
           return r.fulfill({
             status: 503,
             json: {
-              error: "provider unavailable",
-              error_code: "provider_unavailable",
+              error: "No approved retry pool is available",
+              error_code: "retry_pool_unavailable",
             },
           });
         }
@@ -206,7 +206,7 @@ for (const mobile of [false, true]) {
         });
       }
 
-      if (body.question_id === "v1-sunrise-reordered-2") {
+      if (body.question_id === "d75d5c0a-23c8-429e-bac8-76ab4d3bdd1e") {
         answerAttempts++;
         return r.fulfill({
           json: {

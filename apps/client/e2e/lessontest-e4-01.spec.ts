@@ -68,7 +68,7 @@ for (const mobile of [false, true]) {
 
     const testQuestions = [
       {
-        question_id: "q1",
+        question_id: "34871c7b-d2ed-4cda-b14c-a7c69da20611",
         topic_id: "top-stars",
         prompt: "What are stars in the night sky?",
         choices: ["Distant suns", "Atmospheric reflections", "Space crystals"],
@@ -168,6 +168,14 @@ for (const mobile of [false, true]) {
             total_topics: 1,
             retry_queue_count: 1,
             passed: false,
+            retry_variant: {
+              question_id: "965377bf-6d5a-4668-8417-86bb374f8049",
+              topic_id: "top-stars",
+              variant_of: "34871c7b-d2ed-4cda-b14c-a7c69da20611",
+              is_variant: true,
+              prompt: "Which objects shine as points in a clear night sky?",
+              choices: ["Remote suns", "Reflected clouds", "Floating gems"],
+            },
           },
         });
       } else {
@@ -233,7 +241,7 @@ for (const mobile of [false, true]) {
       page.getByText("What are stars in the night sky?"),
     ).toBeVisible();
     const wrongChoice = page.getByLabel("Atmospheric reflections");
-    const correctChoice = page.getByLabel("Distant suns");
+    const correctChoice = page.getByLabel("Remote suns");
 
     // Select wrong choice first
     await wrongChoice.check();

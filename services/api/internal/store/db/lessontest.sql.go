@@ -35,7 +35,7 @@ func (q *Queries) GetLessonCompletion(ctx context.Context, arg GetLessonCompleti
 }
 
 const getLessonGeneration = `-- name: GetLessonGeneration :one
-SELECT id, learner_id, course_id, lesson_id, quote_id, reservation_id, state, error_code, created_at FROM lesson_generations WHERE id = $1
+SELECT id, learner_id, course_id, lesson_id, quote_id, reservation_id, state, error_code, created_at, result_checkpoint FROM lesson_generations WHERE id = $1
 `
 
 func (q *Queries) GetLessonGeneration(ctx context.Context, id pgtype.UUID) (LessonGeneration, error) {
@@ -51,6 +51,7 @@ func (q *Queries) GetLessonGeneration(ctx context.Context, id pgtype.UUID) (Less
 		&i.State,
 		&i.ErrorCode,
 		&i.CreatedAt,
+		&i.ResultCheckpoint,
 	)
 	return i, err
 }
