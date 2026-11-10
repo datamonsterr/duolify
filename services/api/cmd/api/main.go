@@ -151,6 +151,7 @@ func run(ctx context.Context, args []string) (result error) {
 		}
 		defer func() { _ = backend.Close() }()
 		outlineService := courses.New(courses.Options{Pool: db.Pool, OutlineEngine: backend, Financial: creditService, Events: events})
+		go outlineService.Maintain(ctx, logger)
 		outlineQueue, err := outlineService.CreationQueue(logger)
 		if err != nil {
 			return err

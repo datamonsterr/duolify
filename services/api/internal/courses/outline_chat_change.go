@@ -68,33 +68,7 @@ func (s *Service) proposalEvent(ctx context.Context, owner, event, id string, re
 }
 func (s *Service) readProposal(ctx context.Context, owner, id, quoteID string) (OutlineProposal, error) {
 	p, err := scanProposal(s.opts.Pool.QueryRow(ctx, `SELECT `+proposalColumns+` FROM outline_proposals p JOIN outline_drafts d ON d.id=p.draft_id JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE p.learner_id::text=$1 AND (p.id::text=$2 OR ($2='' AND p.quote_id::text=$3)) AND b.expires_at>now()`, owner, id, quoteID))
-	if err != nil || p.State != "pending" {
-		return p, err
-	}
-	// An interrupted executor is never restarted by reconnect. Recover its hold
-	// after the original deadline, including a crash between insertion and reserve.
-	var job string
-	var expired bool
-	if err = s.opts.Pool.QueryRow(ctx, `SELECT COALESCE(j.id::text,''), clock_timestamp() >= COALESCE(j.deadline_at,p.created_at+(q.snapshot#>>'{bounds,timeout_ms}')::bigint*interval '1 millisecond') FROM outline_proposals p JOIN pricing_quotes q ON q.id=p.quote_id LEFT JOIN credit_jobs j ON j.quote_id=p.quote_id WHERE p.id::text=$1`, p.ID).Scan(&job, &expired); err != nil || !expired {
-		return p, err
-	}
-	if job != "" {
-		if s.opts.Financial == nil {
-			return p, errors.New("financial unavailable")
-		}
-		if _, err = s.opts.Financial.Settle(ctx, owner, job, nil); err != nil {
-			return p, err
-		}
-	}
-	tag, err := s.opts.Pool.Exec(ctx, "UPDATE outline_proposals SET state='failed' WHERE id::text=$1 AND state='pending'", p.ID)
-	if err != nil {
-		return p, err
-	}
-	if tag.RowsAffected() == 1 {
-		p.State = "failed"
-		s.proposalEvent(ctx, owner, "outline_proposal_failed", p.ID, p.BaseRevision)
-	}
-	return p, nil
+	return p, err
 }
 
 // ServeProposalHTTP shares authenticated draft ownership and the existing financial boundary.
@@ -124,13 +98,6 @@ func (s *Service) ServeProposalHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			outlineError(w, 404)
 			return
-		}
-		if p.State == "validated" {
-			p, err = s.deliverProposal(r.Context(), owner, p)
-			if err != nil {
-				outlineError(w, 503)
-				return
-			}
 		}
 		respond(w, 200, p)
 		return
@@ -225,7 +192,12 @@ func (s *Service) generateProposal(w http.ResponseWriter, r *http.Request, owner
 	}
 	job, err := s.opts.Financial.ReserveAction(r.Context(), owner, in.QuoteID, "outline_chat_change")
 	if err != nil {
-		_, _ = s.opts.Pool.Exec(r.Context(), "UPDATE outline_proposals SET state='failed' WHERE id::text=$1", p.ID)
+		var failedID string
+		e := s.opts.Pool.QueryRow(r.Context(), `UPDATE outline_proposals SET state='failed' WHERE id::text=$1 AND state='pending' RETURNING id::text`, p.ID).Scan(&failedID)
+		if e != nil && !errors.Is(e, pgx.ErrNoRows) {
+			outlineError(w, 503)
+			return
+		}
 		message := "Generation limit reached. Your outline and request are kept; review a fresh quote to retry."
 		if errors.Is(err, credits.ErrInsufficient) {
 			message = "Not enough eligible credits. Your outline and request are kept."
@@ -237,17 +209,12 @@ func (s *Service) generateProposal(w http.ResponseWriter, r *http.Request, owner
 		outlineError(w, 409)
 		return
 	}
-	finished, claimed := false, false
+	finished := false
 	defer func() {
 		if !finished {
 			ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
 			defer cancel()
-			if claimed {
-				_, _ = s.opts.Financial.Settle(ctx, owner, job.ID, nil)
-			} else {
-				_, _ = s.opts.Financial.Release(ctx, owner, job.ID)
-			}
-			_, _ = s.opts.Pool.Exec(ctx, "UPDATE outline_proposals SET state='failed' WHERE id::text=$1 AND state='pending'", p.ID)
+			_ = s.failProposal(ctx, owner, p.ID, "pending", job.ID, nil)
 		}
 	}()
 	limits, err := s.opts.Financial.Limits(r.Context(), owner, job.ID, "outline_chat_change")
@@ -259,7 +226,6 @@ func (s *Service) generateProposal(w http.ResponseWriter, r *http.Request, owner
 		outlineError(w, 409)
 		return
 	}
-	claimed = true
 	s.proposalEvent(r.Context(), owner, "outline_proposal_requested", p.ID, p.BaseRevision)
 	outline := &enginev1.CourseOutline{}
 	for _, u := range d.Outline {
@@ -284,22 +250,31 @@ func (s *Service) generateProposal(w http.ResponseWriter, r *http.Request, owner
 	finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
 	defer finishCancel()
 	if !valid {
-		for _, a := range attempts {
-			if a != nil {
-				a.Delivered = false
-			}
+		if err = s.failProposal(finishCtx, owner, p.ID, "pending", job.ID, attempts); err != nil {
+			outlineError(w, 503)
+			return
 		}
-		_, _ = s.opts.Financial.Settle(finishCtx, owner, job.ID, attempts)
-		_, _ = s.opts.Pool.Exec(finishCtx, "UPDATE outline_proposals SET state='failed' WHERE id::text=$1 AND state='pending'", p.ID)
-		s.proposalEvent(finishCtx, owner, "outline_proposal_failed", p.ID, p.BaseRevision)
+		finished = true
 		proposalError(w, 502, "Couldn't suggest a change. Reserved credits were released. Your outline and request are kept; review a fresh quote to retry.")
 		return
 	}
 	ops, _ := json.Marshal(p.Operations)
 	out, _ := json.Marshal(result)
 	usage, _ := json.Marshal(attempts)
-	if _, err = s.opts.Pool.Exec(finishCtx, "UPDATE outline_proposals SET operations=$2,result_outline=$3,attempts=$4,state='validated' WHERE id::text=$1 AND state='pending'", p.ID, ops, out, usage); err != nil {
+	tag, err := s.opts.Pool.Exec(finishCtx, "UPDATE outline_proposals SET operations=$2,result_outline=$3,attempts=$4,state='validated' WHERE id::text=$1 AND state='pending'", p.ID, ops, out, usage)
+	if err != nil {
 		outlineError(w, 503)
+		return
+	}
+	if tag.RowsAffected() != 1 {
+		// This executor owns the quote. If expiry won before reserve was
+		// recorded, discard its late output and release the orphaned hold.
+		if _, e := s.opts.Financial.Settle(finishCtx, owner, job.ID, nil); e != nil {
+			outlineError(w, 503)
+			return
+		}
+		finished = true
+		proposalError(w, 502, "Proposal expired. Review a fresh quote to retry.")
 		return
 	}
 	// Durable validated delivery owns settlement from here, including reconnects.
@@ -329,37 +304,123 @@ func (s *Service) deliverProposal(ctx context.Context, owner string, p OutlinePr
 	if err := json.Unmarshal(raw, &attempts); err != nil {
 		return p, err
 	}
-	settled, err := s.opts.Financial.Settle(ctx, owner, job, attempts)
-	if errors.Is(err, credits.ErrUsage) || (err == nil && settled.State == "released") {
-		// A malformed report must never strand a validated proposal or charge it.
+	changed := false
+	target := "delivered"
+	transition := func(tx pgx.Tx, r credits.Reservation) error {
+		target = "delivered"
+		if r.State != "settled" {
+			target = "failed"
+		}
+		tag, err := tx.Exec(ctx, `UPDATE outline_proposals SET state=$2 WHERE id::text=$1 AND state='validated'`, p.ID, target)
 		if err != nil {
-			if _, err = s.opts.Financial.Settle(ctx, owner, job, nil); err != nil {
-				return p, err
-			}
+			return err
 		}
-		tag, failErr := s.opts.Pool.Exec(ctx, "UPDATE outline_proposals SET state='failed' WHERE id::text=$1 AND state='validated'", p.ID)
-		if failErr != nil {
-			return p, failErr
+		if tag.RowsAffected() != 1 {
+			return errStateLost
 		}
-		p.State = "failed"
-		if tag.RowsAffected() == 1 {
-			s.proposalEvent(ctx, owner, "outline_proposal_failed", p.ID, p.BaseRevision)
-		}
-		return p, nil
+		changed = true
+		return nil
 	}
-	if err != nil || settled.State != "settled" {
-		return p, errors.New("settlement unavailable")
+	settled, err := s.opts.Financial.SettleWith(ctx, owner, job, attempts, transition)
+	if errors.Is(err, credits.ErrUsage) {
+		settled, err = s.opts.Financial.SettleWith(ctx, owner, job, nil, transition)
 	}
-	tag, err := s.opts.Pool.Exec(ctx, "UPDATE outline_proposals SET state='delivered' WHERE id::text=$1 AND state='validated'", p.ID)
+	if errors.Is(err, errStateLost) {
+		return s.readProposal(ctx, owner, p.ID, "")
+	}
 	if err != nil {
 		return p, err
 	}
-	p.State = "delivered"
-	if tag.RowsAffected() == 1 {
-		s.proposalEvent(ctx, owner, "outline_proposal_delivered", p.ID, p.BaseRevision)
+	if !changed {
+		// Terminal financial jobs from older executions skip the callback.
+		tx, e := s.opts.Pool.Begin(ctx)
+		if e != nil {
+			return p, e
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		if e = transition(tx, settled); errors.Is(e, errStateLost) {
+			_ = tx.Rollback(ctx)
+			return s.readProposal(ctx, owner, p.ID, "")
+		} else if e != nil {
+			return p, e
+		}
+		if e = tx.Commit(ctx); e != nil {
+			return p, e
+		}
 	}
+	p.State = target
+	s.proposalEvent(ctx, owner, "outline_proposal_"+target, p.ID, p.BaseRevision)
 	return p, nil
 }
+
+func (s *Service) failProposal(ctx context.Context, owner, id, expected, job string, attempts []*enginev1.Usage) error {
+	for _, a := range attempts {
+		if a != nil {
+			a.Delivered = false
+		}
+	}
+	changed := false
+	transition := func(tx pgx.Tx, _ credits.Reservation) error {
+		tag, err := tx.Exec(ctx, `UPDATE outline_proposals SET state='failed' WHERE id::text=$1 AND state=$2`, id, expected)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() != 1 {
+			return errStateLost
+		}
+		changed = true
+		return nil
+	}
+	if job != "" {
+		result, err := s.opts.Financial.SettleWith(ctx, owner, job, attempts, transition)
+		if errors.Is(err, credits.ErrUsage) {
+			result, err = s.opts.Financial.SettleWith(ctx, owner, job, nil, transition)
+		}
+		if errors.Is(err, errStateLost) {
+			var state string
+			e := s.opts.Pool.QueryRow(ctx, `SELECT state FROM outline_proposals WHERE id::text=$1`, id).Scan(&state)
+			if errors.Is(e, pgx.ErrNoRows) {
+				return nil
+			}
+			if e != nil {
+				return e
+			}
+			if state == "failed" {
+				_, e = s.opts.Financial.Settle(ctx, owner, job, nil)
+				return e
+			}
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !changed && result.State == "settled" {
+			return nil
+		}
+	}
+	if !changed {
+		tx, err := s.opts.Pool.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		if err = transition(tx, credits.Reservation{}); errors.Is(err, errStateLost) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return err
+		}
+	}
+	var rev int64
+	if err := s.opts.Pool.QueryRow(ctx, `SELECT base_revision FROM outline_proposals WHERE id::text=$1`, id).Scan(&rev); err != nil {
+		return err
+	}
+	s.proposalEvent(ctx, owner, "outline_proposal_failed", id, rev)
+	return nil
+}
+
 func (s *Service) decideProposal(w http.ResponseWriter, r *http.Request, owner, id, action string) {
 	ctx := r.Context()
 	tx, err := s.opts.Pool.Begin(ctx)

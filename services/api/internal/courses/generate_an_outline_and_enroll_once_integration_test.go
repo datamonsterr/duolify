@@ -143,6 +143,18 @@ func TestGenerateOutlineEnrollOnceIntegration(t *testing.T) {
 	if c != 202 || duplicate["id"] != creation["id"] {
 		t.Fatal(c, duplicate)
 	}
+	// A real authenticated GET after the enqueue deadline must remain read-only.
+	if _, err = db.Pool.Exec(ctx, `UPDATE course_creations SET created_at=now()-interval '1 day' WHERE id::text=$1`, creation["id"]); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if code, out := call("GET", "/v1/course-creations/"+creation["id"].(string), nil, token); code != 200 || out["state"] != "queued" {
+			t.Error("GET expired creation", code, out)
+		}
+	}
+	if _, err = db.Pool.Exec(ctx, `UPDATE course_creations SET created_at=now() WHERE id::text=$1`, creation["id"]); err != nil {
+		t.Fatal(err)
+	}
 	if err = queue.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
