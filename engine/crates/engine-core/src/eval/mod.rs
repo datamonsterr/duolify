@@ -210,6 +210,11 @@ pub async fn run_bounded_with_policy<F: Fn(&str) -> bool>(
             remaining
         };
 
+        let timeout_duration = if task == "character_create" {
+            timeout_duration.min(Duration::from_secs(45))
+        } else {
+            timeout_duration
+        };
         let response = tokio::time::timeout(
             timeout_duration,
             provider.complete_bounded(route, input, l.output_tokens),

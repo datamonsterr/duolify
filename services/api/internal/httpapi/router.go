@@ -44,6 +44,7 @@ type Dependencies struct {
 	Player          http.Handler
 	Eval            http.Handler
 	Notes           http.Handler
+	Characters      http.Handler
 	Accounts        interface {
 		http.Handler
 		Protect(http.Handler) http.Handler
@@ -161,6 +162,27 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		}); ok {
 			mux.Handle("/v1/bookmarks", deps.Accounts.Protect(http.HandlerFunc(bmHandler.ServeBookmarksHTTP)))
 			mux.Handle("/v1/bookmarks/", deps.Accounts.Protect(http.HandlerFunc(bmHandler.ServeBookmarksHTTP)))
+		}
+	}
+	if deps.Characters != nil {
+		mux.Handle("GET /v1/characters/default-cast", deps.Characters)
+		if deps.Accounts != nil {
+			mux.Handle("/v1/characters", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("POST /v1/characters/jobs", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("GET /v1/characters/jobs/{jobId}", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("DELETE /v1/characters/jobs/{jobId}", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("POST /v1/characters/jobs/{jobId}/confirm", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("GET /v1/characters/creation", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("GET /v1/characters/{id}", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("PATCH /v1/characters/{id}", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("DELETE /v1/characters/{id}", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("GET /v1/courses/{id}/cast", deps.Accounts.Protect(deps.Characters))
+			mux.Handle("PUT /v1/courses/{id}/cast", deps.Accounts.Protect(deps.Characters))
+		}
+		mux.Handle("/v1/characters/", deps.Characters)
+		mux.Handle("/v1/lessons/", deps.Characters)
+		if deps.Accounts != nil {
+			mux.Handle("/v1/courses/{courseId}/lessons/", deps.Accounts.Protect(deps.Characters))
 		}
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {

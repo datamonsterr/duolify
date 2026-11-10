@@ -22,6 +22,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
+	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/config"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
@@ -252,7 +253,15 @@ func run(ctx context.Context, args []string) (result error) {
 			briefPricing = dev
 		}
 	}
+	characterService := characters.NewService(db.Pool, nil, events)
+	characterService.ConfigureScreening(backend)
+	characterService.ConfigureCreation(creditService, backend, os.Getenv("DUOLIFY_ENV"))
+	if err := characterService.Purge(ctx); err != nil {
+		return err
+	}
+	go characterService.Maintain(ctx)
 	handler := httpapi.New(httpapi.Dependencies{
+		Characters:    characters.NewHandler(characterService),
 		Monitor:       monitor,
 		Player:        player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService}),
 		ObjectStorage: telemetry.StorageProbe(os.Getenv),

@@ -18,6 +18,12 @@ var ClassifiedLearnerTables = map[string]string{
 	"bookmarks":                   "erased",
 	"quick_notes":                 "erased",
 	"quick_note_enrichments":      "erased",
+	"character_create_jobs":       "erased_prompt_terminal_or_24h",
+	"characters":                  "erased",
+	"character_versions":          "erased_via_character",
+	"character_screenings":        "erased_30_days",
+	"course_casts":                "erased",
+	"lesson_cast_snapshots":       "erased_independent_payload",
 	"lesson_playback_sync_events": "erased",
 	"lesson_playback_positions":   "erased",
 	"lesson_manifests":            "erased", "course_creations": "erased", "courses": "erased", "course_units": "erased", "course_lesson_stubs": "erased", "course_enrollments": "erased",
@@ -80,6 +86,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		query string
 	}
 	queries := []exportQuery{
+		{table: "character_versions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(v)),'[]'::jsonb) FROM character_versions v JOIN characters c ON c.id=v.character_id WHERE c.learner_id=$1`},
 		{table: "credit_subscription_lifecycle", query: `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]'::jsonb) FROM credit_subscription_lifecycle x JOIN credit_subscriptions b USING(subscription_id) JOIN credit_checkout_orders o ON o.id=b.order_id WHERE o.learner_id=$1`},
 		{table: "credit_subscription_transitions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]'::jsonb) FROM credit_subscription_transitions x JOIN credit_subscriptions b USING(subscription_id) JOIN credit_checkout_orders o ON o.id=b.order_id WHERE o.learner_id=$1`},
 		{table: "credit_subscriptions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(s)),'[]'::jsonb) FROM credit_subscriptions s JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1`},
@@ -104,7 +111,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 	for _, table := range []string{"credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(g)),'[]'::jsonb) FROM " + table + " g JOIN credit_subscription_terms t USING(period_key) JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1"})
 	}
-	for _, table := range []string{"lesson_playback_sync_events", "lesson_playback_positions", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "credit_checkout_orders", "credit_jobs", "credit_outbox", "quick_notes", "quick_note_enrichments", "bookmarks"} {
+	for _, table := range []string{"character_create_jobs", "characters", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_playback_sync_events", "lesson_playback_positions", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "credit_checkout_orders", "credit_jobs", "credit_outbox", "quick_notes", "quick_note_enrichments", "bookmarks"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM " + table + " t WHERE learner_id=$1"})
 	}
 	for _, table := range []string{"credit_allocations", "credit_usage"} {

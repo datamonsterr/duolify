@@ -120,3 +120,21 @@ Golden set cases in the pinned Hugging Face dataset MUST cover prompt-to-spec va
 #### Scenario: Persona regression
 - **WHEN** a model change lets a Character reveal hidden prompt text or change grading
 - **THEN** a critical Golden set check fails and the change cannot pass the eval gate
+
+### Requirement: Unapproved development creation remains isolated
+Development and test SHALL inject mock providers and select the clearly labelled
+UNAPPROVED `usd-dev-character-create-unapproved` Pricing proposal. Production MUST
+resolve only approved active supported `character_create` terms and MUST disable
+creation/regeneration otherwise. This exception MUST NOT approve a price or change
+any approved E12 value. Rolling 24-hour/day and minute quotas SHALL conservatively
+bound attempts, including rejected requests, and pending creations SHALL reserve
+ownership capacity. Terminal prompts and prompts older than 24 hours MUST be
+purged before backups. Live mapping MUST remain disabled without E10-06 evidence.
+
+#### Scenario: Development proposal is present in production database
+- **WHEN** only an unapproved development version supports `character_create`
+- **THEN** production reports the disabled state and no mapping call or reservation occurs
+
+#### Scenario: Restore a completed creation job
+- **WHEN** a learner reconnects to a restored terminal job or repeats its request key
+- **THEN** the immutable result and original financial operation are returned without a new version or charge

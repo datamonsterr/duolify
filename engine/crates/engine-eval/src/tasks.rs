@@ -59,6 +59,9 @@ impl Default for TaskRegistry {
         registered_extensions.insert("course_brief_chat".to_string());
         registered_extensions.insert("outline_chat_change".to_string());
         registered_extensions.insert("credit_envelope".to_string());
+        for task in ["character_spec", "character_screen", "character_injection"] {
+            registered_extensions.insert(task.into());
+        }
 
         Self {
             canonical_tasks,

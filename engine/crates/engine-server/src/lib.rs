@@ -124,6 +124,113 @@ fn attempt_usage(a: &engine_core::credits::Attempt) -> pb::Usage {
 }
 #[tonic::async_trait]
 impl EngineService for Service {
+    async fn screen_character(
+        &self,
+        request: Request<pb::ScreenCharacterRequest>,
+    ) -> Result<Response<pb::ScreenCharacterResponse>, Status> {
+        let req = request.into_inner();
+        if (req.raw_prompt.is_empty() && !engine_core::characters::valid_spec(&req.spec_json))
+            || (!req.raw_prompt.is_empty() && !req.spec_json.is_empty())
+        {
+            return Ok(Response::new(pb::ScreenCharacterResponse {
+                approved: false,
+                reason_code: "invalid_spec".into(),
+                policy_version: "character-v1".into(),
+                attempts: vec![],
+            }));
+        }
+        // ADR 0011 / E10-06: missing live feature evidence keeps writes closed.
+        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+            return Err(Status::unavailable("screening_unavailable"));
+        }
+        let outcome = if let Some(b) = req.limits {
+            let limits = engine_core::credits::Limits {
+                input_tokens: b.input_tokens,
+                output_tokens: b.output_tokens,
+                timeout_ms: b.timeout_ms,
+                max_attempts: b.max_attempts,
+                max_cost_nanos: b.max_cost_nanos,
+                input_nanos: b.input_nanos,
+                output_nanos: b.output_nanos,
+                cache_write_nanos: b.cache_write_nanos,
+                cache_read_nanos: b.cache_read_nanos,
+                deadline_unix_ms: b.deadline_unix_ms,
+            };
+            engine_core::characters::screen_bounded(
+                &self.router,
+                &req.spec_json,
+                &req.compiled_appearance,
+                &req.raw_prompt,
+                &limits,
+            )
+            .await
+        } else if req.raw_prompt.is_empty() {
+            engine_core::characters::screen(&self.router, &req.spec_json, &req.compiled_appearance)
+                .await
+        } else {
+            engine_core::characters::screen_prompt(&self.router, &req.raw_prompt).await
+        }
+        .map_err(|_| Status::unavailable("screening_unavailable"))?;
+        let (approved, reason_code) = outcome
+            .completion
+            .as_ref()
+            .and_then(|c| engine_core::characters::verdict(&c.text))
+            .unwrap_or((false, "screening_unavailable".into()));
+        Ok(Response::new(pb::ScreenCharacterResponse {
+            approved,
+            reason_code,
+            policy_version: "character-v1".into(),
+            attempts: outcome.attempts.iter().map(attempt_usage).collect(),
+        }))
+    }
+    async fn map_character(
+        &self,
+        request: Request<pb::MapCharacterRequest>,
+    ) -> Result<Response<pb::MapCharacterResponse>, Status> {
+        let req = request.into_inner();
+        // E10-06 has no feature-specific live evidence. No env switch can
+        // silently promote this feature or use a live provider.
+        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+            return Err(Status::unavailable("creation_disabled"));
+        }
+        let b = req
+            .limits
+            .ok_or_else(|| Status::invalid_argument("quote bounds required"))?;
+        let route = self
+            .router
+            .models
+            .tasks
+            .get("character_create")
+            .ok_or_else(|| Status::failed_precondition("route unavailable"))?;
+        if b.provider != "mock"
+            || b.fallback_provider != "mock"
+            || b.model != route.model
+            || b.fallback_model != route.fallback_model
+        {
+            return Err(Status::failed_precondition(
+                "quote route differs from evaluated route",
+            ));
+        }
+        let limits = engine_core::credits::Limits {
+            input_tokens: b.input_tokens,
+            output_tokens: b.output_tokens,
+            timeout_ms: b.timeout_ms,
+            max_attempts: b.max_attempts,
+            max_cost_nanos: b.max_cost_nanos,
+            input_nanos: b.input_nanos,
+            output_nanos: b.output_nanos,
+            cache_write_nanos: b.cache_write_nanos,
+            cache_read_nanos: b.cache_read_nanos,
+            deadline_unix_ms: b.deadline_unix_ms,
+        };
+        let out = engine_core::characters::map_character(&self.router, &req.prompt, &limits)
+            .await
+            .map_err(|_| Status::unavailable("provider_unavailable"))?;
+        Ok(Response::new(pb::MapCharacterResponse {
+            spec_json: out.completion.map(|c| c.text).unwrap_or_default(),
+            attempts: out.attempts.iter().map(attempt_usage).collect(),
+        }))
+    }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
     async fn outline_chat_change(
         &self,

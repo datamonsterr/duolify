@@ -105,6 +105,25 @@ if (key)
     autocapture: false,
     capture_pageview: false,
   });
+export function track(
+  event: "lesson_started" | "slide_viewed" | "lesson_completed",
+  properties: Record<string, string | number>,
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    if (key)
+      posthog.capture(event, {
+        ...properties,
+        distinct_id: identity.learnerId,
+        platform: identity.platform,
+        app_version: identity.appVersion ?? "0.1.0",
+        source: "client",
+      });
+  } catch {
+    /* Analytics must not interrupt a lesson. */
+  }
+}
 // Compatibility with the theme foundation; auth has one shared analytics boundary.
 export type UiAnalyticsContext = {
   learnerId: string;
@@ -554,6 +573,12 @@ export function trackBookmarkOpened(value: {
     /* Analytics failure never blocks bookmark opening. */
   }
 }
+
+export {
+  trackCharacterRendered,
+  trackCharacterRenderFallback,
+  resetCharacterRenderDeduplication,
+} from "../features/characters/analytics";
 
 // E3-01 catalogue: authorized-lesson-manifest/specs/lesson-player/spec.md.
 // Deliberately closed projection: no captions, titles, drafts, HTML or URLs.

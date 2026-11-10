@@ -76,7 +76,7 @@ Events MUST NOT contain note text, chat content, profile text, Slide HTML or ans
 - **THEN** the API request still succeeds and events are dropped or retried in the background
 
 ### Requirement: Course and lesson events
-The catalog MUST include: `course_preview_requested` (topic_length, has_profile), `course_preview_viewed` (preview_id: opaque financial job UUID, duration_ms; ephemeral preview only), `course_outline_generated` (course_id, unit_count, lesson_count, provider, model, latency_ms), `course_enrolled` (course_id), `course_generation_failed` (stage: preview|outline, error_code, preview_id when preview, duration_ms), `lesson_generation_requested` (course_id, lesson_id), `lesson_generated` (lesson_id, slide_count, provider, model, latency_ms), `lesson_started`, `slide_viewed` (index, watch_ms, offline), `slide_replayed`, `slide_paused`, `lesson_completed` (xp, duration_ms), `lesson_player_error` (error_code, slide_id), `lesson_test_started`, `lesson_test_submitted`, `lesson_test_passed` and `lesson_test_failed` (score, attempt, duration_ms).
+The catalog MUST include: `course_preview_requested` (topic_length, has_profile), `course_preview_viewed` (preview_id: opaque financial job UUID, duration_ms; ephemeral preview only), `course_outline_generated` (course_id, unit_count, lesson_count, provider, model, latency_ms), `course_enrolled` (course_id), `course_generation_failed` (stage: preview|outline, error_code, preview_id when preview, duration_ms), `lesson_generation_requested` (course_id, lesson_id), `lesson_generated` (lesson_id, slide_count, provider, model, latency_ms), `lesson_started`, `slide_viewed` (index, watch_ms, offline), `slide_replayed`, `slide_paused`, `lesson_completed` (xp, duration_ms), `lesson_player_error` (error_code, slide_id), `lesson_test_started`, `lesson_test_submitted`, `lesson_test_passed`, `lesson_test_failed` (score, attempt, duration_ms), `character_rendered` (speaker_key, character_version, rig_version, expression, offline; deduplicated per Slide speaker visit) and `character_render_fallback` (reason_code, offline). Character events MUST exclude character text, bio, persona, dialogue and SVG content.
 
 #### Scenario: Catalog check
 - **WHEN** a feature emits an event
@@ -197,6 +197,22 @@ The analytics catalogue SHALL include `quick_note_created` (carrying `source` re
 #### Scenario: Quick note sheet opened
 - **WHEN** a learner opens a quick note sheet or panel
 - **THEN** `ui_sheet_opened` is emitted with `sheet_id=quick_note` and common properties, excluding note text
+
+### Requirement: Private Character creation event catalogue
+The API SHALL emit `character_create_quoted` (operation, credits, pricing_version),
+`character_created` and `character_regenerated` (character_id, character_version,
+`rig_version, voice_key, credits, pricing_version), `character_rejected` (operation,
+reason_code) and `character_create_failed` (operation, reason_code, fallback_used).
+Outcome events MUST be deduplicated by operation/result through the transactional
+outbox. `$ai_generation` SHALL use feature=character_create or character_screen
+and actual per-attempt provider/model/token/cache/latency/error/fallback metadata,
+including late attempts after cancellation. UUID/common properties, consent,
+non-blocking delivery and person deletion apply. Prompts, names, bios, backstories,
+personas, SVG and dialogue MUST NOT be captured.
+
+#### Scenario: Failed regeneration
+- **WHEN** bounded providers fail and the old Character stays current
+- **THEN** one failure event and each actual attempt are recorded, with no paid success event or learner text
 
 ### Requirement: Authorized player event projection
 The catalogue SHALL define `lesson_started` with `lesson_id` and `course_id`, and `lesson_player_error` with `lesson_id`, optional `slide_id`, and fixed `error_code` (`manifest_unavailable`, `document_unavailable`, `invalid_manifest`, `document_timeout`, `offline`). Both SHALL use authenticated Learner UUID/common properties and existing opt-out. The wrapper SHALL discard all other properties, including titles, narration, learner text, HTML and URLs. E3-01 SHALL emit no completion or slide-view events.
