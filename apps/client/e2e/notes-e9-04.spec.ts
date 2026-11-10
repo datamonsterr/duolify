@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./native-store-fixture";
 import { apiBase, resetAuthRateLimits, webBase } from "./servers";
 import type { Tokens } from "../src/features/accounts/secure-store";
 
@@ -53,7 +53,10 @@ for (const width of [1280, 390]) {
     const tokens = (await login.json()) as Tokens;
 
     await context.addInitScript((val) => {
-      sessionStorage.setItem("duolify.auth", JSON.stringify(val));
+      sessionStorage.setItem(
+        "duolify.native-store-fixture",
+        JSON.stringify(val),
+      );
     }, tokens);
 
     // Create two test notes via API

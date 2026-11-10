@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./native-store-fixture";
 import { apiBase, resetAuthRateLimits, webBase } from "./servers";
 import type { Tokens } from "../src/features/accounts/secure-store";
 
@@ -15,7 +15,7 @@ for (const width of [1280, 390]) {
 
     // Route /v1/ API calls to test backend with offline toggling for bookmarks
     let offline = false;
-    let demoLesson: string | undefined;
+    let demoLesson = "";
     await page.route(/\/v1\//, async (route) => {
       const original = route.request();
       if (offline && original.url().includes("/v1/bookmarks")) {
@@ -27,22 +27,11 @@ for (const width of [1280, 390]) {
       delete headers.origin;
       target.host = new URL(apiBase).host;
       const demo = target.pathname.startsWith("/v1/lessons/sky/");
-      if (demo) {
-        if (!demoLesson) {
-          const response = await request.post(
-            `${apiBase}/test/player/fixture`,
-            { headers: { Authorization: headers.authorization } },
-          );
-          if (response.ok()) {
-            demoLesson = (await response.json()).lesson_id;
-          }
-        }
-        if (demoLesson) {
-          target.pathname = target.pathname.replace(
-            "/lessons/sky/",
-            `/lessons/${demoLesson}/`,
-          );
-        }
+      if (demo && demoLesson) {
+        target.pathname = target.pathname.replace(
+          "/lessons/sky/",
+          `/lessons/${demoLesson}/`,
+        );
       }
       try {
         const response = await request.fetch(target.href, {
@@ -76,12 +65,21 @@ for (const width of [1280, 390]) {
     expect(login.status()).toBe(200);
     const tokens = (await login.json()) as Tokens;
 
+    const fixtureRes = await request.post(`${apiBase}/test/player/fixture`, {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    expect(fixtureRes.ok()).toBe(true);
+    demoLesson = (await fixtureRes.json()).lesson_id;
+
     await context.addInitScript((val) => {
-      sessionStorage.setItem("duolify.auth", JSON.stringify(val));
+      sessionStorage.setItem(
+        "duolify.native-store-fixture",
+        JSON.stringify(val),
+      );
     }, tokens);
 
     // Navigate to lesson player
-    await page.goto(`${webBase}/lesson/sky`);
+    await page.goto(`${webBase}/lesson/${demoLesson}`);
     await expect(page.getByText(/Why the sky changes/i)).toBeVisible();
 
     // Advance to Slide 2
