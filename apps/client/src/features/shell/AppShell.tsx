@@ -210,7 +210,7 @@ export function AppShell() {
               </section>
               {path !== "/streak" && (
                 <section className="card">
-                  <DailyGoal />
+                  <DailyGoal compact />
                   <Link
                     className="shell-link"
                     to="/streak"

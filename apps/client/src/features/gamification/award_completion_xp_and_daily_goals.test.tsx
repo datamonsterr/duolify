@@ -15,6 +15,20 @@ const progress = {
 };
 describe("authoritative daily goal", () => {
   beforeEach(() => vi.mocked(authRequest).mockReset());
+  it("keeps sidebar failures visible without announcing them as form alerts", async () => {
+    vi.mocked(authRequest).mockRejectedValueOnce(
+      new Error("Progress unavailable. Retry."),
+    );
+    render(<DailyGoal compact />);
+    expect(
+      await screen.findByText("Progress unavailable. Retry."),
+    ).toBeVisible();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Reload daily goal" }),
+    ).toBeVisible();
+  });
   it("uses configured options and persists a goal without claiming unearned progress", async () => {
     vi.mocked(authRequest)
       .mockResolvedValueOnce(progress)

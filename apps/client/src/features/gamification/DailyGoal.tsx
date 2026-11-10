@@ -12,7 +12,13 @@ interface Progress {
   time_zone: string;
 }
 
-export function DailyGoal({ editable = false }: { editable?: boolean }) {
+export function DailyGoal({
+  editable = false,
+  compact = false,
+}: {
+  editable?: boolean;
+  compact?: boolean;
+}) {
   const id = useId();
   const [progress, setProgress] = useState<Progress>();
   const [goal, setGoal] = useState("");
@@ -65,14 +71,16 @@ export function DailyGoal({ editable = false }: { editable?: boolean }) {
       aria-busy={busy}
     >
       {error && (
-        <div role="alert">
+        <div role={compact ? undefined : "alert"}>
           <p>{error}</p>
           <button type="button" onClick={() => setRevision((x) => x + 1)}>
-            Retry progress
+            {compact ? "Reload daily goal" : "Retry progress"}
           </button>
         </div>
       )}
-      {!progress && !error && <p role="status">Loading daily goal…</p>}
+      {!progress && !error && (
+        <p role={compact ? undefined : "status"}>Loading daily goal…</p>
+      )}
       {progress && (
         <>
           <strong>{progress.goal_met ? "Daily goal met" : "Daily goal"}</strong>
@@ -90,7 +98,7 @@ export function DailyGoal({ editable = false }: { editable?: boolean }) {
               }}
             />
           </div>
-          <p aria-live="polite">
+          <p aria-live={compact ? "off" : "polite"}>
             {progress.daily_xp} / {progress.daily_goal} XP today
           </p>
           {editable && (
