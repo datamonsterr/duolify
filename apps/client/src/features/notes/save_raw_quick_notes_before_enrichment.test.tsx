@@ -99,20 +99,22 @@ describe("save_raw_quick_notes_before_enrichment", () => {
     });
 
     // Assert server-synced and zero-credit banners
-    expect(
-      screen.getByText(/Saved. Enrichment is pending./i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /Synced to your account. The AI summary and tags appear in Quick notes./i,
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Zero-credit variant/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /Your note is saved. Add credits to enrich it, or wait for your daily reset./i,
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Saved. Enrichment is pending./i),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /Synced to your account. The AI summary and tags appear in Quick notes./i,
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Zero-credit variant/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /Your note is saved. Add credits to enrich it, or wait for your daily reset./i,
+        ),
+      ).toBeInTheDocument();
+    });
 
     // Test restoring player on close
     const backBtn = screen.getByRole("button", { name: "Back to lesson" });

@@ -87,6 +87,7 @@ type NoteDTO struct {
 	SlideTitle string    `json:"slide_title"`
 	Source     string    `json:"source"`
 	RawText    string    `json:"raw_text"`
+	RawVersion int       `json:"raw_version"`
 	Status     string    `json:"status"`
 	Reviewed   bool      `json:"reviewed"`
 	Summary    *string   `json:"summary,omitempty"`
@@ -204,7 +205,10 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 		_, _ = s.NotesQueue(slog.Default())
 	}
 	if s.riverClient != nil {
-		_, _ = s.riverClient.Insert(ctx, NoteEnrichArgs{NoteID: formatUUID(note.ID)}, &river.InsertOpts{
+		_, _ = s.riverClient.Insert(ctx, NoteEnrichArgs{
+			NoteID:          formatUUID(note.ID),
+			ExpectedVersion: int(note.RawVersion),
+		}, &river.InsertOpts{
 			Queue: "notes",
 		})
 	}
@@ -256,6 +260,48 @@ func (s *Service) ListNotes(ctx context.Context, learnerID string) ([]NoteDTO, e
 		dtos[i] = toDTOFromListEnriched(n)
 	}
 	return dtos, nil
+}
+
+// UpdateNoteRawText updates a quick note's raw text, increments raw_version, and sets status back to enrichment_pending.
+func (s *Service) UpdateNoteRawText(ctx context.Context, learnerID, noteID, rawText string) error {
+	trimmed := strings.TrimSpace(rawText)
+	if trimmed == "" {
+		return ErrInvalidText
+	}
+	if len(rawText) > 2000 {
+		return ErrTextTooLong
+	}
+	learnerUUID, err := parseUUID(learnerID)
+	if err != nil {
+		return errors.New("invalid learner id")
+	}
+	noteUUID, err := parseUUID(noteID)
+	if err != nil {
+		return ErrNotFound
+	}
+
+	res, err := s.queries.UpdateQuickNoteRawText(ctx, db.UpdateQuickNoteRawTextParams{
+		ID:        noteUUID,
+		RawText:   rawText,
+		LearnerID: learnerUUID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+
+	if s.riverClient != nil {
+		_, _ = s.riverClient.Insert(ctx, NoteEnrichArgs{
+			NoteID:          noteID,
+			ExpectedVersion: int(res.RawVersion),
+		}, &river.InsertOpts{
+			Queue: "notes",
+		})
+	}
+
+	return nil
 }
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -337,6 +383,38 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(note)
 
+	case http.MethodPatch, http.MethodPut:
+		if path == "" {
+			respondError(w, http.StatusNotFound, "note id required")
+			return
+		}
+		var in struct {
+			RawText string `json:"raw_text"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			respondError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if err := s.UpdateNoteRawText(r.Context(), learnerID, path, in.RawText); err != nil {
+			if errors.Is(err, ErrNotFound) {
+				respondError(w, http.StatusNotFound, "note not found")
+				return
+			}
+			if errors.Is(err, ErrInvalidText) || errors.Is(err, ErrTextTooLong) {
+				respondError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		refreshed, err := s.GetNote(r.Context(), learnerID, path)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to get note")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(refreshed)
+
 	default:
 		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
@@ -356,6 +434,7 @@ func toDTO(qn db.UpsertQuickNoteRow) NoteDTO {
 		SlideTitle: qn.SlideTitle,
 		Source:     qn.Source,
 		RawText:    qn.RawText,
+		RawVersion: int(qn.RawVersion),
 		Status:     qn.Status,
 		Reviewed:   qn.Reviewed,
 		CreatedAt:  qn.CreatedAt.Time,
@@ -384,6 +463,7 @@ func toDTOFromEnriched(r db.GetQuickNoteWithEnrichmentByIDRow) NoteDTO {
 		SlideTitle: r.SlideTitle,
 		Source:     r.Source,
 		RawText:    r.RawText,
+		RawVersion: int(r.RawVersion),
 		Status:     r.Status,
 		Reviewed:   r.Reviewed,
 		CreatedAt:  r.CreatedAt.Time,
@@ -421,6 +501,7 @@ func toDTOFromListEnriched(r db.ListQuickNotesWithEnrichmentByLearnerRow) NoteDT
 		SlideTitle: r.SlideTitle,
 		Source:     r.Source,
 		RawText:    r.RawText,
+		RawVersion: int(r.RawVersion),
 		Status:     r.Status,
 		Reviewed:   r.Reviewed,
 		CreatedAt:  r.CreatedAt.Time,

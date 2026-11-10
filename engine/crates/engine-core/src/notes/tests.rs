@@ -137,3 +137,91 @@ async fn test_enrich_note_empty_and_non_english_profile() {
     assert!(result.summary.contains("Trái Đất"));
     assert_eq!(result.tags, vec!["thiên-văn", "trái-đất"]);
 }
+
+#[tokio::test]
+async fn test_enrich_note_exhausted_budget_returns_undelivered() {
+    let raw_output = serde_json::json!({
+        "summary": "Summary text",
+        "tags": ["astronomy"],
+        "links": []
+    })
+    .to_string();
+
+    let provider = Arc::new(MockNotesProvider {
+        output: raw_output,
+        should_fail: false,
+    });
+    let router = ProviderRouter::new(provider.clone(), provider).unwrap();
+
+    // Cost limit 1 nano -> will exceed ceiling on cost check
+    let mut limits = test_limits();
+    limits.max_cost_nanos = 1;
+
+    let outcome = enrich(
+        &router,
+        "Note with exhausted credit ceiling",
+        None,
+        None,
+        &[],
+        &limits,
+    )
+    .await
+    .unwrap();
+
+    assert!(outcome.result.is_none());
+}
+
+#[tokio::test]
+async fn test_enrich_note_retry_after_failure_delivers_successfully() {
+    let raw_output = serde_json::json!({
+        "summary": "Apparent star motion from Earth rotation.",
+        "tags": ["stars", "rotation"],
+        "links": ["lesson-1"]
+    })
+    .to_string();
+
+    let allowed = vec![LessonRef {
+        lesson_id: "lesson-1".into(),
+        title: "Sky motion".into(),
+        goal: "Goal".into(),
+    }];
+
+    // First attempt fails due to provider failure
+    let fail_provider = Arc::new(MockNotesProvider {
+        output: raw_output.clone(),
+        should_fail: true,
+    });
+    let fail_router = ProviderRouter::new(fail_provider.clone(), fail_provider).unwrap();
+    let fail_outcome = enrich(
+        &fail_router,
+        "Note content",
+        None,
+        None,
+        &allowed,
+        &test_limits(),
+    )
+    .await
+    .unwrap();
+    assert!(fail_outcome.result.is_none());
+
+    // Retry with working provider succeeds
+    let ok_provider = Arc::new(MockNotesProvider {
+        output: raw_output,
+        should_fail: false,
+    });
+    let ok_router = ProviderRouter::new(ok_provider.clone(), ok_provider).unwrap();
+    let retry_outcome = enrich(
+        &ok_router,
+        "Note content",
+        None,
+        None,
+        &allowed,
+        &test_limits(),
+    )
+    .await
+    .unwrap();
+
+    let res = retry_outcome.result.expect("retry delivered result");
+    assert_eq!(res.summary, "Apparent star motion from Earth rotation.");
+    assert_eq!(res.links, vec!["lesson-1"]);
+}

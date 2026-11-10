@@ -275,6 +275,11 @@ func run() (result error) {
 	engineClient := enginev1.NewEngineServiceClient(engineConn)
 
 	notesService := notes.NewServiceWithEnrichment(db.Pool, nil, paidCredits, engineClient)
+	arrivalHook := func(ctx context.Context, learnerID string) {
+		_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
+	}
+	creditService.SetCreditArrivalHook(arrivalHook)
+	paidCredits.SetCreditArrivalHook(arrivalHook)
 	notesQueue, err := notesService.NotesQueue(logger)
 	if err != nil {
 		return err
@@ -301,6 +306,68 @@ func run() (result error) {
 			http.Error(w, "daily expiry failed", http.StatusInternalServerError)
 			return
 		}
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	mux.Handle("POST /test/credits/exhaust", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		entry, err := creditService.EnsureDailyGrant(r.Context(), owner, time.Now())
+		if err != nil {
+			http.Error(w, "daily grant failed", http.StatusInternalServerError)
+			return
+		}
+		if entry != nil && entry.Amount > 0 {
+			tz, _ := creditService.GetEffectiveTimezone(r.Context(), owner, time.Now())
+			if tz == "" {
+				tz = "Asia/Ho_Chi_Minh"
+			}
+			loc, err := time.LoadLocation(tz)
+			if err != nil {
+				loc = time.UTC
+			}
+			localDate := time.Now().In(loc).Format(time.DateOnly)
+			if _, err := db.Pool.Exec(r.Context(), `
+				INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
+				VALUES ($1, $2, 'expire', $3, $4, $5)
+			`, owner, -entry.Amount, "expire:"+owner+":"+localDate, entry.PricingVersion, map[string]any{
+				"bucket": "daily_free",
+				"date":   localDate,
+			}); err != nil {
+				http.Error(w, "exhaust insert failed: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_ = creditService.InvalidateCache(r.Context(), owner)
+			_ = paidCredits.InvalidateCache(r.Context(), owner)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	mux.Handle("POST /test/credits/next-day", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		if _, err := db.Pool.Exec(r.Context(), `
+			INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
+			VALUES ($1, 50, 'purchase', 'topup:' || gen_random_uuid(), '2026.04', '{"bucket": "purchase"}'::jsonb)
+		`, owner); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		_ = creditService.InvalidateCache(r.Context(), owner)
+		_ = paidCredits.InvalidateCache(r.Context(), owner)
+		paidCredits.NotifyCreditArrival(r.Context(), owner)
+		creditService.NotifyCreditArrival(r.Context(), owner)
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	mux.Handle("POST /test/credits/topup", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		if _, err := db.Pool.Exec(r.Context(), `
+			INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
+			VALUES ($1, 50, 'purchase', 'topup:' || gen_random_uuid(), '2026.04', '{"bucket": "purchase"}'::jsonb)
+		`, owner); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		_ = creditService.InvalidateCache(r.Context(), owner)
+		_ = paidCredits.InvalidateCache(r.Context(), owner)
+		paidCredits.NotifyCreditArrival(r.Context(), owner)
+		creditService.NotifyCreditArrival(r.Context(), owner)
 		w.WriteHeader(http.StatusNoContent)
 	})))
 	mux.HandleFunc("POST /test/stripe/{id}", func(w http.ResponseWriter, r *http.Request) {

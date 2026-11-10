@@ -164,6 +164,9 @@ func run(ctx context.Context, args []string) (result error) {
 			_ = outlineQueue.Stop(stopCtx)
 		}()
 		notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC())
+		creditService.SetCreditArrivalHook(func(ctx context.Context, learnerID string) {
+			_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
+		})
 		notesQueue, err := notesService.NotesQueue(logger)
 		if err != nil {
 			return err
@@ -260,6 +263,10 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	go characterService.Maintain(ctx)
+	notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC())
+	creditService.SetCreditArrivalHook(func(ctx context.Context, learnerID string) {
+		_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
+	})
 	handler := httpapi.New(httpapi.Dependencies{
 		Characters:    characters.NewHandler(characterService),
 		Monitor:       monitor,
@@ -272,7 +279,7 @@ func run(ctx context.Context, args []string) (result error) {
 		PricingAdmin:  pricingAdmin,
 		Quotes:        pricing.NewQuotes(db.Pool),
 		Eval:          eval.NewService(db.Pool, catalogue, monitor, events),
-		Notes:         notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC()),
+		Notes:         notesService,
 		Postgres:      db.Ping,
 		Redis:         func(ctx context.Context) error { return redis.Ping(ctx).Err() },
 		Engine:        backend,

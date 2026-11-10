@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,6 +18,38 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
+
+// ErrStaleVersion indicates that a raw note was updated since it was queued for enrichment.
+var ErrStaleVersion = errors.New("raw revision conflict: note has been modified since queued")
+
+// ValidateExpectedVersion verifies that the note's current version has not advanced past the expected version.
+func ValidateExpectedVersion(currentVersion, expectedVersion int) error {
+	if expectedVersion == 0 {
+		return nil
+	}
+	if currentVersion > expectedVersion {
+		return ErrStaleVersion
+	}
+	return nil
+}
+
+// PendingNoteItem models a quick note awaiting enrichment.
+type PendingNoteItem struct {
+	ID         string    `json:"id"`
+	LearnerID  string    `json:"learner_id,omitempty"`
+	RawVersion int       `json:"raw_version,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// SortPendingNotesOldestFirst sorts pending note items by CreatedAt ascending (oldest first).
+func SortPendingNotesOldestFirst(items []PendingNoteItem) []PendingNoteItem {
+	sorted := make([]PendingNoteItem, len(items))
+	copy(sorted, items)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return sorted[i].CreatedAt.Before(sorted[j].CreatedAt)
+	})
+	return sorted
+}
 
 // FilterGroundedLinks filters links to ensure all returned links are in the allowed list, preserving order.
 func FilterGroundedLinks(links []string, allowed []string) []string {
@@ -93,7 +126,8 @@ func EmitQuickNoteEnrichmentFailed(events analytics.Events, learnerID, noteID, r
 
 // NoteEnrichArgs contains the queue payload for enriching a note asynchronously.
 type NoteEnrichArgs struct {
-	NoteID string `json:"note_id"`
+	NoteID          string `json:"note_id"`
+	ExpectedVersion int    `json:"expected_version,omitempty"`
 }
 
 // Kind identifies the job kind for River.
@@ -107,7 +141,11 @@ type NoteEnrichWorker struct {
 
 // Work implements the River worker interface.
 func (w *NoteEnrichWorker) Work(ctx context.Context, j *river.Job[NoteEnrichArgs]) error {
-	return w.service.ProcessEnrichment(ctx, j.Args.NoteID)
+	err := w.service.ProcessEnrichmentWithVersion(ctx, j.Args.NoteID, j.Args.ExpectedVersion)
+	if err != nil && (errors.Is(err, credits.ErrInsufficient) || errors.Is(err, ErrStaleVersion)) {
+		return nil
+	}
+	return err
 }
 
 // NotesQueue creates a River queue client for asynchronous note enrichment.
@@ -129,6 +167,11 @@ func (s *Service) NotesQueue(logger *slog.Logger) (*river.Client[pgx.Tx], error)
 
 // ProcessEnrichment processes credit reservation, engine gRPC invocation, grounded link filtering, and settlement.
 func (s *Service) ProcessEnrichment(ctx context.Context, noteID string) error {
+	return s.ProcessEnrichmentWithVersion(ctx, noteID, 0)
+}
+
+// ProcessEnrichmentWithVersion processes credit reservation and AI enrichment while ensuring raw_version integrity.
+func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, noteID string, expectedVersion int) error {
 	noteUUID, err := parseUUID(noteID)
 	if err != nil {
 		return ErrNotFound
@@ -143,9 +186,10 @@ func (s *Service) ProcessEnrichment(ctx context.Context, noteID string) error {
 		SlideTitle string
 		RawText    string
 		Status     string
+		RawVersion int32
 	}
 	err = s.pool.QueryRow(ctx, `
-		SELECT id, learner_id, course_id, lesson_id, slide_title, raw_text, status
+		SELECT id, learner_id, course_id, lesson_id, slide_title, raw_text, status, raw_version
 		FROM quick_notes
 		WHERE id = $1
 	`, noteUUID).Scan(
@@ -156,13 +200,24 @@ func (s *Service) ProcessEnrichment(ctx context.Context, noteID string) error {
 		&note.SlideTitle,
 		&note.RawText,
 		&note.Status,
+		&note.RawVersion,
 	)
 	if err != nil {
 		return ErrNotFound
 	}
 
+	// Validate expected revision before spending credits or touching AI
+	if err := ValidateExpectedVersion(int(note.RawVersion), expectedVersion); err != nil {
+		return err
+	}
+
 	// If raw_only, do not enrich
 	if note.Status == "raw_only" {
+		return nil
+	}
+
+	// If already enriched with this version, do not charge or re-enrich
+	if note.Status == "enriched" {
 		return nil
 	}
 
@@ -189,8 +244,7 @@ func (s *Service) ProcessEnrichment(ctx context.Context, noteID string) error {
 	res, err := s.credits.ReserveAction(ctx, learnerIDStr, quote.ID, "quick_note")
 	if err != nil {
 		if errors.Is(err, credits.ErrInsufficient) {
-			// Zero balance leaves enrichment_pending (E9-03 resumes later; do not build resume)
-			return nil
+			return credits.ErrInsufficient
 		}
 		return err
 	}
@@ -296,7 +350,7 @@ func (s *Service) ProcessEnrichment(ctx context.Context, noteID string) error {
 
 	if callErr != nil {
 		// Terminal failure: release reservation, keep raw note, set enrichment_failed
-		_, _ = s.credits.Release(ctx, learnerIDStr, res.ID)
+		_, _ = s.credits.Settle(ctx, learnerIDStr, res.ID, nil)
 		_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
 			ID:            noteUUID,
 			Status:        "enrichment_failed",
@@ -321,7 +375,7 @@ func (s *Service) ProcessEnrichment(ctx context.Context, noteID string) error {
 
 	// 7. Validate output bounds
 	if boundsErr := ValidateEnrichmentBounds(resp.Summary, resp.Tags); boundsErr != nil {
-		_, _ = s.credits.Release(ctx, learnerIDStr, res.ID)
+		_, _ = s.credits.Settle(ctx, learnerIDStr, res.ID, nil)
 		_, _ = s.queries.UpdateQuickNoteStatus(ctx, db.UpdateQuickNoteStatusParams{
 			ID:            noteUUID,
 			Status:        "enrichment_failed",
@@ -342,6 +396,13 @@ func (s *Service) ProcessEnrichment(ctx context.Context, noteID string) error {
 	}
 	_, _ = s.credits.Settle(ctx, learnerIDStr, res.ID, attempts)
 
+	// Check if raw note was modified while engine was running
+	var currentVersion int32
+	_ = s.pool.QueryRow(ctx, "SELECT raw_version FROM quick_notes WHERE id = $1", noteUUID).Scan(&currentVersion)
+	if currentVersion != note.RawVersion {
+		return ErrStaleVersion
+	}
+
 	// 10. Persist enrichment and update status to enriched
 	_, err = s.queries.UpsertQuickNoteEnrichment(ctx, db.UpsertQuickNoteEnrichmentParams{
 		NoteID:    noteUUID,
@@ -349,7 +410,7 @@ func (s *Service) ProcessEnrichment(ctx context.Context, noteID string) error {
 		Summary:   resp.Summary,
 		Tags:      resp.Tags,
 		Links:     groundedLinks,
-		Version:   1,
+		Version:   note.RawVersion,
 		Model:     "claude-haiku-4.5",
 		Provider:  "anthropic",
 	})
@@ -386,4 +447,63 @@ func (s *Service) ProcessEnrichment(ctx context.Context, noteID string) error {
 	}
 
 	return nil
+}
+
+// ResumePendingEnrichments finds pending notes for a learner (oldest first) and enriches them
+// until credits are exhausted or all pending notes are processed.
+func (s *Service) ResumePendingEnrichments(ctx context.Context, learnerID string) (int, error) {
+	learnerUUID, err := parseUUID(learnerID)
+	if err != nil {
+		return 0, errors.New("invalid learner id")
+	}
+
+	processed := 0
+	for {
+		// Claim the oldest pending note atomically using FOR UPDATE SKIP LOCKED
+		var noteID pgtype.UUID
+		var rawVersion int32
+		err := s.pool.QueryRow(ctx, `
+			UPDATE quick_notes
+			SET status = 'enriching', updated_at = now()
+			WHERE id = (
+				SELECT id
+				FROM quick_notes
+				WHERE learner_id = $1 AND status = 'enrichment_pending'
+				ORDER BY created_at ASC
+				LIMIT 1
+				FOR UPDATE SKIP LOCKED
+			)
+			RETURNING id, raw_version
+		`, learnerUUID).Scan(&noteID, &rawVersion)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				// No more pending notes
+				break
+			}
+			return processed, err
+		}
+
+		noteIDStr := formatUUID(noteID)
+
+		// Process enrichment
+		enrichErr := s.ProcessEnrichmentWithVersion(ctx, noteIDStr, int(rawVersion))
+		if enrichErr != nil {
+			if errors.Is(enrichErr, credits.ErrInsufficient) {
+				// Reset back to enrichment_pending
+				_, _ = s.pool.Exec(ctx, `
+					UPDATE quick_notes
+					SET status = 'enrichment_pending', updated_at = now()
+					WHERE id = $1 AND status = 'enriching'
+				`, noteID)
+				// Budget exhausted
+				break
+			}
+			// Stale version or failure already handled in ProcessEnrichmentWithVersion
+			continue
+		}
+
+		processed++
+	}
+
+	return processed, nil
 }
