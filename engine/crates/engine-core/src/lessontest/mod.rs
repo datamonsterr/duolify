@@ -136,6 +136,10 @@ pub fn validate_variant(
     {
         bail!("variant prompt must differ from source question");
     }
+    let lower = variant_prompt.trim().to_lowercase();
+    if lower.contains("(rephrased)") || lower.starts_with("in other words:") {
+        bail!("variant must be a real paraphrase");
+    }
     for prev in previous_variant_prompts {
         if variant_prompt.trim().eq_ignore_ascii_case(prev.trim()) {
             bail!("variant prompt is duplicate of previous variant");
@@ -211,7 +215,13 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
     let mut questions_by_topic: std::collections::HashMap<String, &serde_json::Value> =
         std::collections::HashMap::new();
 
+    let mut question_ids = HashSet::new();
     for q in test {
+        let id = q["question_id"].as_str().unwrap_or_default();
+        if id.trim().is_empty() || !question_ids.insert(id.to_string()) {
+            bail!("source question_id must be nonempty and unique");
+        }
+
         let topic_id = q["topic_id"].as_str().unwrap_or_default();
         if topic_id.trim().is_empty() {
             bail!("question must have a non-empty topic_id");
@@ -231,7 +241,9 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
         let explanation = q["explanation"].as_str().unwrap_or_default();
         validate_question(prompt, &choices, answer_index, explanation)?;
 
-        questions_by_topic.insert(topic_id.to_string(), q);
+        if questions_by_topic.insert(topic_id.to_string(), q).is_some() {
+            bail!("each source question must have a distinct topic_id");
+        }
     }
 
     // Validate variant pool if present
@@ -256,7 +268,18 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
 
             if let Some(variants) = tp["variants"].as_array() {
                 let mut prev_prompts: Vec<String> = Vec::new();
+                let mut variant_ids = HashSet::new();
                 for var in variants {
+                    let id = var["question_id"].as_str().unwrap_or_default();
+                    if id.trim().is_empty()
+                        || question_ids.contains(id)
+                        || !variant_ids.insert(id.to_string())
+                        || var["topic_id"].as_str() != Some(pool_topic)
+                        || var["variant_of"].as_str() != source_q["question_id"].as_str()
+                    {
+                        bail!("variant identity or topic linkage mismatch");
+                    }
+
                     let v_prompt = var["prompt"].as_str().unwrap_or_default();
                     let v_choices: Vec<String> = var["choices"]
                         .as_array()
@@ -269,7 +292,7 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
 
                     validate_variant(
                         pool_topic,
-                        source_q["question_id"].as_str().unwrap_or("q1"),
+                        source_q["question_id"].as_str().unwrap_or_default(),
                         source_prompt,
                         &source_choices,
                         source_answer_index,
@@ -343,3 +366,5 @@ pub fn validate_exhausted_fallback_variant(
 
 #[cfg(test)]
 pub mod tests;
+
+pub mod retry;

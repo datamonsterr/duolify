@@ -82,6 +82,7 @@ fn test_validate_lesson_full() {
         ],
         "test": [
             {
+                "question_id": "q1",
                 "topic_id": "top-sky",
                 "prompt": "What is in the sky?",
                 "choices": ["Stars", "Trees"],
@@ -94,6 +95,7 @@ fn test_validate_lesson_full() {
                 "topic_id": "top-sky",
                 "variants": [
                     {
+                        "question_id": "v1",
                         "topic_id": "top-sky",
                         "variant_of": "q1",
                         "prompt": "Which of these appears overhead in the night sky?",
@@ -102,6 +104,7 @@ fn test_validate_lesson_full() {
                         "explanation": "Stars are visible overhead."
                     },
                     {
+                        "question_id": "v2",
                         "topic_id": "top-sky",
                         "variant_of": "q1",
                         "prompt": "When looking up on a clear night, what do you see?",

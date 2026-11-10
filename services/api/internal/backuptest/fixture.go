@@ -417,7 +417,7 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_enrollments(learner_id,course_id,level_override) VALUES('a1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','intermediate')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_generations (id, learner_id, lesson_id, course_id, quote_id, state) VALUES ('f4444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'f1111111-1111-4111-8111-111111111111', $1, 'completed')`, outlineQuote.ID); err != nil {
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_generations (id, learner_id, lesson_id, course_id, quote_id, state, result_checkpoint) VALUES ('f4444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'f1111111-1111-4111-8111-111111111111', $1, 'validated', '{"lesson":{"slides":[]},"attempts":[],"title":"Restorable pending lesson"}'::jsonb)`, outlineQuote.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO generated_lessons (id, lesson_stub_id, learner_id, course_id, title, manifest) VALUES ('f5555555-5555-4555-8555-555555555555', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'Phases of the Moon', '{"title":"Phases of the Moon"}'::jsonb)`); err != nil {
@@ -432,9 +432,13 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_retry_pools (id, lesson_stub_id, learner_id, topic_id, variants) VALUES ('fbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'top-moon', '[{"question_id":"v1-q1","prompt":"Moon phases?","choices":["Earth shadow","Sun angle"],"answer_index":1,"explanation":"Sun angle"}]'::jsonb)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_sessions (id, lesson_stub_id, learner_id, state, question_queue, resolved_topics) VALUES ('f8888888-8888-4888-8888-888888888888', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'passed', '[]'::jsonb, '["top-moon"]'::jsonb)`); err != nil {
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_sessions (id, lesson_stub_id, learner_id, state, question_queue, resolved_topics) VALUES ('f8888888-8888-4888-8888-888888888888', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'passed', '[]'::jsonb, '["f7777777-7777-4777-8777-777777777777"]'::jsonb)`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_sessions (id, lesson_stub_id, learner_id, state, question_queue, resolved_topics) VALUES ('f8888888-8888-4888-8888-888888888889', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'in_progress', '[{"question_id":"c41b8f99-8338-427e-b275-3f8533cc5640","source_id":"f7777777-7777-4777-8777-777777777777","original_id":"f7777777-7777-4777-8777-777777777777","topic_id":"top-moon","prompt":"What causes moon phases?","choices":["Sunlight angle","Earth shadow"]}]'::jsonb, '[]'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_answers (id, session_id, learner_id, question_id, topic_id, selected_index, correct) VALUES ('f9999999-9999-4999-8999-999999999999', 'f8888888-8888-4888-8888-888888888888', 'a1111111-1111-4111-8111-111111111111', 'q1', 'top-moon', 0, true)`); err != nil {
 		t.Fatal(err)
 	}

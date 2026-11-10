@@ -9,8 +9,8 @@ Per ADR 0011 (owner decision E4-06):
 - When the pool is exhausted (all pool variants have already been served or queued):
   - The API recycles the approved pool variant with reordered choices (`ReorderChoices`).
   - No provider or engine RPC call is made; no credits or reservation are needed, keeping tests usable for learners with zero credit balance.
-  - The API emits allowlisted event `retry_variant_generation_failed` with `topic_id` and `error_code: "pool_exhausted"` (no learner text).
-  - The API emits `retry_variant_served` with `source: "pool_exhausted_fallback"`.
+  - The API emits allowlisted event `retry_variant_pool_exhausted` with `topic_id` and `error_code: "pool_exhausted"` (no learner text).
+  - The API emits `retry_variant_served` with `variant_source: "pool_exhausted_fallback"`.
 - If the pool is missing, empty, or invalid:
   - Safe source fallback: the original source question for that topic is reused with reordered choices (`ReorderChoices`).
   - The API emits `retry_variant_generation_failed` with `topic_id` and `error_code: "safe_source_fallback"`.

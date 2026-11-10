@@ -312,7 +312,7 @@ func TestHandleExhaustedRetryPoolsWithoutBlockingTestsIntegration(t *testing.T) 
 	// 2. Answer Question 1 wrongly
 	// Topic 'top-sunrise' pool has 1 variant (v1-sunrise).
 	code, ans1, _ := call("POST", fmt.Sprintf("/v1/lessons/%s/test/answer", lessonID), map[string]any{
-		"question_id":  "q1",
+		"question_id":  getTestOut["questions"].([]any)[0].(map[string]any)["question_id"],
 		"choice_index": 1, // Wrong
 	}, token)
 	if code != 200 || ans1["correct"] != false {
@@ -322,8 +322,8 @@ func TestHandleExhaustedRetryPoolsWithoutBlockingTestsIntegration(t *testing.T) 
 	// Variant v1-sunrise is served from pool
 	variant1 := ans1["retry_variant"].(map[string]any)
 	v1ID := variant1["question_id"].(string)
-	if v1ID != "v1-sunrise" {
-		t.Fatalf("expected v1-sunrise, got %s", v1ID)
+	if v1ID == "v1-sunrise" {
+		t.Fatalf("expected opaque variant id, got %s", v1ID)
 	}
 
 	// Check provenance snapshot for v1-sunrise
@@ -388,10 +388,10 @@ func TestHandleExhaustedRetryPoolsWithoutBlockingTestsIntegration(t *testing.T) 
 	}
 
 	// Verify telemetry emitted:
-	// retry_variant_generation_failed with error_code 'pool_exhausted' and NO learner text
-	failedEvents := eventCapture.FindEvents("retry_variant_generation_failed")
+	// retry_variant_pool_exhausted with error_code 'pool_exhausted' and NO learner text
+	failedEvents := eventCapture.FindEvents("retry_variant_pool_exhausted")
 	if len(failedEvents) == 0 {
-		t.Fatalf("expected retry_variant_generation_failed event")
+		t.Fatalf("expected retry_variant_pool_exhausted event")
 	}
 	lastFailed := failedEvents[len(failedEvents)-1]
 	if lastFailed.Props["error_code"] != "pool_exhausted" {
@@ -428,7 +428,7 @@ func TestHandleExhaustedRetryPoolsWithoutBlockingTestsIntegration(t *testing.T) 
 
 	// 5. Answer correctly using the exact answer index recorded in the snapshot
 	code, ansFinal, _ := call("POST", fmt.Sprintf("/v1/lessons/%s/test/answer", lessonID), map[string]any{
-		"question_id":  recycledID,
+		"question_id":  ans3Wrong["retry_variant"].(map[string]any)["question_id"],
 		"choice_index": recAnswerIndex, // Correct!
 	}, token)
 	if code != 200 {

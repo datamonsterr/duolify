@@ -84,5 +84,5 @@ run = "pnpm exec prettier --write src/features/player src/features/lesson-player
 ["client:format-lessontest"]
 description = "Format lesson test sources and acceptance tests"
 dir = "{{config_root}}/apps/client"
-run = "pnpm exec prettier --write src/features/lessontest e2e/lessontest-e4-*.spec.ts"
+run = "pnpm exec prettier --write src/features/lessontest e2e/lessontest-*.spec.ts e2e/design-e13-02.spec.ts"
 

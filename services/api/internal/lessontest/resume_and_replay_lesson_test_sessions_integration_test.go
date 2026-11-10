@@ -11,6 +11,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -114,6 +116,7 @@ func TestResumeAndReplayLessonTestSessionsIntegration(t *testing.T) {
 				},
 			},
 			VariantPool: []*enginev1.TopicVariants{
+				{TopicId: "top-orbits", Variants: []*enginev1.Question{{QuestionId: "v-orbits", TopicId: "top-orbits", VariantOf: "q2", Prompt: "Which curve describes a planet's path around its star?", Choices: []string{"Ellipses", "Straight lines", "Perfect circles"}, AnswerIndex: 0, Explanation: "Planetary paths are ellipses."}}},
 				{
 					TopicId: "top-sunrise",
 					Variants: []*enginev1.Question{
@@ -132,9 +135,11 @@ func TestResumeAndReplayLessonTestSessionsIntegration(t *testing.T) {
 		},
 	}
 
+	events := &captureEvents{}
 	ttl := 7 * 24 * time.Hour
 	lessonService := lessontest.New(lessontest.Options{
 		Pool:                db.Pool,
+		Events:              events,
 		Engine:              mockEngine,
 		Financial:           financial,
 		SessionTTL:          ttl,
@@ -165,6 +170,7 @@ func TestResumeAndReplayLessonTestSessionsIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-App-Version", "review.1")
 		if token != "" {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
@@ -203,7 +209,7 @@ func TestResumeAndReplayLessonTestSessionsIntegration(t *testing.T) {
 	}
 
 	// Seed credits
-	if _, err := db.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id, amount, kind, reference) VALUES($1, 1000, 'purchase', 'test-seed')`, learnerID); err != nil {
+	if _, err := db.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id, amount, kind, reference) VALUES($1, 100000, 'purchase', 'test-seed')`, learnerID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -321,6 +327,256 @@ func TestResumeAndReplayLessonTestSessionsIntegration(t *testing.T) {
 		return lID
 	}
 
+	getTest := func(id string) map[string]any {
+		t.Helper()
+		code, data, raw := call("GET", "/v1/lessons/"+id+"/test", nil, token)
+		if code != 200 {
+			t.Fatalf("get test: %d %s", code, raw)
+		}
+		return data
+	}
+	questionID := func(data map[string]any, index int) string {
+		return data["questions"].([]any)[index].(map[string]any)["question_id"].(string)
+	}
+	answer := func(id, q string, choice int, key string) (int, map[string]any, string) {
+		return call("POST", "/v1/lessons/"+id+"/test/answer", map[string]any{"question_id": q, "choice_index": choice, "operation_key": key}, token)
+	}
+
+	t.Run("Review161_OpaqueIDsAndRevealCannotReplayOriginal", func(t *testing.T) {
+		id := createAndGenerateLesson("Exact entries")
+		data := getTest(id)
+		q := questionID(data, 0)
+		if q == "q1" || q == "top-sunrise" {
+			t.Errorf("predictable queue id: %s", q)
+		}
+		code, wrong, raw := answer(id, q, 0, "review-wrong")
+		if code != 200 || wrong["correct"] != false {
+			t.Fatalf("wrong answer: %d %s", code, raw)
+		}
+		for _, alias := range []string{q, "q1", "top-sunrise", "What makes the Sun rise in the east?"} {
+			code, res, raw := answer(id, alias, int(wrong["answer_index"].(float64)), "")
+			if code != 400 || res["answer_index"] != nil {
+				t.Errorf("consumed/alias %s: %d %s", alias, code, raw)
+			}
+		}
+		code, res, raw := answer(id, questionID(data, 1), 1, "review-other")
+		if code != 200 || res["passed"] != false {
+			t.Fatalf("must still answer retry: %d %s", code, raw)
+		}
+		variant := wrong["retry_variant"].(map[string]any)["question_id"].(string)
+		code, res, raw = answer(id, variant, 1, "review-variant")
+		if code != 200 || res["passed"] != true {
+			t.Fatalf("exact variant: %d %s", code, raw)
+		}
+		passedEvents := events.FindEvents("lesson_test_passed")
+		if got := passedEvents[len(passedEvents)-1].Props["score"]; got != 50 {
+			t.Errorf("first-try score should be 50, got %v", got)
+		}
+	})
+
+	t.Run("Review161_GradesExactSnapshotInsteadOfOriginal", func(t *testing.T) {
+		id := createAndGenerateLesson("Exact private snapshot")
+		if _, err := db.Pool.Exec(ctx, `UPDATE lesson_retry_pools SET variants=jsonb_set(variants,'{0,answer_index}','2') WHERE lesson_stub_id=$1::uuid AND topic_id='top-sunrise'`, id); err != nil {
+			t.Fatal(err)
+		}
+		data := getTest(id)
+		code, wrong, raw := answer(id, questionID(data, 0), 0, "review-snapshot-source")
+		if code != 200 {
+			t.Fatal(code, raw)
+		}
+		variant := wrong["retry_variant"].(map[string]any)["question_id"].(string)
+		code, graded, raw := answer(id, variant, 1, "review-snapshot-variant")
+		if code != 200 || graded["correct"] != false || graded["answer_index"] != float64(2) {
+			t.Fatalf("variant graded with unrelated source: %d %s", code, raw)
+		}
+	})
+
+	t.Run("Review161_EachOriginalQuestionMustResolve", func(t *testing.T) {
+		id := createAndGenerateLesson("Every question")
+		// Legacy content may already contain duplicate topics; runtime resolution still counts questions.
+		if _, err := db.Pool.Exec(ctx, `UPDATE lesson_questions SET topic_id='top-sunrise' WHERE lesson_stub_id=$1::uuid`, id); err != nil {
+			t.Fatal(err)
+		}
+		data := getTest(id)
+		code, res, raw := answer(id, questionID(data, 0), 1, "review-each-original")
+		if code != 200 || res["passed"] != false {
+			t.Fatalf("one answer passed multiple originals: %d %s", code, raw)
+		}
+		remaining := getTest(id)["questions"].([]any)
+		if len(remaining) != 1 {
+			t.Fatalf("unanswered original removed: %v", remaining)
+		}
+		code, res, raw = answer(id, questionID(data, 1), 1, "review-each-second")
+		if code != 200 || res["passed"] != true {
+			t.Fatalf("both originals must pass: %d %s", code, raw)
+		}
+	})
+
+	t.Run("Review161_OperationKeyBindsQuestionChoiceLessonAndSession", func(t *testing.T) {
+		id := createAndGenerateLesson("Operation binding")
+		data := getTest(id)
+		q := questionID(data, 0)
+		if code, _, raw := answer(id, q, 1, "review-binding"); code != 200 {
+			t.Fatal(code, raw)
+		}
+		for _, submission := range []struct {
+			lesson, question string
+			choice           int
+		}{
+			{id, questionID(data, 1), 1}, {id, q, 0}, {lessonID, q, 1},
+		} {
+			if code, _, raw := answer(submission.lesson, submission.question, submission.choice, "review-binding"); code != 400 {
+				t.Errorf("mismatched operation accepted: %d %s", code, raw)
+			}
+		}
+		if _, err := db.Pool.Exec(ctx, `UPDATE lesson_test_sessions SET created_at=now()-interval '8 days', updated_at=now()-interval '8 days' WHERE id=$1::uuid`, data["session_id"]); err != nil {
+			t.Fatal(err)
+		}
+		getTest(id)
+		if code, _, raw := answer(id, q, 1, "review-binding"); code != 400 {
+			t.Errorf("stale-session operation accepted: %d %s", code, raw)
+		}
+	})
+
+	t.Run("Review161_SameKeyConcurrentWrongSubmit", func(t *testing.T) {
+		id := createAndGenerateLesson("Same key race")
+		data := getTest(id)
+		q := questionID(data, 0)
+		var wg sync.WaitGroup
+		var codes [2]int
+		var payloads [2]string
+		start := make(chan struct{})
+		for i := range codes {
+			wg.Add(1)
+			go func(i int) { defer wg.Done(); <-start; codes[i], _, payloads[i] = answer(id, q, 0, "review-same-key") }(i)
+		}
+		close(start)
+		wg.Wait()
+		var first, second any
+		_ = json.Unmarshal([]byte(payloads[0]), &first)
+		_ = json.Unmarshal([]byte(payloads[1]), &second)
+		if codes[0] != 200 || codes[1] != 200 || !reflect.DeepEqual(first, second) {
+			t.Fatalf("concurrent retry: %v %v", codes, payloads)
+		}
+		var count int
+		if err := db.Pool.QueryRow(ctx, `SELECT count(*) FROM lesson_test_answers WHERE session_id=$1::uuid`, data["session_id"]).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("answer count=%d err=%v", count, err)
+		}
+	})
+
+	t.Run("Review161_WriteFailureIs500AndRollsBack", func(t *testing.T) {
+		id := createAndGenerateLesson("Write failure")
+		data := getTest(id)
+		var originalQueue []byte
+		if err := db.Pool.QueryRow(ctx, `SELECT question_queue FROM lesson_test_sessions WHERE id=$1::uuid`, data["session_id"]).Scan(&originalQueue); err != nil {
+			t.Fatal(err)
+		}
+		for _, table := range []string{"lesson_test_answers", "lesson_test_variant_snapshots", "lesson_test_sessions", "course_lesson_stubs", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_answer_operations"} {
+			t.Run(table, func(t *testing.T) {
+				if _, err := db.Pool.Exec(ctx, `UPDATE lesson_test_sessions SET question_queue=$2, resolved_topics='[]' WHERE id=$1::uuid`, data["session_id"], originalQueue); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := db.Pool.Exec(ctx, `CREATE OR REPLACE FUNCTION review_reject_write() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test write failure'; END $$`); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := db.Pool.Exec(ctx, "CREATE TRIGGER review_reject BEFORE INSERT OR UPDATE ON "+table+" FOR EACH ROW EXECUTE FUNCTION review_reject_write()"); err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if _, err := db.Pool.Exec(ctx, "DROP TRIGGER review_reject ON "+table); err != nil {
+						t.Fatal(err)
+					}
+				}()
+				choice := 1
+				if table == "lesson_test_variant_snapshots" {
+					choice = 0
+				}
+				// Final-answer failures exercise completion writes.
+				if table == "course_lesson_stubs" || table == "lesson_completion_outbox" || table == "lesson_completion_summaries" {
+					if _, err := db.Pool.Exec(ctx, `UPDATE lesson_test_sessions SET resolved_topics=jsonb_build_array(question_queue->1->>'original_id'), question_queue=jsonb_build_array(question_queue->0) WHERE id=$1::uuid`, data["session_id"]); err != nil {
+						t.Fatal(err)
+					}
+				}
+				code, _, raw := answer(id, questionID(data, 0), choice, "review-write-failure")
+				if code != 500 {
+					t.Fatalf("write failure status=%d %s", code, raw)
+				}
+				var count int
+				if err := db.Pool.QueryRow(ctx, `SELECT count(*) FROM lesson_test_answers WHERE session_id=$1::uuid`, data["session_id"]).Scan(&count); err != nil || count != 0 {
+					t.Fatalf("rollback count=%d err=%v", count, err)
+				}
+			})
+		}
+	})
+
+	t.Run("Review161_ConcurrentStartsAndReplayPreserveCompletion", func(t *testing.T) {
+		id := createAndGenerateLesson("Replay completion")
+		var wg sync.WaitGroup
+		var sessions [2]string
+		for i := range sessions {
+			wg.Add(1)
+			go func(i int) { defer wg.Done(); sessions[i] = getTest(id)["session_id"].(string) }(i)
+		}
+		wg.Wait()
+		if sessions[0] != sessions[1] {
+			t.Errorf("duplicate in-progress sessions: %v", sessions)
+		}
+		data := getTest(id)
+		var initialQueue []byte
+		if err := db.Pool.QueryRow(ctx, `SELECT question_queue FROM lesson_test_sessions WHERE id=$1::uuid`, data["session_id"]).Scan(&initialQueue); err != nil {
+			t.Fatal(err)
+		}
+		before := len(events.FindEvents("lesson_test_passed"))
+		if _, err := db.Pool.Exec(ctx, `UPDATE lesson_test_sessions SET created_at=now()-interval '2 minutes' WHERE id=$1::uuid`, data["session_id"]); err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 2; i++ {
+			if code, _, raw := answer(id, questionID(data, i), 1, fmt.Sprintf("review-pass-%d", i)); code != 200 {
+				t.Fatal(code, raw)
+			}
+		}
+		passed := events.FindEvents("lesson_test_passed")
+		if len(passed) != before+1 {
+			t.Fatalf("pass event count: %d", len(passed))
+		}
+		props := passed[len(passed)-1].Props
+		duration, err := strconv.ParseInt(fmt.Sprint(props["duration_ms"]), 10, 64)
+		if err != nil || duration < 120000 || props["app_version"] != "review.1" || props["score"] != 100 {
+			t.Errorf("fabricated analytics: %v", props)
+		}
+		var summary string
+		if err := db.Pool.QueryRow(ctx, `SELECT summary FROM lesson_completion_summaries WHERE lesson_id=$1::uuid`, id).Scan(&summary); err != nil {
+			t.Fatal(err)
+		}
+		replay := getTest(id)
+		if replay["session_id"] != data["session_id"] {
+			t.Errorf("GET after pass created session: %v", replay)
+		}
+		var after string
+		if err := db.Pool.QueryRow(ctx, `SELECT summary FROM lesson_completion_summaries WHERE lesson_id=$1::uuid`, id).Scan(&after); err != nil || after != summary {
+			t.Fatal("completion summary changed", err)
+		}
+
+		// A legacy replay session must not replace the original summary or emit another pass.
+		if _, err := db.Pool.Exec(ctx, `UPDATE lesson_test_sessions SET state='abandoned' WHERE id=$1::uuid`, data["session_id"]); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Pool.Exec(ctx, `INSERT INTO lesson_test_sessions (learner_id,lesson_stub_id,question_queue,resolved_topics,first_try_correct) VALUES($1::uuid,$2::uuid,$3,'[]',42)`, learnerID, id, initialQueue); err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 2; i++ {
+			if code, _, raw := answer(id, questionID(data, i), 1, fmt.Sprintf("review-legacy-replay-%d", i)); code != 200 {
+				t.Fatal(code, raw)
+			}
+		}
+		if len(events.FindEvents("lesson_test_passed")) != before+1 {
+			t.Fatal("legacy replay emitted a duplicate pass")
+		}
+		if err := db.Pool.QueryRow(ctx, `SELECT summary FROM lesson_completion_summaries WHERE lesson_id=$1::uuid`, id).Scan(&after); err != nil || after != summary {
+			t.Fatal("legacy replay overwrote completion summary", err)
+		}
+	})
+	baseTest := getTest(lessonID)
 	t.Run("PostgresAnswerOperationKeys_IdempotencyAndForeignRejection", func(t *testing.T) {
 		// 1. Fetch test
 		code, testData, raw := call("GET", fmt.Sprintf("/v1/lessons/%s/test", lessonID), nil, token)
@@ -335,7 +591,7 @@ func TestResumeAndReplayLessonTestSessionsIntegration(t *testing.T) {
 		opKey1 := "op-test-key-001"
 		// 2. Submit answer to Q1 with operation_key
 		ansBody := map[string]any{
-			"question_id":   "q1",
+			"question_id":   questionID(baseTest, 0),
 			"choice_index":  1, // correct
 			"operation_key": opKey1,
 		}
@@ -381,7 +637,7 @@ func TestResumeAndReplayLessonTestSessionsIntegration(t *testing.T) {
 	t.Run("DuplicateFinalAnswer_RecordsOneCompletion", func(t *testing.T) {
 		opKeyFinal := "op-test-final-002"
 		finalBody := map[string]any{
-			"question_id":   "q2",
+			"question_id":   questionID(baseTest, 1),
 			"choice_index":  1, // correct
 			"operation_key": opKeyFinal,
 		}
@@ -424,8 +680,8 @@ func TestResumeAndReplayLessonTestSessionsIntegration(t *testing.T) {
 			"choice_index": 0,
 		}, token)
 
-		if code != http.StatusBadRequest && code != http.StatusNotFound {
-			t.Fatalf("expected 400 or 404 for unserved question, got %d (%s)", code, raw)
+		if code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for unserved question, got %d (%s)", code, raw)
 		}
 		// Crucial security / product invariant: MUST NOT leak answer_index or explanation
 		if resp["answer_index"] != nil || resp["explanation"] != nil {
@@ -499,7 +755,7 @@ func TestResumeAndReplayLessonTestSessionsIntegration(t *testing.T) {
 
 	t.Run("MultiDeviceConcurrentSubmissions_SerializeCleanly", func(t *testing.T) {
 		lessonConcurID := createAndGenerateLesson("Concur Test")
-		call("GET", fmt.Sprintf("/v1/lessons/%s/test", lessonConcurID), nil, token)
+		concurrentTest := getTest(lessonConcurID)
 
 		var wg sync.WaitGroup
 		results := make([]int, 2)
@@ -509,7 +765,7 @@ func TestResumeAndReplayLessonTestSessionsIntegration(t *testing.T) {
 				defer wg.Done()
 				op := fmt.Sprintf("op-concur-%d", idx)
 				c, _, _ := call("POST", fmt.Sprintf("/v1/lessons/%s/test/answer", lessonConcurID), map[string]any{
-					"question_id":   "q1",
+					"question_id":   questionID(concurrentTest, 0),
 					"choice_index":  1,
 					"operation_key": op,
 				}, token)
