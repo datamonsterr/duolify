@@ -27,8 +27,8 @@ func (l DeletionLedger) Append(ctx context.Context, reference string) error {
 }
 
 // Contains uses the immutable object key as the record index. Replay enumerates
-// restored learners and checks each hash, so no list/read/delete permission is
-// needed and no independently mutable ledger index can go stale.
+// restored learners and checks each hash without listing or reading records,
+// so no independently mutable ledger index can go stale.
 func (l DeletionLedger) Contains(ctx context.Context, reference string) (bool, error) {
 	if l.Objects == nil || !deletionReference.MatchString(reference) {
 		return false, errors.New("deletion ledger unavailable or invalid reference")

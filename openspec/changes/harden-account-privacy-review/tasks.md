@@ -2,4 +2,4 @@
 - [x] Implement consent gate, independent immutable deletion ledger, recent-auth checks and per-learner limits.
 - [x] Preserve encrypted client export and add fresh sign-in recovery.
 - [x] Update backup fixtures, data inventory, recovery semantics and ADR defaults.
-- [ ] Run API, client and OpenSpec checks.
+- [x] Run API, client and OpenSpec checks.
