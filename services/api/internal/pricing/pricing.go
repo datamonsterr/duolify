@@ -209,16 +209,17 @@ type Catalogue struct {
 // read. Postgres remains available when the optional Redis cache is down; a
 // rejected reload leaves the last validated response available to clients.
 type RuntimeCatalogue struct {
-	mu      sync.RWMutex
-	queries Queries
-	pool    *pgxpool.Pool
-	events  analytics.Events
-	last    *Catalogue
+	mu       sync.RWMutex
+	queries  Queries
+	pool     *pgxpool.Pool
+	events   analytics.Events
+	last     *Catalogue
+	baseline time.Time
 }
 
 // NewRuntimeCatalogue creates the database-time pricing resolver with a validated startup fallback.
 func NewRuntimeCatalogue(initial *Catalogue, q Queries, pool *pgxpool.Pool, events analytics.Events) *RuntimeCatalogue {
-	return &RuntimeCatalogue{queries: q, pool: pool, events: events, last: initial}
+	return &RuntimeCatalogue{queries: q, pool: pool, events: events, last: initial, baseline: initial.config.EffectiveFrom}
 }
 
 func (c *RuntimeCatalogue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -237,49 +238,123 @@ func (c *RuntimeCatalogue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	c.mu.Lock()
 	previous := c.last
+	if previous != nil && previous.config.Version != loaded.config.Version && c.pool != nil {
+		var activated bool
+		if err := c.pool.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM pricing_activation_events WHERE version=$1)", loaded.config.Version).Scan(&activated); err != nil || !activated {
+			c.mu.Unlock()
+			previous.ServeHTTP(w, r)
+			return
+		}
+	}
 	c.last = loaded
 	c.mu.Unlock()
-	if previous == nil || previous.config.Version != loaded.config.Version {
-		c.recordActivation(r.Context(), loaded.config.Version)
-	}
 	loaded.ServeHTTP(w, r)
 }
 
-func (c *RuntimeCatalogue) recordActivation(ctx context.Context, version string) {
-	if c.pool == nil {
-		return
+// RunActivator reconciles due versions on startup and every 200ms using the
+// database clock. Multiple API replicas share the once-only marker transaction.
+func (c *RuntimeCatalogue) RunActivator(ctx context.Context, admin *Admin) {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if err := c.ActivateDue(ctx, admin); err != nil && ctx.Err() == nil {
+			slog.ErrorContext(ctx, "pricing activation refused", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
 	}
+}
+
+// ActivateDue verifies and records due approved versions independently of public reads.
+func (c *RuntimeCatalogue) ActivateDue(ctx context.Context, admin *Admin) error {
+	if c.pool == nil || admin == nil {
+		return errors.New("pricing activation requires an external mapping verifier")
+	}
+	// Baseline seeded versions have no admin approval. Reconcile every later due
+	// version and any approval missed during downtime, even if now superseded.
+	rows, err := c.pool.Query(ctx, `SELECT p.version,p.config,coalesce((SELECT a.override_reason FROM pricing_audit a WHERE a.version=p.version AND a.action IN ('version_approved','version_scheduled') ORDER BY a.created_at DESC LIMIT 1),'')
+ FROM pricing_versions p WHERE p.approved AND p.effective_from<=clock_timestamp()
+ AND (p.effective_from>$1 OR EXISTS(SELECT 1 FROM pricing_drafts d WHERE d.version=p.version AND d.status='approved'))
+ AND NOT EXISTS(SELECT 1 FROM pricing_version_cancellations x WHERE x.version=p.version)
+ AND NOT EXISTS(SELECT 1 FROM pricing_activation_events e WHERE e.version=p.version)
+ ORDER BY p.effective_from`, c.baseline)
+	if err != nil {
+		return err
+	}
+	type dueVersion struct {
+		version  string
+		raw      []byte
+		override string
+	}
+	var due []dueVersion
+	for rows.Next() {
+		var v dueVersion
+		if err = rows.Scan(&v.version, &v.raw, &v.override); err != nil {
+			rows.Close()
+			return err
+		}
+		due = append(due, v)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	if len(due) > 0 && admin.verifier == nil {
+		return errors.New("pricing activation requires an external mapping verifier")
+	}
+	for _, v := range due {
+		if _, err = Parse(v.raw); err != nil {
+			return err
+		}
+		if _, err = checkEconomics(ctx, v.raw, admin.verifier, v.override, admin.policy, false); err != nil {
+			return fmt.Errorf("version %s: %w", v.version, err)
+		}
+		if err = c.recordActivation(ctx, v.version); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *RuntimeCatalogue) recordActivation(ctx context.Context, version string) error {
 	tx, err := c.pool.Begin(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "pricing activation transaction failed", "version", version, "error", err)
-		return
+		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var inserted string
-	err = tx.QueryRow(ctx, `INSERT INTO pricing_activation_events(version) VALUES($1) ON CONFLICT DO NOTHING RETURNING version`, version).Scan(&inserted)
+	err = tx.QueryRow(ctx, `INSERT INTO pricing_activation_events(version,activated_at)
+ SELECT p.version,p.effective_from FROM pricing_versions p
+ WHERE p.version=$1 AND p.approved AND p.effective_from<=clock_timestamp()
+ AND NOT EXISTS(SELECT 1 FROM pricing_version_cancellations x WHERE x.version=p.version)
+ ON CONFLICT DO NOTHING RETURNING version`, version).Scan(&inserted)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return
+		return nil
 	}
 	if err != nil {
-		slog.ErrorContext(ctx, "pricing activation marker failed", "version", version, "error", err)
-		return
+		return err
 	}
 	class := "non_adverse"
-	_ = tx.QueryRow(ctx, "SELECT change_class FROM pricing_drafts WHERE version=$1", version).Scan(&class)
-	if _, err = tx.Exec(ctx, `INSERT INTO pricing_audit(actor_id,action,version,change_class,reason,request_id) VALUES($1,'version_activated',$2,$3,'scheduled activation',$4)`, actorHash(systemActor), version, class, "activation-"+version); err != nil {
-		slog.ErrorContext(ctx, "pricing activation audit failed", "version", version, "error", err)
-		return
+	if err = tx.QueryRow(ctx, "SELECT coalesce((SELECT change_class FROM pricing_drafts WHERE version=$1),'non_adverse')", version).Scan(&class); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO pricing_audit(actor_id,action,version,change_class,reason,request_id,created_at)
+ SELECT $1,'version_activated',version,$3,'scheduled activation',$4,effective_from FROM pricing_versions WHERE version=$2`, actorHash(systemActor), version, class, "activation-"+version); err != nil {
+		return err
 	}
 	if err = tx.Commit(ctx); err != nil {
-		slog.ErrorContext(ctx, "pricing activation commit failed", "version", version, "error", err)
-		return
+		return err
 	}
-	if c.events == nil {
-		return
+	if c.events != nil {
+		properties := map[string]any{"pricing_version": version, "change_class": class, "actor_id": systemActor, "platform": "web", "app_version": "development", "source": "api"}
+		_ = c.events.Capture(systemActor, "pricing_version_activated", properties)
+		_ = c.events.Capture(systemActor, "price_table_activated", properties)
 	}
-	properties := map[string]any{"pricing_version": version, "change_class": class, "actor_id": systemActor, "platform": "web", "app_version": "development", "source": "api"}
-	_ = c.events.Capture(systemActor, "pricing_version_activated", properties)
-	_ = c.events.Capture(systemActor, "price_table_activated", properties)
+	return nil
 }
 
 // Load is called before listening; absent or corrupt active data is a boot error.

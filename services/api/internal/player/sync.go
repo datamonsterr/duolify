@@ -31,10 +31,6 @@ type rawSyncEvent struct {
 	OccurredAt *string `json:"occurred_at"`
 }
 
-type rawSyncBatch struct {
-	Events []rawSyncEvent `json:"events"`
-}
-
 var actionKeyRegex = regexp.MustCompile(`^[A-Za-z0-9_-]{1,100}$`)
 
 func validateSyncEvent(raw rawSyncEvent, lesson string, m ObjectManifest) (SyncEvent, error) {
@@ -69,6 +65,15 @@ func validateSyncEvent(raw rawSyncEvent, lesson string, m ObjectManifest) (SyncE
 	if !found {
 		return SyncEvent{}, errInvalid
 	}
+	// Playback time is advisory: bound skew and ancient clock influence.
+	now := time.Now().UTC()
+	lower := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	if t.Before(lower) {
+		t = lower
+	}
+	if upper := now.Add(2 * time.Minute); t.After(upper) {
+		t = upper
+	}
 	return SyncEvent{
 		ActionKey:  *raw.ActionKey,
 		Version:    *raw.Version,
@@ -78,46 +83,43 @@ func validateSyncEvent(raw rawSyncEvent, lesson string, m ObjectManifest) (SyncE
 	}, nil
 }
 
-func decodeSyncEvents(reader io.Reader, lesson string, m ObjectManifest) ([]SyncEvent, error) {
-	rawBytes, err := io.ReadAll(io.LimitReader(reader, 65536))
-	if err != nil || len(rawBytes) == 0 {
-		return nil, errInvalid
+// The envelope must be valid JSON; each event is decoded independently so an
+// invalid type or extra field cannot prevent unrelated events being processed.
+func decodeSyncEvents(reader io.Reader, lesson string, m ObjectManifest) ([]SyncEvent, []string, error) {
+	rawBytes, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, nil, err
 	}
-
-	// Try decoding as batch
-	var batch rawSyncBatch
-	dB := json.NewDecoder(bytes.NewReader(rawBytes))
-	dB.DisallowUnknownFields()
-	var extraB any
-	if errB := dB.Decode(&batch); errB == nil && errors.Is(dB.Decode(&extraB), io.EOF) {
-		if len(batch.Events) == 0 {
-			return nil, errInvalid
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(rawBytes, &envelope); err != nil || envelope == nil {
+		return nil, nil, errInvalid
+	}
+	items := []json.RawMessage{rawBytes}
+	if raw, ok := envelope["events"]; ok {
+		if len(envelope) != 1 || json.Unmarshal(raw, &items) != nil || len(items) == 0 {
+			return nil, nil, errInvalid
 		}
-		events := make([]SyncEvent, 0, len(batch.Events))
-		for _, e := range batch.Events {
-			valid, err := validateSyncEvent(e, lesson, m)
-			if err != nil {
-				return nil, errInvalid
+	}
+	events := make([]SyncEvent, 0, len(items))
+	rejected := make([]string, 0)
+	for _, item := range items {
+		var raw rawSyncEvent
+		decoder := json.NewDecoder(bytes.NewReader(item))
+		decoder.DisallowUnknownFields()
+		decodeErr := decoder.Decode(&raw)
+		valid, err := validateSyncEvent(raw, lesson, m)
+		if decodeErr != nil || err != nil {
+			// Read only this request's key, even when another field is malformed.
+			var identity struct {
+				ActionKey string `json:"action_key"`
 			}
-			events = append(events, valid)
+			_ = json.Unmarshal(item, &identity)
+			rejected = append(rejected, identity.ActionKey)
+			continue
 		}
-		return events, nil
+		events = append(events, valid)
 	}
-
-	// Try decoding as single event
-	var single rawSyncEvent
-	dS := json.NewDecoder(bytes.NewReader(rawBytes))
-	dS.DisallowUnknownFields()
-	var extraS any
-	if errS := dS.Decode(&single); errS == nil && errors.Is(dS.Decode(&extraS), io.EOF) {
-		valid, err := validateSyncEvent(single, lesson, m)
-		if err != nil {
-			return nil, errInvalid
-		}
-		return []SyncEvent{valid}, nil
-	}
-
-	return nil, errInvalid
+	return events, rejected, nil
 }
 
 func (s *Service) sync(ctx context.Context, w http.ResponseWriter, r *http.Request, owner, lesson string, m ObjectManifest) {
@@ -126,8 +128,14 @@ func (s *Service) sync(ctx context.Context, w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	events, err := decodeSyncEvents(r.Body, lesson, m)
+	r.Body = http.MaxBytesReader(w, r.Body, 65536)
+	events, rejectedKeys, err := decodeSyncEvents(r.Body, lesson, m)
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			failure(w, http.StatusRequestEntityTooLarge)
+			return
+		}
 		respond(w, http.StatusBadRequest, map[string]string{"error": "invalid sync event"})
 		return
 	}
@@ -156,29 +164,16 @@ func (s *Service) sync(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	ackedKeys := make([]string, 0, len(events))
 	for _, event := range events {
-		// Foreign action key check: does this key already belong to another learner?
-		var existingOwner string
-		err := tx.QueryRow(ctx, "SELECT learner_id::text FROM lesson_playback_sync_events WHERE action_key=$1", event.ActionKey).Scan(&existingOwner)
-		if err == nil {
-			if existingOwner != owner {
-				_ = tx.Rollback(ctx)
-				respond(w, http.StatusBadRequest, map[string]string{"error": "foreign action key rejected"})
-				return
-			}
-			// Same owner: already processed, idempotent ack
-			ackedKeys = append(ackedKeys, event.ActionKey)
-			continue
-		} else if !errors.Is(err, pgx.ErrNoRows) {
-			failure(w, http.StatusServiceUnavailable)
-			return
-		}
-
-		// Insert event
-		_, err = tx.Exec(ctx, `INSERT INTO lesson_playback_sync_events(action_key, learner_id, lesson_id, version, slide_id, time_ms, occurred_at)
- VALUES($1, $2, $3, $4, $5, $6, $7)`, event.ActionKey, owner, lesson, event.Version, event.SlideID, event.TimeMS, event.OccurredAt)
+		// The composite key gives each learner an independent idempotency space.
+		inserted, err := tx.Exec(ctx, `INSERT INTO lesson_playback_sync_events(action_key, learner_id, lesson_id, version, slide_id, time_ms, occurred_at)
+ VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (learner_id, action_key) DO NOTHING`, event.ActionKey, owner, lesson, event.Version, event.SlideID, event.TimeMS, event.OccurredAt)
 		if err != nil {
 			failure(w, http.StatusServiceUnavailable)
 			return
+		}
+		if inserted.RowsAffected() == 0 {
+			ackedKeys = append(ackedKeys, event.ActionKey)
+			continue
 		}
 
 		// Out-of-order merge into lesson_playback_positions
@@ -209,8 +204,10 @@ func (s *Service) sync(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	_ = s.opts.Pool.QueryRow(ctx, `SELECT version, slide_id, time_ms FROM lesson_playback_positions WHERE learner_id::text=$1 AND lesson_id::text=$2`, owner, lesson).Scan(&p.Version, &p.SlideID, &p.TimeMS)
 
 	respond(w, http.StatusOK, map[string]any{
-		"synced":      true,
-		"action_keys": ackedKeys,
-		"position":    p,
+		"synced":        true,
+		"action_keys":   ackedKeys, // Compatibility with older clients.
+		"acked_keys":    ackedKeys,
+		"rejected_keys": rejectedKeys,
+		"position":      p,
 	})
 }

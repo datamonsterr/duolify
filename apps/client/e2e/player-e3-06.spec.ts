@@ -187,3 +187,111 @@ for (const width of [1280, 390]) {
     }
   });
 }
+
+test("home offline fallback is owner scoped and never masks HTTP errors", async ({
+  page,
+}) => {
+  await page.goto("/profile");
+  const { owner, own } = await page.evaluate(async (base) => {
+    const tokens = JSON.parse(sessionStorage.getItem("duolify.auth")!);
+    const response = await fetch(`${base}/v1/me`, {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    const me = await response.json();
+    const own = {
+      courseId: "own-offline",
+      title: "My offline course",
+      downloadedAt: new Date().toISOString(),
+      lessonIds: [],
+      courseData: {
+        id: "own-offline",
+        title: "My offline course",
+        description: "",
+        units: [],
+      },
+    };
+    const foreign = {
+      ...own,
+      courseId: "foreign-offline",
+      title: "Foreign private course",
+      courseData: {
+        ...own.courseData,
+        id: "foreign-offline",
+        title: "Foreign private course",
+      },
+    };
+    localStorage.setItem(
+      `duolify:download-index:${me.id}`,
+      JSON.stringify({ "own-offline": own }),
+    );
+    localStorage.setItem(
+      "duolify:download-index:another-owner",
+      JSON.stringify({ "foreign-offline": foreign }),
+    );
+    return { owner: me.id as string, own };
+  }, apiBase);
+  await page.route("**/courses/own-offline", (route) =>
+    route.fulfill({
+      json: {
+        id: "own-offline",
+        title: "My offline course",
+        description: "",
+        units: [],
+      },
+    }),
+  );
+  await page.route("**/v1/courses", (route) =>
+    route.abort("internetdisconnected"),
+  );
+  await page.goto("/");
+  await expect(
+    page.getByText("My offline course", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Foreign private course", { exact: true }),
+  ).toHaveCount(0);
+  let foreignReads = 0;
+  await page.route("**/courses/foreign-offline", (route) => {
+    foreignReads++;
+    return route.fulfill({
+      json: {
+        id: "foreign-offline",
+        title: "Foreign private course",
+        description: "",
+        units: [],
+      },
+    });
+  });
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (
+        key.startsWith("duolify:download-index:") &&
+        key !== "duolify:download-index:another-owner"
+      )
+        localStorage.removeItem(key);
+    }
+    localStorage.removeItem("duolify:active-course");
+  });
+  await page.goto("/");
+  await expect(page.getByText("Could not load this course.")).toBeVisible();
+  expect(foreignReads).toBe(0);
+  for (const status of [503, 401]) {
+    await page.route("**/v1/courses", (route) =>
+      route.fulfill({ status, json: { error: "unavailable" } }),
+    );
+    await page.evaluate(
+      ({ owner, own }) => {
+        localStorage.setItem(
+          `duolify:download-index:${owner}`,
+          JSON.stringify({ "own-offline": own }),
+        );
+        localStorage.removeItem("duolify:active-course");
+      },
+      { owner, own },
+    );
+    await page.goto("/");
+    await expect(
+      page.getByText("My offline course", { exact: true }),
+    ).toHaveCount(0);
+  }
+});

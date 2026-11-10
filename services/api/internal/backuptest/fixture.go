@@ -345,7 +345,7 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		"INSERT INTO pricing_verification_evidence(version,evidence) VALUES ('usd-backup-scheduled','{\"margin_floor_verified\":true,\"economics_verified\":true,\"mappings_verified\":true}'::jsonb)",
 		"INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class) SELECT 'usd-backup-draft',version,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-draft\"'),'{effective_from}',to_jsonb(now()+interval '96 hours')),'a1111111-1111-4111-8111-111111111111','non_adverse' FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
 		"INSERT INTO pricing_drafts(version,parent_version,config,created_by,change_class,rollback_source_version) SELECT 'usd-backup-rollback',version,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-rollback\"'),'{effective_from}',to_jsonb(now()+interval '120 hours')),'a1111111-1111-4111-8111-111111111111','non_adverse','usd-launch-2026-11-08' FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
-		fmt.Sprintf("INSERT INTO pricing_audit(actor_id,action,version,change_class,reason,request_id) VALUES ('%x','version_created','usd-backup-draft','non_adverse','synthetic restore audit','restore-fixture')", sha256.Sum256([]byte("a1111111-1111-4111-8111-111111111111"))),
+		fmt.Sprintf("INSERT INTO pricing_audit(actor_id,action,version,change_class,reason,request_id,override_reason) VALUES ('%x','version_created','usd-backup-draft','non_adverse','synthetic restore audit','restore-fixture','synthetic audited override')", sha256.Sum256([]byte("a1111111-1111-4111-8111-111111111111"))),
 		"INSERT INTO account_deletion_tombstones (learner_reference) VALUES (repeat('9',64))",
 	} {
 		if _, err := f.DB.Pool.Exec(t.Context(), query); err != nil {
@@ -776,6 +776,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		query string
 		want  int
 	}{
+		{"SELECT count(*) FROM pricing_audit WHERE request_id='restore-fixture' AND override_reason='synthetic audited override'", 1},
 		{"SELECT count(*) FROM pricing_activation_events WHERE version='usd-launch-2026-11-08'", 1},
 		{"SELECT count(*) FROM pricing_version_cancellations WHERE version='usd-backup-scheduled'", 1},
 		{"SELECT count(*) FROM pricing_drafts WHERE version='usd-backup-rollback' AND parent_version='usd-launch-2026-11-08' AND rollback_source_version='usd-launch-2026-11-08'", 1},

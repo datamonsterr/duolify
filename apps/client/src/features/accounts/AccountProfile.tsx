@@ -15,7 +15,7 @@ export function AccountProfile() {
 
   const { data: coursesData, refetch: refetchCourses } = useQuery({
     queryKey: ["courses"],
-    queryFn: api.courses,
+    queryFn: () => api.courses(),
     retry: false,
   });
 

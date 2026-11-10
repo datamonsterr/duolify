@@ -271,12 +271,8 @@ function TracerLessonPlayer({
   }, [index]);
   useEffect(() => {
     const listener = (event: MessageEvent) => {
-      if (!event.data || typeof event.data !== "object") return;
-
-      if (
-        isSlideMessage(event, frame.current?.contentWindow ?? null) &&
-        event.data.type === "ended"
-      ) {
+      if (!isSlideMessage(event, frame.current?.contentWindow ?? null)) return;
+      if (event.data.type === "ended") {
         /* Learner advances when ready. */
       }
 

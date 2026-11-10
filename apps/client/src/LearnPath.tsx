@@ -3,7 +3,7 @@ import { useUiPreferences } from "./features/design/localization/Preferences";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "@tanstack/react-router";
 import { api } from "./lib/api";
-import { session } from "./features/accounts/session";
+import { AuthError, session } from "./features/accounts/session";
 import { RouteUnavailable } from "./features/shell/RouteBoundary";
 import { useLessonTestTracerEnabled } from "./lib/features";
 import {
@@ -51,15 +51,18 @@ export function LearnPath({ courseId }: { courseId: string }) {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["course", courseId],
+    queryKey: ["course", courseId, owner],
     queryFn: async () => {
       try {
         const c = await api.course(courseId);
         return c;
       } catch (err) {
-        const downloaded = getDownloadedCourses(session.current()?.id)[
-          courseId
-        ];
+        if (
+          err instanceof AuthError ||
+          !(err instanceof TypeError || !navigator.onLine)
+        )
+          throw err;
+        const downloaded = getDownloadedCourses(owner)[courseId];
         if (downloaded?.courseData) {
           return downloaded.courseData;
         }

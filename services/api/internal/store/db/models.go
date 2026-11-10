@@ -698,15 +698,16 @@ type PricingAdminGrant struct {
 }
 
 type PricingAudit struct {
-	ID          int64              `json:"id"`
-	ActorID     string             `json:"actor_id"`
-	Action      string             `json:"action"`
-	Version     pgtype.Text        `json:"version"`
-	ChangeClass pgtype.Text        `json:"change_class"`
-	DiffSummary []byte             `json:"diff_summary"`
-	Reason      string             `json:"reason"`
-	RequestID   string             `json:"request_id"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ID             int64              `json:"id"`
+	ActorID        string             `json:"actor_id"`
+	Action         string             `json:"action"`
+	Version        pgtype.Text        `json:"version"`
+	ChangeClass    pgtype.Text        `json:"change_class"`
+	DiffSummary    []byte             `json:"diff_summary"`
+	Reason         string             `json:"reason"`
+	RequestID      string             `json:"request_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OverrideReason pgtype.Text        `json:"override_reason"`
 }
 
 type PricingDraft struct {

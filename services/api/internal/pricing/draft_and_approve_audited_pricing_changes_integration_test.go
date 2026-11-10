@@ -42,6 +42,7 @@ func TestPricingAdminAuditRolesAndVersionImmutability(t *testing.T) {
 		t.Fatal(err)
 	}
 	admin := pricing.NewAdmin(db.Pool, nil, actor)
+	admin.SetVerifier(&pricing.DevelopmentVerifier{})
 	var current map[string]any
 	if err = db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version='usd-launch-2026-11-08'").Scan(&current); err != nil {
 		t.Fatal(err)
