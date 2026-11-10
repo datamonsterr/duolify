@@ -65,18 +65,42 @@ for (const width of [1280, 390]) {
     expect(login.status()).toBe(200);
     const tokens = (await login.json()) as Tokens;
 
+    const meRes = await request.get(`${apiBase}/v1/me`, {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    expect(meRes.ok()).toBe(true);
+    const me = (await meRes.json()) as { id: string };
+
     const fixtureRes = await request.post(`${apiBase}/test/player/fixture`, {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
     });
     expect(fixtureRes.ok()).toBe(true);
-    demoLesson = (await fixtureRes.json()).lesson_id;
+    const fixtureData = (await fixtureRes.json()) as {
+      lesson_id: string;
+      course_id?: string;
+    };
+    demoLesson = fixtureData.lesson_id;
+    const courseId = fixtureData.course_id || "course";
 
-    await context.addInitScript((val) => {
-      sessionStorage.setItem(
-        "duolify.native-store-fixture",
-        JSON.stringify(val),
-      );
-    }, tokens);
+    await context.addInitScript(
+      ({ tokens, owner, demoLesson, courseId }) => {
+        sessionStorage.setItem(
+          "duolify.native-store-fixture",
+          JSON.stringify(tokens),
+        );
+        const downloadedCourse = {
+          courseId,
+          title: "Why the sky changes",
+          downloadedAt: new Date().toISOString(),
+          lessonIds: [demoLesson],
+        };
+        localStorage.setItem(
+          `duolify:download-index:${owner}`,
+          JSON.stringify({ [courseId]: downloadedCourse }),
+        );
+      },
+      { tokens, owner: me.id, demoLesson, courseId },
+    );
 
     // Navigate to lesson player
     await page.goto(`${webBase}/lesson/${demoLesson}`);

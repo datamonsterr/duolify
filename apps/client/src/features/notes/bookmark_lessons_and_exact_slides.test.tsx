@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { bookmarkQueue } from "./bookmark-queue";
-import { BookmarksPage } from "./BookmarksPage";
+import { BookmarksPage, isLessonCached } from "./BookmarksPage";
+import { session } from "../accounts/session";
 import {
   configureAnalytics,
   trackBookmarkAdded,
@@ -208,5 +209,72 @@ describe("bookmark_lessons_and_exact_slides", () => {
         slide_id: 1,
       }),
     );
+  });
+
+  it("renders Saved offline chip only when lesson is downloaded for the current owner", () => {
+    const ownerId = "11111111-1111-4111-8111-111111111111";
+    vi.spyOn(session, "current").mockReturnValue({
+      id: ownerId,
+      display_name: "Learner",
+      locale: "en",
+      time_zone: "UTC",
+      background: "",
+      analytics_opt_out: false,
+    });
+
+    bookmarkQueue.enqueue({
+      id: "bm-cached-lesson",
+      courseId: "course-astronomy",
+      lessonId: "lesson-stars-1",
+      targetType: "slide",
+      courseTitle: "Astronomy",
+      lessonTitle: "Stars and Planets",
+      slideTitle: "Slide 1",
+      slideId: 0,
+      status: "synced",
+      available: true,
+    });
+
+    // 1. Without download-index, it shows "not downloaded"
+    expect(isLessonCached("lesson-stars-1")).toBe(false);
+    const { unmount } = render(<BookmarksPage />);
+    expect(screen.getByText(/not downloaded/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Saved offline$/i)).not.toBeInTheDocument();
+    unmount();
+
+    // 2. Download index under a different owner does NOT mark it as saved offline (owner-scoped)
+    localStorage.setItem(
+      "duolify:download-index:different-owner",
+      JSON.stringify({
+        "course-astronomy": {
+          courseId: "course-astronomy",
+          title: "Astronomy",
+          downloadedAt: new Date().toISOString(),
+          lessonIds: ["lesson-stars-1"],
+        },
+      }),
+    );
+    expect(isLessonCached("lesson-stars-1")).toBe(false);
+    const { unmount: unmount2 } = render(<BookmarksPage />);
+    expect(screen.getByText(/not downloaded/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Saved offline$/i)).not.toBeInTheDocument();
+    unmount2();
+
+    // 3. Download index for current owner marks it as Saved offline
+    localStorage.setItem(
+      `duolify:download-index:${ownerId}`,
+      JSON.stringify({
+        "course-astronomy": {
+          courseId: "course-astronomy",
+          title: "Astronomy",
+          downloadedAt: new Date().toISOString(),
+          lessonIds: ["lesson-stars-1"],
+        },
+      }),
+    );
+    expect(isLessonCached("lesson-stars-1")).toBe(true);
+    render(<BookmarksPage />);
+    expect(screen.getByText(/^Saved offline$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/not downloaded/i)).not.toBeInTheDocument();
   });
 });

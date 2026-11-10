@@ -24,8 +24,7 @@ export type BookmarkItem = {
 export function isLessonCached(lessonId?: string | null): boolean {
   if (!lessonId) return false;
   try {
-    if (availableOffline(lessonId)) return true;
-    return localStorage.getItem(`duolify:lesson-cached:${lessonId}`) === "true";
+    return availableOffline(lessonId);
   } catch {
     return false;
   }
