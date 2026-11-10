@@ -170,7 +170,7 @@ fn lesson_events(
             .map(|event| Ok(pb::GenerateLessonEvent { event: Some(event) })),
     )))
 }
-fn strings(v: &serde_json::Value) -> Vec<String> {
+fn _strings(v: &serde_json::Value) -> Vec<String> {
     v.as_array()
         .into_iter()
         .flatten()
