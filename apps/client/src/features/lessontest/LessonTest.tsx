@@ -9,6 +9,8 @@ import { useLessonTestTracerEnabled } from "../../lib/features";
 export interface QuestionItem {
   question_id: string;
   topic_id: string;
+  variant_of?: string;
+  is_variant?: boolean;
   prompt: string;
   choices: string[];
 }
@@ -21,6 +23,7 @@ export interface AnswerResult {
   total_topics?: number;
   retry_queue_count?: number;
   passed: boolean;
+  retry_variant?: QuestionItem;
 }
 
 export interface LessonTestProps {
@@ -28,6 +31,8 @@ export interface LessonTestProps {
   courseId?: string;
   title?: string;
   questions: QuestionItem[];
+  resolvedTopics?: number;
+  totalTopics?: number;
   onPass: () => void;
   onExit?: () => void;
   onAnswer?: (questionId: string, choiceIndex: number) => Promise<AnswerResult>;
@@ -38,6 +43,8 @@ export function LessonTest({
   courseId,
   title = "Lesson test",
   questions: initialQuestions,
+  resolvedTopics: initialResolvedTopics,
+  totalTopics: initialTotalTopics,
   onPass,
   onExit,
   onAnswer,
@@ -46,12 +53,22 @@ export function LessonTest({
   const effectiveCourseId = courseId || session.courseId() || "astronomy";
   const effectiveLessonId = lessonId || "sky";
 
+  const defaultTotalTopics =
+    initialTotalTopics ??
+    (new Set(initialQuestions.map((q) => q.topic_id || q.question_id)).size ||
+      1);
+
   const [queue, setQueue] = useState<QuestionItem[]>(initialQuestions);
   const [queueIndex, setQueueIndex] = useState(0);
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<AnswerResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [resolvedTopics, setResolvedTopics] = useState(
+    initialResolvedTopics ?? 0,
+  );
+  const [totalTopics, setTotalTopics] = useState(defaultTotalTopics);
+  const [retryQueueCount, setRetryQueueCount] = useState(0);
 
   const currentQuestion = queue[queueIndex];
 
@@ -74,22 +91,39 @@ export function LessonTest({
           selectedChoice,
         );
         setFeedback(result);
+        if (typeof result.total_topics === "number") {
+          setTotalTopics(result.total_topics);
+        }
+        if (typeof result.resolved_topics === "number") {
+          setResolvedTopics(result.resolved_topics);
+        }
+        if (typeof result.retry_queue_count === "number") {
+          setRetryQueueCount(result.retry_queue_count);
+        }
         if (!result.correct) {
-          // Reorder choices and append fallback to the retry queue
-          const n = currentQuestion.choices.length;
-          const reorderedChoices = currentQuestion.choices.map(
-            (_, i) => currentQuestion.choices[(i + 1) % n],
-          );
-          setQueue((prev) => [
-            ...prev,
-            {
-              ...currentQuestion,
-              choices: reorderedChoices,
-            },
-          ]);
+          const variant: QuestionItem = result.retry_variant || {
+            ...currentQuestion,
+            question_id: `${currentQuestion.question_id}-retry`,
+            variant_of: currentQuestion.question_id,
+            is_variant: true,
+            choices: currentQuestion.choices.map(
+              (_, i) =>
+                currentQuestion.choices[
+                  (i + 1) % currentQuestion.choices.length
+                ],
+            ),
+          };
+          // Min gap rule: retry variant is queued after at least 2 remaining questions (or at end)
+          setQueue((prev) => {
+            const targetIdx = Math.min(prev.length, queueIndex + 1 + 2);
+            const next = [...prev];
+            next.splice(targetIdx, 0, variant);
+            return next;
+          });
         }
       } else {
         // Fallback local grading if onAnswer not provided
+        setResolvedTopics((prev) => Math.min(prev + 1, totalTopics));
         setFeedback({
           correct: true,
           passed: queueIndex + 1 >= queue.length,
@@ -105,6 +139,7 @@ export function LessonTest({
     onAnswer,
     queueIndex,
     queue.length,
+    totalTopics,
   ]);
 
   const handleContinue = useCallback(() => {
@@ -241,8 +276,8 @@ export function LessonTest({
         role="progressbar"
         aria-label="Test progress"
         aria-valuemin={0}
-        aria-valuemax={queue.length}
-        aria-valuenow={queueIndex + 1}
+        aria-valuemax={totalTopics}
+        aria-valuenow={resolvedTopics}
         style={{
           height: "12px",
           backgroundColor: "#E5E5E5",
@@ -254,7 +289,7 @@ export function LessonTest({
         <div
           style={{
             height: "100%",
-            width: `${((queueIndex + 1) / queue.length) * 100}%`,
+            width: `${totalTopics > 0 ? (resolvedTopics / totalTopics) * 100 : 0}%`,
             backgroundColor: "#58C322",
             borderRadius: "999px",
             transition: "width 0.2s ease",
@@ -263,6 +298,72 @@ export function LessonTest({
       </div>
 
       <main>
+        <div
+          className="meta"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            marginBottom: "14px",
+          }}
+        >
+          <span
+            className="chip cok"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "4px 9px",
+              borderRadius: "12px",
+              fontWeight: 800,
+              fontSize: "12px",
+              backgroundColor: "#E3F8D3",
+              color: "#1E6E0C",
+            }}
+          >
+            Resolved {resolvedTopics} of {totalTopics}
+          </span>
+          <span
+            className="chip cinfo"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "4px 9px",
+              borderRadius: "12px",
+              fontWeight: 800,
+              fontSize: "12px",
+              backgroundColor: "#DDF1FF",
+              color: "#0D5592",
+            }}
+          >
+            Retry queue {retryQueueCount}
+          </span>
+        </div>
+
+        {(currentQuestion.is_variant ||
+          Boolean(currentQuestion.variant_of)) && (
+          <div style={{ marginBottom: "12px" }}>
+            <span
+              className="rv"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                alignSelf: "flex-start",
+                padding: "6px 10px",
+                borderRadius: "12px",
+                backgroundColor: "#F0E7FF",
+                color: "#5B2BB5",
+                fontWeight: 900,
+                fontSize: "13px",
+              }}
+            >
+              Retry variant · Same idea, fresh wording
+            </span>
+          </div>
+        )}
+
         <h2
           style={{
             fontSize: "22px",
@@ -466,15 +567,29 @@ export function LessonTestRoute() {
   const session = useShellSession();
   const tracerEnabled = useLessonTestTracerEnabled();
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  const [totalTopics, setTotalTopics] = useState<number | undefined>(undefined);
+  const [resolvedTopics, setResolvedTopics] = useState<number | undefined>(
+    undefined,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tracerEnabled) return;
     track("lesson_test_started", { lesson_id: lessonId });
-    authRequest<{ questions: QuestionItem[] }>(`/v1/lessons/${lessonId}/test`)
+    authRequest<{
+      questions: QuestionItem[];
+      total_topics?: number;
+      resolved_topics?: number;
+    }>(`/v1/lessons/${lessonId}/test`)
       .then((data) => {
         setQuestions(data.questions || []);
+        if (typeof data.total_topics === "number") {
+          setTotalTopics(data.total_topics);
+        }
+        if (typeof data.resolved_topics === "number") {
+          setResolvedTopics(data.resolved_topics);
+        }
         setLoading(false);
       })
       .catch((err) => {
@@ -534,6 +649,8 @@ export function LessonTestRoute() {
       lessonId={lessonId}
       courseId={session.courseId()}
       questions={questions}
+      totalTopics={totalTopics}
+      resolvedTopics={resolvedTopics}
       onAnswer={handleAnswer}
       onPass={handlePass}
       onExit={() =>

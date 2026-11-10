@@ -192,8 +192,75 @@ impl LlmProvider for MockProvider {
                 })
                 .to_string()
             }
+        } else if input.contains("lesson_test_variant")
+            || input.contains("variants")
+            || input.contains("source_question")
+        {
+            serde_json::json!({
+                "variants": [
+                    {
+                        "question_id": "v1-q1",
+                        "topic_id": "top-stars",
+                        "variant_of": "q1",
+                        "prompt": "Which celestial object produces its own light through fusion?",
+                        "choices": ["Planet", "Self-luminous star", "Comet"],
+                        "answer_index": 1,
+                        "explanation": "Stars generate their own light through nuclear fusion."
+                    }
+                ]
+            })
+            .to_string()
         } else {
-            serde_json::json!({"title":"Sample", "narration":"Sample explanation", "summary":"Sample note", "html":"<div id=\"root\">Sample</div>", "units":[{"unit_id":"unit-1","title":"Sample unit","lessons":[{"lesson_id":"lesson-1","title":"Sample lesson","goal":"Learn"}]}], "test":[{"question_id":"q1","prompt":"Sample?","choices":["Yes","No"],"answer_index":0,"explanation":"Sample"}]}).to_string()
+            serde_json::json!({
+                "title": "Sample",
+                "narration": "Sample explanation",
+                "summary": "Sample note",
+                "html": "<div id=\"root\">Sample</div>",
+                "topic_ids": ["top-1"],
+                "slides": [
+                    {
+                        "slide_id": "s1",
+                        "html": "<div id=\"root\">Sample</div>",
+                        "duration_ms": 3000,
+                        "narration": "Sample explanation",
+                        "topic_ids": ["top-1"]
+                    }
+                ],
+                "units": [
+                    {
+                        "unit_id": "unit-1",
+                        "title": "Sample unit",
+                        "lessons": [{"lesson_id": "lesson-1", "title": "Sample lesson", "goal": "Learn"}]
+                    }
+                ],
+                "test": [
+                    {
+                        "question_id": "q1",
+                        "topic_id": "top-1",
+                        "prompt": "Sample?",
+                        "choices": ["Yes", "No"],
+                        "answer_index": 0,
+                        "explanation": "Sample"
+                    }
+                ],
+                "variant_pool": [
+                    {
+                        "topic_id": "top-1",
+                        "variants": [
+                            {
+                                "question_id": "v1-q1",
+                                "topic_id": "top-1",
+                                "variant_of": "q1",
+                                "prompt": "Sample? (rephrased)",
+                                "choices": ["No", "Yes"],
+                                "answer_index": 1,
+                                "explanation": "Sample variant"
+                            }
+                        ]
+                    }
+                ]
+            })
+            .to_string()
         };
         Ok(Completion {
             text,

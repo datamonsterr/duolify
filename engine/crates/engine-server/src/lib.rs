@@ -72,6 +72,17 @@ fn slides(c: &Completion) -> Result<Vec<pb::Slide>, Status> {
                 .ok_or_else(|| Status::internal("missing slide html"))?;
             engine_core::slide::validate(html, &[])
                 .map_err(|_| Status::internal("invalid slide"))?;
+            let topic_ids: Vec<String> = item["topic_ids"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|t| t.as_str().map(str::to_owned))
+                .collect();
+            let topic_ids = if topic_ids.is_empty() {
+                vec!["top-1".to_string()]
+            } else {
+                topic_ids
+            };
             Ok(pb::Slide {
                 slide_id: item["slide_id"].as_str().unwrap_or_default().into(),
                 html: html.into(),
@@ -80,6 +91,7 @@ fn slides(c: &Completion) -> Result<Vec<pb::Slide>, Status> {
                     .and_then(|n| u32::try_from(n).ok())
                     .unwrap_or(1000),
                 narration: item["narration"].as_str().unwrap_or_default().into(),
+                topic_ids,
             })
         })
         .collect()
@@ -415,29 +427,130 @@ impl EngineService for Service {
             .await
             .map_err(internal)?;
         let generated_slides = slides(&c)?;
+        let test_questions: Vec<pb::Question> = content(&c)?["test"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .map(|(i, q)| pb::Question {
+                question_id: q["question_id"]
+                    .as_str()
+                    .unwrap_or(&format!("q{}", i + 1))
+                    .into(),
+                prompt: q["prompt"].as_str().unwrap_or_default().into(),
+                choices: q["choices"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|v| v.as_str().map(str::to_owned))
+                    .collect(),
+                answer_index: q["answer_index"]
+                    .as_u64()
+                    .and_then(|n| u32::try_from(n).ok())
+                    .unwrap_or(0),
+                explanation: q["explanation"].as_str().unwrap_or_default().into(),
+                topic_id: q["topic_id"].as_str().unwrap_or("top-1").into(),
+                variant_of: q["variant_of"].as_str().unwrap_or_default().into(),
+            })
+            .collect();
+
+        let mut variant_pool: Vec<pb::TopicVariants> = content(&c)?["variant_pool"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|tp| pb::TopicVariants {
+                topic_id: tp["topic_id"].as_str().unwrap_or_default().into(),
+                variants: tp["variants"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|q| pb::Question {
+                        question_id: q["question_id"].as_str().unwrap_or_default().into(),
+                        prompt: q["prompt"].as_str().unwrap_or_default().into(),
+                        choices: q["choices"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .filter_map(|v| v.as_str().map(str::to_owned))
+                            .collect(),
+                        answer_index: q["answer_index"]
+                            .as_u64()
+                            .and_then(|n| u32::try_from(n).ok())
+                            .unwrap_or(0),
+                        explanation: q["explanation"].as_str().unwrap_or_default().into(),
+                        topic_id: q["topic_id"].as_str().unwrap_or_default().into(),
+                        variant_of: q["variant_of"].as_str().unwrap_or_default().into(),
+                    })
+                    .collect(),
+            })
+            .collect();
+
+        if variant_pool.is_empty() {
+            let mut by_topic: std::collections::BTreeMap<String, Vec<&pb::Question>> =
+                std::collections::BTreeMap::new();
+            for q in &test_questions {
+                by_topic.entry(q.topic_id.clone()).or_default().push(q);
+            }
+            for (topic_id, qs) in by_topic {
+                let mut vars = Vec::new();
+                for q in qs {
+                    let n = q.choices.len();
+                    let reordered1 = if n > 1 {
+                        let mut r = q.choices.clone();
+                        r.rotate_left(1);
+                        r
+                    } else {
+                        q.choices.clone()
+                    };
+                    let new_ans_idx1 = if n > 1 {
+                        (q.answer_index + n as u32 - 1) % n as u32
+                    } else {
+                        0
+                    };
+                    vars.push(pb::Question {
+                        question_id: format!("v1-{}", q.question_id),
+                        prompt: format!("{} (rephrased)", q.prompt),
+                        choices: reordered1,
+                        answer_index: new_ans_idx1,
+                        explanation: q.explanation.clone(),
+                        topic_id: topic_id.clone(),
+                        variant_of: q.question_id.clone(),
+                    });
+
+                    let reordered2 = if n > 1 {
+                        let mut r = q.choices.clone();
+                        r.reverse();
+                        r
+                    } else {
+                        q.choices.clone()
+                    };
+                    let new_ans_idx2 = if n > 1 {
+                        (n as u32 - 1) - q.answer_index
+                    } else {
+                        0
+                    };
+                    vars.push(pb::Question {
+                        question_id: format!("v2-{}", q.question_id),
+                        prompt: format!("In other words: {}", q.prompt),
+                        choices: reordered2,
+                        answer_index: new_ans_idx2,
+                        explanation: q.explanation.clone(),
+                        topic_id: topic_id.clone(),
+                        variant_of: q.question_id.clone(),
+                    });
+                }
+                variant_pool.push(pb::TopicVariants {
+                    topic_id,
+                    variants: vars,
+                });
+            }
+        }
+
         let l = pb::Lesson {
             r#ref: req.lesson,
             slides: generated_slides.clone(),
-            test: content(&c)?["test"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .map(|q| pb::Question {
-                    question_id: q["question_id"].as_str().unwrap_or_default().into(),
-                    prompt: q["prompt"].as_str().unwrap_or_default().into(),
-                    choices: q["choices"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|v| v.as_str().map(str::to_owned))
-                        .collect(),
-                    answer_index: q["answer_index"]
-                        .as_u64()
-                        .and_then(|n| u32::try_from(n).ok())
-                        .unwrap_or(0),
-                    explanation: q["explanation"].as_str().unwrap_or_default().into(),
-                })
-                .collect(),
+            test: test_questions,
+            variant_pool,
         };
         let mut events = vec![pb::generate_lesson_event::Event::Progress(
             "Generating".into(),
@@ -454,6 +567,67 @@ impl EngineService for Service {
                 .into_iter()
                 .map(|event| Ok(pb::GenerateLessonEvent { event: Some(event) })),
         ))))
+    }
+    #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
+    async fn generate_retry_variants(
+        &self,
+        request: Request<pb::GenerateRetryVariantsRequest>,
+    ) -> Result<Response<pb::GenerateRetryVariantsResponse>, Status> {
+        let req = request.into_inner();
+        let src = req
+            .source
+            .ok_or_else(|| Status::invalid_argument("source question required"))?;
+        let n = src.choices.len();
+        let reordered1 = if n > 1 {
+            let mut r = src.choices.clone();
+            r.rotate_left(1);
+            r
+        } else {
+            src.choices.clone()
+        };
+        let new_ans1 = if n > 1 {
+            (src.answer_index + n as u32 - 1) % n as u32
+        } else {
+            0
+        };
+        let reordered2 = if n > 1 {
+            let mut r = src.choices.clone();
+            r.reverse();
+            r
+        } else {
+            src.choices.clone()
+        };
+        let new_ans2 = if n > 1 {
+            (n as u32 - 1) - src.answer_index
+        } else {
+            0
+        };
+        let variants = vec![
+            pb::Question {
+                question_id: format!("v1-{}", src.question_id),
+                prompt: format!("{} (rephrased)", src.prompt),
+                choices: reordered1,
+                answer_index: new_ans1,
+                explanation: src.explanation.clone(),
+                topic_id: src.topic_id.clone(),
+                variant_of: src.question_id.clone(),
+            },
+            pb::Question {
+                question_id: format!("v2-{}", src.question_id),
+                prompt: format!("In other words: {}", src.prompt),
+                choices: reordered2,
+                answer_index: new_ans2,
+                explanation: src.explanation.clone(),
+                topic_id: src.topic_id.clone(),
+                variant_of: src.question_id.clone(),
+            },
+        ];
+        Ok(Response::new(pb::GenerateRetryVariantsResponse {
+            variants,
+            usage: None,
+            attempts: vec![],
+            unavailable: false,
+        }))
     }
     type ChatStream = RpcStream<pb::ChatEvent>;
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]

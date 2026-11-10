@@ -95,6 +95,7 @@ func TestEventAllowlist(t *testing.T) {
 		"daily_credits_granted", "daily_credits_expired",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
+		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "lesson_test_recap_shown",
 	} {
 		if !allowlisted(name) {
 			t.Errorf("catalogue event %q rejected", name)
@@ -534,6 +535,39 @@ func TestLessonTestEventsPrivacy(t *testing.T) {
 				"feedback": "forbidden learner feedback",
 			},
 		},
+		{
+			event: "lesson_test_answer_wrong",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456", "topic_id": "top-123",
+				"is_variant": false, "attempt_for_topic": 1,
+				"prompt": "forbidden question prompt", "learner_text": "forbidden answer",
+			},
+		},
+		{
+			event: "retry_variant_queued",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456", "topic_id": "top-123",
+				"private_question": "forbidden text",
+			},
+		},
+		{
+			event: "retry_variant_served",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456", "topic_id": "top-123",
+				"source_name": "pool", "choices": []string{"forbidden choice"},
+			},
+		},
+		{
+			event: "retry_variant_answered",
+			props: map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": "course-123", "lesson_id": "lesson-456", "topic_id": "top-123",
+				"correct": true, "notes": "forbidden notes",
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -547,8 +581,8 @@ func TestLessonTestEventsPrivacy(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if len(received) != 5 {
-		t.Fatalf("expected 5 events, got %d", len(received))
+	if len(received) != len(tests) {
+		t.Fatalf("expected %d events, got %d", len(tests), len(received))
 	}
 
 	for _, item := range received {

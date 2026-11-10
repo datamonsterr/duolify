@@ -55,6 +55,29 @@ func (q *Queries) GetLessonGeneration(ctx context.Context, id pgtype.UUID) (Less
 	return i, err
 }
 
+const getLessonRetryPool = `-- name: GetLessonRetryPool :one
+SELECT id, lesson_stub_id, learner_id, topic_id, variants, created_at FROM lesson_retry_pools WHERE lesson_stub_id = $1 AND topic_id = $2
+`
+
+type GetLessonRetryPoolParams struct {
+	LessonStubID pgtype.UUID `json:"lesson_stub_id"`
+	TopicID      string      `json:"topic_id"`
+}
+
+func (q *Queries) GetLessonRetryPool(ctx context.Context, arg GetLessonRetryPoolParams) (LessonRetryPool, error) {
+	row := q.db.QueryRow(ctx, getLessonRetryPool, arg.LessonStubID, arg.TopicID)
+	var i LessonRetryPool
+	err := row.Scan(
+		&i.ID,
+		&i.LessonStubID,
+		&i.LearnerID,
+		&i.TopicID,
+		&i.Variants,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getLessonStub = `-- name: GetLessonStub :one
 SELECT id, learner_id, unit_id, authored_id, position, title, goal, status FROM course_lesson_stubs WHERE id = $1
 `
@@ -73,4 +96,35 @@ func (q *Queries) GetLessonStub(ctx context.Context, id pgtype.UUID) (CourseLess
 		&i.Status,
 	)
 	return i, err
+}
+
+const listLessonRetryPools = `-- name: ListLessonRetryPools :many
+SELECT id, lesson_stub_id, learner_id, topic_id, variants, created_at FROM lesson_retry_pools WHERE lesson_stub_id = $1
+`
+
+func (q *Queries) ListLessonRetryPools(ctx context.Context, lessonStubID pgtype.UUID) ([]LessonRetryPool, error) {
+	rows, err := q.db.Query(ctx, listLessonRetryPools, lessonStubID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LessonRetryPool{}
+	for rows.Next() {
+		var i LessonRetryPool
+		if err := rows.Scan(
+			&i.ID,
+			&i.LessonStubID,
+			&i.LearnerID,
+			&i.TopicID,
+			&i.Variants,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

@@ -457,6 +457,16 @@ type LessonQuestion struct {
 	AnswerIndex  int32              `json:"answer_index"`
 	Explanation  string             `json:"explanation"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	VariantOf    pgtype.Text        `json:"variant_of"`
+}
+
+type LessonRetryPool struct {
+	ID           pgtype.UUID        `json:"id"`
+	LessonStubID pgtype.UUID        `json:"lesson_stub_id"`
+	LearnerID    pgtype.UUID        `json:"learner_id"`
+	TopicID      string             `json:"topic_id"`
+	Variants     []byte             `json:"variants"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }
 
 type LessonSlide struct {
@@ -469,6 +479,7 @@ type LessonSlide struct {
 	DurationMs   int32              `json:"duration_ms"`
 	Narration    string             `json:"narration"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	TopicIds     []string           `json:"topic_ids"`
 }
 
 type LessonTestAnswer struct {

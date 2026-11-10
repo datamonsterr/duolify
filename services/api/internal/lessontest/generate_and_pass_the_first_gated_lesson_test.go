@@ -22,11 +22,13 @@ func TestValidateGeneratedLesson(t *testing.T) {
 				Html:       `<div id="root"><h1>Night Sky</h1></div>`,
 				DurationMs: 4000,
 				Narration:  "Observing the night sky.",
+				TopicIds:   []string{"top-sky"},
 			},
 		},
 		Test: []*enginev1.Question{
 			{
 				QuestionId:  "q1",
+				TopicId:     "top-sky",
 				Prompt:      "What is the North Star?",
 				Choices:     []string{"Polaris", "Sirius", "Vega"},
 				AnswerIndex: 0,
@@ -55,6 +57,7 @@ func TestValidateGeneratedLesson(t *testing.T) {
 				Html:       `<div>missing root</div>`,
 				DurationMs: 3000,
 				Narration:  "Narration",
+				TopicIds:   []string{"top-sky"},
 			},
 		},
 		Test: validLesson.Test,
@@ -71,6 +74,7 @@ func TestValidateGeneratedLesson(t *testing.T) {
 				Html:       `<div id="root">Hello</div>`,
 				DurationMs: 3000,
 				Narration:  "   ",
+				TopicIds:   []string{"top-sky"},
 			},
 		},
 		Test: validLesson.Test,
@@ -94,6 +98,7 @@ func TestValidateGeneratedLesson(t *testing.T) {
 		Test: []*enginev1.Question{
 			{
 				QuestionId:  "q1",
+				TopicId:     "top-sky",
 				Prompt:      "Prompt",
 				Choices:     []string{"Only One"},
 				AnswerIndex: 0,
@@ -111,6 +116,7 @@ func TestValidateGeneratedLesson(t *testing.T) {
 		Test: []*enginev1.Question{
 			{
 				QuestionId:  "q1",
+				TopicId:     "top-sky",
 				Prompt:      "Prompt",
 				Choices:     []string{"A", "B"},
 				AnswerIndex: 2,

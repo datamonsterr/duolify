@@ -23,6 +23,7 @@ const (
 	EngineService_PreviewCourse_FullMethodName         = "/duolify.engine.v1.EngineService/PreviewCourse"
 	EngineService_GenerateCourseOutline_FullMethodName = "/duolify.engine.v1.EngineService/GenerateCourseOutline"
 	EngineService_GenerateLesson_FullMethodName        = "/duolify.engine.v1.EngineService/GenerateLesson"
+	EngineService_GenerateRetryVariants_FullMethodName = "/duolify.engine.v1.EngineService/GenerateRetryVariants"
 	EngineService_Chat_FullMethodName                  = "/duolify.engine.v1.EngineService/Chat"
 	EngineService_EnrichNote_FullMethodName            = "/duolify.engine.v1.EngineService/EnrichNote"
 	EngineService_SetupChat_FullMethodName             = "/duolify.engine.v1.EngineService/SetupChat"
@@ -45,6 +46,8 @@ type EngineServiceClient interface {
 	GenerateCourseOutline(ctx context.Context, in *GenerateCourseOutlineRequest, opts ...grpc.CallOption) (*GenerateCourseOutlineResponse, error)
 	// GenerateLesson builds one lesson (slides + test). Called only after the previous lesson test is passed.
 	GenerateLesson(ctx context.Context, in *GenerateLessonRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GenerateLessonEvent], error)
+	// GenerateRetryVariants produces paraphrased questions for missed topics.
+	GenerateRetryVariants(ctx context.Context, in *GenerateRetryVariantsRequest, opts ...grpc.CallOption) (*GenerateRetryVariantsResponse, error)
 	// Chat streams a tutor reply with course, lesson and learner context.
 	Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ChatEvent], error)
 	// EnrichNote turns a quick note into a summary, tags and links.
@@ -113,6 +116,16 @@ func (c *engineServiceClient) GenerateLesson(ctx context.Context, in *GenerateLe
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type EngineService_GenerateLessonClient = grpc.ServerStreamingClient[GenerateLessonEvent]
+
+func (c *engineServiceClient) GenerateRetryVariants(ctx context.Context, in *GenerateRetryVariantsRequest, opts ...grpc.CallOption) (*GenerateRetryVariantsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenerateRetryVariantsResponse)
+	err := c.cc.Invoke(ctx, EngineService_GenerateRetryVariants_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
 func (c *engineServiceClient) Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ChatEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -188,6 +201,8 @@ type EngineServiceServer interface {
 	GenerateCourseOutline(context.Context, *GenerateCourseOutlineRequest) (*GenerateCourseOutlineResponse, error)
 	// GenerateLesson builds one lesson (slides + test). Called only after the previous lesson test is passed.
 	GenerateLesson(*GenerateLessonRequest, grpc.ServerStreamingServer[GenerateLessonEvent]) error
+	// GenerateRetryVariants produces paraphrased questions for missed topics.
+	GenerateRetryVariants(context.Context, *GenerateRetryVariantsRequest) (*GenerateRetryVariantsResponse, error)
 	// Chat streams a tutor reply with course, lesson and learner context.
 	Chat(*ChatRequest, grpc.ServerStreamingServer[ChatEvent]) error
 	// EnrichNote turns a quick note into a summary, tags and links.
@@ -219,6 +234,9 @@ func (UnimplementedEngineServiceServer) GenerateCourseOutline(context.Context, *
 }
 func (UnimplementedEngineServiceServer) GenerateLesson(*GenerateLessonRequest, grpc.ServerStreamingServer[GenerateLessonEvent]) error {
 	return status.Error(codes.Unimplemented, "method GenerateLesson not implemented")
+}
+func (UnimplementedEngineServiceServer) GenerateRetryVariants(context.Context, *GenerateRetryVariantsRequest) (*GenerateRetryVariantsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GenerateRetryVariants not implemented")
 }
 func (UnimplementedEngineServiceServer) Chat(*ChatRequest, grpc.ServerStreamingServer[ChatEvent]) error {
 	return status.Error(codes.Unimplemented, "method Chat not implemented")
@@ -321,6 +339,24 @@ func _EngineService_GenerateLesson_Handler(srv interface{}, stream grpc.ServerSt
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type EngineService_GenerateLessonServer = grpc.ServerStreamingServer[GenerateLessonEvent]
 
+func _EngineService_GenerateRetryVariants_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateRetryVariantsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).GenerateRetryVariants(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_GenerateRetryVariants_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).GenerateRetryVariants(ctx, req.(*GenerateRetryVariantsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _EngineService_Chat_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ChatRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -422,6 +458,10 @@ var EngineService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GenerateCourseOutline",
 			Handler:    _EngineService_GenerateCourseOutline_Handler,
+		},
+		{
+			MethodName: "GenerateRetryVariants",
+			Handler:    _EngineService_GenerateRetryVariants_Handler,
 		},
 		{
 			MethodName: "EnrichNote",

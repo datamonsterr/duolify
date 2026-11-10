@@ -53,6 +53,7 @@ func ValidateGeneratedLesson(lesson *enginev1.Lesson) error {
 	if len(lesson.Slides) == 0 {
 		return errors.New("lesson has no slides")
 	}
+	taughtTopics := make(map[string]bool)
 	for i, slide := range lesson.Slides {
 		if slide == nil {
 			return fmt.Errorf("slide %d is nil", i)
@@ -72,10 +73,19 @@ func ValidateGeneratedLesson(lesson *enginev1.Lesson) error {
 		if strings.Contains(strings.ToLower(slide.Html), "<script") {
 			return fmt.Errorf("slide %d HTML contains forbidden script element", i)
 		}
+		if len(slide.TopicIds) == 0 {
+			return fmt.Errorf("slide %d has no taught topic_ids", i)
+		}
+		for _, t := range slide.TopicIds {
+			if strings.TrimSpace(t) != "" {
+				taughtTopics[t] = true
+			}
+		}
 	}
 	if len(lesson.Test) == 0 {
 		return errors.New("lesson test has no questions")
 	}
+	questionsByTopic := make(map[string]*enginev1.Question)
 	for i, q := range lesson.Test {
 		if q == nil {
 			return fmt.Errorf("question %d is nil", i)
@@ -83,16 +93,29 @@ func ValidateGeneratedLesson(lesson *enginev1.Lesson) error {
 		if q.QuestionId == "" {
 			return fmt.Errorf("question %d has empty question_id", i)
 		}
+		if strings.TrimSpace(q.TopicId) == "" {
+			return fmt.Errorf("question %d has empty topic_id", i)
+		}
+		if !taughtTopics[q.TopicId] {
+			return fmt.Errorf("question %d topic_id %q is not taught by any slide", i, q.TopicId)
+		}
 		if strings.TrimSpace(q.Prompt) == "" {
 			return fmt.Errorf("question %d has empty prompt", i)
 		}
 		if len(q.Choices) < 2 {
 			return fmt.Errorf("question %d has fewer than 2 choices", i)
 		}
+		uniqueChoices := make(map[string]bool)
 		for j, c := range q.Choices {
-			if strings.TrimSpace(c) == "" {
+			trimmed := strings.TrimSpace(c)
+			if trimmed == "" {
 				return fmt.Errorf("question %d choice %d is empty", i, j)
 			}
+			norm := strings.ToLower(trimmed)
+			if uniqueChoices[norm] {
+				return fmt.Errorf("question %d choice %d is a duplicate: %q", i, j, c)
+			}
+			uniqueChoices[norm] = true
 		}
 		if int(q.AnswerIndex) >= len(q.Choices) {
 			return fmt.Errorf("question %d answer_index %d out of bounds (choices count: %d)", i, q.AnswerIndex, len(q.Choices))
@@ -100,16 +123,74 @@ func ValidateGeneratedLesson(lesson *enginev1.Lesson) error {
 		if strings.TrimSpace(q.Explanation) == "" {
 			return fmt.Errorf("question %d has empty explanation", i)
 		}
+		questionsByTopic[q.TopicId] = q
+	}
+
+	// Validate variant pool if present
+	for _, pool := range lesson.VariantPool {
+		if pool == nil {
+			continue
+		}
+		if !taughtTopics[pool.TopicId] {
+			return fmt.Errorf("variant pool topic %q is not taught by any slide", pool.TopicId)
+		}
+		sourceQ := questionsByTopic[pool.TopicId]
+		if sourceQ == nil {
+			return fmt.Errorf("variant pool topic %q has no source question in test", pool.TopicId)
+		}
+		seenVariantPrompts := make(map[string]bool)
+		for vi, v := range pool.Variants {
+			if v == nil {
+				return fmt.Errorf("variant %d for topic %q is nil", vi, pool.TopicId)
+			}
+			if strings.TrimSpace(v.Prompt) == "" {
+				return fmt.Errorf("variant %d for topic %q has empty prompt", vi, pool.TopicId)
+			}
+			if strings.EqualFold(strings.TrimSpace(v.Prompt), strings.TrimSpace(sourceQ.Prompt)) {
+				return fmt.Errorf("variant %d for topic %q prompt must differ from source question", vi, pool.TopicId)
+			}
+			normPrompt := strings.ToLower(strings.TrimSpace(v.Prompt))
+			if seenVariantPrompts[normPrompt] {
+				return fmt.Errorf("variant %d for topic %q prompt duplicate of earlier variant", vi, pool.TopicId)
+			}
+			seenVariantPrompts[normPrompt] = true
+
+			if len(v.Choices) < 2 {
+				return fmt.Errorf("variant %d for topic %q has fewer than 2 choices", vi, pool.TopicId)
+			}
+			vChoices := make(map[string]bool)
+			for j, c := range v.Choices {
+				trimmed := strings.TrimSpace(c)
+				if trimmed == "" {
+					return fmt.Errorf("variant %d choice %d is empty", vi, j)
+				}
+				norm := strings.ToLower(trimmed)
+				if vChoices[norm] {
+					return fmt.Errorf("variant %d choice %d duplicate: %q", vi, j, c)
+				}
+				vChoices[norm] = true
+			}
+			if int(v.AnswerIndex) >= len(v.Choices) {
+				return fmt.Errorf("variant %d answer_index out of bounds", vi)
+			}
+			if strings.TrimSpace(v.Explanation) == "" {
+				return fmt.Errorf("variant %d explanation is empty", vi)
+			}
+		}
 	}
 	return nil
 }
 
-// MapQuestionsToTopics maps each question to an API-owned topic (until E4-02).
+// MapQuestionsToTopics maps each question to a topic (E4-01 fallback, replaced in E4-02 with engine-generated topic_ids).
 func MapQuestionsToTopics(questions []*enginev1.Question) map[string]string {
 	topics := make(map[string]string, len(questions))
 	for _, q := range questions {
 		if q != nil && q.QuestionId != "" {
-			topics[q.QuestionId] = fmt.Sprintf("topic_%s", q.QuestionId)
+			if q.TopicId != "" {
+				topics[q.QuestionId] = q.TopicId
+			} else {
+				topics[q.QuestionId] = fmt.Sprintf("topic_%s", q.QuestionId)
+			}
 		}
 	}
 	return topics
@@ -135,6 +216,8 @@ type PublicQuestion struct {
 	TopicID    string   `json:"topic_id"`
 	Prompt     string   `json:"prompt"`
 	Choices    []string `json:"choices"`
+	VariantOf  string   `json:"variant_of,omitempty"`
+	IsVariant  bool     `json:"is_variant,omitempty"`
 }
 
 // ToPublicQuestion transforms an engine question into a client-safe public question.
@@ -291,23 +374,87 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 
 		_, _ = tx.Exec(finishCtx, `DELETE FROM lesson_slides WHERE lesson_stub_id = $1::uuid`, lessonID)
 		for i, slide := range lesson.Slides {
+			topicIDs := slide.TopicIds
+			if len(topicIDs) == 0 {
+				topicIDs = []string{"top-1"}
+			}
 			if _, err = tx.Exec(finishCtx, `
-				INSERT INTO lesson_slides (lesson_stub_id, learner_id, position, slide_id, html, duration_ms, narration)
-				VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7)`,
-				lessonID, owner, i, slide.SlideId, slide.Html, slide.DurationMs, slide.Narration); err != nil {
+				INSERT INTO lesson_slides (lesson_stub_id, learner_id, position, slide_id, html, duration_ms, narration, topic_ids)
+				VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)`,
+				lessonID, owner, i, slide.SlideId, slide.Html, slide.DurationMs, slide.Narration, topicIDs); err != nil {
 				return err
 			}
 		}
 
-		topics := MapQuestionsToTopics(lesson.Test)
 		_, _ = tx.Exec(finishCtx, `DELETE FROM lesson_questions WHERE lesson_stub_id = $1::uuid`, lessonID)
 		for i, q := range lesson.Test {
 			choicesRaw, _ := json.Marshal(q.Choices)
-			topicID := topics[q.QuestionId]
+			topicID := q.TopicId
+			if topicID == "" {
+				topicID = fmt.Sprintf("topic_%s", q.QuestionId)
+			}
 			if _, err = tx.Exec(finishCtx, `
-				INSERT INTO lesson_questions (lesson_stub_id, learner_id, topic_id, position, prompt, choices, answer_index, explanation)
-				VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)`,
-				lessonID, owner, topicID, i, q.Prompt, choicesRaw, q.AnswerIndex, q.Explanation); err != nil {
+				INSERT INTO lesson_questions (lesson_stub_id, learner_id, topic_id, position, prompt, choices, answer_index, explanation, variant_of)
+				VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9)`,
+				lessonID, owner, topicID, i, q.Prompt, choicesRaw, q.AnswerIndex, q.Explanation, q.VariantOf); err != nil {
+				return err
+			}
+		}
+
+		// Save private retry pools in Postgres
+		_, _ = tx.Exec(finishCtx, `DELETE FROM lesson_retry_pools WHERE lesson_stub_id = $1::uuid`, lessonID)
+		poolsByTopic := make(map[string][]*enginev1.Question)
+		for _, tp := range lesson.VariantPool {
+			if tp != nil && tp.TopicId != "" {
+				poolsByTopic[tp.TopicId] = tp.Variants
+			}
+		}
+
+		for _, q := range lesson.Test {
+			topicID := q.TopicId
+			if topicID == "" {
+				topicID = fmt.Sprintf("topic_%s", q.QuestionId)
+			}
+			variants, exists := poolsByTopic[topicID]
+			if !exists || len(variants) == 0 {
+				reordered1, newAns1 := ReorderChoices(q.Choices, int(q.AnswerIndex))
+				reordered2, newAns2 := ReorderChoices(reordered1, newAns1)
+				ans1 := uint32(0)
+				if newAns1 >= 0 {
+					ans1 = uint32(newAns1) //nolint:gosec // bounds checked
+				}
+				ans2 := uint32(0)
+				if newAns2 >= 0 {
+					ans2 = uint32(newAns2) //nolint:gosec // bounds checked
+				}
+				variants = []*enginev1.Question{
+					{
+						QuestionId:  fmt.Sprintf("v1-%s", q.QuestionId),
+						TopicId:     topicID,
+						VariantOf:   q.QuestionId,
+						Prompt:      fmt.Sprintf("%s (rephrased)", q.Prompt),
+						Choices:     reordered1,
+						AnswerIndex: ans1,
+						Explanation: q.Explanation,
+					},
+					{
+						QuestionId:  fmt.Sprintf("v2-%s", q.QuestionId),
+						TopicId:     topicID,
+						VariantOf:   q.QuestionId,
+						Prompt:      fmt.Sprintf("In other words: %s", q.Prompt),
+						Choices:     reordered2,
+						AnswerIndex: ans2,
+						Explanation: q.Explanation,
+					},
+				}
+			}
+
+			variantsRaw, _ := json.Marshal(variants)
+			if _, err = tx.Exec(finishCtx, `
+				INSERT INTO lesson_retry_pools (lesson_stub_id, learner_id, topic_id, variants)
+				VALUES ($1::uuid, $2::uuid, $3, $4)
+				ON CONFLICT (lesson_stub_id, topic_id) DO UPDATE SET variants = EXCLUDED.variants`,
+				lessonID, owner, topicID, variantsRaw); err != nil {
 				return err
 			}
 		}
@@ -744,23 +891,67 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	}
 
 	// Lookup question
-	var qID, topicID, prompt, explanation string
+	var qID, topicID, prompt, explanation, variantOf string
 	var choicesRaw []byte
 	var answerIndex int
+	var isVariant bool
+
 	err = s.opts.Pool.QueryRow(ctx, `
-		SELECT id::text, topic_id, prompt, choices, answer_index, explanation
+		SELECT id::text, topic_id, prompt, choices, answer_index, explanation, COALESCE(variant_of, '')
 		FROM lesson_questions
-		WHERE lesson_stub_id::text=$1 AND (id::text=$2 OR topic_id=$2 OR prompt=$2)`, lessonID, body.QuestionID).Scan(&qID, &topicID, &prompt, &choicesRaw, &answerIndex, &explanation)
+		WHERE lesson_stub_id::text=$1 AND (id::text=$2 OR topic_id=$2 OR prompt=$2)`, lessonID, body.QuestionID).Scan(&qID, &topicID, &prompt, &choicesRaw, &answerIndex, &explanation, &variantOf)
 	if err != nil {
-		// Try by first question if single
-		err = s.opts.Pool.QueryRow(ctx, `
-			SELECT id::text, topic_id, prompt, choices, answer_index, explanation
-			FROM lesson_questions
-			WHERE lesson_stub_id::text=$1
-			LIMIT 1`, lessonID).Scan(&qID, &topicID, &prompt, &choicesRaw, &answerIndex, &explanation)
-		if err != nil {
-			http.Error(w, `{"error":"question not found"}`, http.StatusNotFound)
-			return
+		// Check private pools in lesson_retry_pools
+		rows, qErr := s.opts.Pool.Query(ctx, `SELECT topic_id, variants FROM lesson_retry_pools WHERE lesson_stub_id::text=$1`, lessonID)
+		if qErr == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var pTopic string
+				var poolVariantsRaw []byte
+				if err := rows.Scan(&pTopic, &poolVariantsRaw); err == nil {
+					var vars []struct {
+						QuestionID  string   `json:"question_id"`
+						TopicID     string   `json:"topic_id"`
+						VariantOf   string   `json:"variant_of"`
+						Prompt      string   `json:"prompt"`
+						Choices     []string `json:"choices"`
+						AnswerIndex int      `json:"answer_index"`
+						Explanation string   `json:"explanation"`
+					}
+					if json.Unmarshal(poolVariantsRaw, &vars) == nil {
+						for _, v := range vars {
+							if v.QuestionID == body.QuestionID || v.Prompt == body.QuestionID {
+								qID = v.QuestionID
+								topicID = v.TopicID
+								if topicID == "" {
+									topicID = pTopic
+								}
+								prompt = v.Prompt
+								choicesRaw, _ = json.Marshal(v.Choices)
+								answerIndex = v.AnswerIndex
+								explanation = v.Explanation
+								variantOf = v.VariantOf
+								isVariant = true
+								break
+							}
+						}
+					}
+				}
+				if qID != "" {
+					break
+				}
+			}
+		}
+		if qID == "" {
+			_ = s.opts.Pool.QueryRow(ctx, `
+				SELECT id::text, topic_id, prompt, choices, answer_index, explanation, COALESCE(variant_of, '')
+				FROM lesson_questions
+				WHERE lesson_stub_id::text=$1
+				LIMIT 1`, lessonID).Scan(&qID, &topicID, &prompt, &choicesRaw, &answerIndex, &explanation, &variantOf)
+			if qID == "" {
+				http.Error(w, `{"error":"question not found"}`, http.StatusNotFound)
+				return
+			}
 		}
 	}
 
@@ -777,11 +968,14 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	// Record answer
 	_, _ = s.opts.Pool.Exec(ctx, `
 		INSERT INTO lesson_test_answers (session_id, learner_id, question_id, topic_id, selected_index, correct, is_variant)
-		VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, false)`,
-		sessionID, owner, qID, topicID, body.ChoiceIndex, correct)
+		VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7)`,
+		sessionID, owner, qID, topicID, body.ChoiceIndex, correct, isVariant)
 
 	var courseID string
 	_ = s.opts.Pool.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID)
+
+	var attemptForTopic int
+	_ = s.opts.Pool.QueryRow(ctx, `SELECT count(*) FROM lesson_test_answers WHERE session_id=$1::uuid AND topic_id=$2`, sessionID, topicID).Scan(&attemptForTopic)
 
 	if s.opts.Events != nil {
 		_ = s.opts.Events.Capture(owner, "lesson_test_submitted", map[string]any{
@@ -792,33 +986,162 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			"lesson_id":    lessonID,
 			"topic_id":     topicID,
 			"correct":      correct,
-			"is_variant":   false,
-			"attempt":      1,
+			"is_variant":   isVariant,
+			"attempt":      attemptForTopic,
 			"choice_index": body.ChoiceIndex,
 		})
 	}
 
+	// Total unique topics
+	var totalTopics int
+	_ = s.opts.Pool.QueryRow(ctx, `SELECT count(DISTINCT topic_id) FROM lesson_questions WHERE lesson_stub_id::text=$1`, lessonID).Scan(&totalTopics)
+
+	var resolvedTopics []string
+	_ = json.Unmarshal(resolvedRaw, &resolvedTopics)
+
 	if !correct {
-		// Wrong answer: reorder choices and queue fallback
-		reordered, _ := ReorderChoices(choices, answerIndex)
-		reorderedJSON, _ := json.Marshal(reordered)
+		if s.opts.Events != nil {
+			_ = s.opts.Events.Capture(owner, "lesson_test_answer_wrong", map[string]any{
+				"source":            "api",
+				"platform":          "web",
+				"app_version":       "1.0.0",
+				"course_id":         courseID,
+				"lesson_id":         lessonID,
+				"topic_id":          topicID,
+				"is_variant":        isVariant,
+				"attempt_for_topic": attemptForTopic,
+			})
+			_ = s.opts.Events.Capture(owner, "retry_variant_queued", map[string]any{
+				"source":      "api",
+				"platform":    "web",
+				"app_version": "1.0.0",
+				"course_id":   courseID,
+				"lesson_id":   lessonID,
+				"topic_id":    topicID,
+			})
+		}
+
+		// Look up private pool for this topic
+		var poolVariantsRaw []byte
+		_ = s.opts.Pool.QueryRow(ctx, `SELECT variants FROM lesson_retry_pools WHERE lesson_stub_id::text=$1 AND topic_id=$2`, lessonID, topicID).Scan(&poolVariantsRaw)
+
+		type variantItem struct {
+			QuestionID  string   `json:"question_id"`
+			TopicID     string   `json:"topic_id"`
+			VariantOf   string   `json:"variant_of"`
+			Prompt      string   `json:"prompt"`
+			Choices     []string `json:"choices"`
+			AnswerIndex int      `json:"answer_index"`
+			Explanation string   `json:"explanation"`
+		}
+		var poolVariants []variantItem
+		_ = json.Unmarshal(poolVariantsRaw, &poolVariants)
+
+		answeredRows, _ := s.opts.Pool.Query(ctx, `SELECT question_id FROM lesson_test_answers WHERE session_id=$1::uuid AND is_variant=true`, sessionID)
+		usedVariantIDs := make(map[string]bool)
+		if answeredRows != nil {
+			defer answeredRows.Close()
+			for answeredRows.Next() {
+				var uid string
+				if answeredRows.Scan(&uid) == nil {
+					usedVariantIDs[uid] = true
+				}
+			}
+		}
+
+		var selectedVariant *variantItem
+		for i := range poolVariants {
+			if !usedVariantIDs[poolVariants[i].QuestionID] {
+				selectedVariant = &poolVariants[i]
+				break
+			}
+		}
+
+		// Owner decision (ADR 0011, E4-06): when a retry pool is exhausted reuse the pool reordered for free; no paid on-demand variants
+		if selectedVariant == nil {
+			if len(poolVariants) > 0 {
+				base := poolVariants[0]
+				reordered, _ := ReorderChoices(base.Choices, base.AnswerIndex)
+				selectedVariant = &variantItem{
+					QuestionID:  fmt.Sprintf("%s-reordered-%d", base.QuestionID, attemptForTopic),
+					TopicID:     topicID,
+					VariantOf:   qID,
+					Prompt:      base.Prompt,
+					Choices:     reordered,
+					AnswerIndex: 0,
+					Explanation: base.Explanation,
+				}
+			} else {
+				reordered, _ := ReorderChoices(choices, answerIndex)
+				selectedVariant = &variantItem{
+					QuestionID:  fmt.Sprintf("v-reorder-%s-%d", qID, attemptForTopic),
+					TopicID:     topicID,
+					VariantOf:   qID,
+					Prompt:      prompt,
+					Choices:     reordered,
+					AnswerIndex: 0,
+					Explanation: explanation,
+				}
+			}
+		}
+
+		if s.opts.Events != nil {
+			_ = s.opts.Events.Capture(owner, "retry_variant_served", map[string]any{
+				"source":      "api",
+				"platform":    "web",
+				"app_version": "1.0.0",
+				"course_id":   courseID,
+				"lesson_id":   lessonID,
+				"topic_id":    topicID,
+				"source_name": "pool",
+			})
+		}
+
 		_, _ = s.opts.Pool.Exec(ctx, `
 			UPDATE lesson_test_sessions
 			SET variants_served = variants_served + 1, updated_at = now()
 			WHERE id::text=$1`, sessionID)
 
+		publicVariant := PublicQuestion{
+			QuestionID: selectedVariant.QuestionID,
+			TopicID:    topicID,
+			Prompt:     selectedVariant.Prompt,
+			Choices:    selectedVariant.Choices,
+			VariantOf:  selectedVariant.VariantOf,
+			IsVariant:  true,
+		}
+
+		retryQueueCount := totalTopics - len(resolvedTopics)
+		if retryQueueCount < 1 {
+			retryQueueCount = 1
+		}
+
 		writeJSON(w, http.StatusOK, map[string]any{
-			"correct":          false,
-			"passed":           false,
-			"explanation":      explanation,
-			"fallback_choices": json.RawMessage(reorderedJSON),
+			"correct":           false,
+			"passed":            false,
+			"answer_index":      answerIndex,
+			"explanation":       explanation,
+			"resolved_topics":   len(resolvedTopics),
+			"total_topics":      totalTopics,
+			"retry_queue_count": retryQueueCount,
+			"retry_variant":     publicVariant,
 		})
 		return
 	}
 
 	// Correct answer
-	var resolvedTopics []string
-	_ = json.Unmarshal(resolvedRaw, &resolvedTopics)
+	if isVariant && s.opts.Events != nil {
+		_ = s.opts.Events.Capture(owner, "retry_variant_answered", map[string]any{
+			"source":      "api",
+			"platform":    "web",
+			"app_version": "1.0.0",
+			"course_id":   courseID,
+			"lesson_id":   lessonID,
+			"topic_id":    topicID,
+			"correct":     true,
+		})
+	}
+
 	topicAlreadyResolved := false
 	for _, t := range resolvedTopics {
 		if t == topicID {
@@ -830,12 +1153,13 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		resolvedTopics = append(resolvedTopics, topicID)
 	}
 
-	// Total unique topics
-	var totalTopics int
-	_ = s.opts.Pool.QueryRow(ctx, `SELECT count(DISTINCT topic_id) FROM lesson_questions WHERE lesson_stub_id::text=$1`, lessonID).Scan(&totalTopics)
-
 	allResolved := (len(resolvedTopics) >= totalTopics)
 	newResolvedRaw, _ := json.Marshal(resolvedTopics)
+
+	retryQueueCount := totalTopics - len(resolvedTopics)
+	if retryQueueCount < 0 {
+		retryQueueCount = 0
+	}
 
 	if !allResolved {
 		_, _ = s.opts.Pool.Exec(ctx, `
@@ -844,9 +1168,13 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			WHERE id::text=$1`, sessionID, newResolvedRaw)
 
 		writeJSON(w, http.StatusOK, map[string]any{
-			"correct":     true,
-			"passed":      false,
-			"explanation": explanation,
+			"correct":           true,
+			"passed":            false,
+			"answer_index":      answerIndex,
+			"explanation":       explanation,
+			"resolved_topics":   len(resolvedTopics),
+			"total_topics":      totalTopics,
+			"retry_queue_count": retryQueueCount,
 		})
 		return
 	}
@@ -873,7 +1201,6 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 
 	// Unlock next lesson stub in the course
 	var nextLessonID string
-	// Check next lesson in same unit
 	_ = tx.QueryRow(ctx, `
 		SELECT cls.id::text FROM course_lesson_stubs cls
 		WHERE cls.unit_id = (SELECT unit_id FROM course_lesson_stubs WHERE id::text=$1)
@@ -881,7 +1208,6 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	`, lessonID).Scan(&nextLessonID)
 
 	if nextLessonID == "" {
-		// Check first lesson of next unit in course
 		_ = tx.QueryRow(ctx, `
 			SELECT cls.id::text FROM course_lesson_stubs cls
 			JOIN course_units cu ON cu.id = cls.unit_id
@@ -927,9 +1253,13 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"correct":     true,
-		"passed":      true,
-		"explanation": explanation,
+		"correct":           true,
+		"passed":            true,
+		"answer_index":      answerIndex,
+		"explanation":       explanation,
+		"resolved_topics":   totalTopics,
+		"total_topics":      totalTopics,
+		"retry_queue_count": 0,
 	})
 }
 

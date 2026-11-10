@@ -118,15 +118,42 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 					Html:       `<div id="root"><h1>Night Sky</h1><p>Observing the stars.</p></div>`,
 					DurationMs: 3000,
 					Narration:  "Observing the stars tonight.",
+					TopicIds:   []string{"top-stars"},
 				},
 			},
 			Test: []*enginev1.Question{
 				{
 					QuestionId:  "q1",
+					TopicId:     "top-stars",
 					Prompt:      "What do we observe in the night sky?",
 					Choices:     []string{"Stars", "Sun", "Clouds"},
 					AnswerIndex: 0,
 					Explanation: "Stars shine bright in the night sky.",
+				},
+			},
+			VariantPool: []*enginev1.TopicVariants{
+				{
+					TopicId: "top-stars",
+					Variants: []*enginev1.Question{
+						{
+							QuestionId:  "v1-q1",
+							TopicId:     "top-stars",
+							VariantOf:   "q1",
+							Prompt:      "What shines brightly across the night?",
+							Choices:     []string{"Distant suns", "Space dust", "Moonlight"},
+							AnswerIndex: 0,
+							Explanation: "Distant suns shine as stars.",
+						},
+						{
+							QuestionId:  "v2-q1",
+							TopicId:     "top-stars",
+							VariantOf:   "q1",
+							Prompt:      "What celestial objects dot the night?",
+							Choices:     []string{"Stars", "Sun rays", "Day clouds"},
+							AnswerIndex: 0,
+							Explanation: "Stars dot the night sky.",
+						},
+					},
 				},
 			},
 		},

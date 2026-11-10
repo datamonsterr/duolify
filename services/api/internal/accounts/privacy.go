@@ -16,7 +16,7 @@ import (
 // ClassifiedLearnerTables lists every table holding learner data and its retention policy.
 var ClassifiedLearnerTables = map[string]string{
 	"course_creations": "erased", "courses": "erased", "course_units": "erased", "course_lesson_stubs": "erased", "course_enrollments": "erased",
-	"lesson_generations": "erased", "generated_lessons": "erased", "lesson_slides": "erased", "lesson_questions": "erased", "lesson_test_sessions": "erased", "lesson_test_answers": "erased", "lesson_completion_outbox": "erased",
+	"lesson_generations": "erased", "generated_lessons": "erased", "lesson_slides": "erased", "lesson_questions": "erased", "lesson_retry_pools": "erased", "lesson_test_sessions": "erased", "lesson_test_answers": "erased", "lesson_completion_outbox": "erased",
 	"credit_subscription_lifecycle":     "financial_retained_via_subscription",
 	"credit_subscription_transitions":   "financial_retained_via_subscription",
 	"credit_subscription_schedule":      "financial_retained_via_subscription",
@@ -100,7 +100,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 	for _, table := range []string{"credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(g)),'[]'::jsonb) FROM " + table + " g JOIN credit_subscription_terms t USING(period_key) JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1"})
 	}
-	for _, table := range []string{"course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_test_sessions", "lesson_test_answers", "lesson_completion_outbox", "credit_checkout_orders", "credit_jobs", "credit_outbox"} {
+	for _, table := range []string{"course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_completion_outbox", "credit_checkout_orders", "credit_jobs", "credit_outbox"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM " + table + " t WHERE learner_id=$1"})
 	}
 	for _, table := range []string{"credit_allocations", "credit_usage"} {
