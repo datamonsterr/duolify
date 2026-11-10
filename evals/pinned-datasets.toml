@@ -1,0 +1,9 @@
+# SHA-256 of exact golden.jsonl bytes, keyed by dataset and immutable HF revision.
+# These synthetic identities are for local HF/RustFS doubles only; they are not
+# provisioned Hugging Face datasets. Add the real production pin after E10-01
+# provisioning and independent review of its source bytes (see README.md).
+["duolify-fixtures/e10-04"]
+"0123456789abcdef0123456789abcdef01234567" = "e5bcda9d5a4b84a383f24271af9f763ffb38dc51625ec2e1a00daa3feb947f89"
+
+["duolify-fixtures/e10-02"]
+"0123456789abcdef0123456789abcdef01234567" = "a85bb61544f516a792d8b6ee06eacef39ef552ca7aeb5db415c550f86e5cd93f"

@@ -19,3 +19,15 @@
 - [x] 3.2 Update `evals/fixtures/golden.sample.jsonl` with stratified sample and budget/cost cases.
 - [x] 3.3 Update `docs/data-inventory.md`, `.env.example`, and ADR 0011 defaults.
 - [x] 3.4 Run `engine:lint`, `engine:test`, `engine:eval`, `engine:build`, `ci:lint`, and `ci:openspec`.
+
+## 4. Review Defect Remediation (E10)
+- [x] 4.1 Measure live eval budget summing primary and judge provider usage via configured price table (`prices.toml`), failing closed on usage_unavailable.
+- [x] 4.2 Enforce at most one fallback after primary (max 2 calls total) in `ProviderRouter::complete` and `stream`.
+- [x] 4.3 Route `enrich_note` and eval runner through `run_bounded` with limits, returning real attempts.
+- [x] 4.4 Implement `duolify-eval gate <report.json>` subcommand and function requiring all canonical tasks with minimum per-task coverage (`total_cases >= 1`).
+- [x] 4.5 Enforce minimum per-task coverage on sampled runs (`EVAL_SAMPLE_LIMIT`).
+- [x] 4.6 Strict judge verdict parsing with word boundaries and structured JSON.
+- [x] 4.7 Missing-secrets reports emit provider "none" and revision "none", without bypassing secret checks when EVAL_DATA_PATH is set.
+- [x] 4.8 Require explicit `HF_GOLDEN_REVISION` in `.env.example` and CI (no `main` fallback; missing reports missing-config status).
+- [x] 4.9 `stream_bounded` honors cost and deadline and falls back on first-token timeout; error on `--mode draft` with `--provider live`.
+- [x] 4.10 Analytics `eval_run_completed` includes provider, status, and budget with structural privacy guards.

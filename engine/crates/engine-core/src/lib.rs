@@ -4,11 +4,11 @@ use futures::Stream;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, pin::Pin, sync::Arc};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Models {
     pub tasks: BTreeMap<String, Model>,
 }
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Model {
     pub model: String,
     pub fallback_model: String,
@@ -48,6 +48,7 @@ pub trait LlmProvider: Send + Sync {
     }
     async fn stream(&self, model: &str, input: &str) -> Result<CompletionStream>;
 }
+#[derive(Clone)]
 pub struct ProviderRouter {
     pub models: Models,
     pub primary: Arc<dyn LlmProvider>,
@@ -64,19 +65,15 @@ impl ProviderRouter {
     }
     pub async fn complete(&self, task: &str, input: &str) -> Result<Completion> {
         let model = self.models.tasks.get(task).context("unknown task")?;
-        for _ in 0..2 {
-            if let Ok(value) = self.primary.complete(&model.model, input).await {
-                return Ok(value);
-            }
+        if let Ok(value) = self.primary.complete(&model.model, input).await {
+            return Ok(value);
         }
         self.fallback.complete(&model.fallback_model, input).await
     }
     pub async fn stream(&self, task: &str, input: &str) -> Result<CompletionStream> {
         let model = self.models.tasks.get(task).context("unknown task")?;
-        for _ in 0..2 {
-            if let Ok(value) = self.primary.stream(&model.model, input).await {
-                return Ok(value);
-            }
+        if let Ok(value) = self.primary.stream(&model.model, input).await {
+            return Ok(value);
         }
         self.fallback.stream(&model.fallback_model, input).await
     }

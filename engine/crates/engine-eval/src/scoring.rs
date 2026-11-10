@@ -106,6 +106,9 @@ pub struct EvalReport {
     pub dataset_revision: String,
     #[serde(default = "default_dataset_source")]
     pub dataset_source: String,
+    /// True only after the dataset bytes match the repository digest pin.
+    #[serde(default)]
+    pub dataset_verified: bool,
     pub prompt_revision: String,
     #[serde(default = "default_provider")]
     pub provider: String,
@@ -132,6 +135,7 @@ impl Default for EvalReport {
             dataset: "datamonsterr/duolify-golden".to_string(),
             dataset_revision: "pinned".to_string(),
             dataset_source: "fixture".to_string(),
+            dataset_verified: false,
             prompt_revision: "head".to_string(),
             provider: "mock".to_string(),
             budget_usd: None,
@@ -147,41 +151,82 @@ impl Default for EvalReport {
     }
 }
 
-pub fn is_promotable(report: &EvalReport, task: &str) -> bool {
-    let canonical = canonical_task_name(task);
-
-    // 1. Must be executed with live provider
+pub fn check_promotion_gate(report: &EvalReport) -> anyhow::Result<()> {
+    if !report.dataset_verified {
+        anyhow::bail!("promotion gate failed: dataset is unverified against a repo-pinned digest");
+    }
+    if report.status != "passed" && report.status != "live" {
+        anyhow::bail!(
+            "promotion gate failed: report status is '{}', expected 'passed' or 'live'",
+            report.status
+        );
+    }
+    if !report.passed {
+        anyhow::bail!("promotion gate failed: overall eval did not pass");
+    }
+    if report.critical_failure {
+        anyhow::bail!("promotion gate failed: report has critical failure");
+    }
+    if report.budget_exceeded {
+        anyhow::bail!("promotion gate failed: eval budget exceeded");
+    }
     if report.provider != "live" {
-        return false;
+        anyhow::bail!(
+            "promotion gate failed: provider is '{}', expected 'live'",
+            report.provider
+        );
     }
-
-    // 2. Status must be passed (never missing_secrets or budget_exceeded)
-    if report.status != "passed"
-        || !report.passed
-        || report.critical_failure
-        || report.budget_exceeded
-    {
-        return false;
-    }
-
-    // 3. Must be a pinned 40-character commit hash
     if report.dataset_revision.len() != 40
         || !report
             .dataset_revision
             .bytes()
             .all(|b| b.is_ascii_hexdigit())
     {
-        return false;
+        anyhow::bail!(
+            "promotion gate failed: dataset revision must be a pinned 40-character commit hash: '{}'",
+            report.dataset_revision
+        );
     }
-
-    // 4. Dataset source must be live (hf, mirror, or cache), never mock fixture
     if report.dataset_source == "fixture" || report.dataset_source == "custom" {
-        return false;
+        anyhow::bail!(
+            "promotion gate failed: dataset source must be live (hf, mirror, cache), got '{}'",
+            report.dataset_source
+        );
     }
 
-    // 5. Relevant task must exist and have passed without critical failure
+    for task in crate::tasks::CANONICAL_TASKS {
+        let tr = report.task_reports.get(task).ok_or_else(|| {
+            anyhow::anyhow!(
+                "promotion gate failed: missing required canonical task '{}'",
+                task
+            )
+        })?;
+        if tr.total_cases < 1 {
+            anyhow::bail!(
+                "promotion gate failed: required canonical task '{}' has zero evaluated cases",
+                task
+            );
+        }
+        if !tr.passed || tr.critical_failure {
+            anyhow::bail!(
+                "promotion gate failed: required canonical task '{}' did not pass (score: {:.2}, threshold: {:.2})",
+                task,
+                tr.score,
+                tr.threshold
+            );
+        }
+    }
+
+    Ok(())
+}
+
+pub fn is_promotable(report: &EvalReport, task: &str) -> bool {
+    let canonical = canonical_task_name(task);
+    if check_promotion_gate(report).is_err() {
+        return false;
+    }
     if let Some(tr) = report.task_reports.get(&canonical) {
-        tr.passed && !tr.critical_failure
+        tr.passed && !tr.critical_failure && tr.total_cases >= 1
     } else {
         false
     }
@@ -273,6 +318,46 @@ pub fn aggregate_task_reports(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn promotion_refuses_missing_or_false_dataset_verification() {
+        let mut report = EvalReport {
+            passed: true,
+            provider: "live".into(),
+            dataset_source: "mirror".into(),
+            dataset_revision: "0123456789abcdef0123456789abcdef01234567".into(),
+            ..Default::default()
+        };
+        for task in crate::tasks::CANONICAL_TASKS {
+            report.task_reports.insert(
+                task.into(),
+                TaskReport {
+                    task: task.into(),
+                    model: "recorded".into(),
+                    score: 1.0,
+                    threshold: 1.0,
+                    passed: true,
+                    critical_failure: false,
+                    total_cases: 1,
+                    passed_cases: 1,
+                    deterministic_score: 1.0,
+                    judge_score: None,
+                },
+            );
+        }
+        let mut json = serde_json::to_value(&report).unwrap();
+        for verified in [None, Some(false), Some(true)] {
+            json.as_object_mut().unwrap().remove("dataset_verified");
+            if let Some(value) = verified {
+                json["dataset_verified"] = value.into();
+            }
+            let parsed: EvalReport = serde_json::from_value(json.clone()).unwrap();
+            assert_eq!(
+                check_promotion_gate(&parsed).is_ok(),
+                verified == Some(true)
+            );
+        }
+    }
 
     #[test]
     fn threshold_boundaries_evaluate_correctly() {

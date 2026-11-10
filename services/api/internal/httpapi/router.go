@@ -159,7 +159,16 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("GET /v1/courses/{course}/download", deps.Accounts.Protect(deps.Player))
 	}
 	if deps.Eval != nil {
-		mux.Handle("/v1/eval/", deps.Eval)
+		// Ingest authenticates service credentials itself; all reads require a
+		// live account session and the eval handler's shared admin policy.
+		mux.Handle("POST /v1/eval/reports", deps.Eval)
+		if deps.Accounts != nil {
+			mux.Handle("/v1/eval/", deps.Accounts.Protect(deps.Eval))
+		} else {
+			mux.HandleFunc("/v1/eval/", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})
+			})
+		}
 	}
 	mux.HandleFunc("GET /v1/features", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{

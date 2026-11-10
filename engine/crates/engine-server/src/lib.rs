@@ -757,12 +757,42 @@ impl EngineService for Service {
             .filter(|&ms| ms > 0)
             .map(|ms| std::time::Duration::from_millis(u64::from(ms)))
             .unwrap_or(std::time::Duration::from_secs(5));
+        let limits = req.limits.as_ref().map(|b| engine_core::credits::Limits {
+            input_tokens: b.input_tokens,
+            output_tokens: b.output_tokens,
+            timeout_ms: b.timeout_ms,
+            max_attempts: b.max_attempts,
+            max_cost_nanos: b.max_cost_nanos,
+            input_nanos: b.input_nanos,
+            output_nanos: b.output_nanos,
+            cache_write_nanos: b.cache_write_nanos,
+            cache_read_nanos: b.cache_read_nanos,
+            deadline_unix_ms: b.deadline_unix_ms,
+        });
+        if let Some(b) = &req.limits
+            && let Some(model) = self.router.models.tasks.get("chat")
+            && ((!b.provider.is_empty() && b.provider != self.router.primary.name())
+                || (!b.model.is_empty() && b.model != model.model)
+                || (!b.fallback_provider.is_empty()
+                    && b.fallback_provider != self.router.fallback.name())
+                || (!b.fallback_model.is_empty() && b.fallback_model != model.fallback_model))
+        {
+            return Err(Status::failed_precondition(
+                "quote route differs from evaluated route",
+            ));
+        }
         let input = format!("{req:?}");
         let span = tracing::Span::current();
-        let stream =
-            engine_core::eval::stream_bounded(&self.router, "chat", &input, first_to, idle_to)
-                .await
-                .map_err(internal)?;
+        let stream = engine_core::eval::stream_bounded(
+            &self.router,
+            "chat",
+            &input,
+            limits.as_ref(),
+            first_to,
+            idle_to,
+        )
+        .await
+        .map_err(internal)?;
         // Enter the request span while polling the provider as well as mapping
         // its output; a map closure alone runs after provider work has finished.
         let map_span = span.clone();
@@ -794,20 +824,85 @@ impl EngineService for Service {
         request: Request<pb::EnrichNoteRequest>,
     ) -> Result<Response<pb::EnrichNoteResponse>, Status> {
         let req = request.into_inner();
-        let c = self
+        let route = self
             .router
-            .complete("note", &format!("{req:?}"))
+            .models
+            .tasks
+            .get("note")
+            .ok_or_else(|| Status::failed_precondition("route unavailable"))?;
+        if let Some(b) = &req.limits
+            && ((!b.provider.is_empty() && b.provider != self.router.primary.name())
+                || (!b.model.is_empty() && b.model != route.model)
+                || (!b.fallback_provider.is_empty()
+                    && b.fallback_provider != self.router.fallback.name())
+                || (!b.fallback_model.is_empty() && b.fallback_model != route.fallback_model))
+        {
+            return Err(Status::failed_precondition(
+                "quote route differs from evaluated route",
+            ));
+        }
+        let limits = req
+            .limits
+            .as_ref()
+            .map(|b| engine_core::credits::Limits {
+                input_tokens: b.input_tokens,
+                output_tokens: b.output_tokens,
+                timeout_ms: b.timeout_ms,
+                max_attempts: b.max_attempts,
+                max_cost_nanos: b.max_cost_nanos,
+                input_nanos: b.input_nanos,
+                output_nanos: b.output_nanos,
+                cache_write_nanos: b.cache_write_nanos,
+                cache_read_nanos: b.cache_read_nanos,
+                deadline_unix_ms: b.deadline_unix_ms,
+            })
+            .unwrap_or_else(|| engine_core::credits::Limits {
+                input_tokens: 16000,
+                output_tokens: 4000,
+                timeout_ms: 30000,
+                max_attempts: 2,
+                max_cost_nanos: 1_000_000_000,
+                input_nanos: 1000,
+                output_nanos: 5000,
+                cache_write_nanos: 1250,
+                cache_read_nanos: 100,
+                deadline_unix_ms: 0,
+            });
+
+        let prompt = format!("{req:?}");
+        let outcome =
+            engine_core::credits::run_validated(&self.router, "note", &prompt, &limits, |text| {
+                serde_json::from_str::<serde_json::Value>(text)
+                    .map(|v| v.get("summary").and_then(|s| s.as_str()).is_some())
+                    .unwrap_or(false)
+            })
             .await
             .map_err(internal)?;
+
+        let attempts: Vec<pb::Usage> = outcome.attempts.iter().map(attempt_usage).collect();
+        let c = match &outcome.completion {
+            Some(c) => c,
+            None => {
+                return Ok(Response::new(pb::EnrichNoteResponse {
+                    summary: String::new(),
+                    tags: vec![],
+                    links: vec![],
+                    usage: None,
+                    attempts,
+                    unavailable: true,
+                }));
+            }
+        };
+
         Ok(Response::new(pb::EnrichNoteResponse {
-            summary: content(&c)?["summary"]
+            summary: content(c)?["summary"]
                 .as_str()
                 .ok_or_else(|| Status::internal("missing summary"))?
                 .into(),
-            tags: strings(&content(&c)?["tags"]),
-            links: strings(&content(&c)?["links"]),
-            usage: usage(&c),
-            attempts: vec![],
+            tags: strings(&content(c)?["tags"]),
+            links: strings(&content(c)?["links"]),
+            usage: usage(c),
+            attempts,
             unavailable: false,
         }))
     }

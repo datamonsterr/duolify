@@ -23,7 +23,7 @@ async fn run_pinned_evaluation_through_hf_outage_with_valid_mirror_succeeds() {
     // HF outage: returns 500 Internal Server Error
     Mock::given(method("GET"))
         .and(path(format!(
-            "/datasets/datamonsterr/duolify-golden/resolve/{PINNED_REVISION}/golden.jsonl"
+            "/datasets/duolify-fixtures/e10-04/resolve/{PINNED_REVISION}/golden.jsonl"
         )))
         .respond_with(ResponseTemplate::new(500))
         .mount(&hf_server)
@@ -31,7 +31,7 @@ async fn run_pinned_evaluation_through_hf_outage_with_valid_mirror_succeeds() {
 
     // Mirror succeeds: returns valid dataset and checksum header / checksum file
     let mirror_dataset_path =
-        format!("/mirror/datamonsterr/duolify-golden/{PINNED_REVISION}/golden.jsonl");
+        format!("/mirror/duolify-fixtures/e10-04/{PINNED_REVISION}/golden.jsonl");
     let mirror_checksum_path = format!("{mirror_dataset_path}.sha256");
 
     Mock::given(method("GET"))
@@ -91,7 +91,7 @@ note_enrich = 1.0
             format!("{}/mirror", mirror_server.uri()),
         )
         .env("HF_TOKEN", "mock-hf-token")
-        .env("HF_GOLDEN_DATASET", "datamonsterr/duolify-golden")
+        .env("HF_GOLDEN_DATASET", "duolify-fixtures/e10-04")
         .env("HF_GOLDEN_REVISION", PINNED_REVISION)
         .env("EVAL_CACHE_DIR", &cache_dir)
         .output()
@@ -119,9 +119,72 @@ note_enrich = 1.0
     let report: serde_json::Value = serde_json::from_str(&report_content).unwrap();
     assert_eq!(report["dataset_revision"], PINNED_REVISION);
     assert_eq!(report["dataset_source"], "mirror");
+    assert_eq!(report["dataset_verified"], true);
     assert_eq!(report["passed"], true);
 
     let _ = std::fs::remove_dir_all(temp_dir);
+}
+
+#[tokio::test]
+async fn unsafe_recovery_inputs_never_produce_a_passing_report() {
+    for scenario in ["missing-checksum", "forged-checksum", "401", "403", "404"] {
+        let hf = MockServer::start().await;
+        let mirror = MockServer::start().await;
+        let status = scenario.parse::<u16>().unwrap_or(503);
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(status))
+            .mount(&hf)
+            .await;
+        let body = if scenario == "forged-checksum" {
+            VALID_DATASET.replace("Coffee", "Tampered")
+        } else {
+            VALID_DATASET.to_string()
+        };
+        let mut response = ResponseTemplate::new(200).set_body_string(&body);
+        if scenario != "missing-checksum" {
+            response = response.append_header(
+                "x-checksum-sha256",
+                engine_eval::compute_sha256(body.as_bytes()),
+            );
+        }
+        Mock::given(method("GET"))
+            .and(path(format!("/mirror/{PINNED_REVISION}/golden.jsonl")))
+            .respond_with(response)
+            .mount(&mirror)
+            .await;
+        let temp = std::env::temp_dir().join(format!(
+            "eval-unsafe-{scenario}-{}-{}",
+            std::process::id(),
+            hf.address().port()
+        ));
+        let output = Command::new(env!("CARGO_BIN_EXE_duolify-eval"))
+            .args(["--provider", "mock", "--reports"])
+            .arg(temp.join("reports"))
+            .env("HF_BASE_URL", hf.uri())
+            .env(
+                "HF_GOLDEN_MIRROR_URL",
+                format!("{}/mirror/{{revision}}/golden.jsonl", mirror.uri()),
+            )
+            .env("HF_TOKEN", "fake-token")
+            .env("HF_GOLDEN_DATASET", "duolify-fixtures/e10-04")
+            .env("HF_GOLDEN_REVISION", PINNED_REVISION)
+            .env("EVAL_CACHE_DIR", temp.join("cache"))
+            .output()
+            .unwrap();
+        assert!(
+            !output.status.success(),
+            "{scenario} was accepted: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(!temp.join("reports/latest.json").exists());
+        if status < 500 {
+            assert!(
+                mirror.received_requests().await.unwrap().is_empty(),
+                "{status} must not access mirror"
+            );
+        }
+        let _ = std::fs::remove_dir_all(temp);
+    }
 }
 
 #[tokio::test]
@@ -132,7 +195,7 @@ async fn run_pinned_evaluation_through_hf_outage_with_corrupt_mirror_fails_expli
     // HF outage: returns 500
     Mock::given(method("GET"))
         .and(path(format!(
-            "/datasets/datamonsterr/duolify-golden/resolve/{PINNED_REVISION}/golden.jsonl"
+            "/datasets/duolify-fixtures/e10-04/resolve/{PINNED_REVISION}/golden.jsonl"
         )))
         .respond_with(ResponseTemplate::new(500))
         .mount(&hf_server)
@@ -140,7 +203,7 @@ async fn run_pinned_evaluation_through_hf_outage_with_corrupt_mirror_fails_expli
 
     // Mirror returns corrupted payload with bad checksum
     let mirror_dataset_path =
-        format!("/mirror/datamonsterr/duolify-golden/{PINNED_REVISION}/golden.jsonl");
+        format!("/mirror/duolify-fixtures/e10-04/{PINNED_REVISION}/golden.jsonl");
     let mirror_checksum_path = format!("{mirror_dataset_path}.sha256");
 
     Mock::given(method("GET"))
@@ -195,7 +258,7 @@ async fn run_pinned_evaluation_through_hf_outage_with_corrupt_mirror_fails_expli
             format!("{}/mirror", mirror_server.uri()),
         )
         .env("HF_TOKEN", "mock-hf-token")
-        .env("HF_GOLDEN_DATASET", "datamonsterr/duolify-golden")
+        .env("HF_GOLDEN_DATASET", "duolify-fixtures/e10-04")
         .env("HF_GOLDEN_REVISION", PINNED_REVISION)
         .env("EVAL_CACHE_DIR", &cache_dir)
         .output()
@@ -231,7 +294,7 @@ fn unpinned_revision_or_missing_mirror_fails_explicitly_without_silent_mock_subs
         .arg("--reports")
         .arg(&reports_dir)
         .env("HF_TOKEN", "mock-token")
-        .env("HF_GOLDEN_DATASET", "datamonsterr/duolify-golden")
+        .env("HF_GOLDEN_DATASET", "duolify-fixtures/e10-04")
         .env("HF_GOLDEN_REVISION", "main") // unpinned branch!
         .output()
         .expect("failed to execute duolify-eval");

@@ -322,25 +322,127 @@ pub async fn stream_bounded(
     router: &ProviderRouter,
     task: &str,
     input: &str,
+    limits: Option<&Limits>,
     first_token_timeout: Duration,
     idle_timeout: Duration,
 ) -> Result<CompletionStream> {
+    if let Some(l) = limits {
+        validate_limits(l)?;
+        if input.len() > l.input_tokens as usize {
+            bail!("input exceeds API envelope");
+        }
+        let worst = u64::from(l.input_tokens)
+            .checked_mul(
+                l.input_nanos
+                    .max(l.cache_write_nanos)
+                    .max(l.cache_read_nanos),
+            )
+            .and_then(|n| n.checked_add(u64::from(l.output_tokens).checked_mul(l.output_nanos)?))
+            .ok_or_else(|| anyhow::anyhow!("cost overflow"))?;
+        if worst > l.max_cost_nanos {
+            bail!("worst-case cost exceeds USD cap");
+        }
+        if l.deadline_unix_ms != 0 {
+            let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
+            if u128::from(l.deadline_unix_ms) <= now {
+                bail!("deadline exceeded");
+            }
+        }
+    }
+
     let model = router.models.tasks.get(task).context("unknown task")?;
+    let deadline_unix_ms = limits.map(|l| l.deadline_unix_ms).unwrap_or(0);
+
+    let effective_first_to = if deadline_unix_ms != 0 {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
+        let remaining = u128::from(deadline_unix_ms).saturating_sub(now);
+        first_token_timeout.min(Duration::from_millis(remaining as u64))
+    } else {
+        first_token_timeout
+    };
 
     let primary_res = router.primary.stream(&model.model, input).await;
 
-    let underlying = match primary_res {
-        Ok(s) => s,
+    let (underlying, first_event) = match primary_res {
+        Ok(mut primary_stream) => {
+            match tokio::time::timeout(effective_first_to, primary_stream.next()).await {
+                Ok(Some(Ok(event))) => (primary_stream, Some(Ok(event))),
+                _ => {
+                    // First token timed out or failed before any delta; fall back to secondary stream
+                    let fallback_stream =
+                        router.fallback.stream(&model.fallback_model, input).await?;
+                    (fallback_stream, None)
+                }
+            }
+        }
         Err(_) => {
-            // Fall back before any delta has been emitted
-            router.fallback.stream(&model.fallback_model, input).await?
+            let fallback_stream = router.fallback.stream(&model.fallback_model, input).await?;
+            (fallback_stream, None)
         }
     };
 
     let stream = futures::stream::unfold(
-        (underlying, false, true, first_token_timeout, idle_timeout),
-        move |(mut underlying, mut emitted_delta, first_check, first_to, idle_to)| async move {
-            let timeout = if first_check { first_to } else { idle_to };
+        (
+            underlying,
+            first_event,
+            false,
+            true,
+            first_token_timeout,
+            idle_timeout,
+            deadline_unix_ms,
+        ),
+        move |(
+            mut underlying,
+            buffered_first_event,
+            mut emitted_delta,
+            first_check,
+            first_to,
+            idle_to,
+            deadline,
+        )| async move {
+            if let Some(event) = buffered_first_event {
+                if let Ok(StreamEvent::Delta(_)) = &event {
+                    emitted_delta = true;
+                }
+                return Some((
+                    event,
+                    (
+                        underlying,
+                        None,
+                        emitted_delta,
+                        false,
+                        first_to,
+                        idle_to,
+                        deadline,
+                    ),
+                ));
+            }
+
+            let mut timeout = if first_check { first_to } else { idle_to };
+
+            if deadline != 0 {
+                let now = match SystemTime::now().duration_since(UNIX_EPOCH) {
+                    Ok(d) => d.as_millis(),
+                    Err(_) => 0,
+                };
+                if u128::from(deadline) <= now {
+                    return Some((
+                        Err(anyhow::anyhow!("deadline exceeded")),
+                        (
+                            underlying,
+                            None,
+                            emitted_delta,
+                            false,
+                            first_to,
+                            idle_to,
+                            deadline,
+                        ),
+                    ));
+                }
+                let remaining = u128::from(deadline).saturating_sub(now);
+                timeout = timeout.min(Duration::from_millis(remaining as u64));
+            }
+
             match tokio::time::timeout(timeout, underlying.next()).await {
                 Ok(Some(Ok(event))) => {
                     if let StreamEvent::Delta(_) = &event {
@@ -348,14 +450,30 @@ pub async fn stream_bounded(
                     }
                     Some((
                         Ok(event),
-                        (underlying, emitted_delta, false, first_to, idle_to),
+                        (
+                            underlying,
+                            None,
+                            emitted_delta,
+                            false,
+                            first_to,
+                            idle_to,
+                            deadline,
+                        ),
                     ))
                 }
                 Ok(Some(Err(e))) => {
                     // Post-delta error terminates stream without fallback
                     Some((
                         Err(e),
-                        (underlying, emitted_delta, false, first_to, idle_to),
+                        (
+                            underlying,
+                            None,
+                            emitted_delta,
+                            false,
+                            first_to,
+                            idle_to,
+                            deadline,
+                        ),
                     ))
                 }
                 Ok(None) => None,
@@ -363,7 +481,15 @@ pub async fn stream_bounded(
                     // Timeout
                     Some((
                         Err(anyhow::anyhow!("stream timeout")),
-                        (underlying, emitted_delta, false, first_to, idle_to),
+                        (
+                            underlying,
+                            None,
+                            emitted_delta,
+                            false,
+                            first_to,
+                            idle_to,
+                            deadline,
+                        ),
                     ))
                 }
             }

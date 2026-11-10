@@ -15,6 +15,6 @@ pub use runner::{
 };
 pub use scoring::{
     Case, CaseResult, Check, EvalReport, TaskReport, Thresholds, aggregate_task_reports,
-    is_promotable,
+    check_promotion_gate, is_promotable,
 };
 pub use tasks::{CANONICAL_TASKS, TaskRegistry, canonical_task_name, model_route_for_task};
