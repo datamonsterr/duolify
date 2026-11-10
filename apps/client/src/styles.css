@@ -649,6 +649,10 @@ progress::-moz-progress-bar {
   block-size: var(--size-target);
   accent-color: var(--secondary);
 }
+.audio-timeline span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .complete {
   text-align: center;
   padding-block: var(--space-16);
@@ -732,4 +736,166 @@ progress::-moz-progress-bar {
 :root[data-motion="reduce"] .controls button:active:not(:disabled),
 :root[data-motion="reduce"] .complete a:active {
   transform: none;
+}
+
+.slide-caption {
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  overflow-wrap: anywhere;
+  line-height: var(--font-leading-body);
+}
+.player h1,
+.player .adaptive-panel p {
+  overflow-wrap: anywhere;
+}
+.player-recovery {
+  max-inline-size: var(--size-reading);
+  padding-block: var(--space-6);
+}
+
+.stage-recovery {
+  background: var(--raised, #f7f7f7);
+  border: 2px dashed var(--line, #cfcfcf);
+  border-radius: var(--radius-lg, 24px);
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2, 10px);
+  text-align: center;
+  padding: var(--space-5, 20px);
+  box-sizing: border-box;
+}
+.stage-recovery .recovery-icon {
+  color: var(--danger, #b3261e);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stage-recovery .recovery-title {
+  font-size: var(--font-size-subhead, 18px);
+  font-weight: 900;
+  color: var(--text, #2b2b2b);
+}
+.stage-recovery .recovery-explanation {
+  color: var(--muted, #5e5e5e);
+  font-size: var(--font-size-body, 14px);
+}
+.recovery-actions {
+  display: flex;
+  gap: var(--space-2, 10px);
+  margin-block-start: var(--space-3, 12px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.tool-captions.on,
+.panel-tools button.on {
+  background: var(--color-primary-light, #ddf1ff);
+  border-color: var(--color-primary-focus, #8ccbf7);
+  color: var(--color-primary-dark, #0d5592);
+}
+.transcript-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  margin-block-start: var(--space-2, 8px);
+}
+.transcript-entry {
+  border-radius: var(--radius-md, 12px);
+  padding: var(--space-2, 8px) var(--space-3, 10px);
+  color: var(--muted, #555555);
+}
+.transcript-entry.active {
+  background: var(--color-primary-light, #ddf1ff);
+  color: var(--text, #2b2b2b);
+}
+
+.ban {
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.ban.warn {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.ban.bad {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.ban.info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.ban b,
+.ban strong {
+  display: block;
+  font-size: var(--font-size-body);
+  font-weight: var(--weight-heavy);
+  margin-block-end: 2px;
+}
+.ban p {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  line-height: var(--leading-body);
+  color: inherit;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--size-target);
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: 0 var(--size-press-depth) 0 var(--primary-edge);
+  font-family: inherit;
+  font-weight: var(--weight-heavy);
+  font-size: var(--font-size-caption);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  text-align: center;
+}
+.btn:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(var(--size-press-offset));
+  box-shadow: 0 1px 0 var(--primary-edge);
+}
+.btn.sec {
+  background: var(--surface);
+  color: var(--info);
+  border: 2px solid var(--line);
+  box-shadow: 0 var(--size-press-depth) 0 var(--line);
+}
+.btn.vio {
+  background: var(--credit-icon);
+  color: var(--on-primary);
+  box-shadow: 0 var(--size-press-depth) 0 var(--credit);
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.saved-offline-tag {
+  display: inline-block;
+  font-size: var(--font-size-small);
+  font-weight: var(--weight-heavy);
+  color: var(--warning);
+  background: var(--warning-bg);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  margin-block-start: 2px;
 }

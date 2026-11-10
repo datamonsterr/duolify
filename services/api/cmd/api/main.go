@@ -29,6 +29,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/eval"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
+	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
@@ -248,6 +249,7 @@ func run(ctx context.Context, args []string) (result error) {
 	handler := httpapi.New(httpapi.Dependencies{
 		Characters:    characters.NewHandler(characterService),
 		Monitor:       monitor,
+		Player:        player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService}),
 		ObjectStorage: telemetry.StorageProbe(os.Getenv),
 		Accounts:      auth,
 		Credits:       creditService,

@@ -26,10 +26,13 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/credits/creditstest"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
+	"github.com/datamonsterr/duolify/services/api/internal/player"
+	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
@@ -115,6 +118,8 @@ func run() (result error) {
 			creditService.ServeHTTP(w, r)
 		}
 	})
+	objects := &fixtureObjects{values: playerfixture.Documents()}
+	lessonPlayer := player.New(player.Options{Pool: db.Pool, Objects: objects, AssetOrigin: playerfixture.AssetOrigin, Credits: paidCredits})
 	mux := http.NewServeMux()
 	characterService := characters.NewService(db.Pool, nil, nil)
 	characterService.ConfigureScreening(characterScreenFixture{})
@@ -165,7 +170,89 @@ func run() (result error) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"character_id": id, "course_id": course, "other_id": "8a333333-3333-4333-8333-333333333333"})
 	})))
-	mux.Handle("/", httpapi.New(httpapi.Dependencies{Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditHandler, Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"}), Characters: charHandler}, logger))
+	mux.Handle("POST /test/player/fixture", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id, err := playerfixture.Seed(r.Context(), db.Pool, objects, accounts.LearnerID(r.Context()))
+		if err != nil {
+			w.WriteHeader(500)
+			return
+		}
+		var courseID string
+		_ = db.Pool.QueryRow(r.Context(), `SELECT c.id::text FROM courses c JOIN course_units u ON u.course_id=c.id JOIN course_lesson_stubs l ON l.unit_id=u.id WHERE l.id=$1`, id).Scan(&courseID)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(201)
+		_ = json.NewEncoder(w).Encode(map[string]string{"lesson_id": id, "course_id": courseID})
+	})))
+	mux.Handle("POST /test/subscription/fund", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		plan := catalogue.Config().Plans[0]
+		order, err := paidCredits.CreateCheckout(r.Context(), owner, credits.CheckoutInput{
+			RequestID:      uuid.NewString(),
+			SKU:            plan.Monthly.SKU,
+			PricingVersion: catalogue.Config().Version,
+			Platform:       "web",
+			ReturnTo:       "/credits",
+		})
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		raw, signature, err := stripe.Notification("cs_test_"+order.ID, "paid", "invoice.paid")
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		req, _ := http.NewRequestWithContext(r.Context(), http.MethodPost, "/v1/payments/stripe/webhook", bytes.NewReader(raw))
+		req.Header.Set("Stripe-Signature", signature)
+		req.Header.Set("X-Test-Stripe-Fixture", "true")
+		rec := httptest.NewRecorder()
+		paidCredits.ServeHTTP(rec, req)
+		if rec.Code != 200 {
+			http.Error(w, rec.Body.String(), rec.Code)
+			return
+		}
+		if err := paidCredits.ProcessPayments(r.Context()); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		_ = paidCredits.InvalidateCache(r.Context(), owner)
+		_ = creditService.InvalidateCache(r.Context(), owner)
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]bool{"funded": true})
+	})))
+	mux.Handle("POST /test/subscription/expire", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		eventID := "evt_expire_" + uuid.NewString()
+		_, err := db.Pool.Exec(r.Context(), `INSERT INTO credit_payment_inbox(event_id, environment, event_type, session_id)
+			VALUES($1, 'test', 'customer.subscription.deleted', 'sub_expire')
+			ON CONFLICT DO NOTHING`, eventID)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		_, err = db.Pool.Exec(r.Context(), `INSERT INTO credit_payment_results(event_id, state)
+			VALUES($1, 'expired')
+			ON CONFLICT DO NOTHING`, eventID)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		_, err = db.Pool.Exec(r.Context(), `INSERT INTO credit_subscription_revocations(period_key, event_id, reason)
+			SELECT t.period_key, $1, 'refunded'
+			FROM credit_subscription_terms t
+			JOIN credit_subscriptions s USING(subscription_id)
+			JOIN credit_checkout_orders o ON o.id=s.order_id
+			WHERE o.learner_id=$2
+			ON CONFLICT DO NOTHING`, eventID, owner)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		_ = paidCredits.InvalidateCache(r.Context(), owner)
+		_ = creditService.InvalidateCache(r.Context(), owner)
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]bool{"expired": true})
+	})))
+	mux.Handle("/", httpapi.New(httpapi.Dependencies{Player: lessonPlayer, Pricing: pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, nil), Quotes: pricing.NewQuotes(db.Pool), Credits: creditHandler, Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"}), Characters: charHandler}, logger))
 	// Exercise the real expiry worker across a historical local date. Only the
 	// disposable fixture exposes this clock control; amounts stay config-owned.
 	mux.Handle("POST /test/credits/yesterday", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -482,4 +569,22 @@ func (characterMapFixture) MapCharacter(_ context.Context, r *enginev1.MapCharac
 		raw = []byte(`{}`)
 	}
 	return &enginev1.MapCharacterResponse{SpecJson: string(raw), Attempts: []*enginev1.Usage{{Provider: r.Limits.Provider, Model: r.Limits.Model, InputTokens: 100, OutputTokens: 100, Attempt: 1, Component: "content", Delivered: true}}}, nil
+}
+
+// Fixture documents are immutable and contain no personal content; integration
+// coverage separately exercises the real RustFS adapter and protected restore.
+type fixtureObjects struct{ values map[string][]byte }
+
+func (f *fixtureObjects) Get(_ context.Context, key string) ([]byte, error) {
+	v, ok := f.values[key]
+	if !ok {
+		return nil, errors.New("missing fixture object")
+	}
+	return v, nil
+}
+func (f *fixtureObjects) Put(_ context.Context, key string, value []byte) error {
+	if !bytes.Equal(f.values[key], value) {
+		return errors.New("fixture mutation")
+	}
+	return nil
 }
