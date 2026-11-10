@@ -639,7 +639,7 @@ func TestBookmarkEventsReachPostHogWithoutPrivateData(t *testing.T) {
 		"target_type": "lesson",
 		"course_id":   courseID,
 		"lesson_id":   lessonID,
-		"source":      "client",
+		"source":      "api",
 		"platform":    "desktop",
 		"app_version": "0.1.0",
 		"note_text":   "must be excluded",

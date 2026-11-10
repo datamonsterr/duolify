@@ -30,6 +30,16 @@ export type QuickNotePanelProps = {
 
 const ENRICH_LABEL = "Enrich with AI · 2 credits (daily free)"; // @noncommercial-number
 
+const quickNoteDrafts = new Map<string, string>();
+
+function getDraftKey(ctx: QuickNoteContext): string {
+  return `${ctx.source}:${ctx.courseId ?? ""}:${ctx.lessonId ?? ""}:${ctx.slideId ?? ""}`;
+}
+
+export function clearQuickNoteDrafts(): void {
+  quickNoteDrafts.clear();
+}
+
 export function QuickNotePanel({
   open,
   onClose,
@@ -37,6 +47,7 @@ export function QuickNotePanel({
   onSync,
   isOffline = false,
 }: QuickNotePanelProps) {
+  const draftKey = getDraftKey(context);
   const [activeNote, setActiveNote] = useState<QueuedNote | null>(() => {
     const queued = noteQueue.getQueue();
     return (
@@ -50,7 +61,19 @@ export function QuickNotePanel({
       }) ?? null
     );
   });
-  const [noteText, setNoteText] = useState(() => activeNote?.rawText ?? "");
+  const [noteText, setNoteTextState] = useState(
+    () => activeNote?.rawText ?? quickNoteDrafts.get(draftKey) ?? "",
+  );
+  const setNoteText = (val: string) => {
+    setNoteTextState(val);
+    if (!activeNote) {
+      if (val) {
+        quickNoteDrafts.set(draftKey, val);
+      } else {
+        quickNoteDrafts.delete(draftKey);
+      }
+    }
+  };
   const [enrichWithAi, setEnrichWithAi] = useState(true);
   const [status, setStatus] = useState<"draft" | "offline_saved" | "synced">(
     () =>
@@ -81,6 +104,7 @@ export function QuickNotePanel({
   const handleSave = async () => {
     const trimmed = noteText.trim();
     if (!trimmed) return;
+    quickNoteDrafts.delete(draftKey);
 
     // Save to local device queue with stable action key
     const queued = noteQueue.enqueue({

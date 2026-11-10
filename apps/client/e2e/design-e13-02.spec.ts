@@ -31,8 +31,8 @@ test("panel drafts and tab scroll survive resize, close and return navigation", 
     "A private draft about the sky",
   );
   await expect(
-    sheet.getByRole("button", { name: "Save quick note unavailable" }),
-  ).toBeDisabled();
+    sheet.getByRole("button", { name: "Save quick note" }),
+  ).toBeEnabled();
   await page.screenshot({ path: testInfo.outputPath("mobile-sheet.png") });
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Quick note", exact: true }).click();

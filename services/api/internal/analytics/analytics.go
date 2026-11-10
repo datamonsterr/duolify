@@ -136,7 +136,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 				}
 				continue
 			}
-			if v != "api" && v != "ci" && v != "client" {
+			if v != "api" && v != "ci" {
 				continue
 			}
 		case "platform":

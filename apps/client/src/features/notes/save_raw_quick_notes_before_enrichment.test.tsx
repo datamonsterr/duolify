@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { QuickNotePanel } from "./QuickNotePanel";
+import { QuickNotePanel, clearQuickNoteDrafts } from "./QuickNotePanel";
 import { configureAnalytics, trackQuickNoteCreated } from "../../lib/analytics";
 import { noteQueue } from "./note-queue";
 
@@ -15,6 +15,7 @@ vi.mock("posthog-js/dist/module.no-external", () => ({ default: posthog }));
 describe("save_raw_quick_notes_before_enrichment", () => {
   beforeEach(() => {
     localStorage.clear();
+    clearQuickNoteDrafts();
     noteQueue.clear();
     configureAnalytics({
       learnerId: "11111111-1111-4111-8111-111111111111",
