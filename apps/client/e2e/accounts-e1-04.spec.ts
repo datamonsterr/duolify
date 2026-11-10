@@ -3,7 +3,7 @@ import {
   expect,
   type Page,
   type APIRequestContext,
-} from "@playwright/test";
+} from "./native-store-fixture";
 import { apiBase, resetAuthRateLimits } from "./servers";
 test.use({ hasTouch: true });
 test.beforeEach(async ({ request }) => {
@@ -59,7 +59,10 @@ for (const width of [1280, 320]) {
       await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
       await page.addInitScript((tokens) => {
         if (!sessionStorage.getItem("session-fixture-seeded")) {
-          sessionStorage.setItem("duolify.auth", JSON.stringify(tokens));
+          sessionStorage.setItem(
+            "duolify.native-store-fixture",
+            JSON.stringify(tokens),
+          );
           sessionStorage.setItem("session-fixture-seeded", "true");
         }
       }, first);
@@ -74,7 +77,9 @@ for (const width of [1280, 320]) {
         .poll(() =>
           page.evaluate(
             () =>
-              JSON.parse(sessionStorage.getItem("duolify.auth")!).refresh_token,
+              JSON.parse(
+                sessionStorage.getItem("duolify.native-store-fixture")!,
+              ).refresh_token,
           ),
         )
         .not.toBe(first.refresh_token);
@@ -95,7 +100,9 @@ for (const width of [1280, 320]) {
       await page.keyboard.press("Enter");
       await expect(page).toHaveURL(/sign-in/);
       expect(
-        await page.evaluate(() => sessionStorage.getItem("duolify.auth")),
+        await page.evaluate(() =>
+          sessionStorage.getItem("duolify.native-store-fixture"),
+        ),
       ).toBeNull();
       expect(
         await page.evaluate(
@@ -118,7 +125,10 @@ for (const width of [1280, 320]) {
     await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
     await page.addInitScript((value) => {
       if (!sessionStorage.getItem("session-fixture-seeded")) {
-        sessionStorage.setItem("duolify.auth", JSON.stringify(value));
+        sessionStorage.setItem(
+          "duolify.native-store-fixture",
+          JSON.stringify(value),
+        );
         sessionStorage.setItem("session-fixture-seeded", "true");
       }
     }, tokens);
@@ -139,7 +149,9 @@ for (const width of [1280, 320]) {
     release();
     await expect(page.getByRole("alert")).toContainText("Connect and retry");
     expect(
-      await page.evaluate(() => sessionStorage.getItem("duolify.auth")),
+      await page.evaluate(() =>
+        sessionStorage.getItem("duolify.native-store-fixture"),
+      ),
     ).not.toBeNull();
     await context.setOffline(true);
     await page.getByRole("button", { name: "Retry" }).tap();

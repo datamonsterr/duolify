@@ -32,11 +32,18 @@ it("fails closed when native credential storage rejects", async () => {
   expect(localStorage.length).toBe(0);
 });
 
-it("uses only the disposable session fallback when no native bridge exists", async () => {
+it("keeps browser tokens in memory and ignores persisted credentials", async () => {
   const store = createSecureStore();
-
+  sessionStorage.setItem(
+    "duolify.auth",
+    JSON.stringify({ ...tokens, access_token: "stale" }),
+  );
+  await expect(store.read()).resolves.toBeNull();
   await store.write(tokens);
   await expect(store.read()).resolves.toEqual(tokens);
-  expect(sessionStorage.getItem("duolify.auth")).toBe(JSON.stringify(tokens));
+  await expect(createSecureStore().read()).resolves.toBeNull();
+  expect(sessionStorage.getItem("duolify.auth")).not.toBe(
+    JSON.stringify(tokens),
+  );
   expect(localStorage.length).toBe(0);
 });

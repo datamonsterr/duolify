@@ -26,7 +26,7 @@ for (const width of [1280, 390, 320]) {
     });
     await page.goto("/credits?payment=success");
     const tokens = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("duolify.auth")!),
+      JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!),
     );
     const authHeaders = { Authorization: `Bearer ${tokens.access_token}` };
     const before = await (

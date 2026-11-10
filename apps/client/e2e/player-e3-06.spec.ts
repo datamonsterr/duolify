@@ -20,7 +20,9 @@ for (const width of [1280, 390]) {
     // 1. Authenticate learner
     await page.goto("/profile");
     const token = await page.evaluate(
-      () => JSON.parse(sessionStorage.getItem("duolify.auth")!).access_token,
+      () =>
+        JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!)
+          .access_token,
     );
     const authHeaders = { Authorization: `Bearer ${token}` };
 

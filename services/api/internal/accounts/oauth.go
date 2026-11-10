@@ -43,6 +43,7 @@ type ProviderIdentity struct {
 type OAuthProvider interface {
 	AuthorizationURL(context.Context, OAuthAuthorizationRequest) (string, error)
 	Exchange(context.Context, OAuthExchangeRequest) (ProviderIdentity, error)
+	Audience() string
 }
 
 // AppleOAuthProvider verifies Apple identity-token signatures and resolves unknown
@@ -68,6 +69,8 @@ func (FixtureAppleClientSecret) SignClientSecret(context.Context) (string, error
 }
 
 type unavailableOAuthProvider struct{}
+
+func (unavailableOAuthProvider) Audience() string { return "" }
 
 func (unavailableOAuthProvider) AuthorizationURL(context.Context, OAuthAuthorizationRequest) (string, error) {
 	return "", errors.New("OAuth provider is not provisioned")
@@ -164,6 +167,15 @@ func ValidateProviderIdentity(identity ProviderIdentity, expectedNonce string) e
 	return nil
 }
 
+// ValidateGoogleIdentity checks claims only after the provider adapter verifies
+// the ID-token signature against Google keys. Audience comes from adapter config.
+func ValidateGoogleIdentity(identity ProviderIdentity, expectedNonce, expectedAudience string) error {
+	if identity.Provider != "google" || (identity.Issuer != "https://accounts.google.com" && identity.Issuer != "accounts.google.com") || expectedAudience == "" || identity.Audience != expectedAudience || !identity.ExpiresAt.After(time.Now()) {
+		return ErrOAuthProvider
+	}
+	return ValidateProviderIdentity(identity, expectedNonce)
+}
+
 // ValidateAppleIdentity validates provider claims returned only after signature
 // verification by AppleOAuthProvider. Email is optional for an already-bound subject.
 func ValidateAppleIdentity(identity ProviderIdentity, expectedNonce, expectedAudience string) error {
@@ -183,6 +195,9 @@ func ValidateAppleIdentity(identity ProviderIdentity, expectedNonce, expectedAud
 // tied to .test hosts and must be replaced only when E1-10 provisions live OAuth.
 type FixtureGoogleProvider struct{}
 
+// Audience returns the offline fixture client identifier.
+func (*FixtureGoogleProvider) Audience() string { return "fixture-google-client" }
+
 // AuthorizationURL creates a deterministic .test authorization URL for local fixtures.
 func (p *FixtureGoogleProvider) AuthorizationURL(_ context.Context, request OAuthAuthorizationRequest) (string, error) {
 	if !ValidOAuthRedirect(request.RedirectURI) || request.State == "" || request.Nonce == "" || len(request.CodeChallenge) != 43 {
@@ -197,7 +212,7 @@ func (p *FixtureGoogleProvider) Exchange(_ context.Context, request OAuthExchang
 	if request.Code != "fixture-google-code" || request.CodeVerifier == "" || !ValidOAuthRedirect(request.RedirectURI) {
 		return ProviderIdentity{}, ErrOAuthProvider
 	}
-	return ProviderIdentity{Provider: "google", Subject: "fixture-google-subject", Email: "learner@example.test", EmailVerified: true, Nonce: request.Nonce}, nil
+	return ProviderIdentity{Provider: "google", Subject: "fixture-google-subject", Email: "learner@example.test", EmailVerified: true, Nonce: request.Nonce, Issuer: "https://accounts.google.com", Audience: p.Audience(), ExpiresAt: time.Now().Add(time.Hour)}, nil
 }
 
 // FixtureAppleProvider models Apple's first-login profile claims and stable subject
@@ -293,7 +308,7 @@ func (s *Service) oauthStart(w http.ResponseWriter, r *http.Request, provider OA
 		failure(w, err)
 		return
 	}
-	_, err = s.pool.Exec(r.Context(), `INSERT INTO auth_oauth_attempts(state_hash,nonce_hash,code_challenge,redirect_uri,expires_at) VALUES($1,$2,$3,$4,now()+interval '10 minutes')`, s.hmac(state), s.hmac(nonce), in.CodeChallenge, in.RedirectURI)
+	_, err = s.pool.Exec(r.Context(), `INSERT INTO auth_oauth_attempts(state_hash,nonce_hash,code_challenge,redirect_uri,expires_at) VALUES($1,$2,$3,$4,now()+interval '10 minutes')`, keyedHash(s.oauthKey, state), keyedHash(s.oauthKey, nonce), in.CodeChallenge, in.RedirectURI)
 	if err != nil {
 		failure(w, err)
 		return
@@ -340,13 +355,13 @@ func (s *Service) oauthComplete(w http.ResponseWriter, r *http.Request, provider
 	}
 	var nonceHash, challenge, redirect string
 	var active bool
-	err = tx.QueryRow(ctx, `SELECT nonce_hash,code_challenge,redirect_uri,expires_at>now() AND consumed_at IS NULL FROM auth_oauth_attempts WHERE state_hash=$1 FOR UPDATE`, s.hmac(in.State)).Scan(&nonceHash, &challenge, &redirect, &active)
-	if err != nil || !active || redirect != in.RedirectURI || subtle.ConstantTimeCompare([]byte(challenge), []byte(PKCEChallenge(in.CodeVerifier))) != 1 || subtle.ConstantTimeCompare([]byte(nonceHash), []byte(s.hmac(in.Nonce))) != 1 {
+	err = tx.QueryRow(ctx, `SELECT nonce_hash,code_challenge,redirect_uri,expires_at>now() AND consumed_at IS NULL FROM auth_oauth_attempts WHERE state_hash=$1 FOR UPDATE`, keyedHash(s.oauthKey, in.State)).Scan(&nonceHash, &challenge, &redirect, &active)
+	if err != nil || !active || redirect != in.RedirectURI || subtle.ConstantTimeCompare([]byte(challenge), []byte(PKCEChallenge(in.CodeVerifier))) != 1 || subtle.ConstantTimeCompare([]byte(nonceHash), []byte(keyedHash(s.oauthKey, in.Nonce))) != 1 {
 		_ = tx.Rollback(ctx)
 		respond(w, http.StatusUnauthorized, map[string]string{"error": "Sign-in could not be verified. Please retry."})
 		return
 	}
-	if _, err = tx.Exec(ctx, "UPDATE auth_oauth_attempts SET consumed_at=now() WHERE state_hash=$1", s.hmac(in.State)); err == nil {
+	if _, err = tx.Exec(ctx, "UPDATE auth_oauth_attempts SET consumed_at=now() WHERE state_hash=$1", keyedHash(s.oauthKey, in.State)); err == nil {
 		err = tx.Commit(ctx)
 	}
 	if err != nil {
@@ -356,11 +371,11 @@ func (s *Service) oauthComplete(w http.ResponseWriter, r *http.Request, provider
 	identity, err := provider.Exchange(ctx, OAuthExchangeRequest{Code: in.Code, CodeVerifier: in.CodeVerifier, RedirectURI: in.RedirectURI, Nonce: in.Nonce})
 	validIdentity := err == nil && identity.Provider == expectedProvider
 	if validIdentity && expectedProvider == "apple" {
-		validIdentity = ValidateAppleIdentity(identity, identity.Nonce, appleAudience) == nil
+		validIdentity = ValidateAppleIdentity(identity, in.Nonce, appleAudience) == nil
 	} else if validIdentity {
-		validIdentity = ValidateProviderIdentity(identity, identity.Nonce) == nil
+		validIdentity = ValidateGoogleIdentity(identity, in.Nonce, provider.Audience()) == nil
 	}
-	if !validIdentity || subtle.ConstantTimeCompare([]byte(nonceHash), []byte(s.hmac(identity.Nonce))) != 1 {
+	if !validIdentity || subtle.ConstantTimeCompare([]byte(nonceHash), []byte(keyedHash(s.oauthKey, identity.Nonce))) != 1 {
 		respond(w, http.StatusUnauthorized, map[string]string{"error": "Sign-in could not be verified. Please retry."})
 		return
 	}

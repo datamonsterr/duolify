@@ -17,7 +17,7 @@ for (const width of [1280, 390]) {
 
     await page.goto("/profile");
     const tokens = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("duolify.auth")!),
+      JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!),
     );
     const headers = { Authorization: `Bearer ${tokens.access_token}` };
     const seeded = await request.post(`${apiBase}/test/player/fixture`, {
@@ -135,7 +135,7 @@ for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/profile");
     const tokens = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("duolify.auth")!),
+      JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!),
     );
     const headers = { Authorization: `Bearer ${tokens.access_token}` };
     const seeded = await request.post(`${apiBase}/test/player/fixture`, {

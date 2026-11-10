@@ -43,7 +43,7 @@ for (const width of [1280, 390, 320]) {
       page.getByRole("status").filter({ hasText: "Credits reserved" }),
     ).toBeVisible();
     const tokens = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("duolify.auth")!),
+      JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!),
     );
     const headers = { Authorization: `Bearer ${tokens.access_token}` };
     const job = await page

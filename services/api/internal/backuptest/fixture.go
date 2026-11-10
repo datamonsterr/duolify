@@ -5,6 +5,7 @@ package backuptest
 import (
 	"bytes"
 	"context"
+	"crypto/hkdf"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -905,7 +906,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	// A restored revoked session rejects even a correctly signed, unexpired JWT.
 	access, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Issuer: "duolify", Audience: jwt.ClaimStrings{"duolify-client"}, Subject: "a1111111-1111-4111-8111-111111111111", ID: "d4444444-4444-4444-8444-444444444444", ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
-	}).SignedString([]byte("synthetic-backup-auth-signing-key-32-bytes"))
+	}).SignedString(backupSigningKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1069,4 +1070,12 @@ func (f *Fixture) AssertEvents(t *testing.T, names ...string) {
 // ApplicationObjects accesses only this fixture's disposable versioned asset bucket.
 func (f *Fixture) ApplicationObjects() *player.S3 {
 	return &player.S3{Client: f.root.Client, Bucket: "application-assets"}
+}
+
+func backupSigningKey() []byte {
+	key, err := hkdf.Key(sha256.New, []byte("synthetic-backup-auth-signing-key-32-bytes"), nil, "duolify/auth/v1/jwt", 32)
+	if err != nil {
+		panic(err)
+	}
+	return key
 }

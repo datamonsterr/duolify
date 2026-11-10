@@ -2,6 +2,8 @@ package accounts_test
 
 import (
 	"context"
+	"crypto/hkdf"
+	"crypto/sha256"
 	"encoding/json"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/golang-jwt/jwt/v5"
@@ -44,13 +46,20 @@ func TestJWTValidation(t *testing.T) {
 	}{
 		{"valid", jwt.SigningMethodHS256, time.Now().Add(15 * time.Minute), "duolify", "duolify-client", true},
 		{"expired", jwt.SigningMethodHS256, time.Now().Add(-time.Minute), "duolify", "duolify-client", false},
+		{"HS512", jwt.SigningMethodHS512, time.Now().Add(time.Minute), "duolify", "duolify-client", false},
+		{"none", jwt.SigningMethodNone, time.Now().Add(time.Minute), "duolify", "duolify-client", false},
 		{"algorithm", jwt.SigningMethodHS384, time.Now().Add(time.Minute), "duolify", "duolify-client", false},
 		{"issuer", jwt.SigningMethodHS256, time.Now().Add(time.Minute), "other", "duolify-client", false},
 		{"audience", jwt.SigningMethodHS256, time.Now().Add(time.Minute), "duolify", "other", false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			token := jwt.NewWithClaims(tt.method, jwt.RegisteredClaims{Subject: "56d4e614-7665-4f14-b83e-8b5e9bed384a", ID: "8c940797-a555-421e-8dad-b4df96b02213", Issuer: tt.issuer, Audience: jwt.ClaimStrings{tt.audience}, ExpiresAt: jwt.NewNumericDate(tt.expires)})
-			raw, err := token.SignedString([]byte(key))
+			signingKey, _ := hkdf.Key(sha256.New, []byte(key), nil, "duolify/auth/v1/jwt", 32)
+			var signing any = signingKey
+			if tt.method == jwt.SigningMethodNone {
+				signing = jwt.UnsafeAllowNoneSignatureType
+			}
+			raw, err := token.SignedString(signing)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -72,6 +72,17 @@ func TestSignInRacesRotationRestoreAndDeletion(t *testing.T) {
 	if code == "" {
 		t.Fatal("mail sink empty")
 	}
+	var originalHash string
+	if err := db.Pool.QueryRow(ctx, "SELECT code_hash FROM auth_codes WHERE email=$1", email).Scan(&originalHash); err != nil {
+		t.Fatal(err)
+	}
+	if w := call("/v1/auth/code", map[string]any{"email": email, "age_confirmed": true}, ""); w.Code != 202 {
+		t.Fatal("cooldown should be opaque", w.Code)
+	}
+	var preservedHash string
+	if err := db.Pool.QueryRow(ctx, "SELECT code_hash FROM auth_codes WHERE email=$1", email).Scan(&preservedHash); err != nil || preservedHash != originalHash {
+		t.Fatal("resend overwrote code", err)
+	}
 	var winners atomic.Int32
 	var wg sync.WaitGroup
 	var session accounts.Tokens
@@ -175,7 +186,7 @@ func TestSignInRacesRotationRestoreAndDeletion(t *testing.T) {
 	if expiredW.Code != 401 {
 		t.Fatal("expired restored refresh was accepted")
 	}
-	// Token rotation is single-use; replay revokes the whole family including access JWTs.
+	// Rotation tolerates races; replay outside the grace revokes the family.
 	w = call("/v1/auth/refresh", map[string]string{"refresh_token": session.RefreshToken}, "")
 	if w.Code != 200 {
 		t.Fatalf("refresh %d %s", w.Code, w.Body)
@@ -186,6 +197,9 @@ func TestSignInRacesRotationRestoreAndDeletion(t *testing.T) {
 	}
 	if rotated.RefreshToken == session.RefreshToken {
 		t.Fatal("refresh did not rotate")
+	}
+	if _, err := db.Pool.Exec(ctx, "UPDATE auth_refresh_tokens SET consumed_at=now()-interval '1 minute' WHERE consumed_at IS NOT NULL"); err != nil {
+		t.Fatal(err)
 	}
 	if w := call("/v1/auth/refresh", map[string]string{"refresh_token": session.RefreshToken}, ""); w.Code != 401 {
 		t.Fatal("refresh replay accepted")
@@ -211,6 +225,7 @@ func TestSignInRacesRotationRestoreAndDeletion(t *testing.T) {
 	if w := call("/v1/me", nil, session.AccessToken); w.Code != 401 {
 		t.Fatal("logout left access active")
 	}
+	auth.ConfigureRateLimits(accounts.RateLimits{RequestIP: 20, RequestEmail: 100, VerifyIP: 60})
 	// Expiry and verification budget remain enforced after a fresh request.
 	if w := call("/v1/auth/code", map[string]any{"email": email, "age_confirmed": true}, ""); w.Code != 202 {
 		t.Fatal(w.Body)
@@ -224,8 +239,11 @@ func TestSignInRacesRotationRestoreAndDeletion(t *testing.T) {
 	if w := call("/v1/auth/verify", map[string]any{"email": email, "code": code, "age_confirmed": true}, ""); w.Code != 401 {
 		t.Fatal("attempt budget bypassed")
 	}
+	for range 20 {
+		call("/v1/auth/code", map[string]any{"email": email, "age_confirmed": true}, "")
+	}
 	if w := call("/v1/auth/code", map[string]any{"email": email, "age_confirmed": true}, ""); w.Code != 429 {
-		t.Fatal("request rate limit bypassed")
+		t.Fatal("request IP rate limit bypassed")
 	}
 	// Cascade removes auth personal data. Codes link by email and follow identity deletion.
 	if _, err := db.Pool.Exec(ctx, "DELETE FROM learners WHERE id=$1::uuid", profile.ID); err != nil {

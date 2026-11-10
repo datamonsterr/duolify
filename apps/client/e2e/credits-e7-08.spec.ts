@@ -58,7 +58,7 @@ for (const width of [1280, 390, 320]) {
     await expect(page.getByText("Active · Annual")).toBeVisible();
     await expect(page.getByText(/Next allowance/)).toBeVisible();
     const tokens = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("duolify.auth")!),
+      JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!),
     );
     const wallet = async () =>
       (

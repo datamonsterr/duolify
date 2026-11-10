@@ -420,31 +420,45 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, json.RawMessage(body))
 	})
-	// Public health and pricing stay available; learner-owned routes require auth.
+	// Public routes are explicit; every new route inherits authentication.
 	guard := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Only this exact authored read is public; all learner course routes below
-		// retain their authorization boundary, including writes to this path.
-		if r.Method == http.MethodGet && r.URL.Path == "/v1/courses/shared-demo" {
+		// Disabled tracer endpoints remain unavailable even to authenticated callers.
+		// Respond here, without dispatching a handler through the public allowlist.
+		if !deps.LessonTestTracerEnabled {
+			parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+			disabled := strings.HasPrefix(r.URL.Path, "/v1/lesson-generations/")
+			if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "lessons" {
+				disabled = disabled || len(parts) == 3 || (len(parts) >= 4 && (parts[3] == "prepare" || parts[3] == "test"))
+			}
+			if disabled {
+				http.NotFound(w, r)
+				return
+			}
+		}
+		public := false
+		if r.Method == http.MethodGet {
+			switch r.URL.Path {
+			case "/healthz", "/readyz", "/v1/pricing", "/v1/features", "/v1/courses/shared-demo", "/v1/characters/default-cast":
+				public = true
+			}
+		}
+		if r.Method == http.MethodPost {
+			switch r.URL.Path {
+			case "/v1/auth/code", "/v1/auth/verify", "/v1/auth/refresh", "/v1/auth/logout", "/v1/auth/google/start", "/v1/auth/google/complete", "/v1/auth/apple/start", "/v1/auth/apple/complete", "/v1/payments/stripe/webhook", "/v1/eval/reports":
+				public = true
+			}
+		}
+		if public {
 			mux.ServeHTTP(w, r)
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/v1/lessons/") || strings.HasPrefix(r.URL.Path, "/v1/courses") || strings.HasPrefix(r.URL.Path, "/v1/quotes") || strings.HasPrefix(r.URL.Path, "/v1/credits") {
-			if strings.HasPrefix(r.URL.Path, "/v1/lessons/") && !deps.LessonTestTracerEnabled {
-				isPlayerRoute := strings.HasSuffix(r.URL.Path, "/manifest") || strings.HasSuffix(r.URL.Path, "/position") || strings.HasSuffix(r.URL.Path, "/sync") || strings.Contains(r.URL.Path, "/slides/")
-				if !isPlayerRoute {
-					mux.ServeHTTP(w, r)
-					return
-				}
-			}
-			if deps.Accounts == nil {
-				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})
-				return
-			}
-			deps.Accounts.Protect(mux).ServeHTTP(w, r)
+		if deps.Accounts == nil {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})
 			return
 		}
-		mux.ServeHTTP(w, r)
+		deps.Accounts.Protect(mux).ServeHTTP(w, r)
 	})
+
 	return Middleware(logger, guard, deps.Monitor)
 }
 func writeJSON(w http.ResponseWriter, code int, value any) {

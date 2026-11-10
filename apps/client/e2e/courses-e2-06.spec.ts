@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./native-store-fixture";
 import { apiBase, resetAuthRateLimits } from "./servers";
 
 test.use({ hasTouch: true });
@@ -79,7 +79,7 @@ for (const mobile of [false, true]) {
     ).toHaveCount(0);
     // Rotate an expired access token on return without losing the private draft.
     const credentials = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("duolify.auth")!),
+      JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!),
     );
     const expired = await request.post(`${apiBase}/test/expire-access`, {
       data: { access_token: credentials.access_token },
@@ -88,7 +88,10 @@ for (const mobile of [false, true]) {
     credentials.access_token = (await expired.json()).access_token;
     await page.evaluate(
       (tokens) =>
-        sessionStorage.setItem("duolify.auth", JSON.stringify(tokens)),
+        sessionStorage.setItem(
+          "duolify.native-store-fixture",
+          JSON.stringify(tokens),
+        ),
       credentials,
     );
     await page.goto("/credits");
@@ -96,8 +99,9 @@ for (const mobile of [false, true]) {
       .poll(() =>
         page.evaluate(
           () =>
-            JSON.parse(sessionStorage.getItem("duolify.auth") || "null")
-              ?.refresh_token,
+            JSON.parse(
+              sessionStorage.getItem("duolify.native-store-fixture") || "null",
+            )?.refresh_token,
         ),
       )
       .not.toBe(credentials.refresh_token);

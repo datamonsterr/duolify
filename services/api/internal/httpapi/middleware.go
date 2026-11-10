@@ -6,6 +6,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"log/slog"
 	"net/http"
+	"os"
 )
 
 // RequestID returns the server-generated correlation ID.
@@ -63,13 +64,13 @@ func Middleware(logger *slog.Logger, next http.Handler, monitors ...*telemetry.M
 		origin := r.Header.Get("Origin")
 		rw.Header().Add("Vary", "Origin")
 		if origin != "" {
-			switch origin {
-			case "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420", "http://127.0.0.1:1420":
+			allowed := origin == "tauri://localhost" || origin == "http://tauri.localhost" || origin == "https://tauri.localhost" || (os.Getenv("DUOLIFY_ENV") == "development" && (origin == "http://localhost:1420" || origin == "http://127.0.0.1:1420"))
+			if allowed {
 				rw.Header().Set("Access-Control-Allow-Origin", origin)
 				rw.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 				rw.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID, X-Quote-ID, If-None-Match")
 				rw.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, ETag, Cache-Control")
-			default:
+			} else {
 				writeJSON(rw, http.StatusForbidden, map[string]string{"error": "origin not allowed"})
 				return
 			}

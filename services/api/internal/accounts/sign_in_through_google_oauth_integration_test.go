@@ -23,6 +23,8 @@ type googleFixture struct {
 	email   string
 }
 
+func (p *googleFixture) Audience() string { return "test-google-client" }
+
 func (p *googleFixture) AuthorizationURL(_ context.Context, request accounts.OAuthAuthorizationRequest) (string, error) {
 	return "https://accounts.google.test/authorize?state=" + request.State + "&nonce=" + request.Nonce + "&challenge=" + request.CodeChallenge, nil
 }
@@ -31,7 +33,7 @@ func (p *googleFixture) Exchange(_ context.Context, request accounts.OAuthExchan
 	if request.Code != "fixture-code" || request.CodeVerifier != strings.Repeat("v", 43) || request.RedirectURI != "duolify://oauth/callback" {
 		return accounts.ProviderIdentity{}, accounts.ErrOAuthProvider
 	}
-	return accounts.ProviderIdentity{Provider: "google", Subject: p.subject, Email: p.email, EmailVerified: true, Nonce: request.Nonce}, nil
+	return accounts.ProviderIdentity{Provider: "google", Subject: p.subject, Email: p.email, EmailVerified: true, Nonce: request.Nonce, Issuer: "https://accounts.google.com", Audience: p.Audience(), ExpiresAt: time.Now().Add(time.Hour)}, nil
 }
 
 func TestGoogleOAuthReplayAndVerifiedEmailCollision(t *testing.T) {
