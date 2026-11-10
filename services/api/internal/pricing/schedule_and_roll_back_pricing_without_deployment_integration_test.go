@@ -3,9 +3,11 @@
 package pricing_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -57,6 +59,11 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	}
 	events := &pricingActivationCapture{}
 	runtime := pricing.NewRuntimeCatalogue(initial, db.Queries, db.Pool, events)
+	activatorCtx, stopActivator := context.WithCancel(ctx)
+	defer stopActivator()
+	activatorAdmin := pricing.NewAdmin(db.Pool, nil, "")
+	activatorAdmin.SetVerifier(&pricing.DevelopmentVerifier{})
+
 	read := func() map[string]any {
 		t.Helper()
 		w := httptest.NewRecorder()
@@ -87,7 +94,7 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	}
 	config["version"] = "usd-runtime-flip"
 	config["effective_from"] = scheduledAt.UTC().Format(time.RFC3339Nano)
-	config["actions"].(map[string]any)["preview"].(map[string]any)["credits"] = float64(20)
+	config["actions"].(map[string]any)["preview"].(map[string]any)["credits"] = float64(24)
 	encoded, _ := json.Marshal(config)
 	if _, err = db.Pool.Exec(ctx, "INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES($1,$2,true,$3)", "usd-runtime-flip", scheduledAt, encoded); err != nil {
 		t.Fatal(err)
@@ -107,6 +114,33 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	// resolver reads Postgres as its source of truth.
 	if _, err = db.Pool.Exec(ctx, "SELECT pg_sleep(.9)"); err != nil {
 		t.Fatal(err)
+	}
+	// A due successor cannot activate without a verifier, including on GET.
+	unverifiedAdmin := pricing.NewAdmin(db.Pool, nil, "")
+	if err := runtime.ActivateDue(ctx, unverifiedAdmin); err == nil {
+		t.Fatal("activation accepted absent verifier")
+	}
+	if got := read(); got["version"] != "usd-quotes-2026-11-09" {
+		t.Fatalf("unverified successor exposed: %v", got)
+	}
+	// Run two independent replicas to exercise the shared transaction marker.
+	go runtime.RunActivator(activatorCtx, activatorAdmin)
+	replica := pricing.NewRuntimeCatalogue(initial, db.Queries, db.Pool, events)
+	go replica.RunActivator(activatorCtx, activatorAdmin)
+	// Activation must happen without any public GET.
+	var beforeReads int
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM pricing_audit WHERE action='version_activated' AND version='usd-runtime-flip'").Scan(&beforeReads); err != nil {
+			t.Fatal(err)
+		}
+		if beforeReads == 1 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if beforeReads != 1 {
+		t.Fatalf("activation required public GET: rows=%d", beforeReads)
 	}
 	const readers = 12
 	var wg sync.WaitGroup
@@ -144,6 +178,10 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM pricing_activation_events WHERE version='usd-runtime-flip'").Scan(&activationRows); err != nil || activationRows != 1 {
 		t.Fatalf("activation marker rows=%d err=%v", activationRows, err)
 	}
+	var activationTime, auditTime time.Time
+	if err = db.Pool.QueryRow(ctx, "SELECT e.activated_at,a.created_at FROM pricing_activation_events e JOIN pricing_audit a ON a.version=e.version AND a.action='version_activated' WHERE e.version='usd-runtime-flip'").Scan(&activationTime, &auditTime); err != nil || !activationTime.Equal(scheduledAt) || !auditTime.Equal(scheduledAt) {
+		t.Fatalf("activation=%s audit=%s scheduled=%s err=%v", activationTime, auditTime, scheduledAt, err)
+	}
 	var activationAudit int
 	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM pricing_audit WHERE action='version_activated' AND version='usd-runtime-flip'").Scan(&activationAudit); err != nil || activationAudit != 1 {
 		t.Fatalf("activation audit rows=%d err=%v", activationAudit, err)
@@ -166,6 +204,7 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 		t.Fatal(err)
 	}
 	admin := pricing.NewAdmin(db.Pool, nil, "")
+	admin.SetVerifier(&pricing.DevelopmentVerifier{})
 	var future time.Time
 	if err = db.Pool.QueryRow(ctx, "SELECT now()+interval '2 hours'").Scan(&future); err != nil {
 		t.Fatal(err)
@@ -184,6 +223,12 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	}
 	if got := read(); got["next_scheduled"] != nil {
 		t.Fatalf("cancelled schedule remained visible: %v", got["next_scheduled"])
+	}
+	for _, path := range []string{"/admin/v1/pricing/drafts/usd-cancelled?reason=review", "/admin/v1/pricing/drafts?reason=review"} {
+		status, body := admin.ExecuteCLI(ctx, actor, http.MethodGet, path, nil)
+		if status != 200 || !strings.Contains(string(body), `"status":"cancelled"`) {
+			t.Fatalf("cancelled status=%d body=%s", status, body)
+		}
 	}
 	var unchanged string
 	if err = db.Pool.QueryRow(ctx, "SELECT config::text FROM pricing_versions WHERE version='usd-cancelled'").Scan(&unchanged); err != nil {

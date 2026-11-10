@@ -98,6 +98,7 @@ func TestPricingDraftAndApproveThroughHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	admin := pricing.NewAdmin(db.Pool, events, "")
+	admin.SetVerifier(&pricing.DevelopmentVerifier{})
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {
 		t.Fatal(err)
@@ -131,6 +132,17 @@ func TestPricingDraftAndApproveThroughHTTP(t *testing.T) {
 	if unauthorized.Code != http.StatusUnauthorized {
 		t.Fatalf("anonymous pricing admin status=%d", unauthorized.Code)
 	}
+	t.Run("anonymous denial audit is bounded", func(t *testing.T) {
+		for range 30 {
+			if got := request(http.MethodGet, "/admin/v1/pricing/drafts?reason=flood", "", nil); got.Code != http.StatusUnauthorized {
+				t.Fatalf("anonymous status=%d", got.Code)
+			}
+		}
+		var count int
+		if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM pricing_audit WHERE action='access_denied'").Scan(&count); err != nil || count != 1 {
+			t.Fatalf("anonymous audit rows=%d want=1 err=%v", count, err)
+		}
+	})
 	var current map[string]any
 	if err = db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version='usd-launch-2026-11-08'").Scan(&current); err != nil {
 		t.Fatal(err)
@@ -177,6 +189,38 @@ func TestPricingDraftAndApproveThroughHTTP(t *testing.T) {
 	if editApproved.Code != http.StatusConflict {
 		t.Fatalf("approved edit status=%d body=%s", editApproved.Code, editApproved.Body)
 	}
+	t.Run("cancelled approved draft is shown cancelled", func(t *testing.T) {
+		w := request(http.MethodPost, "/admin/v1/pricing/drafts/usd-admin-e12-05-1/cancel", approver, []byte(`{"reason":"cancel reviewed schedule"}`))
+		if w.Code != http.StatusOK {
+			t.Fatalf("cancel status=%d body=%s", w.Code, w.Body)
+		}
+		show := request(http.MethodGet, "/admin/v1/pricing/drafts/usd-admin-e12-05-1?reason=review-cancellation", author, nil)
+		if show.Code != http.StatusOK || !strings.Contains(show.Body.String(), `"status":"cancelled"`) {
+			t.Fatalf("show status=%d body=%s", show.Code, show.Body)
+		}
+		list := request(http.MethodGet, "/admin/v1/pricing/drafts?reason=review-cancellation", author, nil)
+		var result struct {
+			Drafts []struct {
+				Version string `json:"version"`
+				Status  string `json:"status"`
+			} `json:"drafts"`
+		}
+		if err := json.Unmarshal(list.Body.Bytes(), &result); err != nil || list.Code != http.StatusOK {
+			t.Fatalf("list status=%d body=%s err=%v", list.Code, list.Body, err)
+		}
+		found := false
+		for _, draft := range result.Drafts {
+			if draft.Version == "usd-admin-e12-05-1" {
+				found = true
+				if draft.Status != "cancelled" {
+					t.Fatalf("cancelled draft status=%s", draft.Status)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("cancelled draft missing from list")
+		}
+	})
 	if err = events.Close(); err != nil {
 		t.Fatal(err)
 	}

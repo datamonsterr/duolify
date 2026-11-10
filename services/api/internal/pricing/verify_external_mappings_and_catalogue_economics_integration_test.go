@@ -240,7 +240,11 @@ func TestVerifyExternalMappingsAndCatalogueEconomicsIntegration(t *testing.T) {
 		badDraft["version"] = "usd-e12-bad-stripe-int"
 		badDraft["effective_from"] = time.Now().UTC().Add(74 * time.Hour).Format(time.RFC3339Nano)
 		badDraft["stripe_mappings"] = map[string]any{
-			"pack_try": "price_wrong_amount",
+			"pack_try":   "price_wrong_amount",
+			"pack_build": "price_build_valid", "pack_deep": "price_deep_valid",
+			"learn_monthly": "price_learn_m_valid", "learn_yearly": "price_learn_y_valid",
+			"plus_monthly": "price_plus_m_valid", "plus_yearly": "price_plus_y_valid",
+			"pro_monthly": "price_pro_m_valid", "pro_yearly": "price_pro_y_valid",
 		}
 
 		configBytes, _ := json.Marshal(badDraft)
