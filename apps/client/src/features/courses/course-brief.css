@@ -67,6 +67,25 @@
   color: var(--primary);
   font-weight: var(--weight-strong);
 }
+.shared-demo {
+  margin: var(--space-4);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.shared-demo-grid {
+  display: grid;
+  inline-size: 100%;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+.shared-demo-grid > * {
+  min-inline-size: 0;
+}
+@media (max-width: 47.999rem) {
+  .shared-demo-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .outline-surface,
 .course-outline {
   inline-size: 100%;

@@ -91,6 +91,10 @@ export const test = base.extend<{ authenticated: void }>({
         }
       });
       await use();
+      // Each scenario owns its learner and waits for player writes before the
+      // request fixture is disposed; cursor state cannot leak into the next test.
+      tokens = undefined;
+      await page.unrouteAll({ behavior: "wait" });
     },
     { auto: true },
   ],

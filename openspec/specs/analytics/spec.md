@@ -5,6 +5,13 @@ Define how Duolify uses PostHog: identity, privacy, the event catalog with names
 
 ## Requirements
 
+### Requirement: Shared demo analytics catalogue
+The existing client event `course_preview_viewed` SHALL allow preview_kind=shared_demo and demo_version (fixed authored version), without a financial preview_id. The existing `ui_control_activated` SHALL allow control_id=shared_demo with surface=welcome|course_brief. Both SHALL carry UUID/common properties and honor opt-out. No paid generation, model usage, text, topic, title, HTML or draft properties SHALL be emitted for the shared demo.
+
+#### Scenario: Inspect shared authored content
+- **WHEN** a Learner opens the shared demo
+- **THEN** the client emits the control and viewed events with content-free properties and no paid event
+
 ### Requirement: Playback control telemetry
 The catalogue SHALL include slide_viewed with lesson_id, slide_id, zero-based index, measured playing wall-clock watch_ms and offline; slide_replayed and slide_paused with lesson_id, slide_id and index; and lesson_player_error with fixed error codes including position_unavailable. Events SHALL use authenticated UUID/common properties and honor opt-out. The wrapper SHALL discard text, HTML, URLs and unregistered properties. Only ended SHALL emit slide_viewed, once per attempt; playback SHALL never emit lesson_completed.
 

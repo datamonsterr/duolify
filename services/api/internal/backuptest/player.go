@@ -10,6 +10,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -22,6 +23,14 @@ type protectedObject struct {
 
 const protectedBucket = "protected-player-assets"
 const protectedManifest = "fixture-snapshot.json"
+
+func authoredObjects() map[string][]byte {
+	objects := playerfixture.Documents()
+	for key, raw := range courses.SharedDemoDocuments() {
+		objects[key] = raw
+	}
+	return objects
+}
 
 // AssertPlaybackPositionRestored compares the complete learner cursor, including
 // its UTC timestamp, from the encrypted dump rather than reconstructing it.
@@ -56,7 +65,10 @@ func (f *Fixture) AssertPlaybackPositionRestored(t *testing.T, restored *pgxpool
 func (f *Fixture) BackupPlayerObjects(t *testing.T) {
 	t.Helper()
 	snapshot := []protectedObject{}
-	for key, raw := range playerfixture.Documents() {
+	for key, raw := range authoredObjects() {
+		if err := f.ApplicationObjects().Put(t.Context(), key, raw); err != nil {
+			t.Fatal(err)
+		}
 		out, err := f.root.Client.PutObject(t.Context(), &s3.PutObjectInput{Bucket: aws.String(protectedBucket), Key: aws.String(key), Body: bytes.NewReader(raw)})
 		if err != nil || aws.ToString(out.VersionId) == "" {
 			t.Fatal("protected version", err)
@@ -82,7 +94,7 @@ func (f *Fixture) AssertPlayerObjectsRestored(t *testing.T) {
 	var snapshot []protectedObject
 	err = json.NewDecoder(manifest.Body).Decode(&snapshot)
 	_ = manifest.Body.Close()
-	if err != nil || len(snapshot) != 4 {
+	if err != nil || len(snapshot) != len(authoredObjects()) {
 		t.Fatal("protected manifest", err)
 	}
 	for _, entry := range snapshot {
@@ -109,7 +121,7 @@ func (f *Fixture) AssertPlayerObjectsRestored(t *testing.T) {
 			t.Fatal(err)
 		}
 		restored, err := f.ApplicationObjects().Get(t.Context(), entry.Key)
-		if err != nil || !bytes.Equal(restored, playerfixture.Documents()[entry.Key]) {
+		if err != nil || !bytes.Equal(restored, authoredObjects()[entry.Key]) {
 			t.Fatal("asset restore mismatch", err)
 		}
 	}
