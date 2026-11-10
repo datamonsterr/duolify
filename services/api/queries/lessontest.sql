@@ -32,3 +32,25 @@ ON CONFLICT (operation_key) DO NOTHING;
 -- name: GetTestAnswerOperation :one
 SELECT * FROM lesson_test_answer_operations
 WHERE operation_key = $1;
+
+-- name: InsertLessonTestVariantSnapshot :one
+INSERT INTO lesson_test_variant_snapshots (
+  session_id, learner_id, lesson_stub_id, topic_id, question_id, variant_of, source, reason, prompt, choices, answer_index, explanation, instruction_snapshot
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+)
+ON CONFLICT (session_id, question_id) DO UPDATE SET
+  source = EXCLUDED.source,
+  reason = EXCLUDED.reason,
+  choices = EXCLUDED.choices,
+  answer_index = EXCLUDED.answer_index
+RETURNING *;
+
+-- name: GetLessonTestVariantSnapshot :one
+SELECT * FROM lesson_test_variant_snapshots
+WHERE session_id = $1 AND question_id = $2;
+
+-- name: ListLessonTestVariantSnapshots :many
+SELECT * FROM lesson_test_variant_snapshots
+WHERE session_id = $1
+ORDER BY created_at ASC;

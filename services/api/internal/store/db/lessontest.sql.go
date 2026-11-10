@@ -98,6 +98,39 @@ func (q *Queries) GetLessonStub(ctx context.Context, id pgtype.UUID) (CourseLess
 	return i, err
 }
 
+const getLessonTestVariantSnapshot = `-- name: GetLessonTestVariantSnapshot :one
+SELECT id, session_id, learner_id, lesson_stub_id, topic_id, question_id, variant_of, source, reason, prompt, choices, answer_index, explanation, instruction_snapshot, created_at FROM lesson_test_variant_snapshots
+WHERE session_id = $1 AND question_id = $2
+`
+
+type GetLessonTestVariantSnapshotParams struct {
+	SessionID  pgtype.UUID `json:"session_id"`
+	QuestionID string      `json:"question_id"`
+}
+
+func (q *Queries) GetLessonTestVariantSnapshot(ctx context.Context, arg GetLessonTestVariantSnapshotParams) (LessonTestVariantSnapshot, error) {
+	row := q.db.QueryRow(ctx, getLessonTestVariantSnapshot, arg.SessionID, arg.QuestionID)
+	var i LessonTestVariantSnapshot
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.LearnerID,
+		&i.LessonStubID,
+		&i.TopicID,
+		&i.QuestionID,
+		&i.VariantOf,
+		&i.Source,
+		&i.Reason,
+		&i.Prompt,
+		&i.Choices,
+		&i.AnswerIndex,
+		&i.Explanation,
+		&i.InstructionSnapshot,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getTestAnswerOperation = `-- name: GetTestAnswerOperation :one
 SELECT operation_key, session_id, learner_id, lesson_id, question_id, choice_index, response_payload, created_at FROM lesson_test_answer_operations
 WHERE operation_key = $1
@@ -151,6 +184,73 @@ func (q *Queries) InsertLessonCompletionSummary(ctx context.Context, arg InsertL
 		&i.Summary,
 		&i.WeakTopics,
 		&i.CompletedAt,
+	)
+	return i, err
+}
+
+const insertLessonTestVariantSnapshot = `-- name: InsertLessonTestVariantSnapshot :one
+INSERT INTO lesson_test_variant_snapshots (
+  session_id, learner_id, lesson_stub_id, topic_id, question_id, variant_of, source, reason, prompt, choices, answer_index, explanation, instruction_snapshot
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+)
+ON CONFLICT (session_id, question_id) DO UPDATE SET
+  source = EXCLUDED.source,
+  reason = EXCLUDED.reason,
+  choices = EXCLUDED.choices,
+  answer_index = EXCLUDED.answer_index
+RETURNING id, session_id, learner_id, lesson_stub_id, topic_id, question_id, variant_of, source, reason, prompt, choices, answer_index, explanation, instruction_snapshot, created_at
+`
+
+type InsertLessonTestVariantSnapshotParams struct {
+	SessionID           pgtype.UUID `json:"session_id"`
+	LearnerID           pgtype.UUID `json:"learner_id"`
+	LessonStubID        pgtype.UUID `json:"lesson_stub_id"`
+	TopicID             string      `json:"topic_id"`
+	QuestionID          string      `json:"question_id"`
+	VariantOf           string      `json:"variant_of"`
+	Source              string      `json:"source"`
+	Reason              pgtype.Text `json:"reason"`
+	Prompt              string      `json:"prompt"`
+	Choices             []byte      `json:"choices"`
+	AnswerIndex         int32       `json:"answer_index"`
+	Explanation         string      `json:"explanation"`
+	InstructionSnapshot []byte      `json:"instruction_snapshot"`
+}
+
+func (q *Queries) InsertLessonTestVariantSnapshot(ctx context.Context, arg InsertLessonTestVariantSnapshotParams) (LessonTestVariantSnapshot, error) {
+	row := q.db.QueryRow(ctx, insertLessonTestVariantSnapshot,
+		arg.SessionID,
+		arg.LearnerID,
+		arg.LessonStubID,
+		arg.TopicID,
+		arg.QuestionID,
+		arg.VariantOf,
+		arg.Source,
+		arg.Reason,
+		arg.Prompt,
+		arg.Choices,
+		arg.AnswerIndex,
+		arg.Explanation,
+		arg.InstructionSnapshot,
+	)
+	var i LessonTestVariantSnapshot
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.LearnerID,
+		&i.LessonStubID,
+		&i.TopicID,
+		&i.QuestionID,
+		&i.VariantOf,
+		&i.Source,
+		&i.Reason,
+		&i.Prompt,
+		&i.Choices,
+		&i.AnswerIndex,
+		&i.Explanation,
+		&i.InstructionSnapshot,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -213,6 +313,48 @@ func (q *Queries) ListLessonRetryPools(ctx context.Context, lessonStubID pgtype.
 			&i.LearnerID,
 			&i.TopicID,
 			&i.Variants,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLessonTestVariantSnapshots = `-- name: ListLessonTestVariantSnapshots :many
+SELECT id, session_id, learner_id, lesson_stub_id, topic_id, question_id, variant_of, source, reason, prompt, choices, answer_index, explanation, instruction_snapshot, created_at FROM lesson_test_variant_snapshots
+WHERE session_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *Queries) ListLessonTestVariantSnapshots(ctx context.Context, sessionID pgtype.UUID) ([]LessonTestVariantSnapshot, error) {
+	rows, err := q.db.Query(ctx, listLessonTestVariantSnapshots, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LessonTestVariantSnapshot{}
+	for rows.Next() {
+		var i LessonTestVariantSnapshot
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.LearnerID,
+			&i.LessonStubID,
+			&i.TopicID,
+			&i.QuestionID,
+			&i.VariantOf,
+			&i.Source,
+			&i.Reason,
+			&i.Prompt,
+			&i.Choices,
+			&i.AnswerIndex,
+			&i.Explanation,
+			&i.InstructionSnapshot,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

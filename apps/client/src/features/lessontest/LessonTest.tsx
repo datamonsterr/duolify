@@ -144,6 +144,7 @@ export function LessonTest({
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<AnswerResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [finished, setFinished] = useState(false);
   const [resolvedTopics, setResolvedTopics] = useState(
     initialResolvedTopics ?? 0,
@@ -214,6 +215,7 @@ export function LessonTest({
   const handleSelectChoice = useCallback(
     (idx: number) => {
       if (feedback !== null) return;
+      setSubmissionError(null);
       setSelectedChoice(idx);
     },
     [feedback],
@@ -223,6 +225,7 @@ export function LessonTest({
     if (selectedChoice === null || !currentQuestion || isSubmitting) return;
 
     setIsSubmitting(true);
+    setSubmissionError(null);
     const opKey = generateOperationKey();
     try {
       if (onAnswer) {
@@ -299,6 +302,12 @@ export function LessonTest({
           passed: queueIndex + 1 >= queue.length,
         });
       }
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Couldn't prepare the retry question";
+      setSubmissionError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -1202,29 +1211,147 @@ export function LessonTest({
               </div>
             )}
 
-            {feedback === null ? (
-              <button
-                type="button"
-                className="btn primary"
-                disabled={selectedChoice === null || isSubmitting}
-                onClick={handleCheck}
+            {submissionError ? (
+              <div
+                role="alert"
                 style={{
-                  width: "100%",
-                  minHeight: "50px",
                   borderRadius: "16px",
-                  backgroundColor:
-                    selectedChoice === null ? "#E5E5E5" : "#1F7A0D",
-                  color: selectedChoice === null ? "#999" : "#fff",
-                  border: "none",
-                  fontWeight: 900,
-                  fontSize: "15px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.8px",
-                  cursor: selectedChoice === null ? "not-allowed" : "pointer",
+                  padding: "14px 16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                  backgroundColor: "#FDECEC",
+                  color: "#B3261E",
                 }}
               >
-                Check
-              </button>
+                <div>
+                  <b
+                    style={{
+                      display: "block",
+                      fontSize: "15px",
+                      fontWeight: 900,
+                      marginBottom: "2px",
+                    }}
+                  >
+                    Couldn't prepare the retry question
+                  </b>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "13px",
+                      lineHeight: "1.45",
+                    }}
+                  >
+                    Your progress and queue are saved. No credits are charged
+                    for retries.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button
+                    type="button"
+                    className="btn primary"
+                    onClick={handleCheck}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minHeight: "44px",
+                      padding: "0 18px",
+                      borderRadius: "14px",
+                      border: "none",
+                      background: "#1F7A0D",
+                      color: "#fff",
+                      fontWeight: 900,
+                      fontSize: "14px",
+                      cursor: "pointer",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.8px",
+                    }}
+                  >
+                    Retry
+                  </button>
+                  <button
+                    type="button"
+                    className="btn sec"
+                    onClick={() => {
+                      if (onExit) onExit();
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minHeight: "44px",
+                      padding: "0 18px",
+                      borderRadius: "14px",
+                      border: "2px solid #D3D3D3",
+                      background: "#fff",
+                      color: "#1667AB",
+                      fontWeight: 900,
+                      fontSize: "14px",
+                      cursor: "pointer",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.8px",
+                    }}
+                  >
+                    Return to lesson
+                  </button>
+                </div>
+              </div>
+            ) : feedback === null ? (
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+              >
+                {isSubmitting && (
+                  <div
+                    role="status"
+                    style={{
+                      borderRadius: "14px",
+                      padding: "10px 14px",
+                      backgroundColor: "#DDF1FF",
+                      color: "#0D5592",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <b>Preparing a fresh question…</b> Writing a new version of
+                    the idea.
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="btn primary"
+                  disabled={selectedChoice === null || isSubmitting}
+                  onClick={handleCheck}
+                  style={{
+                    width: "100%",
+                    minHeight: "50px",
+                    borderRadius: "16px",
+                    backgroundColor:
+                      selectedChoice === null ? "#E5E5E5" : "#1F7A0D",
+                    color: selectedChoice === null ? "#999" : "#fff",
+                    border: "none",
+                    fontWeight: 900,
+                    fontSize: "15px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    cursor: selectedChoice === null ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Check
+                </button>
+                {selectedChoice === null && (
+                  <span
+                    style={{
+                      textAlign: "center",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "#5E5E5E",
+                    }}
+                  >
+                    Select an answer to check it
+                  </span>
+                )}
+              </div>
             ) : (
               <button
                 type="button"
