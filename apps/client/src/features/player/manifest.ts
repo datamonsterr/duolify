@@ -31,8 +31,7 @@ const id = /^[A-Za-z0-9_-]{1,100}$/;
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 function omit(value: Record<string, unknown>, name: string) {
-  const { [name]: _ignored, ...rest } = value;
-  return rest;
+  return Object.fromEntries(Object.entries(value).filter(([k]) => k !== name));
 }
 const expressions = ["idle", "happy", "sad", "thinking", "celebrate"];
 function validCast(value: unknown) {
