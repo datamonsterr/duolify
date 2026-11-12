@@ -16,6 +16,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 // Rules is loaded from Postgres for every projection and goal change.
@@ -71,6 +72,7 @@ func LocalDate(at time.Time, zone string) (string, error) {
 type Service struct {
 	pool   *pgxpool.Pool
 	events analytics.Events
+	rdb    *redis.Client
 	now    func() time.Time
 }
 
@@ -172,6 +174,7 @@ func (s *Service) project(ctx context.Context, owner string, goal *int) (Progres
 		return progress, err
 	}
 	events := []pendingEvent{}
+	joined := []leagueSlot{}
 	dates := map[string]bool{progress.LocalDate: true}
 	for _, c := range completions {
 		date, dateErr := LocalDate(c.at, progress.TimeZone)
@@ -188,6 +191,12 @@ func (s *Service) project(ctx context.Context, owner string, goal *int) (Progres
 		if err != nil {
 			return progress, err
 		}
+		// First eligible completion of the week joins its league in the same transaction.
+		slot, joinErr := s.joinLeague(ctx, tx, owner, date)
+		if joinErr != nil {
+			return progress, joinErr
+		}
+		joined = append(joined, slot)
 		props := map[string]any{"event_id": id, "lesson_id": c.lesson, "course_id": c.course, "amount": rules.Award(c.perfect), "xp": rules.Award(c.perfect), "perfect": c.perfect, "duration_ms": c.durationMS, "local_date": date, "config_version": rules.Version}
 		events = append(events, pendingEvent{"xp_earned", props}, pendingEvent{"lesson_completed", props})
 	}
@@ -220,6 +229,7 @@ func (s *Service) project(ctx context.Context, owner string, goal *int) (Progres
 	if err = tx.Commit(ctx); err != nil {
 		return progress, err
 	}
+	s.refreshLeague(ctx, owner, joined)
 	s.emit(ctx, owner, events)
 	return progress, nil
 }
@@ -250,6 +260,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
+	if r.URL.Path == "/v1/gamification/league" {
+		s.serveLeague(w, r, owner)
+		return
+	}
 	if r.URL.Path == "/v1/gamification/streak" {
 		s.serveStreak(w, r, owner)
 		return

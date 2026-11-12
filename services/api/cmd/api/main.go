@@ -271,6 +271,7 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	go creditService.Maintain(ctx, logger)
 	xpService := gamification.New(db.Pool, events)
+	xpService.UseCache(redis)
 	go xpService.Maintain(ctx, logger)
 	briefPricing := catalogue
 	if os.Getenv("DUOLIFY_ENV") == "development" {

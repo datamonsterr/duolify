@@ -107,7 +107,7 @@ func TestWeeklyLeaguesRankFromDurableXPAndRebuildAfterRedisLoss(t *testing.T) {
 	}
 	signup := func(name string) learner {
 		t.Helper()
-		email := name + "@example.test"
+		email := strings.ToLower(name) + "@example.test"
 		if status, _ := call("POST", "/v1/auth/code", `{"email":"`+email+`","age_confirmed":true}`, ""); status != 202 {
 			t.Fatal(status)
 		}
