@@ -99,5 +99,16 @@ pub async fn run_validated<F: Fn(&str) -> bool>(
     crate::eval::run_bounded_with_policy(router, task, input, l, validate, true).await
 }
 
+/// Attempt 1 uses `inputs[0]`; the evaluated fallback attempt uses `inputs[1]`.
+pub async fn run_validated_inputs<F: Fn(&str) -> bool>(
+    router: &ProviderRouter,
+    task: &str,
+    inputs: &[&str],
+    l: &Limits,
+    validate: F,
+) -> Result<Outcome> {
+    crate::eval::run_bounded_inputs(router, task, inputs, l, validate, true).await
+}
+
 #[cfg(test)]
 mod tests;
