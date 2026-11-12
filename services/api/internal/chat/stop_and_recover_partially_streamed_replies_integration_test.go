@@ -222,7 +222,6 @@ func TestStopAndRecoverPartiallyStreamedRepliesIntegration(t *testing.T) {
 		events chan sseEvent
 		cancel context.CancelFunc
 		done   chan struct{}
-		status int
 	}
 	open := func(token, course, quote, key, message string) *live {
 		t.Helper()
@@ -232,15 +231,19 @@ func TestStopAndRecoverPartiallyStreamedRepliesIntegration(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
 		l := &live{events: make(chan sseEvent, 64), cancel: stop, done: make(chan struct{})}
-		resp, err := server.Client().Do(req) //nolint:bodyclose // closed by the reader goroutine below
-		if err != nil {
-			t.Fatal(err)
-		}
-		l.status = resp.StatusCode
 		go func() {
 			defer close(l.done)
 			defer close(l.events)
+			resp, err := server.Client().Do(req)
+			if err != nil {
+				return
+			}
 			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != http.StatusOK {
+				raw, _ := io.ReadAll(resp.Body)
+				l.events <- sseEvent{Name: "status", Data: map[string]any{"code": float64(resp.StatusCode), "body": string(raw)}}
+				return
+			}
 			buf := make([]byte, 0, 4096)
 			chunk := make([]byte, 1024)
 			for {
@@ -306,6 +309,13 @@ func TestStopAndRecoverPartiallyStreamedRepliesIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		return state, spent
+	}
+	// settle the daily grant first so a before/after balance compares like with like.
+	grant := func(owner string) {
+		t.Helper()
+		if _, err := financial.EnsureDailyGrant(ctx, owner, time.Now()); err != nil {
+			t.Fatal(err)
+		}
 	}
 	balance := func(owner string) int {
 		return count(`SELECT COALESCE(sum(amount),0)::int FROM credit_entries WHERE learner_id=$1`, owner)
@@ -418,6 +428,7 @@ func TestStopAndRecoverPartiallyStreamedRepliesIntegration(t *testing.T) {
 		token, owner := login("stop-silent@example.test")
 		fund(owner, 100)
 		course := seedCourse(owner, "Silent")
+		grant(owner)
 		before := balance(owner)
 		quote := accepted(token, course, "hold-silent")
 		l := open(token, course, quote, "silent-1", "hold-silent")
@@ -501,6 +512,7 @@ func TestStopAndRecoverPartiallyStreamedRepliesIntegration(t *testing.T) {
 		token, owner := login("first@example.test")
 		fund(owner, 100)
 		course := seedCourse(owner, "First")
+		grant(owner)
 		before := balance(owner)
 		quote := accepted(token, course, "first-timeout")
 		code, raw := call("POST", "/v1/courses/"+course+"/tutor/messages", sendBody(quote, "first-1", "first-timeout"), token)
@@ -520,15 +532,11 @@ func TestStopAndRecoverPartiallyStreamedRepliesIntegration(t *testing.T) {
 		q1 := accepted(token, course, "fallback please")
 		l := open(token, course, q1, "fb-1", "fallback please")
 		await(l, "done")
-		wait("ai generation", func() bool { return len(events.named("$ai_generation")) > 0 })
-		var fallbackSeen bool
-		for _, e := range events.named("$ai_generation") {
-			if e["fallback_used"] == true && e["feature"] == "tutor_short" {
-				fallbackSeen = true
-			}
+		outbox := func(where string) int {
+			return count(`SELECT count(*) FROM credit_outbox WHERE event='$ai_generation' AND learner_id=$1 AND `+where, owner)
 		}
-		if state, _ := job(q1); state != "settled" || !fallbackSeen {
-			t.Fatalf("fallback accounting: %s seen=%v", state, fallbackSeen)
+		if state, _ := job(q1); state != "settled" || outbox(`properties->>'fallback_used'='true' AND properties->>'feature'='tutor_short' AND properties->>'usage_estimated'='false'`) != 1 {
+			t.Fatalf("fallback accounting: %s", state)
 		}
 		q2 := accepted(token, course, "no-usage please")
 		l = open(token, course, q2, "nu-1", "no-usage please")
@@ -538,7 +546,7 @@ func TestStopAndRecoverPartiallyStreamedRepliesIntegration(t *testing.T) {
 		}
 		var estimated bool
 		_ = db.Pool.QueryRow(ctx, `SELECT usage_estimated FROM tutor_turns WHERE learner_id=$1 AND idempotency_key='nu-1'`, owner).Scan(&estimated)
-		if !estimated {
+		if !estimated || outbox(`properties->>'usage_estimated'='true' AND properties->>'fallback_used'='false'`) != 1 {
 			t.Fatal("a reply without a usage frame must be settled with flagged estimated usage")
 		}
 	})
@@ -551,7 +559,9 @@ func TestStopAndRecoverPartiallyStreamedRepliesIntegration(t *testing.T) {
 			key := fmt.Sprint("race-", i)
 			message := "quick race"
 			quote := accepted(token, course, message)
+			calls := fixture.calls.Load()
 			l := open(token, course, quote, key, message)
+			wait("handler running", func() bool { return fixture.calls.Load() > calls })
 			var wg sync.WaitGroup
 			for range 3 {
 				wg.Add(1)
