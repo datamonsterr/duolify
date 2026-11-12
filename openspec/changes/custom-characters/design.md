@@ -187,3 +187,12 @@ outcomes are deduplicated transactionally in the existing financial outbox.
 Offline recorded `character_spec`, `character_screen`, `character_injection`
 cases require every deterministic check to pass; live dataset promotion remains
 gated by E10-06, as recorded in ADR 0011.
+
+## E17-05 implementation defaults
+
+- Pinning: `lesson_cast_snapshots.lesson_key` is the generation job id; `generated_lessons.manifest.cast_key` links the Lesson. Preview uses defaults (no Course yet).
+- Engine: `character_personas_json` is validated, bounded (3 speakers, field caps) and appended below the Course/lesson rules as delimiter-escaped untrusted data labelled style-only; never a system role or tool input. Retry-variant requests carry it for validation only; grading prompts never include it.
+- Segments: at most 12 per Slide, 280 plain-text characters, five expressions, pinned speaker keys only, inside the Slide duration; additive proto `CharacterSegment`. Persisted in `lesson_slides.segments` (migration `20261112211701`).
+- Playback: the Lesson manifest carries optional `cast` and per-Slide `segments`; the client prepends a host-clocked character stage to the sandboxed Slide. `seek`/`tick` are the only clock, so pause, seek, replay and rate changes reset deterministically; reduced motion shows static expressions. Missing, unsupported or taken-down slots render bundled defaults and emit `character_render_fallback`.
+- Analytics: `lesson_cast_applied` (cast_source, cast_version, speaker_count, fallback_used) at job start; no character text, persona, dialogue or SVG.
+- Evals: `character_persona_lesson` plus new `character_injection` cases, gated at 1.0 offline.

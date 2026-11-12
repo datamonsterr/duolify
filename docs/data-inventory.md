@@ -451,3 +451,23 @@ Device download indexes and prepared dynamic HTML are account-scoped and cleared
 on logout. Home uses saved indexes only after network failures, never HTTP
 errors. Prepared dynamic HTML has no permitted network origin. Bulk-download
 cache bounds reset after every attempt; device caches remain disposable.
+
+# E17-05 pinned Course Casts in generated Lessons
+
+Each Lesson generation job pins its effective Cast in `lesson_cast_snapshots`
+(`lesson_key` = the `lesson_generations` id) inside the job-start transaction:
+role, stable speaker key, full validated spec, schema/rig/voice-config versions
+and the effective default fallback. Worker retries and Retry variants read that
+row; later edits, deletions or selections affect only new jobs. The generated
+Lesson records `cast_key` in `generated_lessons.manifest`, and
+`lesson_slides.segments` stores bounded plain-text dialogue (pinned speaker key,
+label, text, one of five expressions, times) per Slide. No new table: the
+existing learner policies, nightly encrypted 14-day dumps, account export,
+cascading erasure and 30-day purge of unshared snapshots after Course/account
+deletion apply. Pending jobs restore with the same snapshot and reservation. The
+backup fixture seeds a pinned pending job and Slide segments. Referenced Motion
+HTML/rig objects keep the existing versioning, protected copies and
+key-version-checksum manifests (no per-learner SVG is created). PostHog events
+(`lesson_cast_applied`, `character_rendered`, `character_render_fallback`) carry
+ids, counts and enums only; PostHog and device caches are disposable derived
+state, never the recovery source.
