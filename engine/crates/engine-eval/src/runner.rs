@@ -813,6 +813,55 @@ async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<Str
     Ok(serde_json::json!({"approved":approved,"reason_code":reason,"attempt_count":outcome.attempts.len()}).to_string())
 }
 
+async fn evaluate_note_enrich(input: &serde_json::Value) -> Result<String> {
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input["recorded"].clone())?;
+    let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
+    let note = input["note"].as_str().unwrap_or_default();
+    let lesson: Option<engine_core::notes::LessonRef> = input
+        .get("lesson")
+        .and_then(|l| serde_json::from_value(l.clone()).ok());
+    let learner: Option<engine_core::notes::LearnerProfile> = input
+        .get("learner")
+        .and_then(|p| serde_json::from_value(p.clone()).ok());
+    let allowed_lessons: Vec<engine_core::notes::LessonRef> = input
+        .get("allowed_lessons")
+        .and_then(|a| serde_json::from_value(a.clone()).ok())
+        .unwrap_or_default();
+
+    let outcome = engine_core::notes::enrich(
+        &router,
+        note,
+        lesson.as_ref(),
+        learner.as_ref(),
+        &allowed_lessons,
+        &limits,
+    )
+    .await?;
+
+    let res = outcome.result;
+    let mut val = if let Some(r) = res {
+        serde_json::json!({
+            "delivered": true,
+            "summary": r.summary,
+            "tags": r.tags,
+            "links": r.links,
+        })
+    } else {
+        serde_json::json!({
+            "delivered": false,
+            "summary": "",
+            "tags": [],
+            "links": [],
+        })
+    };
+    val["attempt_count"] = serde_json::json!(outcome.attempts.len());
+    val["fallback_used"] = serde_json::json!(outcome.fallback_used);
+    Ok(val.to_string())
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ModelPrice {
     #[serde(default)]
@@ -977,6 +1026,8 @@ impl Runner {
                     evaluate_credits(&case.input).await?
                 } else if case.task == "course_brief_chat" {
                     evaluate_brief(&case.input).await?
+                } else if canonical == "note_enrich" {
+                    evaluate_note_enrich(&case.input).await?
                 } else {
                     let limits = case
                         .input

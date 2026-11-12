@@ -382,6 +382,9 @@ func (s *Service) processPayment(ctx context.Context, eventID string) error {
 	// Cache errors cannot change committed money. Force the next wallet read to
 	// derive authoritative state; Redis is only a disposable display projection.
 	_ = s.InvalidateCache(ctx, *owner)
+	if state == "paid" {
+		s.NotifyCreditArrival(ctx, *owner)
+	}
 	return nil
 }
 

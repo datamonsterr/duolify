@@ -72,22 +72,26 @@ export const test = base.extend<{ authenticated: void }>({
             `/lessons/${demoLesson}/`,
           );
         }
-        const response = await request.fetch(target.href, {
-          method: original.method(),
-          headers,
-          data: original.postData() ?? undefined,
-        });
-        if (demo && target.pathname.endsWith("/manifest") && response.ok()) {
-          const manifest = await response.json();
-          manifest.lesson_id = "sky";
-          manifest.course_id = "astronomy";
-          for (const slide of manifest.slides)
-            slide.html_url = slide.html_url.replace(
-              `/lessons/${demoLesson}/`,
-              "/lessons/sky/",
-            );
-          await route.fulfill({ json: manifest });
-        } else await route.fulfill({ response });
+        try {
+          const response = await request.fetch(target.href, {
+            method: original.method(),
+            headers,
+            data: original.postData() ?? undefined,
+          });
+          if (demo && target.pathname.endsWith("/manifest") && response.ok()) {
+            const manifest = await response.json();
+            manifest.lesson_id = "sky";
+            manifest.course_id = "astronomy";
+            for (const slide of manifest.slides)
+              slide.html_url = slide.html_url.replace(
+                `/lessons/${demoLesson}/`,
+                "/lessons/sky/",
+              );
+            await route.fulfill({ json: manifest });
+          } else await route.fulfill({ response });
+        } catch {
+          // Request aborted or response disposed during navigation
+        }
       });
       await use();
       // Each scenario owns its learner and waits for player writes before the

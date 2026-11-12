@@ -279,6 +279,7 @@ message EnrichNoteRequest {
   LessonRef lesson = 2;
   LearnerProfile learner = 3;
   UsageLimits limits = 4;
+  repeated LessonRef allowed_lessons = 5;
 }
 
 message EnrichNoteResponse {

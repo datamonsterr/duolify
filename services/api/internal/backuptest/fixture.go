@@ -35,6 +35,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/credits/creditstest"
+	"github.com/datamonsterr/duolify/services/api/internal/gamification"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -447,6 +448,15 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO course_enrollments(learner_id,course_id,level_override) VALUES('a1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','intermediate')`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO quick_notes(id, learner_id, action_key, course_id, lesson_id, slide_id, slide_title, source, raw_text, status, reviewed, reviewed_at, version, raw_version, enrichment_claim_id, enrichment_lease_until) VALUES('a9999999-9999-4999-8999-999999999999', 'a1111111-1111-4111-8111-111111111111', 'synthetic-action-key', 'f1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 0, 'Slide 1 · Phases', 'slide', 'Synthetic raw note', 'enriching', true, now(), 2, 2, 'a7777777-7777-4777-8777-777777777777', '2026-11-11T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO quick_note_enrichments(id, note_id, learner_id, summary, tags, links, version, model, provider) VALUES('a8888888-8888-4888-8888-888888888888', 'a9999999-9999-4999-8999-999999999999', 'a1111111-1111-4111-8111-111111111111', 'Synthetic summary of phases', ARRAY['phases', 'moon'], ARRAY['f3333333-3333-4333-8333-333333333333'], 1, 'claude-haiku-4.5', 'anthropic')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO bookmarks(id, learner_id, action_key, course_id, lesson_id, slide_id, target_type, course_title, lesson_title, slide_title) VALUES('b1111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'synthetic-bookmark-key', 'f1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 0, 'slide', 'Astronomy', 'Phases', 'Slide 1 · Phases')`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_generations (id, learner_id, lesson_id, course_id, quote_id, state, result_checkpoint) VALUES ('f4444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'f1111111-1111-4111-8111-111111111111', $1, 'validated', '{"lesson":{"slides":[]},"attempts":[],"title":"Restorable pending lesson"}'::jsonb)`, outlineQuote.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -487,6 +497,16 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_completion_summaries (id, learner_id, course_id, lesson_id, summary, weak_topics) VALUES ('fbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'Sample completed summary', '["top-moon"]'::jsonb)`); err != nil {
 		t.Fatal(err)
+	}
+	for _, query := range []string{
+		`INSERT INTO xp_events(learner_id,lesson_id,course_id,completion_id,amount,perfect,config_version,earned_at,local_date,time_zone)
+ SELECT o.learner_id,o.lesson_id,o.course_id,o.id,c.base_xp,false,c.version,o.passed_at,(o.passed_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date,'Asia/Ho_Chi_Minh'
+ FROM lesson_completion_outbox o CROSS JOIN gamification_config c WHERE o.id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO daily_goal_achievements(learner_id,local_date,goal_xp) SELECT learner_id,local_date,amount FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+	} {
+		if _, err = f.DB.Pool.Exec(t.Context(), query); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_variant_snapshots (id, session_id, learner_id, lesson_stub_id, topic_id, question_id, variant_of, source, reason, prompt, choices, answer_index, explanation, instruction_snapshot) VALUES ('fccccccc-cccc-4ccc-8ccc-cccccccccccc', 'f8888888-8888-4888-8888-888888888888', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'top-moon', 'v1-top-moon', 'q-moon', 'pool', NULL, 'What causes moon phases?', '["Sun angle", "Earth shadow"]'::jsonb, 0, 'Angle of sunlight on moon', '{"topic":"moon"}'::jsonb)`); err != nil {
 		t.Fatal(err)
@@ -818,7 +838,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones"} {
+	for _, table := range []string{"quick_notes", "quick_note_enrichments", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -832,6 +852,14 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		}
 	}
 	paidService := credits.NewServiceWithCatalogue(restored.Pool, nil, afterPricing, nil)
+	// Restored E4 outbox work cannot award again or duplicate an earned goal.
+	if err := gamification.New(restored.Pool, nil).Consume(t.Context(), "a1111111-1111-4111-8111-111111111111"); err != nil {
+		t.Fatal(err)
+	}
+	var xpCount, goalCount, xpTotal, configuredBase int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM xp_events),(SELECT count(*) FROM daily_goal_achievements),(SELECT sum(amount) FROM xp_events),base_xp FROM gamification_config`).Scan(&xpCount, &goalCount, &xpTotal, &configuredBase); err != nil || xpCount != 1 || goalCount != 1 || xpTotal != configuredBase {
+		t.Fatalf("restored XP replay changed totals/markers: %d %d %d %d %v", xpCount, goalCount, xpTotal, configuredBase, err)
+	}
 	confirmed, err := courses.New(courses.Options{Pool: restored.Pool}).ResolveConfirmed(t.Context(), "a1111111-1111-4111-8111-111111111111", "c7222222-2222-4222-8222-222222222222", 3)
 	if err != nil || confirmed.Outline.Hash() != confirmed.ContentHash || confirmed.Outline[0].Lessons[0].ID != "fixture-lesson" {
 		t.Fatalf("restored confirmed outline unavailable: %+v %v", confirmed, err)
@@ -924,11 +952,17 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO outline_drafts(learner_id,brief_revision,outline,history) SELECT learner_id,id,'[]','[]' FROM course_brief_revisions WHERE learner_id=$1::uuid`, erasedID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO quick_notes(learner_id, action_key, source, raw_text, status) VALUES($1::uuid, 'erased-key', 'chat', 'Erased note text', 'enrichment_pending')`, erasedID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO bookmarks(learner_id, action_key, target_type, course_title, lesson_title) VALUES($1::uuid, 'erased-bm-key', 'lesson', 'Course', 'Lesson')`, erasedID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", erasedID); err != nil {
 		t.Fatal(err)
 	}
 	var survived bool
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_creations WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM courses WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM characters WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM character_screenings WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_casts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM lesson_cast_snapshots WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_creations WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM courses WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM characters WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM character_screenings WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_casts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM lesson_cast_snapshots WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM quick_notes WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM quick_note_enrichments WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM bookmarks WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
 		t.Fatal("restored context survived account erasure", err)
 	}
 	var valid bool

@@ -30,14 +30,18 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits/creditstest"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
+	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -81,6 +85,9 @@ func run() (result error) {
 		return err
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := worker.Migrate(boot, db.Pool, logger); err != nil {
+		return err
+	}
 	sink := new(accounts.MailSink)
 	auth, err := accounts.New(db.Pool, "test-only-signing-key-at-least-32-bytes", sink)
 	if err != nil {
@@ -269,7 +276,42 @@ func run() (result error) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"expired": true})
 	})))
+	grpcServer := grpc.NewServer()
+	enginev1.RegisterEngineServiceServer(grpcServer, &mockE2ENoteServer{})
+	engineLis, err := new(net.ListenConfig).Listen(ctx, "tcp", "127.0.0.1:0")
+	if err != nil {
+		return err
+	}
+	defer grpcServer.Stop()
+	go func() { _ = grpcServer.Serve(engineLis) }()
+	engineConn, err := grpc.NewClient(engineLis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = engineConn.Close() }()
+	engineClient := enginev1.NewEngineServiceClient(engineConn)
+
+	notesService := notes.NewServiceWithEnrichment(db.Pool, nil, paidCredits, engineClient)
+	arrivalHook := func(ctx context.Context, learnerID string) {
+		_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
+	}
+	creditService.SetCreditArrivalHook(arrivalHook)
+	paidCredits.SetCreditArrivalHook(arrivalHook)
+	notesQueue, err := notesService.NotesQueue(logger)
+	if err != nil {
+		return err
+	}
+	if err := notesQueue.Start(ctx); err != nil {
+		return err
+	}
+	defer func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = notesQueue.Stop(stopCtx)
+	}()
+
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{
+		Notes:                   notesService,
 		Player:                  lessonPlayer,
 		LessonTestTracerEnabled: tracerEnabled,
 		LessonTest:              lessonHandler,
@@ -292,6 +334,68 @@ func run() (result error) {
 			http.Error(w, "daily expiry failed", http.StatusInternalServerError)
 			return
 		}
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	mux.Handle("POST /test/credits/exhaust", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		entry, err := creditService.EnsureDailyGrant(r.Context(), owner, time.Now())
+		if err != nil {
+			http.Error(w, "daily grant failed", http.StatusInternalServerError)
+			return
+		}
+		if entry != nil && entry.Amount > 0 {
+			tz, _ := creditService.GetEffectiveTimezone(r.Context(), owner, time.Now())
+			if tz == "" {
+				tz = "Asia/Ho_Chi_Minh"
+			}
+			loc, err := time.LoadLocation(tz)
+			if err != nil {
+				loc = time.UTC
+			}
+			localDate := time.Now().In(loc).Format(time.DateOnly)
+			if _, err := db.Pool.Exec(r.Context(), `
+				INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
+				VALUES ($1, $2, 'expire', $3, $4, $5)
+			`, owner, -entry.Amount, "expire:"+owner+":"+localDate, entry.PricingVersion, map[string]any{
+				"bucket": "daily_free",
+				"date":   localDate,
+			}); err != nil {
+				http.Error(w, "exhaust insert failed: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_ = creditService.InvalidateCache(r.Context(), owner)
+			_ = paidCredits.InvalidateCache(r.Context(), owner)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	mux.Handle("POST /test/credits/next-day", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		if _, err := db.Pool.Exec(r.Context(), `
+			INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
+			VALUES ($1, 50, 'purchase', 'topup:' || gen_random_uuid(), '2026.04', '{"bucket": "purchase"}'::jsonb)
+		`, owner); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		_ = creditService.InvalidateCache(r.Context(), owner)
+		_ = paidCredits.InvalidateCache(r.Context(), owner)
+		paidCredits.NotifyCreditArrival(r.Context(), owner)
+		creditService.NotifyCreditArrival(r.Context(), owner)
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	mux.Handle("POST /test/credits/topup", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		if _, err := db.Pool.Exec(r.Context(), `
+			INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
+			VALUES ($1, 50, 'purchase', 'topup:' || gen_random_uuid(), '2026.04', '{"bucket": "purchase"}'::jsonb)
+		`, owner); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		_ = creditService.InvalidateCache(r.Context(), owner)
+		_ = paidCredits.InvalidateCache(r.Context(), owner)
+		paidCredits.NotifyCreditArrival(r.Context(), owner)
+		creditService.NotifyCreditArrival(r.Context(), owner)
 		w.WriteHeader(http.StatusNoContent)
 	})))
 	mux.HandleFunc("POST /test/stripe/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -619,4 +723,30 @@ func (f *fixtureObjects) Put(_ context.Context, key string, value []byte) error 
 		return errors.New("fixture mutation")
 	}
 	return nil
+}
+
+type mockE2ENoteServer struct {
+	enginev1.UnimplementedEngineServiceServer
+}
+
+func (mockE2ENoteServer) EnrichNote(_ context.Context, req *enginev1.EnrichNoteRequest) (*enginev1.EnrichNoteResponse, error) {
+	links := []string{"unknown-foreign-lesson"}
+	for _, l := range req.AllowedLessons {
+		links = append(links, l.LessonId)
+		break
+	}
+	return &enginev1.EnrichNoteResponse{
+		Summary: "Stars appear to move westward due to Earth's axial rotation.",
+		Tags:    []string{"rotation", "polaris"},
+		Links:   links,
+		Usage: &enginev1.Usage{
+			Provider:     req.Limits.Provider,
+			Model:        req.Limits.Model,
+			InputTokens:  120,
+			OutputTokens: 35,
+			Attempt:      1,
+			Component:    "content",
+			Delivered:    true,
+		},
+	}, nil
 }

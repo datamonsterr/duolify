@@ -122,6 +122,7 @@ async fn enrich_note_returns_real_attempts_and_enforces_limits() {
             first_token_timeout_ms: 0,
             idle_timeout_ms: 0,
         }),
+        allowed_lessons: vec![],
     };
 
     let response = client

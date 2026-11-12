@@ -12,6 +12,8 @@ import {
   track,
   trackPlayer,
   trackPlayerRecovery,
+  trackBookmarkAdded,
+  trackBookmarkRemoved,
   trackCharacterRendered,
   trackCharacterRenderFallback,
 } from "../../lib/analytics";
@@ -43,6 +45,8 @@ import { PlaybackClock } from "../player/playback";
 import { isSlideMessage, nextSlide, sendCommand } from "./bridge";
 import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { useShellSession } from "../shell/ShellSession";
+import { QuickNotePanel } from "../notes/QuickNotePanel";
+import { bookmarkQueue } from "../notes/bookmark-queue";
 import { createDefaultTracerManifest } from "../characters/fixtures";
 import { generateMotionSlideHtml } from "../characters/motion-slide";
 import { generatedCharacterDocument } from "../characters/playback";
@@ -53,10 +57,12 @@ export function LessonPlayer({
   lessonId = "sky",
   returnTo,
   targetSlideId,
+  initialSlide,
 }: {
   lessonId?: string;
   returnTo?: string;
   targetSlideId?: string;
+  initialSlide?: number;
 } = {}) {
   if (lessonId === "tracer-default-cast" || lessonId.startsWith("tracer")) {
     return <TracerLessonPlayer lessonId={lessonId} returnTo={returnTo} />;
@@ -66,6 +72,7 @@ export function LessonPlayer({
       lessonId={lessonId}
       returnTo={returnTo}
       targetSlideId={targetSlideId}
+      initialSlide={initialSlide}
     />
   );
 }
@@ -74,10 +81,12 @@ function StandardLessonPlayer({
   lessonId,
   returnTo,
   targetSlideId,
+  initialSlide,
 }: {
   lessonId: string;
   returnTo?: string;
   targetSlideId?: string;
+  initialSlide?: number;
 }) {
   const owner = session.current()?.id ?? "current";
   const shell = useShellSession();
@@ -123,6 +132,7 @@ function StandardLessonPlayer({
       manifest={manifest.data}
       returnTo={returnTo}
       targetSlideId={targetSlideId}
+      initialSlide={initialSlide}
     />
   );
 }
@@ -474,7 +484,6 @@ function TracerLessonPlayer({
             className="primary"
             onClick={() => {
               if (index === slides.length - 1) {
-                track("lesson_completed", { lesson: lessonId });
                 setFinished(true);
               } else goToSlide(nextSlide(index, slides.length));
             }}
@@ -565,10 +574,12 @@ function ResumePlayback({
   manifest,
   returnTo,
   targetSlideId,
+  initialSlide,
 }: {
   manifest: Manifest;
   returnTo?: string;
   targetSlideId?: string;
+  initialSlide?: number;
 }) {
   const owner = session.current()?.id ?? "current";
   const position = useQuery({
@@ -593,6 +604,7 @@ function ResumePlayback({
       initial={readLocalPosition(owner, manifest) ?? position.data ?? null}
       restoreError={!!position.error}
       targetSlideId={targetSlideId}
+      initialSlide={initialSlide}
     />
   );
 }
@@ -603,19 +615,38 @@ function ManifestPlayback({
   initial,
   restoreError,
   targetSlideId,
+  initialSlide,
 }: {
   manifest: Manifest;
   returnTo?: string;
   initial: Position | null;
   restoreError: boolean;
   targetSlideId?: string;
+  initialSlide?: number;
 }) {
   const [index, setIndex] = useState(() => {
+    if (
+      initialSlide !== undefined &&
+      !isNaN(initialSlide) &&
+      initialSlide >= 0 &&
+      initialSlide < manifest.slides.length
+    ) {
+      return initialSlide;
+    }
     if (targetSlideId) {
       const targetIdx = manifest.slides.findIndex(
         (s) => s.slide_id === targetSlideId,
       );
       if (targetIdx !== -1) return targetIdx;
+      const parsed = parseInt(targetSlideId, 10);
+      if (
+        !isNaN(parsed) &&
+        parsed >= 0 &&
+        parsed < manifest.slides.length &&
+        String(parsed) === targetSlideId
+      ) {
+        return parsed;
+      }
       return 0;
     }
     return Math.max(
@@ -624,7 +655,6 @@ function ManifestPlayback({
     );
   });
   const [rate, setRate] = useState(1);
-  const [note, setNote] = useState("");
   const [muted, setMuted] = useState(false);
   const [resuming, setResuming] = useState(!!initial);
   const started = useRef(false);
@@ -637,8 +667,6 @@ function ManifestPlayback({
       autoplay={!resuming}
       rate={rate}
       onRate={setRate}
-      note={note}
-      onNote={setNote}
       muted={muted}
       onMute={setMuted}
       restoreError={restoreError}
@@ -671,8 +699,6 @@ function SlidePlayback({
   onStart,
   restoreError,
   exit,
-  note,
-  onNote,
   muted,
   onMute,
 }: {
@@ -686,8 +712,6 @@ function SlidePlayback({
   onStart: () => void;
   restoreError: boolean;
   exit: string;
-  note: string;
-  onNote: (note: string) => void;
   muted: boolean;
   onMute: (muted: boolean) => void;
 }) {
@@ -695,6 +719,7 @@ function SlidePlayback({
     slide = manifest.slides[index];
   const navigate = useNavigate();
   const owner = session.current()?.id ?? "current";
+  const shell = useShellSession();
   const { reducedMotion } = useUiPreferences();
   const frame = useRef<HTMLIFrameElement>(null);
   const [clock] = useState(() => {
@@ -717,6 +742,113 @@ function SlidePlayback({
   const viewed = useRef(initialTime === slide.duration_ms);
   const reached = useRef(new Set<string>());
   const saveRevision = useRef(0);
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [bookmarkVersion, setBookmarkVersion] = useState(0);
+
+  useEffect(() => {
+    shell.slides.set(lessonId, index);
+  }, [shell, lessonId, index]);
+
+  const isBookmarked = useMemo(() => {
+    void bookmarkVersion;
+    return bookmarkQueue
+      .getQueue()
+      .some(
+        (b) =>
+          b.lessonId === lessonId &&
+          b.slideId === index &&
+          b.status !== "removal_pending",
+      );
+  }, [lessonId, index, bookmarkVersion]);
+
+  const handleToggleBookmark = async () => {
+    if (isBookmarked) {
+      bookmarkQueue.enqueueRemoval({
+        lessonId,
+        slideId: index,
+      });
+      setBookmarkVersion((v) => v + 1);
+      setToastVisible(false);
+      trackBookmarkRemoved({
+        targetType: "slide",
+        courseId: manifest.course_id,
+        lessonId,
+        slideId: index,
+      });
+      try {
+        await session.request("/v1/bookmarks/remove", "POST", {
+          lesson_id: lessonId,
+          slide_id: index,
+        });
+      } catch {
+        // Offline
+      }
+    } else {
+      const queued = bookmarkQueue.enqueue({
+        courseId: manifest.course_id,
+        courseTitle:
+          manifest.course_id === "astronomy"
+            ? "Astronomy"
+            : manifest.title || "Course",
+        lessonId,
+        lessonTitle: manifest.title || "Why the sky changes",
+        slideId: index,
+        slideTitle: `Slide ${index + 1}`,
+        targetType: "slide",
+      });
+      setBookmarkVersion((v) => v + 1);
+      setToastMessage("Slide bookmarked");
+      setToastVisible(true);
+      trackBookmarkAdded({
+        targetType: "slide",
+        courseId: manifest.course_id,
+        lessonId,
+        slideId: index,
+      });
+      try {
+        const res = await session.request<{ id: string }>(
+          "/v1/bookmarks",
+          "POST",
+          {
+            action_key: queued.actionKey,
+            lesson_id: lessonId,
+            slide_id: index,
+            target_type: "slide",
+          },
+        );
+        if (res?.id) {
+          bookmarkQueue.markSynced(queued.actionKey, res.id);
+        }
+      } catch {
+        // Offline
+      }
+    }
+  };
+
+  const handleUndoBookmark = async () => {
+    bookmarkQueue.enqueueRemoval({
+      lessonId,
+      slideId: index,
+    });
+    setBookmarkVersion((v) => v + 1);
+    setToastVisible(false);
+    trackBookmarkRemoved({
+      targetType: "slide",
+      courseId: manifest.course_id,
+      lessonId,
+      slideId: index,
+    });
+    try {
+      await session.request("/v1/bookmarks/remove", "POST", {
+        lesson_id: lessonId,
+        slide_id: index,
+      });
+    } catch {
+      // Offline
+    }
+  };
 
   useEffect(() => {
     return subscribeSyncStatus(() => {
@@ -1081,58 +1213,63 @@ function SlidePlayback({
       ) : null}
       <PanelLayout
         panel={
-          <ResponsivePanel
-            title={panel ?? "Transcript"}
-            open={panel !== null}
-            onClose={() => setPanel(null)}
-          >
-            <p className="feedback badge-warning" role="status">
-              Lesson paused
-            </p>
-            {panel === "Transcript" && (
-              <div className="transcript-list" aria-label="Lesson transcript">
-                {manifest.slides.map((s, idx) => (
-                  <div
-                    key={s.slide_id}
-                    className={`transcript-entry ${idx === index ? "active" : ""}`}
-                  >
-                    <b>Slide {idx + 1}. </b>
-                    <span>{s.explanation || s.narration_text}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {panel === "Ask tutor" && (
-              <>
-                <p>
-                  Tutor chat is not available yet. You can keep learning or read
-                  the transcript.
-                </p>
-                <button
-                  className="duo-button quiet"
-                  onClick={() => setPanel("Transcript")}
-                >
-                  Read transcript
-                </button>
-              </>
-            )}
-            <div hidden={panel !== "Quick note"}>
-              <label>
-                Your note
-                <textarea
-                  value={note}
-                  onChange={(event) => onNote(event.target.value)}
-                />
-              </label>
-              <p>
-                This draft stays here until you leave the lesson. Saving isn't
-                available yet.
+          panel === "Quick note" ? (
+            <QuickNotePanel
+              open={true}
+              onClose={() => setPanel(null)}
+              context={{
+                source: "slide",
+                courseId: manifest.course_id,
+                lessonId,
+                slideId: index,
+                slideTitle: `Slide ${index + 1} · ${manifest.title || "Why the sky changes"}`,
+              }}
+            />
+          ) : (
+            <ResponsivePanel
+              title={panel ?? "Transcript"}
+              open={panel !== null}
+              onClose={() => setPanel(null)}
+            >
+              <p className="feedback badge-warning" role="status">
+                Lesson paused
               </p>
-              <button className="duo-button quiet" disabled>
-                Save quick note unavailable
-              </button>
-            </div>
-          </ResponsivePanel>
+              {panel === "Transcript" && (
+                <div className="transcript-list" aria-label="Lesson transcript">
+                  {manifest.slides.map((s, idx) => (
+                    <div
+                      key={s.slide_id}
+                      className={`transcript-entry ${idx === index ? "active" : ""}`}
+                    >
+                      <b>Slide {idx + 1}. </b>
+                      <span>{s.explanation || s.narration_text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {panel === "Ask tutor" && (
+                <>
+                  <p>
+                    {[
+                      "The sky is a map waiting to be explored.",
+                      "Stars are distant suns, shining across space.",
+                      "Notice how the sky changes as Earth turns.",
+                    ][index] ?? "The sky is a map waiting to be explored."}
+                  </p>
+                  <p>
+                    Tutor chat is not available yet. You can keep learning or
+                    read the transcript.
+                  </p>
+                  <button
+                    className="duo-button quiet"
+                    onClick={() => setPanel("Transcript")}
+                  >
+                    Read transcript
+                  </button>
+                </>
+              )}
+            </ResponsivePanel>
+          )
         }
       >
         {slideDocument.isPending && <p role="status">Loading slide…</p>}
@@ -1350,6 +1487,14 @@ function SlidePlayback({
         </div>
         <div className="panel-tools" aria-label="Lesson tools">
           <button
+            className={`duo-button quiet ${isBookmarked ? "on" : ""}`}
+            type="button"
+            aria-pressed={isBookmarked}
+            onClick={handleToggleBookmark}
+          >
+            {isBookmarked ? "Saved" : "Bookmark"}
+          </button>
+          <button
             className={`duo-button quiet tool-captions ${captionsVisible ? "on" : ""}`}
             type="button"
             aria-pressed={captionsVisible}
@@ -1372,6 +1517,44 @@ function SlidePlayback({
           ))}
         </div>
       </PanelLayout>
+      {toastVisible && (
+        <div
+          className="toast"
+          role="status"
+          style={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#2B2B2B",
+            color: "#fff",
+            padding: "12px 20px",
+            borderRadius: 14,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            zIndex: 1000,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+          }}
+        >
+          <span style={{ fontSize: 16 }}>🔖</span>
+          <span style={{ flex: 1, fontWeight: 700 }}>{toastMessage}</span>
+          <button
+            type="button"
+            onClick={handleUndoBookmark}
+            style={{
+              color: "#9FD3FF",
+              background: "none",
+              border: "none",
+              fontWeight: 800,
+              cursor: "pointer",
+              padding: 0,
+            }}
+          >
+            Undo
+          </button>
+        </div>
+      )}
     </div>
   );
 }

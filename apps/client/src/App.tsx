@@ -1,3 +1,4 @@
+import { ProgressPage } from "./features/gamification/DailyGoal";
 import { UiPreferencesProvider } from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
 import { AuthError, session } from "./features/accounts/session";
@@ -30,6 +31,8 @@ import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
 import { LessonTestRoute } from "./features/lessontest/LessonTest";
 import { Courses } from "./features/design/Courses";
 import { PricingView } from "./features/pricing/PricingView";
+import { NotesPage } from "./features/notes/NotesPage";
+import { BookmarksPage } from "./features/notes/BookmarksPage";
 import { AppShell, MorePage } from "./features/shell/AppShell";
 import { getDownloadedCourses } from "./features/player/library";
 import {
@@ -145,12 +148,17 @@ const course = createRoute({
 function LessonRoute() {
   const { lessonId } = useParams({ from: "/lesson/$lessonId" });
   const { returnTo, slide } = useSearch({ from: "/lesson/$lessonId" });
+  const initialSlide =
+    slide !== undefined && !isNaN(parseInt(slide, 10))
+      ? parseInt(slide, 10)
+      : undefined;
   return (
     <LessonPlayer
       key={`${lessonId}:${slide ?? ""}`}
       lessonId={lessonId}
       returnTo={returnTo}
       targetSlideId={slide}
+      initialSlide={initialSlide}
     />
   );
 }
@@ -161,7 +169,12 @@ const lesson = createRoute({
     search: Record<string, unknown>,
   ): { returnTo?: string; slide?: string } => ({
     returnTo: typeof search.returnTo === "string" ? search.returnTo : undefined,
-    slide: typeof search.slide === "string" ? search.slide : undefined,
+    slide:
+      typeof search.slide === "string"
+        ? search.slide
+        : typeof search.slide === "number"
+          ? String(search.slide)
+          : undefined,
   }),
   component: LessonRoute,
 });
@@ -217,12 +230,12 @@ const leagues = createRoute({
 const notes = createRoute({
   getParentRoute: () => root,
   path: "/notes",
-  component: () => <DestinationPage title="Quick notes" />,
+  component: NotesPage,
 });
 const bookmarks = createRoute({
   getParentRoute: () => root,
   path: "/bookmarks",
-  component: () => <DestinationPage title="Bookmarks" />,
+  component: BookmarksPage,
 });
 const settings = createRoute({
   getParentRoute: () => root,
@@ -251,7 +264,7 @@ function CourseCastRoute() {
 const streak = createRoute({
   getParentRoute: () => root,
   path: "/streak",
-  component: () => <DestinationPage title="Your streak" />,
+  component: ProgressPage,
 });
 const lessonTest = createRoute({
   getParentRoute: () => root,

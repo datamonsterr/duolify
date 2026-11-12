@@ -106,6 +106,16 @@ func (c *Client) CourseBriefChat(ctx context.Context, request *enginev1.CourseBr
 	return c.rpc.CourseBriefChat(ctx, request)
 }
 
+// RPC returns the underlying EngineServiceClient.
+func (c *Client) RPC() enginev1.EngineServiceClient {
+	return c.rpc
+}
+
+// EnrichNote forwards note enrichment within the context deadline.
+func (c *Client) EnrichNote(ctx context.Context, request *enginev1.EnrichNoteRequest) (*enginev1.EnrichNoteResponse, error) {
+	return c.rpc.EnrichNote(ctx, request)
+}
+
 // GenerateCourseOutline forwards the exact authored outline within the API deadline.
 func (c *Client) GenerateCourseOutline(ctx context.Context, r *enginev1.GenerateCourseOutlineRequest) (*enginev1.GenerateCourseOutlineResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)

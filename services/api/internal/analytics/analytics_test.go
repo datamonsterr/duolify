@@ -97,6 +97,8 @@ func TestEventAllowlist(t *testing.T) {
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "lesson_test_recap_shown", "ui_test_retry_presented",
+		"quick_note_created", "ui_sheet_opened",
+		"bookmark_added", "bookmark_removed", "bookmark_opened",
 	} {
 		if !allowlisted(name) {
 			t.Errorf("catalogue event %q rejected", name)
@@ -476,6 +478,215 @@ func TestAICostBudgetAlertReachesPostHogWithoutPrivateData(t *testing.T) {
 	}
 }
 
+func TestQuickNoteAndSheetEventsReachPostHogWithoutPrivateData(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	learnerID := "22222222-2222-4222-8222-222222222222"
+
+	// 1. Verify valid sources for quick_note_created: slide, lesson, chat
+	for _, src := range []string{"slide", "lesson", "chat"} {
+		props := map[string]any{
+			"source":      src,
+			"length":      42,
+			"platform":    "web",
+			"app_version": "0.1.0",
+			"text":        "private note text that must never be sent",
+			"raw_text":    "super secret raw text",
+			"note_source": "slide",
+		}
+		if err := events.Capture(learnerID, "quick_note_created", props); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// 2. Verify invalid sources are not accepted (must only be slide|lesson|chat)
+	for _, invalidSrc := range []string{"api", "ci", "client", "desktop", "unknown"} {
+		props := map[string]any{
+			"source":      invalidSrc,
+			"length":      10,
+			"platform":    "desktop",
+			"app_version": "0.1.0",
+			"note_text":   "more private text",
+		}
+		if err := events.Capture(learnerID, "quick_note_created", props); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// 3. Verify ui_sheet_opened
+	sheetProps := map[string]any{
+		"source":       "api",
+		"sheet_id":     "quick_note",
+		"platform":     "desktop",
+		"app_version":  "0.1.0",
+		"private_data": "secret content",
+	}
+	if err := events.Capture(learnerID, "ui_sheet_opened", sheetProps); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	// 3 valid quick_note_created + 1 valid ui_sheet_opened = 4 events delivered
+	// The 5 invalid-source quick_note_created events are dropped because their source is not slide|lesson|chat
+	if len(received) != 4 {
+		t.Fatalf("expected 4 events, got %d", len(received))
+	}
+
+	for i, ev := range received {
+		raw, _ := json.Marshal(ev)
+		if strings.Contains(string(raw), "private") || strings.Contains(string(raw), "secret") {
+			t.Fatalf("private content leaked in event %d: %s", i, string(raw))
+		}
+		p, ok := ev["properties"].(map[string]any)
+		if !ok {
+			t.Fatalf("missing properties map in event %d", i)
+		}
+		// Confirm note text / note_source keys never present
+		for _, forbidden := range []string{"text", "raw_text", "note_source", "note_text", "private_data"} {
+			if p[forbidden] != nil {
+				t.Fatalf("forbidden key %q found in properties: %v", forbidden, p)
+			}
+		}
+
+		switch ev["event"] {
+		case "quick_note_created":
+			expectedSrc := []string{"slide", "lesson", "chat"}[i]
+			if p["source"] != expectedSrc {
+				t.Fatalf("expected source %q, got %v", expectedSrc, p["source"])
+			}
+			if p["length"] != float64(42) && p["length"] != 42 {
+				t.Fatalf("expected length 42, got %v", p["length"])
+			}
+		case "ui_sheet_opened":
+			if p["sheet_id"] != "quick_note" {
+				t.Fatalf("expected sheet_id quick_note, got %v", p["sheet_id"])
+			}
+		}
+	}
+
+	// 4. Test opt-out suppresses delivery
+	opted, err := NewWithOptions("fixture-only", server.URL, Options{OptOut: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := opted.Capture(learnerID, "quick_note_created", map[string]any{"source": "slide", "length": 5}); err != nil {
+		t.Fatal(err)
+	}
+	if err := opted.Capture(learnerID, "ui_sheet_opened", map[string]any{"sheet_id": "quick_note"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := opted.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(received) != 4 {
+		t.Fatalf("opt-out sent analytics, received %d events", len(received))
+	}
+}
+
+func TestQuickNoteEnrichmentEventsReachPostHogWithoutPrivateData(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	learnerID := "11111111-1111-4111-8111-111111111111"
+	noteID := "22222222-2222-4222-8222-222222222222"
+
+	// 1. Capture quick_note_enriched with forbidden private fields
+	err = events.Capture(learnerID, "quick_note_enriched", map[string]any{
+		"source":      "api",
+		"platform":    "web",
+		"app_version": "0.1.0",
+		"note_id":     noteID,
+		"raw_text":    "private learner words",
+		"summary":     "private AI summary",
+		"tags":        []string{"private"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Capture quick_note_enrichment_failed
+	err = events.Capture(learnerID, "quick_note_enrichment_failed", map[string]any{
+		"source":      "api",
+		"platform":    "web",
+		"app_version": "0.1.0",
+		"note_id":     noteID,
+		"reason":      "timeout",
+		"error_code":  "deadline_exceeded",
+		"raw_text":    "private learner words",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(received) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(received))
+	}
+
+	for _, ev := range received {
+		raw, _ := json.Marshal(ev)
+		if strings.Contains(string(raw), "private") {
+			t.Fatalf("private data leaked into analytics: %s", string(raw))
+		}
+		props, ok := ev["properties"].(map[string]any)
+		if !ok {
+			t.Fatal("missing properties map")
+		}
+		if props["note_id"] != noteID {
+			t.Fatalf("expected note_id %s, got %v", noteID, props["note_id"])
+		}
+	}
+}
+
 func TestCharacterRenderAnalyticsDeliveryAndPrivacy(t *testing.T) {
 	var mu sync.Mutex
 	var received []map[string]any
@@ -548,6 +759,118 @@ func TestCharacterRenderAnalyticsDeliveryAndPrivacy(t *testing.T) {
 		if p["character_text"] != nil || p["svg_content"] != nil || p["name"] != nil {
 			t.Fatalf("unsafe properties leaked: %v", p)
 		}
+	}
+}
+
+func TestBookmarkEventsReachPostHogWithoutPrivateData(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	learnerID := "22222222-2222-4222-8222-222222222222"
+	courseID := "33333333-3333-4333-8333-333333333333"
+	lessonID := "44444444-4444-4444-8444-444444444444"
+
+	// 1. bookmark_added
+	err = events.Capture(learnerID, "bookmark_added", map[string]any{
+		"target_type":  "slide",
+		"course_id":    courseID,
+		"lesson_id":    lessonID,
+		"slide_id":     1,
+		"source":       "api",
+		"platform":     "web",
+		"app_version":  "0.1.0",
+		"private_data": "secret content that must not leak",
+		"html":         "<script>bad()</script>",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. bookmark_removed
+	err = events.Capture(learnerID, "bookmark_removed", map[string]any{
+		"target_type": "lesson",
+		"course_id":   courseID,
+		"lesson_id":   lessonID,
+		"source":      "api",
+		"platform":    "desktop",
+		"app_version": "0.1.0",
+		"note_text":   "must be excluded",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 3. bookmark_opened
+	err = events.Capture(learnerID, "bookmark_opened", map[string]any{
+		"target_type": "slide",
+		"course_id":   courseID,
+		"lesson_id":   lessonID,
+		"slide_id":    2,
+		"source":      "api",
+		"platform":    "web",
+		"app_version": "0.1.0",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(received) != 3 {
+		t.Fatalf("expected 3 events, got %d", len(received))
+	}
+
+	for i, ev := range received {
+		raw, _ := json.Marshal(ev)
+		if strings.Contains(string(raw), "secret") || strings.Contains(string(raw), "private") || strings.Contains(string(raw), "script") {
+			t.Fatalf("private data leaked in event %d: %s", i, string(raw))
+		}
+		p, ok := ev["properties"].(map[string]any)
+		if !ok {
+			t.Fatalf("missing properties in event %d", i)
+		}
+		for _, forbidden := range []string{"private_data", "html", "note_text"} {
+			if p[forbidden] != nil {
+				t.Fatalf("forbidden key %q found in event %d", forbidden, i)
+			}
+		}
+	}
+
+	// Opt-out test
+	opted, err := NewWithOptions("fixture-only", server.URL, Options{OptOut: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := opted.Capture(learnerID, "bookmark_added", map[string]any{"target_type": "slide"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := opted.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if len(received) != 3 {
+		t.Fatalf("opt-out sent event, received %d", len(received))
 	}
 }
 
@@ -667,6 +990,7 @@ func TestLessonTestEventsPrivacy(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
+
 	if len(received) != len(tests) {
 		t.Fatalf("expected %d events, got %d", len(tests), len(received))
 	}
@@ -749,6 +1073,89 @@ func TestPlayerEventsReachPostHogWithClosedProjection(t *testing.T) {
 	_ = opted.Close()
 	if len(received) != 5 {
 		t.Fatal("opt-out emitted")
+	}
+}
+
+func TestQuickNoteReviewAndDeleteAnalyticsReachPostHogWithoutPrivateText(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	learnerID := "11111111-1111-4111-8111-111111111111"
+	noteID := "33333333-3333-4333-8333-333333333333"
+
+	// 1. quick_note_reviewed
+	err = events.Capture(learnerID, "quick_note_reviewed", map[string]any{
+		"source":       "api",
+		"platform":     "web",
+		"app_version":  "0.1.0",
+		"note_id":      noteID,
+		"raw_text":     "private secret note text",
+		"search_query": "secret query",
+		"content":      "forbidden",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. quick_note_deleted
+	err = events.Capture(learnerID, "quick_note_deleted", map[string]any{
+		"source":      "api",
+		"platform":    "desktop",
+		"app_version": "0.1.0",
+		"note_id":     noteID,
+		"raw_text":    "another private note",
+		"query":       "private query",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := events.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(received) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(received))
+	}
+
+	for _, ev := range received {
+		raw, _ := json.Marshal(ev)
+		if strings.Contains(string(raw), "private") || strings.Contains(string(raw), "secret") || strings.Contains(string(raw), "forbidden") {
+			t.Fatalf("private data leaked into analytics: %s", string(raw))
+		}
+		props, ok := ev["properties"].(map[string]any)
+		if !ok {
+			t.Fatal("missing properties map")
+		}
+		if props["note_id"] != noteID {
+			t.Fatalf("expected note_id %s, got %v", noteID, props["note_id"])
+		}
+		for _, forbidden := range []string{"raw_text", "search_query", "content", "query"} {
+			if props[forbidden] != nil {
+				t.Fatalf("forbidden key %q found in event", forbidden)
+			}
+		}
 	}
 }
 

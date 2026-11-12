@@ -18,6 +18,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
+	"github.com/datamonsterr/duolify/services/api/internal/gamification"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -2039,10 +2040,10 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	weakTopicsJSON, _ := json.Marshal(weakTopics)
 
 	if _, err = tx.Exec(ctx, `
-		INSERT INTO lesson_completion_summaries (learner_id, course_id, lesson_id, summary, weak_topics)
-		VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5)
+		INSERT INTO lesson_completion_summaries (learner_id, course_id, lesson_id, summary, weak_topics, first_try_perfect, duration_ms)
+		VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7)
 		ON CONFLICT (learner_id, lesson_id) DO NOTHING`,
-		owner, courseID, lessonID, summaryText, weakTopicsJSON); err != nil {
+		owner, courseID, lessonID, summaryText, weakTopicsJSON, firstTryCorrect+firstTryInc == totalTopics && variantsServed == 0, time.Since(createdAt).Milliseconds()); err != nil {
 		http.Error(w, `{"error":"database error"}`, 500)
 		return
 	}
@@ -2078,6 +2079,11 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	}
 
 	committed = true
+	if err := gamification.New(s.opts.Pool, s.opts.Events).Consume(ctx, owner); err != nil {
+		// Completion is durable; the outbox sweep and progress Retry resume XP.
+		slog.ErrorContext(ctx, "completion XP projection pending", "error", err)
+		resp["xp_pending"] = true
+	}
 	if completion.RowsAffected() == 1 && s.opts.Events != nil {
 		emit("lesson_test_passed", map[string]any{
 			"source":            "api",

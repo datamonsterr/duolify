@@ -73,6 +73,8 @@ func (c *client) Close() error {
 
 func allowlisted(event string) bool {
 	switch event {
+	case "xp_earned", "daily_goal_met", "lesson_completed":
+		return true
 	case "slide_viewed", "slide_replayed", "slide_paused":
 		return true
 	case "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
@@ -88,7 +90,9 @@ func allowlisted(event string) bool {
 		"character_rendered", "character_render_fallback",
 		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
 		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied",
-		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":
+		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
+		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
+		"bookmark_added", "bookmark_removed", "bookmark_opened":
 		return true
 	default:
 		return false
@@ -142,6 +146,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 		switch key {
 		case "source":
+			if event == "quick_note_created" {
+				if v == "slide" || v == "lesson" || v == "chat" {
+					out[key] = v
+				}
+				continue
+			}
 			if v != "api" && v != "ci" {
 				continue
 			}
@@ -191,6 +201,13 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "xp_earned", "lesson_completed":
+		ids("event_id", "course_id", "lesson_id", "local_date", "config_version")
+		numeric("amount", "xp", "duration_ms")
+		boolean("perfect")
+	case "daily_goal_met":
+		ids("event_id", "local_date")
+		numeric("goal_xp")
 	case "character_updated":
 		ids("character_id")
 		numeric("character_version")
@@ -400,6 +417,21 @@ func safeProperties(event string, input map[string]any) map[string]any {
 			if id, err := uuid.Parse(v); err == nil {
 				out["actor_id"] = id.String()
 			}
+		}
+	case "quick_note_created":
+		numeric("length")
+		if src, ok := input["source"].(string); ok && (src == "slide" || src == "lesson" || src == "chat") {
+			out["source"] = src
+		}
+	case "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted":
+		ids("note_id", "reason", "error_code")
+	case "ui_sheet_opened":
+		ids("sheet_id")
+	case "bookmark_added", "bookmark_removed", "bookmark_opened":
+		ids("course_id", "lesson_id")
+		numeric("slide_id")
+		if tt, ok := input["target_type"].(string); ok && (tt == "slide" || tt == "lesson") {
+			out["target_type"] = tt
 		}
 	}
 	return out

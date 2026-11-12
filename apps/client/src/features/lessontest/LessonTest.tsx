@@ -1,3 +1,4 @@
+import { CompletionXP } from "../gamification/DailyGoal";
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useShellSession } from "../shell/ShellSession";
@@ -636,16 +637,7 @@ export function LessonTest({
         >
           Lesson complete!
         </h2>
-        <p
-          style={{
-            margin: 0,
-            fontSize: "15px",
-            lineHeight: 1.5,
-            color: "#555",
-          }}
-        >
-          +15 XP · 8-day streak
-        </p>
+        <CompletionXP lessonId={effectiveLessonId} review={passed} />
 
         {nextStatus === "insufficient_credits" && (
           <>

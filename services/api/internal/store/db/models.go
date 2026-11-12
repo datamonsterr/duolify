@@ -15,11 +15,13 @@ type AccountDeletionTombstone struct {
 }
 
 type AuthCode struct {
-	Email      string             `json:"email"`
-	CodeHash   string             `json:"code_hash"`
-	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
-	Attempts   int32              `json:"attempts"`
-	ConsumedAt pgtype.Timestamptz `json:"consumed_at"`
+	Email          string             `json:"email"`
+	CodeHash       string             `json:"code_hash"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	Attempts       int32              `json:"attempts"`
+	ConsumedAt     pgtype.Timestamptz `json:"consumed_at"`
+	CodeCiphertext []byte             `json:"code_ciphertext"`
+	LastSentAt     pgtype.Timestamptz `json:"last_sent_at"`
 }
 
 type AuthIdentity struct {
@@ -50,13 +52,15 @@ type AuthRateLimit struct {
 	KeyHash   string             `json:"key_hash"`
 	Count     int32              `json:"count"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	EmailHash pgtype.Text        `json:"email_hash"`
 }
 
 type AuthRefreshToken struct {
-	TokenHash  string             `json:"token_hash"`
-	SessionID  pgtype.UUID        `json:"session_id"`
-	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
-	ConsumedAt pgtype.Timestamptz `json:"consumed_at"`
+	TokenHash           string             `json:"token_hash"`
+	SessionID           pgtype.UUID        `json:"session_id"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt          pgtype.Timestamptz `json:"consumed_at"`
+	SuccessorCiphertext []byte             `json:"successor_ciphertext"`
 }
 
 type AuthSession struct {
@@ -66,6 +70,21 @@ type AuthSession struct {
 	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
 	RevokedAt         pgtype.Timestamptz `json:"revoked_at"`
 	ReauthenticatedAt pgtype.Timestamptz `json:"reauthenticated_at"`
+}
+
+type Bookmark struct {
+	ID          pgtype.UUID        `json:"id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	ActionKey   string             `json:"action_key"`
+	CourseID    pgtype.UUID        `json:"course_id"`
+	LessonID    pgtype.UUID        `json:"lesson_id"`
+	SlideID     pgtype.Int4        `json:"slide_id"`
+	TargetType  string             `json:"target_type"`
+	CourseTitle string             `json:"course_title"`
+	LessonTitle string             `json:"lesson_title"`
+	SlideTitle  string             `json:"slide_title"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Character struct {
@@ -378,6 +397,14 @@ type CreditUsage struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type DailyGoalAchievement struct {
+	ID         pgtype.UUID        `json:"id"`
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	LocalDate  pgtype.Date        `json:"local_date"`
+	GoalXp     int32              `json:"goal_xp"`
+	AchievedAt pgtype.Timestamptz `json:"achieved_at"`
+}
+
 type EvalAlertConfig struct {
 	ID                           string             `json:"id"`
 	PlatformDailyBudgetUsd       pgtype.Numeric     `json:"platform_daily_budget_usd"`
@@ -434,6 +461,15 @@ type EvalReport struct {
 	ReportJson      []byte             `json:"report_json"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+}
+
+type GamificationConfig struct {
+	ID             bool    `json:"id"`
+	Version        string  `json:"version"`
+	BaseXp         int32   `json:"base_xp"`
+	PerfectBonusXp int32   `json:"perfect_bonus_xp"`
+	DefaultGoal    int32   `json:"default_goal"`
+	GoalOptions    []int32 `json:"goal_options"`
 }
 
 type GeneratedLesson struct {
@@ -495,13 +531,15 @@ type LessonCompletionOutbox struct {
 }
 
 type LessonCompletionSummary struct {
-	ID          pgtype.UUID        `json:"id"`
-	LearnerID   pgtype.UUID        `json:"learner_id"`
-	CourseID    pgtype.UUID        `json:"course_id"`
-	LessonID    pgtype.UUID        `json:"lesson_id"`
-	Summary     string             `json:"summary"`
-	WeakTopics  []byte             `json:"weak_topics"`
-	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+	ID              pgtype.UUID        `json:"id"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	CourseID        pgtype.UUID        `json:"course_id"`
+	LessonID        pgtype.UUID        `json:"lesson_id"`
+	Summary         string             `json:"summary"`
+	WeakTopics      []byte             `json:"weak_topics"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+	FirstTryPerfect bool               `json:"first_try_perfect"`
+	DurationMs      int64              `json:"duration_ms"`
 }
 
 type LessonGeneration struct {
@@ -683,15 +721,16 @@ type PricingAdminGrant struct {
 }
 
 type PricingAudit struct {
-	ID          int64              `json:"id"`
-	ActorID     string             `json:"actor_id"`
-	Action      string             `json:"action"`
-	Version     pgtype.Text        `json:"version"`
-	ChangeClass pgtype.Text        `json:"change_class"`
-	DiffSummary []byte             `json:"diff_summary"`
-	Reason      string             `json:"reason"`
-	RequestID   string             `json:"request_id"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ID             int64              `json:"id"`
+	ActorID        string             `json:"actor_id"`
+	Action         string             `json:"action"`
+	Version        pgtype.Text        `json:"version"`
+	ChangeClass    pgtype.Text        `json:"change_class"`
+	DiffSummary    []byte             `json:"diff_summary"`
+	Reason         string             `json:"reason"`
+	RequestID      string             `json:"request_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OverrideReason pgtype.Text        `json:"override_reason"`
 }
 
 type PricingDraft struct {
@@ -747,4 +786,55 @@ type PricingVersionCancellation struct {
 	CancelledBy string             `json:"cancelled_by"`
 	CancelledAt pgtype.Timestamptz `json:"cancelled_at"`
 	Reason      string             `json:"reason"`
+}
+
+type QuickNote struct {
+	ID                   pgtype.UUID        `json:"id"`
+	LearnerID            pgtype.UUID        `json:"learner_id"`
+	ActionKey            string             `json:"action_key"`
+	CourseID             pgtype.UUID        `json:"course_id"`
+	LessonID             pgtype.UUID        `json:"lesson_id"`
+	SlideID              pgtype.Int4        `json:"slide_id"`
+	SlideTitle           string             `json:"slide_title"`
+	Source               string             `json:"source"`
+	RawText              string             `json:"raw_text"`
+	Status               string             `json:"status"`
+	Reviewed             bool               `json:"reviewed"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	ReservationID        pgtype.UUID        `json:"reservation_id"`
+	QuoteID              pgtype.UUID        `json:"quote_id"`
+	Version              int32              `json:"version"`
+	ReviewedAt           pgtype.Timestamptz `json:"reviewed_at"`
+	RawVersion           int32              `json:"raw_version"`
+	EnrichmentClaimID    pgtype.UUID        `json:"enrichment_claim_id"`
+	EnrichmentLeaseUntil pgtype.Timestamptz `json:"enrichment_lease_until"`
+}
+
+type QuickNoteEnrichment struct {
+	ID        pgtype.UUID        `json:"id"`
+	NoteID    pgtype.UUID        `json:"note_id"`
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	Summary   string             `json:"summary"`
+	Tags      []string           `json:"tags"`
+	Links     []string           `json:"links"`
+	Version   int32              `json:"version"`
+	Model     string             `json:"model"`
+	Provider  string             `json:"provider"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type XpEvent struct {
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	LessonID      pgtype.UUID        `json:"lesson_id"`
+	CourseID      pgtype.UUID        `json:"course_id"`
+	CompletionID  pgtype.UUID        `json:"completion_id"`
+	Amount        int32              `json:"amount"`
+	Perfect       bool               `json:"perfect"`
+	ConfigVersion string             `json:"config_version"`
+	EarnedAt      pgtype.Timestamptz `json:"earned_at"`
+	LocalDate     pgtype.Date        `json:"local_date"`
+	TimeZone      string             `json:"time_zone"`
 }

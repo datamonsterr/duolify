@@ -28,8 +28,10 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/eval"
+	"github.com/datamonsterr/duolify/services/api/internal/gamification"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
+	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
@@ -147,6 +149,8 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		go creditService.Maintain(ctx, logger)
+		xpService := gamification.New(db.Pool, events)
+		go xpService.Maintain(ctx, logger)
 		backend, err := engine.New(cfg.EngineAddr, 10*time.Second)
 		if err != nil {
 			return err
@@ -165,6 +169,22 @@ func run(ctx context.Context, args []string) (result error) {
 			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 			defer cancel()
 			_ = outlineQueue.Stop(stopCtx)
+		}()
+		notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC())
+		creditService.SetCreditArrivalHook(func(ctx context.Context, learnerID string) {
+			_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
+		})
+		notesQueue, err := notesService.NotesQueue(logger)
+		if err != nil {
+			return err
+		}
+		if err = notesQueue.Start(context.WithoutCancel(ctx)); err != nil {
+			return err
+		}
+		defer func() {
+			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer cancel()
+			_ = notesQueue.Stop(stopCtx)
 		}()
 		if cfg.LessonTestTracerEnabled {
 			lessonService := lessontest.New(lessontest.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Events: events, Casts: characters.NewService(db.Pool, nil, events)})
@@ -250,6 +270,8 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	go creditService.Maintain(ctx, logger)
+	xpService := gamification.New(db.Pool, events)
+	go xpService.Maintain(ctx, logger)
 	briefPricing := catalogue
 	if os.Getenv("DUOLIFY_ENV") == "development" {
 		if dev, loadErr := pricing.LoadDevelopment(ctx, db.Pool); loadErr == nil {
@@ -263,6 +285,10 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	go characterService.Maintain(ctx)
+	notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC())
+	creditService.SetCreditArrivalHook(func(ctx context.Context, learnerID string) {
+		_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
+	})
 
 	var lessonHandler http.Handler
 	if cfg.LessonTestTracerEnabled {
@@ -288,6 +314,7 @@ func run(ctx context.Context, args []string) (result error) {
 
 	handler := httpapi.New(httpapi.Dependencies{
 		Characters:              characters.NewHandler(characterService),
+		Gamification:            xpService,
 		Monitor:                 monitor,
 		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService}),
 		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
@@ -297,6 +324,7 @@ func run(ctx context.Context, args []string) (result error) {
 		Pricing:                 runtimePricing,
 		PricingAdmin:            pricingAdmin,
 		Quotes:                  pricing.NewQuotes(db.Pool),
+		Notes:                   notesService,
 		Eval:                    eval.NewService(db.Pool, catalogue, monitor, events),
 		LessonTestTracerEnabled: cfg.LessonTestTracerEnabled,
 		LessonTest:              lessonHandler,
