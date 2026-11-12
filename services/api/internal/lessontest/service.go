@@ -16,6 +16,7 @@ import (
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/google/uuid"
@@ -30,12 +31,21 @@ type LessonEngine interface {
 	GenerateLesson(ctx context.Context, req *enginev1.GenerateLessonRequest) (*enginev1.Lesson, []*enginev1.Usage, error)
 }
 
+// CastPinner pins and reads immutable per-job Casts.
+type CastPinner interface {
+	PinJobCastTx(ctx context.Context, tx pgx.Tx, owner, course, jobKey string) (characters.LessonCastSnapshot, error)
+	SnapshotTx(ctx context.Context, q interface {
+		QueryRow(context.Context, string, ...any) pgx.Row
+	}, owner, course, jobKey string) (characters.LessonCastSnapshot, error)
+}
+
 // Options configures the LessonTest service.
 type Options struct {
 	Pool                *pgxpool.Pool
 	Engine              LessonEngine
 	Financial           *credits.Service
 	Events              analytics.Events
+	Casts               CastPinner
 	MinGap              int
 	MaxVariantsPerTopic int
 	MaxVariantsPerTest  int
@@ -579,6 +589,19 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 			Limits:  limits,
 		}
 
+		var cast *characters.LessonCastSnapshot
+		if s.opts.Casts != nil {
+			snapshot, castErr := s.opts.Casts.SnapshotTx(ctx, s.opts.Pool, owner, courseID, id)
+			if castErr == nil {
+				cast = &snapshot
+				if req.CharacterPersonasJson, castErr = characters.PersonasJSON(snapshot); castErr != nil {
+					return fail("cast_invalid", castErr)
+				}
+			} else if !errors.Is(castErr, characters.ErrNotFound) {
+				return fail("cast_unavailable", castErr)
+			}
+		}
+
 		callCtx, callCancel := context.WithDeadline(ctx, job.DeadlineAt)
 		lesson, attempts, genErr := s.opts.Engine.GenerateLesson(callCtx, req)
 		callCancel()
@@ -591,6 +614,14 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 		}
 		if valErr := ValidateGeneratedLesson(lesson); valErr != nil {
 			return fail("validation_failed", fmt.Errorf("validate generated lesson error: %w", valErr))
+		}
+
+		if cast != nil {
+			for _, slide := range lesson.Slides {
+				if segErr := characters.ValidateSegments(slide.Segments, *cast, slide.DurationMs); segErr != nil {
+					return fail("validation_failed", fmt.Errorf("validate cast segments: %w", segErr))
+				}
+			}
 		}
 
 		availableTopics := make(map[string]bool)
@@ -639,6 +670,15 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 			"slide_count":    len(lesson.Slides),
 			"question_count": len(lesson.Test),
 		}
+		var cast *characters.LessonCastSnapshot
+		if s.opts.Casts != nil {
+			if snapshot, castErr := s.opts.Casts.SnapshotTx(finishCtx, tx, owner, courseID, id); castErr == nil {
+				cast = &snapshot
+				manifest["cast_key"] = id
+			} else if !errors.Is(castErr, characters.ErrNotFound) {
+				return castErr
+			}
+		}
 		manifestRaw, _ := json.Marshal(manifest)
 
 		var genLessonID string
@@ -655,10 +695,14 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 		}
 		for i, slide := range lesson.Slides {
 			topicIDs := slide.TopicIds
+			segmentsRaw := []byte("[]")
+			if cast != nil {
+				segmentsRaw, _ = json.Marshal(characters.ProjectSegments(slide.Segments, *cast))
+			}
 			if _, err = tx.Exec(finishCtx, `
-				INSERT INTO lesson_slides (lesson_stub_id, learner_id, position, slide_id, html, duration_ms, narration, topic_ids)
-				VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)`,
-				lessonID, owner, i, slide.SlideId, slide.Html, slide.DurationMs, slide.Narration, topicIDs); err != nil {
+				INSERT INTO lesson_slides (lesson_stub_id, learner_id, position, slide_id, html, duration_ms, narration, topic_ids, segments)
+				VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9)`,
+				lessonID, owner, i, slide.SlideId, slide.Html, slide.DurationMs, slide.Narration, topicIDs, segmentsRaw); err != nil {
 				return err
 			}
 		}
@@ -1021,6 +1065,18 @@ func (s *Service) handlePrepare(w http.ResponseWriter, r *http.Request, owner, l
 		return
 	}
 
+	// The Cast is pinned in the same transaction as the job and reservation intent,
+	// so a rollback leaves nothing and later edits cannot change a running job.
+	var pinned *characters.LessonCastSnapshot
+	if s.opts.Casts != nil && characters.CustomCharactersEnabled() {
+		cast, pinErr := s.opts.Casts.PinJobCastTx(ctx, tx, owner, courseID, genID)
+		if pinErr != nil {
+			http.Error(w, `{"error":"cast unavailable"}`, http.StatusInternalServerError)
+			return
+		}
+		pinned = &cast
+	}
+
 	if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs SET status='generating' WHERE id=$1::uuid`, lessonID); err != nil {
 		http.Error(w, `{"error":"database error"}`, 500)
 		return
@@ -1045,6 +1101,21 @@ func (s *Service) handlePrepare(w http.ResponseWriter, r *http.Request, owner, l
 			"app_version": "1.0.0",
 			"course_id":   courseID,
 			"lesson_id":   lessonID,
+		})
+	}
+
+	if s.opts.Events != nil && pinned != nil {
+		_ = s.opts.Events.Capture(owner, "lesson_cast_applied", map[string]any{
+			"source":        "api",
+			"platform":      "web",
+			"app_version":   "1.0.0",
+			"course_id":     courseID,
+			"lesson_id":     lessonID,
+			"cast_source":   pinned.CastSource,
+			"cast_version":  pinned.CastVersion,
+			"speaker_count": len(pinned.Speakers),
+			"fallback_used": pinned.FallbackUsed,
+			"operation_key": genID,
 		})
 	}
 

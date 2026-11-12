@@ -57,6 +57,8 @@ type Slide struct {
 	NarrationStatus string            `json:"narration_status"`
 	NarrationText   string            `json:"narration_text"`
 	Explanation     string            `json:"explanation"`
+	// Segments are plain-text dialogue for pinned speakers, validated at job time.
+	Segments json.RawMessage `json:"segments,omitempty"`
 }
 
 // Manifest is the authorized lesson playback DTO.
@@ -67,6 +69,8 @@ type Manifest struct {
 	Version     int     `json:"version"`
 	AssetOrigin string  `json:"asset_origin"`
 	Slides      []Slide `json:"slides"`
+	// Cast is the immutable payload pinned when the generation job started.
+	Cast json.RawMessage `json:"cast,omitempty"`
 }
 
 // ValidOrigin accepts a single exact HTTPS origin or local HTTP development origin.

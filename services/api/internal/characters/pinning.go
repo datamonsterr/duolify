@@ -115,3 +115,12 @@ func PlainSegmentText(text string) bool {
 	}
 	return true
 }
+
+// ProjectSegments adds readable speaker labels from the pinned Cast.
+func ProjectSegments(segments []*pb.CharacterSegment, cast LessonCastSnapshot) []SlideSegment {
+	out := make([]SlideSegment, 0, len(segments))
+	for _, s := range segments {
+		out = append(out, SlideSegment{SpeakerKey: s.SpeakerKey, SpeakerLabel: cast.Speakers[s.SpeakerKey].Spec.Info.Name, Text: s.Text, Expression: s.Expression, StartMs: int(s.StartMs), DurationMs: int(s.DurationMs)})
+	}
+	return out
+}

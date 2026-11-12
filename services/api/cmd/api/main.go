@@ -167,7 +167,7 @@ func run(ctx context.Context, args []string) (result error) {
 			_ = outlineQueue.Stop(stopCtx)
 		}()
 		if cfg.LessonTestTracerEnabled {
-			lessonService := lessontest.New(lessontest.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Events: events})
+			lessonService := lessontest.New(lessontest.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Events: events, Casts: characters.NewService(db.Pool, nil, events)})
 			lessonQueue, err := lessonService.LessonQueue(logger)
 			if err != nil {
 				return err
@@ -271,6 +271,7 @@ func run(ctx context.Context, args []string) (result error) {
 			Engine:              backend,
 			Financial:           creditService,
 			Events:              events,
+			Casts:               characters.NewService(db.Pool, nil, events),
 			MinGap:              cfg.LessonTestMinGap,
 			MaxVariantsPerTopic: cfg.LessonTestMaxVariantsPerTopic,
 			MaxVariantsPerTest:  cfg.LessonTestMaxVariantsPerTest,

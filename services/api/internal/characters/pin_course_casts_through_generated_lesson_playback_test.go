@@ -4,6 +4,8 @@ import (
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"testing"
+
+	"google.golang.org/protobuf/proto"
 )
 
 func TestPinnedSegmentsRejectUnknownSpeakersAndAssets(t *testing.T) {
@@ -16,10 +18,10 @@ func TestPinnedSegmentsRejectUnknownSpeakersAndAssets(t *testing.T) {
 		func(s *pb.CharacterSegment) { s.Text = "<svg onload='alert(1)'/>" },
 		func(s *pb.CharacterSegment) { s.DurationMs = 3001 },
 	} {
-		copy := *segment
-		mutate(&copy)
-		if characters.ValidateSegments([]*pb.CharacterSegment{&copy}, manifest.Cast, 3000) == nil {
-			t.Fatalf("unsafe segment accepted: %+v", copy)
+		copy := proto.Clone(segment).(*pb.CharacterSegment)
+		mutate(copy)
+		if characters.ValidateSegments([]*pb.CharacterSegment{copy}, manifest.Cast, 3000) == nil {
+			t.Fatalf("unsafe segment accepted: %s", copy)
 		}
 	}
 	if err := characters.ValidateSegments([]*pb.CharacterSegment{segment}, manifest.Cast, 3000); err != nil {
