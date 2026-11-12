@@ -33,8 +33,8 @@ func ReactionFor(correct, passed, hasRetry bool) Reaction {
 	return Reaction{"answer_incorrect", "sad", reactionCopyIncorrect}
 }
 
-// ApprovedReactionCopy reports whether copy is one of the approved lines.
-func ApprovedReactionCopy(copy string) bool { return approvedReactionCopy[copy] }
+// ApprovedReactionCopy reports whether line is one of the approved lines.
+func ApprovedReactionCopy(line string) bool { return approvedReactionCopy[line] }
 
 // ReactionEventProps are the only analytics properties a reaction may carry.
 func ReactionEventProps(r Reaction) map[string]any {

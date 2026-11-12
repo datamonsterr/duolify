@@ -30,7 +30,16 @@ import (
 
 type reactionEngine struct{}
 
-func (reactionEngine) GenerateLesson(context.Context, *enginev1.GenerateLessonRequest) (*enginev1.Lesson, []*enginev1.Usage, error) {
+func (reactionEngine) GenerateLesson(_ context.Context, req *enginev1.GenerateLessonRequest) (*enginev1.Lesson, []*enginev1.Usage, error) {
+	provider, model := "anthropic", "sonnet"
+	if req != nil && req.Limits != nil {
+		if req.Limits.Provider != "" {
+			provider = req.Limits.Provider
+		}
+		if req.Limits.Model != "" {
+			model = req.Limits.Model
+		}
+	}
 	q := func(id, variantOf, prompt string) *enginev1.Question {
 		return &enginev1.Question{QuestionId: id, TopicId: "top-stars", VariantOf: variantOf, Prompt: prompt, Choices: []string{"Stars", "Sun", "Clouds"}, AnswerIndex: 0, Explanation: "Stars shine."}
 	}
@@ -38,7 +47,7 @@ func (reactionEngine) GenerateLesson(context.Context, *enginev1.GenerateLessonRe
 		Slides:      []*enginev1.Slide{{SlideId: "s1", Html: `<div id="root"><h1>Sky</h1></div>`, DurationMs: 3000, Narration: "Stars tonight.", TopicIds: []string{"top-stars"}}},
 		Test:        []*enginev1.Question{q("q1", "", "What shines?")},
 		VariantPool: []*enginev1.TopicVariants{{TopicId: "top-stars", Variants: []*enginev1.Question{q("v1", "q1", "What shines at night?"), q("v2", "q1", "Which are suns?")}}},
-	}, []*enginev1.Usage{{Provider: "mock", Model: "claude-sonnet-5-5", InputTokens: 10, OutputTokens: 10, LatencyMs: 1, Delivered: true, Component: "content"}}, nil
+	}, []*enginev1.Usage{{Provider: provider, Model: model, Attempt: 1, InputTokens: 100, OutputTokens: 50, LatencyMs: 100, Delivered: true, Component: "content"}}, nil
 }
 
 func TestReactionsProjectAuthoritativeResultsWithoutChangingGradingIntegration(t *testing.T) {
