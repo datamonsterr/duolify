@@ -24,6 +24,10 @@ export type Notice =
   | { kind: "stale" }
   | { kind: "stopped" }
   | { kind: "load" };
+/** A free, typed refusal because the course context does not fit the standard bound. */
+export type ContextBlock =
+  | { kind: "approval"; required?: number; limit?: number; key: string }
+  | { kind: "too_large"; key: string };
 export type Phase = "idle" | "sending" | "streaming";
 type QuoteState = {
   quote: TutorQuote;
@@ -54,6 +58,17 @@ export function lastIndex<T>(items: T[], test: (item: T) => boolean) {
   for (let i = items.length - 1; i >= 0; i--) if (test(items[i])) return i;
   return -1;
 }
+function contextBlock(error: unknown, key: string): ContextBlock | undefined {
+  if (!(error instanceof TutorApiError) || error.status !== 422) return;
+  if (error.message === "context_too_large") return { kind: "too_large", key };
+  if (error.message === "context_approval_required")
+    return {
+      kind: "approval",
+      key,
+      required: error.details.required_tokens,
+      limit: error.details.standard_limit_tokens,
+    };
+}
 const fresh = (q?: QuoteState) =>
   !!q && Date.parse(q.quote.expires_at) > Date.now() + 5000;
 let localId = 0;
@@ -69,6 +84,8 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
   const [settled, setSettled] = useState<string>();
   const [phase, setPhase] = useState<Phase>("idle");
   const [notice, setNotice] = useState<Notice>();
+  const [block, setBlock] = useState<ContextBlock>();
+  const [approved, setApproved] = useState<string>();
   const [online, setOnline] = useState(() => navigator.onLine);
   const [loaded, setLoaded] = useState(false);
   const abort = useRef<AbortController | null>(null);
@@ -152,6 +169,7 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
   // One estimate per (class, message). It is requested while the learner types,
   // and replaced whenever either changes or it expires.
   const text = draft.trim();
+  const key = `${cls}:${text}`;
   useEffect(() => {
     if (!on || phase !== "idle" || !online || !text) {
       quoteSeq.current++;
@@ -159,31 +177,50 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
     }
     if (quote && quote.cls === cls && quote.message === text && fresh(quote))
       return;
+    if (block?.key === key) return;
     const seq = ++quoteSeq.current;
     const timer = setTimeout(() => {
       service
-        .quote(courseId, cls, text)
+        .quote(courseId, cls, text, approved === key)
         .then((q) => {
-          if (seq === quoteSeq.current)
+          if (seq === quoteSeq.current) {
+            setBlock(undefined);
             setQuote({ quote: q, cls, message: text });
+          }
         })
-        .catch(() => {
-          if (seq === quoteSeq.current) setQuote(undefined);
+        .catch((error) => {
+          if (seq !== quoteSeq.current) return;
+          setQuote(undefined);
+          setBlock(contextBlock(error, key));
         })
         .finally(() => {
           if (seq === quoteSeq.current) setSettled(`${cls}:${text}`);
         });
     }, quoteDelay);
     return () => clearTimeout(timer);
-  }, [on, phase, online, text, cls, courseId, service, quote]);
+  }, [
+    on,
+    phase,
+    online,
+    text,
+    cls,
+    courseId,
+    service,
+    quote,
+    block,
+    approved,
+    key,
+  ]);
 
   const current =
     quote && quote.cls === cls && quote.message === text && fresh(quote)
       ? quote
       : undefined;
 
+  const blocked = block?.key === key ? block : undefined;
   const quoting =
     on &&
+    !blocked &&
     online &&
     phase === "idle" &&
     !!text &&
@@ -214,7 +251,12 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
             current && current.cls === reply && current.message === message
               ? current
               : {
-                  quote: await service.quote(courseId, reply, message),
+                  quote: await service.quote(
+                    courseId,
+                    reply,
+                    message,
+                    approved === `${reply}:${message}`,
+                  ),
                   cls: reply,
                   message,
                 };
@@ -299,6 +341,11 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
           // Stopped before the first token: nothing was stored or charged and the draft is kept.
           setNotice({ kind: "stopped" });
           pending.current = null;
+        } else if (contextBlock(error, `${reply}:${message}`)) {
+          // Typed and free: nothing was sent to the model or charged, and the draft stays in the composer.
+          setBlock(contextBlock(error, `${reply}:${message}`));
+          setQuote(undefined);
+          pending.current = null;
         } else if (error instanceof TutorApiError && error.status === 402) {
           setNotice({
             kind: "credits",
@@ -327,11 +374,11 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [courseId, service, current, refreshWallet],
+    [courseId, service, current, refreshWallet, approved],
   );
 
   const send = () => {
-    if (!text || phase !== "idle" || !online) return;
+    if (!text || phase !== "idle" || !online || blocked) return;
     const retry =
       pending.current?.sameSend &&
       pending.current.quote.message === text &&
@@ -339,6 +386,12 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
         ? pending.current
         : undefined;
     void deliver(text, cls, retry);
+  };
+  const approve = () => {
+    if (blocked?.kind !== "approval") return;
+    setApproved(key);
+    setBlock(undefined);
+    setSettled(undefined);
   };
   const askAgain = () => {
     const index = lastIndex(messages, (m) => m.status === "interrupted");
@@ -375,6 +428,8 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
     wallet,
     quote: current,
     quoting,
+    block: blocked,
+    approve,
     phase,
     notice,
     loading,

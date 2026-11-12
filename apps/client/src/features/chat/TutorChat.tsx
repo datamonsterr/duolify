@@ -175,7 +175,7 @@ export function TutorChat({
     (m) => m.status === "interrupted",
   );
   const text = tutor.draft.trim();
-  const canSend = !!text && !busy && tutor.online;
+  const canSend = !!text && !busy && tutor.online && !tutor.block;
   const notice = tutor.notice;
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -368,6 +368,38 @@ export function TutorChat({
                 >
                   {t("tutor.retry")}
                 </button>
+              </div>
+            </div>
+          )}
+          {tutor.block?.kind === "approval" && (
+            <div className="tutor-note warn" role="alert">
+              <div>
+                <b>{t("tutor.approval_title")}</b>
+                <p>
+                  {t("tutor.approval_body", {
+                    tokens: number(tutor.block.required ?? 0),
+                    limit: number(tutor.block.limit ?? 0),
+                  })}
+                </p>
+                <button
+                  type="button"
+                  className="btn tutor-small"
+                  disabled={busy}
+                  onClick={() => {
+                    tutor.approve();
+                    field.current?.focus();
+                  }}
+                >
+                  {t("tutor.approval_action")}
+                </button>
+              </div>
+            </div>
+          )}
+          {tutor.block?.kind === "too_large" && (
+            <div className="tutor-note bad" role="alert">
+              <div>
+                <b>{t("tutor.too_large_title")}</b>
+                <p>{t("tutor.too_large_body")}</p>
               </div>
             </div>
           )}

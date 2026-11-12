@@ -239,6 +239,13 @@ export const en = {
   "tutor.credits_link": "See credit options",
   "tutor.stale":
     "Your estimate expired, so it was refreshed. Review it and send again.",
+  "tutor.approval_title": "This course needs a larger context",
+  "tutor.approval_body":
+    "Answering uses about {tokens} tokens of course context, above the standard {limit}. The credit price stays the same. Nothing is charged until you send.",
+  "tutor.approval_action": "Approve larger context",
+  "tutor.too_large_title": "This course is too large for one question",
+  "tutor.too_large_body":
+    "Nothing was charged and your message is kept. Ask about one lesson or unit, or shorten the question.",
   "tutor.offline_title": "Offline",
   "tutor.offline_body":
     "Tutor chat needs a connection. Your draft is saved on this device.",
@@ -495,6 +502,13 @@ export const ar: Record<MessageId, Message> = {
   "tutor.credits_next": "الرصيد المجاني اليومي التالي: {time}.",
   "tutor.credits_link": "عرض خيارات الرصيد",
   "tutor.stale": "انتهت صلاحية التقدير فتم تحديثه. راجعه ثم أرسل مجددًا.",
+  "tutor.approval_title": "تحتاج هذه الدورة إلى سياق أكبر",
+  "tutor.approval_body":
+    "تستخدم الإجابة نحو {tokens} رمزًا من سياق الدورة، أي أكثر من المعتاد {limit}. سعر الرصيد لا يتغير. لا يُحتسب شيء قبل الإرسال.",
+  "tutor.approval_action": "الموافقة على سياق أكبر",
+  "tutor.too_large_title": "هذه الدورة كبيرة جدًا لسؤال واحد",
+  "tutor.too_large_body":
+    "لم يتم احتساب أي رصيد ورسالتك محفوظة. اسأل عن درس أو وحدة واحدة، أو اختصر السؤال.",
   "tutor.offline_title": "غير متصل",
   "tutor.offline_body":
     "تحتاج محادثة المعلم إلى اتصال. مسودتك محفوظة على هذا الجهاز.",

@@ -32,15 +32,13 @@ function service(overrides: Partial<TutorService> = {}) {
   const base = {
     wallet: vi.fn().mockResolvedValue(wallet),
     thread: vi.fn().mockResolvedValue({ thread: null, messages: [] }),
-    quote: vi.fn(
-      async (_course: string, _cls: string, _text: string, _ok?: boolean) => ({
-        id: `q${++quotes}`,
-        content_ceiling: 5,
-        pricing_version: "v",
-        daily_free_eligible: true,
-        expires_at: new Date(Date.now() + 600000).toISOString(),
-      }),
-    ),
+    quote: vi.fn(async () => ({
+      id: `q${++quotes}`,
+      content_ceiling: 5,
+      pricing_version: "v",
+      daily_free_eligible: true,
+      expires_at: new Date(Date.now() + 600000).toISOString(),
+    })),
     accept: vi.fn().mockResolvedValue({ accepted: true }),
     send: vi.fn(async (_c: string, _i: SendInput, h: SendHandlers) => {
       h.onOpen();

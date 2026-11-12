@@ -206,8 +206,8 @@ func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course st
 	}
 	// Mandatory parts only: retrieval later fills whatever room the quote's bound leaves.
 	context := max(0, estimateTokens(promptBytes(req))-messageTokens)
-	standard, ceiling := bounds["cached_context_tokens"], bounds["prompt_tokens"]-messageTokens
-	v := judge(context, standard, ceiling)
+	standard, ceiling := bounds["cached_context_tokens"], bounds["prompt_tokens"]
+	v := judge(context, standard, ceiling-messageTokens)
 	if v == tooLarge || (v == needsApproval && !in.ApproveLargeContext) {
 		refuseContext(w, v, context, standard, ceiling)
 		return

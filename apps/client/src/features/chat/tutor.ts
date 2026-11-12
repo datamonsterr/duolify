@@ -44,10 +44,12 @@ export type SendDone = {
 export interface TutorService {
   wallet(): Promise<WalletResponse>;
   thread(courseId: string): Promise<ThreadResponse>;
+  /** `approveLargeContext` is the Learner's explicit approval of a context above the standard bound. */
   quote(
     courseId: string,
     cls: ReplyClass,
     message: string,
+    approveLargeContext?: boolean,
   ): Promise<TutorQuote>;
   accept(quoteId: string): Promise<unknown>;
   send(
@@ -73,12 +75,19 @@ export type StoredTurn = {
   } | null;
 };
 
+export type TutorErrorDetails = {
+  next_grant_at?: string;
+  required_tokens?: number;
+  standard_limit_tokens?: number;
+  prompt_limit_tokens?: number;
+};
+
 /** A refusal returned as JSON before any event was streamed. */
 export class TutorApiError extends Error {
   constructor(
     public status: number,
     public code: string,
-    public details: { next_grant_at?: string } = {},
+    public details: TutorErrorDetails = {},
   ) {
     super(code);
   }
@@ -151,10 +160,13 @@ function asApiError(error: unknown): never {
   if (error instanceof AuthError) {
     const details =
       error.details && typeof error.details === "object"
-        ? (error.details as { error?: string; next_grant_at?: string })
+        ? (error.details as { error?: string } & TutorErrorDetails)
         : {};
     throw new TutorApiError(error.status, details.error ?? error.message, {
       next_grant_at: details.next_grant_at,
+      required_tokens: details.required_tokens,
+      standard_limit_tokens: details.standard_limit_tokens,
+      prompt_limit_tokens: details.prompt_limit_tokens,
     });
   }
   throw error;
@@ -174,8 +186,12 @@ async function call<T>(
 export const tutorService: TutorService = {
   wallet: () => call("/v1/me/credits"),
   thread: (id) => call(`${course(id)}/thread`),
-  quote: (id, cls, message) =>
-    call(`${course(id)}/quote`, "POST", { class: cls, message }),
+  quote: (id, cls, message, approveLargeContext) =>
+    call(`${course(id)}/quote`, "POST", {
+      class: cls,
+      message,
+      ...(approveLargeContext ? { approve_large_context: true } : {}),
+    }),
   accept: (quoteId) =>
     call(`/v1/quotes/${encodeURIComponent(quoteId)}/accept`, "POST", {}),
   stop: async (id, key) => {
@@ -212,7 +228,7 @@ export const tutorService: TutorService = {
       .get("content-type")
       ?.includes("text/event-stream");
     if (!response.ok || !stream || !response.body) {
-      let details: { error?: string; next_grant_at?: string } = {};
+      let details: { error?: string } & TutorErrorDetails = {};
       try {
         details = await response.json();
       } catch {
