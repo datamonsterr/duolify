@@ -874,9 +874,9 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM streak_days),(SELECT count(*) FROM streak_breaks),(SELECT longest_days FROM streak_state)`).Scan(&streakDays, &streakBreaks, &streakLongest); err != nil || streakDays != 1 || streakBreaks < 1 || streakLongest < 3 {
 		t.Fatalf("restored streak projection changed: %d %d %d %v", streakDays, streakBreaks, streakLongest, err)
 	}
-	// Freeze rows survive restore; the inventory is recomputed from milestone and day-protection rows.
+	// Freeze rows and inventory survive restore unchanged.
 	var freezeMilestones, freezeProtections, freezeHeld int
-	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM streak_freeze_milestones),(SELECT count(*) FROM streak_day_protections),(SELECT held FROM streak_freeze_inventory)`).Scan(&freezeMilestones, &freezeProtections, &freezeHeld); err != nil || freezeMilestones != 1 || freezeProtections != 1 || freezeHeld != 0 {
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM streak_freeze_milestones),(SELECT count(*) FROM streak_day_protections),(SELECT held FROM streak_freeze_inventory)`).Scan(&freezeMilestones, &freezeProtections, &freezeHeld); err != nil || freezeMilestones != 1 || freezeProtections != 1 || freezeHeld != 1 {
 		t.Fatalf("restored freeze state changed: %d %d %d %v", freezeMilestones, freezeProtections, freezeHeld, err)
 	}
 	confirmed, err := courses.New(courses.Options{Pool: restored.Pool}).ResolveConfirmed(t.Context(), "a1111111-1111-4111-8111-111111111111", "c7222222-2222-4222-8222-222222222222", 3)
