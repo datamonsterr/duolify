@@ -6,3 +6,8 @@
 - [ ] Replace static completion XP and show configurable daily progress with recovery states.
 - [ ] Extend analytics catalogue, privacy policy, backup fixtures and data inventory.
 - [ ] Run focused web/API checks serially for database/browser suites and commit.
+
+## E5-02 streak days
+
+- [x] Failing e2e, integration and unit tests, then streak projection, rollover worker and endpoint.
+- [x] S13 streak panel, analytics catalogue, privacy policy, backup fixtures and data inventory.
