@@ -277,13 +277,15 @@ func entryFromDB(r dbsql.CreditEntry) Entry {
 
 // Service coordinates auditable wallet derivation, daily grants, expiry, caching and activity.
 type Service struct {
-	payments  PaymentOptions
-	store     LedgerStore
-	redis     *redis.Client
-	catalogue *pricing.Catalogue
-	events    analytics.Events
-	mux       *http.ServeMux
-	mu        sync.Mutex
+	payments    PaymentOptions
+	store       LedgerStore
+	redis       *redis.Client
+	catalogue   *pricing.Catalogue
+	events      analytics.Events
+	mux         *http.ServeMux
+	mu          sync.Mutex
+	arrivalMu   sync.RWMutex
+	arrivalHook func(ctx context.Context, learnerID string)
 }
 
 // NewService builds a Service from a Postgres pool and Redis client.
@@ -324,6 +326,23 @@ func (s *Service) SetStore(store LedgerStore) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.store = store
+}
+
+// SetCreditArrivalHook configures a callback invoked when new credits arrive for a learner.
+func (s *Service) SetCreditArrivalHook(hook func(ctx context.Context, learnerID string)) {
+	s.arrivalMu.Lock()
+	defer s.arrivalMu.Unlock()
+	s.arrivalHook = hook
+}
+
+// NotifyCreditArrival notifies registered listeners that credits have arrived for a learner.
+func (s *Service) NotifyCreditArrival(ctx context.Context, learnerID string) {
+	s.arrivalMu.RLock()
+	hook := s.arrivalHook
+	s.arrivalMu.RUnlock()
+	if hook != nil && learnerID != "" {
+		hook(ctx, learnerID)
+	}
 }
 
 func (s *Service) registerRoutes() {
@@ -443,7 +462,6 @@ func (s *Service) EnsureDailyGrant(ctx context.Context, learnerID string, now ti
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	tz, err := s.store.GetEffectiveTimezone(ctx, learnerID, now)
 	if err != nil || tz == "" {
@@ -461,6 +479,7 @@ func (s *Service) EnsureDailyGrant(ctx context.Context, learnerID string, now ti
 		for _, e := range entries {
 			if e.Kind == "daily_grant" {
 				if d, ok := e.Provenance["date"].(string); ok && d == localDate {
+					s.mu.Unlock()
 					return &e, nil
 				}
 			}
@@ -469,6 +488,7 @@ func (s *Service) EnsureDailyGrant(ctx context.Context, learnerID string, now ti
 
 	// Check anti-farming guard: if previous grant exists, check elapsed time across timezone change
 	if !s.canGrantDailyCreditsLocked(ctx, learnerID, now, tz) {
+		s.mu.Unlock()
 		return nil, nil
 	}
 
@@ -489,6 +509,7 @@ func (s *Service) EnsureDailyGrant(ctx context.Context, learnerID string, now ti
 	}
 
 	created, err := s.store.InsertCreditEntry(ctx, newEntry)
+	s.mu.Unlock()
 	if err != nil {
 		if errors.Is(err, ErrDuplicateGrant) {
 			// Idempotent: return existing entry
@@ -521,6 +542,8 @@ func (s *Service) EnsureDailyGrant(ctx context.Context, learnerID string, now ti
 			"app_version": "0.1.0",
 		})
 	}
+
+	s.NotifyCreditArrival(ctx, learnerID)
 
 	return &created, nil
 }

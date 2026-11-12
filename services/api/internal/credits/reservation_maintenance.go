@@ -131,6 +131,9 @@ func (s *Service) DispatchOutbox(ctx context.Context) error {
 		if !e.optOut && e.owner != "" && s.events != nil {
 			_ = s.events.Capture(e.owner, e.name, e.properties)
 		}
+		if e.name == "credits_purchased" || e.name == "subscription_grant_issued" || e.name == "daily_credits_granted" {
+			s.NotifyCreditArrival(ctx, e.owner)
+		}
 	}
 	return nil
 }

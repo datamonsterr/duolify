@@ -219,12 +219,15 @@ async fn all_rpcs() {
         Some(pb::chat_event::Event::Usage(_))
     ));
     assert!(
-        !c.enrich_note(pb::EnrichNoteRequest::default())
-            .await
-            .unwrap()
-            .into_inner()
-            .summary
-            .is_empty()
+        !c.enrich_note(pb::EnrichNoteRequest {
+            note: "Earth rotation causes star motion".into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner()
+        .summary
+        .is_empty()
     );
     let setup = c
         .setup_chat(pb::SetupChatRequest {

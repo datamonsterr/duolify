@@ -109,7 +109,6 @@ export function track(
   event:
     | "lesson_started"
     | "slide_viewed"
-    | "lesson_completed"
     | "lesson_generation_requested"
     | "lesson_generated"
     | "course_generation_failed"
@@ -394,6 +393,7 @@ const guidedSheets = [
   "setup_summary",
   "outline_chat",
   "fixture_sheet",
+  "quick_note",
 ] as const;
 export type GuidedSheetId = (typeof guidedSheets)[number];
 export type GuidedUiEvent =
@@ -494,6 +494,146 @@ export function trackCourseRecovery(
     });
   } catch {
     /* Telemetry failure never blocks recovery. */
+  }
+}
+
+export function trackQuickNoteCreated(value: {
+  source: "slide" | "lesson" | "chat";
+  length: number;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("quick_note_created", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: value.source,
+      length: value.length,
+    });
+  } catch {
+    /* Analytics failure never blocks note creation. */
+  }
+}
+
+export function trackQuickNoteReviewed(noteId: string) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("quick_note_reviewed", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      note_id: noteId,
+    });
+  } catch {
+    /* Analytics failure never blocks review. */
+  }
+}
+
+export function trackQuickNoteDeleted(noteId: string) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("quick_note_deleted", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      note_id: noteId,
+    });
+  } catch {
+    /* Analytics failure never blocks delete. */
+  }
+}
+
+export function trackExportNotes() {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("ui_control_activated", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      surface: "quick_notes",
+      control_id: "export_notes",
+    });
+  } catch {
+    /* Analytics failure never blocks export. */
+  }
+}
+
+export function trackBookmarkAdded(value: {
+  targetType: "slide" | "lesson";
+  courseId?: string;
+  lessonId?: string;
+  slideId?: number | string;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("bookmark_added", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      target_type: value.targetType,
+      ...(value.courseId ? { course_id: value.courseId } : {}),
+      ...(value.lessonId ? { lesson_id: value.lessonId } : {}),
+      ...(value.slideId !== undefined ? { slide_id: value.slideId } : {}),
+    });
+  } catch {
+    /* Analytics failure never blocks bookmarking. */
+  }
+}
+
+export function trackBookmarkRemoved(value: {
+  targetType: "slide" | "lesson";
+  courseId?: string;
+  lessonId?: string;
+  slideId?: number | string;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("bookmark_removed", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      target_type: value.targetType,
+      ...(value.courseId ? { course_id: value.courseId } : {}),
+      ...(value.lessonId ? { lesson_id: value.lessonId } : {}),
+      ...(value.slideId !== undefined ? { slide_id: value.slideId } : {}),
+    });
+  } catch {
+    /* Analytics failure never blocks bookmark removal. */
+  }
+}
+
+export function trackBookmarkOpened(value: {
+  targetType: "slide" | "lesson";
+  courseId?: string;
+  lessonId?: string;
+  slideId?: number | string;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("bookmark_opened", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      target_type: value.targetType,
+      ...(value.courseId ? { course_id: value.courseId } : {}),
+      ...(value.lessonId ? { lesson_id: value.lessonId } : {}),
+      ...(value.slideId !== undefined ? { slide_id: value.slideId } : {}),
+    });
+  } catch {
+    /* Analytics failure never blocks bookmark opening. */
   }
 }
 

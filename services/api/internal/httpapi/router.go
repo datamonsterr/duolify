@@ -42,9 +42,11 @@ type Dependencies struct {
 	Quotes                  http.Handler
 	Credits                 http.Handler
 	Player                  http.Handler
+	Notes                   http.Handler
 	Eval                    http.Handler
 	Characters              http.Handler
 	Tutor                   http.Handler
+	Gamification            http.Handler
 	LessonTestTracerEnabled bool
 	LessonTest              http.Handler
 	Accounts                interface {
@@ -65,6 +67,10 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		deps.Monitor = telemetry.New(logger)
 	}
 	mux := http.NewServeMux()
+	if deps.Gamification != nil && deps.Accounts != nil {
+		mux.Handle("/v1/gamification", deps.Accounts.Protect(deps.Gamification))
+		mux.Handle("/v1/gamification/", deps.Accounts.Protect(deps.Gamification))
+	}
 	if deps.Accounts != nil {
 		mux.Handle("/v1/auth/", deps.Accounts)
 		mux.Handle("GET /v1/me", deps.Accounts)
@@ -178,6 +184,16 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("GET /v1/courses/{id}/tutor/thread", tutor)
 		mux.Handle("GET /v1/tutor/threads/{id}/messages", tutor)
 		mux.Handle("DELETE /v1/tutor/threads/{id}", tutor)
+	}
+	if deps.Notes != nil && deps.Accounts != nil {
+		mux.Handle("/v1/notes", deps.Accounts.Protect(deps.Notes))
+		mux.Handle("/v1/notes/", deps.Accounts.Protect(deps.Notes))
+		if bmHandler, ok := deps.Notes.(interface {
+			ServeBookmarksHTTP(http.ResponseWriter, *http.Request)
+		}); ok {
+			mux.Handle("/v1/bookmarks", deps.Accounts.Protect(http.HandlerFunc(bmHandler.ServeBookmarksHTTP)))
+			mux.Handle("/v1/bookmarks/", deps.Accounts.Protect(http.HandlerFunc(bmHandler.ServeBookmarksHTTP)))
+		}
 	}
 	mux.HandleFunc("GET /v1/features", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{

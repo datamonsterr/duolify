@@ -214,7 +214,7 @@ fn lesson_events(
             .map(|event| Ok(pb::GenerateLessonEvent { event: Some(event) })),
     )))
 }
-fn strings(v: &serde_json::Value) -> Vec<String> {
+fn _strings(v: &serde_json::Value) -> Vec<String> {
     v.as_array()
         .into_iter()
         .flatten()
@@ -908,70 +908,109 @@ impl EngineService for Service {
                 "quote route differs from evaluated route",
             ));
         }
-        let limits = req
-            .limits
-            .as_ref()
-            .map(|b| engine_core::credits::Limits {
-                input_tokens: b.input_tokens,
-                output_tokens: b.output_tokens,
-                timeout_ms: b.timeout_ms,
-                max_attempts: b.max_attempts,
-                max_cost_nanos: b.max_cost_nanos,
-                input_nanos: b.input_nanos,
-                output_nanos: b.output_nanos,
-                cache_write_nanos: b.cache_write_nanos,
-                cache_read_nanos: b.cache_read_nanos,
-                deadline_unix_ms: b.deadline_unix_ms,
-            })
-            .unwrap_or_else(|| engine_core::credits::Limits {
-                input_tokens: 16000,
-                output_tokens: 4000,
-                timeout_ms: 30000,
-                max_attempts: 2,
-                max_cost_nanos: 1_000_000_000,
-                input_nanos: 1000,
-                output_nanos: 5000,
-                cache_write_nanos: 1250,
-                cache_read_nanos: 100,
-                deadline_unix_ms: 0,
-            });
 
-        let prompt = format!("{req:?}");
-        let outcome =
-            engine_core::credits::run_validated(&self.router, "note", &prompt, &limits, |text| {
-                serde_json::from_str::<serde_json::Value>(text)
-                    .map(|v| v.get("summary").and_then(|s| s.as_str()).is_some())
-                    .unwrap_or(false)
+        let lesson = req.lesson.map(|l| engine_core::notes::LessonRef {
+            lesson_id: l.lesson_id,
+            title: l.title,
+            goal: l.goal,
+        });
+        let learner = req.learner.map(|p| engine_core::notes::LearnerProfile {
+            locale: p.locale,
+            level: p.level,
+            goal: p.goals,
+        });
+        let allowed_lessons: Vec<engine_core::notes::LessonRef> = req
+            .allowed_lessons
+            .into_iter()
+            .map(|l| engine_core::notes::LessonRef {
+                lesson_id: l.lesson_id,
+                title: l.title,
+                goal: l.goal,
             })
-            .await
-            .map_err(internal)?;
-
-        let attempts: Vec<pb::Usage> = outcome.attempts.iter().map(attempt_usage).collect();
-        let c = match &outcome.completion {
-            Some(c) => c,
-            None => {
-                return Ok(Response::new(pb::EnrichNoteResponse {
-                    summary: String::new(),
-                    tags: vec![],
-                    links: vec![],
-                    usage: None,
-                    attempts,
-                    unavailable: true,
-                }));
-            }
+            .collect();
+        let bounds = req.limits.unwrap_or_default();
+        let limits = engine_core::credits::Limits {
+            input_tokens: if bounds.input_tokens > 0 {
+                bounds.input_tokens
+            } else {
+                1200
+            },
+            output_tokens: if bounds.output_tokens > 0 {
+                bounds.output_tokens
+            } else {
+                300
+            },
+            timeout_ms: if bounds.timeout_ms > 0 {
+                bounds.timeout_ms
+            } else {
+                5000
+            },
+            max_attempts: if bounds.max_attempts > 0 {
+                bounds.max_attempts
+            } else {
+                2
+            },
+            max_cost_nanos: if bounds.max_cost_nanos > 0 {
+                bounds.max_cost_nanos
+            } else {
+                2_000_000
+            },
+            input_nanos: if bounds.input_nanos > 0 {
+                bounds.input_nanos
+            } else {
+                100
+            },
+            output_nanos: if bounds.output_nanos > 0 {
+                bounds.output_nanos
+            } else {
+                500
+            },
+            cache_write_nanos: if bounds.cache_write_nanos > 0 {
+                bounds.cache_write_nanos
+            } else {
+                125
+            },
+            cache_read_nanos: if bounds.cache_read_nanos > 0 {
+                bounds.cache_read_nanos
+            } else {
+                10
+            },
+            deadline_unix_ms: bounds.deadline_unix_ms,
         };
 
-        Ok(Response::new(pb::EnrichNoteResponse {
-            summary: content(c)?["summary"]
-                .as_str()
-                .ok_or_else(|| Status::internal("missing summary"))?
-                .into(),
-            tags: strings(&content(c)?["tags"]),
-            links: strings(&content(c)?["links"]),
-            usage: usage(c),
-            attempts,
-            unavailable: false,
-        }))
+        let outcome = engine_core::notes::enrich(
+            &self.router,
+            &req.note,
+            lesson.as_ref(),
+            learner.as_ref(),
+            &allowed_lessons,
+            &limits,
+        )
+        .await
+        .map_err(internal)?;
+
+        let attempts: Vec<pb::Usage> = outcome.attempts.iter().map(attempt_usage).collect();
+        let usage = outcome.completion.as_ref().and_then(usage);
+
+        if let Some(res) = outcome.result {
+            Ok(Response::new(pb::EnrichNoteResponse {
+                summary: res.summary,
+                tags: res.tags,
+                links: res.links,
+                usage,
+                attempts,
+                unavailable: false,
+            }))
+        } else {
+            Ok(Response::new(pb::EnrichNoteResponse {
+                summary: String::new(),
+                tags: vec![],
+                links: vec![],
+                usage: None,
+                attempts,
+                unavailable: true,
+            }))
+        }
     }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
     async fn course_brief_chat(

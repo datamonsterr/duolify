@@ -1,5 +1,7 @@
-import { test, expect } from "./accounts-fixture";
+import { test, expect, resetTokens } from "./accounts-fixture";
 import { courses } from "../src/mocks/handlers";
+
+test.afterEach(() => resetTokens());
 
 test("Exit returns to the course and reopening preserves the current slide", async ({
   page,
@@ -31,8 +33,8 @@ test("panel drafts and tab scroll survive resize, close and return navigation", 
     "A private draft about the sky",
   );
   await expect(
-    sheet.getByRole("button", { name: "Save quick note unavailable" }),
-  ).toBeDisabled();
+    sheet.getByRole("button", { name: "Save quick note" }),
+  ).toBeEnabled();
   await page.screenshot({ path: testInfo.outputPath("mobile-sheet.png") });
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Quick note", exact: true }).click();
@@ -124,6 +126,19 @@ test("sidebar becomes five tabs with More, preserving route draft and scroll", a
 test("desktop navigation groups learning and account links and shows compact progress widgets", async ({
   page,
 }) => {
+  await page.route("**/v1/gamification", (r) =>
+    r.fulfill({
+      json: {
+        total_xp: 23,
+        daily_xp: 23,
+        daily_goal: 46,
+        goal_options: [23, 46],
+        goal_met: false,
+        local_date: "2026-11-10",
+        time_zone: "UTC",
+      },
+    }),
+  );
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/courses");
 
@@ -143,7 +158,7 @@ test("desktop navigation groups learning and account links and shows compact pro
   const rail = page.getByRole("complementary", { name: "Your progress" });
   await expect(rail.getByRole("progressbar")).toHaveCount(2);
   await expect(rail.getByText("3 of 7 days")).toBeVisible();
-  await expect(rail.getByText("10 of 20 XP")).toBeVisible();
+  await expect(rail.getByText("23 / 46 XP today")).toBeVisible();
   await expect(rail.getByText(/\$|€|£/)).toHaveCount(0);
 });
 
