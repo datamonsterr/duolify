@@ -11,3 +11,9 @@
 
 - [x] Failing e2e, integration and unit tests, then streak projection, rollover worker and endpoint.
 - [x] S13 streak panel, analytics catalogue, privacy policy, backup fixtures and data inventory.
+
+## E5-03 streak freezes
+
+- [x] Failing e2e, integration and unit tests, then milestone grants, cap overflow and automatic rollover protection.
+- [x] S13 inventory, earned and covered-day notices; analytics catalogue, privacy policy, backup fixtures and data inventory.
+

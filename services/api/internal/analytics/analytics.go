@@ -73,7 +73,7 @@ func (c *client) Close() error {
 
 func allowlisted(event string) bool {
 	switch event {
-	case "xp_earned", "daily_goal_met", "lesson_completed", "streak_extended", "streak_broken":
+	case "xp_earned", "daily_goal_met", "lesson_completed", "streak_extended", "streak_broken", "streak_freeze_earned", "streak_freeze_used":
 		return true
 	case "slide_viewed", "slide_replayed", "slide_paused":
 		return true
@@ -87,9 +87,9 @@ func allowlisted(event string) bool {
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
-		"character_rendered", "character_render_fallback",
+		"character_rendered", "character_render_fallback", "character_reaction_shown",
 		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
-		"character_updated", "character_deleted", "character_rejected", "course_cast_selected",
+		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened":
@@ -214,6 +214,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "streak_broken":
 		ids("event_id", "broken_on")
 		numeric("previous_length")
+	case "streak_freeze_earned":
+		ids("event_id", "reason", "local_date")
+		numeric("streak_length")
+	case "streak_freeze_used":
+		ids("event_id", "protected_on")
+		numeric("remaining", "streak_length")
 	case "character_updated":
 		ids("character_id")
 		numeric("character_version")
@@ -251,6 +257,13 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "course_cast_selected":
 		numeric("supporting_count", "cast_version")
+		if source := input["cast_source"]; source == "default" || source == "custom" || source == "mixed" {
+			out["cast_source"] = source
+		}
+	case "lesson_cast_applied":
+		ids("course_id", "lesson_id")
+		numeric("supporting_count", "cast_version")
+		boolean("fallback_used")
 		if source := input["cast_source"]; source == "default" || source == "custom" || source == "mixed" {
 			out["cast_source"] = source
 		}
@@ -404,6 +417,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "character_rendered":
 		ids("speaker_key", "character_version", "rig_version", "expression")
 		boolean("offline")
+	case "character_reaction_shown":
+		if v, ok := input["reaction_trigger"].(string); ok && (v == "answer_correct" || v == "answer_incorrect" || v == "test_passed") {
+			out["reaction_trigger"] = v
+		}
+		ids("speaker_key", "expression")
+		boolean("fallback_used")
 	case "character_render_fallback":
 		ids("reason_code")
 		boolean("offline")

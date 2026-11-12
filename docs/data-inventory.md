@@ -470,4 +470,36 @@ Postgres `gamification_config` stores versioned award amounts and allowed/defaul
 
 Postgres `streak_days` (one row per learner and local date, first XP event id), `streak_state` (current/longest days, last active date, `decided_through` horizon) and `streak_breaks` (one marker per first missed local date and its previous length) project the streak from `xp_events` and carry no learner text. They are included in nightly dumps and the account export and cascade-delete with the learner. The projection is rebuildable from `xp_events`; the rollover worker rebuilds a lost projection silently (no analytics) and never moves `decided_through` backwards after a time zone change. Streaks never grant Credits. Redis is not used for streaks.
 
+Streak freezes (E5-03): `gamification_config` adds `freeze_milestone_days` and `freeze_cap` (no learner data). `streak_freeze_inventory` (learner, `held`), `streak_freeze_milestones` (one row per learner, kind, milestone and run start with reach date and a `granted` flag; `granted=false` records a cap overflow) and `streak_day_protections` (one row per learner and protected local date with source, remaining count and preserved streak length) carry no learner text. They enter nightly dumps and the account export and cascade-delete with the learner. After a restore the rollover worker recomputes milestones and protections silently from `xp_events` (inventory derives from the rows). Freezes are never bought or activated manually and never grant Credits. Analytics `streak_freeze_earned` and `streak_freeze_used` send only UUIDs, dates and numbers through the consent gate.
+
 All three tables enter nightly encrypted Postgres dumps (14-day general retention). Synthetic fixtures seed XP/goal markers and compare complete restored rows. XP and achievement rows export in the authenticated account export, cascade on account deletion, and follow external deletion-ledger replay before serving a restored snapshot. Redis and PostHog remain disposable derived data. Analytics sends only UUIDs, numeric awards/goals, dates, config version and a perfect boolean through the central fail-closed consent gate; no summary, question, answer or profile text. XP and daily goals never grant Credits. No AI/model change.
+
+# E17-05 pinned Course Casts in generated Lessons
+
+Each Lesson generation job pins its effective Cast in `lesson_cast_snapshots`
+(`lesson_key` = the `lesson_generations` id) inside the job-start transaction:
+role, stable speaker key, full validated spec, schema/rig/voice-config versions
+and the effective default fallback. Worker retries and Retry variants read that
+row; later edits, deletions or selections affect only new jobs. The generated
+Lesson records `cast_key` in `generated_lessons.manifest`, and
+`lesson_slides.segments` stores bounded plain-text dialogue (pinned speaker key,
+label, text, one of five expressions, times) per Slide. No new table: the
+existing learner policies, nightly encrypted 14-day dumps, account export,
+cascading erasure and 30-day purge of unshared snapshots after Course/account
+deletion apply. Pending jobs restore with the same snapshot and reservation. The
+backup fixture seeds a pinned pending job and Slide segments. Referenced Motion
+HTML/rig objects keep the existing versioning, protected copies and
+key-version-checksum manifests (no per-learner SVG is created). PostHog events
+(`lesson_cast_applied`, `character_rendered`, `character_render_fallback`) carry
+ids, counts and enums only; PostHog and device caches are disposable derived
+state, never the recovery source.
+
+E17-06 reactions introduce no new table, column or answer store. The
+deterministic `reaction` (trigger, expression, approved copy; no learner text)
+is part of the existing `lesson_test_answer_operations.response_payload`, so it
+shares that table's nightly encrypted 14-day dump, restore comparison and
+learner-cascade deletion; restored attempts, scores and Retry queues are
+unchanged and rows written before E17-06 simply lack the field (the client then
+shows the neutral expression). `character_reaction_shown` carries speaker key,
+expression, trigger enum and `fallback_used` only; PostHog and device caches
+stay disposable.

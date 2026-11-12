@@ -139,8 +139,22 @@ pub async fn run_bounded_with_policy<F: Fn(&str) -> bool>(
     validate: F,
     reserve_fallback_time: bool,
 ) -> Result<Outcome> {
+    run_bounded_inputs(router, task, &[input], l, validate, reserve_fallback_time).await
+}
+
+/// Like `run_bounded_with_policy`, but attempt N uses `inputs[N]` (the last
+/// input repeats). The attempt, USD and deadline caps are unchanged.
+pub async fn run_bounded_inputs<F: Fn(&str) -> bool>(
+    router: &ProviderRouter,
+    task: &str,
+    inputs: &[&str],
+    l: &Limits,
+    validate: F,
+    reserve_fallback_time: bool,
+) -> Result<Outcome> {
     validate_limits(l)?;
-    if input.len() > l.input_tokens as usize {
+    anyhow::ensure!(!inputs.is_empty(), "input required");
+    if inputs.iter().any(|i| i.len() > l.input_tokens as usize) {
         bail!("input exceeds API envelope")
     }
     let model = router
@@ -217,7 +231,11 @@ pub async fn run_bounded_with_policy<F: Fn(&str) -> bool>(
         };
         let response = tokio::time::timeout(
             timeout_duration,
-            provider.complete_bounded(route, input, l.output_tokens),
+            provider.complete_bounded(
+                route,
+                inputs[(index as usize).min(inputs.len() - 1)],
+                l.output_tokens,
+            ),
         )
         .await;
 

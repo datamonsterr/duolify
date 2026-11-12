@@ -1,6 +1,7 @@
 import { session } from "../accounts/session";
 import { bridgeScript } from "../lesson-player/bridge";
 import { openLesson, preparedDocument } from "./cache";
+import type { LessonCastSnapshot, SlideSegment } from "../characters/types";
 export type Checkpoint = { id: string; at_ms: number };
 export type ManifestSlide = {
   html_sha256: string;
@@ -13,6 +14,8 @@ export type ManifestSlide = {
   narration_status: "disabled" | "pending" | "failed";
   narration_text: string;
   explanation?: string;
+  /** Pinned, validated character dialogue; absent for non-cast lessons. */
+  segments?: SlideSegment[];
 };
 export type Manifest = {
   lesson_id: string;
@@ -21,10 +24,64 @@ export type Manifest = {
   version: number;
   asset_origin: string;
   slides: ManifestSlide[];
+  /** Immutable Cast pinned when the generation job started. */
+  cast?: LessonCastSnapshot;
 };
 const id = /^[A-Za-z0-9_-]{1,100}$/;
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
+function omit(value: Record<string, unknown>, name: string) {
+  return Object.fromEntries(Object.entries(value).filter(([k]) => k !== name));
+}
+const expressions = ["idle", "happy", "sad", "thinking", "celebrate"];
+function validCast(value: unknown) {
+  if (value === undefined) return true;
+  if (!record(value) || !record(value.speakers)) return false;
+  const speakers = Object.entries(value.speakers);
+  return (
+    speakers.length >= 1 &&
+    speakers.length <= 3 &&
+    speakers.every(
+      ([key, speaker]) =>
+        id.test(key) &&
+        record(speaker) &&
+        speaker.speaker_key === key &&
+        record(speaker.spec) &&
+        Number.isSafeInteger(speaker.character_version),
+    )
+  );
+}
+function validSegments(value: unknown, duration: number, cast?: unknown) {
+  if (value === undefined) return true;
+  if (!Array.isArray(value) || value.length > 12) return false;
+  const known = record(cast) && record(cast.speakers) ? cast.speakers : {};
+  return value.every(
+    (s) =>
+      record(s) &&
+      keys(s, [
+        "speaker_key",
+        "speaker_label",
+        "text",
+        "expression",
+        "start_ms",
+        "duration_ms",
+      ]) &&
+      typeof s.speaker_key === "string" &&
+      id.test(s.speaker_key) &&
+      Object.prototype.hasOwnProperty.call(known, s.speaker_key) &&
+      typeof s.speaker_label === "string" &&
+      s.speaker_label.length <= 100 &&
+      typeof s.text === "string" &&
+      s.text.length > 0 &&
+      s.text.length <= 280 &&
+      expressions.includes(String(s.expression)) &&
+      Number.isSafeInteger(s.start_ms) &&
+      Number.isSafeInteger(s.duration_ms) &&
+      Number(s.start_ms) >= 0 &&
+      Number(s.duration_ms) > 0 &&
+      Number(s.start_ms) + Number(s.duration_ms) <= duration,
+  );
+}
 function keys(value: Record<string, unknown>, names: string[]) {
   return (
     Object.keys(value).length === names.length &&
@@ -51,7 +108,7 @@ export function validAssetOrigin(origin: unknown): origin is string {
 export function isManifest(value: unknown): value is Manifest {
   if (
     !record(value) ||
-    !keys(value, [
+    !keys(omit(value, "cast"), [
       "lesson_id",
       "course_id",
       "title",
@@ -68,6 +125,7 @@ export function isManifest(value: unknown): value is Manifest {
     !Number.isSafeInteger(value.version) ||
     Number(value.version) < 1 ||
     !validAssetOrigin(value.asset_origin) ||
+    !validCast(value.cast) ||
     !Array.isArray(value.slides) ||
     value.slides.length < 1 ||
     value.slides.length > 100
@@ -78,7 +136,7 @@ export function isManifest(value: unknown): value is Manifest {
     if (
       !record(slide) ||
       !(
-        keys(slide, [
+        keys(omit(slide, "segments"), [
           "slide_id",
           "html_sha256",
           "asset_sha256",
@@ -90,7 +148,7 @@ export function isManifest(value: unknown): value is Manifest {
           "narration_text",
           "explanation",
         ]) ||
-        keys(slide, [
+        keys(omit(slide, "segments"), [
           "slide_id",
           "duration_ms",
           "html_url",
@@ -100,7 +158,7 @@ export function isManifest(value: unknown): value is Manifest {
           "narration_text",
           "explanation",
         ]) ||
-        keys(slide, [
+        keys(omit(slide, "segments"), [
           "slide_id",
           "html_sha256",
           "asset_sha256",
@@ -111,7 +169,7 @@ export function isManifest(value: unknown): value is Manifest {
           "narration_status",
           "narration_text",
         ]) ||
-        keys(slide, [
+        keys(omit(slide, "segments"), [
           "slide_id",
           "duration_ms",
           "html_url",
@@ -131,6 +189,7 @@ export function isManifest(value: unknown): value is Manifest {
       !Number.isSafeInteger(slide.duration_ms) ||
       Number(slide.duration_ms) < 1 ||
       Number(slide.duration_ms) > 120000 ||
+      !validSegments(slide.segments, Number(slide.duration_ms), value.cast) ||
       slide.html_url !==
         `/v1/lessons/${value.lesson_id}/slides/${slide.slide_id}` ||
       !["disabled", "pending", "failed"].includes(

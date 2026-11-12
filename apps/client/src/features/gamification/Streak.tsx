@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { authRequest } from "../accounts/session";
 import "./gamification.css";
 
-type DayState = "done" | "missed" | "today" | "pending" | "future" | "none";
+type DayState =
+  "done" | "frozen" | "missed" | "today" | "pending" | "future" | "none";
 interface StreakData {
   current_days: number;
   longest_days: number;
@@ -13,15 +14,34 @@ interface StreakData {
   rollover_pending: boolean;
   month: string;
   calendar: { date: string; state: DayState }[];
+  freezes?: {
+    held: number;
+    cap: number;
+    milestone_days: number;
+    next_milestone_in: number;
+  };
+  last_earned?: { reached_on: string; streak_length: number } | null;
+  notices?: {
+    protected_on: string;
+    remaining: number;
+    streak_length: number;
+  }[];
 }
 
 const labels: Partial<Record<DayState, string>> = {
   done: "Done",
+  frozen: "Freeze covered",
   missed: "Missed",
   today: "Today",
   pending: "Pending",
 };
 const utc = (date: string) => new Date(`${date}T00:00:00Z`);
+const longDate = (date: string) =>
+  new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  }).format(utc(date));
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 function shiftMonth(month: string, delta: number) {
   const [year, mon] = month.split("-").map(Number);
@@ -146,6 +166,47 @@ export function StreakPanel() {
                 <a href="/">Start a lesson</a>
               </div>
             )}
+          {data.freezes && (
+            <div className="streak-freezes">
+              <p>
+                <strong>
+                  Streak freezes: {data.freezes.held} of {data.freezes.cap}
+                </strong>
+              </p>
+              <p>Earned every {data.freezes.milestone_days} days of streak</p>
+              {data.freezes.held >= data.freezes.cap ? (
+                <p>Freezes are full. Extra milestones earn nothing.</p>
+              ) : (
+                <p>
+                  Next freeze in {plural(data.freezes.next_milestone_in, "day")}
+                </p>
+              )}
+              {data.freezes.held > 0 && (
+                <p>
+                  {plural(data.freezes.held, "freeze")}{" "}
+                  {data.freezes.held === 1 ? "applies" : "apply"} automatically
+                  on a missed day.
+                </p>
+              )}
+              {data.last_earned && (
+                <p>
+                  Freeze earned on {longDate(data.last_earned.reached_on)} at a{" "}
+                  {data.last_earned.streak_length}-day streak
+                </p>
+              )}
+            </div>
+          )}
+          {data.notices?.map((n) => (
+            <div className="streak-note" role="status" key={n.protected_on}>
+              <strong>A freeze covered {longDate(n.protected_on)}</strong>
+              <p>
+                Your streak stayed at {n.streak_length}.{" "}
+                {n.remaining === 0
+                  ? "No freezes left."
+                  : `${plural(n.remaining, "freeze")} left.`}
+              </p>
+            </div>
+          ))}
           <div className="streak-toolbar">
             <button type="button" onClick={() => go(-1)}>
               Previous month
@@ -162,11 +223,7 @@ export function StreakPanel() {
             <ul className="streak-list" aria-label={heading}>
               {marked.map((day) => (
                 <li key={day.date}>
-                  {new Intl.DateTimeFormat("en-US", {
-                    dateStyle: "medium",
-                    timeZone: "UTC",
-                  }).format(utc(day.date))}
-                  : {labels[day.state]}
+                  {longDate(day.date)}: {labels[day.state]}
                 </li>
               ))}
               {marked.length === 0 && <li>No marked days this month.</li>}

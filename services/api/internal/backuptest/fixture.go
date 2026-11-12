@@ -466,6 +466,13 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_slides (id, lesson_stub_id, learner_id, position, slide_id, html, duration_ms, narration, topic_ids) VALUES ('f6666666-6666-4666-8666-666666666666', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 0, 's1', '<div id="root"><h1>Moon</h1></div>', 3000, 'The moon orbits Earth.', ARRAY['top-moon'])`); err != nil {
 		t.Fatal(err)
 	}
+	// The pending job's Cast is pinned under the job id; restored jobs keep the same Cast.
+	if _, err = charSvc.PinCast(t.Context(), "a1111111-1111-4111-8111-111111111111", "f1111111-1111-4111-8111-111111111111", "f4444444-4444-4444-8444-444444444444"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `UPDATE lesson_slides SET segments='[{"speaker_key":"guide","speaker_label":"Glint","text":"Earth turns.","expression":"thinking","start_ms":0,"duration_ms":1}]'::jsonb WHERE id='f6666666-6666-4666-8666-666666666666'`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_questions (id, lesson_stub_id, learner_id, position, topic_id, prompt, choices, answer_index, explanation) VALUES ('f7777777-7777-4777-8777-777777777777', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 0, 'top-moon', 'What causes moon phases?', '["Sunlight angle", "Earth shadow"]'::jsonb, 0, 'Relative angles between Earth, Moon and Sun.')`); err != nil {
 		t.Fatal(err)
 	}
@@ -498,6 +505,9 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		`INSERT INTO daily_goal_achievements(learner_id,local_date,goal_xp) SELECT learner_id,local_date,amount FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO streak_days(learner_id,local_date,first_event_id) SELECT learner_id,local_date,id FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO streak_state(learner_id,current_days,longest_days,last_active_date,decided_through) SELECT learner_id,1,3,local_date,local_date FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_freeze_inventory(learner_id,held) SELECT learner_id,1 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_freeze_milestones(learner_id,milestone_days,run_started_on,reached_on,granted) SELECT learner_id,7,local_date-9,local_date-3,true FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_day_protections(learner_id,protected_on,remaining,streak_length) SELECT learner_id,local_date-2,0,7 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO streak_breaks(learner_id,broken_on,previous_length) SELECT learner_id,local_date-3,3 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 	} {
 		if _, err = f.DB.Pool.Exec(t.Context(), query); err != nil {
@@ -834,7 +844,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"quick_notes", "quick_note_enrichments", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "streak_state", "streak_days", "streak_breaks"} {
+	for _, table := range []string{"quick_notes", "quick_note_enrichments", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "streak_state", "streak_days", "streak_breaks", "streak_freeze_inventory", "streak_freeze_milestones", "streak_day_protections"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -863,6 +873,11 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	var streakDays, streakBreaks, streakLongest int
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM streak_days),(SELECT count(*) FROM streak_breaks),(SELECT longest_days FROM streak_state)`).Scan(&streakDays, &streakBreaks, &streakLongest); err != nil || streakDays != 1 || streakBreaks < 1 || streakLongest < 3 {
 		t.Fatalf("restored streak projection changed: %d %d %d %v", streakDays, streakBreaks, streakLongest, err)
+	}
+	// Freeze rows and inventory survive restore unchanged.
+	var freezeMilestones, freezeProtections, freezeHeld int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM streak_freeze_milestones),(SELECT count(*) FROM streak_day_protections),(SELECT held FROM streak_freeze_inventory)`).Scan(&freezeMilestones, &freezeProtections, &freezeHeld); err != nil || freezeMilestones != 1 || freezeProtections != 1 || freezeHeld != 1 {
+		t.Fatalf("restored freeze state changed: %d %d %d %v", freezeMilestones, freezeProtections, freezeHeld, err)
 	}
 	confirmed, err := courses.New(courses.Options{Pool: restored.Pool}).ResolveConfirmed(t.Context(), "a1111111-1111-4111-8111-111111111111", "c7222222-2222-4222-8222-222222222222", 3)
 	if err != nil || confirmed.Outline.Hash() != confirmed.ContentHash || confirmed.Outline[0].Lessons[0].ID != "fixture-lesson" {
