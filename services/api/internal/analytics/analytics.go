@@ -83,7 +83,7 @@ func allowlisted(event string) bool {
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed", "ai_cost_budget_alert",
-		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "ui_control_activated", "ui_navigation_selected",
+		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "tutor_reply_stopped", "ui_control_activated", "ui_navigation_selected",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
@@ -349,7 +349,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		boolean("ok")
 	case "$ai_generation":
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
-		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available")
+		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available", "usage_estimated")
 		ids("$ai_provider", "$ai_model", "feature", "error_code")
 		numeric("input_tokens", "output_tokens", "latency_ms", "attempt", "cache_write_tokens", "cache_read_tokens", "narration_characters", "provider_cost_nanos")
 		ids("provider", "model", "task", "pricing_version", "error_code")
@@ -371,7 +371,10 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "tutor_reply_failed":
 		ids("course_id", "class", "error_code")
 		numeric("latency_ms")
-		boolean("interrupted")
+		boolean("interrupted", "retryable")
+	case "tutor_reply_stopped":
+		ids("course_id", "class", "reason")
+		numeric("latency_ms", "delivered_chars")
 	case "analytics_opt_out_changed":
 		boolean("enabled")
 	case "learner_profile_updated":

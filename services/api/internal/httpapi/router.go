@@ -182,6 +182,8 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("POST /v1/courses/{id}/tutor/quote", tutor)
 		mux.Handle("POST /v1/courses/{id}/tutor/messages", tutor)
 		mux.Handle("GET /v1/courses/{id}/tutor/thread", tutor)
+		mux.Handle("GET /v1/courses/{id}/tutor/turns/{key}", tutor)
+		mux.Handle("POST /v1/courses/{id}/tutor/turns/{key}/stop", tutor)
 		mux.Handle("GET /v1/tutor/threads/{id}/messages", tutor)
 		mux.Handle("DELETE /v1/tutor/threads/{id}", tutor)
 	}

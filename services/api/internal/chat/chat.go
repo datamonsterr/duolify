@@ -64,7 +64,10 @@ type Options struct {
 }
 
 // Service owns tutor threads, messages and turns.
-type Service struct{ opts Options }
+type Service struct {
+	opts    Options
+	flights flights
+}
 
 // New builds the tutor service.
 func New(o Options) *Service {
@@ -132,6 +135,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	path := r.URL.Path
 	switch {
+	case r.PathValue("key") != "" && r.Method == http.MethodPost && strings.HasSuffix(path, "/stop"):
+		s.stop(w, r, owner, id, r.PathValue("key"))
+	case r.PathValue("key") != "" && r.Method == http.MethodGet:
+		s.turn(w, r, owner, id, r.PathValue("key"))
 	case r.Method == http.MethodPost && strings.HasSuffix(path, "/tutor/quote"):
 		s.quote(w, r, owner, id)
 	case r.Method == http.MethodPost && strings.HasSuffix(path, "/tutor/messages"):

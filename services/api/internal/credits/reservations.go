@@ -558,7 +558,7 @@ func (s *Service) finalize(ctx context.Context, owner, id string, usage []*engin
 		if q.Action == "character_create" {
 			continue
 		} // Character jobs own late-attempt telemetry too.
-		properties := map[string]any{"source": "api", "platform": "web", "app_version": "development", "feature": q.Action, "pricing_version": q.PricingVersion, "provider": u.Provider, "model": u.Model, "input_tokens": u.InputTokens, "output_tokens": u.OutputTokens, "cache_write_tokens": u.CacheWriteTokens, "cache_read_tokens": u.CacheReadTokens, "narration_characters": u.NarrationCharacters, "fallback_used": u.FallbackUsed, "attempt": u.Attempt, "latency_ms": u.LatencyMs, "succeeded": u.Delivered && validationErr == nil, "usage_available": !u.UsageUnavailable}
+		properties := map[string]any{"source": "api", "platform": "web", "app_version": "development", "feature": q.Action, "pricing_version": q.PricingVersion, "provider": u.Provider, "model": u.Model, "input_tokens": u.InputTokens, "output_tokens": u.OutputTokens, "cache_write_tokens": u.CacheWriteTokens, "cache_read_tokens": u.CacheReadTokens, "narration_characters": u.NarrationCharacters, "fallback_used": u.FallbackUsed, "attempt": u.Attempt, "latency_ms": u.LatencyMs, "succeeded": u.Delivered && validationErr == nil, "usage_available": !u.UsageUnavailable, "usage_estimated": u.Estimated}
 		if u.ErrorCode != "" {
 			properties["error_code"] = u.ErrorCode
 		}

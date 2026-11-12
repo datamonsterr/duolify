@@ -51,10 +51,12 @@ func settlementUsage(q pricing.Quote, promptSize int, delivered string, reported
 		u.CacheWriteTokens, u.CacheReadTokens = reported.CacheWriteTokens, reported.CacheReadTokens
 		u.LatencyMs = min(reported.LatencyMs, u32(q.Bounds["timeout_ms"]))
 		u.UsageUnavailable = reported.UsageUnavailable
+		u.Estimated = reported.Estimated
 		u.FallbackUsed = reported.Provider != q.Rate.Provider || reported.Model != q.Rate.Model
 	} else {
 		u.InputTokens = u32(min(estimateTokens(promptSize), q.Bounds["input_tokens"]))
 		u.OutputTokens = u32(min(estimateTokens(len(delivered)), q.Bounds["output_tokens"]))
+		u.Estimated = true
 	}
 	return []*enginev1.Usage{u}
 }
@@ -185,6 +187,15 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		fail(w, status, "turn_in_progress")
 		return
 	}
+	// The flight outlives cleanup: a waiting Stop wakes only after settlement and turn cleanup are final.
+	streamCtx, cancelCause := context.WithCancelCause(ctx)
+	defer cancelCause(nil)
+	flight := s.flights.add(owner, in.IdempotencyKey, cancelCause)
+	if flight == nil {
+		fail(w, http.StatusConflict, "turn_in_progress")
+		return
+	}
+	defer s.flights.finish(owner, in.IdempotencyKey, flight)
 	cleanup := true
 	defer func() {
 		if cleanup {
@@ -251,13 +262,20 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	}
 	claimed = true
 	s.emit(ctx, owner, "tutor_message_sent", map[string]any{"course_id": course, "class": in.Class, "message_length": len([]rune(in.Message))})
+	if errors.Is(context.Cause(streamCtx), errStopped) {
+		// Stopped before the Engine was called: nothing was produced.
+		abort()
+		s.emit(context.WithoutCancel(ctx), owner, "tutor_reply_stopped", map[string]any{"course_id": course, "class": in.Class, "reason": "stop", "delivered_chars": 0, "latency_ms": 0})
+		fail(w, http.StatusConflict, "stopped")
+		return
+	}
 	started := time.Now()
-	streamCtx, cancel := context.WithDeadline(ctx, job.DeadlineAt)
-	defer cancel()
+	streamCtx, cancelDeadline := context.WithDeadline(streamCtx, job.DeadlineAt)
+	defer cancelDeadline()
 	stream, err := s.opts.Engine.Chat(streamCtx, req)
 	var reply strings.Builder
 	var reported *enginev1.Usage
-	var streamErr error
+	var streamErr, typedErr error
 	sse := false
 	if err != nil {
 		streamErr = err
@@ -286,37 +304,56 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 			case *enginev1.ChatEvent_Usage:
 				reported = e.Usage
 			case *enginev1.ChatEvent_ErrorCode:
-				streamErr = errors.New(e.ErrorCode)
-			}
-			if streamErr != nil {
-				break
+				typedErr = &streamFailure{Code: e.ErrorCode, Retryable: true}
+			case *enginev1.ChatEvent_StreamError:
+				// Keep reading: the Engine sends its bounded usage estimate right after the typed error.
+				typedErr = failureOf(e.StreamError)
 			}
 		}
 	}
+	if typedErr != nil {
+		streamErr = typedErr
+	}
 	latency := time.Since(started).Milliseconds()
-	failure := func(code string, interrupted bool) {
-		props := map[string]any{"course_id": course, "class": in.Class, "error_code": code, "interrupted": interrupted, "latency_ms": latency}
+	finished := classifyEnd(streamErr, context.Cause(streamCtx), ctx.Err())
+	failure := func(code string, interrupted, retryable bool) {
+		props := map[string]any{"course_id": course, "class": in.Class, "error_code": code, "interrupted": interrupted, "retryable": retryable, "latency_ms": latency}
 		s.emit(context.WithoutCancel(ctx), owner, "tutor_reply_failed", props)
+	}
+	// stopped records an explicit stop or a disconnect; engine failures use tutor_reply_failed instead.
+	ended := func(delivered int) {
+		if finished.Reason == "stop" || finished.Reason == "disconnect" {
+			s.emit(context.WithoutCancel(ctx), owner, "tutor_reply_stopped", map[string]any{"course_id": course, "class": in.Class, "reason": finished.Reason, "delivered_chars": delivered, "latency_ms": latency})
+			return
+		}
+		failure(finished.Reason, delivered > 0, finished.Retryable)
 	}
 	if reply.Len() == 0 {
 		// Nothing delivered: no message, full release.
 		abort()
-		failure("engine_unavailable", false)
-		fail(w, http.StatusBadGateway, "engine_unavailable")
+		if finished.State == "completed" {
+			finished = end{State: "interrupted", Reason: "engine_error", Retryable: true}
+		}
+		ended(0)
+		switch finished.Reason {
+		case "stop", "disconnect":
+			fail(w, http.StatusConflict, "stopped")
+		case "first_token_timeout", "idle_timeout", "deadline_exceeded", "provider_error":
+			respond(w, http.StatusBadGateway, map[string]any{"error": finished.Reason, "retryable": finished.Retryable})
+		default:
+			respond(w, http.StatusBadGateway, map[string]any{"error": "engine_unavailable", "retryable": true})
+		}
 		return
 	}
-	// A reply cut off by an error (or the Learner leaving) is stored once as an interrupted prefix.
-	interrupted := streamErr != nil
+	// A reply cut off by a stop, a disconnect or an error is stored once as the delivered prefix.
+	interrupted := finished.State != "completed"
 	text := reply.String()
 	usage := settlementUsage(q, promptBytes(req), text, reported)
 	if interrupted {
-		usage = settlementUsage(q, promptBytes(req), text, nil)
+		usage[0].ErrorCode = finished.Reason
 	}
 	assistantID, userID := uuid.NewString(), uuid.NewString()
-	msgStatus := "complete"
-	if interrupted {
-		msgStatus = "interrupted"
-	}
+	msgStatus := map[string]string{"completed": "complete", "stopped": "stopped", "interrupted": "interrupted"}[finished.State]
 	commit := func(tx pgx.Tx, _ credits.Reservation) error {
 		fctx := context.WithoutCancel(ctx)
 		if newThread {
@@ -330,7 +367,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		if _, e := tx.Exec(fctx, `INSERT INTO tutor_messages(id,thread_id,learner_id,role,content,status) VALUES($1::uuid,$2::uuid,$3::uuid,'assistant',$4,$5)`, assistantID, thread, owner, text, msgStatus); e != nil {
 			return e
 		}
-		tag, e := tx.Exec(fctx, `UPDATE tutor_turns SET state=$2,thread_id=$3::uuid,user_message_id=$4::uuid,assistant_message_id=$5::uuid WHERE id=$1::uuid AND state='pending'`, turn, map[bool]string{false: "completed", true: "interrupted"}[interrupted], thread, userID, assistantID)
+		tag, e := tx.Exec(fctx, `UPDATE tutor_turns SET state=$2,thread_id=$3::uuid,user_message_id=$4::uuid,assistant_message_id=$5::uuid,end_reason=NULLIF($6,''),job_id=$7::uuid,usage_estimated=$8 WHERE id=$1::uuid AND state='pending'`, turn, finished.State, thread, userID, assistantID, finished.Reason, job.ID, usage[0].Estimated)
 		if e != nil {
 			return e
 		}
@@ -350,9 +387,9 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	if err != nil {
 		s.opts.Logger.Error("tutor settlement failed", "error", err)
 		abort()
-		failure("persist_failed", false)
+		failure("persist_failed", false, true)
 		if sse {
-			writeEvent(w, "error", map[string]any{"code": "persist_failed", "interrupted": false})
+			writeEvent(w, "error", map[string]any{"code": "persist_failed", "interrupted": false, "retryable": true})
 		} else {
 			fail(w, http.StatusServiceUnavailable, "unavailable")
 		}
@@ -364,8 +401,12 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		model = reported.Model
 	}
 	if interrupted {
-		failure("interrupted", true)
-		writeEvent(w, "error", map[string]any{"code": "interrupted", "interrupted": true, "message_id": assistantID, "thread_id": thread})
+		ended(len([]rune(text)))
+		code := finished.Reason
+		if code == "engine_error" || code == "disconnect" {
+			code = "interrupted"
+		}
+		writeEvent(w, "error", map[string]any{"code": code, "interrupted": true, "stopped": finished.State == "stopped", "retryable": finished.Retryable, "message_id": assistantID, "thread_id": thread})
 		return
 	}
 	s.emit(context.WithoutCancel(ctx), owner, "tutor_reply_completed", map[string]any{"course_id": course, "class": in.Class, "model": model, "latency_ms": latency, "input_tokens": usage[0].InputTokens, "output_tokens": usage[0].OutputTokens})
