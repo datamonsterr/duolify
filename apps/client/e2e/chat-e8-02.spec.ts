@@ -73,10 +73,12 @@ async function holdStream(page: Page) {
     };
   });
 }
-const openStream = (page: Page) =>
-  page.evaluate(() =>
+const openStream = async (page: Page) => {
+  await page.waitForFunction(() => window.tutorStream.opened > 0);
+  await page.evaluate(() =>
     (window.tutorStream as unknown as { open: () => void }).open(),
   );
+};
 const push = (page: Page, frame: string) =>
   page.evaluate((f) => window.tutorStream.push(f), frame);
 
