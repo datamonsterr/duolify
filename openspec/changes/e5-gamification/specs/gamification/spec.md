@@ -78,3 +78,7 @@ The API SHALL grant one Streak freeze each time a Streak run reaches the configu
 ### Requirement: Streak freeze view and analytics
 `GET /v1/gamification/streak` SHALL additionally return `freezes` (held, cap, milestone_days, next_milestone_in), the latest earned milestone and the three latest dated protection notices, and label protected calendar days `frozen`. The S13 panel SHALL show them with text labels and a list alternative and SHALL offer no buy or activate control. `streak_freeze_earned` (`reason`, `streak_length`, `local_date`) and `streak_freeze_used` (`remaining`, `protected_on`, `streak_length`) SHALL be catalogued and allowlisted before emission, pass the central consent gate and carry no learner text. Freeze tables SHALL enter nightly dumps, export with the account and erase on deletion.
 
+
+#### Scenario: Looking for a way to buy a freeze
+- **WHEN** a Learner opens the Streak panel or calls the API
+- **THEN** inventory and notices are read-only and no purchase or activation control or endpoint exists
