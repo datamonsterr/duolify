@@ -73,7 +73,7 @@ func (c *client) Close() error {
 
 func allowlisted(event string) bool {
 	switch event {
-	case "xp_earned", "daily_goal_met", "lesson_completed":
+	case "xp_earned", "daily_goal_met", "lesson_completed", "streak_extended", "streak_broken":
 		return true
 	case "slide_viewed", "slide_replayed", "slide_paused":
 		return true
@@ -208,6 +208,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "daily_goal_met":
 		ids("event_id", "local_date")
 		numeric("goal_xp")
+	case "streak_extended":
+		ids("event_id", "local_date")
+		numeric("streak_length")
+	case "streak_broken":
+		ids("event_id", "broken_on")
+		numeric("previous_length")
 	case "character_updated":
 		ids("character_id")
 		numeric("character_version")

@@ -65,3 +65,102 @@
   outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
+.streak-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  color: var(--text);
+}
+.streak-panel p,
+.streak-panel h2,
+.streak-panel h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.streak-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.streak-count {
+  font-size: 3rem;
+  line-height: 1;
+}
+.streak-note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  border: 2px solid var(--line);
+  border-radius: 1.125rem;
+  padding: 1rem;
+}
+.streak-note a {
+  align-self: flex-start;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+  font-weight: 800;
+}
+.streak-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.streak-panel button {
+  min-height: 44px;
+  border: 2px solid var(--line);
+  border-radius: 0.875rem;
+  padding: 0.6rem 1rem;
+  font: inherit;
+  font-weight: 800;
+  color: inherit;
+  background: var(--surface);
+  cursor: pointer;
+}
+.streak-calendar {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0.25rem;
+  text-align: center;
+}
+.streak-calendar td {
+  min-height: 2.75rem;
+  height: 2.75rem;
+  padding: 0.125rem;
+  border-radius: 0.625rem;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.streak-calendar td span {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 800;
+}
+.streak-calendar td[data-state="done"] {
+  background: var(--accent);
+  color: var(--on-accent, var(--text));
+}
+.streak-calendar td[data-state="missed"] {
+  border: 2px dashed var(--line);
+}
+.streak-calendar td[data-state="today"] {
+  border: 2px solid var(--accent);
+}
+.streak-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+.streak-panel :focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .streak-panel * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
