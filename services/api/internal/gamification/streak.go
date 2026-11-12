@@ -32,45 +32,11 @@ func addDays(date string, n int) (string, error) {
 	return day.AddDate(0, 0, n).Format(time.DateOnly), nil
 }
 
-// ComputeStreak derives runs from ascending distinct local dates. Every missed
-// day up to and including decided is final; later days are not judged yet.
+// ComputeStreak derives runs from ascending distinct local dates with no freezes. Every
+// missed day up to and including decided is final; later days are not judged yet.
 // Dates must already be validated (Postgres date text); reconcile enforces that.
 func ComputeStreak(dates []string, decided string) StreakResult {
-	var res StreakResult
-	run, prev := 0, ""
-	for _, date := range dates {
-		if prev != "" {
-			next, _ := addDays(prev, 1)
-			if date != next && next <= decided {
-				res.Breaks = append(res.Breaks, StreakBreak{BrokenOn: next, PreviousLength: run})
-				run = 0
-			}
-		}
-		run++
-		res.Longest = max(res.Longest, run)
-		prev = date
-	}
-	if prev != "" {
-		res.LastActive = prev
-		if next, _ := addDays(prev, 1); next <= decided {
-			res.Breaks = append(res.Breaks, StreakBreak{BrokenOn: next, PreviousLength: run})
-			run = 0
-		}
-	}
-	res.Current = run
-	return res
-}
-
-func runEndingAt(dates []string, date string) int {
-	set := make(map[string]bool, len(dates))
-	for _, d := range dates {
-		set[d] = true
-	}
-	n := 0
-	for d := date; set[d]; n++ {
-		d, _ = addDays(d, -1)
-	}
-	return n
+	return SimulateStreak(dates, decided, FreezeRules{}).StreakResult
 }
 
 // reconcileStreak recomputes the projection from xp_events under the learner lock.
@@ -133,10 +99,18 @@ func (s *Service) reconcileStreak(ctx context.Context, tx pgx.Tx, owner, zone st
 	if err != nil {
 		return nil, err
 	}
-	res := ComputeStreak(dates, decided)
-	events := []pendingEvent{}
+	rules, err := loadFreezeRules(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	sim := SimulateStreak(dates, decided, rules)
+	res := sim.StreakResult
+	events, err := applyFreezes(ctx, tx, owner, sim)
+	if err != nil {
+		return nil, err
+	}
 	for _, a := range fresh {
-		events = append(events, pendingEvent{"streak_extended", map[string]any{"event_id": a.id, "local_date": a.date, "streak_length": runEndingAt(dates, a.date)}})
+		events = append(events, pendingEvent{"streak_extended", map[string]any{"event_id": a.id, "local_date": a.date, "streak_length": sim.RunLength[a.date]}})
 	}
 	for _, b := range res.Breaks {
 		var id string
@@ -229,20 +203,45 @@ func (s *Service) rollOne(ctx context.Context, owner string, silent bool, now ti
 // CalendarDay is one labelled day of the month grid.
 type CalendarDay struct {
 	Date  string `json:"date"`
-	State string `json:"state"` // done, missed, today, pending, future, none
+	State string `json:"state"` // done, frozen, missed, today, pending, future, none
 }
 
 // StreakView is the learner-local streak read model.
 type StreakView struct {
-	CurrentDays     int           `json:"current_days"`
-	LongestDays     int           `json:"longest_days"`
-	TodayDone       bool          `json:"today_done"`
-	LocalDate       string        `json:"local_date"`
-	TimeZone        string        `json:"time_zone"`
-	AsOf            time.Time     `json:"as_of"`
-	RolloverPending bool          `json:"rollover_pending"`
-	Month           string        `json:"month"`
-	Calendar        []CalendarDay `json:"calendar"`
+	CurrentDays     int            `json:"current_days"`
+	LongestDays     int            `json:"longest_days"`
+	TodayDone       bool           `json:"today_done"`
+	LocalDate       string         `json:"local_date"`
+	TimeZone        string         `json:"time_zone"`
+	AsOf            time.Time      `json:"as_of"`
+	RolloverPending bool           `json:"rollover_pending"`
+	Month           string         `json:"month"`
+	Calendar        []CalendarDay  `json:"calendar"`
+	Freezes         FreezeView     `json:"freezes"`
+	LastEarned      *EarnedNotice  `json:"last_earned"`
+	Notices         []FreezeNotice `json:"notices"`
+}
+
+// FreezeView is the read-only freeze inventory. There is no write path: freezes are
+// earned by effort and applied automatically.
+type FreezeView struct {
+	Held            int `json:"held"`
+	Cap             int `json:"cap"`
+	MilestoneDays   int `json:"milestone_days"`
+	NextMilestoneIn int `json:"next_milestone_in"`
+}
+
+// EarnedNotice is the most recent granted freeze milestone.
+type EarnedNotice struct {
+	ReachedOn    string `json:"reached_on"`
+	StreakLength int    `json:"streak_length"`
+}
+
+// FreezeNotice is a persistent dated record that a freeze covered a missed day.
+type FreezeNotice struct {
+	ProtectedOn  string `json:"protected_on"`
+	Remaining    int    `json:"remaining"`
+	StreakLength int    `json:"streak_length"`
 }
 
 var errBadMonth = errors.New("choose a month as YYYY-MM")
@@ -309,6 +308,10 @@ func (s *Service) Streak(ctx context.Context, owner, month string) (StreakView, 
 		return v, err
 	}
 	v.TodayDone = active[v.LocalDate]
+	frozen, err := s.loadFreezes(ctx, owner, &v)
+	if err != nil {
+		return v, err
+	}
 	v.Calendar = []CalendarDay{}
 	for day := start; day.Month() == start.Month(); day = day.AddDate(0, 0, 1) {
 		date := day.Format(time.DateOnly)
@@ -322,6 +325,8 @@ func (s *Service) Streak(ctx context.Context, owner, month string) (StreakView, 
 			state = "future"
 		case firstActive == "" || date < firstActive:
 			state = "none"
+		case frozen[date]:
+			state = "frozen"
 		case date <= decided:
 			state = "missed"
 		default:
@@ -348,4 +353,39 @@ func (s *Service) serveStreak(w http.ResponseWriter, r *http.Request, owner stri
 		return
 	}
 	write(w, 200, view)
+}
+
+// loadFreezes fills the freeze inventory, latest earned milestone and dated notices,
+// returning the set of dates a freeze covered.
+func (s *Service) loadFreezes(ctx context.Context, owner string, v *StreakView) (map[string]bool, error) {
+	if err := s.pool.QueryRow(ctx, `SELECT c.freeze_cap,c.freeze_milestone_days,COALESCE(i.held,0) FROM gamification_config c
+ LEFT JOIN streak_freeze_inventory i ON i.learner_id=$1::uuid WHERE c.id`, owner).Scan(&v.Freezes.Cap, &v.Freezes.MilestoneDays, &v.Freezes.Held); err != nil {
+		return nil, err
+	}
+	v.Freezes.NextMilestoneIn = v.Freezes.MilestoneDays - v.CurrentDays%v.Freezes.MilestoneDays
+	var earned EarnedNotice
+	err := s.pool.QueryRow(ctx, `SELECT reached_on::text,milestone_days FROM streak_freeze_milestones WHERE learner_id=$1::uuid AND granted ORDER BY reached_on DESC LIMIT 1`, owner).Scan(&earned.ReachedOn, &earned.StreakLength)
+	if err == nil {
+		v.LastEarned = &earned
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT protected_on::text,remaining,streak_length FROM streak_day_protections WHERE learner_id=$1::uuid ORDER BY protected_on DESC`, owner)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	frozen := map[string]bool{}
+	v.Notices = []FreezeNotice{}
+	for rows.Next() {
+		var n FreezeNotice
+		if err = rows.Scan(&n.ProtectedOn, &n.Remaining, &n.StreakLength); err != nil {
+			return nil, err
+		}
+		frozen[n.ProtectedOn] = true
+		if len(v.Notices) < 3 {
+			v.Notices = append(v.Notices, n)
+		}
+	}
+	return frozen, rows.Err()
 }

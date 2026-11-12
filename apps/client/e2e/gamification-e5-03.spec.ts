@@ -141,7 +141,7 @@ for (const mobile of [false, true]) {
     await expect(
       streak.getByText("Freezes are full. Extra milestones earn nothing."),
     ).toBeVisible();
-    await expect(page.getByText(/credit/i)).toHaveCount(0);
+    await expect(streak.getByText(/credit/i)).toHaveCount(0);
 
     // Error with recovery.
     failed = true;

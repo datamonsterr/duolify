@@ -144,6 +144,10 @@
   background: var(--accent);
   color: var(--on-accent, var(--text));
 }
+.streak-calendar td[data-state="frozen"] {
+  border: 2px solid var(--line);
+  background: var(--surface-2, transparent);
+}
 .streak-calendar td[data-state="missed"] {
   border: 2px dashed var(--line);
 }
