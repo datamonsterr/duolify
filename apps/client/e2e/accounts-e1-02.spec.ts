@@ -9,14 +9,21 @@ test.beforeEach(async ({ page, request }) => {
     const headers = original.headers();
     delete headers.origin;
     target.host = new URL(apiBase).host;
-    await route.fulfill({
-      response: await request.fetch(target.href, {
+    try {
+      const response = await request.fetch(target.href, {
         method: original.method(),
         headers,
         data: original.postData() ?? undefined,
-      }),
-    });
+      });
+      await route.fulfill({ response });
+    } catch {
+      // Disposed or aborted during navigation or teardown
+    }
   });
+});
+
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
 });
 
 test("welcome artwork and legal actions follow the quiet-link treatment", async ({
