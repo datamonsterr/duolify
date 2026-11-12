@@ -503,6 +503,9 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
  SELECT o.learner_id,o.lesson_id,o.course_id,o.id,c.base_xp,false,c.version,o.passed_at,(o.passed_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date,'Asia/Ho_Chi_Minh'
  FROM lesson_completion_outbox o CROSS JOIN gamification_config c WHERE o.id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO daily_goal_achievements(learner_id,local_date,goal_xp) SELECT learner_id,local_date,amount FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_days(learner_id,local_date,first_event_id) SELECT learner_id,local_date,id FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_state(learner_id,current_days,longest_days,last_active_date,decided_through) SELECT learner_id,1,3,local_date,local_date FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_breaks(learner_id,broken_on,previous_length) SELECT learner_id,local_date-3,3 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 	} {
 		if _, err = f.DB.Pool.Exec(t.Context(), query); err != nil {
 			t.Fatal(err)
@@ -838,7 +841,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"quick_notes", "quick_note_enrichments", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements"} {
+	for _, table := range []string{"quick_notes", "quick_note_enrichments", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "streak_state", "streak_days", "streak_breaks"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -859,6 +862,14 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	var xpCount, goalCount, xpTotal, configuredBase int
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM xp_events),(SELECT count(*) FROM daily_goal_achievements),(SELECT sum(amount) FROM xp_events),base_xp FROM gamification_config`).Scan(&xpCount, &goalCount, &xpTotal, &configuredBase); err != nil || xpCount != 1 || goalCount != 1 || xpTotal != configuredBase {
 		t.Fatalf("restored XP replay changed totals/markers: %d %d %d %d %v", xpCount, goalCount, xpTotal, configuredBase, err)
+	}
+	// The restored streak projection is stable under the rollover worker and replay.
+	if err := gamification.New(restored.Pool, nil).Rollover(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	var streakDays, streakBreaks, streakLongest int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM streak_days),(SELECT count(*) FROM streak_breaks),(SELECT longest_days FROM streak_state)`).Scan(&streakDays, &streakBreaks, &streakLongest); err != nil || streakDays != 1 || streakBreaks < 1 || streakLongest < 3 {
+		t.Fatalf("restored streak projection changed: %d %d %d %v", streakDays, streakBreaks, streakLongest, err)
 	}
 	confirmed, err := courses.New(courses.Options{Pool: restored.Pool}).ResolveConfirmed(t.Context(), "a1111111-1111-4111-8111-111111111111", "c7222222-2222-4222-8222-222222222222", 3)
 	if err != nil || confirmed.Outline.Hash() != confirmed.ContentHash || confirmed.Outline[0].Lessons[0].ID != "fixture-lesson" {
