@@ -100,11 +100,20 @@ function Bubble({
           {message.content}
         </div>
       )}
+      {message.status === "stopped" && (
+        <span className="tutor-who">{t("tutor.stopped_tag")}</span>
+      )}
       {message.status === "interrupted" && (
         <div className="tutor-note warn">
           <div>
             <b>{t("tutor.interrupted_title")}</b>
-            <p>{t("tutor.interrupted_body")}</p>
+            <p>
+              {t(
+                message.reason === "idle_timeout"
+                  ? "tutor.idle_body"
+                  : "tutor.interrupted_body",
+              )}
+            </p>
             {showRetry && (
               <button
                 type="button"
@@ -420,8 +429,7 @@ export function TutorChat({
                   type="button"
                   className="tutor-send"
                   aria-label={t("tutor.stop")}
-                  disabled={!streaming}
-                  onClick={tutor.stop}
+                  onClick={() => void tutor.stop()}
                 >
                   <span aria-hidden="true">■</span>
                 </button>

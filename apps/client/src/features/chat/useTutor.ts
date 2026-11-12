@@ -14,7 +14,9 @@ export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  status: "complete" | "interrupted" | "streaming";
+  status: "complete" | "interrupted" | "stopped" | "streaming";
+  /** Typed end reason of an interrupted reply, e.g. `idle_timeout`. */
+  reason?: string;
 };
 export type Notice =
   | { kind: "credits"; nextGrantAt?: string }
@@ -72,6 +74,7 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
   const abort = useRef<AbortController | null>(null);
   const pending = useRef<Pending | null>(null);
   const lock = useRef(false);
+  const keyRef = useRef<string | undefined>(undefined);
   const quoteSeq = useRef(0);
   const threadRef = useRef<string | undefined>(undefined);
   useEffect(() => {
@@ -218,6 +221,7 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
           attempt = { key: crypto.randomUUID(), quote: state, sameSend: false };
         }
         pending.current = attempt;
+        keyRef.current = attempt.key;
         // The Send click is the consent to this quote.
         await service.accept(attempt.quote.quote.id);
         const done = await service.send(
@@ -267,9 +271,21 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
           controller.signal.aborted ||
           (error instanceof DOMException && error.name === "AbortError");
         if (opened) {
-          const cut = !(error instanceof TutorStreamError) || error.interrupted;
+          const typed = error instanceof TutorStreamError ? error : undefined;
+          const cut = !typed || typed.interrupted;
           if (received && (aborted || cut)) {
-            update({ status: "interrupted" });
+            // The server stored the prefix: take its id, text and status as the truth.
+            const stored = attempt
+              ? await service.turn(courseId, attempt.key)
+              : null;
+            const status = aborted ? "stopped" : "interrupted";
+            update({
+              status: stored?.message?.status ?? status,
+              reason: typed?.code ?? stored?.end_reason,
+              ...(stored?.message
+                ? { id: stored.message.id, content: stored.message.content }
+                : {}),
+            });
             if (aborted) setNotice({ kind: "stopped" });
           } else {
             setMessages((all) =>
@@ -278,6 +294,10 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
             setDraft(message);
             setNotice({ kind: aborted ? "stopped" : "failed" });
           }
+          pending.current = null;
+        } else if (aborted) {
+          // Stopped before the first token: nothing was stored or charged and the draft is kept.
+          setNotice({ kind: "stopped" });
           pending.current = null;
         } else if (error instanceof TutorApiError && error.status === 402) {
           setNotice({
@@ -329,7 +349,14 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
     setQuote(undefined);
     void deliver(prompt, cls);
   };
-  const stop = () => abort.current?.abort();
+  const stop = async () => {
+    const controller = abort.current;
+    if (!controller) return;
+    // Ask the server first so the stop is never mistaken for a disconnect, then drop the connection.
+    if (keyRef.current)
+      await service.stop(courseId, keyRef.current).catch(() => undefined);
+    controller.abort();
+  };
   const remove = async () => {
     if (!threadId) return;
     await service.remove(threadId);

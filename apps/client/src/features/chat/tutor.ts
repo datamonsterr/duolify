@@ -16,7 +16,7 @@ export type TutorMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
-  status: "complete" | "interrupted";
+  status: "complete" | "interrupted" | "stopped";
   created_at: string;
 };
 export type ThreadResponse = {
@@ -57,7 +57,21 @@ export interface TutorService {
     signal?: AbortSignal,
   ): Promise<SendDone>;
   remove(threadId: string): Promise<void>;
+  /** Ask the server to end this send's reply; the stored prefix is settled once. */
+  stop(courseId: string, key: string): Promise<void>;
+  /** The owner's stored turn, including a partial reply after a dropped connection. */
+  turn(courseId: string, key: string): Promise<StoredTurn | null>;
 }
+export type StoredTurn = {
+  state: string;
+  end_reason?: string;
+  thread_id?: string;
+  message: {
+    id: string;
+    content: string;
+    status: TutorMessage["status"];
+  } | null;
+};
 
 /** A refusal returned as JSON before any event was streamed. */
 export class TutorApiError extends Error {
@@ -75,6 +89,7 @@ export class TutorStreamError extends Error {
     public code: string,
     public interrupted: boolean,
     public messageId?: string,
+    public retryable = false,
   ) {
     super(code);
   }
@@ -163,6 +178,22 @@ export const tutorService: TutorService = {
     call(`${course(id)}/quote`, "POST", { class: cls, message }),
   accept: (quoteId) =>
     call(`/v1/quotes/${encodeURIComponent(quoteId)}/accept`, "POST", {}),
+  stop: async (id, key) => {
+    await call(
+      `${course(id)}/turns/${encodeURIComponent(key)}/stop`,
+      "POST",
+      {},
+    );
+  },
+  turn: async (id, key) => {
+    try {
+      return await call<StoredTurn>(
+        `${course(id)}/turns/${encodeURIComponent(key)}`,
+      );
+    } catch {
+      return null;
+    }
+  },
   remove: (threadId) =>
     call(`/v1/tutor/threads/${encodeURIComponent(threadId)}`, "DELETE"),
   async send(id, input, handlers, signal) {
@@ -207,6 +238,7 @@ export const tutorService: TutorService = {
           typeof payload.message_id === "string"
             ? payload.message_id
             : undefined,
+          payload.retryable === true,
         );
     }
     // A stream that closes without `done` was cut: the prefix is an interrupted reply.

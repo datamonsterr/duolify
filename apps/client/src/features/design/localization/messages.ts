@@ -223,6 +223,9 @@ export const en = {
   "tutor.interrupted_title": "Reply interrupted",
   "tutor.interrupted_body": "Only the words produced were charged.",
   "tutor.ask_again": "Ask again \u00b7 new estimate",
+  "tutor.idle_body":
+    "The tutor stopped responding. Only the words produced were charged.",
+  "tutor.stopped_tag": "Stopped \u00b7 partial reply",
   "tutor.stopped_title": "Stopped",
   "tutor.stopped_body":
     "You stopped the reply. Only what was written is charged.",
@@ -479,6 +482,8 @@ export const ar: Record<MessageId, Message> = {
   "tutor.interrupted_title": "انقطع الرد",
   "tutor.interrupted_body": "تم احتساب الكلمات التي كُتبت فقط.",
   "tutor.ask_again": "اسأل مجددًا · تقدير جديد",
+  "tutor.idle_body": "توقف المعلم عن الرد. تم احتساب الكلمات التي كُتبت فقط.",
+  "tutor.stopped_tag": "تم الإيقاف · رد جزئي",
   "tutor.stopped_title": "تم الإيقاف",
   "tutor.stopped_body": "أوقفت الرد. يُحتسب ما كُتب فقط.",
   "tutor.failed_title": "تعذر الرد",

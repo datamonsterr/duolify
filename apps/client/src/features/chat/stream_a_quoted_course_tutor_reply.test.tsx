@@ -50,6 +50,8 @@ function service(overrides: Partial<TutorService> = {}) {
       return { message_id: "m1", thread_id: "t1", replayed: false };
     }),
     remove: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue(undefined),
+    turn: vi.fn().mockResolvedValue(null),
   };
   return Object.assign(base, overrides) as typeof base & TutorService;
 }
