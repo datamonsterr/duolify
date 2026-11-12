@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -48,14 +49,25 @@ func settlementUsage(q pricing.Quote, promptSize int, delivered string, reported
 		u.Provider, u.Model = reported.Provider, reported.Model
 		u.InputTokens, u.OutputTokens = reported.InputTokens, reported.OutputTokens
 		u.CacheWriteTokens, u.CacheReadTokens = reported.CacheWriteTokens, reported.CacheReadTokens
-		u.LatencyMs = min(reported.LatencyMs, uint32(max(0, q.Bounds["timeout_ms"])))
+		u.LatencyMs = min(reported.LatencyMs, u32(q.Bounds["timeout_ms"]))
 		u.UsageUnavailable = reported.UsageUnavailable
 		u.FallbackUsed = reported.Provider != q.Rate.Provider || reported.Model != q.Rate.Model
 	} else {
-		u.InputTokens = uint32(min(estimateTokens(promptSize), q.Bounds["input_tokens"]))
-		u.OutputTokens = uint32(min(estimateTokens(len(delivered)), q.Bounds["output_tokens"]))
+		u.InputTokens = u32(min(estimateTokens(promptSize), q.Bounds["input_tokens"]))
+		u.OutputTokens = u32(min(estimateTokens(len(delivered)), q.Bounds["output_tokens"]))
 	}
 	return []*enginev1.Usage{u}
+}
+
+// u32 clamps a quote bound into the protobuf token range.
+func u32(n int64) uint32 {
+	if n <= 0 {
+		return 0
+	}
+	if n > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(n)
 }
 
 var errTurnLost = errors.New("turn state lost")
@@ -105,7 +117,7 @@ func (s *Service) dropTurn(turn string) {
 	}
 }
 
-func (s *Service) replay(w http.ResponseWriter, ctx context.Context, owner string, t *storedTurn) {
+func (s *Service) replay(ctx context.Context, w http.ResponseWriter, owner string, t *storedTurn) {
 	var content, status string
 	if err := s.opts.Pool.QueryRow(ctx, `SELECT content,status FROM tutor_messages WHERE id=$1::uuid AND learner_id=$2::uuid`, t.AssistantID, owner).Scan(&content, &status); err != nil {
 		// The thread was deleted after the reply: nothing to replay and nothing to charge.
@@ -166,7 +178,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		return
 	}
 	if stored != nil {
-		s.replay(w, ctx, owner, stored)
+		s.replay(ctx, w, owner, stored)
 		return
 	}
 	if status != 0 {
