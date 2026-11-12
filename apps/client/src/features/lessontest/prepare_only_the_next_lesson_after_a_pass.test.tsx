@@ -1,8 +1,29 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { LessonTest } from "./LessonTest";
 
+import { http, HttpResponse } from "msw";
+import { server } from "../../test/setup";
+
 describe("prepare only the next lesson after a pass - LessonTest & Finish", () => {
+  beforeEach(() => {
+    server.use(
+      http.get("*/v1/gamification/lessons/l1", () =>
+        HttpResponse.json({ xp: 15, perfect: true }),
+      ),
+      http.get("*/v1/gamification", () =>
+        HttpResponse.json({
+          total_xp: 15,
+          daily_xp: 15,
+          daily_goal: 20,
+          goal_options: [10, 20],
+          goal_met: false,
+          local_date: "2026-11-10",
+          time_zone: "UTC",
+        }),
+      ),
+    );
+  });
   const mockQuestions = [
     {
       question_id: "q1",
@@ -12,7 +33,7 @@ describe("prepare only the next lesson after a pass - LessonTest & Finish", () =
     },
   ];
 
-  it("renders S12-Finish screen with XP and streak after pass", async () => {
+  it("renders S12-Finish screen with authoritative XP and daily goal after pass", async () => {
     const onPass = vi.fn();
     const onAnswer = vi.fn().mockResolvedValue({
       correct: true,
@@ -47,7 +68,8 @@ describe("prepare only the next lesson after a pass - LessonTest & Finish", () =
     expect(
       await screen.findByRole("heading", { name: /Lesson complete/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/\+15 XP/i)).toBeInTheDocument();
+    expect(await screen.findByText(/\+15 XP/i)).toBeInTheDocument();
+    expect(await screen.findByText("15 / 20 XP today")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Back to learn path/i }),
     ).toBeInTheDocument();

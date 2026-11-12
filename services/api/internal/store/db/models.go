@@ -397,6 +397,14 @@ type CreditUsage struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type DailyGoalAchievement struct {
+	ID         pgtype.UUID        `json:"id"`
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	LocalDate  pgtype.Date        `json:"local_date"`
+	GoalXp     int32              `json:"goal_xp"`
+	AchievedAt pgtype.Timestamptz `json:"achieved_at"`
+}
+
 type EvalAlertConfig struct {
 	ID                           string             `json:"id"`
 	PlatformDailyBudgetUsd       pgtype.Numeric     `json:"platform_daily_budget_usd"`
@@ -453,6 +461,15 @@ type EvalReport struct {
 	ReportJson      []byte             `json:"report_json"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+}
+
+type GamificationConfig struct {
+	ID             bool    `json:"id"`
+	Version        string  `json:"version"`
+	BaseXp         int32   `json:"base_xp"`
+	PerfectBonusXp int32   `json:"perfect_bonus_xp"`
+	DefaultGoal    int32   `json:"default_goal"`
+	GoalOptions    []int32 `json:"goal_options"`
 }
 
 type GeneratedLesson struct {
@@ -514,13 +531,15 @@ type LessonCompletionOutbox struct {
 }
 
 type LessonCompletionSummary struct {
-	ID          pgtype.UUID        `json:"id"`
-	LearnerID   pgtype.UUID        `json:"learner_id"`
-	CourseID    pgtype.UUID        `json:"course_id"`
-	LessonID    pgtype.UUID        `json:"lesson_id"`
-	Summary     string             `json:"summary"`
-	WeakTopics  []byte             `json:"weak_topics"`
-	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+	ID              pgtype.UUID        `json:"id"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	CourseID        pgtype.UUID        `json:"course_id"`
+	LessonID        pgtype.UUID        `json:"lesson_id"`
+	Summary         string             `json:"summary"`
+	WeakTopics      []byte             `json:"weak_topics"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+	FirstTryPerfect bool               `json:"first_try_perfect"`
+	DurationMs      int64              `json:"duration_ms"`
 }
 
 type LessonGeneration struct {
@@ -804,4 +823,18 @@ type QuickNoteEnrichment struct {
 	Provider  string             `json:"provider"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type XpEvent struct {
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	LessonID      pgtype.UUID        `json:"lesson_id"`
+	CourseID      pgtype.UUID        `json:"course_id"`
+	CompletionID  pgtype.UUID        `json:"completion_id"`
+	Amount        int32              `json:"amount"`
+	Perfect       bool               `json:"perfect"`
+	ConfigVersion string             `json:"config_version"`
+	EarnedAt      pgtype.Timestamptz `json:"earned_at"`
+	LocalDate     pgtype.Date        `json:"local_date"`
+	TimeZone      string             `json:"time_zone"`
 }

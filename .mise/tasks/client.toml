@@ -86,3 +86,7 @@ description = "Format lesson test sources and acceptance tests"
 dir = "{{config_root}}/apps/client"
 run = "pnpm exec prettier --write src/features/lessontest e2e/lessontest-*.spec.ts e2e/design-e13-02.spec.ts"
 
+["client:format-gamification"]
+description = "Format completion XP and daily goal sources"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/gamification src/features/lessontest/LessonTest.tsx src/App.tsx e2e/gamification-e5-01.spec.ts src/features/shell/AppShell.tsx e2e/design-e13-02.spec.ts src/features/lesson-player/LessonPlayer.tsx src/lib/analytics.ts"

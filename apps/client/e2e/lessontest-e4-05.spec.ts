@@ -103,6 +103,10 @@ for (const mobile of [false, true]) {
       r.fulfill({ json: lesson1Data }),
     );
 
+    await page.route(`**/v1/gamification/lessons/${lesson1Id}`, (r) =>
+      r.fulfill({ json: { xp: 15, perfect: false } }),
+    );
+
     await page.route(`**/v1/lessons/${lesson1Id}/test`, (r) =>
       r.fulfill({
         json: {

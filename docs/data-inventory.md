@@ -463,3 +463,9 @@ Device download indexes and prepared dynamic HTML are account-scoped and cleared
 on logout. Home uses saved indexes only after network failures, never HTTP
 errors. Prepared dynamic HTML has no permitted network origin. Bulk-download
 cache bounds reset after every attempt; device caches remain disposable.
+
+### E5-01 completion XP and daily goals
+
+Postgres `gamification_config` stores versioned award amounts and allowed/default goals, with no learner data. `xp_events` is immutable for the account lifetime and unique per learner/lesson; it retains original completion UUID/time, lesson/course UUIDs, awarded amount, perfect flag, config version, IANA timezone and local date. Lesson/course deletion preserves this event source for reconstructing total/daily/weekly XP. `daily_goal_achievements` retains one immutable goal crossing per learner/local date; the current preference remains `learner_profiles.daily_xp`.
+
+All three tables enter nightly encrypted Postgres dumps (14-day general retention). Synthetic fixtures seed XP/goal markers and compare complete restored rows. XP and achievement rows export in the authenticated account export, cascade on account deletion, and follow external deletion-ledger replay before serving a restored snapshot. Redis and PostHog remain disposable derived data. Analytics sends only UUIDs, numeric awards/goals, dates, config version and a perfect boolean through the central fail-closed consent gate; no summary, question, answer or profile text. XP and daily goals never grant Credits. No AI/model change.

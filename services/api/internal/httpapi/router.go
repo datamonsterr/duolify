@@ -45,6 +45,7 @@ type Dependencies struct {
 	Notes                   http.Handler
 	Eval                    http.Handler
 	Characters              http.Handler
+	Gamification            http.Handler
 	LessonTestTracerEnabled bool
 	LessonTest              http.Handler
 	Accounts                interface {
@@ -65,6 +66,10 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		deps.Monitor = telemetry.New(logger)
 	}
 	mux := http.NewServeMux()
+	if deps.Gamification != nil && deps.Accounts != nil {
+		mux.Handle("/v1/gamification", deps.Accounts.Protect(deps.Gamification))
+		mux.Handle("/v1/gamification/", deps.Accounts.Protect(deps.Gamification))
+	}
 	if deps.Accounts != nil {
 		mux.Handle("/v1/auth/", deps.Accounts)
 		mux.Handle("GET /v1/me", deps.Accounts)

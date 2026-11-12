@@ -1,3 +1,4 @@
+import { ProgressPage } from "./features/gamification/DailyGoal";
 import { UiPreferencesProvider } from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
 import { AuthError, session } from "./features/accounts/session";
@@ -263,7 +264,7 @@ function CourseCastRoute() {
 const streak = createRoute({
   getParentRoute: () => root,
   path: "/streak",
-  component: () => <DestinationPage title="Your streak" />,
+  component: ProgressPage,
 });
 const lessonTest = createRoute({
   getParentRoute: () => root,

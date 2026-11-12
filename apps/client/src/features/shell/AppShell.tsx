@@ -1,3 +1,4 @@
+import { DailyGoal } from "../gamification/DailyGoal";
 import { PreferenceControls } from "../design/localization/PreferenceControls";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
@@ -207,24 +208,19 @@ export function AppShell() {
                   {t("shell.streak")}
                 </Link>
               </section>
-              <section className="card">
-                <h2>{t("shell.goal")}</h2>
-                <Badge role="success">{t("shell.preview")}</Badge>
-                <p>{t("shell.goal_example")}</p>
-                <progress
-                  className="support-progress"
-                  value={10}
-                  max={20}
-                  aria-label={t("shell.goal_example_label")}
-                />
-                <Link
-                  className="shell-link"
-                  to="/settings"
-                  onClick={() => trackNavigation("settings")}
-                >
-                  {t("shell.goal_settings")}
-                </Link>
-              </section>
+              {path !== "/streak" && (
+                <section className="card">
+                  <DailyGoal compact />
+                  <Link
+                    className="shell-link"
+                    to="/streak"
+                    onClick={() => trackNavigation("streak")}
+                  >
+                    {t("shell.goal_settings")}
+                  </Link>
+                </section>
+              )}
+
               <section className="card">
                 <h2>Credit options</h2>
                 <Badge role="credit">Balance unavailable</Badge>
