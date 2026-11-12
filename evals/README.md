@@ -104,3 +104,5 @@ undelivered customer Credits; approved pool exhaustion remains free. Checkpoints
 atomic credit/content commits and cleanup retries are exercised against Postgres
 in the lesson-test, backup, accounts and credits suites. Git pins these fixtures
 until E10-01 provisions the matching live dataset; no live promotion is implied.
+
+E8-01 adds `tutor_chat` cases with a `recorded` reply and a `context` (outline, effective profile, oldest-first history, messages). The runner builds the production tutor prompt (`engine_core::chat::prompt`) and emits boolean fields: `prompt_valid`, `delimiter_intact`, `instructions_clean` (none of `markers` appear in the instruction text), `profile_provided`, `current_lesson_empty`, `history_oldest_first`, `grounded` (reply contains every `expect_terms`) and `forbidden_absent`. Grounding, profile, history, empty-profile and injection cases carry critical `path_equals` checks. Publish them at a pinned `datamonsterr/duolify-golden` revision after E10-01 provisioning; E10-06 gates live promotion.

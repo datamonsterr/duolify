@@ -686,6 +686,44 @@ async fn evaluate_course_outline(input: &serde_json::Value) -> Result<String> {
     }
 }
 
+/// Runs the production tutor prompt builder on the case context and scores a recorded reply.
+fn evaluate_tutor_chat(input: &serde_json::Value) -> Result<String> {
+    use engine_core::chat;
+    let context: chat::Context = serde_json::from_value(input["context"].clone())?;
+    let prompt = chat::prompt(&context);
+    let strings = |key: &str| -> Vec<String> {
+        input[key]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|v| v.as_str().map(str::to_owned))
+            .collect()
+    };
+    let reply = input["recorded"][0].as_str().context("recorded reply")?;
+    let parts = chat::split(&prompt);
+    let data = parts.and_then(|(_, json, _)| serde_json::from_str::<serde_json::Value>(json).ok());
+    let instructions_clean = parts.is_some_and(|(before, _, after)| {
+        strings("markers")
+            .iter()
+            .all(|m| !before.contains(m.as_str()) && !after.contains(m.as_str()))
+    });
+    let history: Vec<String> = data
+        .as_ref()
+        .and_then(|d| serde_json::from_value(d["history"].clone()).ok())
+        .unwrap_or_default();
+    Ok(serde_json::json!({
+        "prompt_valid": data.is_some(),
+        "delimiter_intact": prompt.matches(chat::OPEN).count() == 1 && prompt.matches(chat::CLOSE).count() == 1,
+        "instructions_clean": instructions_clean,
+        "profile_provided": data.as_ref().is_some_and(|d| d["profile_provided"] == true),
+        "current_lesson_empty": data.as_ref().is_some_and(|d| d["current_lesson"].is_null()),
+        "history_oldest_first": history == context.history,
+        "grounded": strings("expect_terms").iter().all(|t| reply.contains(t.as_str())),
+        "forbidden_absent": strings("forbidden").iter().all(|t| !reply.contains(t.as_str())),
+    })
+    .to_string())
+}
+
 async fn evaluate_outline_change(input: &serde_json::Value) -> Result<String> {
     use engine_core::courses::outline;
     let base: Vec<outline::Unit> = serde_json::from_value(input["outline"].clone())?;
@@ -945,6 +983,8 @@ impl Runner {
                     evaluate_credits(&case.input).await?
                 } else if case.task == "course_brief_chat" {
                     evaluate_brief(&case.input).await?
+                } else if case.task == "tutor_chat" {
+                    evaluate_tutor_chat(&case.input)?
                 } else {
                     let limits = case
                         .input

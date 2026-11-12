@@ -3,7 +3,7 @@
 //! Learner text, Course content and history never join the instruction text. They are
 //! serialized as JSON (quotes, newlines and control characters escaped) inside one delimited
 //! block, and any sequence that could forge the delimiters is neutralised.
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 pub const OPEN: &str = "<untrusted_data>";
@@ -21,21 +21,24 @@ course. Reply in plain text.";
 
 const TRAILER: &str = "Reply now to the last user message in the data.";
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct LessonRef {
     pub id: String,
     pub title: String,
     pub goal: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Unit {
     pub id: String,
     pub title: String,
     pub lessons: Vec<LessonRef>,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Profile {
     pub locale: String,
     pub background: String,
@@ -58,13 +61,15 @@ impl Profile {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Message {
     pub role: String,
     pub content: String,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
 pub struct Context {
     pub course_title: String,
     pub course_description: String,
