@@ -1515,21 +1515,3 @@ mod tests {
         assert_eq!(result["attempts"][0]["delivered"], false);
     }
 }
-
-#[cfg(test)]
-mod tutor_stream_debug {
-    #[tokio::test]
-    async fn dump() {
-        let raw = include_str!("../../../../evals/fixtures/golden.sample.jsonl");
-        for line in raw.lines() {
-            let v: serde_json::Value = serde_json::from_str(line).unwrap();
-            if v["task"] == "tutor_chat" && v["input"].get("stream").is_some() {
-                println!(
-                    "{} => {}",
-                    v["id"],
-                    super::evaluate_tutor_stream(&v["input"]).await.unwrap()
-                );
-            }
-        }
-    }
-}
