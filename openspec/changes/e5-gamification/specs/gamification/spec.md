@@ -82,3 +82,33 @@ The API SHALL grant one Streak freeze each time a Streak run reaches the configu
 #### Scenario: Looking for a way to buy a freeze
 - **WHEN** a Learner opens the Streak panel or calls the API
 - **THEN** inventory and notices are read-only and no purchase or activation control or endpoint exists
+
+### Requirement: Weekly league membership from durable XP
+A Learner SHALL be assigned to a weekly league group on their first XP event of a league week (Monday to Sunday of their completion-local date), inside the transaction that records the XP event. Groups hold at most the configured size, are formed per week and tier, and a new Learner starts in the first configured tier or the tier of their latest earlier membership. Membership SHALL be unique per Learner and week. Weekly XP SHALL always be the sum of the Learner's `xp_events` whose local date falls in the week; no score is stored. Ranking SHALL order by weekly XP descending, then by earlier group slot, so ties are deterministic and flagged. Redis MAY hold a disposable sorted set of the ranking; if it is missing, stale past its short TTL or unreachable, the ranking SHALL be rebuilt exactly from Postgres. League membership SHALL NOT grant Credits.
+
+#### Scenario: First eligible completion
+- **WHEN** a Learner with no membership for the week earns their first XP event
+- **THEN** exactly one membership is created, even with concurrent consumers, and no analytics event is emitted for joining
+
+#### Scenario: Redis flushed
+- **WHEN** Redis is flushed and the Learner opens Leagues
+- **THEN** the same ranks, weekly XP and tie order are returned, rebuilt from Postgres
+
+### Requirement: League read model and S13 view
+`GET /v1/gamification/league?offset&limit` SHALL return the authenticated Learner's own group only: state (`active` or `not_joined`), week start/end, as-of time, local date and time zone, tier name, member count, configured promotion and demotion zones, the Learner's rank, weekly XP and zone, and a page of rows (rank, display name, weekly XP, tie flag, self flag, zone) with next/previous offsets. The response SHALL NOT include final results: week finalization, promotion/demotion outcomes and restore belong to E5-05, so a past week is shown only as "Week is closing". The Leagues screen SHALL implement the S13 league states: loading, not joined with a Start a lesson action, active with highlighted self row and text zone boundaries, long names, tie labels, pagination by keyboard, offline cached ranks with an as-of time, and an error with a Retry action, in light and dark and with reduced motion.
+
+#### Scenario: Not joined
+- **WHEN** a Learner without XP this week opens Leagues
+- **THEN** no group is created and "Complete a lesson to join" with a Start a lesson action is shown
+
+#### Scenario: Cross-learner read
+- **WHEN** a Learner requests another Learner's league or group
+- **THEN** only their own group is reachable
+
+### Requirement: League analytics, backup and erasure
+`ui_screen_viewed` with `screen_id=leagues` SHALL be catalogued (design-system catalogue, screen 15) before the client emits it, pass the consent gate and carry no learner text. League groups and memberships SHALL enter nightly dumps, export with the account and erase on deletion (groups hold no personal data). Redis ranking keys are disposable and are not backed up.
+
+#### Scenario: Opted-out Learner
+- **WHEN** an opted-out Learner opens Leagues
+- **THEN** the view works and no analytics are delivered
+

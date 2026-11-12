@@ -1,4 +1,5 @@
 import { ProgressPage } from "./features/gamification/DailyGoal";
+import { LeaguePage } from "./features/gamification/League";
 import { UiPreferencesProvider } from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
 import { AuthError, session } from "./features/accounts/session";
@@ -225,7 +226,7 @@ const friends = createRoute({
 const leagues = createRoute({
   getParentRoute: () => root,
   path: "/leagues",
-  component: () => <DestinationPage title="Leagues" />,
+  component: LeaguePage,
 });
 const notes = createRoute({
   getParentRoute: () => root,

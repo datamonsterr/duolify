@@ -168,3 +168,37 @@
     animation: none !important;
   }
 }
+.league-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.league-table th,
+.league-table td {
+  padding: 0.5rem 0.375rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--line);
+}
+.league-table th:first-child,
+.league-table td:first-child {
+  width: 3.5rem;
+}
+.league-self {
+  font-weight: 800;
+  background: var(--raised);
+  outline: 2px solid var(--line);
+  outline-offset: -2px;
+}
+.league-zone td {
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

@@ -17,3 +17,8 @@
 - [x] Failing e2e, integration and unit tests, then milestone grants, cap overflow and automatic rollover protection.
 - [x] S13 inventory, earned and covered-day notices; analytics catalogue, privacy policy, backup fixtures and data inventory.
 
+## E5-04 weekly leagues
+
+- [x] Failing e2e, integration and unit tests, then membership assignment, ranking, Redis rebuild and endpoint.
+- [x] S13 Leagues view, `ui_screen_viewed(leagues)` catalogue entry, privacy, backup fixtures and data inventory.
+
