@@ -29,3 +29,13 @@ run = "pnpm exec playwright test e2e/characters-e17-04.spec.ts"
 ["proto:breaking-characters"]
 description = "Check additive Character RPCs against the integration contract"
 run = "buf breaking proto --against '.git#branch=origin/impl/mvp,subdir=proto'"
+
+["client:e2e-character-playback"]
+depends = ["client:build"]
+dir = "{{config_root}}/apps/client"
+env = { E2E_WEB_PORT = "4174", E2E_API_BASE = "http://127.0.0.1:4175", VITE_API_URL = "http://127.0.0.1:4175" }
+run = "pnpm exec playwright test e2e/characters-e17-05.spec.ts"
+
+["engine:test-character-playback"]
+dir = "{{config_root}}/engine"
+run = "cargo test -p engine-core characters::tests::lesson_personas_are_bounded_data_and_segments_use_pinned_speakers"

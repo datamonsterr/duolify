@@ -12,6 +12,7 @@ type PinnedSpeaker struct {
 
 // LessonCastSnapshot holds the pinned cast for a lesson.
 type LessonCastSnapshot struct {
+	CastVersion        int                      `json:"cast_version"`
 	CastSource         string                   `json:"cast_source"`
 	SchemaVersion      int                      `json:"schema_version"`
 	RigVersion         string                   `json:"rig_version"`

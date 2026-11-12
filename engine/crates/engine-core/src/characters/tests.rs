@@ -120,3 +120,25 @@ async fn creation_and_screening_honor_stricter_bounds_before_provider_calls() {
         Some((false, "prompt_injection".into()))
     );
 }
+
+#[test]
+fn lesson_personas_are_bounded_data_and_segments_use_pinned_speakers() {
+    let spec: Value = serde_json::from_str(include_str!(
+        "../../../../../services/api/internal/characters/schema/original.fixture.json"
+    ))
+    .unwrap();
+    let cast = serde_json::json!({"schema_version":1,"rig_version":"original-v1","voice_config_version":"v1","cast_source":"custom","speakers":{"guide":{"speaker_key":"guide","role":"guide","character_id":"opaque","character_version":2,"spec":spec}}});
+    let raw = cast.to_string();
+    let prompt = lesson_personas(&raw).unwrap();
+    assert!(prompt.contains("character_personas"));
+    assert!(prompt.contains("style only"));
+    assert!(!prompt.contains("<character_personas>"));
+    let good = serde_json::json!({"slides":[{"duration_ms":3000,"segments":[{"speaker_key":"guide","text":"Earth turns.","expression":"thinking","start_ms":0,"duration_ms":3000}]}]});
+    assert!(validate_lesson_segments(&good, &raw).is_ok());
+    let mut bad = good.clone();
+    bad["slides"][0]["segments"][0]["speaker_key"] = serde_json::json!("system");
+    assert!(validate_lesson_segments(&bad, &raw).is_err());
+    bad = good.clone();
+    bad["slides"][0]["segments"][0]["text"] = serde_json::json!("https://evil.test/a.svg");
+    assert!(validate_lesson_segments(&bad, &raw).is_err());
+}
