@@ -79,9 +79,9 @@ func TestLessonCastAppliedKeepsIdsAndEnumsOnly(t *testing.T) {
 	if !allowlisted("lesson_cast_applied") {
 		t.Fatal("lesson_cast_applied dropped")
 	}
-	safe := safeProperties("lesson_cast_applied", map[string]any{"source": "api", "platform": "web", "app_version": "1.0.0", "course_id": "f1111111-1111-4111-8111-111111111111", "lesson_id": "f3333333-3333-4333-8333-333333333333", "cast_source": "custom", "cast_version": 3, "speaker_count": 2, "fallback_used": true, "persona": "private-text", "name": "private-text", "dialogue": "private-text"})
+	safe := safeProperties("lesson_cast_applied", map[string]any{"source": "api", "platform": "web", "app_version": "1.0.0", "course_id": "f1111111-1111-4111-8111-111111111111", "lesson_id": "f3333333-3333-4333-8333-333333333333", "cast_source": "custom", "cast_version": 3, "supporting_count": 1, "fallback_used": true, "persona": "private-text", "name": "private-text", "dialogue": "private-text"})
 	raw, _ := json.Marshal(safe)
-	if strings.Contains(string(raw), "private-text") || safe["speaker_count"] == nil || safe["cast_source"] != "custom" {
+	if strings.Contains(string(raw), "private-text") || safe["supporting_count"] == nil || safe["cast_source"] != "custom" {
 		t.Fatalf("unexpected properties: %s", raw)
 	}
 }

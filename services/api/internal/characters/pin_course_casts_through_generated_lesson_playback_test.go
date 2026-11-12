@@ -18,10 +18,10 @@ func TestPinnedSegmentsRejectUnknownSpeakersAndAssets(t *testing.T) {
 		func(s *pb.CharacterSegment) { s.Text = "<svg onload='alert(1)'/>" },
 		func(s *pb.CharacterSegment) { s.DurationMs = 3001 },
 	} {
-		copy := proto.Clone(segment).(*pb.CharacterSegment)
-		mutate(copy)
-		if characters.ValidateSegments([]*pb.CharacterSegment{copy}, manifest.Cast, 3000) == nil {
-			t.Fatalf("unsafe segment accepted: %s", copy)
+		clone := proto.Clone(segment).(*pb.CharacterSegment)
+		mutate(clone)
+		if characters.ValidateSegments([]*pb.CharacterSegment{clone}, manifest.Cast, 3000) == nil {
+			t.Fatalf("unsafe segment accepted: %s", clone)
 		}
 	}
 	if err := characters.ValidateSegments([]*pb.CharacterSegment{segment}, manifest.Cast, 3000); err != nil {

@@ -1115,7 +1115,6 @@ func (s *Service) handlePrepare(w http.ResponseWriter, r *http.Request, owner, l
 			"cast_version":  pinned.CastVersion,
 			"speaker_count": len(pinned.Speakers),
 			"fallback_used": pinned.FallbackUsed,
-			"operation_key": genID,
 		})
 	}
 

@@ -233,7 +233,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "lesson_cast_applied":
 		ids("course_id", "lesson_id")
-		numeric("speaker_count", "cast_version")
+		numeric("supporting_count", "cast_version")
 		boolean("fallback_used")
 		if source := input["cast_source"]; source == "default" || source == "custom" || source == "mixed" {
 			out["cast_source"] = source
