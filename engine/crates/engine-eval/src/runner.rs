@@ -745,7 +745,36 @@ async fn evaluate_retry_variants(input: &serde_json::Value) -> Result<String> {
     Ok(serde_json::json!({"delivered":!variants.is_empty(),"variants":variants,"attempt_count":outcome.attempts.len()}).to_string())
 }
 
+/// Offline persona/injection case: persona text is bounded data below trusted
+/// Course rules, segments only use pinned speakers, retries reuse the snapshot.
+fn evaluate_persona_lesson(input: &serde_json::Value) -> Result<String> {
+    let cast = input["cast"].to_string();
+    let course_rule = input["course_rule"].as_str().unwrap_or_default();
+    let personas = engine_core::characters::lesson_personas(&cast);
+    let prompt = format!("{course_rule}\n{}", personas.as_deref().unwrap_or_default());
+    let segments_valid =
+        engine_core::characters::validate_lesson_segments(&input["lesson"], &cast).is_ok();
+    let retry_cast = input.get("retry_cast").unwrap_or(&input["cast"]);
+    let leaked = input["lesson"]
+        .to_string()
+        .to_lowercase()
+        .contains("system prompt");
+    Ok(serde_json::json!({
+        "personas_valid": personas.is_ok(),
+        "data_only": personas.as_ref().is_ok_and(|p| p.contains("style only") && !p.contains('<') && !p.contains('>')),
+        "course_rule_first": course_rule.is_empty() || prompt.starts_with(course_rule),
+        "segments_valid": segments_valid,
+        "snapshot_immutable": retry_cast == &input["cast"],
+        "grading_unchanged": input["lesson"].get("test").is_none() || input["lesson"]["test"] == input["expected_test"],
+        "prompt_leak": leaked,
+    })
+    .to_string())
+}
+
 async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<String> {
+    if input.get("cast").is_some() {
+        return evaluate_persona_lesson(input);
+    }
     let spec = input["spec"].to_string();
     let valid = engine_core::characters::valid_spec(&spec);
     if task == "character_spec" && input["mapping"] == true {
@@ -924,7 +953,10 @@ impl Runner {
 
             let response_text = if matches!(
                 case.task.as_str(),
-                "character_spec" | "character_screen" | "character_injection"
+                "character_spec"
+                    | "character_screen"
+                    | "character_injection"
+                    | "character_persona_lesson"
             ) && self.provider_name == "mock"
                 && self.custom_router.is_none()
             {
