@@ -344,7 +344,7 @@ pub fn validate_lesson_segments(lesson: &Value, cast_json: &str) -> anyhow::Resu
 pub const REACTION_COPY: [&str; 3] = [
     "Nice work — that's right.",
     "You passed! Great work.",
-    "Not quite — read the explanation, then try the next one.",
+    "Good try — read the explanation, then try the next one.",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

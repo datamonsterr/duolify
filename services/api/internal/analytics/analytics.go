@@ -87,7 +87,7 @@ func allowlisted(event string) bool {
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
-		"character_rendered", "character_render_fallback",
+		"character_rendered", "character_render_fallback", "character_reaction_shown",
 		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
 		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
@@ -404,6 +404,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "character_rendered":
 		ids("speaker_key", "character_version", "rig_version", "expression")
+		boolean("offline")
+	case "character_reaction_shown":
+		if v, ok := input["reaction_trigger"].(string); ok && (v == "answer_correct" || v == "answer_incorrect" || v == "test_passed") {
+			out["reaction_trigger"] = v
+		}
+		ids("expression")
 		boolean("offline")
 	case "character_render_fallback":
 		ids("reason_code")

@@ -4,9 +4,11 @@ const uuidRegex =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const renderedVisits = new Set<string>();
+const reactionResults = new Set<string>();
 
 export function resetCharacterRenderDeduplication(): void {
   renderedVisits.clear();
+  reactionResults.clear();
 }
 
 export interface CharacterRenderedParams {
@@ -99,6 +101,50 @@ export function trackCharacterRenderFallback(
       platform,
       app_version: appVersion,
       reason_code: params.reason_code,
+      offline: params.offline,
+    });
+  } catch {
+    /* Telemetry must never crash client */
+  }
+}
+
+export interface CharacterReactionShownParams {
+  reaction_trigger: "answer_correct" | "answer_incorrect" | "test_passed";
+  expression: string;
+  offline: boolean;
+  /** Operation/result identity; one event per result. Never sent. */
+  result_key: string;
+}
+
+/** Content-free: only closed enums and flags leave the device. */
+export function trackCharacterReactionShown(
+  params: CharacterReactionShownParams,
+): void {
+  if (reactionResults.has(params.result_key)) return;
+  reactionResults.add(params.result_key);
+  try {
+    if (posthog.has_opted_out_capturing && posthog.has_opted_out_capturing()) {
+      return;
+    }
+    let distinctId = "00000000-0000-0000-0000-000000000001";
+    try {
+      const stored = sessionStorage.getItem("duolify.auth");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.learnerId && uuidRegex.test(parsed.learnerId)) {
+          distinctId = parsed.learnerId;
+        }
+      }
+    } catch {
+      /* Storage unavailable */
+    }
+    posthog.capture("character_reaction_shown", {
+      distinct_id: distinctId,
+      source: "client",
+      platform: "web",
+      app_version: "0.1.0",
+      reaction_trigger: params.reaction_trigger,
+      expression: params.expression,
       offline: params.offline,
     });
   } catch {

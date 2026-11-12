@@ -46,9 +46,13 @@ export function activeCharacterSegment(
   return started.length ? started[started.length - 1] : segments[0];
 }
 
-type Fallback = "unsupported_rig" | "invalid_spec" | "missing_speaker" | null;
+export type Fallback =
+  "unsupported_rig" | "invalid_spec" | "missing_speaker" | null;
 
-function speakerFallback(cast: LessonCastSnapshot, key: string): Fallback {
+export function speakerFallback(
+  cast: LessonCastSnapshot,
+  key: string,
+): Fallback {
   const speaker = cast.speakers[key];
   if (!speaker) return "missing_speaker";
   if ((speaker.spec as { rig_version?: string }).rig_version !== "original-v1")

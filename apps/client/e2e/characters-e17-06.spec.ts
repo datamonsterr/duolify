@@ -4,7 +4,7 @@ import { apiBase } from "./servers";
 const lessonId = "l1717171-1717-4171-8171-171717171717";
 const courseId = "c1717171-1717-4171-8171-171717171717";
 const copy = {
-  answer_incorrect: "Not quite — read the explanation, then try the next one.",
+  answer_incorrect: "Good try — read the explanation, then try the next one.",
   test_passed: "You passed! Great work.",
 };
 

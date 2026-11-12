@@ -7,6 +7,8 @@ import { authRequest, AuthError } from "../accounts/session";
 import { track } from "../../lib/analytics";
 import { RouteUnavailable } from "../shell/RouteBoundary";
 import { useLessonTestTracerEnabled } from "../../lib/features";
+import { CharacterReaction } from "../characters/CharacterReaction";
+import type { LessonCastSnapshot } from "../characters/types";
 
 export interface QuestionItem {
   question_id: string;
@@ -34,6 +36,7 @@ export interface AnswerResult {
   retry_queue_count?: number;
   passed: boolean;
   retry_variant?: QuestionItem;
+  reaction?: unknown;
   offer_recap?: boolean;
   recap_slides?: RecapSlide[];
   offer_leave_resume?: boolean;
@@ -122,6 +125,8 @@ export interface LessonTestProps {
   totalTopics?: number;
   minGap?: number;
   passed?: boolean;
+  /** Lesson pinned Cast used for display-only reactions. */
+  cast?: LessonCastSnapshot;
   onPass: () => void;
   onExit?: () => void;
   onAnswer?: (
@@ -140,6 +145,7 @@ export function LessonTest({
   totalTopics: initialTotalTopics,
   minGap = 2,
   passed = false,
+  cast,
   onPass,
   onExit,
   onAnswer,
@@ -1170,6 +1176,11 @@ export function LessonTest({
                   color: feedback.correct ? "#1E6E0C" : "#B3261E",
                 }}
               >
+                <CharacterReaction
+                  reaction={feedback.reaction}
+                  cast={cast}
+                  resultKey={`${effectiveLessonId}:${currentQuestion?.question_id}`}
+                />
                 <div
                   style={{
                     fontSize: "18px",
@@ -1444,6 +1455,17 @@ export function LessonTestRoute() {
   const [passed, setPassed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cast, setCast] = useState<LessonCastSnapshot | undefined>();
+
+  // Pinned Cast for display-only reactions; failure leaves the neutral default.
+  useEffect(() => {
+    if (!tracerEnabled) return;
+    authRequest<{ cast?: LessonCastSnapshot }>(
+      `/v1/lessons/${lessonId}/manifest`,
+    )
+      .then((m) => setCast(m.cast))
+      .catch(() => setCast(undefined));
+  }, [lessonId, tracerEnabled]);
 
   useEffect(() => {
     if (!tracerEnabled) return;
@@ -1539,6 +1561,7 @@ export function LessonTestRoute() {
       resolvedTopics={resolvedTopics}
       minGap={minGap}
       passed={passed}
+      cast={cast}
       onAnswer={handleAnswer}
       onPass={handlePass}
       onExit={() =>

@@ -1816,6 +1816,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			"retry_queue_count": retryQueueCount,
 			"retry_variant":     publicVariant,
 		}
+		resp["reaction"] = characters.ReactionFor(false, false, true)
 		if offerRecap {
 			resp["offer_recap"] = true
 			resp["recap_slides"] = recapSlides
@@ -1915,6 +1916,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			"resolved_topics":   len(resolvedTopics),
 			"total_topics":      totalTopics,
 			"retry_queue_count": retryQueueCount,
+			"reaction":          characters.ReactionFor(true, false, false),
 		}
 
 		if opKey != "" {
@@ -2056,6 +2058,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		"resolved_topics":   totalTopics,
 		"total_topics":      totalTopics,
 		"retry_queue_count": 0,
+		"reaction":          characters.ReactionFor(true, true, false),
 	}
 	if nextLessonID != "" {
 		resp["next_lesson_id"] = nextLessonID
