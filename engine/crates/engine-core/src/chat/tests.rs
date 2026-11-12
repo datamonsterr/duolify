@@ -141,3 +141,216 @@ fn current_lesson_is_included_when_present() {
         "Moon phases"
     );
 }
+
+mod stream {
+    use super::super::stream::*;
+    use crate::eval::{StreamFailure, StreamRoute};
+    use crate::{Completion, CompletionStream, StreamEvent};
+    use futures::StreamExt;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    fn route(fallback: bool) -> StreamRoute {
+        StreamRoute {
+            provider: if fallback { "fb" } else { "primary" }.into(),
+            model: if fallback { "fb-model" } else { "model" }.into(),
+            fallback_used: fallback,
+        }
+    }
+    fn bounds() -> Option<Bounds> {
+        Some(Bounds {
+            input_tokens: 100,
+            output_tokens: 10,
+        })
+    }
+    fn delta(s: &str) -> anyhow::Result<StreamEvent> {
+        Ok(StreamEvent::Delta(s.into()))
+    }
+    fn usage(input: u32, output: u32) -> anyhow::Result<StreamEvent> {
+        Ok(StreamEvent::Usage(Completion {
+            provider: "primary".into(),
+            model: "model".into(),
+            input_tokens: input,
+            output_tokens: output,
+            ..Completion::default()
+        }))
+    }
+    fn failure(f: StreamFailure) -> anyhow::Result<StreamEvent> {
+        Err(anyhow::Error::new(f))
+    }
+    fn scripted(items: Vec<anyhow::Result<StreamEvent>>) -> CompletionStream {
+        Box::pin(futures::stream::iter(items))
+    }
+    async fn collect(items: Vec<anyhow::Result<StreamEvent>>, r: StreamRoute) -> Vec<Part> {
+        reconcile(scripted(items), r, 400, bounds()).collect().await
+    }
+
+    #[tokio::test]
+    async fn provider_usage_passes_through_unflagged() {
+        let parts = collect(vec![delta("Hi"), usage(7, 2)], route(false)).await;
+        assert_eq!(parts.len(), 2);
+        assert!(
+            matches!(&parts[1], Part::Usage { completion, estimated: false } if completion.input_tokens == 7)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_stream_that_ends_without_a_usage_frame_gets_one_bounded_estimate() {
+        let parts = collect(vec![delta("abcdefgh"), delta("ij")], route(false)).await;
+        assert_eq!(parts.len(), 3);
+        let Part::Usage {
+            completion,
+            estimated,
+        } = &parts[2]
+        else {
+            panic!("expected estimate, got {:?}", parts[2]);
+        };
+        assert!(*estimated);
+        assert_eq!(completion.output_tokens, 3); // ceil(10 bytes / 4)
+        assert_eq!(completion.input_tokens, 100); // 400 bytes = 100 tokens, bounded by the quote
+        assert_eq!(
+            (completion.provider.as_str(), completion.model.as_str()),
+            ("primary", "model")
+        );
+    }
+
+    #[tokio::test]
+    async fn the_estimate_never_exceeds_the_quote_bounds() {
+        let huge = "x".repeat(10_000);
+        let parts = reconcile(
+            scripted(vec![delta(&huge)]),
+            route(false),
+            100_000,
+            bounds(),
+        )
+        .collect::<Vec<_>>()
+        .await;
+        let Part::Usage { completion, .. } = parts.last().unwrap() else {
+            panic!()
+        };
+        assert_eq!(
+            (completion.input_tokens, completion.output_tokens),
+            (100, 10)
+        );
+    }
+
+    #[tokio::test]
+    async fn an_idle_timeout_after_deltas_is_a_typed_retryable_error_then_an_estimate_then_the_end()
+    {
+        let parts = collect(
+            vec![
+                delta("Moons "),
+                delta("orbit "),
+                failure(StreamFailure::IdleTimeout),
+            ],
+            route(false),
+        )
+        .await;
+        assert!(matches!(
+            &parts[2],
+            Part::Error(Failure {
+                code: "idle_timeout",
+                retryable: true
+            })
+        ));
+        assert!(matches!(
+            &parts[3],
+            Part::Usage {
+                estimated: true,
+                ..
+            }
+        ));
+        assert_eq!(parts.len(), 4, "nothing follows the estimate");
+    }
+
+    #[tokio::test]
+    async fn first_token_failure_reports_the_fallback_route_and_zero_output() {
+        let parts = collect(vec![failure(StreamFailure::FirstTokenTimeout)], route(true)).await;
+        assert!(matches!(
+            &parts[0],
+            Part::Error(Failure {
+                code: "first_token_timeout",
+                retryable: true
+            })
+        ));
+        let Part::Usage {
+            completion,
+            estimated,
+        } = &parts[1]
+        else {
+            panic!()
+        };
+        assert!(*estimated);
+        assert_eq!(completion.output_tokens, 0);
+        assert_eq!(
+            (completion.provider.as_str(), completion.model.as_str()),
+            ("fb", "fb-model")
+        );
+    }
+
+    #[tokio::test]
+    async fn error_kinds_map_to_codes_and_retryability() {
+        for (err, code, retryable) in [
+            (
+                failure(StreamFailure::DeadlineExceeded),
+                "deadline_exceeded",
+                false,
+            ),
+            (
+                Err(anyhow::anyhow!("connection reset")),
+                "provider_error",
+                true,
+            ),
+        ] {
+            let parts = collect(vec![delta("a"), err], route(false)).await;
+            assert!(
+                matches!(&parts[1], Part::Error(f) if f.code == code && f.retryable == retryable),
+                "{code}: {:?}",
+                parts[1]
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_provider_usage_frame_is_never_followed_by_a_second_usage() {
+        let parts = collect(
+            vec![delta("a"), usage(5, 1), failure(StreamFailure::IdleTimeout)],
+            route(false),
+        )
+        .await;
+        assert_eq!(
+            parts
+                .iter()
+                .filter(|p| matches!(p, Part::Usage { .. }))
+                .count(),
+            1
+        );
+        assert!(matches!(parts.last(), Some(Part::Error(_))));
+    }
+
+    struct DropFlag(Arc<AtomicBool>);
+    impl Drop for DropFlag {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    #[tokio::test]
+    async fn dropping_the_reply_stream_cancels_the_provider_stream() {
+        let dropped = Arc::new(AtomicBool::new(false));
+        let guard = DropFlag(dropped.clone());
+        let inner: CompletionStream = Box::pin(
+            futures::stream::iter(vec![delta("first")])
+                .chain(futures::stream::pending())
+                .map(move |item| {
+                    let _keep = &guard;
+                    item
+                }),
+        );
+        let mut stream = Box::pin(reconcile(inner, route(false), 4, bounds()));
+        assert!(matches!(stream.next().await, Some(Part::Delta(_))));
+        assert!(!dropped.load(Ordering::SeqCst));
+        drop(stream); // the API cancelled the gRPC call
+        assert!(dropped.load(Ordering::SeqCst));
+    }
+}

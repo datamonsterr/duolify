@@ -1,4 +1,4 @@
-use engine_core::{Completion, ProviderRouter, StreamEvent};
+use engine_core::{Completion, ProviderRouter};
 use engine_proto::{self as pb, engine_service_server::EngineService};
 use futures::{Stream, StreamExt};
 use std::{pin::Pin, sync::Arc};
@@ -10,7 +10,11 @@ pub struct Service {
 }
 type RpcStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send>>;
 fn usage(c: &Completion) -> Option<pb::Usage> {
+    usage_estimated(c, false)
+}
+fn usage_estimated(c: &Completion, estimated: bool) -> Option<pb::Usage> {
     Some(pb::Usage {
+        estimated,
         provider: c.provider.clone(),
         model: c.model.clone(),
         input_tokens: c.input_tokens,
@@ -21,6 +25,32 @@ fn usage(c: &Completion) -> Option<pb::Usage> {
         usage_unavailable: c.usage_unavailable,
         ..Default::default()
     })
+}
+/// Logs a caller-cancelled chat stream: gRPC drops the response stream when the API cancels, which
+/// also drops the provider stream and so stops provider work.
+struct CancelLog {
+    span: tracing::Span,
+    complete: bool,
+}
+impl CancelLog {
+    fn new(span: tracing::Span) -> Self {
+        Self {
+            span,
+            complete: false,
+        }
+    }
+    fn complete(&mut self) {
+        self.complete = true;
+    }
+}
+impl Drop for CancelLog {
+    fn drop(&mut self) {
+        if !self.complete {
+            self.span.in_scope(|| {
+                tracing::info!(event = "chat_cancelled", "chat stream cancelled by caller")
+            });
+        }
+    }
 }
 fn tutor_context(req: &pb::ChatRequest) -> engine_core::chat::Context {
     use engine_core::chat as c;
@@ -850,7 +880,7 @@ impl EngineService for Service {
         }
         let input = engine_core::chat::prompt(&tutor_context(&req));
         let span = tracing::Span::current();
-        let stream = engine_core::eval::stream_bounded(
+        let (stream, route) = engine_core::eval::stream_bounded_routed(
             &self.router,
             "chat",
             &input,
@@ -860,27 +890,45 @@ impl EngineService for Service {
         )
         .await
         .map_err(internal)?;
+        let bounds = limits.as_ref().map(|l| engine_core::chat::stream::Bounds {
+            input_tokens: l.input_tokens,
+            output_tokens: l.output_tokens,
+        });
+        let parts = engine_core::chat::stream::reconcile(stream, route, input.len(), bounds);
         // Enter the request span while polling the provider as well as mapping
         // its output; a map closure alone runs after provider work has finished.
         let map_span = span.clone();
-        let stream = futures::stream::unfold((stream, span), |(mut stream, span)| async move {
-            stream
-                .next()
-                .instrument(span.clone())
-                .await
-                .map(|value| (value, (stream, span)))
-        })
-        .map(move |r| {
+        let finished = CancelLog::new(span.clone());
+        let stream = futures::stream::unfold(
+            (Box::pin(parts), span, finished),
+            |(mut parts, span, mut finished)| async move {
+                let next = parts.next().instrument(span.clone()).await;
+                if next.is_none() {
+                    finished.complete();
+                }
+                next.map(|part| (part, (parts, span, finished)))
+            },
+        )
+        .map(move |part| {
+            use engine_core::chat::stream::Part;
             map_span.in_scope(|| {
-                r.map(|part| pb::ChatEvent {
+                Ok(pb::ChatEvent {
                     event: Some(match part {
-                        StreamEvent::Delta(delta) => pb::chat_event::Event::Delta(delta),
-                        StreamEvent::Usage(c) => {
-                            pb::chat_event::Event::Usage(usage(&c).expect("usage"))
+                        Part::Delta(delta) => pb::chat_event::Event::Delta(delta),
+                        Part::Usage {
+                            completion,
+                            estimated,
+                        } => pb::chat_event::Event::Usage(
+                            usage_estimated(&completion, estimated).expect("usage"),
+                        ),
+                        Part::Error(failure) => {
+                            pb::chat_event::Event::StreamError(pb::ChatStreamError {
+                                code: failure.code.into(),
+                                retryable: failure.retryable,
+                            })
                         }
                     }),
                 })
-                .map_err(internal)
             })
         });
         Ok(Response::new(Box::pin(stream)))

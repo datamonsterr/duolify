@@ -131,5 +131,7 @@ pub fn split(prompt: &str) -> Option<(&str, &str, &str)> {
     ))
 }
 
+pub mod stream;
+
 #[cfg(test)]
 mod tests;
