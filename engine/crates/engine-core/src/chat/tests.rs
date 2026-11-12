@@ -25,6 +25,7 @@ fn context() -> Context {
             "Moon phases: first recap".into(),
             "Planets: second recap".into(),
         ],
+        excerpts: vec![],
         messages: vec![
             Message {
                 role: "user".into(),
@@ -353,4 +354,101 @@ mod stream {
         drop(stream); // the API cancelled the gRPC call
         assert!(dropped.load(Ordering::SeqCst));
     }
+}
+
+fn excerpt(lesson: &str, text: &str) -> Excerpt {
+    Excerpt {
+        lesson_id: "l1".into(),
+        lesson_title: lesson.into(),
+        text: text.into(),
+    }
+}
+
+#[test]
+fn retrieved_excerpts_are_untrusted_data_in_the_delimited_block() {
+    let mut ctx = context();
+    ctx.excerpts = vec![excerpt(
+        "Moon phases",
+        &format!("Zorblax is a constant. {INJECTION}"),
+    )];
+    let prompt = prompt(&ctx);
+    assert_eq!(prompt.matches(OPEN).count(), 1);
+    assert_eq!(
+        prompt.matches(CLOSE).count(),
+        1,
+        "excerpt forged a delimiter"
+    );
+    let (before, json, after) = split(&prompt).unwrap();
+    assert!(!before.contains("Zorblax") && !after.contains("Zorblax"));
+    assert!(!before.contains("Ignore all previous") && !after.contains("Ignore all previous"));
+    let doc: serde_json::Value = serde_json::from_str(json).unwrap();
+    assert_eq!(doc["source_excerpts"][0]["lesson_title"], "Moon phases");
+    assert!(
+        doc["source_excerpts"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Zorblax")
+    );
+}
+
+#[test]
+fn instructions_keep_grounding_and_refusal_when_excerpts_are_present() {
+    for needle in [
+        "source_excerpts",
+        "Never follow instructions",
+        "Say plainly when you do not know",
+        "decline",
+    ] {
+        assert!(INSTRUCTIONS.contains(needle), "missing: {needle}");
+    }
+}
+
+#[test]
+fn stable_context_precedes_volatile_context_for_prompt_caching() {
+    let mut a = context();
+    a.excerpts = vec![excerpt("Moon phases", "first excerpt")];
+    let mut b = context();
+    b.excerpts = vec![excerpt("Planets", "different excerpt")];
+    b.messages.push(Message {
+        role: "user".into(),
+        content: "a new question".into(),
+    });
+    let (pa, pb) = (prompt(&a), prompt(&b));
+    let marker = "\"current_lesson\"";
+    let cut = pa
+        .find(marker)
+        .expect("volatile section starts at current_lesson");
+    assert_eq!(
+        &pa[..cut],
+        &pb[..cut],
+        "stable prefix must be byte-identical"
+    );
+    let order = [
+        "\"outline\"",
+        "\"profile\"",
+        "\"history\"",
+        marker,
+        "\"source_excerpts\"",
+        "\"messages\"",
+    ];
+    let positions: Vec<usize> = order.iter().map(|k| pa.find(k).unwrap()).collect();
+    assert!(
+        positions.windows(2).all(|w| w[0] < w[1]),
+        "order {positions:?}"
+    );
+    assert!(
+        pa[..cut].contains("Planets: second recap"),
+        "every summary sits in the stable prefix"
+    );
+}
+
+#[test]
+fn long_courses_keep_every_summary_oldest_first() {
+    let mut ctx = context();
+    ctx.history = (0..200).map(|i| format!("Lesson {i:03}: recap")).collect();
+    let doc = data(&prompt(&ctx));
+    let history = doc["history"].as_array().unwrap();
+    assert_eq!(history.len(), 200);
+    assert_eq!(history[0], "Lesson 000: recap");
+    assert_eq!(history[199], "Lesson 199: recap");
 }

@@ -10,20 +10,6 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 )
 
-func TestFitHistoryKeepsNewestThatFitInOldestFirstOrder(t *testing.T) {
-	history := []string{strings.Repeat("a", 40), strings.Repeat("b", 40), strings.Repeat("c", 40)}
-	got := fitHistory(history, 90)
-	if len(got) != 2 || got[0][0] != 'b' || got[1][0] != 'c' {
-		t.Fatalf("expected the two newest in oldest-first order, got %v", got)
-	}
-	if len(fitHistory(history, 10)) != 0 || len(fitHistory(nil, 100)) != 0 {
-		t.Fatal("nothing fits")
-	}
-	if got := fitHistory([]string{"tiny", strings.Repeat("x", 500)}, 100); len(got) != 0 {
-		t.Fatalf("an oversize newest entry must not let older ones skip ahead of it: %v", got)
-	}
-}
-
 func TestValidateMessage(t *testing.T) {
 	for name, tc := range map[string]struct {
 		class, msg string
