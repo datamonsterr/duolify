@@ -489,3 +489,13 @@ key-version-checksum manifests (no per-learner SVG is created). PostHog events
 (`lesson_cast_applied`, `character_rendered`, `character_render_fallback`) carry
 ids, counts and enums only; PostHog and device caches are disposable derived
 state, never the recovery source.
+
+E17-06 reactions introduce no new table, column or answer store. The
+deterministic `reaction` (trigger, expression, approved copy; no learner text)
+is part of the existing `lesson_test_answer_operations.response_payload`, so it
+shares that table's nightly encrypted 14-day dump, restore comparison and
+learner-cascade deletion; restored attempts, scores and Retry queues are
+unchanged and rows written before E17-06 simply lack the field (the client then
+shows the neutral expression). `character_reaction_shown` carries speaker key,
+expression, trigger enum and `fallback_used` only; PostHog and device caches
+stay disposable.

@@ -16,7 +16,7 @@ The PostHog catalog SHALL include the events and properties below. All events MU
 | `lesson_cast_applied` | api | cast_version, cast_source, supporting_count, fallback_used |
 | `character_rendered` | client | speaker_key, character_version, rig_version, expression, offline |
 | `character_render_fallback` | client | reason_code, offline |
-| `character_reaction_shown` | client | speaker_key, expression, reaction_trigger, fallback_used |
+| `character_reaction_shown` | client | speaker_key, expression, reaction_trigger (`answer_correct`, `answer_incorrect`, `test_passed`), fallback_used; once per Lesson/question result |
 | `tutor_character_selected` | client | speaker_key, character_version, cast_source |
 | `tutor_character_fallback` | api | reason_code, phase (`before_stream`) |
 | `character_voice_fallback` | api | speaker_key, reason_code, voice_config_version |

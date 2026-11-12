@@ -26,7 +26,12 @@ export function CharacterReaction({
   const speaker = speakerKey ? cast?.speakers[speakerKey] : undefined;
   const usable =
     !!cast && !!speaker && speakerFallback(cast, speakerKey) === null;
-  const reaction = parsed && usable ? parsed : neutralReaction();
+  // Broken assets keep the approved copy but show the static neutral expression.
+  const reaction = parsed
+    ? usable
+      ? parsed
+      : { ...parsed, expression: "idle" as const }
+    : neutralReaction();
   const svg =
     usable && speaker
       ? compileRigSvg(speaker.spec, reaction.expression)
@@ -36,8 +41,9 @@ export function CharacterReaction({
     if (!parsed || parsed.trigger === "neutral") return;
     trackCharacterReactionShown({
       reaction_trigger: parsed.trigger,
+      speaker_key: speakerKey ?? "guide",
       expression: reaction.expression,
-      offline: false,
+      fallback_used: !usable,
       result_key: resultKey,
     });
   }, [parsed?.trigger, reaction.expression, resultKey]); // eslint-disable-line react-hooks/exhaustive-deps

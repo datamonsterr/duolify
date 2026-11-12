@@ -110,8 +110,9 @@ export function trackCharacterRenderFallback(
 
 export interface CharacterReactionShownParams {
   reaction_trigger: "answer_correct" | "answer_incorrect" | "test_passed";
+  speaker_key: string;
   expression: string;
-  offline: boolean;
+  fallback_used: boolean;
   /** Operation/result identity; one event per result. Never sent. */
   result_key: string;
 }
@@ -144,8 +145,9 @@ export function trackCharacterReactionShown(
       platform: "web",
       app_version: "0.1.0",
       reaction_trigger: params.reaction_trigger,
+      speaker_key: params.speaker_key,
       expression: params.expression,
-      offline: params.offline,
+      fallback_used: params.fallback_used,
     });
   } catch {
     /* Telemetry must never crash client */

@@ -409,8 +409,8 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		if v, ok := input["reaction_trigger"].(string); ok && (v == "answer_correct" || v == "answer_incorrect" || v == "test_passed") {
 			out["reaction_trigger"] = v
 		}
-		ids("expression")
-		boolean("offline")
+		ids("speaker_key", "expression")
+		boolean("fallback_used")
 	case "character_render_fallback":
 		ids("reason_code")
 		boolean("offline")

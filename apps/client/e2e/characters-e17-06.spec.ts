@@ -31,6 +31,9 @@ for (const mobile of [false, true]) {
           cast.speakers,
         ))
           s.spec.rig_version = "unsupported";
+      await page.route("**/v1/features", (route) =>
+        route.fulfill({ json: { lesson_test_tracer_enabled: true } }),
+      );
       await page.route(`**/v1/lessons/${lessonId}/manifest`, (route) =>
         route.fulfill({
           json: { lesson_id: lessonId, title: "Sky", cast, slides: [] },
