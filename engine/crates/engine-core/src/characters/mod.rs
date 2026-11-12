@@ -339,5 +339,51 @@ pub fn validate_lesson_segments(lesson: &Value, cast_json: &str) -> anyhow::Resu
     Ok(())
 }
 
+/// Approved supportive reaction lines. Mirrors the API list; persona text is
+/// never reaction copy.
+pub const REACTION_COPY: [&str; 3] = [
+    "Nice work — that's right.",
+    "You passed! Great work.",
+    "Not quite — read the explanation, then try the next one.",
+];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Reaction {
+    pub trigger: &'static str,
+    pub expression: &'static str,
+    pub copy: &'static str,
+}
+
+/// Deterministic reaction derived only from the authoritative graded result.
+/// `passed` without `correct` is never a pass.
+pub fn reaction_for(correct: bool, passed: bool, has_retry: bool) -> Reaction {
+    let (trigger, expression, copy) = match (correct, passed) {
+        (true, true) => ("test_passed", "celebrate", REACTION_COPY[1]),
+        (true, false) => ("answer_correct", "happy", REACTION_COPY[0]),
+        _ if has_retry => ("answer_incorrect", "thinking", REACTION_COPY[2]),
+        _ => ("answer_incorrect", "sad", REACTION_COPY[2]),
+    };
+    Reaction {
+        trigger,
+        expression,
+        copy,
+    }
+}
+
+pub fn reaction_copy_approved(copy: &str) -> bool {
+    REACTION_COPY.contains(&copy)
+}
+
+/// Analytics properties for a reaction: closed enums only, no content.
+pub fn reaction_event_props(
+    r: &Reaction,
+) -> std::collections::BTreeMap<&'static str, &'static str> {
+    [
+        ("reaction_trigger", r.trigger),
+        ("expression", r.expression),
+    ]
+    .into()
+}
+
 #[cfg(test)]
 mod tests;

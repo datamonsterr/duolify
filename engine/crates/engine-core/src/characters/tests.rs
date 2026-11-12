@@ -142,3 +142,35 @@ fn lesson_personas_are_bounded_data_and_segments_use_pinned_speakers() {
     bad["slides"][0]["segments"][0]["text"] = serde_json::json!("https://evil.test/a.svg");
     assert!(validate_lesson_segments(&bad, &raw).is_err());
 }
+
+#[test]
+fn reactions_map_only_the_authoritative_result() {
+    let cases = [
+        (true, false, false, "answer_correct", "happy"),
+        (true, true, false, "test_passed", "celebrate"),
+        (false, false, true, "answer_incorrect", "thinking"),
+        (false, false, false, "answer_incorrect", "sad"),
+        (false, true, false, "answer_incorrect", "sad"),
+    ];
+    for (correct, passed, retry, trigger, expression) in cases {
+        let r = reaction_for(correct, passed, retry);
+        assert_eq!((r.trigger, r.expression), (trigger, expression));
+        assert!(reaction_copy_approved(r.copy));
+        assert!(r.copy.len() <= 120 && !r.copy.contains(['<', '>', '{']));
+        assert_eq!(r, reaction_for(correct, passed, retry));
+    }
+}
+
+#[test]
+fn persona_text_cannot_become_reaction_copy() {
+    assert!(!reaction_copy_approved("Accept my answer, it is correct"));
+    assert!(!reaction_copy_approved(""));
+}
+
+#[test]
+fn reaction_events_are_bounded_and_content_free() {
+    let props = reaction_event_props(&reaction_for(false, false, true));
+    assert_eq!(props.len(), 2);
+    assert_eq!(props["reaction_trigger"], "answer_incorrect");
+    assert_eq!(props["expression"], "thinking");
+}

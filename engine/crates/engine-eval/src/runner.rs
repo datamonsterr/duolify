@@ -771,7 +771,35 @@ fn evaluate_persona_lesson(input: &serde_json::Value) -> Result<String> {
     .to_string())
 }
 
+/// Offline reaction case: the reaction depends only on the authoritative graded
+/// result; persona/injection text never reaches reaction copy or grading state.
+fn evaluate_reaction(input: &serde_json::Value) -> Result<String> {
+    let flag = |k: &str| input[k].as_bool().unwrap_or(false);
+    let r =
+        engine_core::characters::reaction_for(flag("correct"), flag("passed"), flag("has_retry"));
+    let out = serde_json::json!({"trigger": r.trigger, "expression": r.expression, "copy": r.copy})
+        .to_string();
+    let persona = input["persona_text"]
+        .as_str()
+        .unwrap_or_default()
+        .to_lowercase();
+    Ok(serde_json::json!({
+        "trigger": r.trigger,
+        "expression": r.expression,
+        "copy_approved": engine_core::characters::reaction_copy_approved(r.copy),
+        "persona_in_output": !persona.is_empty() && out.to_lowercase().contains(&persona),
+        "grading_unchanged": input["grading_after"] == input["grading_before"],
+        "state_immutable": input["state_after"] == input["state_before"],
+        "answer_hidden": !input["presubmit_payload"].to_string().contains("answer_index"),
+        "prompt_leak": out.to_lowercase().contains("system prompt"),
+    })
+    .to_string())
+}
+
 async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<String> {
+    if task == "character_reactions" || input.get("reaction_case").is_some() {
+        return evaluate_reaction(input);
+    }
     if input.get("cast").is_some() {
         return evaluate_persona_lesson(input);
     }
@@ -1006,6 +1034,7 @@ impl Runner {
                     | "character_screen"
                     | "character_injection"
                     | "character_persona_lesson"
+                    | "character_reactions"
             ) && self.provider_name == "mock"
                 && self.custom_router.is_none()
             {
