@@ -497,13 +497,13 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	}
 	for _, statement := range []string{
 		`INSERT INTO tutor_threads (id, learner_id, course_id) VALUES ('f9111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111')`,
-		`INSERT INTO tutor_messages (id, thread_id, learner_id, role, content, status) VALUES ('f9222222-2222-4222-8222-222222222222', 'f9111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'user', 'Why does the moon change?', 'complete'), ('f9333333-3333-4333-8333-333333333333', 'f9111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'assistant', 'Sunlight angle', 'interrupted')`,
+		`INSERT INTO tutor_messages (id, thread_id, learner_id, role, content, status) VALUES ('f9222222-2222-4222-8222-222222222222', 'f9111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'user', 'Why does the moon change?', 'complete'), ('f9333333-3333-4333-8333-333333333333', 'f9111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'assistant', 'Sunlight angle', 'stopped')`,
 	} {
 		if _, err = f.DB.Pool.Exec(t.Context(), statement); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO tutor_turns (learner_id, course_id, idempotency_key, quote_id, state, thread_id, user_message_id, assistant_message_id) VALUES ('a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'backup-fixture-key', $1, 'interrupted', 'f9111111-1111-4111-8111-111111111111', 'f9222222-2222-4222-8222-222222222222', 'f9333333-3333-4333-8333-333333333333')`, tutorQuote.ID); err != nil {
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO tutor_turns (learner_id, course_id, idempotency_key, quote_id, state, end_reason, job_id, usage_estimated, thread_id, user_message_id, assistant_message_id) VALUES ('a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'backup-fixture-key', $1, 'stopped', 'stop', 'f9444444-4444-4444-8444-444444444444', true, 'f9111111-1111-4111-8111-111111111111', 'f9222222-2222-4222-8222-222222222222', 'f9333333-3333-4333-8333-333333333333')`, tutorQuote.ID); err != nil {
 		t.Fatal(err)
 	}
 	for _, query := range []string{
