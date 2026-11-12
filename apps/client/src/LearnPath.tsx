@@ -13,6 +13,7 @@ import {
   type CourseDownloadProgress,
 } from "./features/player/library";
 import { availableOffline } from "./features/player/cache";
+import { TutorChat } from "./features/chat/TutorChat";
 
 export function LearnPath({ courseId }: { courseId: string }) {
   const returnTo = useLocation({ select: (location) => location.pathname });
@@ -193,6 +194,9 @@ export function LearnPath({ courseId }: { courseId: string }) {
       <a className="shell-link" href={`/courses/${courseId}/cast`}>
         Course Cast
       </a>
+      <div>
+        <TutorChat courseId={courseId} />
+      </div>
 
       {/* Offline banner matching S08-Path canvas */}
       {!isOnline && (
