@@ -31,11 +31,11 @@ func TestGamificationPostHogCatalogueConsentAndPrivacy(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, name := range []string{"xp_earned", "lesson_completed", "daily_goal_met"} {
+		for _, name := range []string{"xp_earned", "lesson_completed", "daily_goal_met", "league_promoted", "league_demoted"} {
 			if !allowlisted(name) {
 				t.Fatal("missing catalogue", name)
 			}
-			if err = events.Capture("11111111-1111-4111-8111-111111111111", name, map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "event_id": "22222222-2222-4222-8222-222222222222", "amount": 23, "xp": 23, "goal_xp": 23, "local_date": "2026-11-01", "summary": "private learner text", "prompt": "private prompt"}); err != nil {
+			if err = events.Capture("11111111-1111-4111-8111-111111111111", name, map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "event_id": "22222222-2222-4222-8222-222222222222", "amount": 23, "xp": 23, "goal_xp": 23, "week_start": "2026-11-02", "league": "Dawn", "rank": 1, "from_tier": 1, "to_tier": 2, "local_date": "2026-11-01", "summary": "private learner text", "prompt": "private prompt"}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -45,7 +45,7 @@ func TestGamificationPostHogCatalogueConsentAndPrivacy(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(received) != 3 {
+	if len(received) != 5 {
 		t.Fatal("delivery/opt-out", received)
 	}
 	for _, event := range received {
