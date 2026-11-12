@@ -228,6 +228,16 @@ func TestStreamAQuotedCourseTutorReplyIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// drain spends the learner's daily free grant so only purchased credits remain.
+	drain := func(owner string) {
+		t.Helper()
+		if _, err := financial.EnsureDailyGrant(ctx, owner, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version,provenance) SELECT $1,-COALESCE(sum(amount),0),'spend','drain',$2,jsonb_build_object('bucket','daily_free','date',to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD')) FROM credit_entries WHERE learner_id=$1`, owner, cat.Config().Version); err != nil {
+			t.Fatal(err)
+		}
+	}
 	// seedCourse enrolls the learner and returns the course id and two lesson ids.
 	seedCourse := func(owner, title, unitTitle string) (string, [2]string) {
 		t.Helper()
@@ -424,6 +434,7 @@ func TestStreamAQuotedCourseTutorReplyIntegration(t *testing.T) {
 	t.Run("insufficient credits refuse before the engine and keep nothing", func(t *testing.T) {
 		token, owner := login("poor@example.test")
 		course, _ := seedCourse(owner, "Poor", "Unit")
+		drain(owner)
 		fund(owner, 4)
 		calls := fixture.calls.Load()
 		code, raw, _, quote := turn(token, course, "short", "need credits", "poor-1")
@@ -448,29 +459,29 @@ func TestStreamAQuotedCourseTutorReplyIntegration(t *testing.T) {
 	t.Run("concurrent sends cannot double charge or exceed the balance", func(t *testing.T) {
 		token, owner := login("race@example.test")
 		course, _ := seedCourse(owner, "Race", "Unit")
+		drain(owner)
 		fund(owner, 11) // two short turns at 5 credits, never three
-		type quoted struct{ id, key string }
-		var qs []quoted
-		for i := range 6 {
-			_, raw := call("POST", "/v1/courses/"+course+"/tutor/quote", map[string]any{"class": "short", "message": "slow race"}, token)
+		quoteFor := func(msg string) string {
+			_, raw := call("POST", "/v1/courses/"+course+"/tutor/quote", map[string]any{"class": "short", "message": msg}, token)
 			id := asMap(raw)["id"].(string)
 			if c, r := call("POST", "/v1/quotes/"+id+"/accept", map[string]any{}, token); c != 200 {
 				t.Fatal(c, r)
 			}
-			qs = append(qs, quoted{id, fmt.Sprint("race-", i)})
+			return id
 		}
 		calls := fixture.calls.Load()
 		var wg sync.WaitGroup
 		var ok, refused atomic.Int32
-		for _, q := range qs {
+		for i := range 6 {
+			id := quoteFor("slow race")
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				code, _ := call("POST", "/v1/courses/"+course+"/tutor/messages", map[string]any{"quote_id": q.id, "idempotency_key": q.key, "class": "short", "message": "slow race"}, token)
+				code, _ := call("POST", "/v1/courses/"+course+"/tutor/messages", map[string]any{"quote_id": id, "idempotency_key": fmt.Sprint("race-", i), "class": "short", "message": "slow race"}, token)
 				switch code {
 				case 200:
 					ok.Add(1)
-				case 402:
+				case 402, 429: // insufficient credits or the free concurrent-stream limit
 					refused.Add(1)
 				default:
 					t.Errorf("unexpected status %d", code)
@@ -478,13 +489,24 @@ func TestStreamAQuotedCourseTutorReplyIntegration(t *testing.T) {
 			}()
 		}
 		wg.Wait()
-		if ok.Load() != 2 || refused.Load() != 4 || fixture.calls.Load()-calls != 2 {
+		if ok.Load() < 1 || ok.Load() > 2 || ok.Load()+refused.Load() != 6 || int32(fixture.calls.Load()-calls) != ok.Load() {
 			t.Fatalf("ok=%d refused=%d engine=%d", ok.Load(), refused.Load(), fixture.calls.Load()-calls)
+		}
+		// Sequential turns drain the wallet exactly: never a third paid turn from 11 credits.
+		total := int(ok.Load())
+		for i := range 4 {
+			id := quoteFor("seq")
+			code, _ := call("POST", "/v1/courses/"+course+"/tutor/messages", map[string]any{"quote_id": id, "idempotency_key": fmt.Sprint("seq-", i), "class": "short", "message": "seq"}, token)
+			if code == 200 {
+				total++
+			} else if code != 402 {
+				t.Fatalf("sequential status %d", code)
+			}
 		}
 		var balance int
 		_ = db.Pool.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM credit_entries WHERE learner_id=$1`, owner).Scan(&balance)
-		if balance != 1 {
-			t.Fatalf("balance after two charges of 5 from 11 must be 1, got %d", balance)
+		if total != 2 || balance != 1 {
+			t.Fatalf("exactly two charges of 5 from 11: turns=%d balance=%d", total, balance)
 		}
 		// Same idempotency key and quote in parallel: one engine call, one charge.
 		_, raw := call("POST", "/v1/courses/"+course+"/tutor/quote", map[string]any{"class": "short", "message": "slow dup"}, token)
@@ -501,7 +523,7 @@ func TestStreamAQuotedCourseTutorReplyIntegration(t *testing.T) {
 			}()
 		}
 		dup.Wait()
-		if fixture.calls.Load()-calls != 1 || count(`SELECT count(*) FROM tutor_messages WHERE learner_id=$1 AND role='assistant' AND content='Planets orbit stars.'`, owner) != 3 {
+		if fixture.calls.Load()-calls != 1 || count(`SELECT count(*) FROM tutor_messages WHERE learner_id=$1 AND role='assistant' AND content='Planets orbit stars.'`, owner) != total+1 {
 			t.Fatalf("duplicate key charged/answered more than once: engine=%d", fixture.calls.Load()-calls)
 		}
 	})

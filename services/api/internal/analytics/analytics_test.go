@@ -88,7 +88,7 @@ func TestEventAllowlist(t *testing.T) {
 		"course_outline_generated", "course_enrolled", "course_generation_failed", "ui_recovery_selected",
 		"learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed",
-		"$ai_generation", "ui_control_activated", "ui_navigation_selected",
+		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "ui_control_activated", "ui_navigation_selected",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
@@ -767,5 +767,33 @@ func TestLessonTestPoolExhaustionAndMetricsAreAllowlistedWithoutText(t *testing.
 	got = safeProperties("retry_variant_served", map[string]any{"source": "api", "variant_source": "pool_exhausted_fallback"})
 	if got["source"] != "api" || got["variant_source"] != "pool_exhausted_fallback" {
 		t.Fatalf("lost variant provenance: %v", got)
+	}
+}
+
+func TestTutorEventsKeepIdentifiersAndCountsOnly(t *testing.T) {
+	common := map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "message": "private question", "content": "private reply", "text": "x", "prompt": "y"}
+	for event, extra := range map[string]map[string]any{
+		"tutor_message_sent":    {"course_id": "c1", "class": "short", "message_length": 12},
+		"tutor_reply_completed": {"course_id": "c1", "class": "long", "model": "haiku", "latency_ms": int64(40), "input_tokens": uint32(9), "output_tokens": uint32(7)},
+		"tutor_reply_failed":    {"course_id": "c1", "class": "short", "error_code": "interrupted", "interrupted": true, "latency_ms": int64(5)},
+	} {
+		in := map[string]any{}
+		for k, v := range common {
+			in[k] = v
+		}
+		for k, v := range extra {
+			in[k] = v
+		}
+		out := safeProperties(event, in)
+		for key := range extra {
+			if out[key] == nil {
+				t.Errorf("%s dropped %s", event, key)
+			}
+		}
+		for _, banned := range []string{"message", "content", "text", "prompt"} {
+			if _, ok := out[banned]; ok {
+				t.Errorf("%s leaked %s", event, banned)
+			}
+		}
 	}
 }

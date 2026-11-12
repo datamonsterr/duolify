@@ -46,7 +46,7 @@ func TestValidateMessage(t *testing.T) {
 
 func testQuote() pricing.Quote {
 	rate := pricing.ModelRate{Provider: "anthropic", Model: "haiku", Input: 1000, Output: 5000, CacheWrite: 1250, CacheRead: 100}
-	return pricing.Quote{Input: pricing.QuoteInput{Model: "haiku"}, Rate: rate, Bounds: map[string]int64{"input_tokens": 12500, "output_tokens": 250, "max_attempts": 2, "timeout_ms": 30000}}
+	return pricing.Quote{ContentMinimum: 5, ContentCeiling: 5, Policy: pricing.QuotePolicy{USDNanosPerCredit: 1_000_000}, Input: pricing.QuoteInput{Model: "haiku"}, Rate: rate, Bounds: map[string]int64{"input_tokens": 12500, "output_tokens": 250, "max_attempts": 2, "timeout_ms": 30000, "max_cost_nanos": 100000000}}
 }
 
 func TestSettlementUsageNormalisesCompleteAndInterruptedReplies(t *testing.T) {

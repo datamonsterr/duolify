@@ -195,7 +195,14 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 			respond(w, http.StatusPaymentRequired, map[string]any{"error": "insufficient_credits", "draft_kept": true})
 			return
 		}
-		fail(w, http.StatusConflict, "quote_unavailable")
+		switch {
+		case errors.Is(err, credits.ErrConcurrency):
+			respond(w, http.StatusTooManyRequests, map[string]any{"error": "too_many_streams", "draft_kept": true})
+		case errors.Is(err, credits.ErrBudget):
+			respond(w, http.StatusServiceUnavailable, map[string]any{"error": "capacity_unavailable", "draft_kept": true})
+		default:
+			fail(w, http.StatusConflict, "quote_unavailable")
+		}
 		return
 	}
 	if job.State != "reserved" {
