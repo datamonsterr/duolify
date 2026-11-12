@@ -159,8 +159,8 @@ export function LeaguePanel() {
               <h2>Join this week's league</h2>
               <p>Complete a lesson to join</p>
               <p>
-                Complete a lesson to join a group of learners at your pace. It's
-                optional. Your streak doesn't depend on it.
+                A group of learners at your pace is waiting. It's optional. Your
+                streak doesn't depend on it.
               </p>
               <a href="/">Start a lesson</a>
             </div>

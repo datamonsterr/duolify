@@ -19,6 +19,6 @@
 
 ## E5-04 weekly leagues
 
-- [ ] Failing e2e, integration and unit tests, then membership assignment, ranking, Redis rebuild and endpoint.
-- [ ] S13 Leagues view, `ui_screen_viewed(leagues)` catalogue entry, privacy, backup fixtures and data inventory.
+- [x] Failing e2e, integration and unit tests, then membership assignment, ranking, Redis rebuild and endpoint.
+- [x] S13 Leagues view, `ui_screen_viewed(leagues)` catalogue entry, privacy, backup fixtures and data inventory.
 
