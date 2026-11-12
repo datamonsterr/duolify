@@ -59,3 +59,22 @@ A durable, idempotent worker SHALL judge ended local days; clients SHALL NOT dec
 #### Scenario: Opted-out Learner
 - **WHEN** an opted-out Learner extends a Streak
 - **THEN** state persists and no analytics are delivered
+
+### Requirement: Effort-earned Streak freezes
+The API SHALL grant one Streak freeze each time a Streak run reaches the configured milestone while the Learner holds fewer than the configured cap, exactly once per milestone and run. A milestone reached at the cap SHALL be recorded without a grant and SHALL NOT grant Credits or a later freeze. At rollover, each judged missed day of a live Streak SHALL consume one of the Learner's own freezes, preserving (not incrementing) the Streak, and SHALL store one protection record per Learner and local day with a persistent dated notice; without a freeze the Streak SHALL break. There SHALL be no purchase or manual activation path. Inventory, milestone and protection rows SHALL be unique and atomic under concurrent workers, and SHALL be reconstructible from XP events after a restore.
+
+#### Scenario: Freeze earned once
+- **WHEN** a Learner below the cap completes the seventh day of a run, even with concurrent consumers
+- **THEN** exactly one freeze is added and `streak_freeze_earned` is emitted once
+
+#### Scenario: Freeze at cap
+- **WHEN** a Learner at the cap reaches another milestone
+- **THEN** no freeze and no Credits are granted and `streak_freeze_earned` is not emitted
+
+#### Scenario: Missed day with a freeze
+- **WHEN** a Learner with a freeze misses a local day and the rollover runs repeatedly
+- **THEN** one freeze is consumed once, the Streak is unchanged, `streak_freeze_used` is emitted once and the S13 panel keeps a dated notice
+
+### Requirement: Streak freeze view and analytics
+`GET /v1/gamification/streak` SHALL additionally return `freezes` (held, cap, milestone_days, next_milestone_in), the latest earned milestone and the three latest dated protection notices, and label protected calendar days `frozen`. The S13 panel SHALL show them with text labels and a list alternative and SHALL offer no buy or activate control. `streak_freeze_earned` (`reason`, `streak_length`, `local_date`) and `streak_freeze_used` (`remaining`, `protected_on`, `streak_length`) SHALL be catalogued and allowlisted before emission, pass the central consent gate and carry no learner text. Freeze tables SHALL enter nightly dumps, export with the account and erase on deletion.
+
