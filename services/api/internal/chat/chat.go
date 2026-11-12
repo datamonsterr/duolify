@@ -172,8 +172,9 @@ func (s *Service) ownsCourse(ctx context.Context, owner, course string) bool {
 
 func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course string) {
 	var in struct {
-		Class   string `json:"class"`
-		Message string `json:"message"`
+		Class               string `json:"class"`
+		Message             string `json:"message"`
+		ApproveLargeContext bool   `json:"approve_large_context"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -191,21 +192,46 @@ func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course st
 		fail(w, http.StatusServiceUnavailable, "unavailable")
 		return
 	}
-	req, err := s.assemble(r.Context(), owner, course, thread, in.Message, 1<<30)
+	req, err := s.assemble(r.Context(), owner, course, thread, in.Message)
 	if err != nil {
 		fail(w, http.StatusServiceUnavailable, "unavailable")
 		return
 	}
-	q, err := pricing.NewQuotes(s.opts.Pool).Create(r.Context(), owner, pricing.QuoteInput{
-		Action:        classAction(in.Class),
-		InputTokens:   estimateTokens(len(in.Message)),
-		ContextTokens: estimateTokens(max(0, promptBytes(req)-len(in.Message))),
+	quotes := pricing.NewQuotes(s.opts.Pool)
+	action, messageTokens := classAction(in.Class), estimateTokens(len(in.Message))
+	bounds, err := quotes.Bounds(r.Context(), pricing.QuoteInput{Action: action, InputTokens: messageTokens})
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "quote_unavailable")
+		return
+	}
+	// Mandatory parts only: retrieval later fills whatever room the quote's bound leaves.
+	context := max(0, estimateTokens(promptBytes(req))-messageTokens)
+	standard, ceiling := bounds["cached_context_tokens"], bounds["prompt_tokens"]-messageTokens
+	v := judge(context, standard, ceiling)
+	if v == tooLarge || (v == needsApproval && !in.ApproveLargeContext) {
+		refuseContext(w, v, context, standard, ceiling)
+		return
+	}
+	q, err := quotes.Create(r.Context(), owner, pricing.QuoteInput{
+		Action:        action,
+		InputTokens:   messageTokens,
+		ContextTokens: context,
+		LargeContext:  v == needsApproval,
 	})
 	if err != nil {
 		fail(w, http.StatusServiceUnavailable, "quote_unavailable")
 		return
 	}
 	respond(w, http.StatusOK, q)
+}
+
+// refuseContext answers the typed, free-of-charge overflow response; nothing is truncated or sent to the Engine.
+func refuseContext(w http.ResponseWriter, v verdict, required, standard, ceiling int64) {
+	code := "context_too_large"
+	if v == needsApproval {
+		code = "context_approval_required"
+	}
+	respond(w, http.StatusUnprocessableEntity, map[string]any{"error": code, "required_tokens": required, "standard_limit_tokens": standard, "prompt_limit_tokens": ceiling})
 }
 
 type messageDTO struct {

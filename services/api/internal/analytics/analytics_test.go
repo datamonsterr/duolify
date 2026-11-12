@@ -1181,7 +1181,8 @@ func TestTutorEventsKeepIdentifiersAndCountsOnly(t *testing.T) {
 	common := map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "message": "private question", "content": "private reply", "text": "x", "prompt": "y"}
 	for event, extra := range map[string]map[string]any{
 		"tutor_message_sent":    {"course_id": "c1", "class": "short", "message_length": 12},
-		"tutor_reply_completed": {"course_id": "c1", "class": "long", "model": "haiku", "latency_ms": int64(40), "input_tokens": uint32(9), "output_tokens": uint32(7)},
+		"tutor_reply_completed": {"course_id": "c1", "class": "long", "model": "haiku", "latency_ms": int64(40), "input_tokens": uint32(9), "output_tokens": uint32(7), "envelope": "long", "cache_class": "cold", "cache_read_tokens": uint32(0), "cache_write_tokens": uint32(4000), "summary_count": 30, "excerpt_count": 2, "context_tokens": int64(9000)},
+		"$ai_generation":        {"feature": "tutor_long", "provider": "anthropic", "model": "haiku", "envelope": "long", "cache_class": "warm", "cache_read_tokens": uint32(4000), "cache_write_tokens": uint32(0)},
 		"tutor_reply_failed":    {"course_id": "c1", "class": "short", "error_code": "interrupted", "interrupted": true, "latency_ms": int64(5)},
 	} {
 		in := map[string]any{}

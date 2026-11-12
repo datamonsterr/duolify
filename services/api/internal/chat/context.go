@@ -13,20 +13,42 @@ const instructionBytes = 1500
 
 func promptBytes(req *enginev1.ChatRequest) int { return proto.Size(req)*3/2 + instructionBytes }
 
-// fitHistory keeps the newest entries that fit, in the original oldest-first order.
-// It stops at the first entry that does not fit so older entries never jump the queue.
-func fitHistory(history []string, budget int) []string {
-	used, start := 0, len(history)
-	for start > 0 && used+len(history[start-1]) <= budget {
-		start--
-		used += len(history[start])
+// verdict says whether the mandatory prompt parts fit a bound.
+type verdict int
+
+const (
+	fits verdict = iota
+	needsApproval
+	tooLarge
+)
+
+// judge compares the mandatory prompt tokens (outline, every summary, profile, recent messages, the question)
+// with the quote's input bound and the configured prompt ceiling. Nothing is ever trimmed to make it fit.
+func judge(mandatory, standard, ceiling int64) verdict {
+	switch {
+	case mandatory <= standard:
+		return fits
+	case mandatory <= ceiling:
+		return needsApproval
 	}
-	return append([]string(nil), history[start:]...)
+	return tooLarge
+}
+
+// cacheClass names how a provider used its prompt cache: cold (only written), warm (read) or none.
+func cacheClass(u *enginev1.Usage) string {
+	switch {
+	case u.GetCacheReadTokens() > 0:
+		return "warm"
+	case u.GetCacheWriteTokens() > 0:
+		return "cold"
+	}
+	return "none"
 }
 
 // assemble builds the Engine context from rows owned by the authenticated learner only:
 // every query is keyed by learner and course. current_lesson stays empty at Course level.
-func (s *Service) assemble(ctx context.Context, owner, course, thread, message string, inputBudget int) (*enginev1.ChatRequest, error) {
+// It holds the mandatory parts only: every summary is kept, whatever the size. Retrieval fills the remaining room.
+func (s *Service) assemble(ctx context.Context, owner, course, thread, message string) (*enginev1.ChatRequest, error) {
 	req := &enginev1.ChatRequest{Outline: &enginev1.CourseOutline{CourseId: course}}
 	if err := s.opts.Pool.QueryRow(ctx, `SELECT title,description FROM courses WHERE id=$1::uuid AND learner_id=$2::uuid`, course, owner).Scan(&req.Outline.Title, &req.Outline.Description); err != nil {
 		return nil, err
@@ -57,7 +79,6 @@ func (s *Service) assemble(ctx context.Context, owner, course, thread, message s
 	if req.Learner, err = s.opts.Profiles.EffectiveProfile(ctx, owner, course); err != nil {
 		return nil, err
 	}
-	var history []string
 	hrows, err := s.opts.Pool.Query(ctx, `SELECT l.title||': '||s.summary FROM lesson_completion_summaries s JOIN course_lesson_stubs l ON l.id=s.lesson_id WHERE s.learner_id=$1::uuid AND s.course_id=$2::uuid ORDER BY s.completed_at ASC,s.id ASC`, owner, course)
 	if err != nil {
 		return nil, err
@@ -68,7 +89,7 @@ func (s *Service) assemble(ctx context.Context, owner, course, thread, message s
 			hrows.Close()
 			return nil, err
 		}
-		history = append(history, h)
+		req.History = append(req.History, h)
 	}
 	hrows.Close()
 	if err = hrows.Err(); err != nil {
@@ -93,9 +114,5 @@ func (s *Service) assemble(ctx context.Context, owner, course, thread, message s
 		}
 	}
 	req.Messages = append(req.Messages, &enginev1.ChatMessage{Role: "user", Content: message})
-	if len(history) > 0 {
-		room := inputBudget - promptBytes(req)
-		req.History = fitHistory(history, max(0, room*2/3))
-	}
 	return req, nil
 }

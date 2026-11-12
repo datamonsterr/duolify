@@ -12,13 +12,14 @@ func TestSearchTermsAreWordsOnly(t *testing.T) {
 		in   string
 		want string
 	}{
-		"plain":        {"What is Zorblax?", "what | zorblax"},
-		"operators":    {"a & b | c ! (zorblax) :* <-> 'x'", "zorblax"},
-		"sql":          {"sprocket'); DROP TABLE lesson_slides;--", "sprocket | drop | table | lesson | slides"},
-		"dedupe":       {"moon Moon MOON phases", "moon | phases"},
-		"unicode":      {"сprocket 日本語 ☃", "сprocket | 日本語"},
-		"only symbols": {"&|!():*<->", ""},
-		"short words":  {"a an of it", ""},
+		"plain":          {"What is Zorblax?", "zorblax"},
+		"question words": {"Tell me about the Moon phases please", "moon | phases"},
+		"operators":      {"a & b | c ! (zorblax) :* <-> 'x'", "zorblax"},
+		"sql":            {"sprocket'); DROP TABLE lesson_slides;--", "sprocket | drop | table | lesson | slides"},
+		"dedupe":         {"moon Moon MOON phases", "moon | phases"},
+		"unicode":        {"сprocket 日本語 ☃", "сprocket | 日本語"},
+		"only symbols":   {"&|!():*<->", ""},
+		"short words":    {"a an of it", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if got := searchTerms(tc.in); got != tc.want {
@@ -54,7 +55,7 @@ func TestFitExcerptsKeepsWholeRankedExcerptsOnly(t *testing.T) {
 		return &enginev1.SourceExcerpt{LessonId: "l", LessonTitle: "T", Text: strings.Repeat(string(c), n)}
 	}
 	in := []*enginev1.SourceExcerpt{mk(100, 'a'), mk(400, 'b'), mk(100, 'c')}
-	got := fitExcerpts(in, 1000)
+	got := fitExcerpts(in, 700)
 	if len(got) != 1 || got[0].Text[0] != 'a' {
 		t.Fatalf("stop at the first excerpt that does not fit, rank order kept: %v", got)
 	}

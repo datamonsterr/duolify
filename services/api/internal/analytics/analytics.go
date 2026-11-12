@@ -359,7 +359,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available", "usage_estimated")
 		ids("$ai_provider", "$ai_model", "feature", "error_code")
 		numeric("input_tokens", "output_tokens", "latency_ms", "attempt", "cache_write_tokens", "cache_read_tokens", "narration_characters", "provider_cost_nanos")
-		ids("provider", "model", "task", "pricing_version", "error_code")
+		ids("provider", "model", "task", "pricing_version", "error_code", "envelope", "cache_class")
 		for legacy, canonical := range map[string]string{"input_tokens": "$ai_input_tokens", "output_tokens": "$ai_output_tokens", "latency_ms": "$ai_latency", "provider": "$ai_provider", "model": "$ai_model", "task": "feature"} {
 			if out[canonical] == nil && out[legacy] != nil {
 				out[canonical] = out[legacy]
@@ -373,8 +373,8 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("course_id", "class")
 		numeric("message_length")
 	case "tutor_reply_completed":
-		ids("course_id", "class", "model")
-		numeric("latency_ms", "input_tokens", "output_tokens")
+		ids("course_id", "class", "model", "envelope", "cache_class")
+		numeric("latency_ms", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "summary_count", "excerpt_count", "context_tokens")
 	case "tutor_reply_failed":
 		ids("course_id", "class", "error_code")
 		numeric("latency_ms")

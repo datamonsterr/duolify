@@ -219,14 +219,22 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 			s.dropTurn(turn)
 		}
 	}()
-	req, err := s.assemble(ctx, owner, course, map[bool]string{false: thread, true: ""}[newThread], in.Message, int(q.Bounds["input_tokens"]))
+	req, err := s.assemble(ctx, owner, course, map[bool]string{false: thread, true: ""}[newThread], in.Message)
 	if err != nil {
 		s.opts.Logger.Error("tutor context failed", "error", err)
 		fail(w, http.StatusServiceUnavailable, "unavailable")
 		return
 	}
-	if promptBytes(req) > int(q.Bounds["input_tokens"]) {
-		fail(w, http.StatusUnprocessableEntity, "context_too_large")
+	// The mandatory parts never shrink: if they do not fit the quote's bound the turn is refused, free of charge.
+	standard, ceiling := q.Bounds["input_tokens"], q.Bounds["prompt_tokens"]
+	if v := judge(estimateTokens(promptBytes(req)), standard, ceiling); v != fits {
+		refuseContext(w, v, estimateTokens(promptBytes(req)), standard, ceiling)
+		return
+	}
+	summaries := len(req.History)
+	if req.Excerpts, err = s.retrieve(ctx, owner, course, in.Message, int(standard)*4-promptBytes(req)); err != nil {
+		s.opts.Logger.Error("tutor retrieval failed", "error", err)
+		fail(w, http.StatusServiceUnavailable, "unavailable")
 		return
 	}
 	job, err := s.opts.Financial.ReserveAction(ctx, owner, in.QuoteID, action)
@@ -428,6 +436,8 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		writeEvent(w, "error", map[string]any{"code": code, "interrupted": true, "stopped": finished.State == "stopped", "retryable": finished.Retryable, "message_id": assistantID, "thread_id": thread})
 		return
 	}
-	s.emit(context.WithoutCancel(ctx), owner, "tutor_reply_completed", map[string]any{"course_id": course, "class": in.Class, "model": model, "latency_ms": latency, "input_tokens": usage[0].InputTokens, "output_tokens": usage[0].OutputTokens})
+	s.emit(context.WithoutCancel(ctx), owner, "tutor_reply_completed", map[string]any{"course_id": course, "class": in.Class, "model": model, "latency_ms": latency, "input_tokens": usage[0].InputTokens, "output_tokens": usage[0].OutputTokens,
+		"envelope": in.Class, "cache_class": cacheClass(usage[0]), "cache_read_tokens": usage[0].CacheReadTokens, "cache_write_tokens": usage[0].CacheWriteTokens,
+		"summary_count": summaries, "excerpt_count": len(req.Excerpts), "context_tokens": estimateTokens(promptBytes(req))})
 	writeEvent(w, "done", map[string]any{"message_id": assistantID, "thread_id": thread, "replayed": false})
 }
