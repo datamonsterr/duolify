@@ -22,6 +22,50 @@ fn usage(c: &Completion) -> Option<pb::Usage> {
         ..Default::default()
     })
 }
+fn tutor_context(req: &pb::ChatRequest) -> engine_core::chat::Context {
+    use engine_core::chat as c;
+    let lesson = |l: &pb::LessonRef| c::LessonRef {
+        id: l.lesson_id.clone(),
+        title: l.title.clone(),
+        goal: l.goal.clone(),
+    };
+    let outline = req.outline.clone().unwrap_or_default();
+    let learner = req.learner.clone().unwrap_or_default();
+    c::Context {
+        course_title: outline.title,
+        course_description: outline.description,
+        units: outline
+            .units
+            .iter()
+            .map(|u| c::Unit {
+                id: u.unit_id.clone(),
+                title: u.title.clone(),
+                lessons: u.lessons.iter().map(lesson).collect(),
+            })
+            .collect(),
+        current_lesson: req
+            .current_lesson
+            .as_ref()
+            .and_then(|l| l.r#ref.as_ref())
+            .map(lesson),
+        profile: c::Profile {
+            locale: learner.locale,
+            background: learner.background,
+            goals: learner.goals,
+            level: learner.level,
+            topic: learner.topic,
+        },
+        history: req.history.clone(),
+        messages: req
+            .messages
+            .iter()
+            .map(|m| c::Message {
+                role: m.role.clone(),
+                content: m.content.clone(),
+            })
+            .collect(),
+    }
+}
 fn content(c: &Completion) -> Result<serde_json::Value, Status> {
     serde_json::from_str(&c.text).map_err(|_| Status::internal("provider returned invalid JSON"))
 }
@@ -804,7 +848,7 @@ impl EngineService for Service {
                 "quote route differs from evaluated route",
             ));
         }
-        let input = format!("{req:?}");
+        let input = engine_core::chat::prompt(&tutor_context(&req));
         let span = tracing::Span::current();
         let stream = engine_core::eval::stream_bounded(
             &self.router,
