@@ -110,9 +110,11 @@ describe("weekly league panel", () => {
     });
     fireEvent.click(await screen.findByRole("button", { name: "Next ranks" }));
     expect(await screen.findByText("Showing ranks 4–4 of 6")).toBeVisible();
-    expect(vi.mocked(authRequest).mock.calls.at(-1)?.[0]).toBe(
-      "/v1/gamification/league?offset=3",
-    );
+    expect(
+      vi.mocked(authRequest).mock.calls[
+        vi.mocked(authRequest).mock.calls.length - 1
+      ]?.[0],
+    ).toBe("/v1/gamification/league?offset=3");
   });
   it("invites a Learner who has not joined without inventing a rank", async () => {
     vi.mocked(authRequest).mockResolvedValue(notJoined);
