@@ -686,6 +686,18 @@ async fn evaluate_course_outline(input: &serde_json::Value) -> Result<String> {
     }
 }
 
+/// Cold: the provider only wrote the cache; warm: it read it; none: no cache tokens.
+fn cache_class(usage: &serde_json::Value) -> &'static str {
+    let n = |k: &str| usage[k].as_u64().unwrap_or(0);
+    if n("cache_read_tokens") > 0 {
+        "warm"
+    } else if n("cache_write_tokens") > 0 {
+        "cold"
+    } else {
+        "none"
+    }
+}
+
 /// Runs the production tutor prompt builder on the case context and scores a recorded reply.
 fn evaluate_tutor_chat(input: &serde_json::Value) -> Result<String> {
     use engine_core::chat;
@@ -718,6 +730,26 @@ fn evaluate_tutor_chat(input: &serde_json::Value) -> Result<String> {
         "profile_provided": data.as_ref().is_some_and(|d| d["profile_provided"] == true),
         "current_lesson_empty": data.as_ref().is_some_and(|d| d["current_lesson"].is_null()),
         "history_oldest_first": history == context.history,
+        "excerpts_in_data_block": !context.excerpts.is_empty()
+            && data.as_ref().is_some_and(|d| {
+                let found = d["source_excerpts"].as_array().map_or(0, Vec::len);
+                found == context.excerpts.len()
+                    && strings("excerpt_terms").iter().all(|t| {
+                        d["source_excerpts"]
+                            .to_string()
+                            .contains(t.trim_matches('"'))
+                    })
+            }),
+        "excerpts_outside_instructions": parts.is_some_and(|(before, _, after)| {
+            context.excerpts.iter().all(|e| {
+                !before.contains(e.text.as_str()) && !after.contains(e.text.as_str())
+            })
+        }),
+        "every_summary_kept": data
+            .as_ref()
+            .is_some_and(|d| d["history"].as_array().map_or(0, Vec::len) == context.history.len()),
+        "cache_class": cache_class(&input["usage"]),
+        "envelope": input["envelope"].as_str().unwrap_or("short"),
         "grounded": strings("expect_terms").iter().all(|t| reply.contains(t.as_str())),
         "forbidden_absent": strings("forbidden").iter().all(|t| !reply.contains(t.as_str())),
     })

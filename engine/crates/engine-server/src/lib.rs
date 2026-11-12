@@ -86,6 +86,15 @@ fn tutor_context(req: &pb::ChatRequest) -> engine_core::chat::Context {
             topic: learner.topic,
         },
         history: req.history.clone(),
+        excerpts: req
+            .excerpts
+            .iter()
+            .map(|e| c::Excerpt {
+                lesson_id: e.lesson_id.clone(),
+                lesson_title: e.lesson_title.clone(),
+                text: e.text.clone(),
+            })
+            .collect(),
         messages: req
             .messages
             .iter()
