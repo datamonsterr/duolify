@@ -724,6 +724,139 @@ fn evaluate_tutor_chat(input: &serde_json::Value) -> Result<String> {
     .to_string())
 }
 
+/// One scripted provider for tutor streaming cases: emits `deltas`, then ends, fails or hangs.
+struct ScriptedStream {
+    name: &'static str,
+    deltas: Vec<String>,
+    then: String,
+    touched: Arc<std::sync::atomic::AtomicBool>,
+    dropped: Arc<std::sync::atomic::AtomicBool>,
+}
+
+struct DropFlag(Arc<std::sync::atomic::AtomicBool>);
+impl Drop for DropFlag {
+    fn drop(&mut self) {
+        self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+#[async_trait::async_trait]
+impl engine_core::LlmProvider for ScriptedStream {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+    async fn complete(&self, _: &str, _: &str) -> Result<engine_core::Completion> {
+        bail!("tutor stream cases never call complete")
+    }
+    async fn stream(&self, _: &str, _: &str) -> Result<engine_core::CompletionStream> {
+        use futures::StreamExt;
+        self.touched
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        let mut items: Vec<Result<engine_core::StreamEvent>> = self
+            .deltas
+            .iter()
+            .map(|d| Ok(engine_core::StreamEvent::Delta(d.clone())))
+            .collect();
+        if self.then == "fail" {
+            items.push(Err(anyhow::anyhow!("provider reset")));
+        }
+        let head = futures::stream::iter(items);
+        let guard = DropFlag(self.dropped.clone());
+        let tail: engine_core::CompletionStream = if self.then == "hang" {
+            Box::pin(head.chain(futures::stream::pending()))
+        } else {
+            Box::pin(head)
+        };
+        Ok(Box::pin(tail.map(move |item| {
+            let _keep = &guard;
+            item
+        })))
+    }
+}
+
+/// Runs the production stream path (`stream_bounded_routed` + `reconcile`) on a scripted provider and
+/// reports what the API would see: delivered text, terminal state, typed error, usage and fallback facts.
+async fn evaluate_tutor_stream(input: &serde_json::Value) -> Result<String> {
+    use engine_core::chat::stream::{Bounds, Part, reconcile};
+    use futures::StreamExt;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let spec = &input["stream"];
+    let side = |key: &str, name: &'static str| {
+        let s = &spec[key];
+        ScriptedStream {
+            name,
+            deltas: s["deltas"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect(),
+            then: s["then"].as_str().unwrap_or("end").into(),
+            touched: Arc::new(AtomicBool::new(false)),
+            dropped: Arc::new(AtomicBool::new(false)),
+        }
+    };
+    let (primary, fallback) = (side("primary", "primary"), side("fallback", "fallback"));
+    let (primary_dropped, fallback_touched) = (primary.dropped.clone(), fallback.touched.clone());
+    let router = engine_core::ProviderRouter::new(Arc::new(primary), Arc::new(fallback))?;
+    let ms = |key: &str, default: u64| spec[key].as_u64().unwrap_or(default);
+    let bounds = Bounds {
+        input_tokens: u32::try_from(ms("input_tokens", 4000))?,
+        output_tokens: u32::try_from(ms("output_tokens", 64))?,
+    };
+    let (stream, route) = engine_core::eval::stream_bounded_routed(
+        &router,
+        "chat",
+        "prompt",
+        None,
+        std::time::Duration::from_millis(ms("first_token_ms", 40)),
+        std::time::Duration::from_millis(ms("idle_ms", 40)),
+    )
+    .await?;
+    let mut parts = Box::pin(reconcile(stream, route.clone(), 400, Some(bounds)));
+    let cancel_after = spec["cancel_after"].as_u64();
+    let (mut text, mut seen, mut cancelled) = (String::new(), 0u64, false);
+    let (mut error, mut usages) = (None, Vec::new());
+    while let Some(part) = parts.next().await {
+        match part {
+            Part::Delta(d) => {
+                text.push_str(&d);
+                seen += 1;
+                if cancel_after.is_some_and(|n| seen >= n) {
+                    cancelled = true;
+                    break;
+                }
+            }
+            Part::Usage {
+                completion,
+                estimated,
+            } => usages.push((completion, estimated)),
+            Part::Error(f) => error = Some(f),
+        }
+    }
+    drop(parts);
+    tokio::task::yield_now().await;
+    let within = usages.iter().all(|(c, _)| {
+        c.input_tokens <= bounds.input_tokens && c.output_tokens <= bounds.output_tokens
+    });
+    let primary_delivered = !spec["primary"]["deltas"]
+        .as_array()
+        .is_none_or(|d| d.is_empty());
+    Ok(serde_json::json!({
+        "delivered_text": text,
+        "terminal": if cancelled { "cancelled" } else if error.is_some() { "error" } else { "done" },
+        "error_code": error.as_ref().map(|f| f.code).unwrap_or(""),
+        "retryable": error.as_ref().is_some_and(|f| f.retryable),
+        "fallback_used": route.fallback_used,
+        "second_provider_after_delta": primary_delivered && fallback_touched.load(Ordering::SeqCst),
+        "usage_frames": usages.len(),
+        "usage_estimated": usages.iter().any(|(_, e)| *e),
+        "usage_within_bounds": within,
+        "provider_dropped": primary_dropped.load(Ordering::SeqCst),
+    })
+    .to_string())
+}
+
 async fn evaluate_outline_change(input: &serde_json::Value) -> Result<String> {
     use engine_core::courses::outline;
     let base: Vec<outline::Unit> = serde_json::from_value(input["outline"].clone())?;
@@ -1032,6 +1165,8 @@ impl Runner {
                     evaluate_credits(&case.input).await?
                 } else if case.task == "course_brief_chat" {
                     evaluate_brief(&case.input).await?
+                } else if case.task == "tutor_chat" && case.input.get("stream").is_some() {
+                    evaluate_tutor_stream(&case.input).await?
                 } else if case.task == "tutor_chat" {
                     evaluate_tutor_chat(&case.input)?
                 } else if canonical == "note_enrich" {
@@ -1378,5 +1513,23 @@ mod tests {
         assert_eq!(result["delivered"], true);
         assert_eq!(result["attempt_count"], 2);
         assert_eq!(result["attempts"][0]["delivered"], false);
+    }
+}
+
+#[cfg(test)]
+mod tutor_stream_debug {
+    #[tokio::test]
+    async fn dump() {
+        let raw = include_str!("../../../../evals/fixtures/golden.sample.jsonl");
+        for line in raw.lines() {
+            let v: serde_json::Value = serde_json::from_str(line).unwrap();
+            if v["task"] == "tutor_chat" && v["input"].get("stream").is_some() {
+                println!(
+                    "{} => {}",
+                    v["id"],
+                    super::evaluate_tutor_stream(&v["input"]).await.unwrap()
+                );
+            }
+        }
     }
 }

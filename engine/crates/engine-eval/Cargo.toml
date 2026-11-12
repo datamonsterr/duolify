@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 engine-core.workspace = true
+futures.workspace = true
 engine-providers.workspace = true
 reqwest.workspace = true
 serde.workspace = true
