@@ -15,7 +15,7 @@ type Calls = {
 /** A large course: the first quote needs approval, the approved one succeeds. */
 async function mockLargeCourse(page: Page, mode: "approval" | "too_large") {
   const state: Calls = { quotes: [], sent: [] };
-  await page.route(`**/v1/course/${courseId}`, (route) =>
+  await page.route(`**/v1/courses/${courseId}`, (route) =>
     route.fulfill({
       json: {
         id: courseId,
@@ -47,10 +47,10 @@ async function mockLargeCourse(page: Page, mode: "approval" | "too_large") {
       },
     }),
   );
-  await page.route(`**/v1/course/${courseId}/tutor/thread`, (route) =>
+  await page.route(`**/v1/courses/${courseId}/tutor/thread`, (route) =>
     route.fulfill({ json: { thread: null, messages: [] } }),
   );
-  await page.route(`**/v1/course/${courseId}/tutor/quote`, (route) => {
+  await page.route(`**/v1/courses/${courseId}/tutor/quote`, (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     state.quotes.push(body);
     if (mode === "too_large")
@@ -81,25 +81,30 @@ async function mockLargeCourse(page: Page, mode: "approval" | "too_large") {
   await page.route("**/v1/quotes/*/accept", (route) =>
     route.fulfill({ json: { accepted: true } }),
   );
-  await page.route(`**/v1/course/${courseId}/tutor/messages`, async (route) => {
-    state.sent.push(route.request().postDataJSON() as Record<string, unknown>);
-    await route.fulfill({
-      status: 200,
-      contentType: "text/event-stream",
-      body: sse(
-        ["thread", { thread_id: "t1" }],
-        [
-          "delta",
-          {
-            text:
-              "Zorblax is the founding constant of lesson one. " +
-              "Very long answer ".repeat(60),
-          },
-        ],
-        ["done", { message_id: "m-done", thread_id: "t1", replayed: false }],
-      ),
-    });
-  });
+  await page.route(
+    `**/v1/courses/${courseId}/tutor/messages`,
+    async (route) => {
+      state.sent.push(
+        route.request().postDataJSON() as Record<string, unknown>,
+      );
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: sse(
+          ["thread", { thread_id: "t1" }],
+          [
+            "delta",
+            {
+              text:
+                "Zorblax is the founding constant of lesson one. " +
+                "Very long answer ".repeat(60),
+            },
+          ],
+          ["done", { message_id: "m-done", thread_id: "t1", replayed: false }],
+        ),
+      });
+    },
+  );
   return state;
 }
 const panel = (page: Page) =>
