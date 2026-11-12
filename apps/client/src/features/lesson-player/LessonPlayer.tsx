@@ -45,6 +45,7 @@ import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { useShellSession } from "../shell/ShellSession";
 import { createDefaultTracerManifest } from "../characters/fixtures";
 import { generateMotionSlideHtml } from "../characters/motion-slide";
+import { generatedCharacterDocument } from "../characters/playback";
 
 const speeds = [1, 1.25, 1.5, 2, 0.75];
 
@@ -1200,7 +1201,18 @@ function SlidePlayback({
               title={`Slide ${index + 1}`}
               sandbox="allow-scripts"
               srcDoc={sandboxDocument(
-                slideDocument.data,
+                (manifest.cast && slide.segments?.length
+                  ? generatedCharacterDocument(
+                      {
+                        slide_id: slide.slide_id,
+                        duration_ms: slide.duration_ms,
+                        segments: slide.segments,
+                      },
+                      manifest.cast,
+                      reducedMotion,
+                      typeof navigator !== "undefined" && !navigator.onLine,
+                    )
+                  : "") + slideDocument.data,
                 manifest.asset_origin,
                 reducedMotion,
                 slide,

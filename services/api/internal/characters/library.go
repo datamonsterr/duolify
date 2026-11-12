@@ -366,6 +366,7 @@ func (s *Service) effectiveCast(ctx context.Context, owner, course string) (Less
 	}
 	manifest, _ := ProjectDefaultCastManifest(course, "")
 	out := manifest.Cast
+	out.CastVersion = selected.Version
 	if selected.Guide == "" {
 		return out, nil
 	}

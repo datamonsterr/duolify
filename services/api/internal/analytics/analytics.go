@@ -73,6 +73,13 @@ func (c *client) Close() error {
 
 func allowlisted(event string) bool {
 	switch event {
+	case "lesson_cast_applied":
+		ids("course_id", "lesson_id")
+		numeric("speaker_count", "cast_version")
+		boolean("fallback_used")
+		if source := input["cast_source"]; source == "default" || source == "custom" || source == "mixed" {
+			out["cast_source"] = source
+		}
 	case "slide_viewed", "slide_replayed", "slide_paused":
 		return true
 	case "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
@@ -87,7 +94,7 @@ func allowlisted(event string) bool {
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
 		"character_rendered", "character_render_fallback",
 		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
-		"character_updated", "character_deleted", "character_rejected", "course_cast_selected",
+		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":
 		return true
 	default:
