@@ -466,6 +466,13 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_slides (id, lesson_stub_id, learner_id, position, slide_id, html, duration_ms, narration, topic_ids) VALUES ('f6666666-6666-4666-8666-666666666666', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 0, 's1', '<div id="root"><h1>Moon</h1></div>', 3000, 'The moon orbits Earth.', ARRAY['top-moon'])`); err != nil {
 		t.Fatal(err)
 	}
+	// The pending job's Cast is pinned under the job id; restored jobs keep the same Cast.
+	if _, err = charSvc.PinCast(t.Context(), "a1111111-1111-4111-8111-111111111111", "f1111111-1111-4111-8111-111111111111", "f4444444-4444-4444-8444-444444444444"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `UPDATE lesson_slides SET segments='[{"speaker_key":"guide","speaker_label":"Glint","text":"Earth turns.","expression":"thinking","start_ms":0,"duration_ms":1}]'::jsonb WHERE id='f6666666-6666-4666-8666-666666666666'`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_questions (id, lesson_stub_id, learner_id, position, topic_id, prompt, choices, answer_index, explanation) VALUES ('f7777777-7777-4777-8777-777777777777', 'f3333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 0, 'top-moon', 'What causes moon phases?', '["Sunlight angle", "Earth shadow"]'::jsonb, 0, 'Relative angles between Earth, Moon and Sun.')`); err != nil {
 		t.Fatal(err)
 	}

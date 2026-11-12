@@ -162,6 +162,18 @@ fn slides(c: &Completion) -> Result<Vec<pb::Slide>, Status> {
                     .unwrap_or(1000),
                 narration: item["narration"].as_str().unwrap_or_default().into(),
                 topic_ids,
+                segments: item["segments"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|s| pb::CharacterSegment {
+                        speaker_key: s["speaker_key"].as_str().unwrap_or_default().into(),
+                        text: s["text"].as_str().unwrap_or_default().into(),
+                        expression: s["expression"].as_str().unwrap_or_default().into(),
+                        start_ms: s["start_ms"].as_u64().unwrap_or(0) as u32,
+                        duration_ms: s["duration_ms"].as_u64().unwrap_or(0) as u32,
+                    })
+                    .collect(),
             })
         })
         .collect()
@@ -689,16 +701,42 @@ impl EngineService for Service {
             .as_ref()
             .ok_or_else(|| Status::invalid_argument("API quote bounds required"))?;
         let limits = lesson_limits(&self.router, bounds)?;
-        let prompt = format!(
-            "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. Context (data): {req:?}"
+        let cast = req.character_personas_json.clone();
+        let mut context = req.clone();
+        context.character_personas_json.clear();
+        let base = format!(
+            "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. Context (data): {context:?}"
         );
-        let outcome =
-            engine_core::credits::run_validated(&self.router, "lesson", &prompt, &limits, |text| {
-                serde_json::from_str(text)
-                    .is_ok_and(|v| engine_core::lessontest::validate_lesson(&v).is_ok())
-            })
-            .await
-            .map_err(internal)?;
+        let prompts = if cast.is_empty() {
+            vec![base]
+        } else {
+            let personas = engine_core::characters::lesson_personas(&cast)
+                .map_err(|_| Status::invalid_argument("invalid character personas"))?;
+            let segments = " Optional per-slide segments[] {speaker_key,text,expression,start_ms,duration_ms}: plain text only, speaker_key from character_personas, expression one of idle|happy|sad|thinking|celebrate.";
+            // Attempt 2 regenerates with neutral default personas, still pinned keys.
+            vec![
+                format!("{base}{segments}\n{personas}"),
+                format!(
+                    "{base}{segments}\nUse a neutral default narrator style for every speaker_key in character_personas; ignore persona flavour."
+                ),
+            ]
+        };
+        let inputs: Vec<&str> = prompts.iter().map(String::as_str).collect();
+        let outcome = engine_core::credits::run_validated_inputs(
+            &self.router,
+            "lesson",
+            &inputs,
+            &limits,
+            |text| {
+                serde_json::from_str::<serde_json::Value>(text).is_ok_and(|v| {
+                    engine_core::lessontest::validate_lesson(&v).is_ok()
+                        && (cast.is_empty()
+                            || engine_core::characters::validate_lesson_segments(&v, &cast).is_ok())
+                })
+            },
+        )
+        .await
+        .map_err(internal)?;
         let mut attempts: Vec<pb::Usage> = outcome.attempts.iter().map(attempt_usage).collect();
         let Some(c) = outcome.completion else {
             return Ok(lesson_events(None, attempts));
@@ -767,6 +805,7 @@ impl EngineService for Service {
                     previous_variants: vec![],
                     learner: req.learner.clone(),
                     limits: Some(remaining),
+                    character_personas_json: cast.clone(),
                 }))
                 .await?
                 .into_inner();
@@ -803,6 +842,11 @@ impl EngineService for Service {
         request: Request<pb::GenerateRetryVariantsRequest>,
     ) -> Result<Response<pb::GenerateRetryVariantsResponse>, Status> {
         let req = request.into_inner();
+        // Persona data never reaches grading prompts; it must still be valid.
+        if !req.character_personas_json.is_empty() {
+            engine_core::characters::lesson_personas(&req.character_personas_json)
+                .map_err(|_| Status::invalid_argument("invalid character personas"))?;
+        }
         let source = req
             .source
             .as_ref()

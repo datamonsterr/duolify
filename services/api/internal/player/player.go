@@ -167,7 +167,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		failure(w, 404)
 		return
 	}
-	out := Manifest{LessonID: id, CourseID: course, Title: title, Version: version, AssetOrigin: s.opts.AssetOrigin, Slides: make([]Slide, 0, len(m.Slides))}
+	cast, segments := s.pinnedCast(ctx, owner, id)
+	out := Manifest{Cast: cast, LessonID: id, CourseID: course, Title: title, Version: version, AssetOrigin: s.opts.AssetOrigin, Slides: make([]Slide, 0, len(m.Slides))}
 	for _, slide := range m.Slides {
 		raw, _, hashes, err := s.document(ctx, slide)
 		if err != nil {
@@ -178,7 +179,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if explanation == "" {
 			explanation = slide.NarrationText
 		}
-		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: "disabled", NarrationText: slide.NarrationText, Explanation: explanation, HTMLSHA256: checksum(raw), AssetSHA256: hashes})
+		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: "disabled", NarrationText: slide.NarrationText, Explanation: explanation, HTMLSHA256: checksum(raw), AssetSHA256: hashes, Segments: segments[slide.ID]})
 	}
 	respond(w, 200, out)
 }
@@ -264,4 +265,29 @@ func respond(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
+}
+
+// pinnedCast returns the job-pinned Cast and per-Slide dialogue stored with a
+// generated Lesson. It never resolves current Characters, so edits and
+// deletions affect only new jobs. Missing data yields a plain Lesson.
+func (s *Service) pinnedCast(ctx context.Context, owner, lessonID string) (json.RawMessage, map[string]json.RawMessage) {
+	var cast []byte
+	err := s.opts.Pool.QueryRow(ctx, `SELECT c.snapshot FROM generated_lessons g JOIN lesson_cast_snapshots c ON c.course_id=g.course_id AND c.learner_id=g.learner_id AND c.lesson_key=g.manifest->>'cast_key' WHERE g.lesson_stub_id::text=$1 AND g.learner_id::text=$2`, lessonID, owner).Scan(&cast)
+	if err != nil {
+		return nil, nil
+	}
+	rows, err := s.opts.Pool.Query(ctx, `SELECT slide_id,segments FROM lesson_slides WHERE lesson_stub_id::text=$1 AND learner_id::text=$2`, lessonID, owner)
+	if err != nil {
+		return nil, nil
+	}
+	defer rows.Close()
+	segments := map[string]json.RawMessage{}
+	for rows.Next() {
+		var id string
+		var raw []byte
+		if rows.Scan(&id, &raw) == nil && string(raw) != "[]" {
+			segments[id] = raw
+		}
+	}
+	return cast, segments
 }

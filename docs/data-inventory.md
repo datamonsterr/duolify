@@ -470,3 +470,33 @@ cache bounds reset after every attempt; device caches remain disposable.
 Postgres `gamification_config` stores versioned award amounts and allowed/default goals, with no learner data. `xp_events` is immutable for the account lifetime and unique per learner/lesson; it retains original completion UUID/time, lesson/course UUIDs, awarded amount, perfect flag, config version, IANA timezone and local date. Lesson/course deletion preserves this event source for reconstructing total/daily/weekly XP. `daily_goal_achievements` retains one immutable goal crossing per learner/local date; the current preference remains `learner_profiles.daily_xp`.
 
 All three tables enter nightly encrypted Postgres dumps (14-day general retention). Synthetic fixtures seed XP/goal markers and compare complete restored rows. XP and achievement rows export in the authenticated account export, cascade on account deletion, and follow external deletion-ledger replay before serving a restored snapshot. Redis and PostHog remain disposable derived data. Analytics sends only UUIDs, numeric awards/goals, dates, config version and a perfect boolean through the central fail-closed consent gate; no summary, question, answer or profile text. XP and daily goals never grant Credits. No AI/model change.
+
+# E17-05 pinned Course Casts in generated Lessons
+
+Each Lesson generation job pins its effective Cast in `lesson_cast_snapshots`
+(`lesson_key` = the `lesson_generations` id) inside the job-start transaction:
+role, stable speaker key, full validated spec, schema/rig/voice-config versions
+and the effective default fallback. Worker retries and Retry variants read that
+row; later edits, deletions or selections affect only new jobs. The generated
+Lesson records `cast_key` in `generated_lessons.manifest`, and
+`lesson_slides.segments` stores bounded plain-text dialogue (pinned speaker key,
+label, text, one of five expressions, times) per Slide. No new table: the
+existing learner policies, nightly encrypted 14-day dumps, account export,
+cascading erasure and 30-day purge of unshared snapshots after Course/account
+deletion apply. Pending jobs restore with the same snapshot and reservation. The
+backup fixture seeds a pinned pending job and Slide segments. Referenced Motion
+HTML/rig objects keep the existing versioning, protected copies and
+key-version-checksum manifests (no per-learner SVG is created). PostHog events
+(`lesson_cast_applied`, `character_rendered`, `character_render_fallback`) carry
+ids, counts and enums only; PostHog and device caches are disposable derived
+state, never the recovery source.
+
+E17-06 reactions introduce no new table, column or answer store. The
+deterministic `reaction` (trigger, expression, approved copy; no learner text)
+is part of the existing `lesson_test_answer_operations.response_payload`, so it
+shares that table's nightly encrypted 14-day dump, restore comparison and
+learner-cascade deletion; restored attempts, scores and Retry queues are
+unchanged and rows written before E17-06 simply lack the field (the client then
+shows the neutral expression). `character_reaction_shown` carries speaker key,
+expression, trigger enum and `fallback_used` only; PostHog and device caches
+stay disposable.

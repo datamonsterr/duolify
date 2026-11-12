@@ -440,6 +440,27 @@ func TestStopAndRecoverPartiallyStreamedRepliesIntegration(t *testing.T) {
 		}
 		l.cancel()
 		<-l.done
+		wait("tombstone", func() bool {
+			return count(`SELECT count(*) FROM tutor_turns WHERE learner_id=$1 AND idempotency_key='silent-1' AND state='released' AND end_reason='stop'`, owner) == 1
+		})
+		// Repeated and late stops by the owner stay idempotent; unknown and foreign keys are still 404.
+		for range 2 {
+			if code, raw := call("POST", stopPath(course, "silent-1"), map[string]any{}, token); code != 200 || asMap(raw)["state"] != "released" || asMap(raw)["stopped"] != false {
+				t.Fatalf("repeat stop after release: %d %s", code, raw)
+			}
+		}
+		other, _ := login("silent-other@example.test")
+		if code, _ := call("POST", stopPath(course, "silent-1"), map[string]any{}, other); code != 404 {
+			t.Fatalf("foreign stop of a released key: %d", code)
+		}
+		if code, _ := call("POST", stopPath(course, "no-such-key"), map[string]any{}, token); code != 404 {
+			t.Fatalf("unknown key: %d", code)
+		}
+		// The same key is never a second send: the learner uses a new key and quote.
+		calls := fixture.calls.Load()
+		if code, raw := call("POST", "/v1/courses/"+course+"/tutor/messages", sendBody(quote, "silent-1", "hold-silent"), token); code != 409 || asMap(raw)["error"] != "released" || fixture.calls.Load() != calls {
+			t.Fatalf("resend of a released key: %d %s", code, raw)
+		}
 		state, spent := job(quote)
 		if _, _, n := assistant(owner); n != 0 || state != "released" || spent != 0 || balance(owner) != before || count(`SELECT count(*) FROM tutor_messages WHERE learner_id=$1`, owner) != 0 {
 			t.Fatalf("no charge without delivered content: state=%s spent=%d balance %d->%d", state, spent, before, balance(owner))

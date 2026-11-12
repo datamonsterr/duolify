@@ -119,7 +119,24 @@ func (s *Service) dropTurn(turn string) {
 	}
 }
 
+// tombstone turns a pending turn that delivered nothing into a text-free `released` row.
+func (s *Service) tombstone(turn, reason, job string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	tag, err := s.opts.Pool.Exec(ctx, `UPDATE tutor_turns SET state='released',end_reason=NULLIF($2,''),job_id=$3::uuid WHERE id=$1::uuid AND state='pending'`, turn, reason, job)
+	if err != nil || tag.RowsAffected() != 1 {
+		s.opts.Logger.Error("tutor turn tombstone failed", "error", err)
+		return false
+	}
+	return true
+}
+
 func (s *Service) replay(ctx context.Context, w http.ResponseWriter, owner string, t *storedTurn) {
+	if t.State == "released" {
+		// Nothing was delivered or charged for this key; a deliberate resend needs a new key and quote.
+		fail(w, http.StatusConflict, "released")
+		return
+	}
 	var content, status string
 	if err := s.opts.Pool.QueryRow(ctx, `SELECT content,status FROM tutor_messages WHERE id=$1::uuid AND learner_id=$2::uuid`, t.AssistantID, owner).Scan(&content, &status); err != nil {
 		// The thread was deleted after the reply: nothing to replay and nothing to charge.
@@ -265,6 +282,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	if errors.Is(context.Cause(streamCtx), errStopped) {
 		// Stopped before the Engine was called: nothing was produced.
 		abort()
+		cleanup = !s.tombstone(turn, "stop", job.ID)
 		s.emit(context.WithoutCancel(ctx), owner, "tutor_reply_stopped", map[string]any{"course_id": course, "class": in.Class, "reason": "stop", "delivered_chars": 0, "latency_ms": 0})
 		fail(w, http.StatusConflict, "stopped")
 		return
@@ -334,6 +352,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		if finished.State == "completed" {
 			finished = end{State: "interrupted", Reason: "engine_error", Retryable: true}
 		}
+		cleanup = !s.tombstone(turn, finished.Reason, job.ID)
 		ended(0)
 		switch finished.Reason {
 		case "stop", "disconnect":

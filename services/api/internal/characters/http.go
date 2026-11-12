@@ -143,6 +143,7 @@ func (h *Handler) handleDefaultCast(w http.ResponseWriter, _ *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"default_cast": cast,
 		"count":        len(cast),
+		"cast":         defaultCastSnapshot(),
 	})
 }
 
@@ -266,4 +267,9 @@ func (h *Handler) creation(w http.ResponseWriter, r *http.Request, owner string)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+func defaultCastSnapshot() LessonCastSnapshot {
+	manifest, _ := ProjectDefaultCastManifest("", "")
+	return manifest.Cast
 }

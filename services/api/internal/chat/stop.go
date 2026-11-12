@@ -166,7 +166,7 @@ func (s *Service) stop(w http.ResponseWriter, r *http.Request, owner, course, ke
 		// is the cancellation path.
 		respond(w, http.StatusAccepted, map[string]any{"state": "pending", "stopped": false})
 	case err == nil:
-		respond(w, http.StatusOK, map[string]any{"state": v.State, "status": v.Status, "stopped": fl != nil && v.State == "stopped", "message_id": v.MessageID})
+		respond(w, http.StatusOK, map[string]any{"state": v.State, "status": v.Status, "stopped": fl != nil && (v.State == "stopped" || v.State == "released"), "message_id": v.MessageID})
 	case fl != nil:
 		// Nothing was delivered: no message was stored and the reservation was released in full.
 		respond(w, http.StatusOK, map[string]any{"state": "released", "stopped": true, "message_id": ""})
