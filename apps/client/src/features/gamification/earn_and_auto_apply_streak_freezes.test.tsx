@@ -79,8 +79,8 @@ describe("streak freeze inventory and auto-apply notice", () => {
     }
   });
   it("tolerates a server answer without freeze fields", async () => {
-    const { freezes, notices, last_earned, ...legacy } = base;
-    (void freezes, void notices, void last_earned);
+    const legacy: Record<string, unknown> = { ...base };
+    for (const key of ["freezes", "notices", "last_earned"]) delete legacy[key];
     vi.mocked(authRequest).mockResolvedValue(legacy);
     render(<StreakPanel />);
     expect(await screen.findByText("Longest streak: 7 days")).toBeVisible();
