@@ -4,7 +4,6 @@ package gamification
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -155,15 +154,6 @@ func TestWeeklyLeaguesFinalizeOnceAndRestoreRebuildsProjections(t *testing.T) {
 		}
 		return out
 	}
-	rowsOf := func(out map[string]any) (names []string, xp []float64) {
-		for _, raw := range out["rows"].([]any) {
-			row := raw.(map[string]any)
-			names = append(names, row["display_name"].(string))
-			xp = append(xp, row["weekly_xp"].(float64))
-		}
-		return names, xp
-	}
-
 	day := func(d int, h int) time.Time { return time.Date(2026, 11, d, h, 0, 0, 0, time.UTC) }
 	mina, kai, linh, sam, ana := signup("Mina"), signup("Kai"), signup("Linh"), signup("Sam"), signup("Ana")
 	lastWeek := func(l learner) map[string]any {

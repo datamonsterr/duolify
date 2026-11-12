@@ -95,7 +95,7 @@ A Learner SHALL be assigned to a weekly league group on their first XP event of 
 - **THEN** the same ranks, weekly XP and tie order are returned, rebuilt from Postgres
 
 ### Requirement: League read model and S13 view
-`GET /v1/gamification/league?offset&limit` SHALL return the authenticated Learner's own group only: state (`active` or `not_joined`), week start/end, as-of time, local date and time zone, tier name, member count, configured promotion and demotion zones, the Learner's rank, weekly XP and zone, and a page of rows (rank, display name, weekly XP, tie flag, self flag, zone) with next/previous offsets. The response SHALL NOT include final results: week finalization, promotion/demotion outcomes and restore belong to E5-05, so a past week is shown only as "Week is closing". The Leagues screen SHALL implement the S13 league states: loading, not joined with a Start a lesson action, active with highlighted self row and text zone boundaries, long names, tie labels, pagination by keyboard, offline cached ranks with an as-of time, and an error with a Retry action, in light and dark and with reduced motion.
+`GET /v1/gamification/league?offset&limit` SHALL return the authenticated Learner's own group only: state (`active` or `not_joined`), week start/end, as-of time, local date and time zone, tier name, member count, configured promotion and demotion zones, the Learner's rank, weekly XP and zone, and a page of rows (rank, display name, weekly XP, tie flag, self flag, zone) with next/previous offsets. The response SHALL also carry `last_week` for the prior week: `final` (league, rank, members, weekly XP, outcome, next league), `closing` (the week has a membership but is not finalized; shown as "Week is closing") or `none`. The Leagues screen SHALL implement the S13 league states: loading, not joined with a Start a lesson action, active with highlighted self row and text zone boundaries, long names, tie labels, pagination by keyboard, offline cached ranks with an as-of time, and an error with a Retry action, in light and dark and with reduced motion.
 
 #### Scenario: Not joined
 - **WHEN** a Learner without XP this week opens Leagues
@@ -112,3 +112,28 @@ A Learner SHALL be assigned to a weekly league group on their first XP event of 
 - **WHEN** an opted-out Learner opens Leagues
 - **THEN** the view works and no analytics are delivered
 
+
+### Requirement: Final weekly league results
+Each league group SHALL be finalized exactly once, after every time zone has left the week (Monday 12:00 UTC), in one transaction guarded by the group row lock. Finalization SHALL store each member's final rank, tier before and after, weekly XP and outcome in `league_week_results` (unique per Learner and week; deterministic id), using the configured promotion and demotion zones: ties order by earlier slot, a member with no XP is never promoted, groups too small for a zone keep everyone in place, and the top tier never promotes and the lowest never demotes. The next week's tier SHALL come from the stored result; a Learner who joined the next week early SHALL be moved to the earned tier when the week closes. Retries, concurrent workers and restarts SHALL NOT create a second result or event. Results SHALL NOT grant Credits.
+
+#### Scenario: Rollover under retries
+- **WHEN** finalization runs concurrently and repeatedly after a week ends
+- **THEN** each group is finalized once, `league_promoted` or `league_demoted` is emitted once per moved Learner and stayed Learners emit nothing
+
+#### Scenario: Rollover twice
+- **WHEN** two consecutive weeks close
+- **THEN** each Learner's second week starts in the tier earned by the first and the Leagues "Last week" tab shows the latest outcome
+
+### Requirement: Restore rebuilds gamification state
+After restoring Postgres from a nightly dump, XP, streak, freeze consumption, protections and league results SHALL be recomputable from `xp_events` and league memberships: the rollover worker rebuilds streak and freeze projections silently and league finalization re-creates missing results with their original event ids. The Leagues view SHALL show the server's prior-week result and no restore path SHALL grant Credits or new rewards.
+
+#### Scenario: Restored fixture
+- **WHEN** projection tables are lost and the workers run twice
+- **THEN** XP, streaks, freeze consumption and league results equal the originals and no streak analytics are replayed
+
+### Requirement: League outcome analytics and backup
+`league_promoted` and `league_demoted` (`event_id`, `week_start`, `league`, `rank`, `from_tier`, `to_tier`) SHALL be catalogued and allowlisted before emission, pass the central consent gate and carry no learner text. `league_week_results` SHALL enter nightly dumps, export with the account and erase on deletion.
+
+#### Scenario: Opted-out Learner promoted
+- **WHEN** an opted-out Learner is promoted
+- **THEN** the result is stored and shown but no analytics are delivered
