@@ -22,3 +22,8 @@
 - [x] Failing e2e, integration and unit tests, then membership assignment, ranking, Redis rebuild and endpoint.
 - [x] S13 Leagues view, `ui_screen_viewed(leagues)` catalogue entry, privacy, backup fixtures and data inventory.
 
+
+## E5-05 league finalization and restore
+
+- [x] Failing e2e, integration and unit tests, then `league_week_results`, idempotent finalization, early-join tier correction and `last_week` on the league endpoint.
+- [x] S13 Last week result, `league_promoted`/`league_demoted` catalogue entries, privacy, backup fixture and data inventory.

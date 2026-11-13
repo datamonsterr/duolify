@@ -170,7 +170,9 @@ func (s *Service) joinLeague(ctx context.Context, tx pgx.Tx, owner, localDate st
 		return leagueSlot{}, err
 	}
 	tier := 1
-	err = tx.QueryRow(ctx, `SELECT tier FROM league_memberships WHERE learner_id=$1::uuid AND week_start<$2::date ORDER BY week_start DESC LIMIT 1`, owner, week).Scan(&tier)
+	// A finalized result decides the next tier; an unfinalized week is corrected when it closes.
+	err = tx.QueryRow(ctx, `SELECT COALESCE(r.tier_to,m.tier) FROM league_memberships m LEFT JOIN league_week_results r ON r.learner_id=m.learner_id AND r.week_start=m.week_start
+ WHERE m.learner_id=$1::uuid AND m.week_start<$2::date ORDER BY m.week_start DESC LIMIT 1`, owner, week).Scan(&tier)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return leagueSlot{}, err
 	}
@@ -179,7 +181,7 @@ func (s *Service) joinLeague(ctx context.Context, tx pgx.Tx, owner, localDate st
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, fmt.Sprintf("league:%s:%d", week, tier)); err != nil {
 		return leagueSlot{}, err
 	}
-	err = tx.QueryRow(ctx, `SELECT id::text FROM league_groups WHERE week_start=$1::date AND tier=$2 AND size<$3 ORDER BY created_at,id LIMIT 1 FOR UPDATE`, week, tier, rules.GroupSize).Scan(&group)
+	err = tx.QueryRow(ctx, `SELECT id::text FROM league_groups WHERE week_start=$1::date AND tier=$2 AND size<$3 AND finalized_at IS NULL ORDER BY created_at,id LIMIT 1 FOR UPDATE`, week, tier, rules.GroupSize).Scan(&group)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = tx.QueryRow(ctx, `INSERT INTO league_groups(week_start,tier) VALUES($1::date,$2) RETURNING id::text`, week, tier).Scan(&group)
 	}
@@ -287,6 +289,7 @@ type LeagueView struct {
 	Self      *LeagueSelf `json:"self,omitempty"`
 	Rows      []LeagueRow `json:"rows"`
 	Page      LeaguePage  `json:"page"`
+	LastWeek  *LastWeek   `json:"last_week,omitempty"`
 }
 
 // LeagueWeek is the Monday to Sunday league week in the Learner's local dates.
@@ -350,6 +353,9 @@ func (s *Service) League(ctx context.Context, owner string, offset, limit int) (
 	view.State, view.AsOf, view.LocalDate, view.TimeZone = "not_joined", now.UTC().Format(time.RFC3339), local, zone
 	view.Week = LeagueWeek{Start: week, End: end, DaysLeft: int(endDay.Sub(today).Hours()/24) + 1}
 
+	if view.LastWeek, err = s.lastWeek(ctx, owner, week); err != nil {
+		return view, err
+	}
 	var group string
 	var tier, members int
 	lookup := func() error {

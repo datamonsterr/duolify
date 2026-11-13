@@ -11,7 +11,18 @@ interface LeagueRow {
   self: boolean;
   zone: string;
 }
+interface LastWeek {
+  state: "final" | "closing" | "none";
+  week: { start: string; end: string };
+  league?: string;
+  rank?: number;
+  members?: number;
+  weekly_xp?: number;
+  outcome?: "promoted" | "demoted" | "stayed";
+  next_league?: string;
+}
 interface LeagueData {
+  last_week?: LastWeek;
   state: "active" | "not_joined";
   week: { start: string; end: string; days_left: number };
   as_of: string;
@@ -55,12 +66,55 @@ const clock = (iso: string, zone: string) => {
     return new Date(iso).toISOString().slice(11, 16);
   }
 };
+const shortDay = (date: string) =>
+  new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(utc(date));
+const outcomeText = {
+  promoted: (next: string) => `Promoted to ${next} league`,
+  demoted: (next: string) => `Demoted to ${next} league`,
+  stayed: (next: string) => `Stayed in ${next} league`,
+};
 const span = (from: number, to: number) =>
   from === to ? `rank ${from}` : `ranks ${from}–${to}`;
 const zoneText: Record<string, string> = {
   promotion: " · promotion zone",
   demotion: " · demotion zone",
 };
+
+function LastWeekResult({ last }: { last?: LastWeek }) {
+  if (last?.state === "none")
+    return (
+      <div className="streak-note" role="status">
+        <p>You weren't in a league last week.</p>
+      </div>
+    );
+  if (last?.state === "final" && last.outcome && last.rank) {
+    return (
+      <div className="streak-note" role="status">
+        <h2>
+          {outcomeText[last.outcome](last.next_league ?? last.league ?? "")}
+        </h2>
+        <p>
+          {shortDay(last.week.start)} – {shortDay(last.week.end)}
+        </p>
+        <p>
+          Last week: rank {last.rank} of {last.members} · {last.weekly_xp} XP in{" "}
+          {last.league} league
+        </p>
+        <p>Results are final. Your streak doesn't depend on leagues.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="streak-note" role="status">
+      <strong>Week is closing</strong>
+      <p>Final ranks appear after every time zone finishes the day.</p>
+    </div>
+  );
+}
 
 export function LeaguePanel() {
   const [data, setData] = useState<LeagueData>();
@@ -148,12 +202,7 @@ export function LeaguePanel() {
               </button>
             </div>
           )}
-          {lastWeek && (
-            <div className="streak-note" role="status">
-              <strong>Week is closing</strong>
-              <p>Final ranks appear after every time zone finishes the day.</p>
-            </div>
-          )}
+          {lastWeek && <LastWeekResult last={data.last_week} />}
           {!lastWeek && data.state === "not_joined" && (
             <div className="streak-note">
               <h2>Join this week's league</h2>

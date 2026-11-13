@@ -352,6 +352,9 @@ func (s *Service) Maintain(ctx context.Context, logger *slog.Logger) {
 		if err := s.Rollover(ctx); err != nil && ctx.Err() == nil {
 			logger.ErrorContext(ctx, "streak rollover failed", "error", err)
 		}
+		if err := s.FinalizeLeagues(ctx); err != nil && ctx.Err() == nil {
+			logger.ErrorContext(ctx, "league finalization failed", "error", err)
+		}
 		select {
 		case <-ctx.Done():
 			return
