@@ -71,6 +71,7 @@ type Fixture struct {
 	mu                  sync.Mutex
 	captured            []capture
 	posthogURL          string
+	monitor             *telemetry.Monitor
 	writerOptions       backup.S3Options
 	packaged            testcontainers.Container
 	schemaVersion       int64
@@ -122,7 +123,7 @@ func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) 
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	t.Cleanup(cancel)
-	f := &Fixture{Logger: logger}
+	f := &Fixture{Logger: logger, monitor: monitor}
 	var err error
 	f.container, err = postgres.Run(ctx, "postgres:18", postgres.WithDatabase("duolify"), postgres.WithUsername("duolify"), postgres.WithPassword("synthetic-only"), postgres.BasicWaitStrategies())
 	if err != nil {
@@ -173,7 +174,16 @@ func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, bucket := range []string{"application-assets", "protected-player-assets"} {
+	for _, id := range []struct {
+		key       string
+		provision func(context.Context, backup.S3Options, string, string) error
+	}{{"backup-expirer", backupadmin.ProvisionRetention}, {"backup-restorer", backupadmin.ProvisionRestorer}, {"asset-recovery", backupadmin.ProvisionAssetRecovery}} {
+		if err := id.provision(ctx, rootOptions, id.key, id.key+"-synthetic-secret"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// application-assets is created and versioned by ProvisionApplication.
+	for _, bucket := range []string{"protected-player-assets"} {
 		if _, err := f.root.Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
 			t.Fatal(err)
 		}
@@ -217,8 +227,14 @@ func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) 
 	}
 	t.Cleanup(func() { _ = f.events.Close() })
 	f.faults = &faultStore{Objects: f.objects}
+	f.startQueue(ctx, t, false)
+	return f
+}
+
+func (f *Fixture) startQueue(ctx context.Context, t *testing.T, financial bool) {
+	t.Helper()
 	source := containerSource{Postgres: backup.Postgres{Pool: f.DB.Pool}, container: f.container}
-	service, err := backup.New(backup.Options{Source: source, Objects: f.faults, Recipient: f.identity.Recipient().String(), Events: f.events, TempDir: t.TempDir(), Monitor: monitor})
+	service, err := backup.New(backup.Options{Source: source, Objects: f.faults, Recipient: f.identity.Recipient().String(), Events: f.events, TempDir: t.TempDir(), Monitor: f.monitor, FinancialCopy: financial})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,14 +247,94 @@ func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) 
 	if err := f.queue.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
+	queue := f.queue
 	t.Cleanup(func() {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer stopCancel()
-		if err := f.queue.Stop(stopCtx); err != nil {
-			t.Error(err)
-		}
+		// A queue stopped by a test is already down; a second Stop only reports that.
+		_ = queue.Stop(stopCtx)
 	})
-	return f
+}
+
+// UseFinancialCopy restarts the real River worker with the 35-day financial copy enabled.
+func (f *Fixture) UseFinancialCopy(t *testing.T) {
+	t.Helper()
+	stopCtx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	if err := f.queue.Stop(stopCtx); err != nil {
+		t.Fatal(err)
+	}
+	f.startQueue(t.Context(), t, true)
+}
+
+// SchemaVersionString is the applied Goose version used in archive keys.
+func (f *Fixture) SchemaVersionString() string { return fmt.Sprint(f.schemaVersion) }
+
+// RootClient exposes the disposable store's administrator client for assertions only.
+func (f *Fixture) RootClient() *s3.Client { return f.root.Client }
+
+// SeedBackupObject plants a dump-shaped fixture with the administrator identity.
+func (f *Fixture) SeedBackupObject(t *testing.T, key string, body []byte) {
+	t.Helper()
+	if _, err := f.root.Client.PutObject(t.Context(), &s3.PutObjectInput{Bucket: aws.String(f.root.Bucket), Key: aws.String(key), Body: bytes.NewReader(body)}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// BackupKeys lists every key in the isolated backup bucket.
+func (f *Fixture) BackupKeys(t *testing.T) []string {
+	t.Helper()
+	objects, err := f.root.List(t.Context(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := make([]string, 0, len(objects))
+	for _, o := range objects {
+		keys = append(keys, o.Key)
+	}
+	return keys
+}
+
+// Store returns a client for one scoped identity: writer, expirer or restorer on the
+// backup bucket.
+func (f *Fixture) Store(role string) *backup.S3 {
+	options := f.writerOptions
+	switch role {
+	case "writer":
+	case "expirer":
+		options.AccessKey, options.SecretKey = "backup-expirer", "backup-expirer-synthetic-secret"
+	case "restorer":
+		options.AccessKey, options.SecretKey = "backup-restorer", "backup-restorer-synthetic-secret"
+	default:
+		panic("unknown fixture role " + role)
+	}
+	store, err := backup.NewS3(options)
+	if err != nil {
+		panic(err)
+	}
+	return store
+}
+
+// Expirer builds the retention job with the separate expirer identity.
+func (f *Fixture) Expirer(now time.Time) backup.Expirer {
+	return backup.Expirer{Store: f.Store("expirer"), Retention: backup.DefaultRetention, Now: func() time.Time { return now }, Events: f.events, Logger: f.Logger}
+}
+
+// AssetOperator is the version-aware operator client for the application bucket.
+func (f *Fixture) AssetOperator() *backup.S3 {
+	options := f.writerOptions
+	options.Bucket, options.ApplicationBucket = options.ApplicationBucket, ""
+	options.AccessKey, options.SecretKey = "asset-recovery", "asset-recovery-synthetic-secret"
+	store, err := backup.NewS3(options)
+	if err != nil {
+		panic(err)
+	}
+	return store
+}
+
+// Recovery builds tracked restore/regeneration with the operator identity.
+func (f *Fixture) Recovery() backup.Recovery {
+	return backup.Recovery{Objects: f.AssetOperator(), Logger: f.Logger, Events: f.events}
 }
 
 type containerSource struct {
@@ -283,10 +379,13 @@ func (f *Fixture) Events() analytics.Events { return f.events }
 // ApplicationStorage returns an S3 client scoped to the application assets bucket.
 func (f *Fixture) ApplicationStorage() *backup.S3 {
 	opts := f.writerOptions
-	opts.Bucket = opts.ApplicationBucket
+	opts.Bucket, opts.ApplicationBucket = opts.ApplicationBucket, ""
 	opts.AccessKey = "application-writer"
 	opts.SecretKey = "application-synthetic-secret"
-	s3Client, _ := backup.NewS3(opts)
+	s3Client, err := backup.NewS3(opts)
+	if err != nil {
+		panic(err)
+	}
 	return s3Client
 }
 

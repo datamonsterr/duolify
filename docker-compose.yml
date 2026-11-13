@@ -213,6 +213,12 @@ services:
       BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-duolify-backups}
       BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-duolify-backup-writer}
       BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-local-backup-writer-only}
+      BACKUP_EXPIRE_S3_ACCESS_KEY_ID: ${BACKUP_EXPIRE_S3_ACCESS_KEY_ID:-duolify-backup-expirer}
+      BACKUP_EXPIRE_S3_SECRET_ACCESS_KEY: ${BACKUP_EXPIRE_S3_SECRET_ACCESS_KEY:-local-backup-expirer-only}
+      BACKUP_RESTORE_S3_ACCESS_KEY_ID: ${BACKUP_RESTORE_S3_ACCESS_KEY_ID:-duolify-backup-restorer}
+      BACKUP_RESTORE_S3_SECRET_ACCESS_KEY: ${BACKUP_RESTORE_S3_SECRET_ACCESS_KEY:-local-backup-restorer-only}
+      ASSET_RECOVERY_S3_ACCESS_KEY_ID: ${ASSET_RECOVERY_S3_ACCESS_KEY_ID:-duolify-asset-recovery}
+      ASSET_RECOVERY_S3_SECRET_ACCESS_KEY: ${ASSET_RECOVERY_S3_SECRET_ACCESS_KEY:-local-asset-recovery-only}
     depends_on:
       s3-init: {condition: service_completed_successfully}
     restart: "no"

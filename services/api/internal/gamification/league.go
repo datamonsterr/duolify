@@ -262,6 +262,14 @@ func (s *Service) leagueEntries(ctx context.Context, group string, members int) 
 	if err != nil || s.rdb == nil {
 		return entries, err
 	}
+	if perr := s.cacheLeague(ctx, group, entries); perr != nil {
+		slog.WarnContext(ctx, "league cache rebuild skipped", "error", perr)
+	}
+	return entries, nil
+}
+
+// cacheLeague replaces one group's disposable Redis ranking with the Postgres entries.
+func (s *Service) cacheLeague(ctx context.Context, group string, entries []LeagueEntry) error {
 	pipe := s.rdb.TxPipeline()
 	pipe.Del(ctx, leagueKey(group))
 	if len(entries) > 0 {
@@ -272,10 +280,43 @@ func (s *Service) leagueEntries(ctx context.Context, group string, members int) 
 		pipe.ZAdd(ctx, leagueKey(group), zs...)
 		pipe.Expire(ctx, leagueKey(group), leagueCacheTTL)
 	}
-	if _, perr := pipe.Exec(ctx); perr != nil {
-		slog.WarnContext(ctx, "league cache rebuild skipped", "error", perr)
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+// RebuildLeagueCache repopulates every league ranking from Postgres after a restore
+// or Redis loss and returns the number of groups rebuilt. Redis stays disposable.
+func (s *Service) RebuildLeagueCache(ctx context.Context) (int, error) {
+	if s.rdb == nil {
+		return 0, errors.New("league cache is not configured")
 	}
-	return entries, nil
+	rows, err := s.pool.Query(ctx, "SELECT DISTINCT group_id::text FROM league_memberships")
+	if err != nil {
+		return 0, err
+	}
+	var groups []string
+	for rows.Next() {
+		var group string
+		if err = rows.Scan(&group); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		groups = append(groups, group)
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return 0, err
+	}
+	for _, group := range groups {
+		entries, err := s.leagueFromPostgres(ctx, group)
+		if err != nil {
+			return 0, err
+		}
+		if err = s.cacheLeague(ctx, group, entries); err != nil {
+			return 0, err
+		}
+	}
+	return len(groups), nil
 }
 
 // LeagueView is the authenticated Learner's own weekly league page.

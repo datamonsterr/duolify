@@ -3,31 +3,50 @@ import {
 } from "railway/iac";
 
 export default defineRailway((ctx) => {
-  if (ctx.environment !== "dev" || ctx.projectName !== "duolify") {
-    throw new Error("Bootstrap IaC is restricted to project duolify / environment dev");
+  if (!["dev", "staging", "prod"].includes(ctx.environment) || ctx.projectName !== "duolify") {
+    throw new Error("Duolify Railway IaC is restricted to project duolify and environments: dev, staging, prod");
   }
+
+  const envConfig = {
+    dev: {
+      duolifyEnv: "development",
+      logLevel: "info",
+      providerMode: "mock",
+    },
+    staging: {
+      duolifyEnv: "staging",
+      logLevel: "info",
+      providerMode: "mock",
+    },
+    prod: {
+      duolifyEnv: "production",
+      logLevel: "info",
+      providerMode: "live",
+    },
+  }[ctx.environment as "dev" | "staging" | "prod"];
 
   const db = postgres("postgres");
   const cache = redis("redis");
   const assets = bucket("lesson-assets", { region: "sin" });
   const backups = bucket("backups", { region: "sin" });
+
   const engine = service("engine", {
     source: github("datamonsterr/duolify", { branch: "main" }),
     build: { builder: "DOCKERFILE", dockerfilePath: "engine/Dockerfile" },
     start: "/duolify-engine",
-    // Railway healthchecks require HTTP; gRPC health is probed in Compose.
+    // Private networking only: AI Engine must never have public domains.
     domains: [],
     env: {
       ENGINE_ADDR_LISTEN: "[::]:50051",
-      ENGINE_PROVIDER_MODE: "mock",
+      ENGINE_PROVIDER_MODE: envConfig.providerMode,
       ANTHROPIC_API_KEY: preserve(),
       OPENROUTER_API_KEY: preserve(),
     },
   });
 
   const runtime = {
-    DUOLIFY_ENV: "development",
-    LOG_LEVEL: "info",
+    DUOLIFY_ENV: envConfig.duolifyEnv,
+    LOG_LEVEL: envConfig.logLevel,
     API_ADDR: "[::]:8080",
     PORT: "8080",
     DATABASE_URL: db.env.DATABASE_URL,
@@ -50,24 +69,31 @@ export default defineRailway((ctx) => {
     POSTHOG_API_KEY: preserve(),
     POSTHOG_HOST: "https://us.i.posthog.com",
   };
+
   const source = github("datamonsterr/duolify", {
-    branch: "main", rootDirectory: "/services/api",
+    branch: "main",
+    rootDirectory: "/services/api",
   });
   const build = { builder: "DOCKERFILE" as const, dockerfilePath: "Dockerfile" };
+
   const api = service("api", {
-    source, build,
+    source,
+    build,
     start: "/api serve",
     preDeploy: "/api migrate",
     healthcheck: "/readyz",
     healthcheckTimeout: 120,
     env: runtime,
   });
+
   const worker = service("worker", {
-    source, build,
+    source,
+    build,
     // Idempotent migrations also avoid relying on cross-service deploy order.
     preDeploy: "/api migrate",
     start: "/api worker",
     env: { ...runtime, BACKUP_AGE_RECIPIENT: preserve() },
   });
+
   return project("duolify", { resources: [db, cache, assets, backups, api, worker, engine] });
 });

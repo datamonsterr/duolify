@@ -1,5 +1,7 @@
 # Data inventory
 
+E11-06: Infrastructure and Railway environments (dev, staging, prod) and release gates. No new database tables, schemas, or learner data are added. Infrastructure configuration is Git-backed across dev, staging, and prod Railway environments with stateless services and Postgres/Redis/S3 roles; secrets are preserved rather than committed to Git, and secret values are strictly redacted in plan summaries and error output. PreDeploy migrations (/api migrate) and readiness probes (/readyz) enforce rollback on unhealthy states. Live apply operations stay disabled and gated on E11-07 (#54). Telemetry uses operational deploy/health logs only, with the reserved operations UUID (00000000-0000-4000-8000-000000000011) and opt-out suppression; no learner text or secret values are captured.
+
 E15-02: `courses` gains `visibility` (`private` default | `link`; `public` is reserved for the marketplace). New table `publication_links` (course id, SHA-256 `token_hash`, `created_at`, `revoked_at`; at most one active row per course) is in the nightly encrypted dump, the account export (ids and dates only) and is erased with the Course, so no hash outlives its owner's account. The link token is 160 random bits from `crypto/rand`; the plaintext appears only in the one HTTP response that creates or rotates the link, never in storage, logs, backup logs or analytics, and revoke or rotate takes effect on the next request (no cache). New table `publication_preview_limits` holds per-IP counters for the anonymous preview: a SHA-256 of the address, a count and an expiry (default 60 requests per 60 seconds, `SHARING_PREVIEW_RATE_LIMIT_PER_IP` and `SHARING_PREVIEW_RATE_WINDOW_SECONDS`); rows expire with the window, are purged opportunistically, hold no learner id and are excluded from restore checks. Public preview payload allowlist: title, description, version, creator username, display name and avatar, outline, up to three sample slides, aggregate enrollment count and ready lesson counts; never answers, explanations, retry pool or narration audio, and always `X-Robots-Tag: noindex` plus `<meta name="robots">`. PostHog: `course_visibility_changed`, `course_published`, `share_link_created`, `share_link_revoked`, `share_link_opened` carry course UUID, version, lesson count and enums only; an anonymous open is attributed to the operations identity and never carries a token, URL or IP. Defaults pending E15-12: public domain (`SHARING_PUBLIC_DOMAIN`), app scheme (`SHARING_APP_SCHEME`), publisher age 18 (`SHARING_MIN_PUBLISHER_AGE`).
 
 E8-05: new tables `quick_note_chat_sources` (note id, learner id, thread id, message id, optional lesson id, `unavailable` flag; ids only, no text) and `tutor_thread_deletion_tombstones` (thread uuid and deletion time only; no learner id and no text; pruned after 35 days, the encrypted snapshot rotation). A reply saved as a note is copied once into `quick_notes.raw_text` (clipped to 2,000 bytes) with action key `tutor-message:<message id>`. Deleting a thread, in one transaction, removes its messages, nulls message references on `tutor_turns`, clears the ids on surviving provenance and sets `unavailable`, and writes the tombstone; the notes stay readable and exportable with "source unavailable". Dumps carry notes, provenance and tombstones but no deleted thread text; `ApplyDeletionTombstones` re-applies thread tombstones after a restore (fixture and restore check cover it). Export includes `quick_note_chat_sources`; account erasure cascades both learner-linked tables. Analytics: `quick_note_created` (source=chat, length) from the notes service and client `ui_control_activated` (`surface=tutor_chat`, `control_id=delete_thread`), no text, honouring opt-out. No secrets; no new AI call.
@@ -580,6 +582,29 @@ Ticket E12-10 introduces interim ADR 0012 design chat pricing (`setup_chat=0`, `
 - Custom-format dump and restore verification (`TestActivateDesignChatPricesIntegration`) asserts that restored databases resolve the exact same active version and action flags.
 - Forward rollback restores catalogue actions without design chat keys and disables only those actions; manual outline editing and Apply/Discard/Undo remain free.
 - Analytics events (`pricing_version_approved`, `pricing_version_activated`, `pricing_version_rolled_back`) contain strictly canonical metadata and actor IDs; operator reasons and chat text are excluded.
+
+E11-03 adds no tables. Backup objects now have two retention classes in the isolated,
+age-encrypted backup bucket: `<date>/schema-<n>.dump.age` (general, 14 days) and
+`financial/<date>/schema-<n>.dump.age` (identical ciphertext, 35 days), expired by the separate
+`backup-expire` job; live seven-year financial history in Postgres and the
+`account-deletions/v1/` ledger are never expired. The application bucket is versioned; overwritten
+Slides/assets are restored or regenerated as a new tracked version under the same key (metadata
+`duolify-recovery-job`/`-kind`/`-source-version`), keeping references valid. Focused checks:
+`TestExpireOldFixtureDumpsAndRestoreOverwrittenObject` and the RustFS integration tests in
+`internal/backup`. Analytics reuse `backup_failed` (size, duration, ok only). Railway snapshots/PITR and
+production keys are owner-provided. See [backup tooling](../infra/backup/README.md).
+
+E11-05 adds no tables or persisted data. Automated restore drills decrypt dumps only in memory and
+restore them into a disposable Postgres that is destroyed afterwards. The restored copy is anonymized
+first: sessions, refresh tokens, email codes, rate limits, OAuth attempts and webhook payloads are
+purged; display names, usernames, emails, provider subjects, profile goals, course/lesson/note/tutor
+content and generated lesson payloads are replaced (`internal/backup/anonymize.go`). Every new text,
+jsonb or array column must be classified there (redacted, purged or reviewed safe) or the drill fails.
+Deletion tombstones are replayed read-only from the `account-deletions/v1/` ledger. Redis rankings are
+disposable and rebuilt from Postgres. Analytics reuse `restore_drill_completed` (`ok`, `duration_ms`,
+`source` ci or scheduled) and `backup_failed`, with no keys, errors or rows. Focused checks:
+`TestRestoreDrillRestoresSyntheticDumpAndFailsInjectedCorruption` and the `TestDrill*`/`TestAnonymizer*`
+integration tests in `internal/backup`.
 
 ### E15-01 publication drafts and screening
 

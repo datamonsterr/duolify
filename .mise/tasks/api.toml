@@ -16,6 +16,12 @@ depends = ["infra:build-worker"]
 dir = "{{config_root}}/services/api"
 run = "gotestsum -- -race -count=1 ./test/e2e/..."
 
+["api:restore-drill-ci"]
+env = { DUOLIFY_ENV = "development" }
+description = "Ready-PR restore drill: migrated synthetic dump through encrypt, RustFS, restorer identity and an isolated Postgres 18; fails on any schema, data, object or privacy check"
+dir = "{{config_root}}/services/api"
+run = "gotestsum -- -race -count=1 -tags integration -run 'TestRestoreDrill|TestDrill|TestAnonymizer|TestPrivacyChecks|TestObjectReferenceCheck|TestMigrationRegistry' ./internal/backup/... ./test/e2e/..."
+
 ["api:test-integration"]
 env = { DUOLIFY_ENV = "development" }
 description = "Test migrations, store and queue against Postgres 18 (Docker)"
@@ -26,7 +32,7 @@ run = "gotestsum -- -race -count=1 -tags integration {{env.API_TEST_PACKAGES | d
 description = "Build the statically linked API binary"
 dir = "{{config_root}}/services/api"
 env = { CGO_ENABLED = "0" }
-run = ["go build -trimpath -o bin/api ./cmd/api", "go build -trimpath -o bin/backup-init ./cmd/backup-init"]
+run = ["go build -trimpath -o bin/api ./cmd/api", "go build -trimpath -o bin/backup-init ./cmd/backup-init", "go build -trimpath -o bin/backup-expire ./cmd/backup-expire", "go build -trimpath -o bin/restore-drill ./cmd/restore-drill"]
 
 ["api:run"]
 env = { DUOLIFY_ENV = "{{env.DUOLIFY_ENV | default(value='development')}}" }
