@@ -3,24 +3,39 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
+	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/config"
+	"github.com/datamonsterr/duolify/services/api/internal/courses"
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
+	"github.com/datamonsterr/duolify/services/api/internal/eval"
+	"github.com/datamonsterr/duolify/services/api/internal/gamification"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
+	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
+	"github.com/datamonsterr/duolify/services/api/internal/notes"
+	"github.com/datamonsterr/duolify/services/api/internal/player"
+	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 )
@@ -37,9 +52,12 @@ func main() {
 }
 func run(ctx context.Context, args []string) (result error) {
 	if len(args) == 0 {
-		return errors.New("usage: api {serve|worker|migrate|healthcheck}")
+		return errors.New("usage: api {serve|worker|migrate|admin|healthcheck}")
 	}
 	command := args[0]
+	if command == "admin" {
+		return runAdminCLI(ctx, args[1:])
+	}
 	if command == "healthcheck" {
 		return healthcheck(ctx, args[1:])
 	}
@@ -74,13 +92,124 @@ func run(ctx context.Context, args []string) (result error) {
 		defer db.Close()
 		return worker.Migrate(migrationCtx, db.Pool, logger)
 	}
+	monitor := telemetry.New(logger)
+	metricsAddr := os.Getenv("OPERATIONS_ADDR")
+	if metricsAddr == "" {
+		metricsAddr = "127.0.0.1:9091"
+		if command == "worker" {
+			metricsAddr = "127.0.0.1:9092"
+		}
+	}
+
 	db, err := store.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
+	backupConfig, err := backup.Load(os.Getenv)
+	if err != nil {
+		return err
+	}
+	objects, err := backup.NewS3(backupConfig.S3)
+	if err != nil {
+		return err
+	}
+	deletionLedger := backup.DeletionLedger{Objects: objects}
+	if err := accounts.ReplayDeletionLedger(ctx, db.Pool, deletionLedger); err != nil {
+		return fmt.Errorf("apply account deletion tombstones: %w", err)
+	}
+	stopMetrics, err := monitor.Listen(ctx, metricsAddr)
+	if err != nil {
+		return err
+	}
+	defer stopMetrics()
 	if command == "worker" {
-		return worker.Run(ctx, db.Pool, logger)
+		key := cfg.PostHogKey
+		if backupConfig.OptOut {
+			key = ""
+		}
+		events, err := analytics.New(key, cfg.PostHogHost, analytics.DatabaseConsent(db.Pool))
+		if err != nil {
+			return err
+		}
+		defer func() { result = errors.Join(result, events.Close()) }()
+		service, err := backup.New(backup.Options{Source: backup.Postgres{Pool: db.Pool, DatabaseURL: cfg.DatabaseURL}, Objects: objects, Recipient: backupConfig.Recipient, Events: events, OptOut: backupConfig.OptOut, Monitor: monitor})
+		if err != nil {
+			return err
+		}
+		catalogue, err := pricing.Load(ctx, db.Queries)
+		if err != nil {
+			return err
+		}
+		creditService := credits.NewServiceWithCatalogue(db.Pool, nil, catalogue, events)
+		if err := creditService.ConfigurePaymentEnvironment(os.Getenv); err != nil {
+			return err
+		}
+		if err := creditService.PrunePaymentPayloads(ctx); err != nil {
+			return err
+		}
+		go creditService.Maintain(ctx, logger)
+		xpService := gamification.New(db.Pool, events)
+		go xpService.Maintain(ctx, logger)
+		backend, err := engine.New(cfg.EngineAddr, 10*time.Second)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = backend.Close() }()
+		outlineService := courses.New(courses.Options{Pool: db.Pool, OutlineEngine: backend, Financial: creditService, Events: events})
+		go outlineService.Maintain(ctx, logger)
+		outlineQueue, err := outlineService.CreationQueue(logger)
+		if err != nil {
+			return err
+		}
+		if err = outlineQueue.Start(context.WithoutCancel(ctx)); err != nil {
+			return err
+		}
+		defer func() {
+			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer cancel()
+			_ = outlineQueue.Stop(stopCtx)
+		}()
+		notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC())
+		creditService.SetCreditArrivalHook(func(ctx context.Context, learnerID string) {
+			_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
+		})
+		notesQueue, err := notesService.NotesQueue(logger)
+		if err != nil {
+			return err
+		}
+		if err = notesQueue.Start(context.WithoutCancel(ctx)); err != nil {
+			return err
+		}
+		defer func() {
+			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer cancel()
+			_ = notesQueue.Stop(stopCtx)
+		}()
+		if cfg.LessonTestTracerEnabled {
+			lessonService := lessontest.New(lessontest.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Events: events, Casts: characters.NewService(db.Pool, nil, events)})
+			lessonQueue, err := lessonService.LessonQueue(logger)
+			if err != nil {
+				return err
+			}
+			if err = lessonQueue.Start(context.WithoutCancel(ctx)); err != nil {
+				return err
+			}
+			defer func() {
+				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+				defer cancel()
+				_ = lessonQueue.Stop(stopCtx)
+			}()
+		}
+		return worker.RunWithCredits(ctx, db.Pool, logger, creditService, service)
+	}
+	catalogue, err := pricing.Load(ctx, db.Queries)
+	if err != nil {
+		return fmt.Errorf("pricing boot validation: %w", err)
+	}
+	allowUnapprovedPricing, _ := strconv.ParseBool(os.Getenv("ALLOW_UNAPPROVED_PRICING"))
+	if err := characters.ValidateStartupPricing(os.Getenv("DUOLIFY_ENV"), allowUnapprovedPricing, catalogue.HasAction("character_create")); err != nil {
+		return fmt.Errorf("characters pricing validation: %w", err)
 	}
 	redis, err := cache.New(cfg.RedisURL)
 	if err != nil {
@@ -92,15 +221,116 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	defer func() { result = errors.Join(result, backend.Close()) }()
-	events, err := analytics.New(cfg.PostHogKey, cfg.PostHogHost)
+	analyticsKey := cfg.PostHogKey
+	if cfg.AnalyticsOptOut {
+		analyticsKey = ""
+	}
+	events, err := analytics.New(analyticsKey, cfg.PostHogHost, analytics.DatabaseConsent(db.Pool))
 	if err != nil {
 		return err
 	}
 	defer func() { result = errors.Join(result, events.Close()) }()
+	secret, mailer, err := accounts.AuthFromEnv(os.Getenv, logger)
+	if err != nil {
+		return err
+	}
+	profileOptions, err := accounts.ProfileOptionsFromEnv(os.Getenv)
+	if err != nil {
+		return err
+	}
+	rateLimits, err := accounts.RateLimitsFromEnv(os.Getenv)
+	if err != nil {
+		return err
+	}
+	profileOptions.Events = events
+	auth, err := accounts.New(db.Pool, secret, mailer)
+	if err != nil {
+		return err
+	}
+	auth.ConfigureProfile(profileOptions)
+	auth.ConfigureDeletionLedger(deletionLedger)
+	if err := pricing.BootstrapAdmins(ctx, db.Pool, pricing.OperatorPricingAdminIDs()); err != nil {
+		return fmt.Errorf("pricing admin bootstrap failed: %w", err)
+	}
+	pricingAdmin := pricing.NewAdmin(db.Pool, events, os.Getenv("PRICING_OWNER_ID"))
+	if err := pricingAdmin.ConfigureVerification(os.Getenv); err != nil {
+		return fmt.Errorf("pricing verifier configuration: %w", err)
+	}
+	auth.ConfigureRateLimits(rateLimits)
+	auth.ConfigureSetupChat(accounts.SetupChatOptions{
+		Engine:  backend,
+		Pricing: catalogue,
+		Events:  events,
+	})
+	creditService := credits.NewServiceWithCatalogue(db.Pool, redis, catalogue, events)
+	if err := creditService.ConfigurePaymentEnvironment(os.Getenv); err != nil {
+		return err
+	}
+	if err := creditService.PrunePaymentPayloads(ctx); err != nil {
+		return err
+	}
+	go creditService.Maintain(ctx, logger)
+	xpService := gamification.New(db.Pool, events)
+	go xpService.Maintain(ctx, logger)
+	briefPricing := catalogue
+	if os.Getenv("DUOLIFY_ENV") == "development" {
+		if dev, loadErr := pricing.LoadDevelopment(ctx, db.Pool); loadErr == nil {
+			briefPricing = dev
+		}
+	}
+	characterService := characters.NewService(db.Pool, nil, events)
+	characterService.ConfigureScreening(backend)
+	characterService.ConfigureCreation(creditService, backend, os.Getenv("DUOLIFY_ENV"), allowUnapprovedPricing)
+	if err := characterService.Purge(ctx); err != nil {
+		return err
+	}
+	go characterService.Maintain(ctx)
+	notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC())
+	creditService.SetCreditArrivalHook(func(ctx context.Context, learnerID string) {
+		_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
+	})
+
+	var lessonHandler http.Handler
+	if cfg.LessonTestTracerEnabled {
+		lessonHandler = lessontest.New(lessontest.Options{
+			Pool:                db.Pool,
+			Engine:              backend,
+			Financial:           creditService,
+			Events:              events,
+			Casts:               characters.NewService(db.Pool, nil, events),
+			MinGap:              cfg.LessonTestMinGap,
+			MaxVariantsPerTopic: cfg.LessonTestMaxVariantsPerTopic,
+			MaxVariantsPerTest:  cfg.LessonTestMaxVariantsPerTest,
+			SessionTTL:          cfg.LessonTestSessionTTL,
+		})
+	}
+	runtimePricing := pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events)
+	if err := runtimePricing.ActivateDue(ctx, pricingAdmin); err != nil {
+		return fmt.Errorf("pricing activation: %w", err)
+	}
+	activatorCtx, stopActivator := context.WithCancel(ctx)
+	defer stopActivator()
+	go runtimePricing.RunActivator(activatorCtx, pricingAdmin)
+
 	handler := httpapi.New(httpapi.Dependencies{
-		Postgres: db.Ping,
-		Redis:    func(ctx context.Context) error { return redis.Ping(ctx).Err() },
-		Engine:   backend,
+		Characters:              characters.NewHandler(characterService),
+		Gamification:            xpService,
+		Monitor:                 monitor,
+		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService}),
+		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
+		Accounts:                auth,
+		Credits:                 creditService,
+		CourseBrief:             courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
+		Pricing:                 runtimePricing,
+		PricingAdmin:            pricingAdmin,
+		Quotes:                  pricing.NewQuotes(db.Pool),
+		Notes:                   notesService,
+		Eval:                    eval.NewService(db.Pool, catalogue, monitor, events),
+		LessonTestTracerEnabled: cfg.LessonTestTracerEnabled,
+		LessonTest:              lessonHandler,
+		Postgres:                db.Ping,
+		Redis:                   func(ctx context.Context) error { return redis.Ping(ctx).Err() },
+		Engine:                  backend,
 	}, logger)
 	server := httpapi.NewServer(cfg.Addr, handler)
 	listener, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.Addr)
@@ -109,6 +339,115 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	logger.InfoContext(ctx, "HTTP server listening", "addr", listener.Addr().String())
 	return httpapi.Serve(ctx, server, listener)
+}
+
+func runAdminCLI(ctx context.Context, args []string) error {
+	if len(args) < 2 || args[0] != "pricing" {
+		return errors.New("usage: api admin pricing {draft|edit|validate|diff|submit|approve|reject|schedule|cancel|rollback|list|show} --actor UUID --reason TEXT [--version ID] [--new-version ID] [--effective-from RFC3339] [--config FILE]")
+	}
+	operation := args[1]
+	flags := flag.NewFlagSet("admin pricing", flag.ContinueOnError)
+	actor := flags.String("actor", "", "operator account UUID")
+	reason := flags.String("reason", "", "required audit reason")
+	version := flags.String("version", "", "pricing version")
+	configFile := flags.String("config", "", "pricing config JSON file for draft/edit")
+	newVersion := flags.String("new-version", "", "new version ID for a rollback draft")
+	effectiveFrom := flags.String("effective-from", "", "rollback effective instant in RFC3339")
+	if err := flags.Parse(args[2:]); err != nil {
+		return err
+	}
+	if *actor == "" || strings.TrimSpace(*reason) == "" {
+		return errors.New("--actor and --reason are required")
+	}
+	path := "/admin/v1/pricing/drafts"
+	method := http.MethodPost
+	var body []byte
+	switch operation {
+	case "draft":
+		if *configFile == "" {
+			return errors.New("--config is required for draft")
+		}
+		config, err := os.ReadFile(*configFile)
+		if err != nil {
+			return err
+		}
+		body, err = json.Marshal(map[string]any{"config": json.RawMessage(config), "reason": *reason})
+		if err != nil {
+			return err
+		}
+	case "list":
+		method = http.MethodGet
+		path += "?reason=" + url.QueryEscape(*reason)
+	case "edit":
+		if *version == "" || *configFile == "" {
+			return errors.New("--version and --config are required for edit")
+		}
+		config, err := os.ReadFile(*configFile)
+		if err != nil {
+			return err
+		}
+		body, err = json.Marshal(map[string]any{"config": json.RawMessage(config), "reason": *reason})
+		if err != nil {
+			return err
+		}
+		method = http.MethodPatch
+		path += "/" + url.PathEscape(*version)
+	case "show":
+		if *version == "" {
+			return errors.New("--version is required for show")
+		}
+		method = http.MethodGet
+		path += "/" + url.PathEscape(*version) + "?reason=" + url.QueryEscape(*reason)
+	case "validate", "diff", "submit", "approve", "reject", "schedule", "cancel":
+		if *version == "" {
+			return errors.New("--version is required for this operation")
+		}
+		path += "/" + url.PathEscape(*version) + "/" + operation
+		body, _ = json.Marshal(map[string]string{"reason": *reason})
+	case "rollback":
+		if *version == "" || *newVersion == "" || *effectiveFrom == "" {
+			return errors.New("--version, --new-version and --effective-from are required for rollback")
+		}
+		instant, err := time.Parse(time.RFC3339Nano, *effectiveFrom)
+		if err != nil {
+			return errors.New("--effective-from must be RFC3339")
+		}
+		path += "/" + url.PathEscape(*version) + "/rollback"
+		body, _ = json.Marshal(map[string]any{"version": *newVersion, "effective_from": instant, "reason": *reason})
+	default:
+		return fmt.Errorf("unknown pricing operation %q", operation)
+	}
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return errors.New("DATABASE_URL is required")
+	}
+	db, err := store.New(ctx, databaseURL)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if err = pricing.BootstrapAdmins(ctx, db.Pool, pricing.OperatorPricingAdminIDs()); err != nil {
+		return err
+	}
+	key := os.Getenv("POSTHOG_API_KEY")
+	if strings.EqualFold(os.Getenv("ANALYTICS_OPT_OUT"), "true") {
+		key = ""
+	}
+	events, err := analytics.New(key, os.Getenv("POSTHOG_HOST"), analytics.DatabaseConsent(db.Pool))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = events.Close() }()
+	admin := pricing.NewAdmin(db.Pool, events, os.Getenv("PRICING_OWNER_ID"))
+	if err := admin.ConfigureVerification(os.Getenv); err != nil {
+		return fmt.Errorf("pricing verifier configuration: %w", err)
+	}
+	status, response := admin.ExecuteCLI(ctx, *actor, method, path, body)
+	_, _ = os.Stdout.Write(response)
+	if status < 200 || status >= 300 {
+		return fmt.Errorf("pricing %s failed with HTTP %d", operation, status)
+	}
+	return nil
 }
 
 // healthcheck works in distroless images without a shell or curl. Workers and

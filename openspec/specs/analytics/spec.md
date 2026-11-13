@@ -5,6 +5,62 @@ Define how Duolify uses PostHog: identity, privacy, the event catalog with names
 
 ## Requirements
 
+### Requirement: Shared demo analytics catalogue
+The existing client event `course_preview_viewed` SHALL allow preview_kind=shared_demo and demo_version (fixed authored version), without a financial preview_id. The existing `ui_control_activated` SHALL allow control_id=shared_demo with surface=welcome|course_brief. Both SHALL carry UUID/common properties and honor opt-out. No paid generation, model usage, text, topic, title, HTML or draft properties SHALL be emitted for the shared demo.
+
+#### Scenario: Inspect shared authored content
+- **WHEN** a Learner opens the shared demo
+- **THEN** the client emits the control and viewed events with content-free properties and no paid event
+
+### Requirement: Playback control telemetry
+The catalogue SHALL include slide_viewed with lesson_id, slide_id, zero-based index, measured playing wall-clock watch_ms and offline; slide_replayed and slide_paused with lesson_id, slide_id and index; and lesson_player_error with fixed error codes including position_unavailable. Events SHALL use authenticated UUID/common properties and honor opt-out. The wrapper SHALL discard text, HTML, URLs and unregistered properties. Only ended SHALL emit slide_viewed, once per attempt; playback SHALL never emit lesson_completed.
+
+#### Scenario: End and replay
+- **WHEN** a slide ends and duplicate ended messages arrive before Replay
+- **THEN** one slide_viewed emits and replay begins a new attempt with slide_replayed
+
+### Requirement: Sample outline proposal lifecycle
+The catalogue SHALL include API-owned `outline_proposal_requested`, `outline_proposal_delivered`, `outline_proposal_failed`, `outline_proposal_applied`, `outline_proposal_discarded`, and `outline_proposal_undone`, carrying only proposal_id and base_revision plus UUID/common properties. The existing client `ui_control_activated` SHALL allow surface=outline and control_id=outline_change_requested|proposal_apply|proposal_discard|outline_undo. All events honor current opt-out and exclude request text, titles, goals and diffs. Canonical credits_reserved/settled/released and $ai_generation remain owned by the financial outbox.
+
+#### Scenario: Private delivered diff
+- **WHEN** a valid proposal is delivered and later discarded
+- **THEN** lifecycle events contain only opaque identity and revision properties, with no second usage or charge event
+
+### Requirement: Manual outline controls
+The catalogue SHALL include existing `ui_control_activated` with `surface=outline` and `control_id=outline_move|outline_rename|outline_remove|outline_add|outline_undo`. Move includes drag, arrow keys and move buttons. The API allowlist SHALL retain this event and its surface/control properties. Client events SHALL include Learner UUID, platform, source and app_version, honor opt-out and contain no titles, goals, outline snapshots or other learner text. Manual controls SHALL NOT duplicate generation outcomes or emit model usage.
+
+#### Scenario: Outline moved
+- **WHEN** a learner moves a unit or lesson
+- **THEN** one `ui_control_activated` event carries `surface=outline` and `control_id=outline_move` without its title or goal
+
+### Requirement: Subscription lifecycle events
+The catalogue SHALL include `subscription_renewed` and `subscription_cancelled`
+(plan_id, interval, channel, billing_period_start/end, entitlement_version),
+`subscription_payment_failed` (plan_id, channel, reason_code), and
+`entitlement_changed` (plan_id, entitlement_version, reason_code). Renewals SHALL
+be deduplicated per funded term, failures per canonical unpaid invoice, and
+cancellations per canonical state transition. Events SHALL use the transactional
+financial outbox and UUID identity, common properties, opt-out and no learner text.
+
+#### Scenario: Stale failure notification
+- **WHEN** a failed notification resolves to a canonical paid invoice
+- **THEN** no payment-failed event is emitted
+
+### Requirement: Funded subscription financial events
+The catalogue SHALL include `plan_purchased` (plan_id, interval, channel,
+amount_minor, currency, billing_period_start, billing_period_end,
+price_table_version), `subscription_grant_issued` (plan_id, amount, period_key,
+price_table_version), and `entitlement_changed` (plan_id, entitlement_version).
+These events MUST be created in the funding, scheduled-grant or verified revocation transaction, deduplicated by funded
+service-month business key and delivered through the financial outbox. They MUST
+inherit UUID identity, common properties, opt-out and content-free allowlists.
+
+Annual keys SHALL include the funded term and service-month index 0–11; a term revocation SHALL create one entitlement change without learner content.
+
+#### Scenario: Duplicate monthly invoice notifications
+- **WHEN** paid and payment-succeeded events describe one funded service month
+- **THEN** one occurrence of each financial event is created and delivered
+
 ### Requirement: Identity and common properties
 Events SHALL use the internal Learner id (UUID) as `distinct_id`, never email. Every event MUST include `platform` (`desktop`, `ios`, `android`, `web`), `app_version` and `source` (`client` or `api`). Events about a Course or Lesson MUST include `course_id` and `lesson_id` when known.
 
@@ -13,42 +69,78 @@ Events SHALL use the internal Learner id (UUID) as `distinct_id`, never email. E
 - **THEN** `distinct_id` is the Learner UUID and no email or free text is in properties
 
 ### Requirement: Privacy rules
-Events MUST NOT contain note text, chat content, profile text, Slide HTML or answers. A Learner opt-out MUST stop all events. Server-side events SHALL be sent by the API through a non-blocking queue so analytics failure never breaks a request.
+Events MUST NOT contain note text, chat content, profile text, Slide HTML or answers. A Learner opt-out MUST stop all events and clear pending client events. Server-side events SHALL be sent by the API through a non-blocking queue so analytics failure never breaks a request. The catalogue includes `analytics_opt_out_changed` (enabled) and `ui_appearance_changed` (mode); the opt-out transition event is delivered only when the learner remains opted in.
 
 #### Scenario: PostHog down
 - **WHEN** PostHog is unreachable
 - **THEN** the API request still succeeds and events are dropped or retried in the background
 
 ### Requirement: Course and lesson events
-The catalog MUST include: `course_preview_requested` (topic_length, has_profile), `course_preview_viewed` (course preview id, duration_ms), `course_outline_generated` (course_id, unit_count, lesson_count, provider, model, latency_ms), `course_enrolled` (course_id), `course_generation_failed` (stage, error_code), `lesson_generation_requested` (course_id, lesson_id), `lesson_generated` (lesson_id, slide_count, provider, model, latency_ms), `lesson_started`, `slide_viewed` (index, watch_ms, offline), `slide_replayed`, `slide_paused`, `lesson_completed` (xp, duration_ms), `lesson_player_error` (error_code, slide_id), `lesson_test_started`, `lesson_test_submitted`, `lesson_test_passed` and `lesson_test_failed` (score, attempt, duration_ms).
+The catalog MUST include: `course_preview_requested` (topic_length, has_profile), `course_preview_viewed` (preview_id: opaque financial job UUID, duration_ms; ephemeral preview only), `course_outline_generated` (course_id, unit_count, lesson_count, provider, model, latency_ms), `course_enrolled` (course_id), `course_generation_failed` (stage: preview|outline, error_code, preview_id when preview, duration_ms), `lesson_generation_requested` (course_id, lesson_id), `lesson_generated` (lesson_id, slide_count, provider, model, latency_ms), `lesson_started`, `slide_viewed` (index, watch_ms, offline), `slide_replayed`, `slide_paused`, `lesson_completed` (xp, duration_ms), `lesson_player_error` (error_code, slide_id), `lesson_test_started`, `lesson_test_submitted`, `lesson_test_passed`, `lesson_test_failed` (score, attempt, duration_ms), `character_rendered` (speaker_key, character_version, rig_version, expression, offline; deduplicated per Slide speaker visit) and `character_render_fallback` (reason_code, offline). Character events MUST exclude character text, bio, persona, dialogue and SVG content.
 
 #### Scenario: Catalog check
 - **WHEN** a feature emits an event
 - **THEN** its name and properties appear in the catalog or the change adds them
 
 ### Requirement: Gamification and social events
-The catalog MUST include: `xp_earned` (amount, source), `daily_goal_met` (goal_xp), `streak_extended` (streak_length), `streak_broken` (previous_length), `streak_freeze_earned` (reason), `streak_freeze_used` (remaining), `league_promoted` and `league_demoted` (league, rank), `friend_request_sent` (method), `friend_request_accepted`, `friend_streak_started`, `friend_streak_extended` (length), `friend_streak_broken` (length) and `friend_nudge_sent`.
+The catalog MUST include: `xp_earned` (amount, course_id, lesson_id, event_id, local_date, config_version, perfect), `daily_goal_met` (goal_xp, event_id, local_date), `lesson_completed` (xp, duration_ms, course_id, lesson_id, event_id, local_date, config_version, perfect), `streak_extended` (streak_length), `streak_broken` (previous_length), `streak_freeze_earned` (reason), `streak_freeze_used` (remaining), `league_promoted` and `league_demoted` (league, rank), `friend_request_sent` (method), `friend_request_accepted`, `friend_streak_started`, `friend_streak_extended` (length), `friend_streak_broken` (length) and `friend_nudge_sent`.
 
 #### Scenario: Streak broken
 - **WHEN** a Streak resets
 - **THEN** `streak_broken` carries `previous_length`
 
 ### Requirement: Credits and AI feature events
-The catalog MUST include: `credits_reserved`, `credits_settled`, `credits_released` (feature, amount), `credits_insufficient` (feature, balance, estimate), `credits_purchased` (amount, currency, price), `credits_purchase_failed` (reason), `reward_credits_granted` (reason, amount), `tutor_message_sent` (has_lesson_context), `tutor_reply_completed`, `tutor_reply_stopped`, `tutor_reply_failed` (error_code), `quick_note_created` (source, length), `quick_note_enriched`, `quick_note_enrichment_failed`, `quick_note_reviewed`, `quick_note_deleted`, `bookmark_added`, `bookmark_removed`, `bookmark_opened` (target_type) and `learner_profile_updated` (fields_changed).
+The financial purchase catalogue SHALL include `checkout_started` (sku_id, channel,
+currency, amount_minor, price_table_version), `credits_purchased` (amount, currency,
+price, sku_id, channel, amount_minor, price_table_version) and
+`credits_purchase_failed` (reason, sku_id, channel, price_table_version).
+These API events SHALL use transactionally unique outbox keys, UUID/common properties
+and opt-out. No raw payment payloads, URLs, learner text or provider errors are allowed.
+
+The catalog MUST include: `credits_reserved`, `credits_settled`, `credits_released` (feature, amount), `credits_insufficient` (feature, balance, estimate), `credits_purchased` (amount, currency, price), `credits_purchase_failed` (reason), `reward_credits_granted` (reason, amount), `tutor_message_sent` (has_lesson_context), `tutor_reply_completed`, `tutor_reply_stopped`, `tutor_reply_failed` (error_code), `quick_note_created` (source, length), `quick_note_enriched`, `quick_note_enrichment_failed`, `quick_note_reviewed`, `quick_note_deleted`, `bookmark_added`, `bookmark_removed`, `bookmark_opened` (target_type), `learner_profile_updated` (fields_changed) and `onboarding_completed` (no domain properties).
 
 #### Scenario: Purchase event
 - **WHEN** a webhook confirms a purchase
 - **THEN** `credits_purchased` is emitted once with `amount`, `currency` and `price`
 
+### Requirement: Pricing exposure events
+The catalogue SHALL include `pricing_version_exposed` with `pricing_version` and `surface` (`paywall`, `quote`, `pack_list`, `plan_list`). The client SHALL emit at most once per authenticated Learner session, surface and version through the existing analytics wrapper, with UUID identity, platform, app_version and source. Opt-out SHALL suppress delivery; no learner text, provider mapping or secrets may be included. Signed-out catalogue browsing SHALL not fabricate a Learner identity.
+
+#### Scenario: Repeated price view
+- **WHEN** a signed-in Learner opens the same price surface twice in one session
+- **THEN** one exposure event reaches PostHog, unless analytics is disabled
+
+### Requirement: Purchase recovery events
+The catalogue SHALL include client-owned `paywall_viewed` (placement, feature, balance, plan_id, price_table_version), `credits_upsell_shown` (feature, next_daily_grant_at, price_table_version), `ui_purchase_option_selected` and `ui_checkout_requested` (offer_id, billing_period, price_table_version). These events SHALL include UUID/common properties and respect opt-out. No draft, raw note, prompt, URL or callback parameter SHALL be included. Illustrative checkout SHALL NOT emit a financial purchase event.
+
+#### Scenario: Pending preview
+- **WHEN** a learner requests an illustrative checkout
+- **THEN** only the UI request is captured, with configured identifiers and no payment success event
+
+### Requirement: Pricing lifecycle events
+The catalogue SHALL include `pricing_version_created`, `pricing_version_approved`, `pricing_version_rejected`, `pricing_version_activated`, `pricing_version_rolled_back` and `price_table_activated` with `pricing_version`, `change_class` (`adverse` or `non_adverse`), and `actor_id`. The API SHALL emit them through the existing UUID/common-properties wrapper. Events MUST NOT include reasons, full pricing content, credentials or provider mappings. Server opt-out SHALL suppress delivery. Activation events SHALL be recorded once per version in Postgres before delivery.
+
+#### Scenario: Pricing lifecycle
+- **WHEN** a pricing administrator creates, approves or rejects a version
+- **THEN** the corresponding lifecycle event is emitted with common properties and no private reason text
+
+#### Scenario: Scheduled activation
+- **WHEN** database time reaches an approved version's effective instant
+- **THEN** activation is durably recorded once and both activation events are emitted through the existing wrapper without private pricing data
+
 ### Requirement: LLM analytics
 Every Engine call SHALL produce a PostHog `$ai_generation` event from the API with `$ai_provider`, `$ai_model`, `$ai_input_tokens`, `$ai_output_tokens`, `$ai_latency`, `feature`, `fallback_used` and `$ai_is_error`. Prompt and completion text MUST NOT be captured.
+The existing setup-chat emitter's `provider`, `model`, `input_tokens`,
+`output_tokens`, `latency_ms` and `task` properties SHALL remain compatibility
+aliases; the adapter SHALL also supply their canonical fields above. Neither
+representation permits prompt, completion or learner text.
 
 #### Scenario: Fallback call
 - **WHEN** the Engine used the fallback provider
 - **THEN** `$ai_generation` has `fallback_used` true and the real provider and model
 
 ### Requirement: Operations events
-The API SHALL emit `backup_completed` (size_bytes, duration_ms), `backup_failed`, `restore_drill_completed` (duration_ms, ok) and `eval_run_completed` (task, score, threshold, passed) from workers and CI, with `source` set to `api` or `ci`.
+The API SHALL emit `backup_completed` and `backup_failed` (size_bytes, duration_ms, ok), `restore_drill_completed` (duration_ms, ok) and `eval_run_completed` (task, score, threshold, passed, dataset_revision, dataset_source, provider, status, budget) from workers and CI, with `source` set to `api` or `ci`. Operational jobs without a Learner SHALL use the reserved system UUID `00000000-0000-4000-8000-000000000011`, platform `web`, and app_version from build information (`development` for local builds). This UUID never identifies a Learner. `ANALYTICS_OPT_OUT=true` SHALL suppress server analytics globally, including operations events. No database contents, object keys, credentials, provider errors or free text SHALL be sent by backup emitters.
 
 #### Scenario: Backup job done
 - **WHEN** the nightly dump completes
@@ -67,3 +159,82 @@ PostHog is a derived store and MUST NOT be the only copy of any product state. E
 #### Scenario: Account deleted
 - **WHEN** a Learner deletes their account
 - **THEN** a PostHog person deletion request is made
+
+#### Scenario: Authoritative quote terms exposed
+- **WHEN** an action quote is displayed or renewed
+- **THEN** `pricing_version_exposed` uses surface `quote` and the quote's original version, deduplicated by authenticated session, surface and version; common UUID/platform/app_version/source properties are present and opt-out prevents delivery
+- **AND** action input, learner text, model mappings and quote payloads are excluded
+
+### Requirement: Versioned financial job event catalogue
+The API event catalogue SHALL include `credits_reserved`, `credits_settled`,
+`credits_released`, `credits_insufficient` and `credits_exhausted` with feature,
+amount, balance, estimate, bucket and pricing_version, and `$ai_generation` with provider, model, attempt,
+input/output/cache-write/cache-read token counts, newly synthesized character
+count, latency, provider_cost_nanos, fallback_used and usage_available. A transactionally unique outbox
+key SHALL prevent repeated operation events. Delivery SHALL use the existing
+nonblocking wrapper, honor learner/global opt-out, carry Learner UUID/common
+properties, and exclude prompt/completion/profile/note/chat text. Operational
+cost and concurrency state SHALL remain independent of event delivery.
+
+#### Scenario: Repeated settlement
+- **WHEN** a worker repeats finalization after a network interruption
+- **THEN** one financial outcome and one set of per-attempt events exist
+
+### Requirement: Personalized preview event delivery
+Preview requested/viewed/failed events SHALL be API-owned and allowlisted, include UUID identity, source/platform/app_version, and honor current server opt-out. Requested events SHALL carry topic_length and has_profile only; viewed events SHALL identify an ephemeral preview by its opaque financial job UUID and duration_ms. Failure stage SHALL be preview with a fixed error_code, never provider diagnostics. Every attempted generation SHALL retain actual usage in the existing $ai_generation event. Preview text, profile, brief, slide HTML and outline titles MUST NOT enter analytics.
+
+#### Scenario: Preview discarded
+- **WHEN** a learner discards a paid preview
+- **THEN** the API-owned viewed event remains derived analytics and no Course or enrollment is created
+
+### Requirement: Quick notes and sheets event catalogue
+The analytics catalogue SHALL include `quick_note_created` (carrying `source` restricted to `slide|lesson|chat`, and integer `length`) and `ui_sheet_opened` (carrying `sheet_id` identifying the opened sheet, e.g. `quick_note`). Both events SHALL use Learner UUID distinct IDs and common properties (`platform`, `app_version`, `source`), and respect analytics opt-out. Note text, draft content, slide HTML, and private learner data MUST NOT enter PostHog analytics under any circumstance.
+
+#### Scenario: Quick note created event
+- **WHEN** a learner captures a quick note from a slide, lesson, or chat
+- **THEN** `quick_note_created` is emitted with the verified source and character length, excluding note text
+
+#### Scenario: Quick note sheet opened
+- **WHEN** a learner opens a quick note sheet or panel
+- **THEN** `ui_sheet_opened` is emitted with `sheet_id=quick_note` and common properties, excluding note text
+
+### Requirement: Private Character creation event catalogue
+The API SHALL emit `character_create_quoted` (operation, credits, pricing_version),
+`character_created` and `character_regenerated` (character_id, character_version,
+`rig_version, voice_key, credits, pricing_version), `character_rejected` (operation,
+reason_code) and `character_create_failed` (operation, reason_code, fallback_used).
+Outcome events MUST be deduplicated by operation/result through the transactional
+outbox. `$ai_generation` SHALL use feature=character_create or character_screen
+and actual per-attempt provider/model/token/cache/latency/error/fallback metadata,
+including late attempts after cancellation. UUID/common properties, consent,
+non-blocking delivery and person deletion apply. Prompts, names, bios, backstories,
+personas, SVG and dialogue MUST NOT be captured.
+
+#### Scenario: Failed regeneration
+- **WHEN** bounded providers fail and the old Character stays current
+- **THEN** one failure event and each actual attempt are recorded, with no paid success event or learner text
+
+### Requirement: Authorized player event projection
+The catalogue SHALL define `lesson_started` with `lesson_id` and `course_id`, and `lesson_player_error` with `lesson_id`, optional `slide_id`, and fixed `error_code` (`manifest_unavailable`, `document_unavailable`, `invalid_manifest`, `document_timeout`, `offline`). Both SHALL use authenticated Learner UUID/common properties and existing opt-out. The wrapper SHALL discard all other properties, including titles, narration, learner text, HTML and URLs. E3-01 SHALL emit no completion or slide-view events.
+
+#### Scenario: Content-free playback delivery
+- **WHEN** the authenticated player starts or fails and analytics is enabled
+- **THEN** the PostHog test double receives only registered IDs/codes and common properties; opted-out learners emit nothing
+
+### Requirement: Opened lesson cache recovery catalogue
+The existing lesson_player_error allowlist SHALL include fixed codes offline_uncached, cache_unavailable and checksum_mismatch. The existing ui_recovery_selected allowlist SHALL register surface=lesson_player, error_code=offline_uncached and action=retry|exit. Both events SHALL preserve UUID/common properties and opt-out, and SHALL discard HTML, URLs, titles, narration and learner text.
+
+#### Scenario: Uncached offline recovery
+- **WHEN** an opted-in learner selects Retry or Exit from the offline lesson recovery
+- **THEN** the registered recovery event is delivered with only fixed identifiers and common properties
+
+### Requirement: Lesson test retry and completion telemetry
+The catalogue SHALL include API-owned `retry_variant_pool_exhausted` with course_id, lesson_id, topic_id and fixed error_code=pool_exhausted. Exhaustion SHALL NOT be reported as a provider generation failure. `retry_variant_served` SHALL use variant_source for pool provenance and retain the common source=api property. Lesson test lifecycle events SHALL be emitted only after their transaction commits, with no duplicate client lifecycle events. `lesson_test_passed` SHALL emit once when the completion outbox entry is first inserted, with measured session duration_ms, first-try score and validated app_version (or unknown when absent). All properties MUST pass the allowlist, honor opt-out and exclude learner text and selected answer values.
+
+#### Scenario: Exhaustion is free pool reuse
+- **WHEN** a pre-generated retry pool is exhausted and reused for free
+- **THEN** retry_variant_pool_exhausted and retry_variant_served identify the topic and source without reporting a provider failure or exposing question text
+
+#### Scenario: Replayed completion
+- **WHEN** a final answer or completed session is replayed
+- **THEN** no duplicate lesson_test_passed event is emitted and the original summary is retained

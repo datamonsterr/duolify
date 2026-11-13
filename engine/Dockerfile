@@ -26,6 +26,8 @@ COPY --from=planner /app/engine/recipe.json recipe.json
 COPY proto/ /app/proto/
 RUN --mount=type=cache,target=/usr/local/cargo/registry cargo chef cook --release --recipe-path recipe.json
 COPY engine/ .
+# engine-core include_str!s the character schema owned by services/api.
+COPY services/api/internal/characters/schema/v1.json services/api/internal/characters/schema/original.fixture.json /app/services/api/internal/characters/schema/
 RUN --mount=type=cache,target=/usr/local/cargo/registry cargo build --release --locked -p engine-server --bin duolify-engine
 FROM gcr.io/distroless/cc-debian13:nonroot
 COPY --from=probe /grpc_health_probe /grpc_health_probe

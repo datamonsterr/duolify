@@ -1,4 +1,5 @@
 import { http, HttpResponse } from "msw";
+import { playerManifest, playerHTML } from "./player";
 import type { Course } from "../lib/api";
 export const courses: Course[] = [
   {
@@ -34,6 +35,26 @@ export const courses: Course[] = [
   },
 ];
 export const handlers = [
+  http.get("*/v1/lessons/:lesson/position", () => HttpResponse.json(null)),
+  http.put("*/v1/lessons/:lesson/position", async ({ request }) =>
+    HttpResponse.json(await request.json()),
+  ),
+  http.get("*/v1/lessons/:lesson/manifest", ({ params }) =>
+    HttpResponse.json(playerManifest(String(params.lesson))),
+  ),
+  http.get("*/v1/lessons/:lesson/slides/:slide", () =>
+    HttpResponse.json({ html: playerHTML }),
+  ),
+  http.get("*/v1/courses", () =>
+    HttpResponse.json({ courses, active_course_id: courses[0]?.id }),
+  ),
+  http.post("*/v1/courses/:id/select", ({ params }) =>
+    HttpResponse.json({ active_course_id: params.id }),
+  ),
+  http.post("*/v1/courses/:id/level", async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as { level?: string };
+    return HttpResponse.json({ level_override: body.level ?? "" });
+  }),
   http.get("*/courses", () => HttpResponse.json(courses)),
   http.get("*/courses/:id", ({ params }) => {
     const course = courses.find((c) => c.id === params.id);
@@ -41,4 +62,7 @@ export const handlers = [
       ? HttpResponse.json(course)
       : new HttpResponse(null, { status: 404 });
   }),
+  http.get("*/v1/features", () =>
+    HttpResponse.json({ lesson_test_tracer_enabled: true }),
+  ),
 ];

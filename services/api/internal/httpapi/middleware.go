@@ -3,18 +3,15 @@ package httpapi
 
 import (
 	"context"
-	"crypto/rand"
+	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"log/slog"
 	"net/http"
-	"time"
+	"os"
 )
-
-type requestIDKey struct{}
 
 // RequestID returns the server-generated correlation ID.
 func RequestID(ctx context.Context) string {
-	id, _ := ctx.Value(requestIDKey{}).(string)
-	return id
+	return telemetry.CorrelationFrom(ctx).RequestID
 }
 
 type responseWriter struct {
@@ -37,17 +34,22 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 func (w *responseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // Middleware adds correlation, JSON access logs, panic recovery and a fixed Tauri allowlist.
-func Middleware(logger *slog.Logger, next http.Handler) http.Handler {
+func Middleware(logger *slog.Logger, next http.Handler, monitors ...*telemetry.Monitor) http.Handler {
+	monitor := telemetry.New(logger)
+	if len(monitors) > 0 && monitors[0] != nil {
+		monitor = monitors[0]
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		id := rand.Text()
+		ctx, end := monitor.Start(r.Context(), "http")
+		id := telemetry.CorrelationFrom(ctx).RequestID
 		w.Header().Set("X-Request-ID", id)
-		r = r.WithContext(context.WithValue(r.Context(), requestIDKey{}, id))
+		r = r.WithContext(ctx)
 		rw := &responseWriter{ResponseWriter: w}
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				logger.ErrorContext(r.Context(), "handler panic", "request_id", id)
 				if rw.status != 0 {
+					end(false)
 					panic(http.ErrAbortHandler)
 				}
 				writeJSON(rw, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
@@ -56,18 +58,19 @@ func Middleware(logger *slog.Logger, next http.Handler) http.Handler {
 			if code == 0 {
 				code = http.StatusOK
 			}
-			logger.InfoContext(r.Context(), "http request", "request_id", id, "method", r.Method, "path", r.URL.Path, "status", code, "duration_ms", time.Since(start).Milliseconds())
+			end(code < 500)
+			logger.InfoContext(ctx, "http request", "request_id", id, "status", code)
 		}()
 		origin := r.Header.Get("Origin")
 		rw.Header().Add("Vary", "Origin")
 		if origin != "" {
-			switch origin {
-			case "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost", "http://localhost:1420", "http://127.0.0.1:1420":
+			allowed := origin == "tauri://localhost" || origin == "http://tauri.localhost" || origin == "https://tauri.localhost" || (os.Getenv("DUOLIFY_ENV") == "development" && (origin == "http://localhost:1420" || origin == "http://127.0.0.1:1420"))
+			if allowed {
 				rw.Header().Set("Access-Control-Allow-Origin", origin)
-				rw.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-				rw.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID")
-				rw.Header().Set("Access-Control-Expose-Headers", "X-Request-ID")
-			default:
+				rw.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+				rw.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID, X-Quote-ID, X-App-Version, If-None-Match")
+				rw.Header().Set("Access-Control-Expose-Headers", "X-Request-ID, ETag, Cache-Control")
+			} else {
 				writeJSON(rw, http.StatusForbidden, map[string]string{"error": "origin not allowed"})
 				return
 			}

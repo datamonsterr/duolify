@@ -8,17 +8,833 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type CreditEntry struct {
-	ID        int64              `json:"id"`
+type AccountDeletionTombstone struct {
+	LearnerReference string             `json:"learner_reference"`
+	RequestedAt      pgtype.Timestamptz `json:"requested_at"`
+	AppliedAt        pgtype.Timestamptz `json:"applied_at"`
+}
+
+type AuthCode struct {
+	Email          string             `json:"email"`
+	CodeHash       string             `json:"code_hash"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	Attempts       int32              `json:"attempts"`
+	ConsumedAt     pgtype.Timestamptz `json:"consumed_at"`
+	CodeCiphertext []byte             `json:"code_ciphertext"`
+	LastSentAt     pgtype.Timestamptz `json:"last_sent_at"`
+}
+
+type AuthIdentity struct {
+	Email     string             `json:"email"`
 	LearnerID pgtype.UUID        `json:"learner_id"`
-	Amount    int64              `json:"amount"`
-	Kind      string             `json:"kind"`
-	Reference string             `json:"reference"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type AuthOauthAttempt struct {
+	StateHash     string             `json:"state_hash"`
+	NonceHash     string             `json:"nonce_hash"`
+	CodeChallenge string             `json:"code_challenge"`
+	RedirectUri   string             `json:"redirect_uri"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt    pgtype.Timestamptz `json:"consumed_at"`
+}
+
+type AuthProviderIdentity struct {
+	Provider      string             `json:"provider"`
+	Subject       string             `json:"subject"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	VerifiedEmail string             `json:"verified_email"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type AuthRateLimit struct {
+	KeyHash   string             `json:"key_hash"`
+	Count     int32              `json:"count"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	EmailHash pgtype.Text        `json:"email_hash"`
+}
+
+type AuthRefreshToken struct {
+	TokenHash           string             `json:"token_hash"`
+	SessionID           pgtype.UUID        `json:"session_id"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt          pgtype.Timestamptz `json:"consumed_at"`
+	SuccessorCiphertext []byte             `json:"successor_ciphertext"`
+}
+
+type AuthSession struct {
+	ID                pgtype.UUID        `json:"id"`
+	LearnerID         pgtype.UUID        `json:"learner_id"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt         pgtype.Timestamptz `json:"revoked_at"`
+	ReauthenticatedAt pgtype.Timestamptz `json:"reauthenticated_at"`
+}
+
+type Bookmark struct {
+	ID          pgtype.UUID        `json:"id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	ActionKey   string             `json:"action_key"`
+	CourseID    pgtype.UUID        `json:"course_id"`
+	LessonID    pgtype.UUID        `json:"lesson_id"`
+	SlideID     pgtype.Int4        `json:"slide_id"`
+	TargetType  string             `json:"target_type"`
+	CourseTitle string             `json:"course_title"`
+	LessonTitle string             `json:"lesson_title"`
+	SlideTitle  string             `json:"slide_title"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Character struct {
+	ID             pgtype.UUID        `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	CurrentVersion int32              `json:"current_version"`
+	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type CharacterCreateJob struct {
+	ID              pgtype.UUID        `json:"id"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	RequestKey      string             `json:"request_key"`
+	CharacterID     pgtype.UUID        `json:"character_id"`
+	ExpectedVersion int32              `json:"expected_version"`
+	Operation       string             `json:"operation"`
+	State           string             `json:"state"`
+	ScreenCostNanos int64              `json:"screen_cost_nanos"`
+	ReasonCode      string             `json:"reason_code"`
+	QuoteID         pgtype.UUID        `json:"quote_id"`
+	ReservationID   pgtype.UUID        `json:"reservation_id"`
+	Prompt          pgtype.Text        `json:"prompt"`
+	PromptExpiresAt pgtype.Timestamptz `json:"prompt_expires_at"`
+	DeadlineAt      pgtype.Timestamptz `json:"deadline_at"`
+	Result          []byte             `json:"result"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	FinishedAt      pgtype.Timestamptz `json:"finished_at"`
+}
+
+type CharacterScreening struct {
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	CharacterID   pgtype.UUID        `json:"character_id"`
+	Verdict       string             `json:"verdict"`
+	ReasonCode    string             `json:"reason_code"`
+	PolicyVersion string             `json:"policy_version"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	OperationID   pgtype.UUID        `json:"operation_id"`
+}
+
+type CharacterVersion struct {
+	CharacterID pgtype.UUID        `json:"character_id"`
+	Version     int32              `json:"version"`
+	Spec        []byte             `json:"spec"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type Course struct {
+	ID          pgtype.UUID        `json:"id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	CreationID  pgtype.UUID        `json:"creation_id"`
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type CourseBriefRevision struct {
+	ID          pgtype.UUID        `json:"id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	Brief       []byte             `json:"brief"`
+	ContentHash string             `json:"content_hash"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+}
+
+type CourseCast struct {
+	CourseID  pgtype.UUID `json:"course_id"`
+	LearnerID pgtype.UUID `json:"learner_id"`
+	Selection []byte      `json:"selection"`
+	Version   int32       `json:"version"`
+}
+
+type CourseCreation struct {
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	DraftID       pgtype.UUID        `json:"draft_id"`
+	Revision      int64              `json:"revision"`
+	QuoteID       pgtype.UUID        `json:"quote_id"`
+	Request       []byte             `json:"request"`
+	State         string             `json:"state"`
+	ReservationID pgtype.UUID        `json:"reservation_id"`
+	Response      []byte             `json:"response"`
+	CourseID      pgtype.UUID        `json:"course_id"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type CourseEnrollment struct {
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	CourseID      pgtype.UUID        `json:"course_id"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	LevelOverride string             `json:"level_override"`
+	LastActiveAt  pgtype.Timestamptz `json:"last_active_at"`
+}
+
+type CourseLessonStub struct {
+	ID         pgtype.UUID `json:"id"`
+	LearnerID  pgtype.UUID `json:"learner_id"`
+	UnitID     pgtype.UUID `json:"unit_id"`
+	AuthoredID string      `json:"authored_id"`
+	Position   int32       `json:"position"`
+	Title      string      `json:"title"`
+	Goal       string      `json:"goal"`
+	Status     string      `json:"status"`
+}
+
+type CourseUnit struct {
+	ID         pgtype.UUID `json:"id"`
+	LearnerID  pgtype.UUID `json:"learner_id"`
+	CourseID   pgtype.UUID `json:"course_id"`
+	AuthoredID string      `json:"authored_id"`
+	Position   int32       `json:"position"`
+	Title      string      `json:"title"`
+}
+
+type CreditAllocation struct {
+	ID        int64       `json:"id"`
+	JobID     pgtype.UUID `json:"job_id"`
+	SourceID  int64       `json:"source_id"`
+	Component string      `json:"component"`
+	Bucket    string      `json:"bucket"`
+	GrantDate string      `json:"grant_date"`
+	Amount    int64       `json:"amount"`
+}
+
+type CreditArtifact struct {
+	OwnerReference string      `json:"owner_reference"`
+	ArtifactID     string      `json:"artifact_id"`
+	Component      string      `json:"component"`
+	JobID          pgtype.UUID `json:"job_id"`
+}
+
+type CreditCheckoutOrder struct {
+	ID             pgtype.UUID        `json:"id"`
+	RequestID      pgtype.UUID        `json:"request_id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	OwnerReference string             `json:"owner_reference"`
+	PricingVersion string             `json:"pricing_version"`
+	Sku            string             `json:"sku"`
+	AmountMinor    int64              `json:"amount_minor"`
+	Currency       string             `json:"currency"`
+	Credits        int64              `json:"credits"`
+	BillingPeriod  string             `json:"billing_period"`
+	Platform       string             `json:"platform"`
+	ReturnTo       string             `json:"return_to"`
+	QuoteID        pgtype.UUID        `json:"quote_id"`
+	Illustrative   bool               `json:"illustrative"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditCostCounter struct {
+	Scope          string      `json:"scope"`
+	OwnerReference string      `json:"owner_reference"`
+	Day            pgtype.Date `json:"day"`
+	HeldNanos      int64       `json:"held_nanos"`
+	SpentNanos     int64       `json:"spent_nanos"`
+}
+
+type CreditEntry struct {
+	ID             int64              `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	Amount         int64              `json:"amount"`
+	Kind           string             `json:"kind"`
+	Reference      string             `json:"reference"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OwnerReference pgtype.Text        `json:"owner_reference"`
+	PricingVersion pgtype.Text        `json:"pricing_version"`
+	Provenance     []byte             `json:"provenance"`
+}
+
+type CreditJob struct {
+	ID             pgtype.UUID        `json:"id"`
+	QuoteID        pgtype.UUID        `json:"quote_id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	OwnerReference string             `json:"owner_reference"`
+	State          string             `json:"state"`
+	LocalDate      pgtype.Date        `json:"local_date"`
+	PlatformDate   pgtype.Date        `json:"platform_date"`
+	HeldNanos      int64              `json:"held_nanos"`
+	Result         []byte             `json:"result"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	DeadlineAt     pgtype.Timestamptz `json:"deadline_at"`
+	FinishedAt     pgtype.Timestamptz `json:"finished_at"`
+}
+
+type CreditOutbox struct {
+	EventKey       string             `json:"event_key"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	OwnerReference string             `json:"owner_reference"`
+	Event          string             `json:"event"`
+	Properties     []byte             `json:"properties"`
+	DispatchedAt   pgtype.Timestamptz `json:"dispatched_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditPaymentInbox struct {
+	EventID     string             `json:"event_id"`
+	Environment string             `json:"environment"`
+	EventType   string             `json:"event_type"`
+	SessionID   string             `json:"session_id"`
+	ReceivedAt  pgtype.Timestamptz `json:"received_at"`
+}
+
+type CreditPaymentPayload struct {
+	EventID   string             `json:"event_id"`
+	Payload   []byte             `json:"payload"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+type CreditPaymentResult struct {
+	EventID    string             `json:"event_id"`
+	OrderID    pgtype.UUID        `json:"order_id"`
+	State      string             `json:"state"`
+	PaymentKey pgtype.Text        `json:"payment_key"`
+	LedgerID   pgtype.Int8        `json:"ledger_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditPaymentSession struct {
+	OrderID     pgtype.UUID        `json:"order_id"`
+	Environment string             `json:"environment"`
+	SessionID   string             `json:"session_id"`
+	PriceID     string             `json:"price_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditSubscription struct {
+	SubscriptionID string             `json:"subscription_id"`
+	Environment    string             `json:"environment"`
+	OrderID        pgtype.UUID        `json:"order_id"`
+	CustomerID     string             `json:"customer_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditSubscriptionCancellation struct {
+	PeriodKey string             `json:"period_key"`
+	EventID   string             `json:"event_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditSubscriptionLifecycle struct {
+	ID                int64              `json:"id"`
+	SubscriptionID    string             `json:"subscription_id"`
+	EventID           pgtype.Text        `json:"event_id"`
+	ProviderStatus    string             `json:"provider_status"`
+	PeriodStart       pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd         pgtype.Timestamptz `json:"period_end"`
+	CancelAtPeriodEnd bool               `json:"cancel_at_period_end"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditSubscriptionRevocation struct {
+	PeriodKey string             `json:"period_key"`
+	EventID   string             `json:"event_id"`
+	Reason    string             `json:"reason"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditSubscriptionSchedule struct {
+	GrantKey   string             `json:"grant_key"`
+	PeriodKey  string             `json:"period_key"`
+	MonthIndex int32              `json:"month_index"`
+	DueAt      pgtype.Timestamptz `json:"due_at"`
+}
+
+type CreditSubscriptionTerm struct {
+	PeriodKey            string             `json:"period_key"`
+	SubscriptionID       string             `json:"subscription_id"`
+	InvoiceID            string             `json:"invoice_id"`
+	PricingVersion       string             `json:"pricing_version"`
+	PlanID               string             `json:"plan_id"`
+	PlanName             string             `json:"plan_name"`
+	EntitlementVersion   string             `json:"entitlement_version"`
+	ServiceStart         pgtype.Timestamptz `json:"service_start"`
+	PaidThrough          pgtype.Timestamptz `json:"paid_through"`
+	AmountMinor          int32              `json:"amount_minor"`
+	Currency             string             `json:"currency"`
+	MonthlyCredits       int32              `json:"monthly_credits"`
+	Benefits             []byte             `json:"benefits"`
+	ConcurrentGeneration int32              `json:"concurrent_generation"`
+	LedgerID             int64              `json:"ledger_id"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditSubscriptionTransition struct {
+	RequestID      pgtype.UUID        `json:"request_id"`
+	SubscriptionID string             `json:"subscription_id"`
+	Kind           string             `json:"kind"`
+	EffectiveAt    pgtype.Timestamptz `json:"effective_at"`
+	PricingVersion string             `json:"pricing_version"`
+	Terms          []byte             `json:"terms"`
+	PriceID        string             `json:"price_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditTimezone struct {
+	ID             int64              `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	OwnerReference pgtype.Text        `json:"owner_reference"`
+	TimeZone       string             `json:"time_zone"`
+	EffectiveAt    pgtype.Timestamptz `json:"effective_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type CreditUsage struct {
+	JobID     pgtype.UUID        `json:"job_id"`
+	Usage     []byte             `json:"usage"`
+	CostNanos int64              `json:"cost_nanos"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type DailyGoalAchievement struct {
+	ID         pgtype.UUID        `json:"id"`
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	LocalDate  pgtype.Date        `json:"local_date"`
+	GoalXp     int32              `json:"goal_xp"`
+	AchievedAt pgtype.Timestamptz `json:"achieved_at"`
+}
+
+type EvalAlertConfig struct {
+	ID                           string             `json:"id"`
+	PlatformDailyBudgetUsd       pgtype.Numeric     `json:"platform_daily_budget_usd"`
+	DailyBudgetAlert80Percent    bool               `json:"daily_budget_alert_80_percent"`
+	DailyBudgetAlert100Percent   bool               `json:"daily_budget_alert_100_percent"`
+	LearnerCostIncreaseThreshold pgtype.Numeric     `json:"learner_cost_increase_threshold"`
+	CacheHitRateThreshold        pgtype.Numeric     `json:"cache_hit_rate_threshold"`
+	PaidMarginThreshold          pgtype.Numeric     `json:"paid_margin_threshold"`
+	FallbackRateThreshold        pgtype.Numeric     `json:"fallback_rate_threshold"`
+	ErrorRateThreshold           pgtype.Numeric     `json:"error_rate_threshold"`
+	AlertWindowMinutes           int32              `json:"alert_window_minutes"`
+	CreatedAt                    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                    pgtype.Timestamptz `json:"updated_at"`
+}
+
+type EvalAlertEvent struct {
+	ID         pgtype.UUID        `json:"id"`
+	Scope      string             `json:"scope"`
+	AlertKey   string             `json:"alert_key"`
+	ActualUsd  pgtype.Numeric     `json:"actual_usd"`
+	BudgetUsd  pgtype.Numeric     `json:"budget_usd"`
+	Properties []byte             `json:"properties"`
+	Status     string             `json:"status"`
+	NotifiedAt pgtype.Timestamptz `json:"notified_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type EvalOperationalAggregate struct {
+	ID                 int64              `json:"id"`
+	Day                pgtype.Date        `json:"day"`
+	Task               string             `json:"task"`
+	TotalCalls         int64              `json:"total_calls"`
+	FallbackCalls      int64              `json:"fallback_calls"`
+	ErrorCalls         int64              `json:"error_calls"`
+	TotalLatencyMs     int64              `json:"total_latency_ms"`
+	InputTokens        int64              `json:"input_tokens"`
+	OutputTokens       int64              `json:"output_tokens"`
+	CacheWriteTokens   int64              `json:"cache_write_tokens"`
+	CacheReadTokens    int64              `json:"cache_read_tokens"`
+	CostNanos          int64              `json:"cost_nanos"`
+	CreditRevenueCents int64              `json:"credit_revenue_cents"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
+type EvalReport struct {
+	ID              pgtype.UUID        `json:"id"`
+	Task            string             `json:"task"`
+	DatasetRevision string             `json:"dataset_revision"`
+	PromptRevision  string             `json:"prompt_revision"`
+	Model           string             `json:"model"`
+	Score           pgtype.Numeric     `json:"score"`
+	Threshold       pgtype.Numeric     `json:"threshold"`
+	Passed          bool               `json:"passed"`
+	ReportJson      []byte             `json:"report_json"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+}
+
+type GamificationConfig struct {
+	ID             bool    `json:"id"`
+	Version        string  `json:"version"`
+	BaseXp         int32   `json:"base_xp"`
+	PerfectBonusXp int32   `json:"perfect_bonus_xp"`
+	DefaultGoal    int32   `json:"default_goal"`
+	GoalOptions    []int32 `json:"goal_options"`
+}
+
+type GeneratedLesson struct {
+	ID           pgtype.UUID        `json:"id"`
+	LessonStubID pgtype.UUID        `json:"lesson_stub_id"`
+	CourseID     pgtype.UUID        `json:"course_id"`
+	LearnerID    pgtype.UUID        `json:"learner_id"`
+	Title        string             `json:"title"`
+	Manifest     []byte             `json:"manifest"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }
 
 type Learner struct {
 	ID          pgtype.UUID        `json:"id"`
 	DisplayName string             `json:"display_name"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type LearnerProfile struct {
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	Locale          string             `json:"locale"`
+	TimeZone        string             `json:"time_zone"`
+	Background      string             `json:"background"`
+	AnalyticsOptOut bool               `json:"analytics_opt_out"`
+	AgeConfirmedAt  pgtype.Timestamptz `json:"age_confirmed_at"`
+	Goal            string             `json:"goal"`
+	Topic           string             `json:"topic"`
+	Level           string             `json:"level"`
+	DailyMinutes    pgtype.Int4        `json:"daily_minutes"`
+	DailyXp         pgtype.Int4        `json:"daily_xp"`
+	ReminderEnabled pgtype.Bool        `json:"reminder_enabled"`
+	ReminderTime    string             `json:"reminder_time"`
+	SetupCompleted  bool               `json:"setup_completed"`
+	Appearance      string             `json:"appearance"`
+	Motion          string             `json:"motion"`
+	Narration       bool               `json:"narration"`
+	NarrationSpeed  pgtype.Numeric     `json:"narration_speed"`
+	Captions        bool               `json:"captions"`
+	TextSize        pgtype.Numeric     `json:"text_size"`
+	UiSounds        bool               `json:"ui_sounds"`
+	Haptics         string             `json:"haptics"`
+	ActiveCourseID  pgtype.UUID        `json:"active_course_id"`
+}
+
+type LessonCastSnapshot struct {
+	CourseID  pgtype.UUID `json:"course_id"`
+	LearnerID pgtype.UUID `json:"learner_id"`
+	LessonKey string      `json:"lesson_key"`
+	Snapshot  []byte      `json:"snapshot"`
+}
+
+type LessonCompletionOutbox struct {
+	ID        pgtype.UUID        `json:"id"`
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	CourseID  pgtype.UUID        `json:"course_id"`
+	LessonID  pgtype.UUID        `json:"lesson_id"`
+	PassedAt  pgtype.Timestamptz `json:"passed_at"`
+	State     string             `json:"state"`
+}
+
+type LessonCompletionSummary struct {
+	ID              pgtype.UUID        `json:"id"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	CourseID        pgtype.UUID        `json:"course_id"`
+	LessonID        pgtype.UUID        `json:"lesson_id"`
+	Summary         string             `json:"summary"`
+	WeakTopics      []byte             `json:"weak_topics"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+	FirstTryPerfect bool               `json:"first_try_perfect"`
+	DurationMs      int64              `json:"duration_ms"`
+}
+
+type LessonGeneration struct {
+	ID               pgtype.UUID        `json:"id"`
+	LearnerID        pgtype.UUID        `json:"learner_id"`
+	CourseID         pgtype.UUID        `json:"course_id"`
+	LessonID         pgtype.UUID        `json:"lesson_id"`
+	QuoteID          pgtype.UUID        `json:"quote_id"`
+	ReservationID    pgtype.UUID        `json:"reservation_id"`
+	State            string             `json:"state"`
+	ErrorCode        pgtype.Text        `json:"error_code"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	ResultCheckpoint []byte             `json:"result_checkpoint"`
+}
+
+type LessonManifest struct {
+	LessonID    pgtype.UUID        `json:"lesson_id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	Version     int32              `json:"version"`
+	ManifestKey string             `json:"manifest_key"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type LessonPlaybackPosition struct {
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	LessonID   pgtype.UUID        `json:"lesson_id"`
+	Version    int32              `json:"version"`
+	SlideID    string             `json:"slide_id"`
+	TimeMs     int32              `json:"time_ms"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
+}
+
+type LessonPlaybackSyncEvent struct {
+	ActionKey  string             `json:"action_key"`
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	LessonID   pgtype.UUID        `json:"lesson_id"`
+	Version    int32              `json:"version"`
+	SlideID    string             `json:"slide_id"`
+	TimeMs     int32              `json:"time_ms"`
+	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type LessonQuestion struct {
+	ID           pgtype.UUID        `json:"id"`
+	LessonStubID pgtype.UUID        `json:"lesson_stub_id"`
+	LearnerID    pgtype.UUID        `json:"learner_id"`
+	TopicID      string             `json:"topic_id"`
+	Position     int32              `json:"position"`
+	Prompt       string             `json:"prompt"`
+	Choices      []byte             `json:"choices"`
+	AnswerIndex  int32              `json:"answer_index"`
+	Explanation  string             `json:"explanation"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	VariantOf    pgtype.Text        `json:"variant_of"`
+}
+
+type LessonRetryPool struct {
+	ID           pgtype.UUID        `json:"id"`
+	LessonStubID pgtype.UUID        `json:"lesson_stub_id"`
+	LearnerID    pgtype.UUID        `json:"learner_id"`
+	TopicID      string             `json:"topic_id"`
+	Variants     []byte             `json:"variants"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type LessonSlide struct {
+	ID           pgtype.UUID        `json:"id"`
+	LessonStubID pgtype.UUID        `json:"lesson_stub_id"`
+	LearnerID    pgtype.UUID        `json:"learner_id"`
+	Position     int32              `json:"position"`
+	SlideID      string             `json:"slide_id"`
+	Html         string             `json:"html"`
+	DurationMs   int32              `json:"duration_ms"`
+	Narration    string             `json:"narration"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	TopicIds     []string           `json:"topic_ids"`
+}
+
+type LessonTestAnswer struct {
+	ID            pgtype.UUID        `json:"id"`
+	SessionID     pgtype.UUID        `json:"session_id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	QuestionID    string             `json:"question_id"`
+	TopicID       string             `json:"topic_id"`
+	SelectedIndex int32              `json:"selected_index"`
+	Correct       bool               `json:"correct"`
+	IsVariant     bool               `json:"is_variant"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type LessonTestAnswerOperation struct {
+	OperationKey    string             `json:"operation_key"`
+	SessionID       pgtype.UUID        `json:"session_id"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	LessonID        pgtype.UUID        `json:"lesson_id"`
+	QuestionID      string             `json:"question_id"`
+	ChoiceIndex     int32              `json:"choice_index"`
+	ResponsePayload []byte             `json:"response_payload"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type LessonTestSession struct {
+	ID              pgtype.UUID        `json:"id"`
+	LessonStubID    pgtype.UUID        `json:"lesson_stub_id"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	State           string             `json:"state"`
+	QuestionQueue   []byte             `json:"question_queue"`
+	ResolvedTopics  []byte             `json:"resolved_topics"`
+	FirstTryCorrect int32              `json:"first_try_correct"`
+	VariantsServed  int32              `json:"variants_served"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type LessonTestVariantSnapshot struct {
+	ID                  pgtype.UUID        `json:"id"`
+	SessionID           pgtype.UUID        `json:"session_id"`
+	LearnerID           pgtype.UUID        `json:"learner_id"`
+	LessonStubID        pgtype.UUID        `json:"lesson_stub_id"`
+	TopicID             string             `json:"topic_id"`
+	QuestionID          string             `json:"question_id"`
+	VariantOf           string             `json:"variant_of"`
+	Source              string             `json:"source"`
+	Reason              pgtype.Text        `json:"reason"`
+	Prompt              string             `json:"prompt"`
+	Choices             []byte             `json:"choices"`
+	AnswerIndex         int32              `json:"answer_index"`
+	Explanation         string             `json:"explanation"`
+	InstructionSnapshot []byte             `json:"instruction_snapshot"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
+type OutlineDraft struct {
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	BriefRevision pgtype.UUID        `json:"brief_revision"`
+	Revision      int64              `json:"revision"`
+	Outline       []byte             `json:"outline"`
+	History       []byte             `json:"history"`
+	Confirmed     []byte             `json:"confirmed"`
+	IsRecovery    bool               `json:"is_recovery"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OutlineProposal struct {
+	ID              pgtype.UUID        `json:"id"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	DraftID         pgtype.UUID        `json:"draft_id"`
+	QuoteID         pgtype.UUID        `json:"quote_id"`
+	BaseRevision    int64              `json:"base_revision"`
+	BaseOutline     []byte             `json:"base_outline"`
+	Request         string             `json:"request"`
+	Operations      []byte             `json:"operations"`
+	ResultOutline   []byte             `json:"result_outline"`
+	Attempts        []byte             `json:"attempts"`
+	State           string             `json:"state"`
+	Decision        string             `json:"decision"`
+	AppliedRevision pgtype.Int8        `json:"applied_revision"`
+	DecisionDraft   []byte             `json:"decision_draft"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type PosthogPersonDeletionRequest struct {
+	DistinctID  pgtype.UUID        `json:"distinct_id"`
+	RequestedAt pgtype.Timestamptz `json:"requested_at"`
+}
+
+type PricingActivationEvent struct {
+	Version     string             `json:"version"`
+	ActivatedAt pgtype.Timestamptz `json:"activated_at"`
+}
+
+type PricingAdminGrant struct {
+	AccountID pgtype.UUID        `json:"account_id"`
+	GrantedAt pgtype.Timestamptz `json:"granted_at"`
+}
+
+type PricingAudit struct {
+	ID             int64              `json:"id"`
+	ActorID        string             `json:"actor_id"`
+	Action         string             `json:"action"`
+	Version        pgtype.Text        `json:"version"`
+	ChangeClass    pgtype.Text        `json:"change_class"`
+	DiffSummary    []byte             `json:"diff_summary"`
+	Reason         string             `json:"reason"`
+	RequestID      string             `json:"request_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OverrideReason pgtype.Text        `json:"override_reason"`
+}
+
+type PricingDraft struct {
+	Version               string             `json:"version"`
+	ParentVersion         string             `json:"parent_version"`
+	Config                []byte             `json:"config"`
+	CreatedBy             string             `json:"created_by"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	Status                string             `json:"status"`
+	ChangeClass           string             `json:"change_class"`
+	SubmittedAt           pgtype.Timestamptz `json:"submitted_at"`
+	ReviewedBy            pgtype.Text        `json:"reviewed_by"`
+	ReviewedAt            pgtype.Timestamptz `json:"reviewed_at"`
+	RollbackSourceVersion pgtype.Text        `json:"rollback_source_version"`
+}
+
+type PricingQuote struct {
+	ID             pgtype.UUID        `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	OwnerReference string             `json:"owner_reference"`
+	PricingVersion string             `json:"pricing_version"`
+	Snapshot       []byte             `json:"snapshot"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
+type PricingQuoteConsent struct {
+	QuoteID    pgtype.UUID        `json:"quote_id"`
+	AcceptedAt pgtype.Timestamptz `json:"accepted_at"`
+}
+
+type PricingQuotePolicy struct {
+	Version string `json:"version"`
+	Policy  []byte `json:"policy"`
+}
+
+type PricingVerificationEvidence struct {
+	Version    string             `json:"version"`
+	Evidence   []byte             `json:"evidence"`
+	VerifiedAt pgtype.Timestamptz `json:"verified_at"`
+}
+
+type PricingVersion struct {
+	Version       string             `json:"version"`
+	EffectiveFrom pgtype.Timestamptz `json:"effective_from"`
+	Approved      bool               `json:"approved"`
+	Config        []byte             `json:"config"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type PricingVersionCancellation struct {
+	Version     string             `json:"version"`
+	CancelledBy string             `json:"cancelled_by"`
+	CancelledAt pgtype.Timestamptz `json:"cancelled_at"`
+	Reason      string             `json:"reason"`
+}
+
+type QuickNote struct {
+	ID                   pgtype.UUID        `json:"id"`
+	LearnerID            pgtype.UUID        `json:"learner_id"`
+	ActionKey            string             `json:"action_key"`
+	CourseID             pgtype.UUID        `json:"course_id"`
+	LessonID             pgtype.UUID        `json:"lesson_id"`
+	SlideID              pgtype.Int4        `json:"slide_id"`
+	SlideTitle           string             `json:"slide_title"`
+	Source               string             `json:"source"`
+	RawText              string             `json:"raw_text"`
+	Status               string             `json:"status"`
+	Reviewed             bool               `json:"reviewed"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	ReservationID        pgtype.UUID        `json:"reservation_id"`
+	QuoteID              pgtype.UUID        `json:"quote_id"`
+	Version              int32              `json:"version"`
+	ReviewedAt           pgtype.Timestamptz `json:"reviewed_at"`
+	RawVersion           int32              `json:"raw_version"`
+	EnrichmentClaimID    pgtype.UUID        `json:"enrichment_claim_id"`
+	EnrichmentLeaseUntil pgtype.Timestamptz `json:"enrichment_lease_until"`
+}
+
+type QuickNoteEnrichment struct {
+	ID        pgtype.UUID        `json:"id"`
+	NoteID    pgtype.UUID        `json:"note_id"`
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	Summary   string             `json:"summary"`
+	Tags      []string           `json:"tags"`
+	Links     []string           `json:"links"`
+	Version   int32              `json:"version"`
+	Model     string             `json:"model"`
+	Provider  string             `json:"provider"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type XpEvent struct {
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	LessonID      pgtype.UUID        `json:"lesson_id"`
+	CourseID      pgtype.UUID        `json:"course_id"`
+	CompletionID  pgtype.UUID        `json:"completion_id"`
+	Amount        int32              `json:"amount"`
+	Perfect       bool               `json:"perfect"`
+	ConfigVersion string             `json:"config_version"`
+	EarnedAt      pgtype.Timestamptz `json:"earned_at"`
+	LocalDate     pgtype.Date        `json:"local_date"`
+	TimeZone      string             `json:"time_zone"`
 }

@@ -14,8 +14,11 @@ import (
 	"time"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/courses"
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
+	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -36,7 +39,10 @@ func (*fakeEngine) PreviewCourse(ctx context.Context, req *enginev1.PreviewCours
 		<-ctx.Done()
 		return nil, status.FromContextError(ctx.Err()).Err()
 	}
-	return &enginev1.PreviewCourseResponse{SampleOutline: &enginev1.CourseOutline{Title: req.GetTopic()}, ExampleSlides: []*enginev1.Slide{{SlideId: "demo", Html: "<p>Learn</p>"}}}, nil
+	if req.Limits == nil {
+		return nil, status.Error(codes.InvalidArgument, "bounds required")
+	}
+	return &enginev1.PreviewCourseResponse{Attempts: []*enginev1.Usage{{Provider: req.Limits.Provider, Model: req.Limits.Model, InputTokens: 100, OutputTokens: 20, Attempt: 1, Component: "content", Delivered: true}}, SampleOutline: &enginev1.CourseOutline{Title: req.GetTopic(), Units: []*enginev1.Unit{{Title: "Unit", Lessons: []*enginev1.LessonRef{{Title: "Lesson", Goal: "Learn"}}}}}, ExampleSlides: []*enginev1.Slide{{SlideId: "demo", Html: `<div id="root">Learn</div>`, Narration: "Learn", DurationMs: 1000}}}, nil
 }
 
 func TestHTTPAPI(t *testing.T) {
@@ -62,7 +68,35 @@ func TestHTTPAPI(t *testing.T) {
 		}
 	})
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	handler := httpapi.New(httpapi.Dependencies{Engine: client, Postgres: func(context.Context) error { return nil }, Redis: func(context.Context) error { return errors.New("unavailable") }}, logger)
+	auth, access, database := signedInDatabase(t)
+	claims, err := auth.ParseAccess(access)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := claims.Subject
+	catalogue, err := pricing.Load(t.Context(), database.Queries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	creditService := credits.NewServiceWithCatalogue(database.Pool, nil, catalogue, nil)
+	quotes := pricing.NewQuotes(database.Pool)
+	if _, err = database.Pool.Exec(t.Context(), "INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version) VALUES($1,1000,'purchase','e2e-fixture',$2)", owner, catalogue.Config().Version); err != nil {
+		t.Fatal(err)
+	}
+	var qID, creationID, courseID string
+	if err = database.Pool.QueryRow(t.Context(), `INSERT INTO pricing_quotes(learner_id,owner_reference,pricing_version,snapshot,created_at,expires_at) VALUES($1,'fixture-owner',$2,'{}',now(),now()+interval '10 minutes') RETURNING id`, owner, catalogue.Config().Version).Scan(&qID); err != nil {
+		t.Fatal(err)
+	}
+	if err = database.Pool.QueryRow(t.Context(), `INSERT INTO course_creations(learner_id,draft_id,revision,quote_id,request,state) VALUES($1,gen_random_uuid(),1,$2,'{}','enrolled') RETURNING id`, owner, qID).Scan(&creationID); err != nil {
+		t.Fatal(err)
+	}
+	if err = database.Pool.QueryRow(t.Context(), `INSERT INTO courses(learner_id,creation_id,title,description) VALUES($1,$2,'Everyday Physics','A demonstration course') RETURNING id`, owner, creationID).Scan(&courseID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = database.Pool.Exec(t.Context(), `INSERT INTO course_enrollments(learner_id,course_id) VALUES($1,$2)`, owner, courseID); err != nil {
+		t.Fatal(err)
+	}
+	handler := httpapi.New(httpapi.Dependencies{Accounts: auth, CourseBrief: courses.New(courses.Options{Pool: database.Pool}), Engine: client, Credits: creditService, Quotes: quotes, Postgres: func(context.Context) error { return nil }, Redis: func(context.Context) error { return errors.New("unavailable") }}, logger)
 	server := httpapi.NewServer("127.0.0.1:0", handler)
 	listener, err := new(net.ListenConfig).Listen(t.Context(), "tcp", server.Addr)
 	if err != nil {
@@ -87,6 +121,8 @@ func TestHTTPAPI(t *testing.T) {
 	}{
 		{"health", http.MethodGet, "/healthz", "", 200, `"status":"ok"`},
 		{"courses", http.MethodGet, "/v1/courses", "", 200, `"title"`},
+		{"anonymous courses", http.MethodGet, "/v1/courses", "", 401, `"error"`},
+		{"learner", http.MethodGet, "/v1/me", "", 200, `"display_name":"Learner"`},
 		{"preview", http.MethodPost, "/v1/courses/preview", `{"topic":"Physics"}`, 200, `"Physics"`},
 		{"readiness", http.MethodGet, "/readyz", "", 503, `"redis":"error"`},
 		{"invalid", http.MethodPost, "/v1/courses/preview", `{`, 400, `"error"`},
@@ -99,6 +135,32 @@ func TestHTTPAPI(t *testing.T) {
 			req, err := http.NewRequestWithContext(t.Context(), tt.method, "http://"+listener.Addr().String()+tt.path, strings.NewReader(tt.body))
 			if err != nil {
 				t.Fatal(err)
+			}
+			if tt.name != "anonymous courses" {
+				req.Header.Set("Authorization", "Bearer "+access)
+			}
+			if tt.name == "preview" || tt.name == "engine error" || tt.name == "engine timeout" {
+				var input map[string]string
+				if err = json.Unmarshal([]byte(tt.body), &input); err != nil {
+					t.Fatal(err)
+				}
+				brief := courses.Brief{Topic: input["topic"]}
+				raw, _ := json.Marshal(brief)
+				var revision string
+				if err = database.Pool.QueryRow(t.Context(), `INSERT INTO course_brief_revisions(learner_id,brief,content_hash) VALUES($1,$2,$3) RETURNING id`, owner, raw, brief.Hash()).Scan(&revision); err != nil {
+					t.Fatal(err)
+				}
+				quote, e := quotes.Create(t.Context(), owner, pricing.QuoteInput{Action: "preview", BriefRevision: revision})
+				if e != nil {
+					t.Fatal(e)
+				}
+				if e = quotes.Accept(t.Context(), owner, quote.ID); e != nil {
+					t.Fatal(e)
+				}
+				body, _ := json.Marshal(map[string]string{"brief_revision": revision})
+				req.Header.Set("X-Quote-ID", quote.ID)
+				req.Body = io.NopCloser(strings.NewReader(string(body)))
+				req.ContentLength = int64(len(body))
 			}
 			resp, err := httpClient.Do(req)
 			if err != nil {

@@ -13,3 +13,23 @@ fallback_model = "anthropic/claude-haiku-5.5"
 [tasks.note]
 model = "claude-haiku-5-5"
 fallback_model = "anthropic/claude-haiku-5.5"
+[tasks.setup_chat]
+model = "claude-haiku-5-5"
+fallback_model = "anthropic/claude-haiku-5.5"
+
+
+[tasks.course_brief_chat]
+model = "claude-haiku-5-5"
+fallback_model = "anthropic/claude-haiku-5.5"
+
+[tasks.outline_chat_change]
+model = "claude-haiku-5-5"
+fallback_model = "anthropic/claude-haiku-5.5"
+
+[tasks.character_screen]
+model = "claude-haiku-5-5"
+fallback_model = "anthropic/claude-haiku-5.5"
+
+[tasks.character_create]
+model = "claude-haiku-5-5"
+fallback_model = "anthropic/claude-haiku-5.5"

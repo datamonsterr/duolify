@@ -149,3 +149,35 @@ Pricing versions, the audit log and Stripe price mappings MUST be stored in Post
 #### Scenario: Admin leaves
 - **WHEN** an admin account is deleted
 - **THEN** audit entries keep a pseudonymous actor id and remain
+
+### Requirement: Immutable action quotes independent of reservations
+Authenticated Learners SHALL create quotes with `POST /v1/quotes`, read original
+terms with `GET /v1/quotes/{id}`, and record consent before expiry using
+`POST /v1/quotes/{id}/accept`. Quotes MUST snapshot the active database version,
+USD currency, separate content/audio ceilings, daily-bucket eligibility, model,
+context bracket, input/output bounds, rational narration rate and voice allowlist.
+Unknown rates or out-of-envelope inputs MUST fail closed before provider work.
+Quote policy SHALL be an immutable version-owned extension of Pricing config.
+Development defaults pending owner review are a 600-second TTL, logical voice
+`default`, and the business-model provider/model rates; no model is enabled by
+quoting it. Money SHALL use integer USD nanodollars and Credits integer arithmetic.
+
+#### Scenario: Consent after a flip
+- **WHEN** a Learner accepts an unexpired quote and the active catalogue changes
+- **THEN** its original terms remain readable and unchanged without a wallet reservation
+
+#### Scenario: Expired consent
+- **WHEN** a Learner attempts to accept an expired quote
+- **THEN** the API returns conflict and requires a fresh quote and renewed consent
+
+#### Scenario: Quote retention and privacy
+- **WHEN** a Learner deletes their account or an encrypted backup is restored
+- **THEN** quotes, consent and version references survive for at least seven years with pseudonymous ownership and without learner text; encrypted snapshots rotate after 35 days per ADR 0011
+
+#### Scenario: Quote exposure
+- **WHEN** original authoritative quote terms appear
+- **THEN** pricing_version_exposed(surface=quote) uses the quoted version through the existing UUID/opt-out analytics wrapper without private text
+
+#### Scenario: Evaluation gates
+- **WHEN** a quote names a provider or voice
+- **THEN** no provider call occurs and existing feature evaluation and fallback gates remain required

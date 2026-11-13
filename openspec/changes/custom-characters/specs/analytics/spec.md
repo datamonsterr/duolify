@@ -16,7 +16,7 @@ The PostHog catalog SHALL include the events and properties below. All events MU
 | `lesson_cast_applied` | api | cast_version, cast_source, supporting_count, fallback_used |
 | `character_rendered` | client | speaker_key, character_version, rig_version, expression, offline |
 | `character_render_fallback` | client | reason_code, offline |
-| `character_reaction_shown` | client | speaker_key, expression, reaction_trigger, fallback_used |
+| `character_reaction_shown` | client | speaker_key, expression, reaction_trigger (`answer_correct`, `answer_incorrect`, `test_passed`), fallback_used; once per Lesson/question result |
 | `tutor_character_selected` | client | speaker_key, character_version, cast_source |
 | `tutor_character_fallback` | api | reason_code, phase (`before_stream`) |
 | `character_voice_fallback` | api | speaker_key, reason_code, voice_config_version |
@@ -29,6 +29,19 @@ The PostHog catalog SHALL include the events and properties below. All events MU
 #### Scenario: Manual editing event
 - **WHEN** a free field edit succeeds
 - **THEN** `character_updated` lists only field names and no creation/spend event is emitted for the edit
+
+E17-03 emits only `character_updated`, `character_deleted`,
+`character_rejected(operation=manual_edit)`, `course_cast_selected` and per-attempt
+`$ai_generation(feature=character_screen)` from the API. `fields_changed` is an
+allowlist of `info.name`, `info.bio`, `info.backstory`, `personality.traits`,
+`personality.speaking_style`, `personality.persona_prompt`, `appearance.body_shape`,
+`appearance.palette`, `appearance.eyes`, `appearance.mouth`,
+`appearance.accessories`, `voice_key`. It never contains field values or dynamic
+schema keys. Compare-and-swap version replacement and a successful deletion emit
+their outcome once; denied repeats emit no success. Every actual model attempt
+records provider/model/token/cache/latency/error/fallback metadata. No model call
+is inferred from a deterministic rejection. Existing queued delivery and account
+person-deletion apply; learner profile consent suppresses these events.
 
 ### Requirement: Character analytics privacy and delivery
 Character events and `$ai_generation` MUST exclude raw prompts, names, bios, backstories, persona text, speaking-style text, dialogue, answers, spec JSON/SVG and credentials. Existing opt-out, non-blocking delivery and PostHog person deletion MUST apply. API job events MUST be deduplicated by operation/result ID; render events MUST be once per Slide speaker per visit and publication events once per Course version. Every model attempt MUST report actual usage, provider, model, latency, errors and fallback status with a bounded feature key, including platform-paid screening; prompt/completion capture MUST remain disabled.

@@ -1,0 +1,5 @@
+- [x] Add failing negative tests for consent defaults, pre-deletion restore and stale authentication.
+- [x] Implement consent gate, independent immutable deletion ledger, recent-auth checks and per-learner limits.
+- [x] Preserve encrypted client export and add fresh sign-in recovery.
+- [x] Update backup fixtures, data inventory, recovery semantics and ADR defaults.
+- [x] Run API, client and OpenSpec checks.

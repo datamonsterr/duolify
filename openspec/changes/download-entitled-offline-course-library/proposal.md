@@ -1,0 +1,19 @@
+# Download an entitled offline course library (E3-06)
+
+## Why
+Learners with funded Learn, Plus, or Pro subscriptions need the convenience of downloading complete course libraries or selecting generated/unlocked lessons for offline study before travel or disconnected periods, while universal caching remains available for opened lessons across all tiers. The system must verify entitlement server-side against verified subscription data and versioned pricing configuration (with zero hardcoded prices or plans), provide resilient resumable bulk downloads with storage and progress controls, keep device download indexes disposable and cleared on logout, maintain strict iframe sandbox and CSP boundaries, and ensure expired subscriptions cannot initiate new bulk downloads without destroying existing delivered content.
+
+## What changes
+- Server-side entitlement verification and course library download endpoint: The API exposes course library download authorization which verifies whether the authenticated learner is enrolled in the course and holds an active paid plan (Learn, Plus, Pro) whose benefits include "Offline course library downloads" (derived from Postgres `credit_subscription_terms` and active Pricing config). Entitled learners receive the list of downloadable generated/unlocked lessons with manifest and asset descriptors. Unentitled learners or expired subscriptions receive 403 Forbidden with `subscription_required`.
+- Universal opened-lesson replay: Free and unentitled learners retain unmetered replay of opened, cached lessons via E3-03. Expired subscriptions prevent starting new bulk downloads or generating new lessons, but never purge already-delivered local bundles or revoke access to completed lessons.
+- Resumable bulk download with storage and progress controls: The client downloads selected unlocked lessons sequentially with SHA-256 verification into the bounded per-account cache (`cache.ts`), raising or parameterizing account bounds (e.g., up to 50 lessons or configurable size) while retaining atomic bundle publication. Progress controls display downloaded lesson counts, percentage, and allow pause/resume/retry. Storage controls display storage usage and enable clearing downloaded courses.
+- Device-disposable download index: Client tracks downloaded course library status in device storage; logout or session expiration clears the index and cached bundles via `clearLessonCache()`.
+- Sandboxed playback: Offline replay continues through sandboxed `<iframe>` (`sandbox="allow-scripts"` without `allow-same-origin`) with strict CSP and base64/data URI asset embedding.
+- Analytics: Allowlist and catalogue in `services/api/internal/analytics/analytics.go` and `apps/client/src/lib/analytics.ts` register `ui_control_activated` (`control_id=download_library`, `surface=courses` or `course_path`, `course_id`) and `ui_recovery_selected` (`surface=courses` or `course_path`, `action=retry|exit`, `error_code=subscription_required|download_failed`).
+- Accessibility & Design Parity: Matches canvas `S03-Courses.dc.html`, `S08-Path.dc.html`, and `S09-Player.dc.html` with responsive desktop panels and mobile sheets, light/dark themes, reduced motion support, 320px reflow, keyboard/focus navigation, and touch controls.
+
+## Impact
+- Affected areas: `services/api/internal/player`, `services/api/internal/credits`, `services/api/internal/analytics`, `apps/client/src/features/player`, `apps/client/src/features/lesson-player`, `apps/client/src/features/courses`, `apps/client/src/LearnPath.tsx`, `apps/client/src/lib/analytics`.
+- Specs: `lesson-player`.
+- Data backup: Download index is device-disposable and excluded from backups; authoritative manifests and entitlement records remain backed up in object storage and Postgres.
+- AI reliability: No new AI behavior or evals; existing gates preserved.

@@ -20,3 +20,8 @@ if [ -z "$(git ls-tree -r --name-only main -- proto | sed -n '/\.proto$/p')" ]; 
 fi
 buf breaking proto --against '.git#branch=main,subdir=proto'
 '''
+
+["proto:format"]
+description = "Format private gRPC definitions"
+dir = "{{config_root}}/proto"
+run = "buf format -w"

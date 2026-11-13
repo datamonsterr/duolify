@@ -1,9 +1,17 @@
 name: duolify
 
+x-operational-logs: &operational-logs
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-api-env: &api-env
   DUOLIFY_ENV: ${DUOLIFY_ENV:-development}
   LOG_LEVEL: ${LOG_LEVEL:-info}
   API_ADDR: :8080
+  # Private Compose network only; no metrics host port is published.
+  OPERATIONS_ADDR: :9091
   # Host-side .env URLs use localhost; containers always use service DNS.
   DATABASE_URL: postgres://duolify:duolify@postgres:5432/duolify?sslmode=disable
   REDIS_URL: redis://redis:6379/0
@@ -16,16 +24,16 @@ x-api-env: &api-env
   S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-duolify-dev-secret}
   POSTHOG_API_KEY: ${POSTHOG_API_KEY:-}
   POSTHOG_HOST: ${POSTHOG_HOST:-https://us.i.posthog.com}
+  ANALYTICS_OPT_OUT: ${ANALYTICS_OPT_OUT:-false}
 
 x-api: &api
   image: duolify-api:local
   build:
     context: services/api
     dockerfile: Dockerfile
+    target: api
   environment: *api-env
-  env_file:
-    - path: .env
-      required: false
+  logging: *operational-logs
 
 x-health: &health
   interval: 5s
@@ -40,7 +48,7 @@ services:
       POSTGRES_USER: duolify
       POSTGRES_PASSWORD: duolify
       POSTGRES_DB: duolify
-    ports: ["127.0.0.1:5432:5432"]
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
     volumes: [postgres-data:/var/lib/postgresql]
     healthcheck:
       <<: *health
@@ -48,7 +56,7 @@ services:
 
   redis:
     image: redis:8
-    ports: ["127.0.0.1:6379:6379"]
+    ports: ["127.0.0.1:${REDIS_PORT:-6379}:6379"]
     volumes: [redis-data:/data]
     healthcheck:
       <<: *health
@@ -59,11 +67,11 @@ services:
     # the same S3 contract locally; cloud storage remains Railway Buckets.
     image: rustfs/rustfs:1.0.4
     environment:
-      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY_ID:-duolify}
-      RUSTFS_SECRET_KEY: ${S3_SECRET_ACCESS_KEY:-duolify-dev-secret}
+      RUSTFS_ACCESS_KEY: ${S3_ROOT_ACCESS_KEY_ID:-duolify-admin}
+      RUSTFS_SECRET_KEY: ${S3_ROOT_SECRET_ACCESS_KEY:-local-rustfs-admin-only}
       RUSTFS_VOLUMES: /data
       RUSTFS_CONSOLE_ENABLE: "true"
-    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+    ports: ["127.0.0.1:${S3_PORT:-9000}:9000", "127.0.0.1:${S3_CONSOLE_PORT:-9001}:9001"]
     volumes: [objectstore-data:/data, objectstore-logs:/logs]
     healthcheck:
       <<: *health
@@ -74,8 +82,8 @@ services:
     depends_on:
       objectstore: {condition: service_healthy}
     environment:
-      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-duolify}
-      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-duolify-dev-secret}
+      AWS_ACCESS_KEY_ID: ${S3_ROOT_ACCESS_KEY_ID:-duolify-admin}
+      AWS_SECRET_ACCESS_KEY: ${S3_ROOT_SECRET_ACCESS_KEY:-local-rustfs-admin-only}
       AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
       AWS_ENDPOINT_URL: http://objectstore:9000
       AWS_CONFIG_FILE: /aws-config
@@ -102,6 +110,7 @@ services:
       test: [CMD, /api, healthcheck, --database]
 
   engine:
+    logging: *operational-logs
     image: duolify-engine:local
     build:
       context: .
@@ -119,11 +128,20 @@ services:
   api:
     <<: *api
     command: [serve]
+    environment:
+      <<: *api-env
+      # Scoped append-only ledger access; never use RustFS root credentials.
+      BACKUP_S3_ENDPOINT: http://objectstore:9000
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-us-east-1}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-duolify-backups}
+      BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-duolify-backup-writer}
+      BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-local-backup-writer-only}
     ports: ["127.0.0.1:8080:8080"]
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
       s3-init: {condition: service_completed_successfully}
+      backup-init: {condition: service_completed_successfully}
       migrate: {condition: service_completed_successfully}
       engine: {condition: service_healthy}
     healthcheck:
@@ -132,12 +150,30 @@ services:
 
   worker:
     <<: *api
+    image: duolify-worker:local
+    build:
+      context: services/api
+      dockerfile: Dockerfile
+      target: worker
     profiles: [workers]
     command: [worker]
+    environment:
+      <<: *api-env
+      OPERATIONS_ADDR: :9092
+      # The worker receives only scoped backup credentials; no RustFS root key.
+      S3_ACCESS_KEY_ID: ""
+      S3_SECRET_ACCESS_KEY: ""
+      BACKUP_S3_ENDPOINT: http://objectstore:9000
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-us-east-1}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-duolify-backups}
+      BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-duolify-backup-writer}
+      BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-local-backup-writer-only}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
       s3-init: {condition: service_completed_successfully}
+      backup-init: {condition: service_completed_successfully}
       migrate: {condition: service_completed_successfully}
       engine: {condition: service_healthy}
     healthcheck:
@@ -145,8 +181,45 @@ services:
       # Worker has no HTTP listener; verify its durable queue dependency.
       test: [CMD, /api, healthcheck, --database]
 
+  prometheus:
+    image: prom/prometheus:v3.8.0
+    profiles: [observability]
+    logging: *operational-logs
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.size=256MB
+    ports: ["127.0.0.1:9090:9090"]
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - operational-metrics:/prometheus
+
+  backup-init:
+    image: duolify-backup-init:local
+    build:
+      context: services/api
+      dockerfile: Dockerfile
+      target: backup-init
+    environment:
+      DUOLIFY_ENV: development
+      S3_BUCKET: ${S3_BUCKET:-duolify}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-duolify}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-duolify-dev-secret}
+      S3_ROOT_ACCESS_KEY_ID: ${S3_ROOT_ACCESS_KEY_ID:-duolify-admin}
+      S3_ROOT_SECRET_ACCESS_KEY: ${S3_ROOT_SECRET_ACCESS_KEY:-local-rustfs-admin-only}
+      BACKUP_S3_ENDPOINT: http://objectstore:9000
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-us-east-1}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-duolify-backups}
+      BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-duolify-backup-writer}
+      BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-local-backup-writer-only}
+    depends_on:
+      s3-init: {condition: service_completed_successfully}
+    restart: "no"
+
 volumes:
   postgres-data:
   redis-data:
   objectstore-data:
   objectstore-logs:
+  operational-metrics:

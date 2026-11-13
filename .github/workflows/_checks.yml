@@ -294,6 +294,12 @@ jobs:
       - uses: ./.github/actions/setup-engine
       - run: mise run engine:eval
         timeout-minutes: 12
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: eval-reports
+          path: evals/reports
+          retention-days: 90
       - name: Summary
         if: always()
         env:
@@ -306,35 +312,31 @@ jobs:
     runs-on: namespace-profile-linux-xl
     timeout-minutes: 20
     steps:
-      - name: Check live eval credentials
-        id: credentials
-        env:
-          HAVE_SECRETS: ${{ secrets.ANTHROPIC_API_KEY != '' && secrets.OPENROUTER_API_KEY != '' && secrets.HF_TOKEN != '' }}
-          FORK: ${{ github.event.pull_request.head.repo.fork || false }}
-        run: |
-          if [[ "$HAVE_SECRETS" == true && "$FORK" != true ]]; then
-            echo 'enabled=true' >> "$GITHUB_OUTPUT"
-          else
-            echo '::notice::Live sample evals skipped: credentials unavailable or fork PR.'
-          fi
       - uses: actions/checkout@v7
-        if: steps.credentials.outputs.enabled == 'true'
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-engine
-        if: steps.credentials.outputs.enabled == 'true'
-      - if: steps.credentials.outputs.enabled == 'true'
-        run: mise run engine:eval-live
+      - run: mise run engine:eval-live
         timeout-minutes: 15
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_GOLDEN_DATASET: ${{ vars.HF_GOLDEN_DATASET || 'datamonsterr/duolify-golden' }}
-          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || 'main' }}
+          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION }}
           EVAL_SAMPLE_LIMIT: '10'
+          EVAL_BUDGET_USD: '5.00'
+      - name: Verify promotion gate
+        if: always()
+        run: mise run engine:gate evals/reports/latest.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: eval-live-reports
+          path: evals/reports
+          retention-days: 90
       - name: Summary
-        if: always() && steps.credentials.outputs.enabled == 'true'
+        if: always()
         env:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
@@ -379,6 +381,10 @@ jobs:
       - uses: ./.github/actions/setup-client
         with:
           tauri: 'false'
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: go
+          area: pricing-e2e
       - uses: actions/download-artifact@v8
         with:
           name: client-web

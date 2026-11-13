@@ -1,105 +1,140 @@
+import { ProgressPage } from "./features/gamification/DailyGoal";
+import { UiPreferencesProvider } from "./features/design/localization/Preferences";
+import { resolveLocale } from "./features/design/localization/messages";
+import { AuthError, session } from "./features/accounts/session";
+import { useQuery } from "@tanstack/react-query";
+import { api, type Course, type CoursesResponse } from "./lib/api";
+import { useShellSession } from "./features/shell/ShellSession";
 import {
   createRootRoute,
   createRoute,
   createRouter,
-  Link,
-  Outlet,
   RouterProvider,
+  Outlet,
+  useLocation,
+  useNavigate,
   useParams,
+  useSearch,
+  type RouterHistory,
 } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "./lib/api";
+import { CourseBriefPage } from "./features/courses/CourseBrief";
+import { Sessions } from "./features/accounts/Sessions";
+import { SignIn } from "./features/accounts/SignIn";
+import { RouteGuard } from "./features/accounts/RouteGuard";
+import { SetupProfile } from "./features/accounts/LearnerProfile";
+import { AccountProfile } from "./features/accounts/AccountProfile";
+import { Settings } from "./features/accounts/Settings";
+import { CharacterLibrary } from "./features/characters/CharacterLibrary";
+import { CourseCast } from "./features/characters/CourseCast";
 import { LearnPath } from "./LearnPath";
 import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
-function Layout() {
+import { LessonTestRoute } from "./features/lessontest/LessonTest";
+import { Courses } from "./features/design/Courses";
+import { PricingView } from "./features/pricing/PricingView";
+import { NotesPage } from "./features/notes/NotesPage";
+import { BookmarksPage } from "./features/notes/BookmarksPage";
+import { AppShell, MorePage } from "./features/shell/AppShell";
+import { getDownloadedCourses } from "./features/player/library";
+import {
+  DestinationPage,
+  RouteError,
+  RoutePending,
+  RouteUnavailable,
+} from "./features/shell/RouteBoundary";
+function AccountShell() {
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <Link className="brand" to="/">
-          ✦ duolify
-        </Link>
-        <nav>
-          <Link to="/">◈ Learn</Link>
-          <Link to="/courses">▦ Courses</Link>
-          <Link to="/profile">◉ Profile</Link>
-          <Link to="/credits">◇ Credits</Link>
-        </nav>
-        <p className="sidebar-foot">A little learning, every day.</p>
-      </aside>
-      <main className="main">
-        <Outlet />
-      </main>
-      <aside className="right">
-        <div className="stats">
-          <span>
-            🔥 7 <small>day streak</small>
-          </span>
-          <span>
-            ✦ 240 <small>XP</small>
-          </span>
-          <span>
-            ♥ 5 <small>hearts</small>
-          </span>
-        </div>
-        <div className="card">
-          <div className="eyebrow">DAILY QUEST</div>
-          <h3>Make space to learn</h3>
-          <p>Complete one lesson today.</p>
-          <div className="quest">
-            <span />
-          </div>
-          <small>0 / 1 lessons</small>
-        </div>
-        <div className="card">
-          <h3>Keep your curiosity going</h3>
-          <p>A few minutes a day adds up to something wonderful.</p>
-        </div>
-      </aside>
-    </div>
+    <UiPreferencesProvider
+      initialPreferences={{ locale: resolveLocale(session.current()?.locale) }}
+    >
+      <AppShell />
+    </UiPreferencesProvider>
   );
 }
-function Courses() {
-  const { data, isPending, isError } = useQuery({
-    queryKey: ["courses"],
-    queryFn: api.courses,
+function AuthenticatedShell() {
+  const path = useLocation({ select: (location) => location.pathname });
+  if (path === "/sign-in") return <Outlet />;
+  return (
+    <RouteGuard path={path}>
+      <AccountShell />
+    </RouteGuard>
+  );
+}
+const root = createRootRoute({
+  component: AuthenticatedShell,
+  pendingComponent: RoutePending,
+  errorComponent: RouteError,
+  notFoundComponent: RouteUnavailable,
+});
+function IndexRoute() {
+  const shell = useShellSession();
+  const owner = session.current()?.id ?? "";
+  const { data: coursesData } = useQuery({
+    queryKey: ["courses", owner],
+    queryFn: async () => {
+      try {
+        return await api.courses({ authenticatedOnly: true });
+      } catch (err) {
+        if (
+          err instanceof AuthError ||
+          !(err instanceof TypeError || !navigator.onLine)
+        )
+          throw err;
+        const downloaded = Object.values(getDownloadedCourses(owner)).filter(
+          (d) => d.courseData,
+        );
+        if (downloaded.length > 0 && downloaded[0].courseData) {
+          const list = downloaded.map(
+            (d) => d.courseData as Course,
+          ) as CoursesResponse;
+          list.active_course_id = downloaded[0].courseId;
+          return list;
+        }
+        throw err;
+      }
+    },
+    staleTime: 60000,
   });
-  return (
-    <>
-      <div className="eyebrow">EXPLORE SOMETHING NEW</div>
-      <h1>Courses</h1>
-      <p>What would you like to learn?</p>
-      {isPending && <p>Loading courses…</p>}
-      {isError && <p>Could not load courses.</p>}
-      <div className="course-grid">
-        {data?.map((c) => (
-          <Link
-            className="course-card"
-            key={c.id}
-            to="/course/$courseId"
-            params={{ courseId: c.id }}
-          >
-            <span className="course-icon">
-              {c.id === "astronomy" ? "✦" : "❋"}
-            </span>
-            <h2>{c.title}</h2>
-            <p>{c.description}</p>
-            <strong>Explore course →</strong>
-          </Link>
-        ))}
-      </div>
-    </>
-  );
+
+  const activeId = shell.courseId();
+  let resolvedCourseId = activeId;
+
+  if (coursesData && coursesData.length > 0) {
+    const exists = coursesData.some((c) => c.id === activeId);
+    if (!exists) {
+      resolvedCourseId = coursesData.active_course_id || coursesData[0].id;
+    }
+  } else if (!resolvedCourseId && coursesData?.active_course_id) {
+    resolvedCourseId = coursesData.active_course_id;
+  }
+
+  if (resolvedCourseId && resolvedCourseId !== activeId) {
+    shell.rememberCourse(resolvedCourseId, false);
+  }
+
+  if (!resolvedCourseId) {
+    if (coursesData && coursesData.length === 0) {
+      return <Courses />;
+    }
+    return <p role="status">Loading course…</p>;
+  }
+
+  return <LearnPath courseId={resolvedCourseId} />;
 }
-const root = createRootRoute({ component: Layout });
+
 const index = createRoute({
   getParentRoute: () => root,
   path: "/",
-  component: () => <LearnPath courseId="astronomy" />,
+  component: IndexRoute,
 });
 const courses = createRoute({
   getParentRoute: () => root,
   path: "/courses",
   component: Courses,
+});
+const createCourse = createRoute({
+  getParentRoute: () => root,
+  path: "/courses/create",
+  component: CourseBriefPage,
 });
 function CoursePath() {
   const { courseId } = useParams({ from: "/course/$courseId" });
@@ -110,43 +145,173 @@ const course = createRoute({
   path: "/course/$courseId",
   component: CoursePath,
 });
+function LessonRoute() {
+  const { lessonId } = useParams({ from: "/lesson/$lessonId" });
+  const { returnTo, slide } = useSearch({ from: "/lesson/$lessonId" });
+  const initialSlide =
+    slide !== undefined && !isNaN(parseInt(slide, 10))
+      ? parseInt(slide, 10)
+      : undefined;
+  return (
+    <LessonPlayer
+      key={`${lessonId}:${slide ?? ""}`}
+      lessonId={lessonId}
+      returnTo={returnTo}
+      targetSlideId={slide}
+      initialSlide={initialSlide}
+    />
+  );
+}
 const lesson = createRoute({
   getParentRoute: () => root,
   path: "/lesson/$lessonId",
-  component: LessonPlayer,
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { returnTo?: string; slide?: string } => ({
+    returnTo: typeof search.returnTo === "string" ? search.returnTo : undefined,
+    slide:
+      typeof search.slide === "string"
+        ? search.slide
+        : typeof search.slide === "number"
+          ? String(search.slide)
+          : undefined,
+  }),
+  component: LessonRoute,
 });
 const profile = createRoute({
   getParentRoute: () => root,
   path: "/profile",
-  component: () => (
-    <>
-      <div className="eyebrow">YOUR SPACE</div>
-      <h1>Profile</h1>
-      <p>Your learning journey starts here.</p>
-    </>
-  ),
+  component: AccountProfile,
+});
+const profileSetup = createRoute({
+  getParentRoute: () => root,
+  path: "/profile/setup",
+  component: SetupProfile,
 });
 const credits = createRoute({
   getParentRoute: () => root,
   path: "/credits",
+  component: PricingView,
+});
+const billing = createRoute({
+  getParentRoute: () => root,
+  path: "/credits/billing",
   component: () => (
-    <>
-      <div className="eyebrow">YOUR BALANCE</div>
-      <h1>Credits</h1>
-      <p>Credits will power your future learning adventures.</p>
-    </>
+    <section className="pricing">
+      <h1>Manage billing with Stripe</h1>
+      <p>
+        Test billing only. No real subscription, payment, cancellation or plan
+        change is made.
+      </p>
+      <p>
+        Live Stripe billing management becomes available after payment setup and
+        approval. Issued credits remain available after cancellation. Plan
+        changes apply at renewal.
+      </p>
+      <a href="/credits">Return to your wallet</a>
+    </section>
   ),
 });
-const router = createRouter({
-  routeTree: root.addChildren([
-    index,
-    courses,
-    course,
-    lesson,
-    profile,
-    credits,
-  ]),
+const more = createRoute({
+  getParentRoute: () => root,
+  path: "/more",
+  component: MorePage,
 });
+const friends = createRoute({
+  getParentRoute: () => root,
+  path: "/friends",
+  component: () => <DestinationPage title="Friends" />,
+});
+const leagues = createRoute({
+  getParentRoute: () => root,
+  path: "/leagues",
+  component: () => <DestinationPage title="Leagues" />,
+});
+const notes = createRoute({
+  getParentRoute: () => root,
+  path: "/notes",
+  component: NotesPage,
+});
+const bookmarks = createRoute({
+  getParentRoute: () => root,
+  path: "/bookmarks",
+  component: BookmarksPage,
+});
+const settings = createRoute({
+  getParentRoute: () => root,
+  path: "/settings",
+  component: Settings,
+});
+const sessions = createRoute({
+  getParentRoute: () => root,
+  path: "/settings/sessions",
+  component: Sessions,
+});
+const characterSettings = createRoute({
+  getParentRoute: () => root,
+  path: "/settings/characters",
+  component: CharacterLibrary,
+});
+const courseCast = createRoute({
+  getParentRoute: () => root,
+  path: "/courses/$courseId/cast",
+  component: CourseCastRoute,
+});
+function CourseCastRoute() {
+  const { courseId } = useParams({ from: "/courses/$courseId/cast" });
+  return <CourseCast courseId={courseId} />;
+}
+const streak = createRoute({
+  getParentRoute: () => root,
+  path: "/streak",
+  component: ProgressPage,
+});
+const lessonTest = createRoute({
+  getParentRoute: () => root,
+  path: "/lesson/$lessonId/test",
+  component: LessonTestRoute,
+});
+const signIn = createRoute({
+  getParentRoute: () => root,
+  path: "/sign-in",
+  component: SignInRoute,
+});
+function SignInRoute() {
+  const navigate = useNavigate();
+  return <SignIn onSignedIn={(path) => void navigate({ to: path })} />;
+}
+export const createAppRouter = (history?: RouterHistory) =>
+  createRouter({
+    history,
+    defaultPendingComponent: RoutePending,
+    defaultErrorComponent: RouteError,
+    defaultNotFoundComponent: RouteUnavailable,
+    notFoundMode: "root",
+    routeTree: root.addChildren([
+      index,
+      courses,
+      createCourse,
+      course,
+      lesson,
+      profile,
+      profileSetup,
+      credits,
+      billing,
+      more,
+      friends,
+      leagues,
+      notes,
+      bookmarks,
+      settings,
+      characterSettings,
+      courseCast,
+      sessions,
+      streak,
+      lessonTest,
+      signIn,
+    ]),
+  });
+const router = createAppRouter();
 declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router;

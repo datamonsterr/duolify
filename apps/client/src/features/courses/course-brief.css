@@ -1,0 +1,142 @@
+.course-brief {
+  padding: var(--space-4);
+}
+.course-brief h1 {
+  margin: 0;
+}
+.brief-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  list-style: none;
+  padding: 0;
+}
+.brief-steps li {
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: var(--space-2);
+}
+.brief-steps [aria-current] {
+  color: var(--primary);
+  font-weight: var(--weight-strong);
+}
+.course-brief .guided-summary {
+  max-block-size: 70vh;
+  overflow: auto;
+  padding: var(--space-2);
+}
+.course-brief .guided-fallback {
+  max-inline-size: var(--size-shell);
+}
+.course-brief .guided-fallback .guided-summary {
+  max-block-size: none;
+}
+.course-brief :is(p, input, button) {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 47.999rem) {
+  .course-brief {
+    padding: var(--space-2);
+  }
+  .course-brief .guided-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.course-preview {
+  max-inline-size: var(--size-shell);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.course-preview iframe {
+  width: 100%;
+  /* Match the existing slide geometry token while keeping text outside readable. */
+  min-block-size: var(--size-slide-mobile);
+  border: 0;
+}
+.course-preview details {
+  width: 100%;
+}
+.sample-badge {
+  color: var(--primary);
+  font-weight: var(--weight-strong);
+}
+.shared-demo {
+  margin: var(--space-4);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.shared-demo-grid {
+  display: grid;
+  inline-size: 100%;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+.shared-demo-grid > * {
+  min-inline-size: 0;
+}
+@media (max-width: 47.999rem) {
+  .shared-demo-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.outline-surface,
+.course-outline {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+.course-outline fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.outline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+}
+.outline-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  gap: var(--space-4);
+}
+.outline-chat {
+  min-inline-size: 0;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.outline-workspace > * {
+  min-inline-size: 0;
+}
+.outline-workspace .guided-sheet {
+  box-sizing: border-box;
+  padding: var(--space-3);
+}
+.outline-chat textarea {
+  display: block;
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 6rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  font: inherit;
+}
+.outline-chat button {
+  margin-block: var(--space-2);
+}
+@media (max-width: 47.999rem) {
+  .outline-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

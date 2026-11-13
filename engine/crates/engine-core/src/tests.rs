@@ -3,8 +3,27 @@ use super::*;
 #[test]
 fn config_has_all_tasks() {
     let config: Models = toml::from_str(include_str!("../../../config/models.toml")).unwrap();
-    assert_eq!(config.tasks.len(), 5);
+    assert_eq!(config.tasks.len(), 10);
+    assert_eq!(config.tasks["character_create"].model, "claude-haiku-5-5");
+    assert_eq!(
+        config.tasks["character_create"].fallback_model,
+        "anthropic/claude-haiku-5.5"
+    );
+    assert_eq!(config.tasks["character_screen"].model, "claude-haiku-5-5");
+    assert_eq!(
+        config.tasks["character_screen"].fallback_model,
+        "anthropic/claude-haiku-5.5"
+    );
     assert_eq!(config.tasks["chat"].model, "claude-haiku-5-5");
+    assert_eq!(config.tasks["setup_chat"].model, "claude-haiku-5-5");
+    assert_eq!(
+        config.tasks["outline_chat_change"].model,
+        "claude-haiku-5-5"
+    );
+    assert_eq!(
+        config.tasks["outline_chat_change"].fallback_model,
+        "anthropic/claude-haiku-5.5"
+    );
 }
 
 #[test]
@@ -80,5 +99,6 @@ async fn router_retries_then_falls_back() {
         router.complete("note", "test").await.unwrap().provider,
         "mock"
     );
-    assert_eq!(primary.0.load(Ordering::SeqCst), 2);
+    // Must make at most 1 attempt on primary before fallback (never 2 retries = 3 calls)
+    assert_eq!(primary.0.load(Ordering::SeqCst), 1);
 }

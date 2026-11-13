@@ -280,14 +280,17 @@ name = "engine-eval"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "engine-core",
  "engine-providers",
  "regex",
  "reqwest",
+ "ring",
  "serde",
  "serde_json",
  "tokio",
  "toml",
+ "wiremock",
 ]
 
 [[package]]

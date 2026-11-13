@@ -19,12 +19,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	EngineService_ScreenCharacter_FullMethodName       = "/duolify.engine.v1.EngineService/ScreenCharacter"
+	EngineService_MapCharacter_FullMethodName          = "/duolify.engine.v1.EngineService/MapCharacter"
 	EngineService_Health_FullMethodName                = "/duolify.engine.v1.EngineService/Health"
 	EngineService_PreviewCourse_FullMethodName         = "/duolify.engine.v1.EngineService/PreviewCourse"
 	EngineService_GenerateCourseOutline_FullMethodName = "/duolify.engine.v1.EngineService/GenerateCourseOutline"
 	EngineService_GenerateLesson_FullMethodName        = "/duolify.engine.v1.EngineService/GenerateLesson"
+	EngineService_GenerateRetryVariants_FullMethodName = "/duolify.engine.v1.EngineService/GenerateRetryVariants"
 	EngineService_Chat_FullMethodName                  = "/duolify.engine.v1.EngineService/Chat"
 	EngineService_EnrichNote_FullMethodName            = "/duolify.engine.v1.EngineService/EnrichNote"
+	EngineService_SetupChat_FullMethodName             = "/duolify.engine.v1.EngineService/SetupChat"
+	EngineService_CourseBriefChat_FullMethodName       = "/duolify.engine.v1.EngineService/CourseBriefChat"
+	EngineService_OutlineChatChange_FullMethodName     = "/duolify.engine.v1.EngineService/OutlineChatChange"
 )
 
 // EngineServiceClient is the client API for EngineService service.
@@ -34,6 +40,9 @@ const (
 // EngineService is the private AI engine. Only services/api calls it.
 // The engine is stateless: every request carries the context it needs.
 type EngineServiceClient interface {
+	// ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
+	ScreenCharacter(ctx context.Context, in *ScreenCharacterRequest, opts ...grpc.CallOption) (*ScreenCharacterResponse, error)
+	MapCharacter(ctx context.Context, in *MapCharacterRequest, opts ...grpc.CallOption) (*MapCharacterResponse, error)
 	// Health reports readiness and configured providers.
 	Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
 	// PreviewCourse returns a sample outline and example slides before the learner commits.
@@ -42,10 +51,18 @@ type EngineServiceClient interface {
 	GenerateCourseOutline(ctx context.Context, in *GenerateCourseOutlineRequest, opts ...grpc.CallOption) (*GenerateCourseOutlineResponse, error)
 	// GenerateLesson builds one lesson (slides + test). Called only after the previous lesson test is passed.
 	GenerateLesson(ctx context.Context, in *GenerateLessonRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GenerateLessonEvent], error)
+	// GenerateRetryVariants produces paraphrased questions for missed topics.
+	GenerateRetryVariants(ctx context.Context, in *GenerateRetryVariantsRequest, opts ...grpc.CallOption) (*GenerateRetryVariantsResponse, error)
 	// Chat streams a tutor reply with course, lesson and learner context.
 	Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ChatEvent], error)
 	// EnrichNote turns a quick note into a summary, tags and links.
 	EnrichNote(ctx context.Context, in *EnrichNoteRequest, opts ...grpc.CallOption) (*EnrichNoteResponse, error)
+	// SetupChat guides onboarding and learner profile configuration.
+	SetupChat(ctx context.Context, in *SetupChatRequest, opts ...grpc.CallOption) (*SetupChatResponse, error)
+	// CourseBriefChat clarifies intent without generating or persisting a course.
+	CourseBriefChat(ctx context.Context, in *CourseBriefChatRequest, opts ...grpc.CallOption) (*CourseBriefChatResponse, error)
+	// OutlineChatChange proposes typed edits to an owned pre-creation draft.
+	OutlineChatChange(ctx context.Context, in *OutlineChatChangeRequest, opts ...grpc.CallOption) (*OutlineChatChangeResponse, error)
 }
 
 type engineServiceClient struct {
@@ -54,6 +71,26 @@ type engineServiceClient struct {
 
 func NewEngineServiceClient(cc grpc.ClientConnInterface) EngineServiceClient {
 	return &engineServiceClient{cc}
+}
+
+func (c *engineServiceClient) ScreenCharacter(ctx context.Context, in *ScreenCharacterRequest, opts ...grpc.CallOption) (*ScreenCharacterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ScreenCharacterResponse)
+	err := c.cc.Invoke(ctx, EngineService_ScreenCharacter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *engineServiceClient) MapCharacter(ctx context.Context, in *MapCharacterRequest, opts ...grpc.CallOption) (*MapCharacterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MapCharacterResponse)
+	err := c.cc.Invoke(ctx, EngineService_MapCharacter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *engineServiceClient) Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error) {
@@ -105,6 +142,16 @@ func (c *engineServiceClient) GenerateLesson(ctx context.Context, in *GenerateLe
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type EngineService_GenerateLessonClient = grpc.ServerStreamingClient[GenerateLessonEvent]
 
+func (c *engineServiceClient) GenerateRetryVariants(ctx context.Context, in *GenerateRetryVariantsRequest, opts ...grpc.CallOption) (*GenerateRetryVariantsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenerateRetryVariantsResponse)
+	err := c.cc.Invoke(ctx, EngineService_GenerateRetryVariants_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *engineServiceClient) Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ChatEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &EngineService_ServiceDesc.Streams[1], EngineService_Chat_FullMethodName, cOpts...)
@@ -134,6 +181,36 @@ func (c *engineServiceClient) EnrichNote(ctx context.Context, in *EnrichNoteRequ
 	return out, nil
 }
 
+func (c *engineServiceClient) SetupChat(ctx context.Context, in *SetupChatRequest, opts ...grpc.CallOption) (*SetupChatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetupChatResponse)
+	err := c.cc.Invoke(ctx, EngineService_SetupChat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *engineServiceClient) CourseBriefChat(ctx context.Context, in *CourseBriefChatRequest, opts ...grpc.CallOption) (*CourseBriefChatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CourseBriefChatResponse)
+	err := c.cc.Invoke(ctx, EngineService_CourseBriefChat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *engineServiceClient) OutlineChatChange(ctx context.Context, in *OutlineChatChangeRequest, opts ...grpc.CallOption) (*OutlineChatChangeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OutlineChatChangeResponse)
+	err := c.cc.Invoke(ctx, EngineService_OutlineChatChange_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EngineServiceServer is the server API for EngineService service.
 // All implementations must embed UnimplementedEngineServiceServer
 // for forward compatibility.
@@ -141,6 +218,9 @@ func (c *engineServiceClient) EnrichNote(ctx context.Context, in *EnrichNoteRequ
 // EngineService is the private AI engine. Only services/api calls it.
 // The engine is stateless: every request carries the context it needs.
 type EngineServiceServer interface {
+	// ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
+	ScreenCharacter(context.Context, *ScreenCharacterRequest) (*ScreenCharacterResponse, error)
+	MapCharacter(context.Context, *MapCharacterRequest) (*MapCharacterResponse, error)
 	// Health reports readiness and configured providers.
 	Health(context.Context, *HealthRequest) (*HealthResponse, error)
 	// PreviewCourse returns a sample outline and example slides before the learner commits.
@@ -149,10 +229,18 @@ type EngineServiceServer interface {
 	GenerateCourseOutline(context.Context, *GenerateCourseOutlineRequest) (*GenerateCourseOutlineResponse, error)
 	// GenerateLesson builds one lesson (slides + test). Called only after the previous lesson test is passed.
 	GenerateLesson(*GenerateLessonRequest, grpc.ServerStreamingServer[GenerateLessonEvent]) error
+	// GenerateRetryVariants produces paraphrased questions for missed topics.
+	GenerateRetryVariants(context.Context, *GenerateRetryVariantsRequest) (*GenerateRetryVariantsResponse, error)
 	// Chat streams a tutor reply with course, lesson and learner context.
 	Chat(*ChatRequest, grpc.ServerStreamingServer[ChatEvent]) error
 	// EnrichNote turns a quick note into a summary, tags and links.
 	EnrichNote(context.Context, *EnrichNoteRequest) (*EnrichNoteResponse, error)
+	// SetupChat guides onboarding and learner profile configuration.
+	SetupChat(context.Context, *SetupChatRequest) (*SetupChatResponse, error)
+	// CourseBriefChat clarifies intent without generating or persisting a course.
+	CourseBriefChat(context.Context, *CourseBriefChatRequest) (*CourseBriefChatResponse, error)
+	// OutlineChatChange proposes typed edits to an owned pre-creation draft.
+	OutlineChatChange(context.Context, *OutlineChatChangeRequest) (*OutlineChatChangeResponse, error)
 	mustEmbedUnimplementedEngineServiceServer()
 }
 
@@ -163,6 +251,12 @@ type EngineServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedEngineServiceServer struct{}
 
+func (UnimplementedEngineServiceServer) ScreenCharacter(context.Context, *ScreenCharacterRequest) (*ScreenCharacterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ScreenCharacter not implemented")
+}
+func (UnimplementedEngineServiceServer) MapCharacter(context.Context, *MapCharacterRequest) (*MapCharacterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method MapCharacter not implemented")
+}
 func (UnimplementedEngineServiceServer) Health(context.Context, *HealthRequest) (*HealthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Health not implemented")
 }
@@ -175,11 +269,23 @@ func (UnimplementedEngineServiceServer) GenerateCourseOutline(context.Context, *
 func (UnimplementedEngineServiceServer) GenerateLesson(*GenerateLessonRequest, grpc.ServerStreamingServer[GenerateLessonEvent]) error {
 	return status.Error(codes.Unimplemented, "method GenerateLesson not implemented")
 }
+func (UnimplementedEngineServiceServer) GenerateRetryVariants(context.Context, *GenerateRetryVariantsRequest) (*GenerateRetryVariantsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GenerateRetryVariants not implemented")
+}
 func (UnimplementedEngineServiceServer) Chat(*ChatRequest, grpc.ServerStreamingServer[ChatEvent]) error {
 	return status.Error(codes.Unimplemented, "method Chat not implemented")
 }
 func (UnimplementedEngineServiceServer) EnrichNote(context.Context, *EnrichNoteRequest) (*EnrichNoteResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method EnrichNote not implemented")
+}
+func (UnimplementedEngineServiceServer) SetupChat(context.Context, *SetupChatRequest) (*SetupChatResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetupChat not implemented")
+}
+func (UnimplementedEngineServiceServer) CourseBriefChat(context.Context, *CourseBriefChatRequest) (*CourseBriefChatResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CourseBriefChat not implemented")
+}
+func (UnimplementedEngineServiceServer) OutlineChatChange(context.Context, *OutlineChatChangeRequest) (*OutlineChatChangeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method OutlineChatChange not implemented")
 }
 func (UnimplementedEngineServiceServer) mustEmbedUnimplementedEngineServiceServer() {}
 func (UnimplementedEngineServiceServer) testEmbeddedByValue()                       {}
@@ -200,6 +306,42 @@ func RegisterEngineServiceServer(s grpc.ServiceRegistrar, srv EngineServiceServe
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&EngineService_ServiceDesc, srv)
+}
+
+func _EngineService_ScreenCharacter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ScreenCharacterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).ScreenCharacter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_ScreenCharacter_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).ScreenCharacter(ctx, req.(*ScreenCharacterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EngineService_MapCharacter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MapCharacterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).MapCharacter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_MapCharacter_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).MapCharacter(ctx, req.(*MapCharacterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _EngineService_Health_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -267,6 +409,24 @@ func _EngineService_GenerateLesson_Handler(srv interface{}, stream grpc.ServerSt
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type EngineService_GenerateLessonServer = grpc.ServerStreamingServer[GenerateLessonEvent]
 
+func _EngineService_GenerateRetryVariants_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateRetryVariantsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).GenerateRetryVariants(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_GenerateRetryVariants_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).GenerateRetryVariants(ctx, req.(*GenerateRetryVariantsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _EngineService_Chat_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ChatRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -296,6 +456,60 @@ func _EngineService_EnrichNote_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _EngineService_SetupChat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetupChatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).SetupChat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_SetupChat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).SetupChat(ctx, req.(*SetupChatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EngineService_CourseBriefChat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CourseBriefChatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).CourseBriefChat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_CourseBriefChat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).CourseBriefChat(ctx, req.(*CourseBriefChatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EngineService_OutlineChatChange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OutlineChatChangeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).OutlineChatChange(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_OutlineChatChange_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).OutlineChatChange(ctx, req.(*OutlineChatChangeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // EngineService_ServiceDesc is the grpc.ServiceDesc for EngineService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -303,6 +517,14 @@ var EngineService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "duolify.engine.v1.EngineService",
 	HandlerType: (*EngineServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ScreenCharacter",
+			Handler:    _EngineService_ScreenCharacter_Handler,
+		},
+		{
+			MethodName: "MapCharacter",
+			Handler:    _EngineService_MapCharacter_Handler,
+		},
 		{
 			MethodName: "Health",
 			Handler:    _EngineService_Health_Handler,
@@ -316,8 +538,24 @@ var EngineService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _EngineService_GenerateCourseOutline_Handler,
 		},
 		{
+			MethodName: "GenerateRetryVariants",
+			Handler:    _EngineService_GenerateRetryVariants_Handler,
+		},
+		{
 			MethodName: "EnrichNote",
 			Handler:    _EngineService_EnrichNote_Handler,
+		},
+		{
+			MethodName: "SetupChat",
+			Handler:    _EngineService_SetupChat_Handler,
+		},
+		{
+			MethodName: "CourseBriefChat",
+			Handler:    _EngineService_CourseBriefChat_Handler,
+		},
+		{
+			MethodName: "OutlineChatChange",
+			Handler:    _EngineService_OutlineChatChange_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -14,3 +14,15 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+serde_json = "1"
+tauri-plugin-deep-link = "2"
+tauri-plugin-opener = "2"
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
+keyring = { version = "=4.2.0", default-features = false, features = ["v1"] }
+
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+tauri-plugin-keyring-store = { version = "=0.3.1", default-features = false }

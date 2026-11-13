@@ -12,6 +12,9 @@
   "dependencies": {
     "@tanstack/react-query": "5.107.1",
     "@tanstack/react-router": "1.170.46",
+    "@tauri-apps/api": "2.12.4",
+    "@tauri-apps/plugin-deep-link": "^2.4.0",
+    "@tauri-apps/plugin-opener": "^2.4.0",
     "posthog-js": "1.447.3",
     "react": "19.3.1",
     "react-dom": "19.3.1"

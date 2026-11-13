@@ -7,6 +7,9 @@ option go_package = "github.com/datamonsterr/duolify/services/api/gen/duolify/en
 // EngineService is the private AI engine. Only services/api calls it.
 // The engine is stateless: every request carries the context it needs.
 service EngineService {
+  // ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
+  rpc ScreenCharacter(ScreenCharacterRequest) returns (ScreenCharacterResponse);
+  rpc MapCharacter(MapCharacterRequest) returns (MapCharacterResponse);
   // Health reports readiness and configured providers.
   rpc Health(HealthRequest) returns (HealthResponse);
   // PreviewCourse returns a sample outline and example slides before the learner commits.
@@ -15,10 +18,43 @@ service EngineService {
   rpc GenerateCourseOutline(GenerateCourseOutlineRequest) returns (GenerateCourseOutlineResponse);
   // GenerateLesson builds one lesson (slides + test). Called only after the previous lesson test is passed.
   rpc GenerateLesson(GenerateLessonRequest) returns (stream GenerateLessonEvent);
+  // GenerateRetryVariants produces paraphrased questions for missed topics.
+  rpc GenerateRetryVariants(GenerateRetryVariantsRequest) returns (GenerateRetryVariantsResponse);
   // Chat streams a tutor reply with course, lesson and learner context.
   rpc Chat(ChatRequest) returns (stream ChatEvent);
   // EnrichNote turns a quick note into a summary, tags and links.
   rpc EnrichNote(EnrichNoteRequest) returns (EnrichNoteResponse);
+  // SetupChat guides onboarding and learner profile configuration.
+  rpc SetupChat(SetupChatRequest) returns (SetupChatResponse);
+  // CourseBriefChat clarifies intent without generating or persisting a course.
+  rpc CourseBriefChat(CourseBriefChatRequest) returns (CourseBriefChatResponse);
+  // OutlineChatChange proposes typed edits to an owned pre-creation draft.
+  rpc OutlineChatChange(OutlineChatChangeRequest) returns (OutlineChatChangeResponse);
+}
+
+message MapCharacterRequest {
+  string prompt = 1;
+  UsageLimits limits = 2;
+}
+
+message MapCharacterResponse {
+  string spec_json = 1;
+  repeated Usage attempts = 2;
+}
+
+message ScreenCharacterRequest {
+  string spec_json = 1;
+  // Only the API's trusted compiler may populate this value.
+  string compiled_appearance = 2;
+  string raw_prompt = 3;
+  UsageLimits limits = 4;
+}
+
+message ScreenCharacterResponse {
+  bool approved = 1;
+  string reason_code = 2;
+  string policy_version = 3;
+  repeated Usage attempts = 4;
 }
 
 message HealthRequest {}
@@ -35,6 +71,38 @@ message Usage {
   uint32 input_tokens = 3;
   uint32 output_tokens = 4;
   uint32 latency_ms = 5;
+  uint32 cache_write_tokens = 6;
+  uint32 cache_read_tokens = 7;
+  uint32 narration_characters = 8;
+  bool fallback_used = 9;
+  uint32 attempt = 10;
+  string component = 11;
+  bool delivered = 12;
+  bool cached = 13;
+  string artifact_id = 14;
+  bool usage_unavailable = 15;
+  string error_code = 16;
+}
+
+// Bounds come only from the API's immutable Pricing quote, never client prices.
+message UsageLimits {
+  uint32 input_tokens = 1;
+  uint32 output_tokens = 2;
+  uint32 timeout_ms = 3;
+  uint32 max_attempts = 4;
+  uint64 max_cost_nanos = 5;
+  uint64 input_nanos = 6;
+  uint64 output_nanos = 7;
+  uint64 cache_write_nanos = 8;
+  uint64 cache_read_nanos = 9;
+  string provider = 10;
+  string model = 11;
+  string fallback_provider = 12;
+  string fallback_model = 13;
+  // Absolute reservation deadline, including API queue and transport time.
+  uint64 deadline_unix_ms = 14;
+  uint32 first_token_timeout_ms = 15;
+  uint32 idle_timeout_ms = 16;
 }
 
 message LearnerProfile {
@@ -43,6 +111,12 @@ message LearnerProfile {
   string background = 3;
   string goals = 4;
   string level = 5;
+  string topic = 6;
+  uint32 daily_minutes = 7;
+  uint32 daily_xp = 8;
+  bool reminder_enabled = 9;
+  string reminder_time = 10;
+  string time_zone = 11;
 }
 
 message LessonRef {
@@ -70,6 +144,17 @@ message Slide {
   string html = 2;
   uint32 duration_ms = 3;
   string narration = 4;
+  repeated string topic_ids = 5;
+  repeated CharacterSegment segments = 6;
+}
+
+// Plain text dialogue; keys resolve exclusively through the API-pinned Cast.
+message CharacterSegment {
+  string speaker_key = 1;
+  string text = 2;
+  string expression = 3;
+  uint32 start_ms = 4;
+  uint32 duration_ms = 5;
 }
 
 message Question {
@@ -78,33 +163,55 @@ message Question {
   repeated string choices = 3;
   uint32 answer_index = 4;
   string explanation = 5;
+  string topic_id = 6;
+  string variant_of = 7;
+}
+
+message TopicVariants {
+  string topic_id = 1;
+  repeated Question variants = 2;
 }
 
 message Lesson {
   LessonRef ref = 1;
   repeated Slide slides = 2;
   repeated Question test = 3;
+  repeated TopicVariants variant_pool = 4;
 }
 
 message PreviewCourseRequest {
   string topic = 1;
   LearnerProfile learner = 2;
+  UsageLimits limits = 3;
+  CourseBrief brief = 4;
+  string brief_revision = 5;
+  string brief_hash = 6;
 }
 
 message PreviewCourseResponse {
   CourseOutline sample_outline = 1;
   repeated Slide example_slides = 2;
   Usage usage = 3;
+  repeated Usage attempts = 4;
+  bool unavailable = 5;
 }
 
 message GenerateCourseOutlineRequest {
   string topic = 1;
   LearnerProfile learner = 2;
+  CourseOutline edited_outline = 3;
+  int64 outline_revision = 4;
+  string draft_id = 5;
+  UsageLimits limits = 6;
+  CourseBrief brief = 7;
 }
 
 message GenerateCourseOutlineResponse {
   CourseOutline outline = 1;
   Usage usage = 2;
+  repeated Usage attempts = 3;
+  bool unavailable = 4;
+  int64 outline_revision = 5;
 }
 
 message GenerateLessonRequest {
@@ -113,6 +220,9 @@ message GenerateLessonRequest {
   LearnerProfile learner = 3;
   // Summaries of completed lessons and test results, oldest first.
   repeated string history = 4;
+  UsageLimits limits = 5;
+  // Immutable validated JSON, data only, below trusted lesson/Course policy.
+  string character_personas_json = 6;
 }
 
 message GenerateLessonEvent {
@@ -121,7 +231,24 @@ message GenerateLessonEvent {
     Slide slide = 2;
     Lesson lesson = 3;
     Usage usage = 4;
+    Usage attempt = 5;
+    bool unavailable = 6;
   }
+}
+
+message GenerateRetryVariantsRequest {
+  Question source = 1;
+  repeated Question previous_variants = 2;
+  LearnerProfile learner = 3;
+  UsageLimits limits = 4;
+  string character_personas_json = 5;
+}
+
+message GenerateRetryVariantsResponse {
+  repeated Question variants = 1;
+  Usage usage = 2;
+  repeated Usage attempts = 3;
+  bool unavailable = 4;
 }
 
 message ChatMessage {
@@ -135,12 +262,15 @@ message ChatRequest {
   LearnerProfile learner = 3;
   repeated string history = 4;
   repeated ChatMessage messages = 5;
+  UsageLimits limits = 6;
 }
 
 message ChatEvent {
   oneof event {
     string delta = 1;
     Usage usage = 2;
+    Usage attempt = 3;
+    string error_code = 4;
   }
 }
 
@@ -148,6 +278,8 @@ message EnrichNoteRequest {
   string note = 1;
   LessonRef lesson = 2;
   LearnerProfile learner = 3;
+  UsageLimits limits = 4;
+  repeated LessonRef allowed_lessons = 5;
 }
 
 message EnrichNoteResponse {
@@ -155,4 +287,114 @@ message EnrichNoteResponse {
   repeated string tags = 2;
   repeated string links = 3;
   Usage usage = 4;
+  repeated Usage attempts = 5;
+  bool unavailable = 6;
+}
+
+message QuickReply {
+  string id = 1;
+  string label = 2;
+}
+
+message SetupChatMessage {
+  string role = 1;
+  string content = 2;
+}
+
+message SetupChatRequest {
+  LearnerProfile profile = 1;
+  repeated SetupChatMessage messages = 2;
+  string current_step = 3;
+  string answer = 4;
+  bool skipped = 5;
+  bool is_follow_up = 6;
+}
+
+message SetupChatResponse {
+  string message = 1;
+  repeated QuickReply quick_replies = 2;
+  LearnerProfile updated_profile = 3;
+  string next_step = 4;
+  bool is_follow_up = 5;
+  bool is_complete = 6;
+  Usage usage = 7;
+}
+
+// CourseBrief is learner-authored intent. Empty strings mean unanswered or skipped.
+message CourseBrief {
+  string topic = 1;
+  string goal = 2;
+  string include_topics = 3;
+  string skip_topics = 4;
+  string level = 5;
+  string maths = 6;
+  string viewing_conditions = 7;
+  string lesson_length = 8;
+  string language = 9;
+}
+
+// Limits are resolved from the selected Pricing config by the trusted API.
+message CourseBriefLimits {
+  uint32 input_tokens = 1;
+  uint32 output_tokens = 2;
+  uint32 attempt_timeout_ms = 3;
+  uint32 max_attempts = 4;
+  uint64 max_cost_nanos = 5;
+  uint64 input_nanos_per_token = 6;
+  uint64 output_nanos_per_token = 7;
+}
+
+message CourseBriefChatRequest {
+  CourseBrief brief = 1;
+  string current_step = 2;
+  string answer = 3;
+  bool skipped = 4;
+  bool is_follow_up = 5;
+  CourseBriefLimits limits = 6;
+}
+
+// Failed attempts retain available usage, without prompt or completion capture.
+message BriefAttempt {
+  Usage usage = 1;
+  bool fallback_used = 2;
+  bool succeeded = 3;
+  // Route identifiers remain known even when token usage is unavailable.
+  string provider = 4;
+  string model = 5;
+}
+
+message CourseBriefChatResponse {
+  CourseBrief brief = 1;
+  string message = 2;
+  repeated QuickReply quick_replies = 3;
+  string next_step = 4;
+  bool is_follow_up = 5;
+  bool is_complete = 6;
+  repeated BriefAttempt attempts = 7;
+  bool unavailable = 8;
+}
+
+// Positions are zero-based within the destination after removal. IDs never change.
+message OutlineOperation {
+  string kind = 1;
+  string id = 2;
+  string parent_id = 3;
+  int32 position = 4;
+  string title = 5;
+  string goal = 6;
+}
+
+message OutlineChatChangeRequest {
+  string proposal_id = 1;
+  string draft_id = 2;
+  int64 base_revision = 3;
+  CourseOutline outline = 4;
+  string request = 5;
+  UsageLimits limits = 6;
+}
+
+message OutlineChatChangeResponse {
+  repeated OutlineOperation operations = 1;
+  repeated Usage attempts = 2;
+  bool unavailable = 3;
 }

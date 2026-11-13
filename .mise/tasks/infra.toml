@@ -3,10 +3,10 @@ description = "Start the local stack and wait for healthchecks"
 run = "docker compose up -d --wait"
 
 ["infra:deps"]
-description = "Start only Postgres, Redis, RustFS S3 and bucket initialization"
+description = "Start Postgres, Redis, RustFS S3 and scoped storage initialization"
 # --wait treats an explicitly selected one-shot exit as a failure when no
 # selected service depends on its completion. Run the initializer separately.
-run = ["docker compose up -d --wait postgres redis objectstore", "docker compose run --rm --no-deps s3-init"]
+run = ["docker compose up -d --wait postgres redis objectstore", "docker compose run --rm --no-deps s3-init", "docker compose run --build --rm --no-deps backup-init"]
 
 ["infra:down"]
 description = "Stop all profiles; retain named data volumes"
@@ -23,6 +23,7 @@ set -eu
 docker compose config -q
 git ls-files --cached --others --exclude-standard -z -- '*Dockerfile' | xargs -0 hadolint
 shellcheck infra/backup/restore-drill.sh infra/hooks/*.sh infra/s3/*.sh
+docker compose --profile observability run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
 '''
 
 ["infra:test"]
@@ -31,8 +32,12 @@ depends = ["infra:deps"]
 run = ["docker compose exec -T postgres pg_isready -U duolify -d duolify", "docker compose exec -T redis redis-cli ping", "docker compose exec -T objectstore curl --fail --silent http://localhost:9000/health/ready"]
 
 ["infra:build"]
-description = "Build the API and engine container images"
-run = "docker compose build api engine"
+description = "Build API, worker, local initializer and engine container images"
+run = "docker compose --profile workers build api engine worker backup-init"
+
+["infra:build-worker"]
+description = "Build pinned Postgres/age worker and local IAM initializer images"
+run = "docker compose --profile workers build worker backup-init"
 
 ["infra:plan"]
 description = "Preview Railway IaC for duolify/dev without applying"

@@ -43,6 +43,7 @@ E1-03 owns confirmed profile persistence and the form fallback; E1-11 adds setup
 | E1-09 | Sign in through Apple OAuth | AFK | M | E1-04 |
 | E1-10 | Provision live authentication credentials | HITL | S | E1-02, E1-08, E1-09, E1-05 |
 | E1-11 | Guide onboarding through a confirmed setup chat | AFK | L | E1-03, E1-06, E12-02, E13-03 |
+| E1-12 | Store session tokens securely on iOS and Android | AFK | M | E1-02 |
 
 ## E2 — Course creation
 

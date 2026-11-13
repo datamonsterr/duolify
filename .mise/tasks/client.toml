@@ -6,17 +6,19 @@ run = "pnpm install --frozen-lockfile"
 ["client:lint"]
 description = "Check client formatting, types and lint"
 dir = "{{config_root}}/apps/client"
-run = ["pnpm exec eslint .", "pnpm exec prettier --check .", "pnpm exec tsc --noEmit", "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check", "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings"]
+depends = ["client:lint-web"]
+run = ["cargo fmt --manifest-path src-tauri/Cargo.toml -- --check", "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings"]
 
 ["client:test"]
 description = "Run client tests"
 dir = "{{config_root}}/apps/client"
-run = ["pnpm exec vitest run", "cargo test --manifest-path src-tauri/Cargo.toml"]
+depends = ["client:test-web"]
+run = "cargo test --manifest-path src-tauri/Cargo.toml"
 
 ["client:build"]
 description = "Build client web assets"
 dir = "{{config_root}}/apps/client"
-run = "pnpm build"
+run = ["pnpm exec vitest run src/features/pricing/catalogue-boundary.test.ts", "pnpm build"]
 
 ["client:e2e-setup"]
 description = "Install browser for end-to-end tests"
@@ -24,7 +26,9 @@ dir = "{{config_root}}/apps/client"
 run = "pnpm exec playwright install chromium"
 
 ["client:e2e"]
+env = { E2E_WEB_PORT = "{{env.E2E_WEB_PORT | default(value='4000')}}", E2E_API_BASE = "{{env.E2E_API_BASE | default(value='http://127.0.0.1:4001')}}", LESSON_TEST_TRACER_ENABLED = "true", VITE_LESSON_TEST_TRACER_ENABLED = "true" }
 description = "Run end-to-end tests against the web build"
+depends = ["client:build"]
 dir = "{{config_root}}/apps/client"
 run = "pnpm exec playwright test"
 
@@ -37,3 +41,52 @@ run = "pnpm tauri build --debug --no-bundle"
 description = "Run Tauri development application"
 dir = "{{config_root}}/apps/client"
 run = "pnpm tauri dev"
+
+["client:lint-web"]
+description = "Check client web formatting, types and lint without native prerequisites"
+dir = "{{config_root}}/apps/client"
+run = ["pnpm exec eslint .", "pnpm exec prettier --check .", "pnpm exec tsc --noEmit"]
+
+["client:test-web"]
+description = "Run client web unit and integration tests without native prerequisites"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec vitest run"
+
+["client:format-pricing"]
+description = "Format pricing source and shared client integration files"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/pricing src/lib/analytics.ts src/lib/api.ts src/App.tsx src/test/apply_design_tokens_to_a_real_course_card.integration.test.tsx e2e/pricing-e12-01.spec.ts e2e/pricing-e12-02.spec.ts e2e/pricing-e12-03.spec.ts e2e/pricing-e12-06.spec.ts e2e/design-e13-01.spec.ts playwright.config.ts"
+
+["client:format-accounts"]
+description = "Format email sign-in and its shared integration boundaries"
+dir = "{{config_root}}/apps/client"
+run = ["pnpm exec prettier --write src/features/accounts src/lib/analytics.ts src/App.tsx e2e/accounts* e2e/servers.ts e2e/lesson.spec.ts e2e/design-e13-01.spec.ts e2e/pricing-e12-01.spec.ts playwright.config.ts playwright.guided.config.ts", "cargo fmt --manifest-path src-tauri/Cargo.toml"]
+["client:format-shell"]
+description = "Format responsive shell sources and acceptance tests"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/shell src/features/lesson-player/LessonPlayer.tsx src/lib/analytics.ts src/App.tsx src/LearnPath.tsx src/styles.css src/test/learn-path.test.tsx src/test/implement_responsive_navigation_shells.integration.test.tsx src/features/design/implement_responsive_navigation_shells.test.tsx e2e/design-e13-02.spec.ts"
+
+["client:format-courses"]
+description = "Format course brief client and browser tests"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/courses src/features/design/Courses.tsx src/features/design/chat/OutlineEditor.tsx src/features/design/localization/messages.ts src/features/accounts/session.ts src/lib/analytics.ts src/App.tsx e2e/courses-e2-06.spec.ts e2e/courses-e2-01.spec.ts e2e/courses-e2-07.spec.ts e2e/courses-e2-08.spec.ts src/features/design/chat/ProposalDiff.tsx"
+
+["client:format-credits"]
+description = "Format credits reservation controls and tests"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/credits src/features/pricing/PricingView.tsx src/features/pricing/QuotePanel.tsx src/features/pricing/quotes.ts src/features/pricing/pricing.css src/features/accounts/session.ts src/lib/analytics.ts e2e/credits*.spec.ts e2e/pricing-e12-01.spec.ts"
+
+["client:format-player"]
+description = "Format authorized lesson player and its acceptance tests"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/player src/features/lesson-player src/features/accounts/session.ts src/App.tsx src/LearnPath.tsx src/lib/analytics.ts src/mocks/handlers.ts src/mocks/player.ts e2e/player-e3-*.spec.ts e2e/design-e13-04.spec.ts e2e/lesson.spec.ts e2e/accounts-fixture.ts src/styles.css"
+
+["client:format-lessontest"]
+description = "Format lesson test sources and acceptance tests"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/lessontest e2e/lessontest-*.spec.ts e2e/design-e13-02.spec.ts"
+
+["client:format-gamification"]
+description = "Format completion XP and daily goal sources"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/gamification src/features/lessontest/LessonTest.tsx src/App.tsx e2e/gamification-e5-01.spec.ts src/features/shell/AppShell.tsx e2e/design-e13-02.spec.ts src/features/lesson-player/LessonPlayer.tsx src/lib/analytics.ts"

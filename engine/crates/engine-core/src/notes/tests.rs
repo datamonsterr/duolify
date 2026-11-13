@@ -1,0 +1,271 @@
+use super::*;
+use crate::{Completion, LlmProvider, ProviderRouter};
+use async_trait::async_trait;
+use std::sync::Arc;
+
+struct MockNotesProvider {
+    output: String,
+    should_fail: bool,
+}
+
+#[async_trait]
+impl LlmProvider for MockNotesProvider {
+    fn name(&self) -> &'static str {
+        "mock_notes"
+    }
+    async fn complete(&self, _model: &str, _input: &str) -> anyhow::Result<Completion> {
+        if self.should_fail {
+            anyhow::bail!("mock provider error");
+        }
+        Ok(Completion {
+            text: self.output.clone(),
+            provider: "mock".into(),
+            model: "claude-haiku-5-5".into(),
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_write_tokens: 0,
+            cache_read_tokens: 0,
+            usage_unavailable: false,
+        })
+    }
+    async fn stream(&self, _model: &str, _input: &str) -> anyhow::Result<crate::CompletionStream> {
+        unimplemented!()
+    }
+}
+
+fn test_limits() -> crate::credits::Limits {
+    crate::credits::Limits {
+        input_tokens: 1200,
+        output_tokens: 300,
+        timeout_ms: 5000,
+        max_attempts: 2,
+        max_cost_nanos: 2_000_000,
+        input_nanos: 100,
+        output_nanos: 500,
+        cache_write_nanos: 125,
+        cache_read_nanos: 10,
+        deadline_unix_ms: 0,
+    }
+}
+
+#[tokio::test]
+async fn test_enrich_note_grounds_links_and_filters_hallucinations() {
+    let raw_output = serde_json::json!({
+        "summary": "Apparent star motion comes from Earth rotation; Polaris barely moves.",
+        "tags": ["rotation", "polaris"],
+        "links": ["lesson-2", "foreign-hallucinated-lesson"]
+    })
+    .to_string();
+
+    let provider = Arc::new(MockNotesProvider {
+        output: raw_output,
+        should_fail: false,
+    });
+    let router = ProviderRouter::new(provider.clone(), provider).unwrap();
+
+    let allowed_lessons = vec![
+        LessonRef {
+            lesson_id: "lesson-1".into(),
+            title: "Why the sky changes".into(),
+            goal: "Observe star motion".into(),
+        },
+        LessonRef {
+            lesson_id: "lesson-2".into(),
+            title: "Following a star".into(),
+            goal: "Track Polaris".into(),
+        },
+    ];
+
+    let limits = test_limits();
+
+    let outcome = enrich(
+        &router,
+        "Stars move because Earth spins. Does Polaris move?",
+        None,
+        None,
+        &allowed_lessons,
+        &limits,
+    )
+    .await
+    .unwrap();
+
+    let result = outcome.result.expect("expected enrichment result");
+    assert_eq!(
+        result.summary,
+        "Apparent star motion comes from Earth rotation; Polaris barely moves."
+    );
+    assert_eq!(result.tags, vec!["rotation", "polaris"]);
+    // foreign-hallucinated-lesson MUST be filtered out!
+    assert_eq!(result.links, vec!["lesson-2"]);
+}
+
+#[tokio::test]
+async fn test_enrich_note_empty_and_non_english_profile() {
+    let raw_output = serde_json::json!({
+        "summary": "Trái Đất tự quay quanh trục từ tây sang đông.",
+        "tags": ["thiên-văn", "trái-đất"],
+        "links": []
+    })
+    .to_string();
+
+    let provider = Arc::new(MockNotesProvider {
+        output: raw_output,
+        should_fail: false,
+    });
+    let router = ProviderRouter::new(provider.clone(), provider).unwrap();
+
+    let limits = test_limits();
+
+    let profile = LearnerProfile {
+        locale: "vi-VN".into(),
+        level: "beginner".into(),
+        goal: "Học thiên văn".into(),
+    };
+
+    let outcome = enrich(
+        &router,
+        "Các ngôi sao dường như di chuyển do Trái Đất tự quay.",
+        None,
+        Some(&profile),
+        &[],
+        &limits,
+    )
+    .await
+    .unwrap();
+
+    let result = outcome.result.expect("expected enrichment result");
+    assert!(result.summary.contains("Trái Đất"));
+    assert_eq!(result.tags, vec!["thiên-văn", "trái-đất"]);
+}
+
+#[tokio::test]
+async fn test_enrich_note_exhausted_budget_returns_undelivered() {
+    let raw_output = serde_json::json!({
+        "summary": "Summary text",
+        "tags": ["astronomy"],
+        "links": []
+    })
+    .to_string();
+
+    let provider = Arc::new(MockNotesProvider {
+        output: raw_output,
+        should_fail: false,
+    });
+    let router = ProviderRouter::new(provider.clone(), provider).unwrap();
+
+    // Cost limit 1 nano -> will exceed ceiling on cost check
+    let mut limits = test_limits();
+    limits.max_cost_nanos = 1;
+
+    let outcome = enrich(
+        &router,
+        "Note with exhausted credit ceiling",
+        None,
+        None,
+        &[],
+        &limits,
+    )
+    .await
+    .unwrap();
+
+    assert!(outcome.result.is_none());
+}
+
+#[tokio::test]
+async fn test_enrich_note_retry_after_failure_delivers_successfully() {
+    let raw_output = serde_json::json!({
+        "summary": "Apparent star motion from Earth rotation.",
+        "tags": ["stars", "rotation"],
+        "links": ["lesson-1"]
+    })
+    .to_string();
+
+    let allowed = vec![LessonRef {
+        lesson_id: "lesson-1".into(),
+        title: "Sky motion".into(),
+        goal: "Goal".into(),
+    }];
+
+    // First attempt fails due to provider failure
+    let fail_provider = Arc::new(MockNotesProvider {
+        output: raw_output.clone(),
+        should_fail: true,
+    });
+    let fail_router = ProviderRouter::new(fail_provider.clone(), fail_provider).unwrap();
+    let fail_outcome = enrich(
+        &fail_router,
+        "Note content",
+        None,
+        None,
+        &allowed,
+        &test_limits(),
+    )
+    .await
+    .unwrap();
+    assert!(fail_outcome.result.is_none());
+
+    // Retry with working provider succeeds
+    let ok_provider = Arc::new(MockNotesProvider {
+        output: raw_output,
+        should_fail: false,
+    });
+    let ok_router = ProviderRouter::new(ok_provider.clone(), ok_provider).unwrap();
+    let retry_outcome = enrich(
+        &ok_router,
+        "Note content",
+        None,
+        None,
+        &allowed,
+        &test_limits(),
+    )
+    .await
+    .unwrap();
+
+    let res = retry_outcome.result.expect("retry delivered result");
+    assert_eq!(res.summary, "Apparent star motion from Earth rotation.");
+    assert_eq!(res.links, vec!["lesson-1"]);
+}
+
+#[test]
+fn test_prompt_contains_untrusted_data_instruction() {
+    let p = prompt("Learner note", None, None, &[]);
+    assert!(
+        p.contains("untrusted data"),
+        "prompt missing untrusted data instruction: {}",
+        p
+    );
+}
+
+#[tokio::test]
+async fn test_enrich_rejects_empty_or_whitespace_note() {
+    let provider = Arc::new(MockNotesProvider {
+        output: "{}".into(),
+        should_fail: false,
+    });
+    let router = ProviderRouter::new(provider.clone(), provider).unwrap();
+    for empty in ["", "   ", "\t\n  "] {
+        let res = enrich(&router, empty, None, None, &[], &test_limits()).await;
+        assert!(res.is_err(), "expected error for empty note {:?}", empty);
+    }
+}
+
+#[tokio::test]
+async fn test_enrich_trims_and_dedupes_tags() {
+    let raw_output = serde_json::json!({
+        "summary": "Valid summary.",
+        "tags": [" astronomy ", "astronomy", "STARS", "stars", "  sky  "],
+        "links": []
+    })
+    .to_string();
+
+    let provider = Arc::new(MockNotesProvider {
+        output: raw_output,
+        should_fail: false,
+    });
+    let router = ProviderRouter::new(provider.clone(), provider).unwrap();
+    let outcome = enrich(&router, "Valid note", None, None, &[], &test_limits())
+        .await
+        .unwrap();
+    let res = outcome.result.expect("result");
+    assert_eq!(res.tags, vec!["astronomy", "stars", "sky"]);
+}

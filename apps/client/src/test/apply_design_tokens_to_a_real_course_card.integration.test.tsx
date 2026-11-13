@@ -1,0 +1,324 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import tokens from "../../../../docs/design/tokens.json";
+import { Courses } from "../features/design/Courses";
+import { server } from "./setup";
+import {
+  configureAnalytics,
+  configureUiAnalytics,
+  exposePricing,
+  trackControl,
+} from "../lib/analytics";
+
+const posthog = vi.hoisted(() => ({
+  capture: vi.fn(),
+  has_opted_out_capturing: vi.fn(() => false),
+  init: vi.fn(),
+}));
+vi.mock("posthog-js/dist/module.no-external", () => ({ default: posthog }));
+const theme = readFileSync(
+  resolve("src/test", "../../../../docs/design/theme.css"),
+  "utf8",
+);
+function mount() {
+  return render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <Courses />
+    </QueryClientProvider>,
+  );
+}
+afterEach(() => {
+  configureUiAnalytics(null);
+  vi.clearAllMocks();
+});
+
+describe("green theme integration", () => {
+  it("imports the canonical CSS and maps every light/dark semantic role without copying values", () => {
+    const styles = readFileSync(resolve("src/test", "../styles.css"), "utf8");
+    expect(styles).toContain('@import "../../../docs/design/theme.css"');
+    for (const mode of ["light", "dark"] as const) {
+      const block =
+        mode === "light"
+          ? theme.match(/:root\s*\{([^}]+)\}/)![1]
+          : theme.match(/:root\[data-theme="dark"\]\s*\{([^}]+)\}/)![1];
+      const sheet = document.createElement("style");
+      sheet.textContent = `:root {${block}}`;
+      document.head.append(sheet);
+      for (const [name, token] of Object.entries(tokens.color[mode])) {
+        expect(
+          getComputedStyle(document.documentElement)
+            .getPropertyValue(`--${name}`)
+            .trim(),
+        ).toBe(token.$value.hex);
+        expect(theme).toContain(`--color-${name}: var(--${name})`);
+      }
+      sheet.remove();
+    }
+  });
+  it("bundles all three licensed WOFF2 weights and retains Unicode fallbacks", () => {
+    const fonts = readFileSync(
+      resolve("src/test", "../features/design/fonts.css"),
+      "utf8",
+    );
+    for (const weight of [600, 800, 900]) {
+      expect(fonts).toContain(`font-weight: ${weight}`);
+      const file = readFileSync(
+        resolve(
+          "src/test",
+          `../assets/fonts/nunito-latin-${weight}-normal.woff2`,
+        ),
+      );
+      expect(file.subarray(0, 4).toString()).toBe("wOF2");
+    }
+    expect(fonts).not.toMatch(/https?:/);
+    expect(theme).toContain(
+      '"Nunito", ui-rounded, ui-sans-serif, system-ui, sans-serif',
+    );
+    expect(
+      readFileSync(resolve("src/test", "../assets/fonts/OFL.txt"), "utf8"),
+    ).toContain("SIL OPEN FONT LICENSE");
+  });
+  it("composes card progress, accessible search, empty feedback and recovery using real API responses", async () => {
+    mount();
+    expect(
+      await screen.findByRole("article", { name: "Everyday astronomy" }),
+    ).toBeVisible();
+    expect(screen.getAllByRole("progressbar")[0]).toHaveAttribute("value", "1");
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "private topic" },
+    });
+    expect(screen.getByText("No courses found")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(screen.getByRole("searchbox")).toHaveFocus();
+    server.use(
+      http.get("*/courses", () => HttpResponse.json({}, { status: 503 })),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Refresh courses" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not load courses",
+    );
+    expect(screen.getAllByRole("article")).toHaveLength(2);
+    server.use(http.get("*/courses", () => HttpResponse.json([])));
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(
+      await screen.findByRole("heading", {
+        name: "What would you like to keep learning?",
+      }),
+    ).toBeVisible();
+  });
+  it("delivers only catalogued stable controls through the enabled PostHog adapter with UUID/common properties and opt-out", async () => {
+    configureUiAnalytics({
+      learnerId: "56d4e614-7665-4f14-b83e-8b5e9bed384a",
+      platform: "web",
+      appVersion: "0.1.0",
+      enabled: true,
+    });
+    mount();
+    await screen.findByRole("article", { name: "Everyday astronomy" });
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "never send this learner text" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    await waitFor(() =>
+      expect(posthog.capture).toHaveBeenCalledWith("ui_control_activated", {
+        distinct_id: "56d4e614-7665-4f14-b83e-8b5e9bed384a",
+        platform: "web",
+        app_version: "0.1.0",
+        source: "client",
+        surface: "courses",
+        control_id: "clear_search",
+      }),
+    );
+    expect(JSON.stringify(posthog.capture.mock.calls)).not.toContain(
+      "never send this learner text",
+    );
+    posthog.capture.mockClear();
+    posthog.has_opted_out_capturing.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh courses" }));
+    expect(posthog.capture).not.toHaveBeenCalled();
+    posthog.has_opted_out_capturing.mockReturnValue(false);
+  });
+});
+
+it("keeps shared dimensions, typography, motion, opacity and breakpoint mappings in parity", () => {
+  const light = theme.match(/:root\s*\{([^}]+)\}/)![1];
+  const declarations = Object.fromEntries(
+    [...light.matchAll(/--([\w-]+):\s*([^;]+);/g)].map((match) => [
+      match[1],
+      match[2].trim(),
+    ]),
+  );
+  for (const [group, values] of Object.entries({
+    space: tokens.space,
+    radius: tokens.radius,
+    size: tokens.size,
+  })) {
+    for (const [name, token] of Object.entries(values)) {
+      expect(declarations[`${group}-${name}`]).toBe(
+        `${token.$value.value}${token.$value.unit}`,
+      );
+    }
+  }
+  for (const [name, token] of Object.entries(tokens.font.size))
+    expect(declarations[`font-size-${name}`]).toBe(
+      `${token.$value.value / 16}rem`,
+    );
+  for (const [group, values] of Object.entries({
+    weight: tokens.font.weight,
+    leading: tokens.font.leading,
+    opacity: tokens.opacity,
+  })) {
+    for (const [name, token] of Object.entries(values))
+      expect(declarations[`${group}-${name}`]).toBe(String(token.$value));
+  }
+  for (const [name, token] of Object.entries(tokens.font.tracking))
+    expect(declarations[`tracking-${name}`]).toBe(
+      `${token.$value.value}${token.$value.unit}`,
+    );
+  for (const [name, token] of Object.entries(tokens.motion.duration))
+    expect(declarations[`duration-${name}`]).toBe(
+      `${token.$value.value}${token.$value.unit}`,
+    );
+  for (const [name, token] of Object.entries(tokens.motion.easing))
+    expect(declarations[`ease-${name}`]).toBe(
+      `cubic-bezier(${token.$value.join(", ")})`,
+    );
+  for (const [name, token] of Object.entries(tokens.elevation))
+    expect(declarations[`elevation-${name}`]).toBe(
+      `0 ${token.$value.offsetY.value === 0 ? "0" : "var(--size-press-depth)"} 0 0 var(--primary-edge)`,
+    );
+  for (const [name, alias] of [
+    ["phone", "sm"],
+    ["sidebar", "md"],
+    ["rail", "xl"],
+  ] as const)
+    expect(theme).toContain(
+      `--breakpoint-${alias}: ${tokens.breakpoint[name].$value.value}rem`,
+    );
+  expect(declarations["font-family"]).toContain(tokens.font.family.$value[0]);
+});
+
+it("shares configureAnalytics identity and opt-out between pricing and course controls", () => {
+  configureUiAnalytics({
+    learnerId: "56d4e614-7665-4f14-b83e-8b5e9bed384a",
+    platform: "web",
+    appVersion: "0.1.0",
+    enabled: true,
+  });
+  configureAnalytics({
+    learnerId: "56d4e614-7665-4f14-b83e-8b5e9bed384a",
+    platform: "web",
+    optedOut: true,
+  });
+  trackControl("refresh_courses");
+  exposePricing("shared-context-test", "quote");
+  expect(posthog.capture).not.toHaveBeenCalled();
+  configureAnalytics({
+    learnerId: "8c940797-a555-421e-8dad-b4df96b02213",
+    platform: "desktop",
+    optedOut: false,
+  });
+  trackControl("refresh_courses");
+  exposePricing("shared-context-test", "quote");
+  expect(posthog.capture).toHaveBeenCalledTimes(2);
+  for (const [, properties] of posthog.capture.mock.calls)
+    expect(properties).toMatchObject({
+      distinct_id: "8c940797-a555-421e-8dad-b4df96b02213",
+      platform: "desktop",
+      app_version: "0.1.0",
+      source: "client",
+    });
+  posthog.capture.mockClear();
+  configureUiAnalytics(null);
+  trackControl("refresh_courses");
+  exposePricing("signed-out-test", "quote");
+  expect(posthog.capture).not.toHaveBeenCalled();
+});
+
+it("matches the Courses canvas structure and secondary button treatment", async () => {
+  const styles = readFileSync(resolve("src/test", "../styles.css"), "utf8");
+  expect(styles).toMatch(
+    /\.duo-button\.secondary\s*\{[^}]*background:\s*var\(--surface\)/s,
+  );
+  expect(styles).toMatch(
+    /\.duo-button\.secondary\s*\{[^}]*border-color:\s*var\(--line\)/s,
+  );
+  expect(styles).toMatch(
+    /\.duo-button\.secondary\s*\{[^}]*box-shadow:\s*0 var\(--size-press-depth\) 0 var\(--line\)/s,
+  );
+  expect(styles).toMatch(
+    /\.course-card\s*\{[^}]*border-block-end-width:\s*var\(--size-card-depth\)/s,
+  );
+  expect(styles).toContain(".skeleton-tile");
+  expect(styles).toContain(".skeleton-line");
+  expect(styles).toMatch(/@keyframes\s+course-shimmer/);
+  expect(styles).toMatch(/prefers-reduced-motion:\s*reduce/);
+
+  mount();
+  expect(
+    await screen.findByRole("tablist", { name: "Course collections" }),
+  ).toBeVisible();
+  expect(screen.getByRole("tab", { name: "My courses" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  const card = await screen.findByRole("article", {
+    name: "Everyday astronomy",
+  });
+  expect(card).toHaveTextContent(/Unit 1/);
+  expect(card).toHaveTextContent(/Lesson 2 of 4/);
+  expect(card.querySelector(".course-icon")).toBeInTheDocument();
+  expect(screen.getByRole("searchbox").closest("header")).toBeInTheDocument();
+
+  fireEvent.change(screen.getByRole("searchbox"), {
+    target: { value: "private topic" },
+  });
+  const empty = screen
+    .getByRole("heading", { name: "No courses found" })
+    .closest(".course-empty") as HTMLElement | null;
+  expect(empty).toBeInTheDocument();
+  expect(
+    within(empty!).getByRole("button", { name: "Clear search" }),
+  ).toBeVisible();
+  expect(
+    within(empty!).getByRole("button", { name: "Create a course" }),
+  ).toBeVisible();
+});
+
+it("renders labeled skeleton tiles and lines while the course list is pending", async () => {
+  let finishRequest!: () => void;
+  server.use(
+    http.get(
+      "*/courses",
+      () =>
+        new Promise((resolve) => {
+          finishRequest = () => resolve(HttpResponse.json([]));
+        }),
+    ),
+  );
+  const { container } = mount();
+  expect(await screen.findByText("Loading your courses…")).toBeVisible();
+  expect(container.querySelectorAll(".course-skeleton")).toHaveLength(2);
+  expect(container.querySelectorAll(".skeleton-tile")).toHaveLength(2);
+  expect(container.querySelectorAll(".skeleton-line")).toHaveLength(4);
+  finishRequest();
+  expect(
+    await screen.findByRole("heading", {
+      name: "What would you like to keep learning?",
+    }),
+  ).toBeVisible();
+});
