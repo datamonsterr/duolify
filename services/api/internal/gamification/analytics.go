@@ -485,7 +485,7 @@ func (e *exportStream) sep() {
 }
 
 // list streams `"name":[...]` plus `"name_truncated":true` when the cap cut it.
-func (e *exportStream) list(s *Service, ctx context.Context, name, sql, owner string, scan func(pgx.Rows) (any, error)) {
+func (e *exportStream) list(ctx context.Context, s *Service, name, sql, owner string, scan func(pgx.Rows) (any, error)) {
 	if e.err != nil {
 		return
 	}
@@ -534,7 +534,7 @@ func (e *exportStream) finish(what string) {
 	write(e.w, 503, map[string]string{"error": "Could not prepare export. Retry."})
 }
 
-func (s *Service) streakSection(e *exportStream, ctx context.Context, owner, daysKey string, protections bool) {
+func (s *Service) streakSection(ctx context.Context, e *exportStream, owner, daysKey string, protections bool) {
 	if e.err != nil {
 		return
 	}
@@ -548,13 +548,13 @@ func (s *Service) streakSection(e *exportStream, ctx context.Context, owner, day
 	inner.field("current_streak", cur)
 	inner.field("longest_streak", longest)
 	inner.field("freezes_held", held)
-	inner.list(s, ctx, daysKey, streakDaysSQL, owner, func(rows pgx.Rows) (any, error) {
+	inner.list(ctx, s, daysKey, streakDaysSQL, owner, func(rows pgx.Rows) (any, error) {
 		var d time.Time
 		err := rows.Scan(&d)
 		return d.Format(time.DateOnly), err
 	})
 	if protections {
-		inner.list(s, ctx, "protections", protectionsSQL, owner, func(rows pgx.Rows) (any, error) { return scanProtection(rows) })
+		inner.list(ctx, s, "protections", protectionsSQL, owner, func(rows pgx.Rows) (any, error) { return scanProtection(rows) })
 	}
 	e.raw("}")
 	e.err = inner.err
@@ -577,11 +577,11 @@ func (s *Service) serveExportHistory(w http.ResponseWriter, r *http.Request, own
 	}
 	e := newExportStream(w, "duolify-learning-history.json")
 	s.preamble(e, owner, plan)
-	e.list(s, ctx, "history", completionsSQL, owner, scanHistory)
+	e.list(ctx, s, "history", completionsSQL, owner, scanHistory)
 	e.sep()
 	e.value("streaks")
 	e.raw(":")
-	s.streakSection(e, ctx, owner, "days", true)
+	s.streakSection(ctx, e, owner, "days", true)
 	e.raw("}\n")
 	e.finish("history")
 }
@@ -626,7 +626,7 @@ func (s *Service) serveExportAnalytics(w http.ResponseWriter, r *http.Request, o
 	for _, d := range dims {
 		switch d {
 		case "course":
-			e.list(s, ctx, "course", courseAggregateSQL, owner, func(rows pgx.Rows) (any, error) {
+			e.list(ctx, s, "course", courseAggregateSQL, owner, func(rows pgx.Rows) (any, error) {
 				var cid, title string
 				var completed, xp, perfect int
 				var duration int64
@@ -635,7 +635,7 @@ func (s *Service) serveExportAnalytics(w http.ResponseWriter, r *http.Request, o
 				return map[string]any{"course_id": cid, "title": title, "completed_lessons": completed, "total_xp": xp, "perfect_completions": perfect, "duration_ms": duration, "last_completed_at": last.UTC().Format(time.RFC3339)}, err
 			})
 		case "daily":
-			e.list(s, ctx, "daily", dailyAggregateSQL, owner, func(rows pgx.Rows) (any, error) {
+			e.list(ctx, s, "daily", dailyAggregateSQL, owner, func(rows pgx.Rows) (any, error) {
 				var d time.Time
 				var xp, lessons int
 				var goal bool
@@ -646,11 +646,11 @@ func (s *Service) serveExportAnalytics(w http.ResponseWriter, r *http.Request, o
 			e.sep()
 			e.value("streak")
 			e.raw(":")
-			s.streakSection(e, ctx, owner, "active_days", false)
+			s.streakSection(ctx, e, owner, "active_days", false)
 		case "completions":
-			e.list(s, ctx, "completions", completionsSQL, owner, scanHistory)
+			e.list(ctx, s, "completions", completionsSQL, owner, scanHistory)
 		case "leagues":
-			e.list(s, ctx, "leagues", leaguesSQL, owner, func(rows pgx.Rows) (any, error) {
+			e.list(ctx, s, "leagues", leaguesSQL, owner, func(rows pgx.Rows) (any, error) {
 				var ws time.Time
 				var tier, outcome string
 				var rank, xp int
