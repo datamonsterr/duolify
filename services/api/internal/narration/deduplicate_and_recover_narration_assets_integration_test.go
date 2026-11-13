@@ -35,6 +35,7 @@ type assetHarness struct {
 	mock    *narrationtest.Engine
 	events  *recorder
 	service *narration.Service
+	opts    narration.Options
 	texts   []string
 	chars   []int
 }
@@ -84,15 +85,11 @@ func newAssetHarness(t *testing.T, retention time.Duration) *assetHarness {
 			t.Fatal(err)
 		}
 	}
-	h.service = narration.New(narration.Options{Pool: h.pool, Objects: h.objects, Speech: enginev1.NewEngineServiceClient(conn), Financial: financial, Events: h.events, JobAttempts: 1, Retention: retention})
-	queue, err := h.service.Queue()
-	if err != nil {
+	h.opts = narration.Options{Pool: h.pool, Objects: h.objects, Speech: enginev1.NewEngineServiceClient(conn), Financial: financial, Events: h.events, JobAttempts: 1, Retention: retention}
+	h.service = narration.New(h.opts)
+	// Jobs are driven synchronously through SynthesizeLesson; the queue only accepts inserts.
+	if _, err = h.service.Queue(); err != nil {
 		t.Fatal(err)
-	}
-	_ = queue // jobs are driven synchronously through SynthesizeLesson
-	manifest := playerfixture.Documents()
-	for range manifest {
-		break
 	}
 	for _, text := range []string{"The sky is a map waiting to be explored.", "Stars are distant suns, shining across space.", "Notice how the sky changes as Earth turns."} {
 		h.texts = append(h.texts, text)
@@ -104,6 +101,17 @@ func newAssetHarness(t *testing.T, retention time.Duration) *assetHarness {
 	}
 	return h
 }
+
+// plainObjects hides bucket-version restore so only retained settings versions can recover.
+type plainObjects struct {
+	o interface {
+		Get(context.Context, string) ([]byte, error)
+		Put(context.Context, string, []byte) error
+	}
+}
+
+func (p plainObjects) Get(ctx context.Context, k string) ([]byte, error) { return p.o.Get(ctx, k) }
+func (p plainObjects) Put(ctx context.Context, k string, v []byte) error { return p.o.Put(ctx, k, v) }
 
 func (h *assetHarness) enqueue(lessonID string) {
 	h.t.Helper()
@@ -177,8 +185,6 @@ func TestDeduplicateAndRecoverNarrationAssetsIntegration(t *testing.T) {
 	if h.mock.Calls() != calls+1 {
 		t.Fatal("retry must call the provider once", h.mock.Calls()-calls)
 	}
-	failedReleased := 0
-	_ = pool.QueryRow(ctx, `SELECT count(*) FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.learner_id=$1 AND q.snapshot->>'action'='narration' AND j.state='settled'`, owner).Scan(&failedReleased)
 	if h.spent() != ceilCredits(delivered)+ceilCredits(h.chars[2]) {
 		t.Fatal("retry charged", h.spent())
 	}
@@ -262,8 +268,10 @@ func TestDeduplicateAndRecoverNarrationAssetsIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Hide bucket versions so only the prior settings version can serve the Learner.
-	h.service.DisableVersionRestore()
-	if state, err = h.service.Recover(ctx, owner, lesson, "sky-2"); err != nil || state != "restored" {
+	opts := h.opts
+	opts.Objects = plainObjects{h.objects}
+	plain := narration.New(opts)
+	if state, err = plain.Recover(ctx, owner, lesson, "sky-2"); err != nil || state != "restored" {
 		t.Fatal(state, err)
 	}
 	var now string
@@ -278,7 +286,7 @@ func TestDeduplicateAndRecoverNarrationAssetsIntegration(t *testing.T) {
 	// 6. Nothing to restore from: tracked operator regeneration, never charged.
 	_ = pool.QueryRow(ctx, `SELECT audio_key, alignment_key FROM narration_assets WHERE content_hash=(SELECT content_hash FROM slide_narrations WHERE lesson_id=$1 AND slide_id='sky-3')`, lesson).Scan(&audioKey, &alignKey)
 	_ = h.objects.(narration.Deleter).Delete(ctx, audioKey)
-	if state, err = h.service.Recover(ctx, owner, lesson, "sky-3"); err != nil || state != "regenerating" {
+	if state, err = plain.Recover(ctx, owner, lesson, "sky-3"); err != nil || state != "regenerating" {
 		t.Fatal(state, err)
 	}
 	if h.status(lesson, "sky-3") != "pending" || h.status(twin, "sky-3") != "ready" {
@@ -290,14 +298,14 @@ func TestDeduplicateAndRecoverNarrationAssetsIntegration(t *testing.T) {
 	if open != 1 {
 		t.Fatal("tracked regeneration", open)
 	}
-	if again, e := h.service.Recover(ctx, owner, lesson, "sky-3"); e != nil || again != "regenerating" {
+	if again, e := plain.Recover(ctx, owner, lesson, "sky-3"); e != nil || again != "regenerating" {
 		t.Fatal(again, e)
 	}
 	_ = pool.QueryRow(ctx, `SELECT count(*) FROM narration_regenerations`).Scan(&open)
 	if open != 1 {
 		t.Fatal("regeneration must be tracked once per hash", open)
 	}
-	if n, e := h.service.RegenerateMissing(ctx); e != nil || n != 1 {
+	if n, e := plain.RegenerateMissing(ctx); e != nil || n != 1 {
 		t.Fatal(n, e)
 	}
 	if h.status(lesson, "sky-3") != "ready" || h.status(twin, "sky-3") != "ready" || h.mock.Calls() != calls+1 || h.spent() != spentBefore {
