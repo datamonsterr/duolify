@@ -174,3 +174,56 @@ fn reaction_events_are_bounded_and_content_free() {
     assert_eq!(props["reaction_trigger"], "answer_incorrect");
     assert_eq!(props["expression"], "thinking");
 }
+
+fn persona_json() -> serde_json::Value {
+    serde_json::json!({
+        "name": "Nova",
+        "bio": "A curious original star.",
+        "backstory": "An explorer of a quiet moon garden.",
+        "traits": ["curious", "kind"],
+        "speaking_style": "Gentle and clear",
+        "persona_prompt": "Encourage careful observation."
+    })
+}
+
+#[test]
+fn tutor_persona_accepts_only_the_closed_bounded_shape() {
+    assert!(tutor_persona(&persona_json().to_string()).is_some());
+    let reject = |f: &dyn Fn(&mut serde_json::Value)| {
+        let mut v = persona_json();
+        f(&mut v);
+        assert!(tutor_persona(&v.to_string()).is_none(), "{v}");
+    };
+    reject(&|v| v["extra"] = serde_json::json!("x"));
+    reject(&|v| v["name"] = serde_json::json!(""));
+    reject(&|v| v["traits"] = serde_json::json!(["a", "b", "c", "d", "e", "f"]));
+    reject(&|v| v["bio"] = serde_json::json!("<b>hi</b>"));
+    reject(&|v| v["bio"] = serde_json::json!("line\nbreak"));
+    reject(&|v| v["backstory"] = serde_json::json!("a {b} `c`"));
+    reject(&|v| v["persona_prompt"] = serde_json::json!("x".repeat(2001)));
+    reject(&|v| {
+        v["bio"] = serde_json::json!("x".repeat(600));
+        v["backstory"] = serde_json::json!("x".repeat(600));
+        v["persona_prompt"] = serde_json::json!("x".repeat(600));
+        v["speaking_style"] = serde_json::json!("x".repeat(300));
+    });
+    assert!(tutor_persona("not json").is_none());
+    assert!(tutor_persona("").is_none());
+}
+
+#[test]
+fn tutor_event_props_carry_only_private_enums_and_numbers() {
+    let sel = tutor_selected_props("supporter", 3, "lesson");
+    assert_eq!(sel.len(), 3);
+    assert_eq!(sel["speaker_key"], "supporter");
+    assert_eq!(sel["character_version"], "3");
+    assert_eq!(sel["cast_source"], "lesson");
+    let fb = tutor_fallback_props("invalid_persona");
+    assert_eq!(fb["phase"], "before_stream");
+    assert_eq!(fb["reason_code"], "invalid_persona");
+    assert_eq!(fb.len(), 2);
+    assert_eq!(
+        tutor_fallback_props("Nova says hi")["reason_code"],
+        "persona_unavailable"
+    );
+}
