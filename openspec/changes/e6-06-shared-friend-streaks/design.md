@@ -1,0 +1,12 @@
+## Decisions
+- **Shared day (ADR 0011 E6-05).** A shared day pairs one local date of each friend whose real-time intervals overlap. A new run starts at the earliest overlapping pair of active dates strictly after the cursor and after the friendship started. A run then continues on the next date of each side (`+1`, `+1`).
+- **Settling a continuation day.** Both active: `extended` at once (+1, once per key). Otherwise wait until both dates are decided (`decided_through` of each side, i.e. the later day-end). Then every side must be active or hold an E5 protection (`streak_day_protections`, any source): any unprotected miss is `broken`; otherwise `protected` (length unchanged). One missing side needs its own freeze, both missing need both.
+- **No second inventory.** Protection comes from the E5 simulation, which consumes a learner's freeze once per local day regardless of how many friends exist. Friend milestone grants are rows in `streak_freeze_milestones(kind='friend_streak')`; `SimulateStreakWith` receives the recorded granted dates so the freeze is usable, and the inventory formula is unchanged.
+- **Milestones.** At each multiple of `friend_streak_milestone_days` both learners get one freeze when `held < cap`, else a recorded `granted=false` row. Pair key `(pair, run, days)`; learner key `(learner, 'friend_streak', days, own run start date)` also dedupes across several friends.
+- **Concurrency.** The evaluator locks both learner rows in id order (`lockLearners`), the same lock E5 takes per learner, so one learner finishing with many friends serializes safely without deadlock. Hooks run after the E5 commit.
+- **Ending.** `removeFriendshipTx` deletes `friend_streaks` (cascade to days and milestones) and returns a broken event. Learner deletion cascades the same rows, so the survivor sees no streak and no data of the erased learner.
+- **Privacy.** The view needs a friend viewer, the friend's `show_streak_to_friends` and no block; it holds only counts, local dates and done flags.
+- **Config as columns.** `friend_streak_milestone_days`; freeze cap stays `freeze_cap`.
+- **Analytics.** Events per learner (own distinct id): UUIDs, counts, dates and the enum `reason` only.
+- **Data.** Tables `erased` on account deletion, exported as counts and days only, in nightly dumps (14-day general retention); backup fixture restores a run.
+- **AI reliability.** No AI behavior; existing eval and fallback gates unchanged.

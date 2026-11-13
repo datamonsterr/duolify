@@ -332,7 +332,12 @@ func TestSharedAuthorizationContractForInvites(t *testing.T) {
 	check(r.db.Pool, CanInvite, a.id, c.id, false) // default "friends": strangers cannot invite
 	r.befriend(a, c)
 	check(r.db.Pool, CanInvite, a.id, c.id, true)
-	for setting, want := range map[string][2]bool{"nobody": {false, false}, "everyone": {true, true}, "friends": {true, false}} {
+	// Ordered: each PATCH must change the value (the default is "friends"), so all three emit privacy_setting_changed.
+	for _, tc := range []struct {
+		setting string
+		want    [2]bool
+	}{{"nobody", [2]bool{false, false}}, {"everyone", [2]bool{true, true}}, {"friends", [2]bool{true, false}}} {
+		setting, want := tc.setting, tc.want
 		if s, o, _ := r.call("PATCH", "/v1/social/settings", `{"course_invites_from":"`+setting+`"}`, c.token); s != 200 || o["course_invites_from"] != setting {
 			t.Fatalf("patch %s: %d %v", setting, s, o)
 		}

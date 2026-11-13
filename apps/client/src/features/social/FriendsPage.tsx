@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { session } from "../accounts/session";
 import { AddFriend } from "./AddFriend";
 import { ConfirmBlock } from "./ConfirmBlock";
@@ -23,9 +23,22 @@ import {
   type RequestEntry,
 } from "./friends";
 import { SocialIdentity } from "./SocialIdentity";
+import { FriendStreakDetail, FriendStreakRow } from "./FriendStreak";
+import { NudgeControl, NudgeInbox } from "./Nudge";
+import {
+  createNudgeKeys,
+  nudgeFailure,
+  nudgeMessage,
+  nudgePath,
+  nudgesPath,
+  nudgesReadPath,
+  unreadCount,
+  type NudgeEntry,
+  type NudgeFailure,
+} from "./nudges";
 import "./social.css";
 
-type Tab = "friends" | "requests" | "blocked";
+type Tab = "friends" | "nudges" | "requests" | "blocked";
 
 /** Who the block dialog is about; `friend` is set only when they are a current friend. */
 interface BlockTarget {
@@ -72,6 +85,13 @@ export function FriendsPage() {
   const [blocking, setBlocking] = useState<BlockTarget>();
   const [blockProblem, setBlockProblem] = useState<BlockFailure>();
   const [typed, setTyped] = useState("");
+  const [nudges, setNudges] = useState<NudgeEntry[]>();
+  const [nudging, setNudging] = useState("");
+  const [nudgeProblem, setNudgeProblem] = useState<{
+    kind: NudgeFailure;
+    name: string;
+  }>();
+  const keys = useRef(createNudgeKeys()).current;
 
   const [revision, setRevision] = useState(0);
   const load = useCallback(() => setRevision((x) => x + 1), []);
@@ -81,12 +101,14 @@ export function FriendsPage() {
       session.request<{ friends: FriendEntry[] }>(friendsPath),
       session.request<FriendRequests>(requestsPath),
       session.request<{ blocks?: BlockedEntry[] }>(blocksPath),
+      session.request<{ nudges?: NudgeEntry[] }>(nudgesPath),
     ])
-      .then(([f, r, b]) => {
+      .then(([f, r, b, n]) => {
         if (!active) return;
         setFriends(f.friends);
         setRequests(r);
         setBlocked(b.blocks ?? []);
+        setNudges(n.nudges ?? []);
         setFailure(undefined);
       })
       .catch((error: unknown) => {
@@ -107,6 +129,43 @@ export function FriendsPage() {
     } finally {
       load();
       setBusy("");
+    }
+  }
+
+  async function sendNudge(entry: FriendEntry) {
+    setNudging(entry.id);
+    setNudgeProblem(undefined);
+    const spent = () =>
+      setFriends((list) =>
+        list?.map((f) =>
+          f.id === entry.id ? { ...f, nudge: { sent: true } } : f,
+        ),
+      );
+    try {
+      await session.request(nudgePath(entry.id), "POST", {
+        operation_key: keys.keyFor(entry.id),
+      });
+      keys.clear(entry.id);
+      spent();
+    } catch (error) {
+      const kind = nudgeFailure(error);
+      if (kind !== "offline") keys.clear(entry.id); // an offline retry replays the same key
+      if (kind === "limited") spent();
+      setNudgeProblem({ kind, name: entry.display_name });
+      if (kind === "unavailable") load();
+    } finally {
+      setNudging("");
+    }
+  }
+
+  async function openNudges() {
+    setTab("nudges");
+    if (!nudges || unreadCount(nudges) === 0) return;
+    try {
+      await session.request(nudgesReadPath, "POST");
+      setNudges((list) => list?.map((n) => ({ ...n, read: true })));
+    } catch {
+      // The list stays unread and is retried the next time the tab opens.
     }
   }
 
@@ -153,7 +212,10 @@ export function FriendsPage() {
   const outgoing = requests?.outgoing ?? [];
   const blockedList = blocked ?? [];
   const ready =
-    friends !== undefined && requests !== undefined && blocked !== undefined;
+    friends !== undefined &&
+    requests !== undefined &&
+    blocked !== undefined &&
+    nudges !== undefined;
   const requestRow = (entry: RequestEntry, sent: boolean) => (
     <li key={entry.id}>
       <Person person={entry} />
@@ -257,6 +319,16 @@ export function FriendsPage() {
             <button
               type="button"
               role="tab"
+              id={`${id}-tab-nudges`}
+              aria-selected={tab === "nudges"}
+              aria-controls={`${id}-panel`}
+              onClick={() => void openNudges()}
+            >
+              Nudges · {unreadCount(nudges)}
+            </button>
+            <button
+              type="button"
+              role="tab"
               id={`${id}-tab-requests`}
               aria-selected={tab === "requests"}
               aria-controls={`${id}-panel`}
@@ -278,6 +350,11 @@ export function FriendsPage() {
           {problem && (
             <p role="alert" className="social-error">
               {friendMessages[problem]}
+            </p>
+          )}
+          {nudgeProblem && (
+            <p role="alert" className="social-error">
+              {nudgeMessage(nudgeProblem.kind, nudgeProblem.name)}
             </p>
           )}
           {blockProblem && (
@@ -327,6 +404,17 @@ export function FriendsPage() {
                         >
                           <Person person={entry} />
                         </button>
+                        {entry.friend_streak && (
+                          <FriendStreakRow
+                            name={entry.display_name}
+                            streak={entry.friend_streak}
+                          />
+                        )}
+                        <NudgeControl
+                          entry={entry}
+                          busy={nudging === entry.id}
+                          onNudge={() => void sendNudge(entry)}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -355,9 +443,21 @@ export function FriendsPage() {
                         <p className="social-hint">
                           Friends since {sinceLabel(friend.since)}
                         </p>
-                        {friend.streak && (
-                          <p>{friend.streak.days}-day streak</p>
+                        {friend.friend_streak ? (
+                          <FriendStreakDetail
+                            name={friend.display_name}
+                            streak={friend.friend_streak}
+                          />
+                        ) : (
+                          friend.streak && (
+                            <p>{friend.streak.days}-day streak</p>
+                          )
                         )}
+                        <NudgeControl
+                          entry={friend}
+                          busy={nudging === friend.id}
+                          onNudge={() => void sendNudge(friend)}
+                        />
                         <button
                           type="button"
                           className="duo-button secondary"
@@ -387,6 +487,16 @@ export function FriendsPage() {
                   </section>
                 </div>
               ))}
+            {tab === "nudges" && (
+              <div className="friends-requests">
+                <h2>Nudges</h2>
+                <p className="social-hint">
+                  Friends can nudge you once a day. Nudges stay in the app for a
+                  couple of weeks.
+                </p>
+                <NudgeInbox items={nudges} />
+              </div>
+            )}
             {tab === "blocked" && (
               <div className="friends-requests">
                 <h2>Blocked</h2>
