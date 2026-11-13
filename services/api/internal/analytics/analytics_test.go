@@ -98,7 +98,7 @@ func TestEventAllowlist(t *testing.T) {
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "lesson_test_recap_shown", "ui_test_retry_presented",
 		"quick_note_created", "ui_sheet_opened", "username_set", "username_rejected", "username_changed", "username_searched", "privacy_setting_changed",
-		"friend_request_sent", "friend_request_accepted", "friend_request_declined", "friend_removed",
+		"friend_request_sent", "friend_request_accepted", "friend_request_declined", "friend_removed", "learner_blocked",
 		"bookmark_added", "bookmark_removed", "bookmark_opened",
 	} {
 		if !allowlisted(name) {
@@ -1220,5 +1220,27 @@ func TestFriendEventsKeepOnlyTheMethodEnum(t *testing.T) {
 		if got = safeProperties(name, map[string]any{"username": "maya", "friend_id": "x"}); len(got) != 0 {
 			t.Fatalf("%s props leaked: %v", name, got)
 		}
+	}
+}
+
+func TestLearnerBlockedKeepsOnlyTheWasFriendFlag(t *testing.T) {
+	got := safeProperties("learner_blocked", map[string]any{"was_friend": true, "username": "maya", "blocked_id": "x", "display_name": "Maya"})
+	if len(got) != 1 || got["was_friend"] != true {
+		t.Fatalf("learner_blocked props leaked: %v", got)
+	}
+	if got = safeProperties("learner_blocked", map[string]any{"was_friend": "maya"}); len(got) != 0 {
+		t.Fatalf("free-text was_friend accepted: %v", got)
+	}
+}
+
+func TestPrivacySettingChangedAcceptsCourseInvitesFromEnum(t *testing.T) {
+	for _, v := range []string{"friends", "everyone", "nobody"} {
+		got := safeProperties("privacy_setting_changed", map[string]any{"setting": "course_invites_from", "value": v})
+		if got["setting"] != "course_invites_from" || got["value"] != v {
+			t.Errorf("%s dropped: %v", v, got)
+		}
+	}
+	if got := safeProperties("privacy_setting_changed", map[string]any{"setting": "course_invites_from", "value": "friends_of_friends"}); len(got) != 0 {
+		t.Fatalf("invalid value accepted: %v", got)
 	}
 }

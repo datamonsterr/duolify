@@ -239,6 +239,8 @@
 }
 .friends-tabs [role="tab"] {
   flex: 1;
+  min-width: 0;
+  padding: 0 var(--space-1, 4px);
   min-height: 44px;
   border: 2px solid transparent;
   border-radius: var(--radius-md, 0.75rem);

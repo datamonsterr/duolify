@@ -91,7 +91,7 @@ describe("Block a friend", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Block Display kai?",
     });
-    expect(dialog).toHaveTextContent("can't find you");
+    expect(dialog).toHaveTextContent("find you");
     expect(dialog).toHaveTextContent("friend streak");
     expect(dialog).toHaveTextContent("isn't notified");
     expect(

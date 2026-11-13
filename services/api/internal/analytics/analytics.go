@@ -78,7 +78,7 @@ func allowlisted(event string) bool {
 		return true
 	case "username_set", "username_rejected", "username_changed", "username_searched", "privacy_setting_changed":
 		return true
-	case "friend_request_sent", "friend_request_accepted", "friend_request_declined", "friend_removed":
+	case "friend_request_sent", "friend_request_accepted", "friend_request_declined", "friend_removed", "learner_blocked":
 		return true
 	case "slide_viewed", "slide_replayed", "slide_paused":
 		return true
@@ -436,10 +436,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "privacy_setting_changed":
 		setting, _ := input["setting"].(string)
 		value, _ := input["value"].(string)
-		allowed := map[string][]string{"discoverable": {"on", "off"}, "show_streak_to_friends": {"on", "off"}, "request_policy": {"everyone", "friends_of_friends", "nobody"}}
+		allowed := map[string][]string{"discoverable": {"on", "off"}, "show_streak_to_friends": {"on", "off"}, "request_policy": {"everyone", "friends_of_friends", "nobody"}, "course_invites_from": {"friends", "everyone", "nobody"}}
 		if slices.Contains(allowed[setting], value) {
 			out["setting"], out["value"] = setting, value
 		}
+	case "learner_blocked":
+		boolean("was_friend")
 	case "friend_request_sent":
 		if method, ok := input["method"].(string); ok && (method == "username" || method == "invite_link") {
 			out["method"] = method

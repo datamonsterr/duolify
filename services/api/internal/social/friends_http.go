@@ -95,6 +95,31 @@ func (s *Service) serveFriends(w http.ResponseWriter, r *http.Request, actor str
 			return true
 		}
 		write(w, 200, res)
+	case path == "/v1/social/blocks" && r.Method == http.MethodGet:
+		list, err := s.Blocks(r.Context(), actor)
+		if err != nil {
+			fail(err)
+			return true
+		}
+		write(w, 200, map[string]any{"blocks": list})
+	case path == "/v1/social/blocks" && r.Method == http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 2048)
+		username, err := ParseBlockBody(r.Body)
+		if err != nil {
+			writeRejection(w, &Rejection{Code: CodeBlockUnavailable})
+			return true
+		}
+		if err = s.Block(r.Context(), actor, username); err != nil {
+			fail(err)
+			return true
+		}
+		write(w, 200, Result{Status: "blocked"})
+	case strings.HasPrefix(path, "/v1/social/blocks/") && r.Method == http.MethodDelete:
+		if err := s.Unblock(r.Context(), actor, strings.TrimPrefix(path, "/v1/social/blocks/")); err != nil {
+			fail(err)
+			return true
+		}
+		write(w, 200, Result{Status: "unblocked"})
 	case path == "/v1/social/friend-link" && r.Method == http.MethodGet:
 		st, err := s.LinkStatus(r.Context(), actor)
 		if err != nil {

@@ -6,6 +6,7 @@ export interface SocialSettings {
   discoverable: boolean;
   request_policy: "everyone" | "friends_of_friends" | "nobody";
   show_streak_to_friends: boolean;
+  course_invites_from: "friends" | "everyone" | "nobody";
 }
 const settingsPath = "/v1/social/settings";
 
@@ -109,6 +110,23 @@ export function PrivacySettings() {
             >
               <option value="everyone">Everyone</option>
               <option value="friends_of_friends">Friends of friends</option>
+              <option value="nobody">Nobody</option>
+            </select>
+          </label>
+          <label className="social-setting stacked">
+            <span>Course invites from</span>
+            <select
+              value={settings.course_invites_from}
+              disabled={saving}
+              onChange={(event) =>
+                void save("Course invites from", {
+                  course_invites_from: event.target
+                    .value as SocialSettings["course_invites_from"],
+                })
+              }
+            >
+              <option value="friends">Friends</option>
+              <option value="everyone">Everyone</option>
               <option value="nobody">Nobody</option>
             </select>
           </label>

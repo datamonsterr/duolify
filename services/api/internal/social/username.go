@@ -69,6 +69,10 @@ func (r *Rejection) Error() string {
 		return "A friends list is full, so this can't be completed."
 	case CodeNotPending:
 		return "That request can't be changed any more."
+	case CodeBlockUnavailable:
+		return "We couldn't block that person."
+	case CodeBlockLimit:
+		return "Your blocked list is full. Unblock someone first."
 	}
 	return "That username isn't available. Try another."
 }
@@ -76,9 +80,9 @@ func (r *Rejection) Error() string {
 // Status maps a rejection to its HTTP status.
 func (r *Rejection) Status() int {
 	switch r.Code {
-	case CodeTaken, CodeAlreadySet, CodeNotSet, CodeCooldown, CodePendingLimit, CodeFriendLimit, CodeNotPending:
+	case CodeTaken, CodeAlreadySet, CodeNotSet, CodeCooldown, CodePendingLimit, CodeFriendLimit, CodeNotPending, CodeBlockLimit:
 		return 409
-	case CodeRequestUnavailable, CodeInviteUnavailable:
+	case CodeRequestUnavailable, CodeInviteUnavailable, CodeBlockUnavailable:
 		return 404
 	case CodeRateLimited:
 		return 429
@@ -121,6 +125,8 @@ type Config struct {
 	HoldDays, RenameCooldownDays, SearchMax, SearchPerMinute, AttemptsPerHour int
 	// Friend limits (E6-03).
 	FriendPendingMax, FriendSendsPerDay, FriendMax, DeclineCooldownDays, LinkValidDays, LinkPerHour int
+	// BlockMax caps how many learners one learner can block (E6-04).
+	BlockMax int
 }
 
 // lookalikes folds common digit substitutions; "1" may stand for i or l.

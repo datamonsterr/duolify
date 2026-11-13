@@ -27,6 +27,9 @@ for (const mobile of [false, true]) {
     await page.route("**/v1/social/friend-requests", (r) =>
       r.fulfill({ json: { incoming: [], outgoing: [] } }),
     );
+    await page.route("**/v1/social/blocks", (r) =>
+      r.fulfill({ json: { blocks: [] } }),
+    );
     await page.route("**/v1/social/identity", (r) =>
       r.fulfill({
         json: {

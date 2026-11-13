@@ -503,7 +503,7 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
  SELECT o.learner_id,o.lesson_id,o.course_id,o.id,c.base_xp,false,c.version,o.passed_at,(o.passed_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date,'Asia/Ho_Chi_Minh'
  FROM lesson_completion_outbox o CROSS JOIN gamification_config c WHERE o.id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO learner_usernames(learner_id,username) VALUES('a1111111-1111-4111-8111-111111111111','Backup.Learner')`,
-		`INSERT INTO learner_social_settings(learner_id,discoverable,request_policy,show_streak_to_friends) VALUES('a1111111-1111-4111-8111-111111111111',false,'friends_of_friends',false)`,
+		`INSERT INTO learner_social_settings(learner_id,discoverable,request_policy,show_streak_to_friends,course_invites_from) VALUES('a1111111-1111-4111-8111-111111111111',false,'friends_of_friends',false,'nobody')`,
 		`UPDATE learner_usernames SET username='Backup.Renamed', changed_at='2026-11-01T00:00:00Z' WHERE learner_id='a1111111-1111-4111-8111-111111111111'`,
 		`INSERT INTO social_rate_limits(learner_id,bucket,count) VALUES('a1111111-1111-4111-8111-111111111111','search',3)`,
 		`INSERT INTO username_holds(canonical,previous_owner_ref,held_until) VALUES('released.name',repeat('a',64),now()+interval '30 days')`,
@@ -512,6 +512,8 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		`INSERT INTO friend_requests(sender_id,recipient_id,status,method,decided_at) VALUES('a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111','accepted','invite_link','2026-11-02T00:00:00Z'),('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','declined','username','2026-11-03T00:00:00Z')`,
 		`INSERT INTO friendships(learner_low,learner_high) VALUES('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222')`,
 		`INSERT INTO friend_links(owner_id,token_hash,expires_at) VALUES('a1111111-1111-4111-8111-111111111111',repeat('b',64),now()+interval '30 days')`,
+		`INSERT INTO learners(id,display_name) VALUES('a3333333-3333-4333-8333-333333333333','Backup Blocked')`,
+		`INSERT INTO learner_blocks(blocker_id,blocked_id,created_at) VALUES('a1111111-1111-4111-8111-111111111111','a3333333-3333-4333-8333-333333333333','2026-11-04T00:00:00Z')`,
 		`INSERT INTO daily_goal_achievements(learner_id,local_date,goal_xp) SELECT learner_id,local_date,amount FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 	} {
 		if _, err = f.DB.Pool.Exec(t.Context(), query); err != nil {
@@ -804,8 +806,8 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT monthly_credits FROM credit_subscription_terms LIMIT 1").Scan(&monthlyCredits); err != nil {
 		t.Fatal(err)
 	}
-	// Two learners: the synthetic learner and the E6-03 friend fixture row.
-	if version != f.schemaVersion || riverVersions < 1 || learners != 2 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
+	// Three learners: the synthetic learner, the E6-03 friend and the E6-04 blocked row.
+	if version != f.schemaVersion || riverVersions < 1 || learners != 3 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
 	var pricingVersion string
@@ -896,6 +898,14 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO friendships(learner_low,learner_high) VALUES('a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111')`); err == nil {
 		t.Fatal("restored friendship check allowed a reversed pair")
+	}
+	// Blocks keep their direction and date; the self-block check and the invite setting survive.
+	var blocks, inviteSetting int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM learner_blocks WHERE blocker_id='a1111111-1111-4111-8111-111111111111' AND blocked_id='a3333333-3333-4333-8333-333333333333' AND created_at='2026-11-04T00:00:00Z'),(SELECT count(*) FROM learner_social_settings WHERE learner_id='a1111111-1111-4111-8111-111111111111' AND course_invites_from='nobody')`).Scan(&blocks, &inviteSetting); err != nil || blocks != 1 || inviteSetting != 1 {
+		t.Fatalf("restored block data changed: %d %d %v", blocks, inviteSetting, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO learner_blocks(blocker_id,blocked_id) VALUES('a1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111')`); err == nil {
+		t.Fatal("restored block check allowed a self block")
 	}
 	confirmed, err := courses.New(courses.Options{Pool: restored.Pool}).ResolveConfirmed(t.Context(), "a1111111-1111-4111-8111-111111111111", "c7222222-2222-4222-8222-222222222222", 3)
 	if err != nil || confirmed.Outline.Hash() != confirmed.ContentHash || confirmed.Outline[0].Lessons[0].ID != "fixture-lesson" {

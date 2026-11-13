@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { session } from "../accounts/session";
 import { AddFriend } from "./AddFriend";
+import { ConfirmBlock } from "./ConfirmBlock";
 import { ConfirmRemove } from "./ConfirmRemove";
+import {
+  blockFailure,
+  blockMessages,
+  blocksPath,
+  cleanUsername,
+  type BlockedEntry,
+  type BlockFailure,
+} from "./blocks";
 import {
   friendFailure,
   friendMessages,
@@ -16,7 +25,14 @@ import {
 import { SocialIdentity } from "./SocialIdentity";
 import "./social.css";
 
-type Tab = "friends" | "requests";
+type Tab = "friends" | "requests" | "blocked";
+
+/** Who the block dialog is about; `friend` is set only when they are a current friend. */
+interface BlockTarget {
+  name: string;
+  username: string;
+  friend?: FriendEntry;
+}
 
 function Person({
   person,
@@ -52,6 +68,10 @@ export function FriendsPage() {
   const [removing, setRemoving] = useState(false);
   const [busy, setBusy] = useState("");
   const [problem, setProblem] = useState<FriendFailure>();
+  const [blocked, setBlocked] = useState<BlockedEntry[]>();
+  const [blocking, setBlocking] = useState<BlockTarget>();
+  const [blockProblem, setBlockProblem] = useState<BlockFailure>();
+  const [typed, setTyped] = useState("");
 
   const [revision, setRevision] = useState(0);
   const load = useCallback(() => setRevision((x) => x + 1), []);
@@ -60,11 +80,13 @@ export function FriendsPage() {
     Promise.all([
       session.request<{ friends: FriendEntry[] }>(friendsPath),
       session.request<FriendRequests>(requestsPath),
+      session.request<{ blocks?: BlockedEntry[] }>(blocksPath),
     ])
-      .then(([f, r]) => {
+      .then(([f, r, b]) => {
         if (!active) return;
         setFriends(f.friends);
         setRequests(r);
+        setBlocked(b.blocks ?? []);
         setFailure(undefined);
       })
       .catch((error: unknown) => {
@@ -94,10 +116,44 @@ export function FriendsPage() {
     setSelected(undefined);
   }
 
+  async function block(target: BlockTarget) {
+    setBusy("block");
+    setBlockProblem(undefined);
+    try {
+      await session.request(blocksPath, "POST", { username: target.username });
+      setTyped("");
+      setSelected(undefined);
+    } catch (error) {
+      setBlockProblem(blockFailure(error));
+    } finally {
+      setBlocking(undefined);
+      load();
+      setBusy("");
+    }
+  }
+
+  async function unblock(entry: BlockedEntry) {
+    setBusy(`unblock-${entry.username}`);
+    setBlockProblem(undefined);
+    try {
+      await session.request(
+        `${blocksPath}/${encodeURIComponent(entry.username)}`,
+        "DELETE",
+      );
+    } catch (error) {
+      setBlockProblem(blockFailure(error));
+    } finally {
+      load();
+      setBusy("");
+    }
+  }
+
   const friend = friends?.find((f) => f.id === selected);
   const incoming = requests?.incoming ?? [];
   const outgoing = requests?.outgoing ?? [];
-  const ready = friends !== undefined && requests !== undefined;
+  const blockedList = blocked ?? [];
+  const ready =
+    friends !== undefined && requests !== undefined && blocked !== undefined;
   const requestRow = (entry: RequestEntry, sent: boolean) => (
     <li key={entry.id}>
       <Person person={entry} />
@@ -208,10 +264,25 @@ export function FriendsPage() {
             >
               Requests · {incoming.length}
             </button>
+            <button
+              type="button"
+              role="tab"
+              id={`${id}-tab-blocked`}
+              aria-selected={tab === "blocked"}
+              aria-controls={`${id}-panel`}
+              onClick={() => setTab("blocked")}
+            >
+              Blocked · {blockedList.length}
+            </button>
           </div>
           {problem && (
             <p role="alert" className="social-error">
               {friendMessages[problem]}
+            </p>
+          )}
+          {blockProblem && (
+            <p role="alert" className="social-error">
+              {blockMessages[blockProblem]}
             </p>
           )}
           <div
@@ -294,6 +365,19 @@ export function FriendsPage() {
                         >
                           Remove friend
                         </button>
+                        <button
+                          type="button"
+                          className="duo-button secondary"
+                          onClick={() =>
+                            setBlocking({
+                              name: friend.display_name,
+                              username: friend.username,
+                              friend,
+                            })
+                          }
+                        >
+                          Block
+                        </button>
                       </>
                     ) : (
                       <p className="social-hint">
@@ -303,6 +387,68 @@ export function FriendsPage() {
                   </section>
                 </div>
               ))}
+            {tab === "blocked" && (
+              <div className="friends-requests">
+                <h2>Blocked</h2>
+                <p className="social-hint">
+                  People you block can't find you or send requests or invites,
+                  and aren't told. Unblocking doesn't bring back a friendship.
+                </p>
+                <form
+                  className="social-actions"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const username = cleanUsername(typed);
+                    if (username)
+                      setBlocking({ name: `@${username}`, username });
+                  }}
+                >
+                  <label>
+                    <span>Username to block</span>
+                    <input
+                      value={typed}
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      maxLength={64}
+                      onChange={(event) => setTyped(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="duo-button secondary"
+                    disabled={!cleanUsername(typed)}
+                  >
+                    Block someone
+                  </button>
+                </form>
+                {blockedList.length === 0 ? (
+                  <p className="social-hint">You haven't blocked anyone.</p>
+                ) : (
+                  <ul
+                    aria-label="Blocked learners"
+                    className="social-result-list"
+                  >
+                    {blockedList.map((entry) => (
+                      <li key={entry.username}>
+                        <Person person={entry} />
+                        <span className="social-row-actions">
+                          <button
+                            type="button"
+                            className="duo-button secondary"
+                            aria-label={`Unblock ${entry.username}`}
+                            disabled={busy === `unblock-${entry.username}`}
+                            onClick={() => void unblock(entry)}
+                          >
+                            Unblock
+                          </button>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             {tab === "requests" && (
               <div className="friends-requests">
                 <h2>Friend requests</h2>
@@ -328,6 +474,23 @@ export function FriendsPage() {
             )}
           </div>
         </>
+      )}
+      {blocking && (
+        <ConfirmBlock
+          name={blocking.name}
+          busy={busy === "block"}
+          onCancel={() => setBlocking(undefined)}
+          onConfirm={() => void block(blocking)}
+          onRemoveInstead={
+            blocking.friend
+              ? () => {
+                  const target = blocking.friend!;
+                  setBlocking(undefined);
+                  void remove(target);
+                }
+              : undefined
+          }
+        />
       )}
       {removing && friend && (
         <ConfirmRemove

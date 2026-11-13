@@ -127,7 +127,7 @@ type Result struct {
 
 // lockLearners row-locks the learners in id order. It serializes every mutation
 // of a pair (and of each learner's friend count), so mutual requests, caps and
-// blocking (E6-04) never interleave. It returns how many learners exist.
+// blocking never interleave. It returns how many learners exist.
 func lockLearners(ctx context.Context, tx pgx.Tx, ids ...string) (int, error) {
 	rows, err := tx.Query(ctx, `SELECT id FROM learners WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE`, ids)
 	if err != nil {
@@ -149,8 +149,7 @@ func friendCount(ctx context.Context, tx pgx.Tx, learnerID string) (int, error) 
 
 // removeFriendshipTx is the one place a friendship ends: the friendship row and
 // every request between the pair go together, inside the caller's transaction.
-// E6-06 ends the friend streak here; E6-04 blocking calls it in its own
-// transaction. It reports whether a friendship existed.
+// E6-06 ends the friend streak here; Block calls it in its own transaction. It reports whether a friendship existed.
 func (s *Service) removeFriendshipTx(ctx context.Context, tx pgx.Tx, a, b string) (bool, error) {
 	if _, err := lockLearners(ctx, tx, a, b); err != nil {
 		return false, err
@@ -250,6 +249,15 @@ func (s *Service) sendTx(ctx context.Context, tx pgx.Tx, cfg Config, actor, reci
 		return Result{}, nil, nil, err
 	}
 	known := len(ids) == 2 && found == 2
+	if known {
+		// A block in either direction makes the recipient "unknown": caps and the daily
+		// counter still run first, so the refusal below is identical to a missing username.
+		blocked, err := BlockedEitherWay(ctx, tx, actor, recipient)
+		if err != nil {
+			return Result{}, nil, nil, err
+		}
+		known = !blocked
+	}
 	var ownID, ownStatus string
 	var cooling bool
 	if known {
@@ -298,7 +306,6 @@ func (s *Service) sendTx(ctx context.Context, tx pgx.Tx, cfg Config, actor, reci
 	if rej, err := allowOn(ctx, tx, actor, bucketSend, cfg.FriendSendsPerDay, sendWindow); rej != nil || err != nil {
 		return Result{}, rej, nil, err
 	}
-	// E6-04: a block in either direction between actor and recipient refuses here with the same neutral error.
 	if !known || (ownID != "" && ownStatus == statusDeclined && cooling) {
 		return Result{}, unavailable(viaLink), nil, nil
 	}
@@ -634,6 +641,13 @@ func (s *Service) ResolveLink(ctx context.Context, actor, token string) (Identit
 	}
 	if err != nil {
 		return Identity{}, err
+	}
+	blocked, err := BlockedEitherWay(ctx, s.pool, actor, owner)
+	if err != nil {
+		return Identity{}, err
+	}
+	if blocked {
+		return Identity{}, unavailable(true)
 	}
 	row, err := s.row(ctx, "u.learner_id=$1::uuid", owner)
 	if errors.Is(err, pgx.ErrNoRows) {

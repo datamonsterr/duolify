@@ -42,11 +42,10 @@ func likePrefix(text string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(text) + "%"
 }
 
-// blockedPairClause is the single seam for bilateral block hiding. It is empty
-// until E6-04 creates the blocks table; that ticket sets it to one NOT EXISTS
-// over blocks in both directions between $1 (the viewer) and u.learner_id.
-// Search and Profile both append it, so no other query changes.
-const blockedPairClause = ""
+// blockedPairClause hides a blocked pair in both directions. $1 is the viewer and
+// u.learner_id the other learner; Search and Profile both append it, and it is built
+// from NotBlockedSQL so every caller shares one definition of "blocked".
+var blockedPairClause = NotBlockedSQL("$1::uuid", "u.learner_id")
 
 // exactVisible: a nondiscoverable learner may still be reached by exact username
 // when they accept requests from everyone.

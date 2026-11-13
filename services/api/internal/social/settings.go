@@ -49,12 +49,19 @@ func ParseSettingsPatch(r io.Reader) (SettingsPatch, error) {
 	if d.Decode(&p) != nil || !errors.Is(d.Decode(&extra), io.EOF) {
 		return SettingsPatch{}, ErrInvalidSettings
 	}
-	if p.Discoverable == nil && p.RequestPolicy == nil && p.ShowStreakToFriends == nil {
+	if p.Discoverable == nil && p.RequestPolicy == nil && p.ShowStreakToFriends == nil && p.CourseInvitesFrom == nil {
 		return SettingsPatch{}, ErrInvalidSettings
 	}
 	if p.RequestPolicy != nil {
 		switch *p.RequestPolicy {
 		case "everyone", "friends_of_friends", "nobody":
+		default:
+			return SettingsPatch{}, ErrInvalidSettings
+		}
+	}
+	if p.CourseInvitesFrom != nil {
+		switch *p.CourseInvitesFrom {
+		case "friends", "everyone", "nobody":
 		default:
 			return SettingsPatch{}, ErrInvalidSettings
 		}
@@ -67,8 +74,8 @@ var defaultSettings = Settings{Discoverable: true, RequestPolicy: "everyone", Sh
 // Settings returns stored settings or the defaults without creating a row.
 func (s *Service) Settings(ctx context.Context, learnerID string) (Settings, error) {
 	out := defaultSettings
-	err := s.pool.QueryRow(ctx, `SELECT discoverable,request_policy,show_streak_to_friends FROM learner_social_settings WHERE learner_id=$1::uuid`, learnerID).
-		Scan(&out.Discoverable, &out.RequestPolicy, &out.ShowStreakToFriends)
+	err := s.pool.QueryRow(ctx, `SELECT discoverable,request_policy,show_streak_to_friends,course_invites_from FROM learner_social_settings WHERE learner_id=$1::uuid`, learnerID).
+		Scan(&out.Discoverable, &out.RequestPolicy, &out.ShowStreakToFriends, &out.CourseInvitesFrom)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return Settings{}, err
 	}
@@ -86,8 +93,8 @@ func (s *Service) UpdateSettings(ctx context.Context, learnerID string, p Settin
 		return Settings{}, err
 	}
 	var cur Settings
-	if err = tx.QueryRow(ctx, `SELECT discoverable,request_policy,show_streak_to_friends FROM learner_social_settings WHERE learner_id=$1::uuid FOR UPDATE`, learnerID).
-		Scan(&cur.Discoverable, &cur.RequestPolicy, &cur.ShowStreakToFriends); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT discoverable,request_policy,show_streak_to_friends,course_invites_from FROM learner_social_settings WHERE learner_id=$1::uuid FOR UPDATE`, learnerID).
+		Scan(&cur.Discoverable, &cur.RequestPolicy, &cur.ShowStreakToFriends, &cur.CourseInvitesFrom); err != nil {
 		return Settings{}, err
 	}
 	next := cur
@@ -101,16 +108,19 @@ func (s *Service) UpdateSettings(ctx context.Context, learnerID string, p Settin
 	if p.ShowStreakToFriends != nil && *p.ShowStreakToFriends != cur.ShowStreakToFriends {
 		next.ShowStreakToFriends, changed["show_streak_to_friends"] = *p.ShowStreakToFriends, boolValue(*p.ShowStreakToFriends)
 	}
+	if p.CourseInvitesFrom != nil && *p.CourseInvitesFrom != cur.CourseInvitesFrom {
+		next.CourseInvitesFrom, changed["course_invites_from"] = *p.CourseInvitesFrom, *p.CourseInvitesFrom
+	}
 	if len(changed) > 0 {
-		if _, err = tx.Exec(ctx, `UPDATE learner_social_settings SET discoverable=$2,request_policy=$3,show_streak_to_friends=$4 WHERE learner_id=$1::uuid`,
-			learnerID, next.Discoverable, next.RequestPolicy, next.ShowStreakToFriends); err != nil {
+		if _, err = tx.Exec(ctx, `UPDATE learner_social_settings SET discoverable=$2,request_policy=$3,show_streak_to_friends=$4,course_invites_from=$5 WHERE learner_id=$1::uuid`,
+			learnerID, next.Discoverable, next.RequestPolicy, next.ShowStreakToFriends, next.CourseInvitesFrom); err != nil {
 			return Settings{}, err
 		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return Settings{}, err
 	}
-	for _, key := range []string{"discoverable", "request_policy", "show_streak_to_friends"} {
+	for _, key := range []string{"discoverable", "request_policy", "show_streak_to_friends", "course_invites_from"} {
 		if value, ok := changed[key]; ok {
 			s.emit(learnerID, "privacy_setting_changed", map[string]any{"setting": key, "value": value})
 		}

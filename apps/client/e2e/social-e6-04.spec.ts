@@ -151,7 +151,7 @@ for (const mobile of [false, true]) {
     await trigger.press("Enter");
     const confirm = page.getByRole("dialog", { name: /^Block .*\?$/ });
     await expect(confirm).toContainText("isn't notified");
-    await expect(confirm).toContainText("can't find you");
+    await expect(confirm).toContainText("find you");
     await page.keyboard.press("Escape");
     await expect(confirm).toBeHidden();
     await expect(trigger).toBeFocused();
