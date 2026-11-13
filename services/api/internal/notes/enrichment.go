@@ -151,6 +151,7 @@ func (w *NoteEnrichWorker) Work(ctx context.Context, j *river.Job[NoteEnrichArgs
 	if err == credits.ErrInsufficient || err == ErrStaleVersion {
 		return nil
 	}
+	// ErrConcurrency leaves the note pending; returning it makes River retry with backoff.
 	return err
 }
 
@@ -235,7 +236,8 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 			preserveReservation = settleErr != nil
 		}
 		status := "enrichment_failed"
-		if errors.Is(resultErr, credits.ErrInsufficient) {
+		// Insufficient credits and a busy per-learner reservation slot are transient: stay resumable.
+		if errors.Is(resultErr, credits.ErrInsufficient) || errors.Is(resultErr, credits.ErrConcurrency) {
 			status = "enrichment_pending"
 		}
 		_, statusErr := s.pool.Exec(cleanupCtx, `UPDATE quick_notes SET status=$4,reservation_id=CASE WHEN $5 THEN $6::uuid ELSE NULL END,quote_id=CASE WHEN $5 THEN $7::uuid ELSE NULL END,enrichment_claim_id=NULL,enrichment_lease_until=NULL,updated_at=now() WHERE id=$1 AND learner_id=$2 AND enrichment_claim_id=$3`, noteUUID, learnerUUID, claimID, status, preserveReservation, recoveryReservationID, recoveryQuoteID)
@@ -408,6 +410,11 @@ func (s *Service) ProcessEnrichmentWithVersion(ctx context.Context, learnerID, n
 	return nil
 }
 
+const (
+	resumeBusyAttempts = 100
+	resumeBusyDelay    = 100 * time.Millisecond
+)
+
 // ResumePendingEnrichments finds pending notes for a learner (oldest first) and enriches them
 // until credits are exhausted or all pending notes are processed.
 func (s *Service) ResumePendingEnrichments(ctx context.Context, learnerID string) (int, error) {
@@ -415,7 +422,7 @@ func (s *Service) ResumePendingEnrichments(ctx context.Context, learnerID string
 	if err != nil {
 		return 0, errors.New("invalid learner id")
 	}
-	processed := 0
+	processed, busy := 0, 0
 	for {
 		var id pgtype.UUID
 		var rawVersion int32
@@ -430,9 +437,22 @@ func (s *Service) ResumePendingEnrichments(ctx context.Context, learnerID string
 		if err == credits.ErrInsufficient {
 			return processed, nil
 		}
+		if errors.Is(err, credits.ErrConcurrency) {
+			// Another enrichment holds the learner's reservation slot; wait for it, then retry the oldest note.
+			if busy++; busy > resumeBusyAttempts {
+				return processed, err
+			}
+			select {
+			case <-ctx.Done():
+				return processed, ctx.Err()
+			case <-time.After(resumeBusyDelay):
+			}
+			continue
+		}
 		if err != nil {
 			return processed, err
 		}
+		busy = 0
 		processed++
 	}
 }
