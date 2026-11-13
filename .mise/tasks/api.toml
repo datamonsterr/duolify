@@ -50,6 +50,16 @@ dir = "{{config_root}}/services/api"
 env = { DUOLIFY_ENV = "development", LESSON_TEST_TRACER_ENABLED = "{{env.LESSON_TEST_TRACER_ENABLED | default(value='true')}}" }
 run = "go run ./test/pricingserver"
 
+["api:pricing-activate-interim"]
+description = "Draft, submit, and approve interim ADR 0012 design chat pricing in dev/test via admin CLI"
+dir = "{{config_root}}/services/api"
+env = { DUOLIFY_ENV = "development" }
+run = """
+go run ./cmd/api admin pricing draft --actor "${PRICING_ADMIN_ID:-00000000-0000-4000-8000-000000000001}" --reason "interim ADR 0012 design chat pricing" --config internal/pricing/fixtures/usd_interim_design_chat.json
+go run ./cmd/api admin pricing submit --version usd-interim-design-chat --actor "${PRICING_ADMIN_ID:-00000000-0000-4000-8000-000000000001}" --reason "submit interim design chat pricing"
+go run ./cmd/api admin pricing approve --version usd-interim-design-chat --actor "${PRICING_APPROVER_ID:-00000000-0000-4000-8000-000000000002}" --reason "approve interim design chat pricing under ADR 0012"
+"""
+
 ["api:format"]
 description = "Format Go source"
 dir = "{{config_root}}/services/api"

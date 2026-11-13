@@ -253,13 +253,24 @@ func run(ctx context.Context, args []string) (result error) {
 		return fmt.Errorf("pricing admin bootstrap failed: %w", err)
 	}
 	pricingAdmin := pricing.NewAdmin(db.Pool, events, os.Getenv("PRICING_OWNER_ID"))
+	pricingAdmin.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
 	if err := pricingAdmin.ConfigureVerification(os.Getenv); err != nil {
 		return fmt.Errorf("pricing verifier configuration: %w", err)
 	}
+	runtimePricing := pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events)
+	runtimePricing.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
+	runtimePricing.SetOwnerID(os.Getenv("PRICING_OWNER_ID"))
+	if err := runtimePricing.ActivateDue(ctx, pricingAdmin); err != nil {
+		return fmt.Errorf("pricing activation: %w", err)
+	}
+	activatorCtx, stopActivator := context.WithCancel(ctx)
+	defer stopActivator()
+	go runtimePricing.RunActivator(activatorCtx, pricingAdmin)
+
 	auth.ConfigureRateLimits(rateLimits)
 	auth.ConfigureSetupChat(accounts.SetupChatOptions{
 		Engine:  backend,
-		Pricing: catalogue,
+		Pricing: runtimePricing,
 		Events:  events,
 	})
 	creditService := credits.NewServiceWithCatalogue(db.Pool, redis, catalogue, events)
@@ -272,12 +283,6 @@ func run(ctx context.Context, args []string) (result error) {
 	go creditService.Maintain(ctx, logger)
 	xpService := gamification.New(db.Pool, events)
 	go xpService.Maintain(ctx, logger)
-	briefPricing := catalogue
-	if os.Getenv("DUOLIFY_ENV") == "development" {
-		if dev, loadErr := pricing.LoadDevelopment(ctx, db.Pool); loadErr == nil {
-			briefPricing = dev
-		}
-	}
 	characterService := characters.NewService(db.Pool, nil, events)
 	characterService.ConfigureScreening(backend)
 	characterService.ConfigureCreation(creditService, backend, os.Getenv("DUOLIFY_ENV"), allowUnapprovedPricing)
@@ -304,13 +309,10 @@ func run(ctx context.Context, args []string) (result error) {
 			SessionTTL:          cfg.LessonTestSessionTTL,
 		})
 	}
-	runtimePricing := pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events)
-	if err := runtimePricing.ActivateDue(ctx, pricingAdmin); err != nil {
-		return fmt.Errorf("pricing activation: %w", err)
-	}
-	activatorCtx, stopActivator := context.WithCancel(ctx)
-	defer stopActivator()
-	go runtimePricing.RunActivator(activatorCtx, pricingAdmin)
+
+	quotesService := pricing.NewQuotes(db.Pool)
+	quotesService.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
+	quotesService.SetOwnerID(os.Getenv("PRICING_OWNER_ID"))
 
 	handler := httpapi.New(httpapi.Dependencies{
 		Characters:              characters.NewHandler(characterService),
@@ -320,10 +322,10 @@ func run(ctx context.Context, args []string) (result error) {
 		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
 		Accounts:                auth,
 		Credits:                 creditService,
-		CourseBrief:             courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
+		CourseBrief:             courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: runtimePricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
 		Pricing:                 runtimePricing,
 		PricingAdmin:            pricingAdmin,
-		Quotes:                  pricing.NewQuotes(db.Pool),
+		Quotes:                  quotesService,
 		Notes:                   notesService,
 		Eval:                    eval.NewService(db.Pool, catalogue, monitor, events),
 		LessonTestTracerEnabled: cfg.LessonTestTracerEnabled,
@@ -439,6 +441,7 @@ func runAdminCLI(ctx context.Context, args []string) error {
 	}
 	defer func() { _ = events.Close() }()
 	admin := pricing.NewAdmin(db.Pool, events, os.Getenv("PRICING_OWNER_ID"))
+	admin.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
 	if err := admin.ConfigureVerification(os.Getenv); err != nil {
 		return fmt.Errorf("pricing verifier configuration: %w", err)
 	}

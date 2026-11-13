@@ -129,6 +129,7 @@ func (s *Service) quoteProposal(w http.ResponseWriter, r *http.Request, owner st
 		return
 	}
 	quotes := pricing.NewQuotes(s.opts.Pool)
+	quotes.SetEnvironment(s.opts.Environment)
 	input := pricing.QuoteInput{Action: "outline_chat_change", OutlineDraftID: in.DraftID, OutlineRevision: in.ExpectedRevision, RequestHash: requestHash(in.Request)}
 	var q pricing.Quote
 	var err error

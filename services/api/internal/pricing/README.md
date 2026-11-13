@@ -144,3 +144,50 @@ the activator/public catalogue flip, but does not suspend that previously
 approved version in the quote resolver. Unifying quote selection with activation
 state requires a separate resolver/fixture change; this review intentionally
 keeps other epics' quote fixtures and resolver contracts unchanged.
+
+## E12-10 interim design chat pricing & decision gate (ADR 0012)
+
+Ticket E12-10 (#155) enables guided setup and outline chat prices under interim ADR 0012:
+- `setup_chat`: 0 credits, form fallback available if disabled.
+- `course_brief_chat`: 0 credits, form fallback available if disabled.
+- `outline_chat_change`: 5 credits, daily-free eligible, charged only for a valid delivered proposal. Manual outline edits and apply/discard/undo remain free.
+
+### Decision gate
+
+Pricing config schema includes `design_chat_decision`: `"interim_adr_0012" | "owner_approved"`:
+- In production (`DUOLIFY_ENV` != `development` and `DUOLIFY_ENV` != `test`, fail-closed for empty or misspelled env):
+  approving, activating, or quoting a pricing version containing design chat keys is rejected (HTTP 403 / 409)
+  unless `design_chat_decision` is `owner_approved` AND the approval was submitted by the `PRICING_OWNER_ID` admin.
+- In `development` and `test`: `interim_adr_0012` may be approved and activated by any granted pricing admin.
+- Missing or pending decision never enables these actions in production.
+
+### Dev/Test admin workflow invocation
+
+The interim config is provided at `services/api/internal/pricing/fixtures/usd_interim_design_chat.json`.
+It must go through the standard audited lifecycle (draft → validate → submit → approve → activator flip):
+
+```bash
+# 1. Draft
+mise exec -- go run ./cmd/api admin pricing draft \
+  --actor "<ADMIN_UUID>" \
+  --reason "interim ADR 0012 design chat pricing" \
+  --config internal/pricing/fixtures/usd_interim_design_chat.json
+
+# 2. Submit
+mise exec -- go run ./cmd/api admin pricing submit \
+  --version "usd-interim-design-chat" \
+  --actor "<ADMIN_UUID>" \
+  --reason "ready for interim review"
+
+# 3. Approve
+mise exec -- go run ./cmd/api admin pricing approve \
+  --version "usd-interim-design-chat" \
+  --actor "<APPROVER_UUID>" \
+  --reason "approved under interim ADR 0012 for dev/test"
+```
+
+Alternatively, run the documented mise task:
+```bash
+mise run api:pricing-activate-interim
+```
+
