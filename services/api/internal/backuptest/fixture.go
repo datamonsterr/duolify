@@ -565,6 +565,19 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 			t.Fatal(err)
 		}
 	}
+	// E15-04: a Lesson generated inside the pinned copy with the learner's consent record.
+	for _, stmt := range []string{
+		`INSERT INTO course_units(id,learner_id,course_id,authored_id,position,title) VALUES('e1504000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','e1503000-1111-4111-8111-111111111111','u1',0,'Copy unit')`,
+		`INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status) VALUES('e1504000-2222-4222-8222-222222222222','a2222222-2222-4222-8222-222222222222','e1504000-1111-4111-8111-111111111111','l3',0,'Generated in the copy','Goal','current')`,
+		`INSERT INTO generated_lessons(id,lesson_stub_id,learner_id,course_id,title,manifest) VALUES('e1504000-3333-4333-8333-333333333333','e1504000-2222-4222-8222-222222222222','a2222222-2222-4222-8222-222222222222','e1503000-1111-4111-8111-111111111111','Generated in the copy','{}'::jsonb)`,
+	} {
+		if _, err = f.DB.Pool.Exec(t.Context(), stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `WITH g AS (INSERT INTO lesson_generations(id,learner_id,lesson_id,course_id,quote_id,state) VALUES('e1504000-4444-4444-8444-444444444444','a2222222-2222-4222-8222-222222222222','e1504000-2222-4222-8222-222222222222','e1503000-1111-4111-8111-111111111111',$1,'completed') RETURNING id) INSERT INTO copy_generation_consents(generation_id,learner_id,copy_course_id,lesson_id,quote_id,pricing_version) SELECT id,'a2222222-2222-4222-8222-222222222222','e1503000-1111-4111-8111-111111111111','e1504000-2222-4222-8222-222222222222',$1,$2 FROM g`, outlineQuote.ID, outlineQuote.PricingVersion); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_variant_snapshots (id, session_id, learner_id, lesson_stub_id, topic_id, question_id, variant_of, source, reason, prompt, choices, answer_index, explanation, instruction_snapshot) VALUES ('fccccccc-cccc-4ccc-8ccc-cccccccccccc', 'f8888888-8888-4888-8888-888888888888', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'top-moon', 'v1-top-moon', 'q-moon', 'pool', NULL, 'What causes moon phases?', '["Sun angle", "Earth shadow"]'::jsonb, 0, 'Angle of sunlight on moon', '{"topic":"moon"}'::jsonb)`); err != nil {
 		t.Fatal(err)
 	}
@@ -1007,6 +1020,11 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM course_copies WHERE copy_course_id='e1503000-1111-4111-8111-111111111111' AND source_course_id='f1111111-1111-4111-8111-111111111111' AND draft_id='e1500000-1111-4111-8111-111111111111' AND version=1 AND length(content_hash)=64`).Scan(&pins); err != nil || pins != 1 {
 		t.Fatalf("restored course copy pin changed: %d %v", pins, err)
 	}
+	// Copy-local generated Lesson and its consent restore with the copy; the published hash is unchanged.
+	var local int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM generated_lessons g JOIN copy_generation_consents c ON c.lesson_id=g.lesson_stub_id AND c.copy_course_id=g.course_id JOIN course_copies cc ON cc.copy_course_id=g.course_id WHERE g.id='e1504000-3333-4333-8333-333333333333' AND c.generation_id='e1504000-4444-4444-8444-444444444444' AND c.pricing_version<>'' AND cc.content_hash=$1`, strings.Repeat("ab", 32)).Scan(&local); err != nil || local != 1 {
+		t.Fatalf("restored copy-local lesson or consent changed: %d %v", local, err)
+	}
 	// Share links restore as hashes only: visibility column present, revoked link still revoked, no plaintext.
 	var shareLinks int
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM publication_links WHERE id='e1502000-1111-4111-8111-111111111111' AND token_hash=encode(sha256(convert_to('fixture-revoked-token','UTF8')),'hex') AND revoked_at IS NOT NULL AND (SELECT visibility::text FROM courses WHERE id=publication_links.course_id)='private'`).Scan(&shareLinks); err != nil || shareLinks != 1 {
@@ -1110,7 +1128,16 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO bookmarks(learner_id, action_key, target_type, course_title, lesson_title) VALUES($1::uuid, 'erased-bm-key', 'lesson', 'Course', 'Lesson')`, erasedID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := restored.Pool.Exec(t.Context(), `WITH c AS (INSERT INTO courses(learner_id,title) VALUES($1::uuid,'Erased copy') RETURNING id) INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,version,content_hash) SELECT id,$1::uuid,'f1111111-1111-4111-8111-111111111111',1,$2 FROM c`, erasedID, strings.Repeat("cd", 32)); err != nil {
+	var restoredQuote string
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT id::text FROM pricing_quotes ORDER BY created_at LIMIT 1`).Scan(&restoredQuote); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `WITH c AS (INSERT INTO courses(learner_id,title) VALUES($1::uuid,'Erased copy') RETURNING id),
+		cc AS (INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,version,content_hash) SELECT id,$1::uuid,'f1111111-1111-4111-8111-111111111111',1,$2 FROM c RETURNING copy_course_id),
+		u AS (INSERT INTO course_units(learner_id,course_id,authored_id,position,title) SELECT $1::uuid,id,'u1',0,'U' FROM c RETURNING id),
+		s AS (INSERT INTO course_lesson_stubs(learner_id,unit_id,authored_id,position,title,goal,status) SELECT $1::uuid,id,'l1',0,'L','G','current' FROM u RETURNING id),
+		g AS (INSERT INTO lesson_generations(learner_id,lesson_id,course_id,quote_id,state) SELECT $1::uuid,s.id,c.id,$3::uuid,'completed' FROM s,c RETURNING id)
+		INSERT INTO copy_generation_consents(generation_id,learner_id,copy_course_id,lesson_id,quote_id,pricing_version) SELECT g.id,$1::uuid,c.id,s.id,$3::uuid,'erased-version' FROM g,c,s`, erasedID, strings.Repeat("cd", 32), restoredQuote); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", erasedID); err != nil {
