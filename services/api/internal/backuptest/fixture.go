@@ -513,6 +513,18 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO tutor_turns (learner_id, course_id, idempotency_key, quote_id, state, end_reason, job_id, usage_estimated, thread_id, user_message_id, assistant_message_id) VALUES ('a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'backup-fixture-key', $1, 'stopped', 'stop', 'f9444444-4444-4444-8444-444444444444', true, 'f9111111-1111-4111-8111-111111111111', 'f9222222-2222-4222-8222-222222222222', 'f9333333-3333-4333-8333-333333333333')`, tutorQuote.ID); err != nil {
 		t.Fatal(err)
 	}
+	// E8-05: one note still linked to its tutor reply, one whose thread was deleted (provenance cleared,
+	// text-free tombstone kept). Deleted thread text must not be in the dump.
+	for _, statement := range []string{
+		`INSERT INTO quick_notes(id, learner_id, action_key, course_id, source, raw_text, status) VALUES ('fa111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'tutor-message:f9333333-3333-4333-8333-333333333333', 'f1111111-1111-4111-8111-111111111111', 'chat', 'Sunlight angle', 'enrichment_pending'), ('fa222222-2222-4222-8222-222222222222', 'a1111111-1111-4111-8111-111111111111', 'tutor-message:fa999999-9999-4999-8999-999999999999', 'f1111111-1111-4111-8111-111111111111', 'chat', 'Saved before its thread was deleted', 'enrichment_pending')`,
+		`INSERT INTO quick_note_chat_sources(note_id, learner_id, thread_id, message_id, lesson_id) VALUES ('fa111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'f9111111-1111-4111-8111-111111111111', 'f9333333-3333-4333-8333-333333333333', NULL)`,
+		`INSERT INTO quick_note_chat_sources(note_id, learner_id, unavailable) VALUES ('fa222222-2222-4222-8222-222222222222', 'a1111111-1111-4111-8111-111111111111', true)`,
+		`INSERT INTO tutor_thread_deletion_tombstones(thread_id) VALUES ('fa333333-3333-4333-8333-333333333333')`,
+	} {
+		if _, err = f.DB.Pool.Exec(t.Context(), statement); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, query := range []string{
 		`INSERT INTO xp_events(learner_id,lesson_id,course_id,completion_id,amount,perfect,config_version,earned_at,local_date,time_zone)
  SELECT o.learner_id,o.lesson_id,o.course_id,o.id,c.base_xp,false,c.version,o.passed_at,(o.passed_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date,'Asia/Ho_Chi_Minh'
@@ -853,7 +865,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"quick_notes", "tutor_threads", "tutor_messages", "tutor_turns", "quick_note_enrichments", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements"} {
+	for _, table := range []string{"quick_notes", "tutor_threads", "tutor_messages", "tutor_turns", "quick_note_enrichments", "quick_note_chat_sources", "tutor_thread_deletion_tombstones", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -1021,8 +1033,26 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 			t.Fatalf("restored immutable data accepted mutation: %s", query)
 		}
 	}
+	// A thread deleted after this backup comes back with it; its tombstone must remove it again and
+	// the note saved from it must read "source unavailable" with no reply text left behind.
+	for _, statement := range []string{
+		`INSERT INTO tutor_threads (id, learner_id, course_id) VALUES ('fa333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111')`,
+		`INSERT INTO tutor_messages (id, thread_id, learner_id, role, content) VALUES ('fa999999-9999-4999-8999-999999999999', 'fa333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'assistant', 'Resurrected reply text')`,
+		`UPDATE quick_note_chat_sources SET unavailable=false, thread_id='fa333333-3333-4333-8333-333333333333', message_id='fa999999-9999-4999-8999-999999999999' WHERE note_id='fa222222-2222-4222-8222-222222222222'`,
+	} {
+		if _, err := restored.Pool.Exec(t.Context(), statement); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := accounts.ApplyDeletionTombstones(t.Context(), restored.Pool); err != nil {
 		t.Fatalf("apply deletion tombstones after restore: %v", err)
+	}
+	var resurrected, unavailable int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM tutor_threads WHERE id='fa333333-3333-4333-8333-333333333333') + (SELECT count(*) FROM tutor_messages WHERE content='Resurrected reply text')`).Scan(&resurrected); err != nil || resurrected != 0 {
+		t.Fatalf("restore resurrected a deleted thread: %d %v", resurrected, err)
+	}
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM quick_note_chat_sources s JOIN quick_notes n ON n.id=s.note_id WHERE s.note_id='fa222222-2222-4222-8222-222222222222' AND s.unavailable AND s.thread_id IS NULL AND s.message_id IS NULL AND n.raw_text='Saved before its thread was deleted'`).Scan(&unavailable); err != nil || unavailable != 1 {
+		t.Fatalf("surviving provenance not unavailable-but-readable: %d %v", unavailable, err)
 	}
 	// Replay a restored deletion for the actual payment owner. Identity erasure
 	// must leave the paid ledger and business dedupe references usable for audit.
