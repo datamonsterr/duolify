@@ -8,17 +8,18 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
-	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/backuptest"
-	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 )
 
@@ -73,39 +74,53 @@ func (downScreener) ScreenCourse(context.Context, *pb.ScreenCourseRequest) (*pb.
 	return nil, errors.New("engine down")
 }
 
-// startEngine runs the real engine binary with the mock provider on an E15 port.
+// classifier is an in-process EngineService double. It returns fixture verdicts chosen by text
+// markers in the sample, so the API's real gRPC transport and proto contract are exercised
+// without a Rust toolchain (the Rust classifier is covered by engine tests and engine:eval).
+type classifier struct {
+	pb.UnimplementedEngineServiceServer
+}
+
+func (classifier) ScreenCourse(_ context.Context, r *pb.ScreenCourseRequest) (*pb.ScreenCourseResponse, error) {
+	text := strings.ToLower(r.SampleJson)
+	usage := []*pb.Usage{{Provider: "fixture", Model: "fixture", Attempt: 1, Delivered: true, InputTokens: 500, OutputTokens: 20, LatencyMs: 40}}
+	reply := func(verdict string, codes ...string) (*pb.ScreenCourseResponse, error) {
+		return &pb.ScreenCourseResponse{Verdict: verdict, ReasonCodes: codes, PolicyVersion: sharing.PolicyVersion, Attempts: usage}, nil
+	}
+	switch {
+	case strings.Contains(text, "force-deadline"):
+		return nil, status.Error(codes.DeadlineExceeded, "deadline exceeded")
+	case strings.Contains(text, "force-malformed"):
+		return reply("maybe")
+	case strings.Contains(text, "ignore policy"):
+		return reply(sharing.VerdictBlock, "prompt_injection")
+	case strings.Contains(text, "borderline"):
+		return reply(sharing.VerdictReview, "harmful_content")
+	}
+	return reply(sharing.VerdictPass)
+}
+
+// rpcScreener adapts the generated client, as the Character screening tests do.
+type rpcScreener struct{ pb.EngineServiceClient }
+
+func (c rpcScreener) ScreenCourse(ctx context.Context, r *pb.ScreenCourseRequest) (*pb.ScreenCourseResponse, error) {
+	return c.EngineServiceClient.ScreenCourse(ctx, r)
+}
+
 func startEngine(t *testing.T) sharing.Screener {
 	t.Helper()
-	target := os.Getenv("CARGO_TARGET_DIR")
-	if target == "" {
-		target = "/home/dat/.cache/e15-target"
-	}
-	root, _ := filepath.Abs("../../../../engine")
-	build := exec.CommandContext(t.Context(), "cargo", "build", "-p", "engine-server", "--bin", "duolify-engine") //nolint:gosec // fixed arguments
-	build.Dir, build.Env = root, append(os.Environ(), "CARGO_TARGET_DIR="+target, "RUSTC_WRAPPER=")
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("engine build: %v\n%s", err, out)
-	}
-	addr := "127.0.0.1:4152"
-	cmd := exec.Command(filepath.Join(target, "debug", "duolify-engine")) //nolint:gosec,noctx // fixed test binary built above; killed in Cleanup
-	cmd.Env = append(os.Environ(), "ENGINE_ADDR_LISTEN="+addr, "ENGINE_PROVIDER_MODE=mock")
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-	for i := 0; i < 100; i++ {
-		if c, err := (&net.Dialer{Timeout: 100 * time.Millisecond}).DialContext(t.Context(), "tcp", addr); err == nil {
-			_ = c.Close()
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	client, err := engine.New("http://"+addr, 130*time.Second)
+	listener := bufconn.Listen(1024 * 1024)
+	server := grpc.NewServer()
+	pb.RegisterEngineServiceServer(server, classifier{})
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(server.Stop)
+	conn, err := grpc.NewClient("passthrough:///screen-course", grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = client.Close() })
-	return client
+	t.Cleanup(func() { _ = conn.Close() })
+	return rpcScreener{pb.NewEngineServiceClient(conn)}
 }
 
 func newService(t *testing.T, f *backuptest.Fixture, screen sharing.Screener, ev *capture) *sharing.Service {
@@ -220,6 +235,25 @@ func TestPublicationDraftScreeningAndPrivacy(t *testing.T) {
 		t.Errorf("finding stores matched text: %s", stored)
 	}
 
+	// Borderline content is held for review; deadline and malformed replies fail closed.
+	addSlide(t, f, 3, "<p>borderline claim</p>")
+	if r, e := s.BuildDraft(ctx, owner, course); e != nil || r.Verdict != sharing.VerdictReview || !strings.Contains(strings.Join(r.ReasonCodes, ","), "harmful_content") {
+		t.Fatalf("borderline draft=%+v err=%v", r, e)
+	}
+	addSlide(t, f, 4, "<p>force-deadline</p>")
+	if r, e := s.BuildDraft(ctx, owner, course); e != nil || r.Verdict != sharing.VerdictPending {
+		t.Fatalf("deadline draft=%+v err=%v", r, e)
+	}
+	if _, e := f.DB.Pool.Exec(ctx, `UPDATE lesson_slides SET html='<p>force-malformed</p>' WHERE position=4`); e != nil {
+		t.Fatal(e)
+	}
+	if r, e := s.BuildDraft(ctx, owner, course); e != nil || r.Verdict != sharing.VerdictPending {
+		t.Fatalf("malformed draft=%+v err=%v", r, e)
+	}
+	if _, e := f.DB.Pool.Exec(ctx, `DELETE FROM lesson_slides WHERE position>=3`); e != nil {
+		t.Fatal(e)
+	}
+
 	// Screening failure fails closed, leaves learning alone, and can be retried.
 	down := newService(t, f, downScreener{}, ev)
 	pending, err := down.BuildDraft(ctx, owner, course)
@@ -260,9 +294,8 @@ func TestPublicationDraftScreeningAndPrivacy(t *testing.T) {
 	}
 
 	// Costs recorded; one-year retention purge.
-	// The mock provider reports no tokens, so cost is 0; the unit test covers the USD arithmetic.
 	var cost, attempts int64
-	if err = f.DB.Pool.QueryRow(ctx, `SELECT coalesce(sum(cost_nanos),0),coalesce(sum(attempts),0) FROM publication_screenings WHERE draft_id=$1`, d.ID).Scan(&cost, &attempts); err != nil || attempts < 1 || cost < 0 || cost > sharing.DefaultConfig().MaxCostNanos {
+	if err = f.DB.Pool.QueryRow(ctx, `SELECT coalesce(sum(cost_nanos),0),coalesce(sum(attempts),0) FROM publication_screenings WHERE draft_id=$1`, d.ID).Scan(&cost, &attempts); err != nil || attempts < 1 || cost <= 0 || cost > sharing.DefaultConfig().MaxCostNanos {
 		t.Fatalf("cost=%d attempts=%d err=%v", cost, attempts, err)
 	}
 	if _, err = f.DB.Pool.Exec(ctx, `UPDATE publication_screenings SET created_at=now()-interval '366 days' WHERE draft_id=$1`, d.ID); err != nil {
