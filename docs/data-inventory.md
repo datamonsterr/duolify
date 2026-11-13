@@ -506,3 +506,19 @@ unchanged and rows written before E17-06 simply lack the field (the client then
 shows the neutral expression). `character_reaction_shown` carries speaker key,
 expression, trigger enum and `fallback_used` only; PostHog and device caches
 stay disposable.
+
+E17-07 Tutor chat personas add six nullable columns to the existing
+`tutor_turns` table (migration `20261113121701`): `speaker_key`, `character_id`,
+`character_version`, `cast_source`, `cast_version` and `persona_fallback`. They
+hold ids, versions and bounded enums only (no persona, name, bio or message
+text), have no foreign key (built-in Characters have no row and a pin must not
+keep a private Character alive), are written before the Engine is called, and
+follow the table's existing nightly encrypted 14-day dump, full-row restore
+comparison and learner erasure. Deleting a thread, tombstoning a turn that
+delivered nothing and re-applying thread-deletion tombstones after a restore
+clear the six columns together with the message references; account deletion
+removes the turn rows within 30 days. Historical names are read from the
+immutable `character_versions` row (or the built-in), so later edits never
+rename history and a purged Character shows a generic label. `tutor_character_selected`
+(client) and `tutor_character_fallback` (API) carry enums, a speaker key and a
+version only; PostHog and device caches stay disposable.

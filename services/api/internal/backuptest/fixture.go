@@ -510,7 +510,7 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 			t.Fatal(err)
 		}
 	}
-	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO tutor_turns (learner_id, course_id, idempotency_key, quote_id, state, end_reason, job_id, usage_estimated, thread_id, user_message_id, assistant_message_id) VALUES ('a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'backup-fixture-key', $1, 'stopped', 'stop', 'f9444444-4444-4444-8444-444444444444', true, 'f9111111-1111-4111-8111-111111111111', 'f9222222-2222-4222-8222-222222222222', 'f9333333-3333-4333-8333-333333333333')`, tutorQuote.ID); err != nil {
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO tutor_turns (learner_id, course_id, idempotency_key, quote_id, state, end_reason, job_id, usage_estimated, thread_id, user_message_id, assistant_message_id, speaker_key, character_id, character_version, cast_source, cast_version) VALUES ('a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'backup-fixture-key', $1, 'stopped', 'stop', 'f9444444-4444-4444-8444-444444444444', true, 'f9111111-1111-4111-8111-111111111111', 'f9222222-2222-4222-8222-222222222222', 'f9333333-3333-4333-8333-333333333333', 'supporter', 'default-supporter', 1, 'course', 2)`, tutorQuote.ID); err != nil {
 		t.Fatal(err)
 	}
 	// E8-05: one note still linked to its tutor reply, one whose thread was deleted (provenance cleared,
@@ -1044,8 +1044,25 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 			t.Fatal(err)
 		}
 	}
+	// E17-07: the restored turn keeps its pinned Character reference; a turn of the resurrected thread
+	// loses its reference when the tombstone is applied again.
+	var pinned int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM tutor_turns WHERE idempotency_key='backup-fixture-key' AND speaker_key='supporter' AND character_id='default-supporter' AND character_version=1 AND cast_source='course' AND cast_version=2`).Scan(&pinned); err != nil || pinned != 1 {
+		t.Fatalf("restore lost the pinned tutor Character reference: %d %v", pinned, err)
+	}
+	ghostQuote, err := pricing.NewQuotes(restored.Pool).Create(t.Context(), "a1111111-1111-4111-8111-111111111111", pricing.QuoteInput{Action: "tutor_short", InputTokens: 10, ContextTokens: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO tutor_turns (learner_id, course_id, idempotency_key, quote_id, state, thread_id, assistant_message_id, speaker_key, character_id, character_version, cast_source, cast_version, persona_fallback) VALUES ('a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'resurrected-pin', $1, 'completed', 'fa333333-3333-4333-8333-333333333333', 'fa999999-9999-4999-8999-999999999999', 'guide', 'default-guide', 1, 'default', 0, 'invalid_persona')`, ghostQuote.ID); err != nil {
+		t.Fatal(err)
+	}
 	if err := accounts.ApplyDeletionTombstones(t.Context(), restored.Pool); err != nil {
 		t.Fatalf("apply deletion tombstones after restore: %v", err)
+	}
+	var kept int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM tutor_turns WHERE idempotency_key='resurrected-pin' AND speaker_key IS NULL AND character_id IS NULL AND character_version IS NULL AND cast_source IS NULL AND cast_version IS NULL AND persona_fallback IS NULL AND assistant_message_id IS NULL`).Scan(&kept); err != nil || kept != 1 {
+		t.Fatalf("restore revived a deleted thread's Character reference: %d %v", kept, err)
 	}
 	var resurrected, unavailable int
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM tutor_threads WHERE id='fa333333-3333-4333-8333-333333333333') + (SELECT count(*) FROM tutor_messages WHERE content='Resurrected reply text')`).Scan(&resurrected); err != nil || resurrected != 0 {

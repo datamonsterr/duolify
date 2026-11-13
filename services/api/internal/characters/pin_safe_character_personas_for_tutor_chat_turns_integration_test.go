@@ -520,6 +520,11 @@ func TestTutorTurnsPinSafePersonasIntegration(t *testing.T) {
 		if err := db.Pool.QueryRow(ctx, `SELECT speaker_key FROM tutor_turns WHERE idempotency_key='p-12' AND state='interrupted'`).Scan(&speaker); err != nil {
 			t.Fatal(err)
 		}
+		var jobState string
+		var spent, reserved int
+		if err := db.Pool.QueryRow(ctx, `SELECT j.state,COALESCE((j.result->>'content_spent')::int,0),COALESCE((SELECT sum(amount) FROM credit_entries WHERE learner_id=$1 AND kind='release'),0) FROM credit_jobs j WHERE j.id=(SELECT job_id FROM tutor_turns WHERE idempotency_key='p-12')`, owner).Scan(&jobState, &spent, &reserved); err != nil || jobState == "reserved" || jobState == "running" {
+			t.Fatalf("partial usage must be settled: %q %v", jobState, err)
+		}
 		if code, _ := call("GET", "/v1/courses/"+course+"/tutor/turns/p-12", nil, token); code != 200 {
 			t.Fatal("recovery read must keep working")
 		}
