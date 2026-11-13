@@ -46,10 +46,10 @@ func cacheClass(u *enginev1.Usage) string {
 }
 
 // assemble builds the Engine context from rows owned by the authenticated learner only:
-// every query is keyed by learner and course. current_lesson stays empty at Course level.
+// every query is keyed by learner and course. current_lesson is empty at Course level and holds only the verified lesson reference otherwise.
 // It holds the mandatory parts only: every summary is kept, whatever the size. Retrieval fills the remaining room.
-func (s *Service) assemble(ctx context.Context, owner, course, thread, message string) (*enginev1.ChatRequest, error) {
-	req := &enginev1.ChatRequest{Outline: &enginev1.CourseOutline{CourseId: course}}
+func (s *Service) assemble(ctx context.Context, owner, course, thread, message string, current *enginev1.Lesson) (*enginev1.ChatRequest, error) {
+	req := &enginev1.ChatRequest{Outline: &enginev1.CourseOutline{CourseId: course}, CurrentLesson: current}
 	if err := s.opts.Pool.QueryRow(ctx, `SELECT title,description FROM courses WHERE id=$1::uuid AND learner_id=$2::uuid`, course, owner).Scan(&req.Outline.Title, &req.Outline.Description); err != nil {
 		return nil, err
 	}

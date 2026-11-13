@@ -212,7 +212,7 @@ func TestAskTheTutorFromAPausedLessonSheetIntegration(t *testing.T) {
 	fund(owner)
 	fund(other)
 	courseA, lessonsA := seed(owner, "Alpha")
-	courseA2, lessonsA2 := seed(owner, "Gamma")
+	_, lessonsA2 := seed(owner, "Gamma")
 	courseB, lessonsB := seed(other, "Bravo")
 
 	t.Run("current lesson is built server-side from the learner's own lesson", func(t *testing.T) {
