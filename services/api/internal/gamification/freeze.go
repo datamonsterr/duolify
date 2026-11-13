@@ -7,8 +7,12 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// FreezeRules are the configured effort milestone and inventory cap.
-type FreezeRules struct{ MilestoneDays, Cap int }
+// FreezeRules are the configured effort milestone and inventory cap. Extra lists the
+// local dates of recorded, granted Friend streak milestone freezes (E6-06).
+type FreezeRules struct {
+	MilestoneDays, Cap int
+	Extra              []string
+}
 
 // Validate rejects a rule set the database would also reject.
 func (r FreezeRules) Validate() error {
