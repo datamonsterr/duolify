@@ -244,6 +244,18 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 	return q, nil
 }
 
+// AllowVoices returns a copy of the policy whose voice allowlist also holds the approved voices.
+// The stored policy is immutable; the quote snapshot records the merged list it was priced under.
+func AllowVoices(p QuotePolicy, approved []string) QuotePolicy {
+	p.Voices = slices.Clone(p.Voices)
+	for _, voice := range approved {
+		if !slices.Contains(p.Voices, voice) {
+			p.Voices = append(p.Voices, voice)
+		}
+	}
+	return p
+}
+
 // Quotes persists original terms and consent independently of wallet operations.
 type Quotes struct {
 	pool *pgxpool.Pool
@@ -315,11 +327,7 @@ func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput,
 	if err = json.Unmarshal(row.Policy, &policy); err != nil {
 		return Quote{}, err
 	}
-	for _, voice := range s.approvedVoices {
-		if !slices.Contains(policy.Voices, voice) {
-			policy.Voices = append(policy.Voices, voice)
-		}
-	}
+	policy = AllowVoices(policy, s.approvedVoices)
 	quote, err := CalculateQuote(c, policy, in, row.QuotedAt.Time)
 	if err != nil {
 		return Quote{}, err

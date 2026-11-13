@@ -12,6 +12,8 @@ export type ManifestSlide = {
   assets: string[];
   checkpoints: Checkpoint[];
   narration_status: "disabled" | "pending" | "ready" | "failed";
+  /** Fixed code for a disabled slide, for example insufficient_credits. */
+  narration_reason?: string;
   /** Present only when narration_status is ready; routes are owner-only. */
   narration?: {
     audio_url: string;
@@ -159,48 +161,60 @@ export function isManifest(value: unknown): value is Manifest {
     if (
       !record(slide) ||
       !(
-        keys(omit(omit(slide, "segments"), "narration"), [
-          "slide_id",
-          "html_sha256",
-          "asset_sha256",
-          "duration_ms",
-          "html_url",
-          "assets",
-          "checkpoints",
-          "narration_status",
-          "narration_text",
-          "explanation",
-        ]) ||
-        keys(omit(omit(slide, "segments"), "narration"), [
-          "slide_id",
-          "duration_ms",
-          "html_url",
-          "assets",
-          "checkpoints",
-          "narration_status",
-          "narration_text",
-          "explanation",
-        ]) ||
-        keys(omit(omit(slide, "segments"), "narration"), [
-          "slide_id",
-          "html_sha256",
-          "asset_sha256",
-          "duration_ms",
-          "html_url",
-          "assets",
-          "checkpoints",
-          "narration_status",
-          "narration_text",
-        ]) ||
-        keys(omit(omit(slide, "segments"), "narration"), [
-          "slide_id",
-          "duration_ms",
-          "html_url",
-          "assets",
-          "checkpoints",
-          "narration_status",
-          "narration_text",
-        ])
+        keys(
+          omit(omit(omit(slide, "segments"), "narration"), "narration_reason"),
+          [
+            "slide_id",
+            "html_sha256",
+            "asset_sha256",
+            "duration_ms",
+            "html_url",
+            "assets",
+            "checkpoints",
+            "narration_status",
+            "narration_text",
+            "explanation",
+          ],
+        ) ||
+        keys(
+          omit(omit(omit(slide, "segments"), "narration"), "narration_reason"),
+          [
+            "slide_id",
+            "duration_ms",
+            "html_url",
+            "assets",
+            "checkpoints",
+            "narration_status",
+            "narration_text",
+            "explanation",
+          ],
+        ) ||
+        keys(
+          omit(omit(omit(slide, "segments"), "narration"), "narration_reason"),
+          [
+            "slide_id",
+            "html_sha256",
+            "asset_sha256",
+            "duration_ms",
+            "html_url",
+            "assets",
+            "checkpoints",
+            "narration_status",
+            "narration_text",
+          ],
+        ) ||
+        keys(
+          omit(omit(omit(slide, "segments"), "narration"), "narration_reason"),
+          [
+            "slide_id",
+            "duration_ms",
+            "html_url",
+            "assets",
+            "checkpoints",
+            "narration_status",
+            "narration_text",
+          ],
+        )
       ) ||
       typeof slide.slide_id !== "string" ||
       (slide.html_sha256 !== undefined &&
@@ -218,6 +232,9 @@ export function isManifest(value: unknown): value is Manifest {
       !["disabled", "pending", "ready", "failed"].includes(
         String(slide.narration_status),
       ) ||
+      (slide.narration_reason !== undefined &&
+        (typeof slide.narration_reason !== "string" ||
+          !/^[a-z_]{1,64}$/.test(slide.narration_reason))) ||
       !validNarration(String(value.lesson_id), slide) ||
       typeof slide.narration_text !== "string" ||
       slide.narration_text.length > 20000 ||

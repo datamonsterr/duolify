@@ -203,7 +203,11 @@ export function NarrationControl({
     }
   }
 
-  if (slide.narration_status === "disabled") return null;
+  // Insufficient audio credits disable only audio: say so, keep text and test usable, offer recovery.
+  const paused =
+    slide.narration_status === "disabled" &&
+    slide.narration_reason === "insufficient_credits";
+  if (slide.narration_status === "disabled" && !paused) return null;
   // A refreshed manifest with new ready audio returns to the normal explicit Play control.
   const view = settled ? "idle" : recovery;
   if (view === "regenerating")
@@ -219,6 +223,34 @@ export function NarrationControl({
     return (
       <div className="narration" role="status">
         <p className="narration-hint">Narration is being prepared.</p>
+      </div>
+    );
+  if (paused)
+    return (
+      <div className="narration">
+        <div role="status">
+          <p className="narration-title">Narration paused</p>
+          <p className="narration-hint">
+            Not enough audio credits. The lesson text, captions and test still
+            work.
+          </p>
+          {recovery === "offline" && (
+            <p className="narration-hint">
+              Could not reach the server. Your place is saved; try again.
+            </p>
+          )}
+        </div>
+        <a className="duo-button quiet narration-recover" href="/credits">
+          Add credits
+        </a>
+        <button
+          type="button"
+          className="duo-button quiet narration-recover"
+          disabled={recovery === "working"}
+          onClick={() => void recover("retry")}
+        >
+          Retry narration
+        </button>
       </div>
     );
   const unavailable =

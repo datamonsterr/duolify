@@ -47,7 +47,7 @@ func newAssetHarness(t *testing.T, retention time.Duration) *assetHarness {
 	f := backuptest.New(t)
 	f.Seed(t)
 	// The backup fixture stores narration=false; these tests exercise a Learner who has narration on.
-	if _, err := f.DB.Pool.Exec(t.Context(), `UPDATE learner_profiles SET narration=true WHERE learner_id=$1`, "a1111111-1111-4111-8111-111111111111"); err != nil {
+	if _, err := f.DB.Pool.Exec(t.Context(), `UPDATE learner_profiles SET narration=true,narration_voice='default' WHERE learner_id=$1`, "a1111111-1111-4111-8111-111111111111"); err != nil {
 		t.Fatal(err)
 	}
 	h := &assetHarness{t: t, ctx: ctx, pool: f.DB.Pool, objects: f.ApplicationObjects(), mock: &narrationtest.Engine{}, events: &recorder{}}
@@ -103,7 +103,7 @@ func newAssetHarness(t *testing.T, retention time.Duration) *assetHarness {
 	if _, err = h.pool.Exec(ctx, `DELETE FROM slide_narrations WHERE slide_id='seed-ready'`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = h.pool.Exec(ctx, `DELETE FROM narration_assets WHERE content_hash=repeat('ab',32)`); err != nil {
+	if _, err = h.pool.Exec(ctx, `DELETE FROM narration_assets WHERE content_hash IN (repeat('ab',32),repeat('ef',32))`); err != nil {
 		t.Fatal(err)
 	}
 	return h

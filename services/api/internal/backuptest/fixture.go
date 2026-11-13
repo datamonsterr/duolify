@@ -357,7 +357,7 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
  '{"draft_id":"c7222222-2222-4222-8222-222222222222","revision":3,"content_hash":"%s","outline":[{"id":"fixture-unit","title":"Moon","lessons":[{"id":"fixture-lesson","title":"Phases","goal":"Recognize phases"}]}]}'
  FROM course_brief_revisions WHERE expires_at>now()`, outline.Hash()),
 		"INSERT INTO learner_profiles (learner_id,locale,time_zone,analytics_opt_out) VALUES ('a1111111-1111-4111-8111-111111111111','vi-VN','Asia/Ho_Chi_Minh',true)",
-		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true,appearance='dark',motion='reduce',narration=false,narration_speed=1.25,captions=false,text_size=1.2,ui_sounds=true,haptics='off' WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
+		"UPDATE learner_profiles SET goal='Explain the sky',topic='Astronomy',background='School physics',level='beginner',daily_minutes=10,daily_xp=20,reminder_enabled=false,reminder_time='09:30',setup_completed=true,appearance='dark',motion='reduce',narration=false,narration_voice='fixture-warm',narration_speed=1.25,captions=false,text_size=1.2,ui_sounds=true,haptics='off' WHERE learner_id='a1111111-1111-4111-8111-111111111111'",
 		"INSERT INTO auth_identities (email,learner_id) VALUES ('synthetic@example.test','a1111111-1111-4111-8111-111111111111')",
 		"INSERT INTO auth_provider_identities (provider,subject,learner_id,verified_email) VALUES ('google','synthetic-google-subject','a1111111-1111-4111-8111-111111111111','synthetic@example.test')",
 		"INSERT INTO auth_provider_identities (provider,subject,learner_id,verified_email) VALUES ('apple','synthetic-apple-subject','a1111111-1111-4111-8111-111111111111','relay@privaterelay.appleid.com')",
@@ -584,6 +584,17 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO slide_narrations(lesson_id,learner_id,slide_id,status,narration_text,content_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms)
 		VALUES('f3333333-3333-4333-8333-333333333333','a1111111-1111-4111-8111-111111111111','seed-ready','ready','Seeded narration text.',repeat('ab',32),'mock-default-voice','eleven_flash_v2_5','fp1-0000000000000000',
 		'lessons/narration/v1/'||repeat('ab',32)||'/audio.wav','lessons/narration/v1/'||repeat('ab',32)||'/alignment.json',22,1100,1100)`); err != nil {
+		t.Fatal(err)
+	}
+	// E14-06: a second voice of the same slide; the old voice's asset and row stay referenced.
+	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO narration_assets(content_hash,text_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms)
+		VALUES(repeat('ef',32),repeat('cd',32),'mock-fixture-warm-voice','eleven_flash_v2_5','fp1-1111111111111111',
+		'lessons/narration/v1/'||repeat('ef',32)||'/audio.wav','lessons/narration/v1/'||repeat('ef',32)||'/alignment.json',22,1100,1100)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO slide_narrations(lesson_id,learner_id,slide_id,voice_key,status,narration_text,content_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms)
+		VALUES('f3333333-3333-4333-8333-333333333333','a1111111-1111-4111-8111-111111111111','seed-ready','fixture-warm','ready','Seeded narration text.',repeat('ef',32),'mock-fixture-warm-voice','eleven_flash_v2_5','fp1-1111111111111111',
+		'lessons/narration/v1/'||repeat('ef',32)||'/audio.wav','lessons/narration/v1/'||repeat('ef',32)||'/alignment.json',22,1100,1100)`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_playback_positions(learner_id,lesson_id,version,slide_id,time_ms) VALUES('a1111111-1111-4111-8111-111111111111','f3333333-3333-4333-8333-333333333333',1,'sky-2',1800)`); err != nil {

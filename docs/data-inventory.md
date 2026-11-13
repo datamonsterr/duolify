@@ -603,3 +603,20 @@ immutable `character_versions` row (or the built-in), so later edits never
 rename history and a purged Character shows a generic label. `tutor_character_selected`
 (client) and `tutor_character_fallback` (API) carry enums, a speaker key and a
 version only; PostHog and device caches stay disposable.
+
+E14-06 adds the Learner's narration voice. `learner_profiles.narration_voice` stores a logical
+voice key from the approved voice config (`services/api/internal/narration/voices.json`; the
+default voice plus test fixtures, ADR 0012), never a vendor voice id or a price. It is in the
+nightly encrypted general Postgres dump, is listed in the profile export (`to_jsonb` of the
+profile row), is erased with the account, and is withheld from the learner-context and
+settings JSON. A voice change keeps the old voice: `slide_narrations` is keyed by lesson, slide
+and `voice_key`, so each voice has its own row, content hash and object keys and the old asset
+keeps its trigger-maintained reference (and so its retention) while the new voice plays. Replaying
+a stored voice, or switching back to it, is free. The restore fixture compares the preference,
+both voices' hashes and asset reference counts; deleting a Lesson, Course or account erases every
+voice row and starts retention for assets that no other Lesson references. Quotes (`pricing_quotes`
+and consent) keep their existing seven-year pseudonymous retention; they hold counts, a logical
+voice key and the Pricing version, never narration text. A quote's voice-config hash is compared
+on consent and is not stored. Analytics add no event: `narration_cache_hit` (free switch back),
+`narration_muted` and `credits_upsell_shown` (only for plans without "No upsell banners") carry ids,
+counts and fixed codes only. Entitlements are read from verified Postgres subscription terms.

@@ -70,7 +70,7 @@ func TestSynthesizeAndPlayOneNarratedSlideIntegration(t *testing.T) {
 	f := backuptest.New(t)
 	f.Seed(t)
 	// The backup fixture stores narration=false; these tests exercise a Learner who has narration on.
-	if _, err := f.DB.Pool.Exec(t.Context(), `UPDATE learner_profiles SET narration=true WHERE learner_id=$1`, "a1111111-1111-4111-8111-111111111111"); err != nil {
+	if _, err := f.DB.Pool.Exec(t.Context(), `UPDATE learner_profiles SET narration=true,narration_voice='default' WHERE learner_id=$1`, "a1111111-1111-4111-8111-111111111111"); err != nil {
 		t.Fatal(err)
 	}
 	pool := f.DB.Pool

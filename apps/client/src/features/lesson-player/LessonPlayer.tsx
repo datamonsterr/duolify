@@ -1,4 +1,5 @@
 import { NarrationControl } from "../narration/NarrationControl";
+import { VoicePanel } from "../narration/VoicePanel";
 import { useUiPreferences } from "../design/localization/Preferences";
 import {
   useCallback,
@@ -767,7 +768,7 @@ function SlidePlayback({
   }, [index, manifest.slides]);
   const [assetError, setAssetError] = useState(false);
   const [panel, setPanel] = useState<
-    "Transcript" | "Ask tutor" | "Quick note" | null
+    "Transcript" | "Ask tutor" | "Quick note" | "Voice" | null
   >(null);
   const viewed = useRef(initialTime === slide.duration_ms);
   const reached = useRef(new Set<string>());
@@ -1307,6 +1308,16 @@ function SlidePlayback({
                   onReadTranscript={() => setPanel("Transcript")}
                 />
               )}
+              {panel === "Voice" && (
+                <VoicePanel
+                  lessonId={lessonId}
+                  onChanged={() =>
+                    void queryClient.invalidateQueries({
+                      queryKey: ["lesson-manifest", owner, lessonId],
+                    })
+                  }
+                />
+              )}
             </ResponsivePanel>
           )
         }
@@ -1604,7 +1615,18 @@ function SlidePlayback({
           >
             Captions
           </button>
-          {(["Transcript", "Ask tutor", "Quick note"] as const).map((name) => (
+          {(
+            [
+              "Transcript",
+              "Ask tutor",
+              "Quick note",
+              ...(manifest.slides.some(
+                (s) => s.narration_status !== "disabled" || s.narration_reason,
+              )
+                ? (["Voice"] as const)
+                : []),
+            ] as const
+          ).map((name) => (
             <button
               className={`duo-button quiet ${panel === name ? "on" : ""}`}
               key={name}

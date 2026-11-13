@@ -86,6 +86,20 @@ func (f *Fixture) AssertNarrationRestored(t *testing.T, restored *pgxpool.Pool) 
 	if assetsBefore != assetsAfter || !bytes.Contains([]byte(assetsAfter), []byte(`"ref_count": 1`)) || !bytes.Contains([]byte(assetsAfter), []byte("lessons/narration/v1/")) {
 		t.Fatal("narration asset hash/reference restore mismatch", assetsBefore, assetsAfter)
 	}
+	// E14-06: the voice preference and both voices' manifest references (old asset retained) survive restore.
+	const voices = `SELECT (SELECT narration_voice FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111') || ':' ||
+		(SELECT string_agg(voice_key||'='||content_hash, ',' ORDER BY voice_key) FROM slide_narrations WHERE slide_id='seed-ready') || ':' ||
+		(SELECT string_agg(ref_count::text, ',' ORDER BY content_hash) FROM narration_assets WHERE content_hash IN (repeat('ab',32),repeat('ef',32)))`
+	var voicesBefore, voicesAfter string
+	if err := f.DB.Pool.QueryRow(t.Context(), voices).Scan(&voicesBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.QueryRow(t.Context(), voices).Scan(&voicesAfter); err != nil {
+		t.Fatal(err)
+	}
+	if voicesBefore != voicesAfter || !bytes.HasPrefix([]byte(voicesAfter), []byte("fixture-warm:default="+"abababab")) || !bytes.HasSuffix([]byte(voicesAfter), []byte(":1,1")) {
+		t.Fatal("voice preference or retained voice references restore mismatch", voicesBefore, voicesAfter)
+	}
 	// The restored trigger keeps counting: deleting the only reference starts retention.
 	var unreferenced bool
 	tx, err := restored.Begin(t.Context())
