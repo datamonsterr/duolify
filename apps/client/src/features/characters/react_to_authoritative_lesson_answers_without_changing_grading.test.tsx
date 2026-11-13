@@ -1,4 +1,11 @@
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  act,
+  cleanup,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import posthog from "posthog-js/dist/module.no-external";
 import { LessonTest } from "../lessontest/LessonTest";
@@ -51,6 +58,16 @@ const wrong = {
   },
 };
 
+// character_reaction_shown is emitted from a passive effect, so it can land
+// after the reaction DOM is already visible.
+const shownCalls = () =>
+  vi
+    .mocked(posthog.capture)
+    .mock.calls.filter((c) => c[0] === "character_reaction_shown");
+// Lets the passive-effect and any queued re-render settle before asserting a
+// negative.
+const settle = () => act(() => new Promise<void>((r) => setTimeout(r, 50)));
+
 function renderTest(result: unknown, props: Record<string, unknown> = {}) {
   const onAnswer = vi.fn().mockResolvedValue(result);
   render(
@@ -73,6 +90,7 @@ function renderTest(result: unknown, props: Record<string, unknown> = {}) {
 describe("E17-06 reactions to authoritative answers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(posthog.has_opted_out_capturing).mockReturnValue(false);
     resetCharacterRenderDeduplication();
     configureAnalytics({
       learnerId: "11111111-1111-4111-8111-111111111111",
@@ -116,20 +134,21 @@ describe("E17-06 reactions to authoritative answers", () => {
     expect(
       screen.queryByRole("button", { name: /Continue|Next/i }),
     ).not.toBeNull();
-    expect(posthog.capture).toHaveBeenCalledWith(
-      "character_reaction_shown",
-      expect.objectContaining({ reaction_trigger: "answer_incorrect" }),
+    await waitFor(() =>
+      expect(posthog.capture).toHaveBeenCalledWith(
+        "character_reaction_shown",
+        expect.objectContaining({ reaction_trigger: "answer_incorrect" }),
+      ),
     );
   });
 
   it("analytics carry no answer, prompt, copy, name or svg content and dedupe", async () => {
     renderTest(wrong);
     await screen.findByTestId("character-reaction");
-    const calls = vi
-      .mocked(posthog.capture)
-      .mock.calls.filter((c) => c[0] === "character_reaction_shown");
-    expect(calls).toHaveLength(1);
-    const dump = JSON.stringify(calls[0]);
+    await waitFor(() => expect(shownCalls()).toHaveLength(1));
+    await settle();
+    expect(shownCalls()).toHaveLength(1);
+    const dump = JSON.stringify(shownCalls()[0]);
     for (const leak of [
       "Stars",
       "Sun",
@@ -146,11 +165,9 @@ describe("E17-06 reactions to authoritative answers", () => {
     vi.mocked(posthog.has_opted_out_capturing).mockReturnValue(true);
     renderTest(wrong);
     await screen.findByTestId("character-reaction");
-    expect(posthog.capture).not.toHaveBeenCalledWith(
-      "character_reaction_shown",
-      expect.anything(),
-    );
-    vi.mocked(posthog.has_opted_out_capturing).mockReturnValue(false);
+    await settle();
+    expect(posthog.has_opted_out_capturing).toHaveBeenCalled();
+    expect(shownCalls()).toHaveLength(0);
   });
 
   it("falls back to a static neutral expression for broken specs and invalid reactions", async () => {
