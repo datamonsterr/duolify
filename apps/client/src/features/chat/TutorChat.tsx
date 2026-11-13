@@ -56,6 +56,8 @@ function ConfirmDelete({
   useEffect(() => cancel.current?.focus(), []);
   function onKeyDown(event: KeyboardEvent) {
     if (event.key === "Escape") {
+      // Cancel only this dialog, never the sheet behind it.
+      event.preventDefault();
       event.stopPropagation();
       onCancel();
     } else if (event.key === "Tab") {

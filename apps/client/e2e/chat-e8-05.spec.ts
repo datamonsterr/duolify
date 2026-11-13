@@ -209,7 +209,10 @@ for (const colorScheme of ["light", "dark"] as const)
         await expect(
           dialog.getByRole("button", { name: "Cancel" }),
         ).toBeFocused();
-        await page.keyboard.press("Escape");
+        // Keyboard: Escape cancels. Touch: the Cancel button does (a hardware Escape on a modal mobile
+        // sheet belongs to the browser's own close handling).
+        if (mobile) await dialog.getByRole("button", { name: "Cancel" }).tap();
+        else await page.keyboard.press("Escape");
         await expect(dialog).toBeHidden();
         await expect(opener).toBeFocused();
         expect(state.deletes).toHaveLength(0);
