@@ -752,6 +752,12 @@ fn evaluate_tutor_chat(input: &serde_json::Value) -> Result<String> {
         "envelope": input["envelope"].as_str().unwrap_or("short"),
         "grounded": strings("expect_terms").iter().all(|t| reply.contains(t.as_str())),
         "forbidden_absent": strings("forbidden").iter().all(|t| !reply.contains(t.as_str())),
+        // E8-05: text of a deleted thread must be in neither the prompt nor the reply. An empty list
+        // never passes, so a case cannot assert this vacuously.
+        "deleted_history_absent": !strings("deleted").is_empty()
+            && strings("deleted")
+                .iter()
+                .all(|t| !prompt.contains(t.as_str()) && !reply.contains(t.as_str())),
     })
     .to_string())
 }
