@@ -23,7 +23,7 @@ At most one active link per course (enforced by partial unique index on `(course
 
 ## Public Preview Payload
 
-Allowed fields returned by `GET /preview/{token}`:
+Allowed fields returned by `GET /v1/public/shares/{token}`:
 
 | Field | Source |
 |---|---|
@@ -50,7 +50,7 @@ Allowed fields returned by `GET /preview/{token}`:
 
 ## Rate Limiting
 
-Per-IP sliding window on `GET /preview/{token}`. Config env vars:
+Per-IP sliding window on `GET /v1/public/shares/{token}`. Config env vars:
 
 | Var | Default | Meaning |
 |---|---|---|
@@ -76,7 +76,7 @@ If the signed-in viewer and the Course owner have blocked each other (`BlockedEi
 `SHARING_PUBLIC_DOMAIN` env var (default `"localhost"`). Preview URL:
 
 ```
-https://${domain}/preview/${token}
+https://${domain}/c/${token}
 ```
 
 Returned to the owner on publish and rotate as `preview_url`.
@@ -88,6 +88,14 @@ SHARING_PUBLIC_DOMAIN               (default: localhost)
 SHARING_APP_SCHEME                  (default: duolify)
 SHARING_PREVIEW_RATE_LIMIT_PER_IP   (default: 60)
 SHARING_PREVIEW_RATE_WINDOW_SECONDS (default: 60)
+AUTH_TRUSTED_PROXY_HOPS             (default: 0, shared with auth)
 ```
 
 All parsed in `ConfigFromEnv()` in `services/api/internal/sharing/config.go`.
+
+## Decisions made while implementing
+- Owner routes: `GET|POST|DELETE /v1/courses/{id}/share-link`, `POST …/share-link/rotate`. GET returns state only, never the token; the plaintext (plus `preview_url` and `deep_link`) is returned once by POST or rotate.
+- No cache: every preview reads Postgres, so revoke and rotate apply on the next request for URL and deep link alike.
+- Per-IP limit is a fixed window in Postgres (`publication_preview_limits`, SHA-256 of the address, expires with the window) so the API stays stateless; 429 carries `Retry-After` and `X-Robots-Tag`.
+- Anonymous opens emit `share_link_opened` under the operations identity (no visitor id); signed-in opens use the viewer's id and respect their opt-out. Publishing emits `course_visibility_changed` and `course_published` only when visibility actually changes.
+- The public web page is the client route `/c/:token` (sandboxed slide iframes, `<meta name="robots" content="noindex, nofollow">`); marketplace visibility stays disabled.

@@ -1,6 +1,7 @@
 package sharing
 
 import (
+	"context"
 	"encoding/json"
 	"net/http/httptest"
 	"strings"
@@ -17,7 +18,7 @@ func TestLinkBodyUsesConfiguredDomainAndScheme(t *testing.T) {
 }
 
 func TestClientIPTrustsOnlyConfiguredProxyHops(t *testing.T) {
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	r.RemoteAddr = "192.0.2.10:5000"
 	r.Header.Set("X-Forwarded-For", "6.6.6.6, 203.0.113.9")
 	if got := (&Service{}).clientIP(r); got != "192.0.2.10" {

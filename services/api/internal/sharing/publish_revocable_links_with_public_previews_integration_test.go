@@ -3,6 +3,7 @@
 package sharing_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -405,7 +406,7 @@ func testActor(required bool) func(http.Handler) http.Handler {
 }
 
 func call(mux http.Handler, method, path, learner, ip string) (*httptest.ResponseRecorder, map[string]any) {
-	r := httptest.NewRequest(method, path, strings.NewReader("{}"))
+	r := httptest.NewRequestWithContext(context.Background(), method, path, strings.NewReader("{}"))
 	r.RemoteAddr = ip + ":4000"
 	if learner != "" {
 		r.Header.Set("X-Test-Learner", learner)
