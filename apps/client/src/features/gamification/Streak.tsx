@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { authRequest } from "../accounts/session";
+import { useUiPreferences } from "../design/localization/Preferences";
 import "./gamification.css";
 
 type DayState =
@@ -50,6 +51,7 @@ function shiftMonth(month: string, delta: number) {
 }
 
 export function StreakPanel() {
+  const { t } = useUiPreferences();
   const [data, setData] = useState<StreakData>();
   const [month, setMonth] = useState<string>();
   const [error, setError] = useState("");
@@ -207,6 +209,7 @@ export function StreakPanel() {
               </p>
             </div>
           ))}
+          <a href="/analytics">{t("la.open")}</a>
           <div className="streak-toolbar">
             <button type="button" onClick={() => go(-1)}>
               Previous month

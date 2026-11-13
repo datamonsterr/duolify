@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LearningAnalytics } from "./LearningAnalytics";
+import { StreakPanel } from "./Streak";
 import { authRequest } from "../accounts/session";
 import {
   configureUiAnalytics,
@@ -121,9 +122,11 @@ describe("learning analytics component", () => {
     ).toBeInTheDocument();
 
     // Plus does not have custom dimensions export enabled
+    // Plus has "No upsell banners": locked custom export is neutral, no upgrade call to action.
     expect(
-      screen.getByText(/pro subscription required for custom export/i),
+      screen.getByText(/custom export is part of pro/i),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/upgrade/i)).not.toBeInTheDocument();
   });
 
   it("renders custom analytics dimensions export for Pro subscriber", async () => {
@@ -238,6 +241,122 @@ describe("learning analytics component", () => {
         surface: "learning_analytics",
         control_id: "export_history",
       }),
+    );
+  });
+});
+
+describe("learning analytics states", () => {
+  beforeEach(() => {
+    vi.mocked(authRequest).mockReset();
+    posthog.capture.mockReset();
+  });
+
+  it("does not emit its own ui_screen_viewed (the shell emits it once per route)", async () => {
+    configureUiAnalytics({
+      enabled: true,
+      learnerId: "7d3d37e8-4c06-4a0d-b6dc-0d0f3d2ea111",
+      platform: "web",
+      appVersion: "0.1.0",
+    });
+    vi.mocked(authRequest).mockResolvedValueOnce(sampleAnalyticsData);
+    render(<LearningAnalytics />);
+    await screen.findByText("Astronomy Basics");
+    expect(posthog.capture).not.toHaveBeenCalledWith(
+      "ui_screen_viewed",
+      expect.anything(),
+    );
+    configureUiAnalytics(null);
+  });
+
+  it("keeps upsell copy away from plans with No upsell banners but still offers history export", async () => {
+    vi.mocked(authRequest).mockRejectedValueOnce({
+      status: 403,
+      message:
+        "Advanced learning analytics requires an active Plus or Pro subscription.",
+      details: { code: "subscription_required", upsell_suppressed: true },
+    });
+    render(<LearningAnalytics />);
+    expect(
+      await screen.findByText(/not included in your plan/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /view plans/i })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /export learning history/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers plans but no export to a Learner without a plan", async () => {
+    vi.mocked(authRequest).mockRejectedValueOnce({
+      status: 403,
+      message: "x",
+      details: { code: "subscription_required", upsell_suppressed: false },
+    });
+    render(<LearningAnalytics />);
+    expect(
+      await screen.findByRole("link", { name: /view plans/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /export learning history/i }),
+    ).toBeNull();
+  });
+
+  it("shows streak and completion breakdowns", async () => {
+    vi.mocked(authRequest).mockResolvedValueOnce(sampleAnalyticsData);
+    render(<LearningAnalytics />);
+    expect(
+      await screen.findByRole("heading", { name: /completion breakdown/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/average lesson time/i)).toBeInTheDocument();
+    expect(screen.getByText("2026-11-10")).toBeInTheDocument();
+  });
+
+  it("is reachable from the streak page", async () => {
+    vi.mocked(authRequest).mockResolvedValueOnce({
+      current_days: 1,
+      longest_days: 1,
+      today_done: true,
+      local_date: "2026-11-09",
+      time_zone: "UTC",
+      as_of: "2026-11-09T08:42:00Z",
+      rollover_pending: false,
+      month: "2026-11",
+      calendar: [],
+    });
+    render(<StreakPanel />);
+    expect(
+      await screen.findByRole("link", { name: /analytics and exports/i }),
+    ).toHaveAttribute("href", "/analytics");
+  });
+
+  it("says when the device is offline", async () => {
+    vi.mocked(authRequest).mockRejectedValueOnce(
+      new TypeError("Failed to fetch"),
+    );
+    render(<LearningAnalytics />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/offline/i);
+  });
+
+  it("downloads only server-allowlisted dimensions in canonical order", async () => {
+    vi.mocked(authRequest)
+      .mockResolvedValueOnce({
+        ...sampleAnalyticsData,
+        custom_export_allowed: true,
+      })
+      .mockResolvedValueOnce({ schema_version: 1 });
+    window.URL.createObjectURL = vi.fn(() => "blob:x");
+    window.URL.revokeObjectURL = vi.fn();
+    render(<LearningAnalytics />);
+    fireEvent.click(await screen.findByLabelText(/streaks/i));
+    fireEvent.click(
+      screen.getByRole("button", { name: /export custom analytics/i }),
+    );
+    await waitFor(() =>
+      expect(authRequest).toHaveBeenLastCalledWith(
+        "/v1/gamification/export/analytics",
+        { dimensions: ["course", "daily", "streak"] },
+        undefined,
+        "POST",
+      ),
     );
   });
 });
