@@ -60,6 +60,7 @@ type Options struct {
 	Financial Financial
 	Profiles  Profiles
 	Events    analytics.Events
+	Notes     NoteSaver
 	Logger    *slog.Logger
 }
 
@@ -139,6 +140,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.stop(w, r, owner, id, r.PathValue("key"))
 	case r.PathValue("key") != "" && r.Method == http.MethodGet:
 		s.turn(w, r, owner, id, r.PathValue("key"))
+	case r.Method == http.MethodPost && strings.HasSuffix(path, "/note"):
+		s.saveReply(w, r, owner, id)
 	case r.Method == http.MethodPost && strings.HasSuffix(path, "/tutor/quote"):
 		s.quote(w, r, owner, id)
 	case r.Method == http.MethodPost && strings.HasSuffix(path, "/tutor/messages"):
@@ -331,14 +334,45 @@ func (s *Service) threadMessages(w http.ResponseWriter, r *http.Request, owner, 
 	respond(w, http.StatusOK, map[string]any{"thread": t, "messages": messages})
 }
 
+// deleteThread removes a thread everywhere in one transaction: the row lock makes a concurrent note
+// save either finish first (and be marked unavailable) or be refused. Only a text-free tombstone stays,
+// so a restored backup cannot bring the thread back.
 func (s *Service) deleteThread(w http.ResponseWriter, r *http.Request, owner, thread string) {
-	tag, err := s.opts.Pool.Exec(r.Context(), `DELETE FROM tutor_threads WHERE id=$1::uuid AND learner_id=$2::uuid`, thread, owner)
+	ctx := r.Context()
+	tx, err := s.opts.Pool.Begin(ctx)
 	if err != nil {
 		fail(w, http.StatusServiceUnavailable, "unavailable")
 		return
 	}
-	if tag.RowsAffected() == 0 {
+	defer func() { _ = tx.Rollback(ctx) }()
+	var locked int
+	err = tx.QueryRow(ctx, `SELECT 1 FROM tutor_threads WHERE id=$1::uuid AND learner_id=$2::uuid FOR UPDATE`, thread, owner).Scan(&locked)
+	if errors.Is(err, pgx.ErrNoRows) {
 		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if err == nil {
+		for _, q := range []string{
+			`UPDATE quick_note_chat_sources SET unavailable=true,thread_id=NULL,message_id=NULL WHERE thread_id=$1::uuid`,
+			`UPDATE tutor_turns SET user_message_id=NULL,assistant_message_id=NULL WHERE thread_id=$1::uuid`,
+			`INSERT INTO tutor_thread_deletion_tombstones(thread_id) VALUES($1::uuid) ON CONFLICT DO NOTHING`,
+			`DELETE FROM tutor_thread_deletion_tombstones WHERE deleted_at < now() - interval '35 days'`,
+			`DELETE FROM tutor_threads WHERE id=$1::uuid`,
+		} {
+			args := []any{thread}
+			if strings.Contains(q, "35 days") {
+				args = nil
+			}
+			if _, err = tx.Exec(ctx, q, args...); err != nil {
+				break
+			}
+		}
+	}
+	if err == nil {
+		err = tx.Commit(ctx)
+	}
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "unavailable")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

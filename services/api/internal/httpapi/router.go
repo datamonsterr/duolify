@@ -186,6 +186,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("POST /v1/courses/{id}/tutor/turns/{key}/stop", tutor)
 		mux.Handle("GET /v1/tutor/threads/{id}/messages", tutor)
 		mux.Handle("DELETE /v1/tutor/threads/{id}", tutor)
+		mux.Handle("POST /v1/tutor/messages/{id}/note", tutor)
 	}
 	if deps.Notes != nil && deps.Accounts != nil {
 		mux.Handle("/v1/notes", deps.Accounts.Protect(deps.Notes))

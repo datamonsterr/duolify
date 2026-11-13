@@ -19,6 +19,7 @@ import (
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/chat"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
@@ -27,6 +28,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -71,6 +73,9 @@ func TestDeleteTutorThreadsAndSaveRepliesAsNotesIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
+	if err = worker.Migrate(ctx, db.Pool, slog.Default()); err != nil {
+		t.Fatal(err)
+	}
 	mail := new(accounts.MailSink)
 	auth, err := accounts.New(db.Pool, strings.Repeat("test-key", 5), mail)
 	if err != nil {
@@ -97,8 +102,8 @@ func TestDeleteTutorThreadsAndSaveRepliesAsNotesIntegration(t *testing.T) {
 	}
 	financial := credits.NewServiceWithCatalogue(db.Pool, nil, cat, events)
 	courseService := courses.New(courses.Options{Pool: db.Pool, Environment: "test", Financial: financial, Events: events})
-	noteService := notes.NewService(db.Pool, events)
-	tutor := chat.New(chat.Options{Pool: db.Pool, Engine: engine, Financial: financial, Profiles: courseService, Events: events, Notes: noteService})
+	noteService := notes.NewService(db.Pool, analytics.WithConsent(events, analytics.DatabaseConsent(db.Pool)))
+	tutor := chat.New(chat.Options{Pool: db.Pool, Engine: engine, Financial: financial, Profiles: courseService, Events: events, Notes: noteService, Logger: slog.New(slog.NewTextHandler(testWriter{t}, nil))})
 	server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, Quotes: pricing.NewQuotes(db.Pool), Credits: financial, Tutor: tutor, Notes: noteService}, slog.New(slog.NewTextHandler(io.Discard, nil))))
 	defer server.Close()
 
@@ -189,7 +194,7 @@ func TestDeleteTutorThreadsAndSaveRepliesAsNotesIntegration(t *testing.T) {
 			}
 			return id
 		}
-		user, assistant, cut = ins("user", question, "complete"), ins("assistant", reply, "complete"), ins("assistant", "partial prefix", "interrupted")
+		user, assistant, cut = ins("user", question, "complete"), ins("assistant", reply, "complete"), ins("assistant", "partial prefix for "+question, "interrupted")
 		return
 	}
 	fund := func(owner string) {
@@ -200,6 +205,7 @@ func TestDeleteTutorThreadsAndSaveRepliesAsNotesIntegration(t *testing.T) {
 	tokenB, other := login("e805-b@example.test")
 	courseA, lessonA := seed(owner, "Alpha")
 	courseB, lessonB := seed(other, "Bravo")
+	exec(`INSERT INTO learner_profiles(learner_id,analytics_opt_out) VALUES($1::uuid,false) ON CONFLICT (learner_id) DO NOTHING`, owner)
 	const secretReply = "ZEBRA-CONSTELLATION is where Polaris hides"
 	threadA, userMsg, replyMsg, cutMsg := thread(owner, courseA, "Where is ZEBRA-QUESTION?", secretReply)
 	saveURL := func(id string) string { return "/v1/tutor/messages/" + id + "/note" }
@@ -352,7 +358,7 @@ func TestDeleteTutorThreadsAndSaveRepliesAsNotesIntegration(t *testing.T) {
 			t.Fatal(code, raw)
 		}
 		sent := fixture.last().String()
-		for _, gone := range []string{"ZEBRA-CONSTELLATION", "ZEBRA-QUESTION", "partial prefix"} {
+		for _, gone := range []string{"ZEBRA-CONSTELLATION", "ZEBRA-QUESTION"} {
 			if strings.Contains(sent, gone) {
 				t.Fatalf("deleted history %q reached the Engine request", gone)
 			}
@@ -391,4 +397,12 @@ func TestDeleteTutorThreadsAndSaveRepliesAsNotesIntegration(t *testing.T) {
 			}
 		}
 	})
+}
+
+// testWriter routes service logs into the test output so a 503 explains itself.
+type testWriter struct{ t *testing.T }
+
+func (w testWriter) Write(p []byte) (int, error) {
+	w.t.Log(strings.TrimSpace(string(p)))
+	return len(p), nil
 }
