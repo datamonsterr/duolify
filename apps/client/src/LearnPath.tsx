@@ -193,6 +193,11 @@ export function LearnPath({ courseId }: { courseId: string }) {
         <bdi>{course.title}</bdi>
       </h1>
       <p dir="auto">{course.description}</p>
+      {course.pinned_version ? (
+        <p className="muted" data-testid="pinned-version">
+          Published course · version {course.pinned_version}
+        </p>
+      ) : null}
       <a className="shell-link" href={`/courses/${courseId}/cast`}>
         Course Cast
       </a>
@@ -451,6 +456,11 @@ export function LearnPath({ courseId }: { courseId: string }) {
                               ? "Preparing…"
                               : t("path.ready")}
                     </div>
+                    {lesson.reused && lesson.state !== "done" && (
+                      <div className="muted" data-testid="lesson-reused">
+                        Free · from the published course
+                      </div>
+                    )}
                     {lesson.state === "ready_to_generate" && tracerEnabled && (
                       <button
                         className="duo-button primary sm2"

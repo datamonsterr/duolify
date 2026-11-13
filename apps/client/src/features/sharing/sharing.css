@@ -216,3 +216,25 @@
     flex: 1 1 100%;
   }
 }
+
+/* Enrollment on the link page */
+.enroll-panel {
+  display: grid;
+  gap: var(--space-3, 12px);
+}
+.enroll-done {
+  display: grid;
+  gap: var(--space-2, 8px);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+}
+.enroll-done [data-testid="enroll-status"] {
+  font-weight: 800;
+}
+@media (max-width: 47.99rem) {
+  .enroll-panel .sharing-actions .duo-button,
+  .enroll-panel .sharing-error .duo-button {
+    width: 100%;
+  }
+}

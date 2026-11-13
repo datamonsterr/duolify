@@ -63,6 +63,29 @@ async function learner(
     viewport,
     hasTouch: viewport.width < 768,
   });
+  // The same native credential-store double the default context gets from the fixture.
+  await context.addInitScript(() => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: {
+        invoke: async (command: string, args?: { value?: string | null }) => {
+          const key = "duolify.native-store-fixture";
+          if (command === "read_credentials")
+            return sessionStorage.getItem(key);
+          if (command === "write_credentials") {
+            if (args?.value) sessionStorage.setItem(key, args.value);
+            else sessionStorage.removeItem(key);
+            return;
+          }
+          throw new Error(`Unexpected native command: ${command}`);
+        },
+      },
+    });
+    Object.defineProperty(window, "isTauri", {
+      configurable: true,
+      value: true,
+    });
+  });
   await context.addInitScript((value) => {
     sessionStorage.setItem(
       "duolify.native-store-fixture",

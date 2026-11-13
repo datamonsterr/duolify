@@ -29,6 +29,15 @@ export type PublicPreview = {
   enrollment_count: number;
 };
 export type LinkFailure = "unavailable" | "offline" | "rate_limited";
+export type EnrollResult = {
+  course_id: string;
+  created: boolean;
+  version: number;
+  total_lessons: number;
+  ready_lessons: number;
+  needs_generation_lessons: number;
+};
+export type EnrollmentState = { enrolled: boolean; course_id?: string };
 export type PublishResult =
   | { kind: "published"; link: LinkCreated; version: number; lessons: number }
   | { kind: "blocked"; verdict: PublicationDraft["verdict"] };
@@ -94,4 +103,22 @@ export const linkMessages: Record<LinkFailure, string> = {
   unavailable: "This course isn't available to share.",
   offline: "Couldn't reach Duolify. Check your connection and retry.",
   rate_limited: "Too many requests. Wait a minute, then retry.",
+};
+
+const shareRoot = (token: string) =>
+  `/v1/public/shares/${encodeURIComponent(token)}`;
+
+/** The actor always comes from the session; a repeat returns the same copy. */
+export const enrollInCourse = (token: string) =>
+  session.request<EnrollResult>(`${shareRoot(token)}/enroll`, "POST", {});
+export const existingEnrollment = (token: string) =>
+  session.request<EnrollmentState>(`${shareRoot(token)}/enrollment`);
+
+/** Same status-only classification as the preview. */
+export const enrollFailure = linkFailure;
+export const enrollMessages: Record<LinkFailure, string> = {
+  unavailable:
+    "This course link is no longer active. Ask the creator for a new one.",
+  offline: "Couldn't reach Duolify. Check your connection and retry.",
+  rate_limited: "Too many enrollments today. Try again tomorrow.",
 };

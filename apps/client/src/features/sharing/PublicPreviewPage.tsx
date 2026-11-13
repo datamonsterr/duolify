@@ -6,6 +6,8 @@ import {
   type LinkFailure,
   type PublicPreview,
 } from "./links";
+import { EnrollPanel } from "./EnrollPanel";
+import { session } from "../accounts/session";
 import "./sharing.css";
 
 type State =
@@ -20,6 +22,21 @@ export function PublicPreviewPage({ token }: { token: string }) {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [slide, setSlide] = useState(0);
   const [outline, setOutline] = useState(false);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  // The public read stays anonymous; the session only decides whether Enroll or Sign in is offered.
+  useEffect(() => {
+    let active = true;
+    Promise.resolve()
+      .then(() => session.load())
+      .then(
+        (learner) => active && setSignedIn(Boolean(learner)),
+        () => active && setSignedIn(false),
+      );
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Public pages must never be indexed, whatever the host serves.
   useEffect(() => {
@@ -124,20 +141,13 @@ export function PublicPreviewPage({ token }: { token: string }) {
               ) : (
                 <p className="sharing-note">No sample slides yet.</p>
               )}
-              <p data-testid="lessons-ready">
-                {p.generated_lesson_count} of {p.lesson_count} lessons ready
-              </p>
-              <p className="sharing-note">
-                Ready lessons are free. The rest are generated as you learn and
-                cost credits.
-              </p>
+              <EnrollPanel
+                token={token}
+                signedIn={signedIn}
+                ready={p.generated_lesson_count}
+                total={p.lesson_count}
+              />
               <div className="sharing-actions">
-                <a
-                  className="duo-button"
-                  href={`/sign-in?returnTo=${encodeURIComponent(`/c/${token}`)}`}
-                >
-                  Sign in to enroll
-                </a>
                 <a
                   className="duo-button secondary"
                   href={`${appScheme}://share/${encodeURIComponent(token)}`}
