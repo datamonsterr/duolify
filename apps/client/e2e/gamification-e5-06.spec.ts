@@ -125,7 +125,7 @@ for (const mobile of [false, true]) {
             error:
               "Advanced learning analytics requires an active Plus or Pro subscription.",
             code: "subscription_required",
-            learning_history_export_allowed: true,
+            upsell_suppressed: true,
           }),
         });
       }
@@ -243,8 +243,10 @@ for (const mobile of [false, true]) {
 
     // Custom analytics export indicates Pro is required for Plus subscribers
     await expect(
-      section.getByText(/pro subscription required for custom export/i),
+      section.getByText(/custom export is part of pro/i),
     ).toBeVisible();
+    // Plus includes "No upsell banners": nothing here asks to upgrade.
+    await expect(section.getByText(/upgrade/i)).toHaveCount(0);
 
     // 2. Pro tier: custom analytics dimensions export enabled
     currentTier = "pro";
@@ -275,8 +277,11 @@ for (const mobile of [false, true]) {
     });
     await expect(learnSection).toBeVisible();
     await expect(
-      learnSection.getByText(/plus or pro subscription required/i),
+      learnSection.getByText(/not included in your plan/i),
     ).toBeVisible();
+    await expect(
+      learnSection.getByRole("link", { name: /view plans/i }),
+    ).toHaveCount(0);
     await expect(
       learnSection.getByRole("button", { name: /export learning history/i }),
     ).toBeVisible();
@@ -291,6 +296,12 @@ for (const mobile of [false, true]) {
     await expect(
       freeSection.getByText(/plus or pro subscription required/i),
     ).toBeVisible();
+    await expect(
+      freeSection.getByRole("link", { name: /view plans/i }),
+    ).toBeVisible();
+    await expect(
+      freeSection.getByRole("button", { name: /export learning history/i }),
+    ).toHaveCount(0);
 
     // 5. Expired tier: renewal guidance
     currentTier = "expired";
