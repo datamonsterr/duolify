@@ -70,10 +70,11 @@ func LocalDate(at time.Time, zone string) (string, error) {
 
 // Service consumes E4 completions and serves authenticated progress.
 type Service struct {
-	pool   *pgxpool.Pool
-	events analytics.Events
-	rdb    *redis.Client
-	now    func() time.Time
+	pool         *pgxpool.Pool
+	events       analytics.Events
+	rdb          *redis.Client
+	now          func() time.Time
+	entitlements Entitlements
 }
 
 // New creates a consumer with the central fail-closed consent gate.
@@ -260,6 +261,30 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
+	if r.URL.Path == "/v1/gamification/analytics" {
+		if r.Method != http.MethodGet {
+			write(w, 405, map[string]string{"error": "Method unavailable."})
+			return
+		}
+		s.serveAnalytics(w, r, owner)
+		return
+	}
+	if r.URL.Path == "/v1/gamification/export/history" {
+		if r.Method != http.MethodGet {
+			write(w, 405, map[string]string{"error": "Method unavailable."})
+			return
+		}
+		s.serveExportHistory(w, r, owner)
+		return
+	}
+	if r.URL.Path == "/v1/gamification/export/analytics" {
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			write(w, 405, map[string]string{"error": "Method unavailable."})
+			return
+		}
+		s.serveExportAnalytics(w, r, owner)
+		return
+	}
 	if r.URL.Path == "/v1/gamification/league" {
 		s.serveLeague(w, r, owner)
 		return

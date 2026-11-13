@@ -83,7 +83,7 @@ func allowlisted(event string) bool {
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed", "ai_cost_budget_alert",
-		"$ai_generation", "ui_control_activated", "ui_navigation_selected",
+		"$ai_generation", "ui_control_activated", "ui_navigation_selected", "ui_screen_viewed",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
@@ -402,6 +402,8 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "ui_control_activated":
 		ids("control_id", "screen", "surface", "course_id")
+	case "ui_screen_viewed":
+		ids("screen_id")
 	case "ui_recovery_selected":
 		ids("surface", "error_code", "action", "course_id", "screen_id")
 	case "ui_navigation_selected":
