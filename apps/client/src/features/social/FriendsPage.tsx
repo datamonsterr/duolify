@@ -23,6 +23,7 @@ import {
   type RequestEntry,
 } from "./friends";
 import { SocialIdentity } from "./SocialIdentity";
+import { FriendStreakDetail, FriendStreakRow } from "./FriendStreak";
 import "./social.css";
 
 type Tab = "friends" | "requests" | "blocked";
@@ -327,6 +328,12 @@ export function FriendsPage() {
                         >
                           <Person person={entry} />
                         </button>
+                        {entry.friend_streak && (
+                          <FriendStreakRow
+                            name={entry.display_name}
+                            streak={entry.friend_streak}
+                          />
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -355,8 +362,15 @@ export function FriendsPage() {
                         <p className="social-hint">
                           Friends since {sinceLabel(friend.since)}
                         </p>
-                        {friend.streak && (
-                          <p>{friend.streak.days}-day streak</p>
+                        {friend.friend_streak ? (
+                          <FriendStreakDetail
+                            name={friend.display_name}
+                            streak={friend.friend_streak}
+                          />
+                        ) : (
+                          friend.streak && (
+                            <p>{friend.streak.days}-day streak</p>
+                          )
                         )}
                         <button
                           type="button"

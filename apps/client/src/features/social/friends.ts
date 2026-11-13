@@ -1,3 +1,4 @@
+import type { FriendStreak } from "./friendStreak";
 export interface FriendAvatar {
   initial: string;
 }
@@ -8,6 +9,7 @@ export interface FriendEntry {
   avatar: FriendAvatar;
   since: string;
   streak?: { days: number };
+  friend_streak?: FriendStreak;
 }
 export interface RequestEntry {
   id: string;
