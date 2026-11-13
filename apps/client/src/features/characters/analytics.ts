@@ -153,3 +153,43 @@ export function trackCharacterReactionShown(
     /* Telemetry must never crash client */
   }
 }
+
+export interface TutorCharacterSelectedParams {
+  speaker_key: string;
+  character_version: number;
+  cast_source: "lesson" | "course" | "default";
+}
+
+/** An explicit tutor choice; ids, versions and enums only, never names or persona text. */
+export function trackTutorCharacterSelected(
+  params: TutorCharacterSelectedParams,
+): void {
+  try {
+    if (posthog.has_opted_out_capturing && posthog.has_opted_out_capturing()) {
+      return;
+    }
+    let distinctId = "00000000-0000-0000-0000-000000000001";
+    try {
+      const stored = sessionStorage.getItem("duolify.auth");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.learnerId && uuidRegex.test(parsed.learnerId)) {
+          distinctId = parsed.learnerId;
+        }
+      }
+    } catch {
+      /* Storage unavailable */
+    }
+    posthog.capture("tutor_character_selected", {
+      distinct_id: distinctId,
+      source: "client",
+      platform: "web",
+      app_version: "0.1.0",
+      speaker_key: params.speaker_key,
+      character_version: params.character_version,
+      cast_source: params.cast_source,
+    });
+  } catch {
+    /* Telemetry must never crash client */
+  }
+}

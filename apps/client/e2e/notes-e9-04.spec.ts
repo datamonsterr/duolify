@@ -4,6 +4,10 @@ import type { Tokens } from "../src/features/accounts/secure-store";
 
 test.use({ hasTouch: true });
 
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+});
+
 for (const width of [1280, 390]) {
   test(`E9-04 filter, edit, review, export and delete notes at ${width}px`, async ({
     page,
@@ -102,12 +106,9 @@ for (const width of [1280, 390]) {
     await expect(page.getByText(/Watering schedules/i)).toHaveCount(0);
 
     // Clear filters
-    const clearBtn = page.getByRole("button", { name: /Clear filters/i });
-    if (await clearBtn.isVisible()) {
-      await clearBtn.click();
-    } else {
-      await searchInput.fill("");
-    }
+    const clearBtn = page.getByRole("button", { name: /^Clear filters$/i });
+    await expect(clearBtn).toBeVisible();
+    await clearBtn.click();
     await expect(page.getByText(/Watering schedules/i).first()).toBeVisible();
 
     // 2. Select note for detail view
@@ -130,7 +131,7 @@ for (const width of [1280, 390]) {
     ).toBeVisible();
 
     // 3. Edit raw text without overwriting prior enrichment
-    const editBtn = page.getByRole("button", { name: /Edit/i });
+    const editBtn = page.getByRole("button", { name: /^Edit$/i });
     await expect(editBtn).toBeVisible();
     await editBtn.click();
 
@@ -153,10 +154,9 @@ for (const width of [1280, 390]) {
 
     // 4. Mark reviewed once
     const reviewBtn = page.getByRole("button", { name: /Mark reviewed/i });
-    if (await reviewBtn.isVisible()) {
-      await reviewBtn.click();
-      await expect(page.getByText(/Reviewed/i).first()).toBeVisible();
-    }
+    await expect(reviewBtn).toBeVisible();
+    await reviewBtn.click();
+    await expect(page.getByText(/Reviewed/i).first()).toBeVisible();
 
     // 5. Export Markdown
     const exportBtn = page.getByRole("button", {
@@ -169,7 +169,7 @@ for (const width of [1280, 390]) {
     ).toBeVisible();
 
     // 6. Delete note
-    const deleteBtn = page.getByRole("button", { name: /Delete/i });
+    const deleteBtn = page.getByRole("button", { name: /^Delete$/i });
     await expect(deleteBtn).toBeVisible();
     await deleteBtn.click();
 

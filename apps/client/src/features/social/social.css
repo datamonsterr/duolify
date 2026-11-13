@@ -1,0 +1,455 @@
+.social-page {
+  max-width: 42rem;
+  display: grid;
+  gap: var(--space-5, 20px);
+  min-width: 0;
+}
+.social-claim,
+.social-card,
+.social-identity {
+  display: grid;
+  gap: var(--space-3, 12px);
+  min-width: 0;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  padding: var(--space-5, 20px);
+  background: var(--surface);
+  color: var(--text);
+}
+.social-claim h2,
+.social-claim p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.social-claim input {
+  min-height: 44px;
+  min-width: 0;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.social-claim input[aria-invalid="true"] {
+  border-color: var(--danger, #b3261e);
+}
+.social-error {
+  color: var(--danger, #b3261e);
+  overflow-wrap: anywhere;
+}
+.social-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3, 12px);
+}
+.social-actions .duo-button,
+.social-identity .duo-button {
+  min-height: 44px;
+}
+.social-card {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+.social-card-text {
+  display: grid;
+  gap: var(--space-1, 4px);
+  min-width: 0;
+}
+.social-card-text > * {
+  overflow-wrap: anywhere;
+}
+.social-avatar {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: var(--raised);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 1.5rem;
+}
+.social-handle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.social-claim :focus-visible,
+.social-handle a:focus-visible,
+.social-identity :focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+@media (max-width: 47.99rem) {
+  .social-claim,
+  .social-card,
+  .social-identity {
+    padding: var(--space-4, 16px);
+  }
+  .social-actions .duo-button {
+    flex: 1 1 100%;
+  }
+}
+
+/* E6-02: rename row, Add a friend sheet, privacy settings. */
+.social-rename-row {
+  display: grid;
+  gap: var(--space-3, 12px);
+  justify-items: start;
+  min-width: 0;
+}
+.social-rename {
+  width: 100%;
+  box-sizing: border-box;
+}
+.social-hint {
+  color: var(--muted, var(--text));
+  font-size: 0.875rem;
+  margin: 0;
+}
+.social-sheet {
+  box-sizing: border-box;
+  width: min(32rem, 100vw - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  padding: var(--space-5, 20px);
+  background: var(--surface);
+  color: var(--text);
+}
+.social-sheet::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+.social-sheet-body {
+  display: grid;
+  gap: var(--space-3, 12px);
+  min-width: 0;
+}
+.social-sheet-body h2 {
+  margin: 0;
+}
+.social-sheet input {
+  min-height: 44px;
+  min-width: 0;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.social-sheet :focus-visible,
+.social-privacy :focus-visible,
+.social-rename-row :focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.social-results {
+  min-height: 4rem;
+  overflow-wrap: anywhere;
+}
+.social-result-list {
+  display: grid;
+  gap: var(--space-2, 8px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.social-result-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3, 12px);
+  align-items: center;
+}
+.social-avatar.small {
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: 1.125rem;
+}
+.social-privacy {
+  display: grid;
+  gap: var(--space-3, 12px);
+  min-width: 0;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  padding: var(--space-5, 20px);
+  background: var(--surface);
+  color: var(--text);
+}
+.social-privacy h2 {
+  margin: 0;
+}
+.social-privacy-controls {
+  display: grid;
+  gap: var(--space-3, 12px);
+}
+.social-setting {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+  min-height: 44px;
+}
+.social-setting.stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1, 4px);
+}
+.social-setting input[type="checkbox"] {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+.social-setting select {
+  min-height: 44px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+@media (max-width: 47.99rem) {
+  .social-sheet {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+    border-width: 0;
+  }
+  .social-privacy {
+    padding: var(--space-4, 16px);
+  }
+  .social-rename-row .duo-button {
+    width: 100%;
+  }
+}
+
+/* E6-03: friends list-detail, requests, invite link, confirm. */
+.friends-tabs {
+  display: flex;
+  gap: var(--space-1, 4px);
+  padding: var(--space-1, 4px);
+  border-radius: var(--radius-md, 0.75rem);
+  background: var(--raised);
+}
+.friends-tabs [role="tab"] {
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--space-1, 4px);
+  min-height: 44px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md, 0.75rem);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.friends-tabs [role="tab"][aria-selected="true"] {
+  border-color: var(--line);
+  background: var(--surface);
+}
+.friends-tabs :focus-visible,
+.friends-page :focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.friends-panel,
+.friends-requests,
+.friends-empty {
+  display: grid;
+  gap: var(--space-3, 12px);
+  min-width: 0;
+}
+.friends-requests h2,
+.friends-empty h2 {
+  margin: 0;
+}
+.friends-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-5, 20px);
+  align-items: start;
+}
+.friends-list li {
+  grid-template-columns: minmax(0, 1fr);
+}
+.friends-open {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3, 12px);
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.friends-open[aria-current="true"] {
+  border-color: var(--focus);
+}
+.friends-detail {
+  display: grid;
+  gap: var(--space-3, 12px);
+  min-width: 0;
+  justify-items: start;
+  overflow-wrap: anywhere;
+}
+.friends-detail h2 {
+  margin: 0;
+}
+.friends-back {
+  display: none;
+}
+.social-card-text > strong,
+.social-card-text > span {
+  overflow-wrap: anywhere;
+}
+.social-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  align-items: center;
+  justify-content: flex-end;
+}
+.social-chip {
+  padding: 2px var(--space-2, 8px);
+  border-radius: var(--radius-md, 0.75rem);
+  background: var(--raised);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.social-link {
+  display: grid;
+  gap: var(--space-2, 8px);
+  border-top: 2px solid var(--line);
+  padding-top: var(--space-3, 12px);
+}
+.social-link h3 {
+  margin: 0;
+}
+.social-sheet.confirm {
+  width: min(26rem, 100vw - 2rem);
+}
+.social-danger {
+  background: var(--danger, #b3261e);
+  border-color: var(--danger, #b3261e);
+  color: #fff;
+}
+@media (max-width: 47.99rem) {
+  .friends-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .friends-layout[data-detail="open"] .friends-list {
+    display: none;
+  }
+  .friends-layout[data-detail="closed"] .friends-detail {
+    display: none;
+  }
+  .friends-back {
+    display: inline-flex;
+  }
+  .social-result-list li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .social-result-list li > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+  .social-sheet.confirm {
+    width: calc(100vw - 2rem);
+    height: auto;
+    max-height: calc(100dvh - 2rem);
+    margin: auto;
+    border-width: 2px;
+    border-radius: var(--radius-lg, 1rem);
+  }
+  .social-row-actions .duo-button {
+    flex: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .friends-tabs [role="tab"] {
+    transition: background-color 120ms ease;
+  }
+}
+
+.friend-streak {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1, 4px) var(--space-3, 12px);
+  margin: var(--space-1, 4px) 0 0;
+  padding-inline: var(--space-3, 12px);
+  color: var(--muted, var(--text));
+  font-size: 0.875rem;
+}
+.friend-streak-head {
+  color: var(--text);
+  font-weight: 700;
+}
+.friend-streak[data-state="both_done"] .friend-streak-note,
+.friend-streak[data-state="protected"] .friend-streak-note {
+  color: var(--success, var(--text));
+  font-weight: 700;
+}
+.friend-streak-note {
+  flex-basis: 100%;
+}
+.friend-streak-detail {
+  display: grid;
+  gap: var(--space-3, 12px);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  padding: var(--space-4, 16px);
+  background: var(--surface);
+}
+.friend-streak-detail h3 {
+  margin: 0;
+}
+.friend-streak-days {
+  display: grid;
+  gap: var(--space-2, 8px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.friend-streak-days li {
+  display: grid;
+  grid-template-columns: 5rem auto minmax(0, 1fr);
+  gap: var(--space-3, 12px);
+  align-items: baseline;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 47.99rem) {
+  .friend-streak-days li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1, 4px);
+  }
+}
+
+/* E6-07: nudge button, state note and inbox. */
+.nudge-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  min-height: 44px;
+  margin: var(--space-2, 8px) 0 0 var(--space-3, 12px);
+}
+.nudge-note {
+  margin: var(--space-2, 8px) 0 0;
+  padding-inline: var(--space-3, 12px);
+  color: var(--muted, var(--text));
+  font-size: 0.875rem;
+}
+.nudge-icon {
+  flex: none;
+}

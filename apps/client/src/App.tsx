@@ -1,4 +1,6 @@
 import { ProgressPage } from "./features/gamification/DailyGoal";
+import { LearningAnalyticsPage } from "./features/gamification/LearningAnalytics";
+import { LeaguePage } from "./features/gamification/League";
 import { UiPreferencesProvider } from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
 import { AuthError, session } from "./features/accounts/session";
@@ -24,6 +26,8 @@ import { RouteGuard } from "./features/accounts/RouteGuard";
 import { SetupProfile } from "./features/accounts/LearnerProfile";
 import { AccountProfile } from "./features/accounts/AccountProfile";
 import { Settings } from "./features/accounts/Settings";
+import { FriendInvite } from "./features/social/FriendInvite";
+import { FriendsPage } from "./features/social/FriendsPage";
 import { CharacterLibrary } from "./features/characters/CharacterLibrary";
 import { CourseCast } from "./features/characters/CourseCast";
 import { LearnPath } from "./LearnPath";
@@ -36,7 +40,6 @@ import { BookmarksPage } from "./features/notes/BookmarksPage";
 import { AppShell, MorePage } from "./features/shell/AppShell";
 import { getDownloadedCourses } from "./features/player/library";
 import {
-  DestinationPage,
   RouteError,
   RoutePending,
   RouteUnavailable,
@@ -220,12 +223,20 @@ const more = createRoute({
 const friends = createRoute({
   getParentRoute: () => root,
   path: "/friends",
-  component: () => <DestinationPage title="Friends" />,
+  component: FriendsPage,
+});
+const friendInvite = createRoute({
+  getParentRoute: () => root,
+  path: "/friends/invite/$token",
+  component: function FriendInviteRoute() {
+    const { token } = useParams({ from: "/friends/invite/$token" });
+    return <FriendInvite token={token} />;
+  },
 });
 const leagues = createRoute({
   getParentRoute: () => root,
   path: "/leagues",
-  component: () => <DestinationPage title="Leagues" />,
+  component: LeaguePage,
 });
 const notes = createRoute({
   getParentRoute: () => root,
@@ -266,6 +277,11 @@ const streak = createRoute({
   path: "/streak",
   component: ProgressPage,
 });
+const analytics = createRoute({
+  getParentRoute: () => root,
+  path: "/analytics",
+  component: LearningAnalyticsPage,
+});
 const lessonTest = createRoute({
   getParentRoute: () => root,
   path: "/lesson/$lessonId/test",
@@ -299,6 +315,7 @@ export const createAppRouter = (history?: RouterHistory) =>
       billing,
       more,
       friends,
+      friendInvite,
       leagues,
       notes,
       bookmarks,
@@ -307,6 +324,7 @@ export const createAppRouter = (history?: RouterHistory) =>
       courseCast,
       sessions,
       streak,
+      analytics,
       lessonTest,
       signIn,
     ]),

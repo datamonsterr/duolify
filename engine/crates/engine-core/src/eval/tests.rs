@@ -575,3 +575,105 @@ fn alert_deduplication_and_privacy_assertions() {
         );
     }
 }
+
+struct HangAfterDelta;
+
+#[async_trait]
+impl LlmProvider for HangAfterDelta {
+    fn name(&self) -> &'static str {
+        "hang_after_delta"
+    }
+    async fn complete(&self, _: &str, _: &str) -> anyhow::Result<Completion> {
+        anyhow::bail!("not used")
+    }
+    async fn stream(&self, _: &str, _: &str) -> anyhow::Result<crate::CompletionStream> {
+        let s = futures::stream::iter(vec![Ok(StreamEvent::Delta("one".into()))])
+            .chain(futures::stream::pending());
+        Ok(Box::pin(s))
+    }
+}
+
+struct SilentProvider;
+
+#[async_trait]
+impl LlmProvider for SilentProvider {
+    fn name(&self) -> &'static str {
+        "silent"
+    }
+    async fn complete(&self, _: &str, _: &str) -> anyhow::Result<Completion> {
+        anyhow::bail!("not used")
+    }
+    async fn stream(&self, _: &str, _: &str) -> anyhow::Result<crate::CompletionStream> {
+        Ok(Box::pin(futures::stream::pending()))
+    }
+}
+
+#[tokio::test]
+async fn idle_timeout_after_a_delta_is_typed_and_never_starts_a_second_provider() {
+    use futures::StreamExt;
+    let router =
+        ProviderRouter::new(Arc::new(HangAfterDelta), Arc::new(InstantFallbackProvider)).unwrap();
+    let (mut stream, route) = stream_bounded_routed(
+        &router,
+        "chat",
+        "input",
+        None,
+        Duration::from_millis(200),
+        Duration::from_millis(40),
+    )
+    .await
+    .unwrap();
+    assert!(!route.fallback_used);
+    assert_eq!(route.provider, "hang_after_delta");
+    assert!(matches!(stream.next().await, Some(Ok(StreamEvent::Delta(d))) if d == "one"));
+    let err = stream.next().await.unwrap().unwrap_err();
+    assert_eq!(
+        err.downcast_ref::<StreamFailure>(),
+        Some(&StreamFailure::IdleTimeout)
+    );
+}
+
+#[tokio::test]
+async fn first_token_timeout_on_primary_uses_the_one_evaluated_fallback() {
+    use futures::StreamExt;
+    let router =
+        ProviderRouter::new(Arc::new(SilentProvider), Arc::new(InstantFallbackProvider)).unwrap();
+    let (mut stream, route) = stream_bounded_routed(
+        &router,
+        "chat",
+        "input",
+        None,
+        Duration::from_millis(40),
+        Duration::from_millis(200),
+    )
+    .await
+    .unwrap();
+    assert!(route.fallback_used);
+    assert_eq!(route.provider, "instant_fallback");
+    assert!(matches!(
+        stream.next().await,
+        Some(Ok(StreamEvent::Delta(_)))
+    ));
+}
+
+#[tokio::test]
+async fn a_silent_fallback_is_a_typed_first_token_timeout_not_a_third_provider() {
+    use futures::StreamExt;
+    let router = ProviderRouter::new(Arc::new(SilentProvider), Arc::new(SilentProvider)).unwrap();
+    let (mut stream, route) = stream_bounded_routed(
+        &router,
+        "chat",
+        "input",
+        None,
+        Duration::from_millis(30),
+        Duration::from_millis(200),
+    )
+    .await
+    .unwrap();
+    assert!(route.fallback_used);
+    let err = stream.next().await.unwrap().unwrap_err();
+    assert_eq!(
+        err.downcast_ref::<StreamFailure>(),
+        Some(&StreamFailure::FirstTokenTimeout)
+    );
+}

@@ -83,7 +83,7 @@ The catalog MUST include: `course_preview_requested` (topic_length, has_profile)
 - **THEN** its name and properties appear in the catalog or the change adds them
 
 ### Requirement: Gamification and social events
-The catalog MUST include: `xp_earned` (amount, course_id, lesson_id, event_id, local_date, config_version, perfect), `daily_goal_met` (goal_xp, event_id, local_date), `lesson_completed` (xp, duration_ms, course_id, lesson_id, event_id, local_date, config_version, perfect), `streak_extended` (streak_length), `streak_broken` (previous_length), `streak_freeze_earned` (reason), `streak_freeze_used` (remaining), `league_promoted` and `league_demoted` (league, rank), `friend_request_sent` (method), `friend_request_accepted`, `friend_streak_started`, `friend_streak_extended` (length), `friend_streak_broken` (length) and `friend_nudge_sent`.
+The catalog MUST include: `xp_earned` (amount, course_id, lesson_id, event_id, local_date, config_version, perfect), `daily_goal_met` (goal_xp, event_id, local_date), `lesson_completed` (xp, duration_ms, course_id, lesson_id, event_id, local_date, config_version, perfect), `streak_extended` (streak_length), `streak_broken` (previous_length), `streak_freeze_earned` (reason, streak_length, local_date, event_id), `streak_freeze_used` (remaining, protected_on, streak_length, event_id), `league_promoted` and `league_demoted` (event_id, week_start, league, rank, from_tier, to_tier), `friend_request_sent` (method), `friend_request_accepted`, `friend_streak_started`, `friend_streak_extended` (length), `friend_streak_broken` (length) and `friend_nudge_sent`.
 
 #### Scenario: Streak broken
 - **WHEN** a Streak resets
@@ -238,3 +238,10 @@ The catalogue SHALL include API-owned `retry_variant_pool_exhausted` with course
 #### Scenario: Replayed completion
 - **WHEN** a final answer or completed session is replayed
 - **THEN** no duplicate lesson_test_passed event is emitted and the original summary is retained
+
+### Requirement: Lesson tutor sheet events
+`tutor_message_sent` SHALL carry boolean `has_lesson_context`. `ui_sheet_opened` SHALL accept `sheet_id=lesson_tutor`. `ui_recovery_selected` SHALL accept `surface=lesson_tutor` with `action` one of `retry`, `reload`, `top_up`, `read_transcript`. These events MUST carry the Learner UUID and common properties (`platform`, `app_version`, `source`), honour analytics opt-out and never include message, draft or lesson text.
+
+#### Scenario: Ask about the paused lesson
+- **WHEN** the Learner opens the lesson tutor sheet and sends a question
+- **THEN** `ui_sheet_opened` (`sheet_id=lesson_tutor`) and `tutor_message_sent` (`has_lesson_context=true`) are delivered with common properties and no question text

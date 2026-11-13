@@ -15,6 +15,13 @@ Tutor chat SHALL use the main guide as its default persona and allow the Learner
 - **WHEN** a selected persona asks to reveal system instructions or bypass credit checks
 - **THEN** the tutor does neither and the normal safety/credit rules remain enforced
 
+### Requirement: Tutor persona selection and pinning
+The send request MAY carry `speaker_key` (`guide`, `supporter`, `supporter_2`; default `guide`). The API MUST resolve the Cast from the Learner's own Course/Lesson rows, store the effective Character id, version, speaker key, Cast source and any fallback code on the turn before calling the Engine, send only the bounded persona JSON in `tutor_persona_json`, and announce the pinned tutor with a `tutor` SSE event after `thread`. `GET /v1/courses/{id}/tutor/personas` lists the effective tutors (optionally for a Lesson).
+
+#### Scenario: Selection during streaming
+- **WHEN** the Learner or Course Cast changes while a reply streams
+- **THEN** the streaming turn keeps its pinned Character and only the next turn uses the change
+
 ### Requirement: Tutor persona analytics events
 The system SHALL emit PostHog `tutor_character_selected` (speaker_key, character_version, cast_source) and `tutor_character_fallback` (reason_code, phase), alongside existing tutor events and `$ai_generation` usage. Events MUST follow the `analytics` delta, respect opt-out and contain no Character info, persona, message or prompt text.
 

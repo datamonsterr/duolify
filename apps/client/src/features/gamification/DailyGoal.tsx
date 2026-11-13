@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { authRequest } from "../accounts/session";
+import { StreakPanel } from "./Streak";
 import "./gamification.css";
 
 interface Progress {
@@ -210,6 +211,7 @@ export function ProgressPage() {
         Every completed lesson counts. Replaying lessons keeps your earned XP
         unchanged.
       </p>
+      <StreakPanel />
       <DailyGoal editable />
     </div>
   );

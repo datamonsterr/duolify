@@ -498,11 +498,63 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_completion_summaries (id, learner_id, course_id, lesson_id, summary, weak_topics) VALUES ('fbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'Sample completed summary', '["top-moon"]'::jsonb)`); err != nil {
 		t.Fatal(err)
 	}
+	tutorQuote, err := pricing.NewQuotes(f.DB.Pool).Create(t.Context(), "a1111111-1111-4111-8111-111111111111", pricing.QuoteInput{Action: "tutor_short", InputTokens: 10, ContextTokens: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range []string{
+		`INSERT INTO tutor_threads (id, learner_id, course_id) VALUES ('f9111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111')`,
+		`INSERT INTO tutor_messages (id, thread_id, learner_id, role, content, status) VALUES ('f9222222-2222-4222-8222-222222222222', 'f9111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'user', 'Why does the moon change?', 'complete'), ('f9333333-3333-4333-8333-333333333333', 'f9111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'assistant', 'Sunlight angle', 'stopped')`,
+	} {
+		if _, err = f.DB.Pool.Exec(t.Context(), statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO tutor_turns (learner_id, course_id, idempotency_key, quote_id, state, end_reason, job_id, usage_estimated, thread_id, user_message_id, assistant_message_id, speaker_key, character_id, character_version, cast_source, cast_version) VALUES ('a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'backup-fixture-key', $1, 'stopped', 'stop', 'f9444444-4444-4444-8444-444444444444', true, 'f9111111-1111-4111-8111-111111111111', 'f9222222-2222-4222-8222-222222222222', 'f9333333-3333-4333-8333-333333333333', 'supporter', 'default-supporter', 1, 'course', 2)`, tutorQuote.ID); err != nil {
+		t.Fatal(err)
+	}
+	// E8-05: one note still linked to its tutor reply, one whose thread was deleted (provenance cleared,
+	// text-free tombstone kept). Deleted thread text must not be in the dump.
+	for _, statement := range []string{
+		`INSERT INTO quick_notes(id, learner_id, action_key, course_id, source, raw_text, status) VALUES ('fa111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'tutor-message:f9333333-3333-4333-8333-333333333333', 'f1111111-1111-4111-8111-111111111111', 'chat', 'Sunlight angle', 'enrichment_pending'), ('fa222222-2222-4222-8222-222222222222', 'a1111111-1111-4111-8111-111111111111', 'tutor-message:fa999999-9999-4999-8999-999999999999', 'f1111111-1111-4111-8111-111111111111', 'chat', 'Saved before its thread was deleted', 'enrichment_pending')`,
+		`INSERT INTO quick_note_chat_sources(note_id, learner_id, thread_id, message_id, lesson_id) VALUES ('fa111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'f9111111-1111-4111-8111-111111111111', 'f9333333-3333-4333-8333-333333333333', NULL)`,
+		`INSERT INTO quick_note_chat_sources(note_id, learner_id, unavailable) VALUES ('fa222222-2222-4222-8222-222222222222', 'a1111111-1111-4111-8111-111111111111', true)`,
+		`INSERT INTO tutor_thread_deletion_tombstones(thread_id) VALUES ('fa333333-3333-4333-8333-333333333333')`,
+	} {
+		if _, err = f.DB.Pool.Exec(t.Context(), statement); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, query := range []string{
 		`INSERT INTO xp_events(learner_id,lesson_id,course_id,completion_id,amount,perfect,config_version,earned_at,local_date,time_zone)
  SELECT o.learner_id,o.lesson_id,o.course_id,o.id,c.base_xp,false,c.version,o.passed_at,(o.passed_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date,'Asia/Ho_Chi_Minh'
  FROM lesson_completion_outbox o CROSS JOIN gamification_config c WHERE o.id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO learner_usernames(learner_id,username) VALUES('a1111111-1111-4111-8111-111111111111','Backup.Learner')`,
+		`INSERT INTO learner_social_settings(learner_id,discoverable,request_policy,show_streak_to_friends,course_invites_from) VALUES('a1111111-1111-4111-8111-111111111111',false,'friends_of_friends',false,'nobody')`,
+		`UPDATE learner_usernames SET username='Backup.Renamed', changed_at='2026-11-01T00:00:00Z' WHERE learner_id='a1111111-1111-4111-8111-111111111111'`,
+		`INSERT INTO social_rate_limits(learner_id,bucket,count) VALUES('a1111111-1111-4111-8111-111111111111','search',3)`,
+		`INSERT INTO username_holds(canonical,previous_owner_ref,held_until) VALUES('released.name',repeat('a',64),now()+interval '30 days')`,
+		`INSERT INTO learners(id,display_name) VALUES('a2222222-2222-4222-8222-222222222222','Backup Friend')`,
+		`INSERT INTO learner_usernames(learner_id,username) VALUES('a2222222-2222-4222-8222-222222222222','Backup.Friend')`,
+		`INSERT INTO friend_requests(sender_id,recipient_id,status,method,decided_at) VALUES('a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111','accepted','invite_link','2026-11-02T00:00:00Z'),('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','declined','username','2026-11-03T00:00:00Z')`,
+		`INSERT INTO friendships(learner_low,learner_high) VALUES('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222')`,
+		`INSERT INTO friend_streaks(learner_low,learner_high,current_days,longest_days,run_no,cursor_low,cursor_high,run_start_low,run_start_high,updated_at) VALUES('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222',2,2,1,'2026-11-08','2026-11-07','2026-11-07','2026-11-06','2026-11-08T00:00:00Z')`,
+		`INSERT INTO friend_streak_days(learner_low,learner_high,low_date,high_date,run_no,outcome,length,created_at) VALUES('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','2026-11-07','2026-11-06',1,'extended',1,'2026-11-07T00:00:00Z'),('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','2026-11-08','2026-11-07',1,'extended',2,'2026-11-08T00:00:00Z')`,
+		`INSERT INTO friend_streak_milestones(learner_low,learner_high,run_no,milestone_days,reached_low,reached_high,created_at) VALUES('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222',1,2,'2026-11-08','2026-11-07','2026-11-08T00:00:00Z')`,
+		`INSERT INTO friend_nudges(id,sender_id,recipient_id,operation_key,sender_local_date,delivered,read_at,created_at) VALUES('f6700000-0000-4000-8000-000000000001','a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111','f6700000-0000-4000-8000-0000000000a1','2026-11-08',true,NULL,'2026-11-08T09:00:00Z')`,
+		`INSERT INTO friend_links(owner_id,token_hash,expires_at) VALUES('a1111111-1111-4111-8111-111111111111',repeat('b',64),now()+interval '30 days')`,
+		`INSERT INTO learners(id,display_name) VALUES('a3333333-3333-4333-8333-333333333333','Backup Blocked')`,
+		`INSERT INTO learner_blocks(blocker_id,blocked_id,created_at) VALUES('a1111111-1111-4111-8111-111111111111','a3333333-3333-4333-8333-333333333333','2026-11-04T00:00:00Z')`,
 		`INSERT INTO daily_goal_achievements(learner_id,local_date,goal_xp) SELECT learner_id,local_date,amount FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_days(learner_id,local_date,first_event_id) SELECT learner_id,local_date,id FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_state(learner_id,current_days,longest_days,last_active_date,decided_through) SELECT learner_id,1,3,local_date,local_date FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_freeze_inventory(learner_id,held) SELECT learner_id,1 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_freeze_milestones(learner_id,milestone_days,run_started_on,reached_on,granted) SELECT learner_id,7,local_date-9,local_date-3,true FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_day_protections(learner_id,protected_on,remaining,streak_length) SELECT learner_id,local_date-2,0,7 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO league_groups(id,week_start,tier,size) SELECT 'b5000000-0000-4000-8000-000000000001',date_trunc('week',local_date)::date,2,1 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO league_memberships(learner_id,week_start,group_id,tier,slot) SELECT learner_id,date_trunc('week',local_date)::date,'b5000000-0000-4000-8000-000000000001',2,1 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_breaks(learner_id,broken_on,previous_length) SELECT learner_id,local_date-3,3 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO league_week_results(id,learner_id,week_start,group_id,tier_from,tier_to,final_rank,members,weekly_xp,outcome) SELECT 'b5000000-0000-4000-8000-000000000002',learner_id,date_trunc('week',local_date)::date,'b5000000-0000-4000-8000-000000000001',2,3,1,1,amount,'promoted' FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 	} {
 		if _, err = f.DB.Pool.Exec(t.Context(), query); err != nil {
 			t.Fatal(err)
@@ -794,7 +846,8 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT monthly_credits FROM credit_subscription_terms LIMIT 1").Scan(&monthlyCredits); err != nil {
 		t.Fatal(err)
 	}
-	if version != f.schemaVersion || riverVersions < 1 || learners != 1 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
+	// Three learners: the synthetic learner, the E6-03 friend and the E6-04 blocked row.
+	if version != f.schemaVersion || riverVersions < 1 || learners != 3 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
 	var pricingVersion string
@@ -838,7 +891,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"quick_notes", "quick_note_enrichments", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements"} {
+	for _, table := range []string{"league_groups", "league_memberships", "league_week_results", "quick_notes", "tutor_threads", "tutor_messages", "tutor_turns", "quick_note_enrichments", "quick_note_chat_sources", "tutor_thread_deletion_tombstones", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "username_config", "learner_usernames", "learner_social_settings", "username_holds", "social_rate_limits", "friend_requests", "friendships", "friend_links", "friend_streaks", "friend_streak_days", "friend_streak_milestones", "friend_nudges", "streak_state", "streak_days", "streak_breaks", "streak_freeze_inventory", "streak_freeze_milestones", "streak_day_protections"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -859,6 +912,82 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	var xpCount, goalCount, xpTotal, configuredBase int
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM xp_events),(SELECT count(*) FROM daily_goal_achievements),(SELECT sum(amount) FROM xp_events),base_xp FROM gamification_config`).Scan(&xpCount, &goalCount, &xpTotal, &configuredBase); err != nil || xpCount != 1 || goalCount != 1 || xpTotal != configuredBase {
 		t.Fatalf("restored XP replay changed totals/markers: %d %d %d %d %v", xpCount, goalCount, xpTotal, configuredBase, err)
+	}
+	// The restored streak projection is stable under the rollover worker and replay.
+	if err := gamification.New(restored.Pool, nil).Rollover(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	var streakDays, streakBreaks, streakLongest int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM streak_days),(SELECT count(*) FROM streak_breaks),(SELECT longest_days FROM streak_state)`).Scan(&streakDays, &streakBreaks, &streakLongest); err != nil || streakDays != 1 || streakBreaks < 1 || streakLongest < 3 {
+		t.Fatalf("restored streak projection changed: %d %d %d %v", streakDays, streakBreaks, streakLongest, err)
+	}
+	// Freeze rows and inventory survive restore unchanged.
+	var freezeMilestones, freezeProtections, freezeHeld int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM streak_freeze_milestones),(SELECT count(*) FROM streak_day_protections),(SELECT held FROM streak_freeze_inventory)`).Scan(&freezeMilestones, &freezeProtections, &freezeHeld); err != nil || freezeMilestones != 1 || freezeProtections != 1 || freezeHeld != 1 {
+		t.Fatalf("restored freeze state changed: %d %d %d %v", freezeMilestones, freezeProtections, freezeHeld, err)
+	}
+	// League membership restores; the weekly XP it ranks is recomputed from restored xp_events, never stored.
+	var leagueMembers, leagueXP int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM league_memberships),(SELECT COALESCE(sum(x.amount),0) FROM league_memberships m JOIN xp_events x ON x.learner_id=m.learner_id AND x.local_date BETWEEN m.week_start AND m.week_start+6)`).Scan(&leagueMembers, &leagueXP); err != nil || leagueMembers != 1 || leagueXP <= 0 {
+		t.Fatalf("restored league state changed: %d %d %v", leagueMembers, leagueXP, err)
+	}
+	// The frozen weekly result restores and still matches the XP recomputed from restored xp_events; nothing grants Credits.
+	var resultMatches int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM league_week_results r WHERE r.outcome='promoted' AND r.weekly_xp=(SELECT COALESCE(sum(x.amount),0) FROM xp_events x WHERE x.learner_id=r.learner_id AND x.local_date BETWEEN r.week_start AND r.week_start+6)`).Scan(&resultMatches); err != nil || resultMatches != 1 {
+		t.Fatalf("restored league result changed: %d %v", resultMatches, err)
+	}
+	// Restored usernames stay unique and an active hold still blocks other learners.
+	// The rename wrote a hold for the previous name; privacy settings and the
+	// rename timestamp (cooldown anchor) survive the dump.
+	var claimedName, policy string
+	var holds int
+	var discoverable bool
+	var renamedOn string
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT username FROM learner_usernames WHERE learner_id='a1111111-1111-4111-8111-111111111111'),(SELECT count(*) FROM username_holds WHERE held_until>now()),(SELECT discoverable FROM learner_social_settings),(SELECT request_policy FROM learner_social_settings),(SELECT to_char(changed_at AT TIME ZONE 'UTC','YYYY-MM-DD') FROM learner_usernames WHERE learner_id='a1111111-1111-4111-8111-111111111111')`).Scan(&claimedName, &holds, &discoverable, &policy, &renamedOn); err != nil || claimedName != "Backup.Renamed" || holds != 2 || discoverable || policy != "friends_of_friends" || renamedOn != "2026-11-01" {
+		t.Fatalf("restored usernames, holds or privacy changed: %q %d %v %q %q %v", claimedName, holds, discoverable, policy, renamedOn, err)
+	}
+	var previousHeld int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM username_holds WHERE canonical='backup.learner' AND previous_owner_ref=encode(sha256(convert_to('a1111111-1111-4111-8111-111111111111','UTF8')),'hex')`).Scan(&previousHeld); err != nil || previousHeld != 1 {
+		t.Fatalf("restored rename hold lost its previous-owner hash: %d %v", previousHeld, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `WITH l AS (INSERT INTO learners(display_name) VALUES('duplicate username probe') RETURNING id) INSERT INTO learner_usernames(learner_id,username) SELECT id,'BACKUP.renamed' FROM l`); err == nil {
+		t.Fatal("restored canonical unique index allowed a duplicate username")
+	}
+	// Friendships keep their canonical pair, request states (a decline keeps its cooldown anchor) and
+	// only the link's token hash; the pair and pending-pair uniqueness survive the restore.
+	var friendships, accepted, declined, links int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM friendships WHERE learner_low<learner_high),(SELECT count(*) FROM friend_requests WHERE status='accepted' AND method='invite_link'),(SELECT count(*) FROM friend_requests WHERE status='declined' AND decided_at='2026-11-03T00:00:00Z'),(SELECT count(*) FROM friend_links WHERE token_hash=repeat('b',64) AND revoked_at IS NULL)`).Scan(&friendships, &accepted, &declined, &links); err != nil || friendships != 1 || accepted != 1 || declined != 1 || links != 1 {
+		t.Fatalf("restored friend data changed: %d %d %d %d %v", friendships, accepted, declined, links, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO friendships(learner_low,learner_high) VALUES('a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111')`); err == nil {
+		t.Fatal("restored friendship check allowed a reversed pair")
+	}
+	// Friend streak pair state, its idempotent pair-day keys and milestone keys survive the restore.
+	var pairStreaks, pairDays, pairMilestones int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM friend_streaks WHERE current_days=2 AND longest_days=2 AND cursor_low='2026-11-08'),(SELECT count(*) FROM friend_streak_days WHERE outcome='extended'),(SELECT count(*) FROM friend_streak_milestones WHERE milestone_days=2)`).Scan(&pairStreaks, &pairDays, &pairMilestones); err != nil || pairStreaks != 1 || pairDays != 2 || pairMilestones != 1 {
+		t.Fatalf("restored friend streak data changed: %d %d %d %v", pairStreaks, pairDays, pairMilestones, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO friend_streak_days(learner_low,learner_high,low_date,high_date,run_no,outcome,length) VALUES('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','2026-11-07','2026-11-06',1,'extended',9)`); err == nil {
+		t.Fatal("restored pair-day key allowed a second settlement of the same shared day")
+	}
+	// Nudges (inbox state) survive the restore with their operation key and pair-day key.
+	var nudges int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM friend_nudges WHERE id='f6700000-0000-4000-8000-000000000001' AND delivered AND read_at IS NULL AND sender_local_date='2026-11-08' AND created_at='2026-11-08T09:00:00Z'`).Scan(&nudges); err != nil || nudges != 1 {
+		t.Fatalf("restored nudge data changed: %d %v", nudges, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO friend_nudges(sender_id,recipient_id,operation_key,sender_local_date) VALUES('a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111',gen_random_uuid(),'2026-11-08')`); err == nil {
+		t.Fatal("restored pair-day key allowed a second nudge on the same sender day")
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO friend_nudges(sender_id,recipient_id,operation_key,sender_local_date) VALUES('a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111','f6700000-0000-4000-8000-0000000000a1','2026-11-09')`); err == nil {
+		t.Fatal("restored operation key allowed a replay to create a second nudge")
+	}
+	// Blocks keep their direction and date; the self-block check and the invite setting survive.
+	var blocks, inviteSetting int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM learner_blocks WHERE blocker_id='a1111111-1111-4111-8111-111111111111' AND blocked_id='a3333333-3333-4333-8333-333333333333' AND created_at='2026-11-04T00:00:00Z'),(SELECT count(*) FROM learner_social_settings WHERE learner_id='a1111111-1111-4111-8111-111111111111' AND course_invites_from='nobody')`).Scan(&blocks, &inviteSetting); err != nil || blocks != 1 || inviteSetting != 1 {
+		t.Fatalf("restored block data changed: %d %d %v", blocks, inviteSetting, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO learner_blocks(blocker_id,blocked_id) VALUES('a1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111')`); err == nil {
+		t.Fatal("restored block check allowed a self block")
 	}
 	confirmed, err := courses.New(courses.Options{Pool: restored.Pool}).ResolveConfirmed(t.Context(), "a1111111-1111-4111-8111-111111111111", "c7222222-2222-4222-8222-222222222222", 3)
 	if err != nil || confirmed.Outline.Hash() != confirmed.ContentHash || confirmed.Outline[0].Lessons[0].ID != "fixture-lesson" {
@@ -1006,8 +1135,43 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 			t.Fatalf("restored immutable data accepted mutation: %s", query)
 		}
 	}
+	// A thread deleted after this backup comes back with it; its tombstone must remove it again and
+	// the note saved from it must read "source unavailable" with no reply text left behind.
+	for _, statement := range []string{
+		`INSERT INTO tutor_threads (id, learner_id, course_id) VALUES ('fa333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111')`,
+		`INSERT INTO tutor_messages (id, thread_id, learner_id, role, content) VALUES ('fa999999-9999-4999-8999-999999999999', 'fa333333-3333-4333-8333-333333333333', 'a1111111-1111-4111-8111-111111111111', 'assistant', 'Resurrected reply text')`,
+		`UPDATE quick_note_chat_sources SET unavailable=false, thread_id='fa333333-3333-4333-8333-333333333333', message_id='fa999999-9999-4999-8999-999999999999' WHERE note_id='fa222222-2222-4222-8222-222222222222'`,
+	} {
+		if _, err := restored.Pool.Exec(t.Context(), statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// E17-07: the restored turn keeps its pinned Character reference; a turn of the resurrected thread
+	// loses its reference when the tombstone is applied again.
+	var pinned int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM tutor_turns WHERE idempotency_key='backup-fixture-key' AND speaker_key='supporter' AND character_id='default-supporter' AND character_version=1 AND cast_source='course' AND cast_version=2`).Scan(&pinned); err != nil || pinned != 1 {
+		t.Fatalf("restore lost the pinned tutor Character reference: %d %v", pinned, err)
+	}
+	ghostQuote, err := pricing.NewQuotes(restored.Pool).Create(t.Context(), "a1111111-1111-4111-8111-111111111111", pricing.QuoteInput{Action: "tutor_short", InputTokens: 10, ContextTokens: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO tutor_turns (learner_id, course_id, idempotency_key, quote_id, state, thread_id, assistant_message_id, speaker_key, character_id, character_version, cast_source, cast_version, persona_fallback) VALUES ('a1111111-1111-4111-8111-111111111111', 'f1111111-1111-4111-8111-111111111111', 'resurrected-pin', $1, 'completed', 'fa333333-3333-4333-8333-333333333333', 'fa999999-9999-4999-8999-999999999999', 'guide', 'default-guide', 1, 'default', 0, 'invalid_persona')`, ghostQuote.ID); err != nil {
+		t.Fatal(err)
+	}
 	if err := accounts.ApplyDeletionTombstones(t.Context(), restored.Pool); err != nil {
 		t.Fatalf("apply deletion tombstones after restore: %v", err)
+	}
+	var kept int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM tutor_turns WHERE idempotency_key='resurrected-pin' AND speaker_key IS NULL AND character_id IS NULL AND character_version IS NULL AND cast_source IS NULL AND cast_version IS NULL AND persona_fallback IS NULL AND assistant_message_id IS NULL`).Scan(&kept); err != nil || kept != 1 {
+		t.Fatalf("restore revived a deleted thread's Character reference: %d %v", kept, err)
+	}
+	var resurrected, unavailable int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM tutor_threads WHERE id='fa333333-3333-4333-8333-333333333333') + (SELECT count(*) FROM tutor_messages WHERE content='Resurrected reply text')`).Scan(&resurrected); err != nil || resurrected != 0 {
+		t.Fatalf("restore resurrected a deleted thread: %d %v", resurrected, err)
+	}
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM quick_note_chat_sources s JOIN quick_notes n ON n.id=s.note_id WHERE s.note_id='fa222222-2222-4222-8222-222222222222' AND s.unavailable AND s.thread_id IS NULL AND s.message_id IS NULL AND n.raw_text='Saved before its thread was deleted'`).Scan(&unavailable); err != nil || unavailable != 1 {
+		t.Fatalf("surviving provenance not unavailable-but-readable: %d %v", unavailable, err)
 	}
 	// Replay a restored deletion for the actual payment owner. Identity erasure
 	// must leave the paid ledger and business dedupe references usable for audit.

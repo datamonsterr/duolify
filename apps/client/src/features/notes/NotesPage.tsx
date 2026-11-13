@@ -28,6 +28,8 @@ export type QuickNoteItem = {
   summary?: string | null;
   tags?: string[] | null;
   links?: string[] | null;
+  /** Set for notes saved from tutor chat; `unavailable` once that thread was deleted. */
+  chat_source?: { state: "available" | "unavailable" } | null;
   reviewed?: boolean;
   reviewed_at?: string | null;
   version?: number;
@@ -154,15 +156,15 @@ export function NotesPage() {
 
         const combined = [...unsyncedQueued, ...serverNotes];
         setNotes(combined);
-        if (combined.length > 0 && !selectedNoteId && !isMobile) {
-          setSelectedNoteId(combined[0].id);
+        if (combined.length > 0 && !isMobile) {
+          setSelectedNoteId((curr) => curr ?? combined[0].id);
         }
       } catch {
         if (cancelled) return;
         // On offline or error, display local queued notes
         setNotes(queuedItems);
-        if (queuedItems.length > 0 && !selectedNoteId && !isMobile) {
-          setSelectedNoteId(queuedItems[0].id);
+        if (queuedItems.length > 0 && !isMobile) {
+          setSelectedNoteId((curr) => curr ?? queuedItems[0].id);
         }
       } finally {
         if (!cancelled) {
@@ -175,7 +177,7 @@ export function NotesPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedNoteId, isMobile]);
+  }, [isMobile]);
 
   useEffect(() => {
     const hasPending = notes.some(
@@ -196,7 +198,11 @@ export function NotesPage() {
             const serverMap = new Map(serverNotes.map((s) => [s.id, s]));
             return prev.map((n) => {
               const updated = serverMap.get(n.id);
-              return updated ? { ...n, ...updated } : n;
+              if (!updated) return n;
+              if ((n.version ?? 1) > (updated.version ?? 1)) {
+                return { ...updated, raw_text: n.raw_text, version: n.version };
+              }
+              return { ...n, ...updated };
             });
           });
         } catch {
@@ -749,7 +755,9 @@ export function NotesPage() {
                     {note.slide_title && note.slide_title.trim()
                       ? note.slide_title
                       : note.source === "chat"
-                        ? "From tutor chat"
+                        ? note.chat_source?.state === "unavailable"
+                          ? "From tutor chat · source unavailable"
+                          : "From tutor chat"
                         : "From lesson"}
                   </span>
                   <div
@@ -1189,7 +1197,9 @@ export function NotesPage() {
                       selectedNote.slide_title.trim()
                         ? selectedNote.slide_title
                         : selectedNote.source === "chat"
-                          ? "Tutor chat"
+                          ? selectedNote.chat_source?.state === "unavailable"
+                            ? "Tutor chat · source unavailable"
+                            : "Tutor chat"
                           : "Lesson"}
                     </span>
                   </>

@@ -45,17 +45,20 @@ type QuotePolicy struct {
 
 // QuoteInput contains counts and allowlisted identifiers, never learner text.
 type QuoteInput struct {
-	OutlineDraftID      string `json:"outline_draft_id,omitempty"`
-	OutlineRevision     int64  `json:"outline_revision,omitempty"`
-	RequestHash         string `json:"request_hash,omitempty"`
-	BriefRevision       string `json:"brief_revision,omitempty"`
-	Action              string `json:"action"`
-	Model               string `json:"model,omitempty"`
-	Voice               string `json:"voice,omitempty"`
-	InputTokens         int64  `json:"input_tokens,omitempty"`
-	OutputTokens        int64  `json:"output_tokens,omitempty"`
-	ContextTokens       int64  `json:"context_tokens,omitempty"`
-	NarrationCharacters int64  `json:"narration_characters,omitempty"`
+	OutlineDraftID  string `json:"outline_draft_id,omitempty"`
+	OutlineRevision int64  `json:"outline_revision,omitempty"`
+	RequestHash     string `json:"request_hash,omitempty"`
+	BriefRevision   string `json:"brief_revision,omitempty"`
+	Action          string `json:"action"`
+	Model           string `json:"model,omitempty"`
+	Voice           string `json:"voice,omitempty"`
+	InputTokens     int64  `json:"input_tokens,omitempty"`
+	OutputTokens    int64  `json:"output_tokens,omitempty"`
+	ContextTokens   int64  `json:"context_tokens,omitempty"`
+	// LargeContext records the Learner's explicit approval of a tutor context above the standard
+	// cached-context bound; the input bound then follows the quoted context, never more than prompt_tokens.
+	LargeContext        bool  `json:"large_context,omitempty"`
+	NarrationCharacters int64 `json:"narration_characters,omitempty"`
 }
 
 // Quote is an authoritative component ceiling; accepting it does not reserve funds.
@@ -114,15 +117,18 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 			class = "long"
 		}
 		maxInput, maxOutput = q.Bounds[class+"_input_tokens"], q.Bounds[class+"_output_tokens"]
-		if in.ContextTokens > q.Bounds["prompt_tokens"]-in.InputTokens {
+		if in.ContextTokens > q.Bounds["prompt_tokens"]-in.InputTokens || (in.ContextTokens > q.Bounds["cached_context_tokens"] && !in.LargeContext) {
 			return q, errQuote
 		}
-	} else if in.ContextTokens > 0 {
+	} else if in.ContextTokens > 0 || in.LargeContext {
 		return q, errQuote
 	}
 	q.Bounds["input_tokens"], q.Bounds["output_tokens"] = maxInput, maxOutput
 	if key == "tutor" {
 		q.Bounds["input_tokens"] += q.Bounds["cached_context_tokens"]
+		if in.LargeContext {
+			q.Bounds["input_tokens"] = maxInput + max(q.Bounds["cached_context_tokens"], in.ContextTokens)
+		}
 	}
 	if in.InputTokens > maxInput || in.OutputTokens > maxOutput {
 		return q, errQuote
@@ -364,6 +370,24 @@ func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput,
 	}
 	quote.ID, err = queries.InsertQuote(ctx, db.InsertQuoteParams{LearnerID: learner, OwnerReference: fmt.Sprintf("%x", sha256.Sum256([]byte(owner))), PricingVersion: c.Version, Snapshot: raw, CreatedAt: pgtype.Timestamptz{Time: quote.CreatedAt, Valid: true}, ExpiresAt: pgtype.Timestamptz{Time: quote.ExpiresAt, Valid: true}})
 	return quote, err
+}
+
+// Bounds returns the active configuration's bounds for an action without persisting a quote.
+func (s *Quotes) Bounds(ctx context.Context, in QuoteInput) (map[string]int64, error) {
+	row, err := db.New(s.pool).ActiveQuoteConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	c, err := Parse(row.Config)
+	if err != nil {
+		return nil, err
+	}
+	var policy QuotePolicy
+	if err = json.Unmarshal(row.Policy, &policy); err != nil {
+		return nil, err
+	}
+	q, err := CalculateQuote(c, policy, in, row.QuotedAt.Time)
+	return q.Bounds, err
 }
 
 // Get reads original terms for the authenticated owner.

@@ -20,8 +20,30 @@ var ClassifiedLearnerTables = map[string]string{
 	"bookmarks":                         "erased",
 	"quick_notes":                       "erased",
 	"quick_note_enrichments":            "erased",
+	"quick_note_chat_sources":           "erased",
+	"tutor_thread_deletion_tombstones":  "text_free_retained_35_days",
+	"learner_usernames":                 "erased_name_held_30_days",
+	"learner_social_settings":           "erased",
+	"social_rate_limits":                "erased_ephemeral_1_hour",
+	"username_holds":                    "retained_30_days_pseudonymous",
+	"friend_requests":                   "erased",
+	"friendships":                       "erased",
+	"friend_links":                      "erased_hash_only",
+	"learner_blocks":                    "erased",
+	"friend_streaks":                    "erased",
+	"friend_streak_days":                "erased",
+	"friend_streak_milestones":          "erased",
+	"friend_nudges":                     "erased_retention_14_days",
 	"xp_events":                         "erased_account_lifetime",
 	"daily_goal_achievements":           "erased_account_lifetime",
+	"streak_state":                      "erased",
+	"streak_days":                       "erased",
+	"streak_breaks":                     "erased",
+	"streak_freeze_inventory":           "erased",
+	"streak_freeze_milestones":          "erased",
+	"streak_day_protections":            "erased",
+	"league_memberships":                "erased",
+	"league_week_results":               "erased",
 	"character_create_jobs":             "erased_prompt_terminal_or_24h",
 	"characters":                        "erased",
 	"character_versions":                "erased_via_character",
@@ -68,6 +90,9 @@ var ClassifiedLearnerTables = map[string]string{
 	"course_brief_revisions":            "erased",
 	"outline_drafts":                    "erased",
 	"outline_proposals":                 "erased",
+	"tutor_threads":                     "erased_or_deleted_per_thread",
+	"tutor_messages":                    "erased_or_deleted_per_thread",
+	"tutor_turns":                       "erased",
 	"learner_profiles":                  "erased",
 	"auth_identities":                   "erased",
 	"auth_provider_identities":          "erased",
@@ -118,6 +143,14 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		{table: "course_brief_revisions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(b)),'[]'::jsonb) FROM course_brief_revisions b WHERE learner_id=$1 AND expires_at>now()`},
 		{table: "outline_proposals", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM outline_proposals p JOIN outline_drafts d ON d.id=p.draft_id JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE p.learner_id=$1 AND b.expires_at>now()`},
 		{table: "outline_drafts", query: `SELECT COALESCE(jsonb_agg(to_jsonb(d)),'[]'::jsonb) FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.learner_id=$1 AND b.expires_at>now()`},
+		{table: "friendships", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',f.id,'created_at',f.created_at,'friend_username',u.username)),'[]'::jsonb) FROM friendships f JOIN learner_usernames u ON u.learner_id=CASE WHEN f.learner_low=$1 THEN f.learner_high ELSE f.learner_low END WHERE f.learner_low=$1 OR f.learner_high=$1`},
+		{table: "friend_requests", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',q.id,'direction',CASE WHEN q.sender_id=$1 THEN 'sent' ELSE 'received' END,'status',q.status,'method',q.method,'created_at',q.created_at,'decided_at',q.decided_at,'other_username',u.username)),'[]'::jsonb) FROM friend_requests q JOIN learner_usernames u ON u.learner_id=CASE WHEN q.sender_id=$1 THEN q.recipient_id ELSE q.sender_id END WHERE q.sender_id=$1 OR q.recipient_id=$1`},
+		{table: "friend_links", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'created_at',created_at,'expires_at',expires_at,'revoked_at',revoked_at)),'[]'::jsonb) FROM friend_links WHERE owner_id=$1`},
+		{table: "friend_streaks", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('friend_username',u.username,'current_days',s.current_days,'longest_days',s.longest_days,'run_no',s.run_no)),'[]'::jsonb) FROM friend_streaks s JOIN learner_usernames u ON u.learner_id=CASE WHEN s.learner_low=$1 THEN s.learner_high ELSE s.learner_low END WHERE s.learner_low=$1 OR s.learner_high=$1`},
+		{table: "friend_streak_days", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('local_date',CASE WHEN d.learner_low=$1 THEN d.low_date ELSE d.high_date END,'run_no',d.run_no,'outcome',d.outcome,'length',d.length)),'[]'::jsonb) FROM friend_streak_days d WHERE d.learner_low=$1 OR d.learner_high=$1`},
+		{table: "friend_streak_milestones", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('reached_on',CASE WHEN m.learner_low=$1 THEN m.reached_low ELSE m.reached_high END,'run_no',m.run_no,'milestone_days',m.milestone_days)),'[]'::jsonb) FROM friend_streak_milestones m WHERE m.learner_low=$1 OR m.learner_high=$1`},
+		{table: "friend_nudges", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',n.id,'direction',CASE WHEN n.sender_id=$1 THEN 'sent' ELSE 'received' END,'local_date',n.sender_local_date,'created_at',n.created_at,'read_at',CASE WHEN n.recipient_id=$1 THEN n.read_at END,'other_username',u.username) ORDER BY n.created_at,n.id),'[]'::jsonb) FROM friend_nudges n JOIN learner_usernames u ON u.learner_id=CASE WHEN n.sender_id=$1 THEN n.recipient_id ELSE n.sender_id END WHERE (n.sender_id=$1 OR n.recipient_id=$1) AND (n.sender_id=$1 OR n.delivered)`},
+		{table: "learner_blocks", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('created_at',b.created_at,'blocked_username',u.username)),'[]'::jsonb) FROM learner_blocks b JOIN learner_usernames u ON u.learner_id=b.blocked_id WHERE b.blocker_id=$1`},
 		{table: "learners", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'display_name',display_name,'created_at',created_at)),'[]'::jsonb) FROM learners WHERE id=$1`},
 		{table: "learner_profiles", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM learner_profiles p WHERE learner_id=$1`},
 		{table: "auth_identities", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('email',email,'created_at',created_at)),'[]'::jsonb) FROM auth_identities WHERE learner_id=$1`},
@@ -131,7 +164,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 	for _, table := range []string{"credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(g)),'[]'::jsonb) FROM " + table + " g JOIN credit_subscription_terms t USING(period_key) JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1"})
 	}
-	for _, table := range []string{"quick_notes", "quick_note_enrichments", "bookmarks", "xp_events", "daily_goal_achievements", "character_create_jobs", "characters", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_playback_sync_events", "lesson_playback_positions", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "credit_checkout_orders", "credit_jobs", "credit_outbox"} {
+	for _, table := range []string{"quick_notes", "quick_note_enrichments", "quick_note_chat_sources", "bookmarks", "xp_events", "daily_goal_achievements", "streak_state", "streak_days", "streak_breaks", "streak_freeze_inventory", "streak_freeze_milestones", "streak_day_protections", "league_memberships", "league_week_results", "character_create_jobs", "characters", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_playback_sync_events", "lesson_playback_positions", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "tutor_threads", "tutor_messages", "tutor_turns", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "credit_checkout_orders", "credit_jobs", "credit_outbox", "learner_usernames", "learner_social_settings"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM " + table + " t WHERE learner_id=$1"})
 	}
 	for _, table := range []string{"credit_allocations", "credit_usage"} {
@@ -241,6 +274,9 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 // HTTP listener opens. It deletes any personal account whose pseudonym matches
 // a durable tombstone, while leaving null-linked financial rows intact.
 func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
+	if err := applyThreadDeletionTombstones(ctx, pool); err != nil {
+		return err
+	}
 	rows, err := pool.Query(ctx, "SELECT id::text FROM learners")
 	if err != nil {
 		return err
@@ -335,4 +371,24 @@ func (s *Service) clearEmailAuthentication(ctx context.Context, tx pgx.Tx, learn
 		}
 	}
 	return nil
+}
+
+// applyThreadDeletionTombstones removes tutor threads a Learner deleted after the restored backup was
+// taken: their text is erased again and notes saved from them read "source unavailable".
+func applyThreadDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	for _, q := range []string{
+		"UPDATE quick_note_chat_sources SET unavailable=true,thread_id=NULL,message_id=NULL WHERE thread_id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
+		"UPDATE tutor_turns SET user_message_id=NULL,assistant_message_id=NULL,speaker_key=NULL,character_id=NULL,character_version=NULL,cast_source=NULL,cast_version=NULL,persona_fallback=NULL WHERE thread_id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
+		"DELETE FROM tutor_threads WHERE id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
+	} {
+		if _, err = tx.Exec(ctx, q); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
