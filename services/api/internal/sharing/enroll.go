@@ -183,6 +183,12 @@ func (s *Service) Enroll(ctx context.Context, viewer, token string) (Enrollment,
 	if err != nil {
 		return Enrollment{}, err
 	}
+	return s.enrollCourse(ctx, viewer, courseID, ownerID, "link")
+}
+
+// enrollCourse is the one free-enrollment path, shared by share links and the Marketplace; source
+// is the closed provenance ("link" or "marketplace") recorded on the copy and in the event.
+func (s *Service) enrollCourse(ctx context.Context, viewer, courseID, ownerID, source string) (Enrollment, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Enrollment{}, err
@@ -235,14 +241,15 @@ WHERE cc.learner_id=$1 AND cc.source_course_id=$2`, viewer, courseID).Scan(&exis
 		return Enrollment{}, err
 	}
 	plan := PlanCopy(snap, s.assetOrigin)
-	copyID, firstReady, err := s.createCopy(ctx, tx, viewer, courseID, draftID, hash, number, snap, plan)
+	copyID, firstReady, err := s.createCopy(ctx, tx, viewer, courseID, draftID, hash, source, number, snap, plan)
 	if err != nil {
 		return Enrollment{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return Enrollment{}, err
 	}
-	s.emit(viewer, "course_enrolled_published", map[string]any{"source": "link", "course_id": copyID, "source_course_id": courseID, "version": number})
+	s.refreshListingStats(ctx, courseID)
+	s.emit(viewer, "course_enrolled_published", map[string]any{"source": source, "course_id": copyID, "source_course_id": courseID, "version": number})
 	if firstReady != "" {
 		s.emit(viewer, "published_lesson_reused", map[string]any{"course_id": copyID, "lesson_id": firstReady, "version": number})
 	}
@@ -251,7 +258,7 @@ WHERE cc.learner_id=$1 AND cc.source_course_id=$2`, viewer, courseID).Scan(&exis
 
 // createCopy writes the learner's own course, units, stubs and the content of every ready Lesson.
 // It returns the open Lesson's id when that Lesson is playable at once (for the reuse event).
-func (s *Service) createCopy(ctx context.Context, tx pgx.Tx, viewer, sourceID, draftID, hash string, number int, snap Snapshot, plan CopyPlan) (string, string, error) {
+func (s *Service) createCopy(ctx context.Context, tx pgx.Tx, viewer, sourceID, draftID, hash, source string, number int, snap Snapshot, plan CopyPlan) (string, string, error) {
 	var copyID, firstReady string
 	if err := tx.QueryRow(ctx, `INSERT INTO courses(learner_id,title,description) VALUES($1,$2,$3) RETURNING id::text`, viewer, snap.Title, snap.Description).Scan(&copyID); err != nil {
 		return "", "", err
@@ -281,7 +288,7 @@ func (s *Service) createCopy(ctx context.Context, tx pgx.Tx, viewer, sourceID, d
 			}
 		}
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,draft_id,version,content_hash,source) VALUES($1,$2,$3,$4,$5,$6,'link')`, copyID, viewer, sourceID, draftID, number, hash); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,draft_id,version,content_hash,source) VALUES($1,$2,$3,$4,$5,$6,$7)`, copyID, viewer, sourceID, draftID, number, hash, source); err != nil {
 		return "", "", err
 	}
 	return copyID, firstReady, nil

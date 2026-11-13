@@ -332,6 +332,8 @@ func run(ctx context.Context, args []string) (result error) {
 	// Publishing needs an 18+ account (ADR 0012); no age data exists yet, so it fails closed.
 	sharingService := sharing.NewService(db.Pool, events, sharing.ConfigFromEnv(os.Getenv)).WithAgeSource(sharing.UnknownAge{}).WithObjects(player.NewS3(os.Getenv), os.Getenv("LESSON_ASSET_ORIGIN"))
 	sharingService.ConfigureScreening(backend, sharing.PricingRates{Pool: db.Pool})
+	// Marketplace pages are cached in Redis only as derived data; the flag MARKETPLACE_ENABLED stays off by default (E15-07).
+	sharingService = sharingService.WithMarketplaceCache(redis)
 	if lessonPreparer != nil {
 		// Missing Lessons in a pinned copy reuse the private generation pipeline and the learner's credits (E15-04).
 		sharingService = sharingService.WithGeneration(sharing.GenerationDeps{Quotes: quotesService, Wallet: creditService, Lessons: lessonPreparer})

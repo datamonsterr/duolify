@@ -59,6 +59,21 @@ type Config struct {
 	PreviewRateWindowSeconds int
 	// TrustedProxyHops is how many reverse proxies append to X-Forwarded-For (shared with auth).
 	TrustedProxyHops int
+	// E15-07 Marketplace. The release flag is OFF until moderation and takedown ship and legal
+	// approves (ADR 0012); every cap below is configuration.
+	MarketplaceEnabled             bool
+	MarketplaceMinAccountAgeDays   int
+	MarketplaceMinLessons          int
+	MarketplaceMaxTags             int
+	MarketplaceMaxListingsPerOwner int
+	MarketplacePageSize            int
+	MarketplaceMaxPageSize         int
+	MarketplaceMaxQueryLength      int
+	// MarketplaceRatingMinCount is the Bayesian minimum count C; the prior is the mean used
+	// when no listed course has a rating yet.
+	MarketplaceRatingMinCount  int
+	MarketplaceRatingPrior     float64
+	MarketplaceCacheTTLSeconds int
 }
 
 // DefaultConfig is the conservative v1 policy.
@@ -69,6 +84,9 @@ func DefaultConfig() Config {
 		MaxCostNanos: 250_000_000, RetentionDays: 365,
 		PublicDomain: "localhost", AppScheme: "duolify",
 		PreviewRateLimitPerIP: 60, PreviewRateWindowSeconds: 60,
+		MarketplaceMinAccountAgeDays: 3, MarketplaceMinLessons: 3, MarketplaceMaxTags: 5, MarketplaceMaxListingsPerOwner: 20,
+		MarketplacePageSize: 20, MarketplaceMaxPageSize: 50, MarketplaceMaxQueryLength: 100,
+		MarketplaceRatingMinCount: 10, MarketplaceRatingPrior: 3.5, MarketplaceCacheTTLSeconds: 60,
 	}
 }
 
@@ -107,6 +125,28 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	}
 	if n, err := strconv.Atoi(getenv("AUTH_TRUSTED_PROXY_HOPS")); err == nil && n >= 0 && n <= 32 {
 		c.TrustedProxyHops = n
+	}
+	// Only the exact word "true" turns the Marketplace on.
+	c.MarketplaceEnabled = getenv("MARKETPLACE_ENABLED") == "true"
+	positive := func(key string, dst *int, min, max int) {
+		if n, err := strconv.Atoi(getenv(key)); err == nil && n >= min && n <= max {
+			*dst = n
+		}
+	}
+	positive("MARKETPLACE_MIN_ACCOUNT_AGE_DAYS", &c.MarketplaceMinAccountAgeDays, 0, 3650)
+	positive("MARKETPLACE_MIN_LESSONS", &c.MarketplaceMinLessons, 1, 1000)
+	positive("MARKETPLACE_MAX_TAGS", &c.MarketplaceMaxTags, 0, 10)
+	positive("MARKETPLACE_MAX_LISTINGS_PER_OWNER", &c.MarketplaceMaxListingsPerOwner, 1, 1000)
+	positive("MARKETPLACE_MAX_PAGE_SIZE", &c.MarketplaceMaxPageSize, 1, 100)
+	positive("MARKETPLACE_PAGE_SIZE", &c.MarketplacePageSize, 1, 100)
+	positive("MARKETPLACE_MAX_QUERY_LENGTH", &c.MarketplaceMaxQueryLength, 1, 200)
+	positive("MARKETPLACE_RATING_MIN_COUNT", &c.MarketplaceRatingMinCount, 1, 10000)
+	positive("MARKETPLACE_CACHE_TTL_SECONDS", &c.MarketplaceCacheTTLSeconds, 1, 3600)
+	if f, err := strconv.ParseFloat(getenv("MARKETPLACE_RATING_PRIOR"), 64); err == nil && f >= 1 && f <= 5 {
+		c.MarketplaceRatingPrior = f
+	}
+	if c.MarketplacePageSize > c.MarketplaceMaxPageSize {
+		c.MarketplacePageSize = c.MarketplaceMaxPageSize
 	}
 	return c
 }
