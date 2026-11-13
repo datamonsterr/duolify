@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -75,7 +76,7 @@ func allowlisted(event string) bool {
 	switch event {
 	case "xp_earned", "daily_goal_met", "lesson_completed":
 		return true
-	case "username_set", "username_rejected":
+	case "username_set", "username_rejected", "username_changed", "username_searched", "privacy_setting_changed":
 		return true
 	case "slide_viewed", "slide_replayed", "slide_paused":
 		return true
@@ -426,8 +427,17 @@ func safeProperties(event string, input map[string]any) map[string]any {
 				out["actor_id"] = id.String()
 			}
 		}
-	case "username_set":
+	case "username_set", "username_changed":
 		numeric("username_length")
+	case "username_searched":
+		numeric("query_length", "result_count")
+	case "privacy_setting_changed":
+		setting, _ := input["setting"].(string)
+		value, _ := input["value"].(string)
+		allowed := map[string][]string{"discoverable": {"on", "off"}, "show_streak_to_friends": {"on", "off"}, "request_policy": {"everyone", "friends_of_friends", "nobody"}}
+		if slices.Contains(allowed[setting], value) {
+			out["setting"], out["value"] = setting, value
+		}
 	case "username_rejected":
 		if reason, ok := input["reason_code"].(string); ok {
 			switch reason {

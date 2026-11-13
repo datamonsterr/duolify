@@ -34,6 +34,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
@@ -320,6 +321,7 @@ func run() (result error) {
 		Quotes:                  pricing.NewQuotes(db.Pool),
 		Credits:                 creditHandler,
 		Accounts:                auth,
+		Social:                  social.New(db.Pool, nil),
 		CourseBrief:             courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"}),
 	}, logger))
 	// Exercise the real expiry worker across a historical local date. Only the

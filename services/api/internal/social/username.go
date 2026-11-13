@@ -2,8 +2,10 @@
 package social
 
 import (
+	"math"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
@@ -11,11 +13,15 @@ import (
 
 // Rejection codes are stable API and analytics reason codes.
 const (
-	CodeInvalid    = "username_invalid"
-	CodeTaken      = "username_taken"
-	CodeReserved   = "username_reserved"
-	CodeNotAllowed = "username_not_allowed"
-	CodeAlreadySet = "username_already_set"
+	CodeInvalid     = "username_invalid"
+	CodeTaken       = "username_taken"
+	CodeReserved    = "username_reserved"
+	CodeNotAllowed  = "username_not_allowed"
+	CodeAlreadySet  = "username_already_set"
+	CodeNotSet      = "username_not_set"
+	CodeCooldown    = "username_cooldown"
+	CodeRateLimited = "rate_limited"
+	CodeTooShort    = "search_too_short"
 )
 
 // Username length bounds shared with the client rules response.
@@ -26,7 +32,18 @@ const (
 
 // Rejection is a neutral refusal. Taken, held, reserved and filtered names share
 // one message so a response never reveals why a name is unavailable.
-type Rejection struct{ Code string }
+type Rejection struct {
+	Code string
+	// NextChangeAt is when the rename cooldown ends (CodeCooldown only).
+	NextChangeAt time.Time
+	// RetryAfter is the wait until the limiter window resets (CodeRateLimited only).
+	RetryAfter time.Duration
+}
+
+// RetryAfterSeconds is the whole-second Retry-After header value, at least one.
+func (r *Rejection) RetryAfterSeconds() int {
+	return max(1, int(math.Ceil(r.RetryAfter.Seconds())))
+}
 
 func (r *Rejection) Error() string {
 	switch r.Code {
@@ -34,6 +51,14 @@ func (r *Rejection) Error() string {
 		return "Use 3–20 characters: letters, numbers, _ or . — start with a letter."
 	case CodeAlreadySet:
 		return "You already have a username."
+	case CodeNotSet:
+		return "Choose a username first."
+	case CodeCooldown:
+		return "You can change your username again on " + r.NextChangeAt.UTC().Format("January 2, 2006") + "."
+	case CodeRateLimited:
+		return "Too many tries. Wait a moment and try again."
+	case CodeTooShort:
+		return "Type at least 3 characters."
 	}
 	return "That username isn't available. Try another."
 }
@@ -41,8 +66,10 @@ func (r *Rejection) Error() string {
 // Status maps a rejection to its HTTP status.
 func (r *Rejection) Status() int {
 	switch r.Code {
-	case CodeTaken, CodeAlreadySet:
+	case CodeTaken, CodeAlreadySet, CodeNotSet, CodeCooldown:
 		return 409
+	case CodeRateLimited:
+		return 429
 	}
 	return 422
 }
@@ -78,6 +105,8 @@ type Config struct {
 	Version   string
 	Reserved  []string
 	Profanity []string
+	// Limits come from username_config so operators tune them without a deploy.
+	HoldDays, RenameCooldownDays, SearchMax, SearchPerMinute, AttemptsPerHour int
 }
 
 // lookalikes folds common digit substitutions; "1" may stand for i or l.

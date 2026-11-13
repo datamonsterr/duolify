@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { authRequest } from "../accounts/session";
+import { session } from "../accounts/session";
 import {
   normalizeUsername,
   usernameHelp,
@@ -30,15 +30,23 @@ export function SocialIdentity({ compact = false }: { compact?: boolean }) {
   const [problem, setProblem] = useState("");
   const [retryable, setRetryable] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [notice, setNotice] = useState("");
+  const changeButton = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
+
+  useEffect(() => {
+    if (editing) input.current?.focus();
+    else if (returnFocus.current) {
+      returnFocus.current = false;
+      changeButton.current?.focus();
+    }
+  }, [editing]);
 
   useEffect(() => {
     let active = true;
-    authRequest<IdentityResponse>(
-      "/v1/social/identity",
-      undefined,
-      undefined,
-      "GET",
-    )
+    session
+      .request<IdentityResponse>("/v1/social/identity")
       .then((value) => {
         if (active) {
           setData(value);
@@ -56,7 +64,7 @@ export function SocialIdentity({ compact = false }: { compact?: boolean }) {
     };
   }, [revision]);
 
-  async function claim(event?: FormEvent) {
+  async function claim(event?: FormEvent, method: "PUT" | "PATCH" = "PUT") {
     event?.preventDefault();
     if (busy) return;
     const invalid = validateUsername(draft, data?.rules ?? usernameRules);
@@ -69,13 +77,19 @@ export function SocialIdentity({ compact = false }: { compact?: boolean }) {
     setBusy(true);
     setProblem("");
     try {
-      const next = await authRequest<IdentityResponse>(
+      const next = await session.request<IdentityResponse>(
         "/v1/social/username",
-        { username: normalizeUsername(draft) },
-        undefined,
-        "PUT",
+        method,
+        {
+          username: normalizeUsername(draft),
+        },
       );
       setData(next);
+      if (method === "PATCH") {
+        setEditing(false);
+        returnFocus.current = true;
+        setNotice("Username changed.");
+      }
     } catch (err) {
       const status = (err as { status?: number }).status;
       const rejected = status === 409 || status === 422;
@@ -113,9 +127,92 @@ export function SocialIdentity({ compact = false }: { compact?: boolean }) {
   const me = data.username;
   if (me && compact)
     return (
-      <p className="social-handle">
-        <span>Username</span> <strong>@{me.username}</strong>
-      </p>
+      <div className="social-rename-row">
+        <p className="social-handle">
+          <span>Username</span> <strong>@{me.username}</strong>
+        </p>
+        {editing ? (
+          <form
+            className="social-claim social-rename"
+            aria-label="Change username"
+            onSubmit={(event) => void claim(event, "PATCH")}
+            noValidate
+            aria-busy={busy}
+          >
+            <label htmlFor={`${id}-input`}>New username</label>
+            <input
+              id={`${id}-input`}
+              ref={input}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              aria-invalid={problem ? true : undefined}
+              aria-describedby={`${id}-help${problem ? ` ${id}-error` : ""}`}
+            />
+            <p id={`${id}-help`} className="social-hint">
+              {usernameHelp} · You can change it once every 30 days and your old
+              name is held for you.
+            </p>
+            {problem && (
+              <div id={`${id}-error`} role="alert" className="social-error">
+                {problem}
+              </div>
+            )}
+            <div className="social-actions">
+              <button
+                type="submit"
+                className="duo-button primary"
+                disabled={busy}
+              >
+                Save username
+              </button>
+              {retryable && (
+                <button
+                  type="button"
+                  className="duo-button quiet"
+                  onClick={() => void claim(undefined, "PATCH")}
+                >
+                  Retry
+                </button>
+              )}
+              <button
+                type="button"
+                className="duo-button quiet"
+                onClick={() => {
+                  setEditing(false);
+                  setProblem("");
+                  returnFocus.current = true;
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <button
+              ref={changeButton}
+              type="button"
+              className="duo-button quiet"
+              onClick={() => {
+                setDraft(me.username);
+                setProblem("");
+                setNotice("");
+                setEditing(true);
+              }}
+            >
+              Change username
+            </button>
+            {notice && (
+              <span role="status" aria-label="Username status">
+                {notice}
+              </span>
+            )}
+          </>
+        )}
+      </div>
     );
   if (me)
     return (

@@ -2,20 +2,10 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SocialIdentity } from "./SocialIdentity";
 import { validateUsername } from "./username";
-import { authRequest } from "../accounts/session";
+import { session } from "../accounts/session";
 
-vi.mock("../accounts/session", () => ({
-  authRequest: vi.fn(),
-  AuthError: class extends Error {
-    status: number;
-    details: unknown;
-    constructor(message: string, status: number, details?: unknown) {
-      super(message);
-      this.status = status;
-      this.details = details;
-    }
-  },
-}));
+vi.mock("../accounts/session", () => ({ session: { request: vi.fn() } }));
+const request = vi.mocked(session.request);
 const neutral = "That username isn't available. Try another.";
 const none = { username: null, rules: { min: 3, max: 20 } };
 const mine = {
@@ -48,9 +38,9 @@ describe("username boundaries", () => {
 });
 
 describe("claim a username", () => {
-  beforeEach(() => vi.mocked(authRequest).mockReset());
+  beforeEach(() => request.mockReset());
   it("blocks malformed names locally and sends nothing", async () => {
-    vi.mocked(authRequest).mockResolvedValueOnce(none);
+    request.mockResolvedValueOnce(none);
     render(<SocialIdentity />);
     const input = await screen.findByRole("textbox", { name: "Username" });
     fireEvent.change(input, { target: { value: "a__b" } });
@@ -59,15 +49,15 @@ describe("claim a username", () => {
       "3–20 characters",
     );
     expect(input).toHaveAttribute("aria-invalid", "true");
-    expect(authRequest).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
   it("shows identical neutral copy for taken and reserved, keeping the draft", async () => {
-    vi.mocked(authRequest).mockResolvedValueOnce(none);
+    request.mockResolvedValueOnce(none);
     render(<SocialIdentity />);
     const input = await screen.findByRole("textbox", { name: "Username" });
     for (const code of ["username_taken", "username_reserved"]) {
-      vi.mocked(authRequest).mockRejectedValueOnce(
+      request.mockRejectedValueOnce(
         Object.assign(new Error(neutral), { status: 409, details: { code } }),
       );
       fireEvent.change(input, { target: { value: "Support" } });
@@ -75,23 +65,20 @@ describe("claim a username", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(neutral);
       expect(input).toHaveValue("Support");
     }
-    expect(authRequest).toHaveBeenLastCalledWith(
-      "/v1/social/username",
-      { username: "Support" },
-      undefined,
-      "PUT",
-    );
+    expect(request).toHaveBeenLastCalledWith("/v1/social/username", "PUT", {
+      username: "Support",
+    });
   });
 
   it("offers retry on outage and shows the identity card on success", async () => {
-    vi.mocked(authRequest).mockResolvedValueOnce(none);
+    request.mockResolvedValueOnce(none);
     render(<SocialIdentity />);
     const input = await screen.findByRole("textbox", { name: "Username" });
     fireEvent.change(input, { target: { value: "Maya_Learns" } });
-    vi.mocked(authRequest).mockRejectedValueOnce(new Error("Try again."));
+    request.mockRejectedValueOnce(new Error("Try again."));
     fireEvent.click(screen.getByRole("button", { name: "Claim username" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Try again");
-    vi.mocked(authRequest).mockResolvedValueOnce(mine);
+    request.mockResolvedValueOnce(mine);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     const card = await screen.findByRole("region", {
       name: "Your public identity",
@@ -104,17 +91,17 @@ describe("claim a username", () => {
   });
 
   it("loads an existing identity without the claim form and recovers from load failure", async () => {
-    vi.mocked(authRequest).mockRejectedValueOnce(new Error("Try again."));
+    request.mockRejectedValueOnce(new Error("Try again."));
     render(<SocialIdentity />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Try again");
-    vi.mocked(authRequest).mockResolvedValueOnce(mine);
+    request.mockResolvedValueOnce(mine);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("@Maya_Learns")).toBeVisible();
     expect(screen.queryByRole("textbox", { name: "Username" })).toBeNull();
   });
 
   it("compact mode shows only the handle for Settings", async () => {
-    vi.mocked(authRequest).mockResolvedValueOnce(mine);
+    request.mockResolvedValueOnce(mine);
     render(<SocialIdentity compact />);
     expect(await screen.findByText("@Maya_Learns")).toBeVisible();
   });

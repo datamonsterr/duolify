@@ -22,6 +22,7 @@ var ClassifiedLearnerTables = map[string]string{
 	"quick_note_enrichments":            "erased",
 	"learner_usernames":                 "erased_name_held_30_days",
 	"learner_social_settings":           "erased",
+	"social_rate_limits":                "erased_ephemeral_1_hour",
 	"username_holds":                    "retained_30_days_pseudonymous",
 	"xp_events":                         "erased_account_lifetime",
 	"daily_goal_achievements":           "erased_account_lifetime",

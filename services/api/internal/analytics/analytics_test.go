@@ -97,7 +97,7 @@ func TestEventAllowlist(t *testing.T) {
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "lesson_test_recap_shown", "ui_test_retry_presented",
-		"quick_note_created", "ui_sheet_opened", "username_set", "username_rejected",
+		"quick_note_created", "ui_sheet_opened", "username_set", "username_rejected", "username_changed", "username_searched", "privacy_setting_changed",
 		"bookmark_added", "bookmark_removed", "bookmark_opened",
 	} {
 		if !allowlisted(name) {
@@ -1174,5 +1174,35 @@ func TestLessonTestPoolExhaustionAndMetricsAreAllowlistedWithoutText(t *testing.
 	got = safeProperties("retry_variant_served", map[string]any{"source": "api", "variant_source": "pool_exhausted_fallback"})
 	if got["source"] != "api" || got["variant_source"] != "pool_exhausted_fallback" {
 		t.Fatalf("lost variant provenance: %v", got)
+	}
+}
+
+func TestRenameSearchAndPrivacyEventsKeepOnlyClosedProperties(t *testing.T) {
+	for _, name := range []string{"username_changed", "username_searched", "privacy_setting_changed"} {
+		if !allowlisted(name) {
+			t.Errorf("%s not allowlisted", name)
+		}
+	}
+	got := safeProperties("username_searched", map[string]any{"query_length": 4, "result_count": 2, "query": "maya", "username": "maya"})
+	if got["query_length"] != 4 || got["result_count"] != 2 || got["query"] != nil || got["username"] != nil {
+		t.Fatalf("search: %v", got)
+	}
+	got = safeProperties("username_changed", map[string]any{"username_length": 9, "username": "maya.new", "previous": "maya"})
+	if got["username_length"] != 9 || got["username"] != nil || got["previous"] != nil {
+		t.Fatalf("changed: %v", got)
+	}
+	for setting, values := range map[string][]string{"discoverable": {"on", "off"}, "show_streak_to_friends": {"on", "off"}, "request_policy": {"everyone", "friends_of_friends", "nobody"}} {
+		for _, value := range values {
+			got = safeProperties("privacy_setting_changed", map[string]any{"setting": setting, "value": value})
+			if got["setting"] != setting || got["value"] != value {
+				t.Errorf("%s=%s dropped: %v", setting, value, got)
+			}
+		}
+	}
+	for _, bad := range []map[string]any{{"setting": "email", "value": "on"}, {"setting": "discoverable", "value": "maya"}, {"setting": "request_policy", "value": "on"}} {
+		got = safeProperties("privacy_setting_changed", bad)
+		if got["setting"] != nil && got["value"] != nil {
+			t.Errorf("accepted %v -> %v", bad, got)
+		}
 	}
 }
