@@ -24,6 +24,7 @@ import { RouteGuard } from "./features/accounts/RouteGuard";
 import { SetupProfile } from "./features/accounts/LearnerProfile";
 import { AccountProfile } from "./features/accounts/AccountProfile";
 import { Settings } from "./features/accounts/Settings";
+import { FriendsPage } from "./features/social/FriendsPage";
 import { CharacterLibrary } from "./features/characters/CharacterLibrary";
 import { CourseCast } from "./features/characters/CourseCast";
 import { LearnPath } from "./LearnPath";
@@ -220,7 +221,7 @@ const more = createRoute({
 const friends = createRoute({
   getParentRoute: () => root,
   path: "/friends",
-  component: () => <DestinationPage title="Friends" />,
+  component: FriendsPage,
 });
 const leagues = createRoute({
   getParentRoute: () => root,

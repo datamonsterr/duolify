@@ -1,0 +1,95 @@
+.social-page {
+  max-width: 42rem;
+  display: grid;
+  gap: var(--space-5, 20px);
+  min-width: 0;
+}
+.social-claim,
+.social-card,
+.social-identity {
+  display: grid;
+  gap: var(--space-3, 12px);
+  min-width: 0;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  padding: var(--space-5, 20px);
+  background: var(--surface);
+  color: var(--text);
+}
+.social-claim h2,
+.social-claim p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.social-claim input {
+  min-height: 44px;
+  min-width: 0;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.social-claim input[aria-invalid="true"] {
+  border-color: var(--danger, #b3261e);
+}
+.social-error {
+  color: var(--danger, #b3261e);
+  overflow-wrap: anywhere;
+}
+.social-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3, 12px);
+}
+.social-actions .duo-button,
+.social-identity .duo-button {
+  min-height: 44px;
+}
+.social-card {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+.social-card-text {
+  display: grid;
+  gap: var(--space-1, 4px);
+  min-width: 0;
+}
+.social-card-text > * {
+  overflow-wrap: anywhere;
+}
+.social-avatar {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: var(--raised);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 1.5rem;
+}
+.social-handle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.social-claim :focus-visible,
+.social-handle a:focus-visible,
+.social-identity :focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+@media (max-width: 47.99rem) {
+  .social-claim,
+  .social-card,
+  .social-identity {
+    padding: var(--space-4, 16px);
+  }
+  .social-actions .duo-button {
+    flex: 1 1 100%;
+  }
+}

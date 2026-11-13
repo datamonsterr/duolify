@@ -75,6 +75,8 @@ func allowlisted(event string) bool {
 	switch event {
 	case "xp_earned", "daily_goal_met", "lesson_completed":
 		return true
+	case "username_set", "username_rejected":
+		return true
 	case "slide_viewed", "slide_replayed", "slide_paused":
 		return true
 	case "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
@@ -422,6 +424,15 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		if v, ok := input["actor_id"].(string); ok {
 			if id, err := uuid.Parse(v); err == nil {
 				out["actor_id"] = id.String()
+			}
+		}
+	case "username_set":
+		numeric("username_length")
+	case "username_rejected":
+		if reason, ok := input["reason_code"].(string); ok {
+			switch reason {
+			case "username_invalid", "username_taken", "username_reserved", "username_not_allowed", "username_already_set":
+				out["reason_code"] = reason
 			}
 		}
 	case "quick_note_created":
