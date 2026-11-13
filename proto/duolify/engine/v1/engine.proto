@@ -30,6 +30,42 @@ service EngineService {
   rpc CourseBriefChat(CourseBriefChatRequest) returns (CourseBriefChatResponse);
   // OutlineChatChange proposes typed edits to an owned pre-creation draft.
   rpc OutlineChatChange(OutlineChatChangeRequest) returns (OutlineChatChangeResponse);
+  // SynthesizeNarration turns stored Slide narration text into audio with character alignment (E14).
+  rpc SynthesizeNarration(SynthesizeNarrationRequest) returns (SynthesizeNarrationResponse);
+}
+
+message SynthesizeNarrationRequest {
+  string slide_id = 1;
+  // Plain narration text already stored by the API; never logged or sent to analytics.
+  string text = 2;
+  string language = 3;
+  // Logical voice key (`default`); the engine resolves the voice id from its config.
+  string voice_key = 4;
+  UsageLimits limits = 5;
+  // Return only the resolved voice/model/settings so the API can look up the dedup key first.
+  bool resolve_only = 6;
+}
+
+// Alignment lists one entry per Unicode scalar value of the text, in order.
+message NarrationAlignment {
+  repeated string characters = 1;
+  repeated uint32 start_ms = 2;
+  repeated uint32 end_ms = 3;
+}
+
+message SynthesizeNarrationResponse {
+  bytes audio = 1;
+  string audio_format = 2;
+  uint32 duration_ms = 3;
+  NarrationAlignment alignment = 4;
+  string voice_id = 5;
+  string model_id = 6;
+  // Stable fingerprint of the resolved voice settings; part of the dedup key.
+  string settings_fingerprint = 7;
+  uint32 characters = 8;
+  uint32 audio_bytes = 9;
+  // Actual usage (component `audio`, narration_characters) for settlement.
+  Usage usage = 10;
 }
 
 message MapCharacterRequest {

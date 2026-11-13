@@ -31,6 +31,7 @@ const (
 	EngineService_SetupChat_FullMethodName             = "/duolify.engine.v1.EngineService/SetupChat"
 	EngineService_CourseBriefChat_FullMethodName       = "/duolify.engine.v1.EngineService/CourseBriefChat"
 	EngineService_OutlineChatChange_FullMethodName     = "/duolify.engine.v1.EngineService/OutlineChatChange"
+	EngineService_SynthesizeNarration_FullMethodName   = "/duolify.engine.v1.EngineService/SynthesizeNarration"
 )
 
 // EngineServiceClient is the client API for EngineService service.
@@ -63,6 +64,8 @@ type EngineServiceClient interface {
 	CourseBriefChat(ctx context.Context, in *CourseBriefChatRequest, opts ...grpc.CallOption) (*CourseBriefChatResponse, error)
 	// OutlineChatChange proposes typed edits to an owned pre-creation draft.
 	OutlineChatChange(ctx context.Context, in *OutlineChatChangeRequest, opts ...grpc.CallOption) (*OutlineChatChangeResponse, error)
+	// SynthesizeNarration turns stored Slide narration text into audio with character alignment (E14).
+	SynthesizeNarration(ctx context.Context, in *SynthesizeNarrationRequest, opts ...grpc.CallOption) (*SynthesizeNarrationResponse, error)
 }
 
 type engineServiceClient struct {
@@ -211,6 +214,16 @@ func (c *engineServiceClient) OutlineChatChange(ctx context.Context, in *Outline
 	return out, nil
 }
 
+func (c *engineServiceClient) SynthesizeNarration(ctx context.Context, in *SynthesizeNarrationRequest, opts ...grpc.CallOption) (*SynthesizeNarrationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SynthesizeNarrationResponse)
+	err := c.cc.Invoke(ctx, EngineService_SynthesizeNarration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EngineServiceServer is the server API for EngineService service.
 // All implementations must embed UnimplementedEngineServiceServer
 // for forward compatibility.
@@ -241,6 +254,8 @@ type EngineServiceServer interface {
 	CourseBriefChat(context.Context, *CourseBriefChatRequest) (*CourseBriefChatResponse, error)
 	// OutlineChatChange proposes typed edits to an owned pre-creation draft.
 	OutlineChatChange(context.Context, *OutlineChatChangeRequest) (*OutlineChatChangeResponse, error)
+	// SynthesizeNarration turns stored Slide narration text into audio with character alignment (E14).
+	SynthesizeNarration(context.Context, *SynthesizeNarrationRequest) (*SynthesizeNarrationResponse, error)
 	mustEmbedUnimplementedEngineServiceServer()
 }
 
@@ -286,6 +301,9 @@ func (UnimplementedEngineServiceServer) CourseBriefChat(context.Context, *Course
 }
 func (UnimplementedEngineServiceServer) OutlineChatChange(context.Context, *OutlineChatChangeRequest) (*OutlineChatChangeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method OutlineChatChange not implemented")
+}
+func (UnimplementedEngineServiceServer) SynthesizeNarration(context.Context, *SynthesizeNarrationRequest) (*SynthesizeNarrationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SynthesizeNarration not implemented")
 }
 func (UnimplementedEngineServiceServer) mustEmbedUnimplementedEngineServiceServer() {}
 func (UnimplementedEngineServiceServer) testEmbeddedByValue()                       {}
@@ -510,6 +528,24 @@ func _EngineService_OutlineChatChange_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _EngineService_SynthesizeNarration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SynthesizeNarrationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).SynthesizeNarration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_SynthesizeNarration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).SynthesizeNarration(ctx, req.(*SynthesizeNarrationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // EngineService_ServiceDesc is the grpc.ServiceDesc for EngineService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -556,6 +592,10 @@ var EngineService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "OutlineChatChange",
 			Handler:    _EngineService_OutlineChatChange_Handler,
+		},
+		{
+			MethodName: "SynthesizeNarration",
+			Handler:    _EngineService_SynthesizeNarration_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
