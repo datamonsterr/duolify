@@ -136,7 +136,7 @@ and production drills still require provisioning. See [backup tooling](../infra/
 | Postgres `bookmarks` | Learner-owned unique lesson/slide bookmarks, stable action key, course/lesson/slide titles | Full nightly encrypted database dumps, 14-day retention; populated backup fixture compares full rows | Authenticated owner read/export; deleted with the account within 30 days; restore tombstones erase before serving | [E9-05 change](../openspec/changes/e9-05-bookmark-lessons-and-slides/design.md), [bookmarks](../openspec/specs/bookmarks/spec.md) |
 | Postgres (planned) | Tutor chat threads/messages; enrichment tags/links | Nightly dump | Per-item deletion where supported; account deletion within 30 days | [tutor-chat](../openspec/specs/tutor-chat/spec.md) |
 | Redis | Disposable session/cache entries, rate limits, cached balances, leaderboards and streak counters | No backup; rebuild from Postgres | TTL or eviction; never sole copy of product data | [data-backup](../openspec/specs/data-backup/spec.md), [gamification](../openspec/specs/gamification/spec.md) |
-| S3 application bucket | Motion HTML slides, manifests (including static slide explanations), lesson assets; optional golden-set mirror | Object versioning; tracked regeneration jobs; verify cloud capability before use | Match owning course/account deletion; object-version expiry policy must be specified before real data | [lesson-player](../openspec/specs/lesson-player/spec.md), [course-creation](../openspec/specs/course-creation/spec.md) |
+| S3 application bucket | Motion HTML slides, manifests (including static slide explanations), lesson assets, versioned narration audio and alignment (`lessons/narration/v1/<sha256>/audio.wav`, `alignment.json`); optional golden-set mirror | Object versioning; tracked regeneration jobs; verify cloud capability before use | Match owning course/account deletion; object-version expiry policy must be specified before real data | [lesson-player](../openspec/specs/lesson-player/spec.md), [course-creation](../openspec/specs/course-creation/spec.md) |
 | S3 separate backup bucket | age-encrypted custom Postgres dumps at `YYYY-MM-DD/schema-<Goose version>.dump.age`; includes learner, append-only ledger and migration/queue state | Worker at 02:00 UTC plus startup catch-up; public X25519 recipient only, conditional whole-object upload, no multipart remnants. Railway snapshots remain a separately provisioned second layer | General backups 14 days; financial backup policy 35 days per ADR 0011. API has no backup access; writer can read/put but cannot delete or administer buckets. Separate retention administrator owns expiry; cloud lifecycle automation remains a follow-up | [data-backup](../openspec/specs/data-backup/spec.md), [ADR 0011](adr/0011-owner-decisions-2026-11-09.md) |
 | Worker temporary filesystem | Ciphertext-only private staging file (0600); no plaintext database archive | Disposable, never a recovery source; removed on success, dump failure and upload failure | One bounded job (30 minutes, at most 4 GiB encrypted output); container filesystem is ephemeral after abnormal process termination | [worker backup change](../openspec/changes/worker-database-backup/design.md) |
 | Local RustFS IAM metadata | Separate application, backup writer and root/retention identities and policies; local fixture secrets are environment settings | Reprovisioned by the development-only initializer; production IAM/keys managed separately | Never pass root or backup credentials to API containers; private age recovery key is never in worker images or environment | [worker backup change](../openspec/changes/worker-database-backup/design.md) |
@@ -373,6 +373,24 @@ application shell files enter the service worker cache. All device copies can be
 evicted and are excluded from backups/export. Authoritative immutable server
 objects and existing lesson metadata retain E3-01 backup/export/deletion policies;
 restore fixtures assert byte-identical checksums. No new learner tables or AI calls.
+
+E14-01 stores `slide_narrations` (owned Lesson UUID, slide id, narration text copied from
+the stored manifest, `pending|ready|failed|disabled` status, failure code, content
+hash, resolved voice id, model id and settings fingerprint, object keys, characters,
+bytes, duration, reservation id) in the encrypted nightly general Postgres dump with
+14-day rotation, so text and status survive a restore (the backup fixture compares the
+restored rows). Account export lists the table; Lesson/Course/account cascades erase the
+rows. Audio and alignment are immutable hash-keyed objects under the application bucket
+`lessons/narration/v1/…` with the existing object versioning and protected asset-copy
+policy; identical text/voice/model/settings reuse one object across Lessons and Learners
+at zero charge. `narration.UnsharedObjectKeys` lists objects referenced only by the
+Lessons being deleted; those are removed within 30 days of Course or account deletion,
+while keys still referenced by any other Lesson stay. Narration text is never sent to
+PostHog or logs: `narration_generated`, `narration_cache_hit`, `narration_failed`
+(fixed error code), `narration_played` (ids and duration) and `$ai_generation`
+(`feature=narration`, character count) carry ids and counts only. Device copies of audio
+are in-memory object URLs and disposable. Only the deterministic mock provider exists;
+`NARRATION_ENABLED` defaults off and no ElevenLabs call is made.
 
 E10-02: Score each AI task with critical checks. Versioned golden-set revisions
 are maintained on Hugging Face (or Git-pinned in `evals/fixtures/golden.sample.jsonl`

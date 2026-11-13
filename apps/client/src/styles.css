@@ -899,3 +899,33 @@ progress::-moz-progress-bar {
   border-radius: var(--radius-pill);
   margin-block-start: 2px;
 }
+
+/* E14-01 narration: explicit Play, alignment-synced captions, captions-only recovery. */
+.narration {
+  display: grid;
+  gap: var(--space-2, 0.5rem);
+  margin-block: var(--space-2, 0.5rem);
+}
+.narration-title {
+  font-weight: 800;
+  margin: 0;
+}
+.narration-hint {
+  margin: 0;
+  color: var(--color-text-muted, #5b5b5b);
+}
+.narration-caption {
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.5;
+}
+.narration-caption mark {
+  background: var(--color-primary-soft, #d7ffb8);
+  color: inherit;
+  border-radius: 4px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .narration-caption mark {
+    transition: background-color 120ms ease-out;
+  }
+}

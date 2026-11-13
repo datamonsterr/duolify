@@ -1,3 +1,4 @@
+import { NarrationControl } from "../narration/NarrationControl";
 import { useUiPreferences } from "../design/localization/Preferences";
 import {
   useCallback,
@@ -1382,6 +1383,14 @@ function SlidePlayback({
             />
           )
         )}
+        <NarrationControl
+          key={slide.slide_id}
+          lessonId={lessonId}
+          slide={slide}
+          rate={rate}
+          muted={muted}
+          captions={captionsVisible}
+        />
         {captionsVisible && (
           <p className="slide-caption">
             {slide.explanation || slide.narration_text}
