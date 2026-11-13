@@ -121,3 +121,98 @@
     border-width: 0;
   }
 }
+
+/* Share dialog */
+.sharing-visibility {
+  display: grid;
+  gap: var(--space-2, 8px);
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.sharing-choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 var(--space-3, 12px);
+  align-items: center;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-3, 12px);
+  min-height: 44px;
+}
+.sharing-choice small {
+  grid-column: 2;
+  color: var(--muted, var(--text));
+}
+.sharing-link,
+.sharing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  align-items: center;
+}
+.sharing-link {
+  flex-direction: column;
+  align-items: stretch;
+}
+.sharing-link code {
+  overflow-wrap: anywhere;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+}
+
+/* Public preview page */
+.share-preview {
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--space-3, 12px);
+  width: min(44rem, 100%);
+  margin: 0 auto;
+  padding: var(--space-5, 20px);
+  background: var(--surface);
+  color: var(--text);
+  min-height: 100dvh;
+}
+.share-preview h1,
+.share-preview p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.share-preview-brand {
+  font-weight: 800;
+}
+.share-slide-frame {
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  background: #fff;
+}
+.share-slide-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 8px);
+}
+.share-preview .duo-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+.share-preview :focus-visible {
+  outline: 3px solid var(--focus, var(--text));
+  outline-offset: 2px;
+}
+.share-outline {
+  padding-inline-start: var(--space-5, 20px);
+  margin: 0;
+}
+@media (max-width: 47.99rem) {
+  .share-preview .sharing-actions .duo-button {
+    flex: 1 1 100%;
+  }
+}

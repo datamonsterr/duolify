@@ -443,11 +443,12 @@ func (s *Service) PublishLink(ctx context.Context, owner, courseID string) (stri
 		return "", err
 	}
 
-	// Analytics: visibility_changed + course_published + share_link_created.
-	s.emit(owner, "course_visibility_changed", map[string]any{"course_id": courseID, "from": oldVis, "to": "link"})
-	// Get draft details for course_published event.
-	if d, gerr := s.latestPassDraft(ctx, courseID); gerr == nil {
-		s.emit(owner, "course_published", map[string]any{"course_id": courseID, "version": d.Number, "visibility": "link", "lesson_count": d.LessonCount})
+	// Analytics: visibility_changed + course_published (only when visibility actually changes) + share_link_created.
+	if oldVis != "link" {
+		s.emit(owner, "course_visibility_changed", map[string]any{"course_id": courseID, "from": oldVis, "to": "link"})
+		if d, gerr := s.latestPassDraft(ctx, courseID); gerr == nil {
+			s.emit(owner, "course_published", map[string]any{"course_id": courseID, "version": d.Number, "visibility": "link", "lesson_count": d.LessonCount})
+		}
 	}
 	s.emit(owner, "share_link_created", map[string]any{"course_id": courseID})
 
@@ -657,4 +658,64 @@ func (s *Service) Maintain(ctx context.Context) {
 		case <-ticker.C:
 		}
 	}
+}
+
+// LinkState is the owner's view of a Course link. The plaintext token is shown once at
+// creation and is not recoverable, so this never carries it.
+type LinkState struct {
+	Visibility  string     `json:"visibility"`
+	Active      bool       `json:"active"`
+	Version     int        `json:"version,omitempty"`
+	LessonCount int        `json:"lesson_count,omitempty"`
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+}
+
+// LinkStatus reports the owner's link state; every other caller gets ErrUnavailable.
+func (s *Service) LinkStatus(ctx context.Context, owner, courseID string) (LinkState, error) {
+	if !validID(owner) || !validID(courseID) {
+		return LinkState{}, ErrUnavailable
+	}
+	var st LinkState
+	err := s.pool.QueryRow(ctx, `SELECT c.visibility::text FROM courses c WHERE c.id=$1 AND c.learner_id=$2 AND c.deleted_at IS NULL`, courseID, owner).Scan(&st.Visibility)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LinkState{}, ErrUnavailable
+	}
+	if err != nil {
+		return LinkState{}, err
+	}
+	var created time.Time
+	err = s.pool.QueryRow(ctx, `SELECT created_at FROM publication_links WHERE course_id=$1 AND revoked_at IS NULL`, courseID).Scan(&created)
+	if err == nil {
+		st.Active, st.CreatedAt = true, &created
+		if d, derr := s.latestPassDraft(ctx, courseID); derr == nil {
+			st.Version, st.LessonCount = d.Number, d.LessonCount
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return LinkState{}, err
+	}
+	return st, nil
+}
+
+// ErrRateLimited means the per-IP preview budget for the current window is spent.
+var ErrRateLimited = errors.New("rate_limited")
+
+// AllowPreview counts one anonymous preview request for an address. The counter key is a
+// SHA-256 of the address and its row expires with the window, so no raw IP is stored.
+func (s *Service) AllowPreview(ctx context.Context, ip string) error {
+	sum := sha256.Sum256([]byte("sharing-preview:" + ip))
+	window := time.Duration(s.cfg.PreviewRateWindowSeconds) * time.Second
+	var count int
+	err := s.pool.QueryRow(ctx, `INSERT INTO publication_preview_limits(key_hash,count,expires_at) VALUES($1,1,now()+$2::interval)
+ON CONFLICT(key_hash) DO UPDATE SET count=CASE WHEN publication_preview_limits.expires_at<=now() THEN 1 ELSE publication_preview_limits.count+1 END,
+expires_at=CASE WHEN publication_preview_limits.expires_at<=now() THEN now()+$2::interval ELSE publication_preview_limits.expires_at END RETURNING count`,
+		hex.EncodeToString(sum[:]), window.String()).Scan(&count)
+	if err != nil {
+		return err
+	}
+	// Opportunistic purge keeps the table bounded without a worker.
+	_, _ = s.pool.Exec(ctx, `DELETE FROM publication_preview_limits WHERE expires_at<now()-interval '1 hour'`)
+	if count > s.cfg.PreviewRateLimitPerIP {
+		return ErrRateLimited
+	}
+	return nil
 }

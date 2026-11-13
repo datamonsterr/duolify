@@ -34,7 +34,6 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
-	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
@@ -316,7 +315,7 @@ func run() (result error) {
 		seedSharingCourse(w, r, db.Pool)
 	})))
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{
-		Sharing:                 sharing.NewHandler(newSharingService(db.Pool)),
+		Sharing:                 newSharingService(db.Pool),
 		Notes:                   notesService,
 		Player:                  lessonPlayer,
 		LessonTestTracerEnabled: tracerEnabled,

@@ -3,12 +3,15 @@
 package sharing_test
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/backuptest"
 	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 )
@@ -386,8 +389,147 @@ func (c *capture) snapshot() []map[string]any {
 	return out
 }
 
-// seedPublishedCourseForPricingServer is used by the pricingserver fixture (exported for use there)
-func SeedAndPublish(ctx context.Context, s *sharing.Service, f *backuptest.Fixture, ownerID string) (courseID, token string, err error) {
-	_ = fmt.Sprintf // keep import
-	return "", "", errors.New("not implemented here — see pricingserver fixture")
+// testActor injects the session actor named by X-Test-Learner, standing in for accounts.Protect.
+func testActor(required bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if id := r.Header.Get("X-Test-Learner"); id != "" {
+				r = r.WithContext(accounts.WithLearnerID(r.Context(), id))
+			} else if required {
+				http.Error(w, `{"error":"Sign in required."}`, http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func call(mux http.Handler, method, path, learner, ip string) (*httptest.ResponseRecorder, map[string]any) {
+	r := httptest.NewRequest(method, path, strings.NewReader("{}"))
+	r.RemoteAddr = ip + ":4000"
+	if learner != "" {
+		r.Header.Set("X-Test-Learner", learner)
+	}
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	var body map[string]any
+	raw, _ := io.ReadAll(w.Body)
+	_ = json.Unmarshal(raw, &body)
+	return w, body
+}
+
+func TestPublicLinkHTTPSurface(t *testing.T) {
+	f := backuptest.New(t)
+	f.Seed(t)
+	ctx := t.Context()
+	cfg := sharing.DefaultConfig()
+	cfg.PublicDomain, cfg.AppScheme = "share.example.test", "duolifytest"
+	cfg.PreviewRateLimitPerIP, cfg.PreviewRateWindowSeconds = 4, 60
+	ev := &capture{}
+	s := sharing.NewService(f.DB.Pool, ev, cfg).WithAgeSource(adult(true))
+	s.ConfigureScreening(startEngine(t), fixedRates{})
+	mux := http.NewServeMux()
+	sharing.Mount(mux, s, testActor(true), testActor(false))
+	courseID, _ := seedPublishableCourse(t, f, s)
+	base := "/v1/courses/" + courseID + "/share-link"
+
+	if w, _ := call(mux, "POST", base, "", "10.0.0.1"); w.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous publish: %d", w.Code)
+	}
+	if w, _ := call(mux, "POST", base, stranger, "10.0.0.1"); w.Code != http.StatusNotFound {
+		t.Fatalf("stranger publish: %d, want neutral 404", w.Code)
+	}
+	w, created := call(mux, "POST", base, owner, "10.0.0.1")
+	if w.Code != http.StatusCreated {
+		t.Fatalf("owner publish: %d %s", w.Code, w.Body.String())
+	}
+	token, _ := created["token"].(string)
+	if len(token) < 22 { // >=128 bits base64url
+		t.Fatalf("token too short: %q", token)
+	}
+	if created["preview_url"] != "https://share.example.test/c/"+token || created["deep_link"] != "duolifytest://share/"+token {
+		t.Fatalf("links: %v", created)
+	}
+
+	t.Run("owner status never returns the token", func(t *testing.T) {
+		w, body := call(mux, "GET", base, owner, "10.0.0.1")
+		if w.Code != http.StatusOK || body["active"] != true || body["visibility"] != "link" {
+			t.Fatalf("status: %d %v", w.Code, body)
+		}
+		if strings.Contains(w.Body.String(), token) || strings.Contains(w.Body.String(), sharing.HashToken(token)) {
+			t.Fatal("status leaks token material")
+		}
+		if w, _ := call(mux, "GET", base, stranger, "10.0.0.1"); w.Code != http.StatusNotFound {
+			t.Fatalf("stranger status: %d", w.Code)
+		}
+	})
+
+	t.Run("anonymous preview is noindex, no-store and allowlisted", func(t *testing.T) {
+		w, _ := call(mux, "GET", "/v1/public/shares/"+token, "", "10.0.0.2")
+		if w.Code != http.StatusOK || !strings.Contains(w.Header().Get("X-Robots-Tag"), "noindex") || w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("preview: %d %v", w.Code, w.Header())
+		}
+		for _, banned := range []string{"answer_index", "explanation", "retry_pool", "narration", "learner_id", token} {
+			if strings.Contains(w.Body.String(), banned) {
+				t.Errorf("preview leaks %q", banned)
+			}
+		}
+	})
+
+	t.Run("unknown and revoked tokens are one neutral 404 with noindex", func(t *testing.T) {
+		w, body := call(mux, "GET", "/v1/public/shares/"+strings.Repeat("A", 27), "", "10.0.0.3")
+		if w.Code != http.StatusNotFound || body["error"] != "link_not_found" || !strings.Contains(w.Header().Get("X-Robots-Tag"), "noindex") {
+			t.Fatalf("unknown: %d %v", w.Code, w.Header())
+		}
+		if w, _ := call(mux, "DELETE", base, stranger, "10.0.0.3"); w.Code != http.StatusNotFound {
+			t.Fatalf("stranger revoke: %d", w.Code)
+		}
+		if w, _ := call(mux, "DELETE", base, owner, "10.0.0.3"); w.Code != http.StatusNoContent {
+			t.Fatalf("revoke: %d", w.Code)
+		}
+		w2, body2 := call(mux, "GET", "/v1/public/shares/"+token, "", "10.0.0.3")
+		if w2.Code != http.StatusNotFound || body2["error"] != "link_not_found" {
+			t.Fatalf("revoked: %d %v", w2.Code, body2)
+		}
+		if _, st := call(mux, "GET", base, owner, "10.0.0.3"); st["active"] != false {
+			t.Fatalf("status after revoke: %v", st)
+		}
+	})
+
+	t.Run("per-IP limit answers 429 with Retry-After and stores no raw address", func(t *testing.T) {
+		var last *httptest.ResponseRecorder
+		got := []int{}
+		for range 6 {
+			last, _ = call(mux, "GET", "/v1/public/shares/"+strings.Repeat("B", 27), "", "10.9.9.9")
+			got = append(got, last.Code)
+		}
+		if got[0] != 404 || got[3] != 404 || got[4] != 429 || got[5] != 429 {
+			t.Fatalf("statuses %v, want 4x404 then 429", got)
+		}
+		if last.Header().Get("Retry-After") == "" || !strings.Contains(last.Header().Get("X-Robots-Tag"), "noindex") {
+			t.Fatalf("429 headers: %v", last.Header())
+		}
+		if w, _ := call(mux, "GET", "/v1/public/shares/"+strings.Repeat("B", 27), "", "10.8.8.8"); w.Code != 404 {
+			t.Fatalf("another IP must not be limited: %d", w.Code)
+		}
+		var leaked int
+		if err := f.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM publication_preview_limits WHERE key_hash LIKE '%10.9.9.9%'`).Scan(&leaked); err != nil || leaked != 0 {
+			t.Fatalf("raw IP stored: %d %v", leaked, err)
+		}
+	})
+
+	t.Run("signed-in blocked viewer gets the same neutral 404", func(t *testing.T) {
+		seedBlockedLearner(t, f, owner, stranger2)
+		w2, rotated := call(mux, "POST", base, owner, "10.0.0.4")
+		if w2.Code != http.StatusCreated {
+			t.Fatalf("re-publish: %d", w2.Code)
+		}
+		nt := rotated["token"].(string)
+		if w, _ := call(mux, "GET", "/v1/public/shares/"+nt, stranger2, "10.0.0.4"); w.Code != http.StatusNotFound {
+			t.Fatalf("blocked viewer: %d", w.Code)
+		}
+		if w, _ := call(mux, "GET", "/v1/public/shares/"+nt, stranger, "10.0.0.4"); w.Code != http.StatusOK {
+			t.Fatalf("signed-in viewer: %d", w.Code)
+		}
+	})
 }

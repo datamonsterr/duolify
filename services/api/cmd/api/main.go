@@ -330,7 +330,7 @@ func run(ctx context.Context, args []string) (result error) {
 	sharingService.ConfigureScreening(backend, sharing.PricingRates{Pool: db.Pool})
 	go sharingService.Maintain(ctx)
 	handler := httpapi.New(httpapi.Dependencies{
-		Sharing:                 sharing.NewHandler(sharingService),
+		Sharing:                 sharingService,
 		Characters:              characters.NewHandler(characterService),
 		Gamification:            xpService,
 		Social:                  socialService,

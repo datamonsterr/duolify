@@ -53,6 +53,8 @@ type Config struct {
 	AppScheme                string
 	PreviewRateLimitPerIP    int
 	PreviewRateWindowSeconds int
+	// TrustedProxyHops is how many reverse proxies append to X-Forwarded-For (shared with auth).
+	TrustedProxyHops int
 }
 
 // DefaultConfig is the conservative v1 policy.
@@ -92,6 +94,9 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	}
 	if n, err := strconv.Atoi(getenv("SHARING_PREVIEW_RATE_WINDOW_SECONDS")); err == nil && n > 0 {
 		c.PreviewRateWindowSeconds = n
+	}
+	if n, err := strconv.Atoi(getenv("AUTH_TRUSTED_PROXY_HOPS")); err == nil && n >= 0 && n <= 32 {
+		c.TrustedProxyHops = n
 	}
 	return c
 }

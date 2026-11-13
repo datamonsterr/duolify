@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 )
@@ -66,6 +69,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPost && r.URL.Path == "/v1/courses/"+course+"/publish":
 		h.fail(w, r, h.s.Publish(r.Context(), actor, course))
 		return
+	case r.Method == http.MethodGet && r.URL.Path == "/v1/courses/"+course+"/share-link":
+		st, serr := h.s.LinkStatus(r.Context(), actor, course)
+		if serr != nil {
+			h.fail(w, r, serr)
+			return
+		}
+		write(w, http.StatusOK, st)
+		return
 	case r.Method == http.MethodPost && r.URL.Path == "/v1/courses/"+course+"/share-link":
 		// PublishLink: create/publish a share link for a course with verdict=pass.
 		token, terr := h.s.PublishLink(r.Context(), actor, course)
@@ -73,8 +84,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.fail(w, r, terr)
 			return
 		}
-		previewURL := "https://" + h.s.cfg.PublicDomain + "/preview/" + token
-		write(w, http.StatusCreated, map[string]string{"token": token, "preview_url": previewURL})
+		write(w, http.StatusCreated, h.s.linkBody(token))
 		return
 	case r.Method == http.MethodDelete && r.URL.Path == "/v1/courses/"+course+"/share-link":
 		// RevokeLink: revoke the active share link.
@@ -91,8 +101,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.fail(w, r, rerr)
 			return
 		}
-		previewURL := "https://" + h.s.cfg.PublicDomain + "/preview/" + token
-		write(w, http.StatusOK, map[string]string{"token": token, "preview_url": previewURL})
+		write(w, http.StatusOK, h.s.linkBody(token))
 		return
 	default:
 		http.NotFound(w, r)
@@ -118,9 +127,19 @@ func (h *PreviewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := r.PathValue("token")
-	// Set noindex headers on every response.
+	// Set noindex headers on every response, including refusals.
 	w.Header().Set("X-Robots-Tag", "noindex")
 	w.Header().Set("Cache-Control", "no-store")
+	if err := h.s.AllowPreview(r.Context(), h.s.clientIP(r)); err != nil {
+		if errors.Is(err, ErrRateLimited) {
+			w.Header().Set("Retry-After", strconv.Itoa(h.s.cfg.PreviewRateWindowSeconds))
+			write(w, http.StatusTooManyRequests, map[string]string{"error": "rate_limited"})
+			return
+		}
+		slog.ErrorContext(r.Context(), "public preview limiter failed", "error", err)
+		write(w, http.StatusServiceUnavailable, map[string]string{"error": "sharing_unavailable"})
+		return
+	}
 
 	viewerID := accounts.LearnerID(r.Context()) // may be ""
 	payload, err := h.s.GetPreview(r.Context(), token, viewerID)
@@ -134,4 +153,31 @@ func (h *PreviewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	write(w, http.StatusOK, payload)
+}
+
+// linkBody is the one-time response that carries the plaintext token.
+func (s *Service) linkBody(token string) map[string]string {
+	return map[string]string{
+		"token":       token,
+		"preview_url": "https://" + s.cfg.PublicDomain + "/c/" + token,
+		"deep_link":   s.cfg.AppScheme + "://share/" + token,
+	}
+}
+
+// clientIP honours X-Forwarded-For only for the configured number of trusted proxy hops.
+func (s *Service) clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	if s.cfg.TrustedProxyHops <= 0 {
+		return host
+	}
+	chain := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+	if i := len(chain) - s.cfg.TrustedProxyHops; i >= 0 {
+		if ip := net.ParseIP(strings.TrimSpace(chain[i])); ip != nil {
+			return ip.String()
+		}
+	}
+	return host
 }

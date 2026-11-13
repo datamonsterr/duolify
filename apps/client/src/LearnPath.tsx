@@ -1,3 +1,4 @@
+import { ShareCourse } from "./features/sharing/ShareCourse";
 import { PreviewPublicationDraft } from "./features/sharing/PreviewPublicationDraft";
 import { useEffect, useState } from "react";
 import { useUiPreferences } from "./features/design/localization/Preferences";
@@ -196,6 +197,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
         Course Cast
       </a>
       <PreviewPublicationDraft courseId={courseId} />
+      <ShareCourse courseId={courseId} />
       <div>
         <TutorChat courseId={courseId} />
       </div>

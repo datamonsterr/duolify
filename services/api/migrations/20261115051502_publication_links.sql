@@ -18,7 +18,17 @@ CREATE INDEX ON publication_links(token_hash) WHERE revoked_at IS NULL;
 -- At most one active link per course (partial unique).
 CREATE UNIQUE INDEX publication_links_course_active ON publication_links(course_id) WHERE revoked_at IS NULL;
 
+-- Per-IP counters for the anonymous preview: keyed by a hash of the address, never the address,
+-- and rows expire with their window. Not backed up as user data.
+CREATE TABLE publication_preview_limits (
+  key_hash   TEXT PRIMARY KEY CHECK (key_hash ~ '^[0-9a-f]{64}$'),
+  count      INTEGER NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX ON publication_preview_limits(expires_at);
+
 -- +goose Down
+DROP TABLE publication_preview_limits;
 DROP TABLE publication_links;
 ALTER TABLE courses DROP COLUMN visibility;
 DROP TYPE course_visibility;
