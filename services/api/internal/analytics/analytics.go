@@ -98,7 +98,7 @@ func allowlisted(event string) bool {
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
-		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened":
+		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused":
 		return true
 	default:
 		return false
@@ -154,6 +154,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		case "source":
 			if event == "quick_note_created" {
 				if v == "slide" || v == "lesson" || v == "chat" {
+					out[key] = v
+				}
+				continue
+			}
+			if event == "course_enrolled_published" {
+				if v == "link" || v == "invite" || v == "marketplace" {
 					out[key] = v
 				}
 				continue
@@ -277,6 +283,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "share_link_created", "share_link_revoked":
 		ids("course_id")
+	case "course_enrolled_published":
+		ids("course_id", "source_course_id")
+		numeric("version")
+	case "published_lesson_reused":
+		ids("course_id", "lesson_id")
+		numeric("version")
 	case "share_link_opened":
 		ids("course_id")
 		boolean("has_account")
