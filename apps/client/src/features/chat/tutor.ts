@@ -3,6 +3,8 @@ import { secureStore } from "../accounts/secure-store";
 import type { WalletResponse } from "../credits/types";
 import type { ActionQuote } from "../pricing/quotes";
 
+/** A reference only: the API looks the lesson up itself and never trusts client-supplied lesson text. */
+export type LessonRef = { lesson_id: string; slide_index: number };
 export type ReplyClass = "short" | "long";
 export type TutorQuote = Pick<
   ActionQuote,
@@ -29,6 +31,7 @@ export type SendInput = {
   class: ReplyClass;
   message: string;
   thread_id?: string;
+  lesson?: LessonRef;
 };
 export type SendHandlers = {
   /** The event stream is open: the turn is accepted and a reply is coming. */
@@ -50,6 +53,7 @@ export interface TutorService {
     cls: ReplyClass,
     message: string,
     approveLargeContext?: boolean,
+    lesson?: LessonRef,
   ): Promise<TutorQuote>;
   accept(quoteId: string): Promise<unknown>;
   send(
@@ -186,11 +190,12 @@ async function call<T>(
 export const tutorService: TutorService = {
   wallet: () => call("/v1/me/credits"),
   thread: (id) => call(`${course(id)}/thread`),
-  quote: (id, cls, message, approveLargeContext) =>
+  quote: (id, cls, message, approveLargeContext, lesson) =>
     call(`${course(id)}/quote`, "POST", {
       class: cls,
       message,
       ...(approveLargeContext ? { approve_large_context: true } : {}),
+      ...(lesson ? { lesson } : {}),
     }),
   accept: (quoteId) =>
     call(`/v1/quotes/${encodeURIComponent(quoteId)}/accept`, "POST", {}),

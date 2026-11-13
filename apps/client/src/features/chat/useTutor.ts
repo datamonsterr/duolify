@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { session } from "../accounts/session";
 import type { WalletResponse } from "../credits/types";
 import {
   TutorApiError,
   TutorStreamError,
+  type LessonRef,
   type ReplyClass,
   type TutorQuote,
   type ThreadResponse,
@@ -74,7 +75,22 @@ const fresh = (q?: QuoteState) =>
 let localId = 0;
 const nextId = () => `local-${++localId}`;
 
-export function useTutor(courseId: string, service: TutorService, on: boolean) {
+export function useTutor(
+  courseId: string,
+  service: TutorService,
+  on: boolean,
+  lesson?: LessonRef,
+) {
+  // The slide may change while the sheet is closed, never while the quote is being built.
+  const lessonId = lesson?.lesson_id,
+    slideIndex = lesson?.slide_index;
+  const ref = useMemo<LessonRef | undefined>(
+    () =>
+      lessonId === undefined || slideIndex === undefined
+        ? undefined
+        : { lesson_id: lessonId, slide_index: slideIndex },
+    [lessonId, slideIndex],
+  );
   const [draft, setDraftState] = useState(() => readDraft(courseId));
   const [cls, setCls] = useState<ReplyClass>("short");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -97,6 +113,8 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
   useEffect(() => {
     threadRef.current = threadId;
   }, [threadId]);
+  // Closing the sheet ends an open stream; the server keeps the written prefix.
+  useEffect(() => () => abort.current?.abort(), []);
 
   useEffect(() => {
     const up = () => setOnline(true);
@@ -181,7 +199,7 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
     const seq = ++quoteSeq.current;
     const timer = setTimeout(() => {
       service
-        .quote(courseId, cls, text, approved === key)
+        .quote(courseId, cls, text, approved === key, ...(ref ? [ref] : []))
         .then((q) => {
           if (seq === quoteSeq.current) {
             setBlock(undefined);
@@ -210,6 +228,7 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
     block,
     approved,
     key,
+    ref,
   ]);
 
   const current =
@@ -256,6 +275,7 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
                     reply,
                     message,
                     approved === `${reply}:${message}`,
+                    ...(ref ? [ref] : []),
                   ),
                   cls: reply,
                   message,
@@ -274,6 +294,7 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
             class: reply,
             message,
             ...(threadRef.current ? { thread_id: threadRef.current } : {}),
+            ...(ref ? { lesson: ref } : {}),
           },
           {
             onOpen: () => {
@@ -374,7 +395,7 @@ export function useTutor(courseId: string, service: TutorService, on: boolean) {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [courseId, service, current, refreshWallet, approved],
+    [courseId, service, current, refreshWallet, approved, ref],
   );
 
   const send = () => {

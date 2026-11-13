@@ -218,6 +218,11 @@ export const en = {
   "tutor.send_offline": "Send unavailable offline",
   "tutor.stop": "Stop reply",
   "tutor.writing": "Writing\u2026",
+  "tutor.answering": "Tutor is answering",
+  "tutor.replied": "Tutor replied",
+  "tutor.read_transcript": "Read transcript",
+  "tutor.lesson_context":
+    "This lesson, the slide you paused on, your lessons so far and your learner profile.",
   "tutor.you": "You",
   "tutor.tutor": "Tutor",
   "tutor.interrupted_title": "Reply interrupted",
@@ -484,6 +489,11 @@ export const ar: Record<MessageId, Message> = {
   "tutor.send_offline": "الإرسال غير متاح دون اتصال",
   "tutor.stop": "إيقاف الرد",
   "tutor.writing": "جارٍ الكتابة…",
+  "tutor.answering": "المعلم يجيب",
+  "tutor.replied": "ردّ المعلم",
+  "tutor.read_transcript": "قراءة النص",
+  "tutor.lesson_context":
+    "هذا الدرس والشريحة التي أوقفتها ودروسك السابقة وملفك التعليمي.",
   "tutor.you": "أنت",
   "tutor.tutor": "المعلم",
   "tutor.interrupted_title": "انقطع الرد",
