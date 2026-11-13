@@ -1273,3 +1273,53 @@ func TestPrivacySettingChangedAcceptsCourseInvitesFromEnum(t *testing.T) {
 		t.Fatalf("invalid value accepted: %v", got)
 	}
 }
+
+func TestLearningAnalyticsEventsKeepOnlyCatalogueProperties(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	sink := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+		w.WriteHeader(200)
+	}))
+	defer sink.Close()
+	events, err := New("fixture-only", sink.URL, allowConsent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	learner := "a1111111-1111-4111-8111-111111111111"
+	common := map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "course_title": "private title", "notes": "private note"}
+	for _, e := range []struct{ name, key, val string }{
+		{"ui_screen_viewed", "screen_id", "learning_analytics"},
+		{"ui_control_activated", "control_id", "export_history"},
+		{"ui_control_activated", "control_id", "export_analytics"},
+	} {
+		props := map[string]any{e.key: e.val}
+		for k, v := range common {
+			props[k] = v
+		}
+		if e.name == "ui_control_activated" {
+			props["surface"] = "learning_analytics"
+		}
+		if err = events.Capture(learner, e.name, props); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = events.Close(); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 3 {
+		t.Fatalf("want 3 events, got %v", received)
+	}
+	raw, _ := json.Marshal(received)
+	if strings.Contains(string(raw), "private") || !strings.Contains(string(raw), "learning_analytics") || !strings.Contains(string(raw), "export_analytics") {
+		t.Fatalf("unexpected properties: %s", raw)
+	}
+}

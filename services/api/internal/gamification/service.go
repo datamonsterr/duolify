@@ -16,6 +16,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 // Rules is loaded from Postgres for every projection and goal change.
@@ -69,8 +70,11 @@ func LocalDate(at time.Time, zone string) (string, error) {
 
 // Service consumes E4 completions and serves authenticated progress.
 type Service struct {
-	pool   *pgxpool.Pool
-	events analytics.Events
+	pool         *pgxpool.Pool
+	events       analytics.Events
+	rdb          *redis.Client
+	now          func() time.Time
+	entitlements Entitlements
 }
 
 // New creates a consumer with the central fail-closed consent gate.
@@ -78,7 +82,7 @@ func New(pool *pgxpool.Pool, events analytics.Events) *Service {
 	if events != nil {
 		events = analytics.WithConsent(events, analytics.DatabaseConsent(pool))
 	}
-	return &Service{pool: pool, events: events}
+	return &Service{pool: pool, events: events, now: time.Now}
 }
 
 // Progress is the authoritative learner-local XP projection.
@@ -139,7 +143,7 @@ func (s *Service) project(ctx context.Context, owner string, goal *int) (Progres
 		return progress, err
 	}
 	progress.GoalOptions = rules.GoalOptions
-	progress.LocalDate, err = LocalDate(time.Now(), progress.TimeZone)
+	progress.LocalDate, err = LocalDate(s.now(), progress.TimeZone)
 	if err != nil {
 		return progress, err
 	}
@@ -171,6 +175,7 @@ func (s *Service) project(ctx context.Context, owner string, goal *int) (Progres
 		return progress, err
 	}
 	events := []pendingEvent{}
+	joined := []leagueSlot{}
 	dates := map[string]bool{progress.LocalDate: true}
 	for _, c := range completions {
 		date, dateErr := LocalDate(c.at, progress.TimeZone)
@@ -187,6 +192,12 @@ func (s *Service) project(ctx context.Context, owner string, goal *int) (Progres
 		if err != nil {
 			return progress, err
 		}
+		// First eligible completion of the week joins its league in the same transaction.
+		slot, joinErr := s.joinLeague(ctx, tx, owner, date)
+		if joinErr != nil {
+			return progress, joinErr
+		}
+		joined = append(joined, slot)
 		props := map[string]any{"event_id": id, "lesson_id": c.lesson, "course_id": c.course, "amount": rules.Award(c.perfect), "xp": rules.Award(c.perfect), "perfect": c.perfect, "duration_ms": c.durationMS, "local_date": date, "config_version": rules.Version}
 		events = append(events, pendingEvent{"xp_earned", props}, pendingEvent{"lesson_completed", props})
 	}
@@ -208,23 +219,37 @@ func (s *Service) project(ctx context.Context, owner string, goal *int) (Progres
 		return progress, err
 	}
 	progress.GoalMet = progress.DailyXP >= int64(progress.DailyGoal)
+	if len(completions) > 0 {
+		// Same transaction: a completion and its streak day commit or fail together.
+		streakEvents, streakErr := s.reconcileStreak(ctx, tx, owner, progress.TimeZone, s.now(), false)
+		if streakErr != nil {
+			return progress, streakErr
+		}
+		events = append(events, streakEvents...)
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return progress, err
 	}
-	// These are derived, consent-gated notifications; durable XP never depends on PostHog.
+	s.refreshLeague(ctx, owner, joined)
+	s.emit(ctx, owner, events)
+	return progress, nil
+}
+
+// emit sends derived, consent-gated notifications; durable state never depends on PostHog.
+func (s *Service) emit(ctx context.Context, owner string, events []pendingEvent) {
+	if s.events == nil {
+		return
+	}
 	var captureErr error
-	if s.events != nil {
-		for _, event := range events {
-			event.props["source"] = "api"
-			event.props["platform"] = "web"
-			event.props["app_version"] = "0.1.0"
-			captureErr = errors.Join(captureErr, s.events.Capture(owner, event.name, event.props))
-		}
+	for _, event := range events {
+		event.props["source"] = "api"
+		event.props["platform"] = "web"
+		event.props["app_version"] = "0.1.0"
+		captureErr = errors.Join(captureErr, s.events.Capture(owner, event.name, event.props))
 	}
 	if captureErr != nil {
 		slog.ErrorContext(ctx, "gamification analytics delivery failed", "error", captureErr)
 	}
-	return progress, nil
 }
 
 var errInvalidGoal = errors.New("choose a configured daily goal")
@@ -236,6 +261,38 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
+	if r.URL.Path == "/v1/gamification/analytics" {
+		if r.Method != http.MethodGet {
+			write(w, 405, map[string]string{"error": "Method unavailable."})
+			return
+		}
+		s.serveAnalytics(w, r, owner)
+		return
+	}
+	if r.URL.Path == "/v1/gamification/export/history" {
+		if r.Method != http.MethodGet {
+			write(w, 405, map[string]string{"error": "Method unavailable."})
+			return
+		}
+		s.serveExportHistory(w, r, owner)
+		return
+	}
+	if r.URL.Path == "/v1/gamification/export/analytics" {
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			write(w, 405, map[string]string{"error": "Method unavailable."})
+			return
+		}
+		s.serveExportAnalytics(w, r, owner)
+		return
+	}
+	if r.URL.Path == "/v1/gamification/league" {
+		s.serveLeague(w, r, owner)
+		return
+	}
+	if r.URL.Path == "/v1/gamification/streak" {
+		s.serveStreak(w, r, owner)
+		return
+	}
 	if r.URL.Path == "/v1/gamification" {
 		var goal *int
 		if r.Method == http.MethodPut {
@@ -316,6 +373,12 @@ func (s *Service) Maintain(ctx context.Context, logger *slog.Logger) {
 	for {
 		if err := s.Sweep(ctx); err != nil && ctx.Err() == nil {
 			logger.ErrorContext(ctx, "completion XP sweep failed", "error", err)
+		}
+		if err := s.Rollover(ctx); err != nil && ctx.Err() == nil {
+			logger.ErrorContext(ctx, "streak rollover failed", "error", err)
+		}
+		if err := s.FinalizeLeagues(ctx); err != nil && ctx.Err() == nil {
+			logger.ErrorContext(ctx, "league finalization failed", "error", err)
 		}
 		select {
 		case <-ctx.Done():

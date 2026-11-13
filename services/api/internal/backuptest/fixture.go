@@ -542,6 +542,15 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		`INSERT INTO learners(id,display_name) VALUES('a3333333-3333-4333-8333-333333333333','Backup Blocked')`,
 		`INSERT INTO learner_blocks(blocker_id,blocked_id,created_at) VALUES('a1111111-1111-4111-8111-111111111111','a3333333-3333-4333-8333-333333333333','2026-11-04T00:00:00Z')`,
 		`INSERT INTO daily_goal_achievements(learner_id,local_date,goal_xp) SELECT learner_id,local_date,amount FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_days(learner_id,local_date,first_event_id) SELECT learner_id,local_date,id FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_state(learner_id,current_days,longest_days,last_active_date,decided_through) SELECT learner_id,1,3,local_date,local_date FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_freeze_inventory(learner_id,held) SELECT learner_id,1 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_freeze_milestones(learner_id,milestone_days,run_started_on,reached_on,granted) SELECT learner_id,7,local_date-9,local_date-3,true FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_day_protections(learner_id,protected_on,remaining,streak_length) SELECT learner_id,local_date-2,0,7 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO league_groups(id,week_start,tier,size) SELECT 'b5000000-0000-4000-8000-000000000001',date_trunc('week',local_date)::date,2,1 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO league_memberships(learner_id,week_start,group_id,tier,slot) SELECT learner_id,date_trunc('week',local_date)::date,'b5000000-0000-4000-8000-000000000001',2,1 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO streak_breaks(learner_id,broken_on,previous_length) SELECT learner_id,local_date-3,3 FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
+		`INSERT INTO league_week_results(id,learner_id,week_start,group_id,tier_from,tier_to,final_rank,members,weekly_xp,outcome) SELECT 'b5000000-0000-4000-8000-000000000002',learner_id,date_trunc('week',local_date)::date,'b5000000-0000-4000-8000-000000000001',2,3,1,1,amount,'promoted' FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 	} {
 		if _, err = f.DB.Pool.Exec(t.Context(), query); err != nil {
 			t.Fatal(err)
@@ -878,7 +887,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"quick_notes", "tutor_threads", "tutor_messages", "tutor_turns", "quick_note_enrichments", "quick_note_chat_sources", "tutor_thread_deletion_tombstones", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "username_config", "learner_usernames", "learner_social_settings", "username_holds", "social_rate_limits", "friend_requests", "friendships", "friend_links"} {
+	for _, table := range []string{"league_groups", "league_memberships", "league_week_results", "quick_notes", "tutor_threads", "tutor_messages", "tutor_turns", "quick_note_enrichments", "quick_note_chat_sources", "tutor_thread_deletion_tombstones", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "username_config", "learner_usernames", "learner_social_settings", "username_holds", "social_rate_limits", "friend_requests", "friendships", "friend_links", "streak_state", "streak_days", "streak_breaks", "streak_freeze_inventory", "streak_freeze_milestones", "streak_day_protections"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -899,6 +908,29 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	var xpCount, goalCount, xpTotal, configuredBase int
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM xp_events),(SELECT count(*) FROM daily_goal_achievements),(SELECT sum(amount) FROM xp_events),base_xp FROM gamification_config`).Scan(&xpCount, &goalCount, &xpTotal, &configuredBase); err != nil || xpCount != 1 || goalCount != 1 || xpTotal != configuredBase {
 		t.Fatalf("restored XP replay changed totals/markers: %d %d %d %d %v", xpCount, goalCount, xpTotal, configuredBase, err)
+	}
+	// The restored streak projection is stable under the rollover worker and replay.
+	if err := gamification.New(restored.Pool, nil).Rollover(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	var streakDays, streakBreaks, streakLongest int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM streak_days),(SELECT count(*) FROM streak_breaks),(SELECT longest_days FROM streak_state)`).Scan(&streakDays, &streakBreaks, &streakLongest); err != nil || streakDays != 1 || streakBreaks < 1 || streakLongest < 3 {
+		t.Fatalf("restored streak projection changed: %d %d %d %v", streakDays, streakBreaks, streakLongest, err)
+	}
+	// Freeze rows and inventory survive restore unchanged.
+	var freezeMilestones, freezeProtections, freezeHeld int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM streak_freeze_milestones),(SELECT count(*) FROM streak_day_protections),(SELECT held FROM streak_freeze_inventory)`).Scan(&freezeMilestones, &freezeProtections, &freezeHeld); err != nil || freezeMilestones != 1 || freezeProtections != 1 || freezeHeld != 1 {
+		t.Fatalf("restored freeze state changed: %d %d %d %v", freezeMilestones, freezeProtections, freezeHeld, err)
+	}
+	// League membership restores; the weekly XP it ranks is recomputed from restored xp_events, never stored.
+	var leagueMembers, leagueXP int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM league_memberships),(SELECT COALESCE(sum(x.amount),0) FROM league_memberships m JOIN xp_events x ON x.learner_id=m.learner_id AND x.local_date BETWEEN m.week_start AND m.week_start+6)`).Scan(&leagueMembers, &leagueXP); err != nil || leagueMembers != 1 || leagueXP <= 0 {
+		t.Fatalf("restored league state changed: %d %d %v", leagueMembers, leagueXP, err)
+	}
+	// The frozen weekly result restores and still matches the XP recomputed from restored xp_events; nothing grants Credits.
+	var resultMatches int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM league_week_results r WHERE r.outcome='promoted' AND r.weekly_xp=(SELECT COALESCE(sum(x.amount),0) FROM xp_events x WHERE x.learner_id=r.learner_id AND x.local_date BETWEEN r.week_start AND r.week_start+6)`).Scan(&resultMatches); err != nil || resultMatches != 1 {
+		t.Fatalf("restored league result changed: %d %v", resultMatches, err)
 	}
 	// Restored usernames stay unique and an active hold still blocks other learners.
 	// The rename wrote a hold for the previous name; privacy settings and the
