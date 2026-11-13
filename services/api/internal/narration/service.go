@@ -554,6 +554,8 @@ func failureCode(err error) string {
 		return "timeout"
 	case codes.InvalidArgument:
 		return "invalid_request"
+	case codes.ResourceExhausted:
+		return "rate_limited"
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return "timeout"

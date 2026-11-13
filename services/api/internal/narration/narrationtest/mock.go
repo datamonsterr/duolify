@@ -93,7 +93,7 @@ func Synthesize(req *enginev1.SynthesizeNarrationRequest) (*enginev1.SynthesizeN
 type Engine struct {
 	enginev1.UnimplementedEngineServiceServer
 	mu sync.Mutex
-	// Faults maps exact narration text to "engine" (provider outage) or "alignment" (gap).
+	// Faults maps exact narration text to "engine" or "vendor_outage" (provider outage), "ratelimit" (vendor 429 after retry) or "alignment" (gap).
 	faults    map[string]string
 	synthCall int
 	texts     []string
@@ -128,8 +128,11 @@ func (e *Engine) SynthesizeNarration(_ context.Context, req *enginev1.Synthesize
 		e.texts = append(e.texts, req.GetText())
 	}
 	e.mu.Unlock()
-	if fault == "engine" && !req.GetResolveOnly() {
+	if (fault == "engine" || fault == "vendor_outage") && !req.GetResolveOnly() {
 		return nil, status.Error(codes.Unavailable, "speech provider unavailable")
+	}
+	if fault == "ratelimit" && !req.GetResolveOnly() {
+		return nil, status.Error(codes.ResourceExhausted, "speech provider rate limited")
 	}
 	out, err := Synthesize(req)
 	if err == nil && fault == "alignment" && len(out.GetAlignment().GetCharacters()) > 1 {

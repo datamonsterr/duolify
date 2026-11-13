@@ -9,6 +9,11 @@ const MOCK_MS_PER_CHAR: u32 = 50;
 const SAMPLE_RATE: u32 = 8000;
 /// Alignment may end this far from the audio duration.
 const DURATION_TOLERANCE_MS: u32 = 250;
+/// Launch limits (E14-04): one TTS call may take 60 s; one repair/retry follows the primary.
+pub const MAX_TTS_TIMEOUT_MS: u32 = 60_000;
+pub const MAX_TTS_ATTEMPTS: u32 = 2;
+/// Pause before the single retry so a rate-limited vendor is not hit again at once.
+const RETRY_BACKOFF: Duration = Duration::from_millis(250);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpeechRequest {
@@ -39,8 +44,30 @@ pub enum SpeechError {
     MissingText,
     InvalidAlignment(String),
     Provider(String),
+    /// The vendor kept answering 429 through the allowed retry.
+    RateLimited,
     Timeout,
 }
+
+/// Classified vendor failure. Messages never carry keys, bodies or narration text.
+#[derive(Debug, Clone, PartialEq)]
+pub enum VendorFailure {
+    /// Retrying cannot help (bad key, rejected request).
+    Permanent(String),
+    RateLimited,
+    Unavailable(String),
+}
+
+impl std::fmt::Display for VendorFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Permanent(m) => write!(f, "vendor rejected the request: {m}"),
+            Self::RateLimited => f.write_str("vendor rate limited"),
+            Self::Unavailable(m) => write!(f, "vendor unavailable: {m}"),
+        }
+    }
+}
+impl std::error::Error for VendorFailure {}
 
 impl std::fmt::Display for SpeechError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -48,6 +75,7 @@ impl std::fmt::Display for SpeechError {
             Self::MissingText => f.write_str("narration text missing"),
             Self::InvalidAlignment(m) => write!(f, "invalid alignment: {m}"),
             Self::Provider(m) => write!(f, "speech provider failed: {m}"),
+            Self::RateLimited => f.write_str("speech provider rate limited"),
             Self::Timeout => f.write_str("speech call timed out"),
         }
     }
@@ -58,6 +86,45 @@ impl std::error::Error for SpeechError {}
 pub trait SpeechProvider: Send + Sync {
     fn name(&self) -> &'static str;
     async fn synthesize(&self, req: &SpeechRequest) -> anyhow::Result<SpeechOutput>;
+    /// Voice, model and settings for a logical voice key; configuration, never the caller.
+    fn voice(&self, key: &str) -> Option<VoiceConfig> {
+        VoiceConfig::resolve(key)
+    }
+}
+
+/// Duration of a delivered audio file, so alignment is checked against the audio itself.
+/// WAV is read from its header; CBR MP3 is estimated from the format's bitrate.
+pub fn audio_duration_ms(output_format: &str, audio: &[u8]) -> Option<u32> {
+    if output_format.starts_with("wav_") {
+        let le32 = |at: usize| Some(u32::from_le_bytes(audio.get(at..at + 4)?.try_into().ok()?));
+        if audio.get(..4)? != b"RIFF" || audio.get(8..12)? != b"WAVE" {
+            return None;
+        }
+        let (mut at, mut byte_rate, mut data) = (12, 0, None);
+        while at + 8 <= audio.len() {
+            let size = le32(at + 4)? as usize;
+            match audio.get(at..at + 4)? {
+                b"fmt " => byte_rate = le32(at + 16)?,
+                b"data" => {
+                    // Streamed WAV may declare an unknown size; use what arrived.
+                    data = Some(size.min(audio.len() - at - 8));
+                    break;
+                }
+                _ => {}
+            }
+            at += 8 + size + (size & 1);
+        }
+        let ms = u64::try_from(data?).ok()? * 1000 / u64::from(byte_rate.max(1));
+        return (byte_rate > 0).then(|| u32::try_from(ms).unwrap_or(u32::MAX));
+    }
+    let kbps: u64 = output_format
+        .strip_prefix("mp3_")?
+        .rsplit('_')
+        .next()?
+        .parse()
+        .ok()?;
+    let ms = audio.len() as u64 * 8 / kbps.max(1);
+    u32::try_from(ms).ok()
 }
 
 /// Voice settings come from engine config, never from the caller.
@@ -180,9 +247,18 @@ pub async fn synthesize_bounded(
 ) -> Result<(SpeechOutput, u32), SpeechError> {
     let mut last = SpeechError::Provider("no attempt".into());
     for attempt in 1..=max_attempts.max(1) {
+        if attempt > 1 {
+            tokio::time::sleep(RETRY_BACKOFF).await;
+        }
         last = match tokio::time::timeout(timeout, provider.synthesize(req)).await {
             Err(_) => SpeechError::Timeout,
-            Ok(Err(e)) => SpeechError::Provider(e.to_string()),
+            Ok(Err(e)) => match e.downcast_ref::<VendorFailure>() {
+                Some(VendorFailure::Permanent(m)) => {
+                    return Err(SpeechError::Provider(m.clone()));
+                }
+                Some(VendorFailure::RateLimited) => SpeechError::RateLimited,
+                _ => SpeechError::Provider(e.to_string()),
+            },
             Ok(Ok(out)) => match validate(&req.text, &out) {
                 Ok(()) => return Ok((out, attempt)),
                 Err(e @ SpeechError::MissingText) => return Err(e),

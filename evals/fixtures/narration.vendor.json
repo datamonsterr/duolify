@@ -1,0 +1,46 @@
+{
+  "description": "Recorded fake-vendor cases for lesson_narration multilingual, timing, vendor-failure and cost-cap (E14-04). Replayed against a local fake ElevenLabs server; never against the live API.",
+  "cases": [
+    {
+      "id": "multilingual",
+      "kind": "multilingual",
+      "texts": ["Xin chào, thế giới.", "Chào mừng đến với bầu trời", "日本語のナレーション", "Café ñandú"],
+      "expect": { "alignment_covers_every_character": true, "charge_characters": "chars" }
+    },
+    {
+      "id": "timing-reversed",
+      "kind": "timing",
+      "text": "Hello sky",
+      "corruption": "reverse_timestamps",
+      "expect": { "error": "invalid_alignment", "attempts": 2, "charge": 0, "captions_only": true }
+    },
+    {
+      "id": "vendor-rate-limit-then-ok",
+      "kind": "vendor_failure",
+      "text": "Stars are suns.",
+      "responses": [429, 200],
+      "expect": { "attempts": 2, "delivered_charges": 1 }
+    },
+    {
+      "id": "vendor-outage",
+      "kind": "vendor_failure",
+      "text": "Stars are suns.",
+      "responses": [503, 503, 200],
+      "expect": { "error": "provider", "attempts": 2, "charge": 0, "captions_only": true }
+    },
+    {
+      "id": "vendor-auth-rejected",
+      "kind": "vendor_failure",
+      "text": "Stars are suns.",
+      "responses": [401, 200],
+      "expect": { "error": "provider", "attempts": 1, "charge": 0, "captions_only": true }
+    },
+    {
+      "id": "cost-cap",
+      "kind": "cost_cap",
+      "text": "Stars are suns.",
+      "limits": { "max_attempts": 5, "timeout_ms": 120000 },
+      "expect": { "effective_max_attempts": 2, "effective_timeout_ms": 60000, "charge_characters": "chars" }
+    }
+  ]
+}

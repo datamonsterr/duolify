@@ -389,8 +389,12 @@ while keys still referenced by any other Lesson stay. Narration text is never se
 PostHog or logs: `narration_generated`, `narration_cache_hit`, `narration_failed`
 (fixed error code), `narration_played` (ids and duration) and `$ai_generation`
 (`feature=narration`, character count) carry ids and counts only. Device copies of audio
-are in-memory object URLs and disposable. Only the deterministic mock provider exists;
-`NARRATION_ENABLED` defaults off and no ElevenLabs call is made.
+are in-memory object URLs and disposable. The deterministic mock is the default;
+`NARRATION_ENABLED` defaults off. E14-04 adds the ElevenLabs adapter with no new persisted data:
+it runs only when `ELEVENLABS_API_KEY` (secret store/env only) AND `NARRATION_LIVE_ENABLED=true`
+are set, sends the normalized narration text to the vendor for synthesis only, and stores nothing
+extra. Vendor errors, logs and events carry fixed codes (`rate_limited`, `engine_unavailable`,
+`timeout`), never keys, vendor bodies or text. Existing narration asset backup policy applies.
 
 E14-02 adds `narration_assets` (content hash primary key, text hash linking retained settings
 versions of the same normalized text, voice id, model id, settings fingerprint, audio and

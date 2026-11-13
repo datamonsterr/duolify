@@ -94,3 +94,70 @@ async fn rejects_missing_text_unknown_voice_and_foreign_model() {
         Code::FailedPrecondition
     );
 }
+
+struct Down(
+    std::sync::atomic::AtomicU32,
+    fn() -> engine_core::narration::VendorFailure,
+);
+#[async_trait::async_trait]
+impl engine_core::narration::SpeechProvider for Down {
+    fn name(&self) -> &'static str {
+        "down"
+    }
+    async fn synthesize(
+        &self,
+        _: &engine_core::narration::SpeechRequest,
+    ) -> anyhow::Result<engine_core::narration::SpeechOutput> {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Err((self.1)().into())
+    }
+}
+
+async fn client_with(
+    speech: Arc<dyn engine_core::narration::SpeechProvider>,
+) -> EngineServiceClient<tonic::transport::Channel> {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = EngineServiceServer::new(Service {
+        router: Arc::new(engine_providers::router("mock").unwrap()),
+        speech,
+    });
+    tokio::spawn(async move {
+        Server::builder()
+            .add_service(server)
+            .serve_with_incoming(TcpListenerStream::new(listener))
+            .await
+            .unwrap();
+    });
+    EngineServiceClient::connect(format!("http://{addr}"))
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn vendor_failures_stay_inside_one_retry_and_map_to_fixed_statuses() {
+    use engine_core::narration::VendorFailure;
+    let cases: [(fn() -> VendorFailure, Code); 2] = [
+        (|| VendorFailure::RateLimited, Code::ResourceExhausted),
+        (
+            || VendorFailure::Unavailable("status 503".into()),
+            Code::Unavailable,
+        ),
+    ];
+    for (failure, code) in cases {
+        let down = Arc::new(Down(0.into(), failure));
+        let mut c = client_with(down.clone()).await;
+        let mut r = request("The sky is a map.", false);
+        // The quote asks for more than the launch limits allow; the engine clamps it.
+        r.limits = Some(pb::UsageLimits {
+            model: "eleven_flash_v2_5".into(),
+            timeout_ms: 120_000,
+            max_attempts: 5,
+            ..Default::default()
+        });
+        let err = c.synthesize_narration(r).await.unwrap_err();
+        assert_eq!(err.code(), code);
+        assert!(!err.message().contains("sky"));
+        assert_eq!(down.0.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+}

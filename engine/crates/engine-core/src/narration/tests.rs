@@ -320,3 +320,90 @@ async fn recorded_alignment_failure_case_is_rejected_before_delivery() {
     assert_eq!(case["expect"]["error"], "invalid_alignment");
     assert_eq!(case["expect"]["charge"], 0);
 }
+
+// ---- E14-04: bounded vendor failures -------------------------------------------------
+
+struct Scripted {
+    calls: AtomicU32,
+    failure: fn() -> VendorFailure,
+}
+#[async_trait]
+impl SpeechProvider for Scripted {
+    fn name(&self) -> &'static str {
+        "scripted"
+    }
+    async fn synthesize(&self, _: &SpeechRequest) -> anyhow::Result<SpeechOutput> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Err((self.failure)().into())
+    }
+}
+
+#[tokio::test]
+async fn permanent_vendor_failures_are_not_retried() {
+    let p = Scripted {
+        calls: 0.into(),
+        failure: || VendorFailure::Permanent("status 401".into()),
+    };
+    let err = synthesize_bounded(&p, &request("Hello"), Duration::from_secs(1), 2)
+        .await
+        .unwrap_err();
+    assert_eq!(p.calls.load(Ordering::SeqCst), 1);
+    assert!(matches!(err, SpeechError::Provider(_)));
+}
+
+#[tokio::test]
+async fn exhausted_rate_limits_surface_as_rate_limited_after_one_retry() {
+    let p = Scripted {
+        calls: 0.into(),
+        failure: || VendorFailure::RateLimited,
+    };
+    let err = synthesize_bounded(&p, &request("Hello"), Duration::from_secs(1), 2)
+        .await
+        .unwrap_err();
+    assert_eq!(p.calls.load(Ordering::SeqCst), 2);
+    assert!(matches!(err, SpeechError::RateLimited));
+}
+
+#[test]
+fn launch_limits_are_sixty_seconds_and_one_retry() {
+    assert_eq!(MAX_TTS_TIMEOUT_MS, 60_000);
+    assert_eq!(MAX_TTS_ATTEMPTS, 2);
+}
+
+#[test]
+fn wav_and_mp3_durations_are_derived_from_the_audio_itself() {
+    let mut wav = Vec::new();
+    wav.extend_from_slice(b"RIFF\0\0\0\0WAVEfmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&16000u32.to_le_bytes());
+    wav.extend_from_slice(&32000u32.to_le_bytes());
+    wav.extend_from_slice(&2u16.to_le_bytes());
+    wav.extend_from_slice(&16u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&64000u32.to_le_bytes());
+    wav.extend(std::iter::repeat_n(0u8, 64000));
+    assert_eq!(audio_duration_ms("wav_16000", &wav), Some(2000));
+    assert_eq!(
+        audio_duration_ms("mp3_44100_64", &vec![0u8; 16000]),
+        Some(2000)
+    );
+    assert_eq!(audio_duration_ms("opus_48000_32", &wav), None);
+    assert_eq!(audio_duration_ms("wav_16000", b"junk"), None);
+}
+
+#[test]
+fn live_voice_comes_from_config_and_fingerprint_tracks_it() {
+    let cfg = VoiceConfig {
+        voice_id: "voice-123".into(),
+        model_id: "eleven_flash_v2_5".into(),
+        stability: 0.5,
+        similarity_boost: 0.75,
+        speed: 1.0,
+    };
+    assert_ne!(
+        cfg.fingerprint(),
+        VoiceConfig::resolve("default").unwrap().fingerprint()
+    );
+}

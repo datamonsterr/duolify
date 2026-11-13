@@ -525,7 +525,9 @@ impl EngineService for Service {
     ) -> Result<Response<pb::SynthesizeNarrationResponse>, Status> {
         use engine_core::narration as speech;
         let req = request.into_inner();
-        let voice = speech::VoiceConfig::resolve(&req.voice_key)
+        let voice = self
+            .speech
+            .voice(&req.voice_key)
             .ok_or_else(|| Status::failed_precondition("voice unavailable"))?;
         let limits = req.limits.unwrap_or_default();
         if !limits.model.is_empty() && limits.model != voice.model_id {
@@ -548,16 +550,14 @@ impl EngineService for Service {
             voice_id: voice.voice_id,
             model_id: voice.model_id.clone(),
         };
-        // Per-call timeout defaults to 30 s; at most two retries.
-        let timeout_ms = if limits.timeout_ms == 0 {
-            30_000
-        } else {
-            limits.timeout_ms.min(30_000)
+        // Launch limits: 60 s per call, one repair/retry after the primary, never above the quote.
+        let timeout_ms = match limits.timeout_ms {
+            0 => speech::MAX_TTS_TIMEOUT_MS,
+            t => t.min(speech::MAX_TTS_TIMEOUT_MS),
         };
-        let attempts = if limits.max_attempts == 0 {
-            3
-        } else {
-            limits.max_attempts.min(3)
+        let attempts = match limits.max_attempts {
+            0 => speech::MAX_TTS_ATTEMPTS,
+            a => a.min(speech::MAX_TTS_ATTEMPTS),
         };
         let started = std::time::Instant::now();
         let (out, attempt) = speech::synthesize_bounded(
@@ -571,6 +571,9 @@ impl EngineService for Service {
             speech::SpeechError::MissingText => Status::invalid_argument("narration text missing"),
             speech::SpeechError::Timeout => Status::deadline_exceeded("speech call timed out"),
             speech::SpeechError::InvalidAlignment(_) => Status::data_loss("invalid alignment"),
+            speech::SpeechError::RateLimited => {
+                Status::resource_exhausted("speech provider rate limited")
+            }
             speech::SpeechError::Provider(_) => Status::unavailable("speech provider unavailable"),
         })?;
         let characters = out.alignment.characters.len() as u32;

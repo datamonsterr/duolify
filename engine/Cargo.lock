@@ -310,9 +310,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
  "engine-core",
  "futures",
  "reqwest",
+ "serde",
  "serde_json",
  "tokio",
  "wiremock",
@@ -323,6 +325,7 @@ name = "engine-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "engine-core",
  "engine-proto",
  "engine-providers",
