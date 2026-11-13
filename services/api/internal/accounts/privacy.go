@@ -34,6 +34,14 @@ var ClassifiedLearnerTables = map[string]string{
 	"publication_screenings":            "erased_1_year",
 	"xp_events":                         "erased_account_lifetime",
 	"daily_goal_achievements":           "erased_account_lifetime",
+	"streak_state":                      "erased",
+	"streak_days":                       "erased",
+	"streak_breaks":                     "erased",
+	"streak_freeze_inventory":           "erased",
+	"streak_freeze_milestones":          "erased",
+	"streak_day_protections":            "erased",
+	"league_memberships":                "erased",
+	"league_week_results":               "erased",
 	"character_create_jobs":             "erased_prompt_terminal_or_24h",
 	"characters":                        "erased",
 	"character_versions":                "erased_via_character",
@@ -152,7 +160,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 	for _, table := range []string{"credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(g)),'[]'::jsonb) FROM " + table + " g JOIN credit_subscription_terms t USING(period_key) JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1"})
 	}
-	for _, table := range []string{"quick_notes", "quick_note_enrichments", "quick_note_chat_sources", "bookmarks", "xp_events", "daily_goal_achievements", "character_create_jobs", "characters", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_playback_sync_events", "lesson_playback_positions", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "tutor_threads", "tutor_messages", "tutor_turns", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "credit_checkout_orders", "credit_jobs", "credit_outbox", "learner_usernames", "learner_social_settings"} {
+	for _, table := range []string{"quick_notes", "quick_note_enrichments", "quick_note_chat_sources", "bookmarks", "xp_events", "daily_goal_achievements", "streak_state", "streak_days", "streak_breaks", "streak_freeze_inventory", "streak_freeze_milestones", "streak_day_protections", "league_memberships", "league_week_results", "character_create_jobs", "characters", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_playback_sync_events", "lesson_playback_positions", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "tutor_threads", "tutor_messages", "tutor_turns", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "credit_checkout_orders", "credit_jobs", "credit_outbox", "learner_usernames", "learner_social_settings"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM " + table + " t WHERE learner_id=$1"})
 	}
 	for _, table := range []string{"credit_allocations", "credit_usage"} {
@@ -371,7 +379,7 @@ func applyThreadDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) erro
 	defer func() { _ = tx.Rollback(ctx) }()
 	for _, q := range []string{
 		"UPDATE quick_note_chat_sources SET unavailable=true,thread_id=NULL,message_id=NULL WHERE thread_id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
-		"UPDATE tutor_turns SET user_message_id=NULL,assistant_message_id=NULL WHERE thread_id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
+		"UPDATE tutor_turns SET user_message_id=NULL,assistant_message_id=NULL,speaker_key=NULL,character_id=NULL,character_version=NULL,cast_source=NULL,cast_version=NULL,persona_fallback=NULL WHERE thread_id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
 		"DELETE FROM tutor_threads WHERE id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
 	} {
 		if _, err = tx.Exec(ctx, q); err != nil {

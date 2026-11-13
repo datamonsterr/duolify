@@ -69,6 +69,7 @@ impl Default for TaskRegistry {
             "character_screen",
             "character_injection",
             "character_persona_lesson",
+            "character_persona_chat",
             "character_reactions",
         ] {
             registered_extensions.insert(task.into());

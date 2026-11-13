@@ -61,7 +61,20 @@ fn tutor_context(req: &pb::ChatRequest) -> engine_core::chat::Context {
     };
     let outline = req.outline.clone().unwrap_or_default();
     let learner = req.learner.clone().unwrap_or_default();
+    let persona = if req.tutor_persona_json.is_empty() {
+        None
+    } else {
+        let parsed = engine_core::characters::tutor_persona(&req.tutor_persona_json);
+        if parsed.is_none() {
+            tracing::warn!(
+                event = "tutor_persona_dropped",
+                "invalid tutor persona ignored"
+            );
+        }
+        parsed
+    };
     c::Context {
+        persona,
         course_title: outline.title,
         course_description: outline.description,
         units: outline

@@ -153,6 +153,7 @@ func run(ctx context.Context, args []string) (result error) {
 		}
 		go creditService.Maintain(ctx, logger)
 		xpService := gamification.New(db.Pool, events)
+		xpService.UseEntitlements(creditService)
 		go xpService.Maintain(ctx, logger)
 		backend, err := engine.New(cfg.EngineAddr, 10*time.Second)
 		if err != nil {
@@ -274,6 +275,8 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	go creditService.Maintain(ctx, logger)
 	xpService := gamification.New(db.Pool, events)
+	xpService.UseCache(redis)
+	xpService.UseEntitlements(creditService)
 	go xpService.Maintain(ctx, logger)
 	briefPricing := catalogue
 	if os.Getenv("DUOLIFY_ENV") == "development" {
@@ -331,7 +334,7 @@ func run(ctx context.Context, args []string) (result error) {
 		Accounts:                auth,
 		Credits:                 creditService,
 		CourseBrief:             courseService,
-		Tutor:                   chat.New(chat.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Profiles: courseService, Events: events, Notes: notesService, Logger: logger}),
+		Tutor:                   chat.New(chat.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Profiles: courseService, Personas: characterService, Events: events, Notes: notesService, Logger: logger}),
 		Pricing:                 runtimePricing,
 		PricingAdmin:            pricingAdmin,
 		Quotes:                  pricing.NewQuotes(db.Pool),

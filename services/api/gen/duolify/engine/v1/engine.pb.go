@@ -2274,9 +2274,12 @@ type ChatRequest struct {
 	Messages      []*ChatMessage         `protobuf:"bytes,5,rep,name=messages,proto3" json:"messages,omitempty"`
 	Limits        *UsageLimits           `protobuf:"bytes,6,opt,name=limits,proto3" json:"limits,omitempty"`
 	// Source passages retrieved from the Learner's own older lessons in this Course. Untrusted data.
-	Excerpts      []*SourceExcerpt `protobuf:"bytes,7,rep,name=excerpts,proto3" json:"excerpts,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Excerpts []*SourceExcerpt `protobuf:"bytes,7,rep,name=excerpts,proto3" json:"excerpts,omitempty"`
+	// E17-07: API-validated, bounded tutor persona JSON ({name,bio,backstory,traits,speaking_style,persona_prompt}).
+	// Untrusted style data, never instructions. Empty means the neutral tutor.
+	TutorPersonaJson string `protobuf:"bytes,8,opt,name=tutor_persona_json,json=tutorPersonaJson,proto3" json:"tutor_persona_json,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ChatRequest) Reset() {
@@ -2356,6 +2359,13 @@ func (x *ChatRequest) GetExcerpts() []*SourceExcerpt {
 		return x.Excerpts
 	}
 	return nil
+}
+
+func (x *ChatRequest) GetTutorPersonaJson() string {
+	if x != nil {
+		return x.TutorPersonaJson
+	}
+	return ""
 }
 
 type SourceExcerpt struct {
@@ -3936,7 +3946,7 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\vunavailable\x18\x04 \x01(\bR\vunavailable\";\n" +
 	"\vChatMessage\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
-	"\acontent\x18\x02 \x01(\tR\acontent\"\x94\x03\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\"\xc2\x03\n" +
 	"\vChatRequest\x12:\n" +
 	"\aoutline\x18\x01 \x01(\v2 .duolify.engine.v1.CourseOutlineR\aoutline\x12@\n" +
 	"\x0ecurrent_lesson\x18\x02 \x01(\v2\x19.duolify.engine.v1.LessonR\rcurrentLesson\x12;\n" +
@@ -3944,7 +3954,8 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\ahistory\x18\x04 \x03(\tR\ahistory\x12:\n" +
 	"\bmessages\x18\x05 \x03(\v2\x1e.duolify.engine.v1.ChatMessageR\bmessages\x126\n" +
 	"\x06limits\x18\x06 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\x12<\n" +
-	"\bexcerpts\x18\a \x03(\v2 .duolify.engine.v1.SourceExcerptR\bexcerpts\"c\n" +
+	"\bexcerpts\x18\a \x03(\v2 .duolify.engine.v1.SourceExcerptR\bexcerpts\x12,\n" +
+	"\x12tutor_persona_json\x18\b \x01(\tR\x10tutorPersonaJson\"c\n" +
 	"\rSourceExcerpt\x12\x1b\n" +
 	"\tlesson_id\x18\x01 \x01(\tR\blessonId\x12!\n" +
 	"\flesson_title\x18\x02 \x01(\tR\vlessonTitle\x12\x12\n" +

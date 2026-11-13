@@ -37,6 +37,21 @@ for (const mobile of [false, true]) {
         },
       });
     });
+    await page.route("**/v1/gamification/streak**", (r) =>
+      r.fulfill({
+        json: {
+          current_days: 0,
+          longest_days: 0,
+          today_done: false,
+          local_date: "2026-11-10",
+          time_zone: "America/New_York",
+          as_of: "2026-11-10T12:00:00Z",
+          rollover_pending: false,
+          month: "2026-11",
+          calendar: [],
+        },
+      }),
+    );
     await page.route("**/v1/gamification/lessons/lesson-one", (r) =>
       r.fulfill({ json: { xp: 23, perfect: true } }),
     );

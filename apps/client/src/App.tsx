@@ -1,4 +1,6 @@
 import { ProgressPage } from "./features/gamification/DailyGoal";
+import { LearningAnalyticsPage } from "./features/gamification/LearningAnalytics";
+import { LeaguePage } from "./features/gamification/League";
 import { UiPreferencesProvider } from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
 import { AuthError, session } from "./features/accounts/session";
@@ -38,7 +40,6 @@ import { BookmarksPage } from "./features/notes/BookmarksPage";
 import { AppShell, MorePage } from "./features/shell/AppShell";
 import { getDownloadedCourses } from "./features/player/library";
 import {
-  DestinationPage,
   RouteError,
   RoutePending,
   RouteUnavailable,
@@ -235,7 +236,7 @@ const friendInvite = createRoute({
 const leagues = createRoute({
   getParentRoute: () => root,
   path: "/leagues",
-  component: () => <DestinationPage title="Leagues" />,
+  component: LeaguePage,
 });
 const notes = createRoute({
   getParentRoute: () => root,
@@ -275,6 +276,11 @@ const streak = createRoute({
   getParentRoute: () => root,
   path: "/streak",
   component: ProgressPage,
+});
+const analytics = createRoute({
+  getParentRoute: () => root,
+  path: "/analytics",
+  component: LearningAnalyticsPage,
 });
 const lessonTest = createRoute({
   getParentRoute: () => root,
@@ -318,6 +324,7 @@ export const createAppRouter = (history?: RouterHistory) =>
       courseCast,
       sessions,
       streak,
+      analytics,
       lessonTest,
       signIn,
     ]),

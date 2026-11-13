@@ -15,6 +15,7 @@ import (
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/google/uuid"
@@ -53,12 +54,20 @@ type Profiles interface {
 	EffectiveProfile(ctx context.Context, learnerID, courseID string) (*enginev1.LearnerProfile, error)
 }
 
+// Personas resolves the pinned Tutor persona of a Course or Lesson Cast (implemented by characters.Service).
+type Personas interface {
+	ResolveTutor(ctx context.Context, owner, course, lessonID, requested string) (characters.TutorPersona, error)
+	TutorRoster(ctx context.Context, owner, course, lessonID string) (characters.TutorRoster, error)
+	TutorLabel(ctx context.Context, owner, characterID string, version int) string
+}
+
 // Options wires the service; every dependency is required except Events and Logger.
 type Options struct {
 	Pool      *pgxpool.Pool
 	Engine    Engine
 	Financial Financial
 	Profiles  Profiles
+	Personas  Personas
 	Events    analytics.Events
 	Notes     NoteSaver
 	Logger    *slog.Logger
@@ -146,6 +155,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.quote(w, r, owner, id)
 	case r.Method == http.MethodPost && strings.HasSuffix(path, "/tutor/messages"):
 		s.send(w, r, owner, id)
+	case r.Method == http.MethodGet && strings.HasSuffix(path, "/tutor/personas"):
+		s.personas(w, r, owner, id)
 	case r.Method == http.MethodGet && strings.HasSuffix(path, "/tutor/thread"):
 		s.courseThread(w, r, owner, id)
 	case r.Method == http.MethodGet && strings.HasSuffix(path, "/messages"):
@@ -261,6 +272,16 @@ type messageDTO struct {
 	Content   string    `json:"content"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
+	// Tutor is the persona the reply was pinned to; it is read from the turn, so later selections never rewrite it.
+	Tutor *tutorDTO `json:"tutor,omitempty"`
+}
+
+type tutorDTO struct {
+	SpeakerKey       string `json:"speaker_key"`
+	Name             string `json:"name,omitempty"`
+	CharacterVersion int    `json:"character_version"`
+	CastSource       string `json:"cast_source"`
+	Fallback         string `json:"fallback"`
 }
 
 type threadDTO struct {
@@ -283,7 +304,9 @@ func (s *Service) readThread(ctx context.Context, owner, threadID string) (*thre
 	if err := s.opts.Pool.QueryRow(ctx, `SELECT id::text,course_id::text,created_at FROM tutor_threads WHERE id=$1::uuid AND learner_id=$2::uuid`, threadID, owner).Scan(&t.ID, &t.CourseID, &t.CreatedAt); err != nil {
 		return nil, nil, err
 	}
-	rows, err := s.opts.Pool.Query(ctx, `SELECT id::text,role,content,status,created_at FROM tutor_messages WHERE thread_id=$1::uuid AND learner_id=$2::uuid ORDER BY seq`, threadID, owner)
+	rows, err := s.opts.Pool.Query(ctx, `SELECT m.id::text,m.role,m.content,m.status,m.created_at,COALESCE(t.speaker_key,''),COALESCE(t.character_id,''),COALESCE(t.character_version,0),COALESCE(t.cast_source,''),COALESCE(t.persona_fallback,'')
+FROM tutor_messages m LEFT JOIN tutor_turns t ON t.assistant_message_id=m.id AND t.learner_id=m.learner_id
+WHERE m.thread_id=$1::uuid AND m.learner_id=$2::uuid ORDER BY m.seq`, threadID, owner)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -291,8 +314,14 @@ func (s *Service) readThread(ctx context.Context, owner, threadID string) (*thre
 	messages := []messageDTO{}
 	for rows.Next() {
 		var m messageDTO
-		if err = rows.Scan(&m.ID, &m.Role, &m.Content, &m.Status, &m.CreatedAt); err != nil {
+		var pin tutorDTO
+		var characterID string
+		if err = rows.Scan(&m.ID, &m.Role, &m.Content, &m.Status, &m.CreatedAt, &pin.SpeakerKey, &characterID, &pin.CharacterVersion, &pin.CastSource, &pin.Fallback); err != nil {
 			return nil, nil, err
+		}
+		if pin.SpeakerKey != "" && s.opts.Personas != nil {
+			pin.Name = s.opts.Personas.TutorLabel(ctx, owner, characterID, pin.CharacterVersion)
+			m.Tutor = &pin
 		}
 		messages = append(messages, m)
 	}
@@ -354,7 +383,7 @@ func (s *Service) deleteThread(w http.ResponseWriter, r *http.Request, owner, th
 	if err == nil {
 		for _, q := range []string{
 			`UPDATE quick_note_chat_sources SET unavailable=true,thread_id=NULL,message_id=NULL WHERE thread_id=$1::uuid`,
-			`UPDATE tutor_turns SET user_message_id=NULL,assistant_message_id=NULL WHERE thread_id=$1::uuid`,
+			`UPDATE tutor_turns SET user_message_id=NULL,assistant_message_id=NULL,speaker_key=NULL,character_id=NULL,character_version=NULL,cast_source=NULL,cast_version=NULL,persona_fallback=NULL WHERE thread_id=$1::uuid`,
 			`INSERT INTO tutor_thread_deletion_tombstones(thread_id) VALUES($1::uuid) ON CONFLICT DO NOTHING`,
 			`DELETE FROM tutor_thread_deletion_tombstones WHERE deleted_at < now() - interval '35 days'`,
 			`DELETE FROM tutor_threads WHERE id=$1::uuid`,
@@ -391,4 +420,38 @@ func (s *Service) emit(ctx context.Context, owner, event string, props map[strin
 	if err := s.opts.Events.Capture(owner, event, props); err != nil {
 		s.opts.Logger.Warn("tutor analytics capture failed", "event", event)
 	}
+}
+
+// personas lists the tutors a Learner can pick: the Lesson's pinned Cast inside a Lesson, else the Course Cast.
+func (s *Service) personas(w http.ResponseWriter, r *http.Request, owner, course string) {
+	if s.opts.Personas == nil {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	ctx := r.Context()
+	lessonID := r.URL.Query().Get("lesson_id")
+	if lessonID != "" && !validUUID(lessonID) {
+		fail(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if !s.ownsCourse(ctx, owner, course) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if lessonID != "" {
+		if _, err := s.currentLesson(ctx, owner, course, &lessonInput{LessonID: lessonID}); err != nil {
+			lessonFailure(w, err)
+			return
+		}
+	}
+	roster, err := s.opts.Personas.TutorRoster(ctx, owner, course, lessonID)
+	if errors.Is(err, characters.ErrNotFound) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	respond(w, http.StatusOK, roster)
 }

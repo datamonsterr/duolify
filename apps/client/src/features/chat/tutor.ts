@@ -14,12 +14,36 @@ export type TutorQuote = Pick<
   | "daily_free_eligible"
   | "expires_at"
 >;
+export type SpeakerKey = "guide" | "supporter" | "supporter_2";
+/** The tutor a turn was pinned to before streaming. Names are shown only to their owner, never sent anywhere. */
+export type TutorPersona = {
+  speaker_key: SpeakerKey;
+  name: string;
+  character_version: number;
+  cast_source: "lesson" | "course" | "default";
+  /** Empty, or the bounded reason the server used the safe default guide. */
+  fallback: string;
+};
+export type PersonaTutor = {
+  speaker_key: SpeakerKey;
+  role: "guide" | "supporter";
+  name: string;
+  character_version: number;
+  available: boolean;
+};
+export type PersonaRoster = {
+  cast_source: TutorPersona["cast_source"];
+  cast_version: number;
+  default_speaker: SpeakerKey;
+  tutors: PersonaTutor[];
+};
 export type TutorMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
   status: "complete" | "interrupted" | "stopped";
   created_at: string;
+  tutor?: TutorPersona;
 };
 export type ThreadResponse = {
   thread: { id: string } | null;
@@ -33,12 +57,16 @@ export type SendInput = {
   message: string;
   thread_id?: string;
   lesson?: LessonRef;
+  /** Omitted means the main guide; the API resolves ownership and pins the version. */
+  speaker_key?: SpeakerKey;
 };
 export type SendHandlers = {
   /** The event stream is open: the turn is accepted and a reply is coming. */
   onOpen: () => void;
   onThread: (threadId: string) => void;
   onDelta: (text: string) => void;
+  /** The pinned tutor, sent once before the first delta. */
+  onTutor?: (tutor: TutorPersona) => void;
 };
 export type SendDone = {
   message_id: string;
@@ -70,6 +98,8 @@ export interface TutorService {
   stop(courseId: string, key: string): Promise<void>;
   /** The owner's stored turn, including a partial reply after a dropped connection. */
   turn(courseId: string, key: string): Promise<StoredTurn | null>;
+  /** The effective Cast's tutors; inside a Lesson that Lesson's pinned Cast. Absent: no picker. */
+  personas?(courseId: string, lessonId?: string): Promise<PersonaRoster>;
 }
 export type StoredTurn = {
   state: string;
@@ -222,6 +252,10 @@ export const tutorService: TutorService = {
     call(`/v1/tutor/messages/${encodeURIComponent(messageId)}/note`, "POST", {
       ...(lessonId ? { lesson_id: lessonId } : {}),
     }),
+  personas: (id, lessonId) =>
+    call(
+      `${course(id)}/personas${lessonId ? `?lesson_id=${encodeURIComponent(lessonId)}` : ""}`,
+    ),
   remove: (threadId) =>
     call(`/v1/tutor/threads/${encodeURIComponent(threadId)}`, "DELETE"),
   async send(id, input, handlers, signal) {
@@ -257,6 +291,8 @@ export const tutorService: TutorService = {
     for await (const { event, data } of parseSse(response.body)) {
       const payload = (data ?? {}) as Record<string, unknown>;
       if (event === "thread") handlers.onThread(String(payload.thread_id));
+      else if (event === "tutor")
+        handlers.onTutor?.(payload as unknown as TutorPersona);
       else if (event === "delta") handlers.onDelta(String(payload.text ?? ""));
       else if (event === "done") done = payload as unknown as SendDone;
       else if (event === "error")

@@ -74,7 +74,7 @@ func (c *client) Close() error {
 
 func allowlisted(event string) bool {
 	switch event {
-	case "xp_earned", "daily_goal_met", "lesson_completed":
+	case "xp_earned", "daily_goal_met", "lesson_completed", "streak_extended", "streak_broken", "streak_freeze_earned", "streak_freeze_used", "league_promoted", "league_demoted":
 		return true
 	case "username_set", "username_rejected", "username_changed", "username_searched", "privacy_setting_changed":
 		return true
@@ -88,11 +88,11 @@ func allowlisted(event string) bool {
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed", "ai_cost_budget_alert",
-		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "tutor_reply_stopped", "ui_control_activated", "ui_navigation_selected",
+		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "tutor_reply_stopped", "ui_control_activated", "ui_navigation_selected", "ui_screen_viewed",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
-		"character_rendered", "character_render_fallback", "character_reaction_shown",
+		"character_rendered", "character_render_fallback", "character_reaction_shown", "tutor_character_selected", "tutor_character_fallback",
 		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
 		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
@@ -213,6 +213,21 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "daily_goal_met":
 		ids("event_id", "local_date")
 		numeric("goal_xp")
+	case "streak_extended":
+		ids("event_id", "local_date")
+		numeric("streak_length")
+	case "streak_broken":
+		ids("event_id", "broken_on")
+		numeric("previous_length")
+	case "streak_freeze_earned":
+		ids("event_id", "reason", "local_date")
+		numeric("streak_length")
+	case "streak_freeze_used":
+		ids("event_id", "protected_on")
+		numeric("remaining", "streak_length")
+	case "league_promoted", "league_demoted":
+		ids("event_id", "week_start", "league")
+		numeric("rank", "from_tier", "to_tier")
 	case "character_updated":
 		ids("character_id")
 		numeric("character_version")
@@ -413,6 +428,8 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "ui_control_activated":
 		ids("control_id", "screen", "surface", "course_id")
+	case "ui_screen_viewed":
+		ids("screen_id")
 	case "ui_recovery_selected":
 		ids("surface", "error_code", "action", "course_id", "screen_id")
 	case "ui_navigation_selected":
@@ -437,6 +454,22 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 		ids("speaker_key", "expression")
 		boolean("fallback_used")
+	case "tutor_character_selected":
+		ids("speaker_key")
+		numeric("character_version")
+		if source := input["cast_source"]; source == "lesson" || source == "course" || source == "default" {
+			out["cast_source"] = source
+		}
+	case "tutor_character_fallback":
+		if reason, ok := input["reason_code"].(string); ok {
+			switch reason {
+			case "invalid_persona", "persona_too_large", "speaker_unavailable", "persona_unavailable", "suppressed":
+				out["reason_code"] = reason
+			}
+		}
+		if input["phase"] == "before_stream" {
+			out["phase"] = "before_stream"
+		}
 	case "character_render_fallback":
 		ids("reason_code")
 		boolean("offline")

@@ -83,7 +83,7 @@ The catalog MUST include: `course_preview_requested` (topic_length, has_profile)
 - **THEN** its name and properties appear in the catalog or the change adds them
 
 ### Requirement: Gamification and social events
-The catalog MUST include: `xp_earned` (amount, course_id, lesson_id, event_id, local_date, config_version, perfect), `daily_goal_met` (goal_xp, event_id, local_date), `lesson_completed` (xp, duration_ms, course_id, lesson_id, event_id, local_date, config_version, perfect), `streak_extended` (streak_length), `streak_broken` (previous_length), `streak_freeze_earned` (reason), `streak_freeze_used` (remaining), `league_promoted` and `league_demoted` (league, rank), `friend_request_sent` (method), `friend_request_accepted`, `friend_streak_started`, `friend_streak_extended` (length), `friend_streak_broken` (length) and `friend_nudge_sent`.
+The catalog MUST include: `xp_earned` (amount, course_id, lesson_id, event_id, local_date, config_version, perfect), `daily_goal_met` (goal_xp, event_id, local_date), `lesson_completed` (xp, duration_ms, course_id, lesson_id, event_id, local_date, config_version, perfect), `streak_extended` (streak_length), `streak_broken` (previous_length), `streak_freeze_earned` (reason, streak_length, local_date, event_id), `streak_freeze_used` (remaining, protected_on, streak_length, event_id), `league_promoted` and `league_demoted` (event_id, week_start, league, rank, from_tier, to_tier), `friend_request_sent` (method), `friend_request_accepted`, `friend_streak_started`, `friend_streak_extended` (length), `friend_streak_broken` (length) and `friend_nudge_sent`.
 
 #### Scenario: Streak broken
 - **WHEN** a Streak resets
