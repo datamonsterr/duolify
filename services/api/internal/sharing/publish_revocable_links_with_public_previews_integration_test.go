@@ -534,3 +534,32 @@ func TestPublicLinkHTTPSurface(t *testing.T) {
 		}
 	})
 }
+
+func TestLinkHashesAreErasedWithTheirCourse(t *testing.T) {
+	f := backuptest.New(t)
+	f.Seed(t)
+	ctx := t.Context()
+	s := newService(t, f, startEngine(t), &capture{})
+	courseID, _ := seedPublishableCourse(t, f, s)
+	token, err := s.PublishLink(ctx, owner, courseID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err = f.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM publication_links WHERE token_hash=$1`, sharing.HashToken(token)).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("link row: %d %v", n, err)
+	}
+	// The plaintext token must not be recoverable from any stored column.
+	if err = f.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM publication_links WHERE row_to_json(publication_links)::text LIKE '%'||$1||'%'`, token).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("plaintext token stored: %d %v", n, err)
+	}
+	if _, err = f.DB.Pool.Exec(ctx, `DELETE FROM courses WHERE id=$1`, courseID); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM publication_links WHERE course_id=$1`, courseID).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("link hash survived its course: %d %v", n, err)
+	}
+	if _, err = s.GetPreview(ctx, token, ""); !errors.Is(err, sharing.ErrLinkNotFound) {
+		t.Fatalf("preview after erasure: %v", err)
+	}
+}
