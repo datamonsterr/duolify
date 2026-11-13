@@ -212,6 +212,25 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
+  restore-drill:
+    needs: changes
+    if: inputs.tier == 'full' && (needs.changes.outputs.api == 'true' || needs.changes.outputs.infra == 'true')
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 15
+    # Starts disposable Postgres 18, RustFS and Redis via testcontainers; Docker must be available.
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-api
+      - run: mise run api:restore-drill-ci
+        timeout-minutes: 10
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
   engine-lint:
     needs: changes
     if: needs.changes.outputs.engine == 'true'
@@ -500,6 +519,15 @@ jobs:
     runs-on: namespace-profile-datamonster01
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: go node pnpm railway
+          area: infra-plan
+      - name: Validate Railway environment definitions (plan-only evidence)
+        run: mise run infra:validate-plan
       - name: Check Railway credentials
         id: credentials
         env:
@@ -511,22 +539,13 @@ jobs:
           else
             echo '::notice::Railway plan skipped: RAILWAY_TOKEN unavailable or fork PR.'
           fi
-      - uses: actions/checkout@v7
-        if: steps.credentials.outputs.enabled == 'true'
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-tools
-        if: steps.credentials.outputs.enabled == 'true'
-        with:
-          tools: node pnpm railway
-          area: infra
       - if: steps.credentials.outputs.enabled == 'true'
         run: mise run infra:plan
         timeout-minutes: 6
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       - name: Summary
-        if: always() && steps.credentials.outputs.enabled == 'true'
+        if: always()
         env:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
@@ -541,6 +560,7 @@ jobs:
       - proto
       - api
       - api-integration
+      - restore-drill
       - engine-lint
       - engine-build
       - engine-test

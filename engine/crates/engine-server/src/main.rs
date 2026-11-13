@@ -9,10 +9,13 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter("engine_server=info")
         .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
         .init();
-    let addr = std::env::var("ENGINE_ADDR_LISTEN")
-        .unwrap_or_else(|_| "0.0.0.0:50051".into())
-        .parse()?;
-    let mode = std::env::var("ENGINE_PROVIDER_MODE").unwrap_or_default();
+
+    // Release gate: validate engine startup config and private networking
+    let startup_cfg = engine_core::backup::EngineStartupConfig::from_env();
+    startup_cfg.validate()?;
+
+    let addr = startup_cfg.listen_addr.parse()?;
+    let mode = startup_cfg.provider_mode;
     let service = EngineServiceServer::new(Service {
         router: Arc::new(engine_providers::router(&mode)?),
     });

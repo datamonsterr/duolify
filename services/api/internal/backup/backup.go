@@ -36,6 +36,9 @@ type Options struct {
 	Events    analytics.Events
 	OptOut    bool
 	TempDir   string
+	// FinancialCopy also publishes the same ciphertext under financial/ for the
+	// 35-day class (the dump contains the financial ledger).
+	FinancialCopy bool
 }
 
 // Service backs up a database without ever writing a plaintext archive to disk.
@@ -119,6 +122,16 @@ func (s *Service) Run(ctx context.Context, date string) (result error) {
 	if err := ctx.Err(); err != nil {
 		return errors.New("backup deadline exceeded")
 	}
+	// Financial first: the general key marks the date complete, so a retry
+	// after a partial failure still publishes both.
+	if s.options.FinancialCopy {
+		if err := s.options.Objects.Put(ctx, "financial/"+key, file, size); err != nil {
+			return errors.New("backup upload failed")
+		}
+		if _, err := file.Seek(0, io.SeekStart); err != nil {
+			return errors.New("backup file rewind failed")
+		}
+	}
 	if err := s.options.Objects.Put(ctx, key, file, size); err != nil {
 		return errors.New("backup upload failed")
 	}
@@ -140,7 +153,14 @@ func (w *limitedWriter) Write(p []byte) (int, error) {
 }
 
 func (s *Service) emit(ok bool, size int64, duration time.Duration) {
-	if s.options.OptOut || s.options.Events == nil {
+	emitOutcome(s.options.Events, s.options.OptOut, ok, size, duration)
+}
+
+// emitOutcome sends the reserved operations event: no keys, errors or content.
+func emitOutcome(events interface {
+	Capture(string, string, map[string]any) error
+}, optOut, ok bool, size int64, duration time.Duration) {
+	if optOut || events == nil {
 		return
 	}
 	name := "backup_failed"
@@ -151,7 +171,7 @@ func (s *Service) emit(ok bool, size int64, duration time.Duration) {
 	if info, present := debug.ReadBuildInfo(); present && info.Main.Version != "" && info.Main.Version != "(devel)" {
 		version = info.Main.Version
 	}
-	_ = s.options.Events.Capture("00000000-0000-4000-8000-000000000011", name, map[string]any{
+	_ = events.Capture("00000000-0000-4000-8000-000000000011", name, map[string]any{
 		"source": "api", "platform": "web", "app_version": version,
 		"size_bytes": size, "duration_ms": duration.Milliseconds(), "ok": ok,
 	})
