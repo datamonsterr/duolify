@@ -290,7 +290,10 @@
   padding: var(--space-4);
   background: rgb(20 20 20 / 0.55);
 }
-.tutor-dialog {
+.tutor-dialog::backdrop {
+  background: rgb(20 20 20 / 0.55);
+}
+.tutor-dialog[open] {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -298,6 +301,9 @@
   border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
+  border: 0;
+  inline-size: min(28rem, calc(100vw - 2 * var(--space-4)));
+  box-sizing: border-box;
 }
 .tutor-dialog p {
   margin: 0;

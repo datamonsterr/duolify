@@ -53,7 +53,17 @@ function ConfirmDelete({
   const { t } = useUiPreferences();
   const cancel = useRef<HTMLButtonElement>(null);
   const confirm = useRef<HTMLButtonElement>(null);
-  useEffect(() => cancel.current?.focus(), []);
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    // A nested modal <dialog> is the topmost layer, so the browser sends Escape's close request
+    // here and not to the modal sheet behind it.
+    const node = dialog.current;
+    if (node && !node.open) {
+      if (typeof node.showModal === "function") node.showModal();
+      else node.setAttribute("open", ""); // Non-browser platform doubles.
+    }
+    cancel.current?.focus();
+  }, []);
   function onKeyDown(event: KeyboardEvent) {
     if (event.key === "Escape") {
       // Cancel only this dialog, never the sheet behind it.
@@ -74,38 +84,39 @@ function ConfirmDelete({
     }
   }
   return (
-    <div className="tutor-scrim">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="tutor-delete-title"
-        className="tutor-dialog"
-        onKeyDown={onKeyDown}
-      >
-        <b id="tutor-delete-title">{t("tutor.delete_title")}</b>
-        <p>{t("tutor.delete_body", { title, count })}</p>
-        {error && <p role="alert">{t("tutor.delete_error")}</p>}
-        <div className="tutor-row">
-          <button
-            type="button"
-            ref={cancel}
-            className="btn sec"
-            onClick={onCancel}
-          >
-            {t("tutor.delete_cancel")}
-          </button>
-          <button
-            type="button"
-            ref={confirm}
-            className="btn tutor-danger"
-            disabled={busy}
-            onClick={onConfirm}
-          >
-            {t("tutor.delete_confirm")}
-          </button>
-        </div>
+    <dialog
+      ref={dialog}
+      aria-labelledby="tutor-delete-title"
+      className="tutor-dialog"
+      onKeyDown={onKeyDown}
+      onCancel={(event) => {
+        event.preventDefault();
+        onCancel();
+      }}
+    >
+      <b id="tutor-delete-title">{t("tutor.delete_title")}</b>
+      <p>{t("tutor.delete_body", { title, count })}</p>
+      {error && <p role="alert">{t("tutor.delete_error")}</p>}
+      <div className="tutor-row">
+        <button
+          type="button"
+          ref={cancel}
+          className="btn sec"
+          onClick={onCancel}
+        >
+          {t("tutor.delete_cancel")}
+        </button>
+        <button
+          type="button"
+          ref={confirm}
+          className="btn tutor-danger"
+          disabled={busy}
+          onClick={onConfirm}
+        >
+          {t("tutor.delete_confirm")}
+        </button>
       </div>
-    </div>
+    </dialog>
   );
 }
 
@@ -334,6 +345,14 @@ export function TutorChat({
       if (canSend) tutor.send();
     }
   }
+  // Focus can only move once the nested modal is gone (everything behind it is inert): back to
+  // Delete when the chat remains, otherwise to the composer.
+  const wasConfirming = useRef(false);
+  useEffect(() => {
+    if (wasConfirming.current && !confirming)
+      (deleteButton.current ?? field.current)?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
   async function confirmDelete() {
     trackTutorControl("delete_thread");
     setDeleting(true);
@@ -342,7 +361,6 @@ export function TutorChat({
       await tutor.remove();
       setConfirming(false);
       setContext(undefined);
-      field.current?.focus();
     } catch {
       setDeleteError(true);
     } finally {
@@ -352,7 +370,6 @@ export function TutorChat({
   function cancelDelete() {
     setConfirming(false);
     setDeleteError(false);
-    deleteButton.current?.focus();
   }
   const daily = tutor.wallet?.daily_free.available;
   const paid = tutor.wallet

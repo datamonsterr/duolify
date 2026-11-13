@@ -263,3 +263,43 @@ it("notes saved from a deleted thread stay readable and say the source is unavai
   expect(screen.getAllByText(/From tutor chat$/).length).toBeGreaterThan(0);
   vi.restoreAllMocks();
 });
+
+it("a native cancel or Escape on the confirm closes only the confirm and returns focus to Delete", async () => {
+  const outerCancel = vi.fn();
+  const outerKey = vi.fn();
+  const svc = service();
+  render(
+    // Stands in for the modal sheet's <dialog>, which closes itself on cancel and Escape.
+    <div onKeyDown={outerKey}>
+      <TutorChat courseId="c1" lesson={lesson} embedded service={svc} />
+    </div>,
+  );
+  await screen.findByText("Polaris sits above the pole.");
+  document.addEventListener("cancel", outerCancel);
+  const opener = screen.getByRole("button", { name: "Delete chat" });
+  fireEvent.click(opener);
+  const dialog = await screen.findByRole("dialog", {
+    name: "Delete this chat?",
+  });
+  // The browser's close request for a modal <dialog> arrives as a cancelable `cancel` event.
+  const cancel = new Event("cancel", { cancelable: true });
+  fireEvent(dialog, cancel);
+  expect(cancel.defaultPrevented).toBe(true);
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "Delete this chat?" }),
+    ).toBeNull(),
+  );
+  expect(document.activeElement).toBe(opener);
+  // Escape reaching the confirm never bubbles to the sheet behind it.
+  fireEvent.click(opener);
+  fireEvent.keyDown(await screen.findByRole("button", { name: "Cancel" }), {
+    key: "Escape",
+  });
+  expect(outerKey).not.toHaveBeenCalled();
+  expect(
+    screen.queryByRole("dialog", { name: "Delete this chat?" }),
+  ).toBeNull();
+  expect(document.activeElement).toBe(opener);
+  document.removeEventListener("cancel", outerCancel);
+});
