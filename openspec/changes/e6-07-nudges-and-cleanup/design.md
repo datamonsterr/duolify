@@ -1,0 +1,11 @@
+## Decisions
+- **Operation key.** The client sends a UUID `operation_key` (generated per tap, reused on retry). Same key returns the first result and delivers nothing new. A new key on the same sender local day is rejected with `nudge_limited` and `Retry-After` until the sender's next local midnight. Both uniques live in Postgres, so concurrent taps yield one row.
+- **Day.** The sender's local date from `learner_profiles.time_zone` and the service clock.
+- **Eligibility.** Actor is a friend, no block either way, else neutral `nudge_unavailable` (404). The friend must not have completed a Lesson today (their local date in `streak_days`); otherwise the same neutral error. A sender is also capped at `nudge_sends_per_day` via the existing `social_rate_limits` window.
+- **Recipient settings.** `show_streak_to_friends=false` already hides today's status from friends; a nudge discloses it, so it is suppressed: the row is recorded `delivered=false`, the sender sees a normal "sent" and the quota is consumed. The same check applies when the inbox is read, so turning the setting off hides pending nudges at once.
+- **Suppression by relationship.** `endFriendshipTx` deletes all nudges of the pair (block and remove); the inbox query also requires a friendship and no block.
+- **Inbox.** `friend_nudges.read_at`; list returns delivered, unread-first, newest first, at most 50, with username/display name/avatar only. Rows older than `nudge_retention_days` are deleted when nudges are sent or listed (bounded retention, no worker).
+- **Erasure.** Both learner FKs `ON DELETE CASCADE`: deleting an account (live or tombstone replay) removes sent and received nudges, friendships, requests, links and shared streaks, so the survivor's list and inbox simply lack the entry. The username hold trigger on `learner_usernames` still holds the released name; replay keeps unique names and active holds.
+- **Analytics.** `friend_nudge_sent(event_id=nudge id, local_date)` for the sender's distinct id, only on first creation; consent gate unchanged.
+- **Data.** Table in nightly dumps (14-day general retention), exported to the owner as direction/date/read/other username, erased with the account; nudge rows live at most `nudge_retention_days`.
+- **AI reliability.** No AI behavior; existing eval and fallback gates unchanged.
