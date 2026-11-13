@@ -20,6 +20,8 @@ var ClassifiedLearnerTables = map[string]string{
 	"bookmarks":                         "erased",
 	"quick_notes":                       "erased",
 	"quick_note_enrichments":            "erased",
+	"quick_note_chat_sources":           "erased",
+	"tutor_thread_deletion_tombstones":  "text_free_retained_35_days",
 	"xp_events":                         "erased_account_lifetime",
 	"daily_goal_achievements":           "erased_account_lifetime",
 	"character_create_jobs":             "erased_prompt_terminal_or_24h",
@@ -68,6 +70,9 @@ var ClassifiedLearnerTables = map[string]string{
 	"course_brief_revisions":            "erased",
 	"outline_drafts":                    "erased",
 	"outline_proposals":                 "erased",
+	"tutor_threads":                     "erased_or_deleted_per_thread",
+	"tutor_messages":                    "erased_or_deleted_per_thread",
+	"tutor_turns":                       "erased",
 	"learner_profiles":                  "erased",
 	"auth_identities":                   "erased",
 	"auth_provider_identities":          "erased",
@@ -131,7 +136,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 	for _, table := range []string{"credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(g)),'[]'::jsonb) FROM " + table + " g JOIN credit_subscription_terms t USING(period_key) JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1"})
 	}
-	for _, table := range []string{"quick_notes", "quick_note_enrichments", "bookmarks", "xp_events", "daily_goal_achievements", "character_create_jobs", "characters", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_playback_sync_events", "lesson_playback_positions", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "credit_checkout_orders", "credit_jobs", "credit_outbox"} {
+	for _, table := range []string{"quick_notes", "quick_note_enrichments", "quick_note_chat_sources", "bookmarks", "xp_events", "daily_goal_achievements", "character_create_jobs", "characters", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_playback_sync_events", "lesson_playback_positions", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "tutor_threads", "tutor_messages", "tutor_turns", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "credit_checkout_orders", "credit_jobs", "credit_outbox"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM " + table + " t WHERE learner_id=$1"})
 	}
 	for _, table := range []string{"credit_allocations", "credit_usage"} {
@@ -241,6 +246,9 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 // HTTP listener opens. It deletes any personal account whose pseudonym matches
 // a durable tombstone, while leaving null-linked financial rows intact.
 func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
+	if err := applyThreadDeletionTombstones(ctx, pool); err != nil {
+		return err
+	}
 	rows, err := pool.Query(ctx, "SELECT id::text FROM learners")
 	if err != nil {
 		return err
@@ -335,4 +343,24 @@ func (s *Service) clearEmailAuthentication(ctx context.Context, tx pgx.Tx, learn
 		}
 	}
 	return nil
+}
+
+// applyThreadDeletionTombstones removes tutor threads a Learner deleted after the restored backup was
+// taken: their text is erased again and notes saved from them read "source unavailable".
+func applyThreadDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	for _, q := range []string{
+		"UPDATE quick_note_chat_sources SET unavailable=true,thread_id=NULL,message_id=NULL WHERE thread_id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
+		"UPDATE tutor_turns SET user_message_id=NULL,assistant_message_id=NULL WHERE thread_id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
+		"DELETE FROM tutor_threads WHERE id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
+	} {
+		if _, err = tx.Exec(ctx, q); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }

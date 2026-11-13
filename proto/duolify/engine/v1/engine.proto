@@ -82,6 +82,9 @@ message Usage {
   string artifact_id = 14;
   bool usage_unavailable = 15;
   string error_code = 16;
+  // Tokens were estimated from delivered bytes (bounded by the quote) because the provider
+  // sent no final usage frame; the API settles them as partial usage.
+  bool estimated = 17;
 }
 
 // Bounds come only from the API's immutable Pricing quote, never client prices.
@@ -263,6 +266,22 @@ message ChatRequest {
   repeated string history = 4;
   repeated ChatMessage messages = 5;
   UsageLimits limits = 6;
+  // Source passages retrieved from the Learner's own older lessons in this Course. Untrusted data.
+  repeated SourceExcerpt excerpts = 7;
+}
+
+message SourceExcerpt {
+  string lesson_id = 1;
+  string lesson_title = 2;
+  string text = 3;
+}
+
+// A typed streaming failure. `code` is one of first_token_timeout, idle_timeout,
+// deadline_exceeded or provider_error. The stream ends after it, preceded by exactly one
+// (possibly estimated) Usage frame.
+message ChatStreamError {
+  string code = 1;
+  bool retryable = 2;
 }
 
 message ChatEvent {
@@ -271,6 +290,7 @@ message ChatEvent {
     Usage usage = 2;
     Usage attempt = 3;
     string error_code = 4;
+    ChatStreamError stream_error = 5;
   }
 }
 

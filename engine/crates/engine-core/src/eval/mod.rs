@@ -335,6 +335,35 @@ pub async fn run_bounded_inputs<F: Fn(&str) -> bool>(
     Ok(outcome)
 }
 
+/// Why a bounded stream ended early. Carried inside the stream's `anyhow::Error` so callers can
+/// downcast it into a typed, retryable error for the API.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamFailure {
+    FirstTokenTimeout,
+    IdleTimeout,
+    DeadlineExceeded,
+}
+
+impl std::fmt::Display for StreamFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::FirstTokenTimeout | Self::IdleTimeout => "stream timeout",
+            Self::DeadlineExceeded => "deadline exceeded",
+        })
+    }
+}
+
+impl std::error::Error for StreamFailure {}
+
+/// The provider route a stream actually runs on; `fallback_used` is true only when the primary gave
+/// no first token and the single evaluated fallback took over before any delta.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamRoute {
+    pub provider: String,
+    pub model: String,
+    pub fallback_used: bool,
+}
+
 /// Stream with first-token timeout, idle timeout, and no post-delta fallback.
 pub async fn stream_bounded(
     router: &ProviderRouter,
@@ -344,6 +373,27 @@ pub async fn stream_bounded(
     first_token_timeout: Duration,
     idle_timeout: Duration,
 ) -> Result<CompletionStream> {
+    stream_bounded_routed(
+        router,
+        task,
+        input,
+        limits,
+        first_token_timeout,
+        idle_timeout,
+    )
+    .await
+    .map(|(stream, _)| stream)
+}
+
+/// Like [`stream_bounded`] and also returns the route the stream runs on.
+pub async fn stream_bounded_routed(
+    router: &ProviderRouter,
+    task: &str,
+    input: &str,
+    limits: Option<&Limits>,
+    first_token_timeout: Duration,
+    idle_timeout: Duration,
+) -> Result<(CompletionStream, StreamRoute)> {
     if let Some(l) = limits {
         validate_limits(l)?;
         if input.len() > l.input_tokens as usize {
@@ -381,21 +431,31 @@ pub async fn stream_bounded(
 
     let primary_res = router.primary.stream(&model.model, input).await;
 
-    let (underlying, first_event) = match primary_res {
+    let primary_route = StreamRoute {
+        provider: router.primary.name().into(),
+        model: model.model.clone(),
+        fallback_used: false,
+    };
+    let fallback_route = StreamRoute {
+        provider: router.fallback.name().into(),
+        model: model.fallback_model.clone(),
+        fallback_used: true,
+    };
+    let (underlying, first_event, route) = match primary_res {
         Ok(mut primary_stream) => {
             match tokio::time::timeout(effective_first_to, primary_stream.next()).await {
-                Ok(Some(Ok(event))) => (primary_stream, Some(Ok(event))),
+                Ok(Some(Ok(event))) => (primary_stream, Some(Ok(event)), primary_route),
                 _ => {
                     // First token timed out or failed before any delta; fall back to secondary stream
                     let fallback_stream =
                         router.fallback.stream(&model.fallback_model, input).await?;
-                    (fallback_stream, None)
+                    (fallback_stream, None, fallback_route)
                 }
             }
         }
         Err(_) => {
             let fallback_stream = router.fallback.stream(&model.fallback_model, input).await?;
-            (fallback_stream, None)
+            (fallback_stream, None, fallback_route)
         }
     };
 
@@ -445,7 +505,7 @@ pub async fn stream_bounded(
                 };
                 if u128::from(deadline) <= now {
                     return Some((
-                        Err(anyhow::anyhow!("deadline exceeded")),
+                        Err(anyhow::Error::new(StreamFailure::DeadlineExceeded)),
                         (
                             underlying,
                             None,
@@ -496,9 +556,14 @@ pub async fn stream_bounded(
                 }
                 Ok(None) => None,
                 Err(_) => {
-                    // Timeout
+                    // Timeout: no token at all is a first-token timeout, otherwise the stream went idle.
+                    let failure = if first_check {
+                        StreamFailure::FirstTokenTimeout
+                    } else {
+                        StreamFailure::IdleTimeout
+                    };
                     Some((
-                        Err(anyhow::anyhow!("stream timeout")),
+                        Err(anyhow::Error::new(failure)),
                         (
                             underlying,
                             None,
@@ -514,5 +579,5 @@ pub async fn stream_bounded(
         },
     );
 
-    Ok(Box::pin(stream))
+    Ok((Box::pin(stream), route))
 }

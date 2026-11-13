@@ -248,6 +248,9 @@ func (s *Service) FilterNotes(ctx context.Context, learnerID string, filter Filt
 	for i, r := range rows {
 		dtos[i] = toDTOFromFilter(r)
 	}
+	if err = s.attachChatSources(ctx, learnerID, dtos); err != nil {
+		return nil, err
+	}
 	return dtos, nil
 }
 
@@ -273,6 +276,9 @@ func FormatNoteMarkdown(note NoteDTO) string {
 		title = "Quick Note"
 	}
 	b.WriteString("# " + title + "\n\n")
+	if note.ChatSource != nil && note.ChatSource.State == "unavailable" {
+		b.WriteString("Source: tutor chat (source unavailable)\n\n")
+	}
 	b.WriteString("## Your original note\n\n")
 
 	// Fence the raw note so it cannot forge sections or headings

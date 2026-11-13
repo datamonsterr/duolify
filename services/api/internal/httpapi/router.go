@@ -45,6 +45,7 @@ type Dependencies struct {
 	Notes                   http.Handler
 	Eval                    http.Handler
 	Characters              http.Handler
+	Tutor                   http.Handler
 	Gamification            http.Handler
 	LessonTestTracerEnabled bool
 	LessonTest              http.Handler
@@ -175,6 +176,17 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})
 			})
 		}
+	}
+	if deps.Tutor != nil && deps.Accounts != nil {
+		tutor := deps.Accounts.Protect(deps.Tutor)
+		mux.Handle("POST /v1/courses/{id}/tutor/quote", tutor)
+		mux.Handle("POST /v1/courses/{id}/tutor/messages", tutor)
+		mux.Handle("GET /v1/courses/{id}/tutor/thread", tutor)
+		mux.Handle("GET /v1/courses/{id}/tutor/turns/{key}", tutor)
+		mux.Handle("POST /v1/courses/{id}/tutor/turns/{key}/stop", tutor)
+		mux.Handle("GET /v1/tutor/threads/{id}/messages", tutor)
+		mux.Handle("DELETE /v1/tutor/threads/{id}", tutor)
+		mux.Handle("POST /v1/tutor/messages/{id}/note", tutor)
 	}
 	if deps.Notes != nil && deps.Accounts != nil {
 		mux.Handle("/v1/notes", deps.Accounts.Protect(deps.Notes))

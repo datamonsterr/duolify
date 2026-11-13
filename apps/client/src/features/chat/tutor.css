@@ -1,0 +1,333 @@
+.tutor-entry {
+  margin-block: var(--space-3);
+}
+.tutor-panel {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: min(26rem, 100vw);
+  background: var(--surface);
+  color: var(--text);
+  border-inline-start: 2px solid var(--line);
+  box-shadow: 0 0 24px rgb(0 0 0 / 0.18);
+  animation: tutor-in 160ms ease-out;
+}
+@media (max-width: 47.99rem) {
+  .tutor-panel {
+    inset: 0;
+    width: 100%;
+    border: none;
+    box-shadow: none;
+  }
+}
+:root[data-motion="reduce"] .tutor-panel {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tutor-panel {
+    animation: none;
+  }
+}
+@keyframes tutor-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+/* Inside the lesson sheet: the sheet owns the heading, close control, placement and focus trap. */
+.tutor-panel.tutor-embedded {
+  position: static;
+  inline-size: 100%;
+  block-size: min(70dvh, 36rem);
+  border: none;
+  box-shadow: none;
+  animation: none;
+}
+.tutor-embedded .tutor-top {
+  justify-content: flex-end;
+  padding-inline: 0;
+}
+.tutor-embedded .tutor-top h2 {
+  display: none;
+}
+.tutor-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-block-end: 2px solid var(--line);
+}
+.tutor-top h2 {
+  flex: 1;
+  margin: 0;
+}
+.tutor-icon {
+  inline-size: var(--size-target, 44px);
+  block-size: var(--size-target, 44px);
+  flex: none;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: var(--weight-heavy);
+}
+.tutor-icon:disabled {
+  opacity: 0.5;
+}
+.tutor-ctx {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-3) var(--space-4) 0;
+  padding: var(--space-3);
+  border: 2px solid var(--info);
+  border-radius: var(--radius-md);
+  background: var(--info-bg);
+  color: var(--info);
+  font-size: var(--font-size-caption);
+}
+.tutor-log {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.tutor-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.tutor-starters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.tutor-starter {
+  min-block-size: var(--size-target, 44px);
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--line);
+  border-block-end-width: 4px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: var(--weight-heavy);
+  text-align: start;
+}
+.tutor-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-inline-size: 90%;
+}
+.tutor-msg.me {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.tutor-who {
+  font-size: var(--font-size-small);
+  font-weight: var(--weight-heavy);
+  color: var(--muted);
+}
+.tutor-bubble {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-inline-size: 100%;
+}
+.me .tutor-bubble {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.ai .tutor-bubble {
+  background: var(--surface);
+  border: 2px solid var(--line);
+}
+.tutor-chip {
+  align-self: flex-start;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--info-bg);
+  color: var(--info);
+  font-size: var(--font-size-small);
+  font-weight: var(--weight-heavy);
+}
+.tutor-note {
+  display: flex;
+  gap: var(--space-3);
+  margin: var(--space-2) var(--space-4);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-caption);
+}
+.tutor-msg .tutor-note {
+  margin: var(--space-1) 0 0;
+}
+.tutor-note b {
+  display: block;
+}
+.tutor-note p {
+  margin: 0 0 var(--space-2);
+}
+.tutor-note.warn {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.tutor-note.bad {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.tutor-note.info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.tutor-small {
+  min-block-size: var(--size-target, 44px);
+  font-size: var(--font-size-small);
+}
+.tutor-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-block-start: 2px solid var(--line);
+}
+.tutor-class {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.tutor-class label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-block-size: var(--size-target, 44px);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  font-weight: var(--weight-heavy);
+  font-size: var(--font-size-caption);
+}
+.tutor-class label.on {
+  background: var(--info-bg);
+  border-color: var(--info);
+  color: var(--info);
+}
+.tutor-class label:has(:focus-visible),
+.tutor-input textarea:focus-visible,
+.tutor-send:focus-visible,
+.tutor-icon:focus-visible,
+.tutor-starter:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.tutor-input {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.tutor-input label {
+  flex: 1;
+  min-inline-size: 0;
+}
+.tutor-input textarea {
+  inline-size: 100%;
+  max-block-size: 9rem;
+  field-sizing: content;
+  resize: none;
+  padding: var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+  color: var(--text);
+  font: inherit;
+  font-size: max(1rem, 16px);
+}
+.tutor-send {
+  inline-size: 3.2rem;
+  block-size: 3.2rem;
+  flex: none;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: 0 4px 0 var(--primary-edge);
+}
+.tutor-send:disabled {
+  opacity: 0.5;
+}
+.tutor-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--font-size-caption);
+  color: var(--muted);
+}
+.tutor-sr {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.tutor-scrim {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgb(20 20 20 / 0.55);
+}
+.tutor-dialog::backdrop {
+  background: rgb(20 20 20 / 0.55);
+}
+.tutor-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  border: 0;
+  inline-size: min(28rem, calc(100vw - 2 * var(--space-4)));
+  box-sizing: border-box;
+}
+.tutor-dialog p {
+  margin: 0;
+}
+.tutor-row {
+  display: flex;
+  gap: var(--space-2);
+}
+.tutor-row .btn {
+  flex: 1;
+}
+.btn.tutor-danger {
+  background: var(--danger);
+  box-shadow: 0 4px 0 var(--danger);
+}
+.tutor-save {
+  align-self: flex-start;
+}
+.tutor-note a.btn {
+  display: inline-flex;
+  align-items: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tutor-save {
+    transition: none;
+  }
+}

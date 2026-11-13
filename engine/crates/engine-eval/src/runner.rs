@@ -686,6 +686,215 @@ async fn evaluate_course_outline(input: &serde_json::Value) -> Result<String> {
     }
 }
 
+/// Cold: the provider only wrote the cache; warm: it read it; none: no cache tokens.
+fn cache_class(usage: &serde_json::Value) -> &'static str {
+    let n = |k: &str| usage[k].as_u64().unwrap_or(0);
+    if n("cache_read_tokens") > 0 {
+        "warm"
+    } else if n("cache_write_tokens") > 0 {
+        "cold"
+    } else {
+        "none"
+    }
+}
+
+/// Runs the production tutor prompt builder on the case context and scores a recorded reply.
+fn evaluate_tutor_chat(input: &serde_json::Value) -> Result<String> {
+    use engine_core::chat;
+    let context: chat::Context = serde_json::from_value(input["context"].clone())?;
+    let prompt = chat::prompt(&context);
+    let strings = |key: &str| -> Vec<String> {
+        input[key]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|v| v.as_str().map(str::to_owned))
+            .collect()
+    };
+    let reply = input["recorded"][0].as_str().context("recorded reply")?;
+    let parts = chat::split(&prompt);
+    let data = parts.and_then(|(_, json, _)| serde_json::from_str::<serde_json::Value>(json).ok());
+    let instructions_clean = parts.is_some_and(|(before, _, after)| {
+        strings("markers")
+            .iter()
+            .all(|m| !before.contains(m.as_str()) && !after.contains(m.as_str()))
+    });
+    let history: Vec<String> = data
+        .as_ref()
+        .and_then(|d| serde_json::from_value(d["history"].clone()).ok())
+        .unwrap_or_default();
+    Ok(serde_json::json!({
+        "prompt_valid": data.is_some(),
+        "delimiter_intact": prompt.matches(chat::OPEN).count() == 1 && prompt.matches(chat::CLOSE).count() == 1,
+        "instructions_clean": instructions_clean,
+        "profile_provided": data.as_ref().is_some_and(|d| d["profile_provided"] == true),
+        "current_lesson_empty": data.as_ref().is_some_and(|d| d["current_lesson"].is_null()),
+        "history_oldest_first": history == context.history,
+        "excerpts_in_data_block": !context.excerpts.is_empty()
+            && data.as_ref().is_some_and(|d| {
+                let found = d["source_excerpts"].as_array().map_or(0, Vec::len);
+                found == context.excerpts.len()
+                    && strings("excerpt_terms").iter().all(|t| {
+                        d["source_excerpts"]
+                            .to_string()
+                            .contains(t.trim_matches('"'))
+                    })
+            }),
+        "excerpts_outside_instructions": parts.is_some_and(|(before, _, after)| {
+            context.excerpts.iter().all(|e| {
+                !before.contains(e.text.as_str()) && !after.contains(e.text.as_str())
+            })
+        }),
+        "every_summary_kept": data
+            .as_ref()
+            .is_some_and(|d| d["history"].as_array().map_or(0, Vec::len) == context.history.len()),
+        "cache_class": cache_class(&input["usage"]),
+        "envelope": input["envelope"].as_str().unwrap_or("short"),
+        "grounded": strings("expect_terms").iter().all(|t| reply.contains(t.as_str())),
+        "forbidden_absent": strings("forbidden").iter().all(|t| !reply.contains(t.as_str())),
+        // E8-05: text of a deleted thread must be in neither the prompt nor the reply. An empty list
+        // never passes, so a case cannot assert this vacuously.
+        "deleted_history_absent": !strings("deleted").is_empty()
+            && strings("deleted")
+                .iter()
+                .all(|t| !prompt.contains(t.as_str()) && !reply.contains(t.as_str())),
+    })
+    .to_string())
+}
+
+/// One scripted provider for tutor streaming cases: emits `deltas`, then ends, fails or hangs.
+struct ScriptedStream {
+    name: &'static str,
+    deltas: Vec<String>,
+    then: String,
+    touched: Arc<std::sync::atomic::AtomicBool>,
+    dropped: Arc<std::sync::atomic::AtomicBool>,
+}
+
+struct DropFlag(Arc<std::sync::atomic::AtomicBool>);
+impl Drop for DropFlag {
+    fn drop(&mut self) {
+        self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+#[async_trait::async_trait]
+impl engine_core::LlmProvider for ScriptedStream {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+    async fn complete(&self, _: &str, _: &str) -> Result<engine_core::Completion> {
+        bail!("tutor stream cases never call complete")
+    }
+    async fn stream(&self, _: &str, _: &str) -> Result<engine_core::CompletionStream> {
+        use futures::StreamExt;
+        self.touched
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        let mut items: Vec<Result<engine_core::StreamEvent>> = self
+            .deltas
+            .iter()
+            .map(|d| Ok(engine_core::StreamEvent::Delta(d.clone())))
+            .collect();
+        if self.then == "fail" {
+            items.push(Err(anyhow::anyhow!("provider reset")));
+        }
+        let head = futures::stream::iter(items);
+        let guard = DropFlag(self.dropped.clone());
+        let tail: engine_core::CompletionStream = if self.then == "hang" {
+            Box::pin(head.chain(futures::stream::pending()))
+        } else {
+            Box::pin(head)
+        };
+        Ok(Box::pin(tail.map(move |item| {
+            let _keep = &guard;
+            item
+        })))
+    }
+}
+
+/// Runs the production stream path (`stream_bounded_routed` + `reconcile`) on a scripted provider and
+/// reports what the API would see: delivered text, terminal state, typed error, usage and fallback facts.
+async fn evaluate_tutor_stream(input: &serde_json::Value) -> Result<String> {
+    use engine_core::chat::stream::{Bounds, Part, reconcile};
+    use futures::StreamExt;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let spec = &input["stream"];
+    let side = |key: &str, name: &'static str| {
+        let s = &spec[key];
+        ScriptedStream {
+            name,
+            deltas: s["deltas"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect(),
+            then: s["then"].as_str().unwrap_or("end").into(),
+            touched: Arc::new(AtomicBool::new(false)),
+            dropped: Arc::new(AtomicBool::new(false)),
+        }
+    };
+    let (primary, fallback) = (side("primary", "primary"), side("fallback", "fallback"));
+    let (primary_dropped, fallback_touched) = (primary.dropped.clone(), fallback.touched.clone());
+    let router = engine_core::ProviderRouter::new(Arc::new(primary), Arc::new(fallback))?;
+    let ms = |key: &str, default: u64| spec[key].as_u64().unwrap_or(default);
+    let bounds = Bounds {
+        input_tokens: u32::try_from(ms("input_tokens", 4000))?,
+        output_tokens: u32::try_from(ms("output_tokens", 64))?,
+    };
+    let (stream, route) = engine_core::eval::stream_bounded_routed(
+        &router,
+        "chat",
+        "prompt",
+        None,
+        std::time::Duration::from_millis(ms("first_token_ms", 40)),
+        std::time::Duration::from_millis(ms("idle_ms", 40)),
+    )
+    .await?;
+    let mut parts = Box::pin(reconcile(stream, route.clone(), 400, Some(bounds)));
+    let cancel_after = spec["cancel_after"].as_u64();
+    let (mut text, mut seen, mut cancelled) = (String::new(), 0u64, false);
+    let (mut error, mut usages) = (None, Vec::new());
+    while let Some(part) = parts.next().await {
+        match part {
+            Part::Delta(d) => {
+                text.push_str(&d);
+                seen += 1;
+                if cancel_after.is_some_and(|n| seen >= n) {
+                    cancelled = true;
+                    break;
+                }
+            }
+            Part::Usage {
+                completion,
+                estimated,
+            } => usages.push((completion, estimated)),
+            Part::Error(f) => error = Some(f),
+        }
+    }
+    drop(parts);
+    tokio::task::yield_now().await;
+    let within = usages.iter().all(|(c, _)| {
+        c.input_tokens <= bounds.input_tokens && c.output_tokens <= bounds.output_tokens
+    });
+    let primary_delivered = !spec["primary"]["deltas"]
+        .as_array()
+        .is_none_or(|d| d.is_empty());
+    Ok(serde_json::json!({
+        "delivered_text": text,
+        "terminal": if cancelled { "cancelled" } else if error.is_some() { "error" } else { "done" },
+        "error_code": error.as_ref().map(|f| f.code).unwrap_or(""),
+        "retryable": error.as_ref().is_some_and(|f| f.retryable),
+        "fallback_used": route.fallback_used,
+        "second_provider_after_delta": primary_delivered && fallback_touched.load(Ordering::SeqCst),
+        "usage_frames": usages.len(),
+        "usage_estimated": usages.iter().any(|(_, e)| *e),
+        "usage_within_bounds": within,
+        "provider_dropped": primary_dropped.load(Ordering::SeqCst),
+    })
+    .to_string())
+}
+
 async fn evaluate_outline_change(input: &serde_json::Value) -> Result<String> {
     use engine_core::courses::outline;
     let base: Vec<outline::Unit> = serde_json::from_value(input["outline"].clone())?;
@@ -1055,6 +1264,10 @@ impl Runner {
                     evaluate_credits(&case.input).await?
                 } else if case.task == "course_brief_chat" {
                     evaluate_brief(&case.input).await?
+                } else if case.task == "tutor_chat" && case.input.get("stream").is_some() {
+                    evaluate_tutor_stream(&case.input).await?
+                } else if case.task == "tutor_chat" {
+                    evaluate_tutor_chat(&case.input)?
                 } else if canonical == "note_enrich" {
                     evaluate_note_enrich(&case.input).await?
                 } else {
