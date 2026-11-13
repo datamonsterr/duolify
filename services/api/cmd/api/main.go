@@ -358,6 +358,12 @@ func run(ctx context.Context, args []string) (result error) {
 }
 
 func runAdminCLI(ctx context.Context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("admin subcommand requires pricing or infra")
+	}
+	if args[0] == "infra" {
+		return runAdminInfraCLI(ctx, args[1:])
+	}
 	if len(args) < 2 || args[0] != "pricing" {
 		return errors.New("usage: api admin pricing {draft|edit|validate|diff|submit|approve|reject|schedule|cancel|rollback|list|show} --actor UUID --reason TEXT [--version ID] [--new-version ID] [--effective-from RFC3339] [--config FILE]")
 	}
@@ -463,6 +469,41 @@ func runAdminCLI(ctx context.Context, args []string) error {
 	_, _ = os.Stdout.Write(response)
 	if status < 200 || status >= 300 {
 		return fmt.Errorf("pricing %s failed with HTTP %d", operation, status)
+	}
+	return nil
+}
+
+func runAdminInfraCLI(_ context.Context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: api admin infra {plan|validate} [--env dev|staging|prod|all]")
+	}
+	cmd := args[0]
+	if cmd != "plan" && cmd != "validate" {
+		return fmt.Errorf("unknown infra subcommand %q; expected plan or validate", cmd)
+	}
+
+	flags := flag.NewFlagSet("admin infra", flag.ContinueOnError)
+	targetEnv := flags.String("env", "all", "target environment: dev, staging, prod, or all")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+
+	envs := []string{"dev", "staging", "prod"}
+	if *targetEnv != "all" {
+		envs = []string{*targetEnv}
+	}
+
+	for _, env := range envs {
+		fixture, err := backup.GetRailwayEnvironmentFixture(env)
+		if err != nil {
+			return err
+		}
+		res := backup.ValidateEnvironmentPlan(fixture)
+		if !res.Valid {
+			return fmt.Errorf("environment %s validation failed: %s", env, strings.Join(res.Violations, "; "))
+		}
+		fmt.Printf("Environment %s plan valid: summary=%s live_apply_allowed=%t hitl_gate_required=%s\n",
+			env, res.PlanSummary, res.LiveApplyAllowed, res.HITLGateRequired)
 	}
 	return nil
 }

@@ -87,7 +87,7 @@ func allowlisted(event string) bool {
 		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "retry_variant_pool_exhausted", "lesson_test_recap_shown", "ui_test_retry_presented",
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
-		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed", "ai_cost_budget_alert",
+		"backup_completed", "backup_failed", "restore_drill_completed", "environment_plan_validated", "eval_run_completed", "ai_cost_budget_alert",
 		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "tutor_reply_stopped", "ui_control_activated", "ui_navigation_selected", "ui_screen_viewed",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
@@ -377,6 +377,9 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "backup_completed", "backup_failed", "restore_drill_completed":
 		numeric("size_bytes", "duration_ms")
 		boolean("ok")
+	case "environment_plan_validated":
+		boolean("ok")
+		ids("environment")
 	case "eval_run_completed":
 		numeric("score", "threshold", "budget_usd", "budget")
 		boolean("passed")

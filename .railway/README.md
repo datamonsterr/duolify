@@ -1,14 +1,15 @@
 # Railway Infrastructure as Code
 
-The [authoring file](railway.ts) owns only `duolify` / `dev` and rejects every
-other target. It declares Postgres 18, Redis 8, separate lesson-asset and backup
-buckets, and GitHub-backed API, worker and private engine services from `main`.
-The API and worker build with `/services/api` as their root and `Dockerfile` as
+The [authoring file](railway.ts) owns `duolify` across `dev`, `staging`, and `prod`
+environments and rejects every other target. It declares Postgres 18, Redis 8, separate
+lesson-asset and backup buckets, and GitHub-backed API, worker and private engine services
+from `main`. The API and worker build with `/services/api` as their root and `Dockerfile` as
 their Dockerfile path. The engine uses the repository root and `engine/Dockerfile`.
 
 ```sh
+mise run infra:validate-plan
 mise run infra:plan
-# Only after reviewing the plan and explicitly authorizing resource creation:
+# Only after reviewing the plan and explicitly authorizing resource creation in dev:
 mise run infra:deploy-dev
 ```
 
