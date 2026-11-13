@@ -17,6 +17,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -319,14 +320,15 @@ func run() (result error) {
 		var in struct {
 			LessonID string            `json:"lesson_id"`
 			Fail     map[string]string `json:"fail"`
+			Salt     string            `json:"salt"`
 		}
 		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
 		owner := accounts.LearnerID(r.Context())
-		var manifest player.ObjectManifest
-		if err := json.Unmarshal(objects.snapshot(playerfixture.ManifestKey), &manifest); err != nil {
+		manifest, err := saltedManifest(objects, in.Salt)
+		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
@@ -791,7 +793,7 @@ func (f *fixtureObjects) Put(_ context.Context, key string, value []byte) error 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	// Narration objects are new, hash-keyed and immutable; lesson fixtures never change.
-	if _, exists := f.values[key]; !exists && strings.HasPrefix(key, "lessons/narration/v1/") {
+	if _, exists := f.values[key]; !exists && (strings.HasPrefix(key, "lessons/narration/v1/") || strings.HasPrefix(key, "lessons/fixture-salt/")) {
 		f.values[key] = append([]byte(nil), value...)
 		return nil
 	}
@@ -871,16 +873,43 @@ func registerNarrationTestRoutes(mux *http.ServeMux, auth *accounts.Service, poo
 		}
 		reply(w, http.StatusCreated, map[string]string{"lesson_id": id})
 	})))
+	mux.Handle("POST /test/narration/salt", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			LessonID string `json:"lesson_id"`
+			Salt     string `json:"salt"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil || !regexp.MustCompile(`^[a-z0-9]{4,16}$`).MatchString(in.Salt) {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		manifest, err := saltedManifest(objects, in.Salt)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		raw, _ := json.Marshal(manifest)
+		key := "lessons/fixture-salt/" + in.Salt + "/manifest.json"
+		if err = objects.Put(r.Context(), key, raw); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		if _, err = pool.Exec(r.Context(), `UPDATE lesson_manifests SET manifest_key=$3 WHERE lesson_id::text=$1 AND learner_id::text=$2`, in.LessonID, accounts.LearnerID(r.Context()), key); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})))
 	mux.Handle("POST /test/narration/faults", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
 			Fail map[string]string `json:"fail"`
+			Salt string            `json:"salt"`
 		}
 		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		var manifest player.ObjectManifest
-		if err := json.Unmarshal(objects.snapshot(playerfixture.ManifestKey), &manifest); err != nil {
+		manifest, err := saltedManifest(objects, in.Salt)
+		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
@@ -922,12 +951,12 @@ func registerNarrationTestRoutes(mux *http.ServeMux, auth *accounts.Service, poo
 	})))
 	mux.Handle("GET /test/narration/stats", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		owner := accounts.LearnerID(r.Context())
-		out := map[string]any{"synth_calls": twin.Calls()}
+		out := map[string]any{"synth_calls": twin.CallsContaining(r.URL.Query().Get("salt"))}
 		var spent, characters int
 		_ = pool.QueryRow(r.Context(), `SELECT COALESCE(sum((j.result->>'audio_spent')::int),0) FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.learner_id::text=$1 AND q.snapshot->>'action'='narration'`, owner).Scan(&spent)
-		_ = pool.QueryRow(r.Context(), `SELECT COALESCE(sum(characters),0) FROM narration_assets WHERE state='ready'`).Scan(&characters)
+		_ = pool.QueryRow(r.Context(), `SELECT COALESCE(sum(characters),0) FROM narration_assets WHERE state='ready' AND content_hash IN (SELECT content_hash FROM slide_narrations WHERE learner_id::text=$1)`, owner).Scan(&characters)
 		refs, regenerations := []int{}, []map[string]string{}
-		rows, err := pool.Query(r.Context(), `SELECT ref_count FROM narration_assets ORDER BY content_hash`)
+		rows, err := pool.Query(r.Context(), `SELECT ref_count FROM narration_assets WHERE content_hash IN (SELECT content_hash FROM slide_narrations WHERE learner_id::text=$1) ORDER BY content_hash`, owner)
 		if err == nil {
 			for rows.Next() {
 				var n int
@@ -936,7 +965,7 @@ func registerNarrationTestRoutes(mux *http.ServeMux, auth *accounts.Service, poo
 			}
 			rows.Close()
 		}
-		rows, err = pool.Query(r.Context(), `SELECT status FROM narration_regenerations ORDER BY requested_at`)
+		rows, err = pool.Query(r.Context(), `SELECT status FROM narration_regenerations WHERE content_hash IN (SELECT content_hash FROM slide_narrations WHERE learner_id::text=$1) ORDER BY requested_at`, owner)
 		if err == nil {
 			for rows.Next() {
 				var st string
@@ -948,4 +977,19 @@ func registerNarrationTestRoutes(mux *http.ServeMux, auth *accounts.Service, poo
 		out["spent"], out["characters"], out["ref_counts"], out["regenerations"] = spent, characters, refs, regenerations
 		reply(w, http.StatusOK, out)
 	})))
+}
+
+// saltedManifest returns the fixture manifest with every narration text made unique by the salt,
+// so parallel e2e runs never share content hashes. An empty salt returns the fixture unchanged.
+func saltedManifest(objects *fixtureObjects, salt string) (player.ObjectManifest, error) {
+	var manifest player.ObjectManifest
+	if err := json.Unmarshal(objects.snapshot(playerfixture.ManifestKey), &manifest); err != nil {
+		return manifest, err
+	}
+	if salt != "" {
+		for i := range manifest.Slides {
+			manifest.Slides[i].NarrationText += " " + salt
+		}
+	}
+	return manifest, nil
 }

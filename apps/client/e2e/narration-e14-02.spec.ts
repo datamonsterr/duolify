@@ -49,8 +49,30 @@ async function statuses(
     .join(",");
 }
 
-async function stats(request: APIRequestContext, h: Record<string, string>) {
-  const r = await request.get(`${apiBase}/test/narration/stats`, {
+// Each test narrates its own unique texts, so shared content hashes from other specs
+// (which dedupe across Learners by design) never change its charge or call counts.
+const newSalt = () =>
+  Math.random().toString(36).slice(2).padEnd(8, "x").slice(0, 8);
+async function salt(
+  request: APIRequestContext,
+  h: Record<string, string>,
+  lesson: string,
+) {
+  const value = newSalt();
+  const r = await request.post(`${apiBase}/test/narration/salt`, {
+    headers: h,
+    data: { lesson_id: lesson, salt: value },
+  });
+  expect(r.status()).toBe(204);
+  return value;
+}
+
+async function stats(
+  request: APIRequestContext,
+  h: Record<string, string>,
+  value: string,
+) {
+  const r = await request.get(`${apiBase}/test/narration/stats?salt=${value}`, {
     headers: h,
   });
   expect(r.status()).toBe(200);
@@ -65,6 +87,7 @@ for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 });
     const h = await headers(page);
     const lesson = await seed(request, h);
+    const tag = await salt(request, h, lesson);
     const twin = await request.post(`${apiBase}/test/narration/twin`, {
       headers: h,
       data: { lesson_id: lesson },
@@ -76,7 +99,7 @@ for (const width of [1280, 390]) {
       [lesson, twinId].map((lesson_id) =>
         request.post(`${apiBase}/test/narration/queue`, {
           headers: h,
-          data: { lesson_id },
+          data: { lesson_id, salt: tag },
         }),
       ),
     );
@@ -87,7 +110,7 @@ for (const width of [1280, 390]) {
         .toBe("ready,ready,ready");
 
     // Two lessons, three distinct narrations: three provider calls, each object referenced twice.
-    const after = await stats(request, h);
+    const after = await stats(request, h, tag);
     expect(after.synth_calls).toBe(3);
     expect(after.ref_counts).toEqual([2, 2, 2]);
     // One aggregate charge, rounded up once: 50/1440 Credits per new character.
@@ -110,15 +133,16 @@ test("failed audio keeps the lesson and retries the same narration with one char
 }) => {
   const h = await headers(page);
   const lesson = await seed(request, h);
+  const tag = await salt(request, h, lesson);
   const queued = await request.post(`${apiBase}/test/narration/queue`, {
     headers: h,
-    data: { lesson_id: lesson, fail: { "sky-2": "alignment" } },
+    data: { lesson_id: lesson, salt: tag, fail: { "sky-2": "alignment" } },
   });
   expect(queued.status()).toBe(202);
   await expect
     .poll(() => statuses(request, h, lesson), { timeout: 30_000 })
     .toBe("ready,failed,ready");
-  const failed = await stats(request, h);
+  const failed = await stats(request, h, tag);
   // Only delivered slides were charged.
   expect(failed.spent).toBe(Math.ceil((failed.characters * 50) / 1440));
 
@@ -133,7 +157,7 @@ test("failed audio keeps the lesson and retries the same narration with one char
   // The provider recovers; Retry reuses the same content hash.
   await request.post(`${apiBase}/test/narration/faults`, {
     headers: h,
-    data: { fail: {} },
+    data: { fail: {}, salt: tag },
   });
   const retry = page.getByRole("button", { name: "Retry narration" });
   await retry.focus();
@@ -141,7 +165,7 @@ test("failed audio keeps the lesson and retries the same narration with one char
   await expect(
     page.getByRole("button", { name: "Play narration", exact: true }),
   ).toBeVisible({ timeout: 30_000 });
-  const done = await stats(request, h);
+  const done = await stats(request, h, tag);
   // The retried delivery is priced on its own characters only, rounded up once.
   expect(done.spent).toBe(
     failed.spent +
@@ -158,14 +182,15 @@ for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 });
     const h = await headers(page);
     const lesson = await seed(request, h);
+    const tag = await salt(request, h, lesson);
     await request.post(`${apiBase}/test/narration/queue`, {
       headers: h,
-      data: { lesson_id: lesson },
+      data: { lesson_id: lesson, salt: tag },
     });
     await expect
       .poll(() => statuses(request, h, lesson), { timeout: 30_000 })
       .toBe("ready,ready,ready");
-    const before = await stats(request, h);
+    const before = await stats(request, h, tag);
 
     const lost = await request.post(`${apiBase}/test/narration/lose-object`, {
       headers: h,
@@ -190,7 +215,7 @@ for (const width of [1280, 390]) {
     await expect(
       page.getByText("Narration is being restored. Captions stay available."),
     ).toBeVisible();
-    expect((await stats(request, h)).regenerations).toEqual([
+    expect((await stats(request, h, tag)).regenerations).toEqual([
       { status: "requested" },
     ]);
 
@@ -210,7 +235,7 @@ for (const width of [1280, 390]) {
     await expect(
       page.getByRole("button", { name: "Pause narration", exact: true }),
     ).toBeVisible();
-    const after = await stats(request, h);
+    const after = await stats(request, h, tag);
     expect(after.spent).toBe(before.spent);
     expect(after.regenerations).toEqual([{ status: "completed" }]);
   });

@@ -133,7 +133,7 @@ func Twin(ctx context.Context, pool *pgxpool.Pool, owner, lesson string) (string
 		SELECT $2,learner_id,unit_id,'player-twin',position+1,'Why the sky changes, again',goal,status FROM course_lesson_stubs WHERE id::text=$1`, lesson, twin); err != nil {
 		return "", err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO lesson_manifests(lesson_id,learner_id,version,manifest_key) VALUES($1,$2,1,$3)`, twin, owner, ManifestKey); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO lesson_manifests(lesson_id,learner_id,version,manifest_key) SELECT $1,learner_id,version,manifest_key FROM lesson_manifests WHERE lesson_id::text=$2`, twin, lesson); err != nil {
 		return "", err
 	}
 	return twin, tx.Commit(ctx)

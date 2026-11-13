@@ -96,12 +96,27 @@ type Engine struct {
 	// Faults maps exact narration text to "engine" (provider outage) or "alignment" (gap).
 	faults    map[string]string
 	synthCall int
+	texts     []string
 }
 
 // SetFaults replaces the fault table.
 func (e *Engine) SetFaults(f map[string]string) { e.mu.Lock(); e.faults = f; e.mu.Unlock() }
 
 // Calls returns how many non-resolve synthesis requests reached the provider.
+// CallsContaining counts synthesis requests whose text contains the marker, so parallel
+// e2e runs can observe only their own salted narration.
+func (e *Engine) CallsContaining(marker string) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	n := 0
+	for _, t := range e.texts {
+		if strings.Contains(t, marker) {
+			n++
+		}
+	}
+	return n
+}
+
 func (e *Engine) Calls() int { e.mu.Lock(); defer e.mu.Unlock(); return e.synthCall }
 
 // SynthesizeNarration implements the engine RPC.
@@ -110,6 +125,7 @@ func (e *Engine) SynthesizeNarration(_ context.Context, req *enginev1.Synthesize
 	fault := e.faults[req.GetText()]
 	if !req.GetResolveOnly() {
 		e.synthCall++
+		e.texts = append(e.texts, req.GetText())
 	}
 	e.mu.Unlock()
 	if fault == "engine" && !req.GetResolveOnly() {

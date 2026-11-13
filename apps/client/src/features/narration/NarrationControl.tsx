@@ -57,6 +57,24 @@ export function NarrationControl({
     audio.current.muted = muted;
   }, [rate, muted]);
 
+  // While a retry or tracked regeneration is open, follow the manifest until new audio is ready.
+  const [stale, setStale] = useState<ManifestSlide["narration"]>(undefined);
+  const waiting = recovery === "pending" || recovery === "regenerating";
+  const settled =
+    waiting &&
+    slide.narration_status === "ready" &&
+    !!slide.narration &&
+    slide.narration !== stale;
+  const recovered = useRef(onRecovered);
+  useEffect(() => {
+    recovered.current = onRecovered;
+  }, [onRecovered]);
+  useEffect(() => {
+    if (!waiting || settled) return;
+    const timer = setInterval(() => recovered.current?.(), 2000);
+    return () => clearInterval(timer);
+  }, [waiting, settled]);
+
   const tick = () => {
     if (audio.current) setElapsed(audio.current.currentTime * 1000);
     frame.current = requestAnimationFrame(tick);
@@ -116,6 +134,7 @@ export function NarrationControl({
 
   // Retry (failed audio) and Restore (missing object) never charge Credits and send no body.
   async function recover(action: "retry" | "recover") {
+    setStale(slide.narration);
     setRecovery("working");
     try {
       const result = await session.request<{ state?: string }>(
@@ -137,7 +156,9 @@ export function NarrationControl({
   }
 
   if (slide.narration_status === "disabled") return null;
-  if (recovery === "regenerating")
+  // A refreshed manifest with new ready audio returns to the normal explicit Play control.
+  const view = settled ? "idle" : recovery;
+  if (view === "regenerating")
     return (
       <div className="narration" role="status">
         <p className="narration-title">Narration unavailable</p>
@@ -146,15 +167,16 @@ export function NarrationControl({
         </p>
       </div>
     );
-  if (recovery === "pending")
+  if (view === "pending")
     return (
       <div className="narration" role="status">
         <p className="narration-hint">Narration is being prepared.</p>
       </div>
     );
   const unavailable =
-    slide.narration_status === "failed" || state === "unavailable";
-  if (unavailable && recovery !== "restored")
+    !settled &&
+    (slide.narration_status === "failed" || state === "unavailable");
+  if (unavailable && view !== "restored")
     return (
       <div className="narration">
         <div role="status">
