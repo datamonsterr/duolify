@@ -35,6 +35,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
@@ -315,7 +316,12 @@ func run(ctx context.Context, args []string) (result error) {
 	go runtimePricing.RunActivator(activatorCtx, pricingAdmin)
 
 	courseService := courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"})
+	// Publishing needs an 18+ account (ADR 0012); no age data exists yet, so it fails closed.
+	sharingService := sharing.NewService(db.Pool, events, sharing.ConfigFromEnv(os.Getenv)).WithAgeSource(sharing.UnknownAge{})
+	sharingService.ConfigureScreening(backend, sharing.PricingRates{Pool: db.Pool})
+	go sharingService.Maintain(ctx)
 	handler := httpapi.New(httpapi.Dependencies{
+		Sharing:                 sharing.NewHandler(sharingService),
 		Characters:              characters.NewHandler(characterService),
 		Gamification:            xpService,
 		Social:                  social.New(db.Pool, events),

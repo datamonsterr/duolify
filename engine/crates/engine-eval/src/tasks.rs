@@ -63,6 +63,7 @@ impl Default for TaskRegistry {
         registered_extensions.insert("credit_envelope".to_string());
         registered_extensions.insert("lesson_narration".to_string());
         registered_extensions.insert("lesson_test_variant".to_string());
+        registered_extensions.insert("course_screen".to_string());
         for task in [
             "character_spec",
             "character_screen",

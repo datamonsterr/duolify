@@ -97,7 +97,7 @@ func allowlisted(event string) bool {
 		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
-		"bookmark_added", "bookmark_removed", "bookmark_opened":
+		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed":
 		return true
 	default:
 		return false
@@ -228,6 +228,13 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "character_deleted":
 		ids("character_id")
+	case "course_screening_completed":
+		// Closed verdict only; never Course text, findings or reasons.
+		if v, ok := input["verdict"].(string); ok && (v == "pass" || v == "needs_review" || v == "block" || v == "pending_screening") {
+			out["verdict"] = v
+		}
+		numeric("lessons_sampled", "finding_count")
+		boolean("fallback_used")
 	case "character_create_quoted":
 		ids("pricing_version")
 		numeric("credits")

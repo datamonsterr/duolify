@@ -1,3 +1,4 @@
+import { PreviewPublicationDraft } from "./features/sharing/PreviewPublicationDraft";
 import { useEffect, useState } from "react";
 import { useUiPreferences } from "./features/design/localization/Preferences";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -194,6 +195,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
       <a className="shell-link" href={`/courses/${courseId}/cast`}>
         Course Cast
       </a>
+      <PreviewPublicationDraft courseId={courseId} />
       <div>
         <TutorChat courseId={courseId} />
       </div>

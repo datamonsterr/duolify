@@ -33,3 +33,7 @@ fallback_model = "anthropic/claude-haiku-5.5"
 [tasks.character_create]
 model = "claude-haiku-5-5"
 fallback_model = "anthropic/claude-haiku-5.5"
+
+[tasks.course_screen]
+model = "claude-haiku-5-5"
+fallback_model = "anthropic/claude-haiku-5.5"

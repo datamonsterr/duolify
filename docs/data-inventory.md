@@ -529,3 +529,11 @@ unchanged and rows written before E17-06 simply lack the field (the client then
 shows the neutral expression). `character_reaction_shown` carries speaker key,
 expression, trigger enum and `fallback_used` only; PostHog and device caches
 stay disposable.
+
+### E15-01 publication drafts and screening
+
+Postgres `publication_drafts` (immutable numbered snapshot of Course content, SHA-256 hash, scanner findings, verdict) and `publication_screenings` (verdict, closed reason codes, attempt count, USD nanos; no text) are new learner-linked tables; both foreign keys cascade from `learners` and `courses`. A snapshot holds only allowlisted Course content (outline, generated Motion HTML Slides, narration text, Lesson test questions, private Retry pool). It never holds the profile, Quick notes, Bookmarks, Tutor chat, test answers, progress or Course instructions, and narration audio is excluded (ADR 0012). Findings store a kind and a `lesson N · slide M` position, never the matched text. A trigger blocks any change to the snapshot, hash, number, findings or owner.
+
+Both tables enter nightly encrypted Postgres dumps and the versioned bucket. Screening rows are deleted after one year (`PurgeExpiredBriefs` before each dump, and an hourly API purge). Account deletion erases both tables; export lists drafts by number, date and verdict and screenings by verdict and codes only. The backup fixture seeds a draft and a screening, compares restored rows and checks the restored draft stays immutable.
+
+The engine receives only a bounded sample (at most 12 Lessons, 60000 input tokens) per call and keeps nothing. PostHog gets `course_screening_completed` (verdict, sampled count, finding count, fallback flag) and `$ai_generation` (`feature=course_screen`); never Course text. `course_published` stays unused until visibility is live.

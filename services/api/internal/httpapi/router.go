@@ -48,6 +48,7 @@ type Dependencies struct {
 	Tutor                   http.Handler
 	Gamification            http.Handler
 	Social                  http.Handler
+	Sharing                 http.Handler
 	LessonTestTracerEnabled bool
 	LessonTest              http.Handler
 	Accounts                interface {
@@ -71,6 +72,11 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	if deps.Gamification != nil && deps.Accounts != nil {
 		mux.Handle("/v1/gamification", deps.Accounts.Protect(deps.Gamification))
 		mux.Handle("/v1/gamification/", deps.Accounts.Protect(deps.Gamification))
+	}
+	if deps.Sharing != nil && deps.Accounts != nil {
+		for _, pattern := range []string{"POST /v1/courses/{id}/publication-drafts", "GET /v1/courses/{id}/publication-drafts/{draftId}", "POST /v1/courses/{id}/publication-drafts/{draftId}/screen", "POST /v1/courses/{id}/publish"} {
+			mux.Handle(pattern, deps.Accounts.Protect(deps.Sharing))
+		}
 	}
 	if deps.Social != nil && deps.Accounts != nil {
 		mux.Handle("/v1/social/", deps.Accounts.Protect(deps.Social))

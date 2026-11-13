@@ -34,6 +34,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
@@ -311,7 +312,11 @@ func run() (result error) {
 		_ = notesQueue.Stop(stopCtx)
 	}()
 
+	mux.Handle("POST /test/sharing/course", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seedSharingCourse(w, r, db.Pool)
+	})))
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{
+		Sharing:                 sharing.NewHandler(newSharingService(db.Pool)),
 		Notes:                   notesService,
 		Player:                  lessonPlayer,
 		LessonTestTracerEnabled: tracerEnabled,
