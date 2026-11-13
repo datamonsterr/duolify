@@ -27,3 +27,9 @@
 
 - [x] Failing e2e, integration and unit tests, then `league_week_results`, idempotent finalization, early-join tier correction and `last_week` on the league endpoint.
 - [x] S13 Last week result, `league_promoted`/`league_demoted` catalogue entries, privacy, backup fixture and data inventory.
+
+## E5-06 paid learning analytics and history exports
+
+- [x] Failing e2e, integration and unit tests, then streaming history export, analytics view and custom allowlist export.
+- [x] S13/S23 learning analytics and export UI, analytics catalogue, data inventory, ADR 0011 entry and verified entitlement enforcement.
+
