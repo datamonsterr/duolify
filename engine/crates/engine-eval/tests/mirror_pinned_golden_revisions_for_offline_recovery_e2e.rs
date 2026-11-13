@@ -1,3 +1,5 @@
+mod common;
+
 use std::process::Command;
 use wiremock::{
     Mock, MockServer, ResponseTemplate,
@@ -77,7 +79,7 @@ note_enrich = 1.0
     )
     .unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     let output = Command::new(bin)
         .arg("--provider")
         .arg("mock")
@@ -157,7 +159,7 @@ async fn unsafe_recovery_inputs_never_produce_a_passing_report() {
             std::process::id(),
             hf.address().port()
         ));
-        let output = Command::new(env!("CARGO_BIN_EXE_duolify-eval"))
+        let output = Command::new(common::eval_bin())
             .args(["--provider", "mock", "--reports"])
             .arg(temp.join("reports"))
             .env("HF_BASE_URL", hf.uri())
@@ -244,7 +246,7 @@ async fn run_pinned_evaluation_through_hf_outage_with_corrupt_mirror_fails_expli
 
     std::fs::write(&thresholds_file, "minimum_score = 1.0\n").unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     let output = Command::new(bin)
         .arg("--provider")
         .arg("mock")
@@ -286,7 +288,7 @@ fn unpinned_revision_or_missing_mirror_fails_explicitly_without_silent_mock_subs
     std::fs::create_dir_all(&temp_dir).unwrap();
     let reports_dir = temp_dir.join("reports");
 
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     // Request a live eval with branch name "main" (not an immutable 40-char hex commit hash)
     let output = Command::new(bin)
         .arg("--provider")

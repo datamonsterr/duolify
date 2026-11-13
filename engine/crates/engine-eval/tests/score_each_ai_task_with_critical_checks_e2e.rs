@@ -1,3 +1,5 @@
+mod common;
+
 use std::process::Command;
 
 #[test]
@@ -30,7 +32,7 @@ lesson_test = 0.0
 "#;
     std::fs::write(&thresholds_file, thresholds).unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     let output = Command::new(bin)
         .arg("--offline")
         .arg("--provider")
@@ -86,7 +88,7 @@ lesson_test = 1.0
 "#;
     std::fs::write(&thresholds_file, thresholds).unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     let output = Command::new(bin)
         .arg("--offline")
         .arg("--provider")

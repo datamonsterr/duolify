@@ -1,3 +1,5 @@
+mod common;
+
 use std::process::Command;
 
 #[test]
@@ -27,7 +29,7 @@ course_outline = 1.0
 "#;
     std::fs::write(&thresholds_file, thresholds).unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     let output = Command::new(bin)
         .arg("--mode")
         .arg("draft")
@@ -83,7 +85,7 @@ fn missing_secret_ready_pipeline_reports_explicit_status_keeps_ci_ok_and_disable
     let thresholds_file = temp_dir.join("thresholds.toml");
     std::fs::write(&thresholds_file, "minimum_score = 1.0\n").unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     // Run in ready pipeline mode with missing / empty credentials
     let output = Command::new(bin)
         .arg("--mode")
@@ -177,7 +179,7 @@ fn budget_exceeded_live_fixture_pipeline_stops_at_budget_and_fails() {
     std::fs::write(&data_file, cases).unwrap();
     std::fs::write(&thresholds_file, "minimum_score = 0.5\n").unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     // Run with very low eval budget: $0.000001 (1000 nanos), so first or second case exceeds it
     let output = Command::new(bin)
         .arg("--provider")
@@ -240,7 +242,7 @@ fn secret_check_not_skipped_when_eval_data_path_is_set_for_live_run() {
     std::fs::write(&data_file, "{\"id\":\"case-1\",\"task\":\"course_preview\",\"input\":{\"topic\":\"Coffee\"},\"rubric\":\"Pass\",\"checks\":[{\"kind\":\"json\"}]}\n").unwrap();
     std::fs::write(&thresholds_file, "minimum_score = 1.0\n").unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     let output = Command::new(bin)
         .arg("--mode")
         .arg("ready")
@@ -289,7 +291,7 @@ fn missing_hf_golden_revision_reports_missing_config_status() {
     let reports_dir = temp_dir.join("reports");
     std::fs::write(&thresholds_file, "minimum_score = 1.0\n").unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     let output = Command::new(bin)
         .arg("--mode")
         .arg("ready")
@@ -326,7 +328,7 @@ fn missing_hf_golden_revision_reports_missing_config_status() {
 
 #[test]
 fn mode_draft_with_provider_live_must_error_not_override() {
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     let output = Command::new(bin)
         .arg("--mode")
         .arg("draft")
@@ -345,7 +347,7 @@ fn mode_draft_with_provider_live_must_error_not_override() {
 
 #[test]
 fn non_mock_unknown_provider_must_error() {
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     let output = Command::new(bin)
         .arg("--provider")
         .arg("some_unknown_provider")
@@ -359,7 +361,7 @@ fn non_mock_unknown_provider_must_error() {
 
 #[test]
 fn promotion_gate_cli_subcommand_verifies_report() {
-    let bin = env!("CARGO_BIN_EXE_duolify-eval");
+    let bin = common::eval_bin();
     let temp_dir = std::env::temp_dir().join(format!("gate-test-{}", std::process::id()));
     std::fs::create_dir_all(&temp_dir).unwrap();
 
