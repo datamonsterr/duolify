@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	voiceID    = "mock-default-voice"
 	modelID    = "eleven_flash_v2_5"
 	msPerChar  = 50
 	sampleRate = 8000
@@ -29,7 +28,14 @@ func toU32(n int) uint32 {
 	return uint32(n)
 }
 
-func fingerprint() string {
+// voiceIDs mirrors the Engine's voice config for the logical keys the API may send (test twin only).
+var voiceIDs = map[string]string{
+	"default":      "mock-default-voice",
+	"fixture-warm": "mock-fixture-warm-voice",
+	"fixture-calm": "mock-fixture-calm-voice",
+}
+
+func fingerprint(voiceID string) string {
 	h := uint64(0xcbf29ce484222325)
 	for _, b := range []byte(fmt.Sprintf("v1|%s|%.3f|%.3f|%.3f", voiceID, 0.5, 0.75, 1.0)) {
 		h = (h ^ uint64(b)) * 0x100000001b3
@@ -39,14 +45,15 @@ func fingerprint() string {
 
 // Synthesize mirrors engine_core::narration::MockSpeechProvider and the RPC response.
 func Synthesize(req *enginev1.SynthesizeNarrationRequest) (*enginev1.SynthesizeNarrationResponse, error) {
-	if req.GetVoiceKey() != "default" {
+	voiceID, ok := voiceIDs[req.GetVoiceKey()]
+	if !ok {
 		return nil, status.Error(codes.FailedPrecondition, "voice unavailable")
 	}
 	model := req.GetLimits().GetModel()
 	if model != "" && model != modelID {
 		return nil, status.Error(codes.FailedPrecondition, "quote route differs from evaluated route")
 	}
-	out := &enginev1.SynthesizeNarrationResponse{VoiceId: voiceID, ModelId: modelID, SettingsFingerprint: fingerprint()}
+	out := &enginev1.SynthesizeNarrationResponse{VoiceId: voiceID, ModelId: modelID, SettingsFingerprint: fingerprint(voiceID)}
 	if req.GetResolveOnly() {
 		return out, nil
 	}

@@ -95,6 +95,27 @@ async fn rejects_missing_text_unknown_voice_and_foreign_model() {
     );
 }
 
+#[tokio::test]
+async fn an_approved_fixture_voice_resolves_to_its_own_voice_and_fingerprint() {
+    let mut c = client().await;
+    let default = c
+        .synthesize_narration(request("ignored", true))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut warm = request("ignored", true);
+    warm.voice_key = "fixture-warm".into();
+    let warm = c.synthesize_narration(warm).await.unwrap().into_inner();
+    assert_eq!(warm.voice_id, "mock-fixture-warm-voice");
+    assert_ne!(warm.settings_fingerprint, default.settings_fingerprint);
+    let mut spoken = request("The sky is a map.", false);
+    spoken.voice_key = "fixture-warm".into();
+    let r = c.synthesize_narration(spoken).await.unwrap().into_inner();
+    assert_eq!(r.voice_id, warm.voice_id);
+    assert_eq!(r.settings_fingerprint, warm.settings_fingerprint);
+    assert_eq!(r.alignment.unwrap().characters.len(), 17);
+}
+
 struct Down(
     std::sync::atomic::AtomicU32,
     fn() -> engine_core::narration::VendorFailure,

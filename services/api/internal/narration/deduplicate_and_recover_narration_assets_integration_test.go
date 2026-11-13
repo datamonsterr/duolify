@@ -46,6 +46,10 @@ func newAssetHarness(t *testing.T, retention time.Duration) *assetHarness {
 	t.Cleanup(cancel)
 	f := backuptest.New(t)
 	f.Seed(t)
+	// The backup fixture stores narration=false; these tests exercise a Learner who has narration on.
+	if _, err := f.DB.Pool.Exec(t.Context(), `UPDATE learner_profiles SET narration=true WHERE learner_id=$1`, "a1111111-1111-4111-8111-111111111111"); err != nil {
+		t.Fatal(err)
+	}
 	h := &assetHarness{t: t, ctx: ctx, pool: f.DB.Pool, objects: f.ApplicationObjects(), mock: &narrationtest.Engine{}, events: &recorder{}}
 	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {

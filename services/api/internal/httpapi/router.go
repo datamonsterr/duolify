@@ -32,16 +32,18 @@ type Engine interface {
 
 // Dependencies allows readiness probes without coupling HTTP to database drivers.
 type Dependencies struct {
-	Postgres, Redis         func(context.Context) error
-	ObjectStorage           func(context.Context) error
-	Monitor                 *telemetry.Monitor
-	Engine                  Engine
-	Pricing                 http.Handler
-	CourseBrief             http.Handler
-	PricingAdmin            http.Handler
-	Quotes                  http.Handler
-	Credits                 http.Handler
-	Player                  http.Handler
+	Postgres, Redis func(context.Context) error
+	ObjectStorage   func(context.Context) error
+	Monitor         *telemetry.Monitor
+	Engine          Engine
+	Pricing         http.Handler
+	CourseBrief     http.Handler
+	PricingAdmin    http.Handler
+	Quotes          http.Handler
+	Credits         http.Handler
+	Player          http.Handler
+	// NarrationVoices serves the voice list, quote and consent endpoints; nil when narration is off.
+	NarrationVoices         http.Handler
 	Notes                   http.Handler
 	Eval                    http.Handler
 	Characters              http.Handler
@@ -170,6 +172,12 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("GET /v1/lessons/{lesson}/slides/{slide}/narration/{part}", deps.Accounts.Protect(deps.Player))
 		mux.Handle("POST /v1/lessons/{lesson}/slides/{slide}/narration/{part}", deps.Accounts.Protect(deps.Player))
 		mux.Handle("GET /v1/courses/{course}/download", deps.Accounts.Protect(deps.Player))
+	}
+	if deps.NarrationVoices != nil && deps.Accounts != nil {
+		mux.Handle("GET /v1/me/narration/voices", deps.Accounts.Protect(deps.NarrationVoices))
+		mux.Handle("GET /v1/lessons/{lesson}/narration/voice", deps.Accounts.Protect(deps.NarrationVoices))
+		mux.Handle("POST /v1/lessons/{lesson}/narration/voice/quote", deps.Accounts.Protect(deps.NarrationVoices))
+		mux.Handle("POST /v1/lessons/{lesson}/narration/voice", deps.Accounts.Protect(deps.NarrationVoices))
 	}
 	if deps.Eval != nil {
 		// Ingest authenticates service credentials itself; all reads require a

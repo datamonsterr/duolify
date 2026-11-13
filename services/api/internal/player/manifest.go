@@ -63,6 +63,8 @@ type Slide struct {
 	Assets          []string          `json:"assets"`
 	Checkpoints     []Checkpoint      `json:"checkpoints"`
 	NarrationStatus string            `json:"narration_status"`
+	// NarrationReason is a fixed code for a disabled slide (for example insufficient_credits).
+	NarrationReason string `json:"narration_reason,omitempty"`
 	// Narration is present only when status is ready; it never exposes object keys.
 	Narration     *NarrationAsset `json:"narration,omitempty"`
 	NarrationText string          `json:"narration_text"`

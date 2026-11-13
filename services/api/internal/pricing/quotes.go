@@ -245,7 +245,16 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 }
 
 // Quotes persists original terms and consent independently of wallet operations.
-type Quotes struct{ pool *pgxpool.Pool }
+type Quotes struct {
+	pool *pgxpool.Pool
+	// approvedVoices extends the version's voice allowlist with the approved voice config (E14-06).
+	approvedVoices []string
+}
+
+// WithApprovedVoices returns a quote service that also accepts the approved narration voices.
+func (s *Quotes) WithApprovedVoices(voices []string) *Quotes {
+	return &Quotes{pool: s.pool, approvedVoices: voices}
+}
 
 // NewQuotes constructs the database-backed quote service.
 func NewQuotes(pool *pgxpool.Pool) *Quotes { return &Quotes{pool: pool} }
@@ -305,6 +314,11 @@ func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput,
 	var policy QuotePolicy
 	if err = json.Unmarshal(row.Policy, &policy); err != nil {
 		return Quote{}, err
+	}
+	for _, voice := range s.approvedVoices {
+		if !slices.Contains(policy.Voices, voice) {
+			policy.Voices = append(policy.Voices, voice)
+		}
 	}
 	quote, err := CalculateQuote(c, policy, in, row.QuotedAt.Time)
 	if err != nil {

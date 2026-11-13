@@ -582,6 +582,7 @@ type LearnerProfile struct {
 	UiSounds        bool               `json:"ui_sounds"`
 	Haptics         string             `json:"haptics"`
 	ActiveCourseID  pgtype.UUID        `json:"active_course_id"`
+	NarrationVoice  string             `json:"narration_voice"`
 }
 
 type LearnerSocialSetting struct {

@@ -407,3 +407,130 @@ fn live_voice_comes_from_config_and_fingerprint_tracks_it() {
         VoiceConfig::resolve("default").unwrap().fingerprint()
     );
 }
+
+fn voices_fixture() -> serde_json::Value {
+    serde_json::from_str(include_str!(
+        "../../../../../evals/fixtures/narration.voices.json"
+    ))
+    .unwrap()
+}
+
+fn case(fixture: &serde_json::Value, id: &str) -> serde_json::Value {
+    fixture["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == id)
+        .unwrap()
+        .clone()
+}
+
+#[test]
+fn approved_voices_come_from_config_with_distinct_ids_and_fingerprints() {
+    let fixture = voices_fixture();
+    let keys = VoiceConfig::keys();
+    let recorded: Vec<&str> = fixture["voices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v["key"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        keys, recorded,
+        "recorded fixture lists exactly the configured voices"
+    );
+    let mut seen = std::collections::HashSet::new();
+    for v in fixture["voices"].as_array().unwrap() {
+        let voice = VoiceConfig::resolve(v["key"].as_str().unwrap()).unwrap();
+        assert_eq!(voice.voice_id, v["voice_id"].as_str().unwrap());
+        assert_eq!(voice.model_id, fixture["model_id"].as_str().unwrap());
+        assert_eq!(
+            voice.fingerprint(),
+            v["settings_fingerprint"].as_str().unwrap()
+        );
+        assert!(
+            seen.insert(voice.fingerprint()),
+            "each voice has its own fingerprint"
+        );
+    }
+    assert!(VoiceConfig::resolve("not-approved").is_none());
+    assert!(VoiceConfig::resolve("").is_none());
+}
+
+#[tokio::test]
+async fn every_approved_voice_keeps_full_alignment_for_each_recorded_locale() {
+    let fixture = voices_fixture();
+    let aligned = case(&fixture, "approved-voice-alignment");
+    let text = aligned["text"].as_str().unwrap();
+    let mut durations = std::collections::HashSet::new();
+    for key in aligned["voices"].as_array().unwrap() {
+        let voice = VoiceConfig::resolve(key.as_str().unwrap()).unwrap();
+        let out = MockSpeechProvider
+            .synthesize(&SpeechRequest {
+                text: text.into(),
+                language: "en".into(),
+                voice_id: voice.voice_id,
+                model_id: voice.model_id,
+            })
+            .await
+            .unwrap();
+        validate(text, &out).unwrap();
+        assert_eq!(out.alignment.characters.len(), text.chars().count());
+        durations.insert(out.duration_ms);
+    }
+    assert_eq!(
+        durations.len(),
+        1,
+        "the mock's timing follows the text, not the voice"
+    );
+    assert_eq!(
+        u64::from(*durations.iter().next().unwrap()),
+        aligned["expect"]["duration_ms"].as_u64().unwrap()
+    );
+    let locale = case(&fixture, "approved-voice-locale");
+    for key in locale["voices"].as_array().unwrap() {
+        let voice = VoiceConfig::resolve(key.as_str().unwrap()).unwrap();
+        for text in locale["texts"].as_array().unwrap() {
+            let text = text.as_str().unwrap();
+            let out = MockSpeechProvider
+                .synthesize(&SpeechRequest {
+                    text: text.into(),
+                    language: "vi".into(),
+                    voice_id: voice.voice_id.clone(),
+                    model_id: voice.model_id.clone(),
+                })
+                .await
+                .unwrap();
+            validate(text, &out).unwrap();
+            assert_eq!(out.alignment.characters.concat(), text);
+        }
+    }
+}
+
+#[test]
+fn an_unapproved_voice_key_never_resolves_so_no_provider_work_can_start() {
+    let fixture = voices_fixture();
+    let rejected = case(&fixture, "unapproved-voice-rejected");
+    let key = rejected["voice_key"].as_str().unwrap();
+    assert!(MockSpeechProvider.voice(key).is_none());
+    assert_eq!(rejected["expect"]["provider_calls"], 0);
+    assert_eq!(rejected["expect"]["charge"], 0);
+}
+
+#[test]
+fn switching_back_to_a_stored_voice_is_the_same_fingerprint_so_the_asset_is_reused() {
+    let fixture = voices_fixture();
+    let replay = case(&fixture, "voice-switch-replay-free");
+    let keys: Vec<&str> = replay["voices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|k| k.as_str().unwrap())
+        .collect();
+    let first = VoiceConfig::resolve(keys[0]).unwrap().fingerprint();
+    let other = VoiceConfig::resolve(keys[1]).unwrap().fingerprint();
+    assert_ne!(first, other);
+    assert_eq!(VoiceConfig::resolve(keys[0]).unwrap().fingerprint(), first);
+    assert_eq!(replay["expect"]["switch_back_charge"], 0);
+    assert_eq!(replay["expect"]["switch_back_provider_calls"], 0);
+}

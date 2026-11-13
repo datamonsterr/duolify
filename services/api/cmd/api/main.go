@@ -207,7 +207,7 @@ func run(ctx context.Context, args []string) (result error) {
 		}
 		// E14-01: narration synthesis stays off until explicitly enabled; only the engine mock exists.
 		if os.Getenv("NARRATION_ENABLED") == "true" {
-			narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Events: events, Logger: logger, Retention: narrationRetention()})
+			narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention()})
 			narrationQueue, err := narrationService.Queue()
 			if err != nil {
 				return err
@@ -337,13 +337,15 @@ func run(ctx context.Context, args []string) (result error) {
 	go runtimePricing.RunActivator(activatorCtx, pricingAdmin)
 
 	var narrationRecovery player.NarrationRecovery
+	var narrationVoices http.Handler
 	if os.Getenv("NARRATION_ENABLED") == "true" {
 		// Insert-only queue client: the worker process runs the jobs.
-		recovery := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Events: events, Logger: logger, Retention: narrationRetention()})
+		recovery := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention()})
 		if _, err = recovery.Queue(); err != nil {
 			return err
 		}
 		narrationRecovery = recovery
+		narrationVoices = recovery.HTTP()
 	}
 	courseService := courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"})
 	handler := httpapi.New(httpapi.Dependencies{
@@ -351,6 +353,7 @@ func run(ctx context.Context, args []string) (result error) {
 		Gamification:            xpService,
 		Social:                  social.New(db.Pool, events),
 		Monitor:                 monitor,
+		NarrationVoices:         narrationVoices,
 		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService, Narration: narrationRecovery}),
 		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
 		Accounts:                auth,

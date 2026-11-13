@@ -59,12 +59,19 @@ type Options struct {
 	JobAttempts int
 	// Retention is how long an asset is kept after its last reference ends (default 30 days).
 	Retention time.Duration
+	// Entitlements verifies the funded plan; curated voices need its benefit (E7-07).
+	Entitlements Entitlements
+	// FixtureVoices admits the test-only voices of the voice config. Production leaves it false.
+	FixtureVoices bool
+	// Off is the server kill switch: no synthesis work, quotes or charges at all.
+	Off bool
 }
 
 // Service queues and performs per-slide synthesis.
 type Service struct {
 	opts   Options
 	client *river.Client[pgx.Tx]
+	voices VoiceSet
 }
 
 // New creates the service.
@@ -78,7 +85,11 @@ func New(opts Options) *Service {
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
-	return &Service{opts: opts}
+	voices, err := LoadVoices(opts.FixtureVoices)
+	if err != nil {
+		panic("narration: invalid embedded voice config: " + err.Error())
+	}
+	return &Service{opts: opts, voices: voices}
 }
 
 // Args is the queue payload: identifiers only, never narration text. An empty SlideID
@@ -87,6 +98,10 @@ type Args struct {
 	LearnerID string `json:"learner_id" river:"unique"`
 	LessonID  string `json:"lesson_id" river:"unique"`
 	SlideID   string `json:"slide_id,omitempty" river:"unique"`
+	// VoiceKey is the logical voice; empty means the default voice.
+	VoiceKey string `json:"voice_key,omitempty" river:"unique"`
+	// ConsentQuote is the Learner's accepted voice-change quote; the run is charged against it.
+	ConsentQuote string `json:"consent_quote,omitempty"`
 }
 
 // Kind identifies the River job.
@@ -105,10 +120,15 @@ type worker struct {
 
 func (w *worker) Work(ctx context.Context, job *river.Job[Args]) error {
 	final := job.Attempt >= job.MaxAttempts
-	if job.Args.SlideID == "" {
-		return w.service.SynthesizeLesson(ctx, job.Args.LearnerID, job.Args.LessonID, final)
+	voice := job.Args.VoiceKey
+	if voice == "" {
+		voice = VoiceKey
 	}
-	return w.service.Synthesize(ctx, job.Args.LearnerID, job.Args.LessonID, job.Args.SlideID, final)
+	var only []string
+	if job.Args.SlideID != "" {
+		only = []string{job.Args.SlideID}
+	}
+	return w.service.synthesize(ctx, job.Args.LearnerID, job.Args.LessonID, voice, only, job.Args.ConsentQuote, final)
 }
 
 // Queue starts the River client for narration jobs. Call Start on the result.
@@ -138,6 +158,10 @@ func (s *Service) Enqueue(ctx context.Context, owner, lessonID string) (int, err
 	if s.client == nil {
 		return 0, errors.New("narration queue not configured")
 	}
+	on, voice := s.preference(ctx, owner)
+	if s.opts.Off || !on {
+		return 0, nil // narration is off: no rows, no work, no charge
+	}
 	var key string
 	if err := s.opts.Pool.QueryRow(ctx, `SELECT manifest_key FROM lesson_manifests WHERE lesson_id::text=$1 AND learner_id::text=$2`, lessonID, owner).Scan(&key); err != nil {
 		return 0, err
@@ -154,14 +178,14 @@ func (s *Service) Enqueue(ctx context.Context, owner, lessonID string) (int, err
 	for _, slide := range manifest.Slides {
 		text := slide.NarrationText
 		if ValidText(text) != nil {
-			if _, err = s.opts.Pool.Exec(ctx, `INSERT INTO slide_narrations(lesson_id,learner_id,slide_id,status,failure_code) VALUES($1,$2,$3,'failed','missing_text')
-				ON CONFLICT(lesson_id,slide_id) DO NOTHING`, lessonID, owner, slide.ID); err != nil {
+			if _, err = s.opts.Pool.Exec(ctx, `INSERT INTO slide_narrations(lesson_id,learner_id,slide_id,voice_key,status,failure_code) VALUES($1,$2,$3,$4,'failed','missing_text')
+				ON CONFLICT(lesson_id,slide_id,voice_key) DO NOTHING`, lessonID, owner, slide.ID, voice); err != nil {
 				return queued, err
 			}
 			continue
 		}
-		tag, err := s.opts.Pool.Exec(ctx, `INSERT INTO slide_narrations(lesson_id,learner_id,slide_id,status,narration_text) VALUES($1,$2,$3,'pending',$4)
-			ON CONFLICT(lesson_id,slide_id) DO NOTHING`, lessonID, owner, slide.ID, text)
+		tag, err := s.opts.Pool.Exec(ctx, `INSERT INTO slide_narrations(lesson_id,learner_id,slide_id,voice_key,status,narration_text) VALUES($1,$2,$3,$4,'pending',$5)
+			ON CONFLICT(lesson_id,slide_id,voice_key) DO NOTHING`, lessonID, owner, slide.ID, voice, text)
 		if err != nil {
 			return queued, err
 		}
@@ -172,7 +196,7 @@ func (s *Service) Enqueue(ctx context.Context, owner, lessonID string) (int, err
 	}
 	if queued > 0 {
 		// One job per lesson: its new characters are reserved, priced and settled together.
-		if _, err = s.client.Insert(ctx, Args{LearnerID: owner, LessonID: lessonID}, &river.InsertOpts{MaxAttempts: s.opts.JobAttempts}); err != nil {
+		if _, err = s.client.Insert(ctx, Args{LearnerID: owner, LessonID: lessonID, VoiceKey: voice}, &river.InsertOpts{MaxAttempts: s.opts.JobAttempts}); err != nil {
 			return queued, err
 		}
 	}
@@ -200,19 +224,25 @@ type item struct {
 // Synthesize performs one slide. A retryable provider failure returns an error (River
 // backs off) until final, then the slide becomes failed and the reservation stays released.
 func (s *Service) Synthesize(ctx context.Context, owner, lessonID, slideID string, final bool) error {
-	return s.synthesize(ctx, owner, lessonID, []string{slideID}, final)
+	return s.synthesize(ctx, owner, lessonID, VoiceKey, []string{slideID}, "", final)
 }
 
 // SynthesizeLesson performs every pending slide of a lesson under one audio reservation, so
 // the newly synthesized characters are priced and rounded up once.
 func (s *Service) SynthesizeLesson(ctx context.Context, owner, lessonID string, final bool) error {
-	return s.synthesize(ctx, owner, lessonID, nil, final)
+	return s.synthesize(ctx, owner, lessonID, VoiceKey, nil, "", final)
 }
 
-func (s *Service) synthesize(ctx context.Context, owner, lessonID string, only []string, final bool) error {
+// SynthesizeVoice performs every pending slide of a lesson in one approved voice. A non-default
+// voice needs the Learner's accepted quote (consent) and a verified entitlement.
+func (s *Service) SynthesizeVoice(ctx context.Context, owner, lessonID, voice, consentQuote string, final bool) error {
+	return s.synthesize(ctx, owner, lessonID, voice, nil, consentQuote, final)
+}
+
+func (s *Service) synthesize(ctx context.Context, owner, lessonID, voice string, only []string, consent string, final bool) error {
 	rows, err := s.opts.Pool.Query(ctx, `SELECT slide_id,narration_text FROM slide_narrations
-		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND status='pending' AND failure_code='' AND (COALESCE(cardinality($3::text[]),0)=0 OR slide_id=ANY($3))
-		ORDER BY created_at, slide_id`, lessonID, owner, only)
+		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND voice_key=$4 AND status='pending' AND failure_code='' AND (COALESCE(cardinality($3::text[]),0)=0 OR slide_id=ANY($3))
+		ORDER BY created_at, slide_id`, lessonID, owner, only, voice)
 	if err != nil {
 		return err
 	}
@@ -233,11 +263,21 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID string, only [
 	if len(pending) == 0 {
 		return nil // unknown, deleted or already finished: nothing to do
 	}
-	resolved, err := s.opts.Speech.SynthesizeNarration(ctx, &enginev1.SynthesizeNarrationRequest{SlideId: pending[0].id, VoiceKey: VoiceKey, ResolveOnly: true})
+	// Global narration-off (server flag or Learner setting) and an unapproved or unentitled voice
+	// skip all work: no engine call, no quote, no reservation, no charge.
+	if code := s.skipCode(ctx, owner, voice); code != "" {
+		for _, p := range pending {
+			if err = s.skip(ctx, owner, lessonID, voice, p.id, code); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	resolved, err := s.opts.Speech.SynthesizeNarration(ctx, &enginev1.SynthesizeNarrationRequest{SlideId: pending[0].id, VoiceKey: voice, ResolveOnly: true})
 	if err != nil {
 		var first error
 		for _, p := range pending {
-			if e := s.retryOrFail(ctx, owner, lessonID, p.id, "engine_unavailable", final, err); e != nil && first == nil {
+			if e := s.retryOrFail(ctx, owner, lessonID, voice, p.id, "engine_unavailable", final, err); e != nil && first == nil {
 				first = e
 			}
 		}
@@ -249,7 +289,7 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID string, only [
 	for _, p := range pending {
 		text := NormalizeText(p.text)
 		if ValidText(text) != nil {
-			if err = s.finish(ctx, owner, lessonID, p.id, StatusFailed, "missing_text", nil); err != nil {
+			if err = s.finish(ctx, owner, lessonID, voice, p.id, StatusFailed, "missing_text", nil); err != nil {
 				return err
 			}
 			continue
@@ -294,7 +334,7 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID string, only [
 		case err == nil && state == "ready":
 			it.meta.characters, it.meta.bytes, it.meta.duration = hit.characters, hit.bytes, hit.duration
 			for _, slide := range it.slides {
-				if err = s.finish(ctx, owner, lessonID, slide, StatusReady, "", &it.meta); errors.Is(err, errNotPending) {
+				if err = s.finish(ctx, owner, lessonID, voice, slide, StatusReady, "", &it.meta); errors.Is(err, errNotPending) {
 					continue
 				} else if err != nil {
 					return err
@@ -313,7 +353,7 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID string, only [
 	if len(fresh) == 0 {
 		return nil
 	}
-	return s.synthesizeFresh(ctx, owner, lessonID, fresh, final)
+	return s.synthesizeFresh(ctx, owner, lessonID, voice, consent, fresh, final)
 }
 
 // holdForRegeneration parks slides whose shared asset has no object until the operator queue restores it.
@@ -335,11 +375,11 @@ func (s *Service) requestRegeneration(ctx context.Context, db execer, hash strin
 	return err
 }
 
-func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID string, fresh []*item, final bool) error {
+func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, consent string, fresh []*item, final bool) error {
 	failAll := func(st, code string) error {
 		for _, it := range fresh {
 			for _, slide := range it.slides {
-				if err := s.finish(ctx, owner, lessonID, slide, st, code, nil); err != nil {
+				if err := s.finish(ctx, owner, lessonID, voice, slide, st, code, nil); err != nil {
 					return err
 				}
 			}
@@ -350,7 +390,7 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID string, f
 		var first error
 		for _, it := range fresh {
 			for _, slide := range it.slides {
-				if e := s.retryOrFail(ctx, owner, lessonID, slide, code, final, cause); e != nil && first == nil {
+				if e := s.retryOrFail(ctx, owner, lessonID, voice, slide, code, final, cause); e != nil && first == nil {
 					first = e
 				}
 			}
@@ -361,18 +401,31 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID string, f
 	for _, it := range fresh {
 		characters += int64(it.characters)
 	}
-	quotes := pricing.NewQuotes(s.opts.Pool)
-	quote, err := quotes.Create(ctx, owner, pricing.QuoteInput{Action: "narration", NarrationCharacters: characters, Voice: VoiceKey})
-	if err != nil {
-		return failAll(StatusFailed, "quote_unavailable")
-	}
-	if err = quotes.Accept(ctx, owner, quote.ID); err != nil {
-		return failAll(StatusFailed, "quote_unavailable")
+	quotes := pricing.NewQuotes(s.opts.Pool).WithApprovedVoices(s.voices.Keys())
+	var quote pricing.Quote
+	var err error
+	if consent != "" {
+		// The Learner's explicit consent bounds the run: it must still be valid and cover the characters.
+		quote, err = quotes.Get(ctx, owner, consent)
+		if err != nil || !quote.Accepted || quote.Expired || quote.Input.Voice != voice || quote.Input.NarrationCharacters < characters {
+			return failAll(StatusDisabled, "quote_expired")
+		}
+	} else {
+		if quote, err = quotes.Create(ctx, owner, pricing.QuoteInput{Action: "narration", NarrationCharacters: characters, Voice: voice}); err != nil {
+			return failAll(StatusFailed, "quote_unavailable")
+		}
+		if err = quotes.Accept(ctx, owner, quote.ID); err != nil {
+			return failAll(StatusFailed, "quote_unavailable")
+		}
 	}
 	reservation, err := s.opts.Financial.ReserveAction(ctx, owner, quote.ID, "narration")
 	switch {
 	case errors.Is(err, credits.ErrInsufficient):
 		// Text and test stay usable; narration is simply not available.
+		if consent != "" {
+			// A voice change is not retried silently: the Learner reviews the quote again.
+			return failAll(StatusDisabled, "voice_insufficient_credits")
+		}
 		return failAll(StatusDisabled, "insufficient_credits")
 	case errors.Is(err, credits.ErrConcurrency):
 		return retryAll("concurrency_limit", err)
@@ -405,7 +458,7 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID string, f
 	var retryErr error
 	for _, it := range fresh {
 		callStarted := time.Now()
-		response, err := s.opts.Speech.SynthesizeNarration(callCtx, &enginev1.SynthesizeNarrationRequest{SlideId: it.slides[0], Text: it.text, VoiceKey: VoiceKey, Limits: limits})
+		response, err := s.opts.Speech.SynthesizeNarration(callCtx, &enginev1.SynthesizeNarrationRequest{SlideId: it.slides[0], Text: it.text, VoiceKey: voice, Limits: limits})
 		it.latency = latencyMS(time.Since(callStarted))
 		if err == nil {
 			err = ValidateOutput(it.text, response)
@@ -429,14 +482,14 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID string, f
 			s.emit(owner, "$ai_generation", aiProperties(quote, "", int64(it.characters), it.latency, false, code))
 			if retryable(err) && !errors.Is(err, errUsageUnavailable) {
 				for _, slide := range it.slides {
-					if e := s.retryOrFail(ctx, owner, lessonID, slide, code, final, err); e != nil && retryErr == nil {
+					if e := s.retryOrFail(ctx, owner, lessonID, voice, slide, code, final, err); e != nil && retryErr == nil {
 						retryErr = e
 					}
 				}
 				continue
 			}
 			for _, slide := range it.slides {
-				if e := s.finish(ctx, owner, lessonID, slide, StatusFailed, code, nil); e != nil {
+				if e := s.finish(ctx, owner, lessonID, voice, slide, StatusFailed, code, nil); e != nil {
 					return e
 				}
 			}
@@ -469,7 +522,7 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID string, f
 				return e
 			}
 			for _, slide := range it.slides {
-				if e := writeRow(ctx, tx, owner, lessonID, slide, StatusReady, "", &it.meta, reservation.ID); e != nil {
+				if e := writeRow(ctx, tx, owner, lessonID, voice, slide, StatusReady, "", &it.meta, reservation.ID); e != nil {
 					return e
 				}
 			}
@@ -480,7 +533,7 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID string, f
 		var first error
 		for _, it := range delivered {
 			for _, slide := range it.slides {
-				if e := s.retryOrFail(ctx, owner, lessonID, slide, "settlement_failed", final, err); e != nil && first == nil {
+				if e := s.retryOrFail(ctx, owner, lessonID, voice, slide, "settlement_failed", final, err); e != nil && first == nil {
 					first = e
 				}
 			}
@@ -571,21 +624,21 @@ func retryable(err error) bool {
 	return status.Code(err) != codes.InvalidArgument && status.Code(err) != codes.FailedPrecondition
 }
 
-func (s *Service) retryOrFail(ctx context.Context, owner, lessonID, slideID, code string, final bool, cause error) error {
+func (s *Service) retryOrFail(ctx context.Context, owner, lessonID, voice, slideID, code string, final bool, cause error) error {
 	if !final {
 		return fmt.Errorf("narration %s: %w", code, cause)
 	}
-	return s.finish(ctx, owner, lessonID, slideID, StatusFailed, code, nil)
+	return s.finish(ctx, owner, lessonID, voice, slideID, StatusFailed, code, nil)
 }
 
 // finish records a terminal status. Failure events carry only a fixed code.
-func (s *Service) finish(ctx context.Context, owner, lessonID, slideID, st, code string, m *meta) error {
+func (s *Service) finish(ctx context.Context, owner, lessonID, voice, slideID, st, code string, m *meta) error {
 	tx, err := s.opts.Pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	if err = writeRow(ctx, tx, owner, lessonID, slideID, st, code, m, ""); err != nil {
+	if err = writeRow(ctx, tx, owner, lessonID, voice, slideID, st, code, m, ""); err != nil {
 		return err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -597,7 +650,7 @@ func (s *Service) finish(ctx context.Context, owner, lessonID, slideID, st, code
 	return nil
 }
 
-func writeRow(ctx context.Context, tx pgx.Tx, owner, lessonID, slideID, st, code string, m *meta, reservation string) error {
+func writeRow(ctx context.Context, tx pgx.Tx, owner, lessonID, voice, slideID, st, code string, m *meta, reservation string) error {
 	if m == nil {
 		m = &meta{}
 	}
@@ -607,8 +660,8 @@ func writeRow(ctx context.Context, tx pgx.Tx, owner, lessonID, slideID, st, code
 	}
 	tag, err := tx.Exec(ctx, `UPDATE slide_narrations SET status=$4,failure_code=$5,content_hash=$6,voice_id=$7,model_id=$8,settings_fingerprint=$9,audio_key=$10,alignment_key=$11,
 		characters=$12,audio_bytes=$13,duration_ms=$14,reservation_id=$15,updated_at=now()
-		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND status='pending'`,
-		lessonID, owner, slideID, st, code, m.hash, m.voiceID, m.modelID, m.fingerprint, m.audioKey, m.alignmentKey, m.characters, m.bytes, m.duration, reservationID)
+		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND voice_key=$16 AND status='pending'`,
+		lessonID, owner, slideID, st, code, m.hash, m.voiceID, m.modelID, m.fingerprint, m.audioKey, m.alignmentKey, m.characters, m.bytes, m.duration, reservationID, voice)
 	if err != nil {
 		return err
 	}

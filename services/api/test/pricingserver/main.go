@@ -216,6 +216,15 @@ func run() (result error) {
 	mux.Handle("POST /test/subscription/fund", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		owner := accounts.LearnerID(r.Context())
 		plan := catalogue.Config().Plans[0]
+		var fund struct {
+			PlanID string `json:"plan_id"`
+		}
+		_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&fund)
+		for _, candidate := range catalogue.Config().Plans {
+			if fund.PlanID != "" && candidate.ID == fund.PlanID {
+				plan = candidate
+			}
+		}
 		order, err := paidCredits.CreateCheckout(r.Context(), owner, credits.CheckoutInput{
 			RequestID:      uuid.NewString(),
 			SKU:            plan.Monthly.SKU,
@@ -301,7 +310,7 @@ func run() (result error) {
 
 	notesService := notes.NewServiceWithEnrichment(db.Pool, nil, paidCredits, engineClient)
 	// E14-01: queue mock narration for a seeded lesson; slide faults exercise recovery.
-	narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: objects, Speech: engineClient, Financial: paidCredits, JobAttempts: 1})
+	narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: objects, Speech: engineClient, Financial: paidCredits, Entitlements: paidCredits, FixtureVoices: true, JobAttempts: 1})
 	narrationQueue, err := narrationService.Queue()
 	if err != nil {
 		return err
@@ -321,6 +330,8 @@ func run() (result error) {
 			LessonID string            `json:"lesson_id"`
 			Fail     map[string]string `json:"fail"`
 			Salt     string            `json:"salt"`
+			// NoTopup leaves the Learner without audio credits (E14-06 recovery path).
+			NoTopup bool `json:"no_topup"`
 		}
 		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
@@ -339,12 +350,14 @@ func run() (result error) {
 			}
 		}
 		speechTwin.SetFaults(faults)
-		if _, err := db.Pool.Exec(r.Context(), `INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
-			VALUES ($1, 50, 'purchase', 'topup:' || gen_random_uuid(), '2026.04', '{"bucket": "purchase"}'::jsonb)`, owner); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
+		if !in.NoTopup {
+			if _, err := db.Pool.Exec(r.Context(), `INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
+				VALUES ($1, 50, 'purchase', 'topup:' || gen_random_uuid(), '2026.04', '{"bucket": "purchase"}'::jsonb)`, owner); err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			_ = paidCredits.InvalidateCache(r.Context(), owner)
 		}
-		_ = paidCredits.InvalidateCache(r.Context(), owner)
 		if _, err := narrationService.Enqueue(r.Context(), owner, in.LessonID); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -372,6 +385,7 @@ func run() (result error) {
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{
 		Notes:                   notesService,
 		Player:                  lessonPlayer,
+		NarrationVoices:         narrationService.HTTP(),
 		LessonTestTracerEnabled: tracerEnabled,
 		LessonTest:              lessonHandler,
 		Characters:              charHandler,

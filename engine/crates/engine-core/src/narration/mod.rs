@@ -137,16 +137,46 @@ pub struct VoiceConfig {
     pub speed: f32,
 }
 
+/// The approved voice set: the configured default voice plus test fixtures (ADR 0012, E14-05/06).
+/// Vendor voice ids and settings live in `voices.json`, never in code; live voices stay disabled.
+const VOICES_JSON: &str = include_str!("voices.json");
+
+#[derive(serde::Deserialize)]
+struct VoiceEntry {
+    key: String,
+    voice_id: String,
+    model_id: String,
+    stability: f32,
+    similarity_boost: f32,
+    speed: f32,
+}
+
+#[derive(serde::Deserialize)]
+struct VoiceFile {
+    voices: Vec<VoiceEntry>,
+}
+
 impl VoiceConfig {
-    /// One configured default voice for now (ADR 0012); live voices stay disabled.
+    /// Resolves a logical voice key from the embedded config.
     pub fn resolve(key: &str) -> Option<Self> {
-        (key == "default").then(|| Self {
-            voice_id: "mock-default-voice".into(),
-            model_id: "eleven_flash_v2_5".into(),
-            stability: 0.5,
-            similarity_boost: 0.75,
-            speed: 1.0,
-        })
+        let file: VoiceFile = serde_json::from_str(VOICES_JSON).ok()?;
+        file.voices
+            .into_iter()
+            .find(|v| v.key == key)
+            .map(|v| Self {
+                voice_id: v.voice_id,
+                model_id: v.model_id,
+                stability: v.stability,
+                similarity_boost: v.similarity_boost,
+                speed: v.speed,
+            })
+    }
+
+    /// Every logical key in the config, in order.
+    pub fn keys() -> Vec<String> {
+        serde_json::from_str::<VoiceFile>(VOICES_JSON)
+            .map(|f| f.voices.into_iter().map(|v| v.key).collect())
+            .unwrap_or_default()
     }
 
     /// Stable across processes (FNV-1a), unlike `DefaultHasher`.

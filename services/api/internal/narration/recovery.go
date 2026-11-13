@@ -29,15 +29,28 @@ var ErrNotFound = player.ErrNarrationNotFound
 // Retry queues a failed slide again under the same content hash. The failed attempt released its
 // reservation, so only a delivered artifact is ever charged, and only once.
 func (s *Service) Retry(ctx context.Context, owner, lessonID, slideID string) (string, error) {
-	tag, err := s.opts.Pool.Exec(ctx, `UPDATE slide_narrations SET status='pending',failure_code='',updated_at=now()
+	rows, err := s.opts.Pool.Query(ctx, `UPDATE slide_narrations SET status='pending',failure_code='',updated_at=now()
 		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND narration_text<>''
-		AND ((status='failed' AND failure_code<>'missing_text') OR (status='disabled' AND failure_code='insufficient_credits'))`, lessonID, owner, slideID)
+		AND ((status='failed' AND failure_code<>'missing_text') OR (status='disabled' AND failure_code='insufficient_credits')) RETURNING voice_key`, lessonID, owner, slideID)
 	if err != nil {
 		return "", err
 	}
-	if tag.RowsAffected() == 0 {
+	var voices []string
+	for rows.Next() {
+		var v string
+		if err = rows.Scan(&v); err != nil {
+			rows.Close()
+			return "", err
+		}
+		voices = append(voices, v)
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return "", err
+	}
+	if len(voices) == 0 {
 		var st string
-		err = s.opts.Pool.QueryRow(ctx, `SELECT status FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3`, lessonID, owner, slideID).Scan(&st)
+		err = s.opts.Pool.QueryRow(ctx, `SELECT status FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 ORDER BY (status='ready') DESC, (voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id::text=$2),'default')) DESC, updated_at DESC LIMIT 1`, lessonID, owner, slideID).Scan(&st)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			return "", ErrNotFound
@@ -53,8 +66,10 @@ func (s *Service) Retry(ctx context.Context, owner, lessonID, slideID string) (s
 	if s.client == nil {
 		return "", errors.New("narration queue not configured")
 	}
-	if _, err = s.client.Insert(ctx, Args{LearnerID: owner, LessonID: lessonID, SlideID: slideID}, &river.InsertOpts{MaxAttempts: s.opts.JobAttempts}); err != nil {
-		return "", err
+	for _, voice := range voices {
+		if _, err = s.client.Insert(ctx, Args{LearnerID: owner, LessonID: lessonID, SlideID: slideID, VoiceKey: voice}, &river.InsertOpts{MaxAttempts: s.opts.JobAttempts}); err != nil {
+			return "", err
+		}
 	}
 	return RecoveryPending, nil
 }
@@ -68,9 +83,9 @@ func (s *Service) present(ctx context.Context, key string) bool {
 // restore the latest retained bucket version of the key; repoint to a retained prior settings
 // version of the same text; otherwise queue a tracked operator regeneration.
 func (s *Service) Recover(ctx context.Context, owner, lessonID, slideID string) (string, error) {
-	var st, failure, hash, audioKey, alignmentKey, text string
-	err := s.opts.Pool.QueryRow(ctx, `SELECT status,failure_code,content_hash,audio_key,alignment_key,narration_text FROM slide_narrations
-		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3`, lessonID, owner, slideID).Scan(&st, &failure, &hash, &audioKey, &alignmentKey, &text)
+	var st, failure, hash, audioKey, alignmentKey, text, voiceID string
+	err := s.opts.Pool.QueryRow(ctx, `SELECT status,failure_code,content_hash,audio_key,alignment_key,narration_text,voice_id FROM slide_narrations
+		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 ORDER BY (status='ready') DESC, (voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id::text=$2),'default')) DESC, updated_at DESC LIMIT 1`, lessonID, owner, slideID).Scan(&st, &failure, &hash, &audioKey, &alignmentKey, &text, &voiceID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrNotFound
 	}
@@ -103,7 +118,7 @@ func (s *Service) Recover(ctx context.Context, owner, lessonID, slideID string) 
 	}
 	// Retained prior settings versions of the same normalized text, newest first.
 	rows, err := s.opts.Pool.Query(ctx, `SELECT content_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms
-		FROM narration_assets WHERE text_hash=$2 AND content_hash<>$1 AND state='ready' ORDER BY created_at DESC`, hash, TextHash(NormalizeText(text)))
+		FROM narration_assets WHERE text_hash=$2 AND content_hash<>$1 AND voice_id=$3 AND state='ready' ORDER BY created_at DESC`, hash, TextHash(NormalizeText(text)), voiceID)
 	if err != nil {
 		return "", err
 	}
