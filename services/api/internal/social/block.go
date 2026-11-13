@@ -207,7 +207,7 @@ func (s *Service) Block(ctx context.Context, actor, username string) error {
 	if _, err = tx.Exec(ctx, `INSERT INTO learner_blocks(blocker_id,blocked_id) VALUES($1::uuid,$2::uuid)`, actor, target); err != nil {
 		return err
 	}
-	wasFriend, err := s.removeFriendshipTx(ctx, tx, actor, target)
+	wasFriend, ended, err := s.endFriendshipTx(ctx, tx, actor, target)
 	if err != nil {
 		return err
 	}
@@ -216,6 +216,11 @@ func (s *Service) Block(ctx context.Context, actor, username string) error {
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return err
+	}
+	for _, e := range ended {
+		if e.learner == actor { // the blocked learner is told nothing beyond the friendship ending
+			s.emitAll([]streakEvent{e})
+		}
 	}
 	s.emit(actor, "learner_blocked", map[string]any{"was_friend": wasFriend})
 	return nil
