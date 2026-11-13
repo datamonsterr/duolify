@@ -59,6 +59,22 @@ export function WalletView({
 
   return (
     <div className="wallet-container">
+      {wallet.source_debt != null && wallet.source_debt > 0 && (
+        <div role="alert" className="wallet-banner wallet-banner-danger">
+          <div>
+            <b className="wallet-banner-title">
+              Paid AI features paused pending resolution ·{" "}
+              {number(wallet.source_debt)} credits source debt
+            </b>
+            <p>
+              A payment reversal exceeded unspent credits on the original
+              purchase. Paid AI features are paused pending resolution. Your
+              daily free credits remain available for practice.
+            </p>
+          </div>
+        </div>
+      )}
+
       {wallet.unverified && (
         <div role="alert" className="wallet-banner wallet-banner-warn">
           <div>
@@ -176,6 +192,26 @@ export function WalletView({
         tutor chat only (about 3 notes and 5–8 messages), are spent first and
         don't carry over.
       </p>
+
+      {/* Channel-Correct Refund Guidance */}
+      <div className="wallet-channel-guidance">
+        {wallet.refund_channel === "apple" ? (
+          <p>
+            Apple App Store purchases must be refunded through Apple:
+            reportaproblem.apple.com
+          </p>
+        ) : wallet.refund_channel === "google" ? (
+          <p>
+            Google Play purchases must be refunded through Google Play purchase
+            history.
+          </p>
+        ) : (
+          <p>
+            Refund policy · Contact support@duolify.com to request a refund for
+            unused credits.
+          </p>
+        )}
+      </div>
 
       {/* Exhausted Recovery Banner */}
       {isExhausted && !suppressUpsell && (

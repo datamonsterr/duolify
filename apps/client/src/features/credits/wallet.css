@@ -178,6 +178,23 @@
   color: var(--info);
 }
 
+.wallet-banner-danger {
+  background: var(--danger-bg, #fdecec);
+  color: var(--danger, #b3261e);
+}
+
+.wallet-channel-guidance {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.wallet-channel-guidance p {
+  margin: 0;
+}
+
 .wallet-banner-title {
   display: block;
   font-size: 15px;

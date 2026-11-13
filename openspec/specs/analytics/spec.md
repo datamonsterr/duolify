@@ -92,12 +92,12 @@ The catalog MUST include: `xp_earned` (amount, course_id, lesson_id, event_id, l
 ### Requirement: Credits and AI feature events
 The financial purchase catalogue SHALL include `checkout_started` (sku_id, channel,
 currency, amount_minor, price_table_version), `credits_purchased` (amount, currency,
-price, sku_id, channel, amount_minor, price_table_version) and
+price, sku_id, channel, amount_minor, price_table_version), `credits_refunded` (amount, payment_reference, reason_code), and
 `credits_purchase_failed` (reason, sku_id, channel, price_table_version).
 These API events SHALL use transactionally unique outbox keys, UUID/common properties
 and opt-out. No raw payment payloads, URLs, learner text or provider errors are allowed.
 
-The catalog MUST include: `credits_reserved`, `credits_settled`, `credits_released` (feature, amount), `credits_insufficient` (feature, balance, estimate), `credits_purchased` (amount, currency, price), `credits_purchase_failed` (reason), `reward_credits_granted` (reason, amount), `tutor_message_sent` (has_lesson_context), `tutor_reply_completed`, `tutor_reply_stopped`, `tutor_reply_failed` (error_code), `quick_note_created` (source, length), `quick_note_enriched`, `quick_note_enrichment_failed`, `quick_note_reviewed`, `quick_note_deleted`, `bookmark_added`, `bookmark_removed`, `bookmark_opened` (target_type), `learner_profile_updated` (fields_changed) and `onboarding_completed` (no domain properties).
+The catalog MUST include: `credits_reserved`, `credits_settled`, `credits_released` (feature, amount), `credits_insufficient` (feature, balance, estimate), `credits_purchased` (amount, currency, price), `credits_purchase_failed` (reason), `credits_refunded` (amount, payment_reference, reason_code), `reward_credits_granted` (reason, amount), `tutor_message_sent` (has_lesson_context), `tutor_reply_completed`, `tutor_reply_stopped`, `tutor_reply_failed` (error_code), `quick_note_created` (source, length), `quick_note_enriched`, `quick_note_enrichment_failed`, `quick_note_reviewed`, `quick_note_deleted`, `bookmark_added`, `bookmark_removed`, `bookmark_opened` (target_type), `learner_profile_updated` (fields_changed) and `onboarding_completed` (no domain properties).
 
 #### Scenario: Purchase event
 - **WHEN** a webhook confirms a purchase

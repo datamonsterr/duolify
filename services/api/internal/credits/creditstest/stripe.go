@@ -79,6 +79,11 @@ func (s *Stripe) RetrieveSession(_ context.Context, id string) (credits.PaymentS
 // Notification updates canonical state independently of the event snapshot and
 // signs the exact payload as Stripe does. Stable event IDs exercise replay too.
 func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
+	return s.NotificationWithDetails(id, state, kind, 0, "")
+}
+
+// NotificationWithDetails updates canonical state with explicit refund amount or reversal ID.
+func (s *Stripe) NotificationWithDetails(id, state, kind string, amountMinor int, reversalID string) ([]byte, string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	session, ok := s.sessions[id]
@@ -86,7 +91,7 @@ func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
 		return nil, "", errors.New("unknown fixture session")
 	}
 	switch state {
-	case "cancel_scheduled", "resumed", "stale", "refunded", "disputed":
+	case "cancel_scheduled", "resumed", "stale", "refunded", "partially_refunded", "disputed":
 		// Canonical subscription/invoice changes are applied below.
 	case "paid", "previous_paid", "renewed":
 		session.PaymentStatus = "paid"
@@ -99,6 +104,46 @@ func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
 		session.PaymentStatus = "unpaid"
 	default:
 		return nil, "", errors.New("unknown fixture state")
+	}
+	if session.Mode == "payment" {
+		switch state {
+		case "refunded":
+			session.Refunded = true
+			if amountMinor > 0 {
+				session.AmountRefundedMinor = amountMinor
+			} else {
+				session.AmountRefundedMinor = session.AmountMinor
+			}
+			if reversalID != "" {
+				session.RefundID = reversalID
+			} else {
+				session.RefundID = "re_" + session.OrderID
+			}
+		case "partially_refunded":
+			session.Refunded = false
+			if amountMinor > 0 {
+				session.AmountRefundedMinor = amountMinor
+			} else {
+				session.AmountRefundedMinor = session.AmountMinor / 2
+			}
+			if reversalID != "" {
+				session.RefundID = reversalID
+			} else {
+				session.RefundID = "re_" + session.OrderID + "_part"
+			}
+		case "disputed":
+			session.Disputed = true
+			if amountMinor > 0 {
+				session.AmountRefundedMinor = amountMinor
+			} else {
+				session.AmountRefundedMinor = session.AmountMinor
+			}
+			if reversalID != "" {
+				session.DisputeID = reversalID
+			} else {
+				session.DisputeID = "dp_" + session.OrderID
+			}
+		}
 	}
 	s.sessions[id] = session
 	objectID := id

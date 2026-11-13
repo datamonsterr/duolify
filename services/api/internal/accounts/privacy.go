@@ -74,6 +74,10 @@ var ClassifiedLearnerTables = map[string]string{
 	"credit_subscription_schedule":      "financial_retained_via_subscription",
 	"credit_subscription_revocations":   "financial_retained_via_subscription",
 	"credit_subscription_cancellations": "financial_retained_via_subscription",
+	"credit_reversals":                  "financial_retained_via_order",
+	"credit_refund_allocations":         "financial_retained_via_reversal",
+	"credit_dispute_keys":               "financial_retained_via_order",
+	"credit_debt_history":               "financial_retained_anonymized",
 	"credit_subscriptions":              "financial_retained_via_order",
 	"credit_subscription_terms":         "financial_retained_via_subscription",
 	"credit_payment_sessions":           "financial_retained_via_order",
@@ -316,6 +320,9 @@ func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "UPDATE credit_entries SET learner_id=NULL,owner_reference=$2 WHERE learner_id=$1::uuid", id, ref); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, "UPDATE credit_debt_history SET learner_id=NULL,owner_reference=$2 WHERE learner_id=$1::uuid", id, ref); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "UPDATE credit_timezones SET learner_id=NULL,owner_reference=$2 WHERE learner_id=$1::uuid", id, ref); err != nil {

@@ -1129,7 +1129,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_outbox WHERE event='credits_purchased'").Scan(&outbox); err != nil || outbox != 1 {
 		t.Fatalf("restore duplicated payment analytics: %d %v", outbox, err)
 	}
-	for _, table := range []string{"credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_results"} {
+	for _, table := range []string{"credit_reversals", "credit_refund_allocations", "credit_dispute_keys", "credit_debt_history", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_results"} {
 		for _, verb := range []string{"DELETE FROM ", "TRUNCATE "} {
 			if _, err := restored.Pool.Exec(t.Context(), verb+table); err == nil {
 				t.Fatalf("mutable restored payment history %s%s", verb, table)

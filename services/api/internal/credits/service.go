@@ -75,6 +75,8 @@ type WalletResponse struct {
 	Subscription   int64             `json:"subscription"`
 	Reserved       int64             `json:"reserved"`
 	ReservedNote   string            `json:"reserved_note,omitempty"`
+	SourceDebt     int64             `json:"source_debt,omitempty"`
+	RefundChannel  string            `json:"refund_channel,omitempty"`
 	Cached         bool              `json:"cached,omitempty"`
 	Unverified     bool              `json:"unverified,omitempty"`
 	LastVerifiedAt string            `json:"last_verified_at,omitempty"`
@@ -380,7 +382,22 @@ func (s *Service) GetWalletAt(ctx context.Context, learnerID string, at time.Tim
 		return nil, err
 	}
 	wallet.Plan, err = s.fundedPlan(ctx, learnerID, at)
-	return wallet, err
+	if err != nil {
+		return nil, err
+	}
+	wallet.SourceDebt, _ = s.GetSourceDebt(ctx, learnerID)
+	wallet.RefundChannel = "stripe"
+	if s.pool() != nil {
+		var platform string
+		_ = s.pool().QueryRow(ctx, `SELECT platform FROM credit_checkout_orders WHERE learner_id=$1 ORDER BY created_at DESC LIMIT 1`, learnerID).Scan(&platform)
+		switch platform {
+		case "ios":
+			wallet.RefundChannel = "apple"
+		case "android":
+			wallet.RefundChannel = "google"
+		}
+	}
+	return wallet, nil
 }
 
 func (s *Service) walletBalanceAt(ctx context.Context, learnerID string, at time.Time) (*WalletResponse, error) {
@@ -1001,6 +1018,11 @@ func formatActivityItem(e Entry) ActivityItemDTO {
 			activity = "Settled · " + cleanRef(e.Reference)
 		case "purchase":
 			activity = "Purchase · " + cleanRef(e.Reference)
+		case "refund":
+			activity = "Refund · " + cleanRef(e.Reference)
+			if detail == "" {
+				detail = "Source attribution refund"
+			}
 		case "daily_grant":
 			activity = "Daily free credits granted"
 			source = "Daily free"

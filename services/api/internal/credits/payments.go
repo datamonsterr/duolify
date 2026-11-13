@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"regexp"
@@ -44,6 +45,11 @@ type PaymentSession struct {
 	SubscriptionID, CustomerID                          string
 	AmountMinor                                         int
 	LiveMode                                            bool
+	Refunded                                            bool
+	AmountRefundedMinor                                 int
+	Disputed                                            bool
+	RefundID                                            string
+	DisputeID                                           string
 }
 
 // PaymentOptions must be configured before serving requests or starting workers.
@@ -209,7 +215,7 @@ func (s *Service) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch event.Type {
-	case "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired", "invoice.paid", "invoice.payment_succeeded", "invoice.payment_failed", "invoice.updated", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted":
+	case "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired", "invoice.paid", "invoice.payment_succeeded", "invoice.payment_failed", "invoice.updated", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted", "charge.refunded", "charge.dispute.created":
 	default:
 		respondJSON(w, 200, map[string]bool{"received": true})
 		return
@@ -248,7 +254,7 @@ func (s *Service) ProcessPayments(ctx context.Context) error {
 	}
 	// A provider can deliver before CreateSession's binding transaction commits.
 	// Unmatched signed receipts wait durably, without starving bound work.
-	rows, err := s.pool().Query(ctx, `SELECT i.event_id FROM credit_payment_inbox i WHERE (EXISTS(SELECT 1 FROM credit_payment_sessions p WHERE p.session_id=i.session_id AND p.environment=i.environment) OR i.event_type LIKE 'invoice.%' OR i.event_type LIKE 'customer.subscription.%') AND NOT EXISTS(SELECT 1 FROM credit_payment_results r WHERE r.event_id=i.event_id) ORDER BY received_at,event_id LIMIT 100`)
+	rows, err := s.pool().Query(ctx, `SELECT i.event_id FROM credit_payment_inbox i WHERE (EXISTS(SELECT 1 FROM credit_payment_sessions p WHERE p.session_id=i.session_id AND p.environment=i.environment) OR i.event_type LIKE 'invoice.%' OR i.event_type LIKE 'customer.subscription.%' OR i.event_type LIKE 'charge.%') AND NOT EXISTS(SELECT 1 FROM credit_payment_results r WHERE r.event_id=i.event_id) ORDER BY received_at,event_id LIMIT 100`)
 	if err != nil {
 		return err
 	}
@@ -339,6 +345,38 @@ func (s *Service) processPayment(ctx context.Context, eventID string) error {
 			return err
 		}
 		return paymentResult(ctx, tx, eventID, order.ID, "rejected", "", 0)
+	}
+	if strings.HasPrefix(kind, "charge.") || canonical.Refunded || canonical.AmountRefundedMinor > 0 || canonical.Disputed {
+		reversalKind := "refund"
+		reversalID := canonical.RefundID
+		if canonical.Disputed || kind == "charge.dispute.created" {
+			reversalKind = "chargeback"
+			reversalID = canonical.DisputeID
+		}
+		if reversalID == "" {
+			reversalID = "re_" + canonical.OrderID
+			if reversalKind == "chargeback" {
+				reversalID = "dp_" + canonical.OrderID
+			}
+		}
+		reversalKey := fmt.Sprintf("stripe:test:%s:%s", reversalID, reversalKind)
+		refundAmt := canonical.AmountRefundedMinor
+		if refundAmt <= 0 {
+			refundAmt = canonical.AmountMinor
+		}
+		refNotif := RefundNotification{
+			ReversalKey: reversalKey,
+			OrderID:     order.ID,
+			AmountMinor: refundAmt,
+			Currency:    order.Currency,
+			Kind:        reversalKind,
+			EventID:     eventID,
+			DisputeID:   canonical.DisputeID,
+		}
+		if err := s.applyRefundNotificationTx(ctx, tx, refNotif); err != nil {
+			return err
+		}
+		return paymentResult(ctx, tx, eventID, order.ID, "pending", "", 0)
 	}
 	key := "stripe:test:" + canonical.PaymentID
 	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM credit_payment_results WHERE (order_id=$1 AND state='paid') OR payment_key=$2)", order.ID, key).Scan(&processed); err != nil {
