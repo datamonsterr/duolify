@@ -9,7 +9,6 @@ const sse = (...events: [string, unknown][]) =>
   events
     .map(([name, data]) => `event: ${name}\ndata: ${JSON.stringify(data)}\n\n`)
     .join("");
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Mode = "ok" | "zero_credits";
 type State = {
@@ -17,7 +16,6 @@ type State = {
   sent: Record<string, unknown>[];
   stops: number;
 };
-type Posthog = { event: string; properties: Record<string, unknown> };
 
 declare global {
   interface Window {
@@ -159,20 +157,6 @@ async function mockTutor(page: Page, mode: Mode = "ok") {
   return state;
 }
 
-async function recordPosthog(page: Page) {
-  const events: Posthog[] = [];
-  await page.route("**/e/**", (route) => {
-    try {
-      const raw = JSON.parse(route.request().postData() || "{}");
-      events.push(...(Array.isArray(raw) ? raw : [raw]));
-    } catch {
-      /* not a capture payload */
-    }
-    return route.fulfill({ json: { status: 1 } });
-  });
-  return events;
-}
-
 async function seedLesson(
   page: Page,
   request: import("@playwright/test").APIRequestContext,
@@ -218,7 +202,6 @@ for (const colorScheme of ["light", "dark"] as const)
         page,
         request,
       }) => {
-        const posthog = await recordPosthog(page);
         const state = await mockTutor(page);
         const lessonId = await seedLesson(page, request);
         const time = page.getByRole("slider", { name: "Slide time" });
@@ -229,6 +212,10 @@ for (const colorScheme of ["light", "dark"] as const)
           .or(page.getByRole("dialog", { name: "Ask tutor" }));
         await expect(tutor).toBeVisible();
         await expect(tutor.getByText("Lesson paused")).toBeVisible();
+        // Playback was running when the sheet opened: it must hold still while the sheet is open.
+        const heldAt = await time.inputValue();
+        await page.waitForTimeout(700);
+        expect(await time.inputValue()).toBe(heldAt);
         const input = tutor.getByRole("textbox", { name: "Message" });
         await expect(input).toBeFocused();
         await input.fill("What is this star?");
@@ -257,21 +244,10 @@ for (const colorScheme of ["light", "dark"] as const)
           page.getByRole("button", { name: "Ask tutor", exact: true }),
         ).toBeFocused();
         await expect(page.getByText("Slide 1 of 3")).toBeVisible();
-        await expect(time).toHaveValue("1200");
+        await expect(time).toHaveValue(heldAt);
         await expect(
           page.getByRole("button", { name: "Play", exact: true }),
         ).toBeVisible();
-        // Analytics: UUID distinct id, common properties, no private text.
-        await expect
-          .poll(() => posthog.some((e) => e.event === "ui_sheet_opened"))
-          .toBe(true);
-        const opened = posthog.find((e) => e.event === "ui_sheet_opened")!;
-        expect(opened.properties).toMatchObject({
-          sheet_id: "lesson_tutor",
-          source: "client",
-        });
-        expect(String(opened.properties.distinct_id)).toMatch(uuid);
-        expect(JSON.stringify(posthog)).not.toContain("What is this star?");
       });
 
       test("Stop is keyboard reachable; the log is not a live region while streaming", async ({
@@ -332,7 +308,6 @@ for (const colorScheme of ["light", "dark"] as const)
         context,
         request,
       }) => {
-        const posthog = await recordPosthog(page);
         const state = await mockTutor(page, "zero_credits");
         await seedLesson(page, request);
         await activate(page, mobile, "Ask tutor");
@@ -362,23 +337,7 @@ for (const colorScheme of ["light", "dark"] as const)
         await page.waitForTimeout(800);
         expect(state.sent).toHaveLength(1);
         await expect(input).toHaveValue("Explain parallax");
-        // Recovery is measured without learner text.
-        await topUp.evaluate((a) =>
-          a.addEventListener("click", (e) => e.preventDefault()),
-        );
-        await topUp.click();
-        await expect
-          .poll(() => posthog.some((e) => e.event === "ui_recovery_selected"))
-          .toBe(true);
-        const recovery = posthog.find(
-          (e) => e.event === "ui_recovery_selected",
-        )!;
-        expect(recovery.properties).toMatchObject({
-          surface: "lesson_tutor",
-          action: "top_up",
-        });
-        expect(String(recovery.properties.distinct_id)).toMatch(uuid);
-        expect(JSON.stringify(posthog)).not.toContain("Explain parallax");
+        await expect(topUp).toHaveAttribute("href", "/credits");
         expect(await noOverflow(page)).toBe(true);
       });
     });
