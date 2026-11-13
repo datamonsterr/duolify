@@ -137,3 +137,30 @@ After restoring Postgres from a nightly dump, XP, streak, freeze consumption, pr
 #### Scenario: Opted-out Learner promoted
 - **WHEN** an opted-out Learner is promoted
 - **THEN** the result is stored and shown but no analytics are delivered
+
+### Requirement: Paid learning analytics and history exports
+The API SHALL expose learning analytics and history exports derived dynamically from durable progress records (`xp_events`, `lesson_completion_summaries`, `daily_goal_achievements`, `streak_state`, `streak_days`, `streak_day_protections`). Learn subscribers SHALL be entitled to stream their learning history export. Plus subscribers SHALL be entitled to view advanced learning analytics breakdowns by course, local date, streak, and lesson completion. Pro subscribers SHALL be entitled to choose custom export dimensions from a bounded server-side allowlist (`course`, `daily`, `streak`, `completions`, `leagues`). The server MUST enforce verified subscription entitlements and reject unentitled or expired plans with HTTP 403 Forbidden. Analytics and exports MUST NOT expose private course content of other learners.
+
+#### Scenario: Learn subscriber exports learning history
+- **WHEN** an authenticated Learner with an active Learn subscription requests learning history export
+- **THEN** the API streams an encrypted-in-transit JSON attachment containing durable lesson completions, earned XP, local dates, and streak summaries
+
+#### Scenario: Plus subscriber views learning analytics
+- **WHEN** an authenticated Learner with an active Plus subscription requests learning analytics
+- **THEN** the API returns course, local-day, streak, and completion breakdowns formatted for the Learner's stored time zone
+
+#### Scenario: Pro subscriber exports custom dimensions
+- **WHEN** an authenticated Learner with an active Pro subscription requests custom analytics export with allowlisted dimensions
+- **THEN** the API streams a structured JSON export containing only the requested dimensions
+
+#### Scenario: Unentitled or expired plan access
+- **WHEN** a Learner with a Free plan or expired subscription attempts to access paid analytics or exports
+- **THEN** the request is rejected with HTTP 403 Forbidden and upgrade guidance
+
+### Requirement: Learning analytics UI and telemetry
+The client SHALL render desktop and mobile learning analytics and export controls matching canvas designs and tokens, supporting loading, empty, error/retry, keyboard navigation, light/dark themes, and reduced motion. Clicking export actions SHALL emit `ui_control_activated` with `control_id=export_history` or `control_id=export_analytics` and `surface=learning_analytics`. Viewing the screen SHALL emit `ui_screen_viewed` with `screen_id=learning_analytics`. Telemetry MUST pass the central opt-out gate and MUST NOT contain learner text or private course details.
+
+#### Scenario: Learning analytics viewed
+- **WHEN** an entitled Learner opens the learning analytics screen
+- **THEN** `ui_screen_viewed` is emitted with `screen_id=learning_analytics`
+
