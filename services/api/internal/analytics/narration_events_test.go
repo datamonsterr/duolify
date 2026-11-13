@@ -32,8 +32,9 @@ func TestNarrationEventsReachPostHogWithoutPrivateText(t *testing.T) {
 	}
 	base := map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "lesson_id": "lesson-1", "slide_id": "sky-1",
 		"narration_text": "private spoken words", "text": "private spoken words", "audio_url": "/private", "html": "private",
-		"characters": 40, "voice_id": "mock-default-voice", "model": "eleven_flash_v2_5", "latency_ms": 12, "error_code": "invalid_alignment", "duration_ms": 2000}
-	for _, event := range []string{"narration_generated", "narration_failed", "narration_cache_hit", "narration_played"} {
+		"characters": 40, "voice_id": "mock-default-voice", "model": "eleven_flash_v2_5", "latency_ms": 12, "error_code": "invalid_alignment", "duration_ms": 2000,
+		"muted": true, "speed": 1.25, "captions": true}
+	for _, event := range []string{"narration_generated", "narration_failed", "narration_cache_hit", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled"} {
 		if err := events.Capture(learner, event, base); err != nil {
 			t.Fatal(err)
 		}
@@ -50,8 +51,8 @@ func TestNarrationEventsReachPostHogWithoutPrivateText(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(received) != 5 {
-		t.Fatalf("want 5 delivered events, got %d: %v", len(received), received)
+	if len(received) != 8 {
+		t.Fatalf("want 8 delivered events, got %d: %v", len(received), received)
 	}
 	for _, event := range received {
 		raw, _ := json.Marshal(event)
@@ -75,6 +76,18 @@ func TestNarrationEventsReachPostHogWithoutPrivateText(t *testing.T) {
 			if p["slide_id"] != "sky-1" || p["duration_ms"] != float64(2000) || p["characters"] != nil {
 				t.Fatal("played schema", p)
 			}
+		case "narration_muted":
+			if p["slide_id"] != "sky-1" || p["muted"] != true || p["narration_text"] != nil {
+				t.Fatal("muted schema", p)
+			}
+		case "narration_speed_changed":
+			if p["slide_id"] != "sky-1" || p["speed"] != float64(1.25) || p["narration_text"] != nil {
+				t.Fatal("speed schema", p)
+			}
+		case "captions_toggled":
+			if p["slide_id"] != "sky-1" || p["captions"] != true || p["narration_text"] != nil {
+				t.Fatal("captions schema", p)
+			}
 		case "$ai_generation":
 			if p["feature"] != "narration" || p["narration_characters"] != float64(40) || p["$ai_provider"] != "elevenlabs" {
 				t.Fatal("ai generation schema", p)
@@ -87,7 +100,7 @@ func TestNarrationEventsReachPostHogWithoutPrivateText(t *testing.T) {
 	}
 	_ = opted.Capture(learner, "narration_played", base)
 	_ = opted.Close()
-	if len(received) != 5 {
+	if len(received) != 8 {
 		t.Fatal("opt-out emitted")
 	}
 }

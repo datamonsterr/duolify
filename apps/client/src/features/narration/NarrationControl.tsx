@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { session } from "../accounts/session";
 import { trackNarrationPlayed } from "../../lib/analytics";
 import type { ManifestSlide } from "../player/manifest";
 import { parseAlignment, spokenCount, type Alignment } from "./alignment";
+import { fetchNarrationAssets } from "./cache";
 
 type State = "idle" | "loading" | "playing" | "paused" | "unavailable";
 type Recovery =
@@ -19,6 +20,11 @@ export function NarrationControl({
   muted,
   captions,
   onRecovered,
+  masterPlaying,
+  masterTime,
+  onPlaySync,
+  onPauseSync,
+  onEndedSync,
 }: {
   lessonId: string;
   slide: ManifestSlide;
@@ -27,6 +33,11 @@ export function NarrationControl({
   captions: boolean;
   /** Called after Retry or Restore so the player can reload the manifest's narration status. */
   onRecovered?: () => void;
+  masterPlaying?: boolean;
+  masterTime?: number;
+  onPlaySync?: () => void;
+  onPauseSync?: () => void;
+  onEndedSync?: () => void;
 }) {
   const [state, setState] = useState<State>("idle");
   const [alignment, setAlignment] = useState<Alignment | null>(null);
@@ -37,6 +48,15 @@ export function NarrationControl({
   const [recovery, setRecovery] = useState<Recovery>("idle");
   // Restore is offered only when the object could not be read, never for invalid audio.
   const [unreadable, setUnreadable] = useState(false);
+
+  const startTick = useCallback(() => {
+    cancelAnimationFrame(frame.current);
+    function loop() {
+      if (audio.current) setElapsed(audio.current.currentTime * 1000);
+      frame.current = requestAnimationFrame(loop);
+    }
+    frame.current = requestAnimationFrame(loop);
+  }, []);
 
   const stop = () => {
     cancelAnimationFrame(frame.current);
@@ -57,6 +77,34 @@ export function NarrationControl({
     audio.current.muted = muted;
   }, [rate, muted]);
 
+  // Synchronize playback state with parent clock
+  useEffect(() => {
+    if (masterPlaying === undefined || !audio.current) return;
+    if (masterPlaying && audio.current.paused) {
+      void audio.current
+        .play()
+        .then(() => {
+          setState("playing");
+          startTick();
+        })
+        .catch(() => {});
+    } else if (!masterPlaying && !audio.current.paused) {
+      cancelAnimationFrame(frame.current);
+      audio.current.pause();
+      setState("paused");
+    }
+  }, [masterPlaying, startTick]);
+
+  // Synchronize playback position with parent clock (seeks and replays)
+  useEffect(() => {
+    if (masterTime === undefined || !audio.current) return;
+    const currentMs = audio.current.currentTime * 1000;
+    if (Math.abs(currentMs - masterTime) > 300) {
+      audio.current.currentTime = masterTime / 1000;
+      setElapsed(masterTime);
+    }
+  }, [masterTime]);
+
   // While a retry or tracked regeneration is open, follow the manifest until new audio is ready.
   const [stale, setStale] = useState<ManifestSlide["narration"]>(undefined);
   const waiting = recovery === "pending" || recovery === "regenerating";
@@ -75,16 +123,12 @@ export function NarrationControl({
     return () => clearInterval(timer);
   }, [waiting, settled]);
 
-  const tick = () => {
-    if (audio.current) setElapsed(audio.current.currentTime * 1000);
-    frame.current = requestAnimationFrame(tick);
-  };
-
   async function play() {
     if (audio.current && alignment) {
       await audio.current.play();
       setState("playing");
-      frame.current = requestAnimationFrame(tick);
+      startTick();
+      onPlaySync?.();
       return;
     }
     const asset = slide.narration;
@@ -94,10 +138,12 @@ export function NarrationControl({
       let raw: unknown;
       let blob: Blob;
       try {
-        [raw, blob] = await Promise.all([
-          session.request<unknown>(asset.alignment_url),
-          session.blob(asset.audio_url),
-        ]);
+        const assets = await fetchNarrationAssets(
+          asset.audio_url,
+          asset.alignment_url,
+        );
+        raw = assets.rawAlignment;
+        blob = assets.audioBlob;
       } catch (error) {
         setUnreadable(true);
         throw error;
@@ -112,13 +158,15 @@ export function NarrationControl({
         cancelAnimationFrame(frame.current);
         setElapsed(parsed.duration_ms);
         setState("paused");
+        onEndedSync?.();
       });
       audio.current = el;
       setAlignment(parsed);
       await el.play();
       setElapsed(0);
       setState("playing");
-      frame.current = requestAnimationFrame(tick);
+      startTick();
+      onPlaySync?.();
       trackNarrationPlayed({
         lesson_id: lessonId,
         slide_id: slide.slide_id,
@@ -237,6 +285,7 @@ export function NarrationControl({
           if (state === "playing") {
             stop();
             setState("paused");
+            onPauseSync?.();
           } else void play();
         }}
       >

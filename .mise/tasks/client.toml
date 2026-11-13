@@ -79,7 +79,7 @@ run = "pnpm exec prettier --write src/features/credits src/features/pricing/Pric
 ["client:format-player"]
 description = "Format authorized lesson player and its acceptance tests"
 dir = "{{config_root}}/apps/client"
-run = "pnpm exec prettier --write src/features/player src/features/narration src/features/lesson-player src/features/accounts/session.ts src/App.tsx src/LearnPath.tsx src/lib/analytics.ts src/mocks/handlers.ts src/mocks/player.ts e2e/player-e3-*.spec.ts e2e/narration-e14-01.spec.ts e2e/design-e13-04.spec.ts e2e/lesson.spec.ts e2e/accounts-fixture.ts src/styles.css"
+run = "pnpm exec prettier --write src/features/player src/features/narration src/features/lesson-player src/features/accounts/session.ts src/App.tsx src/LearnPath.tsx src/lib/analytics.ts src/mocks/handlers.ts src/mocks/player.ts e2e/player-e3-*.spec.ts e2e/narration-*.spec.ts e2e/design-e13-04.spec.ts e2e/lesson.spec.ts e2e/accounts-fixture.ts src/styles.css"
 
 ["client:format-lessontest"]
 description = "Format lesson test sources and acceptance tests"
