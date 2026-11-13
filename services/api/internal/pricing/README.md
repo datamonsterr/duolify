@@ -136,11 +136,10 @@ process to one row/minute; granted admins retain complete immutable auditing.
 
 Canonical provider API reference: https://docs.stripe.com/api/prices/retrieve
 
-Scoped follow-up: `ActiveQuoteConfig` still resolves approved due versions by
-Postgres time independently of activation markers. The admin path now requires
-successful provider checks and durable evidence before any version is approved.
-Removing credentials or a provider price becoming invalid *after* approval stops
-the activator/public catalogue flip, but does not suspend that previously
-approved version in the quote resolver. Unifying quote selection with activation
-state requires a separate resolver/fixture change; this review intentionally
-keeps other epics' quote fixtures and resolver contracts unchanged.
+Scoped follow-up: `ActiveQuoteConfig` resolves approved due versions that have
+a runtime activation marker in `pricing_activation_events` (forward-migrated for
+launch seed versions). If the newest due approved version is not activated (e.g.
+provider re-verification failed or is unverified), quotes continue using the
+last activated version to match the fail-safe behavior of the public catalogue.
+Cancelled versions are never quotable. Existing development-only unapproved
+quote paths remain explicit and unchanged.
