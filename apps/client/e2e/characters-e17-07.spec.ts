@@ -374,8 +374,10 @@ for (const colorScheme of ["light", "dark"] as const)
           panel.locator(".tutor-who", { hasText: "Nova" }),
         ).toHaveCount(0);
         await ask(panel, "Tell me more");
-        await expect(panel.getByText(/Answer 2/)).toBeVisible();
-        expect(state.sent[1].speaker_key).toBe("supporter");
+        // The held first turn never reached the mock route: this is its only request.
+        await expect(panel.getByText(/Answer 1/)).toBeVisible();
+        expect(state.sent).toHaveLength(1);
+        expect(state.sent[0].speaker_key).toBe("supporter");
         await expect(
           panel.locator(".tutor-who", { hasText: "Nova" }),
         ).toHaveCount(1);

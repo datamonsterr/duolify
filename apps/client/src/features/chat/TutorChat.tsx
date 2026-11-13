@@ -246,7 +246,7 @@ function TutorPicker({ tutor }: { tutor: ReturnType<typeof useTutor> }) {
     );
   if (roster.state === "error")
     return (
-      <div className="tutor-note bad" role="alert">
+      <div className="tutor-note bad" role="status">
         <div>
           <b>{t("tutor.picker_error")}</b>
           <button
