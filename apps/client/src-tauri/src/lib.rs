@@ -6,40 +6,6 @@ fn app_name() -> &'static str {
 pub const CREDENTIAL_SERVICE: &str = "app.duolify.client";
 pub const CREDENTIAL_ACCOUNT: &str = "auth-session";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BackendSelection {
-    DesktopKeyring,
-    MobileKeyringStore,
-    Unsupported,
-}
-
-/// Pure function resolving backend selection based on target OS and runtime flags.
-pub fn resolve_backend_selection(os: &str, is_desktop: bool, is_mobile: bool) -> BackendSelection {
-    if is_mobile || matches!(os, "ios" | "android") {
-        BackendSelection::MobileKeyringStore
-    } else if is_desktop || matches!(os, "macos" | "windows" | "linux") {
-        BackendSelection::DesktopKeyring
-    } else {
-        BackendSelection::Unsupported
-    }
-}
-
-/// Compile-time active backend selection for current compilation target.
-pub const fn active_backend_selection() -> BackendSelection {
-    #[cfg(mobile)]
-    {
-        BackendSelection::MobileKeyringStore
-    }
-    #[cfg(all(desktop, not(mobile)))]
-    {
-        BackendSelection::DesktopKeyring
-    }
-    #[cfg(not(any(desktop, mobile)))]
-    {
-        BackendSelection::Unsupported
-    }
-}
-
 pub fn secure_store_error() -> String {
     "Secure credential store is locked or unavailable".to_string()
 }
@@ -75,6 +41,33 @@ pub fn write_credentials_with<A: SecureStoreAdapter + ?Sized>(
     }
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
+pub fn keyring_core_get_password(entry: &keyring_core::Entry) -> Result<Option<String>, String> {
+    match entry.get_password() {
+        Ok(value) => Ok(Some(value)),
+        Err(keyring_core::Error::NoEntry) => Ok(None),
+        Err(_) => Err(secure_store_error()),
+    }
+}
+
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
+pub fn keyring_core_set_password(
+    entry: &keyring_core::Entry,
+    password: &str,
+) -> Result<(), String> {
+    entry
+        .set_password(password)
+        .map_err(|_| secure_store_error())
+}
+
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
+pub fn keyring_core_delete_credential(entry: &keyring_core::Entry) -> Result<(), String> {
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
+        Err(_) => Err(secure_store_error()),
+    }
+}
+
 #[cfg(desktop)]
 pub struct DesktopKeyringAdapter;
 
@@ -82,56 +75,17 @@ pub struct DesktopKeyringAdapter;
 impl SecureStoreAdapter for DesktopKeyringAdapter {
     fn get_password(&self, service: &str, account: &str) -> Result<Option<String>, String> {
         let entry = keyring::Entry::new(service, account).map_err(|_| secure_store_error())?;
-        match entry.get_password() {
-            Ok(value) => Ok(Some(value)),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(_) => Err(secure_store_error()),
-        }
+        keyring_core_get_password(&entry.inner)
     }
 
     fn set_password(&self, service: &str, account: &str, password: &str) -> Result<(), String> {
         let entry = keyring::Entry::new(service, account).map_err(|_| secure_store_error())?;
-        entry
-            .set_password(password)
-            .map_err(|_| secure_store_error())
+        keyring_core_set_password(&entry.inner, password)
     }
 
     fn delete_credential(&self, service: &str, account: &str) -> Result<(), String> {
         let entry = keyring::Entry::new(service, account).map_err(|_| secure_store_error())?;
-        match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(_) => Err(secure_store_error()),
-        }
-    }
-}
-
-#[cfg(not(any(target_os = "ios", target_os = "android")))]
-pub struct KeyringCoreAdapter;
-
-#[cfg(not(any(target_os = "ios", target_os = "android")))]
-impl SecureStoreAdapter for KeyringCoreAdapter {
-    fn get_password(&self, service: &str, account: &str) -> Result<Option<String>, String> {
-        let entry = keyring_core::Entry::new(service, account).map_err(|_| secure_store_error())?;
-        match entry.get_password() {
-            Ok(value) => Ok(Some(value)),
-            Err(keyring_core::Error::NoEntry) => Ok(None),
-            Err(_) => Err(secure_store_error()),
-        }
-    }
-
-    fn set_password(&self, service: &str, account: &str, password: &str) -> Result<(), String> {
-        let entry = keyring_core::Entry::new(service, account).map_err(|_| secure_store_error())?;
-        entry
-            .set_password(password)
-            .map_err(|_| secure_store_error())
-    }
-
-    fn delete_credential(&self, service: &str, account: &str) -> Result<(), String> {
-        let entry = keyring_core::Entry::new(service, account).map_err(|_| secure_store_error())?;
-        match entry.delete_credential() {
-            Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
-            Err(_) => Err(secure_store_error()),
-        }
+        keyring_core_delete_credential(&entry.inner)
     }
 }
 
@@ -268,6 +222,9 @@ pub fn run() {
 mod tests {
     use super::*;
 
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    static MOCK_STORE_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn exposes_app_name() {
         assert_eq!(app_name(), "Duolify");
@@ -282,64 +239,28 @@ mod tests {
     }
 
     #[test]
-    fn backend_selection_desktop_linux_macos_windows() {
-        assert_eq!(
-            resolve_backend_selection("linux", true, false),
-            BackendSelection::DesktopKeyring
-        );
-        assert_eq!(
-            resolve_backend_selection("macos", true, false),
-            BackendSelection::DesktopKeyring
-        );
-        assert_eq!(
-            resolve_backend_selection("windows", true, false),
-            BackendSelection::DesktopKeyring
-        );
-    }
-
-    #[test]
-    fn backend_selection_mobile_ios_android() {
-        assert_eq!(
-            resolve_backend_selection("ios", false, true),
-            BackendSelection::MobileKeyringStore
-        );
-        assert_eq!(
-            resolve_backend_selection("android", false, true),
-            BackendSelection::MobileKeyringStore
-        );
-    }
-
-    #[test]
-    fn backend_selection_unsupported_platforms_fail_closed() {
-        assert_eq!(
-            resolve_backend_selection("freebsd", false, false),
-            BackendSelection::Unsupported
-        );
-        assert_eq!(
-            resolve_backend_selection("solaris", false, false),
-            BackendSelection::Unsupported
-        );
-        assert_eq!(
-            resolve_backend_selection("wasm32", false, false),
-            BackendSelection::Unsupported
-        );
-        assert_eq!(
-            resolve_backend_selection("unknown-os", false, false),
-            BackendSelection::Unsupported
-        );
-    }
-
-    #[test]
-    fn active_backend_selection_matches_build_target() {
+    fn cfg_selected_adapter_matches_build_target() {
         #[cfg(desktop)]
-        assert_eq!(active_backend_selection(), BackendSelection::DesktopKeyring);
+        {
+            let adapter = DesktopKeyringAdapter;
+            fn assert_is_adapter<T: SecureStoreAdapter>(_a: &T) {}
+            assert_is_adapter(&adapter);
+            assert!(cfg!(desktop));
+            assert!(!cfg!(mobile));
+        }
         #[cfg(mobile)]
-        assert_eq!(
-            active_backend_selection(),
-            BackendSelection::MobileKeyringStore
-        );
+        {
+            assert!(cfg!(mobile));
+            assert!(!cfg!(desktop));
+        }
         #[cfg(all(not(desktop), not(mobile)))]
-        assert_eq!(active_backend_selection(), BackendSelection::Unsupported);
+        {
+            let adapter = UnsupportedStoreAdapter;
+            fn assert_is_adapter<T: SecureStoreAdapter>(_a: &T) {}
+            assert_is_adapter(&adapter);
+            assert!(!cfg!(desktop));
+            assert!(!cfg!(mobile));
+        }
     }
 
     #[test]
@@ -427,106 +348,85 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     fn desktop_mock_keyring_round_trip_sign_in() {
+        let _guard = MOCK_STORE_MUTEX
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mock_store = keyring_core::mock::Store::new().unwrap();
         keyring_core::set_default_store(mock_store);
-        let adapter = KeyringCoreAdapter;
+        let entry = keyring_core::Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT).unwrap();
 
         // Starts signed out (empty)
-        let initial = read_credentials_with(&adapter, CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT);
+        let initial = keyring_core_get_password(&entry);
         assert_eq!(initial.unwrap(), None);
 
         // Sign in persists session tokens
         let session_tokens = r#"{"access_token":"acc-1","refresh_token":"ref-1","expires_in":900}"#;
-        let write_res = write_credentials_with(
-            &adapter,
-            CREDENTIAL_SERVICE,
-            CREDENTIAL_ACCOUNT,
-            Some(session_tokens.to_string()),
-        );
+        let write_res = keyring_core_set_password(&entry, session_tokens);
         assert!(write_res.is_ok());
 
         // Subsequent read returns stored session tokens
-        let read_res = read_credentials_with(&adapter, CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT);
+        let read_res = keyring_core_get_password(&entry);
         assert_eq!(read_res.unwrap(), Some(session_tokens.to_string()));
     }
 
     #[test]
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     fn desktop_mock_keyring_refresh_token_rotation_replaces_credentials() {
+        let _guard = MOCK_STORE_MUTEX
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mock_store = keyring_core::mock::Store::new().unwrap();
         keyring_core::set_default_store(mock_store);
-        let adapter = KeyringCoreAdapter;
+        let entry = keyring_core::Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT).unwrap();
 
         let tokens_v1 = r#"{"access_token":"acc-old","refresh_token":"ref-old","expires_in":900}"#;
-        write_credentials_with(
-            &adapter,
-            CREDENTIAL_SERVICE,
-            CREDENTIAL_ACCOUNT,
-            Some(tokens_v1.to_string()),
-        )
-        .unwrap();
+        keyring_core_set_password(&entry, tokens_v1).unwrap();
 
         let tokens_v2 =
             r#"{"access_token":"acc-rotated","refresh_token":"ref-rotated","expires_in":900}"#;
-        let rotate_res = write_credentials_with(
-            &adapter,
-            CREDENTIAL_SERVICE,
-            CREDENTIAL_ACCOUNT,
-            Some(tokens_v2.to_string()),
-        );
+        let rotate_res = keyring_core_set_password(&entry, tokens_v2);
         assert!(rotate_res.is_ok());
 
-        let read_res =
-            read_credentials_with(&adapter, CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT).unwrap();
+        let read_res = keyring_core_get_password(&entry).unwrap();
         assert_eq!(read_res, Some(tokens_v2.to_string()));
         assert_ne!(read_res, Some(tokens_v1.to_string()));
     }
 
     #[test]
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     fn desktop_mock_keyring_sign_out_clears_credentials_idempotently() {
+        let _guard = MOCK_STORE_MUTEX
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mock_store = keyring_core::mock::Store::new().unwrap();
         keyring_core::set_default_store(mock_store);
-        let adapter = KeyringCoreAdapter;
+        let entry = keyring_core::Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT).unwrap();
 
         let session = r#"{"access_token":"acc-live","refresh_token":"ref-live"}"#;
-        write_credentials_with(
-            &adapter,
-            CREDENTIAL_SERVICE,
-            CREDENTIAL_ACCOUNT,
-            Some(session.to_string()),
-        )
-        .unwrap();
-        assert!(
-            read_credentials_with(&adapter, CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT)
-                .unwrap()
-                .is_some()
-        );
+        keyring_core_set_password(&entry, session).unwrap();
+        assert!(keyring_core_get_password(&entry).unwrap().is_some());
 
         // Sign out clears credentials
-        let sign_out_res =
-            write_credentials_with(&adapter, CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT, None);
+        let sign_out_res = keyring_core_delete_credential(&entry);
         assert!(sign_out_res.is_ok());
-        assert_eq!(
-            read_credentials_with(&adapter, CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT).unwrap(),
-            None
-        );
+        assert_eq!(keyring_core_get_password(&entry).unwrap(), None);
 
         // Subsequent sign out is idempotent (NoEntry treated as success)
-        let repeat_sign_out =
-            write_credentials_with(&adapter, CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT, None);
+        let repeat_sign_out = keyring_core_delete_credential(&entry);
         assert!(repeat_sign_out.is_ok());
-        assert_eq!(
-            read_credentials_with(&adapter, CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT).unwrap(),
-            None
-        );
+        assert_eq!(keyring_core_get_password(&entry).unwrap(), None);
     }
 
     #[test]
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     fn desktop_mock_keyring_injected_error_fails_closed() {
+        let _guard = MOCK_STORE_MUTEX
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let mock_store = keyring_core::mock::Store::new().unwrap();
         keyring_core::set_default_store(mock_store);
-        let adapter = KeyringCoreAdapter;
-
         let entry = keyring_core::Entry::new(CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT).unwrap();
         let mock: &keyring_core::mock::Cred = entry.as_any().downcast_ref().unwrap();
 
@@ -539,7 +439,7 @@ mod tests {
         )));
 
         // Read fails closed
-        let read_err = read_credentials_with(&adapter, CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT);
+        let read_err = keyring_core_get_password(&entry);
         assert!(read_err.is_err());
         assert_eq!(read_err.unwrap_err(), secure_store_error());
 
@@ -547,12 +447,7 @@ mod tests {
         mock.set_error(keyring_core::Error::PlatformFailure(Box::new(
             std::io::Error::new(std::io::ErrorKind::Other, "Disk quota full"),
         )));
-        let write_err = write_credentials_with(
-            &adapter,
-            CREDENTIAL_SERVICE,
-            CREDENTIAL_ACCOUNT,
-            Some("token".to_string()),
-        );
+        let write_err = keyring_core_set_password(&entry, "token");
         assert!(write_err.is_err());
         assert_eq!(write_err.unwrap_err(), secure_store_error());
 
@@ -560,8 +455,7 @@ mod tests {
         mock.set_error(keyring_core::Error::PlatformFailure(Box::new(
             std::io::Error::new(std::io::ErrorKind::Other, "Store corrupted"),
         )));
-        let del_err =
-            write_credentials_with(&adapter, CREDENTIAL_SERVICE, CREDENTIAL_ACCOUNT, None);
+        let del_err = keyring_core_delete_credential(&entry);
         assert!(del_err.is_err());
         assert_eq!(del_err.unwrap_err(), secure_store_error());
     }
