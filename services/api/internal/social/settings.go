@@ -15,6 +15,7 @@ type Settings struct {
 	Discoverable        bool   `json:"discoverable"`
 	RequestPolicy       string `json:"request_policy"`
 	ShowStreakToFriends bool   `json:"show_streak_to_friends"`
+	CourseInvitesFrom   string `json:"course_invites_from"`
 }
 
 // SettingsPatch changes only the fields that are set.
@@ -22,6 +23,7 @@ type SettingsPatch struct {
 	Discoverable        *bool   `json:"discoverable"`
 	RequestPolicy       *string `json:"request_policy"`
 	ShowStreakToFriends *bool   `json:"show_streak_to_friends"`
+	CourseInvitesFrom   *string `json:"course_invites_from"`
 }
 
 // ErrInvalidSettings covers every malformed or empty settings body.
@@ -60,7 +62,7 @@ func ParseSettingsPatch(r io.Reader) (SettingsPatch, error) {
 	return p, nil
 }
 
-var defaultSettings = Settings{Discoverable: true, RequestPolicy: "everyone", ShowStreakToFriends: true}
+var defaultSettings = Settings{Discoverable: true, RequestPolicy: "everyone", ShowStreakToFriends: true, CourseInvitesFrom: "friends"}
 
 // Settings returns stored settings or the defaults without creating a row.
 func (s *Service) Settings(ctx context.Context, learnerID string) (Settings, error) {

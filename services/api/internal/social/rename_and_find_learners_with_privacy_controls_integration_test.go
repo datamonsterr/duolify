@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -32,6 +33,7 @@ type rig struct {
 	sink  *capture
 	mail  *accounts.MailSink
 	srv   *httptest.Server
+	svc   *Service
 	count int
 }
 
@@ -64,7 +66,7 @@ func newRig(t *testing.T) *rig {
 	svc := New(db.Pool, analytics.WithConsent(sink, analytics.DatabaseConsent(db.Pool)))
 	srv := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, Social: svc}, slog.New(slog.NewTextHandler(io.Discard, nil))))
 	t.Cleanup(srv.Close)
-	return &rig{t: t, ctx: ctx, db: db, sink: sink, mail: mail, srv: srv}
+	return &rig{t: t, ctx: ctx, db: db, sink: sink, mail: mail, srv: srv, svc: svc}
 }
 
 func (r *rig) call(method, path, body, token string) (int, map[string]any, http.Header) {
@@ -589,5 +591,47 @@ func TestRenameHoldsPrivacyAndLimitsFollowAccountErasure(t *testing.T) {
 	}
 	if got, ok := accounts.ClassifiedLearnerTables["social_rate_limits"]; !ok || got == "" {
 		t.Fatal("social_rate_limits has no retention classification")
+	}
+}
+
+// TestBlockedPairIsHiddenFromSearchAndProfileBothWays extends the E6-02 visibility
+// rules: neither side of a block finds or opens the other, however they ask.
+func TestBlockedPairIsHiddenFromSearchAndProfileBothWays(t *testing.T) {
+	r := newRig(t)
+	blocker, target, bystander := r.friend("Hide.Blocker"), r.friend("Hide.Target"), r.friend("Hide.Bystander")
+	for _, p := range []pair{blocker, target, bystander} {
+		if s, list, _ := r.search(p.token, "hide."); s != 200 || len(list) != 2 {
+			t.Fatalf("before block %s sees %v", p.name, names(list))
+		}
+	}
+	if s, o := r.block(blocker, target.name); s != 200 {
+		t.Fatal(s, o)
+	}
+	for _, c := range []struct {
+		viewer pair
+		hidden string
+	}{{blocker, "Hide.Target"}, {target, "Hide.Blocker"}} {
+		for _, q := range []string{"hide.", "Hide.Target", "hide.blocker", "@" + c.hidden} {
+			_, list, _ := r.search(c.viewer.token, q)
+			if slices.Contains(names(list), c.hidden) {
+				t.Fatalf("%s found %s with %q", c.viewer.name, c.hidden, q)
+			}
+		}
+		if s, o, _ := r.call("GET", "/v1/social/profiles/"+c.hidden, "", c.viewer.token); s != 404 {
+			t.Fatalf("%s opened %s: %d %v", c.viewer.name, c.hidden, s, o)
+		}
+	}
+	// The block is invisible to everyone else, and unblocking restores visibility.
+	if _, list, _ := r.search(bystander.token, "hide."); len(list) != 2 {
+		t.Fatalf("bystander sees %v", names(list))
+	}
+	if s, o, _ := r.call("GET", "/v1/social/profiles/Hide.Target", "", bystander.token); s != 200 {
+		t.Fatal(s, o)
+	}
+	if s, _ := r.unblock(blocker, target.name); s != 200 {
+		t.Fatal(s)
+	}
+	if _, list, _ := r.search(target.token, "hide.blocker"); !slices.Contains(names(list), "Hide.Blocker") {
+		t.Fatalf("unblock did not restore search: %v", names(list))
 	}
 }
