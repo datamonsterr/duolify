@@ -156,15 +156,15 @@ export function NotesPage() {
 
         const combined = [...unsyncedQueued, ...serverNotes];
         setNotes(combined);
-        if (combined.length > 0 && !selectedNoteId && !isMobile) {
-          setSelectedNoteId(combined[0].id);
+        if (combined.length > 0 && !isMobile) {
+          setSelectedNoteId((curr) => curr ?? combined[0].id);
         }
       } catch {
         if (cancelled) return;
         // On offline or error, display local queued notes
         setNotes(queuedItems);
-        if (queuedItems.length > 0 && !selectedNoteId && !isMobile) {
-          setSelectedNoteId(queuedItems[0].id);
+        if (queuedItems.length > 0 && !isMobile) {
+          setSelectedNoteId((curr) => curr ?? queuedItems[0].id);
         }
       } finally {
         if (!cancelled) {
@@ -177,7 +177,7 @@ export function NotesPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedNoteId, isMobile]);
+  }, [isMobile]);
 
   useEffect(() => {
     const hasPending = notes.some(
@@ -198,7 +198,11 @@ export function NotesPage() {
             const serverMap = new Map(serverNotes.map((s) => [s.id, s]));
             return prev.map((n) => {
               const updated = serverMap.get(n.id);
-              return updated ? { ...n, ...updated } : n;
+              if (!updated) return n;
+              if ((n.version ?? 1) > (updated.version ?? 1)) {
+                return { ...updated, raw_text: n.raw_text, version: n.version };
+              }
+              return { ...n, ...updated };
             });
           });
         } catch {
