@@ -27,6 +27,7 @@ type Service struct {
 	events  analytics.Events
 	streaks StreakSource
 	onBlock []OnBlockFunc
+	now     func() time.Time
 }
 
 // New creates the service behind the central fail-closed consent gate.
