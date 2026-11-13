@@ -7,6 +7,7 @@ import {
 } from "react";
 import { useUiPreferences } from "../design/localization/Preferences";
 import type { LessonRef, ReplyClass, TutorService } from "./tutor";
+import { trackTutorCharacterSelected } from "../characters/analytics";
 import { trackTutorControl, trackTutorRecovery } from "../../lib/analytics";
 import { tutorService } from "./tutor";
 import {
@@ -147,7 +148,20 @@ function Bubble({
     !message.id.startsWith("local-");
   return (
     <div className={`tutor-msg ${mine ? "me" : "ai"}`}>
-      <span className="tutor-who">{t(mine ? "tutor.you" : "tutor.tutor")}</span>
+      <span className="tutor-who">
+        {mine ? (
+          t("tutor.you")
+        ) : message.tutor?.name ? (
+          <bdi className="tutor-name">{message.tutor.name}</bdi>
+        ) : (
+          t("tutor.tutor")
+        )}
+      </span>
+      {!mine && message.tutor?.fallback && (
+        <div className="tutor-note info" role="status">
+          <p>{t("tutor.fallback_notice")}</p>
+        </div>
+      )}
       {(message.content || mine) && (
         <div className="tutor-bubble" dir="auto">
           {message.content}
@@ -206,6 +220,136 @@ function Bubble({
               </button>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TutorPicker({ tutor }: { tutor: ReturnType<typeof useTutor> }) {
+  const { t } = useUiPreferences();
+  const [open, setOpen] = useState(false);
+  const opener = useRef<HTMLButtonElement>(null);
+  const group = useRef<HTMLDivElement>(null);
+  const opened = useRef<string>(undefined);
+  const roster = tutor.roster;
+  useEffect(() => {
+    if (open)
+      group.current
+        ?.querySelector<HTMLInputElement>("input:checked:not(:disabled)")
+        ?.focus();
+  }, [open]);
+  if (roster.state === "none") return null;
+  if (roster.state === "loading")
+    return (
+      <p className="tutor-pick-note" role="status">
+        {t("tutor.picker_loading")}
+      </p>
+    );
+  if (roster.state === "error")
+    return (
+      <div className="tutor-note bad" role="status">
+        <div>
+          <b>{t("tutor.picker_error")}</b>
+          <button
+            type="button"
+            className="btn sec tutor-small"
+            onClick={() => tutor.reloadPersonas()}
+          >
+            {t("tutor.picker_retry")}
+          </button>
+        </div>
+      </div>
+    );
+  const { tutors, cast_source: source } = roster.roster;
+  const current =
+    tutors.find((x) => x.speaker_key === tutor.speaker && x.available) ??
+    tutors.find((x) => x.speaker_key === roster.roster.default_speaker) ??
+    tutors[0];
+  // Confirming (Done or Escape) with a different, available tutor than at opening is the choice event.
+  const close = () => {
+    if (opened.current !== undefined && current?.available) {
+      if (current.speaker_key !== opened.current)
+        trackTutorCharacterSelected({
+          speaker_key: current.speaker_key,
+          character_version: current.character_version,
+          cast_source: source,
+        });
+    }
+    opened.current = undefined;
+    setOpen(false);
+    opener.current?.focus();
+  };
+  return (
+    <div className="tutor-pick">
+      <button
+        type="button"
+        ref={opener}
+        className="btn sec tutor-small tutor-pick-open"
+        aria-expanded={open}
+        onClick={() => {
+          if (open) return close();
+          opened.current = current?.speaker_key;
+          tutor.reloadPersonas(true);
+          setOpen(true);
+        }}
+      >
+        {t("tutor.picker_prefix")}{" "}
+        <bdi className="tutor-pick-name">{current?.name}</bdi>
+      </button>
+      {open && (
+        <div
+          className="tutor-pick-sheet"
+          ref={group}
+          role="radiogroup"
+          aria-label={t("tutor.picker_label")}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              close();
+            }
+          }}
+        >
+          <span className="tutor-who">
+            {t(
+              source === "lesson"
+                ? "tutor.source_lesson"
+                : source === "course"
+                  ? "tutor.source_course"
+                  : "tutor.source_default",
+            )}
+          </span>
+          {tutors.map((item) => (
+            <label
+              key={item.speaker_key}
+              className={`tutor-pick-row${tutor.speaker === item.speaker_key ? " on" : ""}`}
+            >
+              <input
+                type="radio"
+                name="tutor-speaker"
+                value={item.speaker_key}
+                checked={current?.speaker_key === item.speaker_key}
+                disabled={!item.available}
+                onChange={() => tutor.setSpeaker(item.speaker_key)}
+              />
+              <bdi className="tutor-pick-name">{item.name}</bdi>
+              <span className="tutor-pick-role">
+                {t(
+                  item.role === "guide"
+                    ? "tutor.role_guide"
+                    : "tutor.role_supporter",
+                )}
+                {!item.available && ` \u00b7 ${t("tutor.picker_unavailable")}`}
+              </span>
+            </label>
+          ))}
+          {tutors.length <= 1 && (
+            <p className="tutor-pick-note">{t("tutor.picker_only_guide")}</p>
+          )}
+          <p className="tutor-pick-note">{t("tutor.picker_next")}</p>
+          <button type="button" className="btn tutor-small" onClick={close}>
+            {t("tutor.picker_done")}
+          </button>
         </div>
       )}
     </div>
@@ -434,6 +578,7 @@ export function TutorChat({
               </button>
             )}
           </header>
+          <TutorPicker tutor={tutor} />
           {showContext && (
             <div className="tutor-ctx">
               <b>{t("tutor.context_title")}</b>

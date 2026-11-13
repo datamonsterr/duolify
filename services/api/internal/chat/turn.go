@@ -12,6 +12,7 @@ import (
 	"time"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/google/uuid"
@@ -25,6 +26,8 @@ type sendInput struct {
 	Message        string       `json:"message"`
 	ThreadID       string       `json:"thread_id"`
 	Lesson         *lessonInput `json:"lesson"`
+	// SpeakerKey picks a supporting tutor from the effective Cast; empty means the main guide.
+	SpeakerKey string `json:"speaker_key"`
 }
 
 func writeEvent(w http.ResponseWriter, name string, data any) {
@@ -124,7 +127,7 @@ func (s *Service) dropTurn(turn string) {
 func (s *Service) tombstone(turn, reason, job string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	tag, err := s.opts.Pool.Exec(ctx, `UPDATE tutor_turns SET state='released',end_reason=NULLIF($2,''),job_id=$3::uuid WHERE id=$1::uuid AND state='pending'`, turn, reason, job)
+	tag, err := s.opts.Pool.Exec(ctx, `UPDATE tutor_turns SET state='released',end_reason=NULLIF($2,''),job_id=$3::uuid,speaker_key=NULL,character_id=NULL,character_version=NULL,cast_source=NULL,cast_version=NULL,persona_fallback=NULL WHERE id=$1::uuid AND state='pending'`, turn, reason, job)
 	if err != nil || tag.RowsAffected() != 1 {
 		s.opts.Logger.Error("tutor turn tombstone failed", "error", err)
 		return false
@@ -146,6 +149,9 @@ func (s *Service) replay(ctx context.Context, w http.ResponseWriter, owner strin
 	}
 	startSSE(w)
 	writeEvent(w, "thread", map[string]any{"thread_id": t.ThreadID})
+	if tutor := s.storedTutor(ctx, owner, t.ID); tutor != nil {
+		writeEvent(w, "tutor", tutor)
+	}
 	writeEvent(w, "delta", map[string]any{"text": content})
 	if status == "interrupted" {
 		writeEvent(w, "error", map[string]any{"code": "interrupted", "interrupted": true, "message_id": t.AssistantID, "replayed": true})
@@ -159,7 +165,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	if !decode(w, r, &in) {
 		return
 	}
-	if validateMessage(in.Class, in.Message) != nil || !validUUID(in.QuoteID) || len(in.IdempotencyKey) < 1 || len(in.IdempotencyKey) > 128 || (in.ThreadID != "" && !validUUID(in.ThreadID)) || !in.Lesson.valid() {
+	if validateMessage(in.Class, in.Message) != nil || !validUUID(in.QuoteID) || len(in.IdempotencyKey) < 1 || len(in.IdempotencyKey) > 128 || (in.ThreadID != "" && !validUUID(in.ThreadID)) || !in.Lesson.valid() || !characters.ValidTutorSpeaker(in.SpeakerKey) {
 		fail(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
@@ -231,6 +237,17 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		fail(w, http.StatusServiceUnavailable, "unavailable")
 		return
 	}
+	pin, err := s.pinPersona(ctx, owner, course, turn, in)
+	if err != nil {
+		if errors.Is(err, characters.ErrNotFound) {
+			fail(w, http.StatusNotFound, "not_found")
+			return
+		}
+		s.opts.Logger.Error("tutor persona pin failed", "error", err)
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	req.TutorPersonaJson = pin.Persona
 	// The mandatory parts never shrink: if they do not fit the quote's bound the turn is refused, free of charge.
 	standard, ceiling := q.Bounds["input_tokens"], q.Bounds["prompt_tokens"]
 	if v := judge(estimateTokens(promptBytes(req)), standard, ceiling); v != fits {
@@ -292,6 +309,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		return
 	}
 	claimed = true
+	s.emitPersona(ctx, owner, pin)
 	s.emit(ctx, owner, "tutor_message_sent", map[string]any{"course_id": course, "class": in.Class, "message_length": len([]rune(in.Message)), "has_lesson_context": current != nil})
 	if errors.Is(context.Cause(streamCtx), errStopped) {
 		// Stopped before the Engine was called: nothing was produced.
@@ -329,6 +347,9 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 				if !sse {
 					startSSE(w)
 					writeEvent(w, "thread", map[string]any{"thread_id": thread})
+					if pin.SpeakerKey != "" {
+						writeEvent(w, "tutor", tutorEvent(pin))
+					}
 					sse = true
 				}
 				reply.WriteString(e.Delta)
@@ -446,4 +467,56 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		"envelope": in.Class, "cache_class": cacheClass(usage[0]), "cache_read_tokens": usage[0].CacheReadTokens, "cache_write_tokens": usage[0].CacheWriteTokens,
 		"summary_count": summaries, "excerpt_count": len(req.Excerpts), "context_tokens": estimateTokens(promptBytes(req))})
 	writeEvent(w, "done", map[string]any{"message_id": assistantID, "thread_id": thread, "replayed": false})
+}
+
+// pinPersona resolves the effective tutor persona server-side and stores its Character reference on the
+// turn row before the Engine is called, so a later selection or edit can only affect the next turn.
+// Unusable personas have already been replaced by a safe default; nothing else can fail the pin.
+func (s *Service) pinPersona(ctx context.Context, owner, course, turn string, in sendInput) (characters.TutorPersona, error) {
+	if s.opts.Personas == nil {
+		return characters.TutorPersona{}, nil
+	}
+	lessonID := ""
+	if in.Lesson != nil {
+		lessonID = in.Lesson.LessonID
+	}
+	p, err := s.opts.Personas.ResolveTutor(ctx, owner, course, lessonID, in.SpeakerKey)
+	if err != nil {
+		return p, err
+	}
+	tag, err := s.opts.Pool.Exec(ctx, `UPDATE tutor_turns SET speaker_key=$2,character_id=$3,character_version=$4,cast_source=$5,cast_version=$6,persona_fallback=NULLIF($7,'') WHERE id=$1::uuid AND state='pending'`,
+		turn, p.SpeakerKey, p.CharacterID, p.CharacterVersion, p.CastSource, p.CastVersion, p.Fallback)
+	if err != nil {
+		return p, err
+	}
+	if tag.RowsAffected() != 1 {
+		return p, errTurnLost
+	}
+	return p, nil
+}
+
+// emitPersona reports the pre-stream fallback. The selection event is a client event; no persona text,
+// name or Character id is ever sent.
+func (s *Service) emitPersona(ctx context.Context, owner string, p characters.TutorPersona) {
+	if p.Fallback != "" {
+		s.emit(ctx, owner, "tutor_character_fallback", map[string]any{"reason_code": p.Fallback, "phase": "before_stream"})
+	}
+}
+
+func tutorEvent(p characters.TutorPersona) map[string]any {
+	return map[string]any{"speaker_key": p.SpeakerKey, "name": p.Name, "character_version": p.CharacterVersion, "cast_source": p.CastSource, "fallback": p.Fallback}
+}
+
+// storedTutor rebuilds the tutor event of a replayed turn from its pinned reference.
+func (s *Service) storedTutor(ctx context.Context, owner, turn string) map[string]any {
+	if s.opts.Personas == nil {
+		return nil
+	}
+	var key, id, source, fallback string
+	var version int
+	err := s.opts.Pool.QueryRow(ctx, `SELECT COALESCE(speaker_key,''),COALESCE(character_id,''),COALESCE(character_version,0),COALESCE(cast_source,''),COALESCE(persona_fallback,'') FROM tutor_turns WHERE id=$1::uuid AND learner_id=$2::uuid`, turn, owner).Scan(&key, &id, &version, &source, &fallback)
+	if err != nil || key == "" {
+		return nil
+	}
+	return map[string]any{"speaker_key": key, "name": s.opts.Personas.TutorLabel(ctx, owner, id, version), "character_version": version, "cast_source": source, "fallback": fallback}
 }

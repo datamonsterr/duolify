@@ -325,7 +325,7 @@ func run(ctx context.Context, args []string) (result error) {
 		Accounts:                auth,
 		Credits:                 creditService,
 		CourseBrief:             courseService,
-		Tutor:                   chat.New(chat.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Profiles: courseService, Events: events, Notes: notesService, Logger: logger}),
+		Tutor:                   chat.New(chat.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Profiles: courseService, Personas: characterService, Events: events, Notes: notesService, Logger: logger}),
 		Pricing:                 runtimePricing,
 		PricingAdmin:            pricingAdmin,
 		Quotes:                  pricing.NewQuotes(db.Pool),

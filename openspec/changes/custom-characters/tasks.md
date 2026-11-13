@@ -41,12 +41,12 @@ This is the future implementation checklist; this change delivers documentation 
 
 ## 4. Tutor chat personas
 
-- [ ] 4.1 E2E first: main guide is default, supporting tutor selection works, Lesson versus Course context resolves the right version, and turn changes never rewrite history.
-- [ ] 4.2 E2E: injected persona cannot reveal prompts, change facts/credit rules or bypass safety; unavailable persona uses the Default cast before streaming; mid-stream error ends once.
-- [ ] 4.3 Integration: turn-start version snapshots, ownership checks, bounded context assembly, first-token/idle deadlines, provider fallback, token billing and thread deletion.
-- [ ] 4.4 Unit: escaped data-only persona builder, precedence/grounding rules, turn selection/default resolution and private analytics properties.
-- [ ] 4.5 Implement per-turn persona/reference persistence and API/Engine context input with existing streaming safety, fallback and spend ceilings.
-- [ ] 4.6 Implement tutor identity/selector, default/failure UI and selected/fallback PostHog events; pass the slice's tests.
+- [x] 4.1 E2E first: main guide is default, supporting tutor selection works, Lesson versus Course context resolves the right version, and turn changes never rewrite history.
+- [x] 4.2 E2E: injected persona cannot reveal prompts, change facts/credit rules or bypass safety; unavailable persona uses the Default cast before streaming; mid-stream error ends once.
+- [x] 4.3 Integration: turn-start version snapshots, ownership checks, bounded context assembly, first-token/idle deadlines, provider fallback, token billing and thread deletion.
+- [x] 4.4 Unit: escaped data-only persona builder, precedence/grounding rules, turn selection/default resolution and private analytics properties.
+- [x] 4.5 Implement per-turn persona/reference persistence and API/Engine context input with existing streaming safety, fallback and spend ceilings.
+- [x] 4.6 Implement tutor identity/selector, default/failure UI and selected/fallback PostHog events; pass the slice's tests.
 
 ## 5. Published Character snapshots and privacy
 

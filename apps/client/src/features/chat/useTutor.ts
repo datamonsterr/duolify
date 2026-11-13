@@ -3,6 +3,9 @@ import { session } from "../accounts/session";
 import type { WalletResponse } from "../credits/types";
 import {
   TutorApiError,
+  type PersonaRoster,
+  type SpeakerKey,
+  type TutorPersona,
   TutorStreamError,
   type LessonRef,
   type ReplyClass,
@@ -18,6 +21,8 @@ export type ChatMessage = {
   status: "complete" | "interrupted" | "stopped" | "streaming";
   /** Typed end reason of an interrupted reply, e.g. `idle_timeout`. */
   reason?: string;
+  /** The tutor pinned for this reply; history never changes when the selection does. */
+  tutor?: TutorPersona;
 };
 /** Save-as-note progress for one reply, kept by message id. */
 export type SaveState =
@@ -52,6 +57,35 @@ function readDraft(courseId: string) {
     return "";
   }
 }
+const speakerKey = (courseId: string, lessonId?: string) =>
+  `tutor-speaker:${session.current()?.id ?? ""}:${courseId}:${lessonId ?? "course"}`;
+function readSpeaker(courseId: string, lessonId?: string): SpeakerKey {
+  try {
+    const value = sessionStorage.getItem(speakerKey(courseId, lessonId));
+    if (value === "supporter" || value === "supporter_2") return value;
+  } catch {
+    /* Selection falls back to the main guide. */
+  }
+  return "guide";
+}
+function writeSpeaker(
+  courseId: string,
+  lessonId: string | undefined,
+  v: SpeakerKey,
+) {
+  try {
+    if (v === "guide")
+      sessionStorage.removeItem(speakerKey(courseId, lessonId));
+    else sessionStorage.setItem(speakerKey(courseId, lessonId), v);
+  } catch {
+    /* The in-memory selection still applies. */
+  }
+}
+export type PersonaState =
+  | { state: "none" }
+  | { state: "loading" }
+  | { state: "error" }
+  | { state: "ready"; roster: PersonaRoster };
 function writeDraft(courseId: string, value: string) {
   try {
     if (value) sessionStorage.setItem(draftKey(courseId), value);
@@ -149,12 +183,51 @@ export function useTutor(
         role: m.role,
         content: m.content,
         status: m.status,
+        ...(m.tutor ? { tutor: m.tutor } : {}),
       })),
     );
     setNotice((n) => (n?.kind === "load" ? undefined : n));
     setLoaded(true);
   }, []);
   const [attempt, setAttempt] = useState(0);
+  const [personaTry, setPersonaTry] = useState(0);
+  const [roster, setRoster] = useState<PersonaState>({
+    state: service.personas ? "loading" : "none",
+  });
+  const [speaker, setSpeakerState] = useState<SpeakerKey>(() =>
+    readSpeaker(courseId, lessonId),
+  );
+  const speakerRef = useRef(speaker);
+  const setSpeaker = (value: SpeakerKey) => {
+    speakerRef.current = value;
+    setSpeakerState(value);
+    writeSpeaker(courseId, lessonId, value);
+  };
+  // The roster is the server's resolved Cast; it is read again whenever the picker asks for a refresh.
+  useEffect(() => {
+    if (!on || !service.personas) return;
+    let live = true;
+    service.personas(courseId, lessonId).then(
+      (value) => {
+        if (!live) return;
+        setRoster({ state: "ready", roster: value });
+        const chosen = value.tutors.find(
+          (t) => t.speaker_key === speakerRef.current,
+        );
+        if (!chosen?.available && speakerRef.current !== "guide") {
+          speakerRef.current = "guide";
+          setSpeakerState("guide");
+          writeSpeaker(courseId, lessonId, "guide");
+        }
+      },
+      () => {
+        if (live) setRoster({ state: "error" });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [on, courseId, lessonId, service, personaTry]);
   useEffect(() => {
     if (!on) return;
     let live = true;
@@ -302,6 +375,10 @@ export function useTutor(
             message,
             ...(threadRef.current ? { thread_id: threadRef.current } : {}),
             ...(ref ? { lesson: ref } : {}),
+            // Read at send time: a choice made during an earlier reply applies from this turn on.
+            ...(speakerRef.current !== "guide"
+              ? { speaker_key: speakerRef.current }
+              : {}),
           },
           {
             onOpen: () => {
@@ -325,6 +402,7 @@ export function useTutor(
               if (readDraft(courseId).trim() === message) setDraft("");
             },
             onThread: (id) => setThreadId(id),
+            onTutor: (tutor) => update({ tutor }),
             onDelta: (delta) => {
               received += delta;
               update({ content: received });
@@ -491,6 +569,13 @@ export function useTutor(
     remove,
     saves,
     saveReply,
+    roster,
+    speaker,
+    setSpeaker,
+    reloadPersonas: (silent = false) => {
+      if (service.personas && !silent) setRoster({ state: "loading" });
+      setPersonaTry((n) => n + 1);
+    },
     reload: () => {
       setNotice(undefined);
       setAttempt((n) => n + 1);

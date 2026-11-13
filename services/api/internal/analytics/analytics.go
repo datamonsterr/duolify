@@ -92,7 +92,7 @@ func allowlisted(event string) bool {
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
-		"character_rendered", "character_render_fallback", "character_reaction_shown",
+		"character_rendered", "character_render_fallback", "character_reaction_shown", "tutor_character_selected", "tutor_character_fallback",
 		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
 		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
@@ -430,6 +430,22 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 		ids("speaker_key", "expression")
 		boolean("fallback_used")
+	case "tutor_character_selected":
+		ids("speaker_key")
+		numeric("character_version")
+		if source := input["cast_source"]; source == "lesson" || source == "course" || source == "default" {
+			out["cast_source"] = source
+		}
+	case "tutor_character_fallback":
+		if reason, ok := input["reason_code"].(string); ok {
+			switch reason {
+			case "invalid_persona", "persona_too_large", "speaker_unavailable", "persona_unavailable", "suppressed":
+				out["reason_code"] = reason
+			}
+		}
+		if input["phase"] == "before_stream" {
+			out["phase"] = "before_stream"
+		}
 	case "character_render_fallback":
 		ids("reason_code")
 		boolean("offline")
