@@ -1,6 +1,13 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { useUiPreferences } from "../design/localization/Preferences";
-import type { ReplyClass, TutorService } from "./tutor";
+import type { LessonRef, ReplyClass, TutorService } from "./tutor";
+import { trackTutorRecovery } from "../../lib/analytics";
 import { tutorService } from "./tutor";
 import { lastIndex, useTutor, type ChatMessage } from "./useTutor";
 import "./tutor.css";
@@ -131,20 +138,62 @@ function Bubble({
   );
 }
 
+function Shell({
+  embedded,
+  label,
+  onKeyDown,
+  children,
+}: {
+  embedded: boolean;
+  label: string;
+  onKeyDown: (event: KeyboardEvent) => void;
+  children: ReactNode;
+}) {
+  return embedded ? (
+    <section
+      className="tutor-panel tutor-embedded"
+      aria-label={label}
+      onKeyDown={onKeyDown}
+    >
+      {children}
+    </section>
+  ) : (
+    <aside className="tutor-panel" aria-label={label} onKeyDown={onKeyDown}>
+      {children}
+    </aside>
+  );
+}
+
 export function TutorChat({
   courseId,
   service = tutorService,
+  lesson,
+  embedded = false,
+  onClose,
+  onReadTranscript,
 }: {
   courseId: string;
   service?: TutorService;
+  /** Reference to the lesson the Learner paused; the API verifies it and builds the context. */
+  lesson?: LessonRef;
+  /** Rendered inside the lesson sheet: always open, no launcher, the sheet owns the close control. */
+  embedded?: boolean;
+  onClose?: () => void;
+  onReadTranscript?: () => void;
 }) {
   const { t, number } = useUiPreferences();
-  const [open, setOpen] = useState(false);
+  const [launched, setOpen] = useState(false);
+  const open = embedded || launched;
+  const recover = (
+    action: "retry" | "reload" | "top_up" | "read_transcript",
+  ) => {
+    if (lesson) trackTutorRecovery(action);
+  };
   const [context, setContext] = useState<boolean>();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
-  const tutor = useTutor(courseId, service, open);
+  const tutor = useTutor(courseId, service, open, lesson);
   const entry = useRef<HTMLButtonElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
   const log = useRef<HTMLDivElement>(null);
@@ -156,10 +205,32 @@ export function TutorChat({
   const showContext = context ?? tutor.messages.length === 0;
 
   useEffect(() => {
-    if (open) field.current?.focus();
-    else if (wasOpen.current) entry.current?.focus();
+    // Embedded: the sheet records its opener in its own effect, so focus the composer afterwards.
+    if (open) {
+      if (embedded) queueMicrotask(() => field.current?.focus());
+      else field.current?.focus();
+    } else if (wasOpen.current) entry.current?.focus();
     wasOpen.current = open;
-  }, [open]);
+  }, [open, embedded]);
+  // Start and finish are announced once; the streaming log itself stays silent.
+  const lastReply = tutor.messages[tutor.messages.length - 1];
+  const [announce, setAnnounce] = useState<"" | "answering" | "replied">("");
+  const [turnStart, setTurnStart] = useState<{
+    busy: boolean;
+    lastId?: string;
+  }>({ busy: false });
+  if (busy !== turnStart.busy) {
+    setTurnStart({ busy, lastId: busy ? lastReply?.id : turnStart.lastId });
+    setAnnounce(
+      busy
+        ? "answering"
+        : lastReply?.role === "assistant" &&
+            lastReply.status === "complete" &&
+            lastReply.id !== turnStart.lastId
+          ? "replied"
+          : "",
+    );
+  }
   // Return to the composer when a turn ends; nothing moves focus while streaming.
   useEffect(() => {
     if (wasBusy.current && !busy && open) field.current?.focus();
@@ -177,6 +248,18 @@ export function TutorChat({
   const text = tutor.draft.trim();
   const canSend = !!text && !busy && tutor.online && !tutor.block;
   const notice = tutor.notice;
+  const transcript = onReadTranscript ? (
+    <button
+      type="button"
+      className="btn sec tutor-small"
+      onClick={() => {
+        recover("read_transcript");
+        onReadTranscript();
+      }}
+    >
+      {t("tutor.read_transcript")}
+    </button>
+  ) : null;
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (
@@ -214,22 +297,26 @@ export function TutorChat({
 
   return (
     <>
-      <button
-        type="button"
-        ref={entry}
-        className="btn sec tutor-entry"
-        aria-expanded={open}
-        onClick={() => setOpen(true)}
-      >
-        {t("tutor.entry")}
-      </button>
+      {!embedded && (
+        <button
+          type="button"
+          ref={entry}
+          className="btn sec tutor-entry"
+          aria-expanded={open}
+          onClick={() => setOpen(true)}
+        >
+          {t("tutor.entry")}
+        </button>
+      )}
       {open && (
-        <aside
-          className="tutor-panel"
-          aria-label={t("tutor.region")}
+        <Shell
+          embedded={embedded}
+          label={t("tutor.region")}
           onKeyDown={(event) => {
-            if (event.key === "Escape" && !event.defaultPrevented)
-              setOpen(false);
+            if (event.key === "Escape" && !event.defaultPrevented) {
+              if (embedded) onClose?.();
+              else setOpen(false);
+            }
           }}
         >
           <header className="tutor-top">
@@ -255,27 +342,39 @@ export function TutorChat({
                 <span aria-hidden="true">⋯</span>
               </button>
             )}
-            <button
-              type="button"
-              className="tutor-icon"
-              aria-label={t("tutor.close")}
-              onClick={() => setOpen(false)}
-            >
-              <span aria-hidden="true">×</span>
-            </button>
+            {!embedded && (
+              <button
+                type="button"
+                className="tutor-icon"
+                aria-label={t("tutor.close")}
+                onClick={() => setOpen(false)}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            )}
           </header>
           {showContext && (
             <div className="tutor-ctx">
               <b>{t("tutor.context_title")}</b>
-              <span>{t("tutor.context_body")}</span>
+              <span>
+                {t(lesson ? "tutor.lesson_context" : "tutor.context_body")}
+              </span>
               <span>{t("tutor.context_not")}</span>
             </div>
           )}
+          <div className="tutor-sr" role="status">
+            {announce === "answering"
+              ? t("tutor.answering")
+              : announce === "replied"
+                ? t("tutor.replied")
+                : ""}
+          </div>
           {!tutor.online && (
             <div className="tutor-note warn" role="status">
               <div>
                 <b>{t("tutor.offline_title")}</b>
                 <p>{t("tutor.offline_body")}</p>
+                {transcript}
               </div>
             </div>
           )}
@@ -283,7 +382,7 @@ export function TutorChat({
             className="tutor-log"
             ref={log}
             role="log"
-            aria-live="polite"
+            aria-live={streaming ? "off" : "polite"}
             aria-busy={streaming}
             aria-label={t("tutor.title")}
           >
@@ -316,7 +415,10 @@ export function TutorChat({
                 message={message}
                 showRetry={index === lastInterrupted}
                 canRetry={!busy && tutor.online}
-                onRetry={tutor.askAgain}
+                onRetry={() => {
+                  recover("retry");
+                  tutor.askAgain();
+                }}
               />
             ))}
             {streaming && (
@@ -330,10 +432,14 @@ export function TutorChat({
                 <button
                   type="button"
                   className="btn sec tutor-small"
-                  onClick={tutor.reload}
+                  onClick={() => {
+                    recover("reload");
+                    tutor.reload();
+                  }}
                 >
                   {t("tutor.reload")}
                 </button>
+                {transcript}
               </div>
             </div>
           )}
@@ -349,7 +455,11 @@ export function TutorChat({
                     })}
                   </p>
                 )}
-                <a className="btn tutor-small" href="/credits">
+                <a
+                  className="btn tutor-small"
+                  href="/credits"
+                  onClick={() => recover("top_up")}
+                >
                   {t("tutor.credits_link")}
                 </a>
               </div>
@@ -364,10 +474,14 @@ export function TutorChat({
                   type="button"
                   className="btn sec tutor-small"
                   disabled={!canSend}
-                  onClick={tutor.send}
+                  onClick={() => {
+                    recover("retry");
+                    tutor.send();
+                  }}
                 >
                   {t("tutor.retry")}
                 </button>
+                {transcript}
               </div>
             </div>
           )}
@@ -511,7 +625,7 @@ export function TutorChat({
               onConfirm={() => void confirmDelete()}
             />
           )}
-        </aside>
+        </Shell>
       )}
     </>
   );

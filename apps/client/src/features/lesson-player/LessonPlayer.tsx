@@ -16,6 +16,7 @@ import {
   trackBookmarkRemoved,
   trackCharacterRendered,
   trackCharacterRenderFallback,
+  trackGuidedUi,
 } from "../../lib/analytics";
 import { availableOffline, preparedDocument } from "../player/cache";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -46,6 +47,7 @@ import { isSlideMessage, nextSlide, sendCommand } from "./bridge";
 import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { useShellSession } from "../shell/ShellSession";
 import { QuickNotePanel } from "../notes/QuickNotePanel";
+import { TutorChat } from "../chat/TutorChat";
 import { bookmarkQueue } from "../notes/bookmark-queue";
 import { createDefaultTracerManifest } from "../characters/fixtures";
 import { generateMotionSlideHtml } from "../characters/motion-slide";
@@ -995,6 +997,25 @@ function SlidePlayback({
       command({ type: "play" });
     }
   }, [clock, pause, panel, command]);
+  // Opening a panel pauses playback; closing it puts the slide and time back exactly once.
+  const opened = useRef<{ index: number; time: number } | null>(null);
+  const openPanel = (name: NonNullable<typeof panel>) => {
+    pause();
+    if (panel === null) opened.current = { index, time: clock.snapshot().time };
+    setPanel(name);
+  };
+  const closePanel = () => {
+    const saved = opened.current;
+    opened.current = null;
+    setPanel(null);
+    if (!saved) return;
+    if (saved.index !== index) onNavigate(saved.index);
+    else if (Math.abs(clock.snapshot().time - saved.time) > 1) seek(saved.time);
+  };
+  useEffect(() => {
+    if (panel === "Ask tutor")
+      trackGuidedUi({ event: "ui_sheet_opened", sheetId: "lesson_tutor" });
+  }, [panel]);
   useEffect(() => {
     if (slideDocument.error) {
       const isAsset =
@@ -1216,7 +1237,7 @@ function SlidePlayback({
           panel === "Quick note" ? (
             <QuickNotePanel
               open={true}
-              onClose={() => setPanel(null)}
+              onClose={closePanel}
               context={{
                 source: "slide",
                 courseId: manifest.course_id,
@@ -1229,7 +1250,7 @@ function SlidePlayback({
             <ResponsivePanel
               title={panel ?? "Transcript"}
               open={panel !== null}
-              onClose={() => setPanel(null)}
+              onClose={closePanel}
             >
               <p className="feedback badge-warning" role="status">
                 Lesson paused
@@ -1248,25 +1269,13 @@ function SlidePlayback({
                 </div>
               )}
               {panel === "Ask tutor" && (
-                <>
-                  <p>
-                    {[
-                      "The sky is a map waiting to be explored.",
-                      "Stars are distant suns, shining across space.",
-                      "Notice how the sky changes as Earth turns.",
-                    ][index] ?? "The sky is a map waiting to be explored."}
-                  </p>
-                  <p>
-                    Tutor chat is not available yet. You can keep learning or
-                    read the transcript.
-                  </p>
-                  <button
-                    className="duo-button quiet"
-                    onClick={() => setPanel("Transcript")}
-                  >
-                    Read transcript
-                  </button>
-                </>
+                <TutorChat
+                  courseId={manifest.course_id}
+                  lesson={{ lesson_id: lessonId, slide_index: index }}
+                  embedded
+                  onClose={closePanel}
+                  onReadTranscript={() => setPanel("Transcript")}
+                />
               )}
             </ResponsivePanel>
           )
@@ -1507,10 +1516,7 @@ function SlidePlayback({
               className={`duo-button quiet ${panel === name ? "on" : ""}`}
               key={name}
               aria-expanded={panel === name}
-              onClick={() => {
-                pause();
-                setPanel(name);
-              }}
+              onClick={() => openPanel(name)}
             >
               {name}
             </button>

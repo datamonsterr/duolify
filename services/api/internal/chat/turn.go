@@ -19,11 +19,12 @@ import (
 )
 
 type sendInput struct {
-	QuoteID        string `json:"quote_id"`
-	IdempotencyKey string `json:"idempotency_key"`
-	Class          string `json:"class"`
-	Message        string `json:"message"`
-	ThreadID       string `json:"thread_id"`
+	QuoteID        string       `json:"quote_id"`
+	IdempotencyKey string       `json:"idempotency_key"`
+	Class          string       `json:"class"`
+	Message        string       `json:"message"`
+	ThreadID       string       `json:"thread_id"`
+	Lesson         *lessonInput `json:"lesson"`
 }
 
 func writeEvent(w http.ResponseWriter, name string, data any) {
@@ -158,13 +159,18 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	if !decode(w, r, &in) {
 		return
 	}
-	if validateMessage(in.Class, in.Message) != nil || !validUUID(in.QuoteID) || len(in.IdempotencyKey) < 1 || len(in.IdempotencyKey) > 128 || (in.ThreadID != "" && !validUUID(in.ThreadID)) {
+	if validateMessage(in.Class, in.Message) != nil || !validUUID(in.QuoteID) || len(in.IdempotencyKey) < 1 || len(in.IdempotencyKey) > 128 || (in.ThreadID != "" && !validUUID(in.ThreadID)) || !in.Lesson.valid() {
 		fail(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
 	ctx := r.Context()
 	if !s.ownsCourse(ctx, owner, course) {
 		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	current, err := s.currentLesson(ctx, owner, course, in.Lesson)
+	if err != nil {
+		lessonFailure(w, err)
 		return
 	}
 	thread, newThread := in.ThreadID, false
@@ -219,7 +225,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 			s.dropTurn(turn)
 		}
 	}()
-	req, err := s.assemble(ctx, owner, course, map[bool]string{false: thread, true: ""}[newThread], in.Message)
+	req, err := s.assemble(ctx, owner, course, map[bool]string{false: thread, true: ""}[newThread], in.Message, current)
 	if err != nil {
 		s.opts.Logger.Error("tutor context failed", "error", err)
 		fail(w, http.StatusServiceUnavailable, "unavailable")
@@ -286,7 +292,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		return
 	}
 	claimed = true
-	s.emit(ctx, owner, "tutor_message_sent", map[string]any{"course_id": course, "class": in.Class, "message_length": len([]rune(in.Message))})
+	s.emit(ctx, owner, "tutor_message_sent", map[string]any{"course_id": course, "class": in.Class, "message_length": len([]rune(in.Message)), "has_lesson_context": current != nil})
 	if errors.Is(context.Cause(streamCtx), errStopped) {
 		// Stopped before the Engine was called: nothing was produced.
 		abort()

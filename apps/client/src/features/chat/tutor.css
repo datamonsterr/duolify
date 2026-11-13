@@ -37,6 +37,22 @@
     transform: translateX(16px);
   }
 }
+/* Inside the lesson sheet: the sheet owns the heading, close control, placement and focus trap. */
+.tutor-panel.tutor-embedded {
+  position: static;
+  inline-size: 100%;
+  block-size: min(70dvh, 36rem);
+  border: none;
+  box-shadow: none;
+  animation: none;
+}
+.tutor-embedded .tutor-top {
+  justify-content: flex-end;
+  padding-inline: 0;
+}
+.tutor-embedded .tutor-top h2 {
+  display: none;
+}
 .tutor-top {
   display: flex;
   align-items: center;

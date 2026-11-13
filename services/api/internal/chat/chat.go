@@ -172,9 +172,10 @@ func (s *Service) ownsCourse(ctx context.Context, owner, course string) bool {
 
 func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course string) {
 	var in struct {
-		Class               string `json:"class"`
-		Message             string `json:"message"`
-		ApproveLargeContext bool   `json:"approve_large_context"`
+		Class               string       `json:"class"`
+		Message             string       `json:"message"`
+		ApproveLargeContext bool         `json:"approve_large_context"`
+		Lesson              *lessonInput `json:"lesson"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -183,8 +184,17 @@ func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course st
 		fail(w, http.StatusBadRequest, "invalid_message")
 		return
 	}
+	if !in.Lesson.valid() {
+		fail(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
 	if !s.ownsCourse(r.Context(), owner, course) {
 		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	current, err := s.currentLesson(r.Context(), owner, course, in.Lesson)
+	if err != nil {
+		lessonFailure(w, err)
 		return
 	}
 	thread, err := s.latestThread(r.Context(), owner, course)
@@ -192,7 +202,7 @@ func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course st
 		fail(w, http.StatusServiceUnavailable, "unavailable")
 		return
 	}
-	req, err := s.assemble(r.Context(), owner, course, thread, in.Message)
+	req, err := s.assemble(r.Context(), owner, course, thread, in.Message, current)
 	if err != nil {
 		fail(w, http.StatusServiceUnavailable, "unavailable")
 		return
@@ -223,6 +233,14 @@ func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course st
 		return
 	}
 	respond(w, http.StatusOK, q)
+}
+
+func lessonFailure(w http.ResponseWriter, err error) {
+	if errors.Is(err, errLessonNotFound) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	fail(w, http.StatusServiceUnavailable, "unavailable")
 }
 
 // refuseContext answers the typed, free-of-charge overflow response; nothing is truncated or sent to the Engine.

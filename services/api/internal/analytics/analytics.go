@@ -372,6 +372,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "tutor_message_sent":
 		ids("course_id", "class")
 		numeric("message_length")
+		boolean("has_lesson_context")
 	case "tutor_reply_completed":
 		ids("course_id", "class", "model", "envelope", "cache_class")
 		numeric("latency_ms", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "summary_count", "excerpt_count", "context_tokens")
