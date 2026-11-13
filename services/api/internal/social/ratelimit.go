@@ -3,11 +3,16 @@ package social
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 const (
 	bucketSearch  = "search"
 	bucketAttempt = "username_attempt"
+	bucketSend    = "friend_send"
+	bucketLink    = "friend_link"
+	sendWindow    = 24 * time.Hour
 	searchWindow  = time.Minute
 	attemptWindow = time.Hour
 )
@@ -16,9 +21,18 @@ const (
 // window holds more than limit. One atomic upsert, so concurrent requests on any
 // API instance share the same count. A boundary can admit up to 2x limit briefly.
 func (s *Service) allow(ctx context.Context, learnerID, bucket string, limit int, w time.Duration) (*Rejection, error) {
+	return allowOn(ctx, s.pool, learnerID, bucket, limit, w)
+}
+
+// querier is the pool or a transaction: friend sends count inside their own transaction.
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func allowOn(ctx context.Context, db querier, learnerID, bucket string, limit int, w time.Duration) (*Rejection, error) {
 	var count int
 	var left float64
-	err := s.pool.QueryRow(ctx, `INSERT INTO social_rate_limits(learner_id,bucket,window_start,count) VALUES($1::uuid,$2,now(),1)
+	err := db.QueryRow(ctx, `INSERT INTO social_rate_limits(learner_id,bucket,window_start,count) VALUES($1::uuid,$2,now(),1)
  ON CONFLICT (learner_id,bucket) DO UPDATE SET
   count=CASE WHEN social_rate_limits.window_start<=now()-make_interval(secs=>$3) THEN 1 ELSE LEAST(social_rate_limits.count+1,$4+1) END,
   window_start=CASE WHEN social_rate_limits.window_start<=now()-make_interval(secs=>$3) THEN now() ELSE social_rate_limits.window_start END

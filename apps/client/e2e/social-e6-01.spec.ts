@@ -20,6 +20,13 @@ for (const mobile of [false, true]) {
     await page.route("**/v1/features", (r) =>
       r.fulfill({ json: { lesson_test_tracer_enabled: true } }),
     );
+    // The Friends page (E6-03) also loads its lists; this spec is about usernames only.
+    await page.route("**/v1/social/friends", (r) =>
+      r.fulfill({ json: { friends: [] } }),
+    );
+    await page.route("**/v1/social/friend-requests", (r) =>
+      r.fulfill({ json: { incoming: [], outgoing: [] } }),
+    );
     await page.route("**/v1/social/identity", (r) =>
       r.fulfill({
         json: {

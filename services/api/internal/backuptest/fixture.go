@@ -507,6 +507,11 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		`UPDATE learner_usernames SET username='Backup.Renamed', changed_at='2026-11-01T00:00:00Z' WHERE learner_id='a1111111-1111-4111-8111-111111111111'`,
 		`INSERT INTO social_rate_limits(learner_id,bucket,count) VALUES('a1111111-1111-4111-8111-111111111111','search',3)`,
 		`INSERT INTO username_holds(canonical,previous_owner_ref,held_until) VALUES('released.name',repeat('a',64),now()+interval '30 days')`,
+		`INSERT INTO learners(id,display_name) VALUES('a2222222-2222-4222-8222-222222222222','Backup Friend')`,
+		`INSERT INTO learner_usernames(learner_id,username) VALUES('a2222222-2222-4222-8222-222222222222','Backup.Friend')`,
+		`INSERT INTO friend_requests(sender_id,recipient_id,status,method,decided_at) VALUES('a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111','accepted','invite_link','2026-11-02T00:00:00Z'),('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','declined','username','2026-11-03T00:00:00Z')`,
+		`INSERT INTO friendships(learner_low,learner_high) VALUES('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222')`,
+		`INSERT INTO friend_links(owner_id,token_hash,expires_at) VALUES('a1111111-1111-4111-8111-111111111111',repeat('b',64),now()+interval '30 days')`,
 		`INSERT INTO daily_goal_achievements(learner_id,local_date,goal_xp) SELECT learner_id,local_date,amount FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 	} {
 		if _, err = f.DB.Pool.Exec(t.Context(), query); err != nil {
@@ -799,7 +804,8 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT monthly_credits FROM credit_subscription_terms LIMIT 1").Scan(&monthlyCredits); err != nil {
 		t.Fatal(err)
 	}
-	if version != f.schemaVersion || riverVersions < 1 || learners != 1 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
+	// Two learners: the synthetic learner and the E6-03 friend fixture row.
+	if version != f.schemaVersion || riverVersions < 1 || learners != 2 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
 	var pricingVersion string
@@ -843,7 +849,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"quick_notes", "quick_note_enrichments", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "username_config", "learner_usernames", "learner_social_settings", "username_holds", "social_rate_limits"} {
+	for _, table := range []string{"quick_notes", "quick_note_enrichments", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "username_config", "learner_usernames", "learner_social_settings", "username_holds", "social_rate_limits", "friend_requests", "friendships", "friend_links"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -872,7 +878,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	var holds int
 	var discoverable bool
 	var renamedOn string
-	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT username FROM learner_usernames),(SELECT count(*) FROM username_holds WHERE held_until>now()),(SELECT discoverable FROM learner_social_settings),(SELECT request_policy FROM learner_social_settings),(SELECT to_char(changed_at AT TIME ZONE 'UTC','YYYY-MM-DD') FROM learner_usernames)`).Scan(&claimedName, &holds, &discoverable, &policy, &renamedOn); err != nil || claimedName != "Backup.Renamed" || holds != 2 || discoverable || policy != "friends_of_friends" || renamedOn != "2026-11-01" {
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT username FROM learner_usernames WHERE learner_id='a1111111-1111-4111-8111-111111111111'),(SELECT count(*) FROM username_holds WHERE held_until>now()),(SELECT discoverable FROM learner_social_settings),(SELECT request_policy FROM learner_social_settings),(SELECT to_char(changed_at AT TIME ZONE 'UTC','YYYY-MM-DD') FROM learner_usernames WHERE learner_id='a1111111-1111-4111-8111-111111111111')`).Scan(&claimedName, &holds, &discoverable, &policy, &renamedOn); err != nil || claimedName != "Backup.Renamed" || holds != 2 || discoverable || policy != "friends_of_friends" || renamedOn != "2026-11-01" {
 		t.Fatalf("restored usernames, holds or privacy changed: %q %d %v %q %q %v", claimedName, holds, discoverable, policy, renamedOn, err)
 	}
 	var previousHeld int
@@ -881,6 +887,15 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	if _, err := restored.Pool.Exec(t.Context(), `WITH l AS (INSERT INTO learners(display_name) VALUES('duplicate username probe') RETURNING id) INSERT INTO learner_usernames(learner_id,username) SELECT id,'BACKUP.renamed' FROM l`); err == nil {
 		t.Fatal("restored canonical unique index allowed a duplicate username")
+	}
+	// Friendships keep their canonical pair, request states (a decline keeps its cooldown anchor) and
+	// only the link's token hash; the pair and pending-pair uniqueness survive the restore.
+	var friendships, accepted, declined, links int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM friendships WHERE learner_low<learner_high),(SELECT count(*) FROM friend_requests WHERE status='accepted' AND method='invite_link'),(SELECT count(*) FROM friend_requests WHERE status='declined' AND decided_at='2026-11-03T00:00:00Z'),(SELECT count(*) FROM friend_links WHERE token_hash=repeat('b',64) AND revoked_at IS NULL)`).Scan(&friendships, &accepted, &declined, &links); err != nil || friendships != 1 || accepted != 1 || declined != 1 || links != 1 {
+		t.Fatalf("restored friend data changed: %d %d %d %d %v", friendships, accepted, declined, links, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO friendships(learner_low,learner_high) VALUES('a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111')`); err == nil {
+		t.Fatal("restored friendship check allowed a reversed pair")
 	}
 	confirmed, err := courses.New(courses.Options{Pool: restored.Pool}).ResolveConfirmed(t.Context(), "a1111111-1111-4111-8111-111111111111", "c7222222-2222-4222-8222-222222222222", 3)
 	if err != nil || confirmed.Outline.Hash() != confirmed.ContentHash || confirmed.Outline[0].Lessons[0].ID != "fixture-lesson" {

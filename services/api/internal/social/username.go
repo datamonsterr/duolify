@@ -59,6 +59,16 @@ func (r *Rejection) Error() string {
 		return "Too many tries. Wait a moment and try again."
 	case CodeTooShort:
 		return "Type at least 3 characters."
+	case CodeRequestUnavailable:
+		return "We couldn't send that request."
+	case CodeInviteUnavailable:
+		return "This invite has expired. Ask for a new one."
+	case CodePendingLimit:
+		return "You have too many requests waiting. Cancel one or wait for a reply."
+	case CodeFriendLimit:
+		return "A friends list is full, so this can't be completed."
+	case CodeNotPending:
+		return "That request can't be changed any more."
 	}
 	return "That username isn't available. Try another."
 }
@@ -66,8 +76,10 @@ func (r *Rejection) Error() string {
 // Status maps a rejection to its HTTP status.
 func (r *Rejection) Status() int {
 	switch r.Code {
-	case CodeTaken, CodeAlreadySet, CodeNotSet, CodeCooldown:
+	case CodeTaken, CodeAlreadySet, CodeNotSet, CodeCooldown, CodePendingLimit, CodeFriendLimit, CodeNotPending:
 		return 409
+	case CodeRequestUnavailable, CodeInviteUnavailable:
+		return 404
 	case CodeRateLimited:
 		return 429
 	}
@@ -107,6 +119,8 @@ type Config struct {
 	Profanity []string
 	// Limits come from username_config so operators tune them without a deploy.
 	HoldDays, RenameCooldownDays, SearchMax, SearchPerMinute, AttemptsPerHour int
+	// Friend limits (E6-03).
+	FriendPendingMax, FriendSendsPerDay, FriendMax, DeclineCooldownDays, LinkValidDays, LinkPerHour int
 }
 
 // lookalikes folds common digit substitutions; "1" may stand for i or l.

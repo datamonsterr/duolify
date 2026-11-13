@@ -161,7 +161,7 @@
 }
 .social-result-list li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: var(--space-3, 12px);
   align-items: center;
 }
@@ -226,5 +226,157 @@
   }
   .social-rename-row .duo-button {
     width: 100%;
+  }
+}
+
+/* E6-03: friends list-detail, requests, invite link, confirm. */
+.friends-tabs {
+  display: flex;
+  gap: var(--space-1, 4px);
+  padding: var(--space-1, 4px);
+  border-radius: var(--radius-md, 0.75rem);
+  background: var(--raised);
+}
+.friends-tabs [role="tab"] {
+  flex: 1;
+  min-height: 44px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md, 0.75rem);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.friends-tabs [role="tab"][aria-selected="true"] {
+  border-color: var(--line);
+  background: var(--surface);
+}
+.friends-tabs :focus-visible,
+.friends-page :focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.friends-panel,
+.friends-requests,
+.friends-empty {
+  display: grid;
+  gap: var(--space-3, 12px);
+  min-width: 0;
+}
+.friends-requests h2,
+.friends-empty h2 {
+  margin: 0;
+}
+.friends-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-5, 20px);
+  align-items: start;
+}
+.friends-list li {
+  grid-template-columns: minmax(0, 1fr);
+}
+.friends-open {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3, 12px);
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.friends-open[aria-current="true"] {
+  border-color: var(--focus);
+}
+.friends-detail {
+  display: grid;
+  gap: var(--space-3, 12px);
+  min-width: 0;
+  justify-items: start;
+  overflow-wrap: anywhere;
+}
+.friends-detail h2 {
+  margin: 0;
+}
+.friends-back {
+  display: none;
+}
+.social-card-text > strong,
+.social-card-text > span {
+  overflow-wrap: anywhere;
+}
+.social-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  align-items: center;
+  justify-content: flex-end;
+}
+.social-chip {
+  padding: 2px var(--space-2, 8px);
+  border-radius: var(--radius-md, 0.75rem);
+  background: var(--raised);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.social-link {
+  display: grid;
+  gap: var(--space-2, 8px);
+  border-top: 2px solid var(--line);
+  padding-top: var(--space-3, 12px);
+}
+.social-link h3 {
+  margin: 0;
+}
+.social-sheet.confirm {
+  width: min(26rem, 100vw - 2rem);
+}
+.social-danger {
+  background: var(--danger, #b3261e);
+  border-color: var(--danger, #b3261e);
+  color: #fff;
+}
+@media (max-width: 47.99rem) {
+  .friends-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .friends-layout[data-detail="open"] .friends-list {
+    display: none;
+  }
+  .friends-layout[data-detail="closed"] .friends-detail {
+    display: none;
+  }
+  .friends-back {
+    display: inline-flex;
+  }
+  .social-result-list li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .social-result-list li > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+  .social-sheet.confirm {
+    width: calc(100vw - 2rem);
+    height: auto;
+    max-height: calc(100dvh - 2rem);
+    margin: auto;
+    border-width: 2px;
+    border-radius: var(--radius-lg, 1rem);
+  }
+  .social-row-actions .duo-button {
+    flex: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .friends-tabs [role="tab"] {
+    transition: background-color 120ms ease;
   }
 }

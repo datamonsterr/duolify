@@ -41,8 +41,10 @@ func (s *Service) WithStreaks(source StreakSource) *Service { s.streaks = source
 
 func (s *Service) config(ctx context.Context) (Config, error) {
 	var c Config
-	err := s.pool.QueryRow(ctx, `SELECT version,reserved,profanity,hold_days,rename_cooldown_days,search_max_results,search_per_minute,name_attempts_per_hour FROM username_config WHERE id`).
-		Scan(&c.Version, &c.Reserved, &c.Profanity, &c.HoldDays, &c.RenameCooldownDays, &c.SearchMax, &c.SearchPerMinute, &c.AttemptsPerHour)
+	err := s.pool.QueryRow(ctx, `SELECT version,reserved,profanity,hold_days,rename_cooldown_days,search_max_results,search_per_minute,name_attempts_per_hour,
+ friend_pending_max,friend_sends_per_day,friend_max,friend_decline_cooldown_days,friend_link_valid_days,friend_link_per_hour FROM username_config WHERE id`).
+		Scan(&c.Version, &c.Reserved, &c.Profanity, &c.HoldDays, &c.RenameCooldownDays, &c.SearchMax, &c.SearchPerMinute, &c.AttemptsPerHour,
+			&c.FriendPendingMax, &c.FriendSendsPerDay, &c.FriendMax, &c.DeclineCooldownDays, &c.LinkValidDays, &c.LinkPerHour)
 	return c, err
 }
 
@@ -343,6 +345,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			write(w, 200, id)
 		}
 	default:
-		write(w, 404, map[string]string{"error": "Not found."})
+		if !s.serveFriends(w, r, actor, unavailable) {
+			write(w, 404, map[string]string{"error": "Not found."})
+		}
 	}
 }

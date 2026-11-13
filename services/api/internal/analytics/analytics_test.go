@@ -98,6 +98,7 @@ func TestEventAllowlist(t *testing.T) {
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "lesson_test_recap_shown", "ui_test_retry_presented",
 		"quick_note_created", "ui_sheet_opened", "username_set", "username_rejected", "username_changed", "username_searched", "privacy_setting_changed",
+		"friend_request_sent", "friend_request_accepted", "friend_request_declined", "friend_removed",
 		"bookmark_added", "bookmark_removed", "bookmark_opened",
 	} {
 		if !allowlisted(name) {
@@ -1203,6 +1204,21 @@ func TestRenameSearchAndPrivacyEventsKeepOnlyClosedProperties(t *testing.T) {
 		got = safeProperties("privacy_setting_changed", bad)
 		if got["setting"] != nil && got["value"] != nil {
 			t.Errorf("accepted %v -> %v", bad, got)
+		}
+	}
+}
+
+func TestFriendEventsKeepOnlyTheMethodEnum(t *testing.T) {
+	got := safeProperties("friend_request_sent", map[string]any{"method": "invite_link", "username": "maya", "token": "abc", "request_id": "r1"})
+	if len(got) != 1 || got["method"] != "invite_link" {
+		t.Fatalf("sent props leaked: %v", got)
+	}
+	if got = safeProperties("friend_request_sent", map[string]any{"method": "maya"}); len(got) != 0 {
+		t.Fatalf("free-text method accepted: %v", got)
+	}
+	for _, name := range []string{"friend_request_accepted", "friend_request_declined", "friend_removed"} {
+		if got = safeProperties(name, map[string]any{"username": "maya", "friend_id": "x"}); len(got) != 0 {
+			t.Fatalf("%s props leaked: %v", name, got)
 		}
 	}
 }
