@@ -370,7 +370,7 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES ('%x','d4444444-4444-4444-8444-444444444444',now()+interval '30 days')", sha256.Sum256([]byte("synthetic-revoked-refresh"))),
 		"INSERT INTO auth_rate_limits (key_hash,email_hash,count,expires_at) VALUES (repeat('c',64),repeat('d',64),3,now()+interval '1 hour')",
 		"INSERT INTO pricing_admin_grants(account_id) VALUES ('a1111111-1111-4111-8111-111111111111')",
-		"INSERT INTO pricing_activation_events(version) VALUES ('usd-launch-2026-11-08')",
+		"INSERT INTO pricing_activation_events(version) VALUES ('usd-launch-2026-11-08') ON CONFLICT DO NOTHING",
 		"INSERT INTO pricing_versions(version,effective_from,approved,config) SELECT 'usd-backup-scheduled',now()+interval '96 hours',true,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-scheduled\"'),'{effective_from}',to_jsonb(now()+interval '96 hours')) FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
 		"INSERT INTO pricing_version_cancellations(version,cancelled_by,reason) VALUES ('usd-backup-scheduled','a1111111-1111-4111-8111-111111111111','synthetic restore cancellation')",
 		"INSERT INTO pricing_verification_evidence(version,evidence) VALUES ('usd-backup-scheduled','{\"margin_floor_verified\":true,\"economics_verified\":true,\"mappings_verified\":true}'::jsonb)",

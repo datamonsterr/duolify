@@ -1,0 +1,26 @@
+- [ ] 1. Write failing tests in strict TDD order:
+  - [ ] 1.1 e2e `services/api/test/e2e/pricing_e12_10_test.go` (reject unapproved new prices in production, activate interim in dev/test, roll back without changing unrelated catalogue actions).
+  - [ ] 1.2 integration `services/api/internal/pricing/activate_design_chat_prices_integration_test.go` (approval/notice/cost validation, production-vs-development isolation, quote-version settlement across activation, backup/restore resolver equality).
+  - [ ] 1.3 unit `services/api/internal/pricing/activate_design_chat_prices_test.go` (new-key approval/eligibility validation, pending-decision rejection, action flags, rollback mappings).
+- [ ] 2. Implement decision gate and schema validation:
+  - [ ] 2.1 Update `schema.json` and `pricing.go` with `design_chat_decision` field and decision gate helper.
+  - [ ] 2.2 Wire decision gate in `admin.go` for approve/schedule.
+  - [ ] 2.3 Wire decision gate in `ActivateDue` and `quotes.go`.
+  - [ ] 2.4 Support quote-policy action models for new design chat actions upon approval.
+- [ ] 3. Implement action flags and resolver updates:
+  - [ ] 3.1 Expose `HasAction`, `Config()` and reload behavior on `RuntimeCatalogue`.
+  - [ ] 3.2 Update `setup_chat`, `course_brief_chat`, and `outline_chat_change` to resolve through activated version and fail safely to form/manual fallback on rollback.
+  - [ ] 3.3 Update `Quotes.CreateDevelopmentOutline` and `pricing.LoadDevelopment` to resolve through activated version when present.
+- [ ] 4. Provide fixture and dev CLI task:
+  - [ ] 4.1 Create interim pricing fixture `services/api/internal/pricing/fixtures/usd_interim_design_chat.json`.
+  - [ ] 4.2 Document admin CLI invocation and/or mise task for dev/test activation.
+- [ ] 5. Documentation, analytics and backup:
+  - [ ] 5.1 Update `docs/data-inventory.md` with E12-10 data inventory entry.
+  - [ ] 5.2 Add decision-gate default row to `docs/adr/0011-owner-decisions-2026-11-09.md`.
+- [ ] 6. Verification gates:
+  - [ ] 6.1 Run `mise run api:lint`.
+  - [ ] 6.2 Run `mise run api:test`.
+  - [ ] 6.3 Run `mise run api:build`.
+  - [ ] 6.4 Run `mise run api:test-integration`.
+  - [ ] 6.5 Run `mise run api:test-e2e`.
+  - [ ] 6.6 Run `mise run ci:openspec`.

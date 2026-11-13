@@ -59,7 +59,8 @@ func TestQuoteSnapshot(t *testing.T) {
 	}
 	// A later catalogue/policy changes new quotes; accepted snapshots remain original.
 	_, err = st.Pool.Exec(ctx, `INSERT INTO pricing_versions(version,effective_from,approved,config) SELECT 'quote-flip',now(),true,jsonb_set(jsonb_set(jsonb_set(config,'{version}','"quote-flip"'),'{effective_from}',to_jsonb(now())),'{actions,lesson_content,credits}','141') FROM pricing_versions LIMIT 1;
- INSERT INTO pricing_quote_policies(version,policy) SELECT 'quote-flip',policy FROM pricing_quote_policies LIMIT 1`)
+ INSERT INTO pricing_quote_policies(version,policy) SELECT 'quote-flip',policy FROM pricing_quote_policies LIMIT 1;
+ INSERT INTO pricing_activation_events(version) VALUES ('quote-flip')`)
 	if err != nil {
 		t.Fatal(err)
 	}
