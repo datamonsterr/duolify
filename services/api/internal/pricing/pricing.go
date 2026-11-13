@@ -229,8 +229,9 @@ func HasDesignChatKeys(c Config) bool {
 	return hasSetup || hasBrief || hasOutline
 }
 
-// CheckDesignChatDecision validates the decision gate for design chat actions.
-func CheckDesignChatDecision(c Config, env string, approver string, ownerID string) error {
+// CheckDesignChatDecisionRecorded validates only the recorded decision value.
+// Use it on read paths where activation already enforced the owner identity.
+func CheckDesignChatDecisionRecorded(c Config, env string) error {
 	if !HasDesignChatKeys(c) {
 		return nil
 	}
@@ -238,14 +239,26 @@ func CheckDesignChatDecision(c Config, env string, approver string, ownerID stri
 		if c.DesignChatDecision != "owner_approved" {
 			return errors.New("design chat pricing requires owner approval in production")
 		}
-		if approver != "" && !strings.EqualFold(approver, ownerID) {
-			return errors.New("design chat pricing requires owner approval in production")
-		}
 		return nil
 	}
-	// In dev/test:
 	if c.DesignChatDecision != "interim_adr_0012" && c.DesignChatDecision != "owner_approved" {
 		return errors.New("design chat pricing requires recorded decision (interim_adr_0012 or owner_approved)")
+	}
+	return nil
+}
+
+// CheckDesignChatDecision is the single enforcement point for the design chat
+// decision gate. In production it fails closed: the decision must be
+// owner_approved, PRICING_OWNER_ID must be set, and approver (the reviewer of
+// the version) must be non-empty and equal to it.
+func CheckDesignChatDecision(c Config, env string, approver string, ownerID string) error {
+	if err := CheckDesignChatDecisionRecorded(c, env); err != nil {
+		return err
+	}
+	if HasDesignChatKeys(c) && !IsDevOrTest(env) {
+		if ownerID == "" || approver == "" || !strings.EqualFold(approver, ownerID) {
+			return errors.New("design chat pricing requires owner approval in production")
+		}
 	}
 	return nil
 }
@@ -262,6 +275,8 @@ type RuntimeCatalogue struct {
 	baseline time.Time
 	env      string
 	ownerID  string
+	// gateSkipped dedupes refusal logs for versions blocked by the design chat gate.
+	gateSkipped map[string]bool
 }
 
 // NewRuntimeCatalogue creates the database-time pricing resolver with a validated startup fallback.
@@ -306,7 +321,6 @@ func (c *RuntimeCatalogue) HasAction(name string) bool {
 	c.mu.RLock()
 	last := c.last
 	env := c.env
-	ownerID := c.ownerID
 	c.mu.RUnlock()
 	if last == nil {
 		return false
@@ -315,7 +329,7 @@ func (c *RuntimeCatalogue) HasAction(name string) bool {
 		return false
 	}
 	if IsDesignChatAction(name) {
-		return CheckDesignChatDecision(last.config, env, "", ownerID) == nil
+		return CheckDesignChatDecisionRecorded(last.config, env) == nil
 	}
 	return true
 }
@@ -412,8 +426,20 @@ func (c *RuntimeCatalogue) ActivateDue(ctx context.Context, admin *Admin) error 
 		if HasDesignChatKeys(parsed) {
 			var reviewer string
 			_ = c.pool.QueryRow(ctx, "SELECT coalesce((SELECT reviewed_by FROM pricing_drafts WHERE version=$1),'')", v.version).Scan(&reviewer)
-			if err = CheckDesignChatDecision(parsed, c.env, reviewer, admin.owner); err != nil {
-				return fmt.Errorf("version %s: %w", v.version, err)
+			if gateErr := CheckDesignChatDecision(parsed, c.env, reviewer, admin.owner); gateErr != nil {
+				// Skip only this version; the last good catalogue stays public and
+				// unrelated due versions still activate.
+				c.mu.Lock()
+				seen := c.gateSkipped[v.version]
+				if c.gateSkipped == nil {
+					c.gateSkipped = map[string]bool{}
+				}
+				c.gateSkipped[v.version] = true
+				c.mu.Unlock()
+				if !seen {
+					slog.WarnContext(ctx, "pricing activation refused", "version", v.version, "error", gateErr)
+				}
+				continue
 			}
 		}
 		if _, err = checkEconomics(ctx, v.raw, admin.verifier, v.override, admin.policy, false); err != nil {
@@ -515,31 +541,22 @@ func FromConfig(c Config) *Catalogue {
 // or resolves through the active version once an activated version carries the keys.
 func LoadDevelopment(ctx context.Context, pool *pgxpool.Pool) (*Catalogue, error) {
 	var configJSON []byte
-	err := pool.QueryRow(ctx, `SELECT v.config FROM pricing_versions v
-WHERE v.approved AND v.effective_from <= clock_timestamp()
-  AND (v.config->'actions' ? 'course_brief_chat' OR v.config->'actions' ? 'setup_chat' OR v.config->'actions' ? 'outline_chat_change')
-  AND NOT EXISTS(SELECT 1 FROM pricing_version_cancellations c WHERE c.version=v.version)
-  AND EXISTS(SELECT 1 FROM pricing_activation_events e WHERE e.version=v.version)
-ORDER BY v.effective_from DESC LIMIT 1`).Scan(&configJSON)
-	if err == nil {
-		c, parseErr := Parse(configJSON)
-		if parseErr == nil {
-			return FromConfig(c), nil
-		}
-	}
-	var activatedEver bool
-	_ = pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pricing_activation_events e JOIN pricing_versions v ON v.version=e.version WHERE v.config->'actions' ? 'course_brief_chat' OR v.config->'actions' ? 'setup_chat')").Scan(&activatedEver)
-	if activatedEver {
-		// An activated version existed and was rolled back; do not resurrect dev unapproved config.
-		row, err := db.New(pool).ActivePricing(ctx)
-		if err == nil {
-			c, err := Parse(row.Config)
-			if err == nil {
+	// The currently active version is authoritative: it carries the keys once
+	// activated, and after a rollback (active version without keys) an older
+	// version with keys must not be resurrected.
+	if row, err := db.New(pool).ActivePricing(ctx); err == nil {
+		if c, parseErr := Parse(row.Config); parseErr == nil {
+			if HasDesignChatKeys(c) {
+				return FromConfig(c), nil
+			}
+			var activatedEver bool
+			_ = pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pricing_activation_events e JOIN pricing_versions v ON v.version=e.version WHERE v.config->'actions' ?| array['setup_chat','course_brief_chat','outline_chat_change'])").Scan(&activatedEver)
+			if activatedEver {
 				return FromConfig(c), nil
 			}
 		}
 	}
-	err = pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version IN ('usd-dev-unapproved','usd-dev-course-brief-unapproved') ORDER BY (version='usd-dev-course-brief-unapproved') DESC LIMIT 1").Scan(&configJSON)
+	err := pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version IN ('usd-dev-unapproved','usd-dev-course-brief-unapproved') ORDER BY (version='usd-dev-course-brief-unapproved') DESC LIMIT 1").Scan(&configJSON)
 	if err != nil {
 		return nil, err
 	}

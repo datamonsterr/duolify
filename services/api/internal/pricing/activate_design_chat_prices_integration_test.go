@@ -290,4 +290,107 @@ func TestActivateDesignChatPricesIntegration(t *testing.T) {
 			t.Fatalf("restored action flag differs: initial=%v restored=%v", initialCat.HasAction("outline_chat_change"), restoredCat.HasAction("outline_chat_change"))
 		}
 	})
+	t.Run("Gated design chat version is skipped without blocking other activation", func(t *testing.T) {
+		admin.SetEnvironment("production")
+		active, err := pricing.Load(ctx, db.Queries)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now().UTC().Truncate(time.Microsecond)
+		otherAt, gatedAt := now.Add(-200*time.Millisecond), now.Add(-100*time.Millisecond)
+		// Inserted outside the draft flow: owner_approved but no reviewer on record.
+		gated := makeConfig("usd-gate-nodraft", "owner_approved", gatedAt)
+		other := map[string]any{}
+		for k, v := range baseConfig {
+			other[k] = v
+		}
+		other["version"] = "usd-gate-unrelated"
+		other["effective_from"] = otherAt.Format(time.RFC3339Nano)
+		for _, c := range []map[string]any{gated, other} {
+			raw, _ := json.Marshal(c)
+			if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES($1,$2,true,$3::jsonb)", c["version"], c["effective_from"], raw); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_quote_policies(version,policy) SELECT $1,policy FROM pricing_quote_policies WHERE version='usd-quotes-2026-11-09'", c["version"]); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, owner := range []string{ownerID, ""} {
+			ownerAdmin := pricing.NewAdmin(db.Pool, nil, owner)
+			ownerAdmin.SetEnvironment("production")
+			ownerAdmin.SetVerifier(&pricing.DevelopmentVerifier{})
+			runtime := pricing.NewRuntimeCatalogue(active, db.Queries, db.Pool, nil)
+			runtime.SetEnvironment("production")
+			if err := runtime.ActivateDue(ctx, ownerAdmin); err != nil {
+				t.Fatalf("ActivateDue with owner %q must not fail on a gated version: %v", owner, err)
+			}
+		}
+		var gatedActivated, otherActivated bool
+		if err := db.Pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pricing_activation_events WHERE version='usd-gate-nodraft'), EXISTS(SELECT 1 FROM pricing_activation_events WHERE version='usd-gate-unrelated')").Scan(&gatedActivated, &otherActivated); err != nil {
+			t.Fatal(err)
+		}
+		if gatedActivated {
+			t.Fatal("owner_approved version without owner reviewer was activated in production")
+		}
+		if !otherActivated {
+			t.Fatal("unrelated due version was not activated")
+		}
+
+		// Even if such a version somehow became active, production quotes fail closed
+		// for an empty PRICING_OWNER_ID and for a missing reviewer.
+		if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_activation_events(version,activated_at) VALUES('usd-gate-nodraft',$1)", gatedAt); err != nil {
+			t.Fatal(err)
+		}
+		learnerID := "a0000000-0000-4000-8000-000000000002"
+		if _, err := db.Pool.Exec(ctx, "INSERT INTO learners(id, display_name) VALUES($1::uuid, 'learner') ON CONFLICT DO NOTHING", learnerID); err != nil {
+			t.Fatal(err)
+		}
+		dev := pricing.NewQuotes(db.Pool)
+		dev.SetEnvironment("development")
+		if _, err := dev.Create(ctx, learnerID, pricing.QuoteInput{Action: "setup_chat"}); err != nil {
+			t.Fatalf("development control quote: %v", err)
+		}
+		for _, owner := range []string{"", ownerID} {
+			prod := pricing.NewQuotes(db.Pool)
+			prod.SetEnvironment("production")
+			prod.SetOwnerID(owner)
+			if _, err := prod.Create(ctx, learnerID, pricing.QuoteInput{Action: "setup_chat"}); err == nil {
+				t.Fatalf("production quote succeeded without owner reviewer (owner=%q)", owner)
+			}
+		}
+	})
+
+	t.Run("LoadDevelopment does not resurrect rolled-back design chat actions", func(t *testing.T) {
+		before, err := pricing.LoadDevelopment(ctx, db.Pool)
+		if err != nil || !before.HasAction("course_brief_chat") {
+			t.Fatalf("expected active design chat version before rollback: %v", err)
+		}
+		rollback := map[string]any{}
+		for k, v := range baseConfig {
+			rollback[k] = v
+		}
+		at := time.Now().UTC().Truncate(time.Microsecond).Add(-10 * time.Millisecond)
+		rollback["version"] = "usd-gate-rollback"
+		rollback["effective_from"] = at.Format(time.RFC3339Nano)
+		raw, _ := json.Marshal(rollback)
+		if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES('usd-gate-rollback',$1,true,$2::jsonb)", at, raw); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_quote_policies(version,policy) SELECT 'usd-gate-rollback',policy FROM pricing_quote_policies WHERE version='usd-quotes-2026-11-09'"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_activation_events(version,activated_at) VALUES('usd-gate-rollback',$1)", at); err != nil {
+			t.Fatal(err)
+		}
+		after, err := pricing.LoadDevelopment(ctx, db.Pool)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, a := range []string{"setup_chat", "course_brief_chat", "outline_chat_change"} {
+			if after.HasAction(a) {
+				t.Fatalf("%s resurrected after rollback (version %s)", a, after.Config().Version)
+			}
+		}
+	})
+
 }

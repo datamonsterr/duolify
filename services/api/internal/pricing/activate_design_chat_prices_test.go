@@ -353,3 +353,74 @@ func TestActionFlagsAndRollbackMapping(t *testing.T) {
 		t.Fatal("expected HasAction(preview) to remain true on rollback")
 	}
 }
+
+func TestDesignChatOwnerEnforcementFailsClosed(t *testing.T) {
+	cfg, err := Parse(mustJSON(t, withDecision(sampleValidConfig(), "owner_approved")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := "00000000-0000-4000-8000-000000000001"
+	for _, tc := range []struct{ name, approver, owner string }{
+		{"empty approver and owner", "", ""},
+		{"empty approver with owner set", "", owner},
+		{"approver set with empty owner", owner, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := CheckDesignChatDecision(cfg, "production", tc.approver, tc.owner); err == nil {
+				t.Fatal("production owner check passed with empty identity")
+			}
+		})
+	}
+	if err := CheckDesignChatDecision(cfg, "production", strings.ToUpper(owner), owner); err != nil {
+		t.Fatalf("owner rejected: %v", err)
+	}
+}
+
+func withDecision(cfg map[string]any, decision string) map[string]any {
+	cfg["design_chat_decision"] = decision
+	return cfg
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestClassifyAdverseDesignChatRemoval(t *testing.T) {
+	build := func(mutate func(map[string]any)) []byte {
+		cfg := sampleValidConfig()
+		cfg["limits"].(map[string]any)["outline_chat_change"] = map[string]any{"input_tokens": 1}
+		mutate(cfg)
+		return mustJSON(t, cfg)
+	}
+	before := build(func(map[string]any) {})
+	tests := []struct {
+		name    string
+		mutate  func(map[string]any)
+		adverse bool
+	}{
+		{"eligibility removed, action still priced", func(c map[string]any) {
+			c["daily_free"].(map[string]any)["eligible_actions"] = []string{"quick_note", "tutor_short", "tutor_long"}
+		}, true},
+		{"limits entry removed, action still priced", func(c map[string]any) {
+			delete(c["limits"].(map[string]any), "outline_chat_change")
+		}, true},
+		{"action removed with eligibility and limits (rollback)", func(c map[string]any) {
+			delete(c["actions"].(map[string]any), "outline_chat_change")
+			delete(c["limits"].(map[string]any), "outline_chat_change")
+			c["daily_free"].(map[string]any)["eligible_actions"] = []string{"quick_note", "tutor_short", "tutor_long"}
+		}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := classifyAdverse(before, build(tt.mutate))
+			if err != nil || got != tt.adverse {
+				t.Fatalf("adverse=%v err=%v, want %v", got, err, tt.adverse)
+			}
+		})
+	}
+}

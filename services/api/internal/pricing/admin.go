@@ -1098,10 +1098,10 @@ func classifyAdverse(previous, next []byte) (bool, error) {
 	if err := json.Unmarshal(next, &after); err != nil {
 		return false, err
 	}
-	return adverseObject(before, after, ""), nil
+	return adverseObject(before, after, "", removedDesignChat(before, after)), nil
 }
 
-func adverseObject(before, after map[string]any, path string) bool {
+func adverseObject(before, after map[string]any, path string, removed map[string]bool) bool {
 	for key, oldValue := range before {
 		newValue, ok := after[key]
 		if !ok {
@@ -1111,7 +1111,7 @@ func adverseObject(before, after map[string]any, path string) bool {
 			if key == "stripe_price_id" || key == "store_product_ids" {
 				continue
 			}
-			if (path == "actions" || path == "limits") && (key == "setup_chat" || key == "course_brief_chat" || key == "outline_chat_change") {
+			if (path == "actions" || path == "limits") && removed[key] {
 				continue
 			}
 			return true
@@ -1126,7 +1126,7 @@ func adverseObject(before, after map[string]any, path string) bool {
 		if key == "stripe_price_id" || key == "store_product_ids" {
 			continue
 		}
-		if !adverseValue(oldValue, newValue, full) {
+		if !adverseValue(oldValue, newValue, full, removed) {
 			continue
 		}
 		return true
@@ -1139,7 +1139,7 @@ func adverseObject(before, after map[string]any, path string) bool {
 			if key == "stripe_price_id" || key == "store_product_ids" {
 				continue
 			}
-			if (path == "actions" || path == "limits") && (key == "setup_chat" || key == "course_brief_chat" || key == "outline_chat_change") {
+			if (path == "actions" || path == "limits") && IsDesignChatAction(key) {
 				continue
 			}
 			return true
@@ -1148,13 +1148,13 @@ func adverseObject(before, after map[string]any, path string) bool {
 	return false
 }
 
-func adverseValue(old, next any, path string) bool {
+func adverseValue(old, next any, path string, removed map[string]bool) bool {
 	if oldMap, ok := old.(map[string]any); ok {
 		newMap, ok := next.(map[string]any)
 		if !ok {
 			return true
 		}
-		return adverseObject(oldMap, newMap, path)
+		return adverseObject(oldMap, newMap, path, removed)
 	}
 	if oldList, ok := old.([]any); ok {
 		newList, ok := next.([]any)
@@ -1163,7 +1163,7 @@ func adverseValue(old, next any, path string) bool {
 		}
 		if strings.Contains(path, "entitlements") || strings.Contains(path, "benefits") || strings.Contains(path, "eligible_actions") {
 			for _, v := range oldList {
-				if s, ok := v.(string); ok && (s == "setup_chat" || s == "course_brief_chat" || s == "outline_chat_change") {
+				if s, ok := v.(string); ok && IsDesignChatAction(s) && removed[s] {
 					continue
 				}
 				if !containsJSON(newList, v) {
@@ -1180,7 +1180,7 @@ func adverseValue(old, next any, path string) bool {
 				if !ok {
 					return true
 				}
-				if adverseValue(oldItem, newItem, path+"."+sku) {
+				if adverseValue(oldItem, newItem, path+"."+sku, removed) {
 					return true
 				}
 			}
@@ -1212,6 +1212,21 @@ func adverseValue(old, next any, path string) bool {
 		return true
 	}
 	return !jsonEqual(old, next)
+}
+
+// removedDesignChat lists design chat actions present in before.actions and
+// absent from after.actions (a rollback disabling the action). Only then is
+// dropping the action's limits or Daily-free eligibility non-adverse.
+func removedDesignChat(before, after map[string]any) map[string]bool {
+	oldActions, _ := before["actions"].(map[string]any)
+	newActions, _ := after["actions"].(map[string]any)
+	removed := map[string]bool{}
+	for key := range oldActions {
+		if _, ok := newActions[key]; !ok && IsDesignChatAction(key) {
+			removed[key] = true
+		}
+	}
+	return removed
 }
 
 func indexList(items []any) map[string]any {

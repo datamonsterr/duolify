@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
@@ -338,15 +337,12 @@ func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput,
 			return Quote{}, errQuote
 		}
 		if version == "" {
-			if err := CheckDesignChatDecision(c, s.env, "", s.ownerID); err != nil {
-				return Quote{}, errQuote
-			}
+			var reviewer string
 			if !IsDevOrTest(s.env) {
-				var reviewer string
 				_ = s.pool.QueryRow(ctx, "SELECT coalesce((SELECT reviewed_by FROM pricing_drafts WHERE version=$1),'')", c.Version).Scan(&reviewer)
-				if !strings.EqualFold(reviewer, s.ownerID) {
-					return Quote{}, errQuote
-				}
+			}
+			if err := CheckDesignChatDecision(c, s.env, reviewer, s.ownerID); err != nil {
+				return Quote{}, errQuote
 			}
 		}
 	}

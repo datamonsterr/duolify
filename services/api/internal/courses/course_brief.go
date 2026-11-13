@@ -136,7 +136,7 @@ func (s *Service) policy(ctx context.Context) (pricing.Config, bounds, bool) {
 		return c, b, false
 	}
 	if approved {
-		if err := pricing.CheckDesignChatDecision(c, s.opts.Environment, "", ""); err != nil {
+		if err := pricing.CheckDesignChatDecisionRecorded(c, s.opts.Environment); err != nil {
 			return c, b, false
 		}
 	}
