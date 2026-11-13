@@ -40,7 +40,6 @@ import { BookmarksPage } from "./features/notes/BookmarksPage";
 import { AppShell, MorePage } from "./features/shell/AppShell";
 import { getDownloadedCourses } from "./features/player/library";
 import {
-  DestinationPage,
   RouteError,
   RoutePending,
   RouteUnavailable,
