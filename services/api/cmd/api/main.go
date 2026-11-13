@@ -135,7 +135,7 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		defer func() { result = errors.Join(result, events.Close()) }()
-		service, err := backup.New(backup.Options{Source: backup.Postgres{Pool: db.Pool, DatabaseURL: cfg.DatabaseURL}, Objects: objects, Recipient: backupConfig.Recipient, Events: events, OptOut: backupConfig.OptOut, Monitor: monitor})
+		service, err := backup.New(backup.Options{Source: backup.Postgres{Pool: db.Pool, DatabaseURL: cfg.DatabaseURL}, Objects: objects, Recipient: backupConfig.Recipient, Events: events, OptOut: backupConfig.OptOut, Monitor: monitor, FinancialCopy: true})
 		if err != nil {
 			return err
 		}

@@ -66,3 +66,27 @@ func (s *S3) Put(ctx context.Context, key string, body io.ReadSeeker, size int64
 	}
 	return nil
 }
+
+// List returns keys under a prefix; used only by the separate expirer identity.
+func (s *S3) List(ctx context.Context, prefix string) ([]Object, error) {
+	var out []Object
+	pages := s3.NewListObjectsV2Paginator(s.Client, &s3.ListObjectsV2Input{Bucket: aws.String(s.Bucket), Prefix: aws.String(prefix)})
+	for pages.HasMorePages() {
+		page, err := pages.NextPage(ctx)
+		if err != nil {
+			return nil, errors.New("backup list failed")
+		}
+		for _, o := range page.Contents {
+			out = append(out, Object{Key: aws.ToString(o.Key), Size: aws.ToInt64(o.Size)})
+		}
+	}
+	return out, nil
+}
+
+// Delete removes one object; only the expirer policy allows this.
+func (s *S3) Delete(ctx context.Context, key string) error {
+	if _, err := s.Client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key)}); err != nil {
+		return errors.New("backup delete failed")
+	}
+	return nil
+}

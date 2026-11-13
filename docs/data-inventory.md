@@ -579,3 +579,13 @@ Ticket E12-10 introduces interim ADR 0012 design chat pricing (`setup_chat=0`, `
 - Forward rollback restores catalogue actions without design chat keys and disables only those actions; manual outline editing and Apply/Discard/Undo remain free.
 - Analytics events (`pricing_version_approved`, `pricing_version_activated`, `pricing_version_rolled_back`) contain strictly canonical metadata and actor IDs; operator reasons and chat text are excluded.
 
+E11-03 adds no tables. Backup objects now have two retention classes in the isolated,
+age-encrypted backup bucket: `<date>/schema-<n>.dump.age` (general, 14 days) and
+`financial/<date>/schema-<n>.dump.age` (identical ciphertext, 35 days), expired by the separate
+`backup-expire` job; live seven-year financial history in Postgres and the
+`account-deletions/v1/` ledger are never expired. The application bucket is versioned; overwritten
+Slides/assets are restored or regenerated as a new tracked version under the same key (metadata
+`duolify-recovery-job`/`-kind`/`-source-version`), keeping references valid. Focused checks:
+`TestExpireOldFixtureDumpsAndRestoreOverwrittenObject` and the RustFS integration tests in
+`internal/backup`. Analytics reuse `backup_failed` (size, duration, ok only). Railway snapshots/PITR and
+production keys are owner-provided. See [backup tooling](../infra/backup/README.md).
