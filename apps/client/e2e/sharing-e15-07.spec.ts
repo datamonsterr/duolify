@@ -59,6 +59,25 @@ async function listed(
   return { course, headers };
 }
 
+/** The web build talks to its own API origin; the disposable API listens elsewhere. */
+async function forward(page: Page, request: APIRequestContext) {
+  await page.route("**/v1/**", async (route) => {
+    const original = route.request();
+    const target = new URL(original.url());
+    const headers = original.headers();
+    delete headers.origin;
+    target.host = new URL(apiBase).host;
+    target.protocol = new URL(apiBase).protocol;
+    await route.fulfill({
+      response: await request.fetch(target.href, {
+        method: original.method(),
+        headers,
+        data: original.postData() ?? undefined,
+      }),
+    });
+  });
+}
+
 const unique = () => `zq${crypto.randomUUID().replaceAll("-", "").slice(0, 8)}`;
 
 const search = async (page: Page, text: string) => {
@@ -102,6 +121,7 @@ test("search, filter, sort a fixture catalogue and enroll for free (desktop)", a
   });
   void c;
 
+  await forward(page, request);
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");
   await page.getByRole("link", { name: "Marketplace" }).first().click();
@@ -124,11 +144,11 @@ test("search, filter, sort a fixture catalogue and enroll for free (desktop)", a
     page.getByRole("button", { name: "Tech", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => titles(page)).toHaveLength(2);
-  await page.getByLabel("Language").selectOption("es");
+  await page.getByLabel("Course language").selectOption("es");
   await expect
     .poll(() => titles(page))
     .toEqual([`${word} Aprender Rust desde cero`]);
-  await page.getByLabel("Language").selectOption("");
+  await page.getByLabel("Course language").selectOption("");
   await page.getByRole("button", { name: "All", exact: true }).click();
   await expect.poll(() => titles(page)).toHaveLength(2);
   await page.getByRole("button", { name: "Load more" }).click();
@@ -205,46 +225,49 @@ test("search, filter, sort a fixture catalogue and enroll for free (desktop)", a
   );
 });
 
-test("browse and enroll on a touch phone with the same actions (mobile)", async ({
-  page,
-  request,
-}) => {
-  const word = unique();
-  const { course } = await listed(request, {
-    title: `${word} Houseplants that survive you`,
-    description: "Light, water and patience.",
-    category: "life_skills",
-    language: "en",
-    tags: ["plants"],
+test.describe("touch phone", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  test("browse and enroll on a touch phone with the same actions (mobile)", async ({
+    page,
+    request,
+  }) => {
+    const word = unique();
+    const { course } = await listed(request, {
+      title: `${word} Houseplants that survive you`,
+      description: "Light, water and patience.",
+      category: "life_skills",
+      language: "en",
+      tags: ["plants"],
+    });
+    await forward(page, request);
+    await page.goto("/more");
+    await expect(page.getByRole("link", { name: "Marketplace" })).toBeVisible();
+    await page.getByRole("link", { name: "Marketplace" }).tap();
+    await expect(page).toHaveURL(/\/marketplace$/);
+    await search(page, word);
+    await expect.poll(() => titles(page)).toHaveLength(1);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    await page
+      .getByRole("link", { name: `${word} Houseplants that survive you` })
+      .tap();
+    await expect(page).toHaveURL(new RegExp(`/marketplace/${course}$`));
+    await expect(page.getByTestId("lessons-ready")).toContainText(
+      "3 of 4 lessons ready",
+    );
+    const enroll = page.getByRole("button", { name: /^Enroll/ });
+    const box = (await enroll.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    await enroll.tap();
+    await expect(page.getByTestId("enroll-status")).toContainText("Enrolled");
+    // Back returns to the list with the query kept (two screens, not a split pane).
+    await page.goBack();
+    await expect(
+      page.getByRole("searchbox", { name: "Search public courses" }),
+    ).toHaveValue(word);
   });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/more");
-  await expect(page.getByRole("link", { name: "Marketplace" })).toBeVisible();
-  await page.getByRole("link", { name: "Marketplace" }).tap();
-  await expect(page).toHaveURL(/\/marketplace$/);
-  await search(page, word);
-  await expect.poll(() => titles(page)).toHaveLength(1);
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - window.innerWidth,
-  );
-  expect(overflow).toBeLessThanOrEqual(0);
-  await page
-    .getByRole("link", { name: `${word} Houseplants that survive you` })
-    .tap();
-  await expect(page).toHaveURL(new RegExp(`/marketplace/${course}$`));
-  await expect(page.getByTestId("lessons-ready")).toContainText(
-    "3 of 4 lessons ready",
-  );
-  const enroll = page.getByRole("button", { name: /^Enroll/ });
-  const box = (await enroll.boundingBox())!;
-  expect(box.height).toBeGreaterThanOrEqual(44);
-  await enroll.tap();
-  await expect(page.getByTestId("enroll-status")).toContainText("Enrolled");
-  // Back returns to the list with the query kept (two screens, not a split pane).
-  await page.goBack();
-  await expect(
-    page.getByRole("searchbox", { name: "Search public courses" }),
-  ).toHaveValue(word);
 });
 
 test("loading, empty, offline, long content, keyboard, dark and reduced motion", async ({
@@ -261,6 +284,7 @@ test("loading, empty, offline, long content, keyboard, dark and reduced motion",
     language: "en",
     tags: ["systems"],
   });
+  await forward(page, request);
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await page.setViewportSize({ width: 390, height: 844 });
 
@@ -269,7 +293,7 @@ test("loading, empty, offline, long content, keyboard, dark and reduced motion",
   const held = new Promise<void>((resolve) => (release = resolve));
   await page.route("**/v1/marketplace/courses?*", async (route) => {
     await held;
-    await route.continue();
+    await route.fallback();
   });
   await page.goto(`/marketplace?q=${word}`);
   await expect(page.getByRole("status")).toContainText("Loading courses");
@@ -297,11 +321,20 @@ test("loading, empty, offline, long content, keyboard, dark and reduced motion",
   const box = page.getByRole("searchbox", { name: "Search public courses" });
   await box.focus();
   await page.keyboard.press("Tab");
-  const focused = await page.evaluate(() => {
-    const el = document.activeElement as HTMLElement;
-    return getComputedStyle(el).outlineStyle !== "none" || el.tagName;
+  const searchButton = page.getByRole("button", {
+    name: "Search",
+    exact: true,
   });
-  expect(focused).toBeTruthy();
+  await expect(searchButton).toBeFocused();
+  const outline = await searchButton.evaluate(
+    (el) => getComputedStyle(el).outlineStyle,
+  );
+  expect(outline).not.toBe("none");
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("button", { name: "All", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
 
   // Empty: the query is kept and a way forward is offered.
   await search(page, `${word}nomatch`);

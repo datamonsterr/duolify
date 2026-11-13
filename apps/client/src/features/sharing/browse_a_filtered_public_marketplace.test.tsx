@@ -140,7 +140,7 @@ describe("marketplace browse", () => {
       "aria-pressed",
       "true",
     );
-    fireEvent.change(screen.getByLabelText("Language"), {
+    fireEvent.change(screen.getByLabelText("Course language"), {
       target: { value: "es" },
     });
     fireEvent.change(screen.getByLabelText("Sort"), {

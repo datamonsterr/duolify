@@ -173,7 +173,7 @@ export function MarketplacePage() {
           ))}
         </div>
         <label className="market-select">
-          Language
+          Course language
           <select
             value={applied.language}
             onChange={(e) => apply({ language: e.target.value })}
