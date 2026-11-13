@@ -452,3 +452,33 @@ fn long_courses_keep_every_summary_oldest_first() {
     assert_eq!(history[0], "Lesson 000: recap");
     assert_eq!(history[199], "Lesson 199: recap");
 }
+
+#[test]
+fn deleted_thread_text_is_only_ever_what_the_api_sends() {
+    // After a thread is deleted the API sends only the surviving messages and the lesson
+    // summaries; nothing else can introduce the deleted text into the prompt.
+    let deleted = "ZEBRA-CONSTELLATION my secret orbit plan";
+    let mut after_delete = context();
+    after_delete.messages = vec![Message {
+        role: "user".into(),
+        content: "Anything new?".into(),
+    }];
+    let prompt = prompt(&after_delete);
+    assert!(!prompt.contains(deleted));
+    assert!(!prompt.contains("ZEBRA"));
+    let data = data(&prompt);
+    assert_eq!(data["messages"].as_array().map(Vec::len), Some(1));
+    // Lesson summaries are kept: deletion removes messages, never history summaries.
+    assert_eq!(data["history"].as_array().map(Vec::len), Some(2));
+}
+
+#[test]
+fn an_empty_message_list_after_deletion_still_builds_a_valid_prompt() {
+    let mut after_delete = context();
+    after_delete.messages.clear();
+    let prompt = prompt(&after_delete);
+    let data = data(&prompt);
+    assert_eq!(data["messages"].as_array().map(Vec::len), Some(0));
+    assert_eq!(prompt.matches(OPEN).count(), 1);
+    assert_eq!(prompt.matches(CLOSE).count(), 1);
+}
