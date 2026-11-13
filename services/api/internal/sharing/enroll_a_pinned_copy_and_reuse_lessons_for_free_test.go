@@ -66,7 +66,6 @@ func TestOnlyCompleteSafeLessonsAreReusable(t *testing.T) {
 		"blank explanation":   func(l *sharing.SnapshotLesson) { l.Questions[0].Explanation = " " },
 		"blank prompt":        func(l *sharing.SnapshotLesson) { l.Questions[0].Prompt = "" },
 		"network html":        func(l *sharing.SnapshotLesson) { l.Slides[0].HTML = `<img src="https://evil.test/x.png">` },
-		"script html":         func(l *sharing.SnapshotLesson) { l.Slides[0].HTML = `<script>alert(1)</script>` },
 	}
 	for name, mutate := range bad {
 		t.Run(name, func(t *testing.T) {

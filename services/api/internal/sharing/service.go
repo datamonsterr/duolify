@@ -43,6 +43,9 @@ type Service struct {
 	screen Screener
 	rates  RateSource
 	age    AgeSource
+	// objects stores immutable published-lesson manifests for copies (E15-03); optional.
+	objects     ObjectWriter
+	assetOrigin string
 }
 
 // NewService wires the service behind the central fail-closed analytics consent gate.
@@ -294,7 +297,10 @@ func (s *Service) emit(owner, event string, props map[string]any) {
 	if s.events == nil {
 		return
 	}
-	props["source"], props["platform"], props["app_version"] = "api", "web", "0.1.0"
+	if _, own := props["source"]; !own {
+		props["source"] = "api"
+	}
+	props["platform"], props["app_version"] = "web", "0.1.0"
 	if err := s.events.Capture(owner, event, props); err != nil {
 		slog.Error("sharing analytics delivery failed", "error", err)
 	}
@@ -600,7 +606,7 @@ func (s *Service) GetPreview(ctx context.Context, token, viewerID string) (Previ
 		Scan(&creator.Username, &creator.DisplayName)
 	// Load enrollment count (aggregate only).
 	var enrollmentCount int
-	_ = s.pool.QueryRow(ctx, `SELECT count(*) FROM course_enrollments WHERE course_id=$1`, courseID).Scan(&enrollmentCount)
+	_ = s.pool.QueryRow(ctx, `SELECT count(*) FROM course_copies WHERE source_course_id=$1`, courseID).Scan(&enrollmentCount)
 
 	payload := BuildPreviewPayload(snap, draft, creator, enrollmentCount)
 
@@ -696,7 +702,7 @@ func (s *Service) LinkStatus(ctx context.Context, owner, courseID string) (LinkS
 	return st, nil
 }
 
-// ErrRateLimited means the per-IP preview budget for the current window is spent.
+// ErrRateLimited means a request budget is spent: the per-IP preview window or the daily enrollment cap.
 var ErrRateLimited = errors.New("rate_limited")
 
 // AllowPreview counts one anonymous preview request for an address. The counter key is a

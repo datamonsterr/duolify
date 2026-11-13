@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -315,7 +316,7 @@ func run() (result error) {
 		seedSharingCourse(w, r, db.Pool)
 	})))
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{
-		Sharing:                 newSharingService(db.Pool),
+		Sharing:                 newSharingService(db.Pool, objects),
 		Notes:                   notesService,
 		Player:                  lessonPlayer,
 		LessonTestTracerEnabled: tracerEnabled,
@@ -715,19 +716,33 @@ func (characterMapFixture) MapCharacter(_ context.Context, r *enginev1.MapCharac
 
 // Fixture documents are immutable and contain no personal content; integration
 // coverage separately exercises the real RustFS adapter and protected restore.
-type fixtureObjects struct{ values map[string][]byte }
+type fixtureObjects struct {
+	mu     sync.RWMutex
+	values map[string][]byte
+}
 
 func (f *fixtureObjects) Get(_ context.Context, key string) ([]byte, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	v, ok := f.values[key]
 	if !ok {
 		return nil, errors.New("missing fixture object")
 	}
 	return v, nil
 }
+
+// Put is write-once like the real bucket: new keys (published lesson copies) are stored,
+// rewriting a key with different bytes is refused.
 func (f *fixtureObjects) Put(_ context.Context, key string, value []byte) error {
-	if !bytes.Equal(f.values[key], value) {
-		return errors.New("fixture mutation")
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if old, ok := f.values[key]; ok {
+		if !bytes.Equal(old, value) {
+			return errors.New("fixture mutation")
+		}
+		return nil
 	}
+	f.values[key] = append([]byte(nil), value...)
 	return nil
 }
 

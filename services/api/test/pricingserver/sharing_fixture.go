@@ -9,6 +9,7 @@ import (
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -40,8 +41,8 @@ type fixtureAdult struct{}
 
 func (fixtureAdult) MeetsMinAge(context.Context, string, int) (bool, error) { return true, nil }
 
-func newSharingService(pool *pgxpool.Pool) *sharing.Service {
-	s := sharing.NewService(pool, nil, sharing.DefaultConfig()).WithAgeSource(fixtureAdult{})
+func newSharingService(pool *pgxpool.Pool, objects sharing.ObjectWriter) *sharing.Service {
+	s := sharing.NewService(pool, nil, sharing.DefaultConfig()).WithAgeSource(fixtureAdult{}).WithObjects(objects, playerfixture.AssetOrigin)
 	s.ConfigureScreening(sharingScreener{}, fixtureRates{})
 	return s
 }

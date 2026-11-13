@@ -38,7 +38,11 @@ var (
 
 // Config holds every policy-like value; defaults are conservative (ADR 0012, E15-12 open).
 type Config struct {
-	MinPublisherAge  int
+	MinPublisherAge int
+	// MaxEnrollmentsPerDay caps new Course copies per account per rolling day (E15-03).
+	MaxEnrollmentsPerDay int
+	// CopySlideMs is the playback time given to a reused slide that carries no duration.
+	CopySlideMs      int
 	IncludeNarration bool
 	SampleMaxLessons int
 	SampleMaxBytes   int
@@ -60,7 +64,7 @@ type Config struct {
 // DefaultConfig is the conservative v1 policy.
 func DefaultConfig() Config {
 	return Config{
-		MinPublisherAge: 18, SampleMaxLessons: 12, SampleMaxBytes: 120000,
+		MinPublisherAge: 18, MaxEnrollmentsPerDay: 30, CopySlideMs: 8000, SampleMaxLessons: 12, SampleMaxBytes: 120000,
 		MaxInputTokens: 60000, MaxOutputTokens: 300, TimeoutMs: 120000, MaxAttempts: 2,
 		MaxCostNanos: 250_000_000, RetentionDays: 365,
 		PublicDomain: "localhost", AppScheme: "duolify",
@@ -76,6 +80,12 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	}
 	if n, err := strconv.Atoi(getenv("SHARING_MIN_PUBLISHER_AGE")); err == nil && n >= 13 && n <= 99 {
 		c.MinPublisherAge = n
+	}
+	if n, err := strconv.Atoi(getenv("SHARING_MAX_ENROLLMENTS_PER_DAY")); err == nil && n > 0 {
+		c.MaxEnrollmentsPerDay = n
+	}
+	if n, err := strconv.Atoi(getenv("SHARING_COPY_SLIDE_MS")); err == nil && n >= 1000 && n <= 120000 {
+		c.CopySlideMs = n
 	}
 	if v := getenv("SHARING_INCLUDE_NARRATION"); v == "true" {
 		c.IncludeNarration = true

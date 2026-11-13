@@ -326,7 +326,7 @@ func run(ctx context.Context, args []string) (result error) {
 
 	courseService := courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"})
 	// Publishing needs an 18+ account (ADR 0012); no age data exists yet, so it fails closed.
-	sharingService := sharing.NewService(db.Pool, events, sharing.ConfigFromEnv(os.Getenv)).WithAgeSource(sharing.UnknownAge{})
+	sharingService := sharing.NewService(db.Pool, events, sharing.ConfigFromEnv(os.Getenv)).WithAgeSource(sharing.UnknownAge{}).WithObjects(player.NewS3(os.Getenv), os.Getenv("LESSON_ASSET_ORIGIN"))
 	sharingService.ConfigureScreening(backend, sharing.PricingRates{Pool: db.Pool})
 	go sharingService.Maintain(ctx)
 	handler := httpapi.New(httpapi.Dependencies{

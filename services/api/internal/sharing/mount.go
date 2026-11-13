@@ -20,4 +20,7 @@ func Mount(mux *http.ServeMux, s *Service, protect, optional func(http.Handler) 
 		mux.Handle(pattern, owner)
 	}
 	mux.Handle("GET /v1/public/shares/{token}", optional(NewPreviewHandler(s)))
+	enroll := protect(NewEnrollHandler(s))
+	mux.Handle("POST /v1/public/shares/{token}/enroll", enroll)
+	mux.Handle("GET /v1/public/shares/{token}/enrollment", enroll)
 }

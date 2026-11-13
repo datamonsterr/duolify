@@ -1129,8 +1129,8 @@ func (s *Service) handleGetLesson(w http.ResponseWriter, r *http.Request, owner,
 	ctx := r.Context()
 	var title string
 	err := s.opts.Pool.QueryRow(ctx, `
-		SELECT title FROM generated_lessons
-		WHERE lesson_stub_id::text=$1 AND learner_id::text=$2`, lessonID, owner).Scan(&title)
+		SELECT g.title FROM generated_lessons g JOIN course_lesson_stubs cls ON cls.id=g.lesson_stub_id
+		WHERE g.lesson_stub_id::text=$1 AND g.learner_id::text=$2 AND cls.status<>'locked'`, lessonID, owner).Scan(&title)
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, `{"error":"lesson not yet generated"}`, http.StatusNotFound)
 		return
@@ -1186,7 +1186,8 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 		return
 	}
 	var courseID string
-	if err = tx.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id=cls.unit_id WHERE cls.id::text=$1 AND cls.learner_id::text=$2`, lessonID, owner).Scan(&courseID); err != nil {
+	// A Lesson that arrived with a published copy stays closed until its predecessor is passed.
+	if err = tx.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id=cls.unit_id WHERE cls.id::text=$1 AND cls.learner_id::text=$2 AND cls.status<>'locked'`, lessonID, owner).Scan(&courseID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, `{"error":"lesson not found"}`, 404)
 			return
@@ -1979,13 +1980,32 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		}
 	}
 
+	// A Lesson already present in the learner's published copy opens at once (zero Credits);
+	// any other Lesson waits to be generated. The pass above is still what unlocks either.
+	reusedLesson, reusedVersion, nextStatus := "", 0, "ready_to_generate"
 	if nextLessonID != "" {
-		if _, err = tx.Exec(ctx, `
-			UPDATE course_lesson_stubs
-			SET status = 'ready_to_generate'
-			WHERE id::text=$1 AND status = 'locked'`, nextLessonID); err != nil {
+		var reused bool
+		var version *int
+		var status string
+		if err = tx.QueryRow(ctx, `
+			WITH next AS (
+				UPDATE course_lesson_stubs
+				SET status = CASE WHEN EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id = course_lesson_stubs.id)
+					THEN 'current' ELSE 'ready_to_generate' END
+				WHERE id::text=$1 AND status = 'locked'
+				RETURNING id, status, reused_from_snapshot)
+			SELECT n.status, n.status = 'current' AND n.reused_from_snapshot,
+				(SELECT cc.version FROM course_copies cc JOIN course_units cu ON cu.course_id = cc.copy_course_id
+				 JOIN course_lesson_stubs cs ON cs.unit_id = cu.id WHERE cs.id = n.id LIMIT 1)
+			FROM next n`, nextLessonID).Scan(&status, &reused, &version); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, `{"error":"database error"}`, 500)
 			return
+		}
+		if status != "" {
+			nextStatus = status
+		}
+		if reused && version != nil {
+			reusedLesson, reusedVersion = nextLessonID, *version
 		}
 	}
 
@@ -2062,7 +2082,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	}
 	if nextLessonID != "" {
 		resp["next_lesson_id"] = nextLessonID
-		resp["next_lesson_status"] = "ready_to_generate"
+		resp["next_lesson_status"] = nextStatus
 	}
 
 	if opKey != "" {
@@ -2100,6 +2120,10 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			"score":             100 * (firstTryCorrect + firstTryInc) / totalTopics,
 			"question_count":    totalTopics,
 		})
+	}
+
+	if reusedLesson != "" && completion.RowsAffected() == 1 && s.opts.Events != nil {
+		emit("published_lesson_reused", map[string]any{"source": "api", "platform": "web", "app_version": testAppVersion(r), "course_id": courseID, "lesson_id": reusedLesson, "version": reusedVersion})
 	}
 
 	writeJSON(w, http.StatusOK, resp)

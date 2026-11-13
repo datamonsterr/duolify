@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -71,7 +72,16 @@ func newLearner(t *testing.T, f *backuptest.Fixture, name string) string {
 	if err := f.DB.Pool.QueryRow(t.Context(), `INSERT INTO learners(display_name) VALUES($1) RETURNING id::text`, name).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
+	consent(t, f, id, false)
 	return id
+}
+
+// consent records the learner's analytics choice; the central gate is fail-closed without it.
+func consent(t *testing.T, f *backuptest.Fixture, id string, optOut bool) {
+	t.Helper()
+	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO learner_profiles(learner_id,locale,time_zone,analytics_opt_out) VALUES($1,'en-US','UTC',$2) ON CONFLICT (learner_id) DO UPDATE SET analytics_opt_out=EXCLUDED.analytics_opt_out`, id, optOut); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // seedReusable gives the owner a course with two generated lessons and one still to generate.
@@ -99,7 +109,7 @@ func seedReusable(t *testing.T, f *backuptest.Fixture, title string) string {
 		topic := []string{"moon", "tides"}[i]
 		_, err = pool.Exec(ctx, `INSERT INTO generated_lessons(lesson_stub_id,course_id,learner_id,title,manifest) VALUES($1,$2,$3,$4,'{}'::jsonb)`, stub, courseID, owner, []string{"Phases", "Tides"}[i])
 		must(err)
-		_, err = pool.Exec(ctx, `INSERT INTO lesson_slides(lesson_stub_id,learner_id,position,slide_id,html,duration_ms,narration) VALUES($1,$2,0,'s'||$3::text,$4,3000,'Narration text.')`, stub, owner, i, "<h1>Slide "+topic+"</h1><p>Fact.</p>")
+		_, err = pool.Exec(ctx, `INSERT INTO lesson_slides(lesson_stub_id,learner_id,position,slide_id,html,duration_ms,narration) VALUES($1,$2,0,$3,$4,3000,'Narration text.')`, stub, owner, fmt.Sprintf("s%d", i), "<h1>Slide "+topic+"</h1><p>Fact.</p>")
 		must(err)
 		_, err = pool.Exec(ctx, `INSERT INTO lesson_questions(lesson_stub_id,learner_id,position,topic_id,prompt,choices,answer_index,explanation) VALUES($1,$2,0,$3,'Which one?','["Right","Wrong"]'::jsonb,0,'SECRET-EXPLANATION')`, stub, owner, topic)
 		must(err)
@@ -155,6 +165,7 @@ func TestEnrollAPinnedCopyAndReuseLessonsForFree(t *testing.T) {
 	ctx := t.Context()
 	ev := &capture{}
 	s, objects := enrollService(t, f, ev, nil)
+	consent(t, f, stranger, false)
 	src := seedReusable(t, f, "Astronomy")
 	token := publish(t, s, src)
 
@@ -299,6 +310,18 @@ func TestEnrollAPinnedCopyAndReuseLessonsForFree(t *testing.T) {
 			if strings.Contains(string(raw), "<h1>") || strings.Contains(string(raw), "Phases") {
 				t.Fatalf("event leaks content: %s", raw)
 			}
+		}
+	})
+
+	t.Run("opted_out_learners_emit_nothing", func(t *testing.T) {
+		quiet := newLearner(t, f, "Quiet")
+		consent(t, f, quiet, true)
+		before := len(ev.named("course_enrolled_published"))
+		if _, err := s.Enroll(ctx, quiet, token); err != nil {
+			t.Fatal(err)
+		}
+		if got := len(ev.named("course_enrolled_published")); got != before {
+			t.Fatalf("opt-out ignored: %d -> %d", before, got)
 		}
 	})
 
