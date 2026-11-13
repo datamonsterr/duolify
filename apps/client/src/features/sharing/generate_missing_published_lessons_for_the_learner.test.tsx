@@ -45,7 +45,10 @@ function api(routes: Record<string, () => unknown>) {
 const base = "/v1/courses/c1/missing-lessons";
 const view = () => render(<MissingLessons courseId="c1" pollMs={5} />);
 
-beforeEach(() => request.mockReset());
+// A block body: vitest would call a returned mock as the cleanup hook.
+beforeEach(() => {
+  request.mockReset();
+});
 
 describe("failure classification", () => {
   it("uses status and closed codes only, never server text", () => {

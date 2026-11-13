@@ -238,3 +238,99 @@
     width: 100%;
   }
 }
+
+/* E15-04: missing lessons in a Course copy. Desktop dialog, mobile bottom sheet. */
+.missing-lessons {
+  display: grid;
+  gap: var(--space-3, 12px);
+  margin-block: var(--space-4, 16px);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  padding: var(--space-4, 16px);
+  background: var(--surface);
+  color: var(--text);
+}
+.missing-lessons p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.missing-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4, 16px);
+  background: rgb(0 0 0 / 0.45);
+}
+.missing-sheet {
+  box-sizing: border-box;
+  width: min(32rem, 100%);
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  display: grid;
+  gap: var(--space-3, 12px);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  padding: var(--space-5, 20px);
+  background: var(--surface);
+  color: var(--text);
+}
+.missing-sheet:focus-visible {
+  outline: 3px solid var(--focus, var(--line));
+  outline-offset: 2px;
+}
+.missing-quote {
+  display: grid;
+  gap: var(--space-2, 8px);
+  margin: 0;
+}
+.missing-quote > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3, 12px);
+}
+.missing-quote dt {
+  color: var(--muted, var(--text));
+}
+.missing-quote dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: end;
+}
+.missing-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2, 8px);
+  min-height: 44px;
+}
+.missing-consent input {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  flex: none;
+}
+@media (max-width: 640px) {
+  .missing-backdrop {
+    place-items: end stretch;
+    padding: 0;
+  }
+  .missing-sheet {
+    width: 100%;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+    padding-bottom: calc(
+      var(--space-5, 20px) + env(safe-area-inset-bottom, 0px)
+    );
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .missing-sheet {
+    animation: missing-rise 160ms ease-out;
+  }
+  @keyframes missing-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+}
