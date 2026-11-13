@@ -56,7 +56,7 @@ func (s *Service) Prepare(ctx context.Context, owner, lessonID, quoteID string, 
 	}
 
 	// Eligibility rule: First lesson (unit 0, pos 0) or predecessor has authoritative pass in outbox
-	if !(unitPos == 0 && lessonPos == 0) {
+	if unitPos != 0 || lessonPos != 0 {
 		var predID, predStatus string
 		if lessonPos > 0 {
 			_ = tx.QueryRow(ctx, `

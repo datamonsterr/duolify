@@ -106,10 +106,11 @@ func missingRequest(t *testing.T, h http.Handler, actor, method, path, body stri
 	for _, p := range []string{"GET /v1/courses/{id}/missing-lessons", "POST /v1/courses/{id}/missing-lessons/quote", "POST /v1/courses/{id}/missing-lessons/generate"} {
 		mux.Handle(p, h)
 	}
-	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	ctx := context.Background()
 	if actor != "" {
-		req = req.WithContext(accounts.WithLearnerID(req.Context(), actor))
+		ctx = accounts.WithLearnerID(ctx, actor)
 	}
+	req := httptest.NewRequestWithContext(ctx, method, path, strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec
