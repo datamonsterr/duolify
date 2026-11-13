@@ -618,6 +618,7 @@ type LessonSlide struct {
 	Narration    string             `json:"narration"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	TopicIds     []string           `json:"topic_ids"`
+	Segments     []byte             `json:"segments"`
 }
 
 type LessonTestAnswer struct {
