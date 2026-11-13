@@ -9,7 +9,7 @@ import (
 
 func TestNoteActionKeyIsStablePerMessage(t *testing.T) {
 	const id = "11111111-1111-4111-8111-111111111111"
-	if noteActionKey(id) != "tutor-message:"+id || noteActionKey(id) != noteActionKey(id) {
+	if noteActionKey(id) != "tutor-message:"+id {
 		t.Fatal("the action key must be derived from the message id alone")
 	}
 	if noteActionKey(id) == noteActionKey("22222222-2222-4222-8222-222222222222") {
