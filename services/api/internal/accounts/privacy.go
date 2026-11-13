@@ -355,7 +355,7 @@ func applyThreadDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) erro
 	defer func() { _ = tx.Rollback(ctx) }()
 	for _, q := range []string{
 		"UPDATE quick_note_chat_sources SET unavailable=true,thread_id=NULL,message_id=NULL WHERE thread_id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
-		"UPDATE tutor_turns SET user_message_id=NULL,assistant_message_id=NULL WHERE thread_id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
+		"UPDATE tutor_turns SET user_message_id=NULL,assistant_message_id=NULL,speaker_key=NULL,character_id=NULL,character_version=NULL,cast_source=NULL,cast_version=NULL,persona_fallback=NULL WHERE thread_id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
 		"DELETE FROM tutor_threads WHERE id IN (SELECT thread_id FROM tutor_thread_deletion_tombstones)",
 	} {
 		if _, err = tx.Exec(ctx, q); err != nil {

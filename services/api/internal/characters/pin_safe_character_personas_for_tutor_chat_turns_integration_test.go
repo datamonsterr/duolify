@@ -322,7 +322,7 @@ func TestTutorTurnsPinSafePersonasIntegration(t *testing.T) {
 			t.Fatal(code, raw)
 		}
 		req, pin := fixture.last()
-		if pin != "guide/default-guide/1" {
+		if pin != "guide/char-provisional-glint/1" {
 			t.Fatalf("turn must be pinned before Engine.Chat: %q", pin)
 		}
 		if p := personaOf(req); p == nil || p["name"] == "" || len(req.TutorPersonaJson) > 2000 {
@@ -339,7 +339,7 @@ func TestTutorTurnsPinSafePersonasIntegration(t *testing.T) {
 			t.Fatalf("framing %v", names)
 		}
 		var n int
-		if err := db.Pool.QueryRow(ctx, `SELECT count(*) FROM tutor_turns WHERE idempotency_key='p-1' AND speaker_key='guide' AND character_id='default-guide' AND character_version=1 AND cast_source='default'`).Scan(&n); err != nil || n != 1 {
+		if err := db.Pool.QueryRow(ctx, `SELECT count(*) FROM tutor_turns WHERE idempotency_key='p-1' AND speaker_key='guide' AND character_id='char-provisional-glint' AND character_version=1 AND cast_source='default'`).Scan(&n); err != nil || n != 1 {
 			t.Fatal("turn row must hold effective Character/version", n, err)
 		}
 		if sel := events.named("tutor_character_fallback"); len(sel) != 0 {

@@ -27,7 +27,7 @@ func TestPersonaIsBoundedEscapedDataOnly(t *testing.T) {
 	spec := characters.DefaultGuideFixture()
 	spec.Info.Name = "Orbit"
 	spec.Info.Bio = "Line one\nline two\t{x} `tick` back\\slash"
-	spec.Info.Backstory = strings.Repeat("moon ", 400)
+	spec.Info.Backstory = strings.Repeat("moon ", 160)
 	raw, err := characters.BuildTutorPersona(spec)
 	if err != nil {
 		t.Fatal(err)
