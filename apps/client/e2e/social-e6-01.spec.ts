@@ -30,6 +30,10 @@ for (const mobile of [false, true]) {
     await page.route("**/v1/social/blocks", (r) =>
       r.fulfill({ json: { blocks: [] } }),
     );
+    // The inbox (E6-07) loads with the Friends page too.
+    await page.route("**/v1/social/nudges", (r) =>
+      r.fulfill({ json: { nudges: [], unread: 0 } }),
+    );
     await page.route("**/v1/social/identity", (r) =>
       r.fulfill({
         json: {

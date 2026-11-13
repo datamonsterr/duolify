@@ -103,7 +103,25 @@ func (s *Service) reconcileStreak(ctx context.Context, tx pgx.Tx, owner, zone st
 	if err != nil {
 		return nil, err
 	}
-	sim := SimulateStreak(dates, decided, rules)
+	friendGrants := []string{}
+	extra, err := tx.Query(ctx, `SELECT reached_on::text FROM streak_freeze_milestones WHERE learner_id=$1::uuid AND kind='friend_streak' AND granted ORDER BY reached_on`, owner)
+	if err != nil {
+		return nil, err
+	}
+	for extra.Next() {
+		var d string
+		if err = extra.Scan(&d); err != nil {
+			extra.Close()
+			return nil, err
+		}
+		friendGrants = append(friendGrants, d)
+	}
+	err = extra.Err()
+	extra.Close()
+	if err != nil {
+		return nil, err
+	}
+	sim := SimulateStreakWith(dates, decided, rules, friendGrants)
 	res := sim.StreakResult
 	events, err := applyFreezes(ctx, tx, owner, sim)
 	if err != nil {
@@ -197,6 +215,7 @@ func (s *Service) rollOne(ctx context.Context, owner string, silent bool, now ti
 		return err
 	}
 	s.emit(ctx, owner, events)
+	s.settled(ctx, owner)
 	return nil
 }
 

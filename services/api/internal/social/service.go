@@ -27,6 +27,7 @@ type Service struct {
 	events  analytics.Events
 	streaks StreakSource
 	onBlock []OnBlockFunc
+	now     func() time.Time
 }
 
 // New creates the service behind the central fail-closed consent gate.
@@ -43,9 +44,9 @@ func (s *Service) WithStreaks(source StreakSource) *Service { s.streaks = source
 func (s *Service) config(ctx context.Context) (Config, error) {
 	var c Config
 	err := s.pool.QueryRow(ctx, `SELECT version,reserved,profanity,hold_days,rename_cooldown_days,search_max_results,search_per_minute,name_attempts_per_hour,
- friend_pending_max,friend_sends_per_day,friend_max,friend_decline_cooldown_days,friend_link_valid_days,friend_link_per_hour,block_max FROM username_config WHERE id`).
+ friend_pending_max,friend_sends_per_day,friend_max,friend_decline_cooldown_days,friend_link_valid_days,friend_link_per_hour,block_max,nudge_retention_days,nudge_sends_per_day FROM username_config WHERE id`).
 		Scan(&c.Version, &c.Reserved, &c.Profanity, &c.HoldDays, &c.RenameCooldownDays, &c.SearchMax, &c.SearchPerMinute, &c.AttemptsPerHour,
-			&c.FriendPendingMax, &c.FriendSendsPerDay, &c.FriendMax, &c.DeclineCooldownDays, &c.LinkValidDays, &c.LinkPerHour, &c.BlockMax)
+			&c.FriendPendingMax, &c.FriendSendsPerDay, &c.FriendMax, &c.DeclineCooldownDays, &c.LinkValidDays, &c.LinkPerHour, &c.BlockMax, &c.NudgeRetentionDays, &c.NudgeSendsPerDay)
 	return c, err
 }
 
@@ -255,7 +256,7 @@ func writeRejection(w http.ResponseWriter, rej *Rejection) {
 	switch rej.Code {
 	case CodeCooldown:
 		body["next_change_at"] = rej.NextChangeAt.UTC().Format(time.RFC3339)
-	case CodeRateLimited:
+	case CodeRateLimited, CodeNudgeLimited:
 		w.Header().Set("Retry-After", strconv.Itoa(rej.RetryAfterSeconds()))
 	}
 	write(w, rej.Status(), body)

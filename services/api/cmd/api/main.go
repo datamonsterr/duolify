@@ -154,7 +154,10 @@ func run(ctx context.Context, args []string) (result error) {
 		go creditService.Maintain(ctx, logger)
 		xpService := gamification.New(db.Pool, events)
 		xpService.UseEntitlements(creditService)
+		workerSocial := social.New(db.Pool, events)
+		xpService.OnSettled(friendStreakSettler(workerSocial, logger))
 		go xpService.Maintain(ctx, logger)
+		go workerSocial.Maintain(ctx, logger)
 		backend, err := engine.New(cfg.EngineAddr, 10*time.Second)
 		if err != nil {
 			return err
@@ -277,7 +280,10 @@ func run(ctx context.Context, args []string) (result error) {
 	xpService := gamification.New(db.Pool, events)
 	xpService.UseCache(redis)
 	xpService.UseEntitlements(creditService)
+	socialService := social.New(db.Pool, events)
+	xpService.OnSettled(friendStreakSettler(socialService, logger))
 	go xpService.Maintain(ctx, logger)
+	go socialService.Maintain(ctx, logger)
 	briefPricing := catalogue
 	if os.Getenv("DUOLIFY_ENV") == "development" {
 		if dev, loadErr := pricing.LoadDevelopment(ctx, db.Pool); loadErr == nil {
@@ -327,7 +333,7 @@ func run(ctx context.Context, args []string) (result error) {
 		Sharing:                 sharing.NewHandler(sharingService),
 		Characters:              characters.NewHandler(characterService),
 		Gamification:            xpService,
-		Social:                  social.New(db.Pool, events),
+		Social:                  socialService,
 		Monitor:                 monitor,
 		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService}),
 		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
@@ -523,4 +529,14 @@ func healthcheck(ctx context.Context, args []string) error {
 		return fmt.Errorf("healthcheck returned HTTP %d", response.StatusCode)
 	}
 	return nil
+}
+
+// friendStreakSettler settles a learner's Friend streaks after their streak projection
+// commits. It never fails the learner's own flow; the sweep retries what it misses.
+func friendStreakSettler(svc *social.Service, logger *slog.Logger) func(context.Context, string) {
+	return func(ctx context.Context, owner string) {
+		if err := svc.EvaluateFriendStreaks(context.WithoutCancel(ctx), owner); err != nil {
+			logger.ErrorContext(ctx, "friend streak settle failed", "error", err)
+		}
+	}
 }
