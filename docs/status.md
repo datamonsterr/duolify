@@ -4,30 +4,30 @@ Updated 2026-11-13 by the master orchestrator session. Ticket data: `docs/epics/
 
 ## Integration
 
-- `main`: bootstrap (#1), design (#50), ticket breakdown and owner decisions (#149) merged.
-- `impl/mvp` → `main`: PR #166 (replaces #156). Holds E1–E4, E7, E9–E13, E17 work. CI red on 2026-11-12: `client` (Tauri crate missing `serde_json` for `generate_context!`) and `engine-test` (`duolify-eval` binary missing from the nextest archive). Fix in progress.
-- Unmerged epic work: `epic/e5` (+21 commits, E5-04/05), `epic/e8` (+26 commits, E8-03/04).
-- Dependabot #2 (TypeScript 7): not mergeable, typescript-eslint does not support TS 7 yet; told dependabot to ignore this major.
+- `main` holds bootstrap (#1), design (#50), ticket breakdown (#149), status and ADR 0012 (#167) and the MVP integration branch `impl/mvp` (#166, merge `c08e4b9`, full CI green: run 43378636155). `impl/mvp` is retired; epic branches open PRs straight to `main`.
+- CI fixes in #166: Tauri crate missing `serde_json`; nextest archive lost the `duolify-eval` binary path; engine image missing the character schema files; `engine-eval-live` now reports `missing_config` without Hugging Face secrets instead of failing.
+- Dependabot #2 (TypeScript 7) closed: typescript-eslint does not support TS 7 yet.
 - Interim defaults for open human gates: ADR 0012 (pending owner confirmation).
+- Open PRs: #168 E6, #169 E5, #170 E8 (child sessions).
 
 ## Epics
 
-Done = closed or `status:implemented`. DoD for every ticket: acceptance criteria in `tickets.json`, tests e2e → integration → unit, green CI, merged to `main`. No ticket is closed yet because nothing past #149 is on `main`.
+Done = closed, or `status:implemented` and still open for the listed reason. DoD per ticket: acceptance criteria in `tickets.json`, the named e2e → integration → unit tests present on `main`, full CI green. On 2026-11-13, 49 tickets and review issues #159–#163 were closed with evidence; epics E2, E4 and E9 are closed.
 
 | Epic | Done | Remaining (issue) | Blocked by human gate |
 |---|---|---|---|
-| E1 Accounts | 11/12 | review fixes #163 (fixed on branch, verify) | E1-10 #48 live auth credentials |
-| E2 Course creation | 8/8 | review fixes #164 (E2 part fixed) | — |
-| E3 Lesson player | 6/6 | review fixes #164 (E3 items 2, 3, 6) | — |
-| E4 Lesson tests | 7/7 | review fixes #161 (fixed on branch, verify) | — |
-| E5 Gamification | 4/6 | E5-05 #88 (in progress on `epic/e5`), E5-06 #89 | — |
-| E6 Social | 1/7 | E6-01 #90 … E6-07 #95 | — |
-| E7 Credits | 8/14 | review fixes #159 (verify), E7-10 #66, E7-11 #67 | E7-05 #24, E7-12 #143, E7-13 #144, E7-14 #145 |
-| E8 Tutor | 3/5 | E8-04 #99 (in progress on `epic/e8`), E8-05 #146 | — |
-| E9 Notes | 5/5 | review fixes #162 (fixed on branch, verify) | — |
-| E10 Evals | 4/6 | review fixes #160 (verify), E10-06 #109 code present, CI red | E10-01 #25 HF dataset + eval secrets |
+| E1 Accounts | 11/12 | E1-12 #157 open: Rust keychain/keystore adapter tests missing | E1-10 #48 live auth credentials |
+| E2 Course creation | 8/8, epic closed | — | — |
+| E3 Lesson player | 6/6 implemented, kept open | review fixes #164 (E3 items) | — |
+| E4 Lesson tests | 7/7, epic closed | — | — |
+| E5 Gamification | 5/6 | E5-06 #89 (PR #169) | — |
+| E6 Social | 2/7 | E6-02 #91 … E6-07 #95 (PR #168) | — |
+| E7 Credits | 8/14 | E7-10 #66, E7-11 #67 (fixture work per ADR 0012) | E7-05 #24, E7-12 #143, E7-13 #144, E7-14 #145 |
+| E8 Tutor | 3/5 | E8-04 #99, E8-05 #146 (PR #170) | — |
+| E9 Notes | 5/5, epic closed | — | — |
+| E10 Evals | 4/6 | E10-06 #109 (code on main; live part waits for E10-01) | E10-01 #25 HF dataset + eval secrets |
 | E11 Ops | 2/7 | E11-03 #28, E11-05 #52, E11-06 #53 | E11-02 #27, E11-07 #54 |
-| E12 Monetization | 7/10 | review fixes #165 (E12 items), E12-10 #155 | E12-08 #111, E12-09 #154 |
+| E12 Monetization | 7/10 (6 kept open for #165) | review fixes #165 (E12 items), E12-10 #155 | E12-08 #111, E12-09 #154 |
 | E13 App design | 4/6 | E13-06 #36 | E13-05 #35 brand assets |
 | E14 Narration | 0/6 | E14-01 #112 … E14-04 #115, E14-06 #117 | E14-05 #116 voices |
 | E15 Sharing | 0/13 | E15-01 #118 … E15-11 #128 (after E6-04) | E15-12 #37, E15-13 #147 |
@@ -36,7 +36,7 @@ Done = closed or `status:implemented`. DoD for every ticket: acceptance criteria
 
 ## Plan
 
-1. Green CI on #166, merge to `main`, close implemented tickets with evidence.
+1. Done: #166 green and merged; implemented tickets closed with evidence.
 2. Child sessions, at most three at a time: E5+E8 (then E17-07); E6 (then E15); review fixes + E12-10. Next: E14, E16, E11/E7 fixture work, E15, E17-08/09.
 
 ## Human-required
