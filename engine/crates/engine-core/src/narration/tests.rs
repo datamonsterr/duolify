@@ -208,3 +208,115 @@ async fn recorded_mock_fixture_matches_provider_and_passes_alignment_checks() {
         ends
     );
 }
+
+fn dedupe_fixture() -> serde_json::Value {
+    serde_json::from_str(include_str!(
+        "../../../../../evals/fixtures/narration.dedupe.json"
+    ))
+    .unwrap()
+}
+
+/// The resolved config fingerprint is the shared identity input: it is stable across
+/// calls and changes whenever any voice setting changes (a new retained version).
+#[test]
+fn resolved_fingerprint_matches_the_recorded_fixture_and_tracks_settings() {
+    let fixture = dedupe_fixture();
+    let voice = VoiceConfig::resolve("default").unwrap();
+    assert_eq!(
+        voice.fingerprint(),
+        fixture["settings_fingerprint"].as_str().unwrap()
+    );
+    assert_eq!(
+        voice.fingerprint(),
+        VoiceConfig::resolve("default").unwrap().fingerprint()
+    );
+    for tweak in [
+        |v: &mut VoiceConfig| v.stability = 0.6,
+        |v: &mut VoiceConfig| v.similarity_boost = 0.8,
+        |v: &mut VoiceConfig| v.speed = 1.1,
+        |v: &mut VoiceConfig| v.voice_id = "other-voice".into(),
+    ] {
+        let mut changed = voice.clone();
+        tweak(&mut changed);
+        assert_ne!(changed.fingerprint(), voice.fingerprint());
+    }
+}
+
+/// Cache case: the API normalizes whitespace before the call, so equivalent texts reach the
+/// provider as one text and produce byte-identical audio.
+#[tokio::test]
+async fn recorded_cache_case_produces_identical_audio_for_normalized_text() {
+    let case = &dedupe_fixture()["cases"][0];
+    let texts: Vec<String> = case["texts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| {
+            t.as_str()
+                .unwrap()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect();
+    assert_eq!(texts[0], texts[1]);
+    let a = MockSpeechProvider
+        .synthesize(&request(&texts[0]))
+        .await
+        .unwrap();
+    let b = MockSpeechProvider
+        .synthesize(&request(&texts[1]))
+        .await
+        .unwrap();
+    assert_eq!(a.audio, b.audio);
+    assert!(case["expect"]["same_audio"].as_bool().unwrap());
+}
+
+/// Retry case: a transient failure is bounded-retried and the delivered result is the same
+/// artifact (same bytes, so the same content hash) with exactly one delivered usage.
+#[tokio::test]
+async fn recorded_retry_case_delivers_the_same_artifact_once() {
+    struct FlakyThenMock(AtomicU32);
+    #[async_trait::async_trait]
+    impl SpeechProvider for FlakyThenMock {
+        fn name(&self) -> &'static str {
+            "flaky"
+        }
+        async fn synthesize(&self, req: &SpeechRequest) -> anyhow::Result<SpeechOutput> {
+            if self.0.fetch_add(1, Ordering::SeqCst) == 0 {
+                anyhow::bail!("engine_unavailable");
+            }
+            MockSpeechProvider.synthesize(req).await
+        }
+    }
+    let case = &dedupe_fixture()["cases"][1];
+    let text = case["text"].as_str().unwrap();
+    let flaky = FlakyThenMock(AtomicU32::new(0));
+    let out = synthesize_bounded(&flaky, &request(text), Duration::from_secs(1), 2)
+        .await
+        .unwrap();
+    let direct = MockSpeechProvider.synthesize(&request(text)).await.unwrap();
+    assert_eq!(out.0.audio, direct.audio);
+    assert_eq!(out.1, 2, "second attempt delivered");
+    assert_eq!(flaky.0.load(Ordering::SeqCst), 2);
+    let delivered = usage_for("eleven_flash_v2_5", text.chars().count() as u32, 2, 5);
+    assert!(delivered.delivered);
+    assert_eq!(case["expect"]["delivered_charges"], 1);
+}
+
+/// Alignment failure: dropping the last character is rejected, so nothing is delivered or charged.
+#[tokio::test]
+async fn recorded_alignment_failure_case_is_rejected_before_delivery() {
+    let case = &dedupe_fixture()["cases"][2];
+    let text = case["text"].as_str().unwrap();
+    let mut out = MockSpeechProvider.synthesize(&request(text)).await.unwrap();
+    out.alignment.characters.pop();
+    out.alignment.start_ms.pop();
+    out.alignment.end_ms.pop();
+    assert!(matches!(
+        validate(text, &out),
+        Err(SpeechError::InvalidAlignment(_))
+    ));
+    assert_eq!(case["expect"]["error"], "invalid_alignment");
+    assert_eq!(case["expect"]["charge"], 0);
+}

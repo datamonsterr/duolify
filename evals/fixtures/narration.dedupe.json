@@ -1,0 +1,29 @@
+{
+  "description": "Recorded mock cases for lesson_narration cache, retry and alignment failure (E14-02). Replayed by the engine narration tests and the API narration unit tests.",
+  "voice_key": "default",
+  "voice_id": "mock-default-voice",
+  "model_id": "eleven_flash_v2_5",
+  "settings_fingerprint": "fp1-8ddf89677266ee03",
+  "cases": [
+    {
+      "id": "cache-identical",
+      "kind": "cache",
+      "texts": ["The sky is a map.", "  The sky   is a map.\n"],
+      "expect": { "same_audio": true, "provider_calls_after_first": 0, "charge_after_first": 0 }
+    },
+    {
+      "id": "retry-same-hash",
+      "kind": "retry",
+      "text": "Stars are suns.",
+      "attempts": ["engine_unavailable", "ok"],
+      "expect": { "same_hash": true, "delivered_charges": 1, "failed_charges": 0 }
+    },
+    {
+      "id": "alignment-failure",
+      "kind": "alignment_failure",
+      "text": "Hello sky",
+      "corruption": "drop_last_character",
+      "expect": { "error": "invalid_alignment", "charge": 0, "text_lesson_usable": true }
+    }
+  ]
+}
