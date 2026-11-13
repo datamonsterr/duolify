@@ -42,7 +42,10 @@ type fixtureAdult struct{}
 func (fixtureAdult) MeetsMinAge(context.Context, string, int) (bool, error) { return true, nil }
 
 func newSharingService(pool *pgxpool.Pool, objects sharing.ObjectWriter, gen sharing.GenerationDeps) *sharing.Service {
-	s := sharing.NewService(pool, nil, sharing.DefaultConfig()).WithAgeSource(fixtureAdult{}).WithObjects(objects, playerfixture.AssetOrigin)
+	cfg := sharing.DefaultConfig()
+	// The release flag is OFF by default; the disposable browser server enables it explicitly (E15-07).
+	cfg.MarketplaceEnabled, cfg.MarketplacePageSize = true, 2
+	s := sharing.NewService(pool, nil, cfg).WithAgeSource(fixtureAdult{}).WithObjects(objects, playerfixture.AssetOrigin)
 	s.ConfigureScreening(sharingScreener{}, fixtureRates{})
 	if gen.Lessons != nil {
 		s = s.WithGeneration(gen)
