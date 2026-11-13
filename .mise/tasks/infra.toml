@@ -43,9 +43,27 @@ run = "docker compose --profile workers build worker backup-init"
 description = "Preview Railway IaC for duolify/dev without applying"
 run = ["npm ci --prefix .railway --ignore-scripts", "railway link --project duolify --environment dev", "railway config plan"]
 
+["infra:validate-plan"]
+description = "Validate git-backed Railway environment definitions (dev, staging, prod) and produce plan evidence"
+run = "node .railway/plan.mjs --all | go run -C services/api ./cmd/api admin infra validate"
+
 ["infra:deploy-dev"]
 description = "Review and apply Railway IaC to duolify/dev only (may incur costs)"
 run = ["npm ci --prefix .railway --ignore-scripts", "railway link --project duolify --environment dev", "railway config apply"]
+
+["infra:deploy-staging"]
+description = "Staging deployment release gate (gated on E11-07; disabled in AFK ticket)"
+run = '''
+echo "ERROR: Staging live deployment is disabled in AFK tickets. Requires E11-07 owner approval." >&2
+exit 1
+'''
+
+["infra:deploy-prod"]
+description = "Production deployment release gate (gated on E11-07; disabled in AFK ticket)"
+run = '''
+echo "ERROR: Production live deployment is disabled in AFK tickets. Requires E11-07 owner approval." >&2
+exit 1
+'''
 
 ["infra:restore-drill"]
 description = "Restore an anonymized custom-format dump into disposable Postgres"
