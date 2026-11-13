@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
@@ -137,7 +139,7 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 	}
 	if in.Model == "" {
 		in.Model = p.ActionModels[in.Action]
-		if in.Model == "" && in.Action == "setup_chat" {
+		if in.Model == "" && (in.Action == "setup_chat" || in.Action == "course_brief_chat" || in.Action == "outline_chat_change") {
 			in.Model = "haiku"
 		}
 	}
@@ -148,7 +150,7 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 		}
 		// An action may only use its evaluated, configured model bracket.
 		expectedModel := p.ActionModels[in.Action]
-		if expectedModel == "" && in.Action == "setup_chat" {
+		if expectedModel == "" && (in.Action == "setup_chat" || in.Action == "course_brief_chat" || in.Action == "outline_chat_change") {
 			expectedModel = "haiku"
 		}
 		if in.Model != expectedModel {
@@ -239,10 +241,30 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 }
 
 // Quotes persists original terms and consent independently of wallet operations.
-type Quotes struct{ pool *pgxpool.Pool }
+type Quotes struct {
+	pool    *pgxpool.Pool
+	env     string
+	ownerID string
+}
 
 // NewQuotes constructs the database-backed quote service.
-func NewQuotes(pool *pgxpool.Pool) *Quotes { return &Quotes{pool: pool} }
+func NewQuotes(pool *pgxpool.Pool) *Quotes {
+	return &Quotes{
+		pool:    pool,
+		env:     os.Getenv("DUOLIFY_ENV"),
+		ownerID: os.Getenv("PRICING_OWNER_ID"),
+	}
+}
+
+// SetEnvironment configures the deployment environment for decision gate checks.
+func (s *Quotes) SetEnvironment(env string) {
+	s.env = env
+}
+
+// SetOwnerID configures the pricing owner ID for decision gate checks.
+func (s *Quotes) SetOwnerID(ownerID string) {
+	s.ownerID = ownerID
+}
 
 // Create resolves database time and snapshots the active version.
 func (s *Quotes) Create(ctx context.Context, owner string, in QuoteInput) (Quote, error) {
@@ -253,6 +275,21 @@ func (s *Quotes) Create(ctx context.Context, owner string, in QuoteInput) (Quote
 // The caller must gate this server-only path by the deployment environment.
 func (s *Quotes) CreateDevelopmentOutline(ctx context.Context, owner string, in QuoteInput) (Quote, error) {
 	if in.Action != "outline_chat_change" {
+		return Quote{}, errQuote
+	}
+	// Once an activated version carries the keys, resolve through it:
+	if q, err := s.Create(ctx, owner, in); err == nil {
+		return q, nil
+	}
+	// Fall back to dev version only in dev/test for environments without an activated version:
+	if !IsDevOrTest(s.env) {
+		return Quote{}, errQuote
+	}
+	var activatedEver bool
+	if s.pool != nil {
+		_ = s.pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pricing_activation_events e JOIN pricing_versions v ON v.version=e.version WHERE v.config->'actions' ? 'outline_chat_change')").Scan(&activatedEver)
+	}
+	if activatedEver {
 		return Quote{}, errQuote
 	}
 	return s.createVersion(ctx, owner, in, "usd-dev-outline-chat-unapproved")
@@ -295,6 +332,23 @@ func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput,
 	c, err := Parse(row.Config)
 	if err != nil {
 		return Quote{}, err
+	}
+	if IsDesignChatAction(in.Action) {
+		if _, ok := c.Actions[in.Action]; !ok {
+			return Quote{}, errQuote
+		}
+		if version == "" {
+			if err := CheckDesignChatDecision(c, s.env, "", s.ownerID); err != nil {
+				return Quote{}, errQuote
+			}
+			if !IsDevOrTest(s.env) {
+				var reviewer string
+				_ = s.pool.QueryRow(ctx, "SELECT coalesce((SELECT reviewed_by FROM pricing_drafts WHERE version=$1),'')", c.Version).Scan(&reviewer)
+				if !strings.EqualFold(reviewer, s.ownerID) {
+					return Quote{}, errQuote
+				}
+			}
+		}
 	}
 	var policy QuotePolicy
 	if err = json.Unmarshal(row.Policy, &policy); err != nil {
