@@ -204,7 +204,7 @@ func (f *fakeCatalogue) MarketCourse(_ context.Context, viewer, id string) (shar
 	f.calls, f.viewer = append(f.calls, "course"), viewer
 	return sharing.MarketCoursePage{CourseID: id}, f.page
 }
-func (f *fakeCatalogue) EnrollMarketplace(_ context.Context, viewer, id string) (sharing.Enrollment, error) {
+func (f *fakeCatalogue) EnrollMarketplace(_ context.Context, viewer, _ string) (sharing.Enrollment, error) {
 	f.calls, f.viewer = append(f.calls, "enroll"), viewer
 	return sharing.Enrollment{CourseID: "c", Created: true}, f.enroll
 }

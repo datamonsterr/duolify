@@ -128,8 +128,8 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	}
 	// Only the exact word "true" turns the Marketplace on.
 	c.MarketplaceEnabled = getenv("MARKETPLACE_ENABLED") == "true"
-	positive := func(key string, dst *int, min, max int) {
-		if n, err := strconv.Atoi(getenv(key)); err == nil && n >= min && n <= max {
+	positive := func(key string, dst *int, lo, hi int) {
+		if n, err := strconv.Atoi(getenv(key)); err == nil && n >= lo && n <= hi {
 			*dst = n
 		}
 	}
