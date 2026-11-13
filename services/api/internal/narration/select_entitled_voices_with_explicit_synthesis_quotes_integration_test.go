@@ -238,7 +238,7 @@ func TestSelectEntitledVoicesWithExplicitSynthesisQuotesIntegration(t *testing.T
 
 	// 9. Deleting the Lesson erases every voice row and starts retention for each unshared asset.
 	keys, err := narration.UnsharedObjectKeys(ctx, h.pool, []string{lesson})
-	if err != nil || len(keys) != 6 /* audio+alignment for default, warm and calm */ {
+	if err != nil || len(keys) != 18 /* 3 slides x 3 voices x (audio+alignment) */ {
 		t.Fatal("unshared keys", len(keys), err)
 	}
 	if _, err = h.pool.Exec(ctx, `DELETE FROM lesson_manifests WHERE lesson_id=$1`, lesson); err != nil {
@@ -247,7 +247,7 @@ func TestSelectEntitledVoicesWithExplicitSynthesisQuotesIntegration(t *testing.T
 	var left, retained int
 	_ = h.pool.QueryRow(ctx, `SELECT count(*) FROM slide_narrations WHERE lesson_id=$1`, lesson).Scan(&left)
 	_ = h.pool.QueryRow(ctx, `SELECT count(*) FROM narration_assets WHERE ref_count=0 AND unreferenced_at IS NOT NULL`).Scan(&retained)
-	if left != 0 || retained < 3 {
+	if left != 0 || retained < 9 {
 		t.Fatal("lesson deletion must erase all voice rows and unreference their assets", left, retained)
 	}
 }
