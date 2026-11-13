@@ -222,7 +222,9 @@ test("a learner sees ready/total, a price-version quote, consents and generates 
   const preview = await (
     await request.get(`${apiBase}/v1/public/shares/${token}`)
   ).json();
-  expect(JSON.stringify(preview)).toContain("2 of 3");
+  expect([preview.generated_lesson_count, preview.lesson_count]).toEqual([
+    2, 3,
+  ]);
   const other = await atTheEnd(browser, request, token);
   const otherLessons = (
     await courseOf(request, other.headers, other.copy)
