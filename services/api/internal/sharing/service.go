@@ -2,7 +2,9 @@ package sharing
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -11,6 +13,7 @@ import (
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -357,8 +360,258 @@ func (s *Service) Rescreen(ctx context.Context, owner, courseID, draftID string)
 	return s.Get(ctx, owner, courseID, draftID)
 }
 
-// Publish is guarded now so E15-02 can add visibility behind the same checks: owner first,
-// then the configured adult age, then no public visibility exists yet.
+// GenerateToken generates a 20-byte (160-bit) cryptographically random share token,
+// encoded as base64url (no padding). The token is returned to the caller once and
+// never persisted — only its SHA-256 hex hash is stored.
+func GenerateToken() (string, error) {
+	buf := make([]byte, 20)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+// HashToken returns the SHA-256 hex of the plaintext token for safe storage.
+func HashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
+// PublishLink publishes a Course with visibility=link and returns the opaque share token.
+// Only the owner, an adult (by config), and a draft with verdict=pass can publish.
+func (s *Service) PublishLink(ctx context.Context, owner, courseID string) (string, error) {
+	if !validID(owner) || !validID(courseID) {
+		return "", ErrUnavailable
+	}
+	adult := false
+	var err error
+	if s.age != nil {
+		if adult, err = s.age.MeetsMinAge(ctx, owner, s.cfg.MinPublisherAge); err != nil {
+			return "", err
+		}
+	}
+	if !adult {
+		return "", ErrAdultRequired
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err = owns(ctx, tx, owner, courseID); err != nil {
+		return "", err
+	}
+	// Require the latest draft to have verdict=pass.
+	var verdict string
+	if err = tx.QueryRow(ctx, `SELECT verdict FROM publication_drafts WHERE course_id=$1 ORDER BY number DESC LIMIT 1`, courseID).Scan(&verdict); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrPublishNotAllowed
+		}
+		return "", err
+	}
+	if verdict != VerdictPass {
+		return "", ErrPublishNotAllowed
+	}
+
+	token, err := GenerateToken()
+	if err != nil {
+		return "", err
+	}
+	hash := HashToken(token)
+
+	// Revoke any existing active link first (rotate semantics).
+	if _, err = tx.Exec(ctx, `UPDATE publication_links SET revoked_at=now() WHERE course_id=$1 AND revoked_at IS NULL`, courseID); err != nil {
+		return "", err
+	}
+
+	// Record the new link (hash only).
+	if _, err = tx.Exec(ctx, `INSERT INTO publication_links(course_id,token_hash) VALUES($1,$2)`, courseID, hash); err != nil {
+		return "", err
+	}
+
+	// Get old visibility for event.
+	var oldVis string
+	if err = tx.QueryRow(ctx, `SELECT visibility FROM courses WHERE id=$1`, courseID).Scan(&oldVis); err != nil {
+		return "", err
+	}
+	// Set visibility to link.
+	if _, err = tx.Exec(ctx, `UPDATE courses SET visibility='link' WHERE id=$1`, courseID); err != nil {
+		return "", err
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return "", err
+	}
+
+	// Analytics: visibility_changed + course_published + share_link_created.
+	s.emit(owner, "course_visibility_changed", map[string]any{"course_id": courseID, "from": oldVis, "to": "link"})
+	// Get draft details for course_published event.
+	if d, gerr := s.latestPassDraft(ctx, courseID); gerr == nil {
+		s.emit(owner, "course_published", map[string]any{"course_id": courseID, "version": d.Number, "visibility": "link", "lesson_count": d.LessonCount})
+	}
+	s.emit(owner, "share_link_created", map[string]any{"course_id": courseID})
+
+	return token, nil
+}
+
+// latestPassDraft returns the latest pass draft for a course (best-effort for analytics).
+func (s *Service) latestPassDraft(ctx context.Context, courseID string) (Draft, error) {
+	var d Draft
+	err := s.pool.QueryRow(ctx, `SELECT id::text,course_id::text,number,content_hash,verdict,reason_codes,lesson_count,sampled_lessons,created_at FROM publication_drafts WHERE course_id=$1 AND verdict='pass' ORDER BY number DESC LIMIT 1`, courseID).
+		Scan(&d.ID, &d.CourseID, &d.Number, &d.ContentHash, &d.Verdict, &d.ReasonCodes, &d.LessonCount, &d.SampledLessons, &d.CreatedAt)
+	return d, err
+}
+
+// RevokeLink sets revoked_at on the active link, sets visibility back to private,
+// and emits share_link_revoked.
+func (s *Service) RevokeLink(ctx context.Context, owner, courseID string) error {
+	if !validID(owner) || !validID(courseID) {
+		return ErrUnavailable
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err = owns(ctx, tx, owner, courseID); err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, `UPDATE publication_links SET revoked_at=now() WHERE course_id=$1 AND revoked_at IS NULL`, courseID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrLinkNotFound
+	}
+	if _, err = tx.Exec(ctx, `UPDATE courses SET visibility='private' WHERE id=$1`, courseID); err != nil {
+		return err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return err
+	}
+	s.emit(owner, "share_link_revoked", map[string]any{"course_id": courseID})
+	return nil
+}
+
+// RotateLink atomically revokes the old link and creates a new one, returning the new token.
+func (s *Service) RotateLink(ctx context.Context, owner, courseID string) (string, error) {
+	if !validID(owner) || !validID(courseID) {
+		return "", ErrUnavailable
+	}
+	adult := false
+	var err error
+	if s.age != nil {
+		if adult, err = s.age.MeetsMinAge(ctx, owner, s.cfg.MinPublisherAge); err != nil {
+			return "", err
+		}
+	}
+	if !adult {
+		return "", ErrAdultRequired
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err = owns(ctx, tx, owner, courseID); err != nil {
+		return "", err
+	}
+	// Must have an active link to rotate.
+	var cnt int
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM publication_links WHERE course_id=$1 AND revoked_at IS NULL`, courseID).Scan(&cnt); err != nil {
+		return "", err
+	}
+	if cnt == 0 {
+		return "", ErrLinkNotFound
+	}
+	token, err := GenerateToken()
+	if err != nil {
+		return "", err
+	}
+	hash := HashToken(token)
+	// Revoke old, insert new.
+	if _, err = tx.Exec(ctx, `UPDATE publication_links SET revoked_at=now() WHERE course_id=$1 AND revoked_at IS NULL`, courseID); err != nil {
+		return "", err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO publication_links(course_id,token_hash) VALUES($1,$2)`, courseID, hash); err != nil {
+		return "", err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	s.emit(owner, "share_link_revoked", map[string]any{"course_id": courseID})
+	s.emit(owner, "share_link_created", map[string]any{"course_id": courseID})
+	return token, nil
+}
+
+// GetPreview resolves a share token to the allowlisted public preview payload.
+// viewerID may be "" for anonymous visitors. If the viewer is in a block relationship
+// with the owner, ErrLinkNotFound is returned (social contract, neutral 404).
+func (s *Service) GetPreview(ctx context.Context, token, viewerID string) (PreviewPayload, error) {
+	if token == "" {
+		return PreviewPayload{}, ErrLinkNotFound
+	}
+	hash := HashToken(token)
+	// Look up the active link.
+	var courseID, ownerID string
+	err := s.pool.QueryRow(ctx, `SELECT pl.course_id::text, c.learner_id::text
+		FROM publication_links pl
+		JOIN courses c ON c.id=pl.course_id
+		WHERE pl.token_hash=$1 AND pl.revoked_at IS NULL AND c.deleted_at IS NULL`, hash).
+		Scan(&courseID, &ownerID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PreviewPayload{}, ErrLinkNotFound
+	}
+	if err != nil {
+		return PreviewPayload{}, err
+	}
+	// Block check: if signed-in viewer is in a block relationship with the owner, return neutral 404.
+	if viewerID != "" && validID(viewerID) {
+		blocked, berr := social.BlockedEitherWay(ctx, s.pool, viewerID, ownerID)
+		if berr != nil || blocked {
+			return PreviewPayload{}, ErrLinkNotFound
+		}
+	}
+	// Load the latest pass draft snapshot.
+	var snapRaw []byte
+	var draft Draft
+	err = s.pool.QueryRow(ctx, `SELECT d.id::text, d.course_id::text, d.number, d.content_hash, d.lesson_count, d.sampled_lessons, d.created_at, d.snapshot
+		FROM publication_drafts d
+		WHERE d.course_id=$1 AND d.verdict='pass'
+		ORDER BY d.number DESC LIMIT 1`, courseID).
+		Scan(&draft.ID, &draft.CourseID, &draft.Number, &draft.ContentHash, &draft.LessonCount, &draft.SampledLessons, &draft.CreatedAt, &snapRaw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PreviewPayload{}, ErrLinkNotFound
+	}
+	if err != nil {
+		return PreviewPayload{}, err
+	}
+	var snap Snapshot
+	if err = json.Unmarshal(snapRaw, &snap); err != nil {
+		return PreviewPayload{}, err
+	}
+	// Load creator public identity.
+	var creator CreatorInfo
+	_ = s.pool.QueryRow(ctx, `SELECT COALESCE(lu.username,''), COALESCE(l.display_name,'')
+		FROM learners l
+		LEFT JOIN learner_usernames lu ON lu.learner_id=l.id
+		WHERE l.id=$1::uuid`, ownerID).
+		Scan(&creator.Username, &creator.DisplayName)
+	// Load enrollment count (aggregate only).
+	var enrollmentCount int
+	_ = s.pool.QueryRow(ctx, `SELECT count(*) FROM course_enrollments WHERE course_id=$1`, courseID).Scan(&enrollmentCount)
+
+	payload := BuildPreviewPayload(snap, draft, creator, enrollmentCount)
+
+	// Emit share_link_opened: has_account=true if viewerID is set.
+	hasAccount := viewerID != "" && validID(viewerID)
+	s.emit(viewerID, "share_link_opened", map[string]any{"course_id": courseID, "has_account": hasAccount, "surface": "web"})
+
+	return payload, nil
+}
+
+// Publish is the E15-01 stub kept for backward compat (the E15-01 test asserts ErrVisibilityUnavailable).
+// Real publishing is now PublishLink.
 func (s *Service) Publish(ctx context.Context, owner, courseID string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

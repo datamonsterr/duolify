@@ -30,6 +30,10 @@ var (
 	ErrAdultRequired = errors.New("adult_required")
 	// ErrVisibilityUnavailable means no public visibility exists yet (E15-01).
 	ErrVisibilityUnavailable = errors.New("visibility_unavailable")
+	// ErrPublishNotAllowed is returned when the latest draft verdict is not pass.
+	ErrPublishNotAllowed = errors.New("publish_not_allowed")
+	// ErrLinkNotFound is the neutral 404 for an invalid, revoked, or block-hidden token.
+	ErrLinkNotFound = errors.New("link_not_found")
 )
 
 // Config holds every policy-like value; defaults are conservative (ADR 0012, E15-12 open).
@@ -44,11 +48,22 @@ type Config struct {
 	MaxAttempts      uint32
 	MaxCostNanos     int64
 	RetentionDays    int
+	// E15-02: public preview domain and deep-link scheme.
+	PublicDomain             string
+	AppScheme                string
+	PreviewRateLimitPerIP    int
+	PreviewRateWindowSeconds int
 }
 
 // DefaultConfig is the conservative v1 policy.
 func DefaultConfig() Config {
-	return Config{MinPublisherAge: 18, SampleMaxLessons: 12, SampleMaxBytes: 120000, MaxInputTokens: 60000, MaxOutputTokens: 300, TimeoutMs: 120000, MaxAttempts: 2, MaxCostNanos: 250_000_000, RetentionDays: 365}
+	return Config{
+		MinPublisherAge: 18, SampleMaxLessons: 12, SampleMaxBytes: 120000,
+		MaxInputTokens: 60000, MaxOutputTokens: 300, TimeoutMs: 120000, MaxAttempts: 2,
+		MaxCostNanos: 250_000_000, RetentionDays: 365,
+		PublicDomain: "localhost", AppScheme: "duolify",
+		PreviewRateLimitPerIP: 60, PreviewRateWindowSeconds: 60,
+	}
 }
 
 // ConfigFromEnv overlays SHARING_* variables on the defaults; invalid values keep the default.
@@ -65,6 +80,18 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	}
 	if n, err := strconv.ParseInt(getenv("SHARING_SCREEN_MAX_COST_NANOS"), 10, 64); err == nil && n > 0 && n <= c.MaxCostNanos {
 		c.MaxCostNanos = n
+	}
+	if v := getenv("SHARING_PUBLIC_DOMAIN"); v != "" {
+		c.PublicDomain = v
+	}
+	if v := getenv("SHARING_APP_SCHEME"); v != "" {
+		c.AppScheme = v
+	}
+	if n, err := strconv.Atoi(getenv("SHARING_PREVIEW_RATE_LIMIT_PER_IP")); err == nil && n > 0 {
+		c.PreviewRateLimitPerIP = n
+	}
+	if n, err := strconv.Atoi(getenv("SHARING_PREVIEW_RATE_WINDOW_SECONDS")); err == nil && n > 0 {
+		c.PreviewRateWindowSeconds = n
 	}
 	return c
 }
@@ -148,5 +175,86 @@ type OutlineUnit struct {
 
 // OutlineLesson is a Lesson title in the outline.
 type OutlineLesson struct {
-	Title string `json:"title"`
+	Title     string `json:"title"`
+	Generated bool   `json:"generated"`
+}
+
+// CreatorInfo is the allowlisted public identity of a Course owner.
+type CreatorInfo struct {
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	AvatarURL   string `json:"avatar_url,omitempty"`
+}
+
+// PublicSlide is the allowlisted HTML only slide returned on a public preview.
+// No narration, no questions.
+type PublicSlide struct {
+	ID   string `json:"id"`
+	HTML string `json:"html"`
+}
+
+// PublicOutlineUnit is the preview outline: title + lesson titles, no content.
+type PublicOutlineUnit struct {
+	Title   string                `json:"title"`
+	Lessons []PublicOutlineLesson `json:"lessons"`
+}
+
+// PublicOutlineLesson is a lesson entry in the public outline.
+type PublicOutlineLesson struct {
+	Title     string `json:"title"`
+	Generated bool   `json:"generated"`
+}
+
+// PreviewPayload is the allowlisted public preview of a published Course.
+// NO questions, answer_index, explanation, retry_pool, narration_refs or narration audio.
+type PreviewPayload struct {
+	CourseID             string              `json:"course_id"`
+	Title                string              `json:"title"`
+	Description          string              `json:"description"`
+	Version              int                 `json:"version"`
+	LessonCount          int                 `json:"lesson_count"`
+	GeneratedLessonCount int                 `json:"generated_lesson_count"`
+	Creator              CreatorInfo         `json:"creator"`
+	Outline              []PublicOutlineUnit `json:"outline"`
+	SampleSlides         []PublicSlide       `json:"sample_slides"`
+	EnrollmentCount      int                 `json:"enrollment_count"`
+}
+
+// BuildPreviewPayload constructs a PreviewPayload from a Snapshot + Draft + creator identity.
+// It enforces the preview allowlist at the type level: forbidden fields simply do not exist.
+func BuildPreviewPayload(snap Snapshot, draft Draft, creator CreatorInfo, enrollmentCount int) PreviewPayload {
+	var generatedCount int
+	var sample []PublicSlide
+	outline := make([]PublicOutlineUnit, 0, len(snap.Units))
+	for _, u := range snap.Units {
+		ou := PublicOutlineUnit{Title: u.Title, Lessons: make([]PublicOutlineLesson, 0, len(u.Lessons))}
+		for _, l := range u.Lessons {
+			ou.Lessons = append(ou.Lessons, PublicOutlineLesson{Title: l.Title, Generated: l.Generated})
+			if l.Generated {
+				generatedCount++
+				// Collect up to 3 sample slides from the first generated lesson that has slides.
+				if len(sample) < 3 && len(l.Slides) > 0 {
+					for _, sl := range l.Slides {
+						if len(sample) >= 3 {
+							break
+						}
+						sample = append(sample, PublicSlide{ID: sl.ID, HTML: sl.HTML})
+					}
+				}
+			}
+		}
+		outline = append(outline, ou)
+	}
+	return PreviewPayload{
+		CourseID:             draft.CourseID,
+		Title:                snap.Title,
+		Description:          snap.Description,
+		Version:              draft.Number,
+		LessonCount:          draft.LessonCount,
+		GeneratedLessonCount: generatedCount,
+		Creator:              creator,
+		Outline:              outline,
+		SampleSlides:         sample,
+		EnrollmentCount:      enrollmentCount,
+	}
 }

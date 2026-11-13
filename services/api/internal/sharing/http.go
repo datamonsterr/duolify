@@ -33,6 +33,10 @@ func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 		write(w, http.StatusForbidden, map[string]string{"error": "adult_required"})
 	case errors.Is(err, ErrVisibilityUnavailable):
 		write(w, http.StatusConflict, map[string]string{"error": "visibility_unavailable"})
+	case errors.Is(err, ErrPublishNotAllowed):
+		write(w, http.StatusConflict, map[string]string{"error": "publish_not_allowed"})
+	case errors.Is(err, ErrLinkNotFound):
+		write(w, http.StatusNotFound, map[string]string{"error": "link_not_found"})
 	default:
 		slog.ErrorContext(r.Context(), "publication draft request failed", "error", err)
 		write(w, http.StatusServiceUnavailable, map[string]string{"error": "sharing_unavailable"})
@@ -62,6 +66,34 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPost && r.URL.Path == "/v1/courses/"+course+"/publish":
 		h.fail(w, r, h.s.Publish(r.Context(), actor, course))
 		return
+	case r.Method == http.MethodPost && r.URL.Path == "/v1/courses/"+course+"/share-link":
+		// PublishLink: create/publish a share link for a course with verdict=pass.
+		token, terr := h.s.PublishLink(r.Context(), actor, course)
+		if terr != nil {
+			h.fail(w, r, terr)
+			return
+		}
+		previewURL := "https://" + h.s.cfg.PublicDomain + "/preview/" + token
+		write(w, http.StatusCreated, map[string]string{"token": token, "preview_url": previewURL})
+		return
+	case r.Method == http.MethodDelete && r.URL.Path == "/v1/courses/"+course+"/share-link":
+		// RevokeLink: revoke the active share link.
+		if rerr := h.s.RevokeLink(r.Context(), actor, course); rerr != nil {
+			h.fail(w, r, rerr)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	case r.Method == http.MethodPost && r.URL.Path == "/v1/courses/"+course+"/share-link/rotate":
+		// RotateLink: generate a new token, revoke the old one.
+		token, rerr := h.s.RotateLink(r.Context(), actor, course)
+		if rerr != nil {
+			h.fail(w, r, rerr)
+			return
+		}
+		previewURL := "https://" + h.s.cfg.PublicDomain + "/preview/" + token
+		write(w, http.StatusOK, map[string]string{"token": token, "preview_url": previewURL})
+		return
 	default:
 		http.NotFound(w, r)
 		return
@@ -71,4 +103,35 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	write(w, status, d)
+}
+
+// PreviewHandler serves the public preview endpoint (anonymous allowed).
+// It is NOT protected by auth middleware — the actor is optional.
+type PreviewHandler struct{ s *Service }
+
+// NewPreviewHandler returns the anonymous preview handler.
+func NewPreviewHandler(s *Service) *PreviewHandler { return &PreviewHandler{s: s} }
+
+func (h *PreviewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	token := r.PathValue("token")
+	// Set noindex headers on every response.
+	w.Header().Set("X-Robots-Tag", "noindex")
+	w.Header().Set("Cache-Control", "no-store")
+
+	viewerID := accounts.LearnerID(r.Context()) // may be ""
+	payload, err := h.s.GetPreview(r.Context(), token, viewerID)
+	if err != nil {
+		if errors.Is(err, ErrLinkNotFound) {
+			write(w, http.StatusNotFound, map[string]string{"error": "link_not_found"})
+		} else {
+			slog.ErrorContext(r.Context(), "public preview failed", "error", err)
+			write(w, http.StatusServiceUnavailable, map[string]string{"error": "sharing_unavailable"})
+		}
+		return
+	}
+	write(w, http.StatusOK, payload)
 }
