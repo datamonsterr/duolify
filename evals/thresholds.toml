@@ -44,3 +44,10 @@ character_persona_chat = 1.0
 # 1.0 gate; any `pass` for a hostile sample is critical. Live promotion stays disabled
 # until E10-06 evidence exists.
 course_screen = 1.0
+
+# E15-04: a missing lesson in a published copy. Offline cases gate the previous-pass,
+# consent and insufficient-credit refusals (no provider call), schema validation,
+# one bounded evaluated fallback within the quote and USD caps, and release on
+# terminal failure as a strict 1.0 gate; any delivery past a failed gate is critical.
+# Live promotion stays disabled until E10-06 evidence exists.
+published_copy_lesson = 1.0

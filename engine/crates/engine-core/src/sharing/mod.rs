@@ -77,5 +77,8 @@ pub async fn screen_course(
     .await
 }
 
+mod missing;
+pub use missing::{MissingGate, check_missing, generate_missing, lesson_ok};
+
 #[cfg(test)]
 mod tests;
