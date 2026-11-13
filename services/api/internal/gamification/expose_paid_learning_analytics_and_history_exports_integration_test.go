@@ -337,8 +337,9 @@ func TestPaidLearningAnalyticsAndHistoryExportsIntegration(t *testing.T) {
 			Daily  any `json:"daily"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(w.Body).Decode(&exportResp); err != nil {
-		t.Fatalf("decode export resp: %v", err)
+	exportBody := append([]byte(nil), w.Body.Bytes()...)
+	if err := json.Unmarshal(exportBody, &exportResp); err != nil {
+		t.Fatalf("export is not one valid JSON document: %v", err)
 	}
 	if len(exportResp.Dimensions) != 2 || exportResp.Dimensions[0] != "course" {
 		t.Errorf("dimensions mismatch: %+v", exportResp.Dimensions)
@@ -346,9 +347,78 @@ func TestPaidLearningAnalyticsAndHistoryExportsIntegration(t *testing.T) {
 
 	// Friend course privacy check:
 	// Verify that secret friend course is never in Plus learner export or analytics
-	fullBody, _ := io.ReadAll(w.Body)
-	if strings.Contains(string(fullBody), "Secret Diary of Friend") {
+	if strings.Contains(string(exportBody), "Secret Diary of Friend") {
 		t.Errorf("Leak detected: friend private course content appeared in export!")
 	}
 	_ = freeID
+
+	// Own XP on a friend's private course (not enrolled) and on a deleted course stays counted
+	// under a generic title; the friend's course title never appears. The row cap flags truncation.
+	course3Deleted := uuid.New().String()
+	for i, c := range []string{course2Private, course3Deleted, course1} {
+		if _, err = db.Pool.Exec(ctx, `INSERT INTO xp_events(learner_id,lesson_id,course_id,completion_id,amount,perfect,config_version,earned_at,local_date,time_zone)
+			VALUES($1::uuid,gen_random_uuid(),$2::uuid,gen_random_uuid(),10,false,'launch-v1',now() - make_interval(hours => $3::int),current_date,'UTC')`, proID, c, i+2); err != nil {
+			t.Fatal(err)
+		}
+	}
+	get := func(path, token string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(ctx, "GET", path, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w
+	}
+	w = get("/v1/gamification/export/history", proToken)
+	var hist struct {
+		History []struct {
+			CourseTitle string `json:"course_title"`
+		} `json:"history"`
+		Truncated bool `json:"history_truncated"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &hist); err != nil || len(hist.History) != 3 || hist.Truncated || strings.Contains(w.Body.String(), "Secret Diary of Friend") {
+		t.Fatalf("history must keep all own XP without friend titles: %v %s", err, w.Body.String())
+	}
+	for _, it := range hist.History {
+		if it.CourseTitle != "Untitled Course" && it.CourseTitle != "Astronomy Basics" && it.CourseTitle != "" {
+			t.Fatalf("unexpected title %q", it.CourseTitle)
+		}
+	}
+	var summary struct {
+		Summary struct {
+			TotalXP int `json:"total_xp"`
+		} `json:"summary"`
+		Course []struct {
+			Title   string `json:"title"`
+			TotalXP int    `json:"total_xp"`
+		} `json:"course_breakdown"`
+	}
+	w = get("/v1/gamification/analytics", proToken)
+	if err := json.Unmarshal(w.Body.Bytes(), &summary); err != nil || summary.Summary.TotalXP != 30 {
+		t.Fatalf("summary XP: %v %s", err, w.Body.String())
+	}
+	sumCourses := 0
+	for _, c := range summary.Course {
+		sumCourses += c.TotalXP
+	}
+	if sumCourses != summary.Summary.TotalXP {
+		t.Fatalf("course breakdown %d must add up to total %d", sumCourses, summary.Summary.TotalXP)
+	}
+	exportRowCap = 2
+	defer func() { exportRowCap = 50000 }()
+	w = get("/v1/gamification/export/analytics?dimensions=completions,course", proToken)
+	var capped struct {
+		Data struct {
+			Completions []any `json:"completions"`
+			Truncated   bool  `json:"completions_truncated"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &capped); err != nil || len(capped.Data.Completions) != 2 || !capped.Data.Truncated {
+		t.Fatalf("export must be cut at the row cap and flagged: %v %s", err, w.Body.String())
+	}
+	// Expired plans get a typed reason on every endpoint.
+	for _, p := range []string{"/v1/gamification/export/history", "/v1/gamification/export/analytics?dimensions=course", "/v1/gamification/analytics"} {
+		if w = get(p, expiredToken); w.Code != 403 || !strings.Contains(w.Body.String(), "subscription_expired") {
+			t.Fatalf("%s expired: %d %s", p, w.Code, w.Body.String())
+		}
+	}
 }

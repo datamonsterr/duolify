@@ -2,6 +2,8 @@ package gamification
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -219,5 +221,73 @@ func TestAnalyticsEntitlementRejection(t *testing.T) {
 	svc.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
 		t.Errorf("Learn accessing custom export got status %d, want 403", w.Code)
+	}
+}
+
+// Entitlement comes only from the verified benefits of the funded term (version-aware);
+// a plan id or name never grants a benefit by itself.
+func TestEntitlementIgnoresPlanNameWithoutBenefit(t *testing.T) {
+	plan := &credits.FundedPlan{PlanID: "pro_custom", Name: "Pro", Active: true, PaidThrough: time.Now().Add(time.Hour)}
+	if isEntitledToHistoryExport(plan) || isEntitledToAnalytics(plan) || isEntitledToCustomExport(plan) {
+		t.Fatal("plan name/id without a benefit must not entitle")
+	}
+}
+
+func TestDeniedExportsExplainWhy(t *testing.T) {
+	ctx := accounts.WithLearnerID(t.Context(), "a1111111-1111-4111-8111-111111111111")
+	future := time.Now().Add(time.Hour)
+	cases := []struct {
+		name         string
+		plan         *credits.FundedPlan
+		path         string
+		wantCode     string
+		wantSuppress bool
+	}{
+		{"none history", nil, "/v1/gamification/export/history", "subscription_required", false},
+		{"expired history", &credits.FundedPlan{PlanID: "learn", Active: false, Benefits: []string{"Learning history export"}}, "/v1/gamification/export/history", "subscription_expired", false},
+		{"expired custom", &credits.FundedPlan{PlanID: "pro", Active: false, Benefits: []string{"Custom learning analytics exports"}}, "/v1/gamification/export/analytics?dimensions=course", "subscription_expired", false},
+		{"learn analytics suppresses upsell", &credits.FundedPlan{PlanID: "learn", Active: true, PaidThrough: future, Benefits: []string{"Learning history export", "No upsell banners"}}, "/v1/gamification/analytics", "subscription_required", true},
+		{"free analytics upsell ok", nil, "/v1/gamification/analytics", "subscription_required", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &Service{}
+			svc.UseEntitlements(&mockEntitlementService{plan: tc.plan})
+			w := httptest.NewRecorder()
+			svc.ServeHTTP(w, httptest.NewRequestWithContext(ctx, "GET", tc.path, nil))
+			var body struct {
+				Code           string `json:"code"`
+				UpsellSuppress bool   `json:"upsell_suppressed"`
+			}
+			_ = json.Unmarshal(w.Body.Bytes(), &body)
+			if w.Code != http.StatusForbidden || body.Code != tc.wantCode || body.UpsellSuppress != tc.wantSuppress {
+				t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestEntitlementLookupFailureIs503(t *testing.T) {
+	svc := &Service{}
+	svc.UseEntitlements(&mockEntitlementService{err: errors.New("down")})
+	ctx := accounts.WithLearnerID(t.Context(), "a1111111-1111-4111-8111-111111111111")
+	for _, p := range []string{"/v1/gamification/analytics", "/v1/gamification/export/history", "/v1/gamification/export/analytics"} {
+		w := httptest.NewRecorder()
+		svc.ServeHTTP(w, httptest.NewRequestWithContext(ctx, "GET", p, nil))
+		if w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("%s status=%d", p, w.Code)
+		}
+	}
+}
+
+func TestNormalizeExportDimensions(t *testing.T) {
+	got, err := normalizeExportDimensions([]string{" Daily", "course", "daily", "COURSE"})
+	if err != nil || strings.Join(got, ",") != "course,daily" {
+		t.Fatalf("got %v %v", got, err)
+	}
+	for _, bad := range [][]string{nil, {"course", "x;DROP TABLE xp_events"}, {""}} {
+		if _, err := normalizeExportDimensions(bad); err == nil {
+			t.Fatalf("%v accepted", bad)
+		}
 	}
 }
