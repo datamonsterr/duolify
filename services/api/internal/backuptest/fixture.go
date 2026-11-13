@@ -565,17 +565,21 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 			t.Fatal(err)
 		}
 	}
-	// E15-04: a Lesson generated inside the pinned copy with the learner's consent record.
+	// E15-04: a Lesson generated inside a pinned copy owned by its own learner, with the consent record.
+	const generator, genCopy, genStub = "e1504000-0000-4000-8000-000000000000", "e1504000-5555-4555-8555-555555555555", "e1504000-2222-4222-8222-222222222222"
 	for _, stmt := range []string{
-		`INSERT INTO course_units(id,learner_id,course_id,authored_id,position,title) VALUES('e1504000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','e1503000-1111-4111-8111-111111111111','u1',0,'Copy unit')`,
-		`INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status) VALUES('e1504000-2222-4222-8222-222222222222','a2222222-2222-4222-8222-222222222222','e1504000-1111-4111-8111-111111111111','l3',0,'Generated in the copy','Goal','current')`,
-		`INSERT INTO generated_lessons(id,lesson_stub_id,learner_id,course_id,title,manifest) VALUES('e1504000-3333-4333-8333-333333333333','e1504000-2222-4222-8222-222222222222','a2222222-2222-4222-8222-222222222222','e1503000-1111-4111-8111-111111111111','Generated in the copy','{}'::jsonb)`,
+		`INSERT INTO learners(id,display_name) VALUES('` + generator + `','Backup Copy Generator')`,
+		`INSERT INTO courses(id,learner_id,title) VALUES('` + genCopy + `','` + generator + `','Generated copy')`,
+		`INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,draft_id,version,content_hash) VALUES('` + genCopy + `','` + generator + `','f1111111-1111-4111-8111-111111111111','e1500000-1111-4111-8111-111111111111',1,'` + strings.Repeat("ab", 32) + `')`,
+		`INSERT INTO course_units(id,learner_id,course_id,authored_id,position,title) VALUES('e1504000-1111-4111-8111-111111111111','` + generator + `','` + genCopy + `','u1',0,'Copy unit')`,
+		`INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status) VALUES('` + genStub + `','` + generator + `','e1504000-1111-4111-8111-111111111111','l3',0,'Generated in the copy','Goal','current')`,
+		`INSERT INTO generated_lessons(id,lesson_stub_id,learner_id,course_id,title,manifest) VALUES('e1504000-3333-4333-8333-333333333333','` + genStub + `','` + generator + `','` + genCopy + `','Generated in the copy','{}'::jsonb)`,
 	} {
 		if _, err = f.DB.Pool.Exec(t.Context(), stmt); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err = f.DB.Pool.Exec(t.Context(), `WITH g AS (INSERT INTO lesson_generations(id,learner_id,lesson_id,course_id,quote_id,state) VALUES('e1504000-4444-4444-8444-444444444444','a2222222-2222-4222-8222-222222222222','e1504000-2222-4222-8222-222222222222','e1503000-1111-4111-8111-111111111111',$1,'completed') RETURNING id) INSERT INTO copy_generation_consents(generation_id,learner_id,copy_course_id,lesson_id,quote_id,pricing_version) SELECT id,'a2222222-2222-4222-8222-222222222222','e1503000-1111-4111-8111-111111111111','e1504000-2222-4222-8222-222222222222',$1,$2 FROM g`, outlineQuote.ID, outlineQuote.PricingVersion); err != nil {
+	if _, err = f.DB.Pool.Exec(t.Context(), `WITH g AS (INSERT INTO lesson_generations(id,learner_id,lesson_id,course_id,quote_id,state) VALUES('e1504000-4444-4444-8444-444444444444','`+generator+`','`+genStub+`','`+genCopy+`',$1,'completed') RETURNING id) INSERT INTO copy_generation_consents(generation_id,learner_id,copy_course_id,lesson_id,quote_id,pricing_version) SELECT id,'`+generator+`','`+genCopy+`','`+genStub+`',$1,$2 FROM g`, outlineQuote.ID, outlineQuote.PricingVersion); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_variant_snapshots (id, session_id, learner_id, lesson_stub_id, topic_id, question_id, variant_of, source, reason, prompt, choices, answer_index, explanation, instruction_snapshot) VALUES ('fccccccc-cccc-4ccc-8ccc-cccccccccccc', 'f8888888-8888-4888-8888-888888888888', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'top-moon', 'v1-top-moon', 'q-moon', 'pool', NULL, 'What causes moon phases?', '["Sun angle", "Earth shadow"]'::jsonb, 0, 'Angle of sunlight on moon', '{"topic":"moon"}'::jsonb)`); err != nil {
@@ -864,8 +868,8 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT monthly_credits FROM credit_subscription_terms LIMIT 1").Scan(&monthlyCredits); err != nil {
 		t.Fatal(err)
 	}
-	// Three learners: the synthetic learner, the E6-03 friend and the E6-04 blocked row.
-	if version != f.schemaVersion || riverVersions < 1 || learners != 3 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
+	// Four learners: the synthetic learner, the E6-03 friend, the E6-04 blocked row and the E15-04 copy generator.
+	if version != f.schemaVersion || riverVersions < 1 || learners != 4 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
 	var pricingVersion string
