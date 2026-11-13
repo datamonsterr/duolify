@@ -93,3 +93,138 @@
     flex: 1 1 100%;
   }
 }
+
+/* E6-02: rename row, Add a friend sheet, privacy settings. */
+.social-rename-row {
+  display: grid;
+  gap: var(--space-3, 12px);
+  justify-items: start;
+  min-width: 0;
+}
+.social-rename {
+  width: 100%;
+  box-sizing: border-box;
+}
+.social-hint {
+  color: var(--muted, var(--text));
+  font-size: 0.875rem;
+  margin: 0;
+}
+.social-sheet {
+  box-sizing: border-box;
+  width: min(32rem, 100vw - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  padding: var(--space-5, 20px);
+  background: var(--surface);
+  color: var(--text);
+}
+.social-sheet::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+.social-sheet-body {
+  display: grid;
+  gap: var(--space-3, 12px);
+  min-width: 0;
+}
+.social-sheet-body h2 {
+  margin: 0;
+}
+.social-sheet input {
+  min-height: 44px;
+  min-width: 0;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.social-sheet :focus-visible,
+.social-privacy :focus-visible,
+.social-rename-row :focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.social-results {
+  min-height: 4rem;
+  overflow-wrap: anywhere;
+}
+.social-result-list {
+  display: grid;
+  gap: var(--space-2, 8px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.social-result-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3, 12px);
+  align-items: center;
+}
+.social-avatar.small {
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: 1.125rem;
+}
+.social-privacy {
+  display: grid;
+  gap: var(--space-3, 12px);
+  min-width: 0;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  padding: var(--space-5, 20px);
+  background: var(--surface);
+  color: var(--text);
+}
+.social-privacy h2 {
+  margin: 0;
+}
+.social-privacy-controls {
+  display: grid;
+  gap: var(--space-3, 12px);
+}
+.social-setting {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+  min-height: 44px;
+}
+.social-setting.stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1, 4px);
+}
+.social-setting input[type="checkbox"] {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+.social-setting select {
+  min-height: 44px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+@media (max-width: 47.99rem) {
+  .social-sheet {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+    border-width: 0;
+  }
+  .social-privacy {
+    padding: var(--space-4, 16px);
+  }
+  .social-rename-row .duo-button {
+    width: 100%;
+  }
+}
