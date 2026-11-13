@@ -170,7 +170,8 @@ export const session = {
         if (
           key.startsWith("credits:recovery:") ||
           key.startsWith("player:position:") ||
-          key.startsWith("course-outline:")
+          key.startsWith("course-outline:") ||
+          key.startsWith("tutor-draft:")
         )
           sessionStorage.removeItem(key);
     } catch {

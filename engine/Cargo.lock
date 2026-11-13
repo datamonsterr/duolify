@@ -283,6 +283,7 @@ dependencies = [
  "async-trait",
  "engine-core",
  "engine-providers",
+ "futures",
  "regex",
  "reqwest",
  "ring",

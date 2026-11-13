@@ -394,6 +394,7 @@ const guidedSheets = [
   "outline_chat",
   "fixture_sheet",
   "quick_note",
+  "lesson_tutor",
 ] as const;
 export type GuidedSheetId = (typeof guidedSheets)[number];
 export type GuidedUiEvent =
@@ -494,6 +495,43 @@ export function trackCourseRecovery(
     });
   } catch {
     /* Telemetry failure never blocks recovery. */
+  }
+}
+
+export function trackTutorRecovery(
+  action: "retry" | "reload" | "top_up" | "read_transcript",
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("ui_recovery_selected", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      surface: "lesson_tutor",
+      action,
+    });
+  } catch {
+    /* Telemetry failure never blocks recovery. */
+  }
+}
+
+/** E8-05 catalogue: the Learner confirmed deleting a tutor thread. Identifiers only, never text. */
+export function trackTutorControl(controlId: "delete_thread") {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("ui_control_activated", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      surface: "tutor_chat",
+      control_id: controlId,
+    });
+  } catch {
+    /* Telemetry failure never blocks deleting. */
   }
 }
 

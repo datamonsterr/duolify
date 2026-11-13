@@ -23,6 +23,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
+	"github.com/datamonsterr/duolify/services/api/internal/chat"
 	"github.com/datamonsterr/duolify/services/api/internal/config"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
@@ -313,6 +314,7 @@ func run(ctx context.Context, args []string) (result error) {
 	defer stopActivator()
 	go runtimePricing.RunActivator(activatorCtx, pricingAdmin)
 
+	courseService := courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"})
 	handler := httpapi.New(httpapi.Dependencies{
 		Characters:              characters.NewHandler(characterService),
 		Gamification:            xpService,
@@ -322,7 +324,8 @@ func run(ctx context.Context, args []string) (result error) {
 		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
 		Accounts:                auth,
 		Credits:                 creditService,
-		CourseBrief:             courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
+		CourseBrief:             courseService,
+		Tutor:                   chat.New(chat.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Profiles: courseService, Events: events, Notes: notesService, Logger: logger}),
 		Pricing:                 runtimePricing,
 		PricingAdmin:            pricingAdmin,
 		Quotes:                  pricing.NewQuotes(db.Pool),

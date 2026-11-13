@@ -102,6 +102,9 @@ async fn grpc_spans_correlate_failures_and_stream_polling_without_text() {
         .unwrap()
         .into_inner();
     assert!(stream.message().await.unwrap().is_some());
+    // The provider sent no usage frame: the Engine closes with one bounded, flagged estimate.
+    let estimate = stream.message().await.unwrap().unwrap();
+    assert!(matches!(estimate.event, Some(pb::chat_event::Event::Usage(u)) if u.estimated));
     assert!(stream.message().await.unwrap().is_none());
     let before_brief = bytes.lock().unwrap().len();
     let brief = client
