@@ -60,7 +60,9 @@ for (const mobile of [false, true]) {
       .getByRole("button", { name: "Confirm character credits" })
       .click();
     await page.reload();
-    await expect(page.getByRole("status")).toContainText("Character ready");
+    await expect(
+      page.locator(".character-create").getByRole("status"),
+    ).toContainText("Character ready");
     await expect(
       page.getByRole("heading", { name: "Original moon gardener" }),
     ).toBeVisible();
