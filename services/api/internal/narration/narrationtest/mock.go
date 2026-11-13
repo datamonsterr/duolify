@@ -102,7 +102,6 @@ type Engine struct {
 // SetFaults replaces the fault table.
 func (e *Engine) SetFaults(f map[string]string) { e.mu.Lock(); e.faults = f; e.mu.Unlock() }
 
-// Calls returns how many non-resolve synthesis requests reached the provider.
 // CallsContaining counts synthesis requests whose text contains the marker, so parallel
 // e2e runs can observe only their own salted narration.
 func (e *Engine) CallsContaining(marker string) int {
@@ -117,6 +116,7 @@ func (e *Engine) CallsContaining(marker string) int {
 	return n
 }
 
+// Calls returns how many non-resolve synthesis requests reached the provider.
 func (e *Engine) Calls() int { e.mu.Lock(); defer e.mu.Unlock(); return e.synthCall }
 
 // SynthesizeNarration implements the engine RPC.

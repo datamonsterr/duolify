@@ -1,8 +1,13 @@
 package narration
 
 import (
+	"encoding/json"
+	"os"
 	"testing"
 	"time"
+
+	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/narration/narrationtest"
 )
 
 func TestNormalizeTextCollapsesWhitespaceAndComposesUnicode(t *testing.T) {
@@ -32,8 +37,8 @@ func TestEquivalentTextsShareContentAndTextHash(t *testing.T) {
 }
 
 func TestAggregateCharacterPriceRoundsUpOnce(t *testing.T) {
-	// 50 Credits per 1,440 characters: two 45-character slides cost ceil(90*50/1440)=4, not 2+2 per slide... and
-	// three 29-character slides cost ceil(87*50/1440)=4 where per-slide rounding would charge 3.
+	// 50 Credits per 1,440 characters: three 29-character slides cost ceil(87*50/1440)=4 in total,
+	// where rounding each slide up would charge 2+2+2=6.
 	if got := AggregateCredits([]int{29, 29, 29}, 50, 1440); got != 4 {
 		t.Fatal(got)
 	}
@@ -63,5 +68,39 @@ func TestRecoveryStatesAreClosed(t *testing.T) {
 		if s == "" {
 			t.Fatal("empty recovery state")
 		}
+	}
+}
+
+// The recorded golden fixture and the Go twin of the engine agree on the resolved identity inputs.
+func TestRecordedDedupeFixtureMatchesResolvedConfig(t *testing.T) {
+	raw, err := os.ReadFile("../../../../evals/fixtures/narration.dedupe.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		VoiceID     string `json:"voice_id"`
+		ModelID     string `json:"model_id"`
+		Fingerprint string `json:"settings_fingerprint"`
+		Cases       []struct {
+			ID    string   `json:"id"`
+			Texts []string `json:"texts"`
+		} `json:"cases"`
+	}
+	if err = json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := narrationtest.Synthesize(&enginev1.SynthesizeNarrationRequest{VoiceKey: VoiceKey, ResolveOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.VoiceId != fixture.VoiceID || resolved.ModelId != fixture.ModelID || resolved.SettingsFingerprint != fixture.Fingerprint {
+		t.Fatal("fixture drifted from the resolved config", resolved.SettingsFingerprint)
+	}
+	if len(fixture.Cases) != 3 {
+		t.Fatal("cache, retry and alignment-failure cases are required", len(fixture.Cases))
+	}
+	cache := fixture.Cases[0].Texts
+	if ContentHash(NormalizeText(cache[0]), fixture.VoiceID, fixture.ModelID, fixture.Fingerprint) != ContentHash(NormalizeText(cache[1]), fixture.VoiceID, fixture.ModelID, fixture.Fingerprint) {
+		t.Fatal("cache case texts must share one content hash")
 	}
 }
