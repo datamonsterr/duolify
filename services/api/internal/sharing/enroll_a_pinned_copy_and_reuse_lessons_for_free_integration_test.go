@@ -271,7 +271,7 @@ func TestEnrollAPinnedCopyAndReuseLessonsForFree(t *testing.T) {
 			if body != nil {
 				_ = json.NewEncoder(&r).Encode(body)
 			}
-			req := httptest.NewRequest(method, path, &r).WithContext(accounts.WithLearnerID(ctx, stranger))
+			req := httptest.NewRequestWithContext(accounts.WithLearnerID(ctx, stranger), method, path, &r)
 			rec := httptest.NewRecorder()
 			lessons.ServeHTTP(rec, req)
 			var out map[string]any

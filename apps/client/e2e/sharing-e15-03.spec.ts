@@ -263,7 +263,7 @@ test("mobile: enroll with the keyboard, offline error recovers on retry", async 
   const l = await learner(browser, request, { width: 390, height: 780 });
   await l.page.goto(`/c/${token}`);
   let offline = true;
-  await l.page.route("**/enroll", async (route, req) => {
+  await l.page.route("**/enroll", async (route) => {
     if (offline) return route.abort("failed");
     return route.fallback();
   });

@@ -152,10 +152,11 @@ func TestEnrollHandlerUsesTheSessionActorAndNeutralErrors(t *testing.T) {
 		h := sharing.NewEnrollHandler(f)
 		mux.Handle("POST /v1/public/shares/{token}/enroll", h)
 		mux.Handle("GET /v1/public/shares/{token}/enrollment", h)
-		req := httptest.NewRequest(method, path, strings.NewReader(`{"learner_id":"someone-else"}`))
+		ctx := context.Background()
 		if actor != "" {
-			req = req.WithContext(accounts.WithLearnerID(req.Context(), actor))
+			ctx = accounts.WithLearnerID(ctx, actor)
 		}
+		req := httptest.NewRequestWithContext(ctx, method, path, strings.NewReader(`{"learner_id":"someone-else"}`))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		return rec
@@ -198,8 +199,7 @@ func TestEnrollmentStateIsReadOnlyAndNeutral(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("GET /v1/public/shares/{token}/enrollment", sharing.NewEnrollHandler(f))
 	do := func() *httptest.ResponseRecorder {
-		req := httptest.NewRequest(http.MethodGet, "/v1/public/shares/tok123/enrollment", nil)
-		req = req.WithContext(accounts.WithLearnerID(req.Context(), actor))
+		req := httptest.NewRequestWithContext(accounts.WithLearnerID(context.Background(), actor), http.MethodGet, "/v1/public/shares/tok123/enrollment", nil)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		return rec

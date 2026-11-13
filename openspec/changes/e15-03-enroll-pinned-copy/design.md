@@ -7,3 +7,9 @@
 - **Safety.** Block check uses `social.BlockedEitherWay`. The owner opening their own link gets their own Course back (no copy). Errors are neutral: `link_not_found`, `rate_limited`.
 - **Snapshot gaps.** Snapshot slides carry no duration; the copy uses config `SHARING_COPY_SLIDE_MS` (default 8000). Snapshots exclude narration audio (ADR 0012).
 - **Response** `{course_id, created, version, total_lessons, ready_lessons, needs_generation_lessons}`; no token, no owner identity beyond the preview.
+- **Gate.** Content of a `locked` Lesson is refused by the player, Lesson test, Lesson fetch and Tutor retrieval, because a copy materializes every ready Lesson at enroll time.
+- **Objects.** Reused slides/manifests are written once as `lessons/published/<draft>/<unit>-<lesson>/...` (write-once keys shared by copies of a version) and each copy gets its own `lesson_manifests` row. Enrollment without an object store configured skips manifests (rows still copied).
+- **Counts.** Preview `enrollment_count` is the number of copies (aggregate only); the owner's own enrollment no longer counts.
+- **Course read model.** `GET /v1/courses` and `GET /v1/courses/{id}` add `pinned_version`, per-Lesson `content` (`ready` | `needs_generation`) and `reused`, so E15-04 can hook generation onto `needs_generation`.
+- **Abuse signal.** The daily limit logs a structured warning; a moderator table is E15-11.
+- **Test servers.** `/test/reset-auth-rate-limits` also clears preview counters (all E2E traffic shares one loopback IP).

@@ -34,8 +34,8 @@ export function EnrollPanel({
   const busy = useRef(false);
   const open = useRef<HTMLAnchorElement>(null);
 
-  const check = useCallback(() => {
-    setState({ kind: "checking" });
+  // The state starts as "checking", so the first read needs no state write of its own.
+  const read = useCallback(() => {
     existingEnrollment(token).then(
       (r) =>
         setState(
@@ -51,9 +51,13 @@ export function EnrollPanel({
         }),
     );
   }, [token]);
+  const check = () => {
+    setState({ kind: "checking" });
+    read();
+  };
   useEffect(() => {
-    if (signedIn) check();
-  }, [signedIn, check]);
+    if (signedIn) read();
+  }, [signedIn, read]);
 
   const enroll = () => {
     if (busy.current) return;

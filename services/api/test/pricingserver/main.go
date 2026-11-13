@@ -530,7 +530,8 @@ func run() (result error) {
 	// E2E tests reset request throttles between cases; production API limits remain
 	// unchanged. This fixture server is loopback-only and is never deployed.
 	mux.HandleFunc("POST /test/reset-auth-rate-limits", func(w http.ResponseWriter, r *http.Request) {
-		if _, err := db.Pool.Exec(r.Context(), "DELETE FROM auth_rate_limits"); err != nil {
+		// Anonymous preview counters are per-IP and all E2E traffic is loopback, so they reset too.
+		if _, err := db.Pool.Exec(r.Context(), "DELETE FROM auth_rate_limits; DELETE FROM publication_preview_limits"); err != nil {
 			w.WriteHeader(500)
 			return
 		}
