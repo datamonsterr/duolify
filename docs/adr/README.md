@@ -13,5 +13,6 @@
 | [0009](0009-narration-elevenlabs.md) | Slide narration with the ElevenLabs API | Accepted |
 | [0010](0010-custom-characters.md) | Custom characters with a parametric SVG rig and bounded personas | Accepted |
 | [0011](0011-owner-decisions-2026-11-09.md) | Owner decisions for the E1–E17 breakdown | Accepted |
+| [0012](0012-interim-defaults-2026-11-13.md) | Interim defaults for open human gates and integration flow | Proposed |
 
 New ADR: copy the newest file, increase the number, keep it under one page.
