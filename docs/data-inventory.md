@@ -556,3 +556,9 @@ immutable `character_versions` row (or the built-in), so later edits never
 rename history and a purged Character shows a generic label. `tutor_character_selected`
 (client) and `tutor_character_fallback` (API) carry enums, a speaker key and a
 version only; PostHog and device caches stay disposable.
+
+### E6-06 shared friend streaks
+
+Postgres `friend_streaks` (one row per friendship pair: current/longest days, run number, last settled local date of each friend, run start dates), `friend_streak_days` (one row per settled shared day: both friends' own local dates, run, outcome extended/protected/broken, length; the primary key is the idempotent pair-day key) and `friend_streak_milestones` (primary key pair, run, milestone days). All three reference `friendships(learner_low, learner_high)` with `ON DELETE CASCADE`, so removing a friend, blocking, and deleting either account (which cascades the friendship) delete the pair state in the same transaction; the surviving friend sees no streak and none of the erased learner's data. `gamification_config` gains `friend_streak_milestone_days` (default 7; no learner data). Milestone freezes reuse `streak_freeze_milestones` (`kind='friend_streak'`) and the single `streak_freeze_inventory`; no credits are written. Pair state is derived from `streak_days`, `streak_day_protections` and `streak_state` and holds only UUIDs, counts and dates.
+
+All three tables enter nightly encrypted Postgres dumps (14-day general retention). The backup fixture adds a two-day run with its milestone key, compares the restored rows and checks the pair-day key refuses a second settlement. Privacy policy marks them `erased`; account export lists the learner's own days (own local date, outcome, length), milestones and per-friend counts by username. Analytics `friend_streak_started|extended|broken` and `streak_freeze_earned(reason=friend_streak)` carry UUIDs, dates, counts and the `reason` enum only.
