@@ -561,7 +561,11 @@ func (s *Service) Friends(ctx context.Context, actor string) ([]Friend, error) {
 	rows.Close()
 	out := make([]Friend, 0, len(entries))
 	for _, e := range entries {
-		e.friend.Identity = e.row.Project(personal, true)
+		var source StreakSource = personal
+		if s.streaks != nil { // an injected source (tests, future providers) wins over the stored projection
+			source = s.streaks
+		}
+		e.friend.Identity = e.row.Project(source, true)
 		if e.row.ShowStreakToFriends {
 			view, err := s.friendStreakFor(ctx, actor, e.row.LearnerID, e.lo, e.hi, e.friend.Since)
 			if err != nil {
