@@ -5,6 +5,8 @@ import type { ManifestSlide } from "../player/manifest";
 import { parseAlignment, spokenCount, type Alignment } from "./alignment";
 
 type State = "idle" | "loading" | "playing" | "paused" | "unavailable";
+type Recovery =
+  "idle" | "working" | "restored" | "regenerating" | "pending" | "offline";
 
 /**
  * Explicit narration playback for one slide (S09 "Idle — narration ready"). Audio only
@@ -16,12 +18,15 @@ export function NarrationControl({
   rate,
   muted,
   captions,
+  onRecovered,
 }: {
   lessonId: string;
   slide: ManifestSlide;
   rate: number;
   muted: boolean;
   captions: boolean;
+  /** Called after Retry or Restore so the player can reload the manifest's narration status. */
+  onRecovered?: () => void;
 }) {
   const [state, setState] = useState<State>("idle");
   const [alignment, setAlignment] = useState<Alignment | null>(null);
@@ -29,6 +34,9 @@ export function NarrationControl({
   const audio = useRef<HTMLAudioElement | null>(null);
   const url = useRef<string | null>(null);
   const frame = useRef(0);
+  const [recovery, setRecovery] = useState<Recovery>("idle");
+  // Restore is offered only when the object could not be read, never for invalid audio.
+  const [unreadable, setUnreadable] = useState(false);
 
   const stop = () => {
     cancelAnimationFrame(frame.current);
@@ -65,10 +73,17 @@ export function NarrationControl({
     if (!asset) return;
     setState("loading");
     try {
-      const [raw, blob] = await Promise.all([
-        session.request<unknown>(asset.alignment_url),
-        session.blob(asset.audio_url),
-      ]);
+      let raw: unknown;
+      let blob: Blob;
+      try {
+        [raw, blob] = await Promise.all([
+          session.request<unknown>(asset.alignment_url),
+          session.blob(asset.audio_url),
+        ]);
+      } catch (error) {
+        setUnreadable(true);
+        throw error;
+      }
       const parsed = parseAlignment(raw, slide.narration_text);
       if (!parsed || blob.size === 0) throw new Error("invalid narration");
       url.current = URL.createObjectURL(blob);
@@ -99,17 +114,77 @@ export function NarrationControl({
     }
   }
 
+  // Retry (failed audio) and Restore (missing object) never charge Credits and send no body.
+  async function recover(action: "retry" | "recover") {
+    setRecovery("working");
+    try {
+      const result = await session.request<{ state?: string }>(
+        `/v1/lessons/${lessonId}/slides/${slide.slide_id}/narration/${action}`,
+        "POST",
+      );
+      if (result.state === "restored" || result.state === "ok") {
+        // Restored audio waits for an explicit Play, like any narration.
+        setState("idle");
+        setUnreadable(false);
+        setRecovery("restored");
+      } else if (result.state === "regenerating") setRecovery("regenerating");
+      else if (result.state === "pending") setRecovery("pending");
+      else setRecovery("idle");
+      onRecovered?.();
+    } catch {
+      setRecovery("offline");
+    }
+  }
+
   if (slide.narration_status === "disabled") return null;
-  const unavailable =
-    slide.narration_status === "failed" || state === "unavailable";
-  if (unavailable)
+  if (recovery === "regenerating")
     return (
       <div className="narration" role="status">
         <p className="narration-title">Narration unavailable</p>
         <p className="narration-hint">
-          Read the captions and transcript, then continue. The animation still
-          plays.
+          Narration is being restored. Captions stay available.
         </p>
+      </div>
+    );
+  if (recovery === "pending")
+    return (
+      <div className="narration" role="status">
+        <p className="narration-hint">Narration is being prepared.</p>
+      </div>
+    );
+  const unavailable =
+    slide.narration_status === "failed" || state === "unavailable";
+  if (unavailable && recovery !== "restored")
+    return (
+      <div className="narration">
+        <div role="status">
+          <p className="narration-title">Narration unavailable</p>
+          <p className="narration-hint">
+            Read the captions and transcript, then continue. The animation still
+            plays.
+          </p>
+          {recovery === "offline" && (
+            <p className="narration-hint">
+              Could not reach the server. Your place is saved; try again.
+            </p>
+          )}
+        </div>
+        {(slide.narration_status === "failed" || unreadable) && (
+          <button
+            type="button"
+            className="duo-button quiet narration-recover"
+            disabled={recovery === "working"}
+            onClick={() =>
+              void recover(
+                slide.narration_status === "failed" ? "retry" : "recover",
+              )
+            }
+          >
+            {slide.narration_status === "failed"
+              ? "Retry narration"
+              : "Restore narration"}
+          </button>
+        )}
       </div>
     );
   if (slide.narration_status === "pending")
@@ -127,7 +202,9 @@ export function NarrationControl({
         <p className="narration-hint" role="status">
           {state === "loading"
             ? "Loading narration…"
-            : "Narration is ready. Press Play when you are."}
+            : recovery === "restored"
+              ? "Narration restored. Press Play when you are."
+              : "Narration is ready. Press Play when you are."}
         </p>
       )}
       <button

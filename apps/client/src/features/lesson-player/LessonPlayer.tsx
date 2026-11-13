@@ -1390,6 +1390,11 @@ function SlidePlayback({
           rate={rate}
           muted={muted}
           captions={captionsVisible}
+          onRecovered={() =>
+            void queryClient.invalidateQueries({
+              queryKey: ["lesson-manifest", owner, lessonId],
+            })
+          }
         />
         {captionsVisible && (
           <p className="slide-caption">

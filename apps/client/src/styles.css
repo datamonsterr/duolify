@@ -929,3 +929,9 @@ progress::-moz-progress-bar {
     transition: background-color 120ms ease-out;
   }
 }
+
+/* E14-02 recovery actions: same quiet control as Play, 44px touch target (S09 Retry/Exit pattern). */
+.narration-recover {
+  justify-self: start;
+  min-block-size: 44px;
+}
