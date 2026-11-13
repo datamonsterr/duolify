@@ -153,12 +153,27 @@ func TestFinancialCopyAndExpiryFailureAnalyticsOnRustFS(t *testing.T) {
 	if got := fixture.Ciphertext(t, "financial/2026-11-12/schema-"+fixture.SchemaVersionString()+".dump.age"); !bytes.HasPrefix(got, []byte("age-encryption.org/v1")) {
 		t.Fatal("financial copy not encrypted")
 	}
-	// Expired by 40 days: only the general copy rolls off before the financial one.
-	result, err := fixture.Expirer(time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC).AddDate(0, 0, 15)).Run(ctx(t))
+	// 15 days later the general copy is past its window but is the newest of its
+	// class, so the guard keeps it; the financial copy is within 35 days.
+	later := time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC).AddDate(0, 0, 15)
+	result, err := fixture.Expirer(later).Run(ctx(t))
+	if err != nil || result.Deleted != 0 {
+		t.Fatalf("guard failed: %+v %v", result, err)
+	}
+	fixture.AssertObjectCount(t, 2)
+	// Once a newer general dump exists the old one rolls off, the newest stays.
+	fixture.SeedBackupObject(t, "2026-11-26/schema-1.dump.age", []byte("age-encryption.org/v1\nx"))
+	result, err = fixture.Expirer(later).Run(ctx(t))
 	if err != nil || result.Deleted != 1 {
 		t.Fatalf("%+v %v", result, err)
 	}
-	fixture.AssertObjectCount(t, 1)
+	fixture.AssertObjectCount(t, 2)
+	// All dumps far past both windows: the newest of each class survives.
+	result, err = fixture.Expirer(later.AddDate(1, 0, 0)).Run(ctx(t))
+	if err != nil || result.Deleted != 0 {
+		t.Fatalf("%+v %v", result, err)
+	}
+	fixture.AssertObjectCount(t, 2)
 	// A broken expiry job is visible as backup_failed through the PostHog double.
 	failing := backup.Expirer{Store: failingStore{}, Retention: backup.DefaultRetention, Now: time.Now, Events: fixture.Events()}
 	if _, err := failing.Run(ctx(t)); err == nil {

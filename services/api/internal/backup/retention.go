@@ -94,7 +94,8 @@ type Expirer struct {
 	Logger *slog.Logger
 }
 
-// Run lists dump prefixes only. A dump dated D is kept through D+N days.
+// Run lists dump prefixes only. A dump dated D is kept through D+N days, except
+// that the newest dump (by key date) of each class is never deleted.
 func (e Expirer) Run(ctx context.Context) (result ExpiryResult, err error) {
 	started := time.Now()
 	defer func() {
@@ -109,6 +110,9 @@ func (e Expirer) Run(ctx context.Context) (result ExpiryResult, err error) {
 	}
 	now := e.Now().UTC()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	// List everything first: the guard needs the newest dump of each class.
+	var expired []Object
+	newest := map[Class]time.Time{}
 	for _, prefix := range []string{"20", "financial/20"} {
 		objects, listErr := e.Store.List(ctx, prefix)
 		if listErr != nil {
@@ -119,19 +123,35 @@ func (e Expirer) Run(ctx context.Context) (result ExpiryResult, err error) {
 			if !ok {
 				continue
 			}
+			if date.After(newest[class]) {
+				newest[class] = date
+			}
 			days := e.Retention.GeneralDays
 			if class == Financial {
 				days = e.Retention.FinancialDays
 			}
-			if !date.AddDate(0, 0, days).Before(today) {
-				continue
+			if date.AddDate(0, 0, days).Before(today) {
+				expired = append(expired, object)
 			}
-			if deleteErr := e.Store.Delete(ctx, object.Key); deleteErr != nil {
-				return result, errors.New("backup retention delete failed")
-			}
-			result.Deleted++
-			result.Bytes += object.Size
 		}
+	}
+	held := 0
+	for _, object := range expired {
+		class, date, _ := ClassifyKey(object.Key)
+		// Never delete the newest dump of a class: a stalled writer must not
+		// leave zero restorable backups.
+		if date.Equal(newest[class]) {
+			held++
+			continue
+		}
+		if deleteErr := e.Store.Delete(ctx, object.Key); deleteErr != nil {
+			return result, errors.New("backup retention delete failed")
+		}
+		result.Deleted++
+		result.Bytes += object.Size
+	}
+	if held > 0 && e.Logger != nil {
+		e.Logger.WarnContext(ctx, "backup retention guard held back newest expired dumps", "held_back", held)
 	}
 	return result, nil
 }

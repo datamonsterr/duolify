@@ -108,10 +108,38 @@ func TestExpirerBoundaries(t *testing.T) {
 	}
 }
 
+func TestExpirerNeverDeletesNewestDumpPerClass(t *testing.T) {
+	now := time.Date(2026, 11, 13, 0, 0, 1, 0, time.UTC)
+	store := &expiryStore{objects: map[string]int64{
+		"2026-08-01/schema-1.dump.age":           1,
+		"2026-08-02/schema-1.dump.age":           2, // newest general, long expired: survives
+		"financial/2026-08-01/schema-1.dump.age": 3,
+		"financial/2026-09-01/schema-1.dump.age": 4, // newest financial, expired: survives
+	}}
+	var logs bytes.Buffer
+	result, err := backup.Expirer{Store: store, Retention: backup.DefaultRetention, Now: func() time.Time { return now }, Logger: slog.New(slog.NewJSONHandler(&logs, nil))}.Run(t.Context())
+	if err != nil || result.Deleted != 2 {
+		t.Fatalf("%+v %v", result, err)
+	}
+	if _, ok := store.objects["2026-08-02/schema-1.dump.age"]; !ok {
+		t.Fatal("newest general dump deleted")
+	}
+	if _, ok := store.objects["financial/2026-09-01/schema-1.dump.age"]; !ok {
+		t.Fatal("newest financial dump deleted")
+	}
+	if !strings.Contains(logs.String(), "held back") || strings.Contains(logs.String(), "2026-08") {
+		t.Fatalf("guard log missing or leaks keys: %s", logs.String())
+	}
+	// A rerun with nothing newer keeps them.
+	if result, err := (backup.Expirer{Store: store, Retention: backup.DefaultRetention, Now: func() time.Time { return now }}).Run(t.Context()); err != nil || result.Deleted != 0 {
+		t.Fatalf("%+v %v", result, err)
+	}
+}
+
 func TestExpirerFailureEmitsPrivateBackupFailedAndHonorsOptOut(t *testing.T) {
 	for _, optOut := range []bool{false, true} {
 		ev := &events{}
-		store := &expiryStore{objects: map[string]int64{"2026-01-01/schema-1.dump.age": 5}, deleteErr: errors.New("secret-provider endpoint 10.0.0.1")}
+		store := &expiryStore{objects: map[string]int64{"2026-01-01/schema-1.dump.age": 5, "2026-01-02/schema-1.dump.age": 5}, deleteErr: errors.New("secret-provider endpoint 10.0.0.1")}
 		_, err := backup.Expirer{Store: store, Retention: backup.DefaultRetention, Now: time.Now, Events: ev, OptOut: optOut}.Run(t.Context())
 		if err == nil || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "2026-01-01") {
 			t.Fatalf("unsafe error %v", err)

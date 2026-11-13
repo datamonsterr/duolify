@@ -3,13 +3,17 @@
 ### Requirement: Retention
 General dumps MUST be kept for 14 days and financial dumps for 35 days. Expiry
 MUST run as a job under an identity separate from the append-only backup writer,
-and MUST NOT delete the account-deletion ledger or shorten live seven-year
+and MUST NOT delete the newest dump of either class or the account-deletion ledger or shorten live seven-year
 financial history. Railway volume snapshots and PITR remain a second, owner-provided
 layer. Backups MUST live in a different encrypted bucket from application data, with no application delete rights.
 
 #### Scenario: Old dumps
 - **WHEN** a general dump is older than 14 days or a financial dump older than 35 days
 - **THEN** the separate expiry job removes it and keeps newer dumps and the deletion ledger
+
+#### Scenario: Stalled writer
+- **WHEN** every dump of a class is past its window because the writer stopped
+- **THEN** the expiry job keeps the newest dump of each class (by key date) and logs a count without keys
 
 #### Scenario: Writer cannot delete
 - **WHEN** the backup writer or application identity attempts to delete a dump

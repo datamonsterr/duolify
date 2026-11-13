@@ -72,6 +72,10 @@ Railway snapshots/PITR, production buckets and key custody are owner-provided
   seven-year financial history in Postgres is never touched. `BACKUP_GENERAL_RETENTION_DAYS` /
   `BACKUP_FINANCIAL_RETENTION_DAYS` may only raise the windows. `account-deletions/`
   and unknown keys are never listed or deleted.
+- **Newest-dump guard.** Per class, the expirer never deletes the newest dump by key date,
+  even past its window, so a stalled writer (worker broken 15+ days) cannot leave zero
+  restorable backups. When it holds one back it logs a warning with a count only (no keys);
+  treat that log as a signal the writer stopped.
 - **Separate expiry job.** `cmd/backup-expire` (`bin/backup-expire`) is a one-shot job
   run by a scheduler under the expirer identity; the writer keeps no delete API.
   Failures emit `backup_failed` (no keys or errors; honors `ANALYTICS_OPT_OUT`);
