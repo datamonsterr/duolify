@@ -324,16 +324,20 @@ func TestNudgeRetentionIsBoundedByConfig(t *testing.T) {
 	r.befriend(a, b)
 	r.exec(`INSERT INTO friend_nudges(sender_id,recipient_id,operation_key,sender_local_date,created_at,delivered)
  VALUES($1::uuid,$2::uuid,gen_random_uuid(),'2026-10-01',now()-interval '20 days',true),
-        ($1::uuid,$2::uuid,gen_random_uuid(),'2026-11-12',now()-interval '2 days',true)`, a.id, b.id)
-	if got := r.inbox(b); len(got.Items) != 1 {
-		t.Fatal("20-day-old nudge must be gone, 2-day-old kept", got)
+        ($1::uuid,$2::uuid,gen_random_uuid(),'2026-11-09',now()-interval '5 days',true),
+        ($1::uuid,$2::uuid,gen_random_uuid(),'2026-11-13',now()-interval '1 day',true)`, a.id, b.id)
+	if got := r.inbox(b); len(got.Items) != 2 {
+		t.Fatal("20-day-old nudge must be gone, 5- and 1-day-old kept", got)
 	}
-	if r.nudgeRows() != 1 {
+	if r.nudgeRows() != 2 {
 		t.Fatal("expired rows are deleted, not hidden", r.nudgeRows())
 	}
-	r.exec(`UPDATE username_config SET nudge_retention_days=1`)
-	if got := r.inbox(b); len(got.Items) != 0 || r.nudgeRows() != 0 {
+	r.exec(`UPDATE username_config SET nudge_retention_days=2`)
+	if got := r.inbox(b); len(got.Items) != 1 || r.nudgeRows() != 1 {
 		t.Fatal("retention is read from config", got, r.nudgeRows())
+	}
+	if _, err := r.db.Pool.Exec(r.ctx, `UPDATE username_config SET nudge_retention_days=15`); err == nil {
+		t.Fatal("retention beyond the dump window must be refused by the database")
 	}
 }
 
@@ -415,7 +419,6 @@ func (r *rig) assertCleaned(c connected) {
 		}
 	}
 	if n := r.scalar(`SELECT count(*) FROM friend_streaks`); n != 0 {
-		// the third friendship never had a streak, the shared one ended
 		r.t.Fatal("shared streak must end", n)
 	}
 	// The survivor sees nothing of the erased identity anywhere.
@@ -445,8 +448,8 @@ func (r *rig) assertCleaned(c connected) {
  AND previous_owner_ref=encode(sha256(convert_to($2::text,'UTF8')),'hex')`, canonical, c.gone.id); n != 1 {
 		r.t.Fatal("released name must be held 30 days, pseudonymously", n)
 	}
-	claimer := r.friend(c.gone.name + ".Claimer")
-	if s, o := r.claim(claimer.token, c.gone.name); s != 409 || o["code"] != "username_taken" {
+	claimer, _ := r.login(strings.ToLower(c.gone.name) + ".claimer@example.test")
+	if s, o := r.claim(claimer, c.gone.name); s != 409 || o["code"] != "username_taken" {
 		r.t.Fatal("held name must not be claimable", s, o)
 	}
 	if n := r.scalar(`SELECT count(*) FROM (SELECT canonical FROM learner_usernames GROUP BY canonical HAVING count(*)>1) d`); n != 0 {
@@ -457,8 +460,8 @@ func (r *rig) assertCleaned(c connected) {
 func TestDeletingAConnectedAccountRemovesSocialStateWithoutTrace(t *testing.T) {
 	r := newRig(t)
 	c := r.connected("Del.Gone", "Del.Survivor")
-	if n := r.scalar(`SELECT count(*) FROM friend_streaks`); n != 1 {
-		t.Fatal("setup must produce a shared streak", n)
+	if got, ok := r.streak(c.gone, c.survivor); !ok || got.Days == 0 {
+		t.Fatal("setup must produce a shared streak", got, ok)
 	}
 	// Exactly what the account deletion transaction does to the learner row.
 	r.exec(`DELETE FROM learners WHERE id=$1::uuid`, c.gone.id)

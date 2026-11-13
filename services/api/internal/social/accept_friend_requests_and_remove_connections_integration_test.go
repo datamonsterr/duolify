@@ -454,9 +454,15 @@ func TestViewsExposeOnlyPublicFieldsAndErasureRemovesRows(t *testing.T) {
 	f := r.friends(a)[0]
 	for key := range f {
 		switch key {
-		case "id", "username", "display_name", "avatar", "since", "streak", "friend_streak":
+		case "id", "username", "display_name", "avatar", "since", "streak", "friend_streak", "nudge":
 		default:
 			t.Fatalf("friend view leaks %q", key)
+		}
+	}
+	// E6-07 adds the sender's own nudge state, and only that: whether today's nudge is spent.
+	for key := range f["nudge"].(map[string]any) {
+		if key != "sent" && key != "next_at" {
+			t.Fatalf("nudge state leaks %q", key)
 		}
 	}
 	// E6-06 adds the privacy-permitted shared streak object, and only that: counts, state and

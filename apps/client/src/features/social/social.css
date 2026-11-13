@@ -435,3 +435,21 @@
     gap: var(--space-1, 4px);
   }
 }
+
+/* E6-07: nudge button, state note and inbox. */
+.nudge-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  min-height: 44px;
+  margin: var(--space-2, 8px) 0 0 var(--space-3, 12px);
+}
+.nudge-note {
+  margin: var(--space-2, 8px) 0 0;
+  padding-inline: var(--space-3, 12px);
+  color: var(--muted, var(--text));
+  font-size: 0.875rem;
+}
+.nudge-icon {
+  flex: none;
+}

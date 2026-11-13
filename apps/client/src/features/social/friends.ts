@@ -10,6 +10,7 @@ export interface FriendEntry {
   since: string;
   streak?: { days: number };
   friend_streak?: FriendStreak;
+  nudge?: { sent: boolean; next_at?: string };
 }
 export interface RequestEntry {
   id: string;

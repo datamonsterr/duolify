@@ -168,6 +168,10 @@ func (s *Service) endFriendshipTx(ctx context.Context, tx pgx.Tx, a, b string) (
 	if err = clearPairRequestsTx(ctx, tx, a, b); err != nil {
 		return false, nil, err
 	}
+	// Pending nudges go with the friendship: nothing is delivered after a removal or block.
+	if _, err = tx.Exec(ctx, `DELETE FROM friend_nudges WHERE (sender_id=$1::uuid AND recipient_id=$2::uuid) OR (sender_id=$2::uuid AND recipient_id=$1::uuid)`, a, b); err != nil {
+		return false, nil, err
+	}
 	return tag.RowsAffected() > 0, ended, nil
 }
 
@@ -510,6 +514,7 @@ type Friend struct {
 	Since time.Time `json:"since"`
 	Identity
 	FriendStreak *FriendStreakView `json:"friend_streak,omitempty"`
+	Nudge        NudgeState        `json:"nudge"`
 }
 
 // RequestView is one pending request as the other party sees it.
@@ -559,8 +564,15 @@ func (s *Service) Friends(ctx context.Context, actor string) ([]Friend, error) {
 		return nil, err
 	}
 	rows.Close()
+	nudges, err := s.nudgeStates(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]Friend, 0, len(entries))
 	for _, e := range entries {
+		if st := nudges[e.row.LearnerID]; st != nil {
+			e.friend.Nudge = *st
+		}
 		var source StreakSource = personal
 		if s.streaks != nil { // an injected source (tests, future providers) wins over the stored projection
 			source = s.streaks
