@@ -111,6 +111,8 @@ async function pick(name: RegExp) {
   fireEvent.click(await screen.findByRole("radio", { name }));
   fireEvent.click(screen.getByRole("button", { name: "Done" }));
 }
+/** Labels inside the conversation only: the picker also shows the selected name. */
+const log = () => within(screen.getByRole("log"));
 const open = () =>
   fireEvent.click(screen.getByRole("button", { name: "Ask the tutor" }));
 
@@ -130,7 +132,7 @@ it("defaults to the main guide, omits speaker_key and labels the reply with the 
   await screen.findByText("Answer");
   expect("speaker_key" in (svc.send.mock.calls[0][1] as SendInput)).toBe(false);
   expect(document.querySelectorAll(".tutor-who")).toHaveLength(2);
-  expect(screen.getAllByText("Pip").length).toBeGreaterThan(0);
+  expect(log().getAllByText("Pip")).toHaveLength(1);
 });
 
 it("a chosen supporting tutor applies to the next turn only and history keeps its labels", async () => {
@@ -142,14 +144,14 @@ it("a chosen supporting tutor applies to the next turn only and history keeps it
   await pick(/Nova/);
   screen.getByRole("button", { name: "Tutor: Nova" });
   // The earlier reply is unchanged by the new choice.
-  expect(screen.getAllByText("Pip")).toHaveLength(1);
+  expect(log().getAllByText("Pip")).toHaveLength(1);
   await typeAndSend("Second");
   await vi.waitFor(() => expect(svc.send).toHaveBeenCalledTimes(2));
   expect((svc.send.mock.calls[1][1] as SendInput).speaker_key).toBe(
     "supporter",
   );
-  expect(await screen.findAllByText("Nova")).toHaveLength(1);
-  expect(screen.getAllByText("Pip")).toHaveLength(1);
+  expect(await log().findAllByText("Nova")).toHaveLength(1);
+  expect(log().getAllByText("Pip")).toHaveLength(1);
 });
 
 it("a selection during streaming leaves the active reply pinned and sends the new tutor next", async () => {
@@ -172,8 +174,8 @@ it("a selection during streaming leaves the active reply pinned and sends the ne
   await vi.waitFor(() =>
     expect(screen.queryByRole("button", { name: "Stop reply" })).toBeNull(),
   );
-  expect(screen.getAllByText("Pip")).toHaveLength(1);
-  expect(screen.queryByText("Nova")).toBeNull();
+  expect(log().getAllByText("Pip")).toHaveLength(1);
+  expect(log().queryByText("Nova")).toBeNull();
   await typeAndSend("More");
   await vi.waitFor(() => expect(svc.send).toHaveBeenCalledTimes(2));
   expect((svc.send.mock.calls[1][1] as SendInput).speaker_key).toBe(
@@ -229,7 +231,7 @@ it("restores per-message tutors from history and no notice without a fallback", 
   render(<TutorChat courseId="c1" service={svc} />);
   open();
   await screen.findByText("A");
-  expect(screen.getAllByText("Nova").length).toBeGreaterThan(0);
+  expect(log().getAllByText("Nova").length).toBeGreaterThan(0);
   expect(screen.queryByText(/default guide/)).toBeNull();
 });
 
