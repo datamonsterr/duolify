@@ -7,8 +7,15 @@ import (
 )
 
 func TestCourseScreeningEventNeverCapturesContent(t *testing.T) {
-	if allowlisted("course_published") {
-		t.Fatal("course_published must stay off until visibility is live")
+	for _, e := range []string{"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened"} {
+		if !allowlisted(e) {
+			t.Fatalf("%s missing from the catalogue", e)
+		}
+	}
+	tok := "SECRETTOKEN-abc"
+	raw0, _ := json.Marshal(safeProperties("share_link_opened", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "course_id": "c1", "has_account": false, "surface": "web", "token": tok, "ip": "1.2.3.4", "preview_url": tok}))
+	if strings.Contains(string(raw0), "SECRET") || strings.Contains(string(raw0), "1.2.3.4") || !strings.Contains(string(raw0), `"has_account":false`) {
+		t.Fatalf("share_link_opened props wrong: %s", raw0)
 	}
 	if !allowlisted("course_screening_completed") {
 		t.Fatal("course_screening_completed dropped")

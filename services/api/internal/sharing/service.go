@@ -605,7 +605,11 @@ func (s *Service) GetPreview(ctx context.Context, token, viewerID string) (Previ
 
 	// Emit share_link_opened: has_account=true if viewerID is set.
 	hasAccount := viewerID != "" && validID(viewerID)
-	s.emit(viewerID, "share_link_opened", map[string]any{"course_id": courseID, "has_account": hasAccount, "surface": "web"})
+	distinct := viewerID
+	if !hasAccount {
+		distinct = "00000000-0000-4000-8000-000000000011" // anonymous: aggregate under the reserved operations identity, no visitor id
+	}
+	s.emit(distinct, "share_link_opened", map[string]any{"course_id": courseID, "has_account": hasAccount, "surface": "web"})
 
 	return payload, nil
 }
