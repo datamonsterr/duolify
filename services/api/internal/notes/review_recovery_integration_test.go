@@ -4,6 +4,8 @@ package notes_test
 
 import (
 	"context"
+	"errors"
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -157,5 +159,65 @@ func TestNotesReviewExpiredEnrichmentLease(t *testing.T) {
 	}
 	if refreshed.Status != "enriched" || calls != 1 {
 		t.Errorf("expired enrichment remained %s, engine calls=%d; want enriched once", refreshed.Status, calls)
+	}
+}
+
+// A busy per-learner reservation slot is transient: the note must stay pending
+// and resume once the competing enrichment finishes (#175).
+func TestNotesReviewConcurrencyLimitKeepsNoteResumable(t *testing.T) {
+	database := reviewDatabase(t)
+	learner, financial := reviewLearner(t, database)
+	entered, finish := make(chan struct{}, 4), make(chan struct{})
+	fixture := &reviewEngine{enrich: func(ctx context.Context, req *enginev1.EnrichNoteRequest) (*enginev1.EnrichNoteResponse, error) {
+		entered <- struct{}{}
+		select {
+		case <-finish:
+			return reviewResponse(req), nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}}
+	service := notes.NewServiceWithEnrichment(database.Pool, nil, financial, fixture)
+	oldest, err := service.SaveNote(t.Context(), learner, notes.SaveNoteInput{ActionKey: uuid.NewString(), Source: "chat", RawText: "Oldest"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	newer, err := service.SaveNote(t.Context(), learner, notes.SaveNoteInput{ActionKey: uuid.NewString(), Source: "chat", RawText: "Newer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	holder := make(chan error, 1)
+	go func() { holder <- service.ProcessEnrichment(t.Context(), learner, newer.ID) }()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("holder did not start")
+	}
+	if err = service.ProcessEnrichment(t.Context(), learner, oldest.ID); !errors.Is(err, credits.ErrConcurrency) {
+		t.Fatalf("competing enrichment err=%v; want concurrency_limit", err)
+	}
+	refreshed, err := service.GetNote(t.Context(), learner, oldest.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.Status != "enrichment_pending" {
+		t.Fatalf("status=%s; want enrichment_pending", refreshed.Status)
+	}
+	resumed := make(chan error, 1)
+	go func() { _, e := service.ResumePendingEnrichments(t.Context(), learner); resumed <- e }()
+	time.Sleep(300 * time.Millisecond)
+	close(finish)
+	if err = <-holder; err != nil {
+		t.Fatal(err)
+	}
+	if err = <-resumed; err != nil {
+		t.Fatal(err)
+	}
+	refreshed, err = service.GetNote(t.Context(), learner, oldest.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.Status != "enriched" {
+		t.Fatalf("status=%s; want enriched after the slot freed", refreshed.Status)
 	}
 }
