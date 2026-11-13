@@ -120,7 +120,7 @@ async function pass(
   for (const q of questions)
     await request.post(`${apiBase}/v1/lessons/${lesson}/test/answer`, {
       headers,
-      data: { question_id: q.id, choice_index: 0 },
+      data: { question_id: q.question_id, choice_index: 0 },
     });
 }
 
