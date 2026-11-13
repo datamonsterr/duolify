@@ -39,6 +39,7 @@ export const screenIds = [
   "settings",
   "more",
   "streak",
+  "learning_analytics",
   "lesson",
   "lesson_test",
   "not_found",
@@ -66,5 +67,6 @@ export function screenForPath(path: string): ScreenId {
   if (/^\/lesson\/[^/]+\/?$/.test(path)) return "lesson";
   if (path === "/courses/new") return "course_create";
   if (path === "/streak") return "streak";
+  if (path === "/analytics") return "learning_analytics";
   return currentDestination(path) ?? "not_found";
 }

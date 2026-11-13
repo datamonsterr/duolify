@@ -1,4 +1,5 @@
 import { ProgressPage } from "./features/gamification/DailyGoal";
+import { LearningAnalyticsPage } from "./features/gamification/LearningAnalytics";
 import { LeaguePage } from "./features/gamification/League";
 import { UiPreferencesProvider } from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
@@ -267,6 +268,11 @@ const streak = createRoute({
   path: "/streak",
   component: ProgressPage,
 });
+const analytics = createRoute({
+  getParentRoute: () => root,
+  path: "/analytics",
+  component: LearningAnalyticsPage,
+});
 const lessonTest = createRoute({
   getParentRoute: () => root,
   path: "/lesson/$lessonId/test",
@@ -308,6 +314,7 @@ export const createAppRouter = (history?: RouterHistory) =>
       courseCast,
       sessions,
       streak,
+      analytics,
       lessonTest,
       signIn,
     ]),

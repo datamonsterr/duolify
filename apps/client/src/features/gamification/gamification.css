@@ -202,3 +202,101 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* E5-06 Learning analytics and exports */
+.analytics-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+  color: var(--text);
+}
+.analytics-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: 1.25rem;
+  background: var(--surface);
+  border: 2px solid var(--line);
+}
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+.analytics-card {
+  padding: 1rem;
+  border-radius: 1rem;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.analytics-card strong {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+.analytics-card span {
+  font-size: 0.8125rem;
+  color: var(--muted, #555);
+}
+.analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.analytics-table th,
+.analytics-table td {
+  padding: 0.625rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.analytics-export-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  border-radius: 1.25rem;
+  background: var(--surface);
+  border: 2px solid var(--line);
+}
+.analytics-dimension-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.analytics-dimension-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+.analytics-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.analytics-upsell-card {
+  padding: 1.5rem;
+  border-radius: 1.25rem;
+  border: 2px solid var(--accent);
+  background: var(--raised, var(--surface));
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.analytics-badge {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: var(--raised);
+  color: var(--accent);
+}
