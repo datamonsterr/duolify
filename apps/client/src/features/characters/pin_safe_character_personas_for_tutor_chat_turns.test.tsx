@@ -1,5 +1,12 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+
+const posthog = vi.hoisted(() => ({
+  capture: vi.fn(),
+  has_opted_out_capturing: vi.fn(() => false),
+  init: vi.fn(),
+}));
+vi.mock("posthog-js/dist/module.no-external", () => ({ default: posthog }));
 import { TutorChat } from "../chat/TutorChat";
 import type {
   PersonaRoster,
@@ -283,4 +290,37 @@ it("a service without personas keeps the plain tutor label and no picker", async
   await typeAndSend("Hi");
   await screen.findByText("Answer");
   expect(screen.queryByRole("button", { name: /^Tutor: / })).toBeNull();
+});
+
+it("emits tutor_character_selected only for an explicit confirmed choice, without content", async () => {
+  const svc = service();
+  render(<TutorChat courseId="c1" lesson={lesson} embedded service={svc} />);
+  const opener = await screen.findByRole("button", { name: "Tutor: Pip" });
+  const events = () =>
+    posthog.capture.mock.calls.filter(
+      (c) => c[0] === "tutor_character_selected",
+    );
+  // Initial default and merely opening the picker emit nothing.
+  fireEvent.click(opener);
+  expect(events()).toHaveLength(0);
+  // The unavailable tutor cannot be chosen.
+  const gone = screen.getByRole("radio", { name: /Gone/ });
+  fireEvent.click(gone);
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+  expect(events()).toHaveLength(0);
+  await pick(/Nova/);
+  expect(events()).toHaveLength(1);
+  const props = events()[0][1];
+  expect(props).toMatchObject({
+    speaker_key: "supporter",
+    character_version: 1,
+    cast_source: "course",
+    source: "client",
+  });
+  expect(JSON.stringify(props)).not.toMatch(/Nova|Pip/);
+  // Opt-out is respected.
+  posthog.has_opted_out_capturing.mockReturnValue(true);
+  await pick(/Pip/);
+  expect(events()).toHaveLength(1);
+  posthog.has_opted_out_capturing.mockReturnValue(false);
 });

@@ -7,6 +7,7 @@ import {
 } from "react";
 import { useUiPreferences } from "../design/localization/Preferences";
 import type { LessonRef, ReplyClass, TutorService } from "./tutor";
+import { trackTutorCharacterSelected } from "../characters/analytics";
 import { trackTutorControl, trackTutorRecovery } from "../../lib/analytics";
 import { tutorService } from "./tutor";
 import {
@@ -230,6 +231,7 @@ function TutorPicker({ tutor }: { tutor: ReturnType<typeof useTutor> }) {
   const [open, setOpen] = useState(false);
   const opener = useRef<HTMLButtonElement>(null);
   const group = useRef<HTMLDivElement>(null);
+  const opened = useRef<string>(undefined);
   const roster = tutor.roster;
   useEffect(() => {
     if (open)
@@ -264,7 +266,17 @@ function TutorPicker({ tutor }: { tutor: ReturnType<typeof useTutor> }) {
     tutors.find((x) => x.speaker_key === tutor.speaker && x.available) ??
     tutors.find((x) => x.speaker_key === roster.roster.default_speaker) ??
     tutors[0];
+  // Confirming (Done or Escape) with a different, available tutor than at opening is the choice event.
   const close = () => {
+    if (opened.current !== undefined && current?.available) {
+      if (current.speaker_key !== opened.current)
+        trackTutorCharacterSelected({
+          speaker_key: current.speaker_key,
+          character_version: current.character_version,
+          cast_source: source,
+        });
+    }
+    opened.current = undefined;
     setOpen(false);
     opener.current?.focus();
   };
@@ -276,8 +288,10 @@ function TutorPicker({ tutor }: { tutor: ReturnType<typeof useTutor> }) {
         className="btn sec tutor-small tutor-pick-open"
         aria-expanded={open}
         onClick={() => {
-          if (!open) tutor.reloadPersonas(true);
-          setOpen(!open);
+          if (open) return close();
+          opened.current = current?.speaker_key;
+          tutor.reloadPersonas(true);
+          setOpen(true);
         }}
       >
         {t("tutor.picker_prefix")}{" "}
