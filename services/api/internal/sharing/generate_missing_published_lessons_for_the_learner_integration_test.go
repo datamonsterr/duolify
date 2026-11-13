@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -43,7 +44,11 @@ func (d *lessonDouble) GenerateLesson(r *pb.GenerateLessonRequest, s grpc.Server
 	if d.down.Load() {
 		return status.Error(14, "all providers failed")
 	}
-	usage := &pb.Usage{Provider: "fixture", Model: "fixture", Attempt: 1, Delivered: true, InputTokens: 500, OutputTokens: 200, LatencyMs: 40, Component: "content"}
+	provider, model := "mock", "claude-sonnet-5-5"
+	if r.Limits != nil && r.Limits.Provider != "" {
+		provider, model = r.Limits.Provider, r.Limits.Model
+	}
+	usage := &pb.Usage{Provider: provider, Model: model, Attempt: 1, Delivered: true, InputTokens: 500, OutputTokens: 200, LatencyMs: 40, Component: "content"}
 	lesson := &pb.Lesson{
 		Slides: []*pb.Slide{{SlideId: "g1", Html: `<div id="root"><h1>Eclipses</h1><p>Shadows line up.</p></div>`, DurationMs: 3000, Narration: "Shadows line up.", TopicIds: []string{"eclipse"}}},
 		Test:   []*pb.Question{{QuestionId: "gq1", TopicId: "eclipse", Prompt: "What lines up?", Choices: []string{"Shadows", "Clouds"}, AnswerIndex: 0, Explanation: "GEN-SECRET"}},
@@ -121,6 +126,7 @@ func newGenEnv(t *testing.T) *genEnv {
 	t.Helper()
 	ctx := t.Context()
 	f := backuptest.New(t)
+	f.Seed(t)
 	ev := &capture{}
 	consent(t, f, owner, false)
 	cat, err := pricing.Load(ctx, f.DB.Queries)
@@ -197,10 +203,29 @@ func (e *genEnv) pass(t *testing.T, learner, lesson string) {
 
 func (e *genEnv) fund(t *testing.T, learner string, amount int) {
 	t.Helper()
-	if _, err := e.f.DB.Pool.Exec(t.Context(), `INSERT INTO credit_entries(learner_id, amount, kind, reference) VALUES($1,$2,'purchase','e15-04-fund-'||$1::text)`, learner, amount); err != nil {
+	if _, err := e.f.DB.Pool.Exec(t.Context(), `INSERT INTO credit_entries(learner_id, amount, kind, reference) VALUES($1::uuid,$2,'purchase',$3)`, learner, amount, "e15-04-fund-"+learner); err != nil {
+		t.Fatal(err)
+	}
+	// Settle the daily grant now so later balance comparisons see no incidental credit.
+	if _, err := e.fin.EnsureDailyGrant(t.Context(), learner, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	_ = e.fin.InvalidateCache(t.Context(), learner)
+}
+
+// cloneQuote inserts a copy of a stored quote with other timestamps and, optionally, another
+// pricing_version inside its snapshot (stored quotes themselves are immutable).
+func (e *genEnv) cloneQuote(t *testing.T, id, created, expires, version string) string {
+	t.Helper()
+	var clone string
+	err := e.f.DB.Pool.QueryRow(t.Context(), `INSERT INTO pricing_quotes(learner_id, owner_reference, pricing_version, snapshot, created_at, expires_at)
+		SELECT learner_id, owner_reference, pricing_version,
+		       CASE WHEN $2::text = '' THEN snapshot ELSE jsonb_set(snapshot, '{pricing_version}', to_jsonb($2::text)) END, `+created+`, `+expires+`
+		FROM pricing_quotes WHERE id=$1 RETURNING id::text`, id, version).Scan(&clone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return clone
 }
 
 func (e *genEnv) available(t *testing.T, learner string) int64 {
@@ -279,10 +304,8 @@ func TestGenerateMissingPublishedLessonsIntegration(t *testing.T) {
 				t.Fatalf("%s on %s: %v", c.who, c.course, err)
 			}
 		}
-		// Expired, foreign and superseded quotes are stale.
-		if _, err = pool.Exec(ctx, `UPDATE pricing_quotes SET expires_at=now()-interval '1 minute', created_at=now()-interval '2 minutes' WHERE id=$1`, q.QuoteID); err != nil {
-			t.Fatal(err)
-		}
+		// Quote history is immutable, so an expired quote is a clone with past timestamps.
+		in.QuoteID = e.cloneQuote(t, q.QuoteID, "now()-interval '2 minutes'", "now()-interval '1 minute'", "")
 		if _, err = e.s.GenerateMissing(ctx, learner, copyID, in); !errors.Is(err, sharing.ErrQuoteStale) {
 			t.Fatalf("expired quote: %v", err)
 		}
@@ -309,10 +332,8 @@ func TestGenerateMissingPublishedLessonsIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = pool.Exec(ctx, `UPDATE pricing_quotes SET snapshot=jsonb_set(snapshot,'{pricing_version}','"retired-version"') WHERE id=$1`, q.QuoteID); err != nil {
-			t.Fatal(err)
-		}
-		_, err = e.s.GenerateMissing(ctx, learner, copyID, sharing.GenerateMissingInput{LessonID: third, QuoteID: q.QuoteID, Consent: true})
+		retired := e.cloneQuote(t, q.QuoteID, "now()", "now()+interval '5 minutes'", "retired-version")
+		_, err = e.s.GenerateMissing(ctx, learner, copyID, sharing.GenerateMissingInput{LessonID: third, QuoteID: retired, Consent: true})
 		if !errors.Is(err, sharing.ErrQuoteStale) {
 			t.Fatalf("superseded: %v", err)
 		}
@@ -355,6 +376,10 @@ func TestGenerateMissingPublishedLessonsIntegration(t *testing.T) {
 		e.engine.down.Store(false)
 		callsBefore := e.engine.calls.Load()
 		before := e.available(t, learner)
+		// The fixture seeds the publisher's ledger; only a change would be a flow-back.
+		const ledger = `SELECT count(*) FROM credit_jobs WHERE learner_id IN ($1::uuid,$2::uuid)`
+		const entries = `SELECT COALESCE(sum(amount),0) FROM credit_entries WHERE learner_id=$1::uuid`
+		jobsBefore, entriesBefore := count(t, e.f, ledger, owner, early), count(t, e.f, entries, owner)
 		q, err := e.s.QuoteMissing(ctx, learner, copyID)
 		if err != nil || !q.Sufficient || q.Balance != before {
 			t.Fatalf("quote: %+v %v", q, err)
@@ -400,11 +425,11 @@ func TestGenerateMissingPublishedLessonsIntegration(t *testing.T) {
 		if n := count(t, e.f, `SELECT count(*) FROM credit_jobs WHERE learner_id=$1 AND state='settled'`, learner); n != 1 {
 			t.Fatalf("learner settled jobs: %d", n)
 		}
-		if n := count(t, e.f, `SELECT count(*) FROM credit_jobs WHERE learner_id<>$1`, learner); n != 0 {
-			t.Fatalf("other accounts reserved: %d", n)
+		if n := count(t, e.f, ledger, owner, early); n != jobsBefore {
+			t.Fatalf("publisher or another copy reserved: %d -> %d", jobsBefore, n)
 		}
-		if n := count(t, e.f, `SELECT count(*) FROM credit_entries WHERE learner_id=$1 AND amount<>0`, owner); n != 0 {
-			t.Fatalf("flow-back or owner charge: %d", n)
+		if n := count(t, e.f, entries, owner); n != entriesBefore {
+			t.Fatalf("flow-back or owner charge: %d -> %d", entriesBefore, n)
 		}
 		if got := e.available(t, learner); got >= before {
 			t.Fatalf("balance did not drop: %d -> %d", before, got)
