@@ -1,0 +1,45 @@
+name: restore-drill-scheduled
+
+# Weekly anonymized restore drill of the newest backup. It runs only against the
+# storage configured through repository secrets; with no owner credentials the
+# script prints a skip notice and the job succeeds (ADR 0012: dev only).
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-drill-scheduled
+  cancel-in-progress: false
+
+env:
+  CI: 'true'
+  MISE_AUTO_INSTALL: 'false'
+
+jobs:
+  drill:
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-api
+      - name: Anonymized restore drill
+        env:
+          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          BACKUP_S3_REGION: ${{ secrets.BACKUP_S3_REGION }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          BACKUP_RESTORE_S3_ACCESS_KEY_ID: ${{ secrets.BACKUP_RESTORE_S3_ACCESS_KEY_ID }}
+          BACKUP_RESTORE_S3_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_RESTORE_S3_SECRET_ACCESS_KEY }}
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+        run: mise run infra:restore-drill-scheduled
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary

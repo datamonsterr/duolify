@@ -35,3 +35,23 @@ func (l DeletionLedger) Contains(ctx context.Context, reference string) (bool, e
 	}
 	return l.Objects.Exists(ctx, "account-deletions/v1/"+reference+".json")
 }
+
+// ReadOnlyLedger is the drill's view of the deletion ledger. The restorer
+// identity cannot write, and a drill must never mutate backup storage: legacy
+// SQL tombstones found in a restored copy are applied locally and not appended.
+type ReadOnlyLedger struct {
+	Objects interface {
+		Exists(context.Context, string) (bool, error)
+	}
+}
+
+// Append is intentionally a no-op.
+func (ReadOnlyLedger) Append(context.Context, string) error { return nil }
+
+// Contains checks the immutable per-learner object key.
+func (l ReadOnlyLedger) Contains(ctx context.Context, reference string) (bool, error) {
+	if l.Objects == nil || !deletionReference.MatchString(reference) {
+		return false, errors.New("deletion ledger unavailable or invalid reference")
+	}
+	return l.Objects.Exists(ctx, "account-deletions/v1/"+reference+".json")
+}
