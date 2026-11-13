@@ -1,5 +1,7 @@
 # Data inventory
 
+E11-06: Infrastructure and Railway environments (dev, staging, prod) and release gates. No new database tables, schemas, or learner data are added. Infrastructure configuration is Git-backed across dev, staging, and prod Railway environments with stateless services and Postgres/Redis/S3 roles; secrets are preserved rather than committed to Git, and secret values are strictly redacted in plan summaries and error output. PreDeploy migrations (/api migrate) and readiness probes (/readyz) enforce rollback on unhealthy states. Live apply operations stay disabled and gated on E11-07 (#54). Telemetry uses operational deploy/health logs only, with the reserved operations UUID (00000000-0000-4000-8000-000000000011) and opt-out suppression; no learner text or secret values are captured.
+
 E8-05: new tables `quick_note_chat_sources` (note id, learner id, thread id, message id, optional lesson id, `unavailable` flag; ids only, no text) and `tutor_thread_deletion_tombstones` (thread uuid and deletion time only; no learner id and no text; pruned after 35 days, the encrypted snapshot rotation). A reply saved as a note is copied once into `quick_notes.raw_text` (clipped to 2,000 bytes) with action key `tutor-message:<message id>`. Deleting a thread, in one transaction, removes its messages, nulls message references on `tutor_turns`, clears the ids on surviving provenance and sets `unavailable`, and writes the tombstone; the notes stay readable and exportable with "source unavailable". Dumps carry notes, provenance and tombstones but no deleted thread text; `ApplyDeletionTombstones` re-applies thread tombstones after a restore (fixture and restore check cover it). Export includes `quick_note_chat_sources`; account erasure cascades both learner-linked tables. Analytics: `quick_note_created` (source=chat, length) from the notes service and client `ui_control_activated` (`surface=tutor_chat`, `control_id=delete_thread`), no text, honouring opt-out. No secrets; no new AI call.
 
 E8-04: no table or column changes. The lesson tutor sheet sends only a lesson id and slide index; the API verifies the lesson against the Learner's own `course_lesson_stubs` and `course_units` rows and builds `current_lesson` (title, goal) itself, so nothing new is persisted and the E8 thread tables stay authoritative (existing backup, restore, export and deletion checks apply unchanged). Unsent tutor drafts live only in `sessionStorage` under `tutor-draft:<learner>:<course>`: ephemeral, never backed up or synced, and removed by `session.clear()` on logout. PostHog: `tutor_message_sent` gains boolean `has_lesson_context`, `ui_sheet_opened` accepts `sheet_id=lesson_tutor`, `ui_recovery_selected` accepts `surface=lesson_tutor` with `action` in `retry`, `reload`, `top_up`, `read_transcript`; no message, draft or lesson text is sent.
@@ -579,3 +581,25 @@ Ticket E12-10 introduces interim ADR 0012 design chat pricing (`setup_chat=0`, `
 - Forward rollback restores catalogue actions without design chat keys and disables only those actions; manual outline editing and Apply/Discard/Undo remain free.
 - Analytics events (`pricing_version_approved`, `pricing_version_activated`, `pricing_version_rolled_back`) contain strictly canonical metadata and actor IDs; operator reasons and chat text are excluded.
 
+E11-03 adds no tables. Backup objects now have two retention classes in the isolated,
+age-encrypted backup bucket: `<date>/schema-<n>.dump.age` (general, 14 days) and
+`financial/<date>/schema-<n>.dump.age` (identical ciphertext, 35 days), expired by the separate
+`backup-expire` job; live seven-year financial history in Postgres and the
+`account-deletions/v1/` ledger are never expired. The application bucket is versioned; overwritten
+Slides/assets are restored or regenerated as a new tracked version under the same key (metadata
+`duolify-recovery-job`/`-kind`/`-source-version`), keeping references valid. Focused checks:
+`TestExpireOldFixtureDumpsAndRestoreOverwrittenObject` and the RustFS integration tests in
+`internal/backup`. Analytics reuse `backup_failed` (size, duration, ok only). Railway snapshots/PITR and
+production keys are owner-provided. See [backup tooling](../infra/backup/README.md).
+
+E11-05 adds no tables or persisted data. Automated restore drills decrypt dumps only in memory and
+restore them into a disposable Postgres that is destroyed afterwards. The restored copy is anonymized
+first: sessions, refresh tokens, email codes, rate limits, OAuth attempts and webhook payloads are
+purged; display names, usernames, emails, provider subjects, profile goals, course/lesson/note/tutor
+content and generated lesson payloads are replaced (`internal/backup/anonymize.go`). Every new text,
+jsonb or array column must be classified there (redacted, purged or reviewed safe) or the drill fails.
+Deletion tombstones are replayed read-only from the `account-deletions/v1/` ledger. Redis rankings are
+disposable and rebuilt from Postgres. Analytics reuse `restore_drill_completed` (`ok`, `duration_ms`,
+`source` ci or scheduled) and `backup_failed`, with no keys, errors or rows. Focused checks:
+`TestRestoreDrillRestoresSyntheticDumpAndFailsInjectedCorruption` and the `TestDrill*`/`TestAnonymizer*`
+integration tests in `internal/backup`.

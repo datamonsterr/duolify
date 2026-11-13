@@ -28,4 +28,16 @@ func main() {
 	if err := backupadmin.ProvisionApplication(ctx, root, os.Getenv("S3_ACCESS_KEY_ID"), os.Getenv("S3_SECRET_ACCESS_KEY")); err != nil {
 		log.Fatal("local application storage initialization failed")
 	}
+	for _, identity := range []struct {
+		env, name string
+		provision func(context.Context, backup.S3Options, string, string) error
+	}{
+		{"BACKUP_EXPIRE_S3", "retention", backupadmin.ProvisionRetention},
+		{"BACKUP_RESTORE_S3", "restorer", backupadmin.ProvisionRestorer},
+		{"ASSET_RECOVERY_S3", "asset recovery", backupadmin.ProvisionAssetRecovery},
+	} {
+		if err := identity.provision(ctx, root, os.Getenv(identity.env+"_ACCESS_KEY_ID"), os.Getenv(identity.env+"_SECRET_ACCESS_KEY")); err != nil {
+			log.Fatalf("local %s identity initialization failed", identity.name)
+		}
+	}
 }
