@@ -151,6 +151,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.sync(ctx, w, r, owner, id, m)
 		return
 	}
+	if part := r.PathValue("part"); part != "" {
+		s.narrationObject(ctx, w, owner, id, r.PathValue("slide"), part)
+		return
+	}
 	if r.PathValue("slide") != "" {
 		for _, slide := range m.Slides {
 			if slide.ID != r.PathValue("slide") {
@@ -168,6 +172,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cast, segments := s.pinnedCast(ctx, owner, id)
+	narrations := s.narrations(ctx, owner, id)
 	out := Manifest{Cast: cast, LessonID: id, CourseID: course, Title: title, Version: version, AssetOrigin: s.opts.AssetOrigin, Slides: make([]Slide, 0, len(m.Slides))}
 	for _, slide := range m.Slides {
 		raw, _, hashes, err := s.document(ctx, slide)
@@ -179,7 +184,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if explanation == "" {
 			explanation = slide.NarrationText
 		}
-		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: "disabled", NarrationText: slide.NarrationText, Explanation: explanation, HTMLSHA256: checksum(raw), AssetSHA256: hashes, Segments: segments[slide.ID]})
+		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: narrations.status(slide.ID), Narration: narrations[slide.ID].Asset, NarrationText: slide.NarrationText, Explanation: explanation, HTMLSHA256: checksum(raw), AssetSHA256: hashes, Segments: segments[slide.ID]})
 	}
 	respond(w, 200, out)
 }
@@ -290,4 +295,71 @@ func (s *Service) pinnedCast(ctx context.Context, owner, lessonID string) (json.
 		}
 	}
 	return cast, segments
+}
+
+type narrationState struct {
+	Status string
+	Asset  *NarrationAsset
+}
+
+type narrationStates map[string]narrationState
+
+func (n narrationStates) status(slide string) string {
+	if st := n[slide].Status; st != "" {
+		return st
+	}
+	return "disabled"
+}
+
+// narrations projects per-slide narration status; a slide without a row is disabled.
+func (s *Service) narrations(ctx context.Context, owner, lesson string) narrationStates {
+	out := narrationStates{}
+	rows, err := s.opts.Pool.Query(ctx, `SELECT slide_id,status,duration_ms,characters FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2`, lesson, owner)
+	if err != nil {
+		return out // text and animation stay usable without audio
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var slide, status string
+		var duration, characters int
+		if rows.Scan(&slide, &status, &duration, &characters) != nil {
+			continue
+		}
+		state := narrationState{Status: status}
+		if status == "ready" {
+			base := "/v1/lessons/" + lesson + "/slides/" + slide + "/narration/"
+			state.Asset = &NarrationAsset{AudioURL: base + "audio", AlignmentURL: base + "alignment", DurationMS: duration, Characters: characters}
+		}
+		out[slide] = state
+	}
+	return out
+}
+
+// narrationObject serves owner-only audio or alignment bytes for a ready slide.
+func (s *Service) narrationObject(ctx context.Context, w http.ResponseWriter, owner, lesson, slide, part string) {
+	column, contentType := "audio_key", "audio/wav"
+	if part == "alignment" {
+		column, contentType = "alignment_key", "application/json"
+	} else if part != "audio" {
+		failure(w, 404)
+		return
+	}
+	var key string
+	err := s.opts.Pool.QueryRow(ctx, `SELECT `+column+` FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND status='ready'`, lesson, owner, slide).Scan(&key)
+	if errors.Is(err, pgx.ErrNoRows) {
+		failure(w, 404)
+		return
+	}
+	if err != nil || !validKey(key) {
+		failure(w, 503)
+		return
+	}
+	raw, err := s.opts.Objects.Get(ctx, key)
+	if err != nil || len(raw) > maxObjectBytes {
+		failure(w, 503)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(200)
+	_, _ = w.Write(raw)
 }

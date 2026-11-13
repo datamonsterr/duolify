@@ -463,13 +463,45 @@ type EvalReport struct {
 	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
 }
 
+type FriendLink struct {
+	ID        pgtype.UUID        `json:"id"`
+	OwnerID   pgtype.UUID        `json:"owner_id"`
+	TokenHash string             `json:"token_hash"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
+}
+
+type FriendRequest struct {
+	ID          pgtype.UUID        `json:"id"`
+	SenderID    pgtype.UUID        `json:"sender_id"`
+	RecipientID pgtype.UUID        `json:"recipient_id"`
+	Status      string             `json:"status"`
+	Method      string             `json:"method"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	DecidedAt   pgtype.Timestamptz `json:"decided_at"`
+}
+
+type Friendship struct {
+	ID          pgtype.UUID        `json:"id"`
+	LearnerLow  pgtype.UUID        `json:"learner_low"`
+	LearnerHigh pgtype.UUID        `json:"learner_high"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type GamificationConfig struct {
-	ID             bool    `json:"id"`
-	Version        string  `json:"version"`
-	BaseXp         int32   `json:"base_xp"`
-	PerfectBonusXp int32   `json:"perfect_bonus_xp"`
-	DefaultGoal    int32   `json:"default_goal"`
-	GoalOptions    []int32 `json:"goal_options"`
+	ID                  bool     `json:"id"`
+	Version             string   `json:"version"`
+	BaseXp              int32    `json:"base_xp"`
+	PerfectBonusXp      int32    `json:"perfect_bonus_xp"`
+	DefaultGoal         int32    `json:"default_goal"`
+	GoalOptions         []int32  `json:"goal_options"`
+	FreezeMilestoneDays int32    `json:"freeze_milestone_days"`
+	FreezeCap           int32    `json:"freeze_cap"`
+	LeagueTiers         []string `json:"league_tiers"`
+	LeagueGroupSize     int32    `json:"league_group_size"`
+	LeaguePromoteTop    int32    `json:"league_promote_top"`
+	LeagueDemoteBottom  int32    `json:"league_demote_bottom"`
 }
 
 type GeneratedLesson struct {
@@ -482,10 +514,48 @@ type GeneratedLesson struct {
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }
 
+type LeagueGroup struct {
+	ID          pgtype.UUID        `json:"id"`
+	WeekStart   pgtype.Date        `json:"week_start"`
+	Tier        int16              `json:"tier"`
+	Size        int32              `json:"size"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	FinalizedAt pgtype.Timestamptz `json:"finalized_at"`
+}
+
+type LeagueMembership struct {
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	WeekStart pgtype.Date        `json:"week_start"`
+	GroupID   pgtype.UUID        `json:"group_id"`
+	Tier      int16              `json:"tier"`
+	Slot      int16              `json:"slot"`
+	JoinedAt  pgtype.Timestamptz `json:"joined_at"`
+}
+
+type LeagueWeekResult struct {
+	ID          pgtype.UUID        `json:"id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	WeekStart   pgtype.Date        `json:"week_start"`
+	GroupID     pgtype.UUID        `json:"group_id"`
+	TierFrom    int16              `json:"tier_from"`
+	TierTo      int16              `json:"tier_to"`
+	FinalRank   int32              `json:"final_rank"`
+	Members     int32              `json:"members"`
+	WeeklyXp    int64              `json:"weekly_xp"`
+	Outcome     string             `json:"outcome"`
+	FinalizedAt pgtype.Timestamptz `json:"finalized_at"`
+}
+
 type Learner struct {
 	ID          pgtype.UUID        `json:"id"`
 	DisplayName string             `json:"display_name"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type LearnerBlock struct {
+	BlockerID pgtype.UUID        `json:"blocker_id"`
+	BlockedID pgtype.UUID        `json:"blocked_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type LearnerProfile struct {
@@ -512,6 +582,22 @@ type LearnerProfile struct {
 	UiSounds        bool               `json:"ui_sounds"`
 	Haptics         string             `json:"haptics"`
 	ActiveCourseID  pgtype.UUID        `json:"active_course_id"`
+}
+
+type LearnerSocialSetting struct {
+	LearnerID           pgtype.UUID `json:"learner_id"`
+	Discoverable        bool        `json:"discoverable"`
+	RequestPolicy       string      `json:"request_policy"`
+	ShowStreakToFriends bool        `json:"show_streak_to_friends"`
+	CourseInvitesFrom   string      `json:"course_invites_from"`
+}
+
+type LearnerUsername struct {
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	Username  string             `json:"username"`
+	Canonical string             `json:"canonical"`
+	ClaimedAt pgtype.Timestamptz `json:"claimed_at"`
+	ChangedAt pgtype.Timestamptz `json:"changed_at"`
 }
 
 type LessonCastSnapshot struct {
@@ -618,6 +704,7 @@ type LessonSlide struct {
 	Narration    string             `json:"narration"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	TopicIds     []string           `json:"topic_ids"`
+	Segments     []byte             `json:"segments"`
 }
 
 type LessonTestAnswer struct {
@@ -811,6 +898,16 @@ type QuickNote struct {
 	EnrichmentLeaseUntil pgtype.Timestamptz `json:"enrichment_lease_until"`
 }
 
+type QuickNoteChatSource struct {
+	NoteID      pgtype.UUID        `json:"note_id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	ThreadID    pgtype.UUID        `json:"thread_id"`
+	MessageID   pgtype.UUID        `json:"message_id"`
+	LessonID    pgtype.UUID        `json:"lesson_id"`
+	Unavailable bool               `json:"unavailable"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type QuickNoteEnrichment struct {
 	ID        pgtype.UUID        `json:"id"`
 	NoteID    pgtype.UUID        `json:"note_id"`
@@ -823,6 +920,159 @@ type QuickNoteEnrichment struct {
 	Provider  string             `json:"provider"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type SlideNarration struct {
+	LessonID            pgtype.UUID        `json:"lesson_id"`
+	LearnerID           pgtype.UUID        `json:"learner_id"`
+	SlideID             string             `json:"slide_id"`
+	Status              string             `json:"status"`
+	NarrationText       string             `json:"narration_text"`
+	ContentHash         string             `json:"content_hash"`
+	VoiceKey            string             `json:"voice_key"`
+	VoiceID             string             `json:"voice_id"`
+	ModelID             string             `json:"model_id"`
+	SettingsFingerprint string             `json:"settings_fingerprint"`
+	AudioKey            string             `json:"audio_key"`
+	AlignmentKey        string             `json:"alignment_key"`
+	Characters          int32              `json:"characters"`
+	AudioBytes          int32              `json:"audio_bytes"`
+	DurationMs          int32              `json:"duration_ms"`
+	Version             int32              `json:"version"`
+	ReservationID       pgtype.UUID        `json:"reservation_id"`
+	FailureCode         string             `json:"failure_code"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type SocialRateLimit struct {
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	Bucket      string             `json:"bucket"`
+	WindowStart pgtype.Timestamptz `json:"window_start"`
+	Count       int32              `json:"count"`
+}
+
+type StreakBreak struct {
+	ID             pgtype.UUID        `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	BrokenOn       pgtype.Date        `json:"broken_on"`
+	PreviousLength int32              `json:"previous_length"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type StreakDay struct {
+	ID           pgtype.UUID        `json:"id"`
+	LearnerID    pgtype.UUID        `json:"learner_id"`
+	LocalDate    pgtype.Date        `json:"local_date"`
+	FirstEventID pgtype.UUID        `json:"first_event_id"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type StreakDayProtection struct {
+	ID           pgtype.UUID        `json:"id"`
+	LearnerID    pgtype.UUID        `json:"learner_id"`
+	Source       string             `json:"source"`
+	ProtectedOn  pgtype.Date        `json:"protected_on"`
+	Remaining    int32              `json:"remaining"`
+	StreakLength int32              `json:"streak_length"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type StreakFreezeInventory struct {
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	Held      int32              `json:"held"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type StreakFreezeMilestone struct {
+	ID            pgtype.UUID        `json:"id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	Kind          string             `json:"kind"`
+	MilestoneDays int32              `json:"milestone_days"`
+	RunStartedOn  pgtype.Date        `json:"run_started_on"`
+	ReachedOn     pgtype.Date        `json:"reached_on"`
+	Granted       bool               `json:"granted"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type StreakState struct {
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	CurrentDays    int32              `json:"current_days"`
+	LongestDays    int32              `json:"longest_days"`
+	LastActiveDate pgtype.Date        `json:"last_active_date"`
+	DecidedThrough pgtype.Date        `json:"decided_through"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TutorMessage struct {
+	ID        pgtype.UUID        `json:"id"`
+	Seq       pgtype.Int8        `json:"seq"`
+	ThreadID  pgtype.UUID        `json:"thread_id"`
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	Role      string             `json:"role"`
+	Content   string             `json:"content"`
+	Status    string             `json:"status"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type TutorThread struct {
+	ID        pgtype.UUID        `json:"id"`
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	CourseID  pgtype.UUID        `json:"course_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type TutorThreadDeletionTombstone struct {
+	ThreadID  pgtype.UUID        `json:"thread_id"`
+	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type TutorTurn struct {
+	ID                 pgtype.UUID        `json:"id"`
+	LearnerID          pgtype.UUID        `json:"learner_id"`
+	CourseID           pgtype.UUID        `json:"course_id"`
+	IdempotencyKey     string             `json:"idempotency_key"`
+	QuoteID            pgtype.UUID        `json:"quote_id"`
+	State              string             `json:"state"`
+	ThreadID           pgtype.UUID        `json:"thread_id"`
+	UserMessageID      pgtype.UUID        `json:"user_message_id"`
+	AssistantMessageID pgtype.UUID        `json:"assistant_message_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	EndReason          pgtype.Text        `json:"end_reason"`
+	JobID              pgtype.UUID        `json:"job_id"`
+	UsageEstimated     bool               `json:"usage_estimated"`
+	SpeakerKey         pgtype.Text        `json:"speaker_key"`
+	CharacterID        pgtype.Text        `json:"character_id"`
+	CharacterVersion   pgtype.Int4        `json:"character_version"`
+	CastSource         pgtype.Text        `json:"cast_source"`
+	CastVersion        pgtype.Int4        `json:"cast_version"`
+	PersonaFallback    pgtype.Text        `json:"persona_fallback"`
+}
+
+type UsernameConfig struct {
+	ID                        bool     `json:"id"`
+	Version                   string   `json:"version"`
+	HoldDays                  int32    `json:"hold_days"`
+	Reserved                  []string `json:"reserved"`
+	Profanity                 []string `json:"profanity"`
+	RenameCooldownDays        int32    `json:"rename_cooldown_days"`
+	SearchMaxResults          int32    `json:"search_max_results"`
+	SearchPerMinute           int32    `json:"search_per_minute"`
+	NameAttemptsPerHour       int32    `json:"name_attempts_per_hour"`
+	FriendPendingMax          int32    `json:"friend_pending_max"`
+	FriendSendsPerDay         int32    `json:"friend_sends_per_day"`
+	FriendMax                 int32    `json:"friend_max"`
+	FriendDeclineCooldownDays int32    `json:"friend_decline_cooldown_days"`
+	FriendLinkValidDays       int32    `json:"friend_link_valid_days"`
+	FriendLinkPerHour         int32    `json:"friend_link_per_hour"`
+	BlockMax                  int32    `json:"block_max"`
+}
+
+type UsernameHold struct {
+	Canonical        string             `json:"canonical"`
+	PreviousOwnerRef string             `json:"previous_owner_ref"`
+	ReleasedAt       pgtype.Timestamptz `json:"released_at"`
+	HeldUntil        pgtype.Timestamptz `json:"held_until"`
 }
 
 type XpEvent struct {

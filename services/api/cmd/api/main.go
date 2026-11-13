@@ -32,6 +32,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/gamification"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
+	"github.com/datamonsterr/duolify/services/api/internal/narration"
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -202,6 +203,22 @@ func run(ctx context.Context, args []string) (result error) {
 				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 				defer cancel()
 				_ = lessonQueue.Stop(stopCtx)
+			}()
+		}
+		// E14-01: narration synthesis stays off until explicitly enabled; only the engine mock exists.
+		if os.Getenv("NARRATION_ENABLED") == "true" {
+			narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Events: events, Logger: logger})
+			narrationQueue, err := narrationService.Queue()
+			if err != nil {
+				return err
+			}
+			if err = narrationQueue.Start(context.WithoutCancel(ctx)); err != nil {
+				return err
+			}
+			defer func() {
+				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+				defer cancel()
+				_ = narrationQueue.Stop(stopCtx)
 			}()
 		}
 		return worker.RunWithCredits(ctx, db.Pool, logger, creditService, service)

@@ -60,6 +60,22 @@ func (f *Fixture) AssertPlaybackPositionRestored(t *testing.T, restored *pgxpool
 	}
 }
 
+// AssertNarrationRestored compares narration text and status rows from the encrypted dump.
+func (f *Fixture) AssertNarrationRestored(t *testing.T, restored *pgxpool.Pool) {
+	t.Helper()
+	const query = "SELECT coalesce(jsonb_agg(to_jsonb(n) ORDER BY n.slide_id), '[]'::jsonb)::text FROM slide_narrations n"
+	var before, after string
+	if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.QueryRow(t.Context(), query).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if before != after || !bytes.Contains([]byte(after), []byte(`"narration_text": "Seeded narration text."`)) || !bytes.Contains([]byte(after), []byte(`"status": "ready"`)) {
+		t.Fatal("narration text/status restore mismatch", before, after)
+	}
+}
+
 // BackupPlayerObjects exercises the protected-copy/key-version-checksum contract
 // without adding application objects to the database archive bucket.
 func (f *Fixture) BackupPlayerObjects(t *testing.T) {

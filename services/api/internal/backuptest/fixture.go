@@ -576,6 +576,11 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		t.Fatal(err)
 	}
 	f.BackupPlayerObjects(t)
+	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO slide_narrations(lesson_id,learner_id,slide_id,status,narration_text,content_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms)
+		VALUES('f3333333-3333-4333-8333-333333333333','a1111111-1111-4111-8111-111111111111','seed-ready','ready','Seeded narration text.',repeat('ab',32),'mock-default-voice','eleven_flash_v2_5','fp1-0000000000000000',
+		'lessons/narration/v1/'||repeat('ab',32)||'/audio.wav','lessons/narration/v1/'||repeat('ab',32)||'/alignment.json',22,1100,1100)`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_playback_positions(learner_id,lesson_id,version,slide_id,time_ms) VALUES('a1111111-1111-4111-8111-111111111111','f3333333-3333-4333-8333-333333333333',1,'sky-2',1800)`); err != nil {
 		t.Fatal(err)
 	}
@@ -817,6 +822,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	t.Helper()
 	f.AssertPlayerObjectsRestored(t)
 	f.AssertPlaybackPositionRestored(t, restored.Pool)
+	f.AssertNarrationRestored(t, restored.Pool)
 	var version, learners, entries, balance, riverVersions int64
 	var name string
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT max(version_id) FROM goose_db_version WHERE is_applied").Scan(&version); err != nil {
