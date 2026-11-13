@@ -1,4 +1,4 @@
-//! Safe operational correlation shared by the engine's RPC boundary.
+//! Safe operational correlation and engine configuration release gates.
 //! This module has no backup or model behavior; metadata never contains payloads.
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -70,135 +70,102 @@ pub fn redact_secrets(input: &str) -> String {
     result
 }
 
-/// Engine service configuration in an infrastructure environment plan.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct EngineServiceConfig {
+/// Engine startup configuration for release gate and private networking validation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EngineStartupConfig {
+    pub duolify_env: String,
     pub listen_addr: String,
-    pub domains: Vec<String>,
-    pub env_vars: std::collections::HashMap<String, String>,
+    pub provider_mode: String,
+    pub public_domain: Option<String>,
+    pub anthropic_api_key: Option<String>,
+    pub openrouter_api_key: Option<String>,
 }
 
-/// Infrastructure plan for an environment including dependencies and engine config.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct EngineEnvironmentPlan {
-    pub environment: String,
-    pub project_name: String,
-    pub engine_service: EngineServiceConfig,
-    pub has_database: bool,
-    pub has_redis: bool,
-    pub has_assets_bucket: bool,
-    pub has_backups_bucket: bool,
-}
-
-/// Validation result of an environment plan.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct PlanValidationResult {
-    pub is_valid: bool,
-    pub violations: Vec<String>,
-    pub plan_summary: String,
-    pub live_apply_allowed: bool,
-    pub hitl_gate_required: String,
-}
-
-impl EngineEnvironmentPlan {
-    /// Validates that:
-    /// 1. Environment is one of "dev", "staging", "prod" and project is "duolify".
-    /// 2. Engine has no public domains (domains must be empty).
-    /// 3. Dependencies are present (Postgres, Redis, assets and backups buckets).
-    /// 4. No plaintext secrets are committed in config (values must use preserve() or references).
-    /// 5. Live apply is disabled and gated on E11-07.
-    pub fn validate(&self) -> PlanValidationResult {
-        let mut violations = Vec::new();
-
-        // 1. Environment and project check
-        if !["dev", "staging", "prod"].contains(&self.environment.as_str()) {
-            violations.push(format!(
-                "invalid environment {:?}; allowed environments are dev, staging, prod",
-                self.environment
-            ));
+impl EngineStartupConfig {
+    pub fn from_env() -> Self {
+        Self {
+            duolify_env: std::env::var("DUOLIFY_ENV").unwrap_or_else(|_| "development".to_string()),
+            listen_addr: std::env::var("ENGINE_ADDR_LISTEN")
+                .unwrap_or_else(|_| "0.0.0.0:50051".to_string()),
+            provider_mode: std::env::var("ENGINE_PROVIDER_MODE").unwrap_or_default(),
+            public_domain: std::env::var("RAILWAY_PUBLIC_DOMAIN")
+                .ok()
+                .or_else(|| std::env::var("PUBLIC_DOMAIN").ok()),
+            anthropic_api_key: std::env::var("ANTHROPIC_API_KEY")
+                .ok()
+                .filter(|s| !s.trim().is_empty()),
+            openrouter_api_key: std::env::var("OPENROUTER_API_KEY")
+                .ok()
+                .filter(|s| !s.trim().is_empty()),
         }
-        if self.project_name != "duolify" {
-            violations.push(format!(
-                "invalid project_name {:?}; expected duolify",
-                self.project_name
-            ));
+    }
+
+    /// Validates engine configuration against environment release gates.
+    ///
+    /// Release gate requirements:
+    /// 1. The AI engine must NEVER be exposed via public domains or ingress.
+    ///    In staging and production, any public domain configuration causes immediate refusal to start.
+    /// 2. In staging and production (`DUOLIFY_ENV` in ["staging", "production", "prod"]):
+    ///    - If `ENGINE_PROVIDER_MODE` is "live", at least one LLM credential
+    ///      (`ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`) is required.
+    ///    - The listen address must be a valid socket address.
+    pub fn validate(&self) -> Result<(), EngineConfigError> {
+        // Parse listen address
+        if self.listen_addr.parse::<std::net::SocketAddr>().is_err() {
+            return Err(EngineConfigError::InvalidAddress(format!(
+                "invalid ENGINE_ADDR_LISTEN: {:?}",
+                self.listen_addr
+            )));
         }
 
-        // 2. Private engine check: engine must NEVER have public domains
-        if !self.engine_service.domains.is_empty() {
-            violations.push(format!(
-                "engine service must not define public domains; found domains: {:?}",
-                self.engine_service.domains
-            ));
-        }
+        let is_prod_or_staging = matches!(
+            self.duolify_env.to_lowercase().as_str(),
+            "staging" | "production" | "prod"
+        );
 
-        // 3. Dependencies check
-        if !self.has_database {
-            violations.push("missing required database dependency (postgres 18)".to_string());
-        }
-        if !self.has_redis {
-            violations.push("missing required cache dependency (redis)".to_string());
-        }
-        if !self.has_assets_bucket {
-            violations
-                .push("missing required storage bucket dependency (lesson-assets)".to_string());
-        }
-        if !self.has_backups_bucket {
-            violations.push("missing required storage bucket dependency (backups)".to_string());
-        }
+        if is_prod_or_staging {
+            // Gate 1: Engine private networking only.
+            if let Some(domain) = self.public_domain.as_ref().filter(|d| !d.trim().is_empty()) {
+                return Err(EngineConfigError::PublicExposure(format!(
+                    "engine must never have public domain; detected: {}",
+                    redact_secrets(domain)
+                )));
+            }
 
-        // 4. Plaintext secret detection
-        for (key, val) in &self.engine_service.env_vars {
-            let val_lower = val.trim();
-            // Check if key looks like a secret
-            let is_secret_key = key.contains("KEY")
-                || key.contains("SECRET")
-                || key.contains("TOKEN")
-                || key.contains("PASSWORD");
-
-            if is_secret_key {
-                let is_safe_ref = val_lower == "preserve()"
-                    || (val_lower.starts_with("${{") && val_lower.ends_with("}}"))
-                    || val_lower.is_empty();
-
-                if !is_safe_ref {
-                    violations.push(format!(
-                        "secret env var {} has plaintext value instead of preserve() or reference",
-                        key
+            // Gate 2: Required provider credentials in live provider mode.
+            if self.provider_mode == "live" {
+                let has_llm_key =
+                    self.anthropic_api_key.is_some() || self.openrouter_api_key.is_some();
+                if !has_llm_key {
+                    return Err(EngineConfigError::MissingDependency(
+                        "production live engine requires ANTHROPIC_API_KEY or OPENROUTER_API_KEY"
+                            .to_string(),
                     ));
                 }
-            } else if val_lower.starts_with("sk-ant-")
-                || val_lower.starts_with("sk-or-")
-                || val_lower.starts_with("eyJ")
-            {
-                violations.push(format!(
-                    "env var {} contains plaintext secret value pattern",
-                    key
-                ));
             }
         }
 
-        let is_valid = violations.is_empty();
-        let plan_summary = format!(
-            "Environment: {}, Project: {}, Engine domains: {:?}, Database: {}, Redis: {}, Assets: {}, Backups: {}",
-            self.environment,
-            self.project_name,
-            self.engine_service.domains,
-            self.has_database,
-            self.has_redis,
-            self.has_assets_bucket,
-            self.has_backups_bucket
-        );
+        Ok(())
+    }
+}
 
-        PlanValidationResult {
-            is_valid,
-            violations: violations.into_iter().map(|v| redact_secrets(&v)).collect(),
-            plan_summary: redact_secrets(&plan_summary),
-            live_apply_allowed: false, // Always false in AFK ticket
-            hitl_gate_required: "E11-07".to_string(),
+#[derive(Debug, PartialEq, Eq)]
+pub enum EngineConfigError {
+    PublicExposure(String),
+    MissingDependency(String),
+    InvalidAddress(String),
+}
+
+impl std::fmt::Display for EngineConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::PublicExposure(msg) => write!(f, "engine exposed publicly: {}", msg),
+            Self::MissingDependency(msg) => {
+                write!(f, "missing required dependency or credential: {}", msg)
+            }
+            Self::InvalidAddress(msg) => write!(f, "invalid listen address: {}", msg),
         }
     }
 }
 
-#[cfg(test)]
-mod tests;
+impl std::error::Error for EngineConfigError {}

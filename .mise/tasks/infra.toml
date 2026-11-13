@@ -45,8 +45,7 @@ run = ["npm ci --prefix .railway --ignore-scripts", "railway link --project duol
 
 ["infra:validate-plan"]
 description = "Validate git-backed Railway environment definitions (dev, staging, prod) and produce plan evidence"
-dir = "services/api"
-run = "go run ./cmd/api admin infra plan --env all"
+run = "node .railway/plan.mjs --all | go run -C services/api ./cmd/api admin infra validate"
 
 ["infra:deploy-dev"]
 description = "Review and apply Railway IaC to duolify/dev only (may incur costs)"

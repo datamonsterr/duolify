@@ -1,26 +1,14 @@
 package backup_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
 	"strings"
 	"testing"
 
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 )
-
-type testEventRecorder struct {
-	names      []string
-	properties []map[string]any
-	ids        []string
-}
-
-func (r *testEventRecorder) Capture(id, name string, p map[string]any) error {
-	r.ids = append(r.ids, id)
-	r.names = append(r.names, name)
-	r.properties = append(r.properties, p)
-	return nil
-}
-
-func (r *testEventRecorder) Close() error { return nil }
 
 func validBasePlan() backup.EnvironmentPlanRequest {
 	return backup.EnvironmentPlanRequest{
@@ -216,45 +204,82 @@ func TestRedactSecretsHelper(t *testing.T) {
 	}
 }
 
-func TestEnvironmentPlanEventEmitter(t *testing.T) {
-	recorder := &testEventRecorder{}
+func TestParseEnvironmentPlans(t *testing.T) {
+	t.Run("parses single plan object", func(t *testing.T) {
+		single := validBasePlan()
+		data, err := json.Marshal(single)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plans, err := backup.ParseEnvironmentPlans(data)
+		if err != nil {
+			t.Fatalf("failed to parse single plan: %v", err)
+		}
+		if len(plans) != 1 || plans[0].Environment != "dev" {
+			t.Fatalf("unexpected parsed result: %+v", plans)
+		}
+	})
+
+	t.Run("parses array of plans", func(t *testing.T) {
+		p1 := validBasePlan()
+		p1.Environment = "dev"
+		p2 := validBasePlan()
+		p2.Environment = "staging"
+		p3 := validBasePlan()
+		p3.Environment = "prod"
+
+		data, err := json.Marshal([]backup.EnvironmentPlanRequest{p1, p2, p3})
+		if err != nil {
+			t.Fatal(err)
+		}
+		plans, err := backup.ParseEnvironmentPlans(data)
+		if err != nil {
+			t.Fatalf("failed to parse plan array: %v", err)
+		}
+		if len(plans) != 3 {
+			t.Fatalf("expected 3 plans, got %d", len(plans))
+		}
+	})
+
+	t.Run("parses map of plans", func(t *testing.T) {
+		p1 := validBasePlan()
+		p2 := validBasePlan()
+		envMap := map[string]backup.EnvironmentPlanRequest{
+			"dev":  p1,
+			"prod": p2,
+		}
+		data, err := json.Marshal(envMap)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plans, err := backup.ParseEnvironmentPlans(data)
+		if err != nil {
+			t.Fatalf("failed to parse map: %v", err)
+		}
+		if len(plans) != 2 {
+			t.Fatalf("expected 2 plans, got %d", len(plans))
+		}
+	})
+
+	t.Run("rejects empty data", func(t *testing.T) {
+		if _, err := backup.ParseEnvironmentPlans([]byte("   ")); err == nil {
+			t.Fatal("expected error on empty data")
+		}
+	})
+}
+
+func TestLogEnvironmentPlanValidation(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
 	plan := validBasePlan()
+	res := backup.ValidateEnvironmentPlan(plan)
 
-	// Evaluate with event recorder
-	backup.EmitEnvironmentPlanEvent(plan, true, recorder, false)
-
-	if len(recorder.names) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(recorder.names))
+	backup.LogEnvironmentPlanValidation(logger, plan, res)
+	logOutput := buf.String()
+	if !strings.Contains(logOutput, "railway environment plan evaluated") {
+		t.Fatalf("expected operational log message, got: %s", logOutput)
 	}
-	if recorder.names[0] != "environment_plan_validated" {
-		t.Fatalf("expected event 'environment_plan_validated', got %q", recorder.names[0])
-	}
-	if recorder.ids[0] != "00000000-0000-4000-8000-000000000011" {
-		t.Fatalf("expected operations UUID, got %q", recorder.ids[0])
-	}
-
-	props := recorder.properties[0]
-	if props["source"] != "api" || props["platform"] != "web" || props["app_version"] == "" {
-		t.Fatalf("missing common properties: %+v", props)
-	}
-	if props["environment"] != "dev" || props["ok"] != true {
-		t.Fatalf("invalid payload properties: %+v", props)
-	}
-
-	// Verify no private text or secret keys in properties
-	for k, v := range props {
-		if strings.Contains(k, "secret") || strings.Contains(k, "token") || strings.Contains(k, "prompt") {
-			t.Fatalf("private property key %q in event", k)
-		}
-		if s, ok := v.(string); ok && (strings.Contains(s, "Bearer") || strings.Contains(s, "sk-")) {
-			t.Fatalf("private property value %q for key %q", s, k)
-		}
-	}
-
-	// Test opt-out suppresses event
-	optOutRecorder := &testEventRecorder{}
-	backup.EmitEnvironmentPlanEvent(plan, true, optOutRecorder, true) // optOut = true
-	if len(optOutRecorder.names) != 0 {
-		t.Fatalf("opt-out must suppress event emission, got %d events", len(optOutRecorder.names))
+	if !strings.Contains(logOutput, `"environment":"dev"`) {
+		t.Fatalf("missing environment in log: %s", logOutput)
 	}
 }

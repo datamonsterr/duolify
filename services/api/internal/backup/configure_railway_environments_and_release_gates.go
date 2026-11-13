@@ -1,18 +1,14 @@
 package backup
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"regexp"
 	"strings"
-
-	"github.com/datamonsterr/duolify/services/api/internal/analytics"
-	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 )
 
 // ServiceDefinition represents a declared service in the Railway IaC configuration.
@@ -73,6 +69,156 @@ func RedactSecrets(input string) string {
 	res = reRailway.ReplaceAllString(res, "[REDACTED]")
 	res = reSecretVal.ReplaceAllString(res, "$1: [REDACTED]")
 	return res
+}
+
+type rawPlanItem struct {
+	Environment string              `json:"environment"`
+	ProjectName string              `json:"projectName"`
+	Name        string              `json:"name"`
+	Services    []ServiceDefinition `json:"services"`
+	Resources   []json.RawMessage   `json:"resources"`
+}
+
+func (r rawPlanItem) toEnvironmentPlanRequest() (EnvironmentPlanRequest, error) {
+	proj := r.ProjectName
+	if proj == "" {
+		proj = r.Name
+	}
+	env := r.Environment
+
+	services := make([]ServiceDefinition, len(r.Services))
+	copy(services, r.Services)
+
+	var resources []ResourceDefinition
+
+	for _, raw := range r.Resources {
+		var peek struct {
+			Type               string            `json:"type"`
+			Kind               string            `json:"kind"`
+			Name               string            `json:"name"`
+			Region             string            `json:"region"`
+			Start              string            `json:"start"`
+			PreDeploy          string            `json:"preDeploy"`
+			Healthcheck        string            `json:"healthcheck"`
+			HealthcheckTimeout int               `json:"healthcheckTimeout"`
+			Domains            []string          `json:"domains"`
+			Env                map[string]string `json:"env"`
+			Config             struct {
+				Region string `json:"region"`
+			} `json:"config"`
+			Deploy struct {
+				StartCommand       string   `json:"startCommand"`
+				PreDeployCommand   []string `json:"preDeployCommand"`
+				HealthcheckPath    string   `json:"healthcheckPath"`
+				HealthcheckTimeout int      `json:"healthcheckTimeout"`
+			} `json:"deploy"`
+		}
+		if err := json.Unmarshal(raw, &peek); err != nil {
+			continue
+		}
+
+		if peek.Type == "service" {
+			svc := ServiceDefinition{
+				Name:               peek.Name,
+				Start:              peek.Start,
+				PreDeploy:          peek.PreDeploy,
+				Healthcheck:        peek.Healthcheck,
+				HealthcheckTimeout: peek.HealthcheckTimeout,
+				Domains:            peek.Domains,
+				Env:                peek.Env,
+			}
+			if svc.Start == "" && peek.Deploy.StartCommand != "" {
+				svc.Start = peek.Deploy.StartCommand
+			}
+			if svc.PreDeploy == "" && len(peek.Deploy.PreDeployCommand) > 0 {
+				svc.PreDeploy = peek.Deploy.PreDeployCommand[0]
+			}
+			if svc.Healthcheck == "" && peek.Deploy.HealthcheckPath != "" {
+				svc.Healthcheck = peek.Deploy.HealthcheckPath
+			}
+			if svc.HealthcheckTimeout == 0 && peek.Deploy.HealthcheckTimeout != 0 {
+				svc.HealthcheckTimeout = peek.Deploy.HealthcheckTimeout
+			}
+			services = append(services, svc)
+		} else {
+			region := peek.Region
+			if region == "" {
+				region = peek.Config.Region
+			}
+			resType := peek.Kind
+			if resType == "" {
+				resType = peek.Type
+			}
+			resources = append(resources, ResourceDefinition{
+				Name:   peek.Name,
+				Type:   resType,
+				Region: region,
+			})
+		}
+	}
+
+	return EnvironmentPlanRequest{
+		Environment: env,
+		ProjectName: proj,
+		Services:    services,
+		Resources:   resources,
+	}, nil
+}
+
+// ParseEnvironmentPlans parses JSON from railway plan rendering.
+// Accepts single plan, array of plans, or map of plans.
+func ParseEnvironmentPlans(data []byte) ([]EnvironmentPlanRequest, error) {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 {
+		return nil, errors.New("empty plan JSON")
+	}
+
+	// 1. Try array of plans
+	if data[0] == '[' {
+		var list []rawPlanItem
+		if err := json.Unmarshal(data, &list); err == nil {
+			var res []EnvironmentPlanRequest
+			for _, item := range list {
+				plan, err := item.toEnvironmentPlanRequest()
+				if err != nil {
+					return nil, err
+				}
+				res = append(res, plan)
+			}
+			return res, nil
+		}
+	}
+
+	// 2. Try single plan
+	var single rawPlanItem
+	if err := json.Unmarshal(data, &single); err == nil && (single.Environment != "" || single.ProjectName != "" || single.Name != "") {
+		if single.Environment != "" || len(single.Services) > 0 || len(single.Resources) > 0 {
+			plan, err := single.toEnvironmentPlanRequest()
+			if err != nil {
+				return nil, err
+			}
+			return []EnvironmentPlanRequest{plan}, nil
+		}
+	}
+
+	// 3. Try map of environment plans
+	var envMap map[string]rawPlanItem
+	if err := json.Unmarshal(data, &envMap); err == nil && len(envMap) > 0 {
+		var res []EnvironmentPlanRequest
+		for envName, item := range envMap {
+			if item.Environment == "" {
+				item.Environment = envName
+			}
+			plan, err := item.toEnvironmentPlanRequest()
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, plan)
+		}
+		return res, nil
+	}
+
+	return nil, errors.New("unable to parse plan JSON into environment plan request")
 }
 
 // ValidateEnvironmentPlan validates the environment declaration:
@@ -198,98 +344,20 @@ func ValidateEnvironmentPlan(req EnvironmentPlanRequest) EnvironmentPlanResponse
 	}
 }
 
-// GetRailwayEnvironmentFixture returns canonical dev, staging, or prod environment definition.
-func GetRailwayEnvironmentFixture(env string) (EnvironmentPlanRequest, error) {
-	switch env {
-	case "dev", "staging", "prod":
-	default:
-		return EnvironmentPlanRequest{}, fmt.Errorf("unknown environment %q", env)
+// LogEnvironmentPlanValidation logs structured operational deploy/health telemetry for an evaluated environment plan.
+func LogEnvironmentPlanValidation(logger *slog.Logger, plan EnvironmentPlanRequest, res EnvironmentPlanResponse) {
+	if logger == nil {
+		logger = slog.Default()
 	}
-
-	duolifyEnv := "development"
-	providerMode := "mock"
-	logLevel := "debug"
-	switch env {
-	case "staging":
-		duolifyEnv = "staging"
-		logLevel = "info"
-	case "prod":
-		duolifyEnv = "production"
-		providerMode = "live"
-		logLevel = "info"
-	}
-
-	return EnvironmentPlanRequest{
-		Environment: env,
-		ProjectName: "duolify",
-		Services: []ServiceDefinition{
-			{
-				Name:               "api",
-				Start:              "/api serve",
-				PreDeploy:          "/api migrate",
-				Healthcheck:        "/readyz",
-				HealthcheckTimeout: 120,
-				Domains:            []string{}, // Attached by Railway routing for API
-				Env: map[string]string{
-					"DUOLIFY_ENV":                 duolifyEnv,
-					"LOG_LEVEL":                   logLevel,
-					"API_ADDR":                    "[::]:8080",
-					"PORT":                        "8080",
-					"DATABASE_URL":                "${{postgres.DATABASE_URL}}",
-					"REDIS_URL":                   "${{redis.REDIS_URL}}",
-					"ENGINE_HOST":                 "${{engine.RAILWAY_PRIVATE_DOMAIN}}",
-					"ENGINE_ADDR":                 "http://${{ENGINE_HOST}}:50051",
-					"S3_ENDPOINT":                 "${{lesson-assets.ENDPOINT}}",
-					"S3_BUCKET":                   "${{lesson-assets.BUCKET}}",
-					"S3_REGION":                   "${{lesson-assets.REGION}}",
-					"S3_ACCESS_KEY_ID":            "${{lesson-assets.ACCESS_KEY_ID}}",
-					"S3_SECRET_ACCESS_KEY":        "${{lesson-assets.SECRET_ACCESS_KEY}}",
-					"BACKUP_S3_ENDPOINT":          "${{backups.ENDPOINT}}",
-					"BACKUP_S3_BUCKET":            "${{backups.BUCKET}}",
-					"BACKUP_S3_REGION":            "${{backups.REGION}}",
-					"BACKUP_S3_ACCESS_KEY_ID":     "preserve()",
-					"BACKUP_S3_SECRET_ACCESS_KEY": "preserve()",
-					"JWT_SECRET":                  "preserve()",
-					"POSTHOG_API_KEY":             "preserve()",
-					"POSTHOG_HOST":                "https://us.i.posthog.com",
-				},
-			},
-			{
-				Name:      "worker",
-				Start:     "/api worker",
-				PreDeploy: "/api migrate",
-				Env: map[string]string{
-					"DUOLIFY_ENV":                 duolifyEnv,
-					"LOG_LEVEL":                   logLevel,
-					"DATABASE_URL":                "${{postgres.DATABASE_URL}}",
-					"REDIS_URL":                   "${{redis.REDIS_URL}}",
-					"BACKUP_S3_ENDPOINT":          "${{backups.ENDPOINT}}",
-					"BACKUP_S3_BUCKET":            "${{backups.BUCKET}}",
-					"BACKUP_S3_REGION":            "${{backups.REGION}}",
-					"BACKUP_S3_ACCESS_KEY_ID":     "preserve()",
-					"BACKUP_S3_SECRET_ACCESS_KEY": "preserve()",
-					"BACKUP_AGE_RECIPIENT":        "preserve()",
-				},
-			},
-			{
-				Name:    "engine",
-				Start:   "/duolify-engine",
-				Domains: []string{}, // Must be empty: private networking only!
-				Env: map[string]string{
-					"ENGINE_ADDR_LISTEN":   "[::]:50051",
-					"ENGINE_PROVIDER_MODE": providerMode,
-					"ANTHROPIC_API_KEY":    "preserve()",
-					"OPENROUTER_API_KEY":   "preserve()",
-				},
-			},
-		},
-		Resources: []ResourceDefinition{
-			{Name: "postgres", Type: "postgres"},
-			{Name: "redis", Type: "redis"},
-			{Name: "lesson-assets", Type: "bucket", Region: "sin"},
-			{Name: "backups", Type: "bucket", Region: "sin"},
-		},
-	}, nil
+	logger.Info("railway environment plan evaluated",
+		"environment", plan.Environment,
+		"project", plan.ProjectName,
+		"valid", res.Valid,
+		"services_count", len(plan.Services),
+		"resources_count", len(plan.Resources),
+		"live_apply_allowed", res.LiveApplyAllowed,
+		"hitl_gate_required", res.HITLGateRequired,
+	)
 }
 
 // ValidateDeployWorkflowPolicy enforces deployment policies:
@@ -336,66 +404,4 @@ func (g *RollbackGate) VerifyReadiness(ctx context.Context) error {
 		return fmt.Errorf("readiness verification failed: %w (rollback required)", err)
 	}
 	return nil
-}
-
-// EmitEnvironmentPlanEvent records operational telemetry for an evaluated environment plan.
-func EmitEnvironmentPlanEvent(plan EnvironmentPlanRequest, ok bool, recorder analytics.Events, optOut bool) {
-	if optOut || recorder == nil {
-		return
-	}
-	properties := map[string]any{
-		"source":      "api",
-		"platform":    "web",
-		"app_version": "0.1.0",
-		"environment": plan.Environment,
-		"ok":          ok,
-	}
-	_ = recorder.Capture("00000000-0000-4000-8000-000000000011", "environment_plan_validated", properties)
-}
-
-// EnvironmentPlanHandler handles plan validation requests via HTTP.
-type EnvironmentPlanHandler struct {
-	logger  *slog.Logger
-	monitor *telemetry.Monitor
-}
-
-// NewEnvironmentPlanHandler constructs an HTTP handler for environment plan validation.
-func NewEnvironmentPlanHandler(logger *slog.Logger, monitor *telemetry.Monitor) *EnvironmentPlanHandler {
-	return &EnvironmentPlanHandler{
-		logger:  logger,
-		monitor: monitor,
-	}
-}
-
-func (h *EnvironmentPlanHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-	if err != nil {
-		http.Error(w, "failed to read request body", http.StatusBadRequest)
-		return
-	}
-
-	var req EnvironmentPlanRequest
-	if err := json.Unmarshal(bodyBytes, &req); err != nil {
-		http.Error(w, "invalid json body", http.StatusBadRequest)
-		return
-	}
-
-	res := ValidateEnvironmentPlan(req)
-
-	w.Header().Set("Content-Type", "application/json")
-	if !res.Valid {
-		w.WriteHeader(http.StatusBadRequest)
-	} else {
-		w.WriteHeader(http.StatusOK)
-	}
-
-	respBytes, _ := json.Marshal(res)
-	// Guarantee secrets are redacted in output
-	redactedResp := RedactSecrets(string(respBytes))
-	_, _ = w.Write([]byte(redactedResp))
 }

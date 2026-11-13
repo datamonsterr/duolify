@@ -26,9 +26,8 @@ The plan-only validator runs in Go (`services/api/internal/backup`) and Rust
   owner human-in-the-loop approval under E11-07 (#54).
 
 System telemetry and logs:
-- Operational deploy/health logs only, with reserved operations UUID
-  `00000000-0000-4000-8000-000000000011`, common properties (`source=api`, `platform=web`),
-  opt-out suppression, and zero learner text.
+- Structured operational deploy/health logs via slog only, recording environment,
+  validity, service counts, and release gate status. Zero learner text and zero secrets.
 
 Dependency APIs and references consulted:
 - [Railway Config as Code](https://docs.railway.com/reference/config-as-code)

@@ -1,4 +1,4 @@
-use super::{Correlation, EngineEnvironmentPlan, EngineServiceConfig, redact_secrets};
+use super::{Correlation, EngineConfigError, EngineStartupConfig, redact_secrets};
 
 #[test]
 fn validates_correlation_without_retaining_private_metadata() {
@@ -27,104 +27,113 @@ fn validates_correlation_without_retaining_private_metadata() {
 }
 
 #[test]
-fn validates_engine_environment_boundary_cases_and_rejects_violations() {
-    let make_valid_plan = |env: &str| EngineEnvironmentPlan {
-        environment: env.to_string(),
-        project_name: "duolify".to_string(),
-        engine_service: EngineServiceConfig {
-            listen_addr: "[::]:50051".to_string(),
-            domains: vec![],
-            env_vars: [
-                ("ENGINE_PROVIDER_MODE".to_string(), "mock".to_string()),
-                ("ANTHROPIC_API_KEY".to_string(), "preserve()".to_string()),
-            ]
-            .into_iter()
-            .collect(),
-        },
-        has_database: true,
-        has_redis: true,
-        has_assets_bucket: true,
-        has_backups_bucket: true,
+fn engine_startup_config_validates_environments_and_enforces_release_gates() {
+    // 1. Development: mock mode, no keys needed, private bind -> Ok
+    let dev_config = EngineStartupConfig {
+        duolify_env: "development".to_string(),
+        listen_addr: "0.0.0.0:50051".to_string(),
+        provider_mode: "mock".to_string(),
+        public_domain: None,
+        anthropic_api_key: None,
+        openrouter_api_key: None,
     };
+    assert!(dev_config.validate().is_ok());
 
-    // Valid environments dev, staging, prod
-    for env in ["dev", "staging", "prod"] {
-        let plan = make_valid_plan(env);
-        let res = plan.validate();
-        assert!(res.is_valid, "expected env {} to be valid", env);
-        assert!(!res.live_apply_allowed);
-        assert_eq!(res.hitl_gate_required, "E11-07");
-        assert!(res.violations.is_empty());
+    // 2. Staging: mock mode, private bind, no public domain -> Ok
+    let staging_config = EngineStartupConfig {
+        duolify_env: "staging".to_string(),
+        listen_addr: "[::]:50051".to_string(),
+        provider_mode: "mock".to_string(),
+        public_domain: None,
+        anthropic_api_key: None,
+        openrouter_api_key: None,
+    };
+    assert!(staging_config.validate().is_ok());
+
+    // 3. Production: live mode, with provider API key -> Ok
+    let prod_config = EngineStartupConfig {
+        duolify_env: "production".to_string(),
+        listen_addr: "[::]:50051".to_string(),
+        provider_mode: "live".to_string(),
+        public_domain: None,
+        anthropic_api_key: Some("sk-ant-test-key-12345".to_string()),
+        openrouter_api_key: None,
+    };
+    assert!(prod_config.validate().is_ok());
+
+    // 4. Staging refuses to start if exposed publicly via domain
+    let staging_exposed = EngineStartupConfig {
+        duolify_env: "staging".to_string(),
+        listen_addr: "0.0.0.0:50051".to_string(),
+        provider_mode: "mock".to_string(),
+        public_domain: Some("engine-staging.railway.app".to_string()),
+        anthropic_api_key: None,
+        openrouter_api_key: None,
+    };
+    match staging_exposed.validate() {
+        Err(EngineConfigError::PublicExposure(msg)) => {
+            assert!(msg.contains("never have public domain"));
+        }
+        other => panic!("expected PublicExposure error, got {:?}", other),
     }
 
-    // Rejects unknown environment
-    let invalid_env = make_valid_plan("qa");
-    let res = invalid_env.validate();
-    assert!(!res.is_valid);
-    assert!(res.violations.iter().any(|v| v.contains("environment")));
-
-    // Rejects public engine domain
-    let mut public_engine = make_valid_plan("dev");
-    public_engine.engine_service.domains = vec!["public.engine.railway.app".to_string()];
-    let res = public_engine.validate();
-    assert!(!res.is_valid);
-    assert!(
-        res.violations
-            .iter()
-            .any(|v| v.contains("public domain") || v.contains("domains"))
-    );
-
-    // Rejects missing database
-    let mut no_db = make_valid_plan("staging");
-    no_db.has_database = false;
-    let res = no_db.validate();
-    assert!(!res.is_valid);
-    assert!(res.violations.iter().any(|v| v.contains("database")));
-
-    // Rejects missing redis
-    let mut no_redis = make_valid_plan("prod");
-    no_redis.has_redis = false;
-    let res = no_redis.validate();
-    assert!(!res.is_valid);
-    assert!(res.violations.iter().any(|v| v.contains("redis")));
-
-    // Rejects missing storage buckets
-    let mut no_storage = make_valid_plan("dev");
-    no_storage.has_assets_bucket = false;
-    let res = no_storage.validate();
-    assert!(!res.is_valid);
-    assert!(
-        res.violations
-            .iter()
-            .any(|v| v.contains("storage") || v.contains("bucket"))
-    );
-
-    // Rejects plaintext secrets in config
-    let mut secret_config = make_valid_plan("prod");
-    secret_config.engine_service.env_vars.insert(
-        "ANTHROPIC_API_KEY".to_string(),
-        "sk-ant-api03-abcdef1234567890".to_string(),
-    );
-    let res = secret_config.validate();
-    assert!(!res.is_valid);
-    assert!(
-        res.violations
-            .iter()
-            .any(|v| v.contains("secret") || v.contains("plaintext"))
-    );
-
-    // Secret must be redacted in violations and plan summary
-    for v in &res.violations {
-        assert!(!v.contains("sk-ant-api03-abcdef1234567890"));
+    // 5. Production refuses to start if exposed publicly via domain
+    let prod_exposed = EngineStartupConfig {
+        duolify_env: "production".to_string(),
+        listen_addr: "0.0.0.0:50051".to_string(),
+        provider_mode: "live".to_string(),
+        public_domain: Some("engine.duolify.com".to_string()),
+        anthropic_api_key: Some("sk-ant-test-key-12345".to_string()),
+        openrouter_api_key: None,
+    };
+    match prod_exposed.validate() {
+        Err(EngineConfigError::PublicExposure(msg)) => {
+            assert!(msg.contains("engine.duolify.com"));
+        }
+        other => panic!("expected PublicExposure error, got {:?}", other),
     }
-    assert!(!res.plan_summary.contains("sk-ant-api03-abcdef1234567890"));
+
+    // 6. Production live mode refuses to start without LLM credentials
+    let prod_missing_keys = EngineStartupConfig {
+        duolify_env: "production".to_string(),
+        listen_addr: "0.0.0.0:50051".to_string(),
+        provider_mode: "live".to_string(),
+        public_domain: None,
+        anthropic_api_key: None,
+        openrouter_api_key: None,
+    };
+    match prod_missing_keys.validate() {
+        Err(EngineConfigError::MissingDependency(msg)) => {
+            assert!(msg.contains("ANTHROPIC_API_KEY") || msg.contains("OPENROUTER_API_KEY"));
+        }
+        other => panic!("expected MissingDependency error, got {:?}", other),
+    }
+
+    // 7. Invalid listen address fails validation
+    let invalid_addr = EngineStartupConfig {
+        duolify_env: "staging".to_string(),
+        listen_addr: "not-an-ip-or-port".to_string(),
+        provider_mode: "mock".to_string(),
+        public_domain: None,
+        anthropic_api_key: None,
+        openrouter_api_key: None,
+    };
+    match invalid_addr.validate() {
+        Err(EngineConfigError::InvalidAddress(msg)) => {
+            assert!(msg.contains("not-an-ip-or-port"));
+        }
+        other => panic!("expected InvalidAddress error, got {:?}", other),
+    }
 }
 
 #[test]
-fn redacts_secrets_in_text() {
-    let input = "engine failed with key sk-ant-1234567890abcdef and token Bearer my-secret-token";
-    let redacted = redact_secrets(input);
-    assert!(!redacted.contains("sk-ant-1234567890abcdef"));
-    assert!(!redacted.contains("my-secret-token"));
+fn engine_redacts_sensitive_credentials_in_logs_and_errors() {
+    let raw = "Config dump: anthropic=sk-ant-secret123, openrouter=sk-or-token456, auth=Bearer my-token, jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.doNotLeakThis, db=postgres://user:pass123@postgres:5432/db";
+    let redacted = redact_secrets(raw);
+    assert!(!redacted.contains("sk-ant-secret123"));
+    assert!(!redacted.contains("sk-or-token456"));
+    assert!(!redacted.contains("my-token"));
+    assert!(!redacted.contains("doNotLeakThis"));
+    assert!(!redacted.contains("pass123"));
     assert!(redacted.contains("[REDACTED]"));
 }

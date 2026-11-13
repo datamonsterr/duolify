@@ -7,12 +7,15 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -473,39 +476,92 @@ func runAdminCLI(ctx context.Context, args []string) error {
 	return nil
 }
 
-func runAdminInfraCLI(_ context.Context, args []string) error {
+func runAdminInfraCLI(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: api admin infra {plan|validate} [--env dev|staging|prod|all]")
+		return errors.New("usage: api admin infra {plan|validate} [options]")
 	}
-	cmd := args[0]
-	if cmd != "plan" && cmd != "validate" {
-		return fmt.Errorf("unknown infra subcommand %q; expected plan or validate", cmd)
-	}
-
-	flags := flag.NewFlagSet("admin infra", flag.ContinueOnError)
-	targetEnv := flags.String("env", "all", "target environment: dev, staging, prod, or all")
-	if err := flags.Parse(args[1:]); err != nil {
-		return err
-	}
-
-	envs := []string{"dev", "staging", "prod"}
-	if *targetEnv != "all" {
-		envs = []string{*targetEnv}
-	}
-
-	for _, env := range envs {
-		fixture, err := backup.GetRailwayEnvironmentFixture(env)
-		if err != nil {
+	subcmd := args[0]
+	switch subcmd {
+	case "plan":
+		flags := flag.NewFlagSet("admin infra plan", flag.ContinueOnError)
+		targetEnv := flags.String("env", "all", "target environment: dev, staging, prod, or all")
+		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}
-		res := backup.ValidateEnvironmentPlan(fixture)
-		if !res.Valid {
-			return fmt.Errorf("environment %s validation failed: %s", env, strings.Join(res.Violations, "; "))
+		candidates := []string{
+			".railway/plan.mjs",
+			"../.railway/plan.mjs",
+			"../../.railway/plan.mjs",
 		}
-		fmt.Printf("Environment %s plan valid: summary=%s live_apply_allowed=%t hitl_gate_required=%s\n",
-			env, res.PlanSummary, res.LiveApplyAllowed, res.HITLGateRequired)
+		var scriptPath string
+		for _, c := range candidates {
+			if _, err := os.Stat(c); err == nil {
+				scriptPath = c
+				break
+			}
+		}
+		if scriptPath == "" {
+			return errors.New("could not find .railway/plan.mjs")
+		}
+		cmdArgs := []string{scriptPath}
+		if *targetEnv == "all" {
+			cmdArgs = append(cmdArgs, "--all")
+		} else {
+			cmdArgs = append(cmdArgs, "--environment", *targetEnv)
+		}
+		cmd := exec.CommandContext(ctx, "node", cmdArgs...) // #nosec G204
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+
+	case "validate":
+		flags := flag.NewFlagSet("admin infra validate", flag.ContinueOnError)
+		filePath := flags.String("file", "", "path to plan JSON file (reads stdin if omitted or -)")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		var data []byte
+		var err error
+		if *filePath != "" && *filePath != "-" {
+			cleanPath := filepath.Clean(*filePath)
+			data, err = os.ReadFile(cleanPath) // #nosec G304
+			if err != nil {
+				return fmt.Errorf("read plan file: %w", err)
+			}
+		} else {
+			data, err = io.ReadAll(os.Stdin)
+			if err != nil {
+				return fmt.Errorf("read plan from stdin: %w", err)
+			}
+		}
+		plans, err := backup.ParseEnvironmentPlans(data)
+		if err != nil {
+			return fmt.Errorf("parse environment plans: %w", err)
+		}
+		if len(plans) == 0 {
+			return errors.New("no environment plans found in input")
+		}
+
+		var failedEnvs []string
+		for _, plan := range plans {
+			res := backup.ValidateEnvironmentPlan(plan)
+			backup.LogEnvironmentPlanValidation(nil, plan, res)
+			if !res.Valid {
+				failedEnvs = append(failedEnvs, plan.Environment)
+				fmt.Fprintf(os.Stderr, "Environment %s plan invalid: %s\n", plan.Environment, strings.Join(res.Violations, "; "))
+			} else {
+				fmt.Printf("Environment %s plan valid: summary=%s live_apply_allowed=%t hitl_gate_required=%s\n",
+					plan.Environment, res.PlanSummary, res.LiveApplyAllowed, res.HITLGateRequired)
+			}
+		}
+		if len(failedEnvs) > 0 {
+			return fmt.Errorf("environment validation failed for: %s", strings.Join(failedEnvs, ", "))
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("unknown infra subcommand %q; expected plan or validate", subcmd)
 	}
-	return nil
 }
 
 // healthcheck works in distroless images without a shell or curl. Workers and
