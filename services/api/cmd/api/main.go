@@ -207,7 +207,7 @@ func run(ctx context.Context, args []string) (result error) {
 		}
 		// E14-01: narration synthesis stays off until explicitly enabled; only the engine mock exists.
 		if os.Getenv("NARRATION_ENABLED") == "true" {
-			narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Events: events, Logger: logger})
+			narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Events: events, Logger: logger, Retention: narrationRetention()})
 			narrationQueue, err := narrationService.Queue()
 			if err != nil {
 				return err
@@ -215,6 +215,8 @@ func run(ctx context.Context, args []string) (result error) {
 			if err = narrationQueue.Start(context.WithoutCancel(ctx)); err != nil {
 				return err
 			}
+			// Operator queue and retention: regenerate missing objects and delete expired assets.
+			go narrationService.RunMaintenance(ctx, time.Hour)
 			defer func() {
 				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 				defer cancel()
@@ -334,13 +336,22 @@ func run(ctx context.Context, args []string) (result error) {
 	defer stopActivator()
 	go runtimePricing.RunActivator(activatorCtx, pricingAdmin)
 
+	var narrationRecovery player.NarrationRecovery
+	if os.Getenv("NARRATION_ENABLED") == "true" {
+		// Insert-only queue client: the worker process runs the jobs.
+		recovery := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Events: events, Logger: logger, Retention: narrationRetention()})
+		if _, err = recovery.Queue(); err != nil {
+			return err
+		}
+		narrationRecovery = recovery
+	}
 	courseService := courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"})
 	handler := httpapi.New(httpapi.Dependencies{
 		Characters:              characters.NewHandler(characterService),
 		Gamification:            xpService,
 		Social:                  social.New(db.Pool, events),
 		Monitor:                 monitor,
-		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService}),
+		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService, Narration: narrationRecovery}),
 		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
 		Accounts:                auth,
 		Credits:                 creditService,
@@ -534,4 +545,13 @@ func healthcheck(ctx context.Context, args []string) error {
 		return fmt.Errorf("healthcheck returned HTTP %d", response.StatusCode)
 	}
 	return nil
+}
+
+// narrationRetention reads how many days an unreferenced narration asset is kept (default 30).
+func narrationRetention() time.Duration {
+	days, err := strconv.Atoi(os.Getenv("NARRATION_RETENTION_DAYS"))
+	if err != nil || days < 1 {
+		return narration.DefaultRetention
+	}
+	return time.Duration(days) * 24 * time.Hour
 }

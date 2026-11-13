@@ -74,6 +74,31 @@ func (f *Fixture) AssertNarrationRestored(t *testing.T, restored *pgxpool.Pool) 
 	if before != after || !bytes.Contains([]byte(after), []byte(`"narration_text": "Seeded narration text."`)) || !bytes.Contains([]byte(after), []byte(`"status": "ready"`)) {
 		t.Fatal("narration text/status restore mismatch", before, after)
 	}
+	// E14-02: content hashes, object keys, reference counts and regeneration tracking survive restore.
+	const assets = `SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY a.content_hash), '[]'::jsonb)::text FROM narration_assets a`
+	var assetsBefore, assetsAfter string
+	if err := f.DB.Pool.QueryRow(t.Context(), assets).Scan(&assetsBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.QueryRow(t.Context(), assets).Scan(&assetsAfter); err != nil {
+		t.Fatal(err)
+	}
+	if assetsBefore != assetsAfter || !bytes.Contains([]byte(assetsAfter), []byte(`"ref_count": 1`)) || !bytes.Contains([]byte(assetsAfter), []byte("lessons/narration/v1/")) {
+		t.Fatal("narration asset hash/reference restore mismatch", assetsBefore, assetsAfter)
+	}
+	// The restored trigger keeps counting: deleting the only reference starts retention.
+	var unreferenced bool
+	tx, err := restored.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(t.Context()) }()
+	if _, err = tx.Exec(t.Context(), `DELETE FROM slide_narrations WHERE content_hash=repeat('ab',32)`); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.QueryRow(t.Context(), `SELECT ref_count=0 AND unreferenced_at IS NOT NULL FROM narration_assets WHERE content_hash=repeat('ab',32)`).Scan(&unreferenced); err != nil || !unreferenced {
+		t.Fatal("restored database must keep reference counting", err)
+	}
 }
 
 // BackupPlayerObjects exercises the protected-copy/key-version-checksum contract

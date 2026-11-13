@@ -142,7 +142,11 @@ test("failed audio keeps the lesson and retries the same narration with one char
     page.getByRole("button", { name: "Play narration", exact: true }),
   ).toBeVisible({ timeout: 30_000 });
   const done = await stats(request, h);
-  expect(done.spent).toBe(Math.ceil((done.characters * 50) / 1440));
+  // The retried delivery is priced on its own characters only, rounded up once.
+  expect(done.spent).toBe(
+    failed.spent +
+      Math.ceil(((done.characters - failed.characters) * 50) / 1440),
+  );
   expect(done.ref_counts).toEqual([1, 1, 1]);
 });
 

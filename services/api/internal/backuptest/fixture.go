@@ -576,6 +576,11 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		t.Fatal(err)
 	}
 	f.BackupPlayerObjects(t)
+	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO narration_assets(content_hash,text_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms)
+		VALUES(repeat('ab',32),repeat('cd',32),'mock-default-voice','eleven_flash_v2_5','fp1-0000000000000000',
+		'lessons/narration/v1/'||repeat('ab',32)||'/audio.wav','lessons/narration/v1/'||repeat('ab',32)||'/alignment.json',22,1100,1100)`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO slide_narrations(lesson_id,learner_id,slide_id,status,narration_text,content_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms)
 		VALUES('f3333333-3333-4333-8333-333333333333','a1111111-1111-4111-8111-111111111111','seed-ready','ready','Seeded narration text.',repeat('ab',32),'mock-default-voice','eleven_flash_v2_5','fp1-0000000000000000',
 		'lessons/narration/v1/'||repeat('ab',32)||'/audio.wav','lessons/narration/v1/'||repeat('ab',32)||'/alignment.json',22,1100,1100)`); err != nil {

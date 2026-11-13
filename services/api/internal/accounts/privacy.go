@@ -50,6 +50,8 @@ var ClassifiedLearnerTables = map[string]string{
 	"lesson_playback_positions":         "erased",
 	"lesson_manifests":                  "erased",
 	"slide_narrations":                  "erased",
+	"narration_assets":                  "unlinked_deleted_after_last_reference_and_retention",
+	"narration_regenerations":           "unlinked_erased_with_asset",
 	"course_creations":                  "erased",
 	"courses":                           "erased",
 	"course_units":                      "erased",

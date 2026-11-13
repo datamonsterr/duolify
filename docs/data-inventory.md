@@ -392,6 +392,25 @@ PostHog or logs: `narration_generated`, `narration_cache_hit`, `narration_failed
 are in-memory object URLs and disposable. Only the deterministic mock provider exists;
 `NARRATION_ENABLED` defaults off and no ElevenLabs call is made.
 
+E14-02 adds `narration_assets` (content hash primary key, text hash linking retained settings
+versions of the same normalized text, voice id, model id, settings fingerprint, audio and
+alignment object keys, characters, bytes, duration, `ready|missing` state, trigger-maintained
+`ref_count` and `unreferenced_at`) and `narration_regenerations` (content hash, `requested|
+completed|failed`, fixed failure code, characters, timestamps). Neither table holds narration
+text or a Learner id: Learners reach an asset only through `slide_narrations`, so export lists
+`slide_narrations` (with its content hash and object keys) and the asset rows are classified
+`unlinked_deleted_after_last_reference_and_retention`. Both tables are in the encrypted nightly
+general Postgres dump (14-day rotation); the backup fixture restores hashes, object keys and
+reference counts and checks the restored trigger still counts. Deleting a Lesson, Course or
+account removes only that Learner's references. A versioned asset and its two objects are
+deleted only after its last reference ends **and** the owner retention period elapses
+(`NARRATION_RETENTION_DAYS`, default 30); the worker purges daily and the bucket's object
+versioning keeps non-current versions under the existing protected-copy policy. A missing
+object is recovered at zero charge by restoring the latest retained bucket version, by
+repointing to a retained prior settings version of the same text, or by a tracked operator
+regeneration at the original hash. Content hashes and fixed codes only reach analytics
+(`narration_cache_hit`, `narration_generated`, `narration_failed`); learner text never does.
+
 E10-02: Score each AI task with critical checks. Versioned golden-set revisions
 are maintained on Hugging Face (or Git-pinned in `evals/fixtures/golden.sample.jsonl`
 for offline runs). Evaluation reports (JSON and Markdown) are written to

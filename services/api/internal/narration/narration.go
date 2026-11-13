@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"golang.org/x/text/unicode/norm"
 )
 
 // Statuses written to slide_narrations and projected into the manifest.
@@ -38,6 +40,53 @@ var (
 	// ErrOutput rejects incomplete synthesis results.
 	ErrOutput = errors.New("narration output invalid")
 )
+
+// Recovery states returned to the player by Retry and Recover.
+const (
+	// RecoveryOK means every object is present; nothing changed.
+	RecoveryOK = "ok"
+	// RecoveryRestored means a retained version made the audio playable again at no charge.
+	RecoveryRestored = "restored"
+	// RecoveryRegenerating means a tracked operator regeneration is pending; the Learner is never charged.
+	RecoveryRegenerating = "regenerating"
+	// RecoveryPending means the slide was queued again under the same content hash.
+	RecoveryPending = "pending"
+	// RecoveryFailed means the slide cannot be retried (for example it has no text).
+	RecoveryFailed = "failed"
+)
+
+// DefaultRetention is how long an unreferenced asset is kept after its last reference ends.
+const DefaultRetention = 30 * 24 * time.Hour
+
+// RetentionExpired reports whether an asset unreferenced since `since` may now be deleted.
+func RetentionExpired(since, now time.Time, retention time.Duration) bool {
+	return !since.IsZero() && now.Sub(since) >= retention
+}
+
+// NormalizeText composes Unicode (NFC) and collapses whitespace, so equivalent texts share one
+// hash, one provider call and one charge. The provider receives the normalized text.
+func NormalizeText(text string) string {
+	return strings.Join(strings.Fields(norm.NFC.String(text)), " ")
+}
+
+// TextHash links the retained settings versions of one normalized narration text.
+func TextHash(normalized string) string {
+	sum := sha256.Sum256([]byte(normalized))
+	return hex.EncodeToString(sum[:])
+}
+
+// AggregateCredits prices newly synthesized characters with one rounding up: the sum of
+// characters times credits over the character block, ceiled once (never per slide).
+func AggregateCredits(characters []int, credits, block int) int {
+	total := 0
+	for _, c := range characters {
+		total += c
+	}
+	if total <= 0 || block <= 0 {
+		return 0
+	}
+	return (total*credits + block - 1) / block
+}
 
 // ContentHash names shared objects: identical text, voice, model and settings are never paid twice.
 func ContentHash(text, voiceID, modelID, fingerprint string) string {

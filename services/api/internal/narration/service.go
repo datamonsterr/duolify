@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"sort"
 	"time"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
@@ -15,9 +16,11 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivertype"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -54,6 +57,8 @@ type Options struct {
 	Logger    *slog.Logger
 	// JobAttempts bounds background retries of one slide (default 3, with River backoff).
 	JobAttempts int
+	// Retention is how long an asset is kept after its last reference ends (default 30 days).
+	Retention time.Duration
 }
 
 // Service queues and performs per-slide synthesis.
@@ -67,25 +72,30 @@ func New(opts Options) *Service {
 	if opts.JobAttempts <= 0 {
 		opts.JobAttempts = 3
 	}
+	if opts.Retention <= 0 {
+		opts.Retention = DefaultRetention
+	}
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
 	return &Service{opts: opts}
 }
 
-// Args is the queue payload: identifiers only, never narration text.
+// Args is the queue payload: identifiers only, never narration text. An empty SlideID
+// synthesizes every pending slide of the lesson under one aggregate reservation.
 type Args struct {
 	LearnerID string `json:"learner_id" river:"unique"`
 	LessonID  string `json:"lesson_id" river:"unique"`
-	SlideID   string `json:"slide_id" river:"unique"`
+	SlideID   string `json:"slide_id,omitempty" river:"unique"`
 }
 
 // Kind identifies the River job.
 func (Args) Kind() string { return "narration_synthesize" }
 
-// InsertOpts keeps one pending job per slide.
+// InsertOpts keeps one open job per lesson or slide; finished jobs do not block a retry.
 func (Args) InsertOpts() river.InsertOpts {
-	return river.InsertOpts{Queue: "narration", UniqueOpts: river.UniqueOpts{ByArgs: true}}
+	return river.InsertOpts{Queue: "narration", UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{
+		rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRunning, rivertype.JobStateRetryable, rivertype.JobStateScheduled}}}
 }
 
 type worker struct {
@@ -95,6 +105,9 @@ type worker struct {
 
 func (w *worker) Work(ctx context.Context, job *river.Job[Args]) error {
 	final := job.Attempt >= job.MaxAttempts
+	if job.Args.SlideID == "" {
+		return w.service.SynthesizeLesson(ctx, job.Args.LearnerID, job.Args.LessonID, final)
+	}
 	return w.service.Synthesize(ctx, job.Args.LearnerID, job.Args.LessonID, job.Args.SlideID, final)
 }
 
@@ -118,7 +131,7 @@ func (s *Service) Queue() (*river.Client[pgx.Tx], error) {
 	return client, nil
 }
 
-// Enqueue stores each slide's text with status pending, then queues one job per slide.
+// Enqueue stores each slide's text with status pending, then queues one job for the lesson.
 // It runs only after the manifest (and so the narration text) is stored. Slides without
 // text are recorded as failed(missing_text) and never reach the provider.
 func (s *Service) Enqueue(ctx context.Context, owner, lessonID string) (int, error) {
@@ -155,16 +168,15 @@ func (s *Service) Enqueue(ctx context.Context, owner, lessonID string) (int, err
 		if tag.RowsAffected() == 0 {
 			continue
 		}
-		if _, err = s.client.Insert(ctx, Args{LearnerID: owner, LessonID: lessonID, SlideID: slide.ID}, &river.InsertOpts{MaxAttempts: s.opts.JobAttempts}); err != nil {
-			return queued, err
-		}
 		queued++
 	}
+	if queued > 0 {
+		// One job per lesson: its new characters are reserved, priced and settled together.
+		if _, err = s.client.Insert(ctx, Args{LearnerID: owner, LessonID: lessonID}, &river.InsertOpts{MaxAttempts: s.opts.JobAttempts}); err != nil {
+			return queued, err
+		}
+	}
 	return queued, nil
-}
-
-type row struct {
-	status, text string
 }
 
 func (s *Service) emit(owner, event string, properties map[string]any) {
@@ -175,70 +187,197 @@ func (s *Service) emit(owner, event string, properties map[string]any) {
 	_ = s.opts.Events.Capture(owner, event, properties)
 }
 
+// item is one distinct narration (content hash) of a lesson run and the slides that share it.
+type item struct {
+	hash, text string
+	slides     []string
+	characters int
+	meta       meta
+	usage      *enginev1.Usage
+	latency    uint32
+}
+
 // Synthesize performs one slide. A retryable provider failure returns an error (River
 // backs off) until final, then the slide becomes failed and the reservation stays released.
 func (s *Service) Synthesize(ctx context.Context, owner, lessonID, slideID string, final bool) error {
-	var r row
-	if err := s.opts.Pool.QueryRow(ctx, `SELECT status,narration_text FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3`, lessonID, owner, slideID).Scan(&r.status, &r.text); err != nil {
-		return nil // unknown or deleted slide: nothing to do
+	return s.synthesize(ctx, owner, lessonID, []string{slideID}, final)
+}
+
+// SynthesizeLesson performs every pending slide of a lesson under one audio reservation, so
+// the newly synthesized characters are priced and rounded up once.
+func (s *Service) SynthesizeLesson(ctx context.Context, owner, lessonID string, final bool) error {
+	return s.synthesize(ctx, owner, lessonID, nil, final)
+}
+
+func (s *Service) synthesize(ctx context.Context, owner, lessonID string, only []string, final bool) error {
+	rows, err := s.opts.Pool.Query(ctx, `SELECT slide_id,narration_text FROM slide_narrations
+		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND status='pending' AND failure_code='' AND (COALESCE(cardinality($3::text[]),0)=0 OR slide_id=ANY($3))
+		ORDER BY created_at, slide_id`, lessonID, owner, only)
+	if err != nil {
+		return err
 	}
-	if r.status != StatusPending {
+	type pendingSlide struct{ id, text string }
+	var pending []pendingSlide
+	for rows.Next() {
+		var p pendingSlide
+		if err = rows.Scan(&p.id, &p.text); err != nil {
+			rows.Close()
+			return err
+		}
+		pending = append(pending, p)
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	if len(pending) == 0 {
+		return nil // unknown, deleted or already finished: nothing to do
+	}
+	resolved, err := s.opts.Speech.SynthesizeNarration(ctx, &enginev1.SynthesizeNarrationRequest{SlideId: pending[0].id, VoiceKey: VoiceKey, ResolveOnly: true})
+	if err != nil {
+		var first error
+		for _, p := range pending {
+			if e := s.retryOrFail(ctx, owner, lessonID, p.id, "engine_unavailable", final, err); e != nil && first == nil {
+				first = e
+			}
+		}
+		return first
+	}
+	// The hash is computed from the normalized text and the resolved config before any provider call.
+	items := map[string]*item{}
+	var order []string
+	for _, p := range pending {
+		text := NormalizeText(p.text)
+		if ValidText(text) != nil {
+			if err = s.finish(ctx, owner, lessonID, p.id, StatusFailed, "missing_text", nil); err != nil {
+				return err
+			}
+			continue
+		}
+		hash := ContentHash(text, resolved.VoiceId, resolved.ModelId, resolved.SettingsFingerprint)
+		it := items[hash]
+		if it == nil {
+			audioKey, alignmentKey := Keys(hash)
+			it = &item{hash: hash, text: text, characters: len([]rune(text)),
+				meta: meta{hash: hash, textHash: TextHash(text), voiceID: resolved.VoiceId, modelID: resolved.ModelId, fingerprint: resolved.SettingsFingerprint, audioKey: audioKey, alignmentKey: alignmentKey}}
+			items[hash] = it
+			order = append(order, hash)
+		}
+		it.slides = append(it.slides, p.id)
+	}
+	if len(order) == 0 {
 		return nil
 	}
-	if err := ValidText(r.text); err != nil {
-		return s.finish(ctx, owner, lessonID, slideID, StatusFailed, "missing_text", nil)
-	}
-	started := time.Now()
-	resolved, err := s.opts.Speech.SynthesizeNarration(ctx, &enginev1.SynthesizeNarrationRequest{SlideId: slideID, VoiceKey: VoiceKey, ResolveOnly: true})
-	if err != nil {
-		return s.retryOrFail(ctx, owner, lessonID, slideID, "engine_unavailable", final, err)
-	}
-	hash := ContentHash(r.text, resolved.VoiceId, resolved.ModelId, resolved.SettingsFingerprint)
-	audioKey, alignmentKey := Keys(hash)
-	meta := &meta{hash: hash, voiceID: resolved.VoiceId, modelID: resolved.ModelId, fingerprint: resolved.SettingsFingerprint, audioKey: audioKey, alignmentKey: alignmentKey}
-
-	// One synthesis per key: concurrent slides with identical narration wait here.
+	// One synthesis per key: locks are taken in hash order on one connection, so concurrent runs
+	// with identical narration wait here instead of calling the provider again.
+	sort.Strings(order)
 	conn, err := s.opts.Pool.Acquire(ctx)
 	if err != nil {
 		return err
 	}
 	defer conn.Release()
-	if _, err = conn.Exec(ctx, `SELECT pg_advisory_lock(hashtextextended($1,0))`, "narration:"+hash); err != nil {
-		return err
-	}
-	defer func() {
-		_, _ = conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock(hashtextextended($1,0))`, "narration:"+hash)
-	}()
-
-	var hit meta2
-	err = s.opts.Pool.QueryRow(ctx, `SELECT characters,audio_bytes,duration_ms FROM slide_narrations WHERE content_hash=$1 AND status='ready' LIMIT 1`, hash).Scan(&hit.characters, &hit.bytes, &hit.duration)
-	if err == nil {
-		meta.characters, meta.bytes, meta.duration = hit.characters, hit.bytes, hit.duration
-		if err = s.finish(ctx, owner, lessonID, slideID, StatusReady, "", meta); err != nil {
+	for _, hash := range order {
+		if _, err = conn.Exec(ctx, `SELECT pg_advisory_lock(hashtextextended($1,0))`, "narration:"+hash); err != nil {
 			return err
 		}
-		s.emit(owner, "narration_cache_hit", map[string]any{"lesson_id": lessonID, "slide_id": slideID, "model": meta.modelID})
+		defer func() {
+			_, _ = conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock(hashtextextended($1,0))`, "narration:"+hash)
+		}()
+	}
+	var fresh []*item
+	for _, hash := range order {
+		it := items[hash]
+		var state string
+		var hit meta
+		err = s.opts.Pool.QueryRow(ctx, `SELECT state,characters,audio_bytes,duration_ms FROM narration_assets WHERE content_hash=$1`, hash).Scan(&state, &hit.characters, &hit.bytes, &hit.duration)
+		switch {
+		case err == nil && state == "ready":
+			it.meta.characters, it.meta.bytes, it.meta.duration = hit.characters, hit.bytes, hit.duration
+			for _, slide := range it.slides {
+				if err = s.finish(ctx, owner, lessonID, slide, StatusReady, "", &it.meta); errors.Is(err, errNotPending) {
+					continue
+				} else if err != nil {
+					return err
+				}
+				s.emit(owner, "narration_cache_hit", map[string]any{"lesson_id": lessonID, "slide_id": slide, "model": it.meta.modelID})
+			}
+		case err == nil:
+			// The shared object is gone: recovery is tracked and the Learner is never charged.
+			if err = s.holdForRegeneration(ctx, it.hash, lessonID, owner, it.slides); err != nil {
+				return err
+			}
+		default:
+			fresh = append(fresh, it)
+		}
+	}
+	if len(fresh) == 0 {
 		return nil
 	}
+	return s.synthesizeFresh(ctx, owner, lessonID, fresh, final)
+}
 
-	characters := int64(len([]rune(r.text)))
+// holdForRegeneration parks slides whose shared asset has no object until the operator queue restores it.
+func (s *Service) holdForRegeneration(ctx context.Context, hash, lessonID, owner string, slides []string) error {
+	for _, slide := range slides {
+		if _, err := s.opts.Pool.Exec(ctx, `UPDATE slide_narrations SET failure_code='object_missing',content_hash=$4,updated_at=now() WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND status='pending'`, lessonID, owner, slide, hash); err != nil {
+			return err
+		}
+	}
+	return s.requestRegeneration(ctx, s.opts.Pool, hash)
+}
+
+type execer interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+func (s *Service) requestRegeneration(ctx context.Context, db execer, hash string) error {
+	_, err := db.Exec(ctx, `INSERT INTO narration_regenerations(content_hash) VALUES($1) ON CONFLICT (content_hash) WHERE status='requested' DO NOTHING`, hash)
+	return err
+}
+
+func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID string, fresh []*item, final bool) error {
+	failAll := func(st, code string) error {
+		for _, it := range fresh {
+			for _, slide := range it.slides {
+				if err := s.finish(ctx, owner, lessonID, slide, st, code, nil); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	retryAll := func(code string, cause error) error {
+		var first error
+		for _, it := range fresh {
+			for _, slide := range it.slides {
+				if e := s.retryOrFail(ctx, owner, lessonID, slide, code, final, cause); e != nil && first == nil {
+					first = e
+				}
+			}
+		}
+		return first
+	}
+	characters := int64(0)
+	for _, it := range fresh {
+		characters += int64(it.characters)
+	}
 	quotes := pricing.NewQuotes(s.opts.Pool)
 	quote, err := quotes.Create(ctx, owner, pricing.QuoteInput{Action: "narration", NarrationCharacters: characters, Voice: VoiceKey})
 	if err != nil {
-		return s.finish(ctx, owner, lessonID, slideID, StatusFailed, "quote_unavailable", nil)
+		return failAll(StatusFailed, "quote_unavailable")
 	}
 	if err = quotes.Accept(ctx, owner, quote.ID); err != nil {
-		return s.finish(ctx, owner, lessonID, slideID, StatusFailed, "quote_unavailable", nil)
+		return failAll(StatusFailed, "quote_unavailable")
 	}
 	reservation, err := s.opts.Financial.ReserveAction(ctx, owner, quote.ID, "narration")
 	switch {
 	case errors.Is(err, credits.ErrInsufficient):
 		// Text and test stay usable; narration is simply not available.
-		return s.finish(ctx, owner, lessonID, slideID, StatusDisabled, "insufficient_credits", nil)
+		return failAll(StatusDisabled, "insufficient_credits")
 	case errors.Is(err, credits.ErrConcurrency):
-		return s.retryOrFail(ctx, owner, lessonID, slideID, "concurrency_limit", final, err)
+		return retryAll("concurrency_limit", err)
 	case err != nil:
-		return s.retryOrFail(ctx, owner, lessonID, slideID, "reservation_unavailable", final, err)
+		return retryAll("reservation_unavailable", err)
 	}
 	// release frees only this audio reservation: nothing else was reserved with it.
 	release := func(claimed bool) {
@@ -251,72 +390,144 @@ func (s *Service) Synthesize(ctx context.Context, owner, lessonID, slideID strin
 	}
 	if err = s.opts.Financial.Claim(ctx, owner, reservation.ID); err != nil {
 		release(false)
-		return s.retryOrFail(ctx, owner, lessonID, slideID, "claim_failed", final, err)
+		return retryAll("claim_failed", err)
 	}
 	limits, err := s.opts.Financial.Limits(ctx, owner, reservation.ID, "narration")
 	if err != nil {
 		release(true)
-		return s.retryOrFail(ctx, owner, lessonID, slideID, "limits_unavailable", final, err)
+		return retryAll("limits_unavailable", err)
 	}
 	limits.Provider, limits.Model = "elevenlabs", quote.Input.Model
 	callCtx, cancel := context.WithDeadline(ctx, reservation.DeadlineAt)
 	defer cancel()
-	response, err := s.opts.Speech.SynthesizeNarration(callCtx, &enginev1.SynthesizeNarrationRequest{SlideId: slideID, Text: r.text, VoiceKey: VoiceKey, Limits: limits})
-	latency := latencyMS(time.Since(started))
-	if err == nil {
-		err = ValidateOutput(r.text, response)
-	}
-	if err == nil && (response.VoiceId != resolved.VoiceId || response.ModelId != resolved.ModelId || response.SettingsFingerprint != resolved.SettingsFingerprint) {
-		err = ErrOutput
-	}
-	if err != nil {
-		release(true)
-		code := failureCode(err)
-		s.emit(owner, "$ai_generation", aiProperties(quote, "", characters, latency, false, code))
-		if retryable(err) {
-			return s.retryOrFail(ctx, owner, lessonID, slideID, code, final, err)
+
+	var delivered []*item
+	var retryErr error
+	for _, it := range fresh {
+		callStarted := time.Now()
+		response, err := s.opts.Speech.SynthesizeNarration(callCtx, &enginev1.SynthesizeNarrationRequest{SlideId: it.slides[0], Text: it.text, VoiceKey: VoiceKey, Limits: limits})
+		it.latency = latencyMS(time.Since(callStarted))
+		if err == nil {
+			err = ValidateOutput(it.text, response)
 		}
-		return s.finish(ctx, owner, lessonID, slideID, StatusFailed, code, nil)
+		if err == nil && (response.VoiceId != it.meta.voiceID || response.ModelId != it.meta.modelID || response.SettingsFingerprint != it.meta.fingerprint) {
+			err = ErrOutput
+		}
+		if err == nil {
+			err = s.store(ctx, it, response)
+		}
+		if err == nil && response.Usage == nil {
+			err = errUsageUnavailable
+		}
+		if err != nil {
+			code := failureCode(err)
+			if errors.Is(err, errStorage) {
+				code = "storage_unavailable"
+			} else if errors.Is(err, errUsageUnavailable) {
+				code = "usage_unavailable"
+			}
+			s.emit(owner, "$ai_generation", aiProperties(quote, "", int64(it.characters), it.latency, false, code))
+			if retryable(err) && !errors.Is(err, errUsageUnavailable) {
+				for _, slide := range it.slides {
+					if e := s.retryOrFail(ctx, owner, lessonID, slide, code, final, err); e != nil && retryErr == nil {
+						retryErr = e
+					}
+				}
+				continue
+			}
+			for _, slide := range it.slides {
+				if e := s.finish(ctx, owner, lessonID, slide, StatusFailed, code, nil); e != nil {
+					return e
+				}
+			}
+			continue
+		}
+		usage := response.Usage
+		usage.Component, usage.Delivered, usage.ArtifactId, usage.LatencyMs = "audio", true, it.hash, it.latency
+		if usage.Attempt == 0 {
+			usage.Attempt = 1
+		}
+		it.usage = usage
+		it.meta.characters, it.meta.bytes, it.meta.duration = int(response.Characters), int(response.AudioBytes), int(response.DurationMs)
+		delivered = append(delivered, it)
 	}
-	meta.characters, meta.bytes, meta.duration = int(response.Characters), int(response.AudioBytes), int(response.DurationMs)
-	alignment, err := alignmentJSON(response)
-	if err == nil {
-		err = s.opts.Objects.Put(ctx, audioKey, response.Audio)
-	}
-	if err == nil {
-		err = s.opts.Objects.Put(ctx, alignmentKey, alignment)
-	}
-	if err != nil {
+	if len(delivered) == 0 {
+		// Nothing was delivered: the audio reservation is released and nothing is charged.
 		release(true)
-		return s.retryOrFail(ctx, owner, lessonID, slideID, "storage_unavailable", final, err)
+		return retryErr
 	}
-	usage := response.Usage
-	if usage == nil {
-		release(true)
-		return s.finish(ctx, owner, lessonID, slideID, StatusFailed, "usage_unavailable", nil)
+	usages := make([]*enginev1.Usage, 0, len(delivered))
+	for _, it := range delivered {
+		usages = append(usages, it.usage)
 	}
-	usage.Component, usage.Delivered, usage.ArtifactId, usage.LatencyMs = "audio", true, hash, latency
-	if usage.Attempt == 0 {
-		usage.Attempt = 1
-	}
-	settled, err := s.opts.Financial.SettleWith(ctx, owner, reservation.ID, []*enginev1.Usage{usage}, func(tx pgx.Tx, _ credits.Reservation) error {
-		return writeRow(ctx, tx, owner, lessonID, slideID, StatusReady, "", meta, reservation.ID)
+	// Aggregate settlement: delivered characters are summed and rounded up once.
+	settled, err := s.opts.Financial.SettleWith(ctx, owner, reservation.ID, usages, func(tx pgx.Tx, _ credits.Reservation) error {
+		for _, it := range delivered {
+			if _, e := tx.Exec(ctx, `INSERT INTO narration_assets(content_hash,text_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms)
+				VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (content_hash) DO UPDATE SET state='ready',updated_at=now()`,
+				it.hash, it.meta.textHash, it.meta.voiceID, it.meta.modelID, it.meta.fingerprint, it.meta.audioKey, it.meta.alignmentKey, it.meta.characters, it.meta.bytes, it.meta.duration); e != nil {
+				return e
+			}
+			for _, slide := range it.slides {
+				if e := writeRow(ctx, tx, owner, lessonID, slide, StatusReady, "", &it.meta, reservation.ID); e != nil {
+					return e
+				}
+			}
+		}
+		return nil
 	})
 	if err != nil {
-		return s.retryOrFail(ctx, owner, lessonID, slideID, "settlement_failed", final, err)
+		var first error
+		for _, it := range delivered {
+			for _, slide := range it.slides {
+				if e := s.retryOrFail(ctx, owner, lessonID, slide, "settlement_failed", final, err); e != nil && first == nil {
+					first = e
+				}
+			}
+		}
+		return first
 	}
-	s.emit(owner, "narration_generated", map[string]any{"lesson_id": lessonID, "slide_id": slideID, "characters": characters, "voice_id": meta.voiceID, "model": meta.modelID, "latency_ms": latency})
-	generation := aiProperties(quote, usage.Model, characters, latency, true, "")
-	generation["pricing_version"] = settled.PricingVersion
-	s.emit(owner, "$ai_generation", generation)
+	for _, it := range delivered {
+		for _, slide := range it.slides {
+			s.emit(owner, "narration_generated", map[string]any{"lesson_id": lessonID, "slide_id": slide, "characters": it.characters, "voice_id": it.meta.voiceID, "model": it.meta.modelID, "latency_ms": it.latency})
+		}
+		generation := aiProperties(quote, it.usage.Model, int64(it.characters), it.latency, true, "")
+		generation["pricing_version"] = settled.PricingVersion
+		s.emit(owner, "$ai_generation", generation)
+		// Further slides sharing the hash in this run reuse the object at no charge.
+		for _, slide := range it.slides[1:] {
+			s.emit(owner, "narration_cache_hit", map[string]any{"lesson_id": lessonID, "slide_id": slide, "model": it.meta.modelID})
+		}
+	}
+	return retryErr
+}
+
+var (
+	// errNotPending means a concurrent run already finished the slide.
+	errNotPending       = errors.New("narration row is no longer pending")
+	errStorage          = errors.New("narration storage unavailable")
+	errUsageUnavailable = errors.New("narration usage unavailable")
+)
+
+// store writes the content-addressed audio and alignment objects (immutable per hash).
+func (s *Service) store(ctx context.Context, it *item, r *enginev1.SynthesizeNarrationResponse) error {
+	alignment, err := alignmentJSON(r)
+	if err == nil {
+		err = s.opts.Objects.Put(ctx, it.meta.audioKey, r.Audio)
+	}
+	if err == nil {
+		err = s.opts.Objects.Put(ctx, it.meta.alignmentKey, alignment)
+	}
+	if err != nil {
+		return fmt.Errorf("%w: %v", errStorage, err)
+	}
 	return nil
 }
 
 type meta struct {
-	hash, voiceID, modelID, fingerprint, audioKey, alignmentKey string
-	characters, bytes, duration                                 int
+	hash, textHash, voiceID, modelID, fingerprint, audioKey, alignmentKey string
+	characters, bytes, duration                                           int
 }
-type meta2 struct{ characters, bytes, duration int }
 
 func aiProperties(q pricing.Quote, model string, characters int64, latency uint32, ok bool, code string) map[string]any {
 	if model == "" {
@@ -400,7 +611,7 @@ func writeRow(ctx context.Context, tx pgx.Tx, owner, lessonID, slideID, st, code
 		return err
 	}
 	if tag.RowsAffected() != 1 {
-		return errors.New("narration row is no longer pending")
+		return errNotPending
 	}
 	return nil
 }

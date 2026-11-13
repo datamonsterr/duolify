@@ -761,6 +761,34 @@ type LessonTestVariantSnapshot struct {
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 }
 
+type NarrationAsset struct {
+	ContentHash         string             `json:"content_hash"`
+	TextHash            string             `json:"text_hash"`
+	VoiceID             string             `json:"voice_id"`
+	ModelID             string             `json:"model_id"`
+	SettingsFingerprint string             `json:"settings_fingerprint"`
+	AudioKey            string             `json:"audio_key"`
+	AlignmentKey        string             `json:"alignment_key"`
+	Characters          int32              `json:"characters"`
+	AudioBytes          int32              `json:"audio_bytes"`
+	DurationMs          int32              `json:"duration_ms"`
+	State               string             `json:"state"`
+	RefCount            int32              `json:"ref_count"`
+	UnreferencedAt      pgtype.Timestamptz `json:"unreferenced_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type NarrationRegeneration struct {
+	ID          pgtype.UUID        `json:"id"`
+	ContentHash string             `json:"content_hash"`
+	Status      string             `json:"status"`
+	FailureCode string             `json:"failure_code"`
+	Characters  int32              `json:"characters"`
+	RequestedAt pgtype.Timestamptz `json:"requested_at"`
+	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+}
+
 type OutlineDraft struct {
 	ID            pgtype.UUID        `json:"id"`
 	LearnerID     pgtype.UUID        `json:"learner_id"`

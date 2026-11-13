@@ -58,3 +58,42 @@ func (s *S3) Put(ctx context.Context, key string, raw []byte) error {
 	}
 	return nil
 }
+
+// Delete removes a key. In a versioned bucket this adds a delete marker and keeps every version.
+func (s *S3) Delete(ctx context.Context, key string) error {
+	if !validKey(key) {
+		return errInvalid
+	}
+	_, err := s.Client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key)})
+	return err
+}
+
+// Restore brings back the latest retained version of a deleted key by removing its delete
+// marker. It reports false when the key is not deleted or has no retained version.
+func (s *S3) Restore(ctx context.Context, key string) (bool, error) {
+	if !validKey(key) {
+		return false, errInvalid
+	}
+	out, err := s.Client.ListObjectVersions(ctx, &s3.ListObjectVersionsInput{Bucket: aws.String(s.Bucket), Prefix: aws.String(key)})
+	if err != nil {
+		return false, err
+	}
+	for _, marker := range out.DeleteMarkers {
+		if aws.ToString(marker.Key) != key || !aws.ToBool(marker.IsLatest) {
+			continue
+		}
+		hasVersion := false
+		for _, v := range out.Versions {
+			if aws.ToString(v.Key) == key {
+				hasVersion = true
+				break
+			}
+		}
+		if !hasVersion {
+			return false, nil
+		}
+		_, err = s.Client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key), VersionId: marker.VersionId})
+		return err == nil, err
+	}
+	return false, nil
+}

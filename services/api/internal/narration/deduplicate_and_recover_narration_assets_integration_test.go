@@ -99,6 +99,9 @@ func newAssetHarness(t *testing.T, retention time.Duration) *assetHarness {
 	if _, err = h.pool.Exec(ctx, `DELETE FROM slide_narrations WHERE slide_id='seed-ready'`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = h.pool.Exec(ctx, `DELETE FROM narration_assets WHERE content_hash=repeat('ab',32)`); err != nil {
+		t.Fatal(err)
+	}
 	return h
 }
 
@@ -207,18 +210,15 @@ func TestDeduplicateAndRecoverNarrationAssetsIntegration(t *testing.T) {
 		t.Fatal("identical narration must be free", h.mock.Calls()-before, h.spent()-spentBefore)
 	}
 	rows, _ := pool.Query(ctx, `SELECT ref_count FROM narration_assets ORDER BY content_hash`)
-	counts := 0
+	var refCounts []int
 	for rows.Next() {
 		var n int
 		_ = rows.Scan(&n)
-		if n != 2 {
-			t.Fatal("reference count", n)
-		}
-		counts++
+		refCounts = append(refCounts, n)
 	}
 	rows.Close()
-	if counts != 3 {
-		t.Fatal("assets", counts)
+	if fmt.Sprint(refCounts) != "[2 2 2]" {
+		t.Fatal("reference counts", refCounts)
 	}
 	for _, e := range h.events.events {
 		for _, text := range h.texts {

@@ -84,6 +84,17 @@ type Options struct {
 	Objects     Objects
 	AssetOrigin string
 	Credits     Entitlements
+	// Narration serves the Learner's Retry and Restore actions for failed or missing audio (E14-02).
+	Narration NarrationRecovery
+}
+
+// ErrNarrationNotFound hides slides that do not belong to the caller.
+var ErrNarrationNotFound = errors.New("narration slide not found")
+
+// NarrationRecovery repairs narration without charging the Learner.
+type NarrationRecovery interface {
+	Retry(ctx context.Context, owner, lesson, slide string) (string, error)
+	Recover(ctx context.Context, owner, lesson, slide string) (string, error)
 }
 
 // Service serves enrolled lesson content without granting progress.
@@ -152,6 +163,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if part := r.PathValue("part"); part != "" {
+		if r.Method == http.MethodPost {
+			s.narrationRecovery(ctx, w, owner, id, r.PathValue("slide"), part)
+			return
+		}
 		s.narrationObject(ctx, w, owner, id, r.PathValue("slide"), part)
 		return
 	}
@@ -362,4 +377,31 @@ func (s *Service) narrationObject(ctx context.Context, w http.ResponseWriter, ow
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(200)
 	_, _ = w.Write(raw)
+}
+
+// narrationRecovery runs the Learner's Retry narration or Restore narration action. Neither
+// reserves or charges Credits: retries reuse the content hash and restores reuse stored versions.
+func (s *Service) narrationRecovery(ctx context.Context, w http.ResponseWriter, owner, lesson, slide, action string) {
+	if s.opts.Narration == nil || (action != "retry" && action != "recover") {
+		failure(w, 404)
+		return
+	}
+	var state string
+	var err error
+	if action == "retry" {
+		state, err = s.opts.Narration.Retry(ctx, owner, lesson, slide)
+	} else {
+		state, err = s.opts.Narration.Recover(ctx, owner, lesson, slide)
+	}
+	if errors.Is(err, ErrNarrationNotFound) {
+		failure(w, 404)
+		return
+	}
+	if err != nil {
+		failure(w, 503)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_ = json.NewEncoder(w).Encode(map[string]string{"state": state})
 }

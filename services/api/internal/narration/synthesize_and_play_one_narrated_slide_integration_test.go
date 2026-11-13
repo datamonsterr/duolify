@@ -218,7 +218,8 @@ func TestSynthesizeAndPlayOneNarratedSlideIntegration(t *testing.T) {
 		}
 	}
 	rows.Close()
-	if settled != 1 || released != 2 {
+	// E14-02: the lesson's slides share one audio reservation; failed slides add no charge.
+	if settled != 1 || released != 0 {
 		t.Fatal("reservation outcomes", settled, released)
 	}
 
@@ -327,7 +328,7 @@ func TestSynthesizeAndPlayOneNarratedSlideIntegration(t *testing.T) {
 	}
 	var jobs int
 	_ = pool.QueryRow(ctx, `SELECT count(*) FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.learner_id=$1 AND q.snapshot->>'action'='narration'`, owner).Scan(&jobs)
-	if jobs != 3 {
+	if jobs != 1 {
 		t.Fatal("cache hit reserved credits", jobs)
 	}
 

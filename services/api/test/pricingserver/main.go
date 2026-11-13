@@ -43,6 +43,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -147,7 +148,8 @@ func run() (result error) {
 		})
 	}
 	objects := &fixtureObjects{values: playerfixture.Documents()}
-	lessonPlayer := player.New(player.Options{Pool: db.Pool, Objects: objects, AssetOrigin: playerfixture.AssetOrigin, Credits: paidCredits})
+	lateNarration := &lateNarrationRecovery{}
+	lessonPlayer := player.New(player.Options{Pool: db.Pool, Objects: objects, AssetOrigin: playerfixture.AssetOrigin, Credits: paidCredits, Narration: lateNarration})
 	mux := http.NewServeMux()
 	characterService := characters.NewService(db.Pool, nil, nil)
 	characterService.ConfigureScreening(characterScreenFixture{})
@@ -303,6 +305,8 @@ func run() (result error) {
 	if err != nil {
 		return err
 	}
+	lateNarration.service = narrationService
+	registerNarrationTestRoutes(mux, auth, db.Pool, objects, speechTwin, narrationService)
 	if err := narrationQueue.Start(ctx); err != nil {
 		return err
 	}
@@ -826,4 +830,122 @@ func (mockE2ENoteServer) EnrichNote(_ context.Context, req *enginev1.EnrichNoteR
 			Delivered:    true,
 		},
 	}, nil
+}
+
+// lateNarrationRecovery binds the narration service after the player is constructed.
+type lateNarrationRecovery struct{ service *narration.Service }
+
+func (l *lateNarrationRecovery) Retry(ctx context.Context, owner, lesson, slide string) (string, error) {
+	return l.service.Retry(ctx, owner, lesson, slide)
+}
+
+func (l *lateNarrationRecovery) Recover(ctx context.Context, owner, lesson, slide string) (string, error) {
+	return l.service.Recover(ctx, owner, lesson, slide)
+}
+
+func (f *fixtureObjects) remove(key string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.values, key)
+}
+
+// registerNarrationTestRoutes exposes E14-02 observation and fault hooks for disposable e2e runs only.
+func registerNarrationTestRoutes(mux *http.ServeMux, auth *accounts.Service, pool *pgxpool.Pool, objects *fixtureObjects, twin *narrationtest.Engine, service *narration.Service) {
+	reply := func(w http.ResponseWriter, status int, value any) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(value)
+	}
+	mux.Handle("POST /test/narration/twin", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			LessonID string `json:"lesson_id"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		id, err := playerfixture.Twin(r.Context(), pool, accounts.LearnerID(r.Context()), in.LessonID)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		reply(w, http.StatusCreated, map[string]string{"lesson_id": id})
+	})))
+	mux.Handle("POST /test/narration/faults", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Fail map[string]string `json:"fail"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		var manifest player.ObjectManifest
+		if err := json.Unmarshal(objects.snapshot(playerfixture.ManifestKey), &manifest); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		faults := map[string]string{}
+		for _, slide := range manifest.Slides {
+			if mode := in.Fail[slide.ID]; mode != "" {
+				faults[slide.NarrationText] = mode
+			}
+		}
+		twin.SetFaults(faults)
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	mux.Handle("POST /test/narration/lose-object", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			LessonID string `json:"lesson_id"`
+			SlideID  string `json:"slide_id"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		var audio, alignment string
+		if err := pool.QueryRow(r.Context(), `SELECT audio_key,alignment_key FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND status='ready'`,
+			in.LessonID, accounts.LearnerID(r.Context()), in.SlideID).Scan(&audio, &alignment); err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		objects.remove(audio)
+		objects.remove(alignment)
+		reply(w, http.StatusOK, map[string]bool{"lost": true})
+	})))
+	mux.Handle("POST /test/narration/operator-regenerate", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n, err := service.RegenerateMissing(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		reply(w, http.StatusOK, map[string]int{"regenerated": n})
+	})))
+	mux.Handle("GET /test/narration/stats", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		out := map[string]any{"synth_calls": twin.Calls()}
+		var spent, characters int
+		_ = pool.QueryRow(r.Context(), `SELECT COALESCE(sum((j.result->>'audio_spent')::int),0) FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.learner_id::text=$1 AND q.snapshot->>'action'='narration'`, owner).Scan(&spent)
+		_ = pool.QueryRow(r.Context(), `SELECT COALESCE(sum(characters),0) FROM narration_assets WHERE state='ready'`).Scan(&characters)
+		refs, regenerations := []int{}, []map[string]string{}
+		rows, err := pool.Query(r.Context(), `SELECT ref_count FROM narration_assets ORDER BY content_hash`)
+		if err == nil {
+			for rows.Next() {
+				var n int
+				_ = rows.Scan(&n)
+				refs = append(refs, n)
+			}
+			rows.Close()
+		}
+		rows, err = pool.Query(r.Context(), `SELECT status FROM narration_regenerations ORDER BY requested_at`)
+		if err == nil {
+			for rows.Next() {
+				var st string
+				_ = rows.Scan(&st)
+				regenerations = append(regenerations, map[string]string{"status": st})
+			}
+			rows.Close()
+		}
+		out["spent"], out["characters"], out["ref_counts"], out["regenerations"] = spent, characters, refs, regenerations
+		reply(w, http.StatusOK, out)
+	})))
 }

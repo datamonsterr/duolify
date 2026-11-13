@@ -168,6 +168,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("POST /v1/lessons/{lesson}/sync", deps.Accounts.Protect(deps.Player))
 		mux.Handle("GET /v1/lessons/{lesson}/slides/{slide}", deps.Accounts.Protect(deps.Player))
 		mux.Handle("GET /v1/lessons/{lesson}/slides/{slide}/narration/{part}", deps.Accounts.Protect(deps.Player))
+		mux.Handle("POST /v1/lessons/{lesson}/slides/{slide}/narration/{part}", deps.Accounts.Protect(deps.Player))
 		mux.Handle("GET /v1/courses/{course}/download", deps.Accounts.Protect(deps.Player))
 	}
 	if deps.Eval != nil {
