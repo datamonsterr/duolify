@@ -7,12 +7,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// FreezeRules are the configured effort milestone and inventory cap. Extra lists the
-// local dates of recorded, granted Friend streak milestone freezes (E6-06).
-type FreezeRules struct {
-	MilestoneDays, Cap int
-	Extra              []string
-}
+// FreezeRules are the configured effort milestone and inventory cap.
+type FreezeRules struct{ MilestoneDays, Cap int }
 
 // Validate rejects a rule set the database would also reject.
 func (r FreezeRules) Validate() error {
@@ -49,6 +45,12 @@ type StreakOutcome struct {
 // day (<= decided) of a live run consumes one freeze, which preserves the run without
 // incrementing it, or breaks the run when none is held. Days after decided are never judged.
 func SimulateStreak(dates []string, decided string, rules FreezeRules) StreakOutcome {
+	return SimulateStreakWith(dates, decided, rules, nil)
+}
+
+// SimulateStreakWith also adds one freeze on each date of extra: the recorded, already
+// cap-checked Friend streak milestone grants (E6-06), so one inventory serves both.
+func SimulateStreakWith(dates []string, decided string, rules FreezeRules, extraGrants []string) StreakOutcome {
 	o := StreakOutcome{RunLength: map[string]int{}}
 	run, held := 0, 0
 	prev, runStart := "", ""
@@ -63,6 +65,10 @@ func SimulateStreak(dates []string, decided string, rules FreezeRules) StreakOut
 			o.Breaks = append(o.Breaks, StreakBreak{BrokenOn: day, PreviousLength: run})
 			run, alive = 0, false
 		}
+	}
+	extra := map[string]int{}
+	for _, d := range extraGrants {
+		extra[d]++
 	}
 	for _, date := range dates {
 		if prev != "" {
@@ -82,6 +88,7 @@ func SimulateStreak(dates []string, decided string, rules FreezeRules) StreakOut
 			}
 			o.Grants = append(o.Grants, grant)
 		}
+		held += extra[date] // recorded Friend streak milestone freezes (already cap-checked)
 		prev = date
 	}
 	if prev != "" {
@@ -134,8 +141,14 @@ func applyFreezes(ctx context.Context, tx pgx.Tx, owner string, o StreakOutcome)
 		}
 		events = append(events, pendingEvent{"streak_freeze_used", map[string]any{"event_id": id, "protected_on": p.Date, "remaining": p.Remaining, "streak_length": p.StreakLength}})
 	}
+	return events, RefreshInventory(ctx, tx, owner)
+}
+
+// RefreshInventory derives the single freeze inventory from the recorded grants (personal
+// and Friend streak) minus the recorded protections. Callers hold the learner lock.
+func RefreshInventory(ctx context.Context, tx pgx.Tx, owner string) error {
 	_, err := tx.Exec(ctx, `INSERT INTO streak_freeze_inventory(learner_id,held,updated_at)
  SELECT $1::uuid,GREATEST(0,(SELECT count(*) FROM streak_freeze_milestones WHERE learner_id=$1::uuid AND granted)-(SELECT count(*) FROM streak_day_protections WHERE learner_id=$1::uuid)),now()
  ON CONFLICT(learner_id) DO UPDATE SET held=EXCLUDED.held,updated_at=EXCLUDED.updated_at`, owner)
-	return events, err
+	return err
 }

@@ -5,6 +5,7 @@ package social
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -338,7 +339,7 @@ func TestFriendStreakEndsWithRemoveBlockAndAccountDeletion(t *testing.T) {
 	}
 	friendID := ""
 	for _, f := range r.friends(a) {
-		if f["username"] == "end.bravo" {
+		if strings.EqualFold(fmt.Sprint(f["username"]), b.name) {
 			friendID = f["id"].(string)
 		}
 	}

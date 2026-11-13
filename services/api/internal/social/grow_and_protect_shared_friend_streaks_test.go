@@ -179,7 +179,7 @@ func TestFriendMilestoneGrantIsUsableByThePersonalFreezeSimulation(t *testing.T)
 	if len(without.Breaks) != 1 {
 		t.Fatalf("baseline should break: %+v", without)
 	}
-	with := gamification.SimulateStreak(dates, "2026-11-04", gamification.FreezeRules{MilestoneDays: 7, Cap: 2, Extra: []string{"2026-11-02"}})
+	with := gamification.SimulateStreakWith(dates, "2026-11-04", gamification.FreezeRules{MilestoneDays: 7, Cap: 2}, []string{"2026-11-02"})
 	if len(with.Breaks) != 0 || len(with.Protections) != 1 || with.Protections[0].Date != "2026-11-03" {
 		t.Fatalf("friend grant not used: %+v", with)
 	}

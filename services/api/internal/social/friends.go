@@ -149,20 +149,32 @@ func friendCount(ctx context.Context, tx pgx.Tx, learnerID string) (int, error) 
 
 // removeFriendshipTx is the one place a friendship ends: the friendship row and
 // every request between the pair go together, inside the caller's transaction.
-// E6-06 ends the friend streak here; Block calls it in its own transaction. It reports whether a friendship existed.
-func (s *Service) removeFriendshipTx(ctx context.Context, tx pgx.Tx, a, b string) (bool, error) {
+// The friend streak ends here too (its rows cascade from the friendship); the returned
+// events are sent after the caller commits. Block calls it in its own transaction. It
+// reports whether a friendship existed.
+func (s *Service) endFriendshipTx(ctx context.Context, tx pgx.Tx, a, b string) (bool, []streakEvent, error) {
 	if _, err := lockLearners(ctx, tx, a, b); err != nil {
-		return false, err
+		return false, nil, err
 	}
 	lo, hi := orderedPair(a, b)
+	ended, err := endFriendStreakTx(ctx, tx, lo, hi)
+	if err != nil {
+		return false, nil, err
+	}
 	tag, err := tx.Exec(ctx, `DELETE FROM friendships WHERE learner_low=$1::uuid AND learner_high=$2::uuid`, lo, hi)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	if err = clearPairRequestsTx(ctx, tx, a, b); err != nil {
-		return false, err
+		return false, nil, err
 	}
-	return tag.RowsAffected() > 0, nil
+	return tag.RowsAffected() > 0, ended, nil
+}
+
+// removeFriendshipTx is endFriendshipTx without the streak notifications.
+func (s *Service) removeFriendshipTx(ctx context.Context, tx pgx.Tx, a, b string) (bool, error) {
+	removed, _, err := s.endFriendshipTx(ctx, tx, a, b)
+	return removed, err
 }
 
 // clearPairRequestsTx deletes every request between two learners in both
@@ -478,13 +490,14 @@ func (s *Service) Remove(ctx context.Context, actor, friendshipID string) (Resul
 		return Result{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	removed, err := s.removeFriendshipTx(ctx, tx, lo, hi)
+	removed, ended, err := s.endFriendshipTx(ctx, tx, lo, hi)
 	if err != nil {
 		return Result{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return Result{}, err
 	}
+	s.emitAll(ended)
 	if removed {
 		s.emit(actor, "friend_removed", map[string]any{})
 	}
@@ -496,6 +509,7 @@ type Friend struct {
 	ID    string    `json:"id"`
 	Since time.Time `json:"since"`
 	Identity
+	FriendStreak *FriendStreakView `json:"friend_streak,omitempty"`
 }
 
 // RequestView is one pending request as the other party sees it.
@@ -505,27 +519,81 @@ type RequestView struct {
 	Identity
 }
 
-// Friends lists the actor's friends, alphabetically.
+// rowStreaks adapts the personal streaks read with the friend list to StreakSource.
+type rowStreaks map[string]int
+
+func (m rowStreaks) Streak(learnerID string) (int, bool) { d, ok := m[learnerID]; return d, ok }
+
+// Friends lists the actor's friends, alphabetically. A friend's personal and shared
+// streak appear only when that friend's show_streak_to_friends is on.
 func (s *Service) Friends(ctx context.Context, actor string) ([]Friend, error) {
-	rows, err := s.pool.Query(ctx, `SELECT f.id::text,f.created_at,u.learner_id::text,u.username,l.display_name,COALESCE(ss.show_streak_to_friends,true)
+	rows, err := s.pool.Query(ctx, `SELECT f.id::text,f.created_at,u.learner_id::text,u.username,l.display_name,COALESCE(ss.show_streak_to_friends,true),
+ sst.current_days,f.learner_low::text,f.learner_high::text
  FROM friendships f JOIN learner_usernames u ON u.learner_id=CASE WHEN f.learner_low=$1::uuid THEN f.learner_high ELSE f.learner_low END
  JOIN learners l ON l.id=u.learner_id LEFT JOIN learner_social_settings ss ON ss.learner_id=u.learner_id
- WHERE f.learner_low=$1::uuid OR f.learner_high=$1::uuid ORDER BY u.canonical LIMIT 1000`, actor)
+ LEFT JOIN streak_state sst ON sst.learner_id=u.learner_id
+ WHERE (f.learner_low=$1::uuid OR f.learner_high=$1::uuid)`+NotBlockedSQL("$1", "u.learner_id")+` ORDER BY u.canonical LIMIT 1000`, actor)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []Friend{}
+	type entry struct {
+		friend Friend
+		row    identityRow
+		lo, hi string
+	}
+	entries := []entry{}
+	personal := rowStreaks{}
 	for rows.Next() {
-		var f Friend
-		var r identityRow
-		if err = rows.Scan(&f.ID, &f.Since, &r.LearnerID, &r.Username, &r.DisplayName, &r.ShowStreakToFriends); err != nil {
+		var e entry
+		var days *int
+		if err = rows.Scan(&e.friend.ID, &e.friend.Since, &e.row.LearnerID, &e.row.Username, &e.row.DisplayName, &e.row.ShowStreakToFriends, &days, &e.lo, &e.hi); err != nil {
 			return nil, err
 		}
-		f.Identity = r.Project(s.streaks, true)
-		out = append(out, f)
+		if days != nil {
+			personal[e.row.LearnerID] = *days
+		}
+		entries = append(entries, e)
 	}
-	return out, rows.Err()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	out := make([]Friend, 0, len(entries))
+	for _, e := range entries {
+		e.friend.Identity = e.row.Project(personal, true)
+		if e.row.ShowStreakToFriends {
+			view, err := s.friendStreakFor(ctx, actor, e.row.LearnerID, e.lo, e.hi, e.friend.Since)
+			if err != nil {
+				return nil, err
+			}
+			e.friend.FriendStreak = &view
+		}
+		out = append(out, e.friend)
+	}
+	return out, nil
+}
+
+// friendStreakFor builds the viewer's shared-streak view from the persisted pair state
+// and both learners' E5 projections.
+func (s *Service) friendStreakFor(ctx context.Context, viewer, friend, lo, hi string, since time.Time) (FriendStreakView, error) {
+	st, err := loadPairState(ctx, s.pool, lo, hi)
+	if err != nil {
+		return FriendStreakView{}, err
+	}
+	youCursor, friendCursor := st.CursorLow, st.CursorHigh
+	if viewer != lo {
+		youCursor, friendCursor = friendCursor, youCursor
+	}
+	you, err := loadSide(ctx, s.pool, viewer, lowerBound(youCursor, since))
+	if err != nil {
+		return FriendStreakView{}, err
+	}
+	other, err := loadSide(ctx, s.pool, friend, lowerBound(friendCursor, since))
+	if err != nil {
+		return FriendStreakView{}, err
+	}
+	return friendStreakView(st, you, other, viewer == lo, s.clock()), nil
 }
 
 // Requests lists pending requests to and from the actor, newest first.
