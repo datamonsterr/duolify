@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -74,6 +75,10 @@ func (c *client) Close() error {
 func allowlisted(event string) bool {
 	switch event {
 	case "xp_earned", "daily_goal_met", "lesson_completed":
+		return true
+	case "username_set", "username_rejected", "username_changed", "username_searched", "privacy_setting_changed":
+		return true
+	case "friend_request_sent", "friend_request_accepted", "friend_request_declined", "friend_removed", "learner_blocked":
 		return true
 	case "slide_viewed", "slide_replayed", "slide_paused":
 		return true
@@ -436,6 +441,30 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		if v, ok := input["actor_id"].(string); ok {
 			if id, err := uuid.Parse(v); err == nil {
 				out["actor_id"] = id.String()
+			}
+		}
+	case "username_set", "username_changed":
+		numeric("username_length")
+	case "username_searched":
+		numeric("query_length", "result_count")
+	case "privacy_setting_changed":
+		setting, _ := input["setting"].(string)
+		value, _ := input["value"].(string)
+		allowed := map[string][]string{"discoverable": {"on", "off"}, "show_streak_to_friends": {"on", "off"}, "request_policy": {"everyone", "friends_of_friends", "nobody"}, "course_invites_from": {"friends", "everyone", "nobody"}}
+		if slices.Contains(allowed[setting], value) {
+			out["setting"], out["value"] = setting, value
+		}
+	case "learner_blocked":
+		boolean("was_friend")
+	case "friend_request_sent":
+		if method, ok := input["method"].(string); ok && (method == "username" || method == "invite_link") {
+			out["method"] = method
+		}
+	case "username_rejected":
+		if reason, ok := input["reason_code"].(string); ok {
+			switch reason {
+			case "username_invalid", "username_taken", "username_reserved", "username_not_allowed", "username_already_set":
+				out["reason_code"] = reason
 			}
 		}
 	case "quick_note_created":

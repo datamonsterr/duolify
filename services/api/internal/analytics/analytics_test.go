@@ -97,7 +97,8 @@ func TestEventAllowlist(t *testing.T) {
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "lesson_test_recap_shown", "ui_test_retry_presented",
-		"quick_note_created", "ui_sheet_opened",
+		"quick_note_created", "ui_sheet_opened", "username_set", "username_rejected", "username_changed", "username_searched", "privacy_setting_changed",
+		"friend_request_sent", "friend_request_accepted", "friend_request_declined", "friend_removed", "learner_blocked",
 		"bookmark_added", "bookmark_removed", "bookmark_opened",
 	} {
 		if !allowlisted(name) {
@@ -1203,5 +1204,72 @@ func TestTutorEventsKeepIdentifiersAndCountsOnly(t *testing.T) {
 				t.Errorf("%s leaked %s", event, banned)
 			}
 		}
+	}
+}
+
+func TestRenameSearchAndPrivacyEventsKeepOnlyClosedProperties(t *testing.T) {
+	for _, name := range []string{"username_changed", "username_searched", "privacy_setting_changed"} {
+		if !allowlisted(name) {
+			t.Errorf("%s not allowlisted", name)
+		}
+	}
+	got := safeProperties("username_searched", map[string]any{"query_length": 4, "result_count": 2, "query": "maya", "username": "maya"})
+	if got["query_length"] != 4 || got["result_count"] != 2 || got["query"] != nil || got["username"] != nil {
+		t.Fatalf("search: %v", got)
+	}
+	got = safeProperties("username_changed", map[string]any{"username_length": 9, "username": "maya.new", "previous": "maya"})
+	if got["username_length"] != 9 || got["username"] != nil || got["previous"] != nil {
+		t.Fatalf("changed: %v", got)
+	}
+	for setting, values := range map[string][]string{"discoverable": {"on", "off"}, "show_streak_to_friends": {"on", "off"}, "request_policy": {"everyone", "friends_of_friends", "nobody"}} {
+		for _, value := range values {
+			got = safeProperties("privacy_setting_changed", map[string]any{"setting": setting, "value": value})
+			if got["setting"] != setting || got["value"] != value {
+				t.Errorf("%s=%s dropped: %v", setting, value, got)
+			}
+		}
+	}
+	for _, bad := range []map[string]any{{"setting": "email", "value": "on"}, {"setting": "discoverable", "value": "maya"}, {"setting": "request_policy", "value": "on"}} {
+		got = safeProperties("privacy_setting_changed", bad)
+		if got["setting"] != nil && got["value"] != nil {
+			t.Errorf("accepted %v -> %v", bad, got)
+		}
+	}
+}
+
+func TestFriendEventsKeepOnlyTheMethodEnum(t *testing.T) {
+	got := safeProperties("friend_request_sent", map[string]any{"method": "invite_link", "username": "maya", "token": "abc", "request_id": "r1"})
+	if len(got) != 1 || got["method"] != "invite_link" {
+		t.Fatalf("sent props leaked: %v", got)
+	}
+	if got = safeProperties("friend_request_sent", map[string]any{"method": "maya"}); len(got) != 0 {
+		t.Fatalf("free-text method accepted: %v", got)
+	}
+	for _, name := range []string{"friend_request_accepted", "friend_request_declined", "friend_removed"} {
+		if got = safeProperties(name, map[string]any{"username": "maya", "friend_id": "x"}); len(got) != 0 {
+			t.Fatalf("%s props leaked: %v", name, got)
+		}
+	}
+}
+
+func TestLearnerBlockedKeepsOnlyTheWasFriendFlag(t *testing.T) {
+	got := safeProperties("learner_blocked", map[string]any{"was_friend": true, "username": "maya", "blocked_id": "x", "display_name": "Maya"})
+	if len(got) != 1 || got["was_friend"] != true {
+		t.Fatalf("learner_blocked props leaked: %v", got)
+	}
+	if got = safeProperties("learner_blocked", map[string]any{"was_friend": "maya"}); len(got) != 0 {
+		t.Fatalf("free-text was_friend accepted: %v", got)
+	}
+}
+
+func TestPrivacySettingChangedAcceptsCourseInvitesFromEnum(t *testing.T) {
+	for _, v := range []string{"friends", "everyone", "nobody"} {
+		got := safeProperties("privacy_setting_changed", map[string]any{"setting": "course_invites_from", "value": v})
+		if got["setting"] != "course_invites_from" || got["value"] != v {
+			t.Errorf("%s dropped: %v", v, got)
+		}
+	}
+	if got := safeProperties("privacy_setting_changed", map[string]any{"setting": "course_invites_from", "value": "friends_of_friends"}); len(got) != 0 {
+		t.Fatalf("invalid value accepted: %v", got)
 	}
 }

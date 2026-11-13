@@ -22,6 +22,14 @@ var ClassifiedLearnerTables = map[string]string{
 	"quick_note_enrichments":            "erased",
 	"quick_note_chat_sources":           "erased",
 	"tutor_thread_deletion_tombstones":  "text_free_retained_35_days",
+	"learner_usernames":                 "erased_name_held_30_days",
+	"learner_social_settings":           "erased",
+	"social_rate_limits":                "erased_ephemeral_1_hour",
+	"username_holds":                    "retained_30_days_pseudonymous",
+	"friend_requests":                   "erased",
+	"friendships":                       "erased",
+	"friend_links":                      "erased_hash_only",
+	"learner_blocks":                    "erased",
 	"xp_events":                         "erased_account_lifetime",
 	"daily_goal_achievements":           "erased_account_lifetime",
 	"character_create_jobs":             "erased_prompt_terminal_or_24h",
@@ -123,6 +131,10 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		{table: "course_brief_revisions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(b)),'[]'::jsonb) FROM course_brief_revisions b WHERE learner_id=$1 AND expires_at>now()`},
 		{table: "outline_proposals", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM outline_proposals p JOIN outline_drafts d ON d.id=p.draft_id JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE p.learner_id=$1 AND b.expires_at>now()`},
 		{table: "outline_drafts", query: `SELECT COALESCE(jsonb_agg(to_jsonb(d)),'[]'::jsonb) FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.learner_id=$1 AND b.expires_at>now()`},
+		{table: "friendships", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',f.id,'created_at',f.created_at,'friend_username',u.username)),'[]'::jsonb) FROM friendships f JOIN learner_usernames u ON u.learner_id=CASE WHEN f.learner_low=$1 THEN f.learner_high ELSE f.learner_low END WHERE f.learner_low=$1 OR f.learner_high=$1`},
+		{table: "friend_requests", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',q.id,'direction',CASE WHEN q.sender_id=$1 THEN 'sent' ELSE 'received' END,'status',q.status,'method',q.method,'created_at',q.created_at,'decided_at',q.decided_at,'other_username',u.username)),'[]'::jsonb) FROM friend_requests q JOIN learner_usernames u ON u.learner_id=CASE WHEN q.sender_id=$1 THEN q.recipient_id ELSE q.sender_id END WHERE q.sender_id=$1 OR q.recipient_id=$1`},
+		{table: "friend_links", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'created_at',created_at,'expires_at',expires_at,'revoked_at',revoked_at)),'[]'::jsonb) FROM friend_links WHERE owner_id=$1`},
+		{table: "learner_blocks", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('created_at',b.created_at,'blocked_username',u.username)),'[]'::jsonb) FROM learner_blocks b JOIN learner_usernames u ON u.learner_id=b.blocked_id WHERE b.blocker_id=$1`},
 		{table: "learners", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'display_name',display_name,'created_at',created_at)),'[]'::jsonb) FROM learners WHERE id=$1`},
 		{table: "learner_profiles", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM learner_profiles p WHERE learner_id=$1`},
 		{table: "auth_identities", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('email',email,'created_at',created_at)),'[]'::jsonb) FROM auth_identities WHERE learner_id=$1`},
@@ -136,7 +148,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 	for _, table := range []string{"credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(g)),'[]'::jsonb) FROM " + table + " g JOIN credit_subscription_terms t USING(period_key) JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1"})
 	}
-	for _, table := range []string{"quick_notes", "quick_note_enrichments", "quick_note_chat_sources", "bookmarks", "xp_events", "daily_goal_achievements", "character_create_jobs", "characters", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_playback_sync_events", "lesson_playback_positions", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "tutor_threads", "tutor_messages", "tutor_turns", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "credit_checkout_orders", "credit_jobs", "credit_outbox"} {
+	for _, table := range []string{"quick_notes", "quick_note_enrichments", "quick_note_chat_sources", "bookmarks", "xp_events", "daily_goal_achievements", "character_create_jobs", "characters", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_playback_sync_events", "lesson_playback_positions", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "tutor_threads", "tutor_messages", "tutor_turns", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "credit_checkout_orders", "credit_jobs", "credit_outbox", "learner_usernames", "learner_social_settings"} {
 		queries = append(queries, exportQuery{table: table, query: "SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM " + table + " t WHERE learner_id=$1"})
 	}
 	for _, table := range []string{"credit_allocations", "credit_usage"} {
