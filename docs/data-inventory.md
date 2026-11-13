@@ -411,6 +411,12 @@ repointing to a retained prior settings version of the same text, or by a tracke
 regeneration at the original hash. Content hashes and fixed codes only reach analytics
 (`narration_cache_hit`, `narration_generated`, `narration_failed`); learner text never does.
 
+E14-03 adds synchronized narration clocking, offline audio preloading, and player preference persistence:
+- **Disposable Client Cache**: Preloaded audio and alignment assets are retained in the browser's Cache API under cache name `duolify-narration-v1`. This client cache is disposable, enables offline restart and slide narration playback, is purged on lesson completion or explicit eviction (`clearLessonCache`), and is never backed up to servers.
+- **Per-Device Preferences**: Player preferences (`rate` within allowed speeds 0.75/1/1.25/1.5, `muted` boolean, `captions` boolean) persist per-device in `localStorage` under `duolify.player-preferences`. These store non-identifying player settings without learner PII, private text, or credentials.
+- **Authoritative Assets & Backup**: No new Postgres tables or database columns are introduced. Authoritative audio and alignment objects remain in versioned object storage (`lessons/narration/v1/...`) linked via `slide_narrations` and `narration_assets` with existing 14-day general database dump rotation and 30-day retention cascades.
+- **Analytics Telemetry**: Adds `narration_muted` (`muted` boolean), `narration_speed_changed` (`speed` numeric), and `captions_toggled` (`captions` boolean) to the client catalogue and API allowlist. Events carry standard UUID and context properties (`lesson_id`, `slide_id`), exclude all transcript text and slide explanations, and respect telemetry opt-out.
+
 E10-02: Score each AI task with critical checks. Versioned golden-set revisions
 are maintained on Hugging Face (or Git-pinned in `evals/fixtures/golden.sample.jsonl`
 for offline runs). Evaluation reports (JSON and Markdown) are written to

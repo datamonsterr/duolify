@@ -103,6 +103,38 @@ func Keys(hash string) (audio, alignment string) {
 	return base + "/audio.wav", base + "/alignment.json"
 }
 
+// IsValidPlaybackRate checks whether the playback rate is supported by the narration clock.
+func IsValidPlaybackRate(rate float64) bool {
+	switch rate {
+	case 0.75, 1.0, 1.25, 1.5:
+		return true
+	default:
+		return false
+	}
+}
+
+// ClampPlaybackTime bounds requested seek time between 0 and durationMs.
+func ClampPlaybackTime(timeMs, durationMs int) int {
+	if timeMs < 0 {
+		return 0
+	}
+	if durationMs < 0 {
+		return 0
+	}
+	if timeMs > durationMs {
+		return durationMs
+	}
+	return timeMs
+}
+
+// EffectiveSlideDuration returns the playback duration that holds the final frame through audio completion.
+func EffectiveSlideDuration(slideDurationMs, audioDurationMs int) int {
+	if audioDurationMs > slideDurationMs {
+		return audioDurationMs
+	}
+	return slideDurationMs
+}
+
 // ValidateOutput rejects output the player could not honour: missing text or audio,
 // gaps, reversals, mismatched counts or alignment far from the duration.
 func ValidateOutput(text string, r *enginev1.SynthesizeNarrationResponse) error {

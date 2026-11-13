@@ -1,6 +1,7 @@
 import { AuthError, session } from "../accounts/session";
 import { isManifest, type Manifest, type ManifestSlide } from "./manifest";
 import { clearDownloadIndex, isLessonSavedOffline } from "./library";
+import { NARRATION_CACHE_NAME, preloadNarration } from "../narration/cache";
 const cacheName = "duolify-player-v1";
 const maxBundle = 8 * 1024 * 1024;
 const DEFAULT_MAX_ACCOUNT = 16 * 1024 * 1024;
@@ -146,6 +147,9 @@ export async function downloadLesson(
       html: value.html,
       assets: value.assets ?? [],
     };
+    if (slide.narration_status === "ready" && slide.narration) {
+      void preloadNarration(slide);
+    }
   }
   const bundle = { manifest, documents };
   await verify(bundle);
@@ -312,7 +316,12 @@ export function clearLessonCache(): Promise<void> {
   resetCacheBounds();
   clearDownloadIndex();
   return serialize(async () => {
-    if (typeof caches !== "undefined") await caches.delete(cacheName);
+    if (typeof caches !== "undefined") {
+      await Promise.all([
+        caches.delete(cacheName),
+        caches.delete(NARRATION_CACHE_NAME),
+      ]);
+    }
   });
 }
 
