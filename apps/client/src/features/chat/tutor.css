@@ -313,3 +313,15 @@
   background: var(--danger);
   box-shadow: 0 4px 0 var(--danger);
 }
+.tutor-save {
+  align-self: flex-start;
+}
+.tutor-note a.btn {
+  display: inline-flex;
+  align-items: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tutor-save {
+    transition: none;
+  }
+}

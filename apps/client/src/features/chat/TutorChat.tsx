@@ -7,10 +7,26 @@ import {
 } from "react";
 import { useUiPreferences } from "../design/localization/Preferences";
 import type { LessonRef, ReplyClass, TutorService } from "./tutor";
-import { trackTutorRecovery } from "../../lib/analytics";
+import { trackTutorControl, trackTutorRecovery } from "../../lib/analytics";
 import { tutorService } from "./tutor";
-import { lastIndex, useTutor, type ChatMessage } from "./useTutor";
+import {
+  lastIndex,
+  useTutor,
+  type ChatMessage,
+  type SaveState,
+} from "./useTutor";
 import "./tutor.css";
+
+/** First question of the thread, clipped for the delete confirmation. */
+function threadTitle(messages: ChatMessage[]) {
+  const first = (messages.find((m) => m.role === "user")?.content ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const chars = [...first];
+  return chars.length > 28
+    ? `${chars.slice(0, 28).join("").trimEnd()}\u2026`
+    : first;
+}
 
 const starters = [
   "tutor.starter_1",
@@ -23,11 +39,16 @@ function ConfirmDelete({
   onConfirm,
   busy,
   error,
+  title,
+  count,
 }: {
   onCancel: () => void;
   onConfirm: () => void;
   busy: boolean;
   error: boolean;
+  /** Names the thread so the Learner knows which chat goes; shown on this device only. */
+  title: string;
+  count: number;
 }) {
   const { t } = useUiPreferences();
   const cancel = useRef<HTMLButtonElement>(null);
@@ -60,7 +81,7 @@ function ConfirmDelete({
         onKeyDown={onKeyDown}
       >
         <b id="tutor-delete-title">{t("tutor.delete_title")}</b>
-        <p>{t("tutor.delete_body")}</p>
+        <p>{t("tutor.delete_body", { title, count })}</p>
         {error && <p role="alert">{t("tutor.delete_error")}</p>}
         <div className="tutor-row">
           <button
@@ -91,14 +112,26 @@ function Bubble({
   showRetry,
   onRetry,
   canRetry,
+  save,
+  canSave,
+  onSave,
 }: {
   message: ChatMessage;
   showRetry: boolean;
   canRetry: boolean;
   onRetry: () => void;
+  save?: SaveState;
+  canSave: boolean;
+  onSave: () => void;
 }) {
   const { t } = useUiPreferences();
   const mine = message.role === "user";
+  // Only a stored, finished reply can become a note: not a streaming or locally pending one.
+  const savable =
+    !mine &&
+    message.content !== "" &&
+    (message.status === "complete" || message.status === "stopped") &&
+    !message.id.startsWith("local-");
   return (
     <div className={`tutor-msg ${mine ? "me" : "ai"}`}>
       <span className="tutor-who">{t(mine ? "tutor.you" : "tutor.tutor")}</span>
@@ -109,6 +142,34 @@ function Bubble({
       )}
       {message.status === "stopped" && (
         <span className="tutor-who">{t("tutor.stopped_tag")}</span>
+      )}
+      {savable && save?.state !== "saved" && (
+        <>
+          <button
+            type="button"
+            className="btn sec tutor-small tutor-save"
+            disabled={!canSave || save?.state === "saving"}
+            onClick={onSave}
+          >
+            {t(save?.state === "saving" ? "tutor.saving" : "tutor.save")}
+          </button>
+          {save?.state === "error" && (
+            <div className="tutor-note bad" role="alert">
+              <p>{t("tutor.save_error")}</p>
+            </div>
+          )}
+        </>
+      )}
+      {savable && save?.state === "saved" && (
+        <div className="tutor-note info" role="status">
+          <div>
+            <p>{t(save.pending ? "tutor.saved_pending" : "tutor.saved")}</p>
+            {save.truncated && <p>{t("tutor.saved_truncated")}</p>}
+            <a className="btn sec tutor-small" href="/notes">
+              {t("tutor.saved_open")}
+            </a>
+          </div>
+        </div>
       )}
       {message.status === "interrupted" && (
         <div className="tutor-note warn">
@@ -272,6 +333,7 @@ export function TutorChat({
     }
   }
   async function confirmDelete() {
+    trackTutorControl("delete_thread");
     setDeleting(true);
     setDeleteError(false);
     try {
@@ -336,7 +398,7 @@ export function TutorChat({
                 ref={deleteButton}
                 className="tutor-icon"
                 aria-label={t("tutor.delete")}
-                disabled={busy}
+                disabled={busy || !tutor.online}
                 onClick={() => setConfirming(true)}
               >
                 <span aria-hidden="true">⋯</span>
@@ -419,6 +481,9 @@ export function TutorChat({
                   recover("retry");
                   tutor.askAgain();
                 }}
+                save={tutor.saves[message.id]}
+                canSave={tutor.online}
+                onSave={() => void tutor.saveReply(message.id)}
               />
             ))}
             {streaming && (
@@ -621,6 +686,8 @@ export function TutorChat({
             <ConfirmDelete
               busy={deleting}
               error={deleteError}
+              title={threadTitle(tutor.messages)}
+              count={tutor.messages.length}
               onCancel={cancelDelete}
               onConfirm={() => void confirmDelete()}
             />

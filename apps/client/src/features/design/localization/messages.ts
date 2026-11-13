@@ -259,8 +259,18 @@ export const en = {
   "tutor.loading": "Loading your chat\u2026",
   "tutor.delete": "Delete chat",
   "tutor.delete_title": "Delete this chat?",
-  "tutor.delete_body":
-    "This chat and its messages will be removed. Quick notes you saved from it stay.",
+  "tutor.delete_body": {
+    one: "\u201c{title}\u201d and its {count} message will be removed. Quick notes you saved from it stay.",
+    other:
+      "\u201c{title}\u201d and its {count} messages will be removed. Quick notes you saved from it stay.",
+  },
+  "tutor.save": "Save as quick note",
+  "tutor.saving": "Saving\u2026",
+  "tutor.saved": "Saved to Quick notes",
+  "tutor.saved_pending": "Saved to Quick notes \u00b7 Enrichment pending",
+  "tutor.saved_open": "Open notes",
+  "tutor.saved_truncated": "Shortened to fit a note.",
+  "tutor.save_error": "Could not save the note. Try again.",
   "tutor.delete_cancel": "Cancel",
   "tutor.delete_confirm": "Delete",
   "tutor.delete_error": "Could not delete the chat. Try again.",
@@ -527,8 +537,17 @@ export const ar: Record<MessageId, Message> = {
   "tutor.loading": "جارٍ تحميل محادثتك…",
   "tutor.delete": "حذف المحادثة",
   "tutor.delete_title": "حذف هذه المحادثة؟",
-  "tutor.delete_body":
-    "ستُحذف هذه المحادثة ورسائلها. الملاحظات السريعة التي حفظتها منها تبقى.",
+  "tutor.delete_body": {
+    other:
+      "ستُحذف «{title}» و{count} من رسائلها. الملاحظات السريعة التي حفظتها منها تبقى.",
+  },
+  "tutor.save": "حفظ كملاحظة سريعة",
+  "tutor.saving": "جارٍ الحفظ…",
+  "tutor.saved": "تم الحفظ في الملاحظات السريعة",
+  "tutor.saved_pending": "تم الحفظ في الملاحظات السريعة · الإثراء قيد الانتظار",
+  "tutor.saved_open": "فتح الملاحظات",
+  "tutor.saved_truncated": "تم اختصار النص ليناسب الملاحظة.",
+  "tutor.save_error": "تعذر حفظ الملاحظة. حاول مجددًا.",
   "tutor.delete_cancel": "إلغاء",
   "tutor.delete_confirm": "حذف",
   "tutor.delete_error": "تعذر حذف المحادثة. حاول مجددًا.",

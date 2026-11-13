@@ -25,6 +25,7 @@ export type ThreadResponse = {
   thread: { id: string } | null;
   messages: TutorMessage[];
 };
+export type SavedNote = { id: string; status: string; truncated: boolean };
 export type SendInput = {
   quote_id: string;
   idempotency_key: string;
@@ -63,6 +64,8 @@ export interface TutorService {
     signal?: AbortSignal,
   ): Promise<SendDone>;
   remove(threadId: string): Promise<void>;
+  /** Saves one of the Learner's replies as a raw Quick note; repeating it returns the same note. */
+  saveReply(messageId: string, lessonId?: string): Promise<SavedNote>;
   /** Ask the server to end this send's reply; the stored prefix is settled once. */
   stop(courseId: string, key: string): Promise<void>;
   /** The owner's stored turn, including a partial reply after a dropped connection. */
@@ -215,6 +218,10 @@ export const tutorService: TutorService = {
       return null;
     }
   },
+  saveReply: (messageId, lessonId) =>
+    call(`/v1/tutor/messages/${encodeURIComponent(messageId)}/note`, "POST", {
+      ...(lessonId ? { lesson_id: lessonId } : {}),
+    }),
   remove: (threadId) =>
     call(`/v1/tutor/threads/${encodeURIComponent(threadId)}`, "DELETE"),
   async send(id, input, handlers, signal) {

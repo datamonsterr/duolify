@@ -47,6 +47,7 @@ function service(overrides: Partial<TutorService> = {}) {
       return { message_id: "m1", thread_id: "t1", replayed: false };
     }),
     remove: vi.fn().mockResolvedValue(undefined),
+    saveReply: vi.fn(),
     stop: vi.fn().mockResolvedValue(undefined),
     turn: vi.fn().mockResolvedValue(null),
   };

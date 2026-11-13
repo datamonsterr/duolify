@@ -40,6 +40,7 @@ function service(
     accept: vi.fn().mockResolvedValue({ accepted: true }),
     send: vi.fn(send),
     remove: vi.fn().mockResolvedValue(undefined),
+    saveReply: vi.fn(),
     stop: vi.fn().mockResolvedValue(undefined),
     turn: vi.fn().mockResolvedValue(null),
   };

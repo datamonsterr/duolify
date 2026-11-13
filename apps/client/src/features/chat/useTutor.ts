@@ -19,6 +19,11 @@ export type ChatMessage = {
   /** Typed end reason of an interrupted reply, e.g. `idle_timeout`. */
   reason?: string;
 };
+/** Save-as-note progress for one reply, kept by message id. */
+export type SaveState =
+  | { state: "saving" }
+  | { state: "error" }
+  | { state: "saved"; pending: boolean; truncated: boolean };
 export type Notice =
   | { kind: "credits"; nextGrantAt?: string }
   | { kind: "failed" }
@@ -98,6 +103,8 @@ export function useTutor(
   const [wallet, setWallet] = useState<WalletResponse>();
   const [quote, setQuote] = useState<QuoteState>();
   const [settled, setSettled] = useState<string>();
+  const [saves, setSaves] = useState<Record<string, SaveState>>({});
+  const saving = useRef(new Set<string>());
   const [phase, setPhase] = useState<Phase>("idle");
   const [notice, setNotice] = useState<Notice>();
   const [block, setBlock] = useState<ContextBlock>();
@@ -431,11 +438,34 @@ export function useTutor(
       await service.stop(courseId, keyRef.current).catch(() => undefined);
     controller.abort();
   };
+  const saveReply = async (messageId: string) => {
+    // One request per reply at a time; the API makes a repeat idempotent as well.
+    if (saving.current.has(messageId) || saves[messageId]?.state === "saved")
+      return;
+    saving.current.add(messageId);
+    setSaves((all) => ({ ...all, [messageId]: { state: "saving" } }));
+    try {
+      const note = await service.saveReply(messageId, ref?.lesson_id);
+      setSaves((all) => ({
+        ...all,
+        [messageId]: {
+          state: "saved",
+          pending: note.status === "enrichment_pending",
+          truncated: note.truncated,
+        },
+      }));
+    } catch {
+      setSaves((all) => ({ ...all, [messageId]: { state: "error" } }));
+    } finally {
+      saving.current.delete(messageId);
+    }
+  };
   const remove = async () => {
     if (!threadId) return;
     await service.remove(threadId);
     setThreadId(undefined);
     setMessages([]);
+    setSaves({});
     setNotice(undefined);
     pending.current = null;
   };
@@ -459,6 +489,8 @@ export function useTutor(
     askAgain,
     stop,
     remove,
+    saves,
+    saveReply,
     reload: () => {
       setNotice(undefined);
       setAttempt((n) => n + 1);
