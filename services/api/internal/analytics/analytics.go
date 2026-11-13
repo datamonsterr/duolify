@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -75,6 +76,10 @@ func allowlisted(event string) bool {
 	switch event {
 	case "xp_earned", "daily_goal_met", "lesson_completed", "streak_extended", "streak_broken", "streak_freeze_earned", "streak_freeze_used", "league_promoted", "league_demoted":
 		return true
+	case "username_set", "username_rejected", "username_changed", "username_searched", "privacy_setting_changed":
+		return true
+	case "friend_request_sent", "friend_request_accepted", "friend_request_declined", "friend_removed", "learner_blocked":
+		return true
 	case "slide_viewed", "slide_replayed", "slide_paused":
 		return true
 	case "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
@@ -83,11 +88,11 @@ func allowlisted(event string) bool {
 		"checkout_started", "credits_purchased", "credits_purchase_failed",
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed", "ai_cost_budget_alert",
-		"$ai_generation", "ui_control_activated", "ui_navigation_selected", "ui_screen_viewed",
+		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "tutor_reply_stopped", "ui_control_activated", "ui_navigation_selected", "ui_screen_viewed",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
-		"character_rendered", "character_render_fallback", "character_reaction_shown",
+		"character_rendered", "character_render_fallback", "character_reaction_shown", "tutor_character_selected", "tutor_character_fallback",
 		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
 		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
@@ -371,10 +376,10 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		boolean("ok")
 	case "$ai_generation":
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
-		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available")
+		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available", "usage_estimated")
 		ids("$ai_provider", "$ai_model", "feature", "error_code")
 		numeric("input_tokens", "output_tokens", "latency_ms", "attempt", "cache_write_tokens", "cache_read_tokens", "narration_characters", "provider_cost_nanos")
-		ids("provider", "model", "task", "pricing_version", "error_code")
+		ids("provider", "model", "task", "pricing_version", "error_code", "envelope", "cache_class")
 		for legacy, canonical := range map[string]string{"input_tokens": "$ai_input_tokens", "output_tokens": "$ai_output_tokens", "latency_ms": "$ai_latency", "provider": "$ai_provider", "model": "$ai_model", "task": "feature"} {
 			if out[canonical] == nil && out[legacy] != nil {
 				out[canonical] = out[legacy]
@@ -384,6 +389,20 @@ func safeProperties(event string, input map[string]any) map[string]any {
 			succeeded, known := out["succeeded"].(bool)
 			out["$ai_is_error"] = known && !succeeded
 		}
+	case "tutor_message_sent":
+		ids("course_id", "class")
+		numeric("message_length")
+		boolean("has_lesson_context")
+	case "tutor_reply_completed":
+		ids("course_id", "class", "model", "envelope", "cache_class")
+		numeric("latency_ms", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "summary_count", "excerpt_count", "context_tokens")
+	case "tutor_reply_failed":
+		ids("course_id", "class", "error_code")
+		numeric("latency_ms")
+		boolean("interrupted", "retryable")
+	case "tutor_reply_stopped":
+		ids("course_id", "class", "reason")
+		numeric("latency_ms", "delivered_chars")
 	case "analytics_opt_out_changed":
 		boolean("enabled")
 	case "learner_profile_updated":
@@ -428,6 +447,22 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 		ids("speaker_key", "expression")
 		boolean("fallback_used")
+	case "tutor_character_selected":
+		ids("speaker_key")
+		numeric("character_version")
+		if source := input["cast_source"]; source == "lesson" || source == "course" || source == "default" {
+			out["cast_source"] = source
+		}
+	case "tutor_character_fallback":
+		if reason, ok := input["reason_code"].(string); ok {
+			switch reason {
+			case "invalid_persona", "persona_too_large", "speaker_unavailable", "persona_unavailable", "suppressed":
+				out["reason_code"] = reason
+			}
+		}
+		if input["phase"] == "before_stream" {
+			out["phase"] = "before_stream"
+		}
 	case "character_render_fallback":
 		ids("reason_code")
 		boolean("offline")
@@ -439,6 +474,30 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		if v, ok := input["actor_id"].(string); ok {
 			if id, err := uuid.Parse(v); err == nil {
 				out["actor_id"] = id.String()
+			}
+		}
+	case "username_set", "username_changed":
+		numeric("username_length")
+	case "username_searched":
+		numeric("query_length", "result_count")
+	case "privacy_setting_changed":
+		setting, _ := input["setting"].(string)
+		value, _ := input["value"].(string)
+		allowed := map[string][]string{"discoverable": {"on", "off"}, "show_streak_to_friends": {"on", "off"}, "request_policy": {"everyone", "friends_of_friends", "nobody"}, "course_invites_from": {"friends", "everyone", "nobody"}}
+		if slices.Contains(allowed[setting], value) {
+			out["setting"], out["value"] = setting, value
+		}
+	case "learner_blocked":
+		boolean("was_friend")
+	case "friend_request_sent":
+		if method, ok := input["method"].(string); ok && (method == "username" || method == "invite_link") {
+			out["method"] = method
+		}
+	case "username_rejected":
+		if reason, ok := input["reason_code"].(string); ok {
+			switch reason {
+			case "username_invalid", "username_taken", "username_reserved", "username_not_allowed", "username_already_set":
+				out["reason_code"] = reason
 			}
 		}
 	case "quick_note_created":

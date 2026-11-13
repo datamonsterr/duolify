@@ -1,0 +1,457 @@
+// Package chat serves the paid, quoted Course-level tutor: quote, SSE reply, thread reads and deletion.
+package chat
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/characters"
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
+	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const (
+	shortMessageBytes = 2000
+	longMessageBytes  = 4000
+	recentMessages    = 10
+	// Streaming deadlines travel in proto UsageLimits; the Engine enforces them.
+	firstTokenTimeoutMs = 15000
+	idleTimeoutMs       = 5000
+	// A pending turn this old belongs to a crashed request; its hold is released by reservation maintenance.
+	stalePending = 5 * time.Minute
+)
+
+// Engine opens the tutor stream.
+type Engine interface {
+	Chat(context.Context, *enginev1.ChatRequest) (enginev1.EngineService_ChatClient, error)
+}
+
+// Financial is the E7 reservation boundary.
+type Financial interface {
+	ReserveAction(ctx context.Context, owner, quoteID, action string) (credits.Reservation, error)
+	Limits(ctx context.Context, owner, id, action string) (*enginev1.UsageLimits, error)
+	Claim(ctx context.Context, owner, id string) error
+	Release(ctx context.Context, owner, id string) (credits.Reservation, error)
+	Settle(ctx context.Context, owner, id string, usage []*enginev1.Usage) (credits.Reservation, error)
+	SettleWith(ctx context.Context, owner, id string, usage []*enginev1.Usage, commit func(pgx.Tx, credits.Reservation) error) (credits.Reservation, error)
+}
+
+// Profiles projects the effective Learner profile for a Course.
+type Profiles interface {
+	EffectiveProfile(ctx context.Context, learnerID, courseID string) (*enginev1.LearnerProfile, error)
+}
+
+// Personas resolves the pinned Tutor persona of a Course or Lesson Cast (implemented by characters.Service).
+type Personas interface {
+	ResolveTutor(ctx context.Context, owner, course, lessonID, requested string) (characters.TutorPersona, error)
+	TutorRoster(ctx context.Context, owner, course, lessonID string) (characters.TutorRoster, error)
+	TutorLabel(ctx context.Context, owner, characterID string, version int) string
+}
+
+// Options wires the service; every dependency is required except Events and Logger.
+type Options struct {
+	Pool      *pgxpool.Pool
+	Engine    Engine
+	Financial Financial
+	Profiles  Profiles
+	Personas  Personas
+	Events    analytics.Events
+	Notes     NoteSaver
+	Logger    *slog.Logger
+}
+
+// Service owns tutor threads, messages and turns.
+type Service struct {
+	opts    Options
+	flights flights
+}
+
+// New builds the tutor service.
+func New(o Options) *Service {
+	if o.Logger == nil {
+		o.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	return &Service{opts: o}
+}
+
+func respond(w http.ResponseWriter, status int, body any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(body)
+}
+
+func fail(w http.ResponseWriter, status int, code string) {
+	respond(w, status, map[string]any{"error": code})
+}
+
+func classAction(class string) string {
+	switch class {
+	case "short":
+		return "tutor_short"
+	case "long":
+		return "tutor_long"
+	}
+	return ""
+}
+
+func estimateTokens(bytes int) int64 { return int64((bytes + 3) / 4) }
+
+func validateMessage(class, message string) error {
+	limit := shortMessageBytes
+	switch class {
+	case "short":
+	case "long":
+		limit = longMessageBytes
+	default:
+		return errors.New("invalid class")
+	}
+	if !utf8.ValidString(message) || strings.TrimSpace(message) == "" || strings.ContainsRune(message, 0) || len(message) > limit {
+		return errors.New("invalid message")
+	}
+	return nil
+}
+
+func validUUID(s string) bool { _, err := uuid.Parse(s); return err == nil }
+
+// ServeHTTP expects the caller to wrap it in authentication.
+func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	owner := accounts.LearnerID(r.Context())
+	if owner == "" {
+		fail(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if s.opts.Pool == nil {
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	id := r.PathValue("id")
+	if !validUUID(id) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	path := r.URL.Path
+	switch {
+	case r.PathValue("key") != "" && r.Method == http.MethodPost && strings.HasSuffix(path, "/stop"):
+		s.stop(w, r, owner, id, r.PathValue("key"))
+	case r.PathValue("key") != "" && r.Method == http.MethodGet:
+		s.turn(w, r, owner, id, r.PathValue("key"))
+	case r.Method == http.MethodPost && strings.HasSuffix(path, "/note"):
+		s.saveReply(w, r, owner, id)
+	case r.Method == http.MethodPost && strings.HasSuffix(path, "/tutor/quote"):
+		s.quote(w, r, owner, id)
+	case r.Method == http.MethodPost && strings.HasSuffix(path, "/tutor/messages"):
+		s.send(w, r, owner, id)
+	case r.Method == http.MethodGet && strings.HasSuffix(path, "/tutor/personas"):
+		s.personas(w, r, owner, id)
+	case r.Method == http.MethodGet && strings.HasSuffix(path, "/tutor/thread"):
+		s.courseThread(w, r, owner, id)
+	case r.Method == http.MethodGet && strings.HasSuffix(path, "/messages"):
+		s.threadMessages(w, r, owner, id)
+	case r.Method == http.MethodDelete:
+		s.deleteThread(w, r, owner, id)
+	default:
+		fail(w, http.StatusNotFound, "not_found")
+	}
+}
+
+func decode(w http.ResponseWriter, r *http.Request, into any) bool {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+	dec.DisallowUnknownFields()
+	var extra json.RawMessage
+	if dec.Decode(into) != nil || dec.Decode(&extra) != io.EOF {
+		fail(w, http.StatusBadRequest, "invalid_request")
+		return false
+	}
+	return true
+}
+
+func (s *Service) ownsCourse(ctx context.Context, owner, course string) bool {
+	var ok bool
+	return s.opts.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE c.id=$1::uuid AND e.learner_id=$2::uuid AND c.learner_id=$2::uuid AND c.deleted_at IS NULL)`, course, owner).Scan(&ok) == nil && ok
+}
+
+func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course string) {
+	var in struct {
+		Class               string       `json:"class"`
+		Message             string       `json:"message"`
+		ApproveLargeContext bool         `json:"approve_large_context"`
+		Lesson              *lessonInput `json:"lesson"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	if validateMessage(in.Class, in.Message) != nil {
+		fail(w, http.StatusBadRequest, "invalid_message")
+		return
+	}
+	if !in.Lesson.valid() {
+		fail(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if !s.ownsCourse(r.Context(), owner, course) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	current, err := s.currentLesson(r.Context(), owner, course, in.Lesson)
+	if err != nil {
+		lessonFailure(w, err)
+		return
+	}
+	thread, err := s.latestThread(r.Context(), owner, course)
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	req, err := s.assemble(r.Context(), owner, course, thread, in.Message, current)
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	quotes := pricing.NewQuotes(s.opts.Pool)
+	action, messageTokens := classAction(in.Class), estimateTokens(len(in.Message))
+	bounds, err := quotes.Bounds(r.Context(), pricing.QuoteInput{Action: action, InputTokens: messageTokens})
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "quote_unavailable")
+		return
+	}
+	// Mandatory parts only: retrieval later fills whatever room the quote's bound leaves.
+	context := max(0, estimateTokens(promptBytes(req))-messageTokens)
+	standard, ceiling := bounds["cached_context_tokens"], bounds["prompt_tokens"]
+	v := judge(context, standard, ceiling-messageTokens)
+	if v == tooLarge || (v == needsApproval && !in.ApproveLargeContext) {
+		refuseContext(w, v, context, standard, ceiling)
+		return
+	}
+	q, err := quotes.Create(r.Context(), owner, pricing.QuoteInput{
+		Action:        action,
+		InputTokens:   messageTokens,
+		ContextTokens: context,
+		LargeContext:  v == needsApproval,
+	})
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "quote_unavailable")
+		return
+	}
+	respond(w, http.StatusOK, q)
+}
+
+func lessonFailure(w http.ResponseWriter, err error) {
+	if errors.Is(err, errLessonNotFound) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	fail(w, http.StatusServiceUnavailable, "unavailable")
+}
+
+// refuseContext answers the typed, free-of-charge overflow response; nothing is truncated or sent to the Engine.
+func refuseContext(w http.ResponseWriter, v verdict, required, standard, ceiling int64) {
+	code := "context_too_large"
+	if v == needsApproval {
+		code = "context_approval_required"
+	}
+	respond(w, http.StatusUnprocessableEntity, map[string]any{"error": code, "required_tokens": required, "standard_limit_tokens": standard, "prompt_limit_tokens": ceiling})
+}
+
+type messageDTO struct {
+	ID        string    `json:"id"`
+	Role      string    `json:"role"`
+	Content   string    `json:"content"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	// Tutor is the persona the reply was pinned to; it is read from the turn, so later selections never rewrite it.
+	Tutor *tutorDTO `json:"tutor,omitempty"`
+}
+
+type tutorDTO struct {
+	SpeakerKey       string `json:"speaker_key"`
+	Name             string `json:"name,omitempty"`
+	CharacterVersion int    `json:"character_version"`
+	CastSource       string `json:"cast_source"`
+	Fallback         string `json:"fallback"`
+}
+
+type threadDTO struct {
+	ID        string    `json:"id"`
+	CourseID  string    `json:"course_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (s *Service) latestThread(ctx context.Context, owner, course string) (string, error) {
+	var id string
+	err := s.opts.Pool.QueryRow(ctx, `SELECT id::text FROM tutor_threads WHERE learner_id=$1::uuid AND course_id=$2::uuid ORDER BY created_at DESC,id DESC LIMIT 1`, owner, course).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return id, err
+}
+
+func (s *Service) readThread(ctx context.Context, owner, threadID string) (*threadDTO, []messageDTO, error) {
+	var t threadDTO
+	if err := s.opts.Pool.QueryRow(ctx, `SELECT id::text,course_id::text,created_at FROM tutor_threads WHERE id=$1::uuid AND learner_id=$2::uuid`, threadID, owner).Scan(&t.ID, &t.CourseID, &t.CreatedAt); err != nil {
+		return nil, nil, err
+	}
+	rows, err := s.opts.Pool.Query(ctx, `SELECT m.id::text,m.role,m.content,m.status,m.created_at,COALESCE(t.speaker_key,''),COALESCE(t.character_id,''),COALESCE(t.character_version,0),COALESCE(t.cast_source,''),COALESCE(t.persona_fallback,'')
+FROM tutor_messages m LEFT JOIN tutor_turns t ON t.assistant_message_id=m.id AND t.learner_id=m.learner_id
+WHERE m.thread_id=$1::uuid AND m.learner_id=$2::uuid ORDER BY m.seq`, threadID, owner)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	messages := []messageDTO{}
+	for rows.Next() {
+		var m messageDTO
+		var pin tutorDTO
+		var characterID string
+		if err = rows.Scan(&m.ID, &m.Role, &m.Content, &m.Status, &m.CreatedAt, &pin.SpeakerKey, &characterID, &pin.CharacterVersion, &pin.CastSource, &pin.Fallback); err != nil {
+			return nil, nil, err
+		}
+		if pin.SpeakerKey != "" && s.opts.Personas != nil {
+			pin.Name = s.opts.Personas.TutorLabel(ctx, owner, characterID, pin.CharacterVersion)
+			m.Tutor = &pin
+		}
+		messages = append(messages, m)
+	}
+	return &t, messages, rows.Err()
+}
+
+func (s *Service) courseThread(w http.ResponseWriter, r *http.Request, owner, course string) {
+	if !s.ownsCourse(r.Context(), owner, course) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	id, err := s.latestThread(r.Context(), owner, course)
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	if id == "" {
+		respond(w, http.StatusOK, map[string]any{"thread": nil, "messages": []messageDTO{}})
+		return
+	}
+	t, messages, err := s.readThread(r.Context(), owner, id)
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	respond(w, http.StatusOK, map[string]any{"thread": t, "messages": messages})
+}
+
+func (s *Service) threadMessages(w http.ResponseWriter, r *http.Request, owner, thread string) {
+	t, messages, err := s.readThread(r.Context(), owner, thread)
+	if errors.Is(err, pgx.ErrNoRows) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	respond(w, http.StatusOK, map[string]any{"thread": t, "messages": messages})
+}
+
+// deleteThread removes a thread everywhere in one transaction: the row lock makes a concurrent note
+// save either finish first (and be marked unavailable) or be refused. Only a text-free tombstone stays,
+// so a restored backup cannot bring the thread back.
+func (s *Service) deleteThread(w http.ResponseWriter, r *http.Request, owner, thread string) {
+	ctx := r.Context()
+	tx, err := s.opts.Pool.Begin(ctx)
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var locked int
+	err = tx.QueryRow(ctx, `SELECT 1 FROM tutor_threads WHERE id=$1::uuid AND learner_id=$2::uuid FOR UPDATE`, thread, owner).Scan(&locked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if err == nil {
+		for _, q := range []string{
+			`UPDATE quick_note_chat_sources SET unavailable=true,thread_id=NULL,message_id=NULL WHERE thread_id=$1::uuid`,
+			`UPDATE tutor_turns SET user_message_id=NULL,assistant_message_id=NULL,speaker_key=NULL,character_id=NULL,character_version=NULL,cast_source=NULL,cast_version=NULL,persona_fallback=NULL WHERE thread_id=$1::uuid`,
+			`INSERT INTO tutor_thread_deletion_tombstones(thread_id) VALUES($1::uuid) ON CONFLICT DO NOTHING`,
+			`DELETE FROM tutor_thread_deletion_tombstones WHERE deleted_at < now() - interval '35 days'`,
+			`DELETE FROM tutor_threads WHERE id=$1::uuid`,
+		} {
+			args := []any{thread}
+			if strings.Contains(q, "35 days") {
+				args = nil
+			}
+			if _, err = tx.Exec(ctx, q, args...); err != nil {
+				break
+			}
+		}
+	}
+	if err == nil {
+		err = tx.Commit(ctx)
+	}
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// emit sends identifiers and counts only, honouring the learner's analytics opt-out.
+func (s *Service) emit(ctx context.Context, owner, event string, props map[string]any) {
+	if s.opts.Events == nil {
+		return
+	}
+	var optOut bool
+	if s.opts.Pool.QueryRow(ctx, `SELECT analytics_opt_out FROM learner_profiles WHERE learner_id=$1::uuid`, owner).Scan(&optOut) != nil || optOut {
+		return
+	}
+	props["source"], props["platform"], props["app_version"] = "api", "web", "0.1.0"
+	if err := s.opts.Events.Capture(owner, event, props); err != nil {
+		s.opts.Logger.Warn("tutor analytics capture failed", "event", event)
+	}
+}
+
+// personas lists the tutors a Learner can pick: the Lesson's pinned Cast inside a Lesson, else the Course Cast.
+func (s *Service) personas(w http.ResponseWriter, r *http.Request, owner, course string) {
+	if s.opts.Personas == nil {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	ctx := r.Context()
+	lessonID := r.URL.Query().Get("lesson_id")
+	if lessonID != "" && !validUUID(lessonID) {
+		fail(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if !s.ownsCourse(ctx, owner, course) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if lessonID != "" {
+		if _, err := s.currentLesson(ctx, owner, course, &lessonInput{LessonID: lessonID}); err != nil {
+			lessonFailure(w, err)
+			return
+		}
+	}
+	roster, err := s.opts.Personas.TutorRoster(ctx, owner, course, lessonID)
+	if errors.Is(err, characters.ErrNotFound) {
+		fail(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if err != nil {
+		fail(w, http.StatusServiceUnavailable, "unavailable")
+		return
+	}
+	respond(w, http.StatusOK, roster)
+}

@@ -44,6 +44,17 @@ func (c *Client) OutlineChatChange(ctx context.Context, r *enginev1.OutlineChatC
 	return c.rpc.OutlineChatChange(ctx, r)
 }
 
+// Chat opens the tutor stream. The caller's context carries the reservation deadline, so no
+// extra timeout is applied here and cancelling it ends the stream.
+func (c *Client) Chat(ctx context.Context, r *enginev1.ChatRequest) (enginev1.EngineService_ChatClient, error) {
+	cor := telemetry.CorrelationFrom(ctx)
+	md, _ := metadata.FromOutgoingContext(ctx)
+	md = md.Copy()
+	md.Set("x-request-id", cor.RequestID)
+	md.Set("traceparent", cor.Traceparent())
+	return c.rpc.Chat(metadata.NewOutgoingContext(ctx, md), r)
+}
+
 // New accepts the ENGINE_ADDR http(s) URL; http is for the private local network.
 func New(addr string, timeout time.Duration) (*Client, error) {
 	u, err := url.Parse(addr)

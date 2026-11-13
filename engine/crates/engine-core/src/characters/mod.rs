@@ -385,5 +385,94 @@ pub fn reaction_event_props(
     .into()
 }
 
+/// Bounded tutor persona: style data only, validated by the API and again here.
+/// Mirrors the API's `{name,bio,backstory,traits,speaking_style,persona_prompt}` payload.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TutorPersona {
+    pub name: String,
+    pub bio: String,
+    pub backstory: String,
+    pub traits: Vec<String>,
+    pub speaking_style: String,
+    pub persona_prompt: String,
+}
+
+const PERSONA_MAX_BYTES: usize = 2000;
+const PERSONA_FIELD_CHARS: usize = 600;
+const PERSONA_MAX_TRAITS: usize = 5;
+
+fn persona_text_ok(s: &str) -> bool {
+    s.chars().count() <= PERSONA_FIELD_CHARS
+        && !s
+            .chars()
+            .any(|c| c.is_control() || matches!(c, '<' | '>' | '{' | '}' | '`' | '\\'))
+}
+
+/// Parses a persona. Anything unknown, oversized, empty-named or containing markup
+/// is rejected whole, so the tutor is neutral rather than partly styled.
+pub fn tutor_persona(raw: &str) -> Option<TutorPersona> {
+    if raw.is_empty() || raw.len() > PERSONA_MAX_BYTES * 2 {
+        return None;
+    }
+    let p: TutorPersona = serde_json::from_str(raw).ok()?;
+    let fields = [
+        &p.name,
+        &p.bio,
+        &p.backstory,
+        &p.speaking_style,
+        &p.persona_prompt,
+    ];
+    let total: usize = fields.iter().map(|f| f.len()).sum::<usize>()
+        + p.traits.iter().map(String::len).sum::<usize>();
+    let ok = !p.name.trim().is_empty()
+        && p.traits.len() <= PERSONA_MAX_TRAITS
+        && fields.iter().all(|f| persona_text_ok(f))
+        && p.traits.iter().all(|t| persona_text_ok(t))
+        && total <= PERSONA_MAX_BYTES;
+    ok.then_some(p)
+}
+
+const TUTOR_SPEAKERS: [&str; 3] = ["guide", "supporter", "supporter_2"];
+const TUTOR_SOURCES: [&str; 3] = ["lesson", "course", "default"];
+const TUTOR_FALLBACKS: [&str; 6] = [
+    "invalid_persona",
+    "persona_too_large",
+    "speaker_unavailable",
+    "persona_unavailable",
+    "suppressed",
+    "lesson_cast_unavailable",
+];
+
+/// `tutor_character_selected` properties: closed enums and a version only.
+pub fn tutor_selected_props(
+    speaker_key: &str,
+    character_version: u32,
+    cast_source: &str,
+) -> std::collections::BTreeMap<&'static str, String> {
+    let pick =
+        |v: &str, allowed: &[&str], d: &str| if allowed.contains(&v) { v } else { d }.to_string();
+    [
+        ("speaker_key", pick(speaker_key, &TUTOR_SPEAKERS, "guide")),
+        ("character_version", character_version.to_string()),
+        ("cast_source", pick(cast_source, &TUTOR_SOURCES, "default")),
+    ]
+    .into()
+}
+
+/// `tutor_character_fallback` properties; the phase is always `before_stream`.
+pub fn tutor_fallback_props(reason: &str) -> std::collections::BTreeMap<&'static str, String> {
+    let reason = if TUTOR_FALLBACKS.contains(&reason) {
+        reason
+    } else {
+        "persona_unavailable"
+    };
+    [
+        ("reason_code", reason.to_string()),
+        ("phase", "before_stream".to_string()),
+    ]
+    .into()
+}
+
 #[cfg(test)]
 mod tests;

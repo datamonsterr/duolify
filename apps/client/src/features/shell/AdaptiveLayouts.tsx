@@ -85,6 +85,13 @@ export function ResponsivePanel({
       if (!node.contains(event.target as Node)) focusFirst();
     };
     const keyboard = (event: KeyboardEvent) => {
+      // A nested open modal <dialog> is the topmost layer: it owns Escape and Tab, so one Escape
+      // closes only that layer and the panel stays open for the next.
+      const nested =
+        event.target instanceof Element
+          ? event.target.closest("dialog[open]")
+          : null;
+      if (nested && nested !== node && node.contains(nested)) return;
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();

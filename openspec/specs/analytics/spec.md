@@ -238,3 +238,10 @@ The catalogue SHALL include API-owned `retry_variant_pool_exhausted` with course
 #### Scenario: Replayed completion
 - **WHEN** a final answer or completed session is replayed
 - **THEN** no duplicate lesson_test_passed event is emitted and the original summary is retained
+
+### Requirement: Lesson tutor sheet events
+`tutor_message_sent` SHALL carry boolean `has_lesson_context`. `ui_sheet_opened` SHALL accept `sheet_id=lesson_tutor`. `ui_recovery_selected` SHALL accept `surface=lesson_tutor` with `action` one of `retry`, `reload`, `top_up`, `read_transcript`. These events MUST carry the Learner UUID and common properties (`platform`, `app_version`, `source`), honour analytics opt-out and never include message, draft or lesson text.
+
+#### Scenario: Ask about the paused lesson
+- **WHEN** the Learner opens the lesson tutor sheet and sends a question
+- **THEN** `ui_sheet_opened` (`sheet_id=lesson_tutor`) and `tutor_message_sent` (`has_lesson_context=true`) are delivered with common properties and no question text

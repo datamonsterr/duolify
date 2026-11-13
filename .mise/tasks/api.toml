@@ -20,7 +20,7 @@ run = "gotestsum -- -race -count=1 ./test/e2e/..."
 env = { DUOLIFY_ENV = "development" }
 description = "Test migrations, store and queue against Postgres 18 (Docker)"
 dir = "{{config_root}}/services/api"
-run = "gotestsum -- -race -count=1 -tags integration {{env.API_TEST_PACKAGES | default(value='./internal/store/... ./internal/backup/... ./internal/pricing/... ./internal/accounts/... ./internal/courses/... ./internal/credits/... ./internal/player/... ./internal/eval/... ./internal/lessontest/... ./internal/notes/... ./internal/characters/... ./internal/gamification/...')}}"
+run = "gotestsum -- -race -count=1 -tags integration {{env.API_TEST_PACKAGES | default(value='./internal/store/... ./internal/backup/... ./internal/pricing/... ./internal/accounts/... ./internal/courses/... ./internal/credits/... ./internal/player/... ./internal/eval/... ./internal/lessontest/... ./internal/notes/... ./internal/characters/... ./internal/gamification/... ./internal/chat/... ./internal/social/...')}}"
 
 ["api:build"]
 description = "Build the statically linked API binary"
@@ -53,4 +53,4 @@ run = "go run ./test/pricingserver"
 ["api:format"]
 description = "Format Go source"
 dir = "{{config_root}}/services/api"
-run = "gofmt -w internal/gamification internal/player internal/accounts internal/backuptest internal/backup internal/credits internal/worker internal/telemetry internal/analytics internal/courses internal/engine internal/pricing internal/lessontest internal/notes internal/httpapi/router.go internal/httpapi/middleware.go cmd/api/main.go test/pricingserver test/e2e"
+run = "gofmt -w internal/gamification internal/chat internal/player internal/accounts internal/backuptest internal/backup internal/credits internal/worker internal/telemetry internal/analytics internal/courses internal/engine internal/pricing internal/lessontest internal/notes internal/httpapi/router.go internal/httpapi/middleware.go cmd/api/main.go test/pricingserver test/e2e"

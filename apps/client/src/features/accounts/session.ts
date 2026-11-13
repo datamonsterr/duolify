@@ -21,7 +21,7 @@ export type Learner = {
 const base = import.meta.env.VITE_API_URL || "http://localhost:8080";
 export function safeReturnTo(raw: string | null | undefined): string {
   if (!raw || /[\\\s%?#]/.test(raw)) return "/profile";
-  return /^(\/|\/profile|\/profile\/setup|\/courses|\/courses\/create|\/credits|\/more|\/friends|\/leagues|\/notes|\/bookmarks|\/settings|\/settings\/sessions|\/streak|\/course\/[a-zA-Z0-9_-]+|\/lesson\/[a-zA-Z0-9_-]+(?:\/test)?)$/.test(
+  return /^(\/|\/profile|\/profile\/setup|\/courses|\/courses\/create|\/credits|\/more|\/friends|\/leagues|\/notes|\/bookmarks|\/settings|\/settings\/sessions|\/streak|\/friends\/invite\/[A-Za-z0-9_-]{43}|\/course\/[a-zA-Z0-9_-]+|\/lesson\/[a-zA-Z0-9_-]+(?:\/test)?)$/.test(
     raw,
   )
     ? raw
@@ -173,7 +173,8 @@ export const session = {
         if (
           key.startsWith("credits:recovery:") ||
           key.startsWith("player:position:") ||
-          key.startsWith("course-outline:")
+          key.startsWith("course-outline:") ||
+          key.startsWith("tutor-draft:")
         )
           sessionStorage.removeItem(key);
     } catch {

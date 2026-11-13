@@ -51,6 +51,8 @@ type SaveNoteInput struct {
 	SlideTitle string  `json:"slide_title,omitempty"`
 	Source     string  `json:"source"`
 	RawText    string  `json:"raw_text"`
+	// Chat links a note to the tutor reply it was saved from; the chat package sets it.
+	Chat *ChatProvenance `json:"-"`
 }
 
 // Validate checks the input fields against boundary constraints.
@@ -80,25 +82,26 @@ func (in SaveNoteInput) Validate() error {
 
 // NoteDTO represents a quick note returned by the API.
 type NoteDTO struct {
-	ID         string     `json:"id"`
-	LearnerID  string     `json:"learner_id"`
-	ActionKey  string     `json:"action_key"`
-	CourseID   *string    `json:"course_id,omitempty"`
-	LessonID   *string    `json:"lesson_id,omitempty"`
-	SlideID    *int       `json:"slide_id,omitempty"`
-	SlideTitle string     `json:"slide_title"`
-	Source     string     `json:"source"`
-	RawText    string     `json:"raw_text"`
-	RawVersion int        `json:"raw_version,omitempty"`
-	Status     string     `json:"status"`
-	Reviewed   bool       `json:"reviewed"`
-	ReviewedAt *time.Time `json:"reviewed_at,omitempty"`
-	Version    int32      `json:"version"`
-	Summary    *string    `json:"summary,omitempty"`
-	Tags       []string   `json:"tags,omitempty"`
-	Links      []string   `json:"links,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
+	ID         string         `json:"id"`
+	LearnerID  string         `json:"learner_id"`
+	ActionKey  string         `json:"action_key"`
+	CourseID   *string        `json:"course_id,omitempty"`
+	LessonID   *string        `json:"lesson_id,omitempty"`
+	SlideID    *int           `json:"slide_id,omitempty"`
+	SlideTitle string         `json:"slide_title"`
+	Source     string         `json:"source"`
+	RawText    string         `json:"raw_text"`
+	RawVersion int            `json:"raw_version,omitempty"`
+	Status     string         `json:"status"`
+	Reviewed   bool           `json:"reviewed"`
+	ReviewedAt *time.Time     `json:"reviewed_at,omitempty"`
+	Version    int32          `json:"version"`
+	Summary    *string        `json:"summary,omitempty"`
+	Tags       []string       `json:"tags,omitempty"`
+	Links      []string       `json:"links,omitempty"`
+	ChatSource *ChatSourceDTO `json:"chat_source,omitempty"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
 }
 
 // EnrichmentCredits is the trusted financial boundary used by note workers.
@@ -267,6 +270,11 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if input.Chat != nil {
+		if err = lockChatSource(ctx, tx, learnerID, input.Chat); err != nil {
+			return nil, err
+		}
+	}
 	note, err := s.queries.WithTx(tx).UpsertQuickNote(ctx, db.UpsertQuickNoteParams{
 		LearnerID:  learnerUUID,
 		ActionKey:  input.ActionKey,
@@ -291,6 +299,11 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 	if err != nil {
 		return nil, err
 	}
+	if input.Chat != nil {
+		if err = recordChatSource(ctx, tx, learnerID, formatUUID(note.ID), input.LessonID, input.Chat); err != nil {
+			return nil, err
+		}
+	}
 	if _, err = queue.InsertTx(ctx, tx, NoteEnrichArgs{LearnerID: learnerID, NoteID: formatUUID(note.ID), ExpectedVersion: int(note.RawVersion)}, nil); err != nil {
 		return nil, err
 	}
@@ -301,6 +314,9 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 	_ = EmitQuickNoteCreated(s.events, learnerID, input.Source, len(input.RawText), meta.Platform, meta.AppVersion)
 
 	dto := toDTO(note)
+	if input.Chat != nil {
+		dto.ChatSource = &ChatSourceDTO{State: "available", ThreadID: &input.Chat.ThreadID, MessageID: &input.Chat.MessageID}
+	}
 	return &dto, nil
 }
 
@@ -354,7 +370,11 @@ func (s *Service) GetNote(ctx context.Context, learnerID, noteID string) (*NoteD
 	}
 
 	dto := toDTOFromEnriched(note)
-	return &dto, nil
+	one := []NoteDTO{dto}
+	if err = s.attachChatSources(ctx, learnerID, one); err != nil {
+		return nil, err
+	}
+	return &one[0], nil
 }
 
 // ListNotes lists all quick notes for the given learner, newest first.
@@ -372,6 +392,9 @@ func (s *Service) ListNotes(ctx context.Context, learnerID string) ([]NoteDTO, e
 	dtos := make([]NoteDTO, len(notes))
 	for i, n := range notes {
 		dtos[i] = toDTOFromListEnriched(n)
+	}
+	if err = s.attachChatSources(ctx, learnerID, dtos); err != nil {
+		return nil, err
 	}
 	return dtos, nil
 }

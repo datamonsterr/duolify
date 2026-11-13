@@ -23,6 +23,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
+	"github.com/datamonsterr/duolify/services/api/internal/chat"
 	"github.com/datamonsterr/duolify/services/api/internal/config"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
@@ -34,6 +35,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
@@ -315,15 +317,18 @@ func run(ctx context.Context, args []string) (result error) {
 	defer stopActivator()
 	go runtimePricing.RunActivator(activatorCtx, pricingAdmin)
 
+	courseService := courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"})
 	handler := httpapi.New(httpapi.Dependencies{
 		Characters:              characters.NewHandler(characterService),
 		Gamification:            xpService,
+		Social:                  social.New(db.Pool, events),
 		Monitor:                 monitor,
 		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService}),
 		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
 		Accounts:                auth,
 		Credits:                 creditService,
-		CourseBrief:             courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"}),
+		CourseBrief:             courseService,
+		Tutor:                   chat.New(chat.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Profiles: courseService, Personas: characterService, Events: events, Notes: notesService, Logger: logger}),
 		Pricing:                 runtimePricing,
 		PricingAdmin:            pricingAdmin,
 		Quotes:                  pricing.NewQuotes(db.Pool),
