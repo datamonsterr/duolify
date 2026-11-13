@@ -308,8 +308,9 @@ func run(ctx context.Context, args []string) (result error) {
 	})
 
 	var lessonHandler http.Handler
+	var lessonPreparer *lessontest.Service
 	if cfg.LessonTestTracerEnabled {
-		lessonHandler = lessontest.New(lessontest.Options{
+		lessonPreparer = lessontest.New(lessontest.Options{
 			Pool:                db.Pool,
 			Engine:              backend,
 			Financial:           creditService,
@@ -320,6 +321,7 @@ func run(ctx context.Context, args []string) (result error) {
 			MaxVariantsPerTest:  cfg.LessonTestMaxVariantsPerTest,
 			SessionTTL:          cfg.LessonTestSessionTTL,
 		})
+		lessonHandler = lessonPreparer
 	}
 
 	quotesService := pricing.NewQuotes(db.Pool)
@@ -330,6 +332,10 @@ func run(ctx context.Context, args []string) (result error) {
 	// Publishing needs an 18+ account (ADR 0012); no age data exists yet, so it fails closed.
 	sharingService := sharing.NewService(db.Pool, events, sharing.ConfigFromEnv(os.Getenv)).WithAgeSource(sharing.UnknownAge{}).WithObjects(player.NewS3(os.Getenv), os.Getenv("LESSON_ASSET_ORIGIN"))
 	sharingService.ConfigureScreening(backend, sharing.PricingRates{Pool: db.Pool})
+	if lessonPreparer != nil {
+		// Missing Lessons in a pinned copy reuse the private generation pipeline and the learner's credits (E15-04).
+		sharingService = sharingService.WithGeneration(sharing.GenerationDeps{Quotes: quotesService, Wallet: creditService, Lessons: lessonPreparer})
+	}
 	go sharingService.Maintain(ctx)
 	handler := httpapi.New(httpapi.Dependencies{
 		Sharing:                 sharingService,

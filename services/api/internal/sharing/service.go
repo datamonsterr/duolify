@@ -46,6 +46,8 @@ type Service struct {
 	// objects stores immutable published-lesson manifests for copies (E15-03); optional.
 	objects     ObjectWriter
 	assetOrigin string
+	// gen is the reused private-generation pipeline for missing Lessons in copies (E15-04); optional.
+	gen GenerationDeps
 }
 
 // NewService wires the service behind the central fail-closed analytics consent gate.
