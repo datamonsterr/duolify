@@ -21,6 +21,7 @@ Each epic becomes one or more OpenSpec changes (`openspec/changes/<id>`). Order 
 | E14 | Slide narration: ElevenLabs TTS, captions, audio sync in the player (ADR 0009) | engine, api, client | E3, E4 |
 | E15 | Course sharing and marketplace: visibility, share links, invites by username or friend, published snapshots, marketplace search, ratings, moderation | api, engine, client | E2, E6, E12 |
 | E16 | Course steering: learner instructions during learning that shape future lessons and the remaining outline | engine, api, client | E4, E7 |
+| E17 | Custom characters: prompt-based creation, parametric SVG appearance, personalities, course casts and lesson and tutor roles | engine, api, client, design | E3, E4, E7, E14 |
 
 ## E0 bootstrap work packages
 

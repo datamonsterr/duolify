@@ -25,6 +25,11 @@ One term, one meaning. Use these words in code, specs and UI copy.
 | **Subscription** | Paid monthly or yearly plan that grants a monthly credit allowance and extra benefits (see the monetization epic). |
 | **Narration** | Spoken audio for a slide, generated from the slide's narration text with the ElevenLabs API and played in sync with the slide. |
 | **Tutor chat** | Chatbot with context of the whole course, the current lesson, the learner profile and history. |
+| **Character** | An original mascot-style lesson persona with a name, bio, backstory, speaking style, appearance and an allowlisted voice. Learners can create and customize their own. |
+| **Character spec** | Versioned, schema-validated structured JSON (`CharacterSpec`) describing a Character's appearance, personality, info and voice key. Learner content is treated as data, never system instructions. |
+| **Character rig** | Duolify's original parametric SVG template that renders a Character spec with body shape, palette, eyes, mouth, accessories and the expressions idle, happy, sad, thinking and celebrate. |
+| **Cast** | The Characters selected for a Course: one main guide and optional supporting Characters, pinned to Character spec versions for each generated Lesson. The main guide is the default Tutor chat persona. |
+| **Default cast** | A small set of original built-in Characters used when a Learner has not selected a Cast or a custom Character cannot safely be used. |
 | **Quick note** | Short learner note, auto-enriched by AI (summary, links, tags), easy to review. |
 | **Bookmark** | Saved pointer to a slide or lesson. |
 | **Learner profile** | Background, goals and level the learner shares; used as AI context. |
