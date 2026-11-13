@@ -591,3 +591,15 @@ Slides/assets are restored or regenerated as a new tracked version under the sam
 `TestExpireOldFixtureDumpsAndRestoreOverwrittenObject` and the RustFS integration tests in
 `internal/backup`. Analytics reuse `backup_failed` (size, duration, ok only). Railway snapshots/PITR and
 production keys are owner-provided. See [backup tooling](../infra/backup/README.md).
+
+E11-05 adds no tables or persisted data. Automated restore drills decrypt dumps only in memory and
+restore them into a disposable Postgres that is destroyed afterwards. The restored copy is anonymized
+first: sessions, refresh tokens, email codes, rate limits, OAuth attempts and webhook payloads are
+purged; display names, usernames, emails, provider subjects, profile goals, course/lesson/note/tutor
+content and generated lesson payloads are replaced (`internal/backup/anonymize.go`). Every new text,
+jsonb or array column must be classified there (redacted, purged or reviewed safe) or the drill fails.
+Deletion tombstones are replayed read-only from the `account-deletions/v1/` ledger. Redis rankings are
+disposable and rebuilt from Postgres. Analytics reuse `restore_drill_completed` (`ok`, `duration_ms`,
+`source` ci or scheduled) and `backup_failed`, with no keys, errors or rows. Focused checks:
+`TestRestoreDrillRestoresSyntheticDumpAndFailsInjectedCorruption` and the `TestDrill*`/`TestAnonymizer*`
+integration tests in `internal/backup`.

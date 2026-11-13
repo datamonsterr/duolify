@@ -139,13 +139,44 @@ is governed by the credits spec.
    query alone is not a complete business-data recovery check.
 5. Record duration, schema version, checks and result. The CI integration must emit
    `restore_drill_completed` (`duration_ms`, `ok`, `source=ci`) and fail/alert on
-   error. This standalone script does not send analytics.
+   error. This standalone script does not send analytics; the automated drill below does.
 6. Remove the decrypted file securely according to the host's storage policy.
 
-The ready-PR pipeline should create a **synthetic** migrated fixture, dump it and
-call this task now that the first real migration exists. A scheduled production
-drill, anonymization tooling, cloud lifecycle policies, key rotation and external
-alert routing remain follow-up work; see [CI](../../docs/ci.md).
+### Automated anonymized drills (E11-05)
+
+`internal/backup` (`RunDrill`) automates the steps above; `infra:restore-drill` stays
+as the manual path for an already anonymized archive.
+
+- **Ready PR** (`restore-drill` job, `mise run api:restore-drill-ci`, part of `ci-ok`): the fixture
+  migrates Postgres 18 to the current schema, seeds synthetic data, backs it up through
+  the real worker path (age, RustFS) and restores it with the read-only restorer identity
+  into a throwaway database (`DockerRestorer`, `docker exec`, dump on stdin). Any failed
+  check fails the job. Tests prove it with injected corruption (missing migration,
+  lost application object, unclassified text column carrying an email, corrupt ciphertext).
+- **Order**: decrypt in memory → restore → **anonymize** (`Anonymize`; credentials, sessions
+  and webhook payloads purged, identities and learner-authored text replaced) → schema,
+  migration-registry and ledger checks → deletion tombstones from `account-deletions/v1/`
+  (read-only; a drill never writes to backup storage) → Redis rebuild from Postgres
+  (`gamification.RebuildLeagueCache`) → feature and object-reference checks → privacy checks.
+- **Privacy checks**: every text, jsonb and array column must be registered in the
+  anonymizer (`piiRules`, `purgedTables`) or reviewed as safe (`reviewedSafe`); an
+  unclassified column from a new migration fails the drill until classified. A scan then
+  fails on any non-`@anonymized.invalid` email and on known synthetic PII values.
+- **Measures**: RPO is now minus the newest general dump's key date (limit 24h; stale or
+  missing dumps fail before restore). RTO is the drill duration (limit 4h). Both are in the
+  `Report`; `restore_drill_completed` carries `ok` and `duration_ms` (`source` is `ci` or
+  `scheduled`) and a failure also emits `backup_failed`. Opt-out suppresses both. Errors,
+  keys and rows are never sent or printed.
+- **Scheduled** (`restore-drill-scheduled.yml`, `mise run infra:restore-drill-scheduled`): runs
+  `cmd/restore-drill` against the configured backup bucket with throwaway loopback
+  Postgres/Redis (`DRILL_PG_PORT` 4112, `DRILL_REDIS_PORT` 4113 by default). Without
+  `BACKUP_RESTORE_S3_*` and `BACKUP_AGE_IDENTITY` it prints a skip notice and exits 0.
+  It is exercised against fixtures only in this repository; production data, keys and
+  storage remain owner-provided (ADR 0012).
+- **Extension point**: `DrillOptions.FinancialReplay` is where E7-11's quarterly financial
+  replay plugs in. No business checks are bundled; the report says `not-configured`.
+- **Register checks as migrations arrive**: add feature invariants to `DrillOptions.Checks`
+  (`ObjectReferences` helper for object keys) and classify new text columns in `anonymize.go`.
 
 ## Account deletion ledger
 

@@ -22,7 +22,7 @@ run = '''
 set -eu
 docker compose config -q
 git ls-files --cached --others --exclude-standard -z -- '*Dockerfile' | xargs -0 hadolint
-shellcheck infra/backup/restore-drill.sh infra/hooks/*.sh infra/s3/*.sh
+shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh infra/hooks/*.sh infra/s3/*.sh
 docker compose --profile observability run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
 '''
 
@@ -69,6 +69,10 @@ exit 1
 description = "Restore an anonymized custom-format dump into disposable Postgres"
 usage = 'arg "<dump>" help="Path to an anonymized custom-format pg_dump archive"'
 run = 'bash infra/backup/restore-drill.sh "${usage_dump?}"'
+
+["infra:restore-drill-scheduled"]
+description = "Scheduled anonymized restore drill of the newest backup; skips with a notice without owner credentials"
+run = 'bash infra/backup/scheduled-restore-drill.sh'
 
 [dev]
 description = "Start dependencies and print the three local development commands"
