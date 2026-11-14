@@ -1,3 +1,4 @@
+import { CourseUpdate } from "./features/sharing/CourseUpdate";
 import { ShareCourse } from "./features/sharing/ShareCourse";
 import { MissingLessons } from "./features/sharing/MissingLessons";
 import { PreviewPublicationDraft } from "./features/sharing/PreviewPublicationDraft";
@@ -200,6 +201,15 @@ export function LearnPath({ courseId }: { courseId: string }) {
         <p className="muted" data-testid="pinned-version">
           Published course · version {course.pinned_version}
         </p>
+      ) : null}
+      {course.pinned_version ? (
+        <CourseUpdate
+          courseId={courseId}
+          onUpdated={() => {
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ["course", courseId] });
+          }}
+        />
       ) : null}
       {course.pinned_version ? (
         <MissingLessons

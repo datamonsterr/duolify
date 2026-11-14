@@ -409,3 +409,63 @@
     flex-wrap: wrap;
   }
 }
+
+/* E15-05: republish (owner) and copy update (learner). Reuses the sheet, banner and error styles. */
+.sharing-republish {
+  display: grid;
+  gap: var(--space-3, 12px);
+  border-top: 2px solid var(--line);
+  padding-top: var(--space-3, 12px);
+}
+.sharing-republish h3,
+.sharing-body section h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.sharing-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-3, 12px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.sharing-textarea:focus-visible {
+  outline: 3px solid var(--focus, currentColor);
+  outline-offset: 2px;
+}
+.sharing-banner.ok {
+  border-color: var(--success, #2e7d32);
+}
+.sharing-changelog {
+  display: grid;
+  gap: var(--space-2, 8px);
+}
+.sharing-archived {
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-3, 12px);
+}
+.sharing-archived summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 700;
+}
+.sharing-archived ul {
+  margin: 0;
+  padding-inline-start: var(--space-5, 20px);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 47.99rem) {
+  .sharing-republish .duo-button,
+  [data-testid="course-update"] .sharing-actions .duo-button {
+    width: 100%;
+    min-height: 44px;
+  }
+}

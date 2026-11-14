@@ -9,6 +9,7 @@ import {
   type LinkState,
 } from "./links";
 import { InviteFriends } from "./InviteFriends";
+import { RepublishPanel } from "./RepublishPanel";
 import "./sharing.css";
 
 /** Owner entry point on the course view. */
@@ -55,6 +56,7 @@ export function ShareCoursePanel({
   const [failure, setFailure] = useState<LinkFailure | null>(null);
   const [verdictNote, setVerdictNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [newVersion, setNewVersion] = useState(false);
 
   const load = useCallback(() => {
     let active = true;
@@ -287,6 +289,18 @@ export function ShareCoursePanel({
             </div>
           </section>
         )}
+        {shared &&
+          (newVersion ? (
+            <RepublishPanel courseId={courseId} />
+          ) : (
+            <button
+              type="button"
+              className="duo-button secondary"
+              onClick={() => setNewVersion(true)}
+            >
+              New version
+            </button>
+          ))}
         {state && (
           <InviteFriends
             courseId={courseId}

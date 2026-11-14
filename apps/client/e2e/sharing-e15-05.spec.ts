@@ -125,10 +125,6 @@ const courseOf = async (
   (await (
     await request.get(`${apiBase}/v1/courses/${id}`, { headers })
   ).json()) as Course;
-const wallet = async (request: APIRequestContext, headers: Headers) =>
-  JSON.stringify(
-    await (await request.get(`${apiBase}/v1/me/credits`, { headers })).json(),
-  );
 
 async function pass(
   request: APIRequestContext,
@@ -194,6 +190,7 @@ test("republish keeps the old version, then the learner updates with retitled an
   await page.goto(`/course/${course}`);
   await page.getByTestId("share-course").click();
   const panel = page.getByTestId("share-course-panel");
+  await panel.getByRole("button", { name: "New version" }).click();
   await panel
     .getByLabel("What's new in this version")
     .fill("Retitled tides, removed eclipses, added comets.");
@@ -257,6 +254,7 @@ test("the fourth republish in a day is refused and the panel explains it", async
   await page.goto(`/course/${course}`);
   await page.getByTestId("share-course").click();
   const panel = page.getByTestId("share-course-panel");
+  await panel.getByRole("button", { name: "New version" }).click();
   await expect(panel.getByText(/0 of 3 new versions left today/)).toBeVisible();
   await expect(
     panel.getByRole("button", { name: "Publish new version" }),

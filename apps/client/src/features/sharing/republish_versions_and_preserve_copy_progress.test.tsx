@@ -57,7 +57,9 @@ function api(routes: Record<string, unknown | (() => unknown)>) {
   });
 }
 
-beforeEach(() => request.mockReset());
+beforeEach(() => {
+  request.mockReset();
+});
 
 describe("failure classification", () => {
   it("maps statuses only, never server text", () => {
