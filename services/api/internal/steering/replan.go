@@ -49,7 +49,7 @@ func (s *Service) replanSnapshot(ctx context.Context, tx pgx.Tx, owner, course s
 	if err := tx.QueryRow(ctx, `SELECT title,description,outline_version FROM courses WHERE id=$1::uuid AND learner_id=$2::uuid AND deleted_at IS NULL AND visibility='private' AND NOT EXISTS(SELECT 1 FROM course_copies WHERE copy_course_id=$1::uuid AND forked_at IS NULL) AND EXISTS(SELECT 1 FROM course_enrollments WHERE course_id=$1::uuid AND learner_id=$2::uuid) FOR UPDATE`, course, owner).Scan(&in.Outline.Title, &in.Outline.Description, &in.Version); err != nil {
 		return in, refusal("not_found")
 	}
-	rows, err := tx.Query(ctx, `SELECT u.id::text,u.title,l.id::text,l.title,l.goal,l.status<>'locked' OR EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=l.id) FROM course_units u JOIN course_lesson_stubs l ON l.unit_id=u.id WHERE u.course_id=$1::uuid AND u.learner_id=$2::uuid ORDER BY u.position,l.position`, course, owner)
+	rows, err := tx.Query(ctx, `SELECT u.id::text,u.title,l.id::text,l.title,l.goal,l.status<>'locked' OR EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=l.id) OR EXISTS(SELECT 1 FROM lesson_generations lg WHERE lg.lesson_id=l.id) FROM course_units u JOIN course_lesson_stubs l ON l.unit_id=u.id WHERE u.course_id=$1::uuid AND u.learner_id=$2::uuid AND u.archived_at IS NULL AND l.archived_at IS NULL ORDER BY u.position,l.position`, course, owner)
 	if err != nil {
 		return in, err
 	}
@@ -143,6 +143,21 @@ func (s *Service) readReplan(ctx context.Context, owner, course, quote string) (
 	return p, err
 }
 
+func diffCounts(diff []ReplanDiff) (added, removed, changed int) {
+	touched := map[string]bool{}
+	for _, d := range diff {
+		switch d.Kind {
+		case "added":
+			added++
+		case "removed":
+			removed++
+		default:
+			touched[d.LessonID] = true
+		}
+	}
+	return added, removed, len(touched)
+}
+
 func checkCanConfirm(state, decision string, expiresAt, now time.Time) string {
 	if state != "proposed" {
 		return "proposal_not_ready"
@@ -190,6 +205,17 @@ func (s *Service) ConfirmReplan(ctx context.Context, owner, course, proposalID s
 	if err = tx.QueryRow(ctx, `SELECT outline_version FROM courses WHERE id=$1::uuid AND learner_id=$2::uuid AND deleted_at IS NULL AND visibility='private' FOR UPDATE`, course, owner).Scan(&currentVersion); err != nil {
 		return ReplanProposal{}, refusal("not_found")
 	}
+	var unforked bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM course_copies WHERE copy_course_id=$1::uuid AND forked_at IS NULL)`, course).Scan(&unforked); err != nil {
+		return ReplanProposal{}, err
+	}
+	if unforked {
+		return ReplanProposal{}, refusal("fork_confirmation_required")
+	}
+	// Serialise with lesson unlock/generation, which flip stub rows, before judging protection.
+	if _, err = tx.Exec(ctx, `SELECT l.id FROM course_lesson_stubs l JOIN course_units u ON u.id=l.unit_id WHERE u.course_id=$1::uuid FOR UPDATE OF l`, course); err != nil {
+		return ReplanProposal{}, err
+	}
 
 	var p ReplanProposal
 	var dec *string
@@ -210,7 +236,11 @@ func (s *Service) ConfirmReplan(ctx context.Context, owner, course, proposalID s
 		_ = json.Unmarshal(diffRaw, &p.Diff)
 	}
 
-	validity := checkCanConfirm(p.State, p.Decision, p.ExpiresAt, time.Now())
+	var dbNow time.Time
+	if err = tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&dbNow); err != nil {
+		return p, err
+	}
+	validity := checkCanConfirm(p.State, p.Decision, p.ExpiresAt, dbNow)
 	if validity == "already_confirmed" {
 		return p, nil
 	}
@@ -228,7 +258,7 @@ func (s *Service) ConfirmReplan(ctx context.Context, owner, course, proposalID s
 	}
 
 	var newlyProtected int
-	err = tx.QueryRow(ctx, `SELECT count(*) FROM course_lesson_stubs l JOIN course_units u ON u.id=l.unit_id WHERE u.course_id=$1::uuid AND (l.status<>'locked' OR EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=l.id)) AND l.id != ALL($2::uuid[])`, course, in.Protected).Scan(&newlyProtected)
+	err = tx.QueryRow(ctx, `SELECT count(*) FROM course_lesson_stubs l JOIN course_units u ON u.id=l.unit_id WHERE u.course_id=$1::uuid AND u.archived_at IS NULL AND l.archived_at IS NULL AND (l.status<>'locked' OR EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=l.id) OR EXISTS(SELECT 1 FROM lesson_generations lg WHERE lg.lesson_id=l.id)) AND l.id != ALL($2::uuid[])`, course, in.Protected).Scan(&newlyProtected)
 	if err != nil || newlyProtected > 0 {
 		return p, refusal("version_conflict")
 	}
@@ -242,60 +272,77 @@ func (s *Service) ConfirmReplan(ctx context.Context, owner, course, proposalID s
 		return p, err
 	}
 
-	// Bump positions to prevent unique constraint collisions during reordering
-	if _, err = tx.Exec(ctx, `UPDATE course_units SET position=position+500000 WHERE course_id=$1::uuid`, course); err != nil {
+	// Only rows of the snapshot may be reused; a model-supplied id never reaches another course's rows.
+	baseUnits := map[string]bool{}
+	baseLessons := map[string]string{}
+	for _, u := range in.Outline.Units {
+		baseUnits[u.UnitId] = true
+		for _, l := range u.Lessons {
+			baseLessons[l.LessonId] = u.UnitId
+		}
+	}
+
+	// Park live rows far above any real position (at most 10 units x 20 lessons) so the unique
+	// (parent, position) keys never collide mid-rewrite. The final guard proves none stays parked.
+	if _, err = tx.Exec(ctx, `UPDATE course_units SET position=position+500000 WHERE course_id=$1::uuid AND archived_at IS NULL`, course); err != nil {
 		return p, err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs st SET position=st.position+500000, authored_id='tmp-'||st.id::text FROM course_units u WHERE u.id=st.unit_id AND u.course_id=$1::uuid`, course); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs st SET position=st.position+500000 FROM course_units u WHERE u.id=st.unit_id AND u.course_id=$1::uuid AND u.archived_at IS NULL AND st.archived_at IS NULL`, course); err != nil {
 		return p, err
 	}
 
 	var keptUnitIDs []string
 	var keptLessonIDs []string
-
 	for ui, u := range out.Units {
 		var unitID string
-		var exists bool
-		if _, parseErr := uuid.Parse(u.UnitId); parseErr == nil {
-			_ = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM course_units WHERE id=$1::uuid AND course_id=$2::uuid)`, u.UnitId, course).Scan(&exists)
-		}
-		if exists {
+		if baseUnits[u.UnitId] {
 			unitID = u.UnitId
-			if _, err = tx.Exec(ctx, `UPDATE course_units SET position=$2, title=$3, authored_id=$4 WHERE id=$1::uuid`, unitID, ui, u.Title, u.UnitId); err != nil {
+			if _, err = tx.Exec(ctx, `UPDATE course_units SET position=$2, title=$3 WHERE id=$1::uuid AND course_id=$4::uuid`, unitID, ui, u.Title, course); err != nil {
 				return p, err
 			}
-		} else {
-			if err = tx.QueryRow(ctx, `INSERT INTO course_units(learner_id, course_id, authored_id, position, title) VALUES($1::uuid, $2::uuid, $3, $4, $5) RETURNING id::text`, owner, course, u.UnitId, ui, u.Title).Scan(&unitID); err != nil {
-				return p, err
-			}
+		} else if err = tx.QueryRow(ctx, `INSERT INTO course_units(learner_id, course_id, authored_id, position, title) VALUES($1::uuid, $2::uuid, 'replan-'||gen_random_uuid()::text, $3, $4) RETURNING id::text`, owner, course, ui, u.Title).Scan(&unitID); err != nil {
+			return p, err
 		}
 		keptUnitIDs = append(keptUnitIDs, unitID)
 
 		for li, l := range u.Lessons {
 			var lessonID string
-			var lExists bool
-			if _, parseErr := uuid.Parse(l.LessonId); parseErr == nil {
-				_ = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM course_lesson_stubs WHERE id=$1::uuid AND learner_id=$2::uuid)`, l.LessonId, owner).Scan(&lExists)
-			}
-			if lExists {
+			if from, ok := baseLessons[l.LessonId]; ok {
 				lessonID = l.LessonId
-				if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs SET unit_id=$2::uuid, position=$3, title=$4, goal=$5, authored_id=$6 WHERE id=$1::uuid`, lessonID, unitID, li, l.Title, l.Goal, l.LessonId); err != nil {
+				// A lesson that changes unit gets a fresh authored_id so it cannot collide there; protected lessons never move.
+				if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs SET unit_id=$2::uuid, position=$3, title=$4, goal=$5, authored_id=CASE WHEN $6::boolean THEN 'replan-'||id::text ELSE authored_id END WHERE id=$1::uuid`, lessonID, unitID, li, l.Title, l.Goal, from != u.UnitId); err != nil {
 					return p, err
 				}
-			} else {
-				if err = tx.QueryRow(ctx, `INSERT INTO course_lesson_stubs(learner_id, unit_id, authored_id, position, title, goal, status) VALUES($1::uuid, $2::uuid, $3, $4, $5, $6, 'locked') RETURNING id::text`, owner, unitID, l.LessonId, li, l.Title, l.Goal).Scan(&lessonID); err != nil {
-					return p, err
-				}
+			} else if err = tx.QueryRow(ctx, `INSERT INTO course_lesson_stubs(learner_id, unit_id, authored_id, position, title, goal, status) VALUES($1::uuid, $2::uuid, 'replan-'||gen_random_uuid()::text, $3, $4, $5, 'locked') RETURNING id::text`, owner, unitID, li, l.Title, l.Goal).Scan(&lessonID); err != nil {
+				return p, err
 			}
 			keptLessonIDs = append(keptLessonIDs, lessonID)
 		}
 	}
 
-	if _, err = tx.Exec(ctx, `DELETE FROM course_lesson_stubs WHERE unit_id IN (SELECT id FROM course_units WHERE course_id=$1::uuid) AND id != ALL($2::uuid[]) AND status='locked' AND NOT EXISTS(SELECT 1 FROM generated_lessons WHERE lesson_stub_id=id)`, course, keptLessonIDs); err != nil {
+	// Remove only untouched stubs (locked, no generation, manifest or consent rows): their cascades hold no learner data.
+	if _, err = tx.Exec(ctx, `DELETE FROM course_lesson_stubs st USING course_units u WHERE u.id=st.unit_id AND u.course_id=$1::uuid AND u.archived_at IS NULL AND st.archived_at IS NULL AND st.id != ALL($2::uuid[]) AND st.status='locked'
+		AND NOT EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=st.id)
+		AND NOT EXISTS(SELECT 1 FROM lesson_generations g WHERE g.lesson_id=st.id)
+		AND NOT EXISTS(SELECT 1 FROM lesson_manifests m WHERE m.lesson_id=st.id)
+		AND NOT EXISTS(SELECT 1 FROM copy_generation_consents c WHERE c.lesson_id=st.id)`, course, keptLessonIDs); err != nil {
 		return p, err
 	}
-
-	if _, err = tx.Exec(ctx, `DELETE FROM course_units WHERE course_id=$1::uuid AND id != ALL($2::uuid[])`, course, keptUnitIDs); err != nil {
+	// Anything still parked (or inside a unit about to be dropped) is real learner data: abort instead of cascading.
+	var parked int
+	if err = tx.QueryRow(ctx, `SELECT (SELECT count(*) FROM course_lesson_stubs st JOIN course_units u ON u.id=st.unit_id WHERE u.course_id=$1::uuid AND st.position>=500000) + (SELECT count(*) FROM course_lesson_stubs st JOIN course_units u ON u.id=st.unit_id WHERE u.course_id=$1::uuid AND u.archived_at IS NULL AND st.archived_at IS NULL AND NOT (u.id=ANY($2::uuid[])))`, course, keptUnitIDs).Scan(&parked); err != nil {
+		return p, err
+	}
+	if parked > 0 {
+		return p, refusal("version_conflict")
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM course_units WHERE course_id=$1::uuid AND archived_at IS NULL AND id != ALL($2::uuid[])`, course, keptUnitIDs); err != nil {
+		return p, err
+	}
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM course_units WHERE course_id=$1::uuid AND position>=500000`, course).Scan(&parked); err != nil || parked > 0 {
+		if err == nil {
+			err = refusal("version_conflict")
+		}
 		return p, err
 	}
 
@@ -304,8 +351,8 @@ func (s *Service) ConfirmReplan(ctx context.Context, owner, course, proposalID s
 		return p, err
 	}
 
-	now := time.Now()
-	if _, err = tx.Exec(ctx, `UPDATE course_replan_proposals SET decision='confirmed', decided_at=clock_timestamp() WHERE id=$1::uuid`, proposalID); err != nil {
+	var decidedAt time.Time
+	if err = tx.QueryRow(ctx, `UPDATE course_replan_proposals SET decision='confirmed', decided_at=clock_timestamp() WHERE id=$1::uuid RETURNING decided_at`, proposalID).Scan(&decidedAt); err != nil {
 		return p, err
 	}
 
@@ -314,9 +361,10 @@ func (s *Service) ConfirmReplan(ctx context.Context, owner, course, proposalID s
 	}
 
 	p.Decision = "confirmed"
-	p.DecidedAt = &now
+	p.DecidedAt = &decidedAt
 
-	s.emit(owner, "course_replan_confirmed", map[string]any{"course_id": course, "proposal_id": proposalID})
+	added, removed, changed := diffCounts(p.Diff)
+	s.emit(owner, "course_replan_confirmed", map[string]any{"course_id": course, "proposal_id": proposalID, "outline_version": nextVersion, "lessons_added": added, "lessons_removed": removed, "lessons_changed": changed})
 	return p, nil
 }
 
@@ -359,8 +407,8 @@ func (s *Service) DiscardReplan(ctx context.Context, owner, course, proposalID s
 		return p, refusal(validity)
 	}
 
-	now := time.Now()
-	if _, err = tx.Exec(ctx, `UPDATE course_replan_proposals SET decision='discarded', decided_at=clock_timestamp() WHERE id=$1::uuid`, proposalID); err != nil {
+	var decidedAt time.Time
+	if err = tx.QueryRow(ctx, `UPDATE course_replan_proposals SET decision='discarded', decided_at=clock_timestamp() WHERE id=$1::uuid RETURNING decided_at`, proposalID).Scan(&decidedAt); err != nil {
 		return p, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -368,7 +416,7 @@ func (s *Service) DiscardReplan(ctx context.Context, owner, course, proposalID s
 	}
 
 	p.Decision = "discarded"
-	p.DecidedAt = &now
+	p.DecidedAt = &decidedAt
 
 	s.emit(owner, "course_replan_discarded", map[string]any{"course_id": course, "proposal_id": proposalID})
 	return p, nil
@@ -504,18 +552,8 @@ func (s *Service) ProposeReplan(ctx context.Context, owner, course, quoteID stri
 		return p, s.failReplan(owner, course, p.ID, job.ID, "invalid_proposal", attempts)
 	}
 	s.replanUsage(owner, q.PricingVersion, attempts, true)
-	added, removed, changed := 0, 0, map[string]bool{}
-	for _, d := range diff {
-		switch d.Kind {
-		case "added":
-			added++
-		case "removed":
-			removed++
-		default:
-			changed[d.LessonID] = true
-		}
-	}
-	s.emit(owner, "course_replan_proposed", map[string]any{"course_id": course, "proposal_id": p.ID, "lessons_added": added, "lessons_removed": removed, "lessons_changed": len(changed)})
+	added, removed, changed := diffCounts(diff)
+	s.emit(owner, "course_replan_proposed", map[string]any{"course_id": course, "proposal_id": p.ID, "lessons_added": added, "lessons_removed": removed, "lessons_changed": changed})
 	return s.readReplan(settleCtx, owner, course, quoteID)
 }
 func (s *Service) replanUsage(owner, version string, attempts []*pb.Usage, success bool) {

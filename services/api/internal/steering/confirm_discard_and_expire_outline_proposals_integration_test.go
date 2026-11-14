@@ -20,12 +20,17 @@ import (
 
 type confirmReplanRPC struct {
 	pb.UnimplementedEngineServiceServer
-	calls atomic.Int32
+	calls  atomic.Int32
+	mutate func(*pb.CourseOutline)
 }
 
 func (e *confirmReplanRPC) ReplanOutline(_ context.Context, in *pb.ReplanOutlineRequest) (*pb.ReplanOutlineResponse, error) {
 	e.calls.Add(1)
 	out := proto.Clone(in.Outline).(*pb.CourseOutline)
+	if e.mutate != nil {
+		e.mutate(out)
+		return &pb.ReplanOutlineResponse{Outline: out, Attempts: []*pb.Usage{{Provider: in.Limits.Provider, Model: in.Limits.Model, Attempt: 1, Component: "content", Delivered: true}}}, nil
+	}
 	// Retitle lesson 1 (future lesson) and add lesson 2
 	out.Units[0].Lessons[1].Title = "Go examples"
 	out.Units[0].Lessons = append(out.Units[0].Lessons, &pb.LessonRef{
@@ -47,8 +52,13 @@ func (e *confirmReplanRPC) ReplanOutline(_ context.Context, in *pb.ReplanOutline
 
 func setupConfirmHarness(t *testing.T) (*fixture, *Service, ReplanProposal) {
 	t.Helper()
+	return setupConfirmHarnessWith(t, nil)
+}
+
+func setupConfirmHarnessWith(t *testing.T, mutate func(*pb.CourseOutline)) (*fixture, *Service, ReplanProposal) {
+	t.Helper()
 	f := newFixture(t)
-	rpc := &confirmReplanRPC{}
+	rpc := &confirmReplanRPC{mutate: mutate}
 	listener, err := new(net.ListenConfig).Listen(f.ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
