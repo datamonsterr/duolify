@@ -4,6 +4,10 @@ fallback_model = "anthropic/claude-sonnet-5.5"
 [tasks.outline]
 model = "claude-sonnet-5-5"
 fallback_model = "anthropic/claude-sonnet-5.5"
+
+[tasks.outline_replan]
+model = "claude-sonnet-5-5"
+fallback_model = "anthropic/claude-sonnet-5.5"
 [tasks.lesson]
 model = "claude-sonnet-5-5"
 fallback_model = "anthropic/claude-sonnet-5.5"

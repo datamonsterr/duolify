@@ -3,7 +3,12 @@ use super::*;
 #[test]
 fn config_has_all_tasks() {
     let config: Models = toml::from_str(include_str!("../../../config/models.toml")).unwrap();
-    assert_eq!(config.tasks.len(), 13);
+    assert_eq!(config.tasks.len(), 14);
+    assert_eq!(config.tasks["outline_replan"].model, "claude-sonnet-5-5");
+    assert_eq!(
+        config.tasks["outline_replan"].fallback_model,
+        "anthropic/claude-sonnet-5.5"
+    );
     assert_eq!(config.tasks["steer_screen"].model, "claude-haiku-5-5");
     assert_eq!(
         config.tasks["steer_screen"].fallback_model,

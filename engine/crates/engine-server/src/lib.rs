@@ -506,6 +506,114 @@ impl EngineService for Service {
         }))
     }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
+    async fn replan_outline(
+        &self,
+        request: Request<pb::ReplanOutlineRequest>,
+    ) -> Result<Response<pb::ReplanOutlineResponse>, Status> {
+        use engine_core::{
+            courses::outline::{Lesson, Unit},
+            steering::{Instruction, replan},
+        };
+        let req = request.into_inner();
+        let b = req
+            .limits
+            .ok_or_else(|| Status::invalid_argument("quote required"))?;
+        let route = self
+            .router
+            .models
+            .tasks
+            .get("outline_replan")
+            .ok_or_else(|| Status::failed_precondition("route unavailable"))?;
+        if b.model != route.model
+            || b.fallback_model != route.fallback_model
+            || b.provider != self.router.primary.name()
+            || b.fallback_provider != self.router.fallback.name()
+            || b.deadline_unix_ms == 0
+        {
+            return Err(Status::failed_precondition(
+                "quote differs from evaluated route",
+            ));
+        }
+        let limits = engine_core::credits::Limits {
+            input_tokens: b.input_tokens,
+            output_tokens: b.output_tokens,
+            timeout_ms: b.timeout_ms,
+            max_attempts: b.max_attempts,
+            max_cost_nanos: b.max_cost_nanos,
+            input_nanos: b.input_nanos,
+            output_nanos: b.output_nanos,
+            cache_write_nanos: b.cache_write_nanos,
+            cache_read_nanos: b.cache_read_nanos,
+            deadline_unix_ms: b.deadline_unix_ms,
+        };
+        let mut outline = req
+            .outline
+            .ok_or_else(|| Status::invalid_argument("outline required"))?;
+        let base: Vec<Unit> = outline
+            .units
+            .iter()
+            .map(|u| Unit {
+                id: u.unit_id.clone(),
+                title: u.title.clone(),
+                lessons: u
+                    .lessons
+                    .iter()
+                    .map(|l| Lesson {
+                        id: l.lesson_id.clone(),
+                        title: l.title.clone(),
+                        goal: l.goal.clone(),
+                    })
+                    .collect(),
+            })
+            .collect();
+        let instructions: Vec<Instruction> = req
+            .instructions
+            .into_iter()
+            .map(|i| Instruction {
+                id: i.id,
+                text: i.text,
+                scope: i.scope,
+                added_at_unix_ms: i.added_at_unix_ms,
+                version: i.version,
+            })
+            .collect();
+        let result = replan::propose(
+            &self.router,
+            &base,
+            &req.protected_lesson_ids,
+            &instructions,
+            &limits,
+        )
+        .await
+        .map_err(|_| Status::invalid_argument("invalid replan input or quote"))?;
+        let units = result
+            .completion
+            .as_ref()
+            .and_then(|c| replan::parse(&base, &req.protected_lesson_ids, &c.text).ok());
+        if let Some(units) = units {
+            outline.units = units
+                .into_iter()
+                .map(|u| pb::Unit {
+                    unit_id: u.id,
+                    title: u.title,
+                    lessons: u
+                        .lessons
+                        .into_iter()
+                        .map(|l| pb::LessonRef {
+                            lesson_id: l.id,
+                            title: l.title,
+                            goal: l.goal,
+                        })
+                        .collect(),
+                })
+                .collect();
+        }
+        Ok(Response::new(pb::ReplanOutlineResponse {
+            outline: result.completion.as_ref().map(|_| outline),
+            attempts: result.attempts.iter().map(attempt_usage).collect(),
+            unavailable: result.completion.is_none(),
+        }))
+    }
     async fn outline_chat_change(
         &self,
         request: Request<pb::OutlineChatChangeRequest>,

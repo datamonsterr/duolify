@@ -1,6 +1,37 @@
 use super::*;
 
 #[test]
+fn replan_rejects_protected_edits_and_accepts_remaining_diff() {
+    use crate::courses::outline::{Lesson, Unit};
+    let base = vec![Unit {
+        id: "u1".into(),
+        title: "Basics".into(),
+        lessons: vec![
+            Lesson {
+                id: "l1".into(),
+                title: "Past".into(),
+                goal: "Keep".into(),
+            },
+            Lesson {
+                id: "l2".into(),
+                title: "History".into(),
+                goal: "Focus".into(),
+            },
+        ],
+    }];
+    let protected = vec!["l1".to_string()];
+    let mut out = base.clone();
+    out[0].lessons[1].title = "Go examples".into();
+    assert!(replan::validate(&base, &out, &protected));
+    out[0].lessons[0].goal = "changed".into();
+    assert!(!replan::validate(&base, &out, &protected));
+    out = base.clone();
+    out[0].lessons.swap(0, 1);
+    assert!(!replan::validate(&base, &out, &protected));
+    assert!(replan::parse(&base, &protected, r#"{"units":[],"rationale":"changed"}"#).is_err());
+}
+
+#[test]
 fn bounded_data_section_escapes_delimiters_and_preserves_precedence() {
     let entries = vec![Instruction {
         id: "i1".into(),

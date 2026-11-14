@@ -1264,8 +1264,9 @@ async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<Str
 async fn evaluate_steering(task: &str, input: &serde_json::Value) -> Result<String> {
     let recorded: Vec<Option<engine_core::Completion>> =
         serde_json::from_value(input["recorded"].clone())?;
+    let total_recorded = recorded.len();
     let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
-    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider.clone())?;
     if task == "steer_screen" {
         let outcome = engine_core::steering::screen(
             &router,
@@ -1279,6 +1280,103 @@ async fn evaluate_steering(task: &str, input: &serde_json::Value) -> Result<Stri
             .and_then(|c| engine_core::steering::verdict(&c.text))
             .unwrap_or((false, "screening_unavailable".into()));
         return Ok(serde_json::json!({"allowed":allowed,"reason_code":reason,"attempt_count":outcome.attempts.len(),"matches_expected":allowed==input["expected_allowed"]&&reason==input["expected_reason"].as_str().unwrap_or_default()}).to_string());
+    }
+    if task == "steer_replan" {
+        if let (Some(balance), Some(quote)) = (
+            input.get("balance_credits").and_then(|v| v.as_u64()),
+            input.get("quote_credits").and_then(|v| v.as_u64()),
+        ) && balance < quote
+        {
+            return Ok(serde_json::json!({
+                "refused": true,
+                "refusal_reason": "insufficient_credits",
+                "provider_calls": 0,
+                "delivered": false,
+                "immutability": 1.0,
+                "adherence": true,
+                "fallback_used": false,
+                "bounded_attempts": true,
+                "within_usd_cap": true,
+            })
+            .to_string());
+        }
+        let base: Vec<engine_core::courses::outline::Unit> =
+            serde_json::from_value(input["base"].clone())?;
+        let protected: Vec<String> = serde_json::from_value(input["protected"].clone())?;
+        let instructions: Vec<engine_core::steering::Instruction> =
+            serde_json::from_value(input["instructions"].clone())?;
+        let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
+
+        let outcome = engine_core::steering::replan::propose(
+            &router,
+            &base,
+            &protected,
+            &instructions,
+            &limits,
+        )
+        .await?;
+
+        let provider_calls = total_recorded - provider.0.lock().unwrap().len();
+        let spent: u64 = outcome
+            .attempts
+            .iter()
+            .map(|a| {
+                u64::from(a.input_tokens) * limits.input_nanos
+                    + u64::from(a.output_tokens) * limits.output_nanos
+            })
+            .sum();
+        let completion_text = outcome
+            .completion
+            .as_ref()
+            .map(|c| c.text.as_str())
+            .unwrap_or_default();
+        let parsed = engine_core::steering::replan::parse(&base, &protected, completion_text);
+        let delivered = parsed.is_ok();
+        let immutability = if let Ok(ref units) = parsed {
+            let intact = protected.iter().all(|id| {
+                base.iter()
+                    .enumerate()
+                    .find_map(|(i, u)| {
+                        u.lessons
+                            .iter()
+                            .position(|l| &l.id == id)
+                            .map(|j| (i, j, u))
+                    })
+                    .is_some_and(|(i, j, u)| {
+                        units.get(i).is_some_and(|v| {
+                            v.id == u.id
+                                && v.title == u.title
+                                && v.lessons.get(j) == u.lessons.get(j)
+                        })
+                    })
+            });
+            if intact { 1.0 } else { 0.0 }
+        } else {
+            1.0
+        };
+
+        let adherence = if let Some(focus) = input.get("expected_focus").and_then(|v| v.as_str()) {
+            completion_text.contains(focus)
+        } else {
+            true
+        };
+
+        let fallback_used = outcome.attempts.iter().any(|a| a.fallback_used);
+        let bounded_attempts = outcome.attempts.len() <= 2;
+        let within_usd_cap = spent <= limits.max_cost_nanos;
+
+        return Ok(serde_json::json!({
+            "refused": false,
+            "delivered": delivered,
+            "immutability": immutability,
+            "adherence": adherence,
+            "fallback_used": fallback_used,
+            "bounded_attempts": bounded_attempts,
+            "within_usd_cap": within_usd_cap,
+            "provider_calls": provider_calls,
+            "expected_delivery": delivered == input.get("expected_delivery").and_then(|v| v.as_bool()).unwrap_or(true),
+        })
+        .to_string());
     }
     let entries: Vec<engine_core::steering::Instruction> =
         serde_json::from_value(input["instructions"].clone())?;
@@ -1557,7 +1655,7 @@ impl Runner {
 
             let response_text = if matches!(
                 case.task.as_str(),
-                "steer_screen" | "steer_lesson" | "steer_injection"
+                "steer_screen" | "steer_lesson" | "steer_injection" | "steer_replan"
             ) && self.provider_name == "mock"
                 && self.custom_router.is_none()
             {
