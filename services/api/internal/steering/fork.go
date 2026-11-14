@@ -48,6 +48,14 @@ type ForkInfo struct {
 	Forked   bool `json:"forked"`
 	// KeptLessons counts the lessons already unlocked that stay as they are.
 	KeptLessons int `json:"kept_lessons"`
+	// LessonCredits is the per-lesson price from the active Pricing config (what a lesson quote
+	// shows); absent when no active price is available.
+	LessonCredits int64 `json:"lesson_credits,omitempty"`
+}
+
+// LessonPrice reads the active per-lesson price; it is never hard-coded here.
+type LessonPrice interface {
+	LessonCredits(context.Context) (int64, error)
 }
 
 type querier interface {
@@ -83,6 +91,11 @@ func (s *Service) forkInfo(ctx context.Context, owner, course string) (*ForkInfo
 		return nil, err
 	}
 	info := &ForkInfo{Forked: forked, Required: !forked}
+	if s.opts.Price != nil && !forked {
+		if credits, perr := s.opts.Price.LessonCredits(ctx); perr == nil && credits > 0 {
+			info.LessonCredits = credits
+		}
+	}
 	stubs, err := forkStubs(ctx, s.opts.Pool, course)
 	if err != nil {
 		return nil, err

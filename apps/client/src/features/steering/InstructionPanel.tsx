@@ -604,6 +604,7 @@ export function InstructionPanel({
       {warnFork && (
         <ForkWarning
           keptLessons={data?.fork?.kept_lessons ?? 0}
+          lessonCredits={data?.fork?.lesson_credits}
           onCancel={declineFork}
           onConfirm={() => void save(true)}
         />

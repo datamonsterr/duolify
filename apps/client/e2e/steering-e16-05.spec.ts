@@ -194,7 +194,14 @@ for (const mobile of [false, true]) {
       name: "Make this course your own?",
     });
     await expect(dialog).toBeVisible();
-    await expect(dialog).toContainText(/cost credits/i);
+    // The price comes from the active Pricing config through the API, never from the client.
+    const price = (
+      await (
+        await request.get(instructions(copy), { headers: l.headers })
+      ).json()
+    ).fork.lesson_credits as number;
+    expect(price).toBeGreaterThan(0);
+    await expect(dialog).toContainText(`about ${price} credits each`);
     await expect(dialog).toContainText(/won.t receive/i);
     if (mobile) await dialog.getByRole("button", { name: "Cancel" }).click();
     else await l.page.keyboard.press("Escape");
@@ -240,6 +247,10 @@ for (const mobile of [false, true]) {
     );
     await l.page.getByRole("button", { name: "Review quote" }).click();
     const sheet = l.page.getByRole("dialog", { name: "Generate next lesson" });
+    // The warning's price is the lesson price the quote now shows (same seeded Pricing config).
+    await expect(sheet.getByTestId("quote-total")).toContainText(
+      `up to ${price} credits`,
+    );
     await sheet
       .getByRole("checkbox", { name: /I agree to spend up to/ })
       .check();

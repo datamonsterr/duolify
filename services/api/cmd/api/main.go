@@ -369,7 +369,7 @@ func run(ctx context.Context, args []string) (result error) {
 		sharingService = sharingService.WithGeneration(sharing.GenerationDeps{Quotes: quotesService, Wallet: creditService, Lessons: lessonPreparer})
 	}
 	go sharingService.Maintain(ctx)
-	steeringService := steering.New(steering.Options{Pool: db.Pool, Engine: backend, Events: events})
+	steeringService := steering.New(steering.Options{Pool: db.Pool, Engine: backend, Events: events, Price: quotesService})
 	go steeringService.Maintain(ctx)
 	// Course invites (E15-06): push goes only through the adapter, which is disabled unless chosen
 	// by environment (no APNs/FCM credentials exist yet, ADR 0012); the in-app inbox always works.

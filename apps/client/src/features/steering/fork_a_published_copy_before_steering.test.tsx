@@ -14,7 +14,7 @@ const copyList = (forked: boolean): InstructionList => ({
   limits,
   active_count: 0,
   active_characters: 0,
-  fork: { required: !forked, forked, kept_lessons: 4 },
+  fork: { required: !forked, forked, kept_lessons: 4, lesson_credits: 190 },
 });
 const saved = {
   id: "i1",
@@ -51,7 +51,7 @@ describe("fork a published copy before steering", () => {
       name: "Make this course your own?",
     });
     expect(dialog).toHaveTextContent("Lessons 1–4 stay as they are");
-    expect(dialog).toHaveTextContent(/cost credits/i);
+    expect(dialog).toHaveTextContent("about 190 credits each");
     expect(dialog).toHaveTextContent(/won.t receive/i);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -62,6 +62,18 @@ describe("fork a published copy before steering", () => {
     expect(
       screen.getByRole("button", { name: "Save instruction" }),
     ).toHaveFocus();
+  });
+
+  it("falls back to price-free wording when no active price is known", async () => {
+    const list = copyList(false);
+    list.fork = { required: true, forked: false, kept_lessons: 4 };
+    render(<InstructionPanel courseId="c1" service={service(list)} />);
+    await fillAndSave();
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent(
+      /cost credits at the current lesson price/i,
+    );
+    expect(dialog).not.toHaveTextContent(/about \d+ credits/);
   });
 
   it("Escape declines too", async () => {

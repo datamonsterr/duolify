@@ -14,10 +14,12 @@ const keptCopy = (kept: number) =>
  */
 export function ForkWarning({
   keptLessons,
+  lessonCredits,
   onCancel,
   onConfirm,
 }: {
   keptLessons: number;
+  lessonCredits?: number;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -64,8 +66,11 @@ export function ForkWarning({
         <ul>
           {keptLessons > 0 && <li>{keptCopy(keptLessons)}</li>}
           <li>
-            From lesson {keptLessons + 1}, lessons are prepared for you and cost
-            credits at the current lesson price.
+            From lesson {keptLessons + 1}, lessons are prepared for you and{" "}
+            {lessonCredits
+              ? `cost about ${lessonCredits} credits each`
+              : "cost credits at the current lesson price"}
+            .
           </li>
           <li>You won&apos;t receive the publisher&apos;s future updates.</li>
         </ul>

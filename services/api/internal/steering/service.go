@@ -26,6 +26,8 @@ type Options struct {
 	Events analytics.Events
 	// ScreenTimeout bounds the classifier call; zero means the 10 second default.
 	ScreenTimeout time.Duration
+	// Price supplies the per-lesson price shown in the fork warning (E16-05); nil omits it.
+	Price LessonPrice
 }
 
 // Service saves screened private Course instructions.

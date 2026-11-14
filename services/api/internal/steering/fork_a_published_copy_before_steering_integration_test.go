@@ -3,10 +3,14 @@
 package steering
 
 import (
+	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 )
 
 // copyFixture builds a published copy: L1 unlocked (reused), L2 and L3 locked, L2 still reused.
@@ -260,4 +264,53 @@ func TestForkAPublishedCopyBeforeSteering(t *testing.T) {
 			t.Fatal("foreign fork")
 		}
 	})
+}
+
+type priceDouble struct {
+	credits int64
+	err     error
+}
+
+func (p priceDouble) LessonCredits(context.Context) (int64, error) { return p.credits, p.err }
+
+func TestForkWarningCarriesTheActiveLessonPrice(t *testing.T) {
+	c := newCopyFixture(t)
+	listed := func() *ForkInfo {
+		t.Helper()
+		l, err := c.s.List(c.ctx, c.owner, c.copy)
+		if err != nil || l.Fork == nil {
+			t.Fatalf("list %+v %v", l.Fork, err)
+		}
+		return l.Fork
+	}
+	// No price source configured: the field is absent so the client uses its fallback wording.
+	if got := listed().LessonCredits; got != 0 {
+		t.Fatalf("price without a source: %d", got)
+	}
+	c.s = New(Options{Pool: c.db.Pool, Engine: c.screen, Events: c.events, Price: priceDouble{err: errors.New("no active config")}})
+	if got := listed().LessonCredits; got != 0 {
+		t.Fatalf("price on error: %d", got)
+	}
+	c.s = New(Options{Pool: c.db.Pool, Engine: c.screen, Events: c.events, Price: priceDouble{credits: 190}})
+	if got := listed().LessonCredits; got != 190 {
+		t.Fatalf("price %d", got)
+	}
+	// The real source equals what a lesson_content quote with narration would show.
+	quotes := pricing.NewQuotes(c.db.Pool)
+	bounds, err := quotes.Bounds(c.ctx, pricing.QuoteInput{Action: "lesson_content"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, err := quotes.Create(c.ctx, c.owner, pricing.QuoteInput{Action: "lesson_content", NarrationCharacters: bounds["narration_characters"]})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := quotes.LessonCredits(c.ctx)
+	if err != nil || got != q.ContentCeiling+q.AudioCeiling || got <= 0 {
+		t.Fatalf("lesson credits %d (%v), quote %d+%d", got, err, q.ContentCeiling, q.AudioCeiling)
+	}
+	c.s = New(Options{Pool: c.db.Pool, Engine: c.screen, Events: c.events, Price: quotes})
+	if listed().LessonCredits != got {
+		t.Fatal("list does not carry the quote price")
+	}
 }
