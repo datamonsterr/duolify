@@ -14,6 +14,9 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 )
 
+// ownerName is the fixture owner's username (backuptest.Seed); blocks address learners by it.
+const ownerName = "Backup.Renamed"
+
 type inviteEnv struct {
 	f    *backuptest.Fixture
 	s    *sharing.Service
@@ -37,6 +40,10 @@ func inviteWorld(t *testing.T, mutate func(*sharing.Config)) *inviteEnv {
 	soc.OnBlock(s.CancelInvitesOnBlock)
 	consent(t, f, owner, false)
 	consent(t, f, stranger, false)
+	// The shared fixture gives the owner restrictive social settings; invites are tested from a default learner.
+	if _, err := f.DB.Pool.Exec(t.Context(), `DELETE FROM learner_social_settings WHERE learner_id=$1`, owner); err != nil {
+		t.Fatal(err)
+	}
 	src := seedReusable(t, f, "Astronomy")
 	publish(t, s, src)
 	return &inviteEnv{f: f, s: s, soc: soc, ev: ev, push: push, src: src}
@@ -138,7 +145,7 @@ func TestInviteStateAndDelivery(t *testing.T) {
 	})
 
 	t.Run("send_from_the_friend_list", func(t *testing.T) {
-		cy := e.person(t, "Cy")
+		cy := e.person(t, "Cyd")
 		fid := e.befriend(t, owner, cy)
 		inv, err := e.s.SendInvite(ctx, owner, e.src, sharing.InviteInput{FriendshipID: fid})
 		if err != nil {
@@ -397,7 +404,7 @@ func TestInviteExpiryAcceptDeclineRevoke(t *testing.T) {
 
 	t.Run("a_rename_does_not_break_the_invite", func(t *testing.T) {
 		id, inv := send("Old")
-		if _, err := e.f.DB.Pool.Exec(ctx, `UPDATE learner_usernames SET username='newname', canonical='newname' WHERE learner_id=$1`, id); err != nil {
+		if _, err := e.f.DB.Pool.Exec(ctx, `UPDATE learner_usernames SET username='newname' WHERE learner_id=$1`, id); err != nil {
 			t.Fatal(err)
 		}
 		sent, _ := e.s.SentInvites(ctx, owner, e.src)
@@ -446,11 +453,7 @@ func TestInviteBlocksAreAuthorizedInTheWriteTransaction(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// The owner also has a username so the recipient can block them.
-		if _, err = e.soc.Claim(ctx, owner, "theowner"); err != nil {
-			t.Fatal(err)
-		}
-		if err = e.soc.Block(ctx, ada, "theowner"); err != nil {
+		if err = e.soc.Block(ctx, ada, ownerName); err != nil {
 			t.Fatal(err)
 		}
 		if n := e.n(t, `SELECT count(*) FROM course_invites WHERE id=$1 AND status='revoked'`, inv.ID); n != 1 {
@@ -459,13 +462,9 @@ func TestInviteBlocksAreAuthorizedInTheWriteTransaction(t *testing.T) {
 		if list, _, _ := e.s.ReceivedInvites(ctx, ada); len(list) != 0 {
 			t.Fatal("blocked invite must not show")
 		}
-		// New invites to a blocker look sent but deliver nothing.
-		out, err := e.s.SendInvite(ctx, owner, e.src, sharing.InviteInput{Username: "blk"})
-		if err != nil || out.Status != "pending" {
-			t.Fatalf("send after block must be neutral: %+v %v", out, err)
-		}
-		if list, _, _ := e.s.ReceivedInvites(ctx, ada); len(list) != 0 {
-			t.Fatal("no delivery to a blocker")
+		// A new invite across a block is the same answer as an unknown username.
+		if _, err = e.s.SendInvite(ctx, owner, e.src, sharing.InviteInput{Username: "blk"}); !errors.Is(err, sharing.ErrInviteUnavailable) {
+			t.Fatalf("send after block must look like an unknown username: %v", err)
 		}
 		if sent, _ := e.s.SentInvites(ctx, owner, e.src); hasInvite(sent, inv.ID, "revoked") {
 			t.Fatal("the sender must not learn of the block through its list")
@@ -477,9 +476,6 @@ func TestInviteBlocksAreAuthorizedInTheWriteTransaction(t *testing.T) {
 		w := inviteWorld(t, nil)
 		peer := w.person(t, "Peer")
 		w.befriend(t, owner, peer)
-		if _, err := w.soc.Claim(ctx, owner, "own2"); err != nil {
-			t.Fatal(err)
-		}
 		other := seedReusable(t, w.f, "Peer course")
 		if _, err := w.f.DB.Pool.Exec(ctx, `UPDATE courses SET learner_id=$1 WHERE id=$2`, peer, other); err != nil {
 			t.Fatal(err)
@@ -510,7 +506,7 @@ func TestInviteBlocksAreAuthorizedInTheWriteTransaction(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				<-start
-				_ = e.soc.Block(ctx, r, "theowner")
+				_ = e.soc.Block(ctx, r, ownerName)
 			}()
 			close(start)
 			wg.Wait()

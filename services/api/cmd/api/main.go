@@ -342,6 +342,16 @@ func run(ctx context.Context, args []string) (result error) {
 		sharingService = sharingService.WithGeneration(sharing.GenerationDeps{Quotes: quotesService, Wallet: creditService, Lessons: lessonPreparer})
 	}
 	go sharingService.Maintain(ctx)
+	// Course invites (E15-06): push goes only through the adapter, which is disabled unless chosen
+	// by environment (no APNs/FCM credentials exist yet, ADR 0012); the in-app inbox always works.
+	pushAdapter, pushName := sharing.PushFromEnv(os.Getenv)
+	sharingService.WithPush(pushAdapter)
+	if pushName == "disabled" && (os.Getenv("PUSH_APNS_KEY_ID") != "" || os.Getenv("PUSH_FCM_SERVICE_ACCOUNT_JSON") != "") {
+		logger.Warn("push credentials are set but no live push transport exists yet; invites are in-app only")
+	}
+	logger.Info("course invite push adapter", "adapter", pushName)
+	socialService.OnBlock(sharingService.CancelInvitesOnBlock)
+	go sharingService.MaintainInvites(ctx)
 	handler := httpapi.New(httpapi.Dependencies{
 		Sharing:                 sharingService,
 		Characters:              characters.NewHandler(characterService),

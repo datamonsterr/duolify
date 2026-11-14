@@ -24,6 +24,10 @@ func Mount(mux *http.ServeMux, s *Service, protect, optional func(http.Handler) 
 	mux.Handle("POST /v1/public/shares/{token}/enroll", enroll)
 	mux.Handle("GET /v1/public/shares/{token}/enrollment", enroll)
 	mountMissing(mux, s, protect)
+	invites := protect(NewInviteHandler(s))
+	for _, pattern := range InvitePatterns {
+		mux.Handle(pattern, invites)
+	}
 	// E15-07 Marketplace: public reads are anonymous-safe (the session only adds the block filter),
 	// enrollment and the owner listing routes need a session. Every route is a neutral 404 while the flag is off.
 	market := NewMarketHandler(s)
