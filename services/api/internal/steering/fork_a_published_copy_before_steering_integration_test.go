@@ -4,6 +4,7 @@ package steering
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/store/db"
 )
 
 // copyFixture builds a published copy: L1 unlocked (reused), L2 and L3 locked, L2 still reused.
@@ -297,11 +299,22 @@ func TestForkWarningCarriesTheActiveLessonPrice(t *testing.T) {
 	}
 	// The real source equals what a lesson_content quote with narration would show.
 	quotes := pricing.NewQuotes(c.db.Pool)
-	bounds, err := quotes.Bounds(c.ctx, pricing.QuoteInput{Action: "lesson_content"})
+	row, err := db.New(c.db.Pool).ActiveQuoteConfig(c.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	q, err := quotes.Create(c.ctx, c.owner, pricing.QuoteInput{Action: "lesson_content", NarrationCharacters: bounds["narration_characters"]})
+	cfg, err := pricing.Parse(row.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var limits map[string]json.RawMessage
+	var lesson map[string]int64
+	if err = json.Unmarshal(cfg.Limits, &limits); err != nil {
+		t.Fatal(err)
+	}
+	_ = json.Unmarshal(limits["lesson_content"], &lesson)
+	chars := lesson["narration_characters"]
+	q, err := quotes.Create(c.ctx, c.owner, pricing.QuoteInput{Action: "lesson_content", NarrationCharacters: chars})
 	if err != nil {
 		t.Fatal(err)
 	}

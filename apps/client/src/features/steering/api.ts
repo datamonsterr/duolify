@@ -20,6 +20,8 @@ export type ForkInfo = {
   required: boolean;
   forked: boolean;
   kept_lessons: number;
+  // Per-lesson price from the active Pricing config; absent when unknown.
+  lesson_credits?: number;
 };
 export type InstructionList = {
   instructions: Instruction[];
