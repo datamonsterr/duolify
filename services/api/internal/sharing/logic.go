@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 )
@@ -59,25 +60,68 @@ func CheckAllowlist(raw []byte) error {
 
 var (
 	emailRe  = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}`)
-	phoneRe  = regexp.MustCompile(`(?:\+|\b)\d[\d\s().\-]{7,}\d\b`)
+	phoneRe  = regexp.MustCompile(phonePattern)
 	secretRe = regexp.MustCompile(`sk-[A-Za-z0-9_\-]{20,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|xox[baprs]-[A-Za-z0-9\-]{10,}|AIza[0-9A-Za-z_\-]{35}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(?i:api[_-]?key|secret|token|password)\s*[:=]\s*["']?[A-Za-z0-9/+_\-]{16,}`)
 )
 
-func textFindings(text, loc string, add func(kind, loc string)) {
-	if emailRe.MatchString(text) {
-		add(KindPersonalData, loc)
-	}
-	for _, m := range phoneRe.FindAllString(text, -1) {
+// phonePattern: phone-shaped candidates only (issue #199). Forms: +CC groups; (area) groups;
+// trunk-0 groups or bare 0-run; NNN-NNN-NNNN with one separator kind. hasPhone then checks
+// 7-15 digits and token boundaries.
+const phonePattern = `\+\d{1,3}(?:[ .\-]?\(?\d{1,4}\)?){2,5}` +
+	`|\(\d{2,4}\)[ .\-]?\d{3}[ .\-]?\d{3,4}` +
+	`|0\d{1,3}(?:[ .\-]\d{2,4}){2,4}|0\d{8,14}` +
+	`|\d{3}-\d{3}-\d{4}|\d{3} \d{3} \d{4}|\d{3}\.\d{3}\.\d{4}`
+
+func isAlnum(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
+
+// joined reports whether the rune next to a match continues an alphanumeric token, directly or
+// across one of - . _ (UUIDs, ISBNs, product codes).
+func joined(adj, beyond rune, hasBeyond bool) bool {
+	return isAlnum(adj) || (strings.ContainsRune("-._", adj) && hasBeyond && isAlnum(beyond))
+}
+
+func hasPhone(text string) bool {
+	for _, loc := range phoneRe.FindAllStringIndex(text, -1) {
+		m := text[loc[0]:loc[1]]
 		digits := 0
 		for _, r := range m {
 			if r >= '0' && r <= '9' {
 				digits++
 			}
 		}
-		if digits >= 9 && digits <= 15 {
-			add(KindPersonalData, loc)
-			break
+		if digits < 7 || digits > 15 || (m[0] == '0' && digits < 9) {
+			continue
 		}
+		before, after := []rune(text[:loc[0]]), []rune(text[loc[1]:])
+		if n := len(before); n > 0 {
+			var b rune
+			if n > 1 {
+				b = before[n-2]
+			}
+			if joined(before[n-1], b, n > 1) {
+				continue
+			}
+		}
+		if len(after) > 0 {
+			var b rune
+			if len(after) > 1 {
+				b = after[1]
+			}
+			if joined(after[0], b, len(after) > 1) {
+				continue
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func textFindings(text, loc string, add func(kind, loc string)) {
+	if emailRe.MatchString(text) {
+		add(KindPersonalData, loc)
+	}
+	if hasPhone(text) {
+		add(KindPersonalData, loc)
 	}
 	if secretRe.MatchString(text) {
 		add(KindSecret, loc)
