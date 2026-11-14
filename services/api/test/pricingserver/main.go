@@ -351,6 +351,12 @@ func run() (result error) {
 	mux.Handle("POST /test/sharing/course", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seedSharingCourse(w, r, db.Pool)
 	})))
+	mux.Handle("POST /test/marketplace/course", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seedMarketCourse(w, r, db.Pool)
+	})))
+	mux.Handle("POST /test/marketplace/stats", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setMarketStats(w, r, db.Pool)
+	})))
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{
 		Sharing:                 newSharingService(db.Pool, objects, sharingGeneration),
 		Notes:                   notesService,

@@ -1,0 +1,158 @@
+/* E15-07 Marketplace: desktop list and detail, mobile as two screens. Tokens only. */
+.market {
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--space-3, 12px);
+  width: min(56rem, 100%);
+  margin: 0 auto;
+  min-width: 0;
+  color: var(--text);
+}
+.market h1,
+.market h2,
+.market p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.market-search {
+  display: flex;
+  gap: var(--space-2, 8px);
+}
+.market-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: 0 var(--space-3, 12px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.market-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3, 12px);
+}
+.market-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+}
+.market-chip {
+  min-height: 44px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 0 var(--space-4, 16px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.market-chip[aria-pressed="true"] {
+  border-color: var(--primary, var(--text));
+  background: var(--primary, var(--text));
+  color: var(--on-primary, var(--surface));
+}
+.market-select {
+  display: grid;
+  gap: var(--space-1, 4px);
+  font-size: 0.875rem;
+}
+.market-select select {
+  min-height: 44px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: 0 var(--space-3, 12px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.market-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-3, 12px);
+}
+.market-card {
+  display: grid;
+  gap: var(--space-2, 8px);
+  align-content: start;
+  min-width: 0;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  padding: var(--space-4, 16px);
+  background: var(--surface);
+}
+.market-card h2 {
+  font-size: 1.125rem;
+}
+.market-card h2 a {
+  color: inherit;
+}
+.market-meta,
+.market-ready {
+  color: var(--muted, var(--text));
+  font-size: 0.875rem;
+}
+.market-ready {
+  font-weight: 700;
+}
+.market-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.market-empty {
+  display: grid;
+  gap: var(--space-3, 12px);
+  justify-items: start;
+  border: 2px dashed var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  padding: var(--space-5, 20px);
+}
+.market a:focus-visible,
+.market button:focus-visible,
+.market input:focus-visible,
+.market select:focus-visible {
+  outline: 3px solid var(--focus, var(--text));
+  outline-offset: 2px;
+}
+.market .duo-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+.market-back {
+  color: var(--text);
+  font-weight: 700;
+}
+.market-course .share-slide-frame {
+  width: 100%;
+}
+@media (max-width: 47.99rem) {
+  .market-search {
+    flex-direction: column;
+  }
+  .market-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: var(--space-1, 4px);
+  }
+  .market-chip {
+    flex: 0 0 auto;
+  }
+  .market-controls {
+    display: grid;
+  }
+  .market-select select,
+  .market .duo-button {
+    width: 100%;
+  }
+}

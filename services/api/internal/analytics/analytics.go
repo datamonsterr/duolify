@@ -98,7 +98,8 @@ func allowlisted(event string) bool {
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
-		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand":
+		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
+		"marketplace_browsed", "marketplace_searched", "course_viewed":
 		return true
 	default:
 		return false
@@ -289,6 +290,27 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "published_lesson_reused", "published_lesson_generated_on_demand":
 		ids("course_id", "lesson_id")
 		numeric("version")
+	case "marketplace_browsed", "marketplace_searched":
+		// Closed vocabulary only: the search text never reaches analytics, only its length.
+		if v, _ := input["category"].(string); marketCategories[v] {
+			out["category"] = v
+		}
+		if v, _ := input["language"].(string); marketLanguage.MatchString(v) {
+			out["language"] = v
+		}
+		if v, _ := input["sort"].(string); v == "popular" || v == "new" || v == "rating" {
+			out["sort"] = v
+		}
+		numeric("result_count", "query_length")
+		boolean("has_cursor")
+	case "course_viewed":
+		if v, _ := input["course_id"].(string); marketUUID.MatchString(v) {
+			out["course_id"] = v
+		}
+		numeric("version")
+		if input["surface"] == "marketplace" {
+			out["surface"] = "marketplace"
+		}
 	case "share_link_opened":
 		ids("course_id")
 		boolean("has_account")
@@ -570,3 +592,9 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	}
 	return out
 }
+
+var (
+	marketCategories = map[string]bool{"science": true, "tech": true, "languages": true, "life_skills": true, "arts": true}
+	marketLanguage   = regexp.MustCompile(`^[a-z]{2,3}$`)
+	marketUUID       = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+)

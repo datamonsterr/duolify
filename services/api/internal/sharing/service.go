@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 // Screener is the platform-funded classifier boundary (the engine's ScreenCourse RPC).
@@ -48,6 +49,8 @@ type Service struct {
 	assetOrigin string
 	// gen is the reused private-generation pipeline for missing Lessons in copies (E15-04); optional.
 	gen GenerationDeps
+	// cache holds derived Marketplace result pages (E15-07); optional, never the source of truth.
+	cache *redis.Client
 }
 
 // NewService wires the service behind the central fail-closed analytics consent gate.
@@ -442,8 +445,8 @@ func (s *Service) PublishLink(ctx context.Context, owner, courseID string) (stri
 	if err = tx.QueryRow(ctx, `SELECT visibility FROM courses WHERE id=$1`, courseID).Scan(&oldVis); err != nil {
 		return "", err
 	}
-	// Set visibility to link.
-	if _, err = tx.Exec(ctx, `UPDATE courses SET visibility='link' WHERE id=$1`, courseID); err != nil {
+	// Set visibility to link; a Marketplace listing stays public.
+	if _, err = tx.Exec(ctx, `UPDATE courses SET visibility = CASE WHEN visibility='public' THEN 'public'::course_visibility ELSE 'link'::course_visibility END WHERE id=$1`, courseID); err != nil {
 		return "", err
 	}
 
@@ -452,7 +455,7 @@ func (s *Service) PublishLink(ctx context.Context, owner, courseID string) (stri
 	}
 
 	// Analytics: visibility_changed + course_published (only when visibility actually changes) + share_link_created.
-	if oldVis != "link" {
+	if oldVis != "link" && oldVis != "public" {
 		s.emit(owner, "course_visibility_changed", map[string]any{"course_id": courseID, "from": oldVis, "to": "link"})
 		if d, gerr := s.latestPassDraft(ctx, courseID); gerr == nil {
 			s.emit(owner, "course_published", map[string]any{"course_id": courseID, "version": d.Number, "visibility": "link", "lesson_count": d.LessonCount})
@@ -492,7 +495,8 @@ func (s *Service) RevokeLink(ctx context.Context, owner, courseID string) error 
 	if tag.RowsAffected() == 0 {
 		return ErrLinkNotFound
 	}
-	if _, err = tx.Exec(ctx, `UPDATE courses SET visibility='private' WHERE id=$1`, courseID); err != nil {
+	// Revoking the link never unlists a Marketplace course: that is DelistCourse.
+	if _, err = tx.Exec(ctx, `UPDATE courses SET visibility = CASE WHEN EXISTS (SELECT 1 FROM marketplace_listings WHERE course_id=$1 AND delisted_at IS NULL) THEN 'public'::course_visibility ELSE 'private'::course_visibility END WHERE id=$1`, courseID); err != nil {
 		return err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -660,6 +664,11 @@ func (s *Service) Maintain(ctx context.Context) {
 		if _, err := s.PurgeExpired(ctx); err != nil && ctx.Err() == nil {
 			slog.ErrorContext(ctx, "publication screening purge failed", "error", err)
 		}
+		if s.cfg.MarketplaceEnabled {
+			if err := s.RefreshStats(ctx); err != nil && ctx.Err() == nil {
+				slog.ErrorContext(ctx, "marketplace stats refresh failed", "error", err)
+			}
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -710,7 +719,12 @@ var ErrRateLimited = errors.New("rate_limited")
 // AllowPreview counts one anonymous preview request for an address. The counter key is a
 // SHA-256 of the address and its row expires with the window, so no raw IP is stored.
 func (s *Service) AllowPreview(ctx context.Context, ip string) error {
-	sum := sha256.Sum256([]byte("sharing-preview:" + ip))
+	return s.allow(ctx, "sharing-preview:"+ip)
+}
+
+// allow counts one request in the shared per-address window under its own key namespace.
+func (s *Service) allow(ctx context.Context, key string) error {
+	sum := sha256.Sum256([]byte(key))
 	window := time.Duration(s.cfg.PreviewRateWindowSeconds) * time.Second
 	var count int
 	err := s.pool.QueryRow(ctx, `INSERT INTO publication_preview_limits(key_hash,count,expires_at) VALUES($1,1,now()+$2::interval)

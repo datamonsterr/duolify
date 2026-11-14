@@ -67,3 +67,36 @@ export function useLessonTestTracerEnabled(): boolean {
 
   return enabled;
 }
+
+let marketplaceFlag: Promise<boolean> | null = null;
+
+/** The Marketplace release flag (E15-07). Off unless the API says otherwise; failures stay off. */
+export function fetchMarketplaceEnabled(): Promise<boolean> {
+  marketplaceFlag ??= (async () => {
+    try {
+      const base = import.meta.env.VITE_API_URL || "http://localhost:8080";
+      const res = await fetch(`${base}/v1/features`);
+      if (!res.ok) return false;
+      const data = (await res.json()) as { marketplace_enabled?: unknown };
+      return data.marketplace_enabled === true;
+    } catch {
+      marketplaceFlag = null; // retry on the next mount
+      return false;
+    }
+  })();
+  return marketplaceFlag;
+}
+
+export function useMarketplaceEnabled(): boolean {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    let active = true;
+    fetchMarketplaceEnabled().then((value) => {
+      if (active) setEnabled(value);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return enabled;
+}
