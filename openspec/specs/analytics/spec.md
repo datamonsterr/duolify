@@ -272,3 +272,10 @@ The API SHALL catalogue and emit course_reported (report_id, course_id when know
 #### Scenario: Third reporter
 - **WHEN** a third distinct learner reports a course
 - **THEN** the API sends course_reported and one course_hidden_by_reports through the consent gate, with no report text
+
+### Requirement: Moderation outcomes
+The API SHALL catalogue and emit moderation_action (course_id when known, action, reason_code, target_type), moderation_appeal (course_id when known, outcome filed, upheld or overturned) and course_visibility_changed with from and to for moderation. Identifiers SHALL be UUIDs and the rest closed enums. Events SHALL honor opt-out and SHALL NOT include reason text, appeal text, usernames or moderator identity.
+
+#### Scenario: Takedown
+- **WHEN** a moderator takes a course down
+- **THEN** the API sends moderation_action and course_visibility_changed through the consent gate with no reason text
