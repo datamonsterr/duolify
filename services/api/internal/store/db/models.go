@@ -385,6 +385,18 @@ type CreditOutbox struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type CreditPaymentAttempt struct {
+	EventID           string             `json:"event_id"`
+	Attempts          int32              `json:"attempts"`
+	TotalAttempts     int64              `json:"total_attempts"`
+	ReplayCount       int32              `json:"replay_count"`
+	WaitingForBinding bool               `json:"waiting_for_binding"`
+	NextAttemptAt     pgtype.Timestamptz `json:"next_attempt_at"`
+	DeadLetterAt      pgtype.Timestamptz `json:"dead_letter_at"`
+	LastReasonCode    string             `json:"last_reason_code"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
 type CreditPaymentInbox struct {
 	EventID     string             `json:"event_id"`
 	Environment string             `json:"environment"`

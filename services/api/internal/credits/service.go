@@ -18,6 +18,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	dbsql "github.com/datamonsterr/duolify/services/api/internal/store/db"
+	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -279,6 +280,7 @@ func entryFromDB(r dbsql.CreditEntry) Entry {
 
 // Service coordinates auditable wallet derivation, daily grants, expiry, caching and activity.
 type Service struct {
+	operational *telemetry.Monitor
 	payments    PaymentOptions
 	store       LedgerStore
 	redis       *redis.Client

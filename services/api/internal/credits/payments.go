@@ -249,9 +249,12 @@ func (s *Service) ProcessPayments(ctx context.Context) error {
 	if s.payments.Mode != "test" || s.pool() == nil {
 		return nil
 	}
+	if err := s.terminalizeAbandonedClaims(ctx); err != nil {
+		return err
+	}
 	// A provider can deliver before CreateSession's binding transaction commits.
 	// Unmatched signed receipts wait durably, without starving bound work.
-	rows, err := s.pool().Query(ctx, `SELECT i.event_id FROM credit_payment_inbox i WHERE (EXISTS(SELECT 1 FROM credit_payment_sessions p WHERE p.session_id=i.session_id AND p.environment=i.environment) OR i.event_type LIKE 'invoice.%' OR i.event_type LIKE 'customer.subscription.%' OR i.event_type LIKE 'charge.%') AND NOT EXISTS(SELECT 1 FROM credit_payment_results r WHERE r.event_id=i.event_id) ORDER BY received_at,event_id LIMIT 100`)
+	rows, err := s.pool().Query(ctx, `SELECT i.event_id FROM credit_payment_inbox i LEFT JOIN credit_payment_attempts a USING(event_id) WHERE (a.event_id IS NULL OR (a.attempts<5 AND a.dead_letter_at IS NULL AND (a.next_attempt_at<=now() OR (a.waiting_for_binding AND EXISTS(SELECT 1 FROM credit_payment_sessions p WHERE p.session_id=i.session_id AND p.environment=i.environment))))) AND NOT EXISTS(SELECT 1 FROM credit_payment_results r WHERE r.event_id=i.event_id) ORDER BY received_at,event_id LIMIT 100`)
 	if err != nil {
 		return err
 	}
@@ -271,7 +274,7 @@ func (s *Service) ProcessPayments(ctx context.Context) error {
 	}
 	var failures []error
 	for _, id := range ids {
-		if err = s.processPayment(ctx, id); err != nil {
+		if err = s.processInboxEvent(ctx, id); err != nil {
 			failures = append(failures, err)
 		}
 	}

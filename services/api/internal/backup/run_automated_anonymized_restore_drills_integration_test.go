@@ -39,7 +39,7 @@ func TestDrillRestoresThroughRestorerIdentityAndPassesAllCheckKinds(t *testing.T
 			t.Fatalf("no %s checks ran: %+v", kind, report.Checks)
 		}
 	}
-	if report.RPO != 6*time.Hour || report.RTO <= 0 || report.RTO > 4*time.Hour || report.FinancialReplay != "not-configured" {
+	if report.RPO != 6*time.Hour || report.RTO <= 0 || report.RTO > 4*time.Hour || report.FinancialReplay != "passed" {
 		t.Fatalf("measurements: %+v", report)
 	}
 	if report.RedisRebuilt == 0 {

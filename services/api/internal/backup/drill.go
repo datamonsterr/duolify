@@ -47,7 +47,8 @@ type CheckResult struct {
 }
 
 // FinancialReplay is the extension point for E7-11's quarterly financial replay.
-// The drill ships no business checks; a nil hook reports "not-configured".
+// E7-11 supplies canonical TEST-provider verification and an idempotent second pass.
+// A nil hook reports "not-configured" for general-only scheduled drills.
 type FinancialReplay func(context.Context, *pgxpool.Pool) error
 
 // DrillStore is the read-only surface of the restorer identity.
@@ -234,7 +235,11 @@ func (o DrillOptions) emit(ok bool, duration time.Duration) {
 		version = info.Main.Version
 	}
 	props := func() map[string]any {
-		return map[string]any{"source": o.Source, "platform": "web", "app_version": version, "duration_ms": duration.Milliseconds(), "ok": ok}
+		source := o.Source
+		if source == "scheduled" {
+			source = "api"
+		}
+		return map[string]any{"source": source, "platform": "web", "app_version": version, "duration_ms": duration.Milliseconds(), "ok": ok}
 	}
 	const system = "00000000-0000-4000-8000-000000000011"
 	if !ok {

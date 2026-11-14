@@ -249,6 +249,9 @@ func TestApplySourceAttributedRefundsAndDisputesIntegration(t *testing.T) {
 		}
 		// The provider corrects its state; the same inbox event retries and applies the valid remainder.
 		e.canonical(sess, func(s *credits.PaymentSession) { s.Refunds = s.Refunds[:3] })
+		if _, err := e.db.Pool.Exec(e.ctx, "UPDATE credit_payment_attempts SET next_attempt_at=now()"); err != nil {
+			t.Fatal(err)
+		}
 		if err := e.svc.ProcessPayments(e.ctx); err != nil {
 			t.Fatal(err)
 		}

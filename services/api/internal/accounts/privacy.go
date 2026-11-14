@@ -95,6 +95,7 @@ var ClassifiedLearnerTables = map[string]string{
 	"credit_subscription_terms":         "financial_retained_via_subscription",
 	"credit_payment_sessions":           "financial_retained_via_order",
 	"credit_payment_inbox":              "financial_retained_via_session",
+	"credit_payment_attempts":           "financial_retained_via_inbox_7_years",
 	"credit_payment_results":            "financial_retained_via_order",
 	"credit_payment_payloads":           "redacted_expire_30_days",
 	"credit_checkout_orders":            "financial_retained_anonymized",
@@ -148,6 +149,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		query string
 	}
 	queries := []exportQuery{
+		{table: "credit_payment_attempts", query: `SELECT COALESCE(jsonb_agg(to_jsonb(a)),'[]'::jsonb) FROM credit_payment_attempts a JOIN credit_payment_inbox i USING(event_id) WHERE EXISTS(SELECT 1 FROM credit_checkout_orders o LEFT JOIN credit_payment_sessions s ON s.order_id=o.id LEFT JOIN credit_subscriptions b ON b.order_id=o.id LEFT JOIN credit_subscription_terms t ON t.subscription_id=b.subscription_id LEFT JOIN credit_payment_results r ON r.order_id=o.id WHERE o.learner_id=$1 AND (i.session_id=s.session_id OR i.session_id=b.subscription_id OR i.session_id=t.invoice_id OR i.event_id=r.event_id))`},
 		{table: "character_versions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(v)),'[]'::jsonb) FROM character_versions v JOIN characters c ON c.id=v.character_id WHERE c.learner_id=$1`},
 		{table: "credit_subscription_lifecycle", query: `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]'::jsonb) FROM credit_subscription_lifecycle x JOIN credit_subscriptions b USING(subscription_id) JOIN credit_checkout_orders o ON o.id=b.order_id WHERE o.learner_id=$1`},
 		{table: "credit_subscription_transitions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]'::jsonb) FROM credit_subscription_transitions x JOIN credit_subscriptions b USING(subscription_id) JOIN credit_checkout_orders o ON o.id=b.order_id WHERE o.learner_id=$1`},

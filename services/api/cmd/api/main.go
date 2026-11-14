@@ -149,10 +149,8 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		creditService := credits.NewServiceWithCatalogue(db.Pool, nil, catalogue, events)
+		creditService.UseOperationalMonitor(monitor)
 		if err := creditService.ConfigurePaymentEnvironment(os.Getenv); err != nil {
-			return err
-		}
-		if err := creditService.PrunePaymentPayloads(ctx); err != nil {
 			return err
 		}
 		go creditService.Maintain(ctx, logger)
@@ -303,10 +301,8 @@ func run(ctx context.Context, args []string) (result error) {
 		Events:  events,
 	})
 	creditService := credits.NewServiceWithCatalogue(db.Pool, redis, catalogue, events)
+	creditService.UseOperationalMonitor(monitor)
 	if err := creditService.ConfigurePaymentEnvironment(os.Getenv); err != nil {
-		return err
-	}
-	if err := creditService.PrunePaymentPayloads(ctx); err != nil {
 		return err
 	}
 	go creditService.Maintain(ctx, logger)
