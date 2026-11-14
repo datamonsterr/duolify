@@ -12,6 +12,10 @@ The existing `ui_sheet_opened` event SHALL accept `sheet_id=course_steering` for
 - **WHEN** a Learner saves an allowed next-lesson instruction
 - **THEN** PostHog receives `course_instruction_added` with its length bucket, never its text
 
+#### Scenario: Fork confirmed
+- **WHEN** a Learner confirms the fork warning and saves the first instruction on a Published course copy
+- **THEN** PostHog receives `course_forked_from_published` (`course_id`, numeric `fork_lesson_index`; 0 when every Lesson was already unlocked) once, and `course_instruction_added` with `is_course_copy=true`, never the text; declining sends neither
+
 #### Scenario: Analytics opt-out
 - **WHEN** a Learner has opted out of analytics
 - **THEN** steering and screening events are not delivered to PostHog

@@ -26,6 +26,8 @@ type ListResult struct {
 	Limits           Limits   `json:"limits"`
 	ActiveCount      int      `json:"active_count"`
 	ActiveCharacters int      `json:"active_characters"`
+	// Fork is set only for a published copy (E16-05).
+	Fork *ForkInfo `json:"fork,omitempty"`
 }
 
 // EditInput changes text and/or scope of an active instruction. ExpectedVersion guards lost updates.
@@ -92,6 +94,9 @@ func (s *Service) List(ctx context.Context, owner, course string) (ListResult, e
 	}
 	var err error
 	if out.Limits, err = s.limits(ctx, s.opts.Pool); err != nil {
+		return out, err
+	}
+	if out.Fork, err = s.forkInfo(ctx, owner, course); err != nil {
 		return out, err
 	}
 	rows, err := s.opts.Pool.Query(ctx, `SELECT `+recordColumns+`,
@@ -253,7 +258,7 @@ func statusFor(code string) int {
 		return 404
 	case "rate_limit":
 		return 429
-	case "version_conflict", "not_editable":
+	case "version_conflict", "not_editable", "fork_confirmation_required":
 		return 409
 	case "screening_unavailable", "unavailable":
 		return 503

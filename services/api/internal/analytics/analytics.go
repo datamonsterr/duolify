@@ -74,7 +74,7 @@ func (c *client) Close() error {
 
 func allowlisted(event string) bool {
 	switch event {
-	case "course_instruction_added", "course_instruction_edited", "course_instruction_deleted", "course_instruction_rejected", "course_instruction_applied", "course_instruction_output_flagged":
+	case "course_instruction_added", "course_instruction_edited", "course_instruction_deleted", "course_instruction_rejected", "course_instruction_applied", "course_instruction_output_flagged", "course_forked_from_published":
 		return true
 	case "xp_earned", "daily_goal_met", "lesson_completed", "streak_extended", "streak_broken", "streak_freeze_earned", "streak_freeze_used", "league_promoted", "league_demoted", "friend_streak_started", "friend_streak_extended", "friend_streak_broken", "friend_nudge_sent":
 		return true
@@ -219,6 +219,9 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "course_forked_from_published":
+		ids("course_id")
+		numeric("fork_lesson_index")
 	case "course_instruction_added", "course_instruction_edited", "course_instruction_deleted", "course_instruction_rejected", "course_instruction_applied", "course_instruction_output_flagged":
 		ids("course_id", "lesson_id")
 		boolean("is_course_copy")

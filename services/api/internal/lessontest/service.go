@@ -1880,6 +1880,13 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		return
 	}
 
+	// A fork of a published copy (E16-05) and this unlock exclude each other, so the fork marker
+	// is the first lesson that is really not yet unlocked.
+	if err = steering.LockCopyTx(ctx, tx, lessonID); err != nil {
+		http.Error(w, `{"error":"database error"}`, 500)
+		return
+	}
+
 	// Unlock next lesson stub in the course
 	var nextLessonID string
 	if err = tx.QueryRow(ctx, `

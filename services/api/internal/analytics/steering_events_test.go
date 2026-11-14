@@ -120,3 +120,48 @@ func TestSteeringEditDeleteEventsAreAllowlistedAndTextFree(t *testing.T) {
 		t.Fatal(first)
 	}
 }
+
+func TestCourseForkedFromPublishedIsAllowlistedAndTextFree(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+	}))
+	defer server.Close()
+	const owner = "a1111111-1111-4111-8111-111111111111"
+	const course = "c1111111-1111-4111-8111-111111111111"
+	events, err := NewWithOptions("fixture", server.URL, Options{Consent: allowConsent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	props := map[string]any{"source": "api", "platform": "web", "app_version": "1.0.0", "course_id": course, "fork_lesson_index": 3, "text": "PRIVATE_LEARNER_TEXT", "title": "PRIVATE_LEARNER_TEXT"}
+	_ = events.Capture(owner, "course_forked_from_published", props)
+	_ = events.Capture("invalid-uuid", "course_forked_from_published", props)
+	opted, err := NewWithOptions("fixture", server.URL, Options{OptOut: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = opted.Capture(owner, "course_forked_from_published", props)
+	_ = opted.Close()
+	denied := WithConsent(events, func(context.Context, string) (bool, error) { return false, nil })
+	_ = denied.Capture(owner, "course_forked_from_published", props)
+	if err = events.Close(); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 1 {
+		t.Fatalf("events: %v", received)
+	}
+	raw, _ := json.Marshal(received[0])
+	p := received[0]["properties"].(map[string]any)
+	if strings.Contains(string(raw), "PRIVATE_LEARNER_TEXT") || p["course_id"] != course || p["fork_lesson_index"] != float64(3) || received[0]["distinct_id"] != owner || p["source"] != "api" {
+		t.Fatal(string(raw))
+	}
+}

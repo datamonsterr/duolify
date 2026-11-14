@@ -38,6 +38,8 @@ func New(opts Options) *Service { return &Service{opts: opts} }
 type Input struct {
 	Text  string `json:"text"`
 	Scope string `json:"scope"`
+	// ConfirmFork is the Learner's explicit yes to the fork warning on a published copy (E16-05).
+	ConfirmFork bool `json:"confirm_fork,omitempty"`
 }
 
 // Record is an owned instruction and its current application state.
@@ -78,7 +80,7 @@ func (s *Service) privateCourse(ctx context.Context, owner, course string) (stri
 		return "", refusal("not_found")
 	}
 	var title string
-	err := s.opts.Pool.QueryRow(ctx, `SELECT c.title FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=c.learner_id WHERE c.id=$1::uuid AND c.learner_id=$2::uuid AND c.deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM course_copies cc WHERE cc.copy_course_id=c.id) AND c.visibility='private'`, course, owner).Scan(&title)
+	err := s.opts.Pool.QueryRow(ctx, `SELECT c.title FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=c.learner_id WHERE c.id=$1::uuid AND c.learner_id=$2::uuid AND c.deleted_at IS NULL AND c.visibility='private'`, course, owner).Scan(&title)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", refusal("not_found")
 	}
@@ -145,6 +147,14 @@ func (s *Service) Add(ctx context.Context, owner, course string, in Input) (Reco
 	if reason := ValidateText(in.Text, maxChars); reason != "" {
 		return reject(reason)
 	}
+	// A published copy forks only after an explicit confirmation; declining saves nothing, not even a screening call.
+	info, err := s.forkInfo(ctx, owner, course)
+	if err != nil {
+		return out, err
+	}
+	if info != nil && info.Required && !in.ConfirmFork {
+		return out, refusal("fork_confirmation_required")
+	}
 	verdict, code := s.screen(ctx, owner, topic, in.Text)
 	if code != "" {
 		return reject(code)
@@ -156,7 +166,7 @@ func (s *Service) Add(ctx context.Context, owner, course string, in Input) (Reco
 	defer func() { _ = tx.Rollback(ctx) }()
 	// One lock orders adds and job snapshots, even across API instances.
 	var locked string
-	if err = tx.QueryRow(ctx, `SELECT c.id::text FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=c.learner_id WHERE c.id=$1::uuid AND c.learner_id=$2::uuid AND c.deleted_at IS NULL AND c.visibility='private' AND NOT EXISTS(SELECT 1 FROM course_copies cc WHERE cc.copy_course_id=c.id) FOR UPDATE OF c`, course, owner).Scan(&locked); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT c.id::text FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=c.learner_id WHERE c.id=$1::uuid AND c.learner_id=$2::uuid AND c.deleted_at IS NULL AND c.visibility='private' FOR UPDATE OF c`, course, owner).Scan(&locked); err != nil {
 		return out, err
 	}
 	var count, total, rate int
@@ -172,6 +182,10 @@ func (s *Service) Add(ctx context.Context, owner, course string, in Input) (Reco
 	if total+utf8.RuneCountInString(in.Text) > maxTotal {
 		return reject("total_length_limit")
 	}
+	forkIndex, forkedNow, err := s.forkTx(ctx, tx, owner, course)
+	if err != nil {
+		return out, err
+	}
 	usage, _ := json.Marshal(verdict.Attempts)
 	err = tx.QueryRow(ctx, `INSERT INTO course_instructions(learner_id,course_id,text,scope,screening_verdict,screening_version,screening_usage) VALUES($1::uuid,$2::uuid,$3,$4,'allow',$5,$6) RETURNING id::text,text,scope,status,version,added_at,applied_lesson_id::text`, owner, course, in.Text, in.Scope, verdict.ScreeningVersion, usage).Scan(&out.ID, &out.Text, &out.Scope, &out.Status, &out.Version, &out.AddedAt, &out.AppliedLessonID)
 	if err != nil {
@@ -180,7 +194,10 @@ func (s *Service) Add(ctx context.Context, owner, course string, in Input) (Reco
 	if err = tx.Commit(ctx); err != nil {
 		return Record{}, err
 	}
-	s.emit(owner, "course_instruction_added", map[string]any{"course_id": course, "scope": in.Scope, "length_bucket": LengthBucket(utf8.RuneCountInString(in.Text)), "is_course_copy": false})
+	if forkedNow {
+		s.emit(owner, "course_forked_from_published", map[string]any{"course_id": course, "fork_lesson_index": forkIndex})
+	}
+	s.emit(owner, "course_instruction_added", map[string]any{"course_id": course, "scope": in.Scope, "length_bucket": LengthBucket(utf8.RuneCountInString(in.Text)), "is_course_copy": info != nil})
 	return out, nil
 }
 
