@@ -60,6 +60,8 @@ var ClassifiedLearnerTables = map[string]string{
 	"lesson_manifests":                 "erased",
 	// slide_narrations holds one row per slide and voice (E14-06); every voice row is erased with the
 	// Lesson or account, and learner_profiles.narration_voice (a logical voice key) with the profile.
+	// E17-08 pinned-speaker segments are rows of the same table (speaker key, actual voice and config
+	// version, no names or text beyond the caption) and are erased with the same Lesson or account.
 	"slide_narrations":                  "erased",
 	"narration_assets":                  "unlinked_deleted_after_last_reference_and_retention",
 	"narration_regenerations":           "unlinked_erased_with_asset",

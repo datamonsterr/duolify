@@ -147,7 +147,10 @@ export async function downloadLesson(
       html: value.html,
       assets: value.assets ?? [],
     };
-    if (slide.narration_status === "ready" && slide.narration) {
+    if (
+      (slide.narration_status === "ready" && slide.narration) ||
+      slide.segments?.some((s) => s.narration?.status === "ready")
+    ) {
       void preloadNarration(slide);
     }
   }

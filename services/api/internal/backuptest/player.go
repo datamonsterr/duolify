@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -100,6 +102,19 @@ func (f *Fixture) AssertNarrationRestored(t *testing.T, restored *pgxpool.Pool) 
 	if voicesBefore != voicesAfter || !bytes.HasPrefix([]byte(voicesAfter), []byte("fixture-warm:default="+"abababab")) || !bytes.HasSuffix([]byte(voicesAfter), []byte(":1,1")) {
 		t.Fatal("voice preference or retained voice references restore mismatch", voicesBefore, voicesAfter)
 	}
+	// E17-08: speaker order, the actual voice/config and the alignment reference restore without any synthesis.
+	const segment = `SELECT speaker_key||':'||segment_slide_id||':'||segment_index||':'||voice_key||'>'||actual_voice_key||'@'||voice_config_version||'/'||voice_fallback_reason||':'||alignment_key
+		FROM slide_narrations WHERE slide_id='seed-seg__s1'`
+	var segmentBefore, segmentAfter string
+	if err := f.DB.Pool.QueryRow(t.Context(), segment).Scan(&segmentBefore); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal(err)
+	}
+	if err := restored.QueryRow(t.Context(), segment).Scan(&segmentAfter); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal(err)
+	}
+	if segmentBefore != "" && (segmentBefore != segmentAfter || !bytes.HasPrefix([]byte(segmentAfter), []byte("guide:seed-seg:1:voice-provisional-guide>default@2026-11-13.1/voice_retired:lessons/narration/v1/"))) {
+		t.Fatal("segment voice, config or alignment reference restore mismatch", segmentBefore, segmentAfter)
+	}
 	// The restored trigger keeps counting: deleting the only reference starts retention.
 	var unreferenced bool
 	tx, err := restored.Begin(t.Context())
@@ -179,5 +194,24 @@ func (f *Fixture) AssertPlayerObjectsRestored(t *testing.T) {
 		if err != nil || !bytes.Equal(restored, authoredObjects()[entry.Key]) {
 			t.Fatal("asset restore mismatch", err)
 		}
+	}
+}
+
+// SeedSegmentNarration adds one pinned-speaker segment row and its asset to the seeded Lesson, so a
+// restore check can prove Speaker order, the actual voice/config and the alignment reference survive.
+func (f *Fixture) SeedSegmentNarration(t *testing.T) {
+	t.Helper()
+	// E17-08 (opt-in so the E14 narration counts of the shared seed stay unchanged): a pinned-speaker segment keeps its speaker order, actual voice/config and alignment reference.
+	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO narration_assets(content_hash,text_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms)
+		VALUES(repeat('12',32),repeat('34',32),'mock-character-guide-voice','eleven_flash_v2_5','fp1-2222222222222222',
+		'lessons/narration/v1/'||repeat('12',32)||'/audio.wav','lessons/narration/v1/'||repeat('12',32)||'/alignment.json',12,600,600)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO slide_narrations(lesson_id,learner_id,slide_id,voice_key,status,narration_text,content_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms,
+		speaker_key,segment_slide_id,segment_index,actual_voice_key,voice_config_version,voice_fallback_reason)
+		VALUES('f3333333-3333-4333-8333-333333333333','a1111111-1111-4111-8111-111111111111','seed-seg__s1','voice-provisional-guide','ready','Seeded segment.',repeat('12',32),'mock-character-guide-voice','eleven_flash_v2_5','fp1-2222222222222222',
+		'lessons/narration/v1/'||repeat('12',32)||'/audio.wav','lessons/narration/v1/'||repeat('12',32)||'/alignment.json',12,600,600,
+		'guide','seed-seg',1,'default','2026-11-13.1','voice_retired')`); err != nil {
+		t.Fatal(err)
 	}
 }

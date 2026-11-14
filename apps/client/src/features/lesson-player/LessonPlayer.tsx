@@ -1,4 +1,6 @@
 import { NarrationControl } from "../narration/NarrationControl";
+import { SegmentNarration } from "../narration/SegmentNarration";
+import { hasSegmentNarration, narratedDuration } from "../characters/narration";
 import { VoicePanel } from "../narration/VoicePanel";
 import { useUiPreferences } from "../design/localization/Preferences";
 import {
@@ -744,6 +746,7 @@ function SlidePlayback({
   const effectiveDuration = Math.max(
     slide.duration_ms,
     slide.narration?.duration_ms ?? 0,
+    narratedDuration(slide),
   );
   const [clock] = useState(() => {
     const c = new PlaybackClock(effectiveDuration, initialTime);
@@ -1423,46 +1426,89 @@ function SlidePlayback({
             />
           )
         )}
-        <NarrationControl
-          key={slide.slide_id}
-          lessonId={lessonId}
-          slide={slide}
-          rate={rate}
-          muted={muted}
-          captions={captionsVisible}
-          masterPlaying={playback.playing}
-          masterTime={playback.time}
-          onPlaySync={() => {
-            clock.play(performance.now());
-            command({ type: "play" });
-          }}
-          onPauseSync={() => {
-            clock.pause(performance.now());
-            command({ type: "pause" });
-          }}
-          onEndedSync={() => {
-            if (clock.snapshot().time >= slide.duration_ms) {
-              clock.end();
+        {hasSegmentNarration(slide) ? (
+          <SegmentNarration
+            key={slide.slide_id}
+            lessonId={lessonId}
+            slide={slide}
+            rate={rate}
+            muted={muted}
+            captions={captionsVisible}
+            masterPlaying={playback.playing}
+            masterTime={playback.time}
+            onPlaySync={() => {
+              clock.play(performance.now());
+              command({ type: "play" });
+            }}
+            onPauseSync={() => {
+              clock.pause(performance.now());
               command({ type: "pause" });
-              if (!viewed.current) {
-                viewed.current = true;
-                trackPlayer("slide_viewed", {
-                  lesson_id: lessonId,
-                  slide_id: slide.slide_id,
-                  index,
-                  watch_ms: Math.round(clock.snapshot().watch),
-                  offline: !navigator.onLine,
-                });
-                persist();
+            }}
+            onEndedSync={() => {
+              if (clock.snapshot().time >= slide.duration_ms) {
+                clock.end();
+                command({ type: "pause" });
+                if (!viewed.current) {
+                  viewed.current = true;
+                  trackPlayer("slide_viewed", {
+                    lesson_id: lessonId,
+                    slide_id: slide.slide_id,
+                    index,
+                    watch_ms: Math.round(clock.snapshot().watch),
+                    offline: !navigator.onLine,
+                  });
+                  persist();
+                }
               }
+            }}
+            onRecovered={() =>
+              void queryClient.invalidateQueries({
+                queryKey: ["lesson-manifest", owner, lessonId],
+              })
             }
-          }}
-          onRecovered={() =>
-            void queryClient.invalidateQueries({
-              queryKey: ["lesson-manifest", owner, lessonId],
-            })
-          }
-        />
+          />
+        ) : (
+          <NarrationControl
+            key={slide.slide_id}
+            lessonId={lessonId}
+            slide={slide}
+            rate={rate}
+            muted={muted}
+            captions={captionsVisible}
+            masterPlaying={playback.playing}
+            masterTime={playback.time}
+            onPlaySync={() => {
+              clock.play(performance.now());
+              command({ type: "play" });
+            }}
+            onPauseSync={() => {
+              clock.pause(performance.now());
+              command({ type: "pause" });
+            }}
+            onEndedSync={() => {
+              if (clock.snapshot().time >= slide.duration_ms) {
+                clock.end();
+                command({ type: "pause" });
+                if (!viewed.current) {
+                  viewed.current = true;
+                  trackPlayer("slide_viewed", {
+                    lesson_id: lessonId,
+                    slide_id: slide.slide_id,
+                    index,
+                    watch_ms: Math.round(clock.snapshot().watch),
+                    offline: !navigator.onLine,
+                  });
+                  persist();
+                }
+              }
+            }}
+            onRecovered={() =>
+              void queryClient.invalidateQueries({
+                queryKey: ["lesson-manifest", owner, lessonId],
+              })
+            }
+          />
+        )}
         {captionsVisible && (
           <p className="slide-caption">
             {slide.explanation || slide.narration_text}
