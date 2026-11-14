@@ -1,3 +1,7 @@
+import { NarrationControl } from "../narration/NarrationControl";
+import { SegmentNarration } from "../narration/SegmentNarration";
+import { hasSegmentNarration, narratedDuration } from "../characters/narration";
+import { VoicePanel } from "../narration/VoicePanel";
 import { useUiPreferences } from "../design/localization/Preferences";
 import {
   useCallback,
@@ -17,8 +21,16 @@ import {
   trackCharacterRendered,
   trackCharacterRenderFallback,
   trackGuidedUi,
+  trackNarrationMuted,
+  trackNarrationSpeedChanged,
+  trackCaptionsToggled,
 } from "../../lib/analytics";
 import { availableOffline, preparedDocument } from "../player/cache";
+import { preloadNarration } from "../narration/cache";
+import {
+  loadPlayerPreferences,
+  savePlayerPreferences,
+} from "../player/preferences";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { session } from "../accounts/session";
 import {
@@ -53,7 +65,7 @@ import { createDefaultTracerManifest } from "../characters/fixtures";
 import { generateMotionSlideHtml } from "../characters/motion-slide";
 import { generatedCharacterDocument } from "../characters/playback";
 
-const speeds = [1, 1.25, 1.5, 2, 0.75];
+const speeds = [1, 1.25, 1.5, 0.75];
 
 export function LessonPlayer({
   lessonId = "sky",
@@ -656,8 +668,9 @@ function ManifestPlayback({
       manifest.slides.findIndex((s) => s.slide_id === initial?.slide_id),
     );
   });
-  const [rate, setRate] = useState(1);
-  const [muted, setMuted] = useState(false);
+  const initialPrefs = useMemo(() => loadPlayerPreferences(), []);
+  const [rate, setRate] = useState(initialPrefs.rate);
+  const [muted, setMuted] = useState(initialPrefs.muted);
   const [resuming, setResuming] = useState(!!initial);
   const started = useRef(false);
   return (
@@ -668,9 +681,15 @@ function ManifestPlayback({
       initialTime={resuming ? (initial?.time_ms ?? 0) : 0}
       autoplay={!resuming}
       rate={rate}
-      onRate={setRate}
+      onRate={(newRate) => {
+        setRate(newRate);
+        savePlayerPreferences({ rate: newRate });
+      }}
       muted={muted}
-      onMute={setMuted}
+      onMute={(newMuted) => {
+        setMuted(newMuted);
+        savePlayerPreferences({ muted: newMuted });
+      }}
       restoreError={restoreError}
       exit={playerReturnPath(returnTo, manifest.course_id)}
       onNavigate={(next) => {
@@ -724,8 +743,13 @@ function SlidePlayback({
   const shell = useShellSession();
   const { reducedMotion } = useUiPreferences();
   const frame = useRef<HTMLIFrameElement>(null);
+  const effectiveDuration = Math.max(
+    slide.duration_ms,
+    slide.narration?.duration_ms ?? 0,
+    narratedDuration(slide),
+  );
   const [clock] = useState(() => {
-    const c = new PlaybackClock(slide.duration_ms, initialTime);
+    const c = new PlaybackClock(effectiveDuration, initialTime);
     c.rate(rate, performance.now());
     return c;
   });
@@ -736,10 +760,18 @@ function SlidePlayback({
     hasPendingSync(owner, lessonId),
   );
   const [checkpoint, setCheckpoint] = useState(false);
-  const [captionsVisible, setCaptionsVisible] = useState(true);
+  const [captionsVisible, setCaptionsVisible] = useState(
+    () => loadPlayerPreferences().captions,
+  );
+
+  useEffect(() => {
+    if (index + 1 < manifest.slides.length) {
+      void preloadNarration(manifest.slides[index + 1]);
+    }
+  }, [index, manifest.slides]);
   const [assetError, setAssetError] = useState(false);
   const [panel, setPanel] = useState<
-    "Transcript" | "Ask tutor" | "Quick note" | null
+    "Transcript" | "Ask tutor" | "Quick note" | "Voice" | null
   >(null);
   const viewed = useRef(initialTime === slide.duration_ms);
   const reached = useRef(new Set<string>());
@@ -1052,7 +1084,8 @@ function SlidePlayback({
     const timer = window.setInterval(() => {
       if (!clock.snapshot().playing) return;
       clock.tick(performance.now());
-      command({ type: "tick", time: clock.snapshot().time });
+      const currentTime = clock.snapshot().time;
+      command({ type: "tick", time: Math.min(currentTime, slide.duration_ms) });
       if (performance.now() - lastSave >= 2000) {
         persist();
         lastSave = performance.now();
@@ -1090,7 +1123,7 @@ function SlidePlayback({
         }
       } else if (
         !viewed.current &&
-        clock.snapshot().time >= slide.duration_ms
+        clock.snapshot().time >= effectiveDuration
       ) {
         viewed.current = true;
         clock.end();
@@ -1151,6 +1184,7 @@ function SlidePlayback({
     frame,
     seek,
     toggle,
+    effectiveDuration,
   ]);
   const slideFailed = !!slideDocument.error || assetError;
   const disabled = !ready || slideFailed || panel !== null;
@@ -1277,6 +1311,16 @@ function SlidePlayback({
                   onReadTranscript={() => setPanel("Transcript")}
                 />
               )}
+              {panel === "Voice" && (
+                <VoicePanel
+                  lessonId={lessonId}
+                  onChanged={() =>
+                    void queryClient.invalidateQueries({
+                      queryKey: ["lesson-manifest", owner, lessonId],
+                    })
+                  }
+                />
+              )}
             </ResponsivePanel>
           )
         }
@@ -1382,6 +1426,89 @@ function SlidePlayback({
             />
           )
         )}
+        {hasSegmentNarration(slide) ? (
+          <SegmentNarration
+            key={slide.slide_id}
+            lessonId={lessonId}
+            slide={slide}
+            rate={rate}
+            muted={muted}
+            captions={captionsVisible}
+            masterPlaying={playback.playing}
+            masterTime={playback.time}
+            onPlaySync={() => {
+              clock.play(performance.now());
+              command({ type: "play" });
+            }}
+            onPauseSync={() => {
+              clock.pause(performance.now());
+              command({ type: "pause" });
+            }}
+            onEndedSync={() => {
+              if (clock.snapshot().time >= slide.duration_ms) {
+                clock.end();
+                command({ type: "pause" });
+                if (!viewed.current) {
+                  viewed.current = true;
+                  trackPlayer("slide_viewed", {
+                    lesson_id: lessonId,
+                    slide_id: slide.slide_id,
+                    index,
+                    watch_ms: Math.round(clock.snapshot().watch),
+                    offline: !navigator.onLine,
+                  });
+                  persist();
+                }
+              }
+            }}
+            onRecovered={() =>
+              void queryClient.invalidateQueries({
+                queryKey: ["lesson-manifest", owner, lessonId],
+              })
+            }
+          />
+        ) : (
+          <NarrationControl
+            key={slide.slide_id}
+            lessonId={lessonId}
+            slide={slide}
+            rate={rate}
+            muted={muted}
+            captions={captionsVisible}
+            masterPlaying={playback.playing}
+            masterTime={playback.time}
+            onPlaySync={() => {
+              clock.play(performance.now());
+              command({ type: "play" });
+            }}
+            onPauseSync={() => {
+              clock.pause(performance.now());
+              command({ type: "pause" });
+            }}
+            onEndedSync={() => {
+              if (clock.snapshot().time >= slide.duration_ms) {
+                clock.end();
+                command({ type: "pause" });
+                if (!viewed.current) {
+                  viewed.current = true;
+                  trackPlayer("slide_viewed", {
+                    lesson_id: lessonId,
+                    slide_id: slide.slide_id,
+                    index,
+                    watch_ms: Math.round(clock.snapshot().watch),
+                    offline: !navigator.onLine,
+                  });
+                  persist();
+                }
+              }
+            }}
+            onRecovered={() =>
+              void queryClient.invalidateQueries({
+                queryKey: ["lesson-manifest", owner, lessonId],
+              })
+            }
+          />
+        )}
         {captionsVisible && (
           <p className="slide-caption">
             {slide.explanation || slide.narration_text}
@@ -1436,16 +1563,17 @@ function SlidePlayback({
               className="audio-timeline-slider"
               type="range"
               min={0}
-              max={slide.duration_ms}
+              max={effectiveDuration}
               step={100}
               value={Math.round(playback.time)}
               aria-label="Slide time"
-              aria-valuetext={`${(playback.time / 1000).toFixed(1)} of ${slide.duration_ms / 1000} seconds`}
+              aria-valuetext={`${(playback.time / 1000).toFixed(1)} of ${(effectiveDuration / 1000).toFixed(1)} seconds`}
               disabled={disabled}
               onChange={(event) => seek(Number(event.currentTarget.value))}
             />
             <span aria-hidden="true">
-              {(playback.time / 1000).toFixed(1)} / {slide.duration_ms / 1000}s
+              {(playback.time / 1000).toFixed(1)} /{" "}
+              {(effectiveDuration / 1000).toFixed(1)}s
             </span>
           </div>
           <button
@@ -1456,6 +1584,11 @@ function SlidePlayback({
               clock.rate(next, performance.now());
               onRate(next);
               command({ type: "rate", rate: next });
+              trackNarrationSpeedChanged({
+                lesson_id: lessonId,
+                slide_id: slide.slide_id,
+                speed: next,
+              });
             }}
           >
             {rate}×
@@ -1464,7 +1597,15 @@ function SlidePlayback({
             aria-label={muted ? "Unmute narration" : "Mute narration"}
             aria-pressed={muted}
             disabled={slideFailed}
-            onClick={() => onMute(!muted)}
+            onClick={() => {
+              const next = !muted;
+              onMute(next);
+              trackNarrationMuted({
+                lesson_id: lessonId,
+                slide_id: slide.slide_id,
+                muted: next,
+              });
+            }}
           >
             {muted ? "Unmute" : "Mute"}
           </button>
@@ -1507,11 +1648,31 @@ function SlidePlayback({
             className={`duo-button quiet tool-captions ${captionsVisible ? "on" : ""}`}
             type="button"
             aria-pressed={captionsVisible}
-            onClick={() => setCaptionsVisible(!captionsVisible)}
+            onClick={() => {
+              const next = !captionsVisible;
+              setCaptionsVisible(next);
+              savePlayerPreferences({ captions: next });
+              trackCaptionsToggled({
+                lesson_id: lessonId,
+                slide_id: slide.slide_id,
+                captions: next,
+              });
+            }}
           >
             Captions
           </button>
-          {(["Transcript", "Ask tutor", "Quick note"] as const).map((name) => (
+          {(
+            [
+              "Transcript",
+              "Ask tutor",
+              "Quick note",
+              ...(manifest.slides.some(
+                (s) => s.narration_status !== "disabled" || s.narration_reason,
+              )
+                ? (["Voice"] as const)
+                : []),
+            ] as const
+          ).map((name) => (
             <button
               className={`duo-button quiet ${panel === name ? "on" : ""}`}
               key={name}

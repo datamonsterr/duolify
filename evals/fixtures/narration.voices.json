@@ -1,0 +1,97 @@
+{
+  "description": "Recorded mock cases for lesson_narration approved-voice and locale alignment (E14-06). Replayed by the engine narration tests and the API narration unit tests; the live provider stays disabled (ADR 0012 E14-05, E10-06).",
+  "model_id": "eleven_flash_v2_5",
+  "voices": [
+    {
+      "key": "default",
+      "voice_id": "mock-default-voice",
+      "settings_fingerprint": "fp1-8ddf89677266ee03"
+    },
+    {
+      "key": "fixture-warm",
+      "voice_id": "mock-fixture-warm-voice",
+      "settings_fingerprint": "fp1-1450da00dede4431"
+    },
+    {
+      "key": "fixture-calm",
+      "voice_id": "mock-fixture-calm-voice",
+      "settings_fingerprint": "fp1-a3efa24ad9fae183"
+    },
+    {
+      "key": "voice-provisional-guide",
+      "voice_id": "mock-character-guide-voice",
+      "settings_fingerprint": "fp1-42145a110daaaad8"
+    },
+    {
+      "key": "voice-provisional-supporter",
+      "voice_id": "mock-character-supporter-voice",
+      "settings_fingerprint": "fp1-b256513ddc4c6295"
+    },
+    {
+      "key": "voice-provisional-companion",
+      "voice_id": "mock-character-companion-voice",
+      "settings_fingerprint": "fp1-018e5989f7259c5f"
+    }
+  ],
+  "cases": [
+    {
+      "id": "approved-voice-alignment",
+      "kind": "voice_alignment",
+      "text": "The sky is a map.",
+      "voices": [
+        "default",
+        "fixture-warm",
+        "fixture-calm"
+      ],
+      "expect": {
+        "alignment_covers_every_character": true,
+        "duration_ms": 850,
+        "distinct_hash_per_voice": true,
+        "charge_characters": "chars"
+      }
+    },
+    {
+      "id": "approved-voice-locale",
+      "kind": "voice_locale",
+      "voices": [
+        "fixture-warm",
+        "fixture-calm"
+      ],
+      "texts": [
+        "Xin chào, thế giới.",
+        "日本語のナレーション",
+        "Café ñandú"
+      ],
+      "expect": {
+        "alignment_covers_every_character": true,
+        "charge_characters": "chars"
+      }
+    },
+    {
+      "id": "unapproved-voice-rejected",
+      "kind": "unapproved_voice",
+      "voice_key": "not-approved",
+      "text": "Hello sky",
+      "expect": {
+        "error": "voice_unavailable",
+        "charge": 0,
+        "provider_calls": 0,
+        "text_lesson_usable": true
+      }
+    },
+    {
+      "id": "voice-switch-replay-free",
+      "kind": "switch_replay",
+      "text": "Stars are suns.",
+      "voices": [
+        "default",
+        "fixture-warm"
+      ],
+      "expect": {
+        "switch_back_charge": 0,
+        "switch_back_provider_calls": 0,
+        "old_asset_retained": true
+      }
+    }
+  ]
+}

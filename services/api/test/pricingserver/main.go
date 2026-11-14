@@ -17,6 +17,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -31,6 +32,8 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits/creditstest"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
+	"github.com/datamonsterr/duolify/services/api/internal/narration"
+	"github.com/datamonsterr/duolify/services/api/internal/narration/narrationtest"
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
@@ -42,6 +45,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -163,7 +167,8 @@ func run() (result error) {
 		}()
 	}
 	objects := &fixtureObjects{values: playerfixture.Documents()}
-	lessonPlayer := player.New(player.Options{Pool: db.Pool, Objects: objects, AssetOrigin: playerfixture.AssetOrigin, Credits: paidCredits})
+	lateNarration := &lateNarrationRecovery{}
+	lessonPlayer := player.New(player.Options{Pool: db.Pool, Objects: objects, AssetOrigin: playerfixture.AssetOrigin, Credits: paidCredits, Narration: lateNarration})
 	mux := http.NewServeMux()
 	characterService := characters.NewService(db.Pool, nil, nil)
 	characterService.ConfigureScreening(characterScreenFixture{})
@@ -229,6 +234,15 @@ func run() (result error) {
 	mux.Handle("POST /test/subscription/fund", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		owner := accounts.LearnerID(r.Context())
 		plan := catalogue.Config().Plans[0]
+		var fund struct {
+			PlanID string `json:"plan_id"`
+		}
+		_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&fund)
+		for _, candidate := range catalogue.Config().Plans {
+			if fund.PlanID != "" && candidate.ID == fund.PlanID {
+				plan = candidate
+			}
+		}
 		order, err := paidCredits.CreateCheckout(r.Context(), owner, credits.CheckoutInput{
 			RequestID:      uuid.NewString(),
 			SKU:            plan.Monthly.SKU,
@@ -297,7 +311,8 @@ func run() (result error) {
 		_ = json.NewEncoder(w).Encode(map[string]bool{"expired": true})
 	})))
 	grpcServer := grpc.NewServer()
-	enginev1.RegisterEngineServiceServer(grpcServer, &mockE2ENoteServer{})
+	speechTwin := &narrationtest.Engine{}
+	enginev1.RegisterEngineServiceServer(grpcServer, &mockE2ENoteServer{speech: speechTwin})
 	engineLis, err := new(net.ListenConfig).Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		return err
@@ -312,6 +327,65 @@ func run() (result error) {
 	engineClient := enginev1.NewEngineServiceClient(engineConn)
 
 	notesService := notes.NewServiceWithEnrichment(db.Pool, nil, paidCredits, engineClient)
+	// E14-01: queue mock narration for a seeded lesson; slide faults exercise recovery.
+	narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: objects, Speech: engineClient, Financial: paidCredits, Entitlements: paidCredits, FixtureVoices: true, JobAttempts: 1, Segments: characterService})
+	narrationQueue, err := narrationService.Queue()
+	if err != nil {
+		return err
+	}
+	lateNarration.service = narrationService
+	registerNarrationTestRoutes(mux, auth, db.Pool, objects, speechTwin, narrationService)
+	registerCharacterNarrationRoutes(mux, auth, db.Pool, characterService, speechTwin, objects)
+	if err := narrationQueue.Start(ctx); err != nil {
+		return err
+	}
+	defer func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = narrationQueue.Stop(stopCtx)
+	}()
+	mux.Handle("POST /test/narration/queue", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			LessonID string            `json:"lesson_id"`
+			Fail     map[string]string `json:"fail"`
+			Salt     string            `json:"salt"`
+			// NoTopup leaves the Learner without audio credits (E14-06 recovery path).
+			NoTopup bool `json:"no_topup"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		owner := accounts.LearnerID(r.Context())
+		manifest, err := saltedManifest(objects, in.Salt)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		faults := map[string]string{}
+		for _, slide := range manifest.Slides {
+			if mode := in.Fail[slide.ID]; mode != "" {
+				faults[slide.NarrationText] = mode
+			}
+		}
+		for text, mode := range currentSegmentFaults() {
+			faults[text] = mode
+		}
+		speechTwin.SetFaults(faults)
+		if !in.NoTopup {
+			if _, err := db.Pool.Exec(r.Context(), `INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
+				VALUES ($1, 50, 'purchase', 'topup:' || gen_random_uuid(), '2026.04', '{"bucket": "purchase"}'::jsonb)`, owner); err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			_ = paidCredits.InvalidateCache(r.Context(), owner)
+		}
+		if _, err := narrationService.Enqueue(r.Context(), owner, in.LessonID); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	})))
 	arrivalHook := func(ctx context.Context, learnerID string) {
 		_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
 	}
@@ -355,6 +429,7 @@ func run() (result error) {
 		Sharing:                 newSharingService(db.Pool, objects, sharingGeneration),
 		Notes:                   notesService,
 		Player:                  lessonPlayer,
+		NarrationVoices:         narrationService.HTTP(),
 		LessonTestTracerEnabled: tracerEnabled,
 		LessonTest:              lessonHandler,
 		Characters:              charHandler,
@@ -788,6 +863,12 @@ type fixtureObjects struct {
 	values map[string][]byte
 }
 
+func (f *fixtureObjects) snapshot(key string) []byte {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.values[key]
+}
+
 func (f *fixtureObjects) Get(_ context.Context, key string) ([]byte, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -815,6 +896,11 @@ func (f *fixtureObjects) Put(_ context.Context, key string, value []byte) error 
 
 type mockE2ENoteServer struct {
 	enginev1.UnimplementedEngineServiceServer
+	speech *narrationtest.Engine
+}
+
+func (m mockE2ENoteServer) SynthesizeNarration(ctx context.Context, req *enginev1.SynthesizeNarrationRequest) (*enginev1.SynthesizeNarrationResponse, error) {
+	return m.speech.SynthesizeNarration(ctx, req)
 }
 
 func (mockE2ENoteServer) EnrichNote(_ context.Context, req *enginev1.EnrichNoteRequest) (*enginev1.EnrichNoteResponse, error) {
@@ -837,4 +923,164 @@ func (mockE2ENoteServer) EnrichNote(_ context.Context, req *enginev1.EnrichNoteR
 			Delivered:    true,
 		},
 	}, nil
+}
+
+// lateNarrationRecovery binds the narration service after the player is constructed.
+type lateNarrationRecovery struct{ service *narration.Service }
+
+func (l *lateNarrationRecovery) Retry(ctx context.Context, owner, lesson, slide string) (string, error) {
+	return l.service.Retry(ctx, owner, lesson, slide)
+}
+
+func (l *lateNarrationRecovery) Recover(ctx context.Context, owner, lesson, slide string) (string, error) {
+	return l.service.Recover(ctx, owner, lesson, slide)
+}
+
+func (f *fixtureObjects) remove(key string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.values, key)
+}
+
+// registerNarrationTestRoutes exposes E14-02 observation and fault hooks for disposable e2e runs only.
+func registerNarrationTestRoutes(mux *http.ServeMux, auth *accounts.Service, pool *pgxpool.Pool, objects *fixtureObjects, twin *narrationtest.Engine, service *narration.Service) {
+	reply := func(w http.ResponseWriter, status int, value any) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(value)
+	}
+	mux.Handle("POST /test/narration/twin", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			LessonID string `json:"lesson_id"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		id, err := playerfixture.Twin(r.Context(), pool, accounts.LearnerID(r.Context()), in.LessonID)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		reply(w, http.StatusCreated, map[string]string{"lesson_id": id})
+	})))
+	mux.Handle("POST /test/narration/salt", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			LessonID string `json:"lesson_id"`
+			Salt     string `json:"salt"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil || !regexp.MustCompile(`^[a-z0-9]{4,16}$`).MatchString(in.Salt) {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		manifest, err := saltedManifest(objects, in.Salt)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		raw, _ := json.Marshal(manifest)
+		key := "lessons/fixture-salt/" + in.Salt + "/manifest.json"
+		if err = objects.Put(r.Context(), key, raw); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		if _, err = pool.Exec(r.Context(), `UPDATE lesson_manifests SET manifest_key=$3 WHERE lesson_id::text=$1 AND learner_id::text=$2`, in.LessonID, accounts.LearnerID(r.Context()), key); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	mux.Handle("POST /test/narration/faults", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Fail map[string]string `json:"fail"`
+			Salt string            `json:"salt"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		manifest, err := saltedManifest(objects, in.Salt)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		faults := map[string]string{}
+		for _, slide := range manifest.Slides {
+			if mode := in.Fail[slide.ID]; mode != "" {
+				faults[slide.NarrationText] = mode
+			}
+		}
+		twin.SetFaults(faults)
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	mux.Handle("POST /test/narration/lose-object", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			LessonID string `json:"lesson_id"`
+			SlideID  string `json:"slide_id"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		var audio, alignment string
+		if err := pool.QueryRow(r.Context(), `SELECT audio_key,alignment_key FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND status='ready'`,
+			in.LessonID, accounts.LearnerID(r.Context()), in.SlideID).Scan(&audio, &alignment); err != nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		objects.remove(audio)
+		objects.remove(alignment)
+		reply(w, http.StatusOK, map[string]bool{"lost": true})
+	})))
+	mux.Handle("POST /test/narration/operator-regenerate", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n, err := service.RegenerateMissing(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		reply(w, http.StatusOK, map[string]int{"regenerated": n})
+	})))
+	mux.Handle("GET /test/narration/stats", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		out := map[string]any{"synth_calls": twin.CallsContaining(r.URL.Query().Get("salt"))}
+		var spent, characters int
+		_ = pool.QueryRow(r.Context(), `SELECT COALESCE(sum((j.result->>'audio_spent')::int),0) FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.learner_id::text=$1 AND q.snapshot->>'action'='narration'`, owner).Scan(&spent)
+		_ = pool.QueryRow(r.Context(), `SELECT COALESCE(sum(characters),0) FROM narration_assets WHERE state='ready' AND content_hash IN (SELECT content_hash FROM slide_narrations WHERE learner_id::text=$1)`, owner).Scan(&characters)
+		refs, regenerations := []int{}, []map[string]string{}
+		rows, err := pool.Query(r.Context(), `SELECT ref_count FROM narration_assets WHERE content_hash IN (SELECT content_hash FROM slide_narrations WHERE learner_id::text=$1) ORDER BY content_hash`, owner)
+		if err == nil {
+			for rows.Next() {
+				var n int
+				_ = rows.Scan(&n)
+				refs = append(refs, n)
+			}
+			rows.Close()
+		}
+		rows, err = pool.Query(r.Context(), `SELECT status FROM narration_regenerations WHERE content_hash IN (SELECT content_hash FROM slide_narrations WHERE learner_id::text=$1) ORDER BY requested_at`, owner)
+		if err == nil {
+			for rows.Next() {
+				var st string
+				_ = rows.Scan(&st)
+				regenerations = append(regenerations, map[string]string{"status": st})
+			}
+			rows.Close()
+		}
+		out["spent"], out["characters"], out["ref_counts"], out["regenerations"] = spent, characters, refs, regenerations
+		reply(w, http.StatusOK, out)
+	})))
+}
+
+// saltedManifest returns the fixture manifest with every narration text made unique by the salt,
+// so parallel e2e runs never share content hashes. An empty salt returns the fixture unchanged.
+func saltedManifest(objects *fixtureObjects, salt string) (player.ObjectManifest, error) {
+	var manifest player.ObjectManifest
+	if err := json.Unmarshal(objects.snapshot(playerfixture.ManifestKey), &manifest); err != nil {
+		return manifest, err
+	}
+	if salt != "" {
+		for i := range manifest.Slides {
+			manifest.Slides[i].NarrationText += " " + salt
+		}
+	}
+	return manifest, nil
 }

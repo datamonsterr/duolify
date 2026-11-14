@@ -94,11 +94,12 @@ func allowlisted(event string) bool {
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
 		"character_rendered", "character_render_fallback", "character_reaction_shown", "tutor_character_selected", "tutor_character_fallback",
 		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
-		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied",
+		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied", "character_voice_fallback",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
-		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand":
+		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
+		"narration_generated", "narration_failed", "narration_cache_hit", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled":
 		return true
 	default:
 		return false
@@ -426,6 +427,33 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("scope", "status", "pricing_version")
 		numeric("actual_usd", "budget_usd", "threshold", "actual_percent", "cost_nanos", "budget_nanos", "cache_hit_rate", "paid_margin")
 		boolean("ok")
+	case "narration_generated":
+		ids("lesson_id", "slide_id", "voice_id", "model", "voice_key", "speaker_key")
+		numeric("characters", "latency_ms")
+	case "narration_cache_hit":
+		ids("lesson_id", "slide_id", "model", "voice_key", "speaker_key")
+	case "character_voice_fallback":
+		ids("speaker_key", "voice_config_version")
+		if reason, ok := input["reason_code"].(string); ok {
+			switch reason {
+			case "voice_retired", "voice_unavailable", "voice_not_entitled":
+				out["reason_code"] = reason
+			}
+		}
+	case "narration_failed":
+		ids("lesson_id", "slide_id", "error_code")
+	case "narration_played":
+		ids("lesson_id", "slide_id")
+		numeric("duration_ms")
+	case "narration_muted":
+		ids("lesson_id", "slide_id")
+		boolean("muted")
+	case "narration_speed_changed":
+		ids("lesson_id", "slide_id")
+		numeric("speed")
+	case "captions_toggled":
+		ids("lesson_id", "slide_id")
+		boolean("captions")
 	case "$ai_generation":
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
 		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available", "usage_estimated")

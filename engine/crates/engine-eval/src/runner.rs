@@ -1120,7 +1120,100 @@ async fn evaluate_persona_chat(input: &serde_json::Value) -> Result<String> {
     Ok(out.to_string())
 }
 
+/// Offline E17-08 case: pinned-speaker segments through the recorded mock speech provider and the
+/// approved voice config. Scores voice/speaker validity, speaking-rate bounds, alignment coverage and
+/// order, cache keys and the captions-only failure path. Nothing here calls a vendor.
+async fn evaluate_narration(input: &serde_json::Value) -> Result<String> {
+    use engine_core::characters::narrate;
+    use engine_core::narration::{MockSpeechProvider, SpeechProvider, SpeechRequest, validate};
+    let case = &input["narration_case"];
+    let voices = match case.get("voice_config") {
+        Some(cfg) => narrate::CharacterVoices::from_json(&cfg.to_string())
+            .ok_or_else(|| anyhow::anyhow!("invalid voice config"))?,
+        None => narrate::voices(),
+    };
+    let slide = case["slide_id"].as_str().unwrap_or("s1");
+    let segments = case["segments"].as_array().cloned().unwrap_or_default();
+    let ids: Vec<(String, String)> = segments
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let id = s["segment_id"]
+                .as_str()
+                .map_or_else(|| narrate::segment_id(slide, i), String::from);
+            (id, s["text"].as_str().unwrap_or_default().to_string())
+        })
+        .collect();
+    let failure = case["provider_failure"].as_bool().unwrap_or(false);
+    let gap = case["alignment_gap"].as_bool().unwrap_or(false);
+    let (mut keys, mut speeds, mut fallbacks) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut covers, mut delivered, mut characters) = (true, !failure, 0usize);
+    let (mut speakers_valid, mut voices_valid) = (true, true);
+    for (segment, (_, text)) in segments.iter().zip(&ids) {
+        let speaker = segment["speaker_key"].as_str().unwrap_or_default();
+        speakers_valid &= case["cast_speakers"]
+            .as_array()
+            .is_some_and(|c| c.iter().any(|k| k == speaker));
+        let r = voices.resolve(segment["voice_key"].as_str().unwrap_or_default());
+        voices_valid &= r.config.voice_id.starts_with("mock-");
+        speeds.push(r.config.speed);
+        if let Some(reason) = r.fallback {
+            fallbacks.push(reason);
+        }
+        keys.push(format!(
+            "{text}|{}|{}|{}",
+            r.config.voice_id,
+            r.config.model_id,
+            r.config.fingerprint()
+        ));
+        if failure {
+            continue;
+        }
+        let req = SpeechRequest {
+            text: text.clone(),
+            language: segment["language"].as_str().unwrap_or("en").into(),
+            voice_id: r.config.voice_id.clone(),
+            model_id: r.config.model_id.clone(),
+        };
+        let mut out = MockSpeechProvider.synthesize(&req).await?;
+        if gap && out.alignment.characters.len() > 1 {
+            out.alignment.characters.remove(0);
+            out.alignment.start_ms.remove(0);
+            out.alignment.end_ms.remove(0);
+        }
+        if validate(text, &out).is_err() {
+            covers = false;
+            delivered = false;
+        } else {
+            characters += text.chars().count();
+        }
+    }
+    let mut unique = keys.clone();
+    unique.sort();
+    unique.dedup();
+    Ok(serde_json::json!({
+        "speakers_valid": speakers_valid,
+        "voices_valid": voices_valid,
+        "rate_in_bounds": speeds.iter().all(|s| (0.7..=1.2).contains(s)),
+        "order_valid": narrate::segments_in_order(slide, &ids).is_ok(),
+        "alignment_covers": covers,
+        "output_rejected": !covers,
+        "unique_cache_keys": unique.len(),
+        "requests": keys.len(),
+        "fallback_reasons": fallbacks,
+        "captions_kept": ids.iter().all(|(_, t)| !t.trim().is_empty()),
+        "audio_delivered": delivered && !segments.is_empty(),
+        "charged_characters": if delivered { characters } else { 0 },
+        "character_create_charges": 0,
+        "prompt_leak": input.to_string().to_lowercase().contains("system prompt"),
+    })
+    .to_string())
+}
+
 async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<String> {
+    if input.get("narration_case").is_some() {
+        return evaluate_narration(input).await;
+    }
     if task == "character_reactions" || input.get("reaction_case").is_some() {
         return evaluate_reaction(input);
     }

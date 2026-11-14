@@ -7,6 +7,8 @@ use tracing::Instrument;
 
 pub struct Service {
     pub router: Arc<ProviderRouter>,
+    /// Narration provider; only the deterministic mock exists until E14-04.
+    pub speech: Arc<dyn engine_core::narration::SpeechProvider>,
 }
 type RpcStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send>>;
 fn usage(c: &Completion) -> Option<pb::Usage> {
@@ -561,6 +563,120 @@ impl EngineService for Service {
             attempts,
             unavailable: outcome.completion.is_none(),
         }))
+    }
+    #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
+    async fn synthesize_narration(
+        &self,
+        request: Request<pb::SynthesizeNarrationRequest>,
+    ) -> Result<Response<pb::SynthesizeNarrationResponse>, Status> {
+        use engine_core::narration as speech;
+        let req = request.into_inner();
+        // E17-08: a pinned-speaker segment resolves its Character voice key only through the approved
+        // config (retired or unknown keys use the default) and runs under the stricter budgets.
+        let character = !req.speaker_key.is_empty();
+        let (voice_key, voice, fallback) = if character {
+            let r = engine_core::characters::narrate::resolve_voice(&req.voice_key);
+            // The provider decides which approved voices it can serve (live: only its configured default).
+            match self.speech.voice(&r.voice_key) {
+                Some(v) => (r.voice_key, v, r.fallback),
+                None => {
+                    let v = self
+                        .speech
+                        .voice("default")
+                        .ok_or_else(|| Status::failed_precondition("voice unavailable"))?;
+                    ("default".to_string(), v, Some("voice_unavailable"))
+                }
+            }
+        } else {
+            let v = self
+                .speech
+                .voice(&req.voice_key)
+                .ok_or_else(|| Status::failed_precondition("voice unavailable"))?;
+            (req.voice_key.clone(), v, None)
+        };
+        let limits = req.limits.unwrap_or_default();
+        if !limits.model.is_empty() && limits.model != voice.model_id {
+            return Err(Status::failed_precondition(
+                "quote route differs from evaluated route",
+            ));
+        }
+        let mut response = pb::SynthesizeNarrationResponse {
+            voice_id: voice.voice_id.clone(),
+            model_id: voice.model_id.clone(),
+            settings_fingerprint: voice.fingerprint(),
+            voice_key,
+            voice_config_version: engine_core::characters::narrate::voices().version().into(),
+            voice_fallback_reason: fallback.unwrap_or_default().into(),
+            segment_id: req.segment_id.clone(),
+            speaker_key: req.speaker_key.clone(),
+            ..Default::default()
+        };
+        if req.resolve_only {
+            return Ok(Response::new(response));
+        }
+        let speech_request = speech::SpeechRequest {
+            text: req.text,
+            language: req.language,
+            voice_id: voice.voice_id,
+            model_id: voice.model_id.clone(),
+        };
+        // E14 launch limits: 60 s per call, one repair/retry after the primary, never above the quote.
+        // Character segments take the stricter 30 s ceiling.
+        let (timeout_ms, attempts) = if character {
+            engine_core::characters::narrate::budget(limits.timeout_ms, limits.max_attempts)
+        } else {
+            (
+                match limits.timeout_ms {
+                    0 => speech::MAX_TTS_TIMEOUT_MS,
+                    t => t.min(speech::MAX_TTS_TIMEOUT_MS),
+                },
+                match limits.max_attempts {
+                    0 => speech::MAX_TTS_ATTEMPTS,
+                    a => a.min(speech::MAX_TTS_ATTEMPTS),
+                },
+            )
+        };
+        let started = std::time::Instant::now();
+        let (out, attempt) = speech::synthesize_bounded(
+            self.speech.as_ref(),
+            &speech_request,
+            std::time::Duration::from_millis(u64::from(timeout_ms)),
+            attempts,
+        )
+        .await
+        .map_err(|e| match e {
+            speech::SpeechError::MissingText => Status::invalid_argument("narration text missing"),
+            speech::SpeechError::Timeout => Status::deadline_exceeded("speech call timed out"),
+            speech::SpeechError::InvalidAlignment(_) => Status::data_loss("invalid alignment"),
+            speech::SpeechError::RateLimited => {
+                Status::resource_exhausted("speech provider rate limited")
+            }
+            speech::SpeechError::Provider(_) => Status::unavailable("speech provider unavailable"),
+        })?;
+        let characters = out.alignment.characters.len() as u32;
+        let latency_ms = started.elapsed().as_millis().min(u128::from(u32::MAX)) as u32;
+        let u = speech::usage_for(&voice.model_id, characters, attempt, latency_ms);
+        response.audio_bytes = out.audio.len() as u32;
+        response.audio = out.audio;
+        response.audio_format = out.format;
+        response.duration_ms = out.duration_ms;
+        response.characters = characters;
+        response.alignment = Some(pb::NarrationAlignment {
+            characters: out.alignment.characters,
+            start_ms: out.alignment.start_ms,
+            end_ms: out.alignment.end_ms,
+        });
+        response.usage = Some(pb::Usage {
+            provider: u.provider,
+            model: u.model,
+            component: u.component,
+            narration_characters: u.narration_characters,
+            attempt: u.attempt,
+            latency_ms: u.latency_ms,
+            delivered: u.delivered,
+            ..Default::default()
+        });
+        Ok(Response::new(response))
     }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&_request).request_id, trace_id = %correlation(&_request).trace_id, parent_span_id = %correlation(&_request).parent_span_id, span_id = %span_id()))]
     async fn health(

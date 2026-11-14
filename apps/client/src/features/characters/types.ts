@@ -59,6 +59,21 @@ export interface LessonCastSnapshot {
   fallback_used?: boolean;
 }
 
+/** Audio state of one pinned-speaker segment (E17-08); absent when narration was never queued. */
+export interface SegmentNarration {
+  status: "pending" | "ready" | "failed" | "disabled";
+  /** Fixed code for a failed or disabled segment, for example engine_unavailable. */
+  reason?: string;
+  audio_url?: string;
+  alignment_url?: string;
+  duration_ms?: number;
+  characters?: number;
+  /** The logical voice actually used; never a provider id. */
+  voice_key?: string;
+  /** Fixed reason when the Character voice was replaced by the safe default. */
+  voice_fallback?: string;
+}
+
 export interface SlideSegment {
   speaker_key: string;
   speaker_label: string;
@@ -66,6 +81,7 @@ export interface SlideSegment {
   expression: Expression;
   start_ms: number;
   duration_ms: number;
+  narration?: SegmentNarration;
 }
 
 export interface SlideManifest {

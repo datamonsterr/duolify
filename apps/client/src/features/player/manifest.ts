@@ -11,7 +11,16 @@ export type ManifestSlide = {
   html_url: string;
   assets: string[];
   checkpoints: Checkpoint[];
-  narration_status: "disabled" | "pending" | "failed";
+  narration_status: "disabled" | "pending" | "ready" | "failed";
+  /** Fixed code for a disabled slide, for example insufficient_credits. */
+  narration_reason?: string;
+  /** Present only when narration_status is ready; routes are owner-only. */
+  narration?: {
+    audio_url: string;
+    alignment_url: string;
+    duration_ms: number;
+    characters: number;
+  };
   narration_text: string;
   explanation?: string;
   /** Pinned, validated character dialogue; absent for non-cast lessons. */
@@ -51,14 +60,63 @@ function validCast(value: unknown) {
     )
   );
 }
-function validSegments(value: unknown, duration: number, cast?: unknown) {
+const narrationStatuses = ["pending", "ready", "failed", "disabled"];
+/** A segment's narration is closed-schema and its routes name only its own segment row. */
+function validSegmentNarration(
+  lesson: string,
+  slide: string,
+  index: number,
+  n: unknown,
+) {
+  if (n === undefined) return true;
+  if (!record(n) || !narrationStatuses.includes(String(n.status))) return false;
+  const base = `/v1/lessons/${lesson}/slides/${slide}__s${index}/narration/`;
+  const allowed = [
+    "status",
+    "reason",
+    "audio_url",
+    "alignment_url",
+    "duration_ms",
+    "characters",
+    "voice_key",
+    "voice_fallback",
+  ];
+  if (!Object.keys(n).every((k) => allowed.includes(k))) return false;
+  for (const k of ["reason", "voice_key", "voice_fallback"])
+    if (
+      n[k] !== undefined &&
+      (typeof n[k] !== "string" || !/^[a-z0-9_-]{1,64}$/.test(String(n[k])))
+    )
+      return false;
+  if (n.status !== "ready")
+    return (
+      n.audio_url === undefined &&
+      n.alignment_url === undefined &&
+      n.duration_ms === undefined
+    );
+  return (
+    n.audio_url === `${base}audio` &&
+    n.alignment_url === `${base}alignment` &&
+    Number.isSafeInteger(n.duration_ms) &&
+    Number(n.duration_ms) > 0 &&
+    Number.isSafeInteger(n.characters) &&
+    Number(n.characters) > 0
+  );
+}
+function validSegments(
+  value: unknown,
+  duration: number,
+  cast?: unknown,
+  lesson = "",
+  slide = "",
+) {
   if (value === undefined) return true;
   if (!Array.isArray(value) || value.length > 12) return false;
   const known = record(cast) && record(cast.speakers) ? cast.speakers : {};
   return value.every(
-    (s) =>
+    (s, index) =>
       record(s) &&
-      keys(s, [
+      keys(omit(s, "narration"), [
         "speaker_key",
         "speaker_label",
         "text",
@@ -66,6 +124,7 @@ function validSegments(value: unknown, duration: number, cast?: unknown) {
         "start_ms",
         "duration_ms",
       ]) &&
+      validSegmentNarration(lesson, slide, index, s.narration) &&
       typeof s.speaker_key === "string" &&
       id.test(s.speaker_key) &&
       Object.prototype.hasOwnProperty.call(known, s.speaker_key) &&
@@ -80,6 +139,38 @@ function validSegments(value: unknown, duration: number, cast?: unknown) {
       Number(s.start_ms) >= 0 &&
       Number(s.duration_ms) > 0 &&
       Number(s.start_ms) + Number(s.duration_ms) <= duration,
+  );
+}
+function validNarration(lesson: string, slide: Record<string, unknown>) {
+  const ready = slide.narration_status === "ready";
+  const n = slide.narration;
+  if (!ready) return n === undefined;
+  // Pinned speakers narrate this slide segment by segment: the segments carry the audio.
+  if (
+    n === undefined &&
+    Array.isArray(slide.segments) &&
+    slide.segments.length > 0 &&
+    slide.segments.some(
+      (s) => record(s) && record(s.narration) && s.narration.status === "ready",
+    ) &&
+    slide.segments.every(
+      (s) =>
+        record(s) &&
+        (s.narration === undefined ||
+          (record(s.narration) && s.narration.status === "ready")),
+    )
+  )
+    return true;
+  const base = `/v1/lessons/${lesson}/slides/${String(slide.slide_id)}/narration/`;
+  return (
+    record(n) &&
+    keys(n, ["audio_url", "alignment_url", "duration_ms", "characters"]) &&
+    n.audio_url === `${base}audio` &&
+    n.alignment_url === `${base}alignment` &&
+    Number.isSafeInteger(n.duration_ms) &&
+    Number(n.duration_ms) > 0 &&
+    Number.isSafeInteger(n.characters) &&
+    Number(n.characters) > 0
   );
 }
 function keys(value: Record<string, unknown>, names: string[]) {
@@ -136,48 +227,60 @@ export function isManifest(value: unknown): value is Manifest {
     if (
       !record(slide) ||
       !(
-        keys(omit(slide, "segments"), [
-          "slide_id",
-          "html_sha256",
-          "asset_sha256",
-          "duration_ms",
-          "html_url",
-          "assets",
-          "checkpoints",
-          "narration_status",
-          "narration_text",
-          "explanation",
-        ]) ||
-        keys(omit(slide, "segments"), [
-          "slide_id",
-          "duration_ms",
-          "html_url",
-          "assets",
-          "checkpoints",
-          "narration_status",
-          "narration_text",
-          "explanation",
-        ]) ||
-        keys(omit(slide, "segments"), [
-          "slide_id",
-          "html_sha256",
-          "asset_sha256",
-          "duration_ms",
-          "html_url",
-          "assets",
-          "checkpoints",
-          "narration_status",
-          "narration_text",
-        ]) ||
-        keys(omit(slide, "segments"), [
-          "slide_id",
-          "duration_ms",
-          "html_url",
-          "assets",
-          "checkpoints",
-          "narration_status",
-          "narration_text",
-        ])
+        keys(
+          omit(omit(omit(slide, "segments"), "narration"), "narration_reason"),
+          [
+            "slide_id",
+            "html_sha256",
+            "asset_sha256",
+            "duration_ms",
+            "html_url",
+            "assets",
+            "checkpoints",
+            "narration_status",
+            "narration_text",
+            "explanation",
+          ],
+        ) ||
+        keys(
+          omit(omit(omit(slide, "segments"), "narration"), "narration_reason"),
+          [
+            "slide_id",
+            "duration_ms",
+            "html_url",
+            "assets",
+            "checkpoints",
+            "narration_status",
+            "narration_text",
+            "explanation",
+          ],
+        ) ||
+        keys(
+          omit(omit(omit(slide, "segments"), "narration"), "narration_reason"),
+          [
+            "slide_id",
+            "html_sha256",
+            "asset_sha256",
+            "duration_ms",
+            "html_url",
+            "assets",
+            "checkpoints",
+            "narration_status",
+            "narration_text",
+          ],
+        ) ||
+        keys(
+          omit(omit(omit(slide, "segments"), "narration"), "narration_reason"),
+          [
+            "slide_id",
+            "duration_ms",
+            "html_url",
+            "assets",
+            "checkpoints",
+            "narration_status",
+            "narration_text",
+          ],
+        )
       ) ||
       typeof slide.slide_id !== "string" ||
       (slide.html_sha256 !== undefined &&
@@ -189,12 +292,22 @@ export function isManifest(value: unknown): value is Manifest {
       !Number.isSafeInteger(slide.duration_ms) ||
       Number(slide.duration_ms) < 1 ||
       Number(slide.duration_ms) > 120000 ||
-      !validSegments(slide.segments, Number(slide.duration_ms), value.cast) ||
+      !validSegments(
+        slide.segments,
+        Number(slide.duration_ms),
+        value.cast,
+        String(value.lesson_id),
+        slide.slide_id,
+      ) ||
       slide.html_url !==
         `/v1/lessons/${value.lesson_id}/slides/${slide.slide_id}` ||
-      !["disabled", "pending", "failed"].includes(
+      !["disabled", "pending", "ready", "failed"].includes(
         String(slide.narration_status),
       ) ||
+      (slide.narration_reason !== undefined &&
+        (typeof slide.narration_reason !== "string" ||
+          !/^[a-z_]{1,64}$/.test(slide.narration_reason))) ||
+      !validNarration(String(value.lesson_id), slide) ||
       typeof slide.narration_text !== "string" ||
       slide.narration_text.length > 20000 ||
       (slide.explanation !== undefined &&

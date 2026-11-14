@@ -12,6 +12,7 @@ async fn all_rpcs() {
     let addr = listener.local_addr().unwrap();
     let server = EngineServiceServer::new(Service {
         router: Arc::new(engine_providers::router("mock").unwrap()),
+        speech: Arc::new(engine_core::narration::MockSpeechProvider),
     });
     let task = tokio::spawn(async move {
         Server::builder()

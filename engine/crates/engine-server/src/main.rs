@@ -18,6 +18,7 @@ async fn main() -> anyhow::Result<()> {
     let mode = startup_cfg.provider_mode;
     let service = EngineServiceServer::new(Service {
         router: Arc::new(engine_providers::router(&mode)?),
+        speech: engine_providers::elevenlabs::select_speech(|k| std::env::var(k).ok()),
     });
     let (reporter, health) = tonic_health::server::health_reporter();
     reporter.set_serving::<EngineServiceServer<Service>>().await;

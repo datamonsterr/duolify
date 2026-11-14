@@ -36,3 +36,6 @@ evals/reports/
 
 # Claude worktrees
 .claude/worktrees/
+
+# Built test server binary (go build in services/api/test/pricingserver)
+/services/api/test/pricingserver/pricingserver

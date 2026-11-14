@@ -227,3 +227,119 @@ fn tutor_event_props_carry_only_private_enums_and_numbers() {
         "persona_unavailable"
     );
 }
+
+// ---- E17-08: pinned speakers narrated with allowlisted Character voices ----
+
+#[test]
+fn character_voice_resolves_only_through_the_approved_config() {
+    let guide = narrate::resolve_voice("voice-provisional-guide");
+    assert_eq!(guide.voice_key, "voice-provisional-guide");
+    assert_eq!(guide.fallback, None);
+    assert_eq!(guide.config.voice_id, "mock-character-guide-voice");
+    let supporter = narrate::resolve_voice("voice-provisional-supporter");
+    assert_ne!(guide.config.fingerprint(), supporter.config.fingerprint());
+    // Provider ids, cloning requests and unknown keys never reach the vendor: safe default instead.
+    for raw in [
+        "mock-character-guide-voice",
+        "clone-my-voice",
+        "",
+        "VOICE-X",
+    ] {
+        let fell = narrate::resolve_voice(raw);
+        assert_eq!(fell.voice_key, "default", "{raw}");
+        assert_eq!(fell.fallback, Some("voice_unavailable"));
+        assert_eq!(fell.config.voice_id, "mock-default-voice");
+    }
+    assert_eq!(narrate::resolve_voice("default").fallback, None);
+}
+
+#[test]
+fn retired_voice_maps_to_the_default_and_names_the_config_version() {
+    let voices = narrate::CharacterVoices::from_json(
+        r#"{"version":"v9","voices":[
+        {"key":"default","voice_id":"d","model_id":"m","stability":0.5,"similarity_boost":0.75,"speed":1.0},
+        {"key":"voice-old","voice_id":"o","model_id":"m","stability":0.5,"similarity_boost":0.75,"speed":1.0,"retired":true}]}"#,
+    )
+    .unwrap();
+    let r = voices.resolve("voice-old");
+    assert_eq!(
+        (r.voice_key.as_str(), r.fallback),
+        ("default", Some("voice_retired"))
+    );
+    assert_eq!(voices.version(), "v9");
+    // No default entry: the config is unusable.
+    assert!(narrate::CharacterVoices::from_json(r#"{"version":"v","voices":[]}"#).is_none());
+}
+
+#[test]
+fn segment_ids_keep_slide_order_and_speaking_rate_stays_bounded() {
+    assert_eq!(narrate::segment_id("s1", 0), "s1__s0");
+    assert_eq!(narrate::segment_id("s1", 11), "s1__s11");
+    for key in [
+        "default",
+        "voice-provisional-guide",
+        "voice-provisional-supporter",
+        "voice-provisional-companion",
+    ] {
+        let speed = narrate::resolve_voice(key).config.speed;
+        assert!((0.7..=1.2).contains(&speed), "{key} speed {speed}");
+    }
+    let ok = |id: &str, t: &str| (id.to_string(), t.to_string());
+    assert!(narrate::segments_in_order("s1", &[ok("s1__s0", "a"), ok("s1__s1", "b")]).is_ok());
+    assert!(narrate::segments_in_order("s1", &[ok("s1__s1", "b"), ok("s1__s0", "a")]).is_err());
+    assert!(narrate::segments_in_order("s1", &[ok("s1__s0", "a"), ok("s1__s0", "a")]).is_err());
+}
+
+#[test]
+fn timeout_budgets_take_the_stricter_of_e14_and_the_character_ceiling() {
+    assert_eq!(narrate::TTS_TIMEOUT_MS, 30_000);
+    assert_eq!(narrate::TTS_ATTEMPTS, 2);
+    assert_eq!(narrate::budget(0, 0), (30_000, 2));
+    assert_eq!(narrate::budget(60_000, 5), (30_000, 2));
+    assert_eq!(narrate::budget(10_000, 1), (10_000, 1));
+}
+
+#[test]
+fn narration_usage_is_audio_only_and_never_a_character_charge() {
+    let u = crate::narration::usage_for("eleven_flash_v2_5", 12, 1, 40);
+    assert_eq!(
+        (u.component.as_str(), u.provider.as_str()),
+        ("audio", "elevenlabs")
+    );
+    assert_eq!(u.narration_characters, 12);
+    assert!(!format!("{u:?}").contains("character_create"));
+}
+
+#[test]
+fn voice_fallback_event_is_content_free_and_bounded() {
+    let e = narrate::fallback_event("supporter", "voice_retired", "2026-11-13.1");
+    assert_eq!(e.len(), 3);
+    assert_eq!(e["speaker_key"], "supporter");
+    assert_eq!(e["reason_code"], "voice_retired");
+    assert_eq!(e["voice_config_version"], "2026-11-13.1");
+    // Free text never leaves as a reason or speaker key.
+    let bad = narrate::fallback_event("Nova the star", "she said hello", "v");
+    assert_eq!(bad["speaker_key"], "unknown");
+    assert_eq!(bad["reason_code"], "voice_unavailable");
+}
+
+#[test]
+fn recorded_character_narration_fixture_matches_the_engine_voice_config() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../evals/fixtures/narration.characters.json"
+    ))
+    .unwrap();
+    let voices = narrate::CharacterVoices::from_json(&fixture["voice_config"].to_string()).unwrap();
+    assert_eq!(voices.resolve("voice-old").fallback, Some("voice_retired"));
+    for key in [
+        "default",
+        "voice-provisional-guide",
+        "voice-provisional-supporter",
+    ] {
+        let want = voices.resolve(key).config;
+        let have = narrate::resolve_voice(key).config;
+        assert_eq!(want.voice_id, have.voice_id, "{key}");
+        assert_eq!(want.fingerprint(), have.fingerprint(), "{key}");
+    }
+    assert_eq!(fixture["cases"].as_object().unwrap().len(), 7);
+}

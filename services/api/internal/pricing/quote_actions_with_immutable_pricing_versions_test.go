@@ -34,3 +34,36 @@ func TestQuoteRationalAndBounds(t *testing.T) {
 		t.Fatal("invented missing rate")
 	}
 }
+
+// E14-06: a narration quote for a curated voice from the approved voice config passes the
+// allowlist check, at the same rate as the version's own voice; an unapproved voice still fails.
+func TestNarrationQuoteAcceptsApprovedVoicesAtTheSameRate(t *testing.T) {
+	base := pricing.QuotePolicy{TTLSeconds: 600, AudioUSDNanosPerCharacter: 40000, USDNanosPerCredit: 1500000, AudioModel: "eleven_flash_v2_5", Voices: []string{"default"}}
+	if got := pricing.AllowVoices(base, []string{"default", "fixture-warm"}).Voices; len(got) != 2 || got[1] != "fixture-warm" {
+		t.Fatal(got)
+	}
+	if got := pricing.AllowVoices(base, []string{"default"}).Voices; len(got) != 1 {
+		t.Fatal("approved voices are merged without duplicates", got)
+	}
+	if len(base.Voices) != 1 {
+		t.Fatal("the version's stored policy must not be mutated")
+	}
+	c, err := pricing.Parse(seed(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := pricing.QuoteInput{Action: "narration", NarrationCharacters: 1000, Voice: "fixture-warm"}
+	if _, err = pricing.CalculateQuote(c, base, in, time.Now()); err == nil {
+		t.Fatal("a voice outside the allowlist must fail closed")
+	}
+	merged := pricing.AllowVoices(base, []string{"fixture-warm"})
+	warm, err := pricing.CalculateQuote(c, merged, in, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	in.Voice = "default"
+	def, err := pricing.CalculateQuote(c, merged, in, time.Now())
+	if err != nil || warm.AudioCeiling != def.AudioCeiling || warm.AudioCeiling == 0 {
+		t.Fatal("curated voices are priced at the same synthesis rate", warm.AudioCeiling, def.AudioCeiling, err)
+	}
+}

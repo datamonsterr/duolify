@@ -1,0 +1,59 @@
+{
+  "version": "2026-11-13.1",
+  "voices": [
+    {
+      "key": "default",
+      "voice_id": "mock-default-voice",
+      "model_id": "eleven_flash_v2_5",
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1.0,
+      "fixture": false
+    },
+    {
+      "key": "fixture-warm",
+      "voice_id": "mock-fixture-warm-voice",
+      "model_id": "eleven_flash_v2_5",
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1.0,
+      "fixture": true
+    },
+    {
+      "key": "fixture-calm",
+      "voice_id": "mock-fixture-calm-voice",
+      "model_id": "eleven_flash_v2_5",
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1.0,
+      "fixture": true
+    },
+    {
+      "key": "voice-provisional-guide",
+      "voice_id": "mock-character-guide-voice",
+      "model_id": "eleven_flash_v2_5",
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1.0,
+      "fixture": true
+    },
+    {
+      "key": "voice-provisional-supporter",
+      "voice_id": "mock-character-supporter-voice",
+      "model_id": "eleven_flash_v2_5",
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 1.05,
+      "fixture": true
+    },
+    {
+      "key": "voice-provisional-companion",
+      "voice_id": "mock-character-companion-voice",
+      "model_id": "eleven_flash_v2_5",
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "speed": 0.95,
+      "fixture": true
+    }
+  ]
+}
