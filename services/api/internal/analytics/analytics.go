@@ -99,7 +99,8 @@ func allowlisted(event string) bool {
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
 		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
-		"marketplace_browsed", "marketplace_searched", "course_viewed":
+		"marketplace_browsed", "marketplace_searched", "course_viewed",
+		"course_invite_sent", "course_invite_accepted", "course_invite_declined":
 		return true
 	default:
 		return false
@@ -303,6 +304,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 		numeric("result_count", "query_length")
 		boolean("has_cursor")
+	case "course_invite_sent", "course_invite_accepted", "course_invite_declined":
+		// UUIDs and a closed enum only: never a Username, title or recipient identity.
+		ids("course_id", "invite_id")
+		if v, _ := input["method"].(string); v == "username" || v == "friend" {
+			out["method"] = v
+		}
 	case "course_viewed":
 		if v, _ := input["course_id"].(string); marketUUID.MatchString(v) {
 			out["course_id"] = v
