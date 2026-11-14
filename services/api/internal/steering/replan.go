@@ -43,7 +43,7 @@ func (in replanInput) hash() string {
 
 func (s *Service) replanSnapshot(ctx context.Context, tx pgx.Tx, owner, course string) (replanInput, error) {
 	in := replanInput{Outline: &pb.CourseOutline{CourseId: course}, Protected: []string{}, Instructions: []*pb.CourseInstruction{}}
-	if err := tx.QueryRow(ctx, `SELECT title,description,outline_version FROM courses WHERE id=$1::uuid AND learner_id=$2::uuid AND deleted_at IS NULL AND visibility='private' AND NOT EXISTS(SELECT 1 FROM course_copies WHERE copy_course_id=$1::uuid) AND EXISTS(SELECT 1 FROM course_enrollments WHERE course_id=$1::uuid AND learner_id=$2::uuid) FOR UPDATE`, course, owner).Scan(&in.Outline.Title, &in.Outline.Description, &in.Version); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT title,description,outline_version FROM courses WHERE id=$1::uuid AND learner_id=$2::uuid AND deleted_at IS NULL AND visibility='private' AND NOT EXISTS(SELECT 1 FROM course_copies WHERE copy_course_id=$1::uuid AND forked_at IS NULL) AND EXISTS(SELECT 1 FROM course_enrollments WHERE course_id=$1::uuid AND learner_id=$2::uuid) FOR UPDATE`, course, owner).Scan(&in.Outline.Title, &in.Outline.Description, &in.Version); err != nil {
 		return in, refusal("not_found")
 	}
 	rows, err := tx.Query(ctx, `SELECT u.id::text,u.title,l.id::text,l.title,l.goal,l.status<>'locked' OR EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=l.id) FROM course_units u JOIN course_lesson_stubs l ON l.unit_id=u.id WHERE u.course_id=$1::uuid AND u.learner_id=$2::uuid ORDER BY u.position,l.position`, course, owner)
@@ -102,6 +102,11 @@ func (s *Service) QuoteReplan(ctx context.Context, owner, course string) (pricin
 	if _, err := s.privateCourse(ctx, owner, course); err != nil {
 		return pricing.Quote{}, err
 	}
+	if info, err := s.forkInfo(ctx, owner, course); err != nil {
+		return pricing.Quote{}, err
+	} else if info != nil && !info.Forked {
+		return pricing.Quote{}, refusal("fork_confirmation_required")
+	}
 	tx, err := s.opts.Pool.Begin(ctx)
 	if err != nil {
 		return pricing.Quote{}, err
@@ -135,6 +140,11 @@ func (s *Service) readReplan(ctx context.Context, owner, course, quote string) (
 func (s *Service) ProposeReplan(ctx context.Context, owner, course, quoteID string) (ReplanProposal, error) {
 	if _, err := s.privateCourse(ctx, owner, course); err != nil {
 		return ReplanProposal{}, err
+	}
+	if info, err := s.forkInfo(ctx, owner, course); err != nil {
+		return ReplanProposal{}, err
+	} else if info != nil && !info.Forked {
+		return ReplanProposal{}, refusal("fork_confirmation_required")
 	}
 	p, err := s.readReplan(ctx, owner, course, quoteID)
 	if err == nil && p.State != "pending" {

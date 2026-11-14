@@ -340,7 +340,7 @@ func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput,
 		}
 	} else if in.Action == "outline_replan" {
 		var exists bool
-		if in.OutlineDraftID != "" || len(in.RequestHash) != 64 || in.OutlineRevision < 1 || s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=c.learner_id WHERE c.id::text=$1 AND c.learner_id::text=$2 AND c.outline_version=$3 AND c.deleted_at IS NULL AND c.visibility='private' AND NOT EXISTS(SELECT 1 FROM course_copies cc WHERE cc.copy_course_id=c.id))`, in.CourseID, owner, in.OutlineRevision).Scan(&exists) != nil || !exists {
+		if in.OutlineDraftID != "" || len(in.RequestHash) != 64 || in.OutlineRevision < 1 || s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=c.learner_id WHERE c.id::text=$1 AND c.learner_id::text=$2 AND c.outline_version=$3 AND c.deleted_at IS NULL AND c.visibility='private' AND NOT EXISTS(SELECT 1 FROM course_copies cc WHERE cc.copy_course_id=c.id AND cc.forked_at IS NULL))`, in.CourseID, owner, in.OutlineRevision).Scan(&exists) != nil || !exists {
 			return Quote{}, errQuote
 		}
 	} else if in.OutlineDraftID != "" || in.OutlineRevision != 0 || in.RequestHash != "" || in.CourseID != "" {

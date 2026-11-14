@@ -168,6 +168,9 @@ SELECT gen_random_uuid(),$1::uuid,encode(sha256(convert_to($1::text,'UTF8')),'he
 	if _, err := db.Pool.Exec(ctx, "DELETE FROM auth_rate_limits; UPDATE auth_sessions SET reauthenticated_at=now()"); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = db.Pool.Exec(ctx, `WITH q AS (SELECT id FROM pricing_quotes WHERE learner_id=$1::uuid LIMIT 1), cr AS (INSERT INTO course_creations(learner_id,draft_id,revision,quote_id,request,state) SELECT $1::uuid,gen_random_uuid(),1,q.id,'{}','enrolled' FROM q RETURNING id,quote_id), c AS (INSERT INTO courses(learner_id,creation_id,title) SELECT $1::uuid,id,'Go' FROM cr RETURNING id) INSERT INTO course_replan_proposals(learner_id,course_id,quote_id,outline_version,input,state,diff) SELECT $1::uuid,c.id,cr.quote_id,1,'{"outline":{}}','proposed','[{"kind":"retitled","lesson_id":"l2"}]' FROM c,cr`, learnerID); err != nil {
+		t.Fatal(err)
+	}
 	export := call("GET", "/v1/me/data-export", nil, tokens.AccessToken)
 	if export.Code != 200 {
 		t.Fatalf("export: %d %s", export.Code, export.Body)
@@ -187,6 +190,10 @@ SELECT gen_random_uuid(),$1::uuid,encode(sha256(convert_to($1::text,'UTF8')),'he
 		if len(exportedTables[name]) == 0 || string(exportedTables[name]) == "null" {
 			t.Fatalf("export missing %s", name)
 		}
+	}
+	var replans []map[string]any
+	if err = json.Unmarshal(exportedTables["course_replan_proposals"], &replans); err != nil || len(replans) != 1 || replans[0]["state"] != "proposed" {
+		t.Fatalf("missing replan proposal export: %s %v", exportedTables["course_replan_proposals"], err)
 	}
 	for _, forbidden := range []string{"refresh_token", "code_hash", "state_hash", "nonce_hash", "token_hash", "private-subject"} {
 		if strings.Contains(export.Body.String(), forbidden) {
