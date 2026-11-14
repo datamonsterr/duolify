@@ -169,10 +169,11 @@ func inviteMux(h http.Handler) *http.ServeMux {
 func TestInviteHandlerUsesTheSessionActorAndMapsErrorsNeutrally(t *testing.T) {
 	const actor = "a1111111-1111-4111-8111-111111111111"
 	do := func(h http.Handler, method, path, body string, signedIn bool) *httptest.ResponseRecorder {
-		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		ctx := context.Background()
 		if signedIn {
-			req = req.WithContext(accounts.WithLearnerID(req.Context(), actor))
+			ctx = accounts.WithLearnerID(ctx, actor)
 		}
+		req := httptest.NewRequestWithContext(ctx, method, path, strings.NewReader(body))
 		rec := httptest.NewRecorder()
 		inviteMux(h).ServeHTTP(rec, req)
 		return rec
