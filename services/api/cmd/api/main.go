@@ -359,7 +359,9 @@ func run(ctx context.Context, args []string) (result error) {
 
 	courseService := courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: runtimePricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"})
 	// Publishing needs an 18+ account (ADR 0012); no age data exists yet, so it fails closed.
-	sharingService := sharing.NewService(db.Pool, events, sharing.ConfigFromEnv(os.Getenv)).WithAgeSource(sharing.UnknownAge{}).WithObjects(player.NewS3(os.Getenv), os.Getenv("LESSON_ASSET_ORIGIN"))
+	lessonObjects := player.NewS3(os.Getenv)
+	sharingService := sharing.NewService(db.Pool, events, sharing.ConfigFromEnv(os.Getenv)).WithAgeSource(sharing.UnknownAge{}).WithObjects(lessonObjects, os.Getenv("LESSON_ASSET_ORIGIN")).
+		WithAssetStore(lessonObjects).WithBlockLedger(backup.ModerationLedger{Objects: objects})
 	sharingService.ConfigureScreening(backend, sharing.PricingRates{Pool: db.Pool})
 	// Marketplace pages are cached in Redis only as derived data; the flag MARKETPLACE_ENABLED stays off by default (E15-07).
 	sharingService = sharingService.WithMarketplaceCache(redis)
@@ -368,6 +370,7 @@ func run(ctx context.Context, args []string) (result error) {
 		sharingService = sharingService.WithGeneration(sharing.GenerationDeps{Quotes: quotesService, Wallet: creditService, Lessons: lessonPreparer})
 	}
 	go sharingService.Maintain(ctx)
+	go sharingService.MaintainAssets(ctx)
 	// Course invites (E15-06): push goes only through the adapter, which is disabled unless chosen
 	// by environment (no APNs/FCM credentials exist yet, ADR 0012); the in-app inbox always works.
 	pushAdapter, pushName := sharing.PushFromEnv(os.Getenv)

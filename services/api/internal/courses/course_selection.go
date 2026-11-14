@@ -96,6 +96,7 @@ func (s *Service) ServeCoursesListHTTP(w http.ResponseWriter, r *http.Request) {
 				'level_override', COALESCE(e.level_override, ''),
 				'pinned_version', (SELECT cc.version FROM course_copies cc WHERE cc.copy_course_id=c.id),
 				'moderation_blocked', EXISTS(SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL),
+				'copy_origin', (SELECT jsonb_build_object('creator_username', u.username, 'creator_deleted', cc.source_owner_id IS NULL, 'source_available', EXISTS(SELECT 1 FROM courses sc WHERE sc.id=cc.source_course_id AND sc.deleted_at IS NULL AND sc.visibility<>'private')) FROM course_copies cc LEFT JOIN learner_usernames u ON u.learner_id=cc.source_owner_id WHERE cc.copy_course_id=c.id),
 				'units', COALESCE((
 					SELECT jsonb_agg(
 						jsonb_build_object(

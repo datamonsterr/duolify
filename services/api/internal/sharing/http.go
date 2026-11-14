@@ -94,6 +94,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 		return
+	case r.Method == http.MethodPost && r.URL.Path == "/v1/courses/"+course+"/unpublish":
+		// Unpublish: private, link revoked, delisted, enrollment stopped; existing copies stay.
+		if uerr := h.s.Unpublish(r.Context(), actor, course); uerr != nil {
+			h.fail(w, r, uerr)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
 	case r.Method == http.MethodPost && r.URL.Path == "/v1/courses/"+course+"/share-link/rotate":
 		// RotateLink: generate a new token, revoke the old one.
 		token, rerr := h.s.RotateLink(r.Context(), actor, course)

@@ -193,7 +193,7 @@ func TestUnpublishStopsNewEnrollmentsAndKeepsEveryCopy(t *testing.T) {
 		t.Fatal("listing not delisted")
 	}
 	// The copy is untouched: same pin, same manifests, course alive and not blocked.
-	if count(t, f, `SELECT count(*) FROM course_copies cc JOIN courses c ON c.id=cc.copy_course_id WHERE cc.copy_course_id=$1 AND cc.blocked_at IS NULL AND c.deleted_at IS NULL AND cc.version=1`, got.CourseID) != 1 ||
+	if count(t, f, `SELECT count(*) FROM course_copies cc JOIN courses c ON c.id=cc.copy_course_id WHERE cc.copy_course_id=$1 AND cc.blocked_at IS NULL AND c.deleted_at IS NULL AND cc.version=$2`, got.CourseID, got.Version) != 1 ||
 		count(t, f, `SELECT count(*) FROM lesson_manifests WHERE learner_id=$1`, learner) != manifests {
 		t.Fatal("unpublish touched the copy")
 	}
@@ -224,11 +224,12 @@ func TestOwnerAccountDeletionAnonymizesAttributionAndCopiesKeepWorking(t *testin
 		t.Fatal("copy did not record its creator")
 	}
 	manifests := count(t, f, `SELECT count(*) FROM lesson_manifests WHERE learner_id=$1`, learner)
+	pinned := prefixOf(t, f, got.CourseID)
 
 	if _, err = f.DB.Pool.Exec(t.Context(), `DELETE FROM learners WHERE id=$1`, ownerID); err != nil {
 		t.Fatal(err)
 	}
-	if count(t, f, `SELECT count(*) FROM course_copies WHERE copy_course_id=$1 AND source_owner_id IS NULL AND source_course_id IS NULL AND version=1`, got.CourseID) != 1 {
+	if count(t, f, `SELECT count(*) FROM course_copies WHERE copy_course_id=$1 AND source_owner_id IS NULL AND source_course_id IS NULL AND version=$2`, got.CourseID, got.Version) != 1 {
 		t.Fatal("copy kept an owner reference or lost its pin")
 	}
 	if count(t, f, `SELECT count(*) FROM courses WHERE id=$1 AND deleted_at IS NULL`, got.CourseID) != 1 ||
@@ -243,7 +244,7 @@ func TestOwnerAccountDeletionAnonymizesAttributionAndCopiesKeepWorking(t *testin
 	if r.Released != 0 || r.Purged != 0 {
 		t.Fatalf("assets of a live copy were released: %+v", r)
 	}
-	keys, _ := objects.List(t.Context(), prefixOf(t, f, got.CourseID))
+	keys, _ := objects.List(t.Context(), pinned)
 	if len(keys) == 0 {
 		t.Fatal("pinned objects were removed with the owner")
 	}
@@ -556,12 +557,14 @@ func TestRestoreReappliesSevereBlocksAndResolvesEveryPinAgainstRustFS(t *testing
 	f.Seed(t)
 	app := rustObjects{f.ApplicationStorage()}
 	cfg := sharing.DefaultConfig()
+	cfg.MarketplaceEnabled = true
 	s := sharing.NewService(f.DB.Pool, &capture{}, cfg).WithAgeSource(adult(true)).WithObjects(app, asset).WithAssetStore(app).
 		WithBlockLedger(backup.ModerationLedger{Objects: f.Store("writer")})
 	s.ConfigureScreening(startEngine(t), fixedRates{})
 	mod := grantModerator(t, f, "Drill moderator")
 	ownerID := marketOwner(t, f, "drill-owner")
 	course := marketCourse(t, f, ownerID, "Drill tides", "Short lessons", 3)
+	listCourse(t, s, ownerID, course, "tech", "en")
 	token := shareAs(t, s, ownerID, course)
 	learner := newLearner(t, f, "Drill learner")
 	copied, err := s.Enroll(t.Context(), learner, token)
@@ -575,13 +578,7 @@ func TestRestoreReappliesSevereBlocksAndResolvesEveryPinAgainstRustFS(t *testing
 
 	// The dump is taken before the takedown, so only the ledger can carry the block into a restore.
 	f.RunJob(t, "2026-11-12")
-	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO moderation_queue_items(target_type,target_id,severity) VALUES('course',$1,100)`, course); err != nil {
-		t.Fatal(err)
-	}
-	var item string
-	if err = f.DB.Pool.QueryRow(t.Context(), `SELECT id::text FROM moderation_queue_items WHERE target_id=$1 AND resolved_at IS NULL`, course).Scan(&item); err != nil {
-		t.Fatal(err)
-	}
+	item := reportedCourse(t, f, s, ownerID, course, "unsafe").ID
 	res := act(t, s, mod, item, "takedown", "unsafe")
 	if res.CopiesBlocked != 1 {
 		t.Fatalf("takedown = %+v", res)

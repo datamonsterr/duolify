@@ -591,6 +591,9 @@ FROM course_lesson_stubs st JOIN course_units u ON u.id=st.unit_id WHERE u.cours
 // range so the unique constraints hold at every step.
 func (s *Service) applyPlan(ctx context.Context, tx pgx.Tx, learner, copyID, draftID string, version int, plan UpdatePlan) error {
 	exec := func(q string, args ...any) error { _, err := tx.Exec(ctx, q, args...); return err }
+	if err := pinPrefix(ctx, tx, draftID); err != nil {
+		return err
+	}
 	if err := exec(`UPDATE course_units SET position=position+500000 WHERE course_id=$1 AND archived_at IS NULL`, copyID); err != nil {
 		return err
 	}

@@ -15,7 +15,7 @@ func Mount(mux *http.ServeMux, s *Service, protect, optional func(http.Handler) 
 		"POST /v1/courses/{id}/publication-drafts", "GET /v1/courses/{id}/publication-drafts/{draftId}",
 		"POST /v1/courses/{id}/publication-drafts/{draftId}/screen", "POST /v1/courses/{id}/publish",
 		"GET /v1/courses/{id}/share-link", "POST /v1/courses/{id}/share-link",
-		"DELETE /v1/courses/{id}/share-link", "POST /v1/courses/{id}/share-link/rotate",
+		"DELETE /v1/courses/{id}/share-link", "POST /v1/courses/{id}/share-link/rotate", "POST /v1/courses/{id}/unpublish",
 	} {
 		mux.Handle(pattern, owner)
 	}
@@ -48,7 +48,7 @@ func Mount(mux *http.ServeMux, s *Service, protect, optional func(http.Handler) 
 	moderation := protect(NewModerationHandler(s))
 	for _, pattern := range []string{
 		"GET /v1/moderation/queue", "POST /v1/moderation/items/{id}/actions", "POST /v1/moderation/appeals/{id}/decision",
-		"GET /v1/moderation/notices", "POST /v1/moderation/notices/{id}/appeal",
+		"GET /v1/moderation/notices", "POST /v1/moderation/notices/{id}/appeal", "GET /v1/moderation/release-readiness",
 	} {
 		mux.Handle(pattern, moderation)
 	}

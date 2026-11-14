@@ -3,6 +3,7 @@ package sharing
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -540,6 +541,12 @@ func (s *Service) apply(ctx context.Context, tx pgx.Tx, kind, id string, t targe
 					return nil, 0, err
 				}
 				blocked = int(tag.RowsAffected())
+				// Durable before the takedown commits, so a restore of an older dump cannot lift the block.
+				if s.ledger != nil {
+					if err = s.ledger.RecordBlock(ctx, LedgerRef(id), LedgerRef(res.ID)); err != nil {
+						return nil, 0, err
+					}
+				}
 			}
 		case "ban_publishing":
 			if err := ban(); err != nil {
@@ -682,10 +689,10 @@ func (s *Service) DecideAppeal(ctx context.Context, actor, appealID, decision, r
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var status, actionID, kind, targetID, course, draft, author, moderator, prior string
-	var wasActive bool
-	err = tx.QueryRow(ctx, `SELECT ap.status,a.id::text,a.target_type,a.target_id::text,COALESCE(a.course_id::text,''),COALESCE(a.draft_id::text,''),COALESCE(a.author_id::text,''),COALESCE(a.moderator_id::text,''),a.listing_was_active,COALESCE(a.prior_verdict,'')
+	var wasActive, severe bool
+	err = tx.QueryRow(ctx, `SELECT ap.status,a.id::text,a.target_type,a.target_id::text,COALESCE(a.course_id::text,''),COALESCE(a.draft_id::text,''),COALESCE(a.author_id::text,''),COALESCE(a.moderator_id::text,''),a.listing_was_active,COALESCE(a.prior_verdict,''),a.severe
  FROM moderation_appeals ap JOIN moderation_actions a ON a.id=ap.action_id WHERE ap.id=$1 FOR UPDATE OF ap`, appealID).
-		Scan(&status, &actionID, &kind, &targetID, &course, &draft, &author, &moderator, &wasActive, &prior)
+		Scan(&status, &actionID, &kind, &targetID, &course, &draft, &author, &moderator, &wasActive, &prior, &severe)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrCourseUnavailable
 	}
@@ -716,6 +723,12 @@ func (s *Service) DecideAppeal(ctx context.Context, actor, appealID, decision, r
 		return err
 	}
 	if decision == "overturn" {
+		// After commit: a missing lift marker only means a restore re-blocks, the safe direction.
+		if severe && kind == "course" && s.ledger != nil {
+			if lerr := s.ledger.LiftBlock(ctx, LedgerRef(actionID)); lerr != nil {
+				slog.ErrorContext(ctx, "moderation block lift was not recorded", "action_id", actionID)
+			}
+		}
 		s.invalidateCatalogue(ctx)
 		if kind == "review" && course != "" {
 			s.refreshListingStats(ctx, course)

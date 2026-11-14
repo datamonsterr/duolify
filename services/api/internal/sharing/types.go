@@ -236,7 +236,7 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	positive("SHARING_PUSH_MAX_ATTEMPTS", &c.PushMaxAttempts, 1, 10)
 	positive("SHARING_MAX_REPUBLISHES_PER_DAY", &c.MaxRepublishesPerDay, 1, 100)
 	positive("SHARING_MAX_CHANGELOG_LENGTH", &c.MaxChangelogLen, 1, 1000)
-	positive("SHARING_ASSET_PURGE_DAYS", &c.AssetPurgeDays, 1, 3650)
+	positive("SHARING_ASSET_PURGE_DAYS", &c.AssetPurgeDays, minAssetPurgeDays, 3650)
 	c.ReleaseLegalApproved = getenv("SHARING_RELEASE_LEGAL_APPROVED") == "true"
 	c.ReleaseCDNPolicyApproved = getenv("SHARING_RELEASE_CDN_POLICY_APPROVED") == "true"
 	if f, err := strconv.ParseFloat(getenv("MARKETPLACE_RATING_PRIOR"), 64); err == nil && f >= 1 && f <= 5 {
