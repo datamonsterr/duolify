@@ -1,6 +1,7 @@
 package sharing
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -8,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+
+	"github.com/datamonsterr/duolify/services/api/internal/characters"
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 )
@@ -26,10 +29,17 @@ var allowedKeys = map[string]bool{
 	"slides": true, "questions": true, "retry_pool": true, "narration_refs": true, "id": true, "html": true,
 	"narration": true, "topic": true, "prompt": true, "choices": true, "answer_index": true,
 	"explanation": true, "variants": true, "question_id": true, "key": true,
+	"duration_ms": true, "segments": true, "speaker_key": true, "speaker_label": true, "text": true, "expression": true, "start_ms": true,
 }
 
 // CheckAllowlist rejects any JSON object key outside the snapshot allowlist, at any depth.
 func CheckAllowlist(raw []byte) error {
+	var snapshot Snapshot
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&snapshot) != nil {
+		return ErrOutOfAllowlist
+	}
 	var v any
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return ErrOutOfAllowlist
@@ -39,6 +49,13 @@ func CheckAllowlist(raw []byte) error {
 		switch t := n.(type) {
 		case map[string]any:
 			for k, c := range t {
+				if k == "cast" {
+					raw, _ := json.Marshal(c)
+					if characters.ValidateExportCast(raw) != nil {
+						return false
+					}
+					continue
+				}
 				if !allowedKeys[k] || !walk(c) {
 					return false
 				}
@@ -144,6 +161,10 @@ func ScanFindings(s Snapshot) []Finding {
 		}
 	}
 	textFindings(s.Title+"\n"+s.Description, "course", add)
+	for i, sp := range publicationSpeakers(s) {
+		raw, _ := json.Marshal(sp.Spec)
+		textFindings(string(raw), fmt.Sprintf("character %d", i+1), add)
+	}
 	n := 0
 	for _, u := range s.Units {
 		textFindings(u.Title, "course", add)

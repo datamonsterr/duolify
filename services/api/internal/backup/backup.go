@@ -29,13 +29,15 @@ type Objects interface {
 
 // Options supplies external boundaries and the public encryption recipient.
 type Options struct {
-	Monitor   *telemetry.Monitor
-	Source    Source
-	Objects   Objects
-	Recipient string
-	Events    analytics.Events
-	OptOut    bool
-	TempDir   string
+	// ProtectAssets saves immutable Character/audio assets before publishing the dump.
+	ProtectAssets func(context.Context, string) error
+	Monitor       *telemetry.Monitor
+	Source        Source
+	Objects       Objects
+	Recipient     string
+	Events        analytics.Events
+	OptOut        bool
+	TempDir       string
 	// FinancialCopy also publishes the same ciphertext under financial/ for the
 	// 35-day class (the dump contains the financial ledger).
 	FinancialCopy bool
@@ -111,6 +113,11 @@ func (s *Service) Run(ctx context.Context, date string) (result error) {
 	endingVersion, err := s.options.Source.SchemaVersion(ctx)
 	if err != nil || endingVersion != version {
 		return errors.New("backup schema changed during dump")
+	}
+	if s.options.ProtectAssets != nil {
+		if err := s.options.ProtectAssets(ctx, date); err != nil {
+			return errors.New("protected asset backup failed")
+		}
 	}
 	size, err = file.Seek(0, io.SeekEnd)
 	if err != nil {

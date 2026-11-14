@@ -166,6 +166,9 @@ func ResolveTutorPersona(cast LessonCastSnapshot, source, requested string, cust
 	if !ok {
 		return safeDefaultPersona("guide", source, cast.CastVersion, "persona_unavailable")
 	}
+	if speaker.Suppressed {
+		return safeDefaultPersona(key, source, cast.CastVersion, "suppressed")
+	}
 	if !custom && !isBuiltinCharacter(speaker.CharacterID) {
 		return safeDefaultPersona(key, source, cast.CastVersion, "suppressed")
 	}
@@ -195,7 +198,7 @@ func (s *Service) tutorCast(ctx context.Context, owner, course, lessonID string)
 			if json.Unmarshal(raw, &cast) != nil {
 				cast = LessonCastSnapshot{}
 			}
-			return cast, "lesson", nil
+			return s.SafeCast(ctx, cast), "lesson", nil
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return LessonCastSnapshot{}, "", err
@@ -209,7 +212,7 @@ func (s *Service) tutorCast(ctx context.Context, owner, course, lessonID string)
 	if cast.CastSource == "custom" {
 		source = "course"
 	}
-	return cast, source, nil
+	return s.SafeCast(ctx, cast), source, nil
 }
 
 // selectedCharacter is the Character id the learner chose for a speaker key in the Course Cast.

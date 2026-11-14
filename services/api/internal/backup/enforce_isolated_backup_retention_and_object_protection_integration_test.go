@@ -90,6 +90,19 @@ func TestRustFSCredentialBoundariesAndVersioning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The backup worker can read lesson bytes for encrypted nightly protection,
+	// but cannot mutate the source bucket or read unrelated application data.
+	const lessonAsset = "lessons/character-rigs/original-v1/fixture.svg"
+	if _, err := app.PutVersioned(ctx, lessonAsset, []byte("fixture"), nil); err != nil {
+		t.Fatal(err)
+	}
+	assetReader := &backup.S3{Client: writer.Client, Bucket: app.Bucket}
+	if err := get(assetReader, lessonAsset); err != nil {
+		t.Fatal("worker cannot read lesson asset", err)
+	}
+	denied(t, "worker unrelated application read", get(assetReader, "slides/a.html"))
+	denied(t, "worker application write", put(assetReader, lessonAsset))
+	denied(t, "worker application delete", del(assetReader, lessonAsset))
 	_, err = app.Client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(app.Bucket), Key: aws.String("slides/a.html"), VersionId: aws.String(first)})
 	denied(t, "application version delete", err)
 	_, err = app.Client.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{Bucket: aws.String(app.Bucket), VersioningConfiguration: &types.VersioningConfiguration{Status: types.BucketVersioningStatusSuspended}})

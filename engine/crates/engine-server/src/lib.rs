@@ -359,12 +359,19 @@ impl EngineService for Service {
         let req = request.into_inner();
         if (req.raw_prompt.is_empty() && !engine_core::characters::valid_spec(&req.spec_json))
             || (!req.raw_prompt.is_empty() && !req.spec_json.is_empty())
+            || (req.publication_export
+                && !engine_core::characters::publication_input_valid(
+                    &req.spec_json,
+                    &req.compiled_appearance,
+                    &req.raw_prompt,
+                ))
         {
             return Ok(Response::new(pb::ScreenCharacterResponse {
                 approved: false,
                 reason_code: "invalid_spec".into(),
                 policy_version: "character-v1".into(),
                 attempts: vec![],
+                publication_screened: false,
             }));
         }
         // ADR 0011 / E10-06: missing live feature evidence keeps writes closed.
@@ -409,6 +416,7 @@ impl EngineService for Service {
             reason_code,
             policy_version: "character-v1".into(),
             attempts: outcome.attempts.iter().map(attempt_usage).collect(),
+            publication_screened: req.publication_export,
         }))
     }
     async fn screen_course(

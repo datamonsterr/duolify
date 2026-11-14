@@ -125,7 +125,7 @@ WHERE cc.draft_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM shared_asset_retenti
 			return errDrill
 		}
 		rows, err := p.Query(ctx, `SELECT DISTINCT m.manifest_key FROM lesson_manifests m JOIN course_lesson_stubs st ON st.id=m.lesson_id JOIN course_units u ON u.id=st.unit_id
-JOIN courses c ON c.id=u.course_id AND c.deleted_at IS NULL WHERE starts_with(m.manifest_key,'lessons/published/') ORDER BY 1`)
+JOIN courses c ON c.id=u.course_id AND c.deleted_at IS NULL WHERE starts_with(m.manifest_key,'lessons/published/') UNION SELECT object_key FROM shared_character_assets WHERE purged_at IS NULL ORDER BY 1`)
 		if err != nil {
 			return errDrill
 		}

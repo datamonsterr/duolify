@@ -1211,6 +1211,22 @@ async fn evaluate_narration(input: &serde_json::Value) -> Result<String> {
 }
 
 async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<String> {
+    if task == "character_snapshot" || input.get("snapshot_case").is_some() {
+        let cast = input["published_cast"].clone();
+        let before = serde_json::to_vec(&cast)?;
+        let suppressed: Vec<String> = input["suppressed"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|s| s.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let valid = engine_core::characters::publication_snapshot_valid(&cast);
+        let runtime = engine_core::characters::publication_runtime(&cast, &suppressed);
+        let persona = engine_core::characters::lesson_personas(&runtime.to_string());
+        return Ok(serde_json::json!({"valid":valid,"snapshot_immutable":before==serde_json::to_vec(&cast)?,"grading_immutable":input["grading"]==input["grading_after"],"safe_on_demand":persona.is_ok(),"runtime_default":runtime["speakers"]["guide"]["character_id"]=="default-guide","character_create_charges":0}).to_string());
+    }
     if input.get("narration_case").is_some() {
         return evaluate_narration(input).await;
     }
@@ -1692,6 +1708,7 @@ impl Runner {
                     | "character_persona_lesson"
                     | "character_persona_chat"
                     | "character_reactions"
+                    | "character_snapshot"
             ) && self.provider_name == "mock"
                 && self.custom_router.is_none()
             {

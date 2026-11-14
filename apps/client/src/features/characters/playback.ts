@@ -47,7 +47,7 @@ export function activeCharacterSegment(
 }
 
 export type Fallback =
-  "unsupported_rig" | "invalid_spec" | "missing_speaker" | null;
+  "unsupported_rig" | "invalid_spec" | "missing_speaker" | "suppressed" | null;
 
 export function speakerFallback(
   cast: LessonCastSnapshot,
@@ -55,6 +55,7 @@ export function speakerFallback(
 ): Fallback {
   const speaker = cast.speakers[key];
   if (!speaker) return "missing_speaker";
+  if (speaker.suppressed) return "suppressed";
   if ((speaker.spec as { rig_version?: string }).rig_version !== "original-v1")
     return "unsupported_rig";
   return validateCharacterSpec(speaker.spec).valid ? null : "invalid_spec";

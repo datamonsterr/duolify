@@ -126,6 +126,9 @@ func run(ctx context.Context, args []string) (result error) {
 	if err := accounts.ReplayDeletionLedger(ctx, db.Pool, deletionLedger); err != nil {
 		return fmt.Errorf("apply account deletion tombstones: %w", err)
 	}
+	if err := backup.ReplayCharacterSuppressions(ctx, db.Pool, objects); err != nil {
+		return fmt.Errorf("apply Character suppression tombstones: %w", err)
+	}
 	stopMetrics, err := monitor.Listen(ctx, metricsAddr)
 	if err != nil {
 		return err
@@ -141,7 +144,8 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		defer func() { result = errors.Join(result, events.Close()) }()
-		service, err := backup.New(backup.Options{Source: backup.Postgres{Pool: db.Pool, DatabaseURL: cfg.DatabaseURL}, Objects: objects, Recipient: backupConfig.Recipient, Events: events, OptOut: backupConfig.OptOut, Monitor: monitor, FinancialCopy: true})
+		assetProtection := backup.CharacterAssetProtection{Pool: db.Pool, Application: &backup.S3{Client: objects.Client, Bucket: backupConfig.S3.ApplicationBucket}, Protected: objects, Recipient: backupConfig.Recipient}
+		service, err := backup.New(backup.Options{Source: backup.Postgres{Pool: db.Pool, DatabaseURL: cfg.DatabaseURL}, Objects: objects, Recipient: backupConfig.Recipient, Events: events, OptOut: backupConfig.OptOut, Monitor: monitor, FinancialCopy: true, ProtectAssets: assetProtection.Protect})
 		if err != nil {
 			return err
 		}
@@ -392,7 +396,7 @@ func run(ctx context.Context, args []string) (result error) {
 		Social:                  socialService,
 		Monitor:                 monitor,
 		NarrationVoices:         narrationVoices,
-		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService, Narration: narrationRecovery}),
+		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService, Narration: narrationRecovery, CastSafety: characterService.SafetyProjection}),
 		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
 		Accounts:                auth,
 		Credits:                 creditService,

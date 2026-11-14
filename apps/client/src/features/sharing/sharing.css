@@ -482,3 +482,13 @@
   color: var(--muted, var(--text));
   font-size: 0.875rem;
 }
+.sharing-confirm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+  overflow-wrap: anywhere;
+}
+.sharing-confirm input {
+  min-width: var(--size-target, 44px);
+  min-height: var(--size-target, 44px);
+}

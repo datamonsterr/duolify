@@ -1,5 +1,14 @@
 # Golden set
 
+E17-09 `character_snapshot` fixtures and `characters.publication.json` exercise the
+production content-only validator and runtime safety overlay: private fields and
+library identities are refused, on-demand reuse remains independent, takedowns
+substitute safe defaults, and snapshots/grading stay immutable at zero Character
+creation cost. Publication-specific `character_screen` and `character_injection`
+rows retain the recorded mock policy boundary. All checks are critical, with a
+strict 1.00 per-task gate. These Git-pinned rows await the provisioned
+`datamonsterr/duolify-golden` revision; no live revision or promotion is fabricated.
+
 Each JSONL row has an `id`, `task` (preview, outline, lesson, chat or note), JSON `input`, textual `rubric`, and `checks`. Check kinds are `json`, `field`, `slide`, `contains`, and `regex`; `field`, `contains`, and `regex` use a `value` string. A case passes when all checks pass. `thresholds.toml` sets the required fraction of passing cases.
 
 Create a dataset on Hugging Face and upload `golden.jsonl` at its root. Set `HF_GOLDEN_DATASET`, `HF_GOLDEN_REVISION` to an explicit 40-character commit hash (missing revision reports explicit `missing_config` status; `main` is not allowed), and `HF_TOKEN` with dataset read access. Run `mise run engine:eval-live` with provider keys. The runner downloads that revision into `evals/.cache`; reports are written to `evals/reports`. Use `mise run engine:eval` for the offline mock fixtures. `--judge` additionally requests a PASS/FAIL judgment against the rubric using word-boundary parsing (`\bPASS\b` / `\bFAIL\b`).

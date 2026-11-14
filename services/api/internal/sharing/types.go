@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/datamonsterr/duolify/services/api/internal/characters"
 )
 
 // Verdicts. pending_screening is the fail-closed state.
@@ -40,11 +42,13 @@ var (
 
 // Config holds every policy-like value; defaults are conservative (ADR 0012, E15-12 open).
 type Config struct {
-	ReviewMinLessons   int
-	ReviewMaxPerDay    int
-	ReviewMaxChars     int
-	ReviewTimeoutMs    uint32
-	ReviewMaxCostNanos int64
+	// Requires redistribution rights, approved voices and feature live-eval evidence. OFF by default.
+	CharacterExportsEnabled bool
+	ReviewMinLessons        int
+	ReviewMaxPerDay         int
+	ReviewMaxChars          int
+	ReviewTimeoutMs         uint32
+	ReviewMaxCostNanos      int64
 
 	// E15-09 reports. Reasons, severities, caps and the hide threshold are configuration.
 	ReportReasons       []string
@@ -239,6 +243,7 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	positive("SHARING_ASSET_PURGE_DAYS", &c.AssetPurgeDays, minAssetPurgeDays, 3650)
 	c.ReleaseLegalApproved = getenv("SHARING_RELEASE_LEGAL_APPROVED") == "true"
 	c.ReleaseCDNPolicyApproved = getenv("SHARING_RELEASE_CDN_POLICY_APPROVED") == "true"
+	c.CharacterExportsEnabled = getenv("CHARACTER_PUBLIC_EXPORTS_ENABLED") == "true" && getenv("CHARACTER_REDISTRIBUTION_APPROVED") == "true" && getenv("CHARACTER_VOICES_APPROVED") == "true" && getenv("CHARACTER_PUBLICATION_LIVE_EVAL_APPROVED") == "true"
 	if f, err := strconv.ParseFloat(getenv("MARKETPLACE_RATING_PRIOR"), 64); err == nil && f >= 1 && f <= 5 {
 		c.MarketplaceRatingPrior = f
 	}
@@ -259,9 +264,10 @@ type Finding struct {
 
 // Snapshot is the allowlisted, immutable publication content.
 type Snapshot struct {
-	Title       string         `json:"title"`
-	Description string         `json:"description"`
-	Units       []SnapshotUnit `json:"units"`
+	Cast        *characters.LessonCastSnapshot `json:"cast,omitempty"`
+	Title       string                         `json:"title"`
+	Description string                         `json:"description"`
+	Units       []SnapshotUnit                 `json:"units"`
 }
 
 // SnapshotUnit is one Course unit and its Lessons.
@@ -272,6 +278,7 @@ type SnapshotUnit struct {
 
 // SnapshotLesson is one Lesson's allowlisted content.
 type SnapshotLesson struct {
+	Cast *characters.LessonCastSnapshot `json:"cast,omitempty"`
 	// Key is the stable lesson key (E15-05): it survives retitles and reordering.
 	Key           string          `json:"key,omitempty"`
 	Title         string          `json:"title"`
@@ -285,9 +292,11 @@ type SnapshotLesson struct {
 
 // SnapshotSlide is one generated Motion HTML Slide.
 type SnapshotSlide struct {
-	ID        string `json:"id"`
-	HTML      string `json:"html"`
-	Narration string `json:"narration"`
+	DurationMS int                       `json:"duration_ms,omitempty"`
+	Segments   []characters.SlideSegment `json:"segments,omitempty"`
+	ID         string                    `json:"id"`
+	HTML       string                    `json:"html"`
+	Narration  string                    `json:"narration"`
 }
 
 // SnapshotQ is one Lesson test question.

@@ -126,6 +126,21 @@ FROM course_units u WHERE u.id=st.unit_id AND u.course_id=$1 AND st.lesson_key I
 	if err != nil {
 		return "", snap, nil, err
 	}
+	if len(publicationCasts(snap)) > 0 {
+		if confirmed, _ := ctx.Value(exportConsentKey{}).(bool); !confirmed {
+			return "", snap, nil, ErrCharacterConfirmation
+		}
+		var live bool
+		if err = tx.QueryRow(ctx, `SELECT visibility<>'private' FROM courses WHERE id=$1`, courseID).Scan(&live); err != nil {
+			return "", snap, nil, err
+		}
+		if (republish || live) && !s.cfg.CharacterExportsEnabled {
+			return "", snap, nil, ErrCharacterRelease
+		}
+		if err = s.storeCharacterAssets(ctx, tx, snap); err != nil {
+			return "", snap, nil, err
+		}
+	}
 	raw, err := json.Marshal(snap)
 	if err != nil {
 		return "", snap, nil, err
@@ -147,6 +162,9 @@ FROM course_units u WHERE u.id=st.unit_id AND u.course_id=$1 AND st.lesson_key I
 	err = tx.QueryRow(ctx, `INSERT INTO publication_drafts(course_id,owner_id,number,content_hash,snapshot,lesson_count,findings,changelog,republish)
 SELECT $1,$2,COALESCE(max(number),0)+1,$3,$4,$5,$6,$7,$8 FROM publication_drafts WHERE course_id=$1 RETURNING id::text`,
 		courseID, owner, hex.EncodeToString(sum[:]), raw, lessons, fj, changelog, republish).Scan(&id)
+	if err == nil && len(publicationCasts(snap)) > 0 {
+		err = pinPrefix(ctx, tx, id)
+	}
 	return id, snap, findings, err
 }
 
@@ -192,7 +210,7 @@ WHERE u.course_id=$1 AND u.archived_at IS NULL ORDER BY u.position,st.position`,
 		return &snap.Units[k.unit].Lessons[k.lesson]
 	}
 	// Content tables are read by an explicit column list: nothing learner-specific is selected.
-	srows, err := tx.Query(ctx, `SELECT s.lesson_stub_id::text,s.slide_id,s.html,s.narration FROM lesson_slides s
+	srows, err := tx.Query(ctx, `SELECT s.lesson_stub_id::text,s.slide_id,s.html,s.narration,s.duration_ms,s.segments FROM lesson_slides s
 JOIN course_lesson_stubs st ON st.id=s.lesson_stub_id JOIN course_units u ON u.id=st.unit_id WHERE u.course_id=$1 ORDER BY s.lesson_stub_id,s.position`, courseID)
 	if err != nil {
 		return snap, err
@@ -200,7 +218,12 @@ JOIN course_lesson_stubs st ON st.id=s.lesson_stub_id JOIN course_units u ON u.i
 	for srows.Next() {
 		var sid string
 		var sl SnapshotSlide
-		if err = srows.Scan(&sid, &sl.ID, &sl.HTML, &sl.Narration); err != nil {
+		var segments []byte
+		if err = srows.Scan(&sid, &sl.ID, &sl.HTML, &sl.Narration, &sl.DurationMS, &segments); err != nil {
+			srows.Close()
+			return snap, err
+		}
+		if err = json.Unmarshal(segments, &sl.Segments); err != nil {
 			srows.Close()
 			return snap, err
 		}
@@ -258,11 +281,22 @@ JOIN course_lesson_stubs st ON st.id=p.lesson_stub_id JOIN course_units u ON u.i
 		}
 	}
 	prows.Close()
-	return snap, prows.Err()
+	if prows.Err() != nil {
+		return snap, prows.Err()
+	}
+	castIndex := map[string][2]int{}
+	for id, pos := range index {
+		castIndex[id] = [2]int{pos.unit, pos.lesson}
+	}
+	if err = s.loadCharacters(ctx, tx, courseID, &snap, castIndex); err != nil {
+		return snap, err
+	}
+	return snap, nil
 }
 
 func (s *Service) runScreen(ctx context.Context, owner, draftID string, snap Snapshot, findings []Finding) {
-	ctx = context.WithoutCancel(ctx)
+	ctx, cancelPublication := context.WithTimeout(context.WithoutCancel(ctx), time.Duration(s.cfg.TimeoutMs)*time.Millisecond)
+	defer cancelPublication()
 	sample, n := BuildSample(snap, s.cfg)
 	var resp *pb.ScreenCourseResponse
 	var callErr error
@@ -270,18 +304,32 @@ func (s *Service) runScreen(ctx context.Context, owner, draftID string, snap Sna
 	if s.rates != nil {
 		rates, rateErr = s.rates.Rates(ctx)
 	}
-	if s.screen != nil && rateErr == nil {
+	characterOutcome, characterErr := Outcome{Verdict: VerdictPass}, error(nil)
+	if rateErr == nil {
+		characterOutcome, characterErr = s.screenCharacters(ctx, owner, snap, rates)
+	}
+	courseCfg := s.cfg
+	courseCfg.MaxCostNanos -= characterOutcome.CostNanos
+	if s.screen != nil && rateErr == nil && characterErr == nil && characterOutcome.Verdict == VerdictPass && courseCfg.MaxCostNanos > 0 {
 		callCtx, cancel := context.WithTimeout(ctx, time.Duration(s.cfg.TimeoutMs)*time.Millisecond)
 		resp, callErr = s.screen.ScreenCourse(callCtx, &pb.ScreenCourseRequest{SampleJson: sample, SampledLessons: boundedUint32(n), Limits: &pb.UsageLimits{
 			InputTokens: s.cfg.MaxInputTokens, OutputTokens: s.cfg.MaxOutputTokens, TimeoutMs: s.cfg.TimeoutMs, MaxAttempts: s.cfg.MaxAttempts,
-			MaxCostNanos: boundedUint64(s.cfg.MaxCostNanos), InputNanos: rates.Input, OutputNanos: rates.Output, CacheWriteNanos: rates.CacheWrite, CacheReadNanos: rates.CacheRead,
-			DeadlineUnixMs: boundedUint64(time.Now().Add(time.Duration(s.cfg.TimeoutMs) * time.Millisecond).UnixMilli()),
+			MaxCostNanos: boundedUint64(courseCfg.MaxCostNanos), InputNanos: rates.Input, OutputNanos: rates.Output, CacheWriteNanos: rates.CacheWrite, CacheReadNanos: rates.CacheRead,
+			DeadlineUnixMs: publicationDeadline(ctx),
 		}})
 		cancel()
 	} else {
 		callErr = rateErr
 	}
-	out := Decide(findings, resp, callErr, s.cfg, rates)
+	out := Decide(findings, resp, callErr, courseCfg, rates)
+	if characterErr != nil || characterOutcome.Verdict != VerdictPass {
+		out = characterOutcome
+		if characterErr != nil {
+			out.Verdict = VerdictPending
+		}
+	} else {
+		out.CostNanos += characterOutcome.CostNanos
+	}
 	sampled := 0
 	if out.Verdict != VerdictPending {
 		sampled = n
@@ -395,6 +443,10 @@ func (s *Service) Rescreen(ctx context.Context, owner, courseID, draftID string)
 	got, err := s.Get(ctx, owner, courseID, draftID)
 	if err == nil && got.Verdict == VerdictPass {
 		s.followLatestPass(ctx, courseID)
+		var live bool
+		if s.pool.QueryRow(ctx, `SELECT visibility<>'private' FROM courses WHERE id=$1`, courseID).Scan(&live) == nil && live {
+			s.emitCharacterPublication(ctx, owner, draftID)
+		}
 	}
 	return got, err
 }
@@ -454,6 +506,9 @@ func (s *Service) PublishLink(ctx context.Context, owner, courseID string) (stri
 	if verdict != VerdictPass {
 		return "", ErrPublishNotAllowed
 	}
+	if err = s.characterRelease(ctx, tx, courseID); err != nil {
+		return "", err
+	}
 
 	token, err := GenerateToken()
 	if err != nil {
@@ -493,6 +548,9 @@ func (s *Service) PublishLink(ctx context.Context, owner, courseID string) (stri
 		}
 	}
 	s.emit(owner, "share_link_created", map[string]any{"course_id": courseID})
+	if d, e := s.latestPassDraft(ctx, courseID); e == nil {
+		s.emitCharacterPublication(ctx, owner, d.ID)
+	}
 
 	return token, nil
 }

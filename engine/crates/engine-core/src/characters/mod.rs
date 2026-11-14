@@ -128,6 +128,130 @@ pub fn verdict(raw: &str) -> Option<(bool, String)> {
         None
     }
 }
+
+/// Publication re-screens content only, never the private creation request. Compiled appearance
+/// comes from the API's retained original rig; executable/external appearance fails closed.
+pub fn publication_input_valid(spec: &str, appearance: &str, prompt: &str) -> bool {
+    let lower = appearance
+        .to_lowercase()
+        .replace("http://www.w3.org/2000/svg", "");
+    prompt.is_empty()
+        && valid_spec(spec)
+        && appearance.len() <= 8192
+        && lower.starts_with("<svg")
+        && lower.ends_with("</svg>")
+        && ![
+            "<script",
+            "javascript:",
+            "<foreignobject",
+            " onload=",
+            " onerror=",
+            "https://",
+            "http://",
+        ]
+        .iter()
+        .any(|v| lower.contains(v))
+}
+
+/// Closed, content-only published Cast envelope. Independent IDs cannot resolve private library rows.
+/// The API additionally verifies the canonical content/asset hashes before persistence.
+pub fn publication_snapshot_valid(cast: &Value) -> bool {
+    let Some(object) = cast.as_object() else {
+        return false;
+    };
+    if object.keys().any(|k| {
+        ![
+            "cast_version",
+            "cast_source",
+            "schema_version",
+            "rig_version",
+            "voice_config_version",
+            "speakers",
+            "fallback_used",
+            "rig_assets",
+        ]
+        .contains(&k.as_str())
+    }) || cast["cast_source"] != "published"
+        || cast["cast_version"] != 1
+        || cast["schema_version"] != 1
+        || cast["rig_version"] != "original-v1"
+        || cast["voice_config_version"]
+            .as_str()
+            .is_none_or(|s| s.is_empty() || s.len() > 100)
+    {
+        return false;
+    }
+    let Some(speakers) = cast["speakers"].as_object() else {
+        return false;
+    };
+    let hash = |s: &str| {
+        s.len() == 64
+            && s.bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    };
+    if speakers.is_empty() || speakers.len() > 3 || !speakers.contains_key("guide") {
+        return false;
+    }
+    if !speakers.iter().all(|(key, speaker)| {
+        let Some(fields) = speaker.as_object() else {
+            return false;
+        };
+        ["guide", "supporter", "supporter_2"].contains(&key.as_str())
+            && fields.keys().all(|k| {
+                [
+                    "speaker_key",
+                    "role",
+                    "character_id",
+                    "character_version",
+                    "spec",
+                    "is_provisional",
+                ]
+                .contains(&k.as_str())
+            })
+            && speaker["speaker_key"] == key.as_str()
+            && speaker["role"] == if key == "guide" { "guide" } else { "supporter" }
+            && speaker["character_version"] == 1
+            && speaker["character_id"]
+                .as_str()
+                .and_then(|s| s.strip_prefix("snapshot-"))
+                .is_some_and(hash)
+            && valid_spec(&speaker["spec"].to_string())
+    }) {
+        return false;
+    }
+    cast["rig_assets"].as_array().is_some_and(|assets| {
+        !assets.is_empty()
+            && assets.len() <= 15
+            && assets.iter().all(|asset| {
+                asset.as_object().is_some_and(|o| o.len() == 2)
+                    && asset["sha256"].as_str().is_some_and(hash)
+                    && asset["object_key"]
+                        == format!(
+                            "lessons/character-rigs/original-v1/{}.svg",
+                            asset["sha256"].as_str().unwrap_or_default()
+                        )
+            })
+    })
+}
+
+/// A runtime overlay substitutes approved default specs. The input snapshot stays byte-for-byte stable.
+pub fn publication_runtime(cast: &Value, suppressed: &[String]) -> Value {
+    let mut out = cast.clone();
+    if let Some(speakers) = out["speakers"].as_object_mut() {
+        for speaker in speakers.values_mut() {
+            if suppressed.iter().any(|id| speaker["character_id"] == *id)
+                || !valid_spec(&speaker["spec"].to_string())
+            {
+                speaker["spec"] = serde_json::from_str(include_str!(
+                    "../../../../../services/api/internal/characters/schema/original.fixture.json"
+                ))
+                .expect("bundled original");
+                speaker["character_id"] = Value::String("default-guide".into());
+            }
+        }
+    }
+    out
+}
 pub async fn screen(
     router: &ProviderRouter,
     spec: &str,

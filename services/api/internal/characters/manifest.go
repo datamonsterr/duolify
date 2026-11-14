@@ -8,6 +8,7 @@ type PinnedSpeaker struct {
 	CharacterVersion int           `json:"character_version"`
 	Spec             CharacterSpec `json:"spec"`
 	IsProvisional    bool          `json:"is_provisional,omitempty"`
+	Suppressed       bool          `json:"suppressed,omitempty"`
 }
 
 // LessonCastSnapshot holds the pinned cast for a lesson.
@@ -19,6 +20,7 @@ type LessonCastSnapshot struct {
 	VoiceConfigVersion string                   `json:"voice_config_version"`
 	Speakers           map[string]PinnedSpeaker `json:"speakers"`
 	FallbackUsed       bool                     `json:"fallback_used,omitempty"`
+	RigAssets          []RigAsset               `json:"rig_assets,omitempty"`
 }
 
 // SlideSegment represents one spoken segment in a slide.

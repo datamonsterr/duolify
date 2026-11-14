@@ -347,6 +347,9 @@ func (s *Service) ListCourse(ctx context.Context, owner, courseID string, in Lis
 	if err = json.Unmarshal(raw, &snap); err != nil {
 		return Listing{}, err
 	}
+	if err = s.characterRelease(ctx, tx, courseID); err != nil {
+		return Listing{}, err
+	}
 	generated := 0
 	for _, u := range snap.Units {
 		for _, l := range u.Lessons {
@@ -392,6 +395,7 @@ RETURNING published_at`, courseID, owner, draftID, number, snap.Title, snap.Desc
 	if err = tx.Commit(ctx); err != nil {
 		return Listing{}, err
 	}
+	s.emitCharacterPublication(ctx, owner, draftID)
 	s.refreshListingStats(ctx, courseID)
 	s.invalidateCatalogue(ctx)
 	if oldVis != "public" {

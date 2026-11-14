@@ -45,9 +45,14 @@ func LoadRetention(getenv func(string) string) (Retention, error) {
 }
 
 var dumpKey = regexp.MustCompile(`^(financial/)?(\d{4}-\d{2}-\d{2})/schema-\d+\.dump\.age$`)
+var characterAssetKey = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2})/character-assets/(?:[0-9a-f]{64}\.age|manifest\.json\.age)$`)
 
-// ClassifyKey recognizes only dump keys; deletion-ledger and unknown keys are never expirable.
+// ClassifyKey recognizes dumps and protected asset copies; deletion/takedown ledgers never expire.
 func ClassifyKey(key string) (Class, time.Time, bool) {
+	if m := characterAssetKey.FindStringSubmatch(key); m != nil {
+		date, err := time.Parse(time.DateOnly, m[1])
+		return General, date, err == nil
+	}
 	m := dumpKey.FindStringSubmatch(key)
 	if m == nil {
 		return 0, time.Time{}, false
@@ -123,7 +128,7 @@ func (e Expirer) Run(ctx context.Context) (result ExpiryResult, err error) {
 			if !ok {
 				continue
 			}
-			if date.After(newest[class]) {
+			if dumpKey.MatchString(object.Key) && date.After(newest[class]) {
 				newest[class] = date
 			}
 			days := e.Retention.GeneralDays

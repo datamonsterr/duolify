@@ -508,8 +508,10 @@ type ScreenCharacterRequest struct {
 	CompiledAppearance string       `protobuf:"bytes,2,opt,name=compiled_appearance,json=compiledAppearance,proto3" json:"compiled_appearance,omitempty"`
 	RawPrompt          string       `protobuf:"bytes,3,opt,name=raw_prompt,json=rawPrompt,proto3" json:"raw_prompt,omitempty"`
 	Limits             *UsageLimits `protobuf:"bytes,4,opt,name=limits,proto3" json:"limits,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// E17-09: content-only public export. Raw prompts are forbidden and compiled appearance required.
+	PublicationExport bool `protobuf:"varint,5,opt,name=publication_export,json=publicationExport,proto3" json:"publication_export,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ScreenCharacterRequest) Reset() {
@@ -570,14 +572,23 @@ func (x *ScreenCharacterRequest) GetLimits() *UsageLimits {
 	return nil
 }
 
+func (x *ScreenCharacterRequest) GetPublicationExport() bool {
+	if x != nil {
+		return x.PublicationExport
+	}
+	return false
+}
+
 type ScreenCharacterResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Approved      bool                   `protobuf:"varint,1,opt,name=approved,proto3" json:"approved,omitempty"`
 	ReasonCode    string                 `protobuf:"bytes,2,opt,name=reason_code,json=reasonCode,proto3" json:"reason_code,omitempty"`
 	PolicyVersion string                 `protobuf:"bytes,3,opt,name=policy_version,json=policyVersion,proto3" json:"policy_version,omitempty"`
 	Attempts      []*Usage               `protobuf:"bytes,4,rep,name=attempts,proto3" json:"attempts,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// True only when the publication input boundary and current policy were applied.
+	PublicationScreened bool `protobuf:"varint,5,opt,name=publication_screened,json=publicationScreened,proto3" json:"publication_screened,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ScreenCharacterResponse) Reset() {
@@ -636,6 +647,13 @@ func (x *ScreenCharacterResponse) GetAttempts() []*Usage {
 		return x.Attempts
 	}
 	return nil
+}
+
+func (x *ScreenCharacterResponse) GetPublicationScreened() bool {
+	if x != nil {
+		return x.PublicationScreened
+	}
+	return false
 }
 
 type ScreenCourseRequest struct {
@@ -4651,19 +4669,21 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\x06limits\x18\x02 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\"i\n" +
 	"\x14MapCharacterResponse\x12\x1b\n" +
 	"\tspec_json\x18\x01 \x01(\tR\bspecJson\x124\n" +
-	"\battempts\x18\x02 \x03(\v2\x18.duolify.engine.v1.UsageR\battempts\"\xbd\x01\n" +
+	"\battempts\x18\x02 \x03(\v2\x18.duolify.engine.v1.UsageR\battempts\"\xec\x01\n" +
 	"\x16ScreenCharacterRequest\x12\x1b\n" +
 	"\tspec_json\x18\x01 \x01(\tR\bspecJson\x12/\n" +
 	"\x13compiled_appearance\x18\x02 \x01(\tR\x12compiledAppearance\x12\x1d\n" +
 	"\n" +
 	"raw_prompt\x18\x03 \x01(\tR\trawPrompt\x126\n" +
-	"\x06limits\x18\x04 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\"\xb3\x01\n" +
+	"\x06limits\x18\x04 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\x12-\n" +
+	"\x12publication_export\x18\x05 \x01(\bR\x11publicationExport\"\xe6\x01\n" +
 	"\x17ScreenCharacterResponse\x12\x1a\n" +
 	"\bapproved\x18\x01 \x01(\bR\bapproved\x12\x1f\n" +
 	"\vreason_code\x18\x02 \x01(\tR\n" +
 	"reasonCode\x12%\n" +
 	"\x0epolicy_version\x18\x03 \x01(\tR\rpolicyVersion\x124\n" +
-	"\battempts\x18\x04 \x03(\v2\x18.duolify.engine.v1.UsageR\battempts\"\x97\x01\n" +
+	"\battempts\x18\x04 \x03(\v2\x18.duolify.engine.v1.UsageR\battempts\x121\n" +
+	"\x14publication_screened\x18\x05 \x01(\bR\x13publicationScreened\"\x97\x01\n" +
 	"\x13ScreenCourseRequest\x12\x1f\n" +
 	"\vsample_json\x18\x01 \x01(\tR\n" +
 	"sampleJson\x12'\n" +

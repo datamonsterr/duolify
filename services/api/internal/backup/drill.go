@@ -198,6 +198,7 @@ func RunDrill(ctx context.Context, o DrillOptions) (report Report, result error)
 		_, err := ReplayModerationBlocks(ctx, pool, o.Store)
 		return err
 	})
+	step("character suppressions", KindPrivacy, func() error { return ReplayCharacterSuppressions(ctx, pool, o.Store) })
 	step("redis rebuild", KindData, func() error {
 		if o.RebuildRedis == nil {
 			return errDrill

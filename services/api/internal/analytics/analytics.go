@@ -98,7 +98,7 @@ func allowlisted(event string) bool {
 		"pricing_version_activated", "pricing_version_rolled_back", "price_table_activated",
 		"character_rendered", "character_render_fallback", "character_reaction_shown", "tutor_character_selected", "tutor_character_fallback",
 		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
-		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied", "character_voice_fallback",
+		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied", "character_voice_fallback", "character_snapshot_published",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
@@ -292,6 +292,8 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "character_deleted":
 		ids("character_id")
+	case "character_snapshot_published":
+		numeric("course_version", "character_count", "custom_count")
 	case "course_screening_completed":
 		// Closed verdict only; never Course text, findings or reasons.
 		if v, ok := input["verdict"].(string); ok && (v == "pass" || v == "needs_review" || v == "block" || v == "pending_screening") {

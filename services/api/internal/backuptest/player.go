@@ -2,16 +2,20 @@ package backuptest
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
+	"github.com/datamonsterr/duolify/services/api/internal/narration/narrationtest"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,6 +32,17 @@ const protectedManifest = "fixture-snapshot.json"
 
 func authoredObjects() map[string][]byte {
 	objects := playerfixture.Documents()
+	// The E14 SQL fixtures reference two retained audio/alignment objects. Protect real versioned
+	// fixture bytes too, so nightly asset protection fails on loss instead of trusting metadata.
+	speech, err := new(narrationtest.Engine).SynthesizeNarration(context.Background(), &pb.SynthesizeNarrationRequest{Text: "Seeded narration text.", VoiceKey: "default"})
+	if err != nil {
+		panic("invalid authored narration fixture")
+	}
+	alignment, _ := json.Marshal(speech.Alignment)
+	for _, hash := range []string{strings.Repeat("ab", 32), strings.Repeat("ef", 32)} {
+		objects["lessons/narration/v1/"+hash+"/audio.wav"] = speech.Audio
+		objects["lessons/narration/v1/"+hash+"/alignment.json"] = alignment
+	}
 	for key, raw := range courses.SharedDemoDocuments() {
 		objects[key] = raw
 	}

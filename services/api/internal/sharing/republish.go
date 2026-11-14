@@ -14,6 +14,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/datamonsterr/duolify/services/api/internal/characters"
+
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/jackc/pgx/v5"
 )
@@ -337,6 +339,7 @@ AND (SELECT visibility<>'private' FROM courses WHERE id=$1)`, courseID).Scan(&pu
 	}
 	if got.Verdict == VerdictPass {
 		s.followLatestPass(ctx, courseID)
+		s.emitCharacterPublication(ctx, owner, got.ID)
 	}
 	s.emit(owner, "course_republished", map[string]any{"course_id": courseID, "version": got.Number, "lesson_count": got.LessonCount, "verdict": got.Verdict})
 	return got, nil
@@ -554,8 +557,15 @@ func (s *Service) ApplyUpdate(ctx context.Context, learner, copyID string, lockV
 		return UpdateResult{}, err
 	}
 	var lock int
-	if err = tx.QueryRow(ctx, `UPDATE course_copies SET draft_id=$2,version=$3,content_hash=$4,lock_version=lock_version+1,updated_at=now() WHERE copy_course_id=$1 RETURNING lock_version`,
-		copyID, draftID, number, hash).Scan(&lock); err != nil {
+	var castRaw []byte
+	if snap.Cast != nil {
+		castRaw, _ = json.Marshal(snap.Cast)
+		if err = characters.PinAssetReferences(ctx, tx, *snap.Cast); err != nil {
+			return UpdateResult{}, err
+		}
+	}
+	if err = tx.QueryRow(ctx, `UPDATE course_copies SET draft_id=$2,version=$3,content_hash=$4,character_cast=$5,lock_version=lock_version+1,updated_at=now() WHERE copy_course_id=$1 RETURNING lock_version`,
+		copyID, draftID, number, hash, castRaw).Scan(&lock); err != nil {
 		return UpdateResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -774,6 +784,8 @@ func (h *UpdateHandler) fail(w http.ResponseWriter, r *http.Request, err error) 
 	switch {
 	case errors.Is(err, ErrUnavailable):
 		code(http.StatusNotFound, "draft_unavailable")
+	case errors.Is(err, ErrCharacterConfirmation), errors.Is(err, ErrCharacterRelease):
+		code(http.StatusConflict, err.Error())
 	case errors.Is(err, ErrAdultRequired):
 		code(http.StatusForbidden, "adult_required")
 	case errors.Is(err, ErrNotPublished):
@@ -802,6 +814,7 @@ func (h *UpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/republish"):
 		var body struct {
 			Changelog string `json:"changelog"`
+			Confirmed bool   `json:"character_export_confirmed"`
 		}
 		if !decodeBody(w, r, &body, true) {
 			return
@@ -815,7 +828,7 @@ func (h *UpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.fail(w, r, err)
 			return
 		}
-		d, err := h.u.Republish(r.Context(), actor, id, text)
+		d, err := h.u.Republish(WithCharacterExportConfirmation(r.Context(), body.Confirmed), actor, id, text)
 		if err != nil {
 			h.fail(w, r, err)
 			return
