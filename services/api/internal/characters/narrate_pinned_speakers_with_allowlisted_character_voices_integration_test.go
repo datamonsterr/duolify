@@ -154,7 +154,7 @@ type segmentRow struct {
 func (h *harness) rows(t *testing.T) []segmentRow {
 	t.Helper()
 	rows, err := h.f.DB.Pool.Query(t.Context(), `SELECT segment_slide_id,segment_index,speaker_key,voice_key,actual_voice_key,voice_config_version,voice_fallback_reason,status,failure_code,content_hash
-		FROM slide_narrations WHERE lesson_id=$1 AND speaker_key<>'' ORDER BY segment_slide_id,segment_index`, narrLesson)
+		FROM slide_narrations WHERE lesson_id=$1 AND learner_id=$2 AND speaker_key<>'' ORDER BY segment_slide_id,segment_index`, narrLesson, narrOwner)
 	if err != nil {
 		t.Fatal(err)
 	}

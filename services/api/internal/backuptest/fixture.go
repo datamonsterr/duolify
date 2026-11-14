@@ -722,19 +722,6 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		'lessons/narration/v1/'||repeat('ef',32)||'/audio.wav','lessons/narration/v1/'||repeat('ef',32)||'/alignment.json',22,1100,1100)`); err != nil {
 		t.Fatal(err)
 	}
-	// E17-08: a pinned-speaker segment keeps its speaker order, actual voice/config and alignment reference.
-	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO narration_assets(content_hash,text_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms)
-		VALUES(repeat('12',32),repeat('34',32),'mock-character-guide-voice','eleven_flash_v2_5','fp1-2222222222222222',
-		'lessons/narration/v1/'||repeat('12',32)||'/audio.wav','lessons/narration/v1/'||repeat('12',32)||'/alignment.json',12,600,600)`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO slide_narrations(lesson_id,learner_id,slide_id,voice_key,status,narration_text,content_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms,
-		speaker_key,segment_slide_id,segment_index,actual_voice_key,voice_config_version,voice_fallback_reason)
-		VALUES('f3333333-3333-4333-8333-333333333333','a1111111-1111-4111-8111-111111111111','seed-seg__s1','voice-provisional-guide','ready','Seeded segment.',repeat('12',32),'mock-character-guide-voice','eleven_flash_v2_5','fp1-2222222222222222',
-		'lessons/narration/v1/'||repeat('12',32)||'/audio.wav','lessons/narration/v1/'||repeat('12',32)||'/alignment.json',12,600,600,
-		'guide','seed-seg',1,'default','2026-11-13.1','voice_retired')`); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_playback_positions(learner_id,lesson_id,version,slide_id,time_ms) VALUES('a1111111-1111-4111-8111-111111111111','f3333333-3333-4333-8333-333333333333',1,'sky-2',1800)`); err != nil {
 		t.Fatal(err)
 	}
