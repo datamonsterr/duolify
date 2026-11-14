@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,17 +19,21 @@ import (
 )
 
 type screenDouble struct {
+	mu    sync.Mutex
 	down  bool
 	calls int
 }
 
 func (s *screenDouble) ScreenInstruction(ctx context.Context, _ *pb.ScreenInstructionRequest) (*pb.ScreenInstructionResponse, error) {
+	s.mu.Lock()
 	s.calls++
+	down := s.down
+	s.mu.Unlock()
 	d, ok := ctx.Deadline()
 	if !ok || time.Until(d) > 10*time.Second {
 		return nil, errors.New("missing deadline")
 	}
-	if s.down {
+	if down {
 		return nil, errors.New("offline")
 	}
 	return &pb.ScreenInstructionResponse{Allowed: true, ScreeningVersion: "steering-v1", Attempts: []*pb.Usage{{Provider: "mock", Model: "mock-screen", InputTokens: 20, OutputTokens: 5, Attempt: 1, Delivered: true}}}, nil
@@ -113,7 +118,7 @@ func TestSteerFuturePrivateLessonSnapshotAndConsumption(t *testing.T) {
 		t.Fatalf("snapshot=%v err=%v", snapshot, err)
 	}
 	// A retry reads the same immutable text/version, including after a current-list mutation.
-	if _, err = db.Pool.Exec(ctx, `UPDATE course_instructions SET text='future edit',version=2 WHERE id=$1::uuid`, first.ID); err != nil {
+	if _, err = db.Pool.Exec(ctx, `UPDATE course_instructions SET text='future edit' WHERE id=$1::uuid`, first.ID); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err = Snapshot(ctx, db.Pool, owner, job)

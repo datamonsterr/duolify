@@ -68,3 +68,55 @@ func TestSteeringEventsPostHogDeliveryAndOptOut(t *testing.T) {
 		}
 	}
 }
+
+func TestSteeringEditDeleteEventsAreAllowlistedAndTextFree(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		mu.Lock()
+		received = append(received, body.Batch...)
+		mu.Unlock()
+	}))
+	defer server.Close()
+	const owner = "a1111111-1111-4111-8111-111111111111"
+	events, err := NewWithOptions("fixture", server.URL, Options{Consent: allowConsent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	props := map[string]any{"source": "api", "platform": "web", "app_version": "1.0.0", "course_id": "c1", "scope": "rest_of_course", "length_bucket": "101_250", "changed": "both", "text": "PRIVATE_LEARNER_TEXT", "new_text": "PRIVATE_LEARNER_TEXT"}
+	for _, event := range []string{"course_instruction_edited", "course_instruction_deleted"} {
+		if err = events.Capture(owner, event, props); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bad := map[string]any{"source": "api", "platform": "web", "app_version": "1.0.0", "course_id": "c1", "changed": "PRIVATE_LEARNER_TEXT"}
+	_ = events.Capture(owner, "course_instruction_edited", bad)
+	denied := WithConsent(events, func(context.Context, string) (bool, error) { return false, nil })
+	_ = denied.Capture(owner, "course_instruction_deleted", props)
+	if err = events.Close(); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 3 {
+		t.Fatalf("events: %v", received)
+	}
+	for _, event := range received {
+		raw, _ := json.Marshal(event)
+		if strings.Contains(string(raw), "PRIVATE_LEARNER_TEXT") {
+			t.Fatalf("text leaked: %s", raw)
+		}
+		p := event["properties"].(map[string]any)
+		if event["distinct_id"] != owner || p["source"] != "api" || p["course_id"] != "c1" {
+			t.Fatal(event)
+		}
+	}
+	first := received[0]["properties"].(map[string]any)
+	if first["changed"] != "both" || first["scope"] != "rest_of_course" || first["length_bucket"] != "101_250" {
+		t.Fatal(first)
+	}
+}

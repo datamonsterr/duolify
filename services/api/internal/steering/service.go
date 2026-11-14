@@ -4,13 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"strings"
 	"time"
 	"unicode/utf8"
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
-	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -50,6 +47,8 @@ type Record struct {
 	Version         uint32    `json:"version"`
 	AddedAt         time.Time `json:"added_at"`
 	AppliedLessonID *string   `json:"applied_lesson_id"`
+	// Delivery says how an active instruction meets generation: ready, running (pinned by a live job) or waits.
+	Delivery string `json:"delivery"`
 }
 type refusal string
 
@@ -84,6 +83,38 @@ func (s *Service) privateCourse(ctx context.Context, owner, course string) (stri
 	return title, err
 }
 
+// screen runs the platform-paid classifier and fails closed; it returns a reason code on refusal.
+func (s *Service) screen(ctx context.Context, owner, topic, text string) (*pb.ScreenInstructionResponse, string) {
+	if s.opts.Engine == nil {
+		return nil, "screening_unavailable"
+	}
+	screenCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	verdict, screenErr := s.opts.Engine.ScreenInstruction(screenCtx, &pb.ScreenInstructionRequest{Text: text, CourseTopic: topic})
+	expired := screenCtx.Err() != nil
+	cancel()
+	if screenErr != nil || expired || verdict == nil || verdict.ScreeningVersion != "steering-v1" {
+		s.emit(owner, "$ai_generation", map[string]any{"feature": "steer_screen", "succeeded": false, "usage_available": false, "error_code": "screening_unavailable"})
+		return nil, "screening_unavailable"
+	}
+	for _, a := range verdict.Attempts {
+		if a != nil {
+			s.emit(owner, "$ai_generation", map[string]any{"feature": "steer_screen", "provider": a.Provider, "model": a.Model, "input_tokens": int(a.InputTokens), "output_tokens": int(a.OutputTokens), "latency_ms": int(a.LatencyMs), "succeeded": true, "fallback_used": a.FallbackUsed})
+		}
+	}
+	if !verdict.Allowed {
+		switch verdict.ReasonCode {
+		case "prompt_injection", "unsafe_content", "off_topic_for_course", "too_long":
+			return nil, verdict.ReasonCode
+		default:
+			return nil, "screening_unavailable"
+		}
+	}
+	if verdict.ReasonCode != "" || len(verdict.Attempts) == 0 {
+		return nil, "screening_unavailable"
+	}
+	return verdict, ""
+}
+
 // Add screens before saving and serializes capacity checks with generation snapshots.
 func (s *Service) Add(ctx context.Context, owner, course string, in Input) (Record, error) {
 	var out Record
@@ -105,32 +136,9 @@ func (s *Service) Add(ctx context.Context, owner, course string, in Input) (Reco
 	if reason := ValidateText(in.Text, maxChars); reason != "" {
 		return reject(reason)
 	}
-	if s.opts.Engine == nil {
-		return reject("screening_unavailable")
-	}
-	screenCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	verdict, screenErr := s.opts.Engine.ScreenInstruction(screenCtx, &pb.ScreenInstructionRequest{Text: in.Text, CourseTopic: topic})
-	expired := screenCtx.Err() != nil
-	cancel()
-	if screenErr != nil || expired || verdict == nil || verdict.ScreeningVersion != "steering-v1" {
-		s.emit(owner, "$ai_generation", map[string]any{"feature": "steer_screen", "succeeded": false, "usage_available": false, "error_code": "screening_unavailable"})
-		return reject("screening_unavailable")
-	}
-	for _, a := range verdict.Attempts {
-		if a != nil {
-			s.emit(owner, "$ai_generation", map[string]any{"feature": "steer_screen", "provider": a.Provider, "model": a.Model, "input_tokens": int(a.InputTokens), "output_tokens": int(a.OutputTokens), "latency_ms": int(a.LatencyMs), "succeeded": screenErr == nil, "fallback_used": a.FallbackUsed})
-		}
-	}
-	if !verdict.Allowed {
-		switch verdict.ReasonCode {
-		case "prompt_injection", "unsafe_content", "off_topic_for_course", "too_long":
-			return reject(verdict.ReasonCode)
-		default:
-			return reject("screening_unavailable")
-		}
-	}
-	if verdict.ReasonCode != "" || len(verdict.Attempts) == 0 {
-		return reject("screening_unavailable")
+	verdict, code := s.screen(ctx, owner, topic, in.Text)
+	if code != "" {
+		return reject(code)
 	}
 	tx, err := s.opts.Pool.Begin(ctx)
 	if err != nil {
@@ -165,67 +173,6 @@ func (s *Service) Add(ctx context.Context, owner, course string, in Input) (Reco
 	}
 	s.emit(owner, "course_instruction_added", map[string]any{"course_id": course, "scope": in.Scope, "length_bucket": LengthBucket(utf8.RuneCountInString(in.Text)), "is_course_copy": false})
 	return out, nil
-}
-
-// Latest supplies this ticket's single-entry status view. E16-02 adds list/edit/delete.
-func (s *Service) Latest(ctx context.Context, owner, course string) (*Record, error) {
-	if _, err := s.privateCourse(ctx, owner, course); err != nil {
-		return nil, err
-	}
-	var r Record
-	err := s.opts.Pool.QueryRow(ctx, `SELECT id::text,text,scope,status,version,added_at,applied_lesson_id::text FROM course_instructions WHERE learner_id=$1::uuid AND course_id=$2::uuid AND status<>'deleted' ORDER BY added_at DESC,id DESC LIMIT 1`, owner, course).Scan(&r.ID, &r.Text, &r.Scope, &r.Status, &r.Version, &r.AddedAt, &r.AppliedLessonID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
-	return &r, err
-}
-
-// ServeHTTP handles authenticated add and latest-status requests.
-func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	owner := accounts.LearnerID(r.Context())
-	course := r.PathValue("id")
-	var value any
-	var err error
-	switch {
-	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/latest"):
-		var rec *Record
-		rec, err = s.Latest(r.Context(), owner, course)
-		value = map[string]any{"instruction": rec}
-	case r.Method == http.MethodPost:
-		var in Input
-		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
-		dec.DisallowUnknownFields()
-		if dec.Decode(&in) != nil {
-			err = refusal("invalid_input")
-		} else {
-			value, err = s.Add(r.Context(), owner, course, in)
-		}
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	if err != nil {
-		code := Code(err)
-		status := 422
-		switch code {
-		case "not_found":
-			status = 404
-		case "rate_limit":
-			status = 429
-			w.Header().Set("Retry-After", "3600")
-		case "screening_unavailable", "unavailable":
-			status = 503
-		}
-		w.WriteHeader(status)
-		_ = json.NewEncoder(w).Encode(map[string]string{"reason_code": code, "error": code})
-		return
-	}
-	if r.Method == http.MethodPost {
-		w.WriteHeader(http.StatusCreated)
-	}
-	_ = json.NewEncoder(w).Encode(value)
 }
 
 // Purge removes abuse-review records 30 days after soft deletion. Snapshots remain independent.

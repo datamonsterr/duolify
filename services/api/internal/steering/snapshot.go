@@ -24,7 +24,7 @@ func PinTx(ctx context.Context, tx pgx.Tx, owner, course, job string) error {
 	_, err = tx.Exec(ctx, `INSERT INTO lesson_instruction_snapshots(generation_id,learner_id,instruction_id,text,scope,version,added_at,screening_version)
  SELECT $3::uuid,i.learner_id,i.id,i.text,i.scope,i.version,i.added_at,i.screening_version FROM course_instructions i
  WHERE i.learner_id=$1::uuid AND i.course_id=$2::uuid AND i.status='active'
- AND (i.scope='rest_of_course' OR NOT EXISTS(SELECT 1 FROM lesson_instruction_snapshots s JOIN lesson_generations g ON g.id=s.generation_id WHERE s.instruction_id=i.id AND g.state IN ('queued','generating','validated','completed')))
+ AND (i.scope='rest_of_course' OR NOT EXISTS(SELECT 1 FROM lesson_instruction_snapshots s JOIN lesson_generations g ON g.id=s.generation_id WHERE s.instruction_id=i.id AND s.version=i.version AND g.state IN ('queued','generating','validated','completed')))
  ORDER BY i.added_at,i.id ON CONFLICT DO NOTHING`, owner, course, job)
 	return err
 }
@@ -66,9 +66,9 @@ func Snapshot(ctx context.Context, q Querier, owner, job string) ([]*pb.CourseIn
 	return result, rows.Err()
 }
 
-// ApplyTx consumes next_lesson only in the validated Lesson settlement transaction.
+// ApplyTx consumes next_lesson only (and only an unedited version: an edit made during the run stays active) in the validated Lesson settlement transaction.
 func ApplyTx(ctx context.Context, tx pgx.Tx, owner, job, lesson string) ([]string, error) {
-	rows, err := tx.Query(ctx, `UPDATE course_instructions i SET status=CASE WHEN s.scope='next_lesson' THEN 'applied' ELSE i.status END,applied_lesson_id=CASE WHEN s.scope='next_lesson' THEN $3::uuid ELSE i.applied_lesson_id END FROM lesson_instruction_snapshots s WHERE s.generation_id=$1::uuid AND s.learner_id=$2::uuid AND i.id=s.instruction_id AND i.learner_id=s.learner_id AND i.status='active' RETURNING i.id::text`, job, owner, lesson)
+	rows, err := tx.Query(ctx, `UPDATE course_instructions i SET status=CASE WHEN s.scope='next_lesson' THEN 'applied' ELSE i.status END,applied_lesson_id=CASE WHEN s.scope='next_lesson' THEN $3::uuid ELSE i.applied_lesson_id END FROM lesson_instruction_snapshots s WHERE s.generation_id=$1::uuid AND s.learner_id=$2::uuid AND i.id=s.instruction_id AND i.version=s.version AND i.learner_id=s.learner_id AND i.status='active' RETURNING i.id::text`, job, owner, lesson)
 	if err != nil {
 		return nil, err
 	}

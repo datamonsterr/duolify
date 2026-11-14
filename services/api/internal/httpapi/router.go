@@ -236,7 +236,10 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	}
 	if deps.Steering != nil && deps.Accounts != nil {
 		mux.Handle("POST /v1/courses/{id}/instructions", deps.Accounts.Protect(deps.Steering))
+		mux.Handle("GET /v1/courses/{id}/instructions", deps.Accounts.Protect(deps.Steering))
 		mux.Handle("GET /v1/courses/{id}/instructions/latest", deps.Accounts.Protect(deps.Steering))
+		mux.Handle("PATCH /v1/courses/{id}/instructions/{instructionId}", deps.Accounts.Protect(deps.Steering))
+		mux.Handle("DELETE /v1/courses/{id}/instructions/{instructionId}", deps.Accounts.Protect(deps.Steering))
 	}
 	if deps.Characters != nil {
 		mux.Handle("GET /v1/characters/default-cast", deps.Characters)

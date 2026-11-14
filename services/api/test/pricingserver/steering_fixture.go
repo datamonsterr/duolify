@@ -9,6 +9,8 @@ import (
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
+	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/steering"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -66,5 +68,84 @@ func registerSteeringFixture(mux *http.ServeMux, auth *accounts.Service, pool *p
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(201)
 		_ = json.NewEncoder(w).Encode(map[string]string{"course_id": course, "lesson_id": lesson, "next_lesson_id": next, "following_lesson_id": after})
+	})))
+	// E16-02: a generating job that pins the current instructions, so the browser can edit/delete while it runs.
+	mux.Handle("POST /test/steering/running-job", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		var in struct {
+			CourseID string `json:"course_id"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&in) != nil {
+			http.Error(w, "bad request", 400)
+			return
+		}
+		quote, err := pricing.NewQuotes(pool).Create(r.Context(), owner, pricing.QuoteInput{Action: "lesson_content"})
+		if err != nil {
+			http.Error(w, "quote failed", 500)
+			return
+		}
+		tx, err := pool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "transaction failed", 500)
+			return
+		}
+		defer func() { _ = tx.Rollback(r.Context()) }()
+		var job, lesson string
+		if err = tx.QueryRow(r.Context(), `WITH l AS (INSERT INTO course_lesson_stubs(learner_id,unit_id,authored_id,position,title,goal,status) SELECT learner_id,id,'running-'||gen_random_uuid()::text,100+(SELECT count(*) FROM course_lesson_stubs),'Running lesson','Goal','generating' FROM course_units WHERE course_id=$2::uuid AND learner_id=$1::uuid ORDER BY position LIMIT 1 RETURNING id), j AS (INSERT INTO lesson_generations(learner_id,course_id,lesson_id,quote_id,state) SELECT $1::uuid,$2::uuid,l.id,$3::uuid,'generating' FROM l RETURNING id) SELECT j.id::text,l.id::text FROM j,l`, owner, in.CourseID, quote.ID).Scan(&job, &lesson); err != nil {
+			http.Error(w, "job failed", 500)
+			return
+		}
+		if err = steering.PinTx(r.Context(), tx, owner, in.CourseID, job); err != nil {
+			http.Error(w, "pin failed", 500)
+			return
+		}
+		if err = tx.Commit(r.Context()); err != nil {
+			http.Error(w, "commit failed", 500)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(201)
+		_ = json.NewEncoder(w).Encode(map[string]string{"job_id": job, "lesson_id": lesson})
+	})))
+	mux.Handle("POST /test/steering/finish-job", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		var in struct {
+			JobID string `json:"job_id"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&in) != nil {
+			http.Error(w, "bad request", 400)
+			return
+		}
+		tx, err := pool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "transaction failed", 500)
+			return
+		}
+		defer func() { _ = tx.Rollback(r.Context()) }()
+		var lesson string
+		if err = tx.QueryRow(r.Context(), `UPDATE lesson_generations SET state='completed' WHERE id=$1::uuid AND learner_id=$2::uuid AND state='generating' RETURNING lesson_id::text`, in.JobID, owner).Scan(&lesson); err != nil {
+			http.Error(w, "job not found", 404)
+			return
+		}
+		ids, err := steering.ApplyTx(r.Context(), tx, owner, in.JobID, lesson)
+		if err != nil || tx.Commit(r.Context()) != nil {
+			http.Error(w, "apply failed", 500)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"applied_ids": append([]string{}, ids...)})
+	})))
+	mux.Handle("GET /test/steering/snapshot", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		snap, err := steering.Snapshot(r.Context(), pool, accounts.LearnerID(r.Context()), r.URL.Query().Get("job_id"))
+		if err != nil {
+			http.Error(w, "snapshot failed", 500)
+			return
+		}
+		texts := []string{}
+		for _, in := range snap {
+			texts = append(texts, in.Text)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"texts": texts})
 	})))
 }

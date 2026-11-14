@@ -74,7 +74,7 @@ func (c *client) Close() error {
 
 func allowlisted(event string) bool {
 	switch event {
-	case "course_instruction_added", "course_instruction_rejected", "course_instruction_applied":
+	case "course_instruction_added", "course_instruction_edited", "course_instruction_deleted", "course_instruction_rejected", "course_instruction_applied":
 		return true
 	case "xp_earned", "daily_goal_met", "lesson_completed", "streak_extended", "streak_broken", "streak_freeze_earned", "streak_freeze_used", "league_promoted", "league_demoted", "friend_streak_started", "friend_streak_extended", "friend_streak_broken", "friend_nudge_sent":
 		return true
@@ -216,13 +216,14 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
-	case "course_instruction_added", "course_instruction_rejected", "course_instruction_applied":
+	case "course_instruction_added", "course_instruction_edited", "course_instruction_deleted", "course_instruction_rejected", "course_instruction_applied":
 		ids("course_id", "lesson_id")
 		boolean("is_course_copy")
 		for key, allowed := range map[string][]string{
 			"scope":         {"next_lesson", "rest_of_course"},
 			"length_bucket": {"1_100", "101_250", "251_500"},
-			"reason_code":   {"empty", "too_long", "control_characters", "urls_not_allowed", "prompt_injection", "unsafe_content", "off_topic_for_course", "screening_unavailable", "invalid_scope", "rate_limit", "active_limit", "total_length_limit"},
+			"changed":       {"text", "scope", "both"},
+			"reason_code":   {"empty", "too_long", "control_characters", "urls_not_allowed", "prompt_injection", "unsafe_content", "off_topic_for_course", "screening_unavailable", "invalid_scope", "rate_limit", "active_limit", "total_length_limit", "invalid_input"},
 		} {
 			if value, ok := input[key].(string); ok && slices.Contains(allowed, value) {
 				out[key] = value
