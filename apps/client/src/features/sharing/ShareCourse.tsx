@@ -8,6 +8,7 @@ import {
   type LinkFailure,
   type LinkState,
 } from "./links";
+import { InviteFriends } from "./InviteFriends";
 import "./sharing.css";
 
 /** Owner entry point on the course view. */
@@ -285,6 +286,13 @@ export function ShareCoursePanel({
               </button>
             </div>
           </section>
+        )}
+        {state && (
+          <InviteFriends
+            courseId={courseId}
+            shared={shared}
+            onShareFirst={() => void publish()}
+          />
         )}
         <p className="sharing-note">
           Never shared: your profile, notes, chat, progress or steering

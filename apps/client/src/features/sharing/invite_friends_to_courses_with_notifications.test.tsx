@@ -52,6 +52,7 @@ function serve(
   sent: unknown[] = [],
 ) {
   request.mockImplementation(async (path, method = "GET", body) => {
+    if (!path) return undefined as never; // vitest cleanup probes the mock
     const custom = extra(path, method, body);
     if (custom !== undefined) {
       if (custom instanceof Error) throw custom;
@@ -228,7 +229,9 @@ describe("invite sheet", () => {
   });
 
   it("shows a retryable error when the lists cannot load", async () => {
-    request.mockRejectedValue(new TypeError("Failed to fetch"));
+    request.mockImplementation(async (path) => {
+      if (path) throw new TypeError("Failed to fetch");
+    });
     open();
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Check your connection",

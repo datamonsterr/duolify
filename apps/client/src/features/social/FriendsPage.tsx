@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { session } from "../accounts/session";
+import { invites, type ReceivedInvite } from "../sharing/invites";
+import { ReceivedInvites } from "../sharing/ReceivedInvites";
 import { AddFriend } from "./AddFriend";
 import { ConfirmBlock } from "./ConfirmBlock";
 import { ConfirmRemove } from "./ConfirmRemove";
@@ -38,7 +41,7 @@ import {
 } from "./nudges";
 import "./social.css";
 
-type Tab = "friends" | "nudges" | "requests" | "blocked";
+type Tab = "friends" | "nudges" | "invites" | "requests" | "blocked";
 
 /** Who the block dialog is about; `friend` is set only when they are a current friend. */
 interface BlockTarget {
@@ -92,6 +95,9 @@ export function FriendsPage() {
     name: string;
   }>();
   const keys = useRef(createNudgeKeys()).current;
+  const navigate = useNavigate();
+  const [courseInvites, setCourseInvites] = useState<ReceivedInvite[]>([]);
+  const [inviteUnread, setInviteUnread] = useState(0);
 
   const [revision, setRevision] = useState(0);
   const load = useCallback(() => setRevision((x) => x + 1), []);
@@ -102,13 +108,17 @@ export function FriendsPage() {
       session.request<FriendRequests>(requestsPath),
       session.request<{ blocks?: BlockedEntry[] }>(blocksPath),
       session.request<{ nudges?: NudgeEntry[] }>(nudgesPath),
+      // The invites inbox is optional here: a failure never hides friends.
+      Promise.resolve(invites.received()).catch(() => undefined),
     ])
-      .then(([f, r, b, n]) => {
+      .then(([f, r, b, n, inbox]) => {
         if (!active) return;
         setFriends(f.friends);
         setRequests(r);
         setBlocked(b.blocks ?? []);
         setNudges(n.nudges ?? []);
+        setCourseInvites(inbox?.invites ?? []);
+        setInviteUnread(inbox?.unread ?? 0);
         setFailure(undefined);
       })
       .catch((error: unknown) => {
@@ -166,6 +176,18 @@ export function FriendsPage() {
       setNudges((list) => list?.map((n) => ({ ...n, read: true })));
     } catch {
       // The list stays unread and is retried the next time the tab opens.
+    }
+  }
+
+  async function openInvites() {
+    setTab("invites");
+    if (inviteUnread === 0) return;
+    try {
+      await invites.markRead();
+      setInviteUnread(0);
+      setCourseInvites((list) => list.map((i) => ({ ...i, read: true })));
+    } catch {
+      // Stays unread and is retried the next time the tab opens.
     }
   }
 
@@ -325,6 +347,16 @@ export function FriendsPage() {
               onClick={() => void openNudges()}
             >
               Nudges · {unreadCount(nudges)}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id={`${id}-tab-invites`}
+              aria-selected={tab === "invites"}
+              aria-controls={`${id}-panel`}
+              onClick={() => void openInvites()}
+            >
+              Invites · {inviteUnread}
             </button>
             <button
               type="button"
@@ -495,6 +527,29 @@ export function FriendsPage() {
                   couple of weeks.
                 </p>
                 <NudgeInbox items={nudges} />
+              </div>
+            )}
+            {tab === "invites" && (
+              <div className="friends-requests">
+                <h2>Course invites</h2>
+                <p className="social-hint">
+                  Friends can invite you to a shared course. You see only its
+                  title until you accept. Invites expire after 30 days.
+                </p>
+                <ReceivedInvites
+                  items={courseInvites}
+                  onResolved={(invite) =>
+                    setCourseInvites((list) =>
+                      list.filter((i) => i.id !== invite),
+                    )
+                  }
+                  onAccepted={(courseId) =>
+                    void navigate({
+                      to: "/course/$courseId",
+                      params: { courseId },
+                    })
+                  }
+                />
               </div>
             )}
             {tab === "blocked" && (
