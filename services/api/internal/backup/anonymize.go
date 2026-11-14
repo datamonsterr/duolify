@@ -98,9 +98,6 @@ var piiRules = []piiRule{
 	{"outline_proposals", "attempts", `NULL`},
 	{"outline_proposals", "base_outline", emptyArr},
 	{"outline_proposals", "decision_draft", `NULL`},
-	{"marketplace_listings", "description", redacted},
-	{"marketplace_listings", "tags", `'{}'`},
-	{"marketplace_listings", "title", redacted},
 	{"outline_proposals", "operations", `NULL`},
 	{"outline_proposals", "request", redacted},
 	{"outline_proposals", "result_outline", `NULL`},
@@ -141,7 +138,6 @@ friend_requests.method gamification_config.goal_options gamification_config.leag
 learner_profiles.appearance learner_profiles.haptics learner_profiles.level learner_profiles.motion learner_profiles.reminder_time
 learner_social_settings.course_invites_from learner_social_settings.request_policy
 lesson_test_variant_snapshots.reason lesson_test_variant_snapshots.variant_of lesson_questions.variant_of outline_proposals.decision
-marketplace_listings.category marketplace_listings.language
 pricing_audit.action pricing_audit.change_class pricing_audit.diff_summary pricing_audit.override_reason pricing_audit.reason
 pricing_drafts.change_class pricing_drafts.config pricing_drafts.created_by pricing_drafts.reviewed_by pricing_quote_policies.policy
 pricing_quotes.snapshot pricing_verification_evidence.evidence pricing_version_cancellations.cancelled_by pricing_version_cancellations.reason
