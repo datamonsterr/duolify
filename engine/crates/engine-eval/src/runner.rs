@@ -1312,7 +1312,7 @@ async fn evaluate_steering(task: &str, input: &serde_json::Value) -> Result<Stri
             .unwrap_or_default()
             .contains(input["expected_focus"].as_str().unwrap_or_default())
     });
-    Ok(serde_json::json!({"data_boundary":section.matches("<learner_instructions>").count()==1&&section.matches("</learner_instructions>").count()==1,"no_leak":no_leak,"grading_unchanged":grading,"adherence":adherence,"delivered":delivered.is_some(),"expected_delivery":delivered.is_some()==input["expected_delivery"].as_bool().unwrap_or(true),"bounded_attempts":outcome.attempts.len()<=2}).to_string())
+    Ok(serde_json::json!({"data_boundary":section.matches("<learner_instructions>").count()==usize::from(!entries.is_empty())&&section.matches("</learner_instructions>").count()==usize::from(!entries.is_empty()),"no_leak":no_leak,"grading_unchanged":grading,"adherence":adherence,"delivered":delivered.is_some(),"expected_delivery":delivered.is_some()==input["expected_delivery"].as_bool().unwrap_or(true),"bounded_attempts":outcome.attempts.len()<=2}).to_string())
 }
 
 async fn evaluate_course_screen(input: &serde_json::Value) -> Result<String> {

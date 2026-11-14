@@ -258,3 +258,19 @@ async fn classifier_timeout_fails_closed_without_a_verdict() {
     );
     assert!(outcome.attempts.iter().all(|a| a.usage_unavailable));
 }
+
+#[test]
+fn fork_point_lesson_carries_the_approved_snapshot_and_a_cancelled_fork_carries_none() {
+    // E16-05: the first lesson generated after the fork reads the approved instruction once.
+    let forked = hardened_prompt(
+        "Course context: Go",
+        &[entry("i1", "More examples in Go", 2, 1, 1)],
+    )
+    .unwrap();
+    assert_eq!(forked.matches("<learner_instructions>").count(), 1);
+    assert!(forked.contains("More examples in Go"));
+    // Declining the fork warning saves nothing: the snapshot is empty and no section exists.
+    let cancelled = hardened_prompt("Course context: Go", &[]).unwrap();
+    assert!(!cancelled.contains("learner_instructions"));
+    assert!(!cancelled.contains("More examples in Go"));
+}
