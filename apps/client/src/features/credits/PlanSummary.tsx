@@ -68,13 +68,13 @@ export function PlanSummary({ wallet }: { wallet: WalletResponse }) {
               ? "Payment failed · paid benefits continue through the paid-through date"
               : "Payment failed · paid benefits ended; issued credits remain available"
             : plan.status === "disputed"
-              ? "Disputed · issued credits remain available"
+              ? "Disputed · affected credits reversed"
               : plan.active
                 ? plan.billing_period === "yearly"
                   ? "Active · Annual"
                   : "Active · Monthly"
                 : plan.revoked
-                  ? "Refunded · issued credits remain available"
+                  ? "Refunded · affected credits reversed"
                   : "Expired · issued credits remain available"}
       </p>
       <p>

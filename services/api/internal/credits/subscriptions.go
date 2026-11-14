@@ -193,16 +193,23 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 		return transitionErr
 	}
 	request := PaymentRequest{OrderID: order.ID, OwnerReference: ownerRef, SKU: order.SKU, PriceID: price, Currency: order.Currency, AmountMinor: order.AmountMinor, Mode: paymentMode(order.BillingPeriod)}
+	failedInvoice := ""
+	if (kind == "invoice.payment_failed" || kind == "invoice.updated") && invoice.Status == "open" && !invoice.LiveMode && invoice.SubscriptionID == sub.ID && invoice.CustomerID == sub.CustomerID && invoice.OrderID == sub.OrderID && invoice.OwnerReference == sub.OwnerReference {
+		failedInvoice = invoice.ID
+	}
 	// An already funded term was verified when it was funded; later provider state
-	// (cancelled, refunded) must still reconcile its reversals.
+	// must still update lifecycle and reconcile reversals without reissuing grants.
 	var termKey string
 	if err = tx.QueryRow(ctx, `SELECT t.period_key FROM credit_subscription_terms t JOIN credit_subscriptions b USING(subscription_id) WHERE t.invoice_id=$1 AND t.subscription_id=$2 AND b.order_id=$3 AND t.service_start=$4 AND t.paid_through=$5`, invoice.ID, sub.ID, order.ID, invoice.PeriodStart, invoice.PeriodEnd).Scan(&termKey); err == nil {
+		if err = s.recordLifecycle(ctx, tx, event, sub, failedInvoice); err != nil {
+			return err
+		}
 		return s.finishFundedTerm(ctx, tx, event, order, *owner, ownerRef, termKey, invoice, "duplicate", "", 0)
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	if (kind == "invoice.payment_failed" || kind == "invoice.updated") && invoice.Status == "open" && !invoice.LiveMode && invoice.SubscriptionID == sub.ID && invoice.CustomerID == sub.CustomerID && invoice.OrderID == sub.OrderID && invoice.OwnerReference == sub.OwnerReference {
-		if err = s.recordLifecycle(ctx, tx, event, sub, invoice.ID); err != nil {
+	if failedInvoice != "" {
+		if err = s.recordLifecycle(ctx, tx, event, sub, failedInvoice); err != nil {
 			return err
 		}
 		return paymentResult(ctx, tx, event, order.ID, "pending", "", 0)
