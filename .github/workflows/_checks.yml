@@ -117,6 +117,8 @@ jobs:
           tools: actionlint shellcheck
       - run: mise run ci:lint
         timeout-minutes: 2
+      - run: mise run ci:api-integration-shards
+        timeout-minutes: 1
       - name: Summary
         if: always()
         env:
@@ -191,12 +193,54 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
-  api-integration:
+  api-integration-a:
     needs: changes
     if: inputs.tier == 'full' && needs.changes.outputs.api == 'true'
     runs-on: namespace-profile-datamonster01
     timeout-minutes: 20
     # The task starts and removes Postgres 18 via testcontainers; Docker must be available.
+    env:
+      API_TEST_PACKAGES: ./internal/backup/... ./internal/social/... ./internal/sharing/...
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-api
+      - run: mise run api:test-integration
+        timeout-minutes: 12
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  api-integration-b:
+    needs: changes
+    if: inputs.tier == 'full' && needs.changes.outputs.api == 'true'
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 20
+    env:
+      API_TEST_PACKAGES: ./internal/notes/... ./internal/narration/... ./internal/lessontest/... ./internal/characters/... ./internal/credits/...
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-api
+      - run: mise run api:test-integration
+        timeout-minutes: 12
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  api-integration-c:
+    needs: changes
+    if: inputs.tier == 'full' && needs.changes.outputs.api == 'true'
+    runs-on: namespace-profile-datamonster01
+    timeout-minutes: 20
+    env:
+      API_TEST_PACKAGES: ./internal/store/... ./internal/pricing/... ./internal/accounts/... ./internal/courses/... ./internal/player/... ./internal/eval/... ./internal/gamification/... ./internal/chat/...
     steps:
       - uses: actions/checkout@v7
         with:
@@ -559,7 +603,9 @@ jobs:
       - openspec
       - proto
       - api
-      - api-integration
+      - api-integration-a
+      - api-integration-b
+      - api-integration-c
       - restore-drill
       - engine-lint
       - engine-build

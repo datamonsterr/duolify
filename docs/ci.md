@@ -51,6 +51,17 @@ CI-owned `ci:engine-archive` / `ci:engine-test-archive` tasks so test binaries m
 between jobs without recompiling. Web build artifacts are reused by Playwright.
 No raw language test/build commands appear in workflows.
 
+Full-tier API integration runs in three parallel jobs on
+`namespace-profile-datamonster01`: A covers backup, social and sharing; B covers
+notes, narration, lessontest, characters and credits; C covers store, pricing,
+accounts, courses, player, eval, gamification and chat. HTTP e2e runs only in C.
+The workflow-lint job runs `mise run ci:api-integration-shards` to reject missing
+or duplicate packages, differences from the `api:test-integration` default list,
+and integration-tagged test directories without shard coverage. Keep each
+workflow `API_TEST_PACKAGES` assignment on one line for the guard. `ci-ok` needs
+all three jobs directly; `join(needs.*.result, ' ')` passes their results to
+`ci:aggregate`, which rejects any failed or cancelled shard.
+
 | Secret | Use |
 | --- | --- |
 | `RAILWAY_TOKEN` | Repository secret for full-tier plans; dev environment secret for deploys. Scope to development. |
