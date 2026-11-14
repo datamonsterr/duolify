@@ -67,7 +67,10 @@ Full-tier Playwright runs in three jobs, `playwright-1`, `playwright-2` and
 `client:e2e` validates (`N/M`, single digits, N <= M) and passes as
 `playwright test --shard=N/3`. Unset runs the full suite. One worker, no retries;
 `fullyParallel` is off, so Playwright shards by spec file and each spec runs once.
-Artifacts are `playwright-report-1..3`. `ci-ok` needs all three directly.
+Artifacts are `playwright-report-1..3`. `ci-ok` needs all three directly. These
+checks replace the former single `checks / playwright` check (#205); branch
+protection on `main` lists no required checks by name, so the rename needs no
+settings change.
 
 | Secret | Use |
 | --- | --- |
