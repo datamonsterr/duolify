@@ -432,7 +432,7 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
-  playwright:
+  playwright-1:
     needs: [changes, client]
     if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
     runs-on: namespace-profile-linux-xl
@@ -463,11 +463,111 @@ jobs:
         run: mise run client:e2e-setup
         timeout-minutes: 3
       - run: mise run client:e2e
+        env:
+          E2E_SHARD: 1/3
         timeout-minutes: 10
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: playwright-report
+          name: playwright-report-1
+          path: |
+            apps/client/playwright-report
+            apps/client/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  playwright-2:
+    needs: [changes, client]
+    if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
+    runs-on: namespace-profile-linux-xl
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-client
+        with:
+          tauri: 'false'
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: go
+          area: pricing-e2e
+      - uses: actions/download-artifact@v8
+        with:
+          name: client-web
+          path: apps/client/dist
+      - uses: actions/cache@v6
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: mise run ci:playwright-deps
+        timeout-minutes: 3
+      - if: steps.browsers.outputs.cache-hit != 'true'
+        run: mise run client:e2e-setup
+        timeout-minutes: 3
+      - run: mise run client:e2e
+        env:
+          E2E_SHARD: 2/3
+        timeout-minutes: 10
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playwright-report-2
+          path: |
+            apps/client/playwright-report
+            apps/client/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  playwright-3:
+    needs: [changes, client]
+    if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
+    runs-on: namespace-profile-linux-xl
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-client
+        with:
+          tauri: 'false'
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: go
+          area: pricing-e2e
+      - uses: actions/download-artifact@v8
+        with:
+          name: client-web
+          path: apps/client/dist
+      - uses: actions/cache@v6
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: mise run ci:playwright-deps
+        timeout-minutes: 3
+      - if: steps.browsers.outputs.cache-hit != 'true'
+        run: mise run client:e2e-setup
+        timeout-minutes: 3
+      - run: mise run client:e2e
+        env:
+          E2E_SHARD: 3/3
+        timeout-minutes: 10
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playwright-report-3
           path: |
             apps/client/playwright-report
             apps/client/test-results
@@ -613,7 +713,9 @@ jobs:
       - engine-eval
       - engine-eval-live
       - client
-      - playwright
+      - playwright-1
+      - playwright-2
+      - playwright-3
       - tauri
       - images
       - infra

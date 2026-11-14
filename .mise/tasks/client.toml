@@ -30,7 +30,18 @@ env = { E2E_WEB_PORT = "{{env.E2E_WEB_PORT | default(value='4000')}}", E2E_API_B
 description = "Run end-to-end tests against the web build"
 depends = ["client:build"]
 dir = "{{config_root}}/apps/client"
-run = "pnpm exec playwright test"
+run = '''
+set -eu
+shard="${E2E_SHARD:-}"
+if [ -n "$shard" ]; then
+  case "$shard" in
+    [1-9]/[1-9]) [ "${shard%/*}" -le "${shard#*/}" ] || { echo "E2E_SHARD $shard: index exceeds total" >&2; exit 1; } ;;
+    *) echo "E2E_SHARD must look like N/M (e.g. 2/3), got: $shard" >&2; exit 1 ;;
+  esac
+  exec pnpm exec playwright test --shard="$shard"
+fi
+exec pnpm exec playwright test
+'''
 
 ["client:tauri-build"]
 description = "Build Tauri debug application"

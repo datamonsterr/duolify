@@ -21,6 +21,7 @@ import { availableOffline } from "./features/player/cache";
 import { TutorChat } from "./features/chat/TutorChat";
 import { BlockedCourseNotice } from "./features/sharing/BlockedCopy";
 import { CopyOriginNotice } from "./features/sharing/CopyOriginNotice";
+import { CourseModerationBanner } from "./features/sharing/CourseModerationBanner";
 
 export function LearnPath({ courseId }: { courseId: string }) {
   const returnTo = useLocation({ select: (location) => location.pathname });
@@ -202,6 +203,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
       </h1>
       <p dir="auto">{course.description}</p>
       <CopyOriginNotice origin={course.copy_origin} />
+      <CourseModerationBanner courseId={courseId} />
       {course.pinned_version ? (
         <p className="muted" data-testid="pinned-version">
           Published course · version {course.pinned_version}
