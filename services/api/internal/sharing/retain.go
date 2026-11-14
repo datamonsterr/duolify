@@ -58,3 +58,15 @@ func (s *Service) ReleaseReadiness(context.Context, string) (Readiness, error) {
 
 // LedgerRef is the ledger reference of an id: a hash, never the id.
 func LedgerRef(id string) string { return id }
+
+// PurgeAt is when a prefix released at now may be purged.
+func PurgeAt(now time.Time, days int) time.Time { return now }
+
+// PinPrefix is the object prefix of one published version.
+func PinPrefix(draftID string) string { return "" }
+
+// PrefixOfKey returns the published prefix a manifest key lives under.
+func PrefixOfKey(key string) (string, bool) { return "", false }
+
+// EvaluateReadiness is the pure release report over configuration.
+func EvaluateReadiness(cfg Config, erasureAnonymizes bool) Readiness { return Readiness{} }

@@ -28,3 +28,9 @@ func ReplayModerationBlocks(context.Context, *pgxpool.Pool, BlockStore) (int, er
 func PinResolution(exists func(context.Context, string) (bool, error)) Check {
 	return Check{"copy pins resolve", KindObjects, func(context.Context, *pgxpool.Pool) error { return nil }}
 }
+
+// BlockKey is the ledger key of a block record.
+func BlockKey(actionRef string) string { return "" }
+
+// LiftKey is the ledger key of a lift marker.
+func LiftKey(actionRef string) string { return "" }
