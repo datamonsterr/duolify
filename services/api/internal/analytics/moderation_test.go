@@ -34,7 +34,7 @@ func TestModerationEventsReachPostHogWithNoTextAndHonorOptOut(t *testing.T) {
 	for event, extra := range map[string]map[string]any{
 		"moderation_action":         {"action_id": id, "action": "takedown", "reason_code": "unsafe", "target_type": "publication", "reason": "PRIVATE reason text", "moderator": "private@example.test"},
 		"moderation_appeal":         {"action_id": id, "outcome": "overturned", "text": "PRIVATE appeal text"},
-		"course_visibility_changed": {"from": "public", "to": "private", "source": "moderation"},
+		"course_visibility_changed": {"from": "public", "to": "private", "cause": "moderation"},
 	} {
 		props := map[string]any{}
 		for k, v := range common {
