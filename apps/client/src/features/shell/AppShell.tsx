@@ -17,6 +17,7 @@ import {
 import { useMobileLayout } from "./AdaptiveLayouts";
 import { ShellSession } from "./ShellSession";
 import { useMarketplaceEnabled } from "../../lib/features";
+import { ModerationNoticesLink } from "../sharing/ModerationNoticesLink";
 
 const icons: Record<string, string> = {
   home: "M3 11 12 4l9 7v9h-6v-6H9v6H3z",
@@ -38,6 +39,7 @@ const iconAccents: Record<string, string> = {
   gem: "credit-icon",
   profile: "muted",
   settings: "muted",
+  flag: "warning",
 };
 function NavIcon({ name }: { name: string }) {
   return (
@@ -118,6 +120,7 @@ export function MorePage() {
           <DestinationLink key={item.id} item={item} />
         ))}
         <MarketplaceLink />
+        <ModerationNoticesLink />
       </nav>
     </>
   );
@@ -183,6 +186,7 @@ export function AppShell() {
                     {accountNavigation.map((item) => (
                       <DestinationLink key={item.id} item={item} />
                     ))}
+                    <ModerationNoticesLink />
                   </div>
                 </nav>
               )}

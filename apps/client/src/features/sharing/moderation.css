@@ -208,3 +208,14 @@
     transition: none;
   }
 }
+.mod-banner {
+  margin-block: var(--space-4);
+}
+.mod-banner-icon {
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  flex-shrink: 0;
+}
+.mod-banner-link {
+  font-weight: var(--weight-heavy);
+}
