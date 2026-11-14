@@ -672,7 +672,7 @@ func (s *Service) Publish(ctx context.Context, owner, courseID string) error {
 	return ErrVisibilityUnavailable
 }
 
-// PurgeExpired deletes screening history past one year and submission counters past 24 hours.
+// PurgeExpired deletes screening history past one year, reports past three and counters past 24 hours.
 func (s *Service) PurgeExpired(ctx context.Context) (int64, error) {
 	var n int64
 	for _, table := range []string{"publication_screenings", "course_review_screenings"} {
@@ -682,8 +682,19 @@ func (s *Service) PurgeExpired(ctx context.Context) (int64, error) {
 		}
 		n += tag.RowsAffected()
 	}
-	tag, err := s.pool.Exec(ctx, `DELETE FROM course_review_submissions WHERE created_at < now()-interval '24 hours'`)
-	return n + tag.RowsAffected(), err
+	// Reports are kept three years (configurable); submission counters only for the rolling day.
+	tag, err := s.pool.Exec(ctx, `DELETE FROM content_reports WHERE created_at < now()-make_interval(days => $1)`, s.cfg.ReportRetentionDays)
+	if err != nil {
+		return n, err
+	}
+	n += tag.RowsAffected()
+	for _, table := range []string{"course_review_submissions", "content_report_submissions"} {
+		if tag, err = s.pool.Exec(ctx, `DELETE FROM `+table+` WHERE created_at < now()-interval '24 hours'`); err != nil {
+			return n, err
+		}
+		n += tag.RowsAffected()
+	}
+	return n, nil
 }
 
 // Maintain enforces the one-year screening retention even when no endpoint is visited.

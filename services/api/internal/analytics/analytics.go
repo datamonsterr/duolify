@@ -101,7 +101,7 @@ func allowlisted(event string) bool {
 		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
 		"marketplace_browsed", "marketplace_searched", "course_viewed",
 		"course_invite_sent", "course_invite_accepted", "course_invite_declined",
-		"course_republished", "course_update_applied", "review_submitted", "review_deleted",
+		"course_republished", "course_update_applied", "review_submitted", "review_deleted", "course_reported", "course_hidden_by_reports",
 		"narration_generated", "narration_failed", "narration_cache_hit", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled":
 		return true
 	default:
@@ -324,6 +324,23 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 		if v, _ := input["verdict"].(string); v == "pass" || v == "block" || v == "needs_review" || v == "pending_screening" {
 			out["verdict"] = v
+		}
+	case "course_reported", "course_hidden_by_reports":
+		// Identifiers and closed enums only; report text never reaches analytics.
+		for _, key := range []string{"course_id", "report_id"} {
+			if v, _ := input[key].(string); marketUUID.MatchString(v) && (key == "course_id" || event == "course_reported") {
+				out[key] = v
+			}
+		}
+		if event == "course_reported" {
+			if v, _ := input["reason"].(string); reportReasons[v] {
+				out["reason"] = v
+			}
+			if v, _ := input["target_type"].(string); v == "course" || v == "review" || v == "user" {
+				out["target_type"] = v
+			}
+		} else if v, ok := input["reporter_count"].(int); ok && v >= 1 && v <= 1000 {
+			out["reporter_count"] = v
 		}
 	case "course_republished":
 		ids("course_id")
@@ -663,5 +680,6 @@ func safeProperties(event string, input map[string]any) map[string]any {
 var (
 	marketCategories = map[string]bool{"science": true, "tech": true, "languages": true, "life_skills": true, "arts": true}
 	marketLanguage   = regexp.MustCompile(`^[a-z]{2,3}$`)
+	reportReasons    = map[string]bool{"unsafe": true, "inappropriate": true, "spam": true, "copyright": true, "misleading": true, "other": true}
 	marketUUID       = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 )

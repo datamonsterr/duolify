@@ -594,7 +594,7 @@ func (s *Service) queryCatalogue(ctx context.Context, viewer string, q BrowseQue
 		key, tie = "0::float8", "0::bigint"
 	}
 	var where strings.Builder
-	where.WriteString(`l.delisted_at IS NULL AND c.deleted_at IS NULL AND c.visibility='public'`)
+	where.WriteString(`l.delisted_at IS NULL AND l.hidden_at IS NULL AND c.deleted_at IS NULL AND c.visibility='public'`)
 	if q.Category != "" {
 		where.WriteString(" AND l.category=" + arg(q.Category))
 	}
@@ -613,7 +613,7 @@ func (s *Service) queryCatalogue(ctx context.Context, viewer string, q BrowseQue
 	}
 	sql := fmt.Sprintf(`WITH m AS (
   SELECT COALESCE(sum(st.rating_sum)::float8 / NULLIF(sum(st.rating_count), 0), $1::float8) AS mean, $2::int AS min_count
-  FROM marketplace_listing_stats st JOIN marketplace_listings ml ON ml.course_id=st.course_id WHERE ml.delisted_at IS NULL)
+  FROM marketplace_listing_stats st JOIN marketplace_listings ml ON ml.course_id=st.course_id WHERE ml.delisted_at IS NULL AND ml.hidden_at IS NULL)
 SELECT r.course_id::text, r.title, r.description, r.category, r.language, r.version, r.published_at, r.username, r.display_name,
   r.generated_lessons, r.lesson_count, (SELECT count(*) FROM course_copies cc WHERE cc.source_course_id=r.course_id), r.rating_sum, r.rating_count, r.sort_key, r.sort_tie
 FROM (
@@ -695,7 +695,7 @@ JOIN marketplace_listing_stats st ON st.course_id=l.course_id
 JOIN courses c ON c.id=l.course_id AND c.deleted_at IS NULL AND c.visibility='public'
 JOIN learners o ON o.id=l.owner_id
 LEFT JOIN learner_usernames lu ON lu.learner_id=l.owner_id
-WHERE l.course_id=$1 AND l.delisted_at IS NULL`, courseID).
+WHERE l.course_id=$1 AND l.delisted_at IS NULL AND l.hidden_at IS NULL`, courseID).
 		Scan(&p.CourseID, &p.Title, &p.Description, &p.Category, &p.Language, &p.Tags, &p.Version, &p.PublishedAt, &ownerID, &draftID,
 			&p.LessonsReady, &p.LessonsTotal, &sum, &p.RatingCount, &p.Creator.Username, &p.Creator.DisplayName)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -774,7 +774,7 @@ func (s *Service) EnrollMarketplace(ctx context.Context, viewer, courseID string
 	}
 	var ownerID string
 	err := s.pool.QueryRow(ctx, `SELECT l.owner_id::text FROM marketplace_listings l JOIN courses c ON c.id=l.course_id
-WHERE l.course_id=$1 AND l.delisted_at IS NULL AND c.deleted_at IS NULL AND c.visibility='public'`, courseID).Scan(&ownerID)
+WHERE l.course_id=$1 AND l.delisted_at IS NULL AND l.hidden_at IS NULL AND c.deleted_at IS NULL AND c.visibility='public'`, courseID).Scan(&ownerID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Enrollment{}, ErrCourseUnavailable
 	}

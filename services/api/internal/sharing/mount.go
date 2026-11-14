@@ -42,6 +42,7 @@ func Mount(mux *http.ServeMux, s *Service, protect, optional func(http.Handler) 
 	mux.Handle("GET /v1/marketplace/courses/{id}/reviews", optional(reviews))
 	mux.Handle("PUT /v1/marketplace/courses/{id}/review", protect(reviews))
 	mux.Handle("DELETE /v1/marketplace/courses/{id}/review", protect(reviews))
+	mux.Handle("POST /v1/marketplace/reports", protect(ReportHandler{s: s}))
 	listing := protect(NewListingHandler(s))
 	for _, method := range []string{"GET", "PUT", "DELETE"} {
 		mux.Handle(method+" /v1/courses/{id}/marketplace-listing", listing)

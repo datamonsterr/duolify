@@ -77,7 +77,7 @@ func (s *Service) reviewCourse(ctx context.Context, q interface {
 	}
 	var owner string
 	err := q.QueryRow(ctx, `SELECT l.owner_id::text FROM marketplace_listings l JOIN courses c ON c.id=l.course_id
- WHERE l.course_id=$1 AND l.delisted_at IS NULL AND c.deleted_at IS NULL AND c.visibility='public'`+social.NotBlockedSQL("$2::uuid", "l.owner_id"), course, nullUUID(actor)).Scan(&owner)
+ WHERE l.course_id=$1 AND l.delisted_at IS NULL AND l.hidden_at IS NULL AND c.deleted_at IS NULL AND c.visibility='public'`+social.NotBlockedSQL("$2::uuid", "l.owner_id"), course, nullUUID(actor)).Scan(&owner)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrCourseUnavailable
 	}
