@@ -451,7 +451,9 @@ func (s *Service) AcceptInvite(ctx context.Context, actor, id string) (InviteOut
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var sender string
-	if err = s.pool.QueryRow(ctx, `SELECT sender_id::text FROM course_invites WHERE id=$1::uuid AND recipient_id=$2::uuid`, id, actor).Scan(&sender); err != nil {
+	// Use the connection already held by this transaction. Acquiring another
+	// pooled connection here can starve concurrent accepts on small pools.
+	if err = tx.QueryRow(ctx, `SELECT sender_id::text FROM course_invites WHERE id=$1::uuid AND recipient_id=$2::uuid`, id, actor).Scan(&sender); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || !validID(id) {
 			return InviteOutcome{}, ErrInviteUnavailable
 		}

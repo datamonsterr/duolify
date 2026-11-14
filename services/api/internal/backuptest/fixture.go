@@ -441,6 +441,15 @@ func (f *Fixture) UsePackagedWorker(t *testing.T) {
 // Seed adds synthetic learner, auth state and append-only ledger data.
 func (f *Fixture) Seed(t *testing.T) {
 	t.Helper()
+	f.SeedDatabase(t, f.ApplicationObjects())
+	f.BackupPlayerObjects(t)
+}
+
+// SeedDatabase preserves the complete synthetic SQL dataset and publishes player
+// documents through the supplied writer. Database integration suites can supply
+// in-memory storage without starting the backup worker or provisioning S3 IAM.
+func (f *Fixture) SeedDatabase(t *testing.T, objects playerfixture.Writer) {
+	t.Helper()
 	outline := courses.Outline{{ID: "fixture-unit", Title: "Moon", Lessons: []courses.OutlineLesson{{ID: "fixture-lesson", Title: "Phases", Goal: "Recognize phases"}}}}
 	for _, query := range []string{
 		"INSERT INTO learners (id,display_name) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner')",
@@ -721,10 +730,9 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		t.Fatal(err)
 	}
 
-	if err := playerfixture.Publish(t.Context(), f.DB.Pool, f.ApplicationObjects(), "a1111111-1111-4111-8111-111111111111", "f3333333-3333-4333-8333-333333333333"); err != nil {
+	if err := playerfixture.Publish(t.Context(), f.DB.Pool, objects, "a1111111-1111-4111-8111-111111111111", "f3333333-3333-4333-8333-333333333333"); err != nil {
 		t.Fatal(err)
 	}
-	f.BackupPlayerObjects(t)
 	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO narration_assets(content_hash,text_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms)
 		VALUES(repeat('ab',32),repeat('cd',32),'mock-default-voice','eleven_flash_v2_5','fp1-0000000000000000',
 		'lessons/narration/v1/'||repeat('ab',32)||'/audio.wav','lessons/narration/v1/'||repeat('ab',32)||'/alignment.json',22,1100,1100)`); err != nil {

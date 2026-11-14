@@ -3,15 +3,19 @@
 package sharing_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/backuptest"
 	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
+	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // ownerName is the fixture owner's username (backuptest.Seed); blocks address learners by it.
@@ -30,8 +34,7 @@ type inviteEnv struct {
 // adapter, and a social service whose block transaction cancels invites (the production wiring).
 func inviteWorld(t *testing.T, mutate func(*sharing.Config)) *inviteEnv {
 	t.Helper()
-	f := backuptest.New(t)
-	f.Seed(t)
+	f := newSeededSharingFixture(t)
 	ev := &capture{}
 	s, _ := enrollService(t, f, ev, mutate)
 	push := sharing.NewFakePush()
@@ -244,6 +247,36 @@ func hasInvite(list []sharing.SentInvite, id, status string) bool {
 	return false
 }
 
+func TestInviteAcceptUsesOneConnection(t *testing.T) {
+	e := inviteWorld(t, nil)
+	id := e.person(t, "One")
+	e.befriend(t, owner, id)
+	inv, err := e.s.SendInvite(t.Context(), owner, e.src, sharing.InviteInput{Username: "one"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := e.f.DB.Pool.Config()
+	cfg.MaxConns = 1
+	pool, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	s, _ := enrollService(t, &backuptest.Fixture{DB: &store.Store{Pool: pool}}, e.ev, nil)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	out, err := s.AcceptInvite(ctx, id, inv.ID)
+	if err != nil || out.Status != "accepted" || out.CourseID == "" {
+		t.Fatalf("accept with a single connection: %+v %v", out, err)
+	}
+	if n := e.n(t, `SELECT count(*) FROM course_copies WHERE learner_id=$1 AND copy_course_id=$2`, id, out.CourseID); n != 1 {
+		t.Fatalf("copies = %d", n)
+	}
+	if again, err := s.AcceptInvite(ctx, id, inv.ID); err != nil || again.CourseID != out.CourseID {
+		t.Fatalf("single-connection replay: %+v %v", again, err)
+	}
+}
+
 func TestInviteExpiryAcceptDeclineRevoke(t *testing.T) {
 	e := inviteWorld(t, nil)
 	ctx := t.Context()
@@ -293,6 +326,8 @@ func TestInviteExpiryAcceptDeclineRevoke(t *testing.T) {
 	})
 
 	t.Run("accept_enrolls_once_into_a_pinned_copy", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
 		id, inv := send("Acc")
 		var wg sync.WaitGroup
 		results := make([]string, 5)

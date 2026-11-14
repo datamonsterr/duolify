@@ -66,8 +66,7 @@ func liveTitles(t *testing.T, f *backuptest.Fixture, course string) []string {
 
 func newRepublishEnv(t *testing.T, mutate func(*sharing.Config)) *republishEnv {
 	t.Helper()
-	f := backuptest.New(t)
-	f.Seed(t)
+	f := newSeededSharingFixture(t)
 	ev := &capture{}
 	s, objects := enrollService(t, f, ev, mutate)
 	e := &republishEnv{f: f, s: s, ev: ev, objects: objects, copies: map[string]string{}, keys: map[string]string{}}

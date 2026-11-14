@@ -160,8 +160,7 @@ func stubStates(t *testing.T, f *backuptest.Fixture, course string) []string {
 }
 
 func TestEnrollAPinnedCopyAndReuseLessonsForFree(t *testing.T) {
-	f := backuptest.New(t)
-	f.Seed(t)
+	f := newSeededSharingFixture(t)
 	ctx := t.Context()
 	ev := &capture{}
 	s, objects := enrollService(t, f, ev, nil)
@@ -374,8 +373,7 @@ func TestEnrollAPinnedCopyAndReuseLessonsForFree(t *testing.T) {
 }
 
 func TestEnrollRefusalsAreNeutral(t *testing.T) {
-	f := backuptest.New(t)
-	f.Seed(t)
+	f := newSeededSharingFixture(t)
 	ctx := t.Context()
 	ev := &capture{}
 	s, _ := enrollService(t, f, ev, func(c *sharing.Config) { c.MaxEnrollmentsPerDay = 2 })

@@ -155,7 +155,7 @@ func walk(t *testing.T, s *sharing.Service, viewer string, q sharing.BrowseQuery
 }
 
 func TestBrowseAFilteredPublicMarketplace(t *testing.T) {
-	f := backuptest.New(t)
+	f := newSharingFixture(t)
 	ctx := t.Context()
 	ev := &capture{}
 	s := marketService(t, f, ev, nil, nil)
@@ -620,7 +620,7 @@ func pageKeys(t *testing.T, r *redis.Client) []string {
 }
 
 func TestMarketplaceRedisIsDerivedAndInvalidatedAtOnce(t *testing.T) {
-	f := backuptest.New(t)
+	f := newSharingFixture(t)
 	ctx := t.Context()
 	r := startRedis(t)
 	ev := &capture{}
@@ -709,7 +709,7 @@ func TestMarketplaceRedisIsDerivedAndInvalidatedAtOnce(t *testing.T) {
 
 // The handler layer: anonymous-safe, flag-gated, rate limited and neutral.
 func TestMarketplaceHTTPIsAnonymousSafeFlaggedAndLimited(t *testing.T) {
-	f := backuptest.New(t)
+	f := newSharingFixture(t)
 	ctx := t.Context()
 	ev := &capture{}
 	s := marketService(t, f, ev, nil, func(c *sharing.Config) { c.PreviewRateLimitPerIP = 5 })
