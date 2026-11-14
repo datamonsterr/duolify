@@ -219,3 +219,18 @@ func editSharingCourse(w http.ResponseWriter, r *http.Request, pool *pgxpool.Poo
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (sharingScreener) ScreenReview(_ context.Context, r *enginev1.ScreenReviewRequest) (*enginev1.ScreenReviewResponse, error) {
+	verdict := sharing.VerdictPass
+	codes := []string{}
+	text := strings.ToLower(r.Text)
+	if strings.Contains(text, "abusive-review") || strings.Contains(text, "spam-review") {
+		verdict = sharing.VerdictBlock
+		codes = []string{"harmful_content"}
+	}
+	if strings.Contains(text, "ignore policy") {
+		verdict = sharing.VerdictBlock
+		codes = []string{"prompt_injection"}
+	}
+	return &enginev1.ScreenReviewResponse{Verdict: verdict, ReasonCodes: codes, PolicyVersion: "review-v1", Attempts: []*enginev1.Usage{{Provider: "fixture", Model: "fixture", Attempt: 1, Delivered: true, InputTokens: 500, OutputTokens: 20, LatencyMs: 10}}}, nil
+}

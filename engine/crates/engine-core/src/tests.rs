@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn config_has_all_tasks() {
     let config: Models = toml::from_str(include_str!("../../../config/models.toml")).unwrap();
-    assert_eq!(config.tasks.len(), 12);
+    assert_eq!(config.tasks.len(), 13);
     assert_eq!(
         config.tasks["published_copy_lesson"].model,
         "claude-sonnet-5-5"

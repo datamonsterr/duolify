@@ -9,6 +9,7 @@ import {
   type MarketCourse,
   type MarketFailure,
 } from "./market";
+import { CourseReviews } from "./CourseReviews";
 import type { EnrollResult } from "./links";
 import "./sharing.css";
 import "./market.css";
@@ -204,22 +205,46 @@ export function MarketCoursePage({ id }: { id: string }) {
         )}
       </section>
 
-      <h2>Outline</h2>
-      <ol aria-label="Course outline" className="share-outline">
-        {c.outline.map((unit, i) => (
-          <li key={i}>
-            <strong dir="auto">{unit.title}</strong>
-            <ul>
-              {unit.lessons.map((l, j) => (
-                <li key={j} dir="auto">
-                  {l.title}
-                  {l.generated ? "" : " · generated as you learn"}
-                </li>
-              ))}
-            </ul>
-          </li>
-        ))}
-      </ol>
+      <div className="market-course-details">
+        <section className="market-outline">
+          <h2>Outline</h2>
+          <ol aria-label="Course outline" className="share-outline">
+            {c.outline.map((unit, i) => (
+              <li key={i}>
+                <strong dir="auto">{unit.title}</strong>
+                <ul>
+                  {unit.lessons.map((l, j) => (
+                    <li key={j} dir="auto">
+                      {l.title}
+                      {l.generated ? "" : " · generated as you learn"}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ol>
+        </section>
+        <CourseReviews
+          courseId={id}
+          refreshKey={
+            enroll.kind === "done" ? enroll.result.course_id : undefined
+          }
+          onRatingChange={(count, average) =>
+            setState((current) =>
+              current.kind === "ready"
+                ? {
+                    kind: "ready",
+                    course: {
+                      ...current.course,
+                      rating_count: count,
+                      rating_average: average,
+                    },
+                  }
+                : current,
+            )
+          }
+        />
+      </div>
     </div>
   );
 }

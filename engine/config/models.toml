@@ -41,3 +41,7 @@ fallback_model = "anthropic/claude-haiku-5.5"
 [tasks.published_copy_lesson]
 model = "claude-sonnet-5-5"
 fallback_model = "anthropic/claude-sonnet-5.5"
+
+[tasks.screen_review]
+model = "claude-haiku-5-5"
+fallback_model = "anthropic/claude-haiku-5.5"

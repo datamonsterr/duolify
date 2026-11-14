@@ -38,12 +38,13 @@ type AgeSource interface {
 // Service builds immutable drafts and screens them. It never changes visibility and never
 // touches private learning tables except to read allowlisted Course content.
 type Service struct {
-	pool   *pgxpool.Pool
-	events analytics.Events
-	cfg    Config
-	screen Screener
-	rates  RateSource
-	age    AgeSource
+	pool         *pgxpool.Pool
+	events       analytics.Events
+	cfg          Config
+	screen       Screener
+	reviewScreen ReviewScreener
+	rates        RateSource
+	age          AgeSource
 	// objects stores immutable published-lesson manifests for copies (E15-03); optional.
 	objects     ObjectWriter
 	assetOrigin string
@@ -66,6 +67,9 @@ func NewService(pool *pgxpool.Pool, events analytics.Events, cfg Config) *Servic
 // ConfigureScreening injects the platform-funded classifier and the Pricing-config rate source.
 func (s *Service) ConfigureScreening(screen Screener, rates RateSource) {
 	s.screen, s.rates = screen, rates
+	if review, ok := screen.(ReviewScreener); ok {
+		s.reviewScreen = review
+	}
 }
 
 // WithAgeSource returns a copy so callers can vary the source without sharing state.
@@ -668,10 +672,18 @@ func (s *Service) Publish(ctx context.Context, owner, courseID string) error {
 	return ErrVisibilityUnavailable
 }
 
-// PurgeExpired deletes screening rows past retention (one year).
+// PurgeExpired deletes screening history past one year and submission counters past 24 hours.
 func (s *Service) PurgeExpired(ctx context.Context) (int64, error) {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM publication_screenings WHERE created_at < now() - make_interval(days => $1)`, s.cfg.RetentionDays)
-	return tag.RowsAffected(), err
+	var n int64
+	for _, table := range []string{"publication_screenings", "course_review_screenings"} {
+		tag, err := s.pool.Exec(ctx, `DELETE FROM `+table+` WHERE created_at < now()-make_interval(days => $1)`, s.cfg.RetentionDays)
+		if err != nil {
+			return n, err
+		}
+		n += tag.RowsAffected()
+	}
+	tag, err := s.pool.Exec(ctx, `DELETE FROM course_review_submissions WHERE created_at < now()-interval '24 hours'`)
+	return n + tag.RowsAffected(), err
 }
 
 // Maintain enforces the one-year screening retention even when no endpoint is visited.
