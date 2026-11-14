@@ -71,6 +71,14 @@ Field numbers start at 20 to avoid clashes; the implementer picks free numbers.
 3. Should deleting all instructions let a forked Course copy rejoin the published version?
 4. Limits (500 characters, 20 instructions, 4,000 total) are proposed defaults.
 
+## E16-07 proposal slice
+
+ADR 0011 approves 55 Credits. A new Pricing config version adds `outline_replan`, using the outline model/token/USD envelope, no Daily free eligibility, 90 seconds and two total evaluated attempts. The action is available only from an approved active version; dev/test approval follows the existing admin workflow. No extra feature flag is needed after approval. Existing quotes retain their original version and price.
+
+Enrolled-course proposals use `course_replan_proposals`, separate from pre-enrollment `outline_drafts`/`outline_proposals` (which require a Course brief and cannot represent generated/unlocked protection). The existing protobuf outline and Engine outline schema are reused. Quote input binds Course id, version and a hash of the exact outline, active instructions and protected lessons. Proposals store those immutable inputs, response and added/removed/moved/retitled diff, expire after 24 hours, and purge seven days after expiry/decision. API validation independently protects lesson content, parent, position, unit metadata and Course metadata. No live outline is updated in this slice. Confirm/discard flows are E16-08.
+
+Repeated POST with the accepted quote resumes the same durable proposal. A database claim admits one executor; terminal financial settlement and proposal delivery commit together. Undelivered terminal failures release Learner Credits; interrupted executors are recovered by maintenance after the reservation deadline. A failed proposal requires a new explicit quote; transport retries never imply new consent. Offline recorded `steer_replan` fixtures gate immutability at 1.00 and adherence/fallback/insufficiency; E10-01 dataset provisioning and E10-06 live promotion remain blocked.
+
 ## E16-01 implementation slice
 
 Private owner-enrolled Courses accept `next_lesson` and `rest_of_course`. A single `latest` status read supports this slice's panel; list-many, edit and delete remain E16-02. Adds and job snapshots serialize on the Course row; job queue insertion is the start boundary, including an empty snapshot. Each snapshot owns ids/text/scope/version/screening-version; retries read it and successful Lesson settlement consumes next-lesson entries in the same transaction. Failed jobs leave instructions active for a future job. Snapshot content is retained independently of a later mutable instruction revision or 30-day soft-delete purge.
