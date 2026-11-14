@@ -945,8 +945,8 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT monthly_credits FROM credit_subscription_terms LIMIT 1").Scan(&monthlyCredits); err != nil {
 		t.Fatal(err)
 	}
-	// Three learners: the synthetic learner, the E6-03 friend and the E6-04 blocked row.
-	if version != f.schemaVersion || riverVersions < 1 || learners != 3 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
+	// Three learners: the synthetic learner, the E6-03 friend and the E6-04 blocked row. The refunded term's grant is reversed by one compensating ledger entry (E7-10).
+	if version != f.schemaVersion || riverVersions < 1 || learners != 3 || entries != 11 || balance != 104+packCredits+monthlyCredits || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
 	var pricingVersion string
@@ -1107,7 +1107,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		t.Fatalf("restored grants %d %v", grants, err)
 	}
 	plan, err := paidService.GetWallet(t.Context(), "a1111111-1111-4111-8111-111111111111")
-	if err != nil || plan.Plan == nil || !plan.Plan.Active || plan.Subscription != 2*monthlyCredits {
+	if err != nil || plan.Plan == nil || !plan.Plan.Active || plan.Subscription != monthlyCredits {
 		t.Fatalf("restored entitlement %+v %v", plan, err)
 	}
 	// Catch up part of the funded annual schedule after restore; revoked history
@@ -1129,7 +1129,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_outbox WHERE event='credits_purchased'").Scan(&outbox); err != nil || outbox != 1 {
 		t.Fatalf("restore duplicated payment analytics: %d %v", outbox, err)
 	}
-	for _, table := range []string{"credit_reversals", "credit_refund_allocations", "credit_dispute_keys", "credit_debt_history", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_results"} {
+	for _, table := range []string{"credit_goodwill_audit", "credit_reversals", "credit_refund_allocations", "credit_dispute_keys", "credit_debt_history", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_results"} {
 		for _, verb := range []string{"DELETE FROM ", "TRUNCATE "} {
 			if _, err := restored.Pool.Exec(t.Context(), verb+table); err == nil {
 				t.Fatalf("mutable restored payment history %s%s", verb, table)

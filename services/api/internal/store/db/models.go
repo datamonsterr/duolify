@@ -254,7 +254,7 @@ type CreditDebtHistory struct {
 	Amount          int64              `json:"amount"`
 	Status          string             `json:"status"`
 	ResolvedAt      pgtype.Timestamptz `json:"resolved_at"`
-	ResolutionNotes pgtype.Text        `json:"resolution_notes"`
+	GoodwillAuditID pgtype.Int8        `json:"goodwill_audit_id"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
@@ -278,6 +278,17 @@ type CreditEntry struct {
 	OwnerReference pgtype.Text        `json:"owner_reference"`
 	PricingVersion pgtype.Text        `json:"pricing_version"`
 	Provenance     []byte             `json:"provenance"`
+}
+
+type CreditGoodwillAudit struct {
+	ID             int64              `json:"id"`
+	ActorHash      string             `json:"actor_hash"`
+	OwnerReference string             `json:"owner_reference"`
+	ReasonCode     string             `json:"reason_code"`
+	Notes          string             `json:"notes"`
+	DebtIds        []int64            `json:"debt_ids"`
+	WaivedCredits  int64              `json:"waived_credits"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type CreditJob struct {
@@ -348,15 +359,17 @@ type CreditRefundAllocation struct {
 }
 
 type CreditReversal struct {
-	ReversalKey     string             `json:"reversal_key"`
-	OrderID         pgtype.UUID        `json:"order_id"`
-	Environment     string             `json:"environment"`
-	EventID         string             `json:"event_id"`
-	Kind            string             `json:"kind"`
-	AmountMinor     int32              `json:"amount_minor"`
-	Currency        string             `json:"currency"`
-	CreditsReversed int64              `json:"credits_reversed"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ReversalKey      string             `json:"reversal_key"`
+	OrderID          pgtype.UUID        `json:"order_id"`
+	Environment      string             `json:"environment"`
+	EventID          string             `json:"event_id"`
+	Kind             string             `json:"kind"`
+	ProviderObjectID string             `json:"provider_object_id"`
+	PeriodKey        pgtype.Text        `json:"period_key"`
+	AmountMinor      int32              `json:"amount_minor"`
+	Currency         string             `json:"currency"`
+	CreditsReversed  int64              `json:"credits_reversed"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
 type CreditSubscription struct {

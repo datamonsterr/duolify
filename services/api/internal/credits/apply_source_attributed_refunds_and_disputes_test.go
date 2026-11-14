@@ -1,101 +1,69 @@
 package credits
 
 import (
+	"errors"
 	"testing"
 )
 
-func TestSourceAttributionRefundArithmetic(t *testing.T) {
-	tests := []struct {
-		name               string
-		sourceAmount       int64
-		priorSpends        int64
-		orderAmountMinor   int
-		orderCredits       int
-		refundAmountMinor  int
-		expectedCreditsRev int64
-		expectedDeducted   int64
-		expectedDebt       int64
-	}{
-		{
-			name:               "full refund of untouched pack",
-			sourceAmount:       400,
-			priorSpends:        0,
-			orderAmountMinor:   500,
-			orderCredits:       400,
-			refundAmountMinor:  500,
-			expectedCreditsRev: 400,
-			expectedDeducted:   400,
-			expectedDebt:       0,
-		},
-		{
-			name:               "partial refund of partly spent pack within unspent",
-			sourceAmount:       400,
-			priorSpends:        140, // 260 unspent
-			orderAmountMinor:   500,
-			orderCredits:       400,
-			refundAmountMinor:  250, // 50% -> 200 credits
-			expectedCreditsRev: 200,
-			expectedDeducted:   200,
-			expectedDebt:       0,
-		},
-		{
-			name:               "refund exceeds unspent source - records debt",
-			sourceAmount:       400,
-			priorSpends:        300, // 100 unspent
-			orderAmountMinor:   500,
-			orderCredits:       400,
-			refundAmountMinor:  250, // 50% -> 200 credits
-			expectedCreditsRev: 200,
-			expectedDeducted:   100, // only 100 unspent available
-			expectedDebt:       100, // 100 deficit
-		},
-		{
-			name:               "chargeback on depleted source - full debt",
-			sourceAmount:       400,
-			priorSpends:        400, // 0 unspent
-			orderAmountMinor:   500,
-			orderCredits:       400,
-			refundAmountMinor:  500, // 400 credits
-			expectedCreditsRev: 400,
-			expectedDeducted:   0,
-			expectedDebt:       400, // entire amount becomes debt
-		},
+func TestMoneyToCreditsIsCumulativeAndNeverExceedsSource(t *testing.T) {
+	// 300 one-minor refunds of a 100-credit/300-minor order: per-refund rounding
+	// would reverse 0; cumulative arithmetic reverses exactly the source.
+	var reversed int64
+	for total := int64(1); total <= 300; total++ {
+		target := MoneyToCredits(100, 300, total)
+		if target < reversed {
+			t.Fatalf("cumulative credits went backwards at %d", total)
+		}
+		reversed = target
+		if reversed > 100 {
+			t.Fatalf("over-reversed %d", reversed)
+		}
 	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			unspent := tc.sourceAmount - tc.priorSpends
-			if unspent < 0 {
-				unspent = 0
-			}
-			creditsRev := CalculateRefundCredits(tc.orderCredits, tc.orderAmountMinor, tc.refundAmountMinor)
-			if creditsRev != tc.expectedCreditsRev {
-				t.Fatalf("expected creditsRev %d, got %d", tc.expectedCreditsRev, creditsRev)
-			}
-			deducted, debt := CalculateSourceDeductionAndDebt(creditsRev, unspent)
-			if deducted != tc.expectedDeducted {
-				t.Fatalf("expected deducted %d, got %d", tc.expectedDeducted, deducted)
-			}
-			if debt != tc.expectedDebt {
-				t.Fatalf("expected debt %d, got %d", tc.expectedDebt, debt)
-			}
-		})
+	if reversed != 100 {
+		t.Fatalf("full refund must reverse source credits, got %d", reversed)
+	}
+	if MoneyToCredits(400, 500, 250) != 200 || MoneyToCredits(400, 500, 0) != 0 || MoneyToCredits(400, 0, 5) != 0 {
+		t.Fatal("boundary arithmetic")
 	}
 }
 
-func TestCumulativeRefundCapCheck(t *testing.T) {
-	orderAmountMinor := 1500
-
-	// Already refunded $10.00 (1000 minor)
-	alreadyRefundedMinor := 1000
-
-	// Another refund of $5.00 (500 minor) -> exact total $15.00 -> OK
-	if !CheckRefundCap(orderAmountMinor, alreadyRefundedMinor, 500) {
-		t.Fatal("expected exact cap to be valid")
+func TestSourceDeductionAndDebtSplit(t *testing.T) {
+	for _, c := range []struct{ rev, unspent, ded, debt int64 }{
+		{400, 400, 400, 0}, {200, 260, 200, 0}, {200, 60, 60, 140}, {200, 0, 0, 200}, {200, -5, 0, 200}, {0, 10, 0, 0},
+	} {
+		if d, b := CalculateSourceDeductionAndDebt(c.rev, c.unspent); d != c.ded || b != c.debt {
+			t.Fatalf("%+v got %d %d", c, d, b)
+		}
 	}
+}
 
-	// Another refund of $5.01 (501 minor) -> exceeds $15.00 -> Rejected
-	if CheckRefundCap(orderAmountMinor, alreadyRefundedMinor, 501) {
-		t.Fatal("expected exceeding cap to be invalid")
+func TestRefundCapRejectsOverRefundAndNonPositive(t *testing.T) {
+	if !CheckRefundCap(500, 250, 250) || CheckRefundCap(500, 250, 251) || CheckRefundCap(500, 0, 0) || CheckRefundCap(500, 0, -1) {
+		t.Fatal("cap")
+	}
+}
+
+func TestReversalItemsFailClosedAndNeverDefault(t *testing.T) {
+	ok := ProviderRefund{ID: "re_1", AmountMinor: 100, Currency: "usd", Status: "succeeded"}
+	for name, c := range map[string]struct {
+		r []ProviderRefund
+		d []ProviderDispute
+	}{
+		"missing id":        {r: []ProviderRefund{{AmountMinor: 100, Currency: "usd", Status: "succeeded"}}},
+		"missing amount":    {r: []ProviderRefund{{ID: "re_2", Currency: "usd", Status: "succeeded"}}},
+		"currency mismatch": {r: []ProviderRefund{{ID: "re_3", AmountMinor: 5, Currency: "eur", Status: "succeeded"}}},
+		"unknown status":    {r: []ProviderRefund{{ID: "re_4", AmountMinor: 5, Currency: "usd", Status: "mystery"}}},
+		"duplicate id":      {r: []ProviderRefund{ok, ok}},
+		"dispute no amount": {d: []ProviderDispute{{ID: "dp_1", Currency: "usd", Status: "lost"}}},
+		"dispute status":    {d: []ProviderDispute{{ID: "dp_2", AmountMinor: 5, Currency: "usd", Status: "???"}}},
+	} {
+		if _, err := reversalItems(c.r, c.d, "USD"); !errors.Is(err, ErrReversalEvidence) {
+			t.Fatalf("%s: err=%v", name, err)
+		}
+	}
+	items, err := reversalItems([]ProviderRefund{ok, {ID: "re_p", AmountMinor: 9, Currency: "usd", Status: "pending"}, {ID: "re_f", AmountMinor: 9, Currency: "usd", Status: "failed"}},
+		[]ProviderDispute{{ID: "dp_w", AmountMinor: 9, Currency: "usd", Status: "won"}, {ID: "dp_l", AmountMinor: 7, Currency: "usd", Status: "lost"}}, "usd")
+	if err != nil || len(items) != 2 || items[0].id != "re_1" || items[1].id != "dp_l" || items[1].kind != "chargeback" {
+		t.Fatalf("items=%+v err=%v", items, err)
 	}
 }

@@ -31,8 +31,10 @@ type SubscriptionInvoice struct {
 	AmountMinor, AmountPaid, Quantity, LineCount                                    int
 	PeriodStart, PeriodEnd                                                          time.Time
 	LiveMode, Proration, StripePaid, Adjusted                                       bool
-	// Refunded/Disputed mean canonical full funded-term revocation, never an unverified notification or partial refund.
-	Refunded, Disputed bool
+	// Refunds and Disputes are canonical provider objects for this invoice's charge,
+	// each with its own id. Event snapshots never populate them.
+	Refunds  []ProviderRefund
+	Disputes []ProviderDispute
 }
 
 // ProviderSubscription projects the sole subscription item's current period and
@@ -88,7 +90,7 @@ func serviceBoundary(year int, month time.Month, anchor time.Time) time.Time {
 }
 
 func monthlyFundingMatches(i SubscriptionInvoice, s ProviderSubscription, r PaymentRequest, now time.Time) bool {
-	return r.Mode == "subscription" && !i.Refunded && !i.Disputed && !i.LiveMode && !s.LiveMode && !s.Trial && s.Status == "active" && s.Interval == "month" && s.IntervalCount == 1 && s.Quantity == 1 &&
+	return r.Mode == "subscription" && !i.LiveMode && !s.LiveMode && !s.Trial && s.Status == "active" && s.Interval == "month" && s.IntervalCount == 1 && s.Quantity == 1 &&
 		i.Status == "paid" && i.StripePaid && !i.Adjusted && !i.Proration && i.Quantity == 1 && i.LineCount == 1 &&
 		(i.BillingReason == "subscription_create" || i.BillingReason == "subscription_cycle") &&
 		paymentIdentifier.MatchString(i.ID) && paymentIdentifier.MatchString(s.ID) && paymentIdentifier.MatchString(s.CustomerID) &&
@@ -191,8 +193,13 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 		return transitionErr
 	}
 	request := PaymentRequest{OrderID: order.ID, OwnerReference: ownerRef, SKU: order.SKU, PriceID: price, Currency: order.Currency, AmountMinor: order.AmountMinor, Mode: paymentMode(order.BillingPeriod)}
-	if invoice.Refunded || invoice.Disputed {
-		return s.revokeFundedTerm(ctx, tx, event, invoice, sub, request, order, *owner)
+	// An already funded term was verified when it was funded; later provider state
+	// (cancelled, refunded) must still reconcile its reversals.
+	var termKey string
+	if err = tx.QueryRow(ctx, `SELECT t.period_key FROM credit_subscription_terms t JOIN credit_subscriptions b USING(subscription_id) WHERE t.invoice_id=$1 AND t.subscription_id=$2 AND b.order_id=$3 AND t.service_start=$4 AND t.paid_through=$5`, invoice.ID, sub.ID, order.ID, invoice.PeriodStart, invoice.PeriodEnd).Scan(&termKey); err == nil {
+		return s.finishFundedTerm(ctx, tx, event, order, *owner, ownerRef, termKey, invoice, "duplicate", "", 0)
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return err
 	}
 	if (kind == "invoice.payment_failed" || kind == "invoice.updated") && invoice.Status == "open" && !invoice.LiveMode && invoice.SubscriptionID == sub.ID && invoice.CustomerID == sub.CustomerID && invoice.OrderID == sub.OrderID && invoice.OwnerReference == sub.OwnerReference {
 		if err = s.recordLifecycle(ctx, tx, event, sub, invoice.ID); err != nil {
@@ -235,6 +242,7 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 	if duplicate {
 		return paymentResult(ctx, tx, event, order.ID, "duplicate", "", 0)
 	}
+
 	// Global financialLock serializes this check with checkout and other funding.
 	var overlap bool
 	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_subscription_terms t JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.owner_reference=$1 AND t.service_start<$3 AND t.paid_through>$2)`, ownerRef, invoice.PeriodStart, invoice.PeriodEnd).Scan(&overlap); err != nil {
@@ -290,10 +298,28 @@ func (s *Service) processSubscriptionEvent(ctx context.Context, tx pgx.Tx, event
 			return err
 		}
 	}
-	if err = paymentResult(ctx, tx, event, order.ID, "funded", key, ledger); err != nil {
+	return s.finishFundedTerm(ctx, tx, event, order, *owner, ownerRef, key, invoice, "funded", key, ledger)
+}
+
+// finishFundedTerm reconciles every refund/dispute of the invoice against its
+// funded term (after fulfilment, same transaction) and records the outcome.
+func (s *Service) finishFundedTerm(ctx context.Context, tx pgx.Tx, event string, order CheckoutOrder, owner, ownerRef, termKey string, invoice SubscriptionInvoice, state, resultKey string, ledger int64) error {
+	if err := recordPaymentResult(ctx, tx, event, order.ID, state, resultKey, ledger); err != nil {
 		return err
 	}
-	_ = s.InvalidateCache(ctx, *owner)
+	if len(invoice.Refunds) > 0 || len(invoice.Disputes) > 0 {
+		unit := reversalUnit{orderID: order.ID, owner: owner, ownerRef: ownerRef, platform: order.Platform, periodKey: termKey, subscription: true}
+		if err := tx.QueryRow(ctx, `SELECT amount_minor,currency,pricing_version FROM credit_subscription_terms WHERE period_key=$1`, termKey).Scan(&unit.amountMinor, &unit.currency, &unit.pricingVersion); err != nil {
+			return err
+		}
+		if err := s.reconcileReversals(ctx, tx, event, unit, invoice.Refunds, invoice.Disputes); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	_ = s.InvalidateCache(ctx, owner)
 	return nil
 }
 

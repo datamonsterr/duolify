@@ -7,7 +7,11 @@ CREATE TABLE credit_reversals (
     order_id uuid NOT NULL REFERENCES credit_checkout_orders(id),
     environment text NOT NULL CHECK(environment='test'),
     event_id text NOT NULL REFERENCES credit_payment_inbox(event_id),
-    kind text NOT NULL CHECK(kind IN ('refund', 'chargeback', 'goodwill')),
+    kind text NOT NULL CHECK(kind IN ('refund', 'chargeback')),
+    -- Provider refund/dispute object id; reversal_key = provider:environment:object id.
+    provider_object_id text NOT NULL CHECK(reversal_key = 'stripe:' || environment || ':' || provider_object_id),
+    -- NULL for one-time packs; funded subscription term (invoice) otherwise.
+    period_key text REFERENCES credit_subscription_terms(period_key),
     amount_minor integer NOT NULL CHECK(amount_minor > 0),
     currency text NOT NULL,
     credits_reversed bigint NOT NULL CHECK(credits_reversed >= 0),
@@ -35,6 +39,18 @@ CREATE TABLE credit_dispute_keys (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Operator goodwill audit. Private free text lives only here and is never sent to analytics.
+CREATE TABLE credit_goodwill_audit (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    actor_hash text NOT NULL,
+    owner_reference text NOT NULL,
+    reason_code text NOT NULL CHECK(reason_code IN ('goodwill_adjustment','fraud_review','provider_error','legal_requirement')),
+    notes text NOT NULL CHECK(length(notes) BETWEEN 1 AND 2000),
+    debt_ids bigint[] NOT NULL CHECK(cardinality(debt_ids) > 0),
+    waived_credits bigint NOT NULL CHECK(waived_credits > 0),
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE credit_debt_history (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     learner_id uuid REFERENCES learners(id) ON DELETE SET NULL,
@@ -45,13 +61,14 @@ CREATE TABLE credit_debt_history (
     amount bigint NOT NULL CHECK(amount > 0),
     status text NOT NULL CHECK(status IN ('active', 'resolved', 'waived_goodwill')),
     resolved_at timestamptz,
-    resolution_notes text,
+    goodwill_audit_id bigint REFERENCES credit_goodwill_audit(id),
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX credit_debt_history_learner ON credit_debt_history(learner_id) WHERE status = 'active';
 CREATE INDEX credit_debt_history_owner ON credit_debt_history(owner_reference) WHERE status = 'active';
 
+CREATE TRIGGER credit_goodwill_audit_immutable BEFORE UPDATE OR DELETE OR TRUNCATE ON credit_goodwill_audit FOR EACH STATEMENT EXECUTE FUNCTION prevent_pricing_mutation();
 CREATE TRIGGER credit_reversals_immutable BEFORE UPDATE OR DELETE OR TRUNCATE ON credit_reversals FOR EACH STATEMENT EXECUTE FUNCTION prevent_pricing_mutation();
 CREATE TRIGGER credit_refund_allocations_immutable BEFORE UPDATE OR DELETE OR TRUNCATE ON credit_refund_allocations FOR EACH STATEMENT EXECUTE FUNCTION prevent_pricing_mutation();
 CREATE TRIGGER credit_dispute_keys_immutable BEFORE UPDATE OR DELETE OR TRUNCATE ON credit_dispute_keys FOR EACH STATEMENT EXECUTE FUNCTION prevent_pricing_mutation();

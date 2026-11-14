@@ -53,6 +53,7 @@ var piiRules = []piiRule{
 	{"learner_profiles", "background", `''`},
 	{"learner_profiles", "goal", `''`},
 	{"learner_profiles", "topic", `''`},
+	{"credit_goodwill_audit", "notes", redacted},
 	{"bookmarks", "course_title", redacted},
 	{"bookmarks", "lesson_title", redacted},
 	{"bookmarks", "slide_title", redacted},
@@ -121,7 +122,7 @@ func init() {
 character_create_jobs.operation character_screenings.verdict course_enrollments.level_override
 credit_allocations.bucket credit_allocations.component credit_allocations.grant_date credit_artifacts.component
 credit_checkout_orders.billing_period credit_checkout_orders.platform credit_checkout_orders.return_to
-credit_cost_counters.scope credit_debt_history.bucket credit_debt_history.resolution_notes credit_dispute_keys.environment credit_entries.provenance credit_jobs.result credit_outbox.event credit_outbox.properties
+credit_cost_counters.scope credit_debt_history.bucket credit_dispute_keys.environment credit_entries.provenance credit_jobs.result credit_outbox.event credit_outbox.properties
 credit_payment_inbox.environment credit_payment_sessions.environment credit_refund_allocations.source_id credit_reversals.environment credit_subscription_revocations.reason
 credit_subscription_terms.benefits credit_subscription_terms.plan_name credit_subscription_transitions.terms
 credit_subscriptions.environment credit_usage.usage eval_alert_configs.id eval_alert_events.properties eval_alert_events.scope

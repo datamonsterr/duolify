@@ -114,8 +114,8 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 	if err = expireDailyTx(ctx, tx, owner, localDay, q.PricingVersion); err != nil {
 		return Reservation{}, err
 	}
-	var hasDebt bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_debt_history WHERE (learner_id=$1::uuid OR owner_reference=$2) AND status='active')`, owner, ref).Scan(&hasDebt); err != nil {
+	hasDebt, err := hasActiveDebt(ctx, tx, owner)
+	if err != nil {
 		return Reservation{}, err
 	}
 	if hasDebt {
@@ -261,8 +261,10 @@ func allocateTx(ctx context.Context, tx pgx.Tx, owner, job string, q pricing.Quo
 		}
 		bucketAvailable[bucket] = available
 	}
-	var hasDebt bool
-	_ = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_debt_history WHERE (learner_id=$1::uuid OR owner_reference=$2) AND status='active')`, owner, accounts.LearnerReference(owner)).Scan(&hasDebt)
+	hasDebt, err := hasActiveDebt(ctx, tx, owner)
+	if err != nil {
+		return err
+	}
 	if hasDebt {
 		bucketAvailable["subscription"] = 0
 		bucketAvailable["purchase"] = 0

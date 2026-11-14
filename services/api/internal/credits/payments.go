@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"regexp"
@@ -45,11 +44,9 @@ type PaymentSession struct {
 	SubscriptionID, CustomerID                          string
 	AmountMinor                                         int
 	LiveMode                                            bool
-	Refunded                                            bool
-	AmountRefundedMinor                                 int
-	Disputed                                            bool
-	RefundID                                            string
-	DisputeID                                           string
+	// Refunds and Disputes are canonical provider objects, each with its own id.
+	Refunds  []ProviderRefund
+	Disputes []ProviderDispute
 }
 
 // PaymentOptions must be configured before serving requests or starting workers.
@@ -346,50 +343,23 @@ func (s *Service) processPayment(ctx context.Context, eventID string) error {
 		}
 		return paymentResult(ctx, tx, eventID, order.ID, "rejected", "", 0)
 	}
-	if strings.HasPrefix(kind, "charge.") || canonical.Refunded || canonical.AmountRefundedMinor > 0 || canonical.Disputed {
-		reversalKind := "refund"
-		reversalID := canonical.RefundID
-		if canonical.Disputed || kind == "charge.dispute.created" {
-			reversalKind = "chargeback"
-			reversalID = canonical.DisputeID
-		}
-		if reversalID == "" {
-			reversalID = "re_" + canonical.OrderID
-			if reversalKind == "chargeback" {
-				reversalID = "dp_" + canonical.OrderID
-			}
-		}
-		reversalKey := fmt.Sprintf("stripe:test:%s:%s", reversalID, reversalKind)
-		refundAmt := canonical.AmountRefundedMinor
-		if refundAmt <= 0 {
-			refundAmt = canonical.AmountMinor
-		}
-		refNotif := RefundNotification{
-			ReversalKey: reversalKey,
-			OrderID:     order.ID,
-			AmountMinor: refundAmt,
-			Currency:    order.Currency,
-			Kind:        reversalKind,
-			EventID:     eventID,
-			DisputeID:   canonical.DisputeID,
-		}
-		if err := s.applyRefundNotificationTx(ctx, tx, refNotif); err != nil {
-			return err
-		}
-		return paymentResult(ctx, tx, eventID, order.ID, "pending", "", 0)
-	}
 	key := "stripe:test:" + canonical.PaymentID
 	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM credit_payment_results WHERE (order_id=$1 AND state='paid') OR payment_key=$2)", order.ID, key).Scan(&processed); err != nil {
 		return err
 	}
-	if processed {
-		return paymentResult(ctx, tx, eventID, order.ID, "duplicate", "", 0)
-	}
 	state := "pending"
+	if processed {
+		state = "duplicate"
+	}
 	switch canonical.PaymentStatus {
 	case "paid":
-		state = "paid"
+		if !processed {
+			state = "paid"
+		}
 	case "unpaid":
+		if processed {
+			break
+		}
 		if canonical.Status == "expired" {
 			state = "expired"
 		} else if kind == "checkout.session.async_payment_failed" {
@@ -414,7 +384,21 @@ func (s *Service) processPayment(ctx context.Context, eventID string) error {
 			}
 		}
 	}
-	if err = paymentResult(ctx, tx, eventID, order.ID, state, key, ledgerID); err != nil {
+	// Fulfilment first, then reversals, in one transaction: a completion that is
+	// processed after (or alongside) a refund still fulfils exactly once.
+	if err = recordPaymentResult(ctx, tx, eventID, order.ID, state, key, ledgerID); err != nil {
+		return err
+	}
+	if len(canonical.Refunds) > 0 || len(canonical.Disputes) > 0 {
+		if canonical.PaymentStatus != "paid" {
+			return ErrReversalEvidence
+		}
+		unit := reversalUnit{orderID: order.ID, owner: *owner, ownerRef: ownerRef, platform: order.Platform, pricingVersion: order.PricingVersion, amountMinor: order.AmountMinor, currency: order.Currency}
+		if err = s.reconcileReversals(ctx, tx, eventID, unit, canonical.Refunds, canonical.Disputes); err != nil {
+			return err
+		}
+	}
+	if err = tx.Commit(ctx); err != nil {
 		return err
 	}
 	// Cache errors cannot change committed money. Force the next wallet read to
@@ -429,11 +413,15 @@ func (s *Service) processPayment(ctx context.Context, eventID string) error {
 // paymentResult commits the outcome with every ledger/outbox write. Receipt rows
 // are never updated or removed, including when validation rejects a payment.
 func paymentResult(ctx context.Context, tx pgx.Tx, eventID, orderID, state, key string, ledgerID int64) error {
-	_, err := tx.Exec(ctx, `INSERT INTO credit_payment_results(event_id,order_id,state,payment_key,ledger_id) VALUES($1,NULLIF($2,'')::uuid,$3,NULLIF($4,''),NULLIF($5,0))`, eventID, orderID, state, key, ledgerID)
-	if err != nil {
+	if err := recordPaymentResult(ctx, tx, eventID, orderID, state, key, ledgerID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func recordPaymentResult(ctx context.Context, tx pgx.Tx, eventID, orderID, state, key string, ledgerID int64) error {
+	_, err := tx.Exec(ctx, `INSERT INTO credit_payment_results(event_id,order_id,state,payment_key,ledger_id) VALUES($1,NULLIF($2,'')::uuid,$3,NULLIF($4,''),NULLIF($5,0))`, eventID, orderID, state, key, ledgerID)
+	return err
 }
 
 func purchaseOutbox(ctx context.Context, tx pgx.Tx, owner, key, event string, order CheckoutOrder, reason string) error {

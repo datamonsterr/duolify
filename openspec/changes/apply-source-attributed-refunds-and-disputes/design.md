@@ -3,35 +3,24 @@
 ## Context & Principles
 Compensating financial operations must preserve the append-only ledger invariant. Neither past purchases nor past spends are ever deleted or edited. Reversals affect only the attributable source and any future unearned benefits.
 
-1. **Reversal Identification & Deduping**:
-   Reversals are identified by a unique `reversal_key` formatted as `(provider, environment, refund_or_dispute_id, operation)` (e.g. `stripe:test:re_123:refund` or `stripe:test:dp_123:chargeback`).
-   Duplicate notifications for the same reversal key are idempotent no-ops.
+1. **Provider objects and reversal identity**:
+   The injected signed test provider's canonical charge (and subscription invoice) state carries lists of refunds `{id, amount_minor, currency, status}` and disputes `{id, amount_minor, currency, status}`. Stripe's `amount_refunded` is cumulative per charge; each refund is its own object. Processing any verified notification re-reads canonical state and reconciles every object not yet applied. The reversal key is `provider:environment:object id` (e.g. `stripe:test:re_123`). Ids and amounts are never defaulted; missing/invalid ids, amounts, currency mismatch, duplicate ids, unknown statuses and an unfulfilled or unattributable source fail closed: no ledger change, the inbox event stays unprocessed for retry/dead-letter. Applied statuses: refund `succeeded`; dispute `needs_response`, `under_review`, `lost`. `pending`/`failed` refunds and `won`/`charge_refunded`/`warning_*` disputes are skipped. Reversals only enter through the verified signed notification path (no synthetic inbox rows).
 
-2. **Monetary Cap**:
-   Cumulative refunded amount (in minor units) for an order cannot exceed the original `credit_checkout_orders.amount_minor`. Notifications exceeding this cap are rejected.
+2. **Ordering**: fulfilment first, then reversals, in the same transaction. A completion processed after (or in the same reconcile as) a refund still fulfils exactly once and is then reversed.
 
-3. **Source Attribution & Unspent Calculation**:
-   - For pack purchases, the original grant row `credit_entries` (`kind='purchase'`) is the source.
-   - For subscriptions, the period grant row `credit_entries` (`kind='subscription_grant'`) is the source.
-   - Unspent credits on a source are calculated from `source.amount + SUM(entry.amount)` where `entry.provenance->>'source_id' = source.id::text`.
-   - Proportional credits to reverse for partial refunds: `(order.credits * refund_amount_minor) / order.amount_minor`.
-   - Credits to deduct from ledger: `min(credits_to_reverse, unspent_source_credits)`.
-   - Compensating ledger entry: `kind='refund'`, negative amount `-credits_to_deduct`, with reference `reversal_key`.
-   - Deficit: `credits_to_reverse - credits_to_deduct`.
+3. **Cap and cumulative arithmetic**: cumulative reversed money (refunds + disputes) per payment (pack order, or subscription term/invoice) cannot exceed the payment amount. Credits are `floor(source_credits × total_reversed_minor / amount_minor)` (integer arithmetic; full amount = exactly the source credits); a reversal removes the difference from credits already reversed, so rounding never loses or over-reverses credits.
 
-4. **Source Debt & AI Reservation Blocking**:
-   - When `deficit > 0`, a row is recorded in `credit_debt_history` with status `active` and amount `deficit`.
-   - As long as active debt exists for the learner, `Reserve` rejects any reservation that requires paid credits (`ErrSourceDebt`).
-   - Daily free credits remain spendable on daily-free eligible actions (notes, short tutor chat) up to the daily allowance.
-   - Unrelated paid credits and daily balances are preserved and never seized to pay down debt automatically.
+4. **Source attribution**: the source is only this payment's own ledger entries: the `purchase` entry of the order's paid result, or the term's own grants (month 0 plus issued annual schedule grants). No source → fail closed. No fallback to another order. Allocation walks sources newest first: per source `deduct = min(attributable, unspent)`, remainder is non-spendable debt attributed to that source grant (`credit_refund_allocations`, `credit_debt_history`). Unspent = grant + all ledger entries carrying that `source_id` (spends, earlier reversals). Compensating `refund` ledger entries reference the reversal key; history is never edited.
 
-5. **Subscription Revocation**:
-   - Provider-confirmed refund or chargeback on a subscription invoice revokes active entitlements (`credit_subscription_revocations`), cancels all remaining scheduled future grants in `credit_subscription_schedule`, and emits `entitlement_changed`.
+5. **Subscriptions and annual terms**: any confirmed reversal on a term inserts the term's revocation once (entitlement off; `IssueAnnualAllowances` skips revoked terms, cancelling every future grant) and emits `entitlement_changed` once; issued grants are reversed as in (4) with prior spends preserved. Every error is propagated.
 
-6. **Audited Goodwill Adjustment**:
-   - An authorized operator may waive source debt (`ApplyGoodwillAdjustment`). The adjustment updates the debt row status to `waived_goodwill`, records operator ID and audit reason, and logs an audited event without creating new spendable credits.
+6. **Debt gate**: active debt blocks new reservations that need paid (purchase/subscription) credits (`ErrSourceDebt`); daily free credits remain available for daily-free eligible actions. Errors reading debt state are propagated.
+
+7. **Operator goodwill** (`ApplyGoodwillAdjustment`): only an account with a `pricing_admin_grants` row; waives matching active debt (all of the owner's, or one source), creates no spendable credits; no match is an error and writes nothing. Audit (SHA-256 actor hash, owner pseudonym, reason code, private free-text notes, debt ids, waived credits) lives only in `credit_goodwill_audit`; the analytics outbox gets `entitlement_changed` with `reason_code` only. There is no HTTP surface yet: operators run it from an operator tool/console under their own account, which is the runbook below.
+
+   *Runbook*: (1) confirm the debt in `credit_debt_history` (status `active`) and the provider decision; (2) call `ApplyGoodwillAdjustment(actor, owner, sourceID|0, reasonCode, notes)` as a granted operator; (3) verify the audit row and zero active debt; never put customer details in analytics or tickets.
 
 7. **Data Retention & Privacy**:
    - New tables `credit_reversals`, `credit_refund_allocations`, `credit_dispute_keys`, `credit_debt_history` are retained 7 years in financial backups.
    - On account deletion, `learner_id` is set to NULL while `owner_reference` is pseudonymized (SHA-256 hash).
-   - Restore drill anonymizer classifies columns as safe identifiers/metadata.
+   - Restore-drill anonymizer treats identifiers/enumerations as safe and `credit_goodwill_audit.notes` as private free text (anonymized).

@@ -3,6 +3,7 @@
 package credits_test
 
 import (
+	"context"
 	"fmt"
 	"net/http/httptest"
 	"strings"
@@ -20,19 +21,61 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
-func TestApplySourceAttributedRefundsAndDisputesIntegration(t *testing.T) {
+// rvEvents records delivered analytics events including properties.
+type rvEvents struct {
+	mu   sync.Mutex
+	got  []string
+	prop []map[string]any
+}
+
+func (e *rvEvents) Capture(id, name string, props map[string]any) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if _, err := uuid.Parse(id); err != nil {
+		return err
+	}
+	if props["source"] != "api" || props["app_version"] == nil || props["platform"] == nil {
+		return fmt.Errorf("missing common properties")
+	}
+	e.got = append(e.got, name)
+	e.prop = append(e.prop, props)
+	return nil
+}
+func (*rvEvents) Close() error { return nil }
+func (e *rvEvents) count(name string) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	n := 0
+	for _, g := range e.got {
+		if g == name {
+			n++
+		}
+	}
+	return n
+}
+
+type rvEnv struct {
+	t        *testing.T
+	ctx      context.Context
+	db       *store.Store
+	cfg      pricing.Config
+	provider *monthlyProvider
+	events   *rvEvents
+	svc      *credits.Service
+	seq      int
+}
+
+type rvLearner struct {
+	owner string
+}
+
+func rvSetup(t *testing.T) *rvEnv {
 	ctx := t.Context()
-	c, err := postgres.Run(ctx, "postgres:18",
-		postgres.WithDatabase("reversals_test"),
-		postgres.WithUsername("fixture"),
-		postgres.WithPassword("test-only"),
-		postgres.BasicWaitStrategies(),
-	)
+	c, err := postgres.Run(ctx, "postgres:18", postgres.WithDatabase("reversals"), postgres.WithUsername("fixture"), postgres.WithPassword("test-only"), postgres.BasicWaitStrategies())
 	if err != nil {
 		t.Fatal(err)
 	}
 	testcontainers.CleanupContainer(t, c)
-
 	url, err := c.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
@@ -44,316 +87,452 @@ func TestApplySourceAttributedRefundsAndDisputesIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
-
+	t.Cleanup(db.Close)
 	cat, err := pricing.Load(ctx, db.Queries)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := cat.Config()
+	e := &rvEnv{t: t, ctx: ctx, db: db, cfg: cat.Config(), provider: &monthlyProvider{packProvider: packProvider{sessions: map[string]credits.PaymentSession{}}}, events: new(rvEvents)}
+	e.svc = credits.NewServiceWithCatalogue(db.Pool, nil, cat, e.events)
+	if err = e.svc.ConfigurePayments(credits.PaymentOptions{Mode: "test", Provider: e.provider, WebhookSecret: "test-only-webhook-secret"}); err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
 
-	learner, err := db.Queries.CreateLearner(ctx, "ReversalLearner")
+func (e *rvEnv) learner(optOut bool) rvLearner {
+	e.t.Helper()
+	l, err := e.db.Queries.CreateLearner(e.ctx, "Reversal learner")
 	if err != nil {
-		t.Fatal(err)
+		e.t.Fatal(err)
 	}
-	owner := uuid.UUID(learner.ID.Bytes).String()
-	if _, err = db.Pool.Exec(ctx, "INSERT INTO learner_profiles(learner_id,analytics_opt_out) VALUES($1,false)", owner); err != nil {
-		t.Fatal(err)
+	owner := uuid.UUID(l.ID.Bytes).String()
+	if _, err = e.db.Pool.Exec(e.ctx, "INSERT INTO learner_profiles(learner_id,analytics_opt_out) VALUES($1,$2)", owner, optOut); err != nil {
+		e.t.Fatal(err)
 	}
+	return rvLearner{owner}
+}
 
-	pack := cfg.Packs[0] // 400 credits, $5.00
-	provider := &lifecycleProvider{
-		monthlyProvider: monthlyProvider{
-			packProvider: packProvider{sessions: map[string]credits.PaymentSession{}},
-		},
-		transitions: map[string]credits.SubscriptionTransition{},
+func (e *rvEnv) notify(id, kind, object string) error {
+	e.t.Helper()
+	raw := []byte(fmt.Sprintf(`{"id":%q,"type":%q,"livemode":false,"data":{"object":{"id":%q}}}`, id, kind, object))
+	r := httptest.NewRequestWithContext(e.ctx, "POST", "/v1/payments/stripe/webhook", strings.NewReader(string(raw)))
+	r.Header.Set("Stripe-Signature", signedPack(raw, time.Now()))
+	w := httptest.NewRecorder()
+	e.svc.ServeHTTP(w, r)
+	if w.Code != 200 {
+		e.t.Fatalf("webhook %d %s", w.Code, w.Body.String())
 	}
-	events := new(packEvents)
-	svc := credits.NewServiceWithCatalogue(db.Pool, nil, cat, events)
-	if err = svc.ConfigurePayments(credits.PaymentOptions{
-		Mode:          "test",
-		Provider:      provider,
-		WebhookSecret: "test-only-webhook-secret",
-	}); err != nil {
-		t.Fatal(err)
-	}
+	return e.svc.ProcessPayments(e.ctx)
+}
 
-	// 1. Purchase Pack A
-	orderA, err := svc.CreateCheckout(ctx, owner, credits.CheckoutInput{
-		RequestID:      uuid.NewString(),
-		SKU:            pack.SKU,
-		PricingVersion: cfg.Version,
-		Platform:       "web",
-		ReturnTo:       "/credits",
+// order creates a pack checkout whose canonical session is paid but unprocessed.
+func (e *rvEnv) order(l rvLearner, pack int) (credits.CheckoutOrder, string) {
+	e.t.Helper()
+	p := e.cfg.Packs[pack]
+	o, err := e.svc.CreateCheckout(e.ctx, l.owner, credits.CheckoutInput{RequestID: uuid.NewString(), SKU: p.SKU, PricingVersion: e.cfg.Version, Platform: "web", ReturnTo: "/credits"})
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	s := credits.PaymentSession{ID: "cs_test_" + o.ID, OrderID: o.ID, OwnerReference: accounts.LearnerReference(l.owner), SKU: o.SKU, PriceID: e.cfg.ProviderMappings("development")[o.SKU], AmountMinor: o.AmountMinor, Currency: o.Currency, Mode: "payment", Status: "complete", PaymentStatus: "paid", PaymentID: "pi_" + o.ID}
+	e.provider.mu.Lock()
+	e.provider.sessions[s.ID] = s
+	e.provider.mu.Unlock()
+	return o, s.ID
+}
+
+func (e *rvEnv) canonical(session string, f func(*credits.PaymentSession)) {
+	e.provider.mu.Lock()
+	defer e.provider.mu.Unlock()
+	s := e.provider.sessions[session]
+	f(&s)
+	e.provider.sessions[session] = s
+}
+
+func (e *rvEnv) refund(session, id string, amount int, currency string) {
+	e.canonical(session, func(s *credits.PaymentSession) {
+		s.Refunds = append(s.Refunds, credits.ProviderRefund{ID: id, AmountMinor: amount, Currency: currency, Status: "succeeded"})
 	})
+}
+
+func (e *rvEnv) spend(l rvLearner, source int64, amount int64) {
+	e.t.Helper()
+	_, err := e.db.Pool.Exec(e.ctx, `INSERT INTO credit_entries(learner_id,owner_reference,amount,kind,reference,pricing_version,provenance)
+		VALUES($1,$2,$3,'spend',$4,$5,jsonb_build_object('source_id',$6::text,'bucket','purchase'))`, l.owner, accounts.LearnerReference(l.owner), -amount, "spend-"+uuid.NewString(), e.cfg.Version, fmt.Sprint(source))
 	if err != nil {
-		t.Fatal(err)
+		e.t.Fatal(err)
 	}
+	_ = e.svc.InvalidateCache(e.ctx, l.owner)
+}
 
-	sessionA := credits.PaymentSession{
-		ID:             "cs_test_" + orderA.ID,
-		OrderID:        orderA.ID,
-		OwnerReference: accounts.LearnerReference(owner),
-		SKU:            orderA.SKU,
-		PriceID:        cfg.ProviderMappings("development")[orderA.SKU],
-		AmountMinor:    orderA.AmountMinor,
-		Currency:       orderA.Currency,
-		Mode:           "payment",
-		Status:         "complete",
-		PaymentStatus:  "paid",
-		PaymentID:      "pi_" + orderA.ID,
+func (e *rvEnv) sourceID(order string) int64 {
+	var id int64
+	if err := e.db.Pool.QueryRow(e.ctx, `SELECT ledger_id FROM credit_payment_results WHERE order_id=$1 AND state='paid'`, order).Scan(&id); err != nil {
+		e.t.Fatal(err)
 	}
-	provider.sessions[sessionA.ID] = sessionA
+	return id
+}
 
-	notify := func(id, kind, object string) {
-		t.Helper()
-		raw := []byte(fmt.Sprintf(`{"id":%q,"type":%q,"livemode":false,"data":{"object":{"id":%q}}}`, id, kind, object))
-		req := httptest.NewRequestWithContext(ctx, "POST", "/v1/payments/stripe/webhook", strings.NewReader(string(raw)))
-		req.Header.Set("Stripe-Signature", signedPack(raw, time.Now()))
-		w := httptest.NewRecorder()
-		svc.ServeHTTP(w, req)
-		if w.Code != 200 {
-			t.Fatalf("webhook returned %d: %s", w.Code, w.Body.String())
+func (e *rvEnv) n(query string, args ...any) int64 {
+	e.t.Helper()
+	var n int64
+	if err := e.db.Pool.QueryRow(e.ctx, query, args...).Scan(&n); err != nil {
+		e.t.Fatal(err)
+	}
+	return n
+}
+
+func (e *rvEnv) purchased(l rvLearner) int64 {
+	e.t.Helper()
+	_ = e.svc.InvalidateCache(e.ctx, l.owner)
+	w, err := e.svc.GetWallet(e.ctx, l.owner)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return w.Purchased
+}
+
+func TestApplySourceAttributedRefundsAndDisputesIntegration(t *testing.T) {
+	e := rvSetup(t)
+
+	t.Run("two partial refunds after a partly spent purchase", func(t *testing.T) {
+		l := e.learner(false)
+		other, osess := e.order(l, 1) // unrelated pack, preserved
+		if err := e.notify("evt_paid_"+other.ID, "checkout.session.completed", osess); err != nil {
+			t.Fatal(err)
 		}
-		if err := svc.ProcessPayments(ctx); err != nil {
-			t.Fatalf("processPayments failed: %v", err)
+		o, sess := e.order(l, 0) // 400 credits / 500 minor
+		if err := e.notify("evt_paid_"+o.ID, "checkout.session.completed", sess); err != nil {
+			t.Fatal(err)
 		}
-	}
-
-	notify("evt_paid_"+orderA.ID, "checkout.session.completed", sessionA.ID)
-
-	wallet, err := svc.GetWallet(ctx, owner)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if wallet.Purchased != int64(pack.Credits) {
-		t.Fatalf("expected %d purchased credits, got %d", pack.Credits, wallet.Purchased)
-	}
-
-	// 2. Partly spend from Pack A (e.g. 140 credits)
-	var sourceAEntryID int64
-	if err := db.Pool.QueryRow(ctx, "SELECT id FROM credit_entries WHERE learner_id=$1 AND kind='purchase' AND reference=$2", owner, "stripe:test:"+sessionA.PaymentID).Scan(&sourceAEntryID); err != nil {
-		t.Fatal(err)
-	}
-
-	// Insert spend entry linked to sourceAEntryID
-	_, err = db.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id, owner_reference, amount, kind, reference, pricing_version, provenance)
-		VALUES($1, $2, -140, 'spend', 'lesson_job_1', $3, jsonb_build_object('source_id', $4::text, 'bucket', 'purchase'))`,
-		owner, accounts.LearnerReference(owner), cfg.Version, fmt.Sprintf("%d", sourceAEntryID))
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = svc.InvalidateCache(ctx, owner)
-
-	wallet, err = svc.GetWallet(ctx, owner)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if wallet.Purchased != 260 {
-		t.Fatalf("expected 260 purchased credits remaining, got %d", wallet.Purchased)
-	}
-
-	// 3. Purchase unrelated Pack B (1350 credits for $15.00)
-	packB := cfg.Packs[1]
-	orderB, err := svc.CreateCheckout(ctx, owner, credits.CheckoutInput{
-		RequestID:      uuid.NewString(),
-		SKU:            packB.SKU,
-		PricingVersion: cfg.Version,
-		Platform:       "web",
-		ReturnTo:       "/credits",
+		src := e.sourceID(o.ID)
+		e.spend(l, src, 140)
+		// Both refunds happened before either notification was processed: the
+		// canonical charge carries two objects, each applied under its own id.
+		e.refund(sess, "re_first", 250, o.Currency)
+		e.refund(sess, "re_second", 100, o.Currency)
+		if err := e.notify("evt_ref1_"+o.ID, "charge.refunded", sess); err != nil {
+			t.Fatal(err)
+		}
+		if got := e.n("SELECT count(*) FROM credit_reversals WHERE order_id=$1", o.ID); got != 2 {
+			t.Fatalf("reversals=%d", got)
+		}
+		// cumulative: 250→200 credits, 350→280; second reverses 80 of the 120 unspent... 260-200=60 → 60 + debt 20
+		if e.n("SELECT credits_reversed FROM credit_reversals WHERE reversal_key='stripe:test:re_first'") != 200 || e.n("SELECT credits_reversed FROM credit_reversals WHERE reversal_key='stripe:test:re_second'") != 80 {
+			t.Fatal("cumulative credits")
+		}
+		if debt, _ := e.svc.GetSourceDebt(e.ctx, l.owner); debt != 20 {
+			t.Fatalf("debt=%d", debt)
+		}
+		if got := e.purchased(l); got != 0+1350 {
+			t.Fatalf("purchased=%d (unrelated pack must be preserved)", got)
+		}
+		// Replays with new event ids change nothing.
+		if err := e.notify("evt_ref_replay_"+o.ID, "charge.refunded", sess); err != nil {
+			t.Fatal(err)
+		}
+		if e.n("SELECT count(*) FROM credit_reversals WHERE order_id=$1", o.ID) != 2 || e.n("SELECT count(*) FROM credit_entries WHERE kind='refund' AND learner_id=$1", l.owner) != 2 {
+			t.Fatal("replay applied twice")
+		}
+		// Final refund reaches the cap exactly; one past it fails closed.
+		e.refund(sess, "re_third", 150, o.Currency)
+		e.refund(sess, "re_over", 1, o.Currency)
+		before := e.n("SELECT count(*) FROM credit_reversals")
+		if err := e.notify("evt_ref3_"+o.ID, "charge.refunded", sess); err == nil {
+			t.Fatal("cap exceeded must fail closed")
+		}
+		if e.n("SELECT count(*) FROM credit_reversals") != before {
+			t.Fatal("failed reconcile changed the ledger")
+		}
+		if e.n("SELECT count(*) FROM credit_payment_results WHERE event_id=$1", "evt_ref3_"+o.ID) != 0 {
+			t.Fatal("event must stay unprocessed for retry")
+		}
+		// The provider corrects its state; the same inbox event retries and applies the valid remainder.
+		e.canonical(sess, func(s *credits.PaymentSession) { s.Refunds = s.Refunds[:3] })
+		if err := e.svc.ProcessPayments(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		if e.n("SELECT sum(amount_minor) FROM credit_reversals WHERE order_id=$1", o.ID) != int64(o.AmountMinor) {
+			t.Fatal("retry did not complete the refund")
+		}
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sessionB := credits.PaymentSession{
-		ID:             "cs_test_" + orderB.ID,
-		OrderID:        orderB.ID,
-		OwnerReference: accounts.LearnerReference(owner),
-		SKU:            orderB.SKU,
-		PriceID:        cfg.ProviderMappings("development")[orderB.SKU],
-		AmountMinor:    orderB.AmountMinor,
-		Currency:       orderB.Currency,
-		Mode:           "payment",
-		Status:         "complete",
-		PaymentStatus:  "paid",
-		PaymentID:      "pi_" + orderB.ID,
-	}
-	provider.sessions[sessionB.ID] = sessionB
-	notify("evt_paid_"+orderB.ID, "checkout.session.completed", sessionB.ID)
 
-	wallet, err = svc.GetWallet(ctx, owner)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Pack A (260) + Pack B (1350) = 1610
-	if wallet.Purchased != 1610 {
-		t.Fatalf("expected 1610 purchased credits, got %d", wallet.Purchased)
-	}
-
-	// 4. Test Concurrency & Reversal Key Deduping:
-	// Concurrent refund notifications with the exact same reversal key must only apply ONCE.
-	reversalKey1 := "stripe:test:re_part_1:refund"
-	var wg sync.WaitGroup
-	for i := 0; i < 2; i++ {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			_ = svc.ApplyRefundNotification(ctx, credits.RefundNotification{
-				ReversalKey: reversalKey1,
-				OrderID:     orderA.ID,
-				AmountMinor: 250, // partial: half of $5.00 = 200 credits
-				Currency:    orderA.Currency,
-				Kind:        "refund",
-				EventID:     fmt.Sprintf("evt_refund_part1_%d", idx),
-			})
-		}(i)
-	}
-	wg.Wait()
-
-	_ = svc.InvalidateCache(ctx, owner)
-	wallet, err = svc.GetWallet(ctx, owner)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Pack A had 260 unspent, reversed 200 -> 60 remaining unspent.
-	// Pack B has 1350 untouched.
-	// Total purchased = 60 + 1350 = 1410!
-	if wallet.Purchased != 1410 {
-		t.Fatalf("expected 1410 purchased credits after partial refund, got %d", wallet.Purchased)
-	}
-
-	// 5. Test Cumulative Cap:
-	// Refunding $4.00 more on orderA ($2.50 already refunded, total would be $6.50 > $5.00) must be rejected!
-	err = svc.ApplyRefundNotification(ctx, credits.RefundNotification{
-		ReversalKey: "stripe:test:re_part_excess:refund",
-		OrderID:     orderA.ID,
-		AmountMinor: 400,
-		Currency:    orderA.Currency,
-		Kind:        "refund",
-		EventID:     "evt_refund_excess",
+	t.Run("completion processed after the refund fulfils once then reverses", func(t *testing.T) {
+		l := e.learner(false)
+		o, sess := e.order(l, 0)
+		e.refund(sess, "re_ooo", 500, o.Currency)
+		if err := e.notify("evt_refund_first_"+o.ID, "charge.refunded", sess); err != nil {
+			t.Fatal(err)
+		}
+		if err := e.notify("evt_completed_late_"+o.ID, "checkout.session.completed", sess); err != nil {
+			t.Fatal(err)
+		}
+		if e.n("SELECT count(*) FROM credit_entries WHERE kind='purchase' AND learner_id=$1", l.owner) != 1 {
+			t.Fatal("purchase must be fulfilled exactly once")
+		}
+		if e.n("SELECT count(*) FROM credit_entries WHERE kind='refund' AND learner_id=$1", l.owner) != 1 || e.purchased(l) != 0 {
+			t.Fatal("full refund must reverse exactly the source credits")
+		}
+		if e.n("SELECT credits_reversed FROM credit_reversals WHERE order_id=$1", o.ID) != int64(o.Credits) {
+			t.Fatal("full refund reverses the source credits")
+		}
 	})
-	if err == nil {
-		t.Fatal("expected excess cumulative refund to be rejected")
-	}
 
-	// 6. Deplete Pack A's remaining 60 credits
-	_, err = db.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id, owner_reference, amount, kind, reference, pricing_version, provenance)
-		VALUES($1, $2, -60, 'spend', 'lesson_job_2', $3, jsonb_build_object('source_id', $4::text, 'bucket', 'purchase'))`,
-		owner, accounts.LearnerReference(owner), cfg.Version, fmt.Sprintf("%d", sourceAEntryID))
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = svc.InvalidateCache(ctx, owner)
-
-	// Now Pack A unspent = 0.
-	// 7. Force reversal / chargeback on Pack A for remaining $2.50 (200 credits):
-	// Attributable credits = 200. Unspent = 0.
-	// Deficit = 200 credits -> records non-spendable source debt!
-	err = svc.ApplyRefundNotification(ctx, credits.RefundNotification{
-		ReversalKey: "stripe:test:dp_chargeback_1:chargeback",
-		OrderID:     orderA.ID,
-		AmountMinor: 250,
-		Currency:    orderA.Currency,
-		Kind:        "chargeback",
-		EventID:     "evt_dispute_1",
+	t.Run("cumulative rounding never loses or exceeds credits", func(t *testing.T) {
+		l := e.learner(false)
+		o, sess := e.order(l, 0)
+		if err := e.notify("evt_paid_"+o.ID, "checkout.session.completed", sess); err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 5; i++ { // 1 minor each: floor per refund would reverse 0
+			e.refund(sess, fmt.Sprintf("re_tiny_%d", i), 1, o.Currency)
+		}
+		e.refund(sess, "re_rest", o.AmountMinor-5, o.Currency)
+		if err := e.notify("evt_tiny_"+o.ID, "charge.refunded", sess); err != nil {
+			t.Fatal(err)
+		}
+		if got := e.n("SELECT sum(credits_reversed) FROM credit_reversals WHERE order_id=$1", o.ID); got != int64(o.Credits) {
+			t.Fatalf("sum reversed=%d want %d", got, o.Credits)
+		}
 	})
-	if err != nil {
-		t.Fatalf("chargeback failed: %v", err)
-	}
 
-	// Verify Pack B balance remains completely preserved (1350 credits)!
-	_ = svc.InvalidateCache(ctx, owner)
-	wallet, err = svc.GetWallet(ctx, owner)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if wallet.Purchased != 1350 {
-		t.Fatalf("expected Pack B balance 1350 preserved, got %d", wallet.Purchased)
-	}
-
-	// Verify debt history has 200 credits debt
-	debt, err := svc.GetSourceDebt(ctx, owner)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if debt != 200 {
-		t.Fatalf("expected 200 source debt, got %d", debt)
-	}
-
-	// 8. Verify Paid AI reservation is BLOCKED while debt is active
-	quotes := pricing.NewQuotes(db.Pool)
-	q, err := quotes.Create(ctx, owner, pricing.QuoteInput{
-		Action: "lesson_content",
+	t.Run("fails closed without evidence and never uses another order", func(t *testing.T) {
+		l := e.learner(false)
+		earlier, esess := e.order(l, 1)
+		if err := e.notify("evt_paid_"+earlier.ID, "checkout.session.completed", esess); err != nil {
+			t.Fatal(err)
+		}
+		o, sess := e.order(l, 0)
+		e.canonical(sess, func(s *credits.PaymentSession) { s.PaymentStatus = "unpaid"; s.Status = "open" })
+		e.refund(sess, "re_unpaid", 100, o.Currency)
+		if err := e.notify("evt_unpaid_ref_"+o.ID, "charge.refunded", sess); err == nil {
+			t.Fatal("refund of an unfulfilled payment must fail closed")
+		}
+		if e.n("SELECT count(*) FROM credit_reversals WHERE order_id IN ($1,$2)", o.ID, earlier.ID) != 0 || e.purchased(l) != int64(earlier.Credits) {
+			t.Fatal("another order was reversed")
+		}
+		e.canonical(sess, func(s *credits.PaymentSession) { s.Refunds = nil })
+		if err := e.svc.ProcessPayments(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		bad := map[string]credits.ProviderRefund{
+			"noid":     {AmountMinor: 100, Currency: o.Currency, Status: "succeeded"},
+			"noamt":    {ID: "re_noamt", Currency: o.Currency, Status: "succeeded"},
+			"currency": {ID: "re_cur", AmountMinor: 100, Currency: "eur", Status: "succeeded"},
+		}
+		for name, r := range bad {
+			l2 := e.learner(false)
+			o2, s2 := e.order(l2, 0)
+			e.canonical(s2, func(s *credits.PaymentSession) { s.Refunds = []credits.ProviderRefund{r} })
+			if err := e.notify("evt_bad_"+name+o2.ID, "charge.refunded", s2); err == nil {
+				t.Fatalf("%s: expected failure", name)
+			}
+			if e.n("SELECT count(*) FROM credit_reversals WHERE order_id=$1", o2.ID) != 0 {
+				t.Fatalf("%s: ledger changed", name)
+			}
+			e.canonical(s2, func(s *credits.PaymentSession) { s.Refunds = nil })
+			if err := e.svc.ProcessPayments(e.ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = quotes.Accept(ctx, owner, q.ID); err != nil {
-		t.Fatal(err)
-	}
-	_, err = svc.Reserve(ctx, owner, q.ID)
-	if err == nil {
-		t.Fatal("expected paid reservation to be blocked when debt exists")
-	}
 
-	// 9. Verify Daily free credits are NOT blocked
-	// Ensure a daily free grant exists
-	_, err = svc.EnsureDailyGrant(ctx, owner, time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-	freeQuote, err := quotes.Create(ctx, owner, pricing.QuoteInput{
-		Action: "quick_note",
+	t.Run("chargeback of a depleted source records debt and gates paid AI", func(t *testing.T) {
+		l := e.learner(false)
+		o, sess := e.order(l, 0)
+		if err := e.notify("evt_paid_"+o.ID, "checkout.session.completed", sess); err != nil {
+			t.Fatal(err)
+		}
+		e.spend(l, e.sourceID(o.ID), int64(o.Credits))
+		e.canonical(sess, func(s *credits.PaymentSession) {
+			s.Disputes = []credits.ProviderDispute{{ID: "dp_depleted", AmountMinor: o.AmountMinor, Currency: o.Currency, Status: "needs_response"}}
+		})
+		if err := e.notify("evt_dispute_"+o.ID, "charge.dispute.created", sess); err != nil {
+			t.Fatal(err)
+		}
+		if debt, _ := e.svc.GetSourceDebt(e.ctx, l.owner); debt != int64(o.Credits) {
+			t.Fatalf("debt=%d", debt)
+		}
+		if e.n("SELECT count(*) FROM credit_dispute_keys WHERE dispute_key='dp_depleted'") != 1 {
+			t.Fatal("dispute key")
+		}
+		quotes := pricing.NewQuotes(e.db.Pool)
+		accept := func(action string) string {
+			q, err := quotes.Create(e.ctx, l.owner, pricing.QuoteInput{Action: action})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = quotes.Accept(e.ctx, l.owner, q.ID); err != nil {
+				t.Fatal(err)
+			}
+			return q.ID
+		}
+		if _, err := e.svc.Reserve(e.ctx, l.owner, accept("lesson_content")); err == nil {
+			t.Fatal("paid AI must be blocked while debt is active")
+		}
+		if _, err := e.svc.EnsureDailyGrant(e.ctx, l.owner, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		res, err := e.svc.Reserve(e.ctx, l.owner, accept("quick_note"))
+		if err != nil {
+			t.Fatalf("daily free must stay available: %v", err)
+		}
+		if _, err = e.svc.Settle(e.ctx, l.owner, res.ID, nil); err != nil {
+			t.Fatal(err)
+		}
+
+		// Goodwill: operator only, audited in the database, reason code only in analytics.
+		if err = e.svc.ApplyGoodwillAdjustment(e.ctx, uuid.NewString(), l.owner, 0, "goodwill_adjustment", "private note"); err == nil {
+			t.Fatal("non-operator must be rejected")
+		}
+		op := e.learner(false).owner
+		if _, err = e.db.Pool.Exec(e.ctx, "INSERT INTO pricing_admin_grants(account_id) VALUES($1)", op); err != nil {
+			t.Fatal(err)
+		}
+		if err = e.svc.ApplyGoodwillAdjustment(e.ctx, op, l.owner, 999999, "goodwill_adjustment", "no such source"); err == nil {
+			t.Fatal("no match must be an error")
+		}
+		if e.n("SELECT count(*) FROM credit_goodwill_audit") != 0 {
+			t.Fatal("no audit for a non-match")
+		}
+		if err = e.svc.ApplyGoodwillAdjustment(e.ctx, op, l.owner, 0, "goodwill_adjustment", "Customer called; private details"); err != nil {
+			t.Fatal(err)
+		}
+		if e.n("SELECT count(*) FROM credit_goodwill_audit WHERE notes LIKE 'Customer called%' AND cardinality(debt_ids)=1") != 1 {
+			t.Fatal("audit row")
+		}
+		leaked := e.n(`SELECT count(*) FROM credit_outbox WHERE properties::text LIKE '%Customer called%' OR properties::text LIKE '%'||$1||'%' OR properties ? 'reason' OR properties ? 'actor_id'`, op)
+		if leaked != 0 {
+			t.Fatal("private goodwill text reached analytics outbox")
+		}
+		if debt, _ := e.svc.GetSourceDebt(e.ctx, l.owner); debt != 0 {
+			t.Fatal("debt not waived")
+		}
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = quotes.Accept(ctx, owner, freeQuote.ID); err != nil {
-		t.Fatal(err)
-	}
-	// quick_note is daily-free eligible and costs 2 credits (well within daily free allowance)
-	freeRes, err := svc.Reserve(ctx, owner, freeQuote.ID)
-	if err != nil {
-		t.Fatalf("expected daily-free reservation to succeed despite debt, got: %v", err)
-	}
-	if freeRes.State != "reserved" {
-		t.Fatalf("expected state reserved, got %s", freeRes.State)
-	}
-	if _, err = svc.Settle(ctx, owner, freeRes.ID, nil); err != nil {
-		t.Fatalf("failed to settle free reservation: %v", err)
-	}
 
-	// 10. Operator Goodwill Adjustment
-	// Operator waives the 200 credits debt
-	operatorID := uuid.NewString()
-	err = svc.ApplyGoodwillAdjustment(ctx, operatorID, owner, sourceAEntryID, "Customer goodwill resolution")
-	if err != nil {
-		t.Fatalf("goodwill adjustment failed: %v", err)
-	}
-
-	debt, err = svc.GetSourceDebt(ctx, owner)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if debt != 0 {
-		t.Fatalf("expected 0 source debt after goodwill adjustment, got %d", debt)
-	}
-
-	// Now paid reservation can proceed
-	q2, err := quotes.Create(ctx, owner, pricing.QuoteInput{
-		Action: "lesson_content",
+	t.Run("concurrent notifications apply a refund once", func(t *testing.T) {
+		l := e.learner(false)
+		o, sess := e.order(l, 0)
+		if err := e.notify("evt_paid_"+o.ID, "checkout.session.completed", sess); err != nil {
+			t.Fatal(err)
+		}
+		e.refund(sess, "re_race", 250, o.Currency)
+		for _, id := range []string{"evt_race_a_", "evt_race_b_", "evt_race_c_"} {
+			raw := fmt.Sprintf(`{"id":%q,"type":"charge.refunded","livemode":false,"data":{"object":{"id":%q}}}`, id+o.ID, sess)
+			r := httptest.NewRequestWithContext(e.ctx, "POST", "/v1/payments/stripe/webhook", strings.NewReader(raw))
+			r.Header.Set("Stripe-Signature", signedPack([]byte(raw), time.Now()))
+			w := httptest.NewRecorder()
+			e.svc.ServeHTTP(w, r)
+		}
+		var wg sync.WaitGroup
+		for range 6 {
+			wg.Go(func() { _ = e.svc.ProcessPayments(e.ctx) })
+		}
+		wg.Wait()
+		if e.n("SELECT count(*) FROM credit_reversals WHERE reversal_key='stripe:test:re_race'") != 1 || e.n("SELECT count(*) FROM credit_entries WHERE kind='refund' AND learner_id=$1", l.owner) != 1 {
+			t.Fatal("refund applied more than once")
+		}
+		if e.purchased(l) != 200 {
+			t.Fatalf("balance %d", e.purchased(l))
+		}
 	})
+
+	t.Run("analytics once per reversal with no private text and opt-out honoured", func(t *testing.T) {
+		in, out := e.learner(false), e.learner(true)
+		refs := map[string]string{}
+		for name, l := range map[string]rvLearner{"in": in, "out": out} {
+			o, sess := e.order(l, 0)
+			refs[o.ID] = name
+			if err := e.notify("evt_paid_"+o.ID, "checkout.session.completed", sess); err != nil {
+				t.Fatal(err)
+			}
+			e.refund(sess, "re_an_"+strings.ReplaceAll(l.owner[:8], "-", ""), 250, o.Currency)
+			if err := e.notify("evt_an_"+o.ID, "charge.refunded", sess); err != nil {
+				t.Fatal(err)
+			}
+			if err := e.notify("evt_an_dup_"+o.ID, "charge.refunded", sess); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if e.n("SELECT count(*) FROM credit_outbox WHERE event='credits_refunded'") < 2 {
+			t.Fatal("outbox")
+		}
+		for range 2 { // dispatching twice must not duplicate
+			if err := e.svc.DispatchOutbox(e.ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+		e.events.mu.Lock()
+		defer e.events.mu.Unlock()
+		sent := map[string]int{}
+		for i, name := range e.events.got {
+			p := e.events.prop[i]
+			ref, _ := p["payment_reference"].(string)
+			if name != "credits_refunded" || refs[ref] == "" {
+				continue
+			}
+			sent[refs[ref]]++
+			if p["amount"] == nil || p["reason_code"] != "requested_by_customer" || p["reason"] != nil || p["actor_id"] != nil {
+				t.Fatalf("props %v", p)
+			}
+		}
+		if sent["in"] != 1 || sent["out"] != 0 {
+			t.Fatalf("delivery %v: want exactly one credits_refunded for the opted-in learner and none for opt-out", sent)
+		}
+	})
+}
+
+func TestApplyRefundsToFundedAnnualSubscription(t *testing.T) {
+	e := rvSetup(t)
+	l := e.learner(false)
+	plan := e.cfg.Plans[0]
+	o, err := e.svc.CreateCheckout(e.ctx, l.owner, credits.CheckoutInput{RequestID: uuid.NewString(), SKU: plan.Yearly.SKU, PricingVersion: e.cfg.Version, Platform: "web", ReturnTo: "/credits"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = quotes.Accept(ctx, owner, q2.ID); err != nil {
+	start := time.Date(2024, 1, 31, 12, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 1, 31, 12, 0, 0, 0, time.UTC)
+	ref := accounts.LearnerReference(l.owner)
+	e.provider.subscription = credits.ProviderSubscription{ID: "sub_" + o.ID, OrderID: o.ID, OwnerReference: ref, CustomerID: "cus_" + ref, PriceID: e.cfg.ProviderMappings("development")[plan.Yearly.SKU], Status: "active", Interval: "year", IntervalCount: 1, Quantity: 1, PeriodStart: start, PeriodEnd: end, BillingAnchor: start}
+	e.provider.invoice = credits.SubscriptionInvoice{ID: "in_" + o.ID, SubscriptionID: e.provider.subscription.ID, OrderID: o.ID, OwnerReference: ref, CustomerID: e.provider.subscription.CustomerID, SKU: plan.Yearly.SKU, PriceID: e.provider.subscription.PriceID, Currency: plan.Yearly.Currency, AmountMinor: plan.Yearly.AmountMinor, AmountPaid: plan.Yearly.AmountMinor, Status: "paid", BillingReason: "subscription_create", PeriodStart: start, PeriodEnd: end, Quantity: 1, LineCount: 1, StripePaid: true}
+	if err = e.notify("evt_fund_"+o.ID, "invoice.paid", e.provider.invoice.ID); err != nil {
 		t.Fatal(err)
 	}
-	paidRes, err := svc.Reserve(ctx, owner, q2.ID)
-	if err != nil {
-		t.Fatalf("expected paid reservation to succeed after debt resolution, got: %v", err)
+	if _, err = e.svc.IssueAnnualAllowances(e.ctx, time.Date(2024, 3, 31, 12, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
 	}
-	if paidRes.State != "reserved" {
-		t.Fatalf("expected state reserved, got %s", paidRes.State)
+	grants := e.n("SELECT count(*) FROM credit_entries WHERE kind='subscription_grant' AND learner_id=$1", l.owner)
+	if grants != 3 {
+		t.Fatalf("grants=%d", grants)
+	}
+	// Spend the whole oldest grant, then fully refund the annual invoice.
+	var first int64
+	if err = e.db.Pool.QueryRow(e.ctx, "SELECT min(id) FROM credit_entries WHERE kind='subscription_grant' AND learner_id=$1", l.owner).Scan(&first); err != nil {
+		t.Fatal(err)
+	}
+	_, err = e.db.Pool.Exec(e.ctx, `INSERT INTO credit_entries(learner_id,owner_reference,amount,kind,reference,pricing_version,provenance) VALUES($1,$2,$3,'spend','sub-spend',$4,jsonb_build_object('source_id',$5::text,'bucket','subscription'))`, l.owner, ref, -int64(plan.MonthlyCredits), e.cfg.Version, fmt.Sprint(first))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.provider.invoice.Refunds = []credits.ProviderRefund{{ID: "re_sub_full", AmountMinor: plan.Yearly.AmountMinor, Currency: plan.Yearly.Currency, Status: "succeeded"}}
+	if err = e.notify("evt_sub_ref_"+o.ID, "invoice.updated", e.provider.invoice.ID); err != nil {
+		t.Fatal(err)
+	}
+	// Future grants stop; revocation and entitlement event recorded once.
+	if _, err = e.svc.IssueAnnualAllowances(e.ctx, end); err != nil {
+		t.Fatal(err)
+	}
+	if e.n("SELECT count(*) FROM credit_entries WHERE kind='subscription_grant' AND learner_id=$1", l.owner) != 3 {
+		t.Fatal("future grants issued after refund")
+	}
+	if e.n("SELECT count(*) FROM credit_subscription_revocations") != 1 || e.n("SELECT count(*) FROM credit_outbox WHERE event='entitlement_changed' AND event_key LIKE '%:revoked'") != 1 {
+		t.Fatal("revocation/entitlement event once")
+	}
+	// Prior spend preserved: the spent first grant's reversal is debt attributed to it.
+	if e.n("SELECT count(*) FROM credit_debt_history WHERE source_id=$1 AND status='active'", first) != 1 {
+		t.Fatal("debt must be attributed to the spent source grant")
+	}
+	if e.n("SELECT count(*) FROM credit_entries WHERE kind='spend' AND reference='sub-spend'") != 1 {
+		t.Fatal("prior spend rewritten")
 	}
 }
