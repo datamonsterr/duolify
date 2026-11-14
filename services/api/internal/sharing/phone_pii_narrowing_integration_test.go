@@ -48,8 +48,13 @@ func TestPhoneRuleNarrowingInPublicationDraft(t *testing.T) {
 			t.Fatalf("%q: verdict=%s findings=%+v", title, d.Verdict, d.Findings)
 		}
 	}
-	d := build("Call +1 415 555 2671")
-	if d.Verdict != sharing.VerdictReview || len(d.Findings) != 1 || d.Findings[0].Kind != sharing.KindPersonalData {
-		t.Fatalf("phone title: verdict=%s findings=%+v", d.Verdict, d.Findings)
+	for _, title := range []string{
+		"Call +1 415 555 2671",
+		"Course 4155552671",
+	} {
+		d := build(title)
+		if d.Verdict != sharing.VerdictReview || len(d.Findings) != 1 || d.Findings[0].Kind != sharing.KindPersonalData {
+			t.Fatalf("%q: verdict=%s findings=%+v", title, d.Verdict, d.Findings)
+		}
 	}
 }

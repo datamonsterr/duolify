@@ -3,9 +3,10 @@ package sharing
 import "testing"
 
 // Phone rule (#199). Flag only phone-shaped text: leading "+CC", "(area) ...", trunk-"0" groups,
-// bare trunk-"0" runs of 9-15 digits, or NNN-NNN-NNNN with one separator kind. Digits must be
-// 7-15 and the match must not sit inside a longer alphanumeric / hex / dashed token.
-// Bare unseparated runs without "+" or leading "0" (years, IDs, ZIPs) are NOT flagged (conservative).
+// NNN-NNN-NNNN with one separator kind, or standalone bare digit runs of 10-15 digits.
+// Digits must be 7-15 and the match must not sit inside a longer alphanumeric / hex / dashed / dotted token.
+// Standalone bare runs below 10 digits (years, ZIPs, 9-digit IDs) and above 15 digits (a 16-digit run
+// could resemble a card number, but card PII is not governed by this rule) are NOT flagged.
 func TestPhoneRule(t *testing.T) {
 	cases := []struct {
 		in   string
@@ -25,11 +26,17 @@ func TestPhoneRule(t *testing.T) {
 		{"020 7946 0958", true},
 		{"Call me: 415-555-2671.", true},
 		{"hotline (+84) 912 345 678 now", true},
+		{"4155552671", true},
+		{"14155552671", true},
+		{"Call 4155552671 now", true},
+		{"1234567890", true},
+		{"123456789012", true},
 		{"UUID 3412-5678", false},
 		{"550e8400-e29b-41d4-a716-446655440000", false},
 		{"id 12345678-1234-5678-1234-567812345678", false},
 		{"deadbeef1234567890", false},
 		{"2026", false},
+		{"Course 2026", false},
 		{"in 2026 we", false},
 		{"1990-2020", false},
 		{"2026-11-14", false},
@@ -42,8 +49,8 @@ func TestPhoneRule(t *testing.T) {
 		{"12 * 34 = 408", false},
 		{"SKU-12345678", false},
 		{"order A415-555-2671", false},
-		{"1234567890", false},
-		{"123456789012", false},
+		{"123456789", false},
+		{"1234567890123456", false},
 		{"Chapter 12, page 345", false},
 		{"", false},
 	}

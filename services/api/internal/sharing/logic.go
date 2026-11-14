@@ -65,12 +65,15 @@ var (
 )
 
 // phonePattern: phone-shaped candidates only (issue #199). Forms: +CC groups; (area) groups;
-// trunk-0 groups or bare 0-run; NNN-NNN-NNNN with one separator kind. hasPhone then checks
-// 7-15 digits and token boundaries.
+// trunk-0 groups; NNN-NNN-NNNN with one separator kind; standalone bare 10-15 digit runs.
+// hasPhone then checks 7-15 digits and token boundaries (must not be part of a longer
+// alphanumeric, hex, dashed or dotted token). Bare runs >=16 digits are not flagged here
+// (a 16-digit run could resemble a payment card number, but card PII is not governed by this rule).
 const phonePattern = `\+\d{1,3}(?:[ .\-]?\(?\d{1,4}\)?){2,5}` +
 	`|\(\d{2,4}\)[ .\-]?\d{3}[ .\-]?\d{3,4}` +
-	`|0\d{1,3}(?:[ .\-]\d{2,4}){2,4}|0\d{8,14}` +
-	`|\d{3}-\d{3}-\d{4}|\d{3} \d{3} \d{4}|\d{3}\.\d{3}\.\d{4}`
+	`|0\d{1,3}(?:[ .\-]\d{2,4}){2,4}` +
+	`|\d{3}-\d{3}-\d{4}|\d{3} \d{3} \d{4}|\d{3}\.\d{3}\.\d{4}` +
+	`|\b\d{10,15}\b`
 
 func isAlnum(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
 
