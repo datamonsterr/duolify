@@ -238,7 +238,6 @@ func (s *Service) expirePostgres(ctx context.Context, asOf time.Time) (int, erro
 func (s *Service) Maintain(ctx context.Context, logger *slog.Logger) {
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
-	nextReconciliation := time.Now()
 	expiryTick := time.NewTicker(time.Minute)
 	defer expiryTick.Stop()
 	for {
@@ -246,16 +245,6 @@ func (s *Service) Maintain(ctx context.Context, logger *slog.Logger) {
 		case <-ctx.Done():
 			return
 		case <-expiryTick.C:
-			if !time.Now().Before(nextReconciliation) {
-				if err := s.ReconcileSubscriptions(ctx); err != nil {
-					logger.ErrorContext(ctx, "subscription reconciliation remains for retry")
-				} else {
-					nextReconciliation = time.Now().Add(24 * time.Hour)
-				}
-			}
-			if err := s.PrunePaymentPayloads(ctx); err != nil {
-				logger.ErrorContext(ctx, "payment payload cleanup failed")
-			}
 			if _, err := s.ExpireDailyCredits(ctx, time.Now()); err != nil {
 				logger.ErrorContext(ctx, "daily credit cleanup failed", "error", err)
 			}

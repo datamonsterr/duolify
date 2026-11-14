@@ -29,7 +29,7 @@ it.each(["active", "cancelled", "refunded"])(
     expect(
       screen.getByText(
         state === "refunded"
-          ? "Refunded · issued credits remain available"
+          ? "Refunded · affected credits reversed"
           : "Active · Annual",
       ),
     ).toBeVisible();

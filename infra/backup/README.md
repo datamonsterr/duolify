@@ -173,8 +173,28 @@ as the manual path for an already anonymized archive.
   `BACKUP_RESTORE_S3_*` and `BACKUP_AGE_IDENTITY` it prints a skip notice and exits 0.
   It is exercised against fixtures only in this repository; production data, keys and
   storage remain owner-provided (ADR 0012).
-- **Extension point**: `DrillOptions.FinancialReplay` is where E7-11's quarterly financial
-  replay plugs in. No business checks are bundled; the report says `not-configured`.
+- **Financial replay (E7-11)**: the ready pipeline wires `credits.NewFinancialReplay`
+  to the independently injected TEST provider. It verifies ledger-derived wallets,
+  paid liability (including held Credits), the protected cost reserve from preserved
+  Pricing versions, annual schedules, reversal allocations/debt, outbox keys and
+  deletion tombstones. It reconciles canonical fixtures once, then requires a second
+  replay to leave every retained financial/inbox/outbox row byte-for-byte identical.
+  No canonical provider state is inferred from the restored ledger.
+- **Quarterly schedule**: the additional January/April/July/October cron enables
+  `DRILL_FINANCIAL_REPLAY=true`. Owner-supplied `BACKUP_FINANCIAL_FIXTURES` is exact
+  JSON with `mode: "test"`, `sessions`, `invoices` and `subscriptions` arrays using
+  the normalized provider structs. `BACKUP_FINANCIAL_FIXTURE_SIGNATURE` is its hex
+  HMAC-SHA256 under the separately held `BACKUP_FINANCIAL_FIXTURE_KEY`. Missing
+  credentials/fixtures print a skip notice; bad signatures or live objects fail
+  closed. Weekly general drills remain available without financial fixtures.
+  Fixture input must cover the intended canonical TEST inventory and never contain
+  real learner content or live transactions. This does not activate cloud storage.
+- **Financial retention**: independent daily River jobs reconcile provider state
+  and purge 30-day redacted envelopes / 90-day analytics properties (including undelivered events).
+  Financial event keys, ledger, catalogue, provenance and schedules remain seven
+  years; encrypted `financial/` snapshots use the existing 35-day class and scoped
+  expirer. `ReplayDeadLetter` starts a new five-attempt cycle after an operator
+  repairs the cause, preserving total attempts and replay counters.
 - **Register checks as migrations arrive**: add feature invariants to `DrillOptions.Checks`
   (`ObjectReferences` helper for object keys) and classify new text columns in `anonymize.go`.
 

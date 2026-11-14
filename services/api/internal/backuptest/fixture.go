@@ -446,7 +446,8 @@ func (f *Fixture) Seed(t *testing.T) {
 		"INSERT INTO learners (id,display_name) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner')",
 		`INSERT INTO credit_checkout_orders(request_id,learner_id,owner_reference,pricing_version,sku,amount_minor,currency,credits,billing_period,platform,return_to)
 SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(convert_to('a1111111-1111-4111-8111-111111111111','UTF8')),'hex'),version,config->'packs'->0->>'sku',(config->'packs'->0->>'amount_minor')::bigint,config->'packs'->0->>'currency',(config->'packs'->0->>'credits')::bigint,'one_time','web','/credits' FROM pricing_versions WHERE version='usd-launch-2026-11-08'`,
-		"INSERT INTO credit_entries (learner_id,amount,kind,reference,pricing_version,provenance) VALUES ('a1111111-1111-4111-8111-111111111111',120,'purchase','synthetic-purchase','2026-11-09.approved.v1','{\"channel\":\"web\"}'::jsonb),('a1111111-1111-4111-8111-111111111111',-35,'spend','synthetic-spend','2026-11-09.approved.v1','{\"action\":\"lesson\"}'::jsonb)",
+		"INSERT INTO credit_entries (learner_id,amount,kind,reference,pricing_version,provenance) VALUES ('a1111111-1111-4111-8111-111111111111',120,'purchase','synthetic-purchase','usd-launch-2026-11-08','{\"channel\":\"web\"}'::jsonb)",
+		`INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version,provenance) SELECT learner_id,-35,'spend','synthetic-spend',pricing_version,jsonb_build_object('action','lesson','bucket','purchase','source_id',id::text) FROM credit_entries WHERE reference='synthetic-purchase'`,
 		"INSERT INTO credit_timezones (learner_id,time_zone,effective_at) VALUES ('a1111111-1111-4111-8111-111111111111','Asia/Ho_Chi_Minh',now())",
 		`INSERT INTO course_brief_revisions(learner_id,brief,content_hash) VALUES ('a1111111-1111-4111-8111-111111111111','{"topic":"Synthetic sky","include_topics":"Moon","skip_topics":"History","maths":"Light maths"}',repeat('b',64))`,
 		`INSERT INTO course_brief_revisions(learner_id,brief,content_hash,expires_at) VALUES ('a1111111-1111-4111-8111-111111111111','{"topic":"Expired synthetic sky"}',repeat('e',64),now()-interval '1 second')`,
@@ -989,8 +990,8 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT monthly_credits FROM credit_subscription_terms LIMIT 1").Scan(&monthlyCredits); err != nil {
 		t.Fatal(err)
 	}
-	// Four learners: the synthetic learner, the E6-03 friend, the E6-04 blocked row and the E15-04 copy generator.
-	if version != f.schemaVersion || riverVersions < 1 || learners != 4 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
+	// Four learners: the synthetic learner, the E6-03 friend, the E6-04 blocked row and the E15-04 copy generator. The refunded term's grant is reversed by one compensating ledger entry (E7-10).
+	if version != f.schemaVersion || riverVersions < 1 || learners != 4 || entries != 11 || balance != 104+packCredits+monthlyCredits || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
 	var pricingVersion string
@@ -998,7 +999,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT pricing_version, provenance FROM credit_entries WHERE reference='synthetic-purchase'").Scan(&pricingVersion, &provenance); err != nil {
 		t.Fatal(err)
 	}
-	if pricingVersion != "2026-11-09.approved.v1" || provenance["channel"] != "web" {
+	if pricingVersion != "usd-launch-2026-11-08" || provenance["channel"] != "web" {
 		t.Fatalf("invalid restored pricing_version/provenance: %s %v", pricingVersion, provenance)
 	}
 	var expiredBriefs int
@@ -1174,7 +1175,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		t.Fatalf("restored grants %d %v", grants, err)
 	}
 	plan, err := paidService.GetWallet(t.Context(), "a1111111-1111-4111-8111-111111111111")
-	if err != nil || plan.Plan == nil || !plan.Plan.Active || plan.Subscription != 2*monthlyCredits {
+	if err != nil || plan.Plan == nil || !plan.Plan.Active || plan.Subscription != monthlyCredits {
 		t.Fatalf("restored entitlement %+v %v", plan, err)
 	}
 	// Catch up part of the funded annual schedule after restore; revoked history
@@ -1196,7 +1197,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM credit_outbox WHERE event='credits_purchased'").Scan(&outbox); err != nil || outbox != 1 {
 		t.Fatalf("restore duplicated payment analytics: %d %v", outbox, err)
 	}
-	for _, table := range []string{"credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_results"} {
+	for _, table := range []string{"credit_goodwill_audit", "credit_reversals", "credit_refund_allocations", "credit_dispute_keys", "credit_debt_history", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_results"} {
 		for _, verb := range []string{"DELETE FROM ", "TRUNCATE "} {
 			if _, err := restored.Pool.Exec(t.Context(), verb+table); err == nil {
 				t.Fatalf("mutable restored payment history %s%s", verb, table)

@@ -11,6 +11,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/gamification"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -34,6 +35,7 @@ func (f *Fixture) DrillOptions(t *testing.T, now time.Time) backup.DrillOptions 
 		Store: restorer, Identity: f.identity, Source: "ci", Events: f.events, Now: func() time.Time { return now },
 		Restore:            backup.DockerRestorer{Container: f.container.GetContainerID(), AdminURL: f.databaseURL, User: "duolify"}.Restore,
 		ExpectedMigrations: versions,
+		FinancialReplay:    credits.NewFinancialReplay(f.paymentFixture, f.events, time.Now),
 		ReplayDeletions: func(ctx context.Context, pool *pgxpool.Pool) error {
 			return accounts.ReplayDeletionLedger(ctx, pool, backup.ReadOnlyLedger{Objects: restorer})
 		},

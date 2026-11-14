@@ -54,6 +54,8 @@ export type WalletResponse = {
   subscription: number;
   reserved: number;
   reserved_note?: string;
+  source_debt?: number;
+  refund_channel?: string;
   cached?: boolean;
   unverified?: boolean;
   last_verified_at?: string;

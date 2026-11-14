@@ -85,7 +85,7 @@ func allowlisted(event string) bool {
 	case "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "retry_variant_pool_exhausted", "lesson_test_recap_shown", "ui_test_retry_presented",
-		"checkout_started", "credits_purchased", "credits_purchase_failed",
+		"checkout_started", "credits_purchased", "credits_purchase_failed", "credits_refunded", "payment_reconciliation_failed",
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed", "ai_cost_budget_alert",
 		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "tutor_reply_stopped", "ui_control_activated", "ui_navigation_selected", "ui_screen_viewed",
@@ -405,10 +405,18 @@ func safeProperties(event string, input map[string]any) map[string]any {
 				}
 			}
 		}
-	case "checkout_started", "credits_purchased", "credits_purchase_failed":
+	case "payment_reconciliation_failed":
+		if input["channel"] == "stripe" {
+			out["channel"] = "stripe"
+		}
+		switch input["reason_code"] {
+		case "provider_unavailable", "invalid_evidence", "dead_letter", "mismatch":
+			out["reason_code"] = input["reason_code"]
+		}
+	case "checkout_started", "credits_purchased", "credits_purchase_failed", "credits_refunded":
 		numeric("amount", "price", "amount_minor")
-		ids("currency", "sku_id", "channel", "price_table_version")
-		if reason, ok := input["reason"].(string); ok && (reason == "failed" || reason == "expired" || reason == "invalid_evidence") {
+		ids("currency", "sku_id", "channel", "price_table_version", "payment_reference", "reason_code", "reversal_key")
+		if reason, ok := input["reason"].(string); ok && (reason == "failed" || reason == "expired" || reason == "invalid_evidence" || reason == "refunded" || reason == "disputed") {
 			out["reason"] = reason
 		}
 	case "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":

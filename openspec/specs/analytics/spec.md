@@ -92,12 +92,12 @@ The catalog MUST include: `xp_earned` (amount, course_id, lesson_id, event_id, l
 ### Requirement: Credits and AI feature events
 The financial purchase catalogue SHALL include `checkout_started` (sku_id, channel,
 currency, amount_minor, price_table_version), `credits_purchased` (amount, currency,
-price, sku_id, channel, amount_minor, price_table_version) and
+price, sku_id, channel, amount_minor, price_table_version), `credits_refunded` (amount, payment_reference, reason_code), and
 `credits_purchase_failed` (reason, sku_id, channel, price_table_version).
 These API events SHALL use transactionally unique outbox keys, UUID/common properties
 and opt-out. No raw payment payloads, URLs, learner text or provider errors are allowed.
 
-The catalog MUST include: `credits_reserved`, `credits_settled`, `credits_released` (feature, amount), `credits_insufficient` (feature, balance, estimate), `credits_purchased` (amount, currency, price), `credits_purchase_failed` (reason), `reward_credits_granted` (reason, amount), `tutor_message_sent` (has_lesson_context), `tutor_reply_completed`, `tutor_reply_stopped`, `tutor_reply_failed` (error_code), `quick_note_created` (source, length), `quick_note_enriched`, `quick_note_enrichment_failed`, `quick_note_reviewed`, `quick_note_deleted`, `bookmark_added`, `bookmark_removed`, `bookmark_opened` (target_type), `learner_profile_updated` (fields_changed) and `onboarding_completed` (no domain properties).
+The catalog MUST include: `credits_reserved`, `credits_settled`, `credits_released` (feature, amount), `credits_insufficient` (feature, balance, estimate), `credits_purchased` (amount, currency, price), `credits_purchase_failed` (reason), `credits_refunded` (amount, payment_reference, reason_code), `reward_credits_granted` (reason, amount), `tutor_message_sent` (has_lesson_context), `tutor_reply_completed`, `tutor_reply_stopped`, `tutor_reply_failed` (error_code), `quick_note_created` (source, length), `quick_note_enriched`, `quick_note_enrichment_failed`, `quick_note_reviewed`, `quick_note_deleted`, `bookmark_added`, `bookmark_removed`, `bookmark_opened` (target_type), `learner_profile_updated` (fields_changed) and `onboarding_completed` (no domain properties).
 
 #### Scenario: Purchase event
 - **WHEN** a webhook confirms a purchase
@@ -145,6 +145,19 @@ The API SHALL emit `backup_completed` and `backup_failed` (size_bytes, duration_
 #### Scenario: Backup job done
 - **WHEN** the nightly dump completes
 - **THEN** `backup_completed` is emitted with size and duration
+
+### Requirement: Payment reconciliation operations analytics
+The API SHALL emit `payment_reconciliation_failed` with channel `stripe` and a
+closed `reason_code`: `provider_unavailable`, `invalid_evidence`, `dead_letter`, or
+`mismatch`. These operations events SHALL use the reserved system UUID
+`00000000-0000-4000-8000-000000000011`, source `api`, platform `web`, and build
+`app_version`. Global opt-out MUST suppress delivery through the existing wrapper.
+No provider identifiers, payloads, errors or learner content SHALL be sent.
+Independent operational alerts MUST remain available when analytics is disabled.
+
+#### Scenario: Unresolved financial difference
+- **WHEN** canonical TEST provider state cannot reconcile to retained financial business keys
+- **THEN** an operational alert is raised and the content-free failure event is delivered unless opted out
 
 ### Requirement: Event testing and change control
 Each event MUST have a unit test for its emitter and the e2e suite MUST check the key funnel events with a PostHog test double. Renaming or removing an event MUST be done through an OpenSpec change that updates this catalog.

@@ -53,6 +53,7 @@ var piiRules = []piiRule{
 	{"learner_profiles", "background", `''`},
 	{"learner_profiles", "goal", `''`},
 	{"learner_profiles", "topic", `''`},
+	{"credit_goodwill_audit", "notes", redacted},
 	{"bookmarks", "course_title", redacted},
 	{"bookmarks", "lesson_title", redacted},
 	{"bookmarks", "slide_title", redacted},
@@ -125,8 +126,9 @@ course_copies.content_hash course_copies.source course_enrollments.level_overrid
 course_lesson_stubs.reused_from_snapshot courses.visibility
 credit_allocations.bucket credit_allocations.component credit_allocations.grant_date credit_artifacts.component
 credit_checkout_orders.billing_period credit_checkout_orders.platform credit_checkout_orders.return_to
-credit_cost_counters.scope credit_entries.provenance credit_jobs.result credit_outbox.event credit_outbox.properties
-credit_payment_inbox.environment credit_payment_sessions.environment credit_subscription_revocations.reason
+credit_cost_counters.scope credit_debt_history.bucket credit_dispute_keys.environment credit_entries.provenance credit_jobs.result credit_outbox.event credit_outbox.properties
+credit_payment_attempts.event_id credit_payment_attempts.last_reason_code
+credit_payment_inbox.environment credit_payment_sessions.environment credit_refund_allocations.source_id credit_reversals.environment credit_subscription_revocations.reason
 credit_subscription_terms.benefits credit_subscription_terms.plan_name credit_subscription_transitions.terms
 credit_subscriptions.environment credit_usage.usage eval_alert_configs.id eval_alert_events.properties eval_alert_events.scope
 eval_operational_aggregates.task eval_reports.dataset_revision eval_reports.prompt_revision eval_reports.report_json eval_reports.task

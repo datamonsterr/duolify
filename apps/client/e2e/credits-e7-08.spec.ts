@@ -102,10 +102,12 @@ for (const width of [1280, 390, 320]) {
         })
       ).ok(),
     ).toBe(true);
-    expect((await wallet()).subscription).toBe(4 * plan.monthly_credits);
+    // E7-10: a verified full refund reverses this invoice's issued credits
+    // and revokes its future allowances; cancellation alone preserved both.
+    expect((await wallet()).subscription).toBe(0);
     await page.reload();
     await expect(
-      page.getByText("Refunded · issued credits remain available"),
+      page.getByText("Refunded · affected credits reversed"),
     ).toBeVisible();
     await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
     expect(

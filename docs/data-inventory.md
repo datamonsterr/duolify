@@ -1,5 +1,30 @@
 # Data inventory
 
+E7-11: `credit_payment_attempts` references immutable inbox event ids and stores
+bounded attempts, cumulative attempts/replay counters, retry/terminal timestamps
+and a closed reason code. It contains no provider error or raw payload. Account
+export includes it through the inbox's order/session/subscription bindings;
+deletion retains it via pseudonymized financial orders for at least seven years.
+Deletion/truncation is blocked. It enters encrypted nightly dumps and the existing
+35-day `financial/` snapshot class. The backup fixture creates, restores and
+replays its rows; the anonymizer explicitly classifies its text columns.
+
+The independent daily River `financial_diagnostic_retention` job purges raw
+redacted envelopes after 30 days and clears derived `credit_outbox`
+properties after 90 days (including undelivered events). Event keys, identity pseudonyms, ledger, immutable
+catalogue versions, financial audit/provenance and annual schedules remain for
+seven years; no live financial history is deleted by snapshot rotation. The daily
+`financial_reconciliation` job compares independent canonical TEST inventory with
+business outcomes and catches up funded grants. The restore drill checks wallets,
+paid liability including held allocations, reserve at each historical catalogue's
+protected cost ceiling, annual schedule keys/dates, refunds/debt, outbox and
+tombstones, then fingerprints retained financial rows across a second replay.
+Quarterly scheduled replay requires owner-supplied HMAC-signed TEST fixtures and
+uses only the existing isolated restore/local RustFS workflow (ADR 0012).
+`payment_reconciliation_failed` uses the reserved operations UUID and closed
+channel/reason properties through the existing PostHog wrapper; opt-out suppresses
+delivery without disabling operational alerts. No AI behavior or model data is added.
+
 E11-06: Infrastructure and Railway environments (dev, staging, prod) and release gates. No new database tables, schemas, or learner data are added. Infrastructure configuration is Git-backed across dev, staging, and prod Railway environments with stateless services and Postgres/Redis/S3 roles; secrets are preserved rather than committed to Git, and secret values are strictly redacted in plan summaries and error output. PreDeploy migrations (/api migrate) and readiness probes (/readyz) enforce rollback on unhealthy states. Live apply operations stay disabled and gated on E11-07 (#54). Telemetry uses operational deploy/health logs only, with the reserved operations UUID (00000000-0000-4000-8000-000000000011) and opt-out suppression; no learner text or secret values are captured.
 
 E15-02: `courses` gains `visibility` (`private` default | `link`; `public` is reserved for the marketplace). New table `publication_links` (course id, SHA-256 `token_hash`, `created_at`, `revoked_at`; at most one active row per course) is in the nightly encrypted dump, the account export (ids and dates only) and is erased with the Course, so no hash outlives its owner's account. The link token is 160 random bits from `crypto/rand`; the plaintext appears only in the one HTTP response that creates or rotates the link, never in storage, logs, backup logs or analytics, and revoke or rotate takes effect on the next request (no cache). New table `publication_preview_limits` holds per-IP counters for the anonymous preview: a SHA-256 of the address, a count and an expiry (default 60 requests per 60 seconds, `SHARING_PREVIEW_RATE_LIMIT_PER_IP` and `SHARING_PREVIEW_RATE_WINDOW_SECONDS`); rows expire with the window, are purged opportunistically, hold no learner id and are excluded from restore checks. Public preview payload allowlist: title, description, version, creator username, display name and avatar, outline, up to three sample slides, aggregate enrollment count and ready lesson counts; never answers, explanations, retry pool or narration audio, and always `X-Robots-Tag: noindex` plus `<meta name="robots">`. PostHog: `course_visibility_changed`, `course_published`, `share_link_created`, `share_link_revoked`, `share_link_opened` carry course UUID, version, lesson count and enums only; an anonymous open is attributed to the operations identity and never carries a token, URL or IP. Defaults pending E15-12: public domain (`SHARING_PUBLIC_DOMAIN`), app scheme (`SHARING_APP_SCHEME`), publisher age 18 (`SHARING_MIN_PUBLISHER_AGE`).
@@ -337,6 +362,8 @@ Backup fixtures seed cancellation/resumption transitions and compare complete
 rows after restore, including dedupe/effective dates; replay never reissues funded
 Credits. Redis wallet state and priority are disposable derived data. No card data,
 raw notification bodies or learner content enter these tables or analytics.
+
+E7-10 adds immutable `credit_reversals` (reversal key = `stripe:test:<provider refund/dispute id>`, order, optional subscription term `period_key`, real inbox event ID, kind in 'refund'/'chargeback', amount_minor, currency, reversed credits), `credit_refund_allocations` (per-source money and credit allocation: deducted vs non-spendable debt, optional compensating ledger entry), `credit_dispute_keys` (provider dispute id, status), append-only-by-policy `credit_debt_history` (learner/owner reference, reversal key, source grant entry, bucket, debt amount, active/resolved/waived status, goodwill audit reference) and immutable `credit_goodwill_audit` (SHA-256 actor hash, owner pseudonym, reason code, **private operator free-text `notes`**, affected debt ids, waived credits). The goodwill `notes` are private: never sent to analytics (the outbox carries a reason code only), classified private (not in the restore-drill anonymizer's reviewed-safe list, so they are replaced in anonymized restores). All tables retain at least seven years in financial backups with 35-day encrypted snapshot rotation and appear in backup fixtures and restore checks. Account export includes the learner's own reversals, allocations, dispute keys and debt history (not operator notes); account deletion nulls `learner_id` on debt history and entries and keeps only the pseudonymous `owner_reference` (`encode(sha256(convert_to(OLD.id::text,'UTF8')),'hex')`) via `prepare_credit_account_deletion()`. Immutable statement triggers refuse UPDATE/DELETE/TRUNCATE on reversal, allocation, dispute and audit tables; `prevent_credit_debt_deletion()` refuses deletion of debt history. No card numbers, customer tokens or raw payment provider payloads enter these tables.
 
 | Postgres `course_creations` | Owned immutable confirmed outline/revision, quote/reservation IDs, durable stages and validated response; no lesson content | Nightly encrypted general dumps, 14 days; populated fixture restored and compared in full | Owner export; account cascade erasure and restore tombstones; financial usage stays separately anonymized for seven years / 35-day financial snapshots | [E2-02](../openspec/changes/create-confirmed-outline/design.md) |
 | Postgres `courses`, `course_units`, `course_lesson_stubs`, `course_enrollments` | Owned Course and exact ordered Units/stubs/goals; first ready_to_generate, others locked; single enrollment | Nightly encrypted general dumps, 14 days; full-row fixture comparison and deletion replay | Owner export; account cascade erasure; Course soft-delete metadata, 30-day grace before hard deletion (removal UI and automated purge) | [E2-02](../openspec/changes/create-confirmed-outline/design.md), [E2-04](../openspec/changes/recover-generation-and-remove-courses/design.md) |

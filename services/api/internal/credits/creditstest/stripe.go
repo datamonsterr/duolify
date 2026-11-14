@@ -79,6 +79,11 @@ func (s *Stripe) RetrieveSession(_ context.Context, id string) (credits.PaymentS
 // Notification updates canonical state independently of the event snapshot and
 // signs the exact payload as Stripe does. Stable event IDs exercise replay too.
 func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
+	return s.NotificationWithDetails(id, state, kind, 0, "")
+}
+
+// NotificationWithDetails updates canonical state with explicit refund amount or reversal ID.
+func (s *Stripe) NotificationWithDetails(id, state, kind string, amountMinor int, reversalID string) ([]byte, string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	session, ok := s.sessions[id]
@@ -86,7 +91,7 @@ func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
 		return nil, "", errors.New("unknown fixture session")
 	}
 	switch state {
-	case "cancel_scheduled", "resumed", "stale", "refunded", "disputed":
+	case "cancel_scheduled", "resumed", "stale", "refunded", "partially_refunded", "disputed":
 		// Canonical subscription/invoice changes are applied below.
 	case "paid", "previous_paid", "renewed":
 		session.PaymentStatus = "paid"
@@ -99,6 +104,13 @@ func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
 		session.PaymentStatus = "unpaid"
 	default:
 		return nil, "", errors.New("unknown fixture state")
+	}
+	reversals := 0
+	if session.Mode == "payment" {
+		if state == "refunded" || state == "partially_refunded" || state == "disputed" {
+			session.Refunds, session.Disputes = reverseCharge(state, session.AmountMinor, session.Currency, amountMinor, reversalID, session.OrderID, session.Refunds, session.Disputes)
+			reversals = len(session.Refunds) + len(session.Disputes)
+		}
 	}
 	s.sessions[id] = session
 	objectID := id
@@ -127,11 +139,9 @@ func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
 					i.BillingReason = "subscription_cycle"
 				}
 			}
-			if state == "refunded" {
-				i.Refunded = true
-			}
-			if state == "disputed" {
-				i.Disputed = true
+			if state == "refunded" || state == "partially_refunded" || state == "disputed" {
+				i.Refunds, i.Disputes = reverseCharge(state, i.AmountMinor, i.Currency, amountMinor, reversalID, session.OrderID, i.Refunds, i.Disputes)
+				reversals = len(i.Refunds) + len(i.Disputes)
 			}
 			if state == "paid" || state == "previous_paid" || state == "renewed" {
 				i.Status = "paid"
@@ -167,7 +177,7 @@ func (s *Stripe) Notification(id, state, kind string) ([]byte, string, error) {
 			}
 		}
 	}
-	sum := sha256.Sum256([]byte(id + state + kind))
+	sum := sha256.Sum256([]byte(fmt.Sprint(id, state, kind, amountMinor, reversalID, reversals)))
 	raw, err := json.Marshal(map[string]any{"id": fmt.Sprintf("evt_%x", sum[:16]), "type": kind, "livemode": false, "data": map[string]any{"object": map[string]string{"id": objectID}}})
 	if err != nil {
 		return nil, "", err
@@ -257,4 +267,45 @@ func (s *Stripe) ScheduleTransition(_ context.Context, v credits.SubscriptionTra
 	s.transitions[v.Key] = v
 	s.subscriptions[sub.ID] = sub
 	return nil
+}
+
+// reverseCharge appends one canonical provider refund or dispute object. Each
+// object has its own id; an existing id is never duplicated (provider replay).
+// Fixture-side defaults only choose what a real provider would have decided:
+// a full refund takes the remaining refundable amount, a partial one half of it.
+func reverseCharge(state string, total int, currency string, amountMinor int, id, order string, refunds []credits.ProviderRefund, disputes []credits.ProviderDispute) ([]credits.ProviderRefund, []credits.ProviderDispute) {
+	used := 0
+	for _, r := range refunds {
+		used += r.AmountMinor
+	}
+	for _, d := range disputes {
+		used += d.AmountMinor
+	}
+	remaining := total - used
+	if amountMinor <= 0 {
+		amountMinor = remaining
+		if state == "partially_refunded" {
+			amountMinor = remaining / 2
+		}
+	}
+	if state == "disputed" {
+		if id == "" {
+			id = fmt.Sprintf("dp_%s_%d", order, len(disputes)+1)
+		}
+		for _, d := range disputes {
+			if d.ID == id {
+				return refunds, disputes
+			}
+		}
+		return refunds, append(disputes, credits.ProviderDispute{ID: id, AmountMinor: amountMinor, Currency: currency, Status: "needs_response"})
+	}
+	if id == "" {
+		id = fmt.Sprintf("re_%s_%d", order, len(refunds)+1)
+	}
+	for _, r := range refunds {
+		if r.ID == id {
+			return refunds, disputes
+		}
+	}
+	return append(refunds, credits.ProviderRefund{ID: id, AmountMinor: amountMinor, Currency: currency, Status: "succeeded"}), disputes
 }

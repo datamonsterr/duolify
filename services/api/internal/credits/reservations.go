@@ -114,6 +114,20 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 	if err = expireDailyTx(ctx, tx, owner, localDay, q.PricingVersion); err != nil {
 		return Reservation{}, err
 	}
+	hasDebt, err := hasActiveDebt(ctx, tx, owner)
+	if err != nil {
+		return Reservation{}, err
+	}
+	if hasDebt {
+		var dailyFreeAvail int64
+		err = tx.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM credit_entries WHERE (learner_id=$1::uuid OR owner_reference=$2) AND kind!='reward' AND (CASE WHEN kind='daily_grant' THEN 'daily_free' ELSE COALESCE(provenance->>'bucket','') END)='daily_free' AND provenance->>'date'=$3`, owner, ref, localDay).Scan(&dailyFreeAvail)
+		if err != nil {
+			return Reservation{}, err
+		}
+		if !q.DailyFreeEligible || dailyFreeAvail < (q.ContentCeiling+q.AudioCeiling) {
+			return Reservation{}, ErrSourceDebt
+		}
+	}
 	var paid bool
 	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_entries WHERE learner_id=$1 AND kind IN ('purchase','subscription_grant'))`, owner).Scan(&paid)
 	if err != nil {
@@ -246,6 +260,14 @@ func allocateTx(ctx context.Context, tx pgx.Tx, owner, job string, q pricing.Quo
 			return err
 		}
 		bucketAvailable[bucket] = available
+	}
+	hasDebt, err := hasActiveDebt(ctx, tx, owner)
+	if err != nil {
+		return err
+	}
+	if hasDebt {
+		bucketAvailable["subscription"] = 0
+		bucketAvailable["purchase"] = 0
 	}
 	for _, component := range []struct {
 		name   string
