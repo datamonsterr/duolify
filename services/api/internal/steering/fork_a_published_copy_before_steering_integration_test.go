@@ -3,6 +3,7 @@
 package steering
 
 import (
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -184,15 +185,13 @@ func TestForkAPublishedCopyBeforeSteering(t *testing.T) {
 
 	t.Run("concurrent_confirmed_adds_fork_once", func(t *testing.T) {
 		c := newCopyFixture(t)
-		in := in
-		in.ConfirmFork = true
 		var wg sync.WaitGroup
 		errs := make([]error, 4)
 		for i := range errs {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				_, errs[i] = c.s.Add(c.ctx, c.owner, c.copy, Input{Text: "Example " + string(rune('A'+i)), Scope: "rest_of_course", ConfirmFork: true})
+				_, errs[i] = c.s.Add(c.ctx, c.owner, c.copy, Input{Text: "Example " + strconv.Itoa(i), Scope: "rest_of_course", ConfirmFork: true})
 			}()
 		}
 		wg.Wait()
