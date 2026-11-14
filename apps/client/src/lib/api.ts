@@ -18,6 +18,8 @@ export type Course = {
   level_override?: string;
   /** Published version a copy is pinned to. */
   pinned_version?: number | null;
+  /** A severe takedown blocked this copy; the path shows a notice instead of lessons. */
+  moderation_blocked?: boolean;
   units: { id?: string; title: string; lessons: Lesson[] }[];
 };
 export type CoursesResponse = Course[] & { active_course_id?: string };

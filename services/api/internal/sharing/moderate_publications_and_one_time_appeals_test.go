@@ -2,10 +2,13 @@ package sharing_test
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 )
 
@@ -124,5 +127,28 @@ func TestHeldSeverityAndConfigFromEnv(t *testing.T) {
 	}
 	if def := sharing.ConfigFromEnv(func(string) string { return "" }); def.ModerationTargetHours != 48 || def.MarketplaceEnabled {
 		t.Fatalf("defaults = %+v", def)
+	}
+}
+
+// The mux hands the handler the full pattern ("GET /v1/..."), so every route must be known to it.
+// A caller without a valid moderator identity gets the neutral not_found; an unmatched pattern would
+// answer unknown_route instead.
+func TestModerationRoutesAreServedByTheHandler(t *testing.T) {
+	routes := []string{"GET /v1/moderation/queue", "POST /v1/moderation/items/{id}/actions", "POST /v1/moderation/appeals/{id}/decision", "GET /v1/moderation/notices", "POST /v1/moderation/notices/{id}/appeal"}
+	mux := http.NewServeMux()
+	sharing.Mount(mux, sharing.NewService(nil, nil, sharing.DefaultConfig()), func(h http.Handler) http.Handler { return h }, func(h http.Handler) http.Handler { return h })
+	for _, route := range routes {
+		method, path, _ := strings.Cut(route, " ")
+		body := `{"action":"dismiss","reason_code":"no_violation","reason":"ok","decision":"uphold","text":"ok"}`
+		if method == "GET" {
+			body = ""
+		}
+		req := httptest.NewRequest(method, strings.ReplaceAll(path, "{id}", "8ba637a4-18f3-4d4d-839c-37692a64630a"), strings.NewReader(body))
+		req = req.WithContext(accounts.WithLearnerID(req.Context(), "not-a-uuid"))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if strings.Contains(rec.Body.String(), "unknown_route") {
+			t.Errorf("%s reached the handler's default case: %d %s", route, rec.Code, rec.Body)
+		}
 	}
 }

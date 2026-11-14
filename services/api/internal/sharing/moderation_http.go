@@ -52,7 +52,7 @@ func (h ModerationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		write(w, http.StatusUnauthorized, map[string]string{"error": "sign_in_required"})
 		return
 	}
-	switch r.Method + " " + r.Pattern {
+	switch r.Pattern {
 	case "GET /v1/moderation/queue":
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 		if limit == 0 {
@@ -113,6 +113,6 @@ func (h ModerationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		write(w, http.StatusCreated, map[string]string{"id": id})
 	default:
-		write(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+		write(w, http.StatusNotFound, map[string]string{"error": "unknown_route"})
 	}
 }

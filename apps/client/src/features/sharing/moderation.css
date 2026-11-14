@@ -1,0 +1,210 @@
+.mod {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  max-width: 100%;
+}
+.mod h1,
+.mod h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.mod-head,
+.mod-chips,
+.mod-filters,
+.mod-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.mod-head h1 {
+  margin-inline-end: auto;
+}
+.mod-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-target);
+  padding: 0 var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-caption);
+  font-weight: var(--weight-strong);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.mod-chip[data-tone="bad"] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.mod-chip[data-tone="warn"] {
+  border-color: var(--warning);
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+.mod-chip[data-tone="info"] {
+  border-color: var(--info);
+  color: var(--info);
+  background: var(--info-bg);
+}
+.mod-done {
+  margin: 0;
+  padding: var(--space-3);
+  border: 2px solid var(--success);
+  border-radius: var(--radius-md);
+}
+.mod-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.mod-layout:not(:has(.mod-detail)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.mod-list,
+.mod-detail,
+.mod-box {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+}
+.mod-list ul,
+.mod-log {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mod-filter {
+  min-height: var(--size-target);
+  padding: 0 var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.mod-filter[aria-pressed="true"] {
+  border-color: var(--primary);
+  font-weight: var(--weight-strong);
+}
+.mod-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  width: 100%;
+  min-height: var(--size-target);
+  padding: var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.mod-row[aria-current="true"] {
+  border-color: var(--primary);
+}
+.mod-row-main {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mod-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.mod-back {
+  display: none;
+  justify-self: start;
+}
+.mod-log li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.mod-empty {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+.mod-notice blockquote {
+  margin: 0;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 4px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.mod-field,
+.mod-check {
+  display: grid;
+  gap: var(--space-1);
+  font-weight: var(--weight-strong);
+}
+.mod-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.mod-block {
+  display: grid;
+  gap: var(--space-1);
+}
+.mod-field select,
+.mod-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--size-target);
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+.mod-buttons {
+  justify-content: flex-end;
+}
+.mod-dialog {
+  gap: var(--space-3);
+}
+@media (max-width: 47.999rem) {
+  .mod-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* List-detail becomes two screens. */
+  .mod-layout[data-screen="detail"] .mod-list {
+    display: none;
+  }
+  .mod-layout[data-screen="list"] .mod-detail {
+    display: none;
+  }
+  .mod-back {
+    display: inline-flex;
+  }
+  .mod-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mod-buttons .duo-button {
+    flex: 1 1 8rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mod-dialog,
+  .mod-row {
+    animation: none;
+    transition: none;
+  }
+}

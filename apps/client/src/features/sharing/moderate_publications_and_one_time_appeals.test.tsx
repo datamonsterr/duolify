@@ -171,7 +171,7 @@ describe("moderator queue", () => {
       screen.queryByRole("button", { name: "Course · Home chemistry" }),
     ).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Publication · Lockpicking 101" }),
+      screen.getByRole("button", { name: "Course · Lockpicking 101" }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Users" }));
     expect(
@@ -258,7 +258,7 @@ describe("moderator queue", () => {
     render(<ModeratorQueue />);
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Publication · Lockpicking 101",
+        name: "Course · Lockpicking 101",
       }),
     );
     const approve = screen.getByRole("button", { name: "Approve publication" });
