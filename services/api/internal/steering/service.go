@@ -24,6 +24,8 @@ type Options struct {
 	Pool   *pgxpool.Pool
 	Engine Screener
 	Events analytics.Events
+	// ScreenTimeout bounds the classifier call; zero means the 10 second default.
+	ScreenTimeout time.Duration
 }
 
 // Service saves screened private Course instructions.
@@ -83,12 +85,19 @@ func (s *Service) privateCourse(ctx context.Context, owner, course string) (stri
 	return title, err
 }
 
+func (s *Service) screenTimeout() time.Duration {
+	if s.opts.ScreenTimeout > 0 {
+		return s.opts.ScreenTimeout
+	}
+	return 10 * time.Second
+}
+
 // screen runs the platform-paid classifier and fails closed; it returns a reason code on refusal.
 func (s *Service) screen(ctx context.Context, owner, topic, text string) (*pb.ScreenInstructionResponse, string) {
 	if s.opts.Engine == nil {
 		return nil, "screening_unavailable"
 	}
-	screenCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	screenCtx, cancel := context.WithTimeout(ctx, s.screenTimeout())
 	verdict, screenErr := s.opts.Engine.ScreenInstruction(screenCtx, &pb.ScreenInstructionRequest{Text: text, CourseTopic: topic})
 	expired := screenCtx.Err() != nil
 	cancel()

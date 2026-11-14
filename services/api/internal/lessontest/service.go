@@ -622,6 +622,11 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 		if valErr := ValidateGeneratedLesson(lesson); valErr != nil {
 			return fail("validation_failed", fmt.Errorf("validate generated lesson error: %w", valErr))
 		}
+		// Defence in depth at the trust boundary: prompt echo or a weakened test is never delivered.
+		if reason := steering.OutputViolation(lesson, instructions); reason != "" {
+			steering.New(steering.Options{Events: s.opts.Events}).FlagOutput(owner, courseID, reason)
+			return fail("output_rejected", fmt.Errorf("generated lesson rejected: %s", reason))
+		}
 
 		if cast != nil {
 			for _, slide := range lesson.Slides {

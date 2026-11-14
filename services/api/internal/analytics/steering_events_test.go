@@ -32,7 +32,7 @@ func TestSteeringEventsPostHogDeliveryAndOptOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	props := map[string]any{"source": "api", "platform": "web", "app_version": "1.0.0", "course_id": "c1", "lesson_id": "l1", "scope": "next_lesson", "length_bucket": "1_100", "reason_code": "prompt_injection", "is_course_copy": false, "feature": "steer_screen", "input_tokens": 20, "output_tokens": 5, "provider": "mock", "model": "mock-screen", "text": "PRIVATE_LEARNER_TEXT", "prompt": "PRIVATE_LEARNER_TEXT"}
-	for _, event := range []string{"course_instruction_added", "course_instruction_rejected", "course_instruction_applied", "$ai_generation"} {
+	for _, event := range []string{"course_instruction_added", "course_instruction_rejected", "course_instruction_applied", "course_instruction_output_flagged", "$ai_generation"} {
 		if err = events.Capture(owner, event, props); err != nil {
 			t.Fatal(err)
 		}
@@ -51,7 +51,7 @@ func TestSteeringEventsPostHogDeliveryAndOptOut(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(received) != 4 {
+	if len(received) != 5 {
 		t.Fatalf("events: %v", received)
 	}
 	for _, event := range received {
