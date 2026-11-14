@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -84,6 +85,7 @@ type Config struct {
 	DevelopmentMappings map[string]string            `json:"development_mappings,omitempty"`
 	StripeMappings      map[string]any               `json:"stripe_mappings,omitempty"`
 	StoreMappings       map[string]map[string]string `json:"store_mappings,omitempty"`
+	DesignChatDecision  string                       `json:"design_chat_decision,omitempty"`
 }
 
 // Public strips provider mappings. No sales are activated by this read-only ticket.
@@ -205,6 +207,62 @@ type Catalogue struct {
 	etag   string
 }
 
+// IsDevOrTest reports whether env is explicit development or test.
+// Any other value (including empty or "production") is treated as production (fail closed).
+func IsDevOrTest(env string) bool {
+	return env == "development" || env == "test"
+}
+
+// IsDesignChatAction reports whether the action is one of the design chat actions.
+func IsDesignChatAction(action string) bool {
+	return action == "setup_chat" || action == "course_brief_chat" || action == "outline_chat_change"
+}
+
+// HasDesignChatKeys reports whether the config contains any design chat actions.
+func HasDesignChatKeys(c Config) bool {
+	if c.Actions == nil {
+		return false
+	}
+	_, hasSetup := c.Actions["setup_chat"]
+	_, hasBrief := c.Actions["course_brief_chat"]
+	_, hasOutline := c.Actions["outline_chat_change"]
+	return hasSetup || hasBrief || hasOutline
+}
+
+// CheckDesignChatDecisionRecorded validates only the recorded decision value.
+// Use it on read paths where activation already enforced the owner identity.
+func CheckDesignChatDecisionRecorded(c Config, env string) error {
+	if !HasDesignChatKeys(c) {
+		return nil
+	}
+	if !IsDevOrTest(env) {
+		if c.DesignChatDecision != "owner_approved" {
+			return errors.New("design chat pricing requires owner approval in production")
+		}
+		return nil
+	}
+	if c.DesignChatDecision != "interim_adr_0012" && c.DesignChatDecision != "owner_approved" {
+		return errors.New("design chat pricing requires recorded decision (interim_adr_0012 or owner_approved)")
+	}
+	return nil
+}
+
+// CheckDesignChatDecision is the single enforcement point for the design chat
+// decision gate. In production it fails closed: the decision must be
+// owner_approved, PRICING_OWNER_ID must be set, and approver (the reviewer of
+// the version) must be non-empty and equal to it.
+func CheckDesignChatDecision(c Config, env string, approver string, ownerID string) error {
+	if err := CheckDesignChatDecisionRecorded(c, env); err != nil {
+		return err
+	}
+	if HasDesignChatKeys(c) && !IsDevOrTest(env) {
+		if ownerID == "" || approver == "" || !strings.EqualFold(approver, ownerID) {
+			return errors.New("design chat pricing requires owner approval in production")
+		}
+	}
+	return nil
+}
+
 // RuntimeCatalogue resolves approved versions using Postgres time on every
 // read. Postgres remains available when the optional Redis cache is down; a
 // rejected reload leaves the last validated response available to clients.
@@ -215,11 +273,65 @@ type RuntimeCatalogue struct {
 	events   analytics.Events
 	last     *Catalogue
 	baseline time.Time
+	env      string
+	ownerID  string
+	// gateSkipped dedupes refusal logs for versions blocked by the design chat gate.
+	gateSkipped map[string]bool
 }
 
 // NewRuntimeCatalogue creates the database-time pricing resolver with a validated startup fallback.
 func NewRuntimeCatalogue(initial *Catalogue, q Queries, pool *pgxpool.Pool, events analytics.Events) *RuntimeCatalogue {
-	return &RuntimeCatalogue{queries: q, pool: pool, events: events, last: initial, baseline: initial.config.EffectiveFrom}
+	return &RuntimeCatalogue{
+		queries:  q,
+		pool:     pool,
+		events:   events,
+		last:     initial,
+		baseline: initial.config.EffectiveFrom,
+		env:      os.Getenv("DUOLIFY_ENV"),
+		ownerID:  os.Getenv("PRICING_OWNER_ID"),
+	}
+}
+
+// SetEnvironment configures the deployment environment for runtime activation checks.
+func (c *RuntimeCatalogue) SetEnvironment(env string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.env = env
+}
+
+// SetOwnerID configures the pricing owner ID for runtime checks.
+func (c *RuntimeCatalogue) SetOwnerID(ownerID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ownerID = ownerID
+}
+
+// Config returns a copy of the current active config.
+func (c *RuntimeCatalogue) Config() Config {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.last == nil {
+		return Config{}
+	}
+	return c.last.Config()
+}
+
+// HasAction reports whether the active catalogue defines the given action and passes the gate.
+func (c *RuntimeCatalogue) HasAction(name string) bool {
+	c.mu.RLock()
+	last := c.last
+	env := c.env
+	c.mu.RUnlock()
+	if last == nil {
+		return false
+	}
+	if !last.HasAction(name) {
+		return false
+	}
+	if IsDesignChatAction(name) {
+		return CheckDesignChatDecisionRecorded(last.config, env) == nil
+	}
+	return true
 }
 
 func (c *RuntimeCatalogue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -307,14 +419,39 @@ func (c *RuntimeCatalogue) ActivateDue(ctx context.Context, admin *Admin) error 
 		return errors.New("pricing activation requires an external mapping verifier")
 	}
 	for _, v := range due {
-		if _, err = Parse(v.raw); err != nil {
+		parsed, err := Parse(v.raw)
+		if err != nil {
 			return err
+		}
+		if HasDesignChatKeys(parsed) {
+			var reviewer string
+			_ = c.pool.QueryRow(ctx, "SELECT coalesce((SELECT reviewed_by FROM pricing_drafts WHERE version=$1),'')", v.version).Scan(&reviewer)
+			if gateErr := CheckDesignChatDecision(parsed, c.env, reviewer, admin.owner); gateErr != nil {
+				// Skip only this version; the last good catalogue stays public and
+				// unrelated due versions still activate.
+				c.mu.Lock()
+				seen := c.gateSkipped[v.version]
+				if c.gateSkipped == nil {
+					c.gateSkipped = map[string]bool{}
+				}
+				c.gateSkipped[v.version] = true
+				c.mu.Unlock()
+				if !seen {
+					slog.WarnContext(ctx, "pricing activation refused", "version", v.version, "error", gateErr)
+				}
+				continue
+			}
 		}
 		if _, err = checkEconomics(ctx, v.raw, admin.verifier, v.override, admin.policy, false); err != nil {
 			return fmt.Errorf("version %s: %w", v.version, err)
 		}
 		if err = c.recordActivation(ctx, v.version); err != nil {
 			return err
+		}
+		if loaded, err := Load(ctx, c.queries); err == nil {
+			c.mu.Lock()
+			c.last = loaded
+			c.mu.Unlock()
 		}
 	}
 	return nil
@@ -400,9 +537,25 @@ func FromConfig(c Config) *Catalogue {
 	return &Catalogue{config: c, body: body, etag: fmt.Sprintf(`"%x"`, sha256.Sum256(body))}
 }
 
-// LoadDevelopment loads the unapproved development pricing version if present.
+// LoadDevelopment loads the unapproved development pricing version if present,
+// or resolves through the active version once an activated version carries the keys.
 func LoadDevelopment(ctx context.Context, pool *pgxpool.Pool) (*Catalogue, error) {
 	var configJSON []byte
+	// The currently active version is authoritative: it carries the keys once
+	// activated, and after a rollback (active version without keys) an older
+	// version with keys must not be resurrected.
+	if row, err := db.New(pool).ActivePricing(ctx); err == nil {
+		if c, parseErr := Parse(row.Config); parseErr == nil {
+			if HasDesignChatKeys(c) {
+				return FromConfig(c), nil
+			}
+			var activatedEver bool
+			_ = pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pricing_activation_events e JOIN pricing_versions v ON v.version=e.version WHERE v.config->'actions' ?| array['setup_chat','course_brief_chat','outline_chat_change'])").Scan(&activatedEver)
+			if activatedEver {
+				return FromConfig(c), nil
+			}
+		}
+	}
 	err := pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version IN ('usd-dev-unapproved','usd-dev-course-brief-unapproved') ORDER BY (version='usd-dev-course-brief-unapproved') DESC LIMIT 1").Scan(&configJSON)
 	if err != nil {
 		return nil, err

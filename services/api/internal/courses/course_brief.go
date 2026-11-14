@@ -108,6 +108,12 @@ func (s *Service) policy(ctx context.Context) (pricing.Config, bounds, bool) {
 	}
 	c = s.opts.Pricing.Config()
 	action, ok := c.Actions["course_brief_chat"]
+	if !ok && (s.opts.Environment == "development" || s.opts.Environment == "test") {
+		if dev, err := pricing.LoadDevelopment(ctx, s.opts.Pool); err == nil {
+			c = dev.Config()
+			action, ok = c.Actions["course_brief_chat"]
+		}
+	}
 	if !ok || action.Credits != 0 {
 		return c, b, false
 	}
@@ -128,6 +134,11 @@ func (s *Service) policy(ctx context.Context) (pricing.Config, bounds, bool) {
 	var approved bool
 	if err := s.opts.Pool.QueryRow(ctx, "SELECT approved FROM pricing_versions WHERE version=$1", c.Version).Scan(&approved); err != nil {
 		return c, b, false
+	}
+	if approved {
+		if err := pricing.CheckDesignChatDecisionRecorded(c, s.opts.Environment); err != nil {
+			return c, b, false
+		}
 	}
 	enabled := s.opts.Environment == "development" || s.opts.Environment == "test" || (s.opts.Environment == "production" && approved && s.opts.LiveApproved)
 	return c, b, enabled

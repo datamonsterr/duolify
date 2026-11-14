@@ -83,6 +83,33 @@ func (s *Service) serveFriends(w http.ResponseWriter, r *http.Request, actor str
 			return true
 		}
 		write(w, 200, map[string]any{"friends": list})
+	case strings.HasPrefix(path, "/v1/social/friends/") && strings.HasSuffix(path, "/nudge") && r.Method == http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 2048)
+		key, err := parseNudgeBody(r.Body)
+		friendshipID, ok := id(strings.TrimSuffix(strings.TrimPrefix(path, "/v1/social/friends/"), "/nudge"))
+		if err != nil || !ok {
+			writeRejection(w, &Rejection{Code: CodeNudgeUnavailable})
+			return true
+		}
+		res, err := s.Nudge(r.Context(), actor, friendshipID, key)
+		if err != nil {
+			fail(err)
+			return true
+		}
+		write(w, 200, res)
+	case path == "/v1/social/nudges" && r.Method == http.MethodGet:
+		list, unread, err := s.Nudges(r.Context(), actor)
+		if err != nil {
+			fail(err)
+			return true
+		}
+		write(w, 200, map[string]any{"nudges": list, "unread": unread})
+	case path == "/v1/social/nudges/read" && r.Method == http.MethodPost:
+		if err := s.MarkNudgesRead(r.Context(), actor); err != nil {
+			fail(err)
+			return true
+		}
+		write(w, 200, Result{Status: "read"})
 	case strings.HasPrefix(path, "/v1/social/friends/") && r.Method == http.MethodDelete:
 		friendshipID, ok := id(strings.TrimPrefix(path, "/v1/social/friends/"))
 		if !ok {

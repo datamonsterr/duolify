@@ -75,6 +75,17 @@ type Service struct {
 	rdb          *redis.Client
 	now          func() time.Time
 	entitlements Entitlements
+	onSettled    func(ctx context.Context, owner string)
+}
+
+// OnSettled registers a callback run after a learner's streak projection commits (E6-06
+// settles Friend streaks there). It must be idempotent and must not fail the caller.
+func (s *Service) OnSettled(fn func(ctx context.Context, owner string)) { s.onSettled = fn }
+
+func (s *Service) settled(ctx context.Context, owner string) {
+	if s.onSettled != nil {
+		s.onSettled(ctx, owner)
+	}
 }
 
 // New creates a consumer with the central fail-closed consent gate.
@@ -232,6 +243,7 @@ func (s *Service) project(ctx context.Context, owner string, goal *int) (Progres
 	}
 	s.refreshLeague(ctx, owner, joined)
 	s.emit(ctx, owner, events)
+	s.settled(ctx, owner)
 	return progress, nil
 }
 

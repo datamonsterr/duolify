@@ -40,9 +40,15 @@ type Admin struct {
 	verifier   ExternalVerifier
 	policy     economicsPolicy
 	lastDenied atomic.Int64
+	env        string
 }
 
 type cliActorKey struct{}
+
+// SetEnvironment configures the deployment environment for decision gate checks.
+func (a *Admin) SetEnvironment(env string) {
+	a.env = env
+}
 
 // SetVerifier injects the provider mapping and pricing verifier.
 func (a *Admin) SetVerifier(v ExternalVerifier) {
@@ -56,7 +62,7 @@ func (a *Admin) RecordDenied(r *http.Request) {
 
 // NewAdmin creates the pricing administrator service over Postgres and analytics.
 func NewAdmin(pool *pgxpool.Pool, events analytics.Events, ownerID string) *Admin {
-	return &Admin{pool: pool, events: events, owner: strings.ToLower(ownerID), policy: defaultEconomicsPolicy()}
+	return &Admin{pool: pool, events: events, owner: strings.ToLower(ownerID), policy: defaultEconomicsPolicy(), env: os.Getenv("DUOLIFY_ENV")}
 }
 
 type adminInput struct {
@@ -577,6 +583,17 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		adminError(w, 409, "only submitted drafts can be approved")
 		return
 	}
+	if HasDesignChatKeys(parsed) {
+		if err = CheckDesignChatDecision(parsed, a.env, actor, a.owner); err != nil {
+			a.auditFailure(ctx, actor, "approval_denied", version, in.Reason, "{}", requestID(r))
+			if !IsDevOrTest(a.env) {
+				adminError(w, 403, err.Error())
+			} else {
+				adminError(w, 422, err.Error())
+			}
+			return
+		}
+	}
 	if strings.TrimSpace(in.OverrideReason) != "" && author == actor {
 		a.auditFailure(ctx, actor, "approval_denied", version, in.Reason, "{}", requestID(r))
 		adminError(w, 403, "overrides require a different pricing administrator")
@@ -658,10 +675,32 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		}
 	}
 	if err == nil {
-		command, policyErr := tx.Exec(ctx, `INSERT INTO pricing_quote_policies(version,policy) SELECT $1,p.policy FROM pricing_drafts d JOIN pricing_quote_policies p ON p.version=d.parent_version WHERE d.version=$1`, version)
-		err = policyErr
-		if err == nil && command.RowsAffected() != 1 {
+		var parentPolicyBytes []byte
+		policyErr := tx.QueryRow(ctx, `SELECT p.policy FROM pricing_drafts d JOIN pricing_quote_policies p ON p.version=d.parent_version WHERE d.version=$1`, version).Scan(&parentPolicyBytes)
+		if policyErr != nil {
 			err = errors.New("quote policy missing from pricing ancestry")
+		} else {
+			var policy QuotePolicy
+			if unmarshalErr := json.Unmarshal(parentPolicyBytes, &policy); unmarshalErr != nil {
+				err = unmarshalErr
+			} else {
+				if policy.ActionModels == nil {
+					policy.ActionModels = make(map[string]string)
+				}
+				for actionKey := range parsed.Actions {
+					if _, exists := policy.ActionModels[actionKey]; !exists {
+						if actionKey == "setup_chat" || actionKey == "course_brief_chat" || actionKey == "outline_chat_change" {
+							policy.ActionModels[actionKey] = "haiku"
+						}
+					}
+				}
+				policyJSON, marshalErr := json.Marshal(policy)
+				if marshalErr != nil {
+					err = marshalErr
+				} else {
+					_, err = tx.Exec(ctx, `INSERT INTO pricing_quote_policies(version, policy) VALUES($1, $2::jsonb)`, version, policyJSON)
+				}
+			}
 		}
 	}
 	if err == nil {
@@ -1059,17 +1098,20 @@ func classifyAdverse(previous, next []byte) (bool, error) {
 	if err := json.Unmarshal(next, &after); err != nil {
 		return false, err
 	}
-	return adverseObject(before, after, ""), nil
+	return adverseObject(before, after, "", removedDesignChat(before, after)), nil
 }
 
-func adverseObject(before, after map[string]any, path string) bool {
+func adverseObject(before, after map[string]any, path string, removed map[string]bool) bool {
 	for key, oldValue := range before {
 		newValue, ok := after[key]
 		if !ok {
-			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings") {
+			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision") {
 				continue
 			}
 			if key == "stripe_price_id" || key == "store_product_ids" {
+				continue
+			}
+			if (path == "actions" || path == "limits") && removed[key] {
 				continue
 			}
 			return true
@@ -1078,20 +1120,26 @@ func adverseObject(before, after map[string]any, path string) bool {
 		if path != "" {
 			full = path + "." + key
 		}
-		if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings") {
+		if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision") {
 			continue
 		}
 		if key == "stripe_price_id" || key == "store_product_ids" {
 			continue
 		}
-		if !adverseValue(oldValue, newValue, full) {
+		if !adverseValue(oldValue, newValue, full, removed) {
 			continue
 		}
 		return true
 	}
 	for key := range after {
-		if _, ok := before[key]; !ok && key != "version" && key != "effective_from" && key != "development_mappings" {
+		if _, ok := before[key]; !ok {
+			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision") {
+				continue
+			}
 			if key == "stripe_price_id" || key == "store_product_ids" {
+				continue
+			}
+			if (path == "actions" || path == "limits") && IsDesignChatAction(key) {
 				continue
 			}
 			return true
@@ -1100,13 +1148,13 @@ func adverseObject(before, after map[string]any, path string) bool {
 	return false
 }
 
-func adverseValue(old, next any, path string) bool {
+func adverseValue(old, next any, path string, removed map[string]bool) bool {
 	if oldMap, ok := old.(map[string]any); ok {
 		newMap, ok := next.(map[string]any)
 		if !ok {
 			return true
 		}
-		return adverseObject(oldMap, newMap, path)
+		return adverseObject(oldMap, newMap, path, removed)
 	}
 	if oldList, ok := old.([]any); ok {
 		newList, ok := next.([]any)
@@ -1115,6 +1163,9 @@ func adverseValue(old, next any, path string) bool {
 		}
 		if strings.Contains(path, "entitlements") || strings.Contains(path, "benefits") || strings.Contains(path, "eligible_actions") {
 			for _, v := range oldList {
+				if s, ok := v.(string); ok && IsDesignChatAction(s) && removed[s] {
+					continue
+				}
 				if !containsJSON(newList, v) {
 					return true
 				}
@@ -1129,7 +1180,7 @@ func adverseValue(old, next any, path string) bool {
 				if !ok {
 					return true
 				}
-				if adverseValue(oldItem, newItem, path+"."+sku) {
+				if adverseValue(oldItem, newItem, path+"."+sku, removed) {
 					return true
 				}
 			}
@@ -1161,6 +1212,21 @@ func adverseValue(old, next any, path string) bool {
 		return true
 	}
 	return !jsonEqual(old, next)
+}
+
+// removedDesignChat lists design chat actions present in before.actions and
+// absent from after.actions (a rollback disabling the action). Only then is
+// dropping the action's limits or Daily-free eligibility non-adverse.
+func removedDesignChat(before, after map[string]any) map[string]bool {
+	oldActions, _ := before["actions"].(map[string]any)
+	newActions, _ := after["actions"].(map[string]any)
+	removed := map[string]bool{}
+	for key := range oldActions {
+		if _, ok := newActions[key]; !ok && IsDesignChatAction(key) {
+			removed[key] = true
+		}
+	}
+	return removed
 }
 
 func indexList(items []any) map[string]any {

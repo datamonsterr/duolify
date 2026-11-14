@@ -404,6 +404,9 @@ func TestCharacterCreateGuardsAndCancellation(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
+		if _, e = f.DB.Pool.Exec(ctx, "INSERT INTO pricing_activation_events(version) VALUES ('e17-approved-test-before')"); e != nil {
+			t.Fatal(e)
+		}
 		s.ConfigureCreation(wallet, newMappingRPC(t, m), "production")
 		j := quote(t, s, owner, "flip", "original gardener")
 		// A new immutable active version changes only this isolated fixture's price.
@@ -413,6 +416,9 @@ func TestCharacterCreateGuardsAndCancellation(t *testing.T) {
 		}
 		_, e = f.DB.Pool.Exec(ctx, `INSERT INTO pricing_quote_policies(version,policy) SELECT 'e17-approved-test-after',policy FROM pricing_quote_policies WHERE version='usd-dev-character-create-unapproved'`)
 		if e != nil {
+			t.Fatal(e)
+		}
+		if _, e = f.DB.Pool.Exec(ctx, "INSERT INTO pricing_activation_events(version) VALUES ('e17-approved-test-after')"); e != nil {
 			t.Fatal(e)
 		}
 		if _, e = s.ConfirmCreate(ctx, owner, j.ID, j.Quote.ID); e != nil {

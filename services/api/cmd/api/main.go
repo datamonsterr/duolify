@@ -7,12 +7,15 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -36,6 +39,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
@@ -136,7 +140,7 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		defer func() { result = errors.Join(result, events.Close()) }()
-		service, err := backup.New(backup.Options{Source: backup.Postgres{Pool: db.Pool, DatabaseURL: cfg.DatabaseURL}, Objects: objects, Recipient: backupConfig.Recipient, Events: events, OptOut: backupConfig.OptOut, Monitor: monitor})
+		service, err := backup.New(backup.Options{Source: backup.Postgres{Pool: db.Pool, DatabaseURL: cfg.DatabaseURL}, Objects: objects, Recipient: backupConfig.Recipient, Events: events, OptOut: backupConfig.OptOut, Monitor: monitor, FinancialCopy: true})
 		if err != nil {
 			return err
 		}
@@ -154,7 +158,10 @@ func run(ctx context.Context, args []string) (result error) {
 		go creditService.Maintain(ctx, logger)
 		xpService := gamification.New(db.Pool, events)
 		xpService.UseEntitlements(creditService)
+		workerSocial := social.New(db.Pool, events)
+		xpService.OnSettled(friendStreakSettler(workerSocial, logger))
 		go xpService.Maintain(ctx, logger)
+		go workerSocial.Maintain(ctx, logger)
 		backend, err := engine.New(cfg.EngineAddr, 10*time.Second)
 		if err != nil {
 			return err
@@ -275,13 +282,24 @@ func run(ctx context.Context, args []string) (result error) {
 		return fmt.Errorf("pricing admin bootstrap failed: %w", err)
 	}
 	pricingAdmin := pricing.NewAdmin(db.Pool, events, os.Getenv("PRICING_OWNER_ID"))
+	pricingAdmin.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
 	if err := pricingAdmin.ConfigureVerification(os.Getenv); err != nil {
 		return fmt.Errorf("pricing verifier configuration: %w", err)
 	}
+	runtimePricing := pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events)
+	runtimePricing.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
+	runtimePricing.SetOwnerID(os.Getenv("PRICING_OWNER_ID"))
+	if err := runtimePricing.ActivateDue(ctx, pricingAdmin); err != nil {
+		return fmt.Errorf("pricing activation: %w", err)
+	}
+	activatorCtx, stopActivator := context.WithCancel(ctx)
+	defer stopActivator()
+	go runtimePricing.RunActivator(activatorCtx, pricingAdmin)
+
 	auth.ConfigureRateLimits(rateLimits)
 	auth.ConfigureSetupChat(accounts.SetupChatOptions{
 		Engine:  backend,
-		Pricing: catalogue,
+		Pricing: runtimePricing,
 		Events:  events,
 	})
 	creditService := credits.NewServiceWithCatalogue(db.Pool, redis, catalogue, events)
@@ -295,13 +313,10 @@ func run(ctx context.Context, args []string) (result error) {
 	xpService := gamification.New(db.Pool, events)
 	xpService.UseCache(redis)
 	xpService.UseEntitlements(creditService)
+	socialService := social.New(db.Pool, events)
+	xpService.OnSettled(friendStreakSettler(socialService, logger))
 	go xpService.Maintain(ctx, logger)
-	briefPricing := catalogue
-	if os.Getenv("DUOLIFY_ENV") == "development" {
-		if dev, loadErr := pricing.LoadDevelopment(ctx, db.Pool); loadErr == nil {
-			briefPricing = dev
-		}
-	}
+	go socialService.Maintain(ctx, logger)
 	characterService := characters.NewService(db.Pool, nil, events)
 	characterService.ConfigureScreening(backend)
 	characterService.ConfigureCreation(creditService, backend, os.Getenv("DUOLIFY_ENV"), allowUnapprovedPricing)
@@ -315,8 +330,9 @@ func run(ctx context.Context, args []string) (result error) {
 	})
 
 	var lessonHandler http.Handler
+	var lessonPreparer *lessontest.Service
 	if cfg.LessonTestTracerEnabled {
-		lessonHandler = lessontest.New(lessontest.Options{
+		lessonPreparer = lessontest.New(lessontest.Options{
 			Pool:                db.Pool,
 			Engine:              backend,
 			Financial:           creditService,
@@ -327,14 +343,8 @@ func run(ctx context.Context, args []string) (result error) {
 			MaxVariantsPerTest:  cfg.LessonTestMaxVariantsPerTest,
 			SessionTTL:          cfg.LessonTestSessionTTL,
 		})
+		lessonHandler = lessonPreparer
 	}
-	runtimePricing := pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events)
-	if err := runtimePricing.ActivateDue(ctx, pricingAdmin); err != nil {
-		return fmt.Errorf("pricing activation: %w", err)
-	}
-	activatorCtx, stopActivator := context.WithCancel(ctx)
-	defer stopActivator()
-	go runtimePricing.RunActivator(activatorCtx, pricingAdmin)
 
 	var narrationRecovery player.NarrationRecovery
 	if os.Getenv("NARRATION_ENABLED") == "true" {
@@ -345,11 +355,24 @@ func run(ctx context.Context, args []string) (result error) {
 		}
 		narrationRecovery = recovery
 	}
-	courseService := courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: briefPricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"})
+	quotesService := pricing.NewQuotes(db.Pool)
+	quotesService.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
+	quotesService.SetOwnerID(os.Getenv("PRICING_OWNER_ID"))
+
+	courseService := courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: runtimePricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"})
+	// Publishing needs an 18+ account (ADR 0012); no age data exists yet, so it fails closed.
+	sharingService := sharing.NewService(db.Pool, events, sharing.ConfigFromEnv(os.Getenv)).WithAgeSource(sharing.UnknownAge{}).WithObjects(player.NewS3(os.Getenv), os.Getenv("LESSON_ASSET_ORIGIN"))
+	sharingService.ConfigureScreening(backend, sharing.PricingRates{Pool: db.Pool})
+	if lessonPreparer != nil {
+		// Missing Lessons in a pinned copy reuse the private generation pipeline and the learner's credits (E15-04).
+		sharingService = sharingService.WithGeneration(sharing.GenerationDeps{Quotes: quotesService, Wallet: creditService, Lessons: lessonPreparer})
+	}
+	go sharingService.Maintain(ctx)
 	handler := httpapi.New(httpapi.Dependencies{
+		Sharing:                 sharingService,
 		Characters:              characters.NewHandler(characterService),
 		Gamification:            xpService,
-		Social:                  social.New(db.Pool, events),
+		Social:                  socialService,
 		Monitor:                 monitor,
 		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService, Narration: narrationRecovery}),
 		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
@@ -359,7 +382,7 @@ func run(ctx context.Context, args []string) (result error) {
 		Tutor:                   chat.New(chat.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Profiles: courseService, Personas: characterService, Events: events, Notes: notesService, Logger: logger}),
 		Pricing:                 runtimePricing,
 		PricingAdmin:            pricingAdmin,
-		Quotes:                  pricing.NewQuotes(db.Pool),
+		Quotes:                  quotesService,
 		Notes:                   notesService,
 		Eval:                    eval.NewService(db.Pool, catalogue, monitor, events),
 		LessonTestTracerEnabled: cfg.LessonTestTracerEnabled,
@@ -378,6 +401,12 @@ func run(ctx context.Context, args []string) (result error) {
 }
 
 func runAdminCLI(ctx context.Context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("admin subcommand requires pricing or infra")
+	}
+	if args[0] == "infra" {
+		return runAdminInfraCLI(ctx, args[1:])
+	}
 	if len(args) < 2 || args[0] != "pricing" {
 		return errors.New("usage: api admin pricing {draft|edit|validate|diff|submit|approve|reject|schedule|cancel|rollback|list|show} --actor UUID --reason TEXT [--version ID] [--new-version ID] [--effective-from RFC3339] [--config FILE]")
 	}
@@ -475,6 +504,7 @@ func runAdminCLI(ctx context.Context, args []string) error {
 	}
 	defer func() { _ = events.Close() }()
 	admin := pricing.NewAdmin(db.Pool, events, os.Getenv("PRICING_OWNER_ID"))
+	admin.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
 	if err := admin.ConfigureVerification(os.Getenv); err != nil {
 		return fmt.Errorf("pricing verifier configuration: %w", err)
 	}
@@ -484,6 +514,94 @@ func runAdminCLI(ctx context.Context, args []string) error {
 		return fmt.Errorf("pricing %s failed with HTTP %d", operation, status)
 	}
 	return nil
+}
+
+func runAdminInfraCLI(ctx context.Context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: api admin infra {plan|validate} [options]")
+	}
+	subcmd := args[0]
+	switch subcmd {
+	case "plan":
+		flags := flag.NewFlagSet("admin infra plan", flag.ContinueOnError)
+		targetEnv := flags.String("env", "all", "target environment: dev, staging, prod, or all")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		candidates := []string{
+			".railway/plan.mjs",
+			"../.railway/plan.mjs",
+			"../../.railway/plan.mjs",
+		}
+		var scriptPath string
+		for _, c := range candidates {
+			if _, err := os.Stat(c); err == nil {
+				scriptPath = c
+				break
+			}
+		}
+		if scriptPath == "" {
+			return errors.New("could not find .railway/plan.mjs")
+		}
+		cmdArgs := []string{scriptPath}
+		if *targetEnv == "all" {
+			cmdArgs = append(cmdArgs, "--all")
+		} else {
+			cmdArgs = append(cmdArgs, "--environment", *targetEnv)
+		}
+		cmd := exec.CommandContext(ctx, "node", cmdArgs...) // #nosec G204
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+
+	case "validate":
+		flags := flag.NewFlagSet("admin infra validate", flag.ContinueOnError)
+		filePath := flags.String("file", "", "path to plan JSON file (reads stdin if omitted or -)")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		var data []byte
+		var err error
+		if *filePath != "" && *filePath != "-" {
+			cleanPath := filepath.Clean(*filePath)
+			data, err = os.ReadFile(cleanPath) // #nosec G304
+			if err != nil {
+				return fmt.Errorf("read plan file: %w", err)
+			}
+		} else {
+			data, err = io.ReadAll(os.Stdin)
+			if err != nil {
+				return fmt.Errorf("read plan from stdin: %w", err)
+			}
+		}
+		plans, err := backup.ParseEnvironmentPlans(data)
+		if err != nil {
+			return fmt.Errorf("parse environment plans: %w", err)
+		}
+		if len(plans) == 0 {
+			return errors.New("no environment plans found in input")
+		}
+
+		var failedEnvs []string
+		for _, plan := range plans {
+			res := backup.ValidateEnvironmentPlan(plan)
+			backup.LogEnvironmentPlanValidation(nil, plan, res)
+			if !res.Valid {
+				failedEnvs = append(failedEnvs, plan.Environment)
+				fmt.Fprintf(os.Stderr, "Environment %s plan invalid: %s\n", plan.Environment, strings.Join(res.Violations, "; "))
+			} else {
+				fmt.Printf("Environment %s plan valid: summary=%s live_apply_allowed=%t hitl_gate_required=%s\n",
+					plan.Environment, res.PlanSummary, res.LiveApplyAllowed, res.HITLGateRequired)
+			}
+		}
+		if len(failedEnvs) > 0 {
+			return fmt.Errorf("environment validation failed for: %s", strings.Join(failedEnvs, ", "))
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("unknown infra subcommand %q; expected plan or validate", subcmd)
+	}
 }
 
 // healthcheck works in distroless images without a shell or curl. Workers and
@@ -554,4 +672,14 @@ func narrationRetention() time.Duration {
 		return narration.DefaultRetention
 	}
 	return time.Duration(days) * 24 * time.Hour
+}
+
+// friendStreakSettler settles a learner's Friend streaks after their streak projection
+// commits. It never fails the learner's own flow; the sweep retries what it misses.
+func friendStreakSettler(svc *social.Service, logger *slog.Logger) func(context.Context, string) {
+	return func(ctx context.Context, owner string) {
+		if err := svc.EvaluateFriendStreaks(context.WithoutCancel(ctx), owner); err != nil {
+			logger.ErrorContext(ctx, "friend streak settle failed", "error", err)
+		}
+	}
 }

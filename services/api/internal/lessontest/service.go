@@ -19,7 +19,6 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/gamification"
-	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -793,6 +792,14 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 			"provider":    provider,
 			"model":       model,
 		})
+		// E15-04: a Lesson generated in a pinned Course copy, paid by the copy's owner.
+		var version int
+		if copyErr := s.opts.Pool.QueryRow(finishCtx, `SELECT version FROM course_copies WHERE copy_course_id=$1::uuid AND learner_id=$2::uuid`, courseID, owner).Scan(&version); copyErr == nil {
+			_ = s.opts.Events.Capture(owner, "published_lesson_generated_on_demand", map[string]any{
+				"source": "api", "platform": "web", "app_version": "1.0.0",
+				"course_id": courseID, "lesson_id": lessonID, "version": version,
+			})
+		}
 	}
 
 	return nil
@@ -981,156 +988,32 @@ func (s *Service) handlePrepare(w http.ResponseWriter, r *http.Request, owner, l
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
 	}
-
-	ctx := r.Context()
-	// Verify quote
-	quote, err := pricing.ReadQuote(ctx, s.opts.Pool, owner, body.QuoteID)
-	if err != nil || quote.Action != "lesson_content" || !quote.Accepted || quote.Expired {
+	genID, err := s.Prepare(r.Context(), owner, lessonID, body.QuoteID, nil)
+	switch {
+	case err == nil:
+		writeJSON(w, http.StatusAccepted, map[string]any{"id": genID, "state": "queued"})
+	case errors.Is(err, ErrQuoteInvalid):
 		http.Error(w, `{"error":"invalid or expired quote"}`, http.StatusConflict)
-		return
-	}
-
-	tx, err := s.opts.Pool.Begin(ctx)
-	if err != nil {
-		http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
-		return
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	// Check stub eligibility
-	var unitID string
-	var lessonPos, unitPos int
-	var status string
-	var courseID string
-	err = tx.QueryRow(ctx, `
-		SELECT cls.unit_id::text, cls.position, cls.status, cu.position, cu.course_id::text
-		FROM course_lesson_stubs cls
-		JOIN course_units cu ON cu.id = cls.unit_id
-		WHERE cls.id::text=$1 AND cls.learner_id::text=$2 FOR UPDATE OF cls`, lessonID, owner).Scan(&unitID, &lessonPos, &status, &unitPos, &courseID)
-	if errors.Is(err, pgx.ErrNoRows) {
+	case errors.Is(err, ErrLessonNotFound):
 		http.Error(w, `{"error":"lesson not found"}`, http.StatusNotFound)
-		return
-	}
-	if err != nil {
-		http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
-		return
-	}
-
-	if status != "ready_to_generate" {
+	case errors.Is(err, ErrNotReadyToGenerate):
 		http.Error(w, `{"error":"lesson not ready to generate"}`, http.StatusConflict)
-		return
-	}
-
-	// Eligibility rule: First lesson (unit 0, pos 0) or predecessor has authoritative pass in outbox
-	isFirstLesson := (unitPos == 0 && lessonPos == 0)
-	if !isFirstLesson {
-		var predID, predStatus string
-		if lessonPos > 0 {
-			_ = tx.QueryRow(ctx, `
-				SELECT id::text, status FROM course_lesson_stubs
-				WHERE unit_id::text=$1 AND position=$2`, unitID, lessonPos-1).Scan(&predID, &predStatus)
-		} else if unitPos > 0 {
-			_ = tx.QueryRow(ctx, `
-				SELECT cls.id::text, cls.status FROM course_lesson_stubs cls
-				JOIN course_units cu ON cu.id = cls.unit_id
-				WHERE cu.course_id::text=$1 AND cu.position=$2
-				ORDER BY cls.position DESC LIMIT 1`, courseID, unitPos-1).Scan(&predID, &predStatus)
-		}
-
-		var outboxExists bool
-		if predID != "" {
-			_ = tx.QueryRow(ctx, `
-				SELECT EXISTS(SELECT 1 FROM lesson_completion_outbox WHERE learner_id=$1::uuid AND lesson_id=$2::uuid)`,
-				owner, predID).Scan(&outboxExists)
-		}
-
-		if predStatus != "done" || !outboxExists {
-			http.Error(w, `{"error":"predecessor lesson has not been passed"}`, http.StatusConflict)
-			return
-		}
-	}
-
-	// Enqueue generation
-	var genID string
-	err = tx.QueryRow(ctx, `
-		INSERT INTO lesson_generations (learner_id, course_id, lesson_id, quote_id, state)
-		VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'queued')
-		ON CONFLICT (lesson_id) WHERE state IN ('queued', 'generating', 'validated') DO NOTHING
- RETURNING id::text`, owner, courseID, lessonID, body.QuoteID).Scan(&genID)
-	if errors.Is(err, pgx.ErrNoRows) {
+	case errors.Is(err, ErrPredecessorNotPassed):
+		http.Error(w, `{"error":"predecessor lesson has not been passed"}`, http.StatusConflict)
+	case errors.Is(err, ErrGenerationInProgress):
 		http.Error(w, `{"error":"lesson generation already in progress"}`, http.StatusConflict)
-		return
-	}
-	if err != nil {
+	default:
+		slog.ErrorContext(r.Context(), "prepare lesson failed", "error", err)
 		http.Error(w, `{"error":"failed to create generation"}`, http.StatusInternalServerError)
-		return
 	}
-
-	// The Cast is pinned in the same transaction as the job and reservation intent,
-	// so a rollback leaves nothing and later edits cannot change a running job.
-	var pinned *characters.LessonCastSnapshot
-	if s.opts.Casts != nil && characters.CustomCharactersEnabled() {
-		cast, pinErr := s.opts.Casts.PinJobCastTx(ctx, tx, owner, courseID, genID)
-		if pinErr != nil {
-			http.Error(w, `{"error":"cast unavailable"}`, http.StatusInternalServerError)
-			return
-		}
-		pinned = &cast
-	}
-
-	if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs SET status='generating' WHERE id=$1::uuid`, lessonID); err != nil {
-		http.Error(w, `{"error":"database error"}`, 500)
-		return
-	}
-	queue, err := s.LessonQueue(slog.Default())
-	if err == nil {
-		_, err = queue.InsertTx(ctx, tx, lessonGenerationArgs{ID: genID}, &river.InsertOpts{Queue: "lessons", MaxAttempts: 5})
-	}
-	if err != nil {
-		http.Error(w, `{"error":"failed to enqueue generation"}`, 500)
-		return
-	}
-	if err = tx.Commit(ctx); err != nil {
-		http.Error(w, `{"error":"database error"}`, 500)
-		return
-	}
-
-	if s.opts.Events != nil {
-		_ = s.opts.Events.Capture(owner, "lesson_generation_requested", map[string]any{
-			"source":      "api",
-			"platform":    "web",
-			"app_version": "1.0.0",
-			"course_id":   courseID,
-			"lesson_id":   lessonID,
-		})
-	}
-
-	if s.opts.Events != nil && pinned != nil {
-		_ = s.opts.Events.Capture(owner, "lesson_cast_applied", map[string]any{
-			"source":        "api",
-			"platform":      "web",
-			"app_version":   "1.0.0",
-			"course_id":     courseID,
-			"lesson_id":     lessonID,
-			"cast_source":   pinned.CastSource,
-			"cast_version":  pinned.CastVersion,
-			"speaker_count": len(pinned.Speakers),
-			"fallback_used": pinned.FallbackUsed,
-		})
-	}
-
-	writeJSON(w, http.StatusAccepted, map[string]any{
-		"id":    genID,
-		"state": "queued",
-	})
 }
 
 func (s *Service) handleGetLesson(w http.ResponseWriter, r *http.Request, owner, lessonID string) {
 	ctx := r.Context()
 	var title string
 	err := s.opts.Pool.QueryRow(ctx, `
-		SELECT title FROM generated_lessons
-		WHERE lesson_stub_id::text=$1 AND learner_id::text=$2`, lessonID, owner).Scan(&title)
+		SELECT g.title FROM generated_lessons g JOIN course_lesson_stubs cls ON cls.id=g.lesson_stub_id
+		WHERE g.lesson_stub_id::text=$1 AND g.learner_id::text=$2 AND cls.status<>'locked'`, lessonID, owner).Scan(&title)
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, `{"error":"lesson not yet generated"}`, http.StatusNotFound)
 		return
@@ -1186,7 +1069,8 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 		return
 	}
 	var courseID string
-	if err = tx.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id=cls.unit_id WHERE cls.id::text=$1 AND cls.learner_id::text=$2`, lessonID, owner).Scan(&courseID); err != nil {
+	// A Lesson that arrived with a published copy stays closed until its predecessor is passed.
+	if err = tx.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id=cls.unit_id WHERE cls.id::text=$1 AND cls.learner_id::text=$2 AND cls.status<>'locked'`, lessonID, owner).Scan(&courseID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, `{"error":"lesson not found"}`, 404)
 			return
@@ -1979,13 +1863,32 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		}
 	}
 
+	// A Lesson already present in the learner's published copy opens at once (zero Credits);
+	// any other Lesson waits to be generated. The pass above is still what unlocks either.
+	reusedLesson, reusedVersion, nextStatus := "", 0, "ready_to_generate"
 	if nextLessonID != "" {
-		if _, err = tx.Exec(ctx, `
-			UPDATE course_lesson_stubs
-			SET status = 'ready_to_generate'
-			WHERE id::text=$1 AND status = 'locked'`, nextLessonID); err != nil {
+		var reused bool
+		var version *int
+		var status string
+		if err = tx.QueryRow(ctx, `
+			WITH next AS (
+				UPDATE course_lesson_stubs
+				SET status = CASE WHEN EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id = course_lesson_stubs.id)
+					THEN 'current' ELSE 'ready_to_generate' END
+				WHERE id::text=$1 AND status = 'locked'
+				RETURNING id, status, reused_from_snapshot)
+			SELECT n.status, n.status = 'current' AND n.reused_from_snapshot,
+				(SELECT cc.version FROM course_copies cc JOIN course_units cu ON cu.course_id = cc.copy_course_id
+				 JOIN course_lesson_stubs cs ON cs.unit_id = cu.id WHERE cs.id = n.id LIMIT 1)
+			FROM next n`, nextLessonID).Scan(&status, &reused, &version); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, `{"error":"database error"}`, 500)
 			return
+		}
+		if status != "" {
+			nextStatus = status
+		}
+		if reused && version != nil {
+			reusedLesson, reusedVersion = nextLessonID, *version
 		}
 	}
 
@@ -2062,7 +1965,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	}
 	if nextLessonID != "" {
 		resp["next_lesson_id"] = nextLessonID
-		resp["next_lesson_status"] = "ready_to_generate"
+		resp["next_lesson_status"] = nextStatus
 	}
 
 	if opKey != "" {
@@ -2100,6 +2003,10 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			"score":             100 * (firstTryCorrect + firstTryInc) / totalTopics,
 			"question_count":    totalTopics,
 		})
+	}
+
+	if reusedLesson != "" && completion.RowsAffected() == 1 && s.opts.Events != nil {
+		emit("published_lesson_reused", map[string]any{"source": "api", "platform": "web", "app_version": testAppVersion(r), "course_id": courseID, "lesson_id": reusedLesson, "version": reusedVersion})
 	}
 
 	writeJSON(w, http.StatusOK, resp)

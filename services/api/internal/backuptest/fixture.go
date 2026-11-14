@@ -71,6 +71,7 @@ type Fixture struct {
 	mu                  sync.Mutex
 	captured            []capture
 	posthogURL          string
+	monitor             *telemetry.Monitor
 	writerOptions       backup.S3Options
 	packaged            testcontainers.Container
 	schemaVersion       int64
@@ -122,7 +123,7 @@ func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) 
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	t.Cleanup(cancel)
-	f := &Fixture{Logger: logger}
+	f := &Fixture{Logger: logger, monitor: monitor}
 	var err error
 	f.container, err = postgres.Run(ctx, "postgres:18", postgres.WithDatabase("duolify"), postgres.WithUsername("duolify"), postgres.WithPassword("synthetic-only"), postgres.BasicWaitStrategies())
 	if err != nil {
@@ -173,7 +174,16 @@ func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, bucket := range []string{"application-assets", "protected-player-assets"} {
+	for _, id := range []struct {
+		key       string
+		provision func(context.Context, backup.S3Options, string, string) error
+	}{{"backup-expirer", backupadmin.ProvisionRetention}, {"backup-restorer", backupadmin.ProvisionRestorer}, {"asset-recovery", backupadmin.ProvisionAssetRecovery}} {
+		if err := id.provision(ctx, rootOptions, id.key, id.key+"-synthetic-secret"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// application-assets is created and versioned by ProvisionApplication.
+	for _, bucket := range []string{"protected-player-assets"} {
 		if _, err := f.root.Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
 			t.Fatal(err)
 		}
@@ -217,8 +227,14 @@ func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) 
 	}
 	t.Cleanup(func() { _ = f.events.Close() })
 	f.faults = &faultStore{Objects: f.objects}
+	f.startQueue(ctx, t, false)
+	return f
+}
+
+func (f *Fixture) startQueue(ctx context.Context, t *testing.T, financial bool) {
+	t.Helper()
 	source := containerSource{Postgres: backup.Postgres{Pool: f.DB.Pool}, container: f.container}
-	service, err := backup.New(backup.Options{Source: source, Objects: f.faults, Recipient: f.identity.Recipient().String(), Events: f.events, TempDir: t.TempDir(), Monitor: monitor})
+	service, err := backup.New(backup.Options{Source: source, Objects: f.faults, Recipient: f.identity.Recipient().String(), Events: f.events, TempDir: t.TempDir(), Monitor: f.monitor, FinancialCopy: financial})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,14 +247,94 @@ func NewObserved(t *testing.T, monitor *telemetry.Monitor, logger *slog.Logger) 
 	if err := f.queue.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
+	queue := f.queue
 	t.Cleanup(func() {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer stopCancel()
-		if err := f.queue.Stop(stopCtx); err != nil {
-			t.Error(err)
-		}
+		// A queue stopped by a test is already down; a second Stop only reports that.
+		_ = queue.Stop(stopCtx)
 	})
-	return f
+}
+
+// UseFinancialCopy restarts the real River worker with the 35-day financial copy enabled.
+func (f *Fixture) UseFinancialCopy(t *testing.T) {
+	t.Helper()
+	stopCtx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	if err := f.queue.Stop(stopCtx); err != nil {
+		t.Fatal(err)
+	}
+	f.startQueue(t.Context(), t, true)
+}
+
+// SchemaVersionString is the applied Goose version used in archive keys.
+func (f *Fixture) SchemaVersionString() string { return fmt.Sprint(f.schemaVersion) }
+
+// RootClient exposes the disposable store's administrator client for assertions only.
+func (f *Fixture) RootClient() *s3.Client { return f.root.Client }
+
+// SeedBackupObject plants a dump-shaped fixture with the administrator identity.
+func (f *Fixture) SeedBackupObject(t *testing.T, key string, body []byte) {
+	t.Helper()
+	if _, err := f.root.Client.PutObject(t.Context(), &s3.PutObjectInput{Bucket: aws.String(f.root.Bucket), Key: aws.String(key), Body: bytes.NewReader(body)}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// BackupKeys lists every key in the isolated backup bucket.
+func (f *Fixture) BackupKeys(t *testing.T) []string {
+	t.Helper()
+	objects, err := f.root.List(t.Context(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := make([]string, 0, len(objects))
+	for _, o := range objects {
+		keys = append(keys, o.Key)
+	}
+	return keys
+}
+
+// Store returns a client for one scoped identity: writer, expirer or restorer on the
+// backup bucket.
+func (f *Fixture) Store(role string) *backup.S3 {
+	options := f.writerOptions
+	switch role {
+	case "writer":
+	case "expirer":
+		options.AccessKey, options.SecretKey = "backup-expirer", "backup-expirer-synthetic-secret"
+	case "restorer":
+		options.AccessKey, options.SecretKey = "backup-restorer", "backup-restorer-synthetic-secret"
+	default:
+		panic("unknown fixture role " + role)
+	}
+	store, err := backup.NewS3(options)
+	if err != nil {
+		panic(err)
+	}
+	return store
+}
+
+// Expirer builds the retention job with the separate expirer identity.
+func (f *Fixture) Expirer(now time.Time) backup.Expirer {
+	return backup.Expirer{Store: f.Store("expirer"), Retention: backup.DefaultRetention, Now: func() time.Time { return now }, Events: f.events, Logger: f.Logger}
+}
+
+// AssetOperator is the version-aware operator client for the application bucket.
+func (f *Fixture) AssetOperator() *backup.S3 {
+	options := f.writerOptions
+	options.Bucket, options.ApplicationBucket = options.ApplicationBucket, ""
+	options.AccessKey, options.SecretKey = "asset-recovery", "asset-recovery-synthetic-secret"
+	store, err := backup.NewS3(options)
+	if err != nil {
+		panic(err)
+	}
+	return store
+}
+
+// Recovery builds tracked restore/regeneration with the operator identity.
+func (f *Fixture) Recovery() backup.Recovery {
+	return backup.Recovery{Objects: f.AssetOperator(), Logger: f.Logger, Events: f.events}
 }
 
 type containerSource struct {
@@ -283,10 +379,13 @@ func (f *Fixture) Events() analytics.Events { return f.events }
 // ApplicationStorage returns an S3 client scoped to the application assets bucket.
 func (f *Fixture) ApplicationStorage() *backup.S3 {
 	opts := f.writerOptions
-	opts.Bucket = opts.ApplicationBucket
+	opts.Bucket, opts.ApplicationBucket = opts.ApplicationBucket, ""
 	opts.AccessKey = "application-writer"
 	opts.SecretKey = "application-synthetic-secret"
-	s3Client, _ := backup.NewS3(opts)
+	s3Client, err := backup.NewS3(opts)
+	if err != nil {
+		panic(err)
+	}
 	return s3Client
 }
 
@@ -370,7 +469,7 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		fmt.Sprintf("INSERT INTO auth_refresh_tokens (token_hash,session_id,expires_at) VALUES ('%x','d4444444-4444-4444-8444-444444444444',now()+interval '30 days')", sha256.Sum256([]byte("synthetic-revoked-refresh"))),
 		"INSERT INTO auth_rate_limits (key_hash,email_hash,count,expires_at) VALUES (repeat('c',64),repeat('d',64),3,now()+interval '1 hour')",
 		"INSERT INTO pricing_admin_grants(account_id) VALUES ('a1111111-1111-4111-8111-111111111111')",
-		"INSERT INTO pricing_activation_events(version) VALUES ('usd-launch-2026-11-08')",
+		"INSERT INTO pricing_activation_events(version) VALUES ('usd-launch-2026-11-08') ON CONFLICT DO NOTHING",
 		"INSERT INTO pricing_versions(version,effective_from,approved,config) SELECT 'usd-backup-scheduled',now()+interval '96 hours',true,jsonb_set(jsonb_set(config,'{version}','\"usd-backup-scheduled\"'),'{effective_from}',to_jsonb(now()+interval '96 hours')) FROM pricing_versions WHERE version='usd-launch-2026-11-08'",
 		"INSERT INTO pricing_version_cancellations(version,cancelled_by,reason) VALUES ('usd-backup-scheduled','a1111111-1111-4111-8111-111111111111','synthetic restore cancellation')",
 		"INSERT INTO pricing_verification_evidence(version,evidence) VALUES ('usd-backup-scheduled','{\"margin_floor_verified\":true,\"economics_verified\":true,\"mappings_verified\":true}'::jsonb)",
@@ -538,9 +637,18 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		`INSERT INTO learner_usernames(learner_id,username) VALUES('a2222222-2222-4222-8222-222222222222','Backup.Friend')`,
 		`INSERT INTO friend_requests(sender_id,recipient_id,status,method,decided_at) VALUES('a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111','accepted','invite_link','2026-11-02T00:00:00Z'),('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','declined','username','2026-11-03T00:00:00Z')`,
 		`INSERT INTO friendships(learner_low,learner_high) VALUES('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222')`,
+		`INSERT INTO friend_streaks(learner_low,learner_high,current_days,longest_days,run_no,cursor_low,cursor_high,run_start_low,run_start_high,updated_at) VALUES('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222',2,2,1,'2026-11-08','2026-11-07','2026-11-07','2026-11-06','2026-11-08T00:00:00Z')`,
+		`INSERT INTO friend_streak_days(learner_low,learner_high,low_date,high_date,run_no,outcome,length,created_at) VALUES('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','2026-11-07','2026-11-06',1,'extended',1,'2026-11-07T00:00:00Z'),('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','2026-11-08','2026-11-07',1,'extended',2,'2026-11-08T00:00:00Z')`,
+		`INSERT INTO friend_streak_milestones(learner_low,learner_high,run_no,milestone_days,reached_low,reached_high,created_at) VALUES('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222',1,2,'2026-11-08','2026-11-07','2026-11-08T00:00:00Z')`,
+		`INSERT INTO friend_nudges(id,sender_id,recipient_id,operation_key,sender_local_date,delivered,read_at,created_at) VALUES('f6700000-0000-4000-8000-000000000001','a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111','f6700000-0000-4000-8000-0000000000a1','2026-11-08',true,NULL,'2026-11-08T09:00:00Z')`,
 		`INSERT INTO friend_links(owner_id,token_hash,expires_at) VALUES('a1111111-1111-4111-8111-111111111111',repeat('b',64),now()+interval '30 days')`,
 		`INSERT INTO learners(id,display_name) VALUES('a3333333-3333-4333-8333-333333333333','Backup Blocked')`,
 		`INSERT INTO learner_blocks(blocker_id,blocked_id,created_at) VALUES('a1111111-1111-4111-8111-111111111111','a3333333-3333-4333-8333-333333333333','2026-11-04T00:00:00Z')`,
+		`INSERT INTO publication_drafts(id,course_id,owner_id,number,content_hash,snapshot,lesson_count,verdict,reason_codes,sampled_lessons,screened_at,created_at) VALUES('e1500000-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111',1,'` + strings.Repeat("ab", 32) + `','{"title":"Synthetic sky","units":[]}'::jsonb,1,'needs_review','{personal_data}',1,'2026-11-05T00:00:00Z','2026-11-05T00:00:00Z')`,
+		`INSERT INTO publication_screenings(draft_id,owner_id,verdict,reason_codes,policy_version,attempts,cost_nanos,created_at) VALUES('e1500000-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','needs_review','{personal_data}','course-v1',1,1234,now())`,
+		`INSERT INTO publication_links(id,course_id,token_hash,created_at,revoked_at) VALUES('e1502000-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111',encode(sha256(convert_to('fixture-revoked-token','UTF8')),'hex'),'2026-11-06T00:00:00Z','2026-11-07T00:00:00Z')`,
+		`INSERT INTO courses(id,learner_id,title) VALUES('e1503000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','Pinned copy')`,
+		`INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,draft_id,version,content_hash) VALUES('e1503000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','f1111111-1111-4111-8111-111111111111','e1500000-1111-4111-8111-111111111111',1,'` + strings.Repeat("ab", 32) + `')`,
 		`INSERT INTO daily_goal_achievements(learner_id,local_date,goal_xp) SELECT learner_id,local_date,amount FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO streak_days(learner_id,local_date,first_event_id) SELECT learner_id,local_date,id FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO streak_state(learner_id,current_days,longest_days,last_active_date,decided_through) SELECT learner_id,1,3,local_date,local_date FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
@@ -555,6 +663,23 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		if _, err = f.DB.Pool.Exec(t.Context(), query); err != nil {
 			t.Fatal(err)
 		}
+	}
+	// E15-04: a Lesson generated inside a pinned copy owned by its own learner, with the consent record.
+	const generator, genCopy, genStub = "e1504000-0000-4000-8000-000000000000", "e1504000-5555-4555-8555-555555555555", "e1504000-2222-4222-8222-222222222222"
+	for _, stmt := range []string{
+		`INSERT INTO learners(id,display_name) VALUES('` + generator + `','Backup Copy Generator')`,
+		`INSERT INTO courses(id,learner_id,title) VALUES('` + genCopy + `','` + generator + `','Generated copy')`,
+		`INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,draft_id,version,content_hash) VALUES('` + genCopy + `','` + generator + `','f1111111-1111-4111-8111-111111111111','e1500000-1111-4111-8111-111111111111',1,'` + strings.Repeat("ab", 32) + `')`,
+		`INSERT INTO course_units(id,learner_id,course_id,authored_id,position,title) VALUES('e1504000-1111-4111-8111-111111111111','` + generator + `','` + genCopy + `','u1',0,'Copy unit')`,
+		`INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status) VALUES('` + genStub + `','` + generator + `','e1504000-1111-4111-8111-111111111111','l3',0,'Generated in the copy','Goal','current')`,
+		`INSERT INTO generated_lessons(id,lesson_stub_id,learner_id,course_id,title,manifest) VALUES('e1504000-3333-4333-8333-333333333333','` + genStub + `','` + generator + `','` + genCopy + `','Generated in the copy','{}'::jsonb)`,
+	} {
+		if _, err = f.DB.Pool.Exec(t.Context(), stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `WITH g AS (INSERT INTO lesson_generations(id,learner_id,lesson_id,course_id,quote_id,state) VALUES('e1504000-4444-4444-8444-444444444444','`+generator+`','`+genStub+`','`+genCopy+`',$1,'completed') RETURNING id) INSERT INTO copy_generation_consents(generation_id,learner_id,copy_course_id,lesson_id,quote_id,pricing_version) SELECT id,'`+generator+`','`+genCopy+`','`+genStub+`',$1,$2 FROM g`, outlineQuote.ID, outlineQuote.PricingVersion); err != nil {
+		t.Fatal(err)
 	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_variant_snapshots (id, session_id, learner_id, lesson_stub_id, topic_id, question_id, variant_of, source, reason, prompt, choices, answer_index, explanation, instruction_snapshot) VALUES ('fccccccc-cccc-4ccc-8ccc-cccccccccccc', 'f8888888-8888-4888-8888-888888888888', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'top-moon', 'v1-top-moon', 'q-moon', 'pool', NULL, 'What causes moon phases?', '["Sun angle", "Earth shadow"]'::jsonb, 0, 'Angle of sunlight on moon', '{"topic":"moon"}'::jsonb)`); err != nil {
 		t.Fatal(err)
@@ -853,8 +978,8 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT monthly_credits FROM credit_subscription_terms LIMIT 1").Scan(&monthlyCredits); err != nil {
 		t.Fatal(err)
 	}
-	// Three learners: the synthetic learner, the E6-03 friend and the E6-04 blocked row.
-	if version != f.schemaVersion || riverVersions < 1 || learners != 3 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
+	// Four learners: the synthetic learner, the E6-03 friend, the E6-04 blocked row and the E15-04 copy generator.
+	if version != f.schemaVersion || riverVersions < 1 || learners != 4 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
 	var pricingVersion string
@@ -898,7 +1023,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"league_groups", "league_memberships", "league_week_results", "quick_notes", "tutor_threads", "tutor_messages", "tutor_turns", "quick_note_enrichments", "quick_note_chat_sources", "tutor_thread_deletion_tombstones", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "username_config", "learner_usernames", "learner_social_settings", "username_holds", "social_rate_limits", "friend_requests", "friendships", "friend_links", "streak_state", "streak_days", "streak_breaks", "streak_freeze_inventory", "streak_freeze_milestones", "streak_day_protections"} {
+	for _, table := range []string{"league_groups", "league_memberships", "league_week_results", "quick_notes", "tutor_threads", "tutor_messages", "tutor_turns", "quick_note_enrichments", "quick_note_chat_sources", "tutor_thread_deletion_tombstones", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "username_config", "learner_usernames", "learner_social_settings", "username_holds", "social_rate_limits", "friend_requests", "friendships", "friend_links", "friend_streaks", "friend_streak_days", "friend_streak_milestones", "friend_nudges", "streak_state", "streak_days", "streak_breaks", "streak_freeze_inventory", "streak_freeze_milestones", "streak_day_protections", "publication_drafts", "publication_screenings", "publication_links", "course_copies"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -969,6 +1094,25 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO friendships(learner_low,learner_high) VALUES('a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111')`); err == nil {
 		t.Fatal("restored friendship check allowed a reversed pair")
 	}
+	// Friend streak pair state, its idempotent pair-day keys and milestone keys survive the restore.
+	var pairStreaks, pairDays, pairMilestones int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM friend_streaks WHERE current_days=2 AND longest_days=2 AND cursor_low='2026-11-08'),(SELECT count(*) FROM friend_streak_days WHERE outcome='extended'),(SELECT count(*) FROM friend_streak_milestones WHERE milestone_days=2)`).Scan(&pairStreaks, &pairDays, &pairMilestones); err != nil || pairStreaks != 1 || pairDays != 2 || pairMilestones != 1 {
+		t.Fatalf("restored friend streak data changed: %d %d %d %v", pairStreaks, pairDays, pairMilestones, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO friend_streak_days(learner_low,learner_high,low_date,high_date,run_no,outcome,length) VALUES('a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','2026-11-07','2026-11-06',1,'extended',9)`); err == nil {
+		t.Fatal("restored pair-day key allowed a second settlement of the same shared day")
+	}
+	// Nudges (inbox state) survive the restore with their operation key and pair-day key.
+	var nudges int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM friend_nudges WHERE id='f6700000-0000-4000-8000-000000000001' AND delivered AND read_at IS NULL AND sender_local_date='2026-11-08' AND created_at='2026-11-08T09:00:00Z'`).Scan(&nudges); err != nil || nudges != 1 {
+		t.Fatalf("restored nudge data changed: %d %v", nudges, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO friend_nudges(sender_id,recipient_id,operation_key,sender_local_date) VALUES('a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111',gen_random_uuid(),'2026-11-08')`); err == nil {
+		t.Fatal("restored pair-day key allowed a second nudge on the same sender day")
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO friend_nudges(sender_id,recipient_id,operation_key,sender_local_date) VALUES('a2222222-2222-4222-8222-222222222222','a1111111-1111-4111-8111-111111111111','f6700000-0000-4000-8000-0000000000a1','2026-11-09')`); err == nil {
+		t.Fatal("restored operation key allowed a replay to create a second nudge")
+	}
 	// Blocks keep their direction and date; the self-block check and the invite setting survive.
 	var blocks, inviteSetting int
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM learner_blocks WHERE blocker_id='a1111111-1111-4111-8111-111111111111' AND blocked_id='a3333333-3333-4333-8333-333333333333' AND created_at='2026-11-04T00:00:00Z'),(SELECT count(*) FROM learner_social_settings WHERE learner_id='a1111111-1111-4111-8111-111111111111' AND course_invites_from='nobody')`).Scan(&blocks, &inviteSetting); err != nil || blocks != 1 || inviteSetting != 1 {
@@ -976,6 +1120,29 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO learner_blocks(blocker_id,blocked_id) VALUES('a1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111')`); err == nil {
 		t.Fatal("restored block check allowed a self block")
+	}
+	// Publication drafts keep number, hash and verdict, and stay immutable after restore.
+	var drafts int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM publication_drafts WHERE id='e1500000-1111-4111-8111-111111111111' AND number=1 AND verdict='needs_review' AND content_hash=$1 AND (SELECT count(*) FROM publication_screenings WHERE draft_id=publication_drafts.id)=1`, strings.Repeat("ab", 32)).Scan(&drafts); err != nil || drafts != 1 {
+		t.Fatalf("restored publication draft changed: %d %v", drafts, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `UPDATE publication_drafts SET snapshot='{}'::jsonb WHERE id='e1500000-1111-4111-8111-111111111111'`); err == nil {
+		t.Fatal("restored publication draft snapshot is mutable")
+	}
+	// A pinned course copy restores with its pin to the source course and published version.
+	var pins int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM course_copies WHERE copy_course_id='e1503000-1111-4111-8111-111111111111' AND source_course_id='f1111111-1111-4111-8111-111111111111' AND draft_id='e1500000-1111-4111-8111-111111111111' AND version=1 AND length(content_hash)=64`).Scan(&pins); err != nil || pins != 1 {
+		t.Fatalf("restored course copy pin changed: %d %v", pins, err)
+	}
+	// Copy-local generated Lesson and its consent restore with the copy; the published hash is unchanged.
+	var local int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM generated_lessons g JOIN copy_generation_consents c ON c.lesson_id=g.lesson_stub_id AND c.copy_course_id=g.course_id JOIN course_copies cc ON cc.copy_course_id=g.course_id WHERE g.id='e1504000-3333-4333-8333-333333333333' AND c.generation_id='e1504000-4444-4444-8444-444444444444' AND c.pricing_version<>'' AND cc.content_hash=$1`, strings.Repeat("ab", 32)).Scan(&local); err != nil || local != 1 {
+		t.Fatalf("restored copy-local lesson or consent changed: %d %v", local, err)
+	}
+	// Share links restore as hashes only: visibility column present, revoked link still revoked, no plaintext.
+	var shareLinks int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM publication_links WHERE id='e1502000-1111-4111-8111-111111111111' AND token_hash=encode(sha256(convert_to('fixture-revoked-token','UTF8')),'hex') AND revoked_at IS NOT NULL AND (SELECT visibility::text FROM courses WHERE id=publication_links.course_id)='private'`).Scan(&shareLinks); err != nil || shareLinks != 1 {
+		t.Fatalf("restored share link changed: %d %v", shareLinks, err)
 	}
 	confirmed, err := courses.New(courses.Options{Pool: restored.Pool}).ResolveConfirmed(t.Context(), "a1111111-1111-4111-8111-111111111111", "c7222222-2222-4222-8222-222222222222", 3)
 	if err != nil || confirmed.Outline.Hash() != confirmed.ContentHash || confirmed.Outline[0].Lessons[0].ID != "fixture-lesson" {
@@ -1075,11 +1242,23 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO bookmarks(learner_id, action_key, target_type, course_title, lesson_title) VALUES($1::uuid, 'erased-bm-key', 'lesson', 'Course', 'Lesson')`, erasedID); err != nil {
 		t.Fatal(err)
 	}
+	var restoredQuote string
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT id::text FROM pricing_quotes ORDER BY created_at LIMIT 1`).Scan(&restoredQuote); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `WITH c AS (INSERT INTO courses(learner_id,title) VALUES($1::uuid,'Erased copy') RETURNING id),
+		cc AS (INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,version,content_hash) SELECT id,$1::uuid,'f1111111-1111-4111-8111-111111111111',1,$2 FROM c RETURNING copy_course_id),
+		u AS (INSERT INTO course_units(learner_id,course_id,authored_id,position,title) SELECT $1::uuid,id,'u1',0,'U' FROM c RETURNING id),
+		s AS (INSERT INTO course_lesson_stubs(learner_id,unit_id,authored_id,position,title,goal,status) SELECT $1::uuid,id,'l1',0,'L','G','current' FROM u RETURNING id),
+		g AS (INSERT INTO lesson_generations(learner_id,lesson_id,course_id,quote_id,state) SELECT $1::uuid,s.id,c.id,$3::uuid,'completed' FROM s,c RETURNING id)
+		INSERT INTO copy_generation_consents(generation_id,learner_id,copy_course_id,lesson_id,quote_id,pricing_version) SELECT g.id,$1::uuid,c.id,s.id,$3::uuid,'erased-version' FROM g,c,s`, erasedID, strings.Repeat("cd", 32), restoredQuote); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", erasedID); err != nil {
 		t.Fatal(err)
 	}
 	var survived bool
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_creations WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM courses WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM characters WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM character_screenings WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_casts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM lesson_cast_snapshots WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM quick_notes WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM quick_note_enrichments WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM bookmarks WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM course_copies WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM publication_links pl JOIN courses c ON c.id=pl.course_id WHERE c.learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_creations WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM courses WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM characters WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM character_screenings WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM publication_drafts WHERE owner_id=$1::uuid) OR EXISTS(SELECT 1 FROM publication_screenings WHERE owner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_casts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM lesson_cast_snapshots WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM quick_notes WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM quick_note_enrichments WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM bookmarks WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
 		t.Fatal("restored context survived account erasure", err)
 	}
 	var valid bool
