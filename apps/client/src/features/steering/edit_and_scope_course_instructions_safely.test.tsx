@@ -8,6 +8,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InstructionPanel } from "./InstructionPanel";
 import type { Instruction, InstructionService } from "./api";
+import { reasonCopy } from "./copy";
 
 const limits = {
   max_characters: 500,
@@ -282,6 +283,60 @@ describe("edit and scope course instructions safely", () => {
     await waitFor(() => expect(service.add).toHaveBeenCalled());
     expect(
       await screen.findByRole("button", { name: "Add instruction" }),
+    ).toBeVisible();
+  });
+});
+
+// Every closed reason code services/api/internal/steering can return to a Learner.
+const API_REASON_CODES = [
+  "empty",
+  "too_long",
+  "control_characters",
+  "urls_not_allowed",
+  "prompt_injection",
+  "unsafe_content",
+  "off_topic_for_course",
+  "invalid_scope",
+  "invalid_input",
+  "rate_limit",
+  "active_limit",
+  "total_length_limit",
+  "screening_unavailable",
+  "version_conflict",
+  "not_editable",
+  "not_found",
+  "unavailable",
+];
+describe("API reason codes", () => {
+  it.each(API_REASON_CODES)("has Learner copy for %s", (code) => {
+    expect(reasonCopy(code)).not.toBe("");
+  });
+  it("does not key on the non-existent rate_limited code", () => {
+    expect(reasonCopy("rate_limited")).toBe("");
+  });
+  it("shows the hourly-limit message for the real rate_limit code", async () => {
+    const service = fake([]);
+    service.add.mockRejectedValue(new Error("rate_limit"));
+    render(<InstructionPanel courseId="c1" service={service} />);
+    fireEvent.change(await screen.findByLabelText("New instruction"), {
+      target: { value: "More Go" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save instruction" }));
+    expect(
+      await screen.findByText(/too many instructions this hour/i),
+    ).toBeVisible();
+    expect(screen.getByLabelText("New instruction")).toHaveValue("More Go");
+  });
+  it("explains the active-instruction limit", async () => {
+    const service = fake([]);
+    service.add.mockRejectedValue(new Error("active_limit"));
+    render(<InstructionPanel courseId="c1" service={service} />);
+    fireEvent.change(await screen.findByLabelText("New instruction"), {
+      target: { value: "More Go" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save instruction" }));
+    expect(
+      await screen.findByText(/maximum number of active instructions/i),
     ).toBeVisible();
   });
 });

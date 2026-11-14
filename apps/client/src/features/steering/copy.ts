@@ -25,7 +25,11 @@ const REASONS: Record<string, string> = {
     "This instruction changed elsewhere. The list was refreshed; your draft is kept.",
   not_editable: "This instruction was already applied, so it can't be edited.",
   not_found: "This instruction no longer exists.",
-  rate_limited: "You have added too many instructions this hour. Try later.",
+  rate_limit:
+    "You have added too many instructions this hour. Try again later.",
+  active_limit:
+    "You already have the maximum number of active instructions. Delete one to add another.",
+  unavailable: "Couldn't reach the server. Nothing was saved. Try again.",
 };
 export const reasonCopy = (code: string) => REASONS[code] ?? "";
 export const countChars = (s: string) => Array.from(s).length;
