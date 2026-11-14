@@ -45,6 +45,12 @@ const (
 // Register new columns here when a migration adds them: the drill fails closed
 // on any text-like column that is neither registered here nor reviewed as safe.
 var piiRules = []piiRule{
+	{"course_instructions", "text", redacted},
+	{"course_replan_proposals", "attempts", emptyArr},
+	{"course_replan_proposals", "diff", emptyArr},
+	{"course_replan_proposals", "input", emptyObj},
+	{"course_replan_proposals", "result_outline", `NULL`},
+	{"lesson_instruction_snapshots", "text", redacted},
 	{"course_reviews", "text", redacted},
 	{"content_reports", "text", redacted},
 	{"moderation_actions", "reason", redacted},
@@ -131,6 +137,8 @@ var reviewedSafe = map[string]bool{}
 
 func init() {
 	for _, column := range strings.Fields(`
+course_instructions.scope course_instructions.screening_verdict course_instructions.screening_usage lesson_instruction_snapshots.scope
+course_replan_proposals.decision course_replan_proposals.reason
 moderation_actions.target_type moderation_actions.action moderation_actions.reason_code moderation_actions.prior_verdict courses.moderation_state moderation_appeals.status content_reports.target_type content_reports.reason content_reports.status moderation_queue_items.target_type moderation_queue_items.status course_reviews.verdict course_review_screenings.verdict course_review_screenings.reason_codes course_review_screenings.policy_version
 character_create_jobs.operation character_screenings.verdict copy_generation_consents.pricing_version
 course_invite_deliveries.channel course_invites.cancel_reason course_invites.method

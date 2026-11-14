@@ -14,6 +14,7 @@ import (
 var standardProtectedCostsUSD = map[string]float64{
 	"preview":        0.03499140,
 	"outline":        0.08204880,
+	"outline_replan": 0.08204880,
 	"lesson_content": 0.18822960,
 	"narration":      0.06336000,
 	"tutor_short":    0.0006889686,

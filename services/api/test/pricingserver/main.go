@@ -41,6 +41,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
+	"github.com/datamonsterr/duolify/services/api/internal/steering"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
@@ -171,6 +172,7 @@ func run() (result error) {
 	lateNarration := &lateNarrationRecovery{}
 	lessonPlayer := player.New(player.Options{Pool: db.Pool, Objects: objects, AssetOrigin: playerfixture.AssetOrigin, Credits: paidCredits, Narration: lateNarration})
 	mux := http.NewServeMux()
+	registerSteeringFixture(mux, auth, db.Pool, objects)
 	characterService := characters.NewService(db.Pool, nil, nil)
 	characterService.ConfigureScreening(characterScreenFixture{})
 	characterService.ConfigureCreation(creditService, characterMapFixture{}, "development", true)
@@ -453,6 +455,7 @@ func run() (result error) {
 	socialService.OnBlock(sharingService.CancelInvitesOnBlock)
 	go sharingService.MaintainInvites(ctx)
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{
+		Steering:                steering.New(steering.Options{Pool: db.Pool, Engine: steeringScreenFixture{}, Price: pricing.NewQuotes(db.Pool)}),
 		Sharing:                 sharingService,
 		Notes:                   notesService,
 		Player:                  lessonPlayer,

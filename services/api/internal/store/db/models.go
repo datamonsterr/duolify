@@ -220,6 +220,7 @@ type Course struct {
 	Visibility         CourseVisibility   `json:"visibility"`
 	ModerationState    string             `json:"moderation_state"`
 	ModerationActionID pgtype.UUID        `json:"moderation_action_id"`
+	OutlineVersion     int64              `json:"outline_version"`
 }
 
 type CourseBriefRevision struct {
@@ -253,6 +254,7 @@ type CourseCopy struct {
 	BlockedAt       pgtype.Timestamptz `json:"blocked_at"`
 	BlockedActionID pgtype.UUID        `json:"blocked_action_id"`
 	SourceOwnerID   pgtype.UUID        `json:"source_owner_id"`
+	ForkedAtLesson  pgtype.UUID        `json:"forked_at_lesson"`
 }
 
 type CourseCreation struct {
@@ -275,6 +277,22 @@ type CourseEnrollment struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	LevelOverride string             `json:"level_override"`
 	LastActiveAt  pgtype.Timestamptz `json:"last_active_at"`
+}
+
+type CourseInstruction struct {
+	ID               pgtype.UUID        `json:"id"`
+	LearnerID        pgtype.UUID        `json:"learner_id"`
+	CourseID         pgtype.UUID        `json:"course_id"`
+	Text             string             `json:"text"`
+	Scope            string             `json:"scope"`
+	Status           string             `json:"status"`
+	Version          int32              `json:"version"`
+	AddedAt          pgtype.Timestamptz `json:"added_at"`
+	AppliedLessonID  pgtype.UUID        `json:"applied_lesson_id"`
+	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
+	ScreeningVerdict string             `json:"screening_verdict"`
+	ScreeningVersion string             `json:"screening_version"`
+	ScreeningUsage   []byte             `json:"screening_usage"`
 }
 
 type CourseInvite struct {
@@ -317,6 +335,25 @@ type CourseLessonStub struct {
 	LessonKey           pgtype.Text        `json:"lesson_key"`
 	ArchivedAt          pgtype.Timestamptz `json:"archived_at"`
 	ArchivedFromVersion pgtype.Int4        `json:"archived_from_version"`
+}
+
+type CourseReplanProposal struct {
+	ID             pgtype.UUID        `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	CourseID       pgtype.UUID        `json:"course_id"`
+	QuoteID        pgtype.UUID        `json:"quote_id"`
+	JobID          pgtype.UUID        `json:"job_id"`
+	OutlineVersion int64              `json:"outline_version"`
+	Input          []byte             `json:"input"`
+	ResultOutline  []byte             `json:"result_outline"`
+	Diff           []byte             `json:"diff"`
+	Attempts       []byte             `json:"attempts"`
+	State          string             `json:"state"`
+	Reason         string             `json:"reason"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	DecidedAt      pgtype.Timestamptz `json:"decided_at"`
+	Decision       pgtype.Text        `json:"decision"`
 }
 
 type CourseReview struct {
@@ -909,16 +946,28 @@ type LessonCompletionSummary struct {
 }
 
 type LessonGeneration struct {
-	ID               pgtype.UUID        `json:"id"`
+	ID                         pgtype.UUID        `json:"id"`
+	LearnerID                  pgtype.UUID        `json:"learner_id"`
+	CourseID                   pgtype.UUID        `json:"course_id"`
+	LessonID                   pgtype.UUID        `json:"lesson_id"`
+	QuoteID                    pgtype.UUID        `json:"quote_id"`
+	ReservationID              pgtype.UUID        `json:"reservation_id"`
+	State                      string             `json:"state"`
+	ErrorCode                  pgtype.Text        `json:"error_code"`
+	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
+	ResultCheckpoint           []byte             `json:"result_checkpoint"`
+	InstructionSnapshotVersion int32              `json:"instruction_snapshot_version"`
+}
+
+type LessonInstructionSnapshot struct {
+	GenerationID     pgtype.UUID        `json:"generation_id"`
 	LearnerID        pgtype.UUID        `json:"learner_id"`
-	CourseID         pgtype.UUID        `json:"course_id"`
-	LessonID         pgtype.UUID        `json:"lesson_id"`
-	QuoteID          pgtype.UUID        `json:"quote_id"`
-	ReservationID    pgtype.UUID        `json:"reservation_id"`
-	State            string             `json:"state"`
-	ErrorCode        pgtype.Text        `json:"error_code"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	ResultCheckpoint []byte             `json:"result_checkpoint"`
+	InstructionID    pgtype.UUID        `json:"instruction_id"`
+	Text             string             `json:"text"`
+	Scope            string             `json:"scope"`
+	Version          int32              `json:"version"`
+	AddedAt          pgtype.Timestamptz `json:"added_at"`
+	ScreeningVersion string             `json:"screening_version"`
 }
 
 type LessonManifest struct {
@@ -1401,6 +1450,14 @@ type SocialRateLimit struct {
 	Bucket      string             `json:"bucket"`
 	WindowStart pgtype.Timestamptz `json:"window_start"`
 	Count       int32              `json:"count"`
+}
+
+type SteeringConfig struct {
+	Singleton          bool  `json:"singleton"`
+	MaxCharacters      int32 `json:"max_characters"`
+	MaxActive          int32 `json:"max_active"`
+	MaxTotalCharacters int32 `json:"max_total_characters"`
+	AddsPerHour        int32 `json:"adds_per_hour"`
 }
 
 type StreakBreak struct {

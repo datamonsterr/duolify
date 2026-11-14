@@ -41,6 +41,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
+	"github.com/datamonsterr/duolify/services/api/internal/steering"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
@@ -370,6 +371,8 @@ func run(ctx context.Context, args []string) (result error) {
 		sharingService = sharingService.WithGeneration(sharing.GenerationDeps{Quotes: quotesService, Wallet: creditService, Lessons: lessonPreparer})
 	}
 	go sharingService.Maintain(ctx)
+	steeringService := steering.New(steering.Options{Pool: db.Pool, Engine: backend, Replanner: backend, Quotes: quotesService, Financial: creditService, Events: events, Price: quotesService})
+	go steeringService.Maintain(ctx)
 	go sharingService.MaintainAssets(ctx)
 	// Course invites (E15-06): push goes only through the adapter, which is disabled unless chosen
 	// by environment (no APNs/FCM credentials exist yet, ADR 0012); the in-app inbox always works.
@@ -382,6 +385,7 @@ func run(ctx context.Context, args []string) (result error) {
 	socialService.OnBlock(sharingService.CancelInvitesOnBlock)
 	go sharingService.MaintainInvites(ctx)
 	handler := httpapi.New(httpapi.Dependencies{
+		Steering:                steeringService,
 		Sharing:                 sharingService,
 		Characters:              characters.NewHandler(characterService),
 		Gamification:            xpService,

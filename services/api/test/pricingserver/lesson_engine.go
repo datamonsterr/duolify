@@ -31,5 +31,11 @@ func (fixtureLessonEngine) GenerateLesson(_ context.Context, r *enginev1.Generat
 			{QuestionId: "gv2", TopicId: "eclipse", VariantOf: "gq1", Prompt: "Eclipses need?", Choices: []string{"Alignment", "Rain"}, AnswerIndex: 0, Explanation: "Bodies align."},
 		}}},
 	}
+	for _, in := range r.Instructions {
+		if in.Text == "More examples in Go" {
+			lesson.Slides[0].Narration = "Go example: func eclipse() returns aligned shadows."
+			lesson.Slides[0].Html = `<div id="root"><h1>Go example</h1><p>func eclipse() returns aligned shadows.</p></div>`
+		}
+	}
 	return lesson, []*enginev1.Usage{{Provider: provider, Model: model, Attempt: 1, Delivered: true, InputTokens: 500, OutputTokens: 200, LatencyMs: 40, Component: "content"}}, nil
 }

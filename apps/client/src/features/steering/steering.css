@@ -1,0 +1,257 @@
+.steering-workspace {
+  margin-block: var(--space-4);
+}
+.steering-panel {
+  display: grid;
+  gap: var(--space-3);
+  max-width: var(--size-reading);
+  color: var(--text);
+}
+.steering-panel p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.steering-record,
+.steering-panel form,
+.steering-panel [role="alert"] {
+  padding: var(--space-4);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.steering-panel form {
+  display: grid;
+  gap: var(--space-3);
+}
+.steering-field {
+  display: grid;
+  gap: var(--space-2);
+  font-weight: 800;
+}
+.steering-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+.steering-panel fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  border: 0;
+  padding: 0;
+}
+.steering-panel fieldset label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+.steering-panel input {
+  accent-color: var(--primary);
+}
+.steering-panel [role="alert"] {
+  background: var(--danger-bg);
+}
+.steering-panel [role="status"] {
+  font-weight: 800;
+  color: var(--text);
+}
+.steering-live-empty {
+  min-height: 0;
+}
+.steering-panel h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.steering-panel h3:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+.steering-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.steering-record {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.steering-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.steering-hint {
+  color: var(--text-muted, var(--text));
+  font-size: 0.9rem;
+}
+.steering-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.steering-actions .duo-button {
+  min-height: 44px;
+}
+.steering-edit {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.steering-record .steering-edit,
+.steering-panel .steering-edit {
+  border: 0;
+  padding: 0;
+  background: none;
+}
+.steering-confirm-box {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+}
+.steering-panel textarea {
+  max-width: 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .steering-panel * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+.replan-panel {
+  display: grid;
+  gap: var(--space-4, 16px);
+  min-width: 0;
+}
+.replan-panel h3 {
+  margin: 0;
+}
+.replan-price,
+.replan-ready {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  border-radius: var(--radius-card, 16px);
+  padding: var(--space-4, 16px);
+}
+.replan-diff {
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-3, 12px);
+}
+.replan-diff li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2, 8px);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card, 16px);
+  padding: var(--space-3, 12px);
+  overflow-wrap: anywhere;
+}
+.replan-diff li small {
+  flex-basis: 100%;
+}
+.replan-diff li span,
+.replan-diff li del {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.replan-kind {
+  font-weight: 800;
+  border-radius: var(--radius-pill, 999px);
+  padding: 4px 8px;
+}
+.replan-added {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+.replan-removed {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+.replan-moved {
+  color: var(--color-info);
+  background: var(--color-info-bg);
+}
+.replan-retitled {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+/* E16-05 fork warning: desktop dialog, mobile bottom sheet. */
+.steering-fork-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgb(0 0 0 / 0.45);
+}
+.steering-fork {
+  box-sizing: border-box;
+  width: min(28rem, 100%);
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  display: grid;
+  gap: var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg, 1rem);
+  padding: var(--space-5, 20px);
+  background: var(--surface);
+  color: var(--text);
+}
+.steering-fork:focus-visible {
+  outline: 3px solid var(--focus, var(--line));
+  outline-offset: 2px;
+}
+.steering-fork h2,
+.steering-fork p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.steering-fork ul {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+}
+@media (max-width: 767px) {
+  .steering-fork-backdrop {
+    place-items: end stretch;
+    padding: 0;
+  }
+  .steering-fork {
+    width: 100%;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+    padding-bottom: calc(
+      var(--space-5, 20px) + env(safe-area-inset-bottom, 0px)
+    );
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .steering-fork {
+    animation: steering-fork-rise 160ms ease-out;
+  }
+  @keyframes steering-fork-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+}

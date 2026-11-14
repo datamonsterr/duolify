@@ -4,6 +4,10 @@ fallback_model = "anthropic/claude-sonnet-5.5"
 [tasks.outline]
 model = "claude-sonnet-5-5"
 fallback_model = "anthropic/claude-sonnet-5.5"
+
+[tasks.outline_replan]
+model = "claude-sonnet-5-5"
+fallback_model = "anthropic/claude-sonnet-5.5"
 [tasks.lesson]
 model = "claude-sonnet-5-5"
 fallback_model = "anthropic/claude-sonnet-5.5"
@@ -41,6 +45,10 @@ fallback_model = "anthropic/claude-haiku-5.5"
 [tasks.published_copy_lesson]
 model = "claude-sonnet-5-5"
 fallback_model = "anthropic/claude-sonnet-5.5"
+
+[tasks.steer_screen]
+model = "claude-haiku-5-5"
+fallback_model = "anthropic/claude-haiku-5.5"
 
 [tasks.screen_review]
 model = "claude-haiku-5-5"

@@ -320,6 +320,38 @@ fn attempt_usage(a: &engine_core::credits::Attempt) -> pb::Usage {
 }
 #[tonic::async_trait]
 impl EngineService for Service {
+    async fn screen_instruction(
+        &self,
+        request: Request<pb::ScreenInstructionRequest>,
+    ) -> Result<Response<pb::ScreenInstructionResponse>, Status> {
+        let req = request.into_inner();
+        if let Some(reason) = engine_core::steering::deterministic(&req.text) {
+            return Ok(Response::new(pb::ScreenInstructionResponse {
+                allowed: false,
+                reason_code: reason.into(),
+                screening_version: "steering-v1".into(),
+                attempts: vec![],
+            }));
+        }
+        // E10-06: fixture-backed work never enables a live screening provider.
+        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+            return Err(Status::unavailable("screening_unavailable"));
+        }
+        let outcome = engine_core::steering::screen(&self.router, &req.text, &req.course_topic)
+            .await
+            .map_err(|_| Status::unavailable("screening_unavailable"))?;
+        let (allowed, reason_code) = outcome
+            .completion
+            .as_ref()
+            .and_then(|c| engine_core::steering::verdict(&c.text))
+            .ok_or_else(|| Status::unavailable("screening_unavailable"))?;
+        Ok(Response::new(pb::ScreenInstructionResponse {
+            allowed,
+            reason_code,
+            screening_version: "steering-v1".into(),
+            attempts: outcome.attempts.iter().map(attempt_usage).collect(),
+        }))
+    }
     async fn screen_character(
         &self,
         request: Request<pb::ScreenCharacterRequest>,
@@ -513,6 +545,114 @@ impl EngineService for Service {
         }))
     }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
+    async fn replan_outline(
+        &self,
+        request: Request<pb::ReplanOutlineRequest>,
+    ) -> Result<Response<pb::ReplanOutlineResponse>, Status> {
+        use engine_core::{
+            courses::outline::{Lesson, Unit},
+            steering::{Instruction, replan},
+        };
+        let req = request.into_inner();
+        let b = req
+            .limits
+            .ok_or_else(|| Status::invalid_argument("quote required"))?;
+        let route = self
+            .router
+            .models
+            .tasks
+            .get("outline_replan")
+            .ok_or_else(|| Status::failed_precondition("route unavailable"))?;
+        if b.model != route.model
+            || b.fallback_model != route.fallback_model
+            || b.provider != self.router.primary.name()
+            || b.fallback_provider != self.router.fallback.name()
+            || b.deadline_unix_ms == 0
+        {
+            return Err(Status::failed_precondition(
+                "quote differs from evaluated route",
+            ));
+        }
+        let limits = engine_core::credits::Limits {
+            input_tokens: b.input_tokens,
+            output_tokens: b.output_tokens,
+            timeout_ms: b.timeout_ms,
+            max_attempts: b.max_attempts,
+            max_cost_nanos: b.max_cost_nanos,
+            input_nanos: b.input_nanos,
+            output_nanos: b.output_nanos,
+            cache_write_nanos: b.cache_write_nanos,
+            cache_read_nanos: b.cache_read_nanos,
+            deadline_unix_ms: b.deadline_unix_ms,
+        };
+        let mut outline = req
+            .outline
+            .ok_or_else(|| Status::invalid_argument("outline required"))?;
+        let base: Vec<Unit> = outline
+            .units
+            .iter()
+            .map(|u| Unit {
+                id: u.unit_id.clone(),
+                title: u.title.clone(),
+                lessons: u
+                    .lessons
+                    .iter()
+                    .map(|l| Lesson {
+                        id: l.lesson_id.clone(),
+                        title: l.title.clone(),
+                        goal: l.goal.clone(),
+                    })
+                    .collect(),
+            })
+            .collect();
+        let instructions: Vec<Instruction> = req
+            .instructions
+            .into_iter()
+            .map(|i| Instruction {
+                id: i.id,
+                text: i.text,
+                scope: i.scope,
+                added_at_unix_ms: i.added_at_unix_ms,
+                version: i.version,
+            })
+            .collect();
+        let result = replan::propose(
+            &self.router,
+            &base,
+            &req.protected_lesson_ids,
+            &instructions,
+            &limits,
+        )
+        .await
+        .map_err(|_| Status::invalid_argument("invalid replan input or quote"))?;
+        let units = result
+            .completion
+            .as_ref()
+            .and_then(|c| replan::parse(&base, &req.protected_lesson_ids, &c.text).ok());
+        if let Some(units) = units {
+            outline.units = units
+                .into_iter()
+                .map(|u| pb::Unit {
+                    unit_id: u.id,
+                    title: u.title,
+                    lessons: u
+                        .lessons
+                        .into_iter()
+                        .map(|l| pb::LessonRef {
+                            lesson_id: l.id,
+                            title: l.title,
+                            goal: l.goal,
+                        })
+                        .collect(),
+                })
+                .collect();
+        }
+        Ok(Response::new(pb::ReplanOutlineResponse {
+            outline: result.completion.as_ref().map(|_| outline),
+            attempts: result.attempts.iter().map(attempt_usage).collect(),
+            unavailable: result.completion.is_none(),
+        }))
+    }
     async fn outline_chat_change(
         &self,
         request: Request<pb::OutlineChatChangeRequest>,
@@ -927,6 +1067,21 @@ impl EngineService for Service {
         let cast = req.character_personas_json.clone();
         let mut context = req.clone();
         context.character_personas_json.clear();
+        context.instructions.clear();
+        let instructions: Vec<_> = req
+            .instructions
+            .iter()
+            .map(|i| engine_core::steering::Instruction {
+                id: i.id.clone(),
+                text: i.text.clone(),
+                scope: i.scope,
+                added_at_unix_ms: i.added_at_unix_ms,
+                version: i.version,
+            })
+            .collect();
+        // Validate bounds early; the boundary itself is rebuilt per prompt by hardened_prompt.
+        engine_core::steering::prompt_section(&instructions)
+            .map_err(|_| Status::invalid_argument("instruction bounds exceeded"))?;
         let base = format!(
             "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. Context (data): {context:?}"
         );
@@ -944,6 +1099,11 @@ impl EngineService for Service {
                 ),
             ]
         };
+        let prompts: Vec<String> = prompts
+            .iter()
+            .map(|data| engine_core::steering::hardened_prompt(data, &instructions))
+            .collect::<anyhow::Result<_>>()
+            .map_err(|_| Status::invalid_argument("instruction bounds exceeded"))?;
         let inputs: Vec<&str> = prompts.iter().map(String::as_str).collect();
         let outcome = engine_core::credits::run_validated_inputs(
             &self.router,
@@ -951,11 +1111,13 @@ impl EngineService for Service {
             &inputs,
             &limits,
             |text| {
-                serde_json::from_str::<serde_json::Value>(text).is_ok_and(|v| {
-                    engine_core::lessontest::validate_lesson(&v).is_ok()
-                        && (cast.is_empty()
-                            || engine_core::characters::validate_lesson_segments(&v, &cast).is_ok())
-                })
+                engine_core::steering::lesson_output_violation(text, &instructions).is_none()
+                    && serde_json::from_str::<serde_json::Value>(text).is_ok_and(|v| {
+                        engine_core::lessontest::validate_lesson(&v).is_ok()
+                            && (cast.is_empty()
+                                || engine_core::characters::validate_lesson_segments(&v, &cast)
+                                    .is_ok())
+                    })
             },
         )
         .await
@@ -1029,6 +1191,7 @@ impl EngineService for Service {
                     learner: req.learner.clone(),
                     limits: Some(remaining),
                     character_personas_json: cast.clone(),
+                    instructions: req.instructions.clone(),
                 }))
                 .await?
                 .into_inner();
@@ -1051,6 +1214,7 @@ impl EngineService for Service {
         }
         Ok(lesson_events(
             Some(pb::Lesson {
+                applied_instruction_ids: req.instructions.iter().map(|i| i.id.clone()).collect(),
                 r#ref: req.lesson,
                 slides: generated_slides,
                 test: test_questions,
@@ -1081,10 +1245,26 @@ impl EngineService for Service {
         let limits = lesson_limits(&self.router, bounds)?;
         let source = retry_question(source);
         let previous: Vec<_> = req.previous_variants.iter().map(retry_question).collect();
-        let outcome =
-            engine_core::lessontest::retry::generate(&self.router, &source, &previous, &limits)
-                .await
-                .map_err(internal)?;
+        let instructions: Vec<_> = req
+            .instructions
+            .iter()
+            .map(|i| engine_core::steering::Instruction {
+                id: i.id.clone(),
+                text: i.text.clone(),
+                scope: i.scope,
+                added_at_unix_ms: i.added_at_unix_ms,
+                version: i.version,
+            })
+            .collect();
+        let outcome = engine_core::lessontest::retry::generate_with_instructions(
+            &self.router,
+            &source,
+            &previous,
+            &limits,
+            &instructions,
+        )
+        .await
+        .map_err(internal)?;
         let variants = match &outcome.completion {
             Some(c) => engine_core::lessontest::retry::parse_variants(&source, &previous, &c.text)
                 .map_err(internal)?

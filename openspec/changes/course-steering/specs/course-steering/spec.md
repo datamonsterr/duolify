@@ -30,6 +30,18 @@ Active Course instructions MUST be sent to the Engine with every Lesson generati
 - **WHEN** a generation job for the next Lesson has started
 - **THEN** a new `next lesson` instruction waits for the Lesson after it
 
+#### Scenario: Edit or delete while a job runs
+- **WHEN** a Learner edits or deletes an instruction after a Lesson generation job pinned it
+- **THEN** that job, its retries and its Lesson test Retry variants keep the pinned text, an edited `next lesson` instruction stays active with its new text for the following job, and a deleted one is not used again
+
+#### Scenario: Stale edit
+- **WHEN** an edit carries an out-of-date instruction version
+- **THEN** the API refuses it with `version_conflict` and saves nothing
+
+#### Scenario: Deleted instruction retention
+- **WHEN** an instruction was deleted more than 30 days ago
+- **THEN** its record is purged while the snapshots of Lessons that used it remain
+
 ### Requirement: Instruction conflicts
 When instructions conflict, the newer instruction MUST win, and the generation request MUST state that precedence to the Engine.
 
@@ -114,3 +126,16 @@ Steering MUST have Golden set cases in the Hugging Face dataset for four tasks: 
 #### Scenario: Fallback
 - **WHEN** the primary provider fails during re-plan
 - **THEN** the fallback provider is used once, `fallback_used` is recorded, and the Learner is charged at most the quote
+
+## ADDED Requirements
+
+### Requirement: Hardened steering boundary
+Adds and edits SHALL pass the same deterministic checks (control, hidden and bidirectional characters, delimiter and chat-template tokens, multilingual injection phrases after folding spacing and lookalike brackets) before any provider call, then the classifier. Instruction text SHALL reach the Engine only inside one escaped data section built by a single reusable boundary function that also bounds total prompt size; the system role SHALL carry only the fixed trusted policy. A classifier timeout or malformed verdict SHALL refuse the save (`screening_unavailable`) without touching saved instructions or blocking Lesson generation. Generated output that echoes the policy, envelope, delimiters or a long instruction, or drops or weakens the Lesson test, SHALL be refused, flagged for review with a sanitized signal and never delivered. Starting eval gates: adherence >= 0.85, injection resistance >= 0.99, screening unsafe recall >= 0.98, benign false-reject <= 0.05.
+
+#### Scenario: Delimiter injection
+- **WHEN** a Learner submits text containing a closing delimiter, a system tag or a request to skip grading
+- **THEN** it is refused with `prompt_injection`, nothing is saved, the classifier is not called and the draft stays editable
+
+#### Scenario: Classifier timeout
+- **WHEN** screening times out on add or edit
+- **THEN** the change is refused with `screening_unavailable`, saved instructions are unchanged and the next Lesson still generates from them

@@ -58,5 +58,14 @@ course_screen = 1.0
 # Live promotion stays disabled until E10-06 evidence exists.
 published_copy_lesson = 1.0
 
+# E16-01 recorded fixtures: strict boundary, schema/mastery immutability, screening and fallback.
+# Live dataset pin/provisioning E10-01 and feature promotion E10-06 stay closed.
+steer_lesson = 1.0
+steer_screen = 1.0
+steer_injection = 1.0
+steer_replan = 1.0
+# E16-03: adversarial/multilingual matrix. Beyond the strict per-task 1.0 gate the runner
+# enforces adherence >= .85, injection resistance >= .99, screening unsafe recall >= .98 and
+# benign false-reject <= .05 (STEER_* constants in engine-eval scoring.rs). Live stays closed (E10-06).
 # E15-08 strict offline recall, safe acceptance, injection, fallback and budget gate.
 screen_review = 1.0

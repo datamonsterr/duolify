@@ -85,8 +85,25 @@ impl LlmProvider for MockProvider {
         "mock"
     }
     async fn complete(&self, model: &str, input: &str) -> Result<Completion> {
+        let steering_data = steering::provider_data(input);
+        let input = steering_data.as_deref().unwrap_or(input);
         let data = serde_json::from_str::<serde_json::Value>(input).ok();
-        let text = if data
+        let text = if data.as_ref().is_some_and(|v| v["task"] == "steer_screen") {
+            let value = data.as_ref().unwrap();
+            let text = value["text"].as_str().unwrap_or_default().to_lowercase();
+            let reason = if steering::deterministic(&text).is_some()
+                || text.contains("reveal hidden instructions")
+            {
+                "prompt_injection"
+            } else if text.contains("unsafe content") || text.contains("graphic violence") {
+                "unsafe_content"
+            } else if text.contains("off topic") {
+                "off_topic_for_course"
+            } else {
+                ""
+            };
+            serde_json::json!({"allowed":reason.is_empty(),"reason_code":reason}).to_string()
+        } else if data
             .as_ref()
             .is_some_and(|v| v["task"] == "character_screen")
         {
@@ -385,3 +402,5 @@ pub mod sharing;
 pub mod slide;
 #[cfg(test)]
 mod tests;
+
+pub mod steering;

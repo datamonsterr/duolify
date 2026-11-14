@@ -143,6 +143,7 @@ for (const mobile of [false, true]) {
     });
 
     await page.route(`**/v1/lessons/${lesson1Id}/test`, (r) => {
+      expect(r.request().headers().authorization).toMatch(/^Bearer .+/);
       return r.fulfill({
         json: {
           lesson_id: lesson1Id,
@@ -156,6 +157,7 @@ for (const mobile of [false, true]) {
 
     let answersSubmitted = 0;
     await page.route(`**/v1/lessons/${lesson1Id}/test/answer`, async (r) => {
+      expect(r.request().headers().authorization).toMatch(/^Bearer .+/);
       answersSubmitted++;
       if (answersSubmitted === 1) {
         // Wrong answer
@@ -233,7 +235,13 @@ for (const mobile of [false, true]) {
     await expect(takeTestButton).toBeVisible();
 
     // 3. Click Take lesson test
+    const manifestRequest = page.waitForRequest(
+      (r) => new URL(r.url()).pathname === `/v1/lessons/${lesson1Id}/manifest`,
+    );
     await takeTestButton.click();
+    expect((await (await manifestRequest).allHeaders()).authorization).toMatch(
+      /^Bearer .+/,
+    );
     await expect(page).toHaveURL(new RegExp(`/lesson/${lesson1Id}/test`));
 
     // Verify Question and choices

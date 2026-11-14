@@ -19,6 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	EngineService_ScreenInstruction_FullMethodName     = "/duolify.engine.v1.EngineService/ScreenInstruction"
+	EngineService_ReplanOutline_FullMethodName         = "/duolify.engine.v1.EngineService/ReplanOutline"
 	EngineService_ScreenCharacter_FullMethodName       = "/duolify.engine.v1.EngineService/ScreenCharacter"
 	EngineService_MapCharacter_FullMethodName          = "/duolify.engine.v1.EngineService/MapCharacter"
 	EngineService_ScreenCourse_FullMethodName          = "/duolify.engine.v1.EngineService/ScreenCourse"
@@ -43,6 +45,10 @@ const (
 // EngineService is the private AI engine. Only services/api calls it.
 // The engine is stateless: every request carries the context it needs.
 type EngineServiceClient interface {
+	// ScreenInstruction classifies untrusted style/focus data at platform expense.
+	ScreenInstruction(ctx context.Context, in *ScreenInstructionRequest, opts ...grpc.CallOption) (*ScreenInstructionResponse, error)
+	// ReplanOutline proposes remaining content; protected lessons must be echoed unchanged.
+	ReplanOutline(ctx context.Context, in *ReplanOutlineRequest, opts ...grpc.CallOption) (*ReplanOutlineResponse, error)
 	// ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
 	ScreenCharacter(ctx context.Context, in *ScreenCharacterRequest, opts ...grpc.CallOption) (*ScreenCharacterResponse, error)
 	MapCharacter(ctx context.Context, in *MapCharacterRequest, opts ...grpc.CallOption) (*MapCharacterResponse, error)
@@ -80,6 +86,26 @@ type engineServiceClient struct {
 
 func NewEngineServiceClient(cc grpc.ClientConnInterface) EngineServiceClient {
 	return &engineServiceClient{cc}
+}
+
+func (c *engineServiceClient) ScreenInstruction(ctx context.Context, in *ScreenInstructionRequest, opts ...grpc.CallOption) (*ScreenInstructionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ScreenInstructionResponse)
+	err := c.cc.Invoke(ctx, EngineService_ScreenInstruction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *engineServiceClient) ReplanOutline(ctx context.Context, in *ReplanOutlineRequest, opts ...grpc.CallOption) (*ReplanOutlineResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReplanOutlineResponse)
+	err := c.cc.Invoke(ctx, EngineService_ReplanOutline_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *engineServiceClient) ScreenCharacter(ctx context.Context, in *ScreenCharacterRequest, opts ...grpc.CallOption) (*ScreenCharacterResponse, error) {
@@ -257,6 +283,10 @@ func (c *engineServiceClient) SynthesizeNarration(ctx context.Context, in *Synth
 // EngineService is the private AI engine. Only services/api calls it.
 // The engine is stateless: every request carries the context it needs.
 type EngineServiceServer interface {
+	// ScreenInstruction classifies untrusted style/focus data at platform expense.
+	ScreenInstruction(context.Context, *ScreenInstructionRequest) (*ScreenInstructionResponse, error)
+	// ReplanOutline proposes remaining content; protected lessons must be echoed unchanged.
+	ReplanOutline(context.Context, *ReplanOutlineRequest) (*ReplanOutlineResponse, error)
 	// ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
 	ScreenCharacter(context.Context, *ScreenCharacterRequest) (*ScreenCharacterResponse, error)
 	MapCharacter(context.Context, *MapCharacterRequest) (*MapCharacterResponse, error)
@@ -296,6 +326,12 @@ type EngineServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedEngineServiceServer struct{}
 
+func (UnimplementedEngineServiceServer) ScreenInstruction(context.Context, *ScreenInstructionRequest) (*ScreenInstructionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ScreenInstruction not implemented")
+}
+func (UnimplementedEngineServiceServer) ReplanOutline(context.Context, *ReplanOutlineRequest) (*ReplanOutlineResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReplanOutline not implemented")
+}
 func (UnimplementedEngineServiceServer) ScreenCharacter(context.Context, *ScreenCharacterRequest) (*ScreenCharacterResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ScreenCharacter not implemented")
 }
@@ -360,6 +396,42 @@ func RegisterEngineServiceServer(s grpc.ServiceRegistrar, srv EngineServiceServe
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&EngineService_ServiceDesc, srv)
+}
+
+func _EngineService_ScreenInstruction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ScreenInstructionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).ScreenInstruction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_ScreenInstruction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).ScreenInstruction(ctx, req.(*ScreenInstructionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EngineService_ReplanOutline_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReplanOutlineRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).ReplanOutline(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_ReplanOutline_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).ReplanOutline(ctx, req.(*ReplanOutlineRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _EngineService_ScreenCharacter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -625,6 +697,14 @@ var EngineService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "duolify.engine.v1.EngineService",
 	HandlerType: (*EngineServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ScreenInstruction",
+			Handler:    _EngineService_ScreenInstruction_Handler,
+		},
+		{
+			MethodName: "ReplanOutline",
+			Handler:    _EngineService_ReplanOutline_Handler,
+		},
 		{
 			MethodName: "ScreenCharacter",
 			Handler:    _EngineService_ScreenCharacter_Handler,

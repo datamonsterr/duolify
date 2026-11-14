@@ -7,6 +7,10 @@ option go_package = "github.com/datamonsterr/duolify/services/api/gen/duolify/en
 // EngineService is the private AI engine. Only services/api calls it.
 // The engine is stateless: every request carries the context it needs.
 service EngineService {
+  // ScreenInstruction classifies untrusted style/focus data at platform expense.
+  rpc ScreenInstruction(ScreenInstructionRequest) returns (ScreenInstructionResponse);
+  // ReplanOutline proposes remaining content; protected lessons must be echoed unchanged.
+  rpc ReplanOutline(ReplanOutlineRequest) returns (ReplanOutlineResponse);
   // ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
   rpc ScreenCharacter(ScreenCharacterRequest) returns (ScreenCharacterResponse);
   rpc MapCharacter(MapCharacterRequest) returns (MapCharacterResponse);
@@ -260,6 +264,7 @@ message TopicVariants {
 }
 
 message Lesson {
+  repeated string applied_instruction_ids = 20;
   LessonRef ref = 1;
   repeated Slide slides = 2;
   repeated Question test = 3;
@@ -301,6 +306,45 @@ message GenerateCourseOutlineResponse {
   int64 outline_revision = 5;
 }
 
+message CourseInstruction {
+  string id = 1;
+  string text = 2;
+  enum Scope {
+    SCOPE_UNSPECIFIED = 0;
+    SCOPE_NEXT_LESSON = 1;
+    SCOPE_REST_OF_COURSE = 2;
+  }
+  Scope scope = 3;
+  int64 added_at_unix_ms = 4;
+  uint32 version = 5;
+}
+
+message ScreenInstructionRequest {
+  string text = 1;
+  string course_topic = 2;
+}
+
+message ScreenInstructionResponse {
+  bool allowed = 1;
+  string reason_code = 2;
+  string screening_version = 3;
+  repeated Usage attempts = 4;
+}
+
+message ReplanOutlineRequest {
+  CourseOutline outline = 1;
+  repeated string protected_lesson_ids = 2;
+  repeated CourseInstruction instructions = 3;
+  LearnerProfile learner = 4;
+  UsageLimits limits = 5;
+}
+
+message ReplanOutlineResponse {
+  CourseOutline outline = 1;
+  repeated Usage attempts = 2;
+  bool unavailable = 3;
+}
+
 message GenerateLessonRequest {
   CourseOutline outline = 1;
   LessonRef lesson = 2;
@@ -310,6 +354,7 @@ message GenerateLessonRequest {
   UsageLimits limits = 5;
   // Immutable validated JSON, data only, below trusted lesson/Course policy.
   string character_personas_json = 6;
+  repeated CourseInstruction instructions = 20;
 }
 
 message GenerateLessonEvent {
@@ -324,6 +369,7 @@ message GenerateLessonEvent {
 }
 
 message GenerateRetryVariantsRequest {
+  repeated CourseInstruction instructions = 20;
   Question source = 1;
   repeated Question previous_variants = 2;
   LearnerProfile learner = 3;

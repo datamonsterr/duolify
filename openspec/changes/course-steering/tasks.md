@@ -4,7 +4,7 @@
 - [ ] 1.2 Add `next lesson` instruction, it applies once, status becomes `applied`, the following lesson does not use it.
 - [ ] 1.3 List, edit, delete instructions; past lessons unchanged byte for byte.
 - [ ] 1.4 Re-plan: quote shown, diff shown, confirm applies; discard keeps outline; stale proposal rejected.
-- [ ] 1.5 Course copy of a published course: first instruction shows fork warning; after confirm the next lesson is generated for the Learner and charged; earlier reused lessons stay.
+- [x] 1.5 Course copy of a published course: first instruction shows fork warning; after confirm the next lesson is generated for the Learner and charged; earlier reused lessons stay.
 - [ ] 1.6 Injection instruction rejected with a reason; unsafe instruction rejected.
 - [ ] 1.7 Insufficient credits on re-plan: refused, Engine not called.
 
@@ -14,7 +14,7 @@
 - [ ] 2.2 Generation job snapshots instructions; retry reuses the snapshot; idempotent.
 - [ ] 2.3 Re-plan apply is atomic and optimistic-locked; Engine response editing a generated lesson is rejected.
 - [ ] 2.4 Credit reserve, settle, release for re-plan at the Pricing config version in the quote.
-- [ ] 2.5 Fork bookkeeping on Course copy; reuse stops at `forked_at_lesson`.
+- [x] 2.5 Fork bookkeeping on Course copy; reuse stops at `forked_at_lesson`.
 - [ ] 2.6 Screening unavailable: instruction not saved (fail closed).
 - [ ] 2.7 Account deletion removes instructions and proposals.
 
@@ -31,7 +31,7 @@
 - [ ] 4.1 Proto additions in `proto/` with matching `services/api` and `engine` changes in one PR (`buf lint`, `buf breaking`).
 - [ ] 4.2 Migrations and API endpoints (`/v1/courses/{id}/instructions`, `/replan`, `/replan/{id}/confirm`).
 - [ ] 4.3 Engine prompt section, `ReplanOutline`, `ScreenInstruction`.
-- [ ] 4.4 Client panel, fork warning, diff view.
+- [x] 4.4 Client panel, fork warning, diff view.
 
 ## 5. Evals, analytics, backup
 

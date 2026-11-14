@@ -29,12 +29,14 @@ import (
 )
 
 type mockLessonEngine struct {
+	request  *enginev1.GenerateLessonRequest
 	lesson   *enginev1.Lesson
 	attempts []*enginev1.Usage
 	err      error
 }
 
 func (m *mockLessonEngine) GenerateLesson(_ context.Context, req *enginev1.GenerateLessonRequest) (*enginev1.Lesson, []*enginev1.Usage, error) {
+	m.request = req
 	if m.err != nil {
 		return nil, nil, m.err
 	}

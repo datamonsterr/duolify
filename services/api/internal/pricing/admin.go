@@ -689,6 +689,9 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 				}
 				for actionKey := range parsed.Actions {
 					if _, exists := policy.ActionModels[actionKey]; !exists {
+						if actionKey == "outline_replan" {
+							policy.ActionModels[actionKey] = policy.ActionModels["outline"]
+						}
 						if actionKey == "setup_chat" || actionKey == "course_brief_chat" || actionKey == "outline_chat_change" {
 							policy.ActionModels[actionKey] = "haiku"
 						}

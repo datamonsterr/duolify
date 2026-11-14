@@ -1,3 +1,4 @@
+import { SteerCourse } from "./features/steering/SteerCourse";
 import { CourseUpdate } from "./features/sharing/CourseUpdate";
 import { ShareCourse } from "./features/sharing/ShareCourse";
 import { MissingLessons } from "./features/sharing/MissingLessons";
@@ -229,6 +230,9 @@ export function LearnPath({ courseId }: { courseId: string }) {
       <a className="shell-link" href={`/courses/${courseId}/cast`}>
         Course Cast
       </a>
+      {(!course.visibility || course.visibility === "private") && (
+        <SteerCourse key={courseId} courseId={courseId} />
+      )}
       <PreviewPublicationDraft courseId={courseId} />
       <ShareCourse courseId={courseId} />
       <div>

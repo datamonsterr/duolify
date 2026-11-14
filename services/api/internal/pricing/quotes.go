@@ -45,6 +45,7 @@ type QuotePolicy struct {
 
 // QuoteInput contains counts and allowlisted identifiers, never learner text.
 type QuoteInput struct {
+	CourseID        string `json:"course_id,omitempty"`
 	OutlineDraftID  string `json:"outline_draft_id,omitempty"`
 	OutlineRevision int64  `json:"outline_revision,omitempty"`
 	RequestHash     string `json:"request_hash,omitempty"`
@@ -216,7 +217,7 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 		deadline = operational.AudioDeadline
 	}
 	q.Bounds["timeout_ms"] = deadline * 1000
-	if in.Action == "outline_chat_change" || in.Action == "character_create" {
+	if in.Action == "outline_chat_change" || in.Action == "character_create" || in.Action == "outline_replan" {
 		var feature map[string]int64
 		if json.Unmarshal(limits[key], &feature) != nil || feature["timeout_ms"] <= 0 || feature["timeout_ms"] >= q.Bounds["timeout_ms"] || feature["max_attempts"] <= 0 || feature["max_attempts"] > p.MaxAttempts || feature["max_cost_nanos"] <= 0 {
 			return q, errQuote
@@ -337,7 +338,12 @@ func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput,
 		if len(in.RequestHash) != 64 || in.OutlineRevision < 1 || s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id::text=$1 AND d.learner_id::text=$2 AND d.revision=$3 AND b.expires_at>now())`, in.OutlineDraftID, owner, in.OutlineRevision).Scan(&exists) != nil || !exists {
 			return Quote{}, errQuote
 		}
-	} else if in.OutlineDraftID != "" || in.OutlineRevision != 0 || in.RequestHash != "" {
+	} else if in.Action == "outline_replan" {
+		var exists bool
+		if in.OutlineDraftID != "" || len(in.RequestHash) != 64 || in.OutlineRevision < 1 || s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=c.learner_id WHERE c.id::text=$1 AND c.learner_id::text=$2 AND c.outline_version=$3 AND c.deleted_at IS NULL AND c.visibility='private' AND NOT EXISTS(SELECT 1 FROM course_copies cc WHERE cc.copy_course_id=c.id AND cc.forked_at IS NULL))`, in.CourseID, owner, in.OutlineRevision).Scan(&exists) != nil || !exists {
+			return Quote{}, errQuote
+		}
+	} else if in.OutlineDraftID != "" || in.OutlineRevision != 0 || in.RequestHash != "" || in.CourseID != "" {
 		return Quote{}, errQuote
 	}
 	if in.BriefRevision != "" {
@@ -410,6 +416,33 @@ func (s *Quotes) Bounds(ctx context.Context, in QuoteInput) (map[string]int64, e
 	}
 	q, err := CalculateQuote(c, policy, in, row.QuotedAt.Time)
 	return q.Bounds, err
+}
+
+// LessonCredits is the per-lesson price at the active config: the content and narration ceilings a
+// lesson_content quote shows, computed without persisting a quote.
+func (s *Quotes) LessonCredits(ctx context.Context) (int64, error) {
+	row, err := db.New(s.pool).ActiveQuoteConfig(ctx)
+	if err != nil {
+		return 0, err
+	}
+	c, err := Parse(row.Config)
+	if err != nil {
+		return 0, err
+	}
+	var policy QuotePolicy
+	if err = json.Unmarshal(row.Policy, &policy); err != nil {
+		return 0, err
+	}
+	var limits map[string]json.RawMessage
+	var lesson map[string]int64
+	if json.Unmarshal(c.Limits, &limits) == nil {
+		_ = json.Unmarshal(limits["lesson_content"], &lesson)
+	}
+	q, err := CalculateQuote(c, AllowVoices(policy, s.approvedVoices), QuoteInput{Action: "lesson_content", NarrationCharacters: lesson["narration_characters"]}, row.QuotedAt.Time)
+	if err != nil {
+		return 0, err
+	}
+	return q.ContentCeiling + q.AudioCeiling, nil
 }
 
 // Get reads original terms for the authenticated owner.
