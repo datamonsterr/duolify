@@ -32,6 +32,7 @@ async fn preview_preserves_missing_usage_through_grpc() {
     let provider = Arc::new(MissingUsage);
     let service = EngineServiceServer::new(Service {
         router: Arc::new(ProviderRouter::new(provider.clone(), provider).unwrap()),
+        speech: Arc::new(engine_core::narration::MockSpeechProvider),
     });
     let task = tokio::spawn(async move {
         Server::builder()
@@ -88,6 +89,7 @@ async fn enrich_note_returns_real_attempts_and_enforces_limits() {
     let provider = Arc::new(engine_core::MockProvider);
     let service = EngineServiceServer::new(Service {
         router: Arc::new(ProviderRouter::new(provider.clone(), provider).unwrap()),
+        speech: Arc::new(engine_core::narration::MockSpeechProvider),
     });
     let task = tokio::spawn(async move {
         Server::builder()

@@ -76,6 +76,7 @@ fn service(outputs: Vec<String>) -> (Service, Arc<Recorded>) {
     (
         Service {
             router: Arc::new(ProviderRouter::new(provider.clone(), provider.clone()).unwrap()),
+            speech: Arc::new(engine_core::narration::MockSpeechProvider),
         },
         provider,
     )

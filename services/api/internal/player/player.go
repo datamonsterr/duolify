@@ -84,6 +84,17 @@ type Options struct {
 	Objects     Objects
 	AssetOrigin string
 	Credits     Entitlements
+	// Narration serves the Learner's Retry and Restore actions for failed or missing audio (E14-02).
+	Narration NarrationRecovery
+}
+
+// ErrNarrationNotFound hides slides that do not belong to the caller.
+var ErrNarrationNotFound = errors.New("narration slide not found")
+
+// NarrationRecovery repairs narration without charging the Learner.
+type NarrationRecovery interface {
+	Retry(ctx context.Context, owner, lesson, slide string) (string, error)
+	Recover(ctx context.Context, owner, lesson, slide string) (string, error)
 }
 
 // Service serves enrolled lesson content without granting progress.
@@ -151,6 +162,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.sync(ctx, w, r, owner, id, m)
 		return
 	}
+	if part := r.PathValue("part"); part != "" {
+		if r.Method == http.MethodPost {
+			s.narrationRecovery(ctx, w, owner, id, r.PathValue("slide"), part)
+			return
+		}
+		s.narrationObject(ctx, w, owner, id, r.PathValue("slide"), part)
+		return
+	}
 	if r.PathValue("slide") != "" {
 		for _, slide := range m.Slides {
 			if slide.ID != r.PathValue("slide") {
@@ -168,6 +187,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cast, segments := s.pinnedCast(ctx, owner, id)
+	narrations := s.narrations(ctx, owner, id)
 	out := Manifest{Cast: cast, LessonID: id, CourseID: course, Title: title, Version: version, AssetOrigin: s.opts.AssetOrigin, Slides: make([]Slide, 0, len(m.Slides))}
 	for _, slide := range m.Slides {
 		raw, _, hashes, err := s.document(ctx, slide)
@@ -179,7 +199,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if explanation == "" {
 			explanation = slide.NarrationText
 		}
-		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: "disabled", NarrationText: slide.NarrationText, Explanation: explanation, HTMLSHA256: checksum(raw), AssetSHA256: hashes, Segments: segments[slide.ID]})
+		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: narrations.status(slide.ID), NarrationReason: narrations[slide.ID].Reason, Narration: narrations[slide.ID].Asset, NarrationText: slide.NarrationText, Explanation: explanation, HTMLSHA256: checksum(raw), AssetSHA256: hashes, Segments: segments[slide.ID]})
 	}
 	respond(w, 200, out)
 }
@@ -290,4 +310,107 @@ func (s *Service) pinnedCast(ctx context.Context, owner, lessonID string) (json.
 		}
 	}
 	return cast, segments
+}
+
+type narrationState struct {
+	Status string
+	Reason string
+	Asset  *NarrationAsset
+}
+
+type narrationStates map[string]narrationState
+
+func (n narrationStates) status(slide string) string {
+	if st := n[slide].Status; st != "" {
+		return st
+	}
+	return "disabled"
+}
+
+// narrations projects per-slide narration status; a slide without a row is disabled.
+func (s *Service) narrations(ctx context.Context, owner, lesson string) narrationStates {
+	out := narrationStates{}
+	// One row per slide: a stored (ready) voice wins over a pending one, and the Learner's chosen
+	// voice wins among stored voices, so an old voice keeps playing until the new one is ready.
+	rows, err := s.opts.Pool.Query(ctx, `SELECT DISTINCT ON (slide_id) slide_id,status,duration_ms,characters,failure_code FROM slide_narrations
+		WHERE lesson_id::text=$1 AND learner_id::text=$2
+		ORDER BY slide_id,(status='ready') DESC,(voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id::text=$2),'default')) DESC,updated_at DESC`, lesson, owner)
+	if err != nil {
+		return out // text and animation stay usable without audio
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var slide, status, reason string
+		var duration, characters int
+		if rows.Scan(&slide, &status, &duration, &characters, &reason) != nil {
+			continue
+		}
+		state := narrationState{Status: status}
+		if status == "disabled" {
+			state.Reason = reason
+		}
+		if status == "ready" {
+			base := "/v1/lessons/" + lesson + "/slides/" + slide + "/narration/"
+			state.Asset = &NarrationAsset{AudioURL: base + "audio", AlignmentURL: base + "alignment", DurationMS: duration, Characters: characters}
+		}
+		out[slide] = state
+	}
+	return out
+}
+
+// narrationObject serves owner-only audio or alignment bytes for a ready slide.
+func (s *Service) narrationObject(ctx context.Context, w http.ResponseWriter, owner, lesson, slide, part string) {
+	column, contentType := "audio_key", "audio/wav"
+	if part == "alignment" {
+		column, contentType = "alignment_key", "application/json"
+	} else if part != "audio" {
+		failure(w, 404)
+		return
+	}
+	var key string
+	err := s.opts.Pool.QueryRow(ctx, `SELECT `+column+` FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND status='ready'
+		ORDER BY (voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id::text=$2),'default')) DESC,updated_at DESC LIMIT 1`, lesson, owner, slide).Scan(&key)
+	if errors.Is(err, pgx.ErrNoRows) {
+		failure(w, 404)
+		return
+	}
+	if err != nil || !validKey(key) {
+		failure(w, 503)
+		return
+	}
+	raw, err := s.opts.Objects.Get(ctx, key)
+	if err != nil || len(raw) > maxObjectBytes {
+		failure(w, 503)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(200)
+	_, _ = w.Write(raw)
+}
+
+// narrationRecovery runs the Learner's Retry narration or Restore narration action. Neither
+// reserves or charges Credits: retries reuse the content hash and restores reuse stored versions.
+func (s *Service) narrationRecovery(ctx context.Context, w http.ResponseWriter, owner, lesson, slide, action string) {
+	if s.opts.Narration == nil || (action != "retry" && action != "recover") {
+		failure(w, 404)
+		return
+	}
+	var state string
+	var err error
+	if action == "retry" {
+		state, err = s.opts.Narration.Retry(ctx, owner, lesson, slide)
+	} else {
+		state, err = s.opts.Narration.Recover(ctx, owner, lesson, slide)
+	}
+	if errors.Is(err, ErrNarrationNotFound) {
+		failure(w, 404)
+		return
+	}
+	if err != nil {
+		failure(w, 503)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_ = json.NewEncoder(w).Encode(map[string]string{"state": state})
 }

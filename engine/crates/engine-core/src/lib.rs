@@ -373,6 +373,7 @@ pub mod courses;
 pub mod credits;
 pub mod eval;
 pub mod lessontest;
+pub mod narration;
 pub mod notes;
 pub mod pricing;
 pub mod sharing;
