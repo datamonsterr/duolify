@@ -219,13 +219,10 @@ func CalculateQuote(c Config, p QuotePolicy, in QuoteInput, now time.Time) (Quot
 	q.Bounds["timeout_ms"] = deadline * 1000
 	if in.Action == "outline_chat_change" || in.Action == "character_create" || in.Action == "outline_replan" {
 		var feature map[string]int64
-		if json.Unmarshal(limits[key], &feature) != nil || feature["timeout_ms"] <= 0 || (in.Action != "outline_replan" && feature["timeout_ms"] >= q.Bounds["timeout_ms"]) || (in.Action == "outline_replan" && feature["timeout_ms"] > q.Bounds["timeout_ms"]) || feature["max_attempts"] <= 0 || feature["max_attempts"] > p.MaxAttempts || feature["max_cost_nanos"] <= 0 {
+		if json.Unmarshal(limits[key], &feature) != nil || feature["timeout_ms"] <= 0 || feature["timeout_ms"] >= q.Bounds["timeout_ms"] || feature["max_attempts"] <= 0 || feature["max_attempts"] > p.MaxAttempts || feature["max_cost_nanos"] <= 0 {
 			return q, errQuote
 		}
 		q.Bounds["timeout_ms"] = feature["timeout_ms"]
-		if in.Action == "outline_replan" && (feature["timeout_ms"] > 90000 || feature["max_attempts"] > 2) {
-			return q, errQuote
-		}
 		if in.Action == "character_create" {
 			if feature["output_tokens"] > 2000 || feature["max_attempts"] > 2 || feature["timeout_ms"] > 90000 || feature["screen_input_tokens"] > 18000 || feature["screen_output_tokens"] > 200 || feature["screen_timeout_ms"] > 10000 || feature["screen_max_attempts"] > 2 {
 				return q, errQuote

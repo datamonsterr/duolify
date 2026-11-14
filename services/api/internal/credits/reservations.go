@@ -148,19 +148,6 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 	if hold < 0 || hold > q.Bounds["max_cost_nanos"] {
 		return Reservation{}, ErrBudget
 	}
-	result := Reservation{PricingVersion: q.PricingVersion, State: "reserved"}
-	err = tx.QueryRow(ctx, `INSERT INTO credit_jobs(quote_id,learner_id,owner_reference,state,local_date,platform_date,held_nanos,deadline_at) VALUES($1,$2,$3,'reserved',$4::date,$5::date,$6,$7) RETURNING id::text,deadline_at`, quoteID, owner, ref, localDay, platformDay, hold, now.Add(time.Duration(q.Bounds["timeout_ms"])*time.Millisecond)).Scan(&result.ID, &result.DeadlineAt)
-	if err != nil {
-		return Reservation{}, err
-	}
-	if err = allocateTx(ctx, tx, owner, result.ID, q, localDay); err != nil {
-		if errors.Is(err, ErrInsufficient) {
-			// Persist the refusal event independently, without committing a partial job.
-			_ = tx.Rollback(ctx)
-			_ = s.refusal(ctx, owner, quoteID, q)
-		}
-		return Reservation{}, err
-	}
 	capNanos := q.Bounds["free_day_nanos"]
 	if paid {
 		capNanos = q.Bounds["paid_day_nanos"]
@@ -180,6 +167,19 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 		if hold > counter.cap-total {
 			return Reservation{}, ErrBudget
 		}
+	}
+	result := Reservation{PricingVersion: q.PricingVersion, State: "reserved"}
+	err = tx.QueryRow(ctx, `INSERT INTO credit_jobs(quote_id,learner_id,owner_reference,state,local_date,platform_date,held_nanos,deadline_at) VALUES($1,$2,$3,'reserved',$4::date,$5::date,$6,$7) RETURNING id::text,deadline_at`, quoteID, owner, ref, localDay, platformDay, hold, now.Add(time.Duration(q.Bounds["timeout_ms"])*time.Millisecond)).Scan(&result.ID, &result.DeadlineAt)
+	if err != nil {
+		return Reservation{}, err
+	}
+	if err = allocateTx(ctx, tx, owner, result.ID, q, localDay); err != nil {
+		if errors.Is(err, ErrInsufficient) {
+			// Persist the refusal event independently, without committing a partial job.
+			_ = tx.Rollback(ctx)
+			_ = s.refusal(ctx, owner, quoteID, q)
+		}
+		return Reservation{}, err
 	}
 	if active >= concurrency {
 		return Reservation{}, ErrConcurrency

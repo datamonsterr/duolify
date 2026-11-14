@@ -177,7 +177,15 @@ func (s *Service) ProposeReplan(ctx context.Context, owner, course, quoteID stri
 	if err != nil {
 		return p, err
 	}
-	job, err := s.opts.Financial.ReserveAction(ctx, owner, quoteID, "outline_replan")
+	// Refuse an unfunded balance before the shared daily-cost caps can mask it as a generic outage.
+	// Daily free Credits are not eligible for this action; Reserve below stays authoritative.
+	var job credits.Reservation
+	wallet, err := s.opts.Financial.GetWallet(ctx, owner)
+	if err == nil && wallet.Purchased+wallet.Subscription < q.ContentCeiling {
+		err = credits.ErrInsufficient
+	} else {
+		job, err = s.opts.Financial.ReserveAction(ctx, owner, quoteID, "outline_replan")
+	}
 	if err != nil {
 		code := "replan_unavailable"
 		if errors.Is(err, credits.ErrInsufficient) {
@@ -204,8 +212,6 @@ func (s *Service) ProposeReplan(ctx context.Context, owner, course, quoteID stri
 	if err != nil {
 		return p, s.failReplan(owner, course, p.ID, job.ID, "generation_failed", nil)
 	}
-	limits.TimeoutMs = min(limits.TimeoutMs, 90000)
-	limits.MaxAttempts = min(limits.MaxAttempts, 2)
 	response, callErr := s.opts.Replanner.ReplanOutline(work, &pb.ReplanOutlineRequest{Outline: in.Outline, ProtectedLessonIds: in.Protected, Instructions: in.Instructions, Learner: &pb.LearnerProfile{LearnerId: owner}, Limits: limits})
 	var attempts []*pb.Usage
 	if response != nil {
