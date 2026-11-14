@@ -185,7 +185,7 @@ for (const mobile of [false, true]) {
         panel.getByRole("button", { name: "Send invite" }),
       ).toHaveCount(0);
 
-      await tap(panel.getByRole("radio", { name: "Anyone with the link" }));
+      await tap(panel.locator("label", { hasText: "Anyone with the link" }));
       await expect(panel.getByTestId("share-link-url")).toBeVisible();
       await expect(prompt).toHaveCount(0);
 
@@ -306,7 +306,7 @@ for (const mobile of [false, true]) {
       await befriend(request, quiet, mine.headers, mine.name);
       expect(
         (
-          await social(request, quiet, "PUT", "/settings", {
+          await social(request, quiet, "PATCH", "/settings", {
             course_invites_from: "nobody",
           })
         ).status(),
@@ -412,7 +412,7 @@ test("private course: send is refused and the prompt links to sharing", async ({
     username: `${p}.anyone`,
   });
   expect(refused.status()).toBe(409);
-  expect((await refused.json()).error.code).toBe("course_not_shared");
+  expect((await refused.json()).error).toBe("course_not_shared");
   const panel = await openShare(page, course);
   await expect(panel.getByTestId("invite-private-prompt")).toBeVisible();
 });
