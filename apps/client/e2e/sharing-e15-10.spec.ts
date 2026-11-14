@@ -336,8 +336,59 @@ for (const mobile of [false, true]) {
     expect(acted.status()).toBe(201);
     const actionId = (await acted.json()).id as string;
 
+    // A user without notices sees no entry point in navigation.
+    const cleanUser = await account(request);
+    const { page: cleanPage, context: cleanCtx } = await pageAs(
+      browser,
+      request,
+      cleanUser,
+      mobile,
+    );
+    await cleanPage.goto("/");
+    await expect(
+      cleanPage.getByRole("link", { name: /moderation notices/i }),
+    ).toHaveCount(0);
+    if (mobile) {
+      await cleanPage.goto("/more");
+      await expect(
+        cleanPage.getByRole("link", { name: /moderation notices/i }),
+      ).toHaveCount(0);
+    }
+    await cleanCtx.close();
+
     const { page, context } = await pageAs(browser, request, author, mobile);
-    await page.goto("/moderation/notices");
+
+    // Affected course displays a notice banner linking to /moderation/notices.
+    await page.goto(`/course/${course}`);
+    const banner = page
+      .getByRole("status")
+      .filter({ hasText: /moderation notice/i });
+    await expect(banner).toBeVisible();
+    await expect(
+      banner.getByRole("link", { name: /moderation notices|notices/i }),
+    ).toBeVisible();
+
+    // Navigate to /moderation/notices from the navigation entry point.
+    if (mobile) {
+      await page
+        .getByRole("navigation", { name: "Main" })
+        .getByRole("link", { name: "More" })
+        .click();
+      const navLink = page
+        .getByRole("navigation", { name: "More destinations" })
+        .getByRole("link", { name: /moderation notices/i });
+      await expect(navLink).toBeVisible();
+      await expect(navLink).toHaveAttribute("aria-label", /1/);
+      await navLink.click();
+    } else {
+      const navLink = page
+        .getByRole("navigation", { name: "Main" })
+        .getByRole("link", { name: /moderation notices/i });
+      await expect(navLink).toBeVisible();
+      await expect(navLink).toHaveAttribute("aria-label", /1/);
+      await navLink.click();
+    }
+
     await expect(
       page.getByRole("heading", { name: "Moderation notices" }),
     ).toBeVisible();
