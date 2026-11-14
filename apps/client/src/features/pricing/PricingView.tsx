@@ -464,6 +464,13 @@ export function PricingView() {
                         </label>
                       ))}
                 </fieldset>
+                {!!activeWallet.source_debt && activeWallet.source_debt > 0 && (
+                  <p role="status" className="pricing-debt-note">
+                    Paid AI features are paused pending resolution of a payment
+                    reversal. Buying credits does not lift the pause; daily free
+                    credits remain available.
+                  </p>
+                )}
                 <p>{messages.paid}</p>
                 {surface === "plan_list" ? (
                   <p>

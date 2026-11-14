@@ -6,6 +6,24 @@ import { Button } from "../design/Button";
 import { useUiPreferences } from "../design/localization/Preferences";
 import "./wallet.css";
 
+const REVERSAL_LABELS: Record<string, string> = {
+  refund: "Refund",
+  chargeback: "Chargeback",
+  dispute: "Chargeback",
+};
+const PROVIDER_ID =
+  /\s*·?\s*\b(?:re|dp|ch|pi|py|cs|in|sub|evt|txn)_[A-Za-z0-9_]+/g;
+
+// Reversal rows show a fixed label only: provider ids and operator notes are private.
+function publicActivity(item: ActivityItem) {
+  const label = REVERSAL_LABELS[item.kind];
+  if (label) return { activity: label, detail: undefined };
+  return {
+    activity: item.activity.replace(PROVIDER_ID, ""),
+    detail: item.detail?.replace(PROVIDER_ID, ""),
+  };
+}
+
 export type WalletViewProps = {
   wallet: WalletResponse;
   onViewOptions?: () => void;
@@ -298,19 +316,20 @@ export function WalletView({
                   ? "wallet-amount-positive"
                   : "wallet-amount-negative";
 
+              const { activity, detail } = publicActivity(item);
               return (
                 <div key={item.id} className="wallet-activity-row">
                   <div>
                     <span>{item.date}</span>
                   </div>
                   <div>
-                    <span>{item.activity}</span>
-                    {item.detail && (
+                    <span>{activity}</span>
+                    {detail && (
                       <span
                         className="wallet-activity-meta"
                         style={{ display: "block" }}
                       >
-                        {item.detail}
+                        {detail}
                       </span>
                     )}
                   </div>

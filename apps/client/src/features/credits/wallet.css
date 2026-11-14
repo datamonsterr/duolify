@@ -160,6 +160,13 @@
   line-height: 1.4;
 }
 
+.wallet-banner,
+.wallet-channel-guidance,
+.wallet-activity-row > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .wallet-banner {
   border-radius: var(--radius-md, 16px);
   padding: 12px 14px;
@@ -179,8 +186,8 @@
 }
 
 .wallet-banner-danger {
-  background: var(--danger-bg, #fdecec);
-  color: var(--danger, #b3261e);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .wallet-channel-guidance {
