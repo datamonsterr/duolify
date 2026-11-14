@@ -29,6 +29,8 @@ const REASONS: Record<string, string> = {
     "You have added too many instructions this hour. Try again later.",
   active_limit:
     "You already have the maximum number of active instructions. Delete one to add another.",
+  fork_confirmation_required:
+    "Steering this shared course makes it your own. Confirm to continue.",
   unavailable: "Couldn't reach the server. Nothing was saved. Try again.",
 };
 export const reasonCopy = (code: string) => REASONS[code] ?? "";

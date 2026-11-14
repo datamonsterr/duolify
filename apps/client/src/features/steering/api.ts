@@ -15,18 +15,25 @@ export type InstructionLimits = {
   max_total_characters: number;
   adds_per_hour: number;
 };
+// Set only for a published course copy (E16-05).
+export type ForkInfo = {
+  required: boolean;
+  forked: boolean;
+  kept_lessons: number;
+};
 export type InstructionList = {
   instructions: Instruction[];
   limits: InstructionLimits;
   active_count: number;
   active_characters: number;
+  fork?: ForkInfo;
 };
 export type InstructionService = {
   latest(courseId: string): Promise<Instruction | null>;
   list(courseId: string): Promise<InstructionList>;
   add(
     courseId: string,
-    input: { text: string; scope: string },
+    input: { text: string; scope: string; confirm_fork?: boolean },
   ): Promise<Instruction>;
   edit(
     courseId: string,

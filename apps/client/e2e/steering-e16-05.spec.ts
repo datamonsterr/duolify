@@ -149,24 +149,6 @@ async function pass(
     });
 }
 
-/** Enroll a fresh learner and pass both published lessons: the end of published content. */
-async function atTheEnd(
-  browser: Browser,
-  request: APIRequestContext,
-  token: string,
-  viewport?: { width: number; height: number },
-) {
-  const l = await learner(browser, request, viewport);
-  const copy = (await (await enroll(request, l.headers, token)).json())
-    .course_id as string;
-  const lessons = (await courseOf(request, l.headers, copy)).units.flatMap(
-    (u) => u.lessons,
-  );
-  await pass(request, l.headers, lessons[0]!.id);
-  await pass(request, l.headers, lessons[1]!.id);
-  return { ...l, copy, third: lessons[2]!.id, first: lessons[0]!.id };
-}
-
 const instructions = (copy: string) =>
   `${apiBase}/v1/courses/${copy}/instructions`;
 
