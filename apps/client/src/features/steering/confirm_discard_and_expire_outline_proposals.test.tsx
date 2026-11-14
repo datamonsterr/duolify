@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { ReplanPanel } from "./ReplanPanel";
 import { AuthError } from "../accounts/session";
@@ -160,4 +160,70 @@ it("discards proposal and keeps settled charge without applying changes", async 
   expect(service.discard).toHaveBeenCalledWith("c", "p1");
   expect(service.confirm).not.toHaveBeenCalled();
   expect(await screen.findByText("Proposal discarded")).toBeVisible();
+});
+
+function renderProposed(service: Record<string, unknown>) {
+  return render(
+    <ReplanPanel
+      courseId="c"
+      service={service}
+      onBack={() => {}}
+      initial={{ quote, proposal, accepted: true }}
+    />,
+  );
+}
+
+it("returns focus to the Apply changes trigger when the dialog closes with Escape", async () => {
+  renderProposed({ confirm: vi.fn(), discard: vi.fn() });
+  const trigger = await screen.findByRole("button", { name: "Apply changes" });
+  trigger.focus();
+  fireEvent.click(trigger);
+  const dialog = screen.getByRole("dialog");
+  fireEvent.keyDown(dialog, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Apply changes" })).toHaveFocus();
+});
+
+it.each([
+  ["proposal_discarded", "Proposal discarded"],
+  [
+    "proposal_confirmed",
+    "Your outline has been updated with the confirmed changes.",
+  ],
+  ["proposal_expired", "This proposal has expired"],
+])(
+  "confirm refused with %s shows the matching decided state",
+  async (code, text) => {
+    const confirm = vi
+      .fn()
+      .mockRejectedValue(new AuthError("refused", 409, { reason_code: code }));
+    renderProposed({ confirm, discard: vi.fn() });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Apply changes" }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Apply changes",
+      }),
+    );
+    expect(await screen.findByText(text)).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Apply changes" }),
+    ).not.toBeInTheDocument();
+  },
+);
+
+it("discard refused because the proposal was already applied shows the applied state", async () => {
+  const discard = vi
+    .fn()
+    .mockRejectedValue(
+      new AuthError("refused", 409, { reason_code: "proposal_confirmed" }),
+    );
+  renderProposed({ confirm: vi.fn(), discard });
+  fireEvent.click(await screen.findByRole("button", { name: "Discard" }));
+  expect(
+    await screen.findByText(
+      "Your outline has been updated with the confirmed changes.",
+    ),
+  ).toBeVisible();
 });

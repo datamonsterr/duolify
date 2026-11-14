@@ -96,6 +96,8 @@ export function ReplanPanel({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const applyRef = useRef<HTMLButtonElement>(null);
+  const dialogWasOpen = useRef(false);
   const dialogTitleId = useId();
 
   const update = (next: ReplanState) => {
@@ -157,8 +159,36 @@ export function ReplanPanel({
   useEffect(() => {
     if (confirmOpen) {
       dialogRef.current?.focus();
+    } else if (dialogWasOpen.current) {
+      // Closing the dialog returns focus to the control that opened it.
+      applyRef.current?.focus();
     }
+    dialogWasOpen.current = confirmOpen;
   }, [confirmOpen]);
+
+  // A refusal that says the proposal was already decided or expired moves the panel to that state.
+  function settleFromCode(code: string): boolean {
+    const proposal = state.proposal;
+    if (!proposal) return false;
+    if (code === "proposal_confirmed" || code === "proposal_discarded") {
+      update({
+        ...state,
+        proposal: {
+          ...proposal,
+          decision: code === "proposal_confirmed" ? "confirmed" : "discarded",
+        },
+      });
+      return true;
+    }
+    if (code === "proposal_expired") {
+      update({
+        ...state,
+        proposal: { ...proposal, expires_at: new Date().toISOString() },
+      });
+      return true;
+    }
+    return false;
+  }
 
   function handleDialogKeys(event: React.KeyboardEvent) {
     if (event.key === "Escape") {
@@ -232,9 +262,7 @@ export function ReplanPanel({
         setError(
           "Your outline changed since it was made (a new lesson was prepared). Nothing was changed.",
         );
-      } else if (code === "proposal_expired") {
-        setError("This proposal has expired. Review a new quote to continue.");
-      } else {
+      } else if (!settleFromCode(code)) {
         setError("Couldn’t apply proposal. Try again later.");
       }
     } finally {
@@ -255,7 +283,9 @@ export function ReplanPanel({
     } catch (cause) {
       const code = reasonOf(cause);
       setReason(code);
-      setError("Couldn’t discard proposal. Try again later.");
+      if (!settleFromCode(code)) {
+        setError("Couldn’t discard proposal. Try again later.");
+      }
     } finally {
       setSubmitting("");
       setBusy(false);
@@ -397,7 +427,11 @@ export function ReplanPanel({
             >
               Discard
             </Button>
-            <Button onClick={() => setConfirmOpen(true)} disabled={busy}>
+            <Button
+              ref={applyRef}
+              onClick={() => setConfirmOpen(true)}
+              disabled={busy}
+            >
               Apply changes
             </Button>
           </div>
