@@ -49,8 +49,8 @@ it("requires explicit consent, displays server price and retries the same quote 
     ["c", "q"],
   ]);
   expect(
-    screen.queryByRole("button", { name: /Apply/ }),
-  ).not.toBeInTheDocument();
+    screen.getByText("Proposal ready. Your course has not changed."),
+  ).toBeVisible();
 });
 
 import { AuthError } from "../accounts/session";

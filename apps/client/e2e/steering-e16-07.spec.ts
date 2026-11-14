@@ -117,14 +117,17 @@ for (const mobile of [false, true]) {
           .evaluate((n) => n.scrollWidth > n.clientWidth + 1),
       ).toBe(false);
       await expect(
-        page.getByRole("button", { name: /apply|confirm changes/i }),
-      ).toHaveCount(0);
+        page.getByText("Proposal ready. Your course has not changed."),
+      ).toBeVisible();
       await page.getByRole("button", { name: "Back to instructions" }).click();
       await page
         .getByRole("button", { name: "Re-plan remaining outline" })
         .click();
       await expect(
         page.getByRole("heading", { name: "Proposed changes" }),
+      ).toBeVisible();
+      await expect(
+        page.getByText("Proposal ready. Your course has not changed."),
       ).toBeVisible();
       expect(work).toBe(1);
       await page.keyboard.press("Escape");

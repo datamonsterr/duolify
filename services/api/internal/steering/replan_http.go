@@ -16,9 +16,24 @@ func (s *Service) serveReplan(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	if strings.HasSuffix(r.URL.Path, "/quote") {
+	proposalID := r.PathValue("proposalId")
+	if proposalID == "" {
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		for i, p := range parts {
+			if p == "replan" && i+1 < len(parts) {
+				proposalID = parts[i+1]
+				break
+			}
+		}
+	}
+	switch {
+	case strings.HasSuffix(r.URL.Path, "/quote"):
 		value, err = s.QuoteReplan(r.Context(), owner, course)
-	} else {
+	case strings.HasSuffix(r.URL.Path, "/confirm"):
+		value, err = s.ConfirmReplan(r.Context(), owner, course, proposalID)
+	case strings.HasSuffix(r.URL.Path, "/discard"):
+		value, err = s.DiscardReplan(r.Context(), owner, course, proposalID)
+	default:
 		var in struct {
 			QuoteID string `json:"quote_id"`
 		}

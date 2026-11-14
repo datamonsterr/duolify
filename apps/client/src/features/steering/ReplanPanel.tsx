@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "../design/Button";
 import { AuthError, session } from "../accounts/session";
 import type { ActionQuote } from "../pricing/quotes";
@@ -21,6 +21,8 @@ type Proposal = {
   outline_version: number;
   expires_at: string;
   diff: Diff[];
+  decision?: string;
+  decided_at?: string;
 };
 // Server refusals that end this quote: nothing was produced, so credits were released.
 const TERMINAL = new Set([
@@ -43,10 +45,12 @@ export type ReplanState = {
   proposal?: Proposal;
   accepted?: boolean;
 };
-type ReplanService = {
+export type ReplanService = {
   quote(courseId: string): Promise<Quote>;
   accept(id: string): Promise<unknown>;
   propose(courseId: string, quoteId: string): Promise<Proposal>;
+  confirm(courseId: string, proposalId: string): Promise<Proposal>;
+  discard(courseId: string, proposalId: string): Promise<Proposal>;
 };
 const base = (id: string) => `/v1/courses/${encodeURIComponent(id)}/replan`;
 const api: ReplanService = {
@@ -55,6 +59,18 @@ const api: ReplanService = {
     session.request(`/v1/quotes/${encodeURIComponent(id)}/accept`, "POST", {}),
   propose: (id, quoteId) =>
     session.request(base(id), "POST", { quote_id: quoteId }),
+  confirm: (id, proposalId) =>
+    session.request(
+      `${base(id)}/${encodeURIComponent(proposalId)}/confirm`,
+      "POST",
+      {},
+    ),
+  discard: (id, proposalId) =>
+    session.request(
+      `${base(id)}/${encodeURIComponent(proposalId)}/discard`,
+      "POST",
+      {},
+    ),
 };
 export function ReplanPanel({
   courseId,
@@ -64,34 +80,43 @@ export function ReplanPanel({
   onState,
 }: {
   courseId: string;
-  service?: ReplanService;
+  service?: Partial<ReplanService>;
   onBack(): void;
   initial?: ReplanState;
   onState?(state: ReplanState): void;
 }) {
+  const s = { ...api, ...service };
   const [state, setState] = useState<ReplanState>(initial);
   const [busy, setBusy] = useState(!initial.quote);
+  const [submitting, setSubmitting] = useState("");
   const [error, setError] = useState("");
   const [quoteError, setQuoteError] = useState(false);
   const [reason, setReason] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogTitleId = useId();
+
   const update = (next: ReplanState) => {
     setState(next);
     onState?.(next);
   };
   async function loadQuote() {
     setBusy(true);
+    setSubmitting("Loading quote…");
     setError("");
     setQuoteError(false);
+    setReason("");
     try {
-      update({ quote: await service.quote(courseId) });
+      update({ quote: await s.quote(courseId) });
     } catch {
       setQuoteError(true);
       setError(
         "Couldn’t load a quote. Re-plan is available when its price is approved. Check your connection and retry.",
       );
     } finally {
+      setSubmitting("");
       setBusy(false);
     }
   }
@@ -102,8 +127,7 @@ export function ReplanPanel({
   useEffect(() => {
     let cancelled = false;
     if (!initial.quote) {
-      service
-        .quote(courseId)
+      s.quote(courseId)
         .then((q) => {
           if (!cancelled) {
             update({ quote: q });
@@ -127,21 +151,53 @@ export function ReplanPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    if (!busy) heading.current?.focus();
-  }, [busy]);
+    if (!busy && !confirmOpen) heading.current?.focus();
+  }, [busy, confirmOpen]);
+
+  useEffect(() => {
+    if (confirmOpen) {
+      dialogRef.current?.focus();
+    }
+  }, [confirmOpen]);
+
+  function handleDialogKeys(event: React.KeyboardEvent) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      setConfirmOpen(false);
+    } else if (event.key === "Tab" && dialogRef.current) {
+      const items = [
+        ...dialogRef.current.querySelectorAll<HTMLElement>(
+          "button:not([disabled])",
+        ),
+      ];
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+  }
+
   async function propose() {
     if (!state.quote) return;
     setBusy(true);
+    setSubmitting("Preparing your proposal…");
     setError("");
     setReason("");
     let next = state;
     try {
       if (!state.accepted) {
-        await service.accept(state.quote.id);
+        await s.accept(state.quote.id);
         next = { ...state, accepted: true };
         update(next);
       }
-      const proposal = await service.propose(courseId, state.quote.id);
+      const proposal = await s.propose(courseId, state.quote.id);
       update({ ...next, proposal });
     } catch (cause) {
       const code = reasonOf(cause);
@@ -154,11 +210,66 @@ export function ReplanPanel({
             : "Couldn’t prepare a proposal. Check the same request again before requesting a new quote. If no proposal was produced, reserved credits are released.",
       );
     } finally {
+      setSubmitting("");
       setBusy(false);
     }
   }
+
+  async function confirm() {
+    if (!state.proposal) return;
+    setBusy(true);
+    setSubmitting("Applying outline changes…");
+    setError("");
+    setReason("");
+    setConfirmOpen(false);
+    try {
+      const updated = await s.confirm(courseId, state.proposal.id);
+      update({ ...state, proposal: updated });
+    } catch (cause) {
+      const code = reasonOf(cause);
+      setReason(code);
+      if (code === "version_conflict" || code === "stale_proposal") {
+        setError(
+          "Your outline changed since it was made (a new lesson was prepared). Nothing was changed.",
+        );
+      } else if (code === "proposal_expired") {
+        setError("This proposal has expired. Review a new quote to continue.");
+      } else {
+        setError("Couldn’t apply proposal. Try again later.");
+      }
+    } finally {
+      setSubmitting("");
+      setBusy(false);
+    }
+  }
+
+  async function discard() {
+    if (!state.proposal) return;
+    setBusy(true);
+    setSubmitting("Discarding proposal…");
+    setError("");
+    setReason("");
+    try {
+      const updated = await s.discard(courseId, state.proposal.id);
+      update({ ...state, proposal: updated });
+    } catch (cause) {
+      const code = reasonOf(cause);
+      setReason(code);
+      setError("Couldn’t discard proposal. Try again later.");
+    } finally {
+      setSubmitting("");
+      setBusy(false);
+    }
+  }
+
   const expired = !!state.quote && Date.parse(state.quote.expires_at) <= now;
-  const proposed = state.proposal?.state === "proposed";
+  const isConfirmed = state.proposal?.decision === "confirmed";
+  const isDiscarded = state.proposal?.decision === "discarded";
+  const isProposalExpired =
+    !!state.proposal && Date.parse(state.proposal.expires_at) <= now;
+  const isStale = reason === "version_conflict" || reason === "stale_proposal";
+  const proposed = state.proposal?.state === "proposed" && !isDiscarded;
+
   return (
     <section
       className="replan-panel"
@@ -169,7 +280,11 @@ export function ReplanPanel({
         Back to instructions
       </Button>
       <h3 ref={heading} tabIndex={-1}>
-        {proposed ? "Proposed changes" : "Re-plan remaining outline"}
+        {isConfirmed
+          ? "Outline updated"
+          : proposed
+            ? "Proposed changes"
+            : "Re-plan remaining outline"}
       </h3>
       <p>Generated and unlocked lessons stay unchanged.</p>
       {state.quote && (
@@ -183,14 +298,70 @@ export function ReplanPanel({
       )}
       {busy && (
         <p role="status">
-          {state.accepted ? "Preparing your proposal…" : "Loading quote…"}
+          {submitting ||
+            (state.accepted ? "Preparing your proposal…" : "Loading quote…")}
         </p>
       )}
-      {error && <p role="alert">{error}</p>}
+      {error && !isStale && <p role="alert">{error}</p>}
       {!busy && quoteError && (
         <Button onClick={() => void loadQuote()}>Retry quote</Button>
       )}
-      {proposed && (
+      {isConfirmed && (
+        <>
+          <div className="ban bok" role="status">
+            <div>
+              <b>Outline updated</b>
+              <p>Your outline has been updated with the confirmed changes.</p>
+            </div>
+          </div>
+          <Button onClick={onBack}>Back to learn path</Button>
+        </>
+      )}
+      {isStale && (
+        <>
+          <div className="ban bwarn" role="alert">
+            <div>
+              <b>This proposal is out of date</b>
+              <p>
+                Your outline changed since it was made (a new lesson was
+                prepared). Nothing was changed.
+              </p>
+            </div>
+          </div>
+          <Button variant="secondary" onClick={() => void loadQuote()}>
+            Request a new proposal · up to {state.quote?.content_ceiling}
+          </Button>
+        </>
+      )}
+      {isDiscarded && !isStale && (
+        <>
+          <div className="ban binfo" role="status">
+            <div>
+              <b>Proposal discarded</b>
+              <p>Your course outline is unchanged.</p>
+            </div>
+          </div>
+          <Button variant="secondary" onClick={() => void loadQuote()}>
+            Request a new proposal · up to {state.quote?.content_ceiling}
+          </Button>
+        </>
+      )}
+      {isProposalExpired && !isConfirmed && !isDiscarded && !isStale && (
+        <>
+          <div className="ban bwarn" role="alert">
+            <div>
+              <b>This proposal has expired</b>
+              <p>
+                Proposals expire after 24 hours. Review a new quote to continue.
+              </p>
+            </div>
+          </div>
+          <Button variant="secondary" onClick={() => void loadQuote()}>
+            Review a new quote
+          </Button>
+        </>
+      )}
+      {proposed && !isConfirmed && !isStale && !isProposalExpired && (
         <>
           <p className="replan-ready">
             Proposal ready. Your course has not changed.
@@ -218,32 +389,82 @@ export function ReplanPanel({
               </li>
             ))}
           </ol>
+          <div className="steering-actions">
+            <Button
+              variant="secondary"
+              onClick={() => void discard()}
+              disabled={busy}
+            >
+              Discard
+            </Button>
+            <Button onClick={() => setConfirmOpen(true)} disabled={busy}>
+              Apply changes
+            </Button>
+          </div>
         </>
       )}
-      {!busy && !proposed && state.quote && (
-        <>
-          {expired && !state.accepted && (
-            <p role="alert">
-              Quote expired. Review a fresh quote before continuing.
+      {!busy &&
+        !proposed &&
+        !isConfirmed &&
+        !isDiscarded &&
+        !isStale &&
+        state.quote && (
+          <>
+            {expired && !state.accepted && (
+              <p role="alert">
+                Quote expired. Review a fresh quote before continuing.
+              </p>
+            )}
+            {!state.accepted && !expired && (
+              <Button onClick={() => void propose()}>
+                Accept quote and prepare proposal
+              </Button>
+            )}
+            {reason === "insufficient_credits" && (
+              <a href="/credits">View credit options</a>
+            )}
+            {state.accepted && !TERMINAL.has(reason) && (
+              <Button onClick={() => void propose()}>
+                Check proposal again
+              </Button>
+            )}
+            {(expired || error) && (
+              <Button variant="secondary" onClick={() => void loadQuote()}>
+                Review a new quote
+              </Button>
+            )}
+          </>
+        )}
+      {confirmOpen && (
+        <div className="steering-fork-backdrop">
+          <div
+            ref={dialogRef}
+            className="steering-fork"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={dialogTitleId}
+            tabIndex={-1}
+            onKeyDown={handleDialogKeys}
+          >
+            <h2 id={dialogTitleId}>Apply outline changes?</h2>
+            <p>
+              Your remaining outline will be updated. Generated and unlocked
+              lessons are never changed.
             </p>
-          )}
-          {!state.accepted && !expired && (
-            <Button onClick={() => void propose()}>
-              Accept quote and prepare proposal
-            </Button>
-          )}
-          {reason === "insufficient_credits" && (
-            <a href="/credits">View credit options</a>
-          )}
-          {state.accepted && !TERMINAL.has(reason) && (
-            <Button onClick={() => void propose()}>Check proposal again</Button>
-          )}
-          {(expired || error) && (
-            <Button variant="secondary" onClick={() => void loadQuote()}>
-              Review a new quote
-            </Button>
-          )}
-        </>
+            <div className="steering-actions">
+              <Button
+                variant="secondary"
+                onClick={() => setConfirmOpen(false)}
+                disabled={busy}
+              >
+                Cancel
+              </Button>
+              <Button onClick={() => void confirm()} disabled={busy}>
+                Apply changes
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
