@@ -11,7 +11,7 @@ const request = vi.mocked(session.request);
 const rejected = (status: number, code?: string) =>
   Object.assign(new Error("server text"), {
     status,
-    details: { error: { code } },
+    details: { error: code },
   });
 const friends = {
   friends: [

@@ -47,9 +47,12 @@ export function inviteFailure(error: unknown): InviteFailure {
   const e = error as {
     status?: number;
     code?: string;
-    details?: { code?: string; error?: { code?: string } };
+    details?: { code?: string; error?: string | { code?: string } };
   };
-  const code = e.code ?? e.details?.error?.code ?? e.details?.code;
+  // The API sends flat `{"error":"<code>"}`; nested and bare codes are tolerated.
+  const flat = e.details?.error;
+  const code =
+    e.code ?? (typeof flat === "string" ? flat : flat?.code) ?? e.details?.code;
   if (e.status === 429 || code === "invite_rate_limited") return "limited";
   if (code === "course_not_shared") return "not_shared";
   if (code === "invite_duplicate") return "duplicate";
