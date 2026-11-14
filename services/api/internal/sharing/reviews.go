@@ -250,13 +250,20 @@ func (s *Service) screenReview(ctx context.Context, actor, text string) Outcome 
 		return Outcome{Verdict: VerdictPending}
 	}
 	resp, err = s.reviewScreen.ScreenReview(ctx, &pb.ScreenReviewRequest{Text: text, Limits: &pb.UsageLimits{InputTokens: 4000, OutputTokens: 300, TimeoutMs: cfg.TimeoutMs, MaxAttempts: 2, MaxCostNanos: boundedUint64(cfg.MaxCostNanos), InputNanos: rates.Input, OutputNanos: rates.Output, CacheWriteNanos: rates.CacheWrite, CacheReadNanos: rates.CacheRead, DeadlineUnixMs: boundedUint64(time.Now().Add(time.Duration(cfg.TimeoutMs) * time.Millisecond).UnixMilli())}})
+	reported := false
 	if resp != nil {
 		for _, a := range resp.Attempts {
 			if a == nil {
 				continue
 			}
+			reported = true
 			s.emit(actor, "$ai_generation", map[string]any{"feature": "screen_review", "provider": a.Provider, "model": a.Model, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens, "cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "attempt": a.Attempt, "latency_ms": a.LatencyMs, "succeeded": a.Delivered, "usage_available": !a.UsageUnavailable, "fallback_used": a.FallbackUsed, "error_code": a.ErrorCode, "provider_cost_nanos": attemptCost(a, rates)})
 		}
+	}
+	if !reported {
+		// A failed transport may have consumed provider work. Report unknown usage without
+		// inventing a measured zero or copying a private provider error into analytics.
+		s.emit(actor, "$ai_generation", map[string]any{"feature": "screen_review", "provider": "unavailable", "model": "unavailable", "attempt": 1, "succeeded": false, "usage_available": false, "fallback_used": false, "error_code": "screening_unavailable"})
 	}
 	return DecideReview(resp, err, cfg, rates)
 }

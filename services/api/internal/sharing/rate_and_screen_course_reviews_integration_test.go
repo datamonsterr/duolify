@@ -130,6 +130,15 @@ func TestRateAndScreenCourseReviews(t *testing.T) {
 	if len(ev.named("review_submitted")) == 0 || len(ev.named("review_deleted")) != 1 || len(ev.named("$ai_generation")) == 0 {
 		t.Fatalf("missing review/AI delivery: %+v", ev.snapshot())
 	}
+	unknownUsage := false
+	for _, event := range ev.named("$ai_generation") {
+		if event["error_code"] == "screening_unavailable" && event["usage_available"] == false {
+			unknownUsage = true
+		}
+	}
+	if !unknownUsage {
+		t.Fatal("transport failure did not report unknown screening usage")
+	}
 	raw, _ := json.Marshal(ev.snapshot())
 	if strings.Contains(string(raw), "private-review-text") {
 		t.Fatal("review text in events")
