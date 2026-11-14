@@ -351,12 +351,19 @@ for (const width of [1280, 390]) {
         name: "Share course",
         exact: true,
       });
-      await share.getByRole("radio", { name: /Anyone with the link/ }).check();
+      const linkVisibility = share.getByRole("radio", {
+        name: /Anyone with the link/,
+      });
+      await linkVisibility.click();
       await expect(
         share.getByRole("heading", {
           name: "Characters travel with this Course",
         }),
       ).toBeVisible();
+      await expect(linkVisibility).not.toBeChecked();
+      await expect(
+        share.getByRole("radio", { name: "Private", exact: true }),
+      ).toBeChecked();
       await share
         .getByRole("checkbox", {
           name: "I confirm these Characters can become Course content",
@@ -366,6 +373,7 @@ for (const width of [1280, 390]) {
         .getByRole("button", { name: "Confirm Character export" })
         .click();
       await expect(share.getByTestId("share-link-url")).toBeVisible();
+      await expect(linkVisibility).toBeChecked();
       await share.getByRole("button", { name: "Close", exact: true }).click();
       const refused = await request.post(
         `${apiBase}/v1/courses/${course_id}/publication-drafts`,
