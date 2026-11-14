@@ -186,7 +186,7 @@ async fn vendor_failures_stay_inside_one_retry_and_map_to_fixed_statuses() {
 
 fn segment(text: &str, voice: &str, resolve_only: bool) -> pb::SynthesizeNarrationRequest {
     pb::SynthesizeNarrationRequest {
-        segment_id: "sky-1.s0".into(),
+        segment_id: "sky-1__s0".into(),
         speaker_key: "guide".into(),
         voice_key: voice.into(),
         ..request(text, resolve_only)
@@ -210,7 +210,7 @@ async fn character_segments_use_allowlisted_voices_and_fall_back_without_provide
     assert_eq!(guide.voice_key, "voice-provisional-guide");
     assert_eq!(
         (guide.segment_id.as_str(), guide.speaker_key.as_str()),
-        ("sky-1.s0", "guide")
+        ("sky-1__s0", "guide")
     );
     assert_ne!(guide.settings_fingerprint, supporter.settings_fingerprint);
     assert_eq!(guide.voice_fallback_reason, "");

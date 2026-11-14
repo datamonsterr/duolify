@@ -104,7 +104,7 @@ pub fn resolve_voice(key: &str) -> ResolvedVoice {
 
 /// Stable segment id: the Slide id plus the segment's position, so order is part of identity.
 pub fn segment_id(slide_id: &str, index: usize) -> String {
-    format!("{slide_id}.s{index}")
+    format!("{slide_id}__s{index}")
 }
 
 /// Accepts (segment id, text) pairs only in their original zero-based order for the Slide.

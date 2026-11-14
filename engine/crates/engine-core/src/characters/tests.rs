@@ -273,8 +273,8 @@ fn retired_voice_maps_to_the_default_and_names_the_config_version() {
 
 #[test]
 fn segment_ids_keep_slide_order_and_speaking_rate_stays_bounded() {
-    assert_eq!(narrate::segment_id("s1", 0), "s1.s0");
-    assert_eq!(narrate::segment_id("s1", 11), "s1.s11");
+    assert_eq!(narrate::segment_id("s1", 0), "s1__s0");
+    assert_eq!(narrate::segment_id("s1", 11), "s1__s11");
     for key in [
         "default",
         "voice-provisional-guide",
@@ -285,9 +285,9 @@ fn segment_ids_keep_slide_order_and_speaking_rate_stays_bounded() {
         assert!((0.7..=1.2).contains(&speed), "{key} speed {speed}");
     }
     let ok = |id: &str, t: &str| (id.to_string(), t.to_string());
-    assert!(narrate::segments_in_order("s1", &[ok("s1.s0", "a"), ok("s1.s1", "b")]).is_ok());
-    assert!(narrate::segments_in_order("s1", &[ok("s1.s1", "b"), ok("s1.s0", "a")]).is_err());
-    assert!(narrate::segments_in_order("s1", &[ok("s1.s0", "a"), ok("s1.s0", "a")]).is_err());
+    assert!(narrate::segments_in_order("s1", &[ok("s1__s0", "a"), ok("s1__s1", "b")]).is_ok());
+    assert!(narrate::segments_in_order("s1", &[ok("s1__s1", "b"), ok("s1__s0", "a")]).is_err());
+    assert!(narrate::segments_in_order("s1", &[ok("s1__s0", "a"), ok("s1__s0", "a")]).is_err());
 }
 
 #[test]

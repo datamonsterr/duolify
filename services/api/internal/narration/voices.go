@@ -34,13 +34,18 @@ type Voice struct {
 	Curated bool   `json:"curated"`
 	// Fixture voices exist only for tests and are dropped unless fixtures are allowed.
 	Fixture bool `json:"fixture,omitempty"`
+	// Character voices serve pinned Cast speakers (E17-08). A Learner can never choose one as the
+	// narration voice, and it is only a logical key: vendor ids stay in the Engine config.
+	Character bool `json:"character,omitempty"`
 }
 
 // VoiceSet is the approved set with a fingerprint of its content.
 type VoiceSet struct {
 	Version string
-	Voices  []Voice
-	hash    string
+	// Voices are the Learner-selectable voices; Characters are the approved speaker voices.
+	Voices     []Voice
+	Characters []Voice
+	hash       string
 }
 
 // LoadVoices parses the embedded config. Fixture voices are included only for tests.
@@ -62,11 +67,16 @@ func LoadVoices(fixtures bool) (VoiceSet, error) {
 		if v.Key == "" || v.Key != strings.ToLower(v.Key) {
 			return VoiceSet{}, errors.New("narration voices: invalid key")
 		}
-		set.Voices = append(set.Voices, v)
 		curated := "0"
 		if v.Curated {
 			curated = "1"
 		}
+		if v.Character {
+			set.Characters = append(set.Characters, v)
+			h.Write([]byte("|character:" + v.Key + ":" + curated))
+			continue
+		}
+		set.Voices = append(set.Voices, v)
 		h.Write([]byte("|" + v.Key + ":" + curated))
 	}
 	if len(set.Voices) == 0 || set.Voices[0].Key != VoiceKey || set.Voices[0].Curated {
@@ -82,6 +92,16 @@ func (s VoiceSet) Hash() string { return s.hash }
 // Find returns an approved voice.
 func (s VoiceSet) Find(key string) (Voice, bool) {
 	for _, v := range s.Voices {
+		if v.Key == key {
+			return v, true
+		}
+	}
+	return Voice{}, false
+}
+
+// FindCharacter returns an approved Character speaker voice.
+func (s VoiceSet) FindCharacter(key string) (Voice, bool) {
+	for _, v := range s.Characters {
 		if v.Key == key {
 			return v, true
 		}
