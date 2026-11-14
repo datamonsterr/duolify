@@ -2,6 +2,10 @@
 description = "Lint GitHub workflows and CI shell scripts"
 run = ["actionlint -color", "shellcheck scripts/ci/*.sh"]
 
+["ci:api-integration-shards"]
+description = "Verify API integration shards cover the default package list exactly once and all integration test directories"
+run = "bash scripts/ci/api-integration-shards.sh"
+
 ["ci:openspec"]
 description = "Validate all OpenSpec changes and specifications with the bootstrap CLI"
 tools = { "npm:@fission-ai/openspec" = "1.3.1" }
