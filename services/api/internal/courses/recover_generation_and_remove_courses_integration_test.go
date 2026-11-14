@@ -33,6 +33,9 @@ type recoveryMockEngine struct {
 	shouldCancel bool
 	shouldFail   bool
 	calls        int
+	// entered is signalled once a cancelling call is blocked in the engine,
+	// i.e. after the creation is generating and holds its reservation.
+	entered chan struct{}
 }
 
 func (m *recoveryMockEngine) GenerateCourseOutline(ctx context.Context, req *enginev1.GenerateCourseOutlineRequest) (*enginev1.GenerateCourseOutlineResponse, error) {
@@ -43,6 +46,9 @@ func (m *recoveryMockEngine) GenerateCourseOutline(ctx context.Context, req *eng
 	m.mu.Unlock()
 
 	if cancel {
+		if m.entered != nil {
+			m.entered <- struct{}{}
+		}
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
@@ -272,10 +278,21 @@ func TestRecoverGenerationAndRemoveCoursesIntegration(t *testing.T) {
 	creationID := createOut["id"].(string)
 
 	// Run creation job with cancellation to simulate River worker cancellation
+	// Cancel only once the job is blocked in the engine call. A timer races
+	// the pre-engine steps (connect, lock, reserve) under load; cancelling
+	// before the reservation is held leaves the job queued for River retry.
 	jobCtx, jobCancel := context.WithCancel(ctx)
+	defer jobCancel()
+	mockEngine.mu.Lock()
+	mockEngine.entered = make(chan struct{}, 1)
+	entered := mockEngine.entered
+	mockEngine.mu.Unlock()
 	go func() {
-		time.Sleep(50 * time.Millisecond)
-		jobCancel()
+		select {
+		case <-entered:
+			jobCancel()
+		case <-ctx.Done():
+		}
 	}()
 	_ = service.RunCreation(jobCtx, creationID)
 
@@ -319,6 +336,21 @@ func TestRecoverGenerationAndRemoveCoursesIntegration(t *testing.T) {
 	}, token)
 	if code != 202 {
 		t.Fatalf("retry creation code=%d out=%v", code, retryCreate)
+	}
+
+	// Cancellation before the engine call (worker shutdown, load) is not
+	// terminal: the job stays queued with no hold or charge so River can retry.
+	preCancelled, preCancel := context.WithCancel(ctx)
+	preCancel()
+	if err := service.RunCreation(preCancelled, creationID); err == nil {
+		t.Fatalf("pre-cancelled RunCreation returned nil, want ctx error for River retry")
+	}
+	code, queuedOut := call("GET", "/v1/course-creations/"+creationID, nil, token)
+	if code != 200 || queuedOut["state"] != "queued" {
+		t.Fatalf("expected state=queued after pre-engine cancellation, got code=%d out=%v", code, queuedOut)
+	}
+	if err := db.Pool.QueryRow(ctx, "SELECT COALESCE(SUM(amount), 0) FROM credit_entries WHERE learner_id=$1::uuid", learnerID).Scan(&balance); err != nil || balance != initialBalance {
+		t.Fatalf("expected balance=%d after pre-engine cancel, got %d err=%v", initialBalance, balance, err)
 	}
 
 	// Run creation job to completion
