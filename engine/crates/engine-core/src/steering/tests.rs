@@ -32,6 +32,60 @@ fn replan_rejects_protected_edits_and_accepts_remaining_diff() {
 }
 
 #[test]
+fn replan_multi_unit_immutability_and_diff_rules() {
+    use crate::courses::outline::{Lesson, Unit};
+    let base = vec![
+        Unit {
+            id: "u1".into(),
+            title: "Basics".into(),
+            lessons: vec![
+                Lesson {
+                    id: "l1".into(),
+                    title: "Intro".into(),
+                    goal: "Goal 1".into(),
+                },
+                Lesson {
+                    id: "l2".into(),
+                    title: "Syntax".into(),
+                    goal: "Goal 2".into(),
+                },
+            ],
+        },
+        Unit {
+            id: "u2".into(),
+            title: "Advanced".into(),
+            lessons: vec![Lesson {
+                id: "l3".into(),
+                title: "Concurrency".into(),
+                goal: "Goal 3".into(),
+            }],
+        },
+    ];
+    let protected = vec!["l1".to_string()];
+    // Moving remaining lesson l3 to unit 1 is valid
+    let mut valid = base.clone();
+    let l3 = valid[1].lessons.remove(0);
+    valid[0].lessons.push(l3);
+    valid[1].lessons.push(Lesson {
+        id: "l4".into(),
+        title: "Channels".into(),
+        goal: "Goal 4".into(),
+    });
+    assert!(replan::validate(&base, &valid, &protected));
+
+    // Moving protected lesson l1 to unit 2 is rejected
+    let mut invalid = base.clone();
+    let l1 = invalid[0].lessons.remove(0);
+    invalid[1].lessons.insert(0, l1);
+    assert!(!replan::validate(&base, &invalid, &protected));
+
+    // Retitling protected lesson is rejected
+    let mut invalid2 = base.clone();
+    invalid2[0].lessons[0].title = "Changed Intro".into();
+    assert!(!replan::validate(&base, &invalid2, &protected));
+}
+
+#[test]
 fn bounded_data_section_escapes_delimiters_and_preserves_precedence() {
     let entries = vec![Instruction {
         id: "i1".into(),

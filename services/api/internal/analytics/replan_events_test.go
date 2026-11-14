@@ -31,7 +31,7 @@ func TestReplanEventsPostHogDeliveryOptOutAndTextFree(t *testing.T) {
 	}
 	common := map[string]any{"source": "api", "platform": "web", "app_version": "1.0.0", "course_id": "c1", "proposal_id": "p1", "pricing_version": "usd-replan-v1", "credits": 55, "lessons_added": 1, "lessons_removed": 2, "lessons_changed": 3,
 		"text": "PRIVATE_LEARNER_TEXT", "instructions": "PRIVATE_LEARNER_TEXT", "outline": "PRIVATE_LEARNER_TEXT", "title": "PRIVATE_LEARNER_TEXT", "diff": "PRIVATE_LEARNER_TEXT"}
-	for _, event := range []string{"course_replan_quoted", "course_replan_proposed"} {
+	for _, event := range []string{"course_replan_quoted", "course_replan_proposed", "course_replan_confirmed", "course_replan_discarded"} {
 		if err = events.Capture(owner, event, common); err != nil {
 			t.Fatal(err)
 		}
@@ -63,7 +63,7 @@ func TestReplanEventsPostHogDeliveryOptOutAndTextFree(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(received) != 4 {
+	if len(received) != 6 {
 		t.Fatalf("events: %v", received)
 	}
 	for _, event := range received {
@@ -79,10 +79,16 @@ func TestReplanEventsPostHogDeliveryOptOutAndTextFree(t *testing.T) {
 	if received[1]["event"] != "course_replan_proposed" || received[1]["properties"].(map[string]any)["lessons_changed"] != float64(3) {
 		t.Fatal(received[1])
 	}
-	if received[2]["properties"].(map[string]any)["reason"] != "insufficient_credits" {
+	if received[2]["event"] != "course_replan_confirmed" || received[2]["properties"].(map[string]any)["proposal_id"] != "p1" {
 		t.Fatal(received[2])
 	}
-	if _, ok := received[3]["properties"].(map[string]any)["reason"]; ok {
+	if received[3]["event"] != "course_replan_discarded" || received[3]["properties"].(map[string]any)["proposal_id"] != "p1" {
+		t.Fatal(received[3])
+	}
+	if received[4]["properties"].(map[string]any)["reason"] != "insufficient_credits" {
+		t.Fatal(received[4])
+	}
+	if _, ok := received[5]["properties"].(map[string]any)["reason"]; ok {
 		t.Fatal("free-form reason forwarded")
 	}
 }

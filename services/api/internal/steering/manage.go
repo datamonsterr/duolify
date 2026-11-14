@@ -262,6 +262,8 @@ func statusFor(code string) int {
 		return 409
 	case "quote_invalid", "protected_lesson_changed", "invalid_proposal":
 		return 409
+	case "proposal_expired", "proposal_discarded", "proposal_confirmed", "proposal_not_ready":
+		return 409
 	case "insufficient_credits":
 		return 402
 	case "replan_unavailable", "generation_failed":
