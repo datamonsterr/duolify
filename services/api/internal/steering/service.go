@@ -9,6 +9,8 @@ import (
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
+	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,9 +23,12 @@ type Screener interface {
 
 // Options supplies stateless service dependencies.
 type Options struct {
-	Pool   *pgxpool.Pool
-	Engine Screener
-	Events analytics.Events
+	Pool      *pgxpool.Pool
+	Engine    Screener
+	Events    analytics.Events
+	Replanner Replanner
+	Quotes    *pricing.Quotes
+	Financial *credits.Service
 }
 
 // Service saves screened private Course instructions.
@@ -177,6 +182,12 @@ func (s *Service) Add(ctx context.Context, owner, course string, in Input) (Reco
 
 // Purge removes abuse-review records 30 days after soft deletion. Snapshots remain independent.
 func (s *Service) Purge(ctx context.Context) error {
+	if err := s.recoverReplans(ctx); err != nil {
+		return err
+	}
+	if _, err := s.opts.Pool.Exec(ctx, `DELETE FROM course_replan_proposals WHERE COALESCE(decided_at,expires_at)<now()-interval '7 days'`); err != nil {
+		return err
+	}
 	_, err := s.opts.Pool.Exec(ctx, `DELETE FROM course_instructions WHERE status='deleted' AND deleted_at<now()-interval '30 days'`)
 	return err
 }

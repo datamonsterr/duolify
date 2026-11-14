@@ -74,6 +74,8 @@ func (c *client) Close() error {
 
 func allowlisted(event string) bool {
 	switch event {
+	case "course_replan_quoted", "course_replan_proposed", "course_replan_failed":
+		return true
 	case "course_instruction_added", "course_instruction_edited", "course_instruction_deleted", "course_instruction_rejected", "course_instruction_applied":
 		return true
 	case "xp_earned", "daily_goal_met", "lesson_completed", "streak_extended", "streak_broken", "streak_freeze_earned", "streak_freeze_used", "league_promoted", "league_demoted", "friend_streak_started", "friend_streak_extended", "friend_streak_broken", "friend_nudge_sent":
@@ -219,6 +221,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "course_replan_quoted", "course_replan_proposed", "course_replan_failed":
+		ids("course_id", "proposal_id", "pricing_version")
+		numeric("credits", "lessons_added", "lessons_removed", "lessons_changed")
+		if value, ok := input["reason"].(string); ok && slices.Contains([]string{"quote_invalid", "insufficient_credits", "protected_lesson_changed", "invalid_proposal", "replan_unavailable", "generation_failed"}, value) {
+			out["reason"] = value
+		}
 	case "course_instruction_added", "course_instruction_edited", "course_instruction_deleted", "course_instruction_rejected", "course_instruction_applied":
 		ids("course_id", "lesson_id")
 		boolean("is_course_copy")

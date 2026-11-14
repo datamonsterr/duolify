@@ -25,6 +25,13 @@ type Client struct {
 	timeout time.Duration
 }
 
+// ReplanOutline retains the action-specific 90s ceiling and the reservation deadline.
+func (c *Client) ReplanOutline(ctx context.Context, r *enginev1.ReplanOutlineRequest) (*enginev1.ReplanOutlineResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+	return c.rpc.ReplanOutline(ctx, r)
+}
+
 // ScreenInstruction bounds platform-paid instruction screening.
 func (c *Client) ScreenInstruction(ctx context.Context, r *enginev1.ScreenInstructionRequest) (*enginev1.ScreenInstructionResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)

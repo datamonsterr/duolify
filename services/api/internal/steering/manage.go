@@ -255,6 +255,12 @@ func statusFor(code string) int {
 		return 429
 	case "version_conflict", "not_editable":
 		return 409
+	case "quote_invalid", "protected_lesson_changed", "invalid_proposal":
+		return 409
+	case "insufficient_credits":
+		return 402
+	case "replan_unavailable", "generation_failed":
+		return 503
 	case "screening_unavailable", "unavailable":
 		return 503
 	}
@@ -265,6 +271,10 @@ func statusFor(code string) int {
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
+	if strings.Contains(r.URL.Path, "/replan") {
+		s.serveReplan(w, r)
+		return
+	}
 	owner := accounts.LearnerID(r.Context())
 	course, id := r.PathValue("id"), r.PathValue("instructionId")
 	var value any

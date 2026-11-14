@@ -46,6 +46,10 @@ const (
 // on any text-like column that is neither registered here nor reviewed as safe.
 var piiRules = []piiRule{
 	{"course_instructions", "text", redacted},
+	{"course_replan_proposals", "attempts", emptyArr},
+	{"course_replan_proposals", "diff", emptyArr},
+	{"course_replan_proposals", "input", emptyObj},
+	{"course_replan_proposals", "result_outline", `NULL`},
 	{"lesson_instruction_snapshots", "text", redacted},
 	{"learners", "display_name", `'Learner ' || left(md5(id::text), 8)`},
 	{"auth_identities", "email", `'learner-' || replace(learner_id::text, '-', '') || '@` + AnonymizedDomain + `'`},
@@ -129,6 +133,7 @@ var reviewedSafe = map[string]bool{}
 func init() {
 	for _, column := range strings.Fields(`
 course_instructions.scope course_instructions.screening_verdict course_instructions.screening_usage lesson_instruction_snapshots.scope
+course_replan_proposals.decision course_replan_proposals.reason
 character_create_jobs.operation character_screenings.verdict copy_generation_consents.pricing_version
 course_invite_deliveries.channel course_invites.cancel_reason course_invites.method
 course_copies.content_hash course_copies.source course_enrollments.level_override

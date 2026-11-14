@@ -190,14 +190,15 @@ type CopyGenerationConsent struct {
 }
 
 type Course struct {
-	ID          pgtype.UUID        `json:"id"`
-	LearnerID   pgtype.UUID        `json:"learner_id"`
-	CreationID  pgtype.UUID        `json:"creation_id"`
-	Title       string             `json:"title"`
-	Description string             `json:"description"`
-	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	Visibility  CourseVisibility   `json:"visibility"`
+	ID             pgtype.UUID        `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	CreationID     pgtype.UUID        `json:"creation_id"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Visibility     CourseVisibility   `json:"visibility"`
+	OutlineVersion int64              `json:"outline_version"`
 }
 
 type CourseBriefRevision struct {
@@ -225,6 +226,9 @@ type CourseCopy struct {
 	ContentHash    string             `json:"content_hash"`
 	Source         string             `json:"source"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	LockVersion    int32              `json:"lock_version"`
+	ForkedAt       pgtype.Timestamptz `json:"forked_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type CourseCreation struct {
@@ -265,25 +269,75 @@ type CourseInstruction struct {
 	ScreeningUsage   []byte             `json:"screening_usage"`
 }
 
+type CourseInvite struct {
+	ID           pgtype.UUID        `json:"id"`
+	CourseID     pgtype.UUID        `json:"course_id"`
+	SenderID     pgtype.UUID        `json:"sender_id"`
+	RecipientID  pgtype.UUID        `json:"recipient_id"`
+	OperationKey pgtype.UUID        `json:"operation_key"`
+	Method       string             `json:"method"`
+	Status       string             `json:"status"`
+	CancelReason pgtype.Text        `json:"cancel_reason"`
+	Delivered    bool               `json:"delivered"`
+	ReadAt       pgtype.Timestamptz `json:"read_at"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+	ResolvedAt   pgtype.Timestamptz `json:"resolved_at"`
+	CopyCourseID pgtype.UUID        `json:"copy_course_id"`
+}
+
+type CourseInviteDelivery struct {
+	ID        pgtype.UUID        `json:"id"`
+	InviteID  pgtype.UUID        `json:"invite_id"`
+	Channel   string             `json:"channel"`
+	Status    string             `json:"status"`
+	Attempts  int32              `json:"attempts"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	SentAt    pgtype.Timestamptz `json:"sent_at"`
+}
+
 type CourseLessonStub struct {
-	ID                 pgtype.UUID `json:"id"`
-	LearnerID          pgtype.UUID `json:"learner_id"`
-	UnitID             pgtype.UUID `json:"unit_id"`
-	AuthoredID         string      `json:"authored_id"`
-	Position           int32       `json:"position"`
-	Title              string      `json:"title"`
-	Goal               string      `json:"goal"`
-	Status             string      `json:"status"`
-	ReusedFromSnapshot bool        `json:"reused_from_snapshot"`
+	ID                  pgtype.UUID        `json:"id"`
+	LearnerID           pgtype.UUID        `json:"learner_id"`
+	UnitID              pgtype.UUID        `json:"unit_id"`
+	AuthoredID          string             `json:"authored_id"`
+	Position            int32              `json:"position"`
+	Title               string             `json:"title"`
+	Goal                string             `json:"goal"`
+	Status              string             `json:"status"`
+	ReusedFromSnapshot  bool               `json:"reused_from_snapshot"`
+	LessonKey           pgtype.Text        `json:"lesson_key"`
+	ArchivedAt          pgtype.Timestamptz `json:"archived_at"`
+	ArchivedFromVersion pgtype.Int4        `json:"archived_from_version"`
+}
+
+type CourseReplanProposal struct {
+	ID             pgtype.UUID        `json:"id"`
+	LearnerID      pgtype.UUID        `json:"learner_id"`
+	CourseID       pgtype.UUID        `json:"course_id"`
+	QuoteID        pgtype.UUID        `json:"quote_id"`
+	JobID          pgtype.UUID        `json:"job_id"`
+	OutlineVersion int64              `json:"outline_version"`
+	Input          []byte             `json:"input"`
+	ResultOutline  []byte             `json:"result_outline"`
+	Diff           []byte             `json:"diff"`
+	Attempts       []byte             `json:"attempts"`
+	State          string             `json:"state"`
+	Reason         string             `json:"reason"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	DecidedAt      pgtype.Timestamptz `json:"decided_at"`
+	Decision       pgtype.Text        `json:"decision"`
 }
 
 type CourseUnit struct {
-	ID         pgtype.UUID `json:"id"`
-	LearnerID  pgtype.UUID `json:"learner_id"`
-	CourseID   pgtype.UUID `json:"course_id"`
-	AuthoredID string      `json:"authored_id"`
-	Position   int32       `json:"position"`
-	Title      string      `json:"title"`
+	ID         pgtype.UUID        `json:"id"`
+	LearnerID  pgtype.UUID        `json:"learner_id"`
+	CourseID   pgtype.UUID        `json:"course_id"`
+	AuthoredID string             `json:"authored_id"`
+	Position   int32              `json:"position"`
+	Title      string             `json:"title"`
+	ArchivedAt pgtype.Timestamptz `json:"archived_at"`
 }
 
 type CreditAllocation struct {
@@ -978,6 +1032,34 @@ type LessonTestVariantSnapshot struct {
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 }
 
+type MarketplaceListing struct {
+	CourseID         pgtype.UUID        `json:"course_id"`
+	OwnerID          pgtype.UUID        `json:"owner_id"`
+	DraftID          pgtype.UUID        `json:"draft_id"`
+	Version          int32              `json:"version"`
+	Title            string             `json:"title"`
+	Description      string             `json:"description"`
+	Category         string             `json:"category"`
+	Language         string             `json:"language"`
+	Tags             []string           `json:"tags"`
+	LessonCount      int32              `json:"lesson_count"`
+	GeneratedLessons int32              `json:"generated_lessons"`
+	Search           interface{}        `json:"search"`
+	PublishedAt      pgtype.Timestamptz `json:"published_at"`
+	DelistedAt       pgtype.Timestamptz `json:"delisted_at"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
+type MarketplaceListingStat struct {
+	CourseID       pgtype.UUID        `json:"course_id"`
+	Enrollments30d int32              `json:"enrollments_30d"`
+	CompletionRate float64            `json:"completion_rate"`
+	PopularScore   float64            `json:"popular_score"`
+	RatingSum      int64              `json:"rating_sum"`
+	RatingCount    int32              `json:"rating_count"`
+	RefreshedAt    pgtype.Timestamptz `json:"refreshed_at"`
+}
+
 type NarrationAsset struct {
 	ContentHash         string             `json:"content_hash"`
 	TextHash            string             `json:"text_hash"`
@@ -1134,6 +1216,8 @@ type PublicationDraft struct {
 	SampledLessons int32              `json:"sampled_lessons"`
 	ScreenedAt     pgtype.Timestamptz `json:"screened_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Changelog      string             `json:"changelog"`
+	Republish      bool               `json:"republish"`
 }
 
 type PublicationLink struct {
