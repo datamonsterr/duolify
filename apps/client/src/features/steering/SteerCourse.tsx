@@ -3,8 +3,13 @@ import { Sheet } from "../design/sheet/Sheet";
 import { Button } from "../design/Button";
 import { InstructionPanel } from "./InstructionPanel";
 import { useMobile } from "./useMobile";
+import { ReplanPanel, type ReplanState } from "./ReplanPanel";
 export function SteerCourse({ courseId }: { courseId: string }) {
   const [open, setOpen] = useState(false);
+  const [replan, setReplan] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [replanState, setReplanState] = useState<ReplanState>({});
+  const replanTrigger = useRef<HTMLButtonElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const mobile = useMobile();
   useEffect(() => {
@@ -50,7 +55,32 @@ export function SteerCourse({ courseId }: { courseId: string }) {
           returnFocusRef={trigger}
           onClose={close}
         >
-          <InstructionPanel courseId={courseId} />
+          <div hidden={replan}>
+            <InstructionPanel courseId={courseId} />
+            <Button
+              ref={replanTrigger}
+              variant="secondary"
+              onClick={() => {
+                setStarted(true);
+                setReplan(true);
+              }}
+            >
+              Re-plan remaining outline
+            </Button>
+          </div>
+          {started && (
+            <div hidden={!replan}>
+              <ReplanPanel
+                courseId={courseId}
+                initial={replanState}
+                onState={setReplanState}
+                onBack={() => {
+                  setReplan(false);
+                  requestAnimationFrame(() => replanTrigger.current?.focus());
+                }}
+              />
+            </div>
+          )}
         </Sheet>
       )}
     </div>

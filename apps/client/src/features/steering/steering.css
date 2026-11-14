@@ -131,3 +131,63 @@
     animation: none !important;
   }
 }
+.replan-panel {
+  display: grid;
+  gap: var(--space-4, 16px);
+  min-width: 0;
+}
+.replan-panel h3 {
+  margin: 0;
+}
+.replan-price,
+.replan-ready {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  border-radius: var(--radius-card, 16px);
+  padding: var(--space-4, 16px);
+}
+.replan-diff {
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-3, 12px);
+}
+.replan-diff li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2, 8px);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card, 16px);
+  padding: var(--space-3, 12px);
+  overflow-wrap: anywhere;
+}
+.replan-diff li small {
+  flex-basis: 100%;
+}
+.replan-diff li span,
+.replan-diff li del {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.replan-kind {
+  font-weight: 800;
+  border-radius: var(--radius-pill, 999px);
+  padding: 4px 8px;
+}
+.replan-added {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+.replan-removed {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+.replan-moved {
+  color: var(--color-info);
+  background: var(--color-info-bg);
+}
+.replan-retitled {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
