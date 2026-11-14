@@ -5015,5 +5015,211 @@
         "critical": true
       }
     ]
+  },
+  {
+    "id": "e16-07-protected-edit-falls-back",
+    "task": "steer_replan",
+    "input": {
+      "base": [
+        {
+          "id": "u1",
+          "title": "Unit 1: Fundamentals",
+          "lessons": [
+            {
+              "id": "l1",
+              "title": "Lesson 1: Basics",
+              "goal": "Learn basics"
+            },
+            {
+              "id": "l2",
+              "title": "Lesson 2: Variables",
+              "goal": "Learn variables"
+            }
+          ]
+        }
+      ],
+      "protected": [
+        "l1"
+      ],
+      "instructions": [
+        {
+          "id": "i1",
+          "text": "Focus on practical real-world variables",
+          "scope": 2,
+          "added_at_unix_ms": 1,
+          "version": 1
+        }
+      ],
+      "limits": {
+        "input_tokens": 8000,
+        "output_tokens": 14000,
+        "timeout_ms": 90000,
+        "max_attempts": 2,
+        "max_cost_nanos": 500000000,
+        "input_nanos": 2000,
+        "output_nanos": 10000,
+        "cache_write_nanos": 2500,
+        "cache_read_nanos": 100
+      },
+      "recorded": [
+        {
+          "provider": "mock",
+          "model": "recorded",
+          "input_tokens": 100,
+          "output_tokens": 100,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "usage_unavailable": false,
+          "text": "{\"units\":[{\"id\":\"u1\",\"title\":\"Unit 1: Fundamentals\",\"lessons\":[{\"id\":\"l1\",\"title\":\"Lesson 1: Rewritten\",\"goal\":\"Learn basics\"},{\"id\":\"l2\",\"title\":\"Lesson 2: Variables\",\"goal\":\"Learn variables\"}]}]}"
+        },
+        {
+          "provider": "mock",
+          "model": "recorded",
+          "input_tokens": 100,
+          "output_tokens": 100,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "usage_unavailable": false,
+          "text": "{\"units\":[{\"id\":\"u1\",\"title\":\"Unit 1: Fundamentals\",\"lessons\":[{\"id\":\"l1\",\"title\":\"Lesson 1: Basics\",\"goal\":\"Learn basics\"},{\"id\":\"l2\",\"title\":\"Lesson 2: Practical Variables\",\"goal\":\"Work with practical variables\"}]}]}"
+        }
+      ],
+      "expected_delivery": true
+    },
+    "rubric": "A first attempt that edits a protected lesson is rejected; only the evaluated fallback with protected lessons intact is delivered.",
+    "checks": [
+      {
+        "kind": "contains",
+        "value": "\"immutability\":1.0",
+        "critical": true
+      },
+      {
+        "kind": "contains",
+        "value": "\"bounded_attempts\":true",
+        "critical": true
+      },
+      {
+        "kind": "contains",
+        "value": "\"within_usd_cap\":true",
+        "critical": true
+      },
+      {
+        "kind": "contains",
+        "value": "\"delivered\":true",
+        "critical": true
+      },
+      {
+        "kind": "contains",
+        "value": "\"fallback_used\":true",
+        "critical": true
+      },
+      {
+        "kind": "contains",
+        "value": "\"provider_calls\":2",
+        "critical": true
+      }
+    ]
+  },
+  {
+    "id": "e16-07-protected-edit-never-delivered",
+    "task": "steer_replan",
+    "input": {
+      "base": [
+        {
+          "id": "u1",
+          "title": "Unit 1: Fundamentals",
+          "lessons": [
+            {
+              "id": "l1",
+              "title": "Lesson 1: Basics",
+              "goal": "Learn basics"
+            },
+            {
+              "id": "l2",
+              "title": "Lesson 2: Variables",
+              "goal": "Learn variables"
+            }
+          ]
+        }
+      ],
+      "protected": [
+        "l1"
+      ],
+      "instructions": [
+        {
+          "id": "i1",
+          "text": "Focus on practical real-world variables",
+          "scope": 2,
+          "added_at_unix_ms": 1,
+          "version": 1
+        }
+      ],
+      "limits": {
+        "input_tokens": 8000,
+        "output_tokens": 14000,
+        "timeout_ms": 90000,
+        "max_attempts": 2,
+        "max_cost_nanos": 500000000,
+        "input_nanos": 2000,
+        "output_nanos": 10000,
+        "cache_write_nanos": 2500,
+        "cache_read_nanos": 100
+      },
+      "recorded": [
+        {
+          "provider": "mock",
+          "model": "recorded",
+          "input_tokens": 100,
+          "output_tokens": 100,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "usage_unavailable": false,
+          "text": "{\"units\":[{\"id\":\"u1\",\"title\":\"Unit 1: Fundamentals\",\"lessons\":[{\"id\":\"l1\",\"title\":\"Lesson 1: Rewritten\",\"goal\":\"Learn basics\"},{\"id\":\"l2\",\"title\":\"Lesson 2: Variables\",\"goal\":\"Learn variables\"}]}]}"
+        },
+        {
+          "provider": "mock",
+          "model": "recorded",
+          "input_tokens": 100,
+          "output_tokens": 100,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "usage_unavailable": false,
+          "text": "{\"units\":[{\"id\":\"u1\",\"title\":\"Unit 1: Fundamentals\",\"lessons\":[{\"id\":\"l2\",\"title\":\"Lesson 2: Variables\",\"goal\":\"Learn variables\"},{\"id\":\"l1\",\"title\":\"Lesson 1: Basics\",\"goal\":\"Learn basics\"}]}]}"
+        }
+      ],
+      "expected_delivery": false
+    },
+    "rubric": "When every attempt edits or moves a protected lesson nothing is delivered (no proposal, reservation released).",
+    "checks": [
+      {
+        "kind": "contains",
+        "value": "\"immutability\":1.0",
+        "critical": true
+      },
+      {
+        "kind": "contains",
+        "value": "\"bounded_attempts\":true",
+        "critical": true
+      },
+      {
+        "kind": "contains",
+        "value": "\"within_usd_cap\":true",
+        "critical": true
+      },
+      {
+        "kind": "contains",
+        "value": "\"delivered\":false",
+        "critical": true
+      },
+      {
+        "kind": "contains",
+        "value": "\"expected_delivery\":true",
+        "critical": true
+      },
+      {
+        "kind": "contains",
+        "value": "\"provider_calls\":2",
+        "critical": true
+      }
+    ]
   }
 ]

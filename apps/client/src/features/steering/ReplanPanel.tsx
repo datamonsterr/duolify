@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
-import { session } from "../accounts/session";
+import { AuthError, session } from "../accounts/session";
 import type { ActionQuote } from "../pricing/quotes";
 
 type Quote = Pick<
@@ -22,6 +22,22 @@ type Proposal = {
   expires_at: string;
   diff: Diff[];
 };
+// Server refusals that end this quote: nothing was produced, so credits were released.
+const TERMINAL = new Set([
+  "quote_invalid",
+  "protected_lesson_changed",
+  "invalid_proposal",
+  "generation_failed",
+  "replan_unavailable",
+  "fork_confirmation_required",
+]);
+function reasonOf(error: unknown): string {
+  if (!(error instanceof AuthError)) return "";
+  const d = error.details;
+  if (d && typeof d === "object" && "reason_code" in d)
+    return String(d.reason_code);
+  return error.status === 402 ? "insufficient_credits" : "";
+}
 export type ReplanState = {
   quote?: Quote;
   proposal?: Proposal;
@@ -57,6 +73,7 @@ export function ReplanPanel({
   const [busy, setBusy] = useState(!initial.quote);
   const [error, setError] = useState("");
   const [quoteError, setQuoteError] = useState(false);
+  const [reason, setReason] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const heading = useRef<HTMLHeadingElement>(null);
   const update = (next: ReplanState) => {
@@ -116,6 +133,7 @@ export function ReplanPanel({
     if (!state.quote) return;
     setBusy(true);
     setError("");
+    setReason("");
     let next = state;
     try {
       if (!state.accepted) {
@@ -125,9 +143,15 @@ export function ReplanPanel({
       }
       const proposal = await service.propose(courseId, state.quote.id);
       update({ ...next, proposal });
-    } catch {
+    } catch (cause) {
+      const code = reasonOf(cause);
+      setReason(code);
       setError(
-        "Couldn’t prepare a proposal. Check the same request again before requesting a new quote. If no proposal was produced, reserved credits are released.",
+        code === "insufficient_credits"
+          ? `Not enough credits for this proposal. Nothing was charged. Add credits, then check the same request again.`
+          : TERMINAL.has(code)
+            ? "No proposal was produced, reserved credits were released and your course is unchanged. Review a new quote to try again."
+            : "Couldn’t prepare a proposal. Check the same request again before requesting a new quote. If no proposal was produced, reserved credits are released.",
       );
     } finally {
       setBusy(false);
@@ -208,7 +232,10 @@ export function ReplanPanel({
               Accept quote and prepare proposal
             </Button>
           )}
-          {state.accepted && (
+          {reason === "insufficient_credits" && (
+            <a href="/credits">View credit options</a>
+          )}
+          {state.accepted && !TERMINAL.has(reason) && (
             <Button onClick={() => void propose()}>Check proposal again</Button>
           )}
           {(expired || error) && (
