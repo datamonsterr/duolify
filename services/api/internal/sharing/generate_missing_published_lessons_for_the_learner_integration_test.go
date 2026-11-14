@@ -125,8 +125,7 @@ type genEnv struct {
 func newGenEnv(t *testing.T) *genEnv {
 	t.Helper()
 	ctx := t.Context()
-	f := backuptest.New(t)
-	f.Seed(t)
+	f := newSeededSharingFixture(t)
 	ev := &capture{}
 	consent(t, f, owner, false)
 	cat, err := pricing.Load(ctx, f.DB.Queries)

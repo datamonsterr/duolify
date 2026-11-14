@@ -102,8 +102,7 @@ func seedBlockedLearner(t *testing.T, f *backuptest.Fixture, blockerID, blockedI
 }
 
 func TestPublishRevocableLinksWithPublicPreviews(t *testing.T) {
-	f := backuptest.New(t)
-	f.Seed(t)
+	f := newSeededSharingFixture(t)
 	ctx := t.Context()
 	engineClient := startEngine(t)
 	ev := &capture{}
@@ -420,8 +419,7 @@ func call(mux http.Handler, method, path, learner, ip string) (*httptest.Respons
 }
 
 func TestPublicLinkHTTPSurface(t *testing.T) {
-	f := backuptest.New(t)
-	f.Seed(t)
+	f := newSeededSharingFixture(t)
 	ctx := t.Context()
 	cfg := sharing.DefaultConfig()
 	cfg.PublicDomain, cfg.AppScheme = "share.example.test", "duolifytest"
@@ -536,8 +534,7 @@ func TestPublicLinkHTTPSurface(t *testing.T) {
 }
 
 func TestLinkHashesAreErasedWithTheirCourse(t *testing.T) {
-	f := backuptest.New(t)
-	f.Seed(t)
+	f := newSeededSharingFixture(t)
 	ctx := t.Context()
 	s := newService(t, f, startEngine(t), &capture{})
 	courseID, _ := seedPublishableCourse(t, f, s)

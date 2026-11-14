@@ -89,6 +89,10 @@ var piiRules = []piiRule{
 	{"lesson_test_variant_snapshots", "explanation", redacted},
 	{"lesson_test_variant_snapshots", "instruction_snapshot", emptyObj},
 	{"lesson_test_variant_snapshots", "prompt", redacted},
+	{"marketplace_listings", "description", redacted},
+	{"marketplace_listings", "search", `''::tsvector`},
+	{"marketplace_listings", "tags", `'{}'`},
+	{"marketplace_listings", "title", redacted},
 	{"outline_drafts", "confirmed", `NULL`},
 	{"outline_drafts", "history", emptyArr},
 	{"outline_drafts", "outline", emptyArr},
@@ -98,6 +102,7 @@ var piiRules = []piiRule{
 	{"outline_proposals", "operations", `NULL`},
 	{"outline_proposals", "request", redacted},
 	{"outline_proposals", "result_outline", `NULL`},
+	{"publication_drafts", "changelog", redacted},
 	{"publication_drafts", "snapshot", emptyObj},
 	{"quick_note_enrichments", "links", `'{}'`},
 	{"quick_note_enrichments", "summary", redacted},
@@ -122,8 +127,9 @@ var reviewedSafe = map[string]bool{}
 func init() {
 	for _, column := range strings.Fields(`
 character_create_jobs.operation character_screenings.verdict copy_generation_consents.pricing_version
+course_invite_deliveries.channel course_invites.cancel_reason course_invites.method
 course_copies.content_hash course_copies.source course_enrollments.level_override
-course_lesson_stubs.reused_from_snapshot courses.visibility
+course_lesson_stubs.reused_from_snapshot courses.visibility marketplace_listings.category marketplace_listings.language
 credit_allocations.bucket credit_allocations.component credit_allocations.grant_date credit_artifacts.component
 credit_checkout_orders.billing_period credit_checkout_orders.platform credit_checkout_orders.return_to
 credit_cost_counters.scope credit_debt_history.bucket credit_dispute_keys.environment credit_entries.provenance credit_jobs.result credit_outbox.event credit_outbox.properties

@@ -16,6 +16,7 @@ import {
 } from "./navigation";
 import { useMobileLayout } from "./AdaptiveLayouts";
 import { ShellSession } from "./ShellSession";
+import { useMarketplaceEnabled } from "../../lib/features";
 
 const icons: Record<string, string> = {
   home: "M3 11 12 4l9 7v9h-6v-6H9v6H3z",
@@ -87,6 +88,26 @@ function DestinationLink({
     </Link>
   );
 }
+/** The Marketplace entry exists only while the release flag is on (E15-07). */
+function MarketplaceLink() {
+  const { t } = useUiPreferences();
+  const path = useRouterState({ select: (state) => state.location.pathname });
+  const enabled = useMarketplaceEnabled();
+  if (!enabled) return null;
+  return (
+    <Link
+      to="/marketplace"
+      aria-current={
+        path === "/marketplace" || path.startsWith("/marketplace/")
+          ? "page"
+          : undefined
+      }
+    >
+      <NavIcon name="courses" />
+      <span>{t("nav.marketplace")}</span>
+    </Link>
+  );
+}
 export function MorePage() {
   const { t } = useUiPreferences();
   return (
@@ -96,6 +117,7 @@ export function MorePage() {
         {moreDestinations.map((item) => (
           <DestinationLink key={item.id} item={item} />
         ))}
+        <MarketplaceLink />
       </nav>
     </>
   );
@@ -154,6 +176,7 @@ export function AppShell() {
                     {learningNavigation.map((item) => (
                       <DestinationLink key={item.id} item={item} />
                     ))}
+                    <MarketplaceLink />
                   </div>
                   <hr role="separator" />
                   <div role="group" aria-label={t("shell.account")}>

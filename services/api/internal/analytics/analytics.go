@@ -99,6 +99,9 @@ func allowlisted(event string) bool {
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
 		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
+		"marketplace_browsed", "marketplace_searched", "course_viewed",
+		"course_invite_sent", "course_invite_accepted", "course_invite_declined",
+		"course_republished", "course_update_applied",
 		"narration_generated", "narration_failed", "narration_cache_hit", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled":
 		return true
 	default:
@@ -290,6 +293,43 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "published_lesson_reused", "published_lesson_generated_on_demand":
 		ids("course_id", "lesson_id")
 		numeric("version")
+	case "marketplace_browsed", "marketplace_searched":
+		// Closed vocabulary only: the search text never reaches analytics, only its length.
+		if v, _ := input["category"].(string); marketCategories[v] {
+			out["category"] = v
+		}
+		if v, _ := input["language"].(string); marketLanguage.MatchString(v) {
+			out["language"] = v
+		}
+		if v, _ := input["sort"].(string); v == "popular" || v == "new" || v == "rating" {
+			out["sort"] = v
+		}
+		numeric("result_count", "query_length")
+		boolean("has_cursor")
+	case "course_invite_sent", "course_invite_accepted", "course_invite_declined":
+		// UUIDs and a closed enum only: never a Username, title or recipient identity.
+		ids("course_id", "invite_id")
+		if v, _ := input["method"].(string); v == "username" || v == "friend" {
+			out["method"] = v
+		}
+	case "course_republished":
+		ids("course_id")
+		numeric("version", "lesson_count")
+		if v, ok := input["verdict"].(string); ok && (v == "pass" || v == "needs_review" || v == "block" || v == "pending_screening") {
+			out["verdict"] = v
+		}
+	case "course_update_applied":
+		// Ids and counts only: never a title or changelog text.
+		ids("course_id", "source_course_id")
+		numeric("from_version", "to_version", "kept", "added", "archived")
+	case "course_viewed":
+		if v, _ := input["course_id"].(string); marketUUID.MatchString(v) {
+			out["course_id"] = v
+		}
+		numeric("version")
+		if input["surface"] == "marketplace" {
+			out["surface"] = "marketplace"
+		}
 	case "share_link_opened":
 		ids("course_id")
 		boolean("has_account")
@@ -606,3 +646,9 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	}
 	return out
 }
+
+var (
+	marketCategories = map[string]bool{"science": true, "tech": true, "languages": true, "life_skills": true, "arts": true}
+	marketLanguage   = regexp.MustCompile(`^[a-z]{2,3}$`)
+	marketUUID       = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+)

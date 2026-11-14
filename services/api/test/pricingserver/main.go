@@ -425,8 +425,21 @@ func run() (result error) {
 	mux.Handle("POST /test/sharing/course", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seedSharingCourse(w, r, db.Pool)
 	})))
+	mux.Handle("POST /test/sharing/edit", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		editSharingCourse(w, r, db.Pool)
+	})))
+	mux.Handle("POST /test/marketplace/course", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seedMarketCourse(w, r, db.Pool)
+	})))
+	mux.Handle("POST /test/marketplace/stats", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setMarketStats(w, r, db.Pool)
+	})))
+	sharingService := newSharingService(db.Pool, objects, sharingGeneration)
+	socialService := social.New(db.Pool, nil)
+	socialService.OnBlock(sharingService.CancelInvitesOnBlock)
+	go sharingService.MaintainInvites(ctx)
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{
-		Sharing:                 newSharingService(db.Pool, objects, sharingGeneration),
+		Sharing:                 sharingService,
 		Notes:                   notesService,
 		Player:                  lessonPlayer,
 		NarrationVoices:         narrationService.HTTP(),
@@ -437,7 +450,7 @@ func run() (result error) {
 		Quotes:                  pricing.NewQuotes(db.Pool),
 		Credits:                 creditHandler,
 		Accounts:                auth,
-		Social:                  social.New(db.Pool, nil),
+		Social:                  socialService,
 		CourseBrief:             courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"}),
 	}, logger))
 	// Exercise the real expiry worker across a historical local date. Only the

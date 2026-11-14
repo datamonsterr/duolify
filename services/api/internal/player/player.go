@@ -247,7 +247,7 @@ func (s *Service) downloadLibrary(ctx context.Context, w http.ResponseWriter, _ 
 		FROM course_lesson_stubs l
 		JOIN course_units u ON u.id=l.unit_id
 		JOIN courses c ON c.id=u.course_id
-		WHERE c.id::text=$1 AND l.learner_id::text=$2
+		WHERE c.id::text=$1 AND l.learner_id::text=$2 AND u.archived_at IS NULL
 		ORDER BY u.position, l.position`, courseID, owner)
 	if err != nil {
 		failure(w, 503)

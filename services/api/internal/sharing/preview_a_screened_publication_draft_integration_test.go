@@ -138,8 +138,7 @@ func addSlide(t *testing.T, f *backuptest.Fixture, pos int, html string) {
 }
 
 func TestPublicationDraftScreeningAndPrivacy(t *testing.T) {
-	f := backuptest.New(t)
-	f.Seed(t)
+	f := newSeededSharingFixture(t)
 	ctx := t.Context()
 	engineClient := startEngine(t)
 	ev := &capture{}
