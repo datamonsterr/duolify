@@ -469,3 +469,16 @@
     min-height: 44px;
   }
 }
+
+.copy-origin {
+  display: grid;
+  gap: var(--space-1, 4px);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  overflow-wrap: anywhere;
+}
+.copy-origin span {
+  color: var(--muted, var(--text));
+  font-size: 0.875rem;
+}

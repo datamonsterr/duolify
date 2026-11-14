@@ -92,6 +92,13 @@ func (h ModerationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	case "GET /v1/moderation/release-readiness":
+		report, err := h.s.ReleaseReadiness(r.Context(), actor)
+		if err != nil {
+			moderationFail(w, r, err)
+			return
+		}
+		write(w, http.StatusOK, report)
 	case "GET /v1/moderation/notices":
 		items, err := h.s.Notices(r.Context(), actor)
 		if err != nil {

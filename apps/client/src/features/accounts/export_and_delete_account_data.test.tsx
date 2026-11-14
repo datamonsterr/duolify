@@ -64,6 +64,10 @@ it("requires explicit deletion confirmation and calls the deletion request", asy
   expect(
     screen.getByRole("dialog", { name: "Delete your account?" }),
   ).toBeVisible();
+  // Shared courses: copies stay with the learners who made them (E15-11).
+  expect(
+    screen.getByText(/learners who copied them keep their copies/),
+  ).toBeVisible();
   fireEvent.change(screen.getByLabelText("Type DELETE to confirm"), {
     target: { value: "DELETE" },
   });

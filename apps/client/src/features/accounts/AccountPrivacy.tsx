@@ -195,6 +195,10 @@ export function AccountPrivacy() {
               Your personal data is removed within 30 days. Financial records
               are retained pseudonymously. This action cannot be undone.
             </p>
+            <p>
+              Courses you shared are removed, but learners who copied them keep
+              their copies, shown as created by a deleted user.
+            </p>
             <label>
               Type DELETE to confirm
               <input
