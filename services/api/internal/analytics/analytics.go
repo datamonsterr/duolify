@@ -100,7 +100,8 @@ func allowlisted(event string) bool {
 		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
 		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
 		"marketplace_browsed", "marketplace_searched", "course_viewed",
-		"course_invite_sent", "course_invite_accepted", "course_invite_declined":
+		"course_invite_sent", "course_invite_accepted", "course_invite_declined",
+		"course_republished", "course_update_applied":
 		return true
 	default:
 		return false
@@ -310,6 +311,16 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		if v, _ := input["method"].(string); v == "username" || v == "friend" {
 			out["method"] = v
 		}
+	case "course_republished":
+		ids("course_id")
+		numeric("version", "lesson_count")
+		if v, ok := input["verdict"].(string); ok && (v == "pass" || v == "needs_review" || v == "block" || v == "pending_screening") {
+			out["verdict"] = v
+		}
+	case "course_update_applied":
+		// Ids and counts only: never a title or changelog text.
+		ids("course_id", "source_course_id")
+		numeric("from_version", "to_version", "kept", "added", "archived")
 	case "course_viewed":
 		if v, _ := input["course_id"].(string); marketUUID.MatchString(v) {
 			out["course_id"] = v
