@@ -6,7 +6,13 @@ name: restore-drill-scheduled
 on:
   schedule:
     - cron: '17 5 * * 1'
+    - cron: '29 5 1 1,4,7,10 *'
   workflow_dispatch:
+    inputs:
+      financial_replay:
+        description: Verify and replay independently signed TEST financial fixtures
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -37,6 +43,10 @@ jobs:
           BACKUP_RESTORE_S3_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_RESTORE_S3_SECRET_ACCESS_KEY }}
           BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          DRILL_FINANCIAL_REPLAY: ${{ github.event.schedule == '29 5 1 1,4,7,10 *' || inputs.financial_replay }}
+          BACKUP_FINANCIAL_FIXTURES: ${{ secrets.BACKUP_FINANCIAL_FIXTURES }}
+          BACKUP_FINANCIAL_FIXTURE_SIGNATURE: ${{ secrets.BACKUP_FINANCIAL_FIXTURE_SIGNATURE }}
+          BACKUP_FINANCIAL_FIXTURE_KEY: ${{ secrets.BACKUP_FINANCIAL_FIXTURE_KEY }}
         run: mise run infra:restore-drill-scheduled
       - name: Summary
         if: always()

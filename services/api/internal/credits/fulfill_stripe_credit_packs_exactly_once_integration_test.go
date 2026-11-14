@@ -173,6 +173,10 @@ func TestFulfillStripeCreditPacksExactlyOnce(t *testing.T) {
 	fake.mu.Lock()
 	fake.unavailable = false
 	fake.mu.Unlock()
+	// Advance durable backoff rather than sleeping a production retry interval.
+	if _, err = db.Pool.Exec(ctx, "UPDATE credit_payment_attempts SET next_attempt_at=now()"); err != nil {
+		t.Fatal(err)
+	}
 	// A failure after ledger insertion must roll back the entire financial
 	// transaction, while the separately committed signed receipt remains durable.
 	if _, err = db.Pool.Exec(ctx, `CREATE FUNCTION fixture_reject_purchase_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.event='credits_purchased' THEN RAISE EXCEPTION 'fixture outbox outage'; END IF; RETURN NEW; END $$;
@@ -190,6 +194,9 @@ func TestFulfillStripeCreditPacksExactlyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Process restart and concurrent workers: inbox work has no memory dependency.
+	if _, err = db.Pool.Exec(ctx, "UPDATE credit_payment_attempts SET next_attempt_at=now()"); err != nil {
+		t.Fatal(err)
+	}
 	svc = service()
 	var wg sync.WaitGroup
 	for range 5 {
@@ -310,13 +317,19 @@ func TestFulfillStripeCreditPacksExactlyOnce(t *testing.T) {
 		}
 	}
 	// Opt-out at dispatch suppresses already queued financial events.
+	// The nine invalid canonical objects above also emit reserved-system
+	// reconciliation alerts; those operations events do not identify this learner.
+	beforeOptOut := len(events.names)
+	if beforeOptOut != 11 {
+		t.Fatalf("missing independent reconciliation failures: %v", events.names)
+	}
 	if _, err = db.Pool.Exec(ctx, "UPDATE learner_profiles SET analytics_opt_out=true WHERE learner_id=$1", owner); err != nil {
 		t.Fatal(err)
 	}
 	if err = svc.DispatchOutbox(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(events.names) != 2 {
+	if len(events.names) != beforeOptOut {
 		t.Fatal("opt-out leaked")
 	}
 	// Invalid raw-body signatures and old/future windows never enter the durable inbox.

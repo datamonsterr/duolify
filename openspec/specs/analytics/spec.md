@@ -146,6 +146,19 @@ The API SHALL emit `backup_completed` and `backup_failed` (size_bytes, duration_
 - **WHEN** the nightly dump completes
 - **THEN** `backup_completed` is emitted with size and duration
 
+### Requirement: Payment reconciliation operations analytics
+The API SHALL emit `payment_reconciliation_failed` with channel `stripe` and a
+closed `reason_code`: `provider_unavailable`, `invalid_evidence`, `dead_letter`, or
+`mismatch`. These operations events SHALL use the reserved system UUID
+`00000000-0000-4000-8000-000000000011`, source `api`, platform `web`, and build
+`app_version`. Global opt-out MUST suppress delivery through the existing wrapper.
+No provider identifiers, payloads, errors or learner content SHALL be sent.
+Independent operational alerts MUST remain available when analytics is disabled.
+
+#### Scenario: Unresolved financial difference
+- **WHEN** canonical TEST provider state cannot reconcile to retained financial business keys
+- **THEN** an operational alert is raised and the content-free failure event is delivered unless opted out
+
 ### Requirement: Event testing and change control
 Each event MUST have a unit test for its emitter and the e2e suite MUST check the key funnel events with a PostHog test double. Renaming or removing an event MUST be done through an OpenSpec change that updates this catalog.
 

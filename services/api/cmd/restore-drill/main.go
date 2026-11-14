@@ -10,12 +10,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/gamification"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,6 +38,19 @@ func run() error {
 	}
 	if err != nil {
 		return err
+	}
+	var financialProvider credits.FinancialProvider
+	if strings.EqualFold(os.Getenv("DRILL_FINANCIAL_REPLAY"), "true") {
+		raw, signature, key := os.Getenv("BACKUP_FINANCIAL_FIXTURES"), os.Getenv("BACKUP_FINANCIAL_FIXTURE_SIGNATURE"), os.Getenv("BACKUP_FINANCIAL_FIXTURE_KEY")
+		if raw == "" || signature == "" || key == "" {
+			fmt.Println("financial replay skipped: owner-supplied signed TEST fixtures are not configured")
+			return nil
+		}
+		provider, err := credits.LoadSignedFinancialFixtures([]byte(raw), signature, key)
+		if err != nil {
+			return errors.New("financial replay fixture verification failed")
+		}
+		financialProvider = provider
 	}
 	store, err := backup.NewS3(cfg.S3)
 	if err != nil {
@@ -59,6 +74,10 @@ func run() error {
 		return err
 	}
 	defer func() { _ = events.Close() }()
+	var financialReplay backup.FinancialReplay
+	if financialProvider != nil {
+		financialReplay = credits.NewFinancialReplay(financialProvider, events, time.Now)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), backup.RTOBudget)
 	defer cancel()
 	report, err := backup.RunDrill(ctx, backup.DrillOptions{
@@ -73,7 +92,7 @@ func run() error {
 			service.UseCache(redis)
 			return service.RebuildLeagueCache(ctx)
 		},
-		// FinancialReplay: E7-11 supplies the quarterly business checks here.
+		FinancialReplay: financialReplay,
 	})
 	// Only check names and measurements are printed: restored rows are private.
 	fmt.Printf("dump_date_rpo=%s rto=%s redis_groups=%d financial_replay=%s\n", report.RPO, report.RTO.Round(time.Millisecond), report.RedisRebuilt, report.FinancialReplay)

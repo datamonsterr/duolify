@@ -172,6 +172,10 @@ func TestActivateMonthlySubscriptionsFromPaidInvoices(t *testing.T) {
 				t.Fatal("provider outage not retryable")
 			}
 			provider.unavailable = false
+			// Advance the new durable retry backoff without sleeping in the test.
+			if _, e = db.Pool.Exec(ctx, "UPDATE credit_payment_attempts SET next_attempt_at=now()"); e != nil {
+				t.Fatal(e)
+			}
 			if _, e = db.Pool.Exec(ctx, `CREATE FUNCTION fixture_reject_plan_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.event='plan_purchased' THEN RAISE EXCEPTION 'outage'; END IF; RETURN NEW; END $$; CREATE TRIGGER fixture_reject_plan_outbox BEFORE INSERT ON credit_outbox FOR EACH ROW EXECUTE FUNCTION fixture_reject_plan_outbox()`); e != nil {
 				t.Fatal(e)
 			}
@@ -183,6 +187,9 @@ func TestActivateMonthlySubscriptionsFromPaidInvoices(t *testing.T) {
 				t.Fatal(e)
 			}
 			svc = service()
+			if _, e = db.Pool.Exec(ctx, "UPDATE credit_payment_attempts SET next_attempt_at=now()"); e != nil {
+				t.Fatal(e)
+			}
 			var wg sync.WaitGroup
 			for range 4 {
 				wg.Go(func() {
