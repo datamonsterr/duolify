@@ -31,7 +31,7 @@ export function InviteFriends({
 }) {
   const [friends, setFriends] = useState<FriendEntry[]>([]);
   const [sent, setSent] = useState<SentInvite[]>([]);
-  const [loading, setLoading] = useState(shared);
+  const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState("");
@@ -42,8 +42,6 @@ export function InviteFriends({
 
   const load = useCallback(() => {
     let active = true;
-    setLoading(true);
-    setLoadFailed(false);
     Promise.all([
       session.request<{ friends: FriendEntry[] }>(friendsPath),
       invites.sent(courseId),
@@ -184,7 +182,15 @@ export function InviteFriends({
           {loadFailed && (
             <div className="sharing-error" role="alert">
               <p>{inviteMessages.offline}</p>
-              <button type="button" className="duo-button" onClick={load}>
+              <button
+                type="button"
+                className="duo-button"
+                onClick={() => {
+                  setLoading(true);
+                  setLoadFailed(false);
+                  load();
+                }}
+              >
                 Retry
               </button>
             </div>
