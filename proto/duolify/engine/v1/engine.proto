@@ -10,6 +10,8 @@ service EngineService {
   // ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
   rpc ScreenCharacter(ScreenCharacterRequest) returns (ScreenCharacterResponse);
   rpc MapCharacter(MapCharacterRequest) returns (MapCharacterResponse);
+  // ScreenCourse classifies a bounded, allowlisted publication sample (<=12 lessons). Platform-funded; never bills Credits.
+  rpc ScreenCourse(ScreenCourseRequest) returns (ScreenCourseResponse);
   // Health reports readiness and configured providers.
   rpc Health(HealthRequest) returns (HealthResponse);
   // PreviewCourse returns a sample outline and example slides before the learner commits.
@@ -53,6 +55,23 @@ message ScreenCharacterRequest {
 message ScreenCharacterResponse {
   bool approved = 1;
   string reason_code = 2;
+  string policy_version = 3;
+  repeated Usage attempts = 4;
+}
+
+message ScreenCourseRequest {
+  // Allowlisted sample built by the API (outline plus <=12 lessons). Untrusted data.
+  string sample_json = 1;
+  uint32 sampled_lessons = 2;
+  UsageLimits limits = 3;
+}
+
+message ScreenCourseResponse {
+  // pass | needs_review | block
+  string verdict = 1;
+  // Closed codes: personal_data, secret, real_person, third_party_ip, sexual_content,
+  // age_inappropriate, prompt_injection, hidden_payload, harmful_content.
+  repeated string reason_codes = 2;
   string policy_version = 3;
   repeated Usage attempts = 4;
 }

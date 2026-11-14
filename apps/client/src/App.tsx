@@ -37,6 +37,7 @@ import { Courses } from "./features/design/Courses";
 import { PricingView } from "./features/pricing/PricingView";
 import { NotesPage } from "./features/notes/NotesPage";
 import { BookmarksPage } from "./features/notes/BookmarksPage";
+import { PublicPreviewPage } from "./features/sharing/PublicPreviewPage";
 import { AppShell, MorePage } from "./features/shell/AppShell";
 import { getDownloadedCourses } from "./features/player/library";
 import {
@@ -55,7 +56,9 @@ function AccountShell() {
 }
 function AuthenticatedShell() {
   const path = useLocation({ select: (location) => location.pathname });
-  if (path === "/sign-in") return <Outlet />;
+  // Sign-in and the anonymous course link preview render without a session.
+  if (path === "/sign-in" || /^\/c\/[A-Za-z0-9_-]+$/.test(path))
+    return <Outlet />;
   return (
     <RouteGuard path={path}>
       <AccountShell />
@@ -292,6 +295,15 @@ const signIn = createRoute({
   path: "/sign-in",
   component: SignInRoute,
 });
+const publicPreview = createRoute({
+  getParentRoute: () => root,
+  path: "/c/$token",
+  component: PublicPreviewRoute,
+});
+function PublicPreviewRoute() {
+  const { token } = useParams({ from: "/c/$token" });
+  return <PublicPreviewPage token={token} />;
+}
 function SignInRoute() {
   const navigate = useNavigate();
   return <SignIn onSignedIn={(path) => void navigate({ to: path })} />;
@@ -327,6 +339,7 @@ export const createAppRouter = (history?: RouterHistory) =>
       analytics,
       lessonTest,
       signIn,
+      publicPreview,
     ]),
   });
 const router = createAppRouter();

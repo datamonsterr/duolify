@@ -23,6 +23,7 @@ tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 [target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
 keyring = { version = "=4.2.0", default-features = false, features = ["v1"] }
+keyring-core = "=1.0.1"
 
 [target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
 tauri-plugin-keyring-store = { version = "=0.3.1", default-features = false }

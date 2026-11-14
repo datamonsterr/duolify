@@ -97,7 +97,8 @@ func allowlisted(event string) bool {
 		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied",
 		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
-		"bookmark_added", "bookmark_removed", "bookmark_opened":
+		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
+		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand":
 		return true
 	default:
 		return false
@@ -153,6 +154,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		case "source":
 			if event == "quick_note_created" {
 				if v == "slide" || v == "lesson" || v == "chat" {
+					out[key] = v
+				}
+				continue
+			}
+			if event == "course_enrolled_published" {
+				if v == "link" || v == "invite" || v == "marketplace" {
 					out[key] = v
 				}
 				continue
@@ -254,6 +261,40 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "character_deleted":
 		ids("character_id")
+	case "course_screening_completed":
+		// Closed verdict only; never Course text, findings or reasons.
+		if v, ok := input["verdict"].(string); ok && (v == "pass" || v == "needs_review" || v == "block" || v == "pending_screening") {
+			out["verdict"] = v
+		}
+		numeric("lessons_sampled", "finding_count")
+		boolean("fallback_used")
+	case "course_visibility_changed":
+		ids("course_id")
+		for _, key := range []string{"from", "to"} {
+			if v, ok := input[key].(string); ok && (v == "private" || v == "link" || v == "public") {
+				out[key] = v
+			}
+		}
+	case "course_published":
+		ids("course_id")
+		numeric("version", "lesson_count")
+		if v, ok := input["visibility"].(string); ok && (v == "private" || v == "link" || v == "public") {
+			out["visibility"] = v
+		}
+	case "share_link_created", "share_link_revoked":
+		ids("course_id")
+	case "course_enrolled_published":
+		ids("course_id", "source_course_id")
+		numeric("version")
+	case "published_lesson_reused", "published_lesson_generated_on_demand":
+		ids("course_id", "lesson_id")
+		numeric("version")
+	case "share_link_opened":
+		ids("course_id")
+		boolean("has_account")
+		if input["surface"] == "web" {
+			out["surface"] = "web"
+		}
 	case "character_create_quoted":
 		ids("pricing_version")
 		numeric("credits")
