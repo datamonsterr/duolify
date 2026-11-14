@@ -83,7 +83,9 @@ async function seedCourse(
   const response = await request.post(`${apiBase}/test/marketplace/course`, {
     headers,
     data: {
-      title: title ?? `Invite course ${crypto.randomUUID()}`,
+      // Numeric UUID groups can look like phone numbers to publication screening.
+      // Course IDs already isolate scenarios; keep learner-facing fixture text safe.
+      title: title ?? "Invite course",
       description: "Small steps.",
     },
   });
