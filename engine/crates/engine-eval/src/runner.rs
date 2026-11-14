@@ -1261,6 +1261,55 @@ async fn evaluate_character(task: &str, input: &serde_json::Value) -> Result<Str
     Ok(serde_json::json!({"approved":approved,"reason_code":reason,"attempt_count":outcome.attempts.len()}).to_string())
 }
 
+async fn evaluate_steering(task: &str, input: &serde_json::Value) -> Result<String> {
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input["recorded"].clone())?;
+    let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    if task == "steer_screen" {
+        let outcome = engine_core::steering::screen(
+            &router,
+            input["text"].as_str().unwrap_or_default(),
+            "Go",
+        )
+        .await?;
+        let (allowed, reason) = outcome
+            .completion
+            .as_ref()
+            .and_then(|c| engine_core::steering::verdict(&c.text))
+            .unwrap_or((false, "screening_unavailable".into()));
+        return Ok(serde_json::json!({"allowed":allowed,"reason_code":reason,"attempt_count":outcome.attempts.len(),"matches_expected":allowed==input["expected_allowed"]&&reason==input["expected_reason"].as_str().unwrap_or_default()}).to_string());
+    }
+    let entries: Vec<engine_core::steering::Instruction> =
+        serde_json::from_value(input["instructions"].clone())?;
+    let section = engine_core::steering::prompt_section(&entries)?;
+    let prompt =
+        engine_core::steering::provider_prompt(&format!("Course context: Go functions{section}"));
+    let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
+    let outcome = engine_core::credits::run_validated(&router, "lesson", &prompt, &limits, |raw| {
+        serde_json::from_str::<serde_json::Value>(raw)
+            .is_ok_and(|v| engine_core::lessontest::validate_lesson(&v).is_ok())
+    })
+    .await?;
+    let delivered = outcome
+        .completion
+        .as_ref()
+        .and_then(|c| serde_json::from_str::<serde_json::Value>(&c.text).ok());
+    let no_leak = delivered
+        .as_ref()
+        .is_none_or(|v| !v.to_string().contains("SYSTEM_SECRET"));
+    let grading = delivered
+        .as_ref()
+        .is_some_and(|v| v["test"] == input["expected_test"]);
+    let adherence = delivered.as_ref().is_some_and(|v| {
+        v["slides"][0]["narration"]
+            .as_str()
+            .unwrap_or_default()
+            .contains(input["expected_focus"].as_str().unwrap_or_default())
+    });
+    Ok(serde_json::json!({"data_boundary":section.matches("<learner_instructions>").count()==1&&section.matches("</learner_instructions>").count()==1,"no_leak":no_leak,"grading_unchanged":grading,"adherence":adherence,"delivered":delivered.is_some(),"expected_delivery":delivered.is_some()==input["expected_delivery"].as_bool().unwrap_or(true),"bounded_attempts":outcome.attempts.len()<=2}).to_string())
+}
+
 async fn evaluate_course_screen(input: &serde_json::Value) -> Result<String> {
     let recorded: Vec<Option<engine_core::Completion>> =
         serde_json::from_value(input["recorded"].clone())?;
@@ -1507,6 +1556,13 @@ impl Runner {
             let mut primary_completion: Option<engine_core::Completion> = None;
 
             let response_text = if matches!(
+                case.task.as_str(),
+                "steer_screen" | "steer_lesson" | "steer_injection"
+            ) && self.provider_name == "mock"
+                && self.custom_router.is_none()
+            {
+                evaluate_steering(&case.task, &case.input).await?
+            } else if matches!(
                 case.task.as_str(),
                 "character_spec"
                     | "character_screen"

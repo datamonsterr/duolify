@@ -249,6 +249,22 @@ type CourseEnrollment struct {
 	LastActiveAt  pgtype.Timestamptz `json:"last_active_at"`
 }
 
+type CourseInstruction struct {
+	ID               pgtype.UUID        `json:"id"`
+	LearnerID        pgtype.UUID        `json:"learner_id"`
+	CourseID         pgtype.UUID        `json:"course_id"`
+	Text             string             `json:"text"`
+	Scope            string             `json:"scope"`
+	Status           string             `json:"status"`
+	Version          int32              `json:"version"`
+	AddedAt          pgtype.Timestamptz `json:"added_at"`
+	AppliedLessonID  pgtype.UUID        `json:"applied_lesson_id"`
+	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
+	ScreeningVerdict string             `json:"screening_verdict"`
+	ScreeningVersion string             `json:"screening_version"`
+	ScreeningUsage   []byte             `json:"screening_usage"`
+}
+
 type CourseLessonStub struct {
 	ID                 pgtype.UUID `json:"id"`
 	LearnerID          pgtype.UUID `json:"learner_id"`
@@ -746,16 +762,28 @@ type LessonCompletionSummary struct {
 }
 
 type LessonGeneration struct {
-	ID               pgtype.UUID        `json:"id"`
+	ID                         pgtype.UUID        `json:"id"`
+	LearnerID                  pgtype.UUID        `json:"learner_id"`
+	CourseID                   pgtype.UUID        `json:"course_id"`
+	LessonID                   pgtype.UUID        `json:"lesson_id"`
+	QuoteID                    pgtype.UUID        `json:"quote_id"`
+	ReservationID              pgtype.UUID        `json:"reservation_id"`
+	State                      string             `json:"state"`
+	ErrorCode                  pgtype.Text        `json:"error_code"`
+	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
+	ResultCheckpoint           []byte             `json:"result_checkpoint"`
+	InstructionSnapshotVersion int32              `json:"instruction_snapshot_version"`
+}
+
+type LessonInstructionSnapshot struct {
+	GenerationID     pgtype.UUID        `json:"generation_id"`
 	LearnerID        pgtype.UUID        `json:"learner_id"`
-	CourseID         pgtype.UUID        `json:"course_id"`
-	LessonID         pgtype.UUID        `json:"lesson_id"`
-	QuoteID          pgtype.UUID        `json:"quote_id"`
-	ReservationID    pgtype.UUID        `json:"reservation_id"`
-	State            string             `json:"state"`
-	ErrorCode        pgtype.Text        `json:"error_code"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	ResultCheckpoint []byte             `json:"result_checkpoint"`
+	InstructionID    pgtype.UUID        `json:"instruction_id"`
+	Text             string             `json:"text"`
+	Scope            string             `json:"scope"`
+	Version          int32              `json:"version"`
+	AddedAt          pgtype.Timestamptz `json:"added_at"`
+	ScreeningVersion string             `json:"screening_version"`
 }
 
 type LessonManifest struct {
@@ -1131,6 +1159,12 @@ type SlideNarration struct {
 	FailureCode         string             `json:"failure_code"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	SpeakerKey          string             `json:"speaker_key"`
+	SegmentSlideID      string             `json:"segment_slide_id"`
+	SegmentIndex        int32              `json:"segment_index"`
+	ActualVoiceKey      string             `json:"actual_voice_key"`
+	VoiceConfigVersion  string             `json:"voice_config_version"`
+	VoiceFallbackReason string             `json:"voice_fallback_reason"`
 }
 
 type SocialRateLimit struct {
@@ -1138,6 +1172,14 @@ type SocialRateLimit struct {
 	Bucket      string             `json:"bucket"`
 	WindowStart pgtype.Timestamptz `json:"window_start"`
 	Count       int32              `json:"count"`
+}
+
+type SteeringConfig struct {
+	Singleton          bool  `json:"singleton"`
+	MaxCharacters      int32 `json:"max_characters"`
+	MaxActive          int32 `json:"max_active"`
+	MaxTotalCharacters int32 `json:"max_total_characters"`
+	AddsPerHour        int32 `json:"adds_per_hour"`
 }
 
 type StreakBreak struct {

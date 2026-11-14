@@ -715,3 +715,13 @@ reason per run) and the existing `narration_generated` and `narration_cache_hit`
 `speaker_key`; no spoken text, name, persona or provider id ever reaches PostHog or logs. PostHog and
 device audio caches are disposable derived state, never the recovery source. Segments never spend
 `character_create` Credits; newly synthesized characters use the existing narration reservation.
+
+### E16-01 private Course steering
+
+| Table | Data | Export/deletion | Backup/retention |
+|---|---|---|---|
+| `course_instructions` | Learner/Course ids, style/focus text, scope/status, version, added time, applied Lesson id, allow verdict, screening policy and bounded usage | Full owner export; cascading account/Course erasure, including restore tombstone replay | Nightly encrypted dump; soft deletion retained 30 days, purged hourly and before dumps; anonymized drills redact text |
+| `lesson_instruction_snapshots` | Job id, Learner id, instruction ids/text/scope/version/time and screening version | Independent pinned content; full owner export, cascading job/account erasure | Nightly encrypted dump with restore fixtures; retained with historical Lesson, independent of mutable/soft-deleted instruction rows; anonymized drills redact text |
+| `steering_config` | Non-personal limits: 500 characters, 20 active, 4,000 total, 10 adds/Course/hour | Operational configuration, no Learner data | Nightly dump; server reads limits, hard ceilings prevent expanding v1 prompt envelope |
+
+Rejected raw text is never persisted. Analytics retain only closed enums, ids, lengths as buckets and bounded usage; consent applies to every event. Published Course copies are refused until E16-05.

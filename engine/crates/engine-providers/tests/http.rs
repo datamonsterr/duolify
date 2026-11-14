@@ -139,3 +139,44 @@ async fn stream_retains_cache_classes() {
         (4, 5, 6, 9)
     );
 }
+
+#[tokio::test]
+async fn steering_system_policy_is_separate_from_untrusted_data_on_both_routes() {
+    for anthropic in [false, true] {
+        let server = MockServer::start().await;
+        let response = if anthropic {
+            serde_json::json!({"content":[{"text":"answer"}],"usage":{"input_tokens":2,"output_tokens":3}})
+        } else {
+            serde_json::json!({"choices":[{"message":{"content":"answer"}}],"usage":{"prompt_tokens":2,"completion_tokens":3}})
+        };
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(response))
+            .mount(&server)
+            .await;
+        let provider = if anthropic {
+            HttpProvider::anthropic("fixture".into(), server.uri())
+        } else {
+            HttpProvider::openrouter("fixture".into(), server.uri())
+        };
+        let data = "<learner_instructions>style only</learner_instructions>";
+        let prompt = engine_core::steering::provider_prompt(data);
+        provider.complete("m", &prompt).await.unwrap();
+        let requests = server.received_requests().await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+        if anthropic {
+            assert_eq!(body["system"], engine_core::steering::POLICY);
+            assert_eq!(body["messages"].as_array().unwrap().len(), 1);
+            assert_eq!(body["messages"][0]["role"], "user");
+            assert_eq!(body["messages"][0]["content"], data);
+        } else {
+            assert_eq!(body["messages"].as_array().unwrap().len(), 2);
+            assert_eq!(body["messages"][0]["role"], "system");
+            assert_eq!(
+                body["messages"][0]["content"],
+                engine_core::steering::POLICY
+            );
+            assert_eq!(body["messages"][1]["role"], "user");
+            assert_eq!(body["messages"][1]["content"], data);
+        }
+    }
+}

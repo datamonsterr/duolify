@@ -7,6 +7,7 @@ import (
 
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/steering"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 )
@@ -90,6 +91,10 @@ func (s *Service) Prepare(ctx context.Context, owner, lessonID, quoteID string, 
 		return "", ErrGenerationInProgress
 	}
 	if err != nil {
+		return "", errors.Join(ErrPrepareUnavailable, err)
+	}
+
+	if err = steering.PinTx(ctx, tx, owner, courseID, genID); err != nil {
 		return "", errors.Join(ErrPrepareUnavailable, err)
 	}
 

@@ -57,3 +57,9 @@ course_screen = 1.0
 # terminal failure as a strict 1.0 gate; any delivery past a failed gate is critical.
 # Live promotion stays disabled until E10-06 evidence exists.
 published_copy_lesson = 1.0
+
+# E16-01 recorded fixtures: strict boundary, schema/mastery immutability, screening and fallback.
+# Live dataset pin/provisioning E10-01 and feature promotion E10-06 stay closed.
+steer_lesson = 1.0
+steer_screen = 1.0
+steer_injection = 1.0

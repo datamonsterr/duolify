@@ -45,6 +45,7 @@ type Dependencies struct {
 	Notes           http.Handler
 	Eval            http.Handler
 	Characters      http.Handler
+	Steering        http.Handler
 	Tutor           http.Handler
 	Gamification    http.Handler
 	Social          http.Handler
@@ -232,6 +233,10 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	})
 	if deps.LessonTestTracerEnabled && deps.LessonTest != nil && deps.Accounts != nil {
 		mux.Handle("/v1/lesson-generations/", deps.Accounts.Protect(deps.LessonTest))
+	}
+	if deps.Steering != nil && deps.Accounts != nil {
+		mux.Handle("POST /v1/courses/{id}/instructions", deps.Accounts.Protect(deps.Steering))
+		mux.Handle("GET /v1/courses/{id}/instructions/latest", deps.Accounts.Protect(deps.Steering))
 	}
 	if deps.Characters != nil {
 		mux.Handle("GET /v1/characters/default-cast", deps.Characters)

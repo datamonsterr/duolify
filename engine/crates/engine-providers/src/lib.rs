@@ -38,6 +38,14 @@ impl HttpProvider {
         max_output: u32,
     ) -> reqwest::RequestBuilder {
         let mut body = json!({"model":model,"messages":[{"role":"user","content":input}],"stream":streaming,"max_tokens":max_output});
+        if let Some(data) = engine_core::steering::provider_data(input) {
+            if self.anthropic {
+                body["system"] = json!(engine_core::steering::POLICY);
+                body["messages"] = json!([{"role":"user","content":data}]);
+            } else {
+                body["messages"] = json!([{"role":"system","content":engine_core::steering::POLICY},{"role":"user","content":data}]);
+            }
+        }
         let mut req = self.client.post(&self.url);
         if self.anthropic {
             body["max_tokens"] = json!(max_output);

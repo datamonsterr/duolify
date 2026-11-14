@@ -40,6 +40,8 @@ pub fn model_route_for_task(task: &str) -> String {
         "narration" | "lesson_narration" => "lesson".to_string(),
         "screening" => "chat".to_string(),
         "steering" => "outline".to_string(),
+        "steer_screen" => "steer_screen".into(),
+        "steer_lesson" | "steer_injection" => "lesson".into(),
         other => other.to_string(),
     }
 }
@@ -66,6 +68,9 @@ impl Default for TaskRegistry {
         registered_extensions.insert("course_screen".to_string());
         registered_extensions.insert("published_copy_lesson".to_string());
         for task in [
+            "steer_screen",
+            "steer_lesson",
+            "steer_injection",
             "character_spec",
             "character_screen",
             "character_injection",

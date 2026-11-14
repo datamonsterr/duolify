@@ -12,6 +12,7 @@ export type Lesson = {
 };
 export type Course = {
   availability?: "available" | "unavailable";
+  visibility?: "private" | "link" | "public";
   id: string;
   title: string;
   description: string;

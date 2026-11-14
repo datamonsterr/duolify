@@ -19,6 +19,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/gamification"
+	"github.com/datamonsterr/duolify/services/api/internal/steering"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -589,6 +590,12 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 			Limits:  limits,
 		}
 
+		instructions, snapshotErr := steering.Snapshot(ctx, s.opts.Pool, owner, id)
+		if snapshotErr != nil {
+			return fail("instructions_unavailable", snapshotErr)
+		}
+		req.Instructions = instructions
+
 		var cast *characters.LessonCastSnapshot
 		if s.opts.Casts != nil {
 			snapshot, castErr := s.opts.Casts.SnapshotTx(ctx, s.opts.Pool, owner, courseID, id)
@@ -660,6 +667,7 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 	defer cancel()
 	lesson, attempts, title := saved.Lesson, saved.Attempts, saved.Title
 	var err error
+	var appliedIDs []string
 	settled, settleErr := s.opts.Financial.SettleWith(finishCtx, owner, reservation, attempts, func(tx pgx.Tx, result credits.Reservation) error {
 		if result.State != "settled" {
 			return credits.ErrUsage
@@ -679,6 +687,15 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 				return castErr
 			}
 		}
+		instructions, instructionErr := steering.Snapshot(finishCtx, tx, owner, id)
+		if instructionErr != nil {
+			return instructionErr
+		}
+		instructionIDs := make([]string, 0, len(instructions))
+		for _, in := range instructions {
+			instructionIDs = append(instructionIDs, in.Id)
+		}
+		manifest["lesson_instruction_ids"] = instructionIDs
 		manifestRaw, _ := json.Marshal(manifest)
 
 		var genLessonID string
@@ -753,6 +770,11 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 			return err
 		}
 
+		appliedIDs, err = steering.ApplyTx(finishCtx, tx, owner, id, lessonID)
+		if err != nil {
+			return err
+		}
+
 		if _, err = tx.Exec(finishCtx, `UPDATE lesson_generations SET state = 'completed', result_checkpoint=NULL WHERE id = $1::uuid`, id); err != nil {
 			return err
 		}
@@ -771,6 +793,9 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 
 	// Analytics
 	if s.opts.Events != nil {
+		for range appliedIDs {
+			_ = s.opts.Events.Capture(owner, "course_instruction_applied", map[string]any{"source": "api", "platform": "web", "app_version": "1.0.0", "course_id": courseID, "lesson_id": lessonID})
+		}
 		var totalDuration int
 		for _, slide := range lesson.Slides {
 			totalDuration += int(slide.DurationMs)
@@ -1556,7 +1581,18 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 
 		// Persist served variant snapshot & provenance with retained instruction snapshot
 		choicesJSON, _ := json.Marshal(selectedVariant.Choices)
+		var generationID string
+		var pinnedInstructions []*enginev1.CourseInstruction
+		pinErr := tx.QueryRow(ctx, `SELECT id::text FROM lesson_generations WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND state='completed' ORDER BY created_at DESC LIMIT 1`, lessonID, owner).Scan(&generationID)
+		if pinErr == nil {
+			pinnedInstructions, pinErr = steering.Snapshot(ctx, tx, owner, generationID)
+		}
+		if pinErr != nil && !errors.Is(pinErr, pgx.ErrNoRows) {
+			http.Error(w, `{"error":"instruction snapshot unavailable"}`, 500)
+			return
+		}
 		instrJSON, _ := json.Marshal(map[string]any{
+			"instructions":     pinnedInstructions,
 			"lesson_id":        lessonID,
 			"course_id":        courseID,
 			"topic_id":         topicID,

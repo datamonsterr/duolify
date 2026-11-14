@@ -70,3 +70,11 @@ Field numbers start at 20 to avoid clashes; the implementer picks free numbers.
 2. Offer "regenerate the unstarted next Lesson with this instruction" (paid) when the next Lesson already exists.
 3. Should deleting all instructions let a forked Course copy rejoin the published version?
 4. Limits (500 characters, 20 instructions, 4,000 total) are proposed defaults.
+
+## E16-01 implementation slice
+
+Private owner-enrolled Courses accept `next_lesson` and `rest_of_course`. A single `latest` status read supports this slice's panel; list-many, edit and delete remain E16-02. Adds and job snapshots serialize on the Course row; job queue insertion is the start boundary, including an empty snapshot. Each snapshot owns ids/text/scope/version/screening-version; retries read it and successful Lesson settlement consumes next-lesson entries in the same transaction. Failed jobs leave instructions active for a future job. Snapshot content is retained independently of a later mutable instruction revision or 30-day soft-delete purge.
+
+Screening uses the existing platform envelope (cheap route, two total evaluated attempts, 10 seconds total, 0.05 USD operational cap) and never creates a Learner reservation. Both providers must be explicit mocks until E10-06 promotion evidence exists. Offline `steer_lesson`, `steer_screen`, `steer_injection` fixtures gate at 1.0. The real `datamonsterr/duolify-golden` pin is blocked on E10-01 provisioning: no production revision is fabricated or fetched. E16-01 does not enable re-plan or change Pricing; E16-06's 55 Credits stays a later Pricing-config change.
+
+The lesson provider adapter recognizes an internal envelope only when it carries the exact fixed steering policy. Anthropic receives that policy in its `system` field; OpenRouter receives a first `system` message. Course context, personas and the escaped instruction section remain user data. Other task prompts keep their existing transport shape. Recorded transport tests cover both routes.

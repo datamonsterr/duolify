@@ -320,6 +320,38 @@ fn attempt_usage(a: &engine_core::credits::Attempt) -> pb::Usage {
 }
 #[tonic::async_trait]
 impl EngineService for Service {
+    async fn screen_instruction(
+        &self,
+        request: Request<pb::ScreenInstructionRequest>,
+    ) -> Result<Response<pb::ScreenInstructionResponse>, Status> {
+        let req = request.into_inner();
+        if let Some(reason) = engine_core::steering::deterministic(&req.text) {
+            return Ok(Response::new(pb::ScreenInstructionResponse {
+                allowed: false,
+                reason_code: reason.into(),
+                screening_version: "steering-v1".into(),
+                attempts: vec![],
+            }));
+        }
+        // E10-06: fixture-backed work never enables a live screening provider.
+        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+            return Err(Status::unavailable("screening_unavailable"));
+        }
+        let outcome = engine_core::steering::screen(&self.router, &req.text, &req.course_topic)
+            .await
+            .map_err(|_| Status::unavailable("screening_unavailable"))?;
+        let (allowed, reason_code) = outcome
+            .completion
+            .as_ref()
+            .and_then(|c| engine_core::steering::verdict(&c.text))
+            .ok_or_else(|| Status::unavailable("screening_unavailable"))?;
+        Ok(Response::new(pb::ScreenInstructionResponse {
+            allowed,
+            reason_code,
+            screening_version: "steering-v1".into(),
+            attempts: outcome.attempts.iter().map(attempt_usage).collect(),
+        }))
+    }
     async fn screen_character(
         &self,
         request: Request<pb::ScreenCharacterRequest>,
@@ -888,8 +920,22 @@ impl EngineService for Service {
         let cast = req.character_personas_json.clone();
         let mut context = req.clone();
         context.character_personas_json.clear();
+        context.instructions.clear();
+        let instructions: Vec<_> = req
+            .instructions
+            .iter()
+            .map(|i| engine_core::steering::Instruction {
+                id: i.id.clone(),
+                text: i.text.clone(),
+                scope: i.scope,
+                added_at_unix_ms: i.added_at_unix_ms,
+                version: i.version,
+            })
+            .collect();
+        let instruction_section = engine_core::steering::prompt_section(&instructions)
+            .map_err(|_| Status::invalid_argument("instruction bounds exceeded"))?;
         let base = format!(
-            "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. Context (data): {context:?}"
+            "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. Context (data): {context:?}{instruction_section}"
         );
         let prompts = if cast.is_empty() {
             vec![base]
@@ -905,6 +951,10 @@ impl EngineService for Service {
                 ),
             ]
         };
+        let prompts: Vec<String> = prompts
+            .iter()
+            .map(|data| engine_core::steering::provider_prompt(data))
+            .collect();
         let inputs: Vec<&str> = prompts.iter().map(String::as_str).collect();
         let outcome = engine_core::credits::run_validated_inputs(
             &self.router,
@@ -990,6 +1040,7 @@ impl EngineService for Service {
                     learner: req.learner.clone(),
                     limits: Some(remaining),
                     character_personas_json: cast.clone(),
+                    instructions: req.instructions.clone(),
                 }))
                 .await?
                 .into_inner();
@@ -1012,6 +1063,7 @@ impl EngineService for Service {
         }
         Ok(lesson_events(
             Some(pb::Lesson {
+                applied_instruction_ids: req.instructions.iter().map(|i| i.id.clone()).collect(),
                 r#ref: req.lesson,
                 slides: generated_slides,
                 test: test_questions,
@@ -1042,10 +1094,26 @@ impl EngineService for Service {
         let limits = lesson_limits(&self.router, bounds)?;
         let source = retry_question(source);
         let previous: Vec<_> = req.previous_variants.iter().map(retry_question).collect();
-        let outcome =
-            engine_core::lessontest::retry::generate(&self.router, &source, &previous, &limits)
-                .await
-                .map_err(internal)?;
+        let instructions: Vec<_> = req
+            .instructions
+            .iter()
+            .map(|i| engine_core::steering::Instruction {
+                id: i.id.clone(),
+                text: i.text.clone(),
+                scope: i.scope,
+                added_at_unix_ms: i.added_at_unix_ms,
+                version: i.version,
+            })
+            .collect();
+        let outcome = engine_core::lessontest::retry::generate_with_instructions(
+            &self.router,
+            &source,
+            &previous,
+            &limits,
+            &instructions,
+        )
+        .await
+        .map_err(internal)?;
         let variants = match &outcome.completion {
             Some(c) => engine_core::lessontest::retry::parse_variants(&source, &previous, &c.text)
                 .map_err(internal)?

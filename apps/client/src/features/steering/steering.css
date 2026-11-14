@@ -1,0 +1,60 @@
+.steering-workspace {
+  margin-block: var(--space-4);
+}
+.steering-panel {
+  display: grid;
+  gap: var(--space-3);
+  max-width: var(--size-reading);
+  color: var(--text);
+}
+.steering-panel p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.steering-record,
+.steering-panel form,
+.steering-panel [role="alert"] {
+  padding: var(--space-4);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.steering-panel form {
+  display: grid;
+  gap: var(--space-3);
+}
+.steering-field {
+  display: grid;
+  gap: var(--space-2);
+  font-weight: 800;
+}
+.steering-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+.steering-panel fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  border: 0;
+  padding: 0;
+}
+.steering-panel fieldset label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+.steering-panel input {
+  accent-color: var(--primary);
+}
+.steering-panel [role="alert"] {
+  background: var(--danger-bg);
+}

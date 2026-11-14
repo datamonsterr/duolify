@@ -90,3 +90,8 @@ run = "pnpm exec prettier --write src/features/lessontest e2e/lessontest-*.spec.
 description = "Format completion XP and daily goal sources"
 dir = "{{config_root}}/apps/client"
 run = "pnpm exec prettier --write src/features/gamification src/features/lessontest/LessonTest.tsx src/App.tsx e2e/gamification-e5-01.spec.ts src/features/shell/AppShell.tsx e2e/design-e13-02.spec.ts src/features/lesson-player/LessonPlayer.tsx src/lib/analytics.ts"
+
+["client:format-steering"]
+description = "Format steering panel and acceptance tests"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/steering src/features/lessontest/LessonTest.tsx src/LearnPath.tsx src/lib/api.ts src/lib/analytics.ts e2e/steering-e16-01.spec.ts"

@@ -25,3 +25,8 @@ buf breaking proto --against '.git#branch=main,subdir=proto'
 description = "Format private gRPC definitions"
 dir = "{{config_root}}/proto"
 run = "buf format -w"
+
+["proto:breaking-head"]
+description = "Check the working contract against this checkout's committed base"
+dir = "{{config_root}}"
+run = "buf breaking proto --against '.git#ref=HEAD,subdir=proto'"

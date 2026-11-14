@@ -45,6 +45,8 @@ const (
 // Register new columns here when a migration adds them: the drill fails closed
 // on any text-like column that is neither registered here nor reviewed as safe.
 var piiRules = []piiRule{
+	{"course_instructions", "text", redacted},
+	{"lesson_instruction_snapshots", "text", redacted},
 	{"learners", "display_name", `'Learner ' || left(md5(id::text), 8)`},
 	{"auth_identities", "email", `'learner-' || replace(learner_id::text, '-', '') || '@` + AnonymizedDomain + `'`},
 	{"auth_provider_identities", "subject", `'anon-' || md5(provider || learner_id::text)`},
@@ -120,6 +122,7 @@ var reviewedSafe = map[string]bool{}
 
 func init() {
 	for _, column := range strings.Fields(`
+course_instructions.scope course_instructions.screening_verdict course_instructions.screening_usage lesson_instruction_snapshots.scope
 character_create_jobs.operation character_screenings.verdict copy_generation_consents.pricing_version
 course_copies.content_hash course_copies.source course_enrollments.level_override
 course_lesson_stubs.reused_from_snapshot courses.visibility

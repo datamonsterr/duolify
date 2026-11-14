@@ -41,6 +41,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
+	"github.com/datamonsterr/duolify/services/api/internal/steering"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
@@ -370,7 +371,10 @@ func run(ctx context.Context, args []string) (result error) {
 		sharingService = sharingService.WithGeneration(sharing.GenerationDeps{Quotes: quotesService, Wallet: creditService, Lessons: lessonPreparer})
 	}
 	go sharingService.Maintain(ctx)
+	steeringService := steering.New(steering.Options{Pool: db.Pool, Engine: backend, Events: events})
+	go steeringService.Maintain(ctx)
 	handler := httpapi.New(httpapi.Dependencies{
+		Steering:                steeringService,
 		Sharing:                 sharingService,
 		Characters:              characters.NewHandler(characterService),
 		Gamification:            xpService,

@@ -23,6 +23,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/steering"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
@@ -162,6 +163,7 @@ func newReviewFixture(t *testing.T) *reviewFixture {
 	_ = lessonQueue
 
 	deps := httpapi.Dependencies{
+		Steering:                steering.New(steering.Options{Pool: db.Pool, Engine: steeringScreen{}}),
 		Accounts:                auth,
 		Quotes:                  pricing.NewQuotes(db.Pool),
 		CourseBrief:             coursesService,

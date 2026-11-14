@@ -409,6 +409,7 @@ const guidedControls = [
   "close",
 ] as const;
 const guidedSheets = [
+  "course_steering",
   "course_brief",
   "setup_summary",
   "outline_chat",

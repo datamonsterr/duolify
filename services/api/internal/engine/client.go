@@ -25,6 +25,13 @@ type Client struct {
 	timeout time.Duration
 }
 
+// ScreenInstruction bounds platform-paid instruction screening.
+func (c *Client) ScreenInstruction(ctx context.Context, r *enginev1.ScreenInstructionRequest) (*enginev1.ScreenInstructionResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return c.rpc.ScreenInstruction(ctx, r)
+}
+
 // ScreenCharacter bounds platform-paid screening independently of learner Credits.
 func (c *Client) ScreenCharacter(ctx context.Context, r *enginev1.ScreenCharacterRequest) (*enginev1.ScreenCharacterResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
