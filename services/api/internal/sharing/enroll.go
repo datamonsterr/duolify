@@ -260,6 +260,10 @@ WHERE cc.learner_id=$1 AND cc.source_course_id=$2`, viewer, courseID).Scan(&exis
 // It returns the open Lesson's id when that Lesson is playable at once (for the reuse event).
 func (s *Service) createCopy(ctx context.Context, tx pgx.Tx, viewer, sourceID, draftID, hash, source string, number int, snap Snapshot, plan CopyPlan) (string, string, error) {
 	var copyID, firstReady string
+	// Lock the version's retention row first: a purge of a released prefix waits for this transaction.
+	if err := pinPrefix(ctx, tx, draftID); err != nil {
+		return "", "", err
+	}
 	if err := tx.QueryRow(ctx, `INSERT INTO courses(learner_id,title,description) VALUES($1,$2,$3) RETURNING id::text`, viewer, snap.Title, snap.Description).Scan(&copyID); err != nil {
 		return "", "", err
 	}
@@ -288,7 +292,7 @@ func (s *Service) createCopy(ctx context.Context, tx pgx.Tx, viewer, sourceID, d
 			}
 		}
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,draft_id,version,content_hash,source) VALUES($1,$2,$3,$4,$5,$6,$7)`, copyID, viewer, sourceID, draftID, number, hash, source); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,source_owner_id,draft_id,version,content_hash,source) VALUES($1,$2,$3,(SELECT learner_id FROM courses WHERE id=$3),$4,$5,$6,$7)`, copyID, viewer, sourceID, draftID, number, hash, source); err != nil {
 		return "", "", err
 	}
 	return copyID, firstReady, nil

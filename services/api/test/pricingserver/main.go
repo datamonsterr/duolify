@@ -26,6 +26,7 @@ import (
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/accountstest"
+	"github.com/datamonsterr/duolify/services/api/internal/backup"
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
@@ -443,7 +444,11 @@ func run() (result error) {
 	mux.Handle("POST /test/marketplace/stats", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		setMarketStats(w, r, db.Pool)
 	})))
-	sharingService := newSharingService(db.Pool, objects, sharingGeneration)
+	blockLedger := &fixtureLedger{}
+	sharingService := newSharingService(db.Pool, objects, sharingGeneration).WithAssetStore(objects).WithBlockLedger(backup.ModerationLedger{Objects: blockLedger})
+	mux.Handle("POST /test/sharing/restore", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		restoreFixture(w, r, db.Pool, sharingService, blockLedger, objects)
+	})))
 	socialService := social.New(db.Pool, nil)
 	socialService.OnBlock(sharingService.CancelInvitesOnBlock)
 	go sharingService.MaintainInvites(ctx)

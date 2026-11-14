@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 )
 
 // S3 uses the application's existing credentials, not backup-writer privileges.
@@ -96,4 +97,36 @@ func (s *S3) Restore(ctx context.Context, key string) (bool, error) {
 		return err == nil, err
 	}
 	return false, nil
+}
+
+// List returns the current keys under a prefix (delete markers are not listed), for the retention job.
+func (s *S3) List(ctx context.Context, prefix string) ([]string, error) {
+	var keys []string
+	pages := s3.NewListObjectsV2Paginator(s.Client, &s3.ListObjectsV2Input{Bucket: aws.String(s.Bucket), Prefix: aws.String(prefix)})
+	for pages.HasMorePages() {
+		page, err := pages.NextPage(ctx)
+		if err != nil {
+			return nil, errors.New("lesson object listing failed")
+		}
+		for _, o := range page.Contents {
+			keys = append(keys, aws.ToString(o.Key))
+		}
+	}
+	return keys, nil
+}
+
+// Exists treats only an explicit NotFound as an absent object, for restore checks.
+func (s *S3) Exists(ctx context.Context, key string) (bool, error) {
+	if !validKey(key) {
+		return false, errInvalid
+	}
+	_, err := s.Client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key)})
+	if err == nil {
+		return true, nil
+	}
+	var apiError smithy.APIError
+	if errors.As(err, &apiError) && (apiError.ErrorCode() == "NotFound" || apiError.ErrorCode() == "NoSuchKey") {
+		return false, nil
+	}
+	return false, errors.New("lesson object head failed")
 }

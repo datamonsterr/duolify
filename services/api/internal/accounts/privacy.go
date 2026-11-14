@@ -37,7 +37,7 @@ var ClassifiedLearnerTables = map[string]string{
 	"publication_drafts":               "erased",
 	"publication_screenings":           "erased_1_year",
 	"publication_links":                "erased_hash_only",
-	"course_copies":                    "erased",
+	"course_copies":                    "erased_creator_attribution_nulled_on_owner_deletion",
 	"course_invites":                   "erased_final_purged_90_days",
 	"course_invite_deliveries":         "erased_with_invite",
 	"marketplace_listings":             "erased",

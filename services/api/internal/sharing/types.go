@@ -109,6 +109,11 @@ type Config struct {
 	// E15-05 Republish: versions per Course per rolling day and the owner changelog length.
 	MaxRepublishesPerDay int
 	MaxChangelogLen      int
+	// E15-11: days a published object prefix is kept after its last copy reference ends, and the
+	// owner/legal approvals the release report needs (both default to not approved).
+	AssetPurgeDays           int
+	ReleaseLegalApproved     bool
+	ReleaseCDNPolicyApproved bool
 }
 
 // DefaultConfig is the conservative v1 policy.
@@ -124,7 +129,7 @@ func DefaultConfig() Config {
 		MarketplacePageSize: 20, MarketplaceMaxPageSize: 50, MarketplaceMaxQueryLength: 100,
 		MarketplaceRatingMinCount: 10, MarketplaceRatingPrior: 3.5, MarketplaceCacheTTLSeconds: 60,
 		InviteSendsPerDay: 20, InviteExpiryDays: 30, InvitePurgeDays: 90, PushMaxAttempts: 3,
-		MaxRepublishesPerDay: 3, MaxChangelogLen: 500,
+		MaxRepublishesPerDay: 3, MaxChangelogLen: 500, AssetPurgeDays: 30,
 		ReportReasons:         []string{"unsafe", "inappropriate", "spam", "copyright", "misleading", "other"},
 		ReportSeverity:        map[string]int{"unsafe": 100, "copyright": 80, "inappropriate": 60, "misleading": 40, "spam": 30, "other": 10},
 		ModerationTargetHours: 48, ModerationReasonMaxChars: 1000, AppealMaxChars: 1000, ModerationRetentionDays: 1095,
@@ -231,6 +236,9 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	positive("SHARING_PUSH_MAX_ATTEMPTS", &c.PushMaxAttempts, 1, 10)
 	positive("SHARING_MAX_REPUBLISHES_PER_DAY", &c.MaxRepublishesPerDay, 1, 100)
 	positive("SHARING_MAX_CHANGELOG_LENGTH", &c.MaxChangelogLen, 1, 1000)
+	positive("SHARING_ASSET_PURGE_DAYS", &c.AssetPurgeDays, minAssetPurgeDays, 3650)
+	c.ReleaseLegalApproved = getenv("SHARING_RELEASE_LEGAL_APPROVED") == "true"
+	c.ReleaseCDNPolicyApproved = getenv("SHARING_RELEASE_CDN_POLICY_APPROVED") == "true"
 	if f, err := strconv.ParseFloat(getenv("MARKETPLACE_RATING_PRIOR"), 64); err == nil && f >= 1 && f <= 5 {
 		c.MarketplaceRatingPrior = f
 	}
