@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -43,6 +44,14 @@ type Config struct {
 	ReviewMaxChars     int
 	ReviewTimeoutMs    uint32
 	ReviewMaxCostNanos int64
+
+	// E15-09 reports. Reasons, severities, caps and the hide threshold are configuration.
+	ReportReasons       []string
+	ReportSeverity      map[string]int
+	ReportMaxPerDay     int
+	ReportMaxChars      int
+	ReportHideThreshold int
+	ReportRetentionDays int
 
 	MinPublisherAge int
 	// MaxEnrollmentsPerDay caps new Course copies per account per rolling day (E15-03).
@@ -105,6 +114,9 @@ func DefaultConfig() Config {
 		MarketplaceRatingMinCount: 10, MarketplaceRatingPrior: 3.5, MarketplaceCacheTTLSeconds: 60,
 		InviteSendsPerDay: 20, InviteExpiryDays: 30, InvitePurgeDays: 90, PushMaxAttempts: 3,
 		MaxRepublishesPerDay: 3, MaxChangelogLen: 500,
+		ReportReasons:   []string{"unsafe", "inappropriate", "spam", "copyright", "misleading", "other"},
+		ReportSeverity:  map[string]int{"unsafe": 100, "copyright": 80, "inappropriate": 60, "misleading": 40, "spam": 30, "other": 10},
+		ReportMaxPerDay: 10, ReportMaxChars: 500, ReportHideThreshold: 3, ReportRetentionDays: 1095,
 	}
 }
 
@@ -156,6 +168,24 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	positive("SHARING_REVIEW_MAX_CHARS", &c.ReviewMaxChars, 1, 2000)
 	if n, err := strconv.ParseInt(getenv("SHARING_REVIEW_MAX_COST_NANOS"), 10, 64); err == nil && n > 0 && n <= c.ReviewMaxCostNanos {
 		c.ReviewMaxCostNanos = n
+	}
+	positive("SHARING_REPORTS_PER_DAY", &c.ReportMaxPerDay, 1, 1000)
+	positive("SHARING_REPORT_MAX_CHARS", &c.ReportMaxChars, 1, 500)
+	positive("SHARING_REPORT_HIDE_THRESHOLD", &c.ReportHideThreshold, 1, 100)
+	positive("SHARING_REPORT_RETENTION_DAYS", &c.ReportRetentionDays, 365, 3650)
+	// Reasons are a configured subset of the known severities, in the configured order.
+	if raw := getenv("SHARING_REPORT_REASONS"); raw != "" {
+		var reasons []string
+		seen := map[string]bool{}
+		for _, r := range strings.Split(raw, ",") {
+			if r = strings.TrimSpace(r); !seen[r] && c.ReportSeverity[r] > 0 {
+				seen[r] = true
+				reasons = append(reasons, r)
+			}
+		}
+		if len(reasons) > 0 {
+			c.ReportReasons = reasons
+		}
 	}
 	positive("MARKETPLACE_MIN_ACCOUNT_AGE_DAYS", &c.MarketplaceMinAccountAgeDays, 0, 3650)
 	positive("MARKETPLACE_MIN_LESSONS", &c.MarketplaceMinLessons, 1, 1000)
