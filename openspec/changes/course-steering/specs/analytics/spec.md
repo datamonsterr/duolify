@@ -15,3 +15,10 @@ The existing `ui_sheet_opened` event SHALL accept `sheet_id=course_steering` for
 #### Scenario: Analytics opt-out
 - **WHEN** a Learner has opted out of analytics
 - **THEN** steering and screening events are not delivered to PostHog
+
+### Requirement: Steering output review signal
+The API SHALL emit `course_instruction_output_flagged` through the same consent-aware wrapper when generated Lesson output is refused for echoing the prompt or an instruction, for a weakened Lesson test or for malformed output. It SHALL contain `course_id` and a closed `reason_code` (`prompt_leak`, `test_weakened`, `malformed_output`) and never instruction text, generated text or prompts. `course_instruction_rejected` SHALL accept the same closed reasons plus the screening reasons already listed.
+
+#### Scenario: Leaked prompt in generated output
+- **WHEN** a generated Lesson contains the system policy, the envelope, the data delimiters or a long instruction verbatim
+- **THEN** the Lesson is not delivered, PostHog receives `course_instruction_output_flagged` with `reason_code=prompt_leak` and no text, and the reservation is released
