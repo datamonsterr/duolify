@@ -80,6 +80,9 @@ type Config struct {
 	InviteExpiryDays  int
 	InvitePurgeDays   int
 	PushMaxAttempts   int
+	// E15-05 Republish: versions per Course per rolling day and the owner changelog length.
+	MaxRepublishesPerDay int
+	MaxChangelogLen      int
 }
 
 // DefaultConfig is the conservative v1 policy.
@@ -94,6 +97,7 @@ func DefaultConfig() Config {
 		MarketplacePageSize: 20, MarketplaceMaxPageSize: 50, MarketplaceMaxQueryLength: 100,
 		MarketplaceRatingMinCount: 10, MarketplaceRatingPrior: 3.5, MarketplaceCacheTTLSeconds: 60,
 		InviteSendsPerDay: 20, InviteExpiryDays: 30, InvitePurgeDays: 90, PushMaxAttempts: 3,
+		MaxRepublishesPerDay: 3, MaxChangelogLen: 500,
 	}
 }
 
@@ -153,6 +157,8 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	positive("SHARING_INVITE_EXPIRY_DAYS", &c.InviteExpiryDays, 1, 365)
 	positive("SHARING_INVITE_PURGE_DAYS", &c.InvitePurgeDays, 1, 3650)
 	positive("SHARING_PUSH_MAX_ATTEMPTS", &c.PushMaxAttempts, 1, 10)
+	positive("SHARING_MAX_REPUBLISHES_PER_DAY", &c.MaxRepublishesPerDay, 1, 100)
+	positive("SHARING_MAX_CHANGELOG_LENGTH", &c.MaxChangelogLen, 1, 1000)
 	if f, err := strconv.ParseFloat(getenv("MARKETPLACE_RATING_PRIOR"), 64); err == nil && f >= 1 && f <= 5 {
 		c.MarketplaceRatingPrior = f
 	}
@@ -186,6 +192,8 @@ type SnapshotUnit struct {
 
 // SnapshotLesson is one Lesson's allowlisted content.
 type SnapshotLesson struct {
+	// Key is the stable lesson key (E15-05): it survives retitles and reordering.
+	Key           string          `json:"key,omitempty"`
 	Title         string          `json:"title"`
 	Goal          string          `json:"goal"`
 	Generated     bool            `json:"generated"`
