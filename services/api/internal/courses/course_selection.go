@@ -95,6 +95,7 @@ func (s *Service) ServeCoursesListHTTP(w http.ResponseWriter, r *http.Request) {
 				'description', c.description,
 				'level_override', COALESCE(e.level_override, ''),
 				'pinned_version', (SELECT cc.version FROM course_copies cc WHERE cc.copy_course_id=c.id),
+				'moderation_blocked', EXISTS(SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL),
 				'units', COALESCE((
 					SELECT jsonb_agg(
 						jsonb_build_object(

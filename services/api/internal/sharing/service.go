@@ -694,6 +694,11 @@ func (s *Service) PurgeExpired(ctx context.Context) (int64, error) {
 		return n, err
 	}
 	n += tag.RowsAffected()
+	moderated, err := s.purgeModeration(ctx)
+	n += moderated
+	if err != nil {
+		return n, err
+	}
 	for _, table := range []string{"course_review_submissions", "content_report_submissions"} {
 		if tag, err = s.pool.Exec(ctx, `DELETE FROM `+table+` WHERE created_at < now()-interval '24 hours'`); err != nil {
 			return n, err

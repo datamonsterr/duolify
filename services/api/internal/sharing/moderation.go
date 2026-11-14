@@ -787,3 +787,28 @@ func (s *Service) restore(ctx context.Context, tx pgx.Tx, actionID, kind, target
 	}
 	return changes, nil
 }
+
+// purgeModeration deletes the audit log (and, by cascade, its appeals) and resolved queue rows past
+// the retention window. The append-only trigger allows deletes only inside this transaction flag.
+func (s *Service) purgeModeration(ctx context.Context) (int64, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err = tx.Exec(ctx, `SELECT set_config('duolify.audit_purge','on',true)`); err != nil {
+		return 0, err
+	}
+	var n int64
+	for _, q := range []string{
+		`DELETE FROM moderation_actions WHERE created_at < now()-make_interval(days => $1)`,
+		`DELETE FROM moderation_queue_items WHERE status='resolved' AND opened_at < now()-make_interval(days => $1)`,
+	} {
+		tag, err := tx.Exec(ctx, q, s.cfg.ModerationRetentionDays)
+		if err != nil {
+			return 0, err
+		}
+		n += tag.RowsAffected()
+	}
+	return n, tx.Commit(ctx)
+}
