@@ -1327,11 +1327,12 @@ type PublicationDraft struct {
 }
 
 type PublicationLink struct {
-	ID        pgtype.UUID        `json:"id"`
-	CourseID  pgtype.UUID        `json:"course_id"`
-	TokenHash string             `json:"token_hash"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
+	ID                pgtype.UUID        `json:"id"`
+	CourseID          pgtype.UUID        `json:"course_id"`
+	TokenHash         string             `json:"token_hash"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	RevokedAt         pgtype.Timestamptz `json:"revoked_at"`
+	RevokedByActionID pgtype.UUID        `json:"revoked_by_action_id"`
 }
 
 type PublicationPreviewLimit struct {

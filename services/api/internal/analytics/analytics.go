@@ -224,7 +224,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	switch event {
 	case "course_replan_quoted", "course_replan_proposed", "course_replan_confirmed", "course_replan_discarded", "course_replan_failed":
 		ids("course_id", "proposal_id", "pricing_version")
-		numeric("credits", "lessons_added", "lessons_removed", "lessons_changed")
+		numeric("credits", "lessons_added", "lessons_removed", "lessons_changed", "outline_version")
 		if value, ok := input["reason"].(string); ok && slices.Contains([]string{"quote_invalid", "insufficient_credits", "protected_lesson_changed", "invalid_proposal", "replan_unavailable", "generation_failed"}, value) {
 			out["reason"] = value
 		}
@@ -728,9 +728,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 }
 
 var (
-	marketCategories      = map[string]bool{"science": true, "tech": true, "languages": true, "life_skills": true, "arts": true}
-	marketLanguage        = regexp.MustCompile(`^[a-z]{2,3}$`)
-	reportReasons         = map[string]bool{"unsafe": true, "inappropriate": true, "spam": true, "copyright": true, "misleading": true, "other": true}
+	marketCategories = map[string]bool{"science": true, "tech": true, "languages": true, "life_skills": true, "arts": true}
+	marketLanguage   = regexp.MustCompile(`^[a-z]{2,3}$`)
+	reportReasons    = map[string]bool{"unsafe": true, "inappropriate": true, "spam": true, "copyright": true, "misleading": true, "other": true}
+	// Human moderator actions emitted on moderation_action events.
+	// "restore_link" is deliberately excluded: it is a system-only audit action
+	// recorded on appeal overturn; its visibility effect is emitted via course_visibility_changed.
 	moderationActions     = map[string]bool{"dismiss": true, "warn": true, "delist": true, "takedown": true, "ban_publishing": true}
 	moderationReasonCodes = map[string]bool{"unsafe": true, "legal": true, "inappropriate": true, "spam": true, "copyright": true, "misleading": true, "other": true, "no_violation": true}
 	marketUUID            = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)

@@ -10,6 +10,7 @@ import { ModeratorQueue } from "./ModeratorQueue";
 import { ModerationNotices } from "./ModerationNotices";
 import {
   actionsFor,
+  auditWords,
   isSevereAction,
   moderationFailure,
   reasonCodes,
@@ -17,7 +18,13 @@ import {
 } from "./moderation";
 import { session } from "../accounts/session";
 
-vi.mock("../accounts/session", () => ({ session: { request: vi.fn() } }));
+vi.mock("../accounts/session", () => ({
+  session: {
+    request: vi.fn(),
+    current: vi.fn(() => ({ id: "author-1" })),
+    subscribe: vi.fn(() => () => {}),
+  },
+}));
 const request = vi.mocked(session.request);
 const rejected = (status: number) =>
   Object.assign(new Error("server text: pq password"), { status });
@@ -135,6 +142,15 @@ describe("moderation vocabulary", () => {
       "Couldn't reach Duolify",
     );
   });
+
+  it("maps audit actions to human words including restored share links", () => {
+    expect(auditWords.restore_link).toBe("Share link restored");
+    expect(auditWords.dismiss).toBe("Dismissed");
+    expect(auditWords.warn).toBe("Warned");
+    expect(auditWords.delist).toBe("Delisted");
+    expect(auditWords.takedown).toBe("Took down");
+    expect(auditWords.ban_publishing).toBe("Banned publishing");
+  });
 });
 
 describe("moderator queue", () => {
@@ -160,6 +176,27 @@ describe("moderator queue", () => {
     ).toBeInTheDocument();
     expect(within(detail).getByText("Past 48 h target")).toBeInTheDocument();
     expect(within(detail).getByText(/Warned/)).toBeInTheDocument();
+  });
+
+  it("renders a restored share link entry in the audit log", async () => {
+    const courseWithRestore = {
+      ...course,
+      audit: [
+        {
+          at: "2026-11-02T08:02:00Z",
+          action: "restore_link",
+          reason_code: "no_violation",
+        },
+      ],
+    };
+    request.mockResolvedValueOnce(view([courseWithRestore]));
+    render(<ModeratorQueue />);
+    const row = await screen.findByRole("button", {
+      name: "Course · Home chemistry",
+    });
+    fireEvent.click(row);
+    const detail = screen.getByRole("region", { name: "Report detail" });
+    expect(within(detail).getByText(/Share link restored/)).toBeInTheDocument();
   });
 
   it("filters to screening items and shows an empty state", async () => {
