@@ -705,7 +705,7 @@ func (s *Service) DecideAppeal(ctx context.Context, actor, appealID, decision, r
 	var changes []visibilityChange
 	if decision == "overturn" {
 		outcome = "overturned"
-		if changes, err = s.restore(ctx, tx, actionID, kind, targetID, course, draft, author, prior, wasActive); err != nil {
+		if changes, err = s.restore(ctx, tx, actionID, kind, targetID, course, draft, prior, wasActive); err != nil {
 			return err
 		}
 	}
@@ -732,7 +732,7 @@ func (s *Service) DecideAppeal(ctx context.Context, actor, appealID, decision, r
 	return nil
 }
 
-func (s *Service) restore(ctx context.Context, tx pgx.Tx, actionID, kind, targetID, course, draft, author, prior string, wasActive bool) ([]visibilityChange, error) {
+func (s *Service) restore(ctx context.Context, tx pgx.Tx, actionID, kind, targetID, course, draft, prior string, wasActive bool) ([]visibilityChange, error) {
 	var changes []visibilityChange
 	if _, err := tx.Exec(ctx, `DELETE FROM publishing_bans WHERE action_id=$1`, actionID); err != nil {
 		return nil, err

@@ -143,8 +143,7 @@ func TestModerationRoutesAreServedByTheHandler(t *testing.T) {
 		if method == "GET" {
 			body = ""
 		}
-		req := httptest.NewRequest(method, strings.ReplaceAll(path, "{id}", "8ba637a4-18f3-4d4d-839c-37692a64630a"), strings.NewReader(body))
-		req = req.WithContext(accounts.WithLearnerID(req.Context(), "not-a-uuid"))
+		req := httptest.NewRequestWithContext(accounts.WithLearnerID(t.Context(), "not-a-uuid"), method, strings.ReplaceAll(path, "{id}", "8ba637a4-18f3-4d4d-839c-37692a64630a"), strings.NewReader(body))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if strings.Contains(rec.Body.String(), "unknown_route") {

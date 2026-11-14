@@ -24,7 +24,7 @@ func grantModerator(t *testing.T, f *backuptest.Fixture, name string) string {
 }
 
 // hidden gets a listed course reported to the threshold, so it sits in the queue.
-func reportedCourse(t *testing.T, f *backuptest.Fixture, s *sharing.Service, owner, course string, reason string) sharing.ModerationItem {
+func reportedCourse(t *testing.T, f *backuptest.Fixture, s *sharing.Service, _, course, reason string) sharing.ModerationItem {
 	t.Helper()
 	for _, who := range reporters(t, f, 3) {
 		if _, err := s.Report(t.Context(), who, sharing.ReportInput{TargetType: "course", TargetID: course, Reason: reason}); err != nil {
@@ -269,8 +269,8 @@ func TestDelistKeepsCopiesAndSevereTakedownBlocksThem(t *testing.T) {
 	}
 	spamItem := reportedCourse(t, f, s, owner, spam, "spam")
 	unsafeItem := reportedCourse(t, f, s, owner, unsafe, "unsafe")
-	blocked := func(copy string) bool {
-		return count(t, f, `SELECT count(*) FROM course_copies WHERE copy_course_id=$1 AND blocked_at IS NOT NULL`, copy) == 1
+	blocked := func(copyID string) bool {
+		return count(t, f, `SELECT count(*) FROM course_copies WHERE copy_course_id=$1 AND blocked_at IS NOT NULL`, copyID) == 1
 	}
 	if len(pageKeys(t, r)) == 0 {
 		browseTitles(t, s, "", sharing.BrowseQuery{Sort: "new"})
