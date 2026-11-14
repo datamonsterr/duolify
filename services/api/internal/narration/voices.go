@@ -109,7 +109,16 @@ func (s VoiceSet) FindCharacter(key string) (Voice, bool) {
 	return Voice{}, false
 }
 
-// Keys lists the approved voice keys in config order.
+// AllKeys lists every approved logical key (Learner voices, then Character speaker voices).
+func (s VoiceSet) AllKeys() []string {
+	out := s.Keys()
+	for _, v := range s.Characters {
+		out = append(out, v.Key)
+	}
+	return out
+}
+
+// Keys lists the approved Learner-selectable voice keys in config order.
 func (s VoiceSet) Keys() []string {
 	out := make([]string, 0, len(s.Voices))
 	for _, v := range s.Voices {

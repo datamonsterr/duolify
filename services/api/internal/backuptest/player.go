@@ -100,6 +100,19 @@ func (f *Fixture) AssertNarrationRestored(t *testing.T, restored *pgxpool.Pool) 
 	if voicesBefore != voicesAfter || !bytes.HasPrefix([]byte(voicesAfter), []byte("fixture-warm:default="+"abababab")) || !bytes.HasSuffix([]byte(voicesAfter), []byte(":1,1")) {
 		t.Fatal("voice preference or retained voice references restore mismatch", voicesBefore, voicesAfter)
 	}
+	// E17-08: speaker order, the actual voice/config and the alignment reference restore without any synthesis.
+	const segment = `SELECT speaker_key||':'||segment_slide_id||':'||segment_index||':'||voice_key||'>'||actual_voice_key||'@'||voice_config_version||'/'||voice_fallback_reason||':'||alignment_key
+		FROM slide_narrations WHERE slide_id='seed-seg__s1'`
+	var segmentBefore, segmentAfter string
+	if err := f.DB.Pool.QueryRow(t.Context(), segment).Scan(&segmentBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.QueryRow(t.Context(), segment).Scan(&segmentAfter); err != nil {
+		t.Fatal(err)
+	}
+	if segmentBefore != segmentAfter || !bytes.HasPrefix([]byte(segmentAfter), []byte("guide:seed-seg:1:voice-provisional-guide>default@2026-11-13.1/voice_retired:lessons/narration/v1/")) {
+		t.Fatal("segment voice, config or alignment reference restore mismatch", segmentBefore, segmentAfter)
+	}
 	// The restored trigger keeps counting: deleting the only reference starts retention.
 	var unreferenced bool
 	tx, err := restored.Begin(t.Context())

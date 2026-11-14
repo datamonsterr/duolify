@@ -698,7 +698,9 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 	}
 	for _, it := range delivered {
 		for _, slide := range it.slides {
-			s.emit(owner, "narration_generated", map[string]any{"lesson_id": lessonID, "slide_id": slide, "characters": it.characters, "voice_id": it.meta.voiceID, "model": it.meta.modelID, "latency_ms": it.latency})
+			info := it.rows[slide]
+			s.emit(owner, "narration_generated", s.rowProperties(map[string]any{"lesson_id": lessonID, "slide_id": slide, "characters": it.characters, "voice_id": it.meta.voiceID, "model": it.meta.modelID, "latency_ms": it.latency}, info))
+			s.noteFallback(owner, info, fallbackSeen)
 		}
 		generation := aiProperties(quote, it.usage.Model, int64(it.characters), it.latency, true, "")
 		generation["pricing_version"] = settled.PricingVersion
