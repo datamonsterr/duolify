@@ -441,7 +441,7 @@ func run() (result error) {
 	socialService.OnBlock(sharingService.CancelInvitesOnBlock)
 	go sharingService.MaintainInvites(ctx)
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{
-		Steering:                steering.New(steering.Options{Pool: db.Pool, Engine: steeringScreenFixture{}}),
+		Steering:                steering.New(steering.Options{Pool: db.Pool, Engine: steeringScreenFixture{}, Price: pricing.NewQuotes(db.Pool)}),
 		Sharing:                 sharingService,
 		Notes:                   notesService,
 		Player:                  lessonPlayer,

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "../design/Button";
+import { ForkWarning } from "./ForkWarning";
 import {
   instructionApi,
   type Instruction,
@@ -63,6 +64,7 @@ export function InstructionPanel({
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [warnFork, setWarnFork] = useState(false);
 
   const limits = data?.limits ?? DEFAULT_LIMITS;
   const max = limits.max_characters;
@@ -114,13 +116,31 @@ export function InstructionPanel({
       return null;
     }
   }
-  async function save() {
+  async function save(confirmed = false) {
     if (busy || count === 0 || count > max) return;
+    // First instruction on a published copy: explain the fork and ask before anything is sent.
+    if (!confirmed && data?.fork?.required) {
+      setWarnFork(true);
+      return;
+    }
+    setWarnFork(false);
     setBusy(true);
     setError("");
     try {
-      const r = await service.add(courseId, { text, scope });
-      setData((d) => (d ? recount(d, [...d.instructions, r]) : d));
+      const r = await service.add(
+        courseId,
+        confirmed ? { text, scope, confirm_fork: true } : { text, scope },
+      );
+      setData((d) =>
+        d
+          ? {
+              ...recount(d, [...d.instructions, r]),
+              fork: d.fork
+                ? { ...d.fork, required: false, forked: true }
+                : d.fork,
+            }
+          : d,
+      );
       setText("");
       setNotice("Instruction saved.");
       if (mobile) {
@@ -128,10 +148,16 @@ export function InstructionPanel({
         focusLater("add-button");
       }
     } catch (e) {
-      setError(message(e));
+      if (e instanceof Error && e.message === "fork_confirmation_required")
+        setWarnFork(true);
+      else setError(message(e));
     } finally {
       setBusy(false);
     }
+  }
+  function declineFork() {
+    setWarnFork(false);
+    focusLater("save");
   }
   function openEdit(i: Instruction) {
     setNotice("");
@@ -361,6 +387,7 @@ export function InstructionPanel({
       {!mobile && limitsNote}
       <Button
         type="submit"
+        data-focus="save"
         disabled={busy || loading || loadError || !text.trim() || count > max}
       >
         {busy
@@ -573,6 +600,14 @@ export function InstructionPanel({
           {alert}
           {addForm}
         </>
+      )}
+      {warnFork && (
+        <ForkWarning
+          keptLessons={data?.fork?.kept_lessons ?? 0}
+          lessonCredits={data?.fork?.lesson_credits}
+          onCancel={declineFork}
+          onConfirm={() => void save(true)}
+        />
       )}
     </section>
   );

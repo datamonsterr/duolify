@@ -18,6 +18,17 @@ Re-plan emits `course_replan_quoted` with `course_id`, `credits`, `pricing_versi
 - **WHEN** a Learner saves an allowed next-lesson instruction
 - **THEN** PostHog receives `course_instruction_added` with its length bucket, never its text
 
+#### Scenario: Fork confirmed
+- **WHEN** a Learner confirms the fork warning and saves the first instruction on a Published course copy
+- **THEN** PostHog receives `course_forked_from_published` (`course_id`, numeric `fork_lesson_index`; 0 when every Lesson was already unlocked) once, and `course_instruction_added` with `is_course_copy=true`, never the text; declining sends neither
+
 #### Scenario: Analytics opt-out
 - **WHEN** a Learner has opted out of analytics
 - **THEN** steering and screening events are not delivered to PostHog
+
+### Requirement: Steering output review signal
+The API SHALL emit `course_instruction_output_flagged` through the same consent-aware wrapper when generated Lesson output is refused for echoing the prompt or an instruction, for a weakened Lesson test or for malformed output. It SHALL contain `course_id` and a closed `reason_code` (`prompt_leak`, `test_weakened`, `malformed_output`) and never instruction text, generated text or prompts. `course_instruction_rejected` SHALL accept the same closed reasons plus the screening reasons already listed.
+
+#### Scenario: Leaked prompt in generated output
+- **WHEN** a generated Lesson contains the system policy, the envelope, the data delimiters or a long instruction verbatim
+- **THEN** the Lesson is not delivered, PostHog receives `course_instruction_output_flagged` with `reason_code=prompt_leak` and no text, and the reservation is released

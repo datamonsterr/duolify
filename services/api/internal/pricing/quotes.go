@@ -421,6 +421,33 @@ func (s *Quotes) Bounds(ctx context.Context, in QuoteInput) (map[string]int64, e
 	return q.Bounds, err
 }
 
+// LessonCredits is the per-lesson price at the active config: the content and narration ceilings a
+// lesson_content quote shows, computed without persisting a quote.
+func (s *Quotes) LessonCredits(ctx context.Context) (int64, error) {
+	row, err := db.New(s.pool).ActiveQuoteConfig(ctx)
+	if err != nil {
+		return 0, err
+	}
+	c, err := Parse(row.Config)
+	if err != nil {
+		return 0, err
+	}
+	var policy QuotePolicy
+	if err = json.Unmarshal(row.Policy, &policy); err != nil {
+		return 0, err
+	}
+	var limits map[string]json.RawMessage
+	var lesson map[string]int64
+	if json.Unmarshal(c.Limits, &limits) == nil {
+		_ = json.Unmarshal(limits["lesson_content"], &lesson)
+	}
+	q, err := CalculateQuote(c, AllowVoices(policy, s.approvedVoices), QuoteInput{Action: "lesson_content", NarrationCharacters: lesson["narration_characters"]}, row.QuotedAt.Time)
+	if err != nil {
+		return 0, err
+	}
+	return q.ContentCeiling + q.AudioCeiling, nil
+}
+
 // Get reads original terms for the authenticated owner.
 func (s *Quotes) Get(ctx context.Context, owner, id string) (Quote, error) {
 	return ReadQuote(ctx, s.pool, owner, id)

@@ -224,10 +224,9 @@ export function LearnPath({ courseId }: { courseId: string }) {
       <a className="shell-link" href={`/courses/${courseId}/cast`}>
         Course Cast
       </a>
-      {!course.pinned_version &&
-        (!course.visibility || course.visibility === "private") && (
-          <SteerCourse key={courseId} courseId={courseId} />
-        )}
+      {(!course.visibility || course.visibility === "private") && (
+        <SteerCourse key={courseId} courseId={courseId} />
+      )}
       <PreviewPublicationDraft courseId={courseId} />
       <ShareCourse courseId={courseId} />
       <div>

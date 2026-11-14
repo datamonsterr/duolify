@@ -674,6 +674,10 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		// E15-05: a lesson removed upstream sits archived in the copy's hidden unit with its stable key.
 		`INSERT INTO course_units(id,learner_id,course_id,authored_id,position,title,archived_at) VALUES('e1505000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','e1503000-1111-4111-8111-111111111111','archived',1000000,'Archived lessons',now())`,
 		`INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status,lesson_key,archived_at,archived_from_version) VALUES('e1505000-2222-4222-8222-222222222222','a2222222-2222-4222-8222-222222222222','e1505000-1111-4111-8111-111111111111','a-1',0,'Removed lesson','Removed goal','done','` + strings.Repeat("c", 32) + `',now(),2)`,
+		// E16-05: a steered copy keeps its fork marker, pointing at the first lesson that was not yet unlocked.
+		`INSERT INTO course_units(id,learner_id,course_id,authored_id,position,title) VALUES('e1605000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','e1503000-1111-4111-8111-111111111111','u-fork',0,'Forked unit')`,
+		`INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status) VALUES('e1605000-2222-4222-8222-222222222222','a2222222-2222-4222-8222-222222222222','e1605000-1111-4111-8111-111111111111','l-1',0,'First private lesson','Own goal','locked')`,
+		`UPDATE course_copies SET forked_at=now(),forked_at_lesson='e1605000-2222-4222-8222-222222222222' WHERE copy_course_id='e1503000-1111-4111-8111-111111111111'`,
 		`INSERT INTO daily_goal_achievements(learner_id,local_date,goal_xp) SELECT learner_id,local_date,amount FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO streak_days(learner_id,local_date,first_event_id) SELECT learner_id,local_date,id FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO streak_state(learner_id,current_days,longest_days,last_active_date,decided_through) SELECT learner_id,1,3,local_date,local_date FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
@@ -1189,6 +1193,11 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	var pins int
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM course_copies WHERE copy_course_id='e1503000-1111-4111-8111-111111111111' AND source_course_id='f1111111-1111-4111-8111-111111111111' AND draft_id='e1500000-1111-4111-8111-111111111111' AND version=1 AND length(content_hash)=64`).Scan(&pins); err != nil || pins != 1 {
 		t.Fatalf("restored course copy pin changed: %d %v", pins, err)
+	}
+	// E16-05: the fork marker restores with the copy and still points at its lesson.
+	var forks int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM course_copies WHERE copy_course_id='e1503000-1111-4111-8111-111111111111' AND forked_at IS NOT NULL AND forked_at_lesson='e1605000-2222-4222-8222-222222222222'`).Scan(&forks); err != nil || forks != 1 {
+		t.Fatalf("restored fork marker changed: %d %v", forks, err)
 	}
 	// E15-05: version changelog, lock version and archived history restore with the copy.
 	var versions int

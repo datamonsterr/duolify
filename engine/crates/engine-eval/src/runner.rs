@@ -1268,6 +1268,11 @@ async fn evaluate_steering(task: &str, input: &serde_json::Value) -> Result<Stri
     let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
     let router = engine_core::ProviderRouter::new(provider.clone(), provider.clone())?;
     if task == "steer_screen" {
+        // Same order as the engine: deterministic checks refuse before any provider call.
+        let text = input["text"].as_str().unwrap_or_default();
+        if let Some(reason) = engine_core::steering::deterministic(text) {
+            return Ok(serde_json::json!({"allowed":false,"reason_code":reason,"attempt_count":0,"expected_allowed":input["expected_allowed"],"expected_reason":input["expected_reason"],"matches_expected":input["expected_allowed"]==false&&reason==input["expected_reason"].as_str().unwrap_or_default()}).to_string());
+        }
         let outcome = engine_core::steering::screen(
             &router,
             input["text"].as_str().unwrap_or_default(),
@@ -1279,7 +1284,7 @@ async fn evaluate_steering(task: &str, input: &serde_json::Value) -> Result<Stri
             .as_ref()
             .and_then(|c| engine_core::steering::verdict(&c.text))
             .unwrap_or((false, "screening_unavailable".into()));
-        return Ok(serde_json::json!({"allowed":allowed,"reason_code":reason,"attempt_count":outcome.attempts.len(),"matches_expected":allowed==input["expected_allowed"]&&reason==input["expected_reason"].as_str().unwrap_or_default()}).to_string());
+        return Ok(serde_json::json!({"allowed":allowed,"reason_code":reason,"attempt_count":outcome.attempts.len(),"expected_allowed":input["expected_allowed"],"expected_reason":input["expected_reason"],"matches_expected":allowed==input["expected_allowed"]&&reason==input["expected_reason"].as_str().unwrap_or_default()}).to_string());
     }
     if task == "steer_replan" {
         if let (Some(balance), Some(quote)) = (
@@ -1381,12 +1386,12 @@ async fn evaluate_steering(task: &str, input: &serde_json::Value) -> Result<Stri
     let entries: Vec<engine_core::steering::Instruction> =
         serde_json::from_value(input["instructions"].clone())?;
     let section = engine_core::steering::prompt_section(&entries)?;
-    let prompt =
-        engine_core::steering::provider_prompt(&format!("Course context: Go functions{section}"));
+    let prompt = engine_core::steering::hardened_prompt("Course context: Go functions", &entries)?;
     let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
     let outcome = engine_core::credits::run_validated(&router, "lesson", &prompt, &limits, |raw| {
-        serde_json::from_str::<serde_json::Value>(raw)
-            .is_ok_and(|v| engine_core::lessontest::validate_lesson(&v).is_ok())
+        engine_core::steering::lesson_output_violation(raw, &entries).is_none()
+            && serde_json::from_str::<serde_json::Value>(raw)
+                .is_ok_and(|v| engine_core::lessontest::validate_lesson(&v).is_ok())
     })
     .await?;
     let delivered = outcome
@@ -1405,7 +1410,7 @@ async fn evaluate_steering(task: &str, input: &serde_json::Value) -> Result<Stri
             .unwrap_or_default()
             .contains(input["expected_focus"].as_str().unwrap_or_default())
     });
-    Ok(serde_json::json!({"data_boundary":section.matches("<learner_instructions>").count()==1&&section.matches("</learner_instructions>").count()==1,"no_leak":no_leak,"grading_unchanged":grading,"adherence":adherence,"delivered":delivered.is_some(),"expected_delivery":delivered.is_some()==input["expected_delivery"].as_bool().unwrap_or(true),"bounded_attempts":outcome.attempts.len()<=2}).to_string())
+    Ok(serde_json::json!({"data_boundary":section.matches("<learner_instructions>").count()==usize::from(!entries.is_empty())&&section.matches("</learner_instructions>").count()==usize::from(!entries.is_empty()),"no_leak":no_leak,"grading_unchanged":grading,"adherence":adherence,"delivered":delivered.is_some(),"expected_delivery":delivered.is_some()==input["expected_delivery"].as_bool().unwrap_or(true),"bounded_attempts":outcome.attempts.len()<=2}).to_string())
 }
 
 async fn evaluate_course_screen(input: &serde_json::Value) -> Result<String> {
@@ -1635,6 +1640,7 @@ impl Runner {
         };
         let price_table = PriceTable::load();
         let mut results = Vec::new();
+        let mut steering = crate::scoring::SteeringTally::default();
         let mut models = HashMap::new();
         let mut total_cost_usd = 0.0;
         let mut budget_exceeded = false;
@@ -1944,6 +1950,7 @@ impl Runner {
             };
 
             total_cost_usd += case_cost_usd;
+            steering.record(&case.task, &response_text);
 
             let mut case_budget_exceeded = false;
             if let Some(budget) = self.budget_usd
@@ -1982,6 +1989,22 @@ impl Runner {
             }
         }
 
+        // E16-03 starting gates: a metric below its bound fails the run with a visible case.
+        let gate_errors = steering.gate_errors();
+        if !gate_errors.is_empty() {
+            results.push(CaseResult {
+                id: "steering-gates".into(),
+                task: "lesson".into(),
+                passed: false,
+                critical_failed: true,
+                deterministic_passed: false,
+                judge_passed: None,
+                errors: gate_errors,
+                cost_usd: 0.0,
+                input_tokens: 0,
+                output_tokens: 0,
+            });
+        }
         let (task_reports, overall_passed, critical_failure) =
             aggregate_task_reports(&results, thresholds, &models);
 

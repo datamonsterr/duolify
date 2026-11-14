@@ -76,7 +76,7 @@ func allowlisted(event string) bool {
 	switch event {
 	case "course_replan_quoted", "course_replan_proposed", "course_replan_failed":
 		return true
-	case "course_instruction_added", "course_instruction_edited", "course_instruction_deleted", "course_instruction_rejected", "course_instruction_applied":
+	case "course_instruction_added", "course_instruction_edited", "course_instruction_deleted", "course_instruction_rejected", "course_instruction_applied", "course_instruction_output_flagged", "course_forked_from_published":
 		return true
 	case "xp_earned", "daily_goal_met", "lesson_completed", "streak_extended", "streak_broken", "streak_freeze_earned", "streak_freeze_used", "league_promoted", "league_demoted", "friend_streak_started", "friend_streak_extended", "friend_streak_broken", "friend_nudge_sent":
 		return true
@@ -227,14 +227,17 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		if value, ok := input["reason"].(string); ok && slices.Contains([]string{"quote_invalid", "insufficient_credits", "protected_lesson_changed", "invalid_proposal", "replan_unavailable", "generation_failed"}, value) {
 			out["reason"] = value
 		}
-	case "course_instruction_added", "course_instruction_edited", "course_instruction_deleted", "course_instruction_rejected", "course_instruction_applied":
+	case "course_forked_from_published":
+		ids("course_id")
+		numeric("fork_lesson_index")
+	case "course_instruction_added", "course_instruction_edited", "course_instruction_deleted", "course_instruction_rejected", "course_instruction_applied", "course_instruction_output_flagged":
 		ids("course_id", "lesson_id")
 		boolean("is_course_copy")
 		for key, allowed := range map[string][]string{
 			"scope":         {"next_lesson", "rest_of_course"},
 			"length_bucket": {"1_100", "101_250", "251_500"},
 			"changed":       {"text", "scope", "both"},
-			"reason_code":   {"empty", "too_long", "control_characters", "urls_not_allowed", "prompt_injection", "unsafe_content", "off_topic_for_course", "screening_unavailable", "invalid_scope", "rate_limit", "active_limit", "total_length_limit", "invalid_input"},
+			"reason_code":   {"empty", "too_long", "control_characters", "urls_not_allowed", "prompt_injection", "unsafe_content", "off_topic_for_course", "screening_unavailable", "invalid_scope", "rate_limit", "active_limit", "total_length_limit", "invalid_input", "prompt_leak", "test_weakened", "malformed_output"},
 		} {
 			if value, ok := input[key].(string); ok && slices.Contains(allowed, value) {
 				out[key] = value

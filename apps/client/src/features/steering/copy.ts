@@ -20,7 +20,7 @@ const REASONS: Record<string, string> = {
     "Active instructions would pass the total character limit. Delete or shorten one.",
   invalid_input: "Check the text and scope, then try again.",
   screening_unavailable:
-    "Couldn't check right now. Nothing was saved. Try again in a moment.",
+    "Couldn't check right now. Nothing was saved. Your lessons keep working without it. Try again in a moment.",
   version_conflict:
     "This instruction changed elsewhere. The list was refreshed; your draft is kept.",
   not_editable: "This instruction was already applied, so it can't be edited.",
@@ -29,6 +29,8 @@ const REASONS: Record<string, string> = {
     "You have added too many instructions this hour. Try again later.",
   active_limit:
     "You already have the maximum number of active instructions. Delete one to add another.",
+  fork_confirmation_required:
+    "Steering this shared course makes it your own. Confirm to continue.",
   unavailable: "Couldn't reach the server. Nothing was saved. Try again.",
 };
 export const reasonCopy = (code: string) => REASONS[code] ?? "";

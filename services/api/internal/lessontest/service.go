@@ -622,6 +622,11 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 		if valErr := ValidateGeneratedLesson(lesson); valErr != nil {
 			return fail("validation_failed", fmt.Errorf("validate generated lesson error: %w", valErr))
 		}
+		// Defence in depth at the trust boundary: prompt echo or a weakened test is never delivered.
+		if reason := steering.OutputViolation(lesson, instructions); reason != "" {
+			steering.New(steering.Options{Events: s.opts.Events}).FlagOutput(owner, courseID, reason)
+			return fail("output_rejected", fmt.Errorf("generated lesson rejected: %s", reason))
+		}
 
 		if cast != nil {
 			for _, slide := range lesson.Slides {
@@ -1871,6 +1876,13 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 
 	// Mark current lesson stub as 'done'
 	if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs SET status = 'done' WHERE id::text=$1`, lessonID); err != nil {
+		http.Error(w, `{"error":"database error"}`, 500)
+		return
+	}
+
+	// A fork of a published copy (E16-05) and this unlock exclude each other, so the fork marker
+	// is the first lesson that is really not yet unlocked.
+	if err = steering.LockCopyTx(ctx, tx, lessonID); err != nil {
 		http.Error(w, `{"error":"database error"}`, 500)
 		return
 	}
