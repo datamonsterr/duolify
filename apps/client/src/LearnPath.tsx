@@ -1,3 +1,6 @@
+import { ShareCourse } from "./features/sharing/ShareCourse";
+import { MissingLessons } from "./features/sharing/MissingLessons";
+import { PreviewPublicationDraft } from "./features/sharing/PreviewPublicationDraft";
 import { useEffect, useState } from "react";
 import { useUiPreferences } from "./features/design/localization/Preferences";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -42,6 +45,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
   const [, setStorageVersion] = useState(0);
 
   const owner = session.current()?.id || "";
+  // A published copy asks for a quote and consent first (MissingLessons), never a one-click prepare.
   const downloadedCourses = getDownloadedCourses(owner);
   const downloadedCourse = downloadedCourses[courseId];
 
@@ -183,6 +187,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
   if (!course || course.availability === "unavailable") {
     return <RouteUnavailable />;
   }
+  const directPrepare = tracerEnabled && !course.pinned_version;
 
   return (
     <>
@@ -191,9 +196,25 @@ export function LearnPath({ courseId }: { courseId: string }) {
         <bdi>{course.title}</bdi>
       </h1>
       <p dir="auto">{course.description}</p>
+      {course.pinned_version ? (
+        <p className="muted" data-testid="pinned-version">
+          Published course · version {course.pinned_version}
+        </p>
+      ) : null}
+      {course.pinned_version ? (
+        <MissingLessons
+          courseId={courseId}
+          onChanged={() => {
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ["course", courseId] });
+          }}
+        />
+      ) : null}
       <a className="shell-link" href={`/courses/${courseId}/cast`}>
         Course Cast
       </a>
+      <PreviewPublicationDraft courseId={courseId} />
+      <ShareCourse courseId={courseId} />
       <div>
         <TutorChat courseId={courseId} />
       </div>
@@ -362,7 +383,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
                         {t("path.start_short")}
                       </span>
                     </>
-                  ) : lesson.state === "ready_to_generate" && tracerEnabled ? (
+                  ) : lesson.state === "ready_to_generate" && directPrepare ? (
                     <button
                       className="node ready"
                       onClick={() => handlePrepareLesson(lesson.id)}
@@ -447,7 +468,12 @@ export function LearnPath({ courseId }: { courseId: string }) {
                               ? "Preparing…"
                               : t("path.ready")}
                     </div>
-                    {lesson.state === "ready_to_generate" && tracerEnabled && (
+                    {lesson.reused && lesson.state !== "done" && (
+                      <div className="muted" data-testid="lesson-reused">
+                        Free · from the published course
+                      </div>
+                    )}
+                    {lesson.state === "ready_to_generate" && directPrepare && (
                       <button
                         className="duo-button primary sm2"
                         style={{ marginTop: "6px" }}

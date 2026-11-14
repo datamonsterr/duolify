@@ -38,6 +38,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
@@ -310,8 +311,9 @@ func run(ctx context.Context, args []string) (result error) {
 	})
 
 	var lessonHandler http.Handler
+	var lessonPreparer *lessontest.Service
 	if cfg.LessonTestTracerEnabled {
-		lessonHandler = lessontest.New(lessontest.Options{
+		lessonPreparer = lessontest.New(lessontest.Options{
 			Pool:                db.Pool,
 			Engine:              backend,
 			Financial:           creditService,
@@ -322,6 +324,7 @@ func run(ctx context.Context, args []string) (result error) {
 			MaxVariantsPerTest:  cfg.LessonTestMaxVariantsPerTest,
 			SessionTTL:          cfg.LessonTestSessionTTL,
 		})
+		lessonHandler = lessonPreparer
 	}
 
 	quotesService := pricing.NewQuotes(db.Pool)
@@ -329,7 +332,16 @@ func run(ctx context.Context, args []string) (result error) {
 	quotesService.SetOwnerID(os.Getenv("PRICING_OWNER_ID"))
 
 	courseService := courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: runtimePricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"})
+	// Publishing needs an 18+ account (ADR 0012); no age data exists yet, so it fails closed.
+	sharingService := sharing.NewService(db.Pool, events, sharing.ConfigFromEnv(os.Getenv)).WithAgeSource(sharing.UnknownAge{}).WithObjects(player.NewS3(os.Getenv), os.Getenv("LESSON_ASSET_ORIGIN"))
+	sharingService.ConfigureScreening(backend, sharing.PricingRates{Pool: db.Pool})
+	if lessonPreparer != nil {
+		// Missing Lessons in a pinned copy reuse the private generation pipeline and the learner's credits (E15-04).
+		sharingService = sharingService.WithGeneration(sharing.GenerationDeps{Quotes: quotesService, Wallet: creditService, Lessons: lessonPreparer})
+	}
+	go sharingService.Maintain(ctx)
 	handler := httpapi.New(httpapi.Dependencies{
+		Sharing:                 sharingService,
 		Characters:              characters.NewHandler(characterService),
 		Gamification:            xpService,
 		Social:                  socialService,

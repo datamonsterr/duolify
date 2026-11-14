@@ -578,8 +578,32 @@ func (s *Service) ProtectWithDenied(next http.Handler, denied func(*http.Request
 	return s.protect(next, denied)
 }
 
+// Optional adds the signed-in learner to the context when valid credentials are present and
+// otherwise serves the request anonymously. It never rejects.
+func (s *Service) Optional(next http.Handler) http.Handler {
+	return s.guard(next, nil, true)
+}
+
 func (s *Service) protect(next http.Handler, denied func(*http.Request)) http.Handler {
+	return s.guard(next, denied, false)
+}
+
+func (s *Service) guard(next http.Handler, denied func(*http.Request), optional bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if optional {
+			if raw, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); found {
+				if claims, err := s.ParseAccess(raw); err == nil {
+					var active bool
+					if s.pool.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM auth_sessions WHERE id=$1::uuid AND learner_id=$2::uuid AND revoked_at IS NULL AND expires_at>now())", claims.ID, claims.Subject).Scan(&active) == nil && active {
+						ctx := context.WithValue(r.Context(), learnerKey{}, claims.Subject)
+						r = r.WithContext(context.WithValue(ctx, sessionKey{}, claims.ID))
+					}
+				}
+			}
+			w.Header().Set("Cache-Control", "no-store")
+			next.ServeHTTP(w, r)
+			return
+		}
 		w.Header().Set("Cache-Control", "no-store")
 		raw, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if !ok {

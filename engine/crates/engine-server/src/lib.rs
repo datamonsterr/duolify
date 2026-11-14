@@ -377,6 +377,52 @@ impl EngineService for Service {
             attempts: outcome.attempts.iter().map(attempt_usage).collect(),
         }))
     }
+    async fn screen_course(
+        &self,
+        request: Request<pb::ScreenCourseRequest>,
+    ) -> Result<Response<pb::ScreenCourseResponse>, Status> {
+        let req = request.into_inner();
+        let b = req
+            .limits
+            .ok_or_else(|| Status::invalid_argument("invalid_limits"))?;
+        let limits = engine_core::credits::Limits {
+            input_tokens: b.input_tokens,
+            output_tokens: b.output_tokens,
+            timeout_ms: b.timeout_ms,
+            max_attempts: b.max_attempts,
+            max_cost_nanos: b.max_cost_nanos,
+            input_nanos: b.input_nanos,
+            output_nanos: b.output_nanos,
+            cache_write_nanos: b.cache_write_nanos,
+            cache_read_nanos: b.cache_read_nanos,
+            deadline_unix_ms: b.deadline_unix_ms,
+        };
+        // ADR 0011 / E10-06: no live feature evidence, so only the mock provider runs.
+        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+            return Err(Status::unavailable("screening_unavailable"));
+        }
+        engine_core::sharing::check_request(&req.sample_json, req.sampled_lessons, &limits)
+            .map_err(|_| Status::invalid_argument("invalid_request"))?;
+        let outcome = engine_core::sharing::screen_course(
+            &self.router,
+            &req.sample_json,
+            req.sampled_lessons,
+            &limits,
+        )
+        .await
+        .map_err(|_| Status::unavailable("screening_unavailable"))?;
+        let (verdict, reason_codes) = outcome
+            .completion
+            .as_ref()
+            .and_then(|c| engine_core::sharing::verdict(&c.text))
+            .ok_or_else(|| Status::unavailable("screening_unavailable"))?;
+        Ok(Response::new(pb::ScreenCourseResponse {
+            verdict,
+            reason_codes,
+            policy_version: "course-v1".into(),
+            attempts: outcome.attempts.iter().map(attempt_usage).collect(),
+        }))
+    }
     async fn map_character(
         &self,
         request: Request<pb::MapCharacterRequest>,

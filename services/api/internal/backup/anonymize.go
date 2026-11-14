@@ -97,6 +97,7 @@ var piiRules = []piiRule{
 	{"outline_proposals", "operations", `NULL`},
 	{"outline_proposals", "request", redacted},
 	{"outline_proposals", "result_outline", `NULL`},
+	{"publication_drafts", "snapshot", emptyObj},
 	{"quick_note_enrichments", "links", `'{}'`},
 	{"quick_note_enrichments", "summary", redacted},
 	{"quick_note_enrichments", "tags", `'{}'`},
@@ -107,7 +108,7 @@ var piiRules = []piiRule{
 
 // purgedTables hold credentials, one-time secrets or raw provider payloads.
 // They are emptied: nonproduction never needs a session, code or webhook body.
-var purgedTables = []string{"auth_refresh_tokens", "auth_sessions", "auth_codes", "auth_rate_limits", "auth_oauth_attempts", "credit_payment_payloads"}
+var purgedTables = []string{"auth_refresh_tokens", "auth_sessions", "auth_codes", "auth_rate_limits", "auth_oauth_attempts", "credit_payment_payloads", "publication_preview_limits"}
 
 // safeSuffix matches columns that hold identifiers, hashes or enumerations.
 var safeSuffix = regexp.MustCompile(`(^|_)(id|ids|hash|key|state|status|kind|role|source|provider|model|version|outcome|currency|locale|time_zone|code|type|reference|ref|sku|canonical|event_id)$`)
@@ -118,7 +119,9 @@ var reviewedSafe = map[string]bool{}
 
 func init() {
 	for _, column := range strings.Fields(`
-character_create_jobs.operation character_screenings.verdict course_enrollments.level_override
+character_create_jobs.operation character_screenings.verdict copy_generation_consents.pricing_version
+course_copies.content_hash course_copies.source course_enrollments.level_override
+course_lesson_stubs.reused_from_snapshot courses.visibility
 credit_allocations.bucket credit_allocations.component credit_allocations.grant_date credit_artifacts.component
 credit_checkout_orders.billing_period credit_checkout_orders.platform credit_checkout_orders.return_to
 credit_cost_counters.scope credit_entries.provenance credit_jobs.result credit_outbox.event credit_outbox.properties
@@ -133,7 +136,10 @@ lesson_test_variant_snapshots.reason lesson_test_variant_snapshots.variant_of le
 pricing_audit.action pricing_audit.change_class pricing_audit.diff_summary pricing_audit.override_reason pricing_audit.reason
 pricing_drafts.change_class pricing_drafts.config pricing_drafts.created_by pricing_drafts.reviewed_by pricing_quote_policies.policy
 pricing_quotes.snapshot pricing_verification_evidence.evidence pricing_version_cancellations.cancelled_by pricing_version_cancellations.reason
-pricing_versions.config social_rate_limits.bucket tutor_turns.end_reason tutor_turns.persona_fallback
+pricing_versions.config publication_drafts.content_hash publication_drafts.findings
+publication_drafts.reason_codes publication_drafts.verdict publication_links.token_hash
+publication_screenings.policy_version publication_screenings.reason_codes publication_screenings.verdict
+social_rate_limits.bucket tutor_turns.end_reason tutor_turns.persona_fallback
 username_config.profanity username_config.reserved`) {
 		reviewedSafe[column] = true
 	}

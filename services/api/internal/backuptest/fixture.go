@@ -644,6 +644,11 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		`INSERT INTO friend_links(owner_id,token_hash,expires_at) VALUES('a1111111-1111-4111-8111-111111111111',repeat('b',64),now()+interval '30 days')`,
 		`INSERT INTO learners(id,display_name) VALUES('a3333333-3333-4333-8333-333333333333','Backup Blocked')`,
 		`INSERT INTO learner_blocks(blocker_id,blocked_id,created_at) VALUES('a1111111-1111-4111-8111-111111111111','a3333333-3333-4333-8333-333333333333','2026-11-04T00:00:00Z')`,
+		`INSERT INTO publication_drafts(id,course_id,owner_id,number,content_hash,snapshot,lesson_count,verdict,reason_codes,sampled_lessons,screened_at,created_at) VALUES('e1500000-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111',1,'` + strings.Repeat("ab", 32) + `','{"title":"Synthetic sky","units":[]}'::jsonb,1,'needs_review','{personal_data}',1,'2026-11-05T00:00:00Z','2026-11-05T00:00:00Z')`,
+		`INSERT INTO publication_screenings(draft_id,owner_id,verdict,reason_codes,policy_version,attempts,cost_nanos,created_at) VALUES('e1500000-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','needs_review','{personal_data}','course-v1',1,1234,now())`,
+		`INSERT INTO publication_links(id,course_id,token_hash,created_at,revoked_at) VALUES('e1502000-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111',encode(sha256(convert_to('fixture-revoked-token','UTF8')),'hex'),'2026-11-06T00:00:00Z','2026-11-07T00:00:00Z')`,
+		`INSERT INTO courses(id,learner_id,title) VALUES('e1503000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','Pinned copy')`,
+		`INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,draft_id,version,content_hash) VALUES('e1503000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','f1111111-1111-4111-8111-111111111111','e1500000-1111-4111-8111-111111111111',1,'` + strings.Repeat("ab", 32) + `')`,
 		`INSERT INTO daily_goal_achievements(learner_id,local_date,goal_xp) SELECT learner_id,local_date,amount FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO streak_days(learner_id,local_date,first_event_id) SELECT learner_id,local_date,id FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO streak_state(learner_id,current_days,longest_days,last_active_date,decided_through) SELECT learner_id,1,3,local_date,local_date FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
@@ -658,6 +663,23 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		if _, err = f.DB.Pool.Exec(t.Context(), query); err != nil {
 			t.Fatal(err)
 		}
+	}
+	// E15-04: a Lesson generated inside a pinned copy owned by its own learner, with the consent record.
+	const generator, genCopy, genStub = "e1504000-0000-4000-8000-000000000000", "e1504000-5555-4555-8555-555555555555", "e1504000-2222-4222-8222-222222222222"
+	for _, stmt := range []string{
+		`INSERT INTO learners(id,display_name) VALUES('` + generator + `','Backup Copy Generator')`,
+		`INSERT INTO courses(id,learner_id,title) VALUES('` + genCopy + `','` + generator + `','Generated copy')`,
+		`INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,draft_id,version,content_hash) VALUES('` + genCopy + `','` + generator + `','f1111111-1111-4111-8111-111111111111','e1500000-1111-4111-8111-111111111111',1,'` + strings.Repeat("ab", 32) + `')`,
+		`INSERT INTO course_units(id,learner_id,course_id,authored_id,position,title) VALUES('e1504000-1111-4111-8111-111111111111','` + generator + `','` + genCopy + `','u1',0,'Copy unit')`,
+		`INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status) VALUES('` + genStub + `','` + generator + `','e1504000-1111-4111-8111-111111111111','l3',0,'Generated in the copy','Goal','current')`,
+		`INSERT INTO generated_lessons(id,lesson_stub_id,learner_id,course_id,title,manifest) VALUES('e1504000-3333-4333-8333-333333333333','` + genStub + `','` + generator + `','` + genCopy + `','Generated in the copy','{}'::jsonb)`,
+	} {
+		if _, err = f.DB.Pool.Exec(t.Context(), stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `WITH g AS (INSERT INTO lesson_generations(id,learner_id,lesson_id,course_id,quote_id,state) VALUES('e1504000-4444-4444-8444-444444444444','`+generator+`','`+genStub+`','`+genCopy+`',$1,'completed') RETURNING id) INSERT INTO copy_generation_consents(generation_id,learner_id,copy_course_id,lesson_id,quote_id,pricing_version) SELECT id,'`+generator+`','`+genCopy+`','`+genStub+`',$1,$2 FROM g`, outlineQuote.ID, outlineQuote.PricingVersion); err != nil {
+		t.Fatal(err)
 	}
 	if _, err = f.DB.Pool.Exec(t.Context(), `INSERT INTO lesson_test_variant_snapshots (id, session_id, learner_id, lesson_stub_id, topic_id, question_id, variant_of, source, reason, prompt, choices, answer_index, explanation, instruction_snapshot) VALUES ('fccccccc-cccc-4ccc-8ccc-cccccccccccc', 'f8888888-8888-4888-8888-888888888888', 'a1111111-1111-4111-8111-111111111111', 'f3333333-3333-4333-8333-333333333333', 'top-moon', 'v1-top-moon', 'q-moon', 'pool', NULL, 'What causes moon phases?', '["Sun angle", "Earth shadow"]'::jsonb, 0, 'Angle of sunlight on moon', '{"topic":"moon"}'::jsonb)`); err != nil {
 		t.Fatal(err)
@@ -945,8 +967,8 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT monthly_credits FROM credit_subscription_terms LIMIT 1").Scan(&monthlyCredits); err != nil {
 		t.Fatal(err)
 	}
-	// Three learners: the synthetic learner, the E6-03 friend and the E6-04 blocked row.
-	if version != f.schemaVersion || riverVersions < 1 || learners != 3 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
+	// Four learners: the synthetic learner, the E6-03 friend, the E6-04 blocked row and the E15-04 copy generator.
+	if version != f.schemaVersion || riverVersions < 1 || learners != 4 || entries != 10 || balance != 104+packCredits+2*monthlyCredits || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
 	}
 	var pricingVersion string
@@ -990,7 +1012,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"league_groups", "league_memberships", "league_week_results", "quick_notes", "tutor_threads", "tutor_messages", "tutor_turns", "quick_note_enrichments", "quick_note_chat_sources", "tutor_thread_deletion_tombstones", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "username_config", "learner_usernames", "learner_social_settings", "username_holds", "social_rate_limits", "friend_requests", "friendships", "friend_links", "friend_streaks", "friend_streak_days", "friend_streak_milestones", "friend_nudges", "streak_state", "streak_days", "streak_breaks", "streak_freeze_inventory", "streak_freeze_milestones", "streak_day_protections"} {
+	for _, table := range []string{"league_groups", "league_memberships", "league_week_results", "quick_notes", "tutor_threads", "tutor_messages", "tutor_turns", "quick_note_enrichments", "quick_note_chat_sources", "tutor_thread_deletion_tombstones", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "username_config", "learner_usernames", "learner_social_settings", "username_holds", "social_rate_limits", "friend_requests", "friendships", "friend_links", "friend_streaks", "friend_streak_days", "friend_streak_milestones", "friend_nudges", "streak_state", "streak_days", "streak_breaks", "streak_freeze_inventory", "streak_freeze_milestones", "streak_day_protections", "publication_drafts", "publication_screenings", "publication_links", "course_copies"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -1087,6 +1109,29 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO learner_blocks(blocker_id,blocked_id) VALUES('a1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111')`); err == nil {
 		t.Fatal("restored block check allowed a self block")
+	}
+	// Publication drafts keep number, hash and verdict, and stay immutable after restore.
+	var drafts int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM publication_drafts WHERE id='e1500000-1111-4111-8111-111111111111' AND number=1 AND verdict='needs_review' AND content_hash=$1 AND (SELECT count(*) FROM publication_screenings WHERE draft_id=publication_drafts.id)=1`, strings.Repeat("ab", 32)).Scan(&drafts); err != nil || drafts != 1 {
+		t.Fatalf("restored publication draft changed: %d %v", drafts, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `UPDATE publication_drafts SET snapshot='{}'::jsonb WHERE id='e1500000-1111-4111-8111-111111111111'`); err == nil {
+		t.Fatal("restored publication draft snapshot is mutable")
+	}
+	// A pinned course copy restores with its pin to the source course and published version.
+	var pins int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM course_copies WHERE copy_course_id='e1503000-1111-4111-8111-111111111111' AND source_course_id='f1111111-1111-4111-8111-111111111111' AND draft_id='e1500000-1111-4111-8111-111111111111' AND version=1 AND length(content_hash)=64`).Scan(&pins); err != nil || pins != 1 {
+		t.Fatalf("restored course copy pin changed: %d %v", pins, err)
+	}
+	// Copy-local generated Lesson and its consent restore with the copy; the published hash is unchanged.
+	var local int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM generated_lessons g JOIN copy_generation_consents c ON c.lesson_id=g.lesson_stub_id AND c.copy_course_id=g.course_id JOIN course_copies cc ON cc.copy_course_id=g.course_id WHERE g.id='e1504000-3333-4333-8333-333333333333' AND c.generation_id='e1504000-4444-4444-8444-444444444444' AND c.pricing_version<>'' AND cc.content_hash=$1`, strings.Repeat("ab", 32)).Scan(&local); err != nil || local != 1 {
+		t.Fatalf("restored copy-local lesson or consent changed: %d %v", local, err)
+	}
+	// Share links restore as hashes only: visibility column present, revoked link still revoked, no plaintext.
+	var shareLinks int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM publication_links WHERE id='e1502000-1111-4111-8111-111111111111' AND token_hash=encode(sha256(convert_to('fixture-revoked-token','UTF8')),'hex') AND revoked_at IS NOT NULL AND (SELECT visibility::text FROM courses WHERE id=publication_links.course_id)='private'`).Scan(&shareLinks); err != nil || shareLinks != 1 {
+		t.Fatalf("restored share link changed: %d %v", shareLinks, err)
 	}
 	confirmed, err := courses.New(courses.Options{Pool: restored.Pool}).ResolveConfirmed(t.Context(), "a1111111-1111-4111-8111-111111111111", "c7222222-2222-4222-8222-222222222222", 3)
 	if err != nil || confirmed.Outline.Hash() != confirmed.ContentHash || confirmed.Outline[0].Lessons[0].ID != "fixture-lesson" {
@@ -1186,11 +1231,23 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO bookmarks(learner_id, action_key, target_type, course_title, lesson_title) VALUES($1::uuid, 'erased-bm-key', 'lesson', 'Course', 'Lesson')`, erasedID); err != nil {
 		t.Fatal(err)
 	}
+	var restoredQuote string
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT id::text FROM pricing_quotes ORDER BY created_at LIMIT 1`).Scan(&restoredQuote); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `WITH c AS (INSERT INTO courses(learner_id,title) VALUES($1::uuid,'Erased copy') RETURNING id),
+		cc AS (INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,version,content_hash) SELECT id,$1::uuid,'f1111111-1111-4111-8111-111111111111',1,$2 FROM c RETURNING copy_course_id),
+		u AS (INSERT INTO course_units(learner_id,course_id,authored_id,position,title) SELECT $1::uuid,id,'u1',0,'U' FROM c RETURNING id),
+		s AS (INSERT INTO course_lesson_stubs(learner_id,unit_id,authored_id,position,title,goal,status) SELECT $1::uuid,id,'l1',0,'L','G','current' FROM u RETURNING id),
+		g AS (INSERT INTO lesson_generations(learner_id,lesson_id,course_id,quote_id,state) SELECT $1::uuid,s.id,c.id,$3::uuid,'completed' FROM s,c RETURNING id)
+		INSERT INTO copy_generation_consents(generation_id,learner_id,copy_course_id,lesson_id,quote_id,pricing_version) SELECT g.id,$1::uuid,c.id,s.id,$3::uuid,'erased-version' FROM g,c,s`, erasedID, strings.Repeat("cd", 32), restoredQuote); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", erasedID); err != nil {
 		t.Fatal(err)
 	}
 	var survived bool
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_creations WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM courses WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM characters WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM character_screenings WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_casts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM lesson_cast_snapshots WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM quick_notes WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM quick_note_enrichments WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM bookmarks WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM course_copies WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM publication_links pl JOIN courses c ON c.id=pl.course_id WHERE c.learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_creations WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM courses WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM characters WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM character_screenings WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM publication_drafts WHERE owner_id=$1::uuid) OR EXISTS(SELECT 1 FROM publication_screenings WHERE owner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_casts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM lesson_cast_snapshots WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM quick_notes WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM quick_note_enrichments WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM bookmarks WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {
 		t.Fatal("restored context survived account erasure", err)
 	}
 	var valid bool

@@ -32,6 +32,13 @@ func (c *Client) ScreenCharacter(ctx context.Context, r *enginev1.ScreenCharacte
 	return c.rpc.ScreenCharacter(ctx, r)
 }
 
+// ScreenCourse screens a bounded publication sample for the platform; the caller supplies the 120s deadline.
+func (c *Client) ScreenCourse(ctx context.Context, r *enginev1.ScreenCourseRequest) (*enginev1.ScreenCourseResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 125*time.Second)
+	defer cancel()
+	return c.rpc.ScreenCourse(ctx, r)
+}
+
 // MapCharacter is bounded by the quote's total job deadline and the engine's per-call ceiling.
 func (c *Client) MapCharacter(ctx context.Context, r *enginev1.MapCharacterRequest) (*enginev1.MapCharacterResponse, error) {
 	return c.rpc.MapCharacter(ctx, r)
