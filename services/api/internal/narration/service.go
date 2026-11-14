@@ -72,6 +72,9 @@ type Service struct {
 	opts   Options
 	client *river.Client[pgx.Tx]
 	voices VoiceSet
+	// lockSlots bounds pool connections pinned by advisory-lock holders and waiters so the
+	// lock holder can always get a second connection for its own queries.
+	lockSlots chan struct{}
 }
 
 // New creates the service.
@@ -89,7 +92,11 @@ func New(opts Options) *Service {
 	if err != nil {
 		panic("narration: invalid embedded voice config: " + err.Error())
 	}
-	return &Service{opts: opts, voices: voices}
+	slots := 1
+	if opts.Pool != nil {
+		slots = max(1, int(opts.Pool.Config().MaxConns)/2)
+	}
+	return &Service{opts: opts, voices: voices, lockSlots: make(chan struct{}, slots)}
 }
 
 // Args is the queue payload: identifiers only, never narration text. An empty SlideID
@@ -311,6 +318,12 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID, voice string,
 	// One synthesis per key: locks are taken in hash order on one connection, so concurrent runs
 	// with identical narration wait here instead of calling the provider again.
 	sort.Strings(order)
+	select {
+	case s.lockSlots <- struct{}{}:
+		defer func() { <-s.lockSlots }()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 	conn, err := s.opts.Pool.Acquire(ctx)
 	if err != nil {
 		return err
