@@ -143,12 +143,13 @@ func run() (result error) {
 			creditService.ServeHTTP(w, r)
 		}
 	})
+	objects := &fixtureObjects{values: playerfixture.Documents()}
 	tracerEnabled := os.Getenv("LESSON_TEST_TRACER_ENABLED") == "true"
 	var lessonHandler http.Handler
 	var sharingGeneration sharing.GenerationDeps
 	if tracerEnabled {
 		// The fixture engine makes Course copy generation (E15-04) runnable end to end.
-		lessonSvc := lessontest.New(lessontest.Options{
+		lessonSvc := lessontest.New(lessontest.Options{Objects: objects, AssetOrigin: playerfixture.AssetOrigin,
 			Casts:     characters.NewService(db.Pool, nil, nil),
 			Pool:      db.Pool,
 			Engine:    fixtureLessonEngine{},
@@ -169,7 +170,6 @@ func run() (result error) {
 			_ = lessonQueue.Stop(stopCtx)
 		}()
 	}
-	objects := &fixtureObjects{values: playerfixture.Documents()}
 	lateNarration := &lateNarrationRecovery{}
 	lessonPlayer := player.New(player.Options{Pool: db.Pool, Objects: objects, AssetOrigin: playerfixture.AssetOrigin, Credits: paidCredits, Narration: lateNarration, CastSafety: characters.PoolSafetyProjection(db.Pool)})
 	mux := http.NewServeMux()

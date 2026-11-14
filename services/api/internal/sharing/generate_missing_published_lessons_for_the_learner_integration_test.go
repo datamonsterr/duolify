@@ -134,8 +134,8 @@ func newGenEnv(t *testing.T) *genEnv {
 	}
 	fin := credits.NewServiceWithCatalogue(f.DB.Pool, nil, cat, analytics.WithConsent(ev, analytics.DatabaseConsent(f.DB.Pool)))
 	double, engine := startLessonEngine(t)
-	lessons := lessontest.New(lessontest.Options{Pool: f.DB.Pool, Engine: engine, Financial: fin, Events: analytics.WithConsent(ev, analytics.DatabaseConsent(f.DB.Pool))})
-	s, _ := enrollService(t, f, ev, nil)
+	s, objects := enrollService(t, f, ev, nil)
+	lessons := lessontest.New(lessontest.Options{Objects: objects, AssetOrigin: asset, Pool: f.DB.Pool, Engine: engine, Financial: fin, Events: analytics.WithConsent(ev, analytics.DatabaseConsent(f.DB.Pool))})
 	s = s.WithGeneration(sharing.GenerationDeps{Quotes: pricing.NewQuotes(f.DB.Pool), Wallet: fin, Lessons: lessons})
 	course := seedReusable(t, f, "Astronomy")
 	return &genEnv{f: f, ev: ev, s: s, lessons: lessons, fin: fin, engine: double, token: publish(t, s, course), course: course}
