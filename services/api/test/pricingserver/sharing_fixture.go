@@ -47,6 +47,7 @@ func newSharingService(pool *pgxpool.Pool, objects sharing.ObjectWriter, gen sha
 	cfg.MarketplaceEnabled, cfg.MarketplacePageSize = true, 2
 	s := sharing.NewService(pool, nil, cfg).WithAgeSource(fixtureAdult{}).WithObjects(objects, playerfixture.AssetOrigin)
 	s.ConfigureScreening(sharingScreener{}, fixtureRates{})
+	s.WithPush(sharing.NewFakePush()) // dev/e2e only: no APNs/FCM credentials exist (ADR 0012)
 	if gen.Lessons != nil {
 		s = s.WithGeneration(gen)
 	}

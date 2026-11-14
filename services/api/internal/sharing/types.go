@@ -74,6 +74,12 @@ type Config struct {
 	MarketplaceRatingMinCount  int
 	MarketplaceRatingPrior     float64
 	MarketplaceCacheTTLSeconds int
+	// E15-06 Course invites: sends per sender per rolling day, days until a pending invite expires,
+	// days a final invite is kept, and push attempts before an adapter failure is final.
+	InviteSendsPerDay int
+	InviteExpiryDays  int
+	InvitePurgeDays   int
+	PushMaxAttempts   int
 }
 
 // DefaultConfig is the conservative v1 policy.
@@ -87,6 +93,7 @@ func DefaultConfig() Config {
 		MarketplaceMinAccountAgeDays: 3, MarketplaceMinLessons: 3, MarketplaceMaxTags: 5, MarketplaceMaxListingsPerOwner: 20,
 		MarketplacePageSize: 20, MarketplaceMaxPageSize: 50, MarketplaceMaxQueryLength: 100,
 		MarketplaceRatingMinCount: 10, MarketplaceRatingPrior: 3.5, MarketplaceCacheTTLSeconds: 60,
+		InviteSendsPerDay: 20, InviteExpiryDays: 30, InvitePurgeDays: 90, PushMaxAttempts: 3,
 	}
 }
 
@@ -142,6 +149,10 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	positive("MARKETPLACE_MAX_QUERY_LENGTH", &c.MarketplaceMaxQueryLength, 1, 200)
 	positive("MARKETPLACE_RATING_MIN_COUNT", &c.MarketplaceRatingMinCount, 1, 10000)
 	positive("MARKETPLACE_CACHE_TTL_SECONDS", &c.MarketplaceCacheTTLSeconds, 1, 3600)
+	positive("SHARING_INVITES_PER_DAY", &c.InviteSendsPerDay, 1, 1000)
+	positive("SHARING_INVITE_EXPIRY_DAYS", &c.InviteExpiryDays, 1, 365)
+	positive("SHARING_INVITE_PURGE_DAYS", &c.InvitePurgeDays, 1, 3650)
+	positive("SHARING_PUSH_MAX_ATTEMPTS", &c.PushMaxAttempts, 1, 10)
 	if f, err := strconv.ParseFloat(getenv("MARKETPLACE_RATING_PRIOR"), 64); err == nil && f >= 1 && f <= 5 {
 		c.MarketplaceRatingPrior = f
 	}
