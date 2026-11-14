@@ -7,7 +7,7 @@ Action matrix: course = all five; publication = dismiss (approve: verdict become
 
 Audit: `moderation_actions` rows are append-only (trigger). Only account deletion may null the moderator and author references. Reasons are free text kept three years and never emitted.
 
-Appeals: `moderation_appeals.action_id` is unique, so an action can be appealed once. Only the targeted author may appeal. The deciding moderator must differ from the acting moderator (service check under row lock, repeated by trigger). Overturn reverses the action's effects except the share link, which the owner re-creates.
+Appeals: `moderation_appeals.action_id` is unique, so an action can be appealed once. Only the targeted author may appeal. The deciding moderator must differ from the acting moderator (service check under row lock, repeated by trigger). Overturn reverses the action's effects, including the share link: when overturning a takedown, the API re-activates the specific link(s) that the takedown revoked (same token hash, so previously shared URLs work again). `publication_links` gains `revoked_by_action_id` (nullable FK to `moderation_actions`) set only when a takedown revokes the link; owner-revoked or expired links keep NULL and are never re-activated. Re-activation, the appeal decision and a `restore_link` moderation audit row commit in a single transaction.
 
 Cache: every action that changes catalogue visibility invalidates the Redis catalogue after commit.
 

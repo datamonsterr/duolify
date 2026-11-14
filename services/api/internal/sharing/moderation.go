@@ -113,6 +113,9 @@ type Notice struct {
 	Appeal     *AppealState `json:"appeal,omitempty"`
 }
 
+// actionMatrix defines human moderator actions allowed per target type.
+// The system audit action "restore_link" is deliberately excluded: it is written
+// by the system on appeal overturn and cannot be initiated directly by a moderator.
 var actionMatrix = map[string][]string{
 	"course":      {"dismiss", "warn", "delist", "takedown", "ban_publishing"},
 	"publication": {"dismiss", "delist", "takedown", "ban_publishing"},
@@ -473,7 +476,11 @@ func (s *Service) delistCourses(ctx context.Context, tx pgx.Tx, ids []string, ac
 	state := "delisted"
 	if takedown {
 		state = "taken_down"
-		if _, err := tx.Exec(ctx, `UPDATE publication_links SET revoked_at=now() WHERE course_id=ANY($1::uuid[]) AND revoked_at IS NULL`, ids); err != nil {
+		// Record which action revoked each link so an overturned appeal can
+		// re-activate exactly those links (issue #207). Links already revoked
+		// for other reasons keep revoked_by_action_id = NULL and are not touched
+		// on restore.
+		if _, err := tx.Exec(ctx, `UPDATE publication_links SET revoked_at=now(),revoked_by_action_id=$2::uuid WHERE course_id=ANY($1::uuid[]) AND revoked_at IS NULL`, ids, action); err != nil {
 			return nil, err
 		}
 	}
@@ -673,7 +680,9 @@ func (s *Service) FileAppeal(ctx context.Context, author, actionID, text string)
 }
 
 // DecideAppeal lets a moderator other than the acting one uphold or overturn an action. Overturning
-// reverses what the action did, except the share link, which the owner creates again.
+// reverses what the action did; for a takedown this includes re-activating the share link(s) that
+// the takedown revoked (same token hash, so previously shared URLs work again). Links that were
+// already revoked for other reasons before or after the takedown are not touched.
 func (s *Service) DecideAppeal(ctx context.Context, actor, appealID, decision, reason string) error {
 	if err := s.requireModerator(ctx, actor); err != nil {
 		return err
@@ -712,7 +721,7 @@ func (s *Service) DecideAppeal(ctx context.Context, actor, appealID, decision, r
 	var changes []visibilityChange
 	if decision == "overturn" {
 		outcome = "overturned"
-		if changes, err = s.restore(ctx, tx, actionID, kind, targetID, course, draft, prior, wasActive); err != nil {
+		if changes, err = s.restore(ctx, tx, actor, actionID, kind, targetID, course, draft, prior, wasActive); err != nil {
 			return err
 		}
 	}
@@ -745,7 +754,7 @@ func (s *Service) DecideAppeal(ctx context.Context, actor, appealID, decision, r
 	return nil
 }
 
-func (s *Service) restore(ctx context.Context, tx pgx.Tx, actionID, kind, targetID, course, draft, prior string, wasActive bool) ([]visibilityChange, error) {
+func (s *Service) restore(ctx context.Context, tx pgx.Tx, actor, actionID, kind, targetID, course, draft, prior string, wasActive bool) ([]visibilityChange, error) {
 	var changes []visibilityChange
 	if _, err := tx.Exec(ctx, `DELETE FROM publishing_bans WHERE action_id=$1`, actionID); err != nil {
 		return nil, err
@@ -754,6 +763,49 @@ func (s *Service) restore(ctx context.Context, tx pgx.Tx, actionID, kind, target
 	case "course":
 		if _, err := tx.Exec(ctx, `UPDATE course_copies SET blocked_at=NULL,blocked_action_id=NULL WHERE blocked_action_id=$1`, actionID); err != nil {
 			return nil, err
+		}
+		// Re-activate the share links that this takedown revoked. Links that were
+		// already revoked (or expired) for other reasons before or after the takedown
+		// have revoked_by_action_id = NULL and are left untouched (issue #207).
+		// An audit row is inserted for every link that is re-activated so the
+		// restore is visible in the per-course audit trail.
+		// moderator_id is set to the deciding moderator (actor); author_id is
+		// deliberately kept NULL so it never surfaces as an author notice or
+		// becomes appealable.
+		reactivatedLinks, err := tx.Query(ctx, `UPDATE publication_links pl
+SET revoked_at=NULL,revoked_by_action_id=NULL
+WHERE pl.revoked_by_action_id=$1
+  AND NOT EXISTS (
+    SELECT 1 FROM publication_links a
+    WHERE a.course_id=pl.course_id AND a.revoked_at IS NULL
+  )
+RETURNING pl.id::text,pl.course_id::text`, actionID)
+		if err != nil {
+			return nil, err
+		}
+		type linkRow struct{ linkID, courseID string }
+		var reactivated []linkRow
+		for reactivatedLinks.Next() {
+			var l linkRow
+			if err = reactivatedLinks.Scan(&l.linkID, &l.courseID); err != nil {
+				reactivatedLinks.Close()
+				return nil, err
+			}
+			reactivated = append(reactivated, l)
+		}
+		reactivatedLinks.Close()
+		if err = reactivatedLinks.Err(); err != nil {
+			return nil, err
+		}
+		if _, err = tx.Exec(ctx, `UPDATE publication_links SET revoked_by_action_id=NULL WHERE revoked_by_action_id=$1`, actionID); err != nil {
+			return nil, err
+		}
+		// Write one audit row per re-activated link so the event is traceable.
+		for _, l := range reactivated {
+			if _, err = tx.Exec(ctx, `INSERT INTO moderation_actions(target_type,target_id,course_id,moderator_id,action,reason_code,reason,severe,listing_was_active)
+ VALUES('course',$1::uuid,$2::uuid,$3::uuid,'restore_link','no_violation','share link re-activated on appeal overturn',false,false)`, l.courseID, l.courseID, actor); err != nil {
+				return nil, err
+			}
 		}
 		rows, err := tx.Query(ctx, `SELECT id::text,learner_id::text,visibility::text FROM courses WHERE moderation_action_id=$1 FOR UPDATE`, actionID)
 		if err != nil {
@@ -777,6 +829,15 @@ func (s *Service) restore(ctx context.Context, tx pgx.Tx, actionID, kind, target
 				if _, err = tx.Exec(ctx, `UPDATE marketplace_listings SET delisted_at=NULL,hidden_at=NULL WHERE course_id=$1`, r.id); err != nil {
 					return nil, err
 				}
+			}
+			// After re-activating the share link, the restored visibility should
+			// reflect any active link (the one this takedown had revoked).
+			var hasLink bool
+			if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM publication_links WHERE course_id=$1 AND revoked_at IS NULL)`, r.id).Scan(&hasLink); err != nil {
+				return nil, err
+			}
+			if hasLink && to == "private" {
+				to = "link"
 			}
 			if _, err = tx.Exec(ctx, `UPDATE courses SET moderation_state='none',moderation_action_id=NULL,visibility=$2::course_visibility WHERE id=$1`, r.id, to); err != nil {
 				return nil, err
