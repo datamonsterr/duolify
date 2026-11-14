@@ -1,11 +1,32 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { InstructionPanel } from "./InstructionPanel";
+import type { Instruction, InstructionService } from "./api";
+
+const limits = {
+  max_characters: 500,
+  max_active: 20,
+  max_total_characters: 4000,
+  adds_per_hour: 10,
+};
+const listOf = (instructions: Instruction[]) => ({
+  instructions,
+  limits,
+  active_count: instructions.filter((i) => i.status === "active").length,
+  active_characters: 0,
+});
+// E16-02 widened the service to list/edit/remove; E16-01 flows use list+add.
+const unused = {
+  latest: vi.fn(),
+  edit: vi.fn(),
+  remove: vi.fn(),
+} satisfies Partial<InstructionService>;
 
 describe("private course steering", () => {
   it("keeps rejected drafts, retries screening and shows saved state without text analytics", async () => {
     const service = {
-      latest: vi.fn().mockResolvedValue(null),
+      ...unused,
+      list: vi.fn().mockResolvedValue(listOf([])),
       add: vi
         .fn()
         .mockRejectedValueOnce(new Error("screening_unavailable"))
@@ -36,16 +57,21 @@ describe("private course steering", () => {
   });
   it("recovers loading failures and preserves long applied content", async () => {
     const service = {
-      latest: vi
+      ...unused,
+      list: vi
         .fn()
         .mockRejectedValueOnce(new Error("offline"))
-        .mockResolvedValue({
-          id: "i1",
-          text: "語".repeat(500),
-          scope: "next_lesson",
-          status: "applied",
-          applied_lesson_id: "l1",
-        }),
+        .mockResolvedValue(
+          listOf([
+            {
+              id: "i1",
+              text: "語".repeat(500),
+              scope: "next_lesson",
+              status: "applied",
+              applied_lesson_id: "l1",
+            },
+          ]),
+        ),
       add: vi.fn(),
     };
     render(<InstructionPanel courseId="c1" service={service} />);
@@ -53,11 +79,12 @@ describe("private course steering", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry loading" }));
     await screen.findByText("Applied to lesson l1");
     expect(screen.getByText("語".repeat(500))).toBeVisible();
-    await waitFor(() => expect(service.latest).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(service.list).toHaveBeenCalledTimes(2));
   });
   it("counts Unicode characters, blocks oversized drafts and sends the selected scope", async () => {
     const service = {
-      latest: vi.fn().mockResolvedValue(null),
+      ...unused,
+      list: vi.fn().mockResolvedValue(listOf([])),
       add: vi.fn().mockResolvedValue({
         id: "i2",
         text: "語".repeat(500),

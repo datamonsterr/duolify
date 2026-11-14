@@ -1,26 +1,16 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sheet } from "../design/sheet/Sheet";
 import { Button } from "../design/Button";
 import { InstructionPanel } from "./InstructionPanel";
-const query = "(max-width: 47.999rem)";
-function subscribe(notify: () => void) {
-  if (!window.matchMedia) return () => {};
-  const m = window.matchMedia(query);
-  m.addEventListener("change", notify);
-  return () => m.removeEventListener("change", notify);
-}
+import { useMobile } from "./useMobile";
 export function SteerCourse({ courseId }: { courseId: string }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
-  const mobile = useSyncExternalStore(
-    subscribe,
-    () => window.matchMedia?.(query).matches ?? false,
-    () => false,
-  );
+  const mobile = useMobile();
   useEffect(() => {
     if (!open || mobile) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !event.defaultPrevented) {
         event.preventDefault();
         setOpen(false);
         trigger.current?.focus();
