@@ -4,7 +4,45 @@ export type PluralMessage = { other: string } & Partial<
   Record<Intl.LDMLPluralRule, string>
 >;
 export type Message = string | PluralMessage;
+// Review strings use authored English fallbacks until translated catalogues are supplied.
+const reviewMessages = {
+  "review.title": "Reviews",
+  "review.saved": "Review saved.",
+  "review.hidden":
+    "Your stars are saved. Your review text is hidden while it awaits approval or needs changes.",
+  "review.deleted": "Review deleted.",
+  "review.loading": "Loading reviews…",
+  "review.empty": "No reviews yet. Share your view after learning.",
+  "review.owner": "You can't review your own course.",
+  "review.unlock": {
+    one: "Reviews open after {count} lesson",
+    other: "Reviews open after {count} lessons",
+  },
+  "review.progress":
+    "You've finished {completed}. Complete {needed} more to share your view.",
+  "review.yours": "Your review",
+  "review.yours_version": "Your review · on v{version}",
+  "review.rating": "Star rating",
+  "review.star_label": { one: "{count} star", other: "{count} stars" },
+  "review.text": "Review text",
+  "review.text_help":
+    "Optional · {count} / {max} characters. Text is checked before it appears.",
+  "review.post": "Post review",
+  "review.save": "Save review",
+  "review.saving": "Saving…",
+  "review.delete": "Delete review",
+  "review.list": "Course reviews",
+  "review.item": "{author} · {stars} · on v{version}",
+  "review.hidden_text": "Review text is hidden.",
+  "review.count": { one: "{count} review", other: "{count} reviews" },
+  "review.confirm_title": "Delete your review?",
+  "review.confirm_body": "This removes your stars and review from this course.",
+  "review.confirm": "Confirm delete",
+  "review.cancel": "Cancel",
+  "review.retry": "Retry",
+} satisfies Record<string, Message>;
 export const en = {
+  ...reviewMessages,
   "outline.default_goal": "Describe what you learned.",
   "outline.goal_for": "Goal for {name}",
   "outline.goal_error": "Enter a lesson goal.",
@@ -359,6 +397,7 @@ export const en = {
 } satisfies Record<string, Message>;
 export type MessageId = keyof typeof en;
 export const ar: Record<MessageId, Message> = {
+  ...reviewMessages,
   "outline.default_goal": "صِف ما تعلمته.",
   "outline.goal_for": "هدف {name}",
   "outline.goal_error": "أدخل هدف الدرس.",

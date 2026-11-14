@@ -179,6 +179,26 @@ type CharacterVersion struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type ContentReport struct {
+	ID         pgtype.UUID        `json:"id"`
+	TargetType string             `json:"target_type"`
+	TargetID   pgtype.UUID        `json:"target_id"`
+	CourseID   pgtype.UUID        `json:"course_id"`
+	ReporterID pgtype.UUID        `json:"reporter_id"`
+	Reason     string             `json:"reason"`
+	Text       string             `json:"text"`
+	Status     string             `json:"status"`
+	MergeCount int32              `json:"merge_count"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ContentReportSubmission struct {
+	ID         pgtype.UUID        `json:"id"`
+	ReporterID pgtype.UUID        `json:"reporter_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type CopyGenerationConsent struct {
 	GenerationID   pgtype.UUID        `json:"generation_id"`
 	LearnerID      pgtype.UUID        `json:"learner_id"`
@@ -190,15 +210,17 @@ type CopyGenerationConsent struct {
 }
 
 type Course struct {
-	ID             pgtype.UUID        `json:"id"`
-	LearnerID      pgtype.UUID        `json:"learner_id"`
-	CreationID     pgtype.UUID        `json:"creation_id"`
-	Title          string             `json:"title"`
-	Description    string             `json:"description"`
-	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	Visibility     CourseVisibility   `json:"visibility"`
-	OutlineVersion int64              `json:"outline_version"`
+	ID                 pgtype.UUID        `json:"id"`
+	LearnerID          pgtype.UUID        `json:"learner_id"`
+	CreationID         pgtype.UUID        `json:"creation_id"`
+	Title              string             `json:"title"`
+	Description        string             `json:"description"`
+	DeletedAt          pgtype.Timestamptz `json:"deleted_at"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	Visibility         CourseVisibility   `json:"visibility"`
+	ModerationState    string             `json:"moderation_state"`
+	ModerationActionID pgtype.UUID        `json:"moderation_action_id"`
+	OutlineVersion     int64              `json:"outline_version"`
 }
 
 type CourseBriefRevision struct {
@@ -218,17 +240,21 @@ type CourseCast struct {
 }
 
 type CourseCopy struct {
-	CopyCourseID   pgtype.UUID        `json:"copy_course_id"`
-	LearnerID      pgtype.UUID        `json:"learner_id"`
-	SourceCourseID pgtype.UUID        `json:"source_course_id"`
-	DraftID        pgtype.UUID        `json:"draft_id"`
-	Version        int32              `json:"version"`
-	ContentHash    string             `json:"content_hash"`
-	Source         string             `json:"source"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	LockVersion    int32              `json:"lock_version"`
-	ForkedAt       pgtype.Timestamptz `json:"forked_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	CopyCourseID    pgtype.UUID        `json:"copy_course_id"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	SourceCourseID  pgtype.UUID        `json:"source_course_id"`
+	DraftID         pgtype.UUID        `json:"draft_id"`
+	Version         int32              `json:"version"`
+	ContentHash     string             `json:"content_hash"`
+	Source          string             `json:"source"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	LockVersion     int32              `json:"lock_version"`
+	ForkedAt        pgtype.Timestamptz `json:"forked_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	BlockedAt       pgtype.Timestamptz `json:"blocked_at"`
+	BlockedActionID pgtype.UUID        `json:"blocked_action_id"`
+	SourceOwnerID   pgtype.UUID        `json:"source_owner_id"`
+	ForkedAtLesson  pgtype.UUID        `json:"forked_at_lesson"`
 }
 
 type CourseCreation struct {
@@ -328,6 +354,38 @@ type CourseReplanProposal struct {
 	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
 	DecidedAt      pgtype.Timestamptz `json:"decided_at"`
 	Decision       pgtype.Text        `json:"decision"`
+}
+
+type CourseReview struct {
+	ID          pgtype.UUID        `json:"id"`
+	CourseID    pgtype.UUID        `json:"course_id"`
+	LearnerID   pgtype.UUID        `json:"learner_id"`
+	Version     int32              `json:"version"`
+	Stars       int32              `json:"stars"`
+	Text        string             `json:"text"`
+	Verdict     string             `json:"verdict"`
+	OperationID pgtype.UUID        `json:"operation_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type CourseReviewScreening struct {
+	ID            pgtype.UUID        `json:"id"`
+	ReviewID      pgtype.UUID        `json:"review_id"`
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	Verdict       string             `json:"verdict"`
+	ReasonCodes   []string           `json:"reason_codes"`
+	PolicyVersion string             `json:"policy_version"`
+	Attempts      int32              `json:"attempts"`
+	FallbackUsed  bool               `json:"fallback_used"`
+	CostNanos     int64              `json:"cost_nanos"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type CourseReviewSubmission struct {
+	ID        pgtype.UUID        `json:"id"`
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type CourseUnit struct {
@@ -1048,6 +1106,7 @@ type MarketplaceListing struct {
 	PublishedAt      pgtype.Timestamptz `json:"published_at"`
 	DelistedAt       pgtype.Timestamptz `json:"delisted_at"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	HiddenAt         pgtype.Timestamptz `json:"hidden_at"`
 }
 
 type MarketplaceListingStat struct {
@@ -1058,6 +1117,53 @@ type MarketplaceListingStat struct {
 	RatingSum      int64              `json:"rating_sum"`
 	RatingCount    int32              `json:"rating_count"`
 	RefreshedAt    pgtype.Timestamptz `json:"refreshed_at"`
+}
+
+type ModerationAction struct {
+	ID               pgtype.UUID        `json:"id"`
+	QueueItemID      pgtype.UUID        `json:"queue_item_id"`
+	TargetType       string             `json:"target_type"`
+	TargetID         pgtype.UUID        `json:"target_id"`
+	CourseID         pgtype.UUID        `json:"course_id"`
+	DraftID          pgtype.UUID        `json:"draft_id"`
+	AuthorID         pgtype.UUID        `json:"author_id"`
+	ModeratorID      pgtype.UUID        `json:"moderator_id"`
+	Action           string             `json:"action"`
+	ReasonCode       string             `json:"reason_code"`
+	Reason           string             `json:"reason"`
+	Severe           bool               `json:"severe"`
+	ListingWasActive bool               `json:"listing_was_active"`
+	PriorVerdict     pgtype.Text        `json:"prior_verdict"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
+type ModerationAppeal struct {
+	ID             pgtype.UUID        `json:"id"`
+	ActionID       pgtype.UUID        `json:"action_id"`
+	AuthorID       pgtype.UUID        `json:"author_id"`
+	Text           string             `json:"text"`
+	Status         string             `json:"status"`
+	DecidedBy      pgtype.UUID        `json:"decided_by"`
+	DecisionReason string             `json:"decision_reason"`
+	DecidedAt      pgtype.Timestamptz `json:"decided_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type ModerationQueueItem struct {
+	ID          pgtype.UUID        `json:"id"`
+	TargetType  string             `json:"target_type"`
+	TargetID    pgtype.UUID        `json:"target_id"`
+	Severity    int32              `json:"severity"`
+	ReportCount int32              `json:"report_count"`
+	Status      string             `json:"status"`
+	OpenedAt    pgtype.Timestamptz `json:"opened_at"`
+	DraftID     pgtype.UUID        `json:"draft_id"`
+	ResolvedAt  pgtype.Timestamptz `json:"resolved_at"`
+}
+
+type ModeratorGrant struct {
+	AccountID pgtype.UUID        `json:"account_id"`
+	GrantedAt pgtype.Timestamptz `json:"granted_at"`
 }
 
 type NarrationAsset struct {
@@ -1247,6 +1353,12 @@ type PublicationScreening struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
+type PublishingBan struct {
+	LearnerID pgtype.UUID        `json:"learner_id"`
+	ActionID  pgtype.UUID        `json:"action_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type QuickNote struct {
 	ID                   pgtype.UUID        `json:"id"`
 	LearnerID            pgtype.UUID        `json:"learner_id"`
@@ -1292,6 +1404,15 @@ type QuickNoteEnrichment struct {
 	Provider  string             `json:"provider"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type SharedAssetRetention struct {
+	Prefix     string             `json:"prefix"`
+	RefCount   int32              `json:"ref_count"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	ReleasedAt pgtype.Timestamptz `json:"released_at"`
+	PurgeAfter pgtype.Timestamptz `json:"purge_after"`
+	PurgedAt   pgtype.Timestamptz `json:"purged_at"`
 }
 
 type SlideNarration struct {

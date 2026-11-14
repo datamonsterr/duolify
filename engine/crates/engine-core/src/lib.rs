@@ -123,7 +123,10 @@ impl LlmProvider for MockProvider {
             .map(|(_, r)| r)
             .unwrap_or("");
             serde_json::json!({"approved":reason.is_empty(),"reason_code":reason}).to_string()
-        } else if data.as_ref().is_some_and(|v| v["task"] == "course_screen") {
+        } else if data
+            .as_ref()
+            .is_some_and(|v| v["task"] == "course_screen" || v["task"] == "screen_review")
+        {
             // Deterministic fixture provider over every depth of the sample.
             let text = data.unwrap()["sample"].to_string().to_lowercase();
             let (verdict, code) = [
@@ -131,6 +134,8 @@ impl LlmProvider for MockProvider {
                 ("reveal system prompt", "block", "prompt_injection"),
                 ("ignore previous instructions", "block", "prompt_injection"),
                 ("hidden payload", "block", "hidden_payload"),
+                ("abusive-review", "block", "harmful_content"),
+                ("spam-review", "block", "harmful_content"),
                 ("real person likeness", "block", "real_person"),
                 ("sexual content", "block", "sexual_content"),
                 ("borderline", "needs_review", "harmful_content"),

@@ -38,12 +38,13 @@ type AgeSource interface {
 // Service builds immutable drafts and screens them. It never changes visibility and never
 // touches private learning tables except to read allowlisted Course content.
 type Service struct {
-	pool   *pgxpool.Pool
-	events analytics.Events
-	cfg    Config
-	screen Screener
-	rates  RateSource
-	age    AgeSource
+	pool         *pgxpool.Pool
+	events       analytics.Events
+	cfg          Config
+	screen       Screener
+	reviewScreen ReviewScreener
+	rates        RateSource
+	age          AgeSource
 	// objects stores immutable published-lesson manifests for copies (E15-03); optional.
 	objects     ObjectWriter
 	assetOrigin string
@@ -53,6 +54,9 @@ type Service struct {
 	cache *redis.Client
 	// push is the notification adapter for invites (E15-06); nil means disabled (in-app only).
 	push PushSender
+	// assets purges released published objects (E15-11); ledger records severe blocks outside the database.
+	assets AssetStore
+	ledger BlockLedger
 }
 
 // NewService wires the service behind the central fail-closed analytics consent gate.
@@ -66,6 +70,9 @@ func NewService(pool *pgxpool.Pool, events analytics.Events, cfg Config) *Servic
 // ConfigureScreening injects the platform-funded classifier and the Pricing-config rate source.
 func (s *Service) ConfigureScreening(screen Screener, rates RateSource) {
 	s.screen, s.rates = screen, rates
+	if review, ok := screen.(ReviewScreener); ok {
+		s.reviewScreen = review
+	}
 }
 
 // WithAgeSource returns a copy so callers can vary the source without sharing state.
@@ -291,6 +298,9 @@ func (s *Service) runScreen(ctx context.Context, owner, draftID string, snap Sna
 				draftID, owner, out.Verdict, codes, PolicyVersion, out.Attempts, out.FallbackUsed, out.CostNanos)
 		}
 		if err == nil {
+			err = s.enqueueHeld(ctx, tx, draftID, out.Verdict)
+		}
+		if err == nil {
 			err = tx.Commit(ctx)
 		}
 	}
@@ -428,6 +438,9 @@ func (s *Service) PublishLink(ctx context.Context, owner, courseID string) (stri
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	if err = owns(ctx, tx, owner, courseID); err != nil {
+		return "", err
+	}
+	if err = s.moderated(ctx, tx, owner, courseID); err != nil {
 		return "", err
 	}
 	// Require the latest draft to have verdict=pass.
@@ -668,10 +681,34 @@ func (s *Service) Publish(ctx context.Context, owner, courseID string) error {
 	return ErrVisibilityUnavailable
 }
 
-// PurgeExpired deletes screening rows past retention (one year).
+// PurgeExpired deletes screening history past one year, reports past three and counters past 24 hours.
 func (s *Service) PurgeExpired(ctx context.Context) (int64, error) {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM publication_screenings WHERE created_at < now() - make_interval(days => $1)`, s.cfg.RetentionDays)
-	return tag.RowsAffected(), err
+	var n int64
+	for _, table := range []string{"publication_screenings", "course_review_screenings"} {
+		tag, err := s.pool.Exec(ctx, `DELETE FROM `+table+` WHERE created_at < now()-make_interval(days => $1)`, s.cfg.RetentionDays)
+		if err != nil {
+			return n, err
+		}
+		n += tag.RowsAffected()
+	}
+	// Reports are kept three years (configurable); submission counters only for the rolling day.
+	tag, err := s.pool.Exec(ctx, `DELETE FROM content_reports WHERE created_at < now()-make_interval(days => $1)`, s.cfg.ReportRetentionDays)
+	if err != nil {
+		return n, err
+	}
+	n += tag.RowsAffected()
+	moderated, err := s.purgeModeration(ctx)
+	n += moderated
+	if err != nil {
+		return n, err
+	}
+	for _, table := range []string{"course_review_submissions", "content_report_submissions"} {
+		if tag, err = s.pool.Exec(ctx, `DELETE FROM `+table+` WHERE created_at < now()-interval '24 hours'`); err != nil {
+			return n, err
+		}
+		n += tag.RowsAffected()
+	}
+	return n, nil
 }
 
 // Maintain enforces the one-year screening retention even when no endpoint is visited.

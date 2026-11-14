@@ -19,6 +19,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/cache"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/gamification"
+	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -80,8 +81,14 @@ func run() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), backup.RTOBudget)
 	defer cancel()
+	var checks []backup.Check
+	if os.Getenv("S3_BUCKET") != "" {
+		// Every copy pin must resolve to a retained version and a stored object (E15-11).
+		checks = append(checks, backup.PinResolution(player.NewS3(os.Getenv).Exists))
+	}
 	report, err := backup.RunDrill(ctx, backup.DrillOptions{
-		Store: store, Identity: cfg.Identity, Source: "scheduled", Events: events, OptOut: cfg.OptOut, Now: time.Now,
+		Checks: checks,
+		Store:  store, Identity: cfg.Identity, Source: "scheduled", Events: events, OptOut: cfg.OptOut, Now: time.Now,
 		Restore:            backup.DockerRestorer{Container: cfg.Container, AdminURL: cfg.DatabaseURL, User: cfg.PGUser}.Restore,
 		ExpectedMigrations: versions,
 		ReplayDeletions: func(ctx context.Context, pool *pgxpool.Pool) error {

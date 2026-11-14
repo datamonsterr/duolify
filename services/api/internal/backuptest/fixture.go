@@ -724,6 +724,38 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 			t.Fatal(err)
 		}
 	}
+	// E15-08: two real review contributions replace the old synthetic aggregate of eight stars.
+	for _, stmt := range []string{
+		`UPDATE marketplace_listing_stats SET rating_sum=0,rating_count=0 WHERE course_id='f1111111-1111-4111-8111-111111111111'`,
+		`INSERT INTO course_reviews(id,course_id,learner_id,version,stars,text,verdict) VALUES('e1508000-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222',1,5,'Helpful synthetic review','pass'),('e1508000-2222-4222-8222-222222222222','f1111111-1111-4111-8111-111111111111','a3333333-3333-4333-8333-333333333333',1,3,'Synthetic pending review','pending_screening')`,
+		`INSERT INTO course_review_screenings(review_id,learner_id,verdict,reason_codes,attempts,fallback_used,cost_nanos) VALUES('e1508000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','pass','{}',1,false,1234)`,
+		`INSERT INTO course_review_submissions(learner_id) VALUES('a2222222-2222-4222-8222-222222222222')`,
+	} {
+		if _, err = f.DB.Pool.Exec(t.Context(), stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// E15-09: two open reports (below the hide threshold, so the listing stays visible), the daily counter and the queue row.
+	for _, stmt := range []string{
+		`INSERT INTO content_reports(id,target_type,target_id,course_id,reporter_id,reason,text,merge_count) VALUES('e1509000-1111-4111-8111-111111111111','course','f1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','copyright','Synthetic report text',1),('e1509000-2222-4222-8222-222222222222','course','f1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','a3333333-3333-4333-8333-333333333333','spam','',0)`,
+		`INSERT INTO content_report_submissions(reporter_id) VALUES('a2222222-2222-4222-8222-222222222222')`,
+		`INSERT INTO moderation_queue_items(id,target_type,target_id,severity,report_count,opened_at) VALUES('e1509000-3333-4333-8333-333333333333','course','f1111111-1111-4111-8111-111111111111',80,2,'2026-11-11T00:00:00Z')`,
+	} {
+		if _, err = f.DB.Pool.Exec(t.Context(), stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// E15-10: a moderator, a warning with its one open appeal, and a publishing ban. The warning leaves the listing visible.
+	for _, stmt := range []string{
+		`INSERT INTO moderator_grants(account_id,granted_at) VALUES('a3333333-3333-4333-8333-333333333333','2026-11-01T00:00:00Z')`,
+		`INSERT INTO moderation_actions(id,queue_item_id,target_type,target_id,course_id,author_id,moderator_id,action,reason_code,reason,created_at) VALUES('e1510000-1111-4111-8111-111111111111','e1509000-3333-4333-8333-333333333333','course','f1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','a3333333-3333-4333-8333-333333333333','warn','misleading','Synthetic moderation reason','2026-11-12T00:00:00Z')`,
+		`INSERT INTO moderation_appeals(id,action_id,author_id,text,created_at) VALUES('e1510000-2222-4222-8222-222222222222','e1510000-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','Synthetic appeal text','2026-11-12T01:00:00Z')`,
+		`INSERT INTO publishing_bans(learner_id,action_id,created_at) VALUES('a2222222-2222-4222-8222-222222222222','e1510000-1111-4111-8111-111111111111','2026-11-12T00:00:00Z')`,
+	} {
+		if _, err = f.DB.Pool.Exec(t.Context(), stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
 	// E15-06: a pending delivered invite with its in-app and push outbox rows, and an accepted one.
 	for _, stmt := range []string{
 		`INSERT INTO course_invites(id,course_id,sender_id,recipient_id,operation_key,method,delivered,created_at,expires_at) VALUES('e1506000-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','e1506000-9999-4999-8999-999999999991','username',true,'2026-11-10T00:00:00Z','2026-12-10T00:00:00Z')`,
@@ -1083,7 +1115,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	// Compare complete auth rows, including hashes, expiry/consumption, age gate and
 	// analytics preference. Table names are a fixed fixture allowlist.
-	for _, table := range []string{"steering_config", "course_replan_proposals", "course_instructions", "lesson_instruction_snapshots", "league_groups", "league_memberships", "league_week_results", "quick_notes", "tutor_threads", "tutor_messages", "tutor_turns", "quick_note_enrichments", "quick_note_chat_sources", "tutor_thread_deletion_tombstones", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "username_config", "learner_usernames", "learner_social_settings", "username_holds", "social_rate_limits", "friend_requests", "friendships", "friend_links", "friend_streaks", "friend_streak_days", "friend_streak_milestones", "friend_nudges", "streak_state", "streak_days", "streak_breaks", "streak_freeze_inventory", "streak_freeze_milestones", "streak_day_protections", "publication_drafts", "publication_screenings", "publication_links", "course_copies", "marketplace_listings", "marketplace_listing_stats", "course_invites", "course_invite_deliveries"} {
+	for _, table := range []string{"steering_config", "course_replan_proposals", "course_instructions", "lesson_instruction_snapshots", "league_groups", "league_memberships", "league_week_results", "quick_notes", "tutor_threads", "tutor_messages", "tutor_turns", "quick_note_enrichments", "quick_note_chat_sources", "tutor_thread_deletion_tombstones", "bookmarks", "character_create_jobs", "characters", "character_versions", "character_screenings", "course_casts", "lesson_cast_snapshots", "lesson_manifests", "course_creations", "courses", "course_units", "course_lesson_stubs", "course_enrollments", "lesson_generations", "generated_lessons", "lesson_slides", "lesson_questions", "lesson_retry_pools", "lesson_test_sessions", "lesson_test_answers", "lesson_test_answer_operations", "lesson_completion_outbox", "lesson_completion_summaries", "lesson_test_variant_snapshots", "outline_proposals", "outline_drafts", "credit_subscription_lifecycle", "credit_subscription_transitions", "credit_subscription_schedule", "credit_subscription_revocations", "credit_subscription_cancellations", "credit_subscriptions", "credit_subscription_terms", "credit_payment_sessions", "credit_payment_inbox", "credit_payment_payloads", "credit_payment_results", "credit_checkout_orders", "credit_jobs", "credit_allocations", "credit_usage", "credit_cost_counters", "credit_artifacts", "credit_outbox", "credit_timezones", "course_brief_revisions", "pricing_quote_policies", "pricing_quotes", "pricing_quote_consents", "pricing_admin_grants", "pricing_drafts", "pricing_audit", "pricing_activation_events", "pricing_version_cancellations", "pricing_verification_evidence", "eval_alert_configs", "eval_alert_events", "eval_reports", "eval_operational_aggregates", "learner_profiles", "auth_identities", "auth_codes", "auth_sessions", "auth_refresh_tokens", "auth_rate_limits", "auth_provider_identities", "auth_oauth_attempts", "account_deletion_tombstones", "gamification_config", "xp_events", "daily_goal_achievements", "username_config", "learner_usernames", "learner_social_settings", "username_holds", "social_rate_limits", "friend_requests", "friendships", "friend_links", "friend_streaks", "friend_streak_days", "friend_streak_milestones", "friend_nudges", "streak_state", "streak_days", "streak_breaks", "streak_freeze_inventory", "streak_freeze_milestones", "streak_day_protections", "publication_drafts", "publication_screenings", "publication_links", "course_copies", "marketplace_listings", "marketplace_listing_stats", "course_reviews", "course_review_screenings", "course_review_submissions", "content_reports", "content_report_submissions", "moderation_queue_items", "moderator_grants", "publishing_bans", "moderation_actions", "moderation_appeals", "course_invites", "course_invite_deliveries"} {
 		query := "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM " + table + " t"
 		var before, after string
 		if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
@@ -1220,6 +1252,27 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		AND l.search @@ websearch_to_tsquery('simple','night sky rust') AND s.rating_sum=8 AND s.rating_count=2 AND s.enrollments_30d=2`).Scan(&listed); err != nil || listed != 1 {
 		t.Fatalf("restored marketplace listing changed: %d %v", listed, err)
 	}
+	var reviews int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM course_reviews WHERE course_id='f1111111-1111-4111-8111-111111111111' AND version=1 AND stars IN (3,5) AND (SELECT count(*) FROM course_review_screenings)=1 AND (SELECT count(*) FROM course_review_submissions)=1`).Scan(&reviews); err != nil || reviews != 2 {
+		t.Fatalf("restored reviews/history/counters: %d %v", reviews, err)
+	}
+	// E15-09: reports restore with their reason, merge count and queue row (the restore drill's anonymizer redacts the free text).
+	var reports int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM content_reports r WHERE r.target_id='f1111111-1111-4111-8111-111111111111' AND r.status='open'
+		AND ((r.reason='copyright' AND r.merge_count=1) OR r.reason='spam')
+		AND (SELECT count(*) FROM content_report_submissions)=1 AND (SELECT severity FROM moderation_queue_items WHERE target_id=r.target_id)=80`).Scan(&reports); err != nil || reports != 2 {
+		t.Fatalf("restored reports/queue/counters: %d %v", reports, err)
+	}
+	// E15-10: the audit, the one appeal, the role and the ban restore with their dates and the append-only guard.
+	var moderation int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM moderation_actions a JOIN moderation_appeals ap ON ap.action_id=a.id
+		WHERE a.action='warn' AND a.reason_code='misleading' AND a.created_at='2026-11-12T00:00:00Z' AND ap.status='open'
+		AND EXISTS(SELECT 1 FROM moderator_grants WHERE account_id=a.moderator_id) AND EXISTS(SELECT 1 FROM publishing_bans WHERE action_id=a.id)`).Scan(&moderation); err != nil || moderation != 1 {
+		t.Fatalf("restored moderation audit/appeal/grant/ban: %d %v", moderation, err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `UPDATE moderation_actions SET reason='edited'`); err == nil {
+		t.Fatal("restored audit is not append-only")
+	}
 	// E15-06: invites and their delivery state restore from the dump, so the inbox and the 90-day purge clock survive.
 	var invites int
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM course_invites i WHERE i.id='e1506000-1111-4111-8111-111111111111' AND i.status='pending' AND i.delivered AND i.method='username' AND i.expires_at='2026-12-10T00:00:00Z'
@@ -1352,8 +1405,30 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		INSERT INTO course_invites(course_id,sender_id,recipient_id,operation_key,method,expires_at) SELECT id,$1::uuid,'a1111111-1111-4111-8111-111111111111',gen_random_uuid(),'friend',now()+interval '1 day' FROM c`, erasedID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO course_reviews(id,course_id,learner_id,version,stars,text,verdict) VALUES('e1508000-3333-4333-8333-333333333333','f1111111-1111-4111-8111-111111111111',$1,1,4,'Erased restored review','pass')`, erasedID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO content_reports(target_type,target_id,course_id,reporter_id,reason,text) VALUES('course','f1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111',$1,'other','Erased restored report')`, erasedID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := restored.Pool.Exec(t.Context(), `WITH a AS (INSERT INTO moderation_actions(target_type,target_id,course_id,author_id,moderator_id,action,reason_code,reason) VALUES('course','f1111111-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111',$1,'a3333333-3333-4333-8333-333333333333','delist','spam','Erased restored action') RETURNING id)
+		INSERT INTO moderation_appeals(action_id,author_id,text) SELECT id,$1,'Erased restored appeal' FROM a`, erasedID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", erasedID); err != nil {
 		t.Fatal(err)
+	}
+	var erasedReview bool
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT learner_id IS NULL AND text='' AND stars=4 AND (SELECT rating_sum=12 AND rating_count=3 FROM marketplace_listing_stats WHERE course_id=r.course_id) FROM course_reviews r WHERE id='e1508000-3333-4333-8333-333333333333'`).Scan(&erasedReview); err != nil || !erasedReview {
+		t.Fatalf("restored review erasure changed aggregate: %v %v", erasedReview, err)
+	}
+	var erasedAudit bool
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT a.author_id IS NULL AND a.reason='Erased restored action' AND ap.author_id IS NULL AND ap.text='' FROM moderation_actions a JOIN moderation_appeals ap ON ap.action_id=a.id WHERE a.reason='Erased restored action'`).Scan(&erasedAudit); err != nil || !erasedAudit {
+		t.Fatalf("restored audit erasure kept the author or appeal text: %v %v", erasedAudit, err)
+	}
+	var erasedReport bool
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT reporter_id IS NULL AND text='' AND reason='other' FROM content_reports WHERE target_id='f1111111-1111-4111-8111-111111111111' AND reason='other'`).Scan(&erasedReport); err != nil || !erasedReport {
+		t.Fatalf("restored report erasure kept attribution or text: %v %v", erasedReport, err)
 	}
 	var survived bool
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM course_replan_proposals WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_instructions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM lesson_instruction_snapshots WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM marketplace_listings WHERE owner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_invites WHERE sender_id=$1::uuid OR recipient_id=$1::uuid) OR EXISTS(SELECT 1 FROM marketplace_listing_stats s JOIN courses c ON c.id=s.course_id WHERE c.learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_copies WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM publication_links pl JOIN courses c ON c.id=pl.course_id WHERE c.learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM learner_profiles WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_brief_revisions WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_creations WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM courses WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM characters WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM character_screenings WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM publication_drafts WHERE owner_id=$1::uuid) OR EXISTS(SELECT 1 FROM publication_screenings WHERE owner_id=$1::uuid) OR EXISTS(SELECT 1 FROM course_casts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM lesson_cast_snapshots WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM quick_notes WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM quick_note_enrichments WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM bookmarks WHERE learner_id=$1::uuid)", erasedID).Scan(&survived); err != nil || survived {

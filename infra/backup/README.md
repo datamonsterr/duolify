@@ -70,8 +70,8 @@ Railway snapshots/PITR, production buckets and key custody are owner-provided
   first, then `<date>/schema-<n>.dump.age`. General keys expire after **14 days**,
   `financial/` keys after **35 days** (a dump dated D is kept through D+N days). Live
   seven-year financial history in Postgres is never touched. `BACKUP_GENERAL_RETENTION_DAYS` /
-  `BACKUP_FINANCIAL_RETENTION_DAYS` may only raise the windows. `account-deletions/`
-  and unknown keys are never listed or deleted.
+  `BACKUP_FINANCIAL_RETENTION_DAYS` may only raise the windows. `account-deletions/`,
+  `moderation-blocks/` and unknown keys are never listed or deleted.
 - **Newest-dump guard.** Per class, the expirer never deletes the newest dump by key date,
   even past its window, so a stalled writer (worker broken 15+ days) cannot leave zero
   restorable backups. When it holds one back it logs a warning with a count only (no keys);
@@ -156,7 +156,9 @@ as the manual path for an already anonymized archive.
 - **Order**: decrypt in memory → restore → **anonymize** (`Anonymize`; credentials, sessions
   and webhook payloads purged, identities and learner-authored text replaced) → schema,
   migration-registry and ledger checks → deletion tombstones from `account-deletions/v1/`
-  (read-only; a drill never writes to backup storage) → Redis rebuild from Postgres
+  (read-only; a drill never writes to backup storage) → severe moderation blocks from
+  `moderation-blocks/v1/` (re-applied to the restored copies; `<action>.lifted.json` marks an
+  overturned action) → Redis rebuild from Postgres
   (`gamification.RebuildLeagueCache`) → feature and object-reference checks → privacy checks.
 - **Privacy checks**: every text, jsonb and array column must be registered in the
   anonymizer (`piiRules`, `purgedTables`) or reviewed as safe (`reviewedSafe`); an
@@ -203,3 +205,22 @@ as the manual path for an already anonymized archive.
 Both API serve and worker startup require the scoped `BACKUP_S3_*` configuration. `account-deletions/v1/<SHA-256>.json` is the authoritative append-only deletion ledger in the backup bucket, separate from restored database snapshots. Each atomic conditional Put contains only the hashed learner reference. The write must succeed before SQL erasure commits; retries preserve the first complete object. If SQL fails after a durable intent, retry/startup replay completes that intent. Never expire, overwrite, delete or restore this prefix; scope 14/35-day retention to dated archives only. Keep the writer without delete/admin permission.
 
 After restoring a dump, start the API against the existing ledger bucket. Before opening HTTP listeners, `ReplayDeletionLedger` migrates legacy SQL tombstones to object intents, checks every restored learner hash against storage, imports matching intents and reapplies full erasure/financial pseudonymization. A storage/replay failure stops startup. Do not expose the restored database through another service until this replay succeeds. The integration fixture restores an actual encrypted pre-deletion dump with no SQL tombstone and proves the independent object intent keeps the learner deleted.
+
+## Shared course assets and moderation blocks (E15-11)
+
+- **Pins and counts in dumps.** `course_copies` (pin, version, hash) and `shared_asset_retention`
+  (one row per published version prefix with its live-copy count and release marks) are ordinary
+  tables in the nightly dump. The drill check `copy pins resolve` fails when a live copy's version
+  has no retained row or a published object a live copy points to is missing from application
+  storage. Ended copies are not checked.
+- **Purge versus dumps.** Published objects are purged `SHARING_ASSET_PURGE_DAYS` (default 30,
+  minimum 15) after the last copy ends, longer than the 14-day general dump window, so a dump the
+  drill can restore never points at purged objects. Purge is a versioned delete in the application
+  bucket (delete markers), never `DeleteObjectVersion`.
+- **Severe takedowns survive restores.** A severe moderation takedown writes
+  `moderation-blocks/v1/<sha256 of action id>.json` (course hash and action hash only) before it
+  commits; an overturned appeal writes `<hash>.lifted.json`. Records are write-once like
+  `account-deletions/`; the expirer cannot delete them. `restore-drill` and `RunDrill` replay
+  them (`moderation blocks` step), so a dump older than the takedown cannot un-block copies.
+- `cmd/restore-drill` adds `copy pins resolve` when `S3_BUCKET` and the application credentials
+  are configured.

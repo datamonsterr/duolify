@@ -13,12 +13,13 @@ description = "Check wire compatibility against main when it has a contract"
 dir = "{{config_root}}"
 run = '''
 set -eu
-git rev-parse --verify main >/dev/null
-if [ -z "$(git ls-tree -r --name-only main -- proto | sed -n '/\.proto$/p')" ]; then
-  echo "Skipping breaking check: main has no proto contract"
+proto_base_ref="${PROTO_BREAKING_REF:-main}"
+git rev-parse --verify "$proto_base_ref" >/dev/null
+if [ -z "$(git ls-tree -r --name-only "$proto_base_ref" -- proto | sed -n '/\.proto$/p')" ]; then
+  echo "Skipping breaking check: $proto_base_ref has no proto contract"
   exit 0
 fi
-buf breaking proto --against '.git#branch=main,subdir=proto'
+buf breaking proto --against ".git#ref=${proto_base_ref},subdir=proto"
 '''
 
 ["proto:format"]

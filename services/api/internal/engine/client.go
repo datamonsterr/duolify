@@ -53,6 +53,13 @@ func (c *Client) ScreenCourse(ctx context.Context, r *enginev1.ScreenCourseReque
 	return c.rpc.ScreenCourse(ctx, r)
 }
 
+// ScreenReview bounds platform-paid review screening to ten seconds.
+func (c *Client) ScreenReview(ctx context.Context, r *enginev1.ScreenReviewRequest) (*enginev1.ScreenReviewResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return c.rpc.ScreenReview(ctx, r)
+}
+
 // MapCharacter is bounded by the quote's total job deadline and the engine's per-call ceiling.
 func (c *Client) MapCharacter(ctx context.Context, r *enginev1.MapCharacterRequest) (*enginev1.MapCharacterResponse, error) {
 	return c.rpc.MapCharacter(ctx, r)

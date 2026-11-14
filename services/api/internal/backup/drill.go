@@ -193,6 +193,11 @@ func RunDrill(ctx context.Context, o DrillOptions) (report Report, result error)
 		}
 		return o.ReplayDeletions(ctx, pool)
 	})
+	// A dump older than a severe takedown must not lift it: the ledger outlives database restores.
+	step("moderation blocks", KindPrivacy, func() error {
+		_, err := ReplayModerationBlocks(ctx, pool, o.Store)
+		return err
+	})
 	step("redis rebuild", KindData, func() error {
 		if o.RebuildRedis == nil {
 			return errDrill

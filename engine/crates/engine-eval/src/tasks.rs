@@ -67,6 +67,7 @@ impl Default for TaskRegistry {
         registered_extensions.insert("lesson_narration".to_string());
         registered_extensions.insert("lesson_test_variant".to_string());
         registered_extensions.insert("course_screen".to_string());
+        registered_extensions.insert("screen_review".to_string());
         registered_extensions.insert("published_copy_lesson".to_string());
         for task in [
             "steer_screen",

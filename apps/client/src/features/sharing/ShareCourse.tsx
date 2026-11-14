@@ -10,6 +10,7 @@ import {
 } from "./links";
 import { InviteFriends } from "./InviteFriends";
 import { RepublishPanel } from "./RepublishPanel";
+import { UnpublishDialog } from "./UnpublishDialog";
 import "./sharing.css";
 
 /** Owner entry point on the course view. */
@@ -33,7 +34,8 @@ export function ShareCourse({ courseId }: { courseId: string }) {
 }
 
 type Busy = "checking" | "revoking" | "rotating" | null;
-type Notice = "Link copied" | "Link replaced" | "Link revoked" | null;
+type Notice =
+  "Link copied" | "Link replaced" | "Link revoked" | "Unpublished" | null;
 
 /** Visibility and link controls. Desktop dialog, mobile full-height sheet. */
 export function ShareCoursePanel({
@@ -57,6 +59,8 @@ export function ShareCoursePanel({
   const [verdictNote, setVerdictNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [newVersion, setNewVersion] = useState(false);
+  const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+  const unpublishTrigger = useRef<HTMLButtonElement>(null);
 
   const load = useCallback(() => {
     let active = true;
@@ -306,6 +310,35 @@ export function ShareCoursePanel({
             courseId={courseId}
             shared={shared}
             onShareFirst={() => void publish()}
+          />
+        )}
+        {state && state.visibility !== "private" && (
+          <div className="sharing-actions">
+            <button
+              ref={unpublishTrigger}
+              type="button"
+              className="duo-button secondary"
+              disabled={busy !== null}
+              onClick={() => setConfirmUnpublish(true)}
+            >
+              Unpublish course
+            </button>
+          </div>
+        )}
+        {confirmUnpublish && (
+          <UnpublishDialog
+            courseId={courseId}
+            onClose={() => {
+              setConfirmUnpublish(false);
+              queueMicrotask(() => unpublishTrigger.current?.focus());
+            }}
+            onDone={() => {
+              setConfirmUnpublish(false);
+              setLink(null);
+              setVersion(null);
+              setState({ visibility: "private", active: false });
+              setNotice("Unpublished");
+            }}
           />
         )}
         <p className="sharing-note">

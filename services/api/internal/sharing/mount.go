@@ -15,7 +15,7 @@ func Mount(mux *http.ServeMux, s *Service, protect, optional func(http.Handler) 
 		"POST /v1/courses/{id}/publication-drafts", "GET /v1/courses/{id}/publication-drafts/{draftId}",
 		"POST /v1/courses/{id}/publication-drafts/{draftId}/screen", "POST /v1/courses/{id}/publish",
 		"GET /v1/courses/{id}/share-link", "POST /v1/courses/{id}/share-link",
-		"DELETE /v1/courses/{id}/share-link", "POST /v1/courses/{id}/share-link/rotate",
+		"DELETE /v1/courses/{id}/share-link", "POST /v1/courses/{id}/share-link/rotate", "POST /v1/courses/{id}/unpublish",
 	} {
 		mux.Handle(pattern, owner)
 	}
@@ -38,6 +38,20 @@ func Mount(mux *http.ServeMux, s *Service, protect, optional func(http.Handler) 
 	mux.Handle("GET /v1/marketplace/courses", optional(market))
 	mux.Handle("GET /v1/marketplace/courses/{id}", optional(market))
 	mux.Handle("POST /v1/marketplace/courses/{id}/enroll", protect(market))
+	reviews := ReviewHandler{s: s}
+	mux.Handle("GET /v1/marketplace/courses/{id}/reviews", optional(reviews))
+	mux.Handle("PUT /v1/marketplace/courses/{id}/review", protect(reviews))
+	mux.Handle("DELETE /v1/marketplace/courses/{id}/review", protect(reviews))
+	mux.Handle("POST /v1/marketplace/reports", protect(ReportHandler{s: s}))
+	// E15-10 moderation: role checked in the service, not behind the Marketplace flag, so a link-shared
+	// course can be taken down while the Marketplace is off.
+	moderation := protect(NewModerationHandler(s))
+	for _, pattern := range []string{
+		"GET /v1/moderation/queue", "POST /v1/moderation/items/{id}/actions", "POST /v1/moderation/appeals/{id}/decision",
+		"GET /v1/moderation/notices", "POST /v1/moderation/notices/{id}/appeal", "GET /v1/moderation/release-readiness",
+	} {
+		mux.Handle(pattern, moderation)
+	}
 	listing := protect(NewListingHandler(s))
 	for _, method := range []string{"GET", "PUT", "DELETE"} {
 		mux.Handle(method+" /v1/courses/{id}/marketplace-listing", listing)

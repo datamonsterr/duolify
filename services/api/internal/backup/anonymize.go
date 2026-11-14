@@ -51,6 +51,11 @@ var piiRules = []piiRule{
 	{"course_replan_proposals", "input", emptyObj},
 	{"course_replan_proposals", "result_outline", `NULL`},
 	{"lesson_instruction_snapshots", "text", redacted},
+	{"course_reviews", "text", redacted},
+	{"content_reports", "text", redacted},
+	{"moderation_actions", "reason", redacted},
+	{"moderation_appeals", "text", redacted},
+	{"moderation_appeals", "decision_reason", redacted},
 	{"learners", "display_name", `'Learner ' || left(md5(id::text), 8)`},
 	{"auth_identities", "email", `'learner-' || replace(learner_id::text, '-', '') || '@` + AnonymizedDomain + `'`},
 	{"auth_provider_identities", "subject", `'anon-' || md5(provider || learner_id::text)`},
@@ -134,9 +139,10 @@ func init() {
 	for _, column := range strings.Fields(`
 course_instructions.scope course_instructions.screening_verdict course_instructions.screening_usage lesson_instruction_snapshots.scope
 course_replan_proposals.decision course_replan_proposals.reason
+moderation_actions.target_type moderation_actions.action moderation_actions.reason_code moderation_actions.prior_verdict courses.moderation_state moderation_appeals.status content_reports.target_type content_reports.reason content_reports.status moderation_queue_items.target_type moderation_queue_items.status course_reviews.verdict course_review_screenings.verdict course_review_screenings.reason_codes course_review_screenings.policy_version
 character_create_jobs.operation character_screenings.verdict copy_generation_consents.pricing_version
 course_invite_deliveries.channel course_invites.cancel_reason course_invites.method
-course_copies.content_hash course_copies.source course_enrollments.level_override
+course_copies.content_hash course_copies.source course_enrollments.level_override shared_asset_retention.prefix
 course_lesson_stubs.reused_from_snapshot courses.visibility marketplace_listings.category marketplace_listings.language
 credit_allocations.bucket credit_allocations.component credit_allocations.grant_date credit_artifacts.component
 credit_checkout_orders.billing_period credit_checkout_orders.platform credit_checkout_orders.return_to

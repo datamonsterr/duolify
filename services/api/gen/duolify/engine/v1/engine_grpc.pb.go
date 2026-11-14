@@ -24,6 +24,7 @@ const (
 	EngineService_ScreenCharacter_FullMethodName       = "/duolify.engine.v1.EngineService/ScreenCharacter"
 	EngineService_MapCharacter_FullMethodName          = "/duolify.engine.v1.EngineService/MapCharacter"
 	EngineService_ScreenCourse_FullMethodName          = "/duolify.engine.v1.EngineService/ScreenCourse"
+	EngineService_ScreenReview_FullMethodName          = "/duolify.engine.v1.EngineService/ScreenReview"
 	EngineService_Health_FullMethodName                = "/duolify.engine.v1.EngineService/Health"
 	EngineService_PreviewCourse_FullMethodName         = "/duolify.engine.v1.EngineService/PreviewCourse"
 	EngineService_GenerateCourseOutline_FullMethodName = "/duolify.engine.v1.EngineService/GenerateCourseOutline"
@@ -53,6 +54,8 @@ type EngineServiceClient interface {
 	MapCharacter(ctx context.Context, in *MapCharacterRequest, opts ...grpc.CallOption) (*MapCharacterResponse, error)
 	// ScreenCourse classifies a bounded, allowlisted publication sample (<=12 lessons). Platform-funded; never bills Credits.
 	ScreenCourse(ctx context.Context, in *ScreenCourseRequest, opts ...grpc.CallOption) (*ScreenCourseResponse, error)
+	// ScreenReview classifies optional review text within a ten-second platform budget.
+	ScreenReview(ctx context.Context, in *ScreenReviewRequest, opts ...grpc.CallOption) (*ScreenReviewResponse, error)
 	// Health reports readiness and configured providers.
 	Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
 	// PreviewCourse returns a sample outline and example slides before the learner commits.
@@ -129,6 +132,16 @@ func (c *engineServiceClient) ScreenCourse(ctx context.Context, in *ScreenCourse
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ScreenCourseResponse)
 	err := c.cc.Invoke(ctx, EngineService_ScreenCourse_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *engineServiceClient) ScreenReview(ctx context.Context, in *ScreenReviewRequest, opts ...grpc.CallOption) (*ScreenReviewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ScreenReviewResponse)
+	err := c.cc.Invoke(ctx, EngineService_ScreenReview_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -279,6 +292,8 @@ type EngineServiceServer interface {
 	MapCharacter(context.Context, *MapCharacterRequest) (*MapCharacterResponse, error)
 	// ScreenCourse classifies a bounded, allowlisted publication sample (<=12 lessons). Platform-funded; never bills Credits.
 	ScreenCourse(context.Context, *ScreenCourseRequest) (*ScreenCourseResponse, error)
+	// ScreenReview classifies optional review text within a ten-second platform budget.
+	ScreenReview(context.Context, *ScreenReviewRequest) (*ScreenReviewResponse, error)
 	// Health reports readiness and configured providers.
 	Health(context.Context, *HealthRequest) (*HealthResponse, error)
 	// PreviewCourse returns a sample outline and example slides before the learner commits.
@@ -325,6 +340,9 @@ func (UnimplementedEngineServiceServer) MapCharacter(context.Context, *MapCharac
 }
 func (UnimplementedEngineServiceServer) ScreenCourse(context.Context, *ScreenCourseRequest) (*ScreenCourseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ScreenCourse not implemented")
+}
+func (UnimplementedEngineServiceServer) ScreenReview(context.Context, *ScreenReviewRequest) (*ScreenReviewResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ScreenReview not implemented")
 }
 func (UnimplementedEngineServiceServer) Health(context.Context, *HealthRequest) (*HealthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Health not implemented")
@@ -466,6 +484,24 @@ func _EngineService_ScreenCourse_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EngineServiceServer).ScreenCourse(ctx, req.(*ScreenCourseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EngineService_ScreenReview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ScreenReviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).ScreenReview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_ScreenReview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).ScreenReview(ctx, req.(*ScreenReviewRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -680,6 +716,10 @@ var EngineService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ScreenCourse",
 			Handler:    _EngineService_ScreenCourse_Handler,
+		},
+		{
+			MethodName: "ScreenReview",
+			Handler:    _EngineService_ScreenReview_Handler,
 		},
 		{
 			MethodName: "Health",

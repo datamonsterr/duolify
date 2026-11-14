@@ -105,7 +105,8 @@ func allowlisted(event string) bool {
 		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
 		"marketplace_browsed", "marketplace_searched", "course_viewed",
 		"course_invite_sent", "course_invite_accepted", "course_invite_declined",
-		"course_republished", "course_update_applied",
+		"course_republished", "course_update_applied", "review_submitted", "review_deleted", "course_reported", "course_hidden_by_reports",
+		"moderation_action", "moderation_appeal",
 		"narration_generated", "narration_failed", "narration_cache_hit", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled":
 		return true
 	default:
@@ -300,6 +301,9 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		boolean("fallback_used")
 	case "course_visibility_changed":
 		ids("course_id")
+		if v, _ := input["cause"].(string); v == "moderation" {
+			out["cause"] = v
+		}
 		for _, key := range []string{"from", "to"} {
 			if v, ok := input[key].(string); ok && (v == "private" || v == "link" || v == "public") {
 				out[key] = v
@@ -337,6 +341,56 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("course_id", "invite_id")
 		if v, _ := input["method"].(string); v == "username" || v == "friend" {
 			out["method"] = v
+		}
+	case "review_submitted", "review_deleted":
+		for _, key := range []string{"course_id", "review_id"} {
+			if v, _ := input[key].(string); marketUUID.MatchString(v) {
+				out[key] = v
+			}
+		}
+		numeric("version")
+		if v, ok := input["rating"].(int); ok && v >= 1 && v <= 5 {
+			out["rating"] = v
+		}
+		if v, _ := input["verdict"].(string); v == "pass" || v == "block" || v == "needs_review" || v == "pending_screening" {
+			out["verdict"] = v
+		}
+	case "course_reported", "course_hidden_by_reports":
+		// Identifiers and closed enums only; report text never reaches analytics.
+		for _, key := range []string{"course_id", "report_id"} {
+			if v, _ := input[key].(string); marketUUID.MatchString(v) && (key == "course_id" || event == "course_reported") {
+				out[key] = v
+			}
+		}
+		if event == "course_reported" {
+			if v, _ := input["reason"].(string); reportReasons[v] {
+				out["reason"] = v
+			}
+			if v, _ := input["target_type"].(string); v == "course" || v == "review" || v == "user" {
+				out["target_type"] = v
+			}
+		} else if v, ok := input["reporter_count"].(int); ok && v >= 1 && v <= 1000 {
+			out["reporter_count"] = v
+		}
+	case "moderation_action", "moderation_appeal":
+		// UUIDs and closed enums only: never reason or appeal text, usernames or moderator identity.
+		for _, key := range []string{"course_id", "action_id"} {
+			if v, _ := input[key].(string); marketUUID.MatchString(v) {
+				out[key] = v
+			}
+		}
+		if event == "moderation_action" {
+			if v, _ := input["action"].(string); moderationActions[v] {
+				out["action"] = v
+			}
+			if v, _ := input["reason_code"].(string); moderationReasonCodes[v] {
+				out["reason_code"] = v
+			}
+			if v, _ := input["target_type"].(string); v == "course" || v == "review" || v == "user" || v == "publication" {
+				out["target_type"] = v
+			}
+		} else if v, _ := input["outcome"].(string); v == "filed" || v == "upheld" || v == "overturned" {
+			out["outcome"] = v
 		}
 	case "course_republished":
 		ids("course_id")
@@ -674,7 +728,10 @@ func safeProperties(event string, input map[string]any) map[string]any {
 }
 
 var (
-	marketCategories = map[string]bool{"science": true, "tech": true, "languages": true, "life_skills": true, "arts": true}
-	marketLanguage   = regexp.MustCompile(`^[a-z]{2,3}$`)
-	marketUUID       = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+	marketCategories      = map[string]bool{"science": true, "tech": true, "languages": true, "life_skills": true, "arts": true}
+	marketLanguage        = regexp.MustCompile(`^[a-z]{2,3}$`)
+	reportReasons         = map[string]bool{"unsafe": true, "inappropriate": true, "spam": true, "copyright": true, "misleading": true, "other": true}
+	moderationActions     = map[string]bool{"dismiss": true, "warn": true, "delist": true, "takedown": true, "ban_publishing": true}
+	moderationReasonCodes = map[string]bool{"unsafe": true, "legal": true, "inappropriate": true, "spam": true, "copyright": true, "misleading": true, "other": true, "no_violation": true}
+	marketUUID            = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 )
