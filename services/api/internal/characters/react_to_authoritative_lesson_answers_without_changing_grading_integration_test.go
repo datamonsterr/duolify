@@ -20,6 +20,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
+	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
@@ -84,7 +85,7 @@ func TestReactionsProjectAuthoritativeResultsWithoutChangingGradingIntegration(t
 		t.Fatal(err)
 	}
 	financial := credits.NewServiceWithCatalogue(db.Pool, nil, cat, nil)
-	lessons := lessontest.New(lessontest.Options{Pool: db.Pool, Engine: reactionEngine{}, Financial: financial})
+	lessons := lessontest.New(lessontest.Options{Objects: new(playerfixture.MemoryObjects), AssetOrigin: playerfixture.AssetOrigin, Pool: db.Pool, Engine: reactionEngine{}, Financial: financial})
 	deps := httpapi.Dependencies{Accounts: auth, Quotes: pricing.NewQuotes(db.Pool), CourseBrief: courses.New(courses.Options{Pool: db.Pool, Financial: financial}), Credits: financial, LessonTestTracerEnabled: true}
 	server := httptest.NewServer(httpapi.NewWithLessonTest(deps, lessons, logger))
 	defer server.Close()

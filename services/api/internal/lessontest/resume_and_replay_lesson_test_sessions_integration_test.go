@@ -24,6 +24,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
+	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
@@ -137,7 +138,7 @@ func TestResumeAndReplayLessonTestSessionsIntegration(t *testing.T) {
 
 	events := &captureEvents{}
 	ttl := 7 * 24 * time.Hour
-	lessonService := lessontest.New(lessontest.Options{
+	lessonService := lessontest.New(lessontest.Options{Objects: new(playerfixture.MemoryObjects), AssetOrigin: playerfixture.AssetOrigin,
 		Pool:                db.Pool,
 		Events:              events,
 		Engine:              mockEngine,

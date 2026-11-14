@@ -19,6 +19,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/gamification"
+	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/steering"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -47,6 +48,8 @@ type Options struct {
 	Financial           *credits.Service
 	Events              analytics.Events
 	Casts               CastPinner
+	Objects             player.GeneratedWriter
+	AssetOrigin         string
 	MinGap              int
 	MaxVariantsPerTopic int
 	MaxVariantsPerTest  int
@@ -671,6 +674,16 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 	finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 	lesson, attempts, title := saved.Lesson, saved.Attempts, saved.Title
+	slides := make([]player.GeneratedSlide, 0, len(lesson.Slides))
+	for _, slide := range lesson.Slides {
+		slides = append(slides, player.GeneratedSlide{ID: slide.SlideId, HTML: slide.Html, DurationMS: int(slide.DurationMs), Narration: slide.Narration})
+	}
+	// A validated checkpoint survives storage/settlement failures. Never write
+	// objects in SettleWith's transaction or repeat the paid generation on retry.
+	manifestKey, publishErr := player.PublishGenerated(finishCtx, s.opts.Objects, "lessons/generated/"+id, slides, s.opts.AssetOrigin)
+	if publishErr != nil {
+		return fmt.Errorf("publish generated lesson: %w", publishErr)
+	}
 	var err error
 	var appliedIDs []string
 	settled, settleErr := s.opts.Financial.SettleWith(finishCtx, owner, reservation, attempts, func(tx pgx.Tx, result credits.Reservation) error {
@@ -772,6 +785,9 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 		}
 
 		if _, err = tx.Exec(finishCtx, `UPDATE course_lesson_stubs SET status = 'current' WHERE id = $1::uuid`, lessonID); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(finishCtx, `INSERT INTO lesson_manifests(lesson_id,learner_id,version,manifest_key) VALUES($1,$2,1,$3) ON CONFLICT(lesson_id) DO NOTHING`, lessonID, owner, manifestKey); err != nil {
 			return err
 		}
 

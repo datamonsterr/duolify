@@ -22,6 +22,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
+	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/steering"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
@@ -150,7 +151,7 @@ func newReviewFixture(t *testing.T) *reviewFixture {
 	}
 
 	coursesService := courses.New(courses.Options{Pool: db.Pool, Financial: financial})
-	lessonService := lessontest.New(lessontest.Options{
+	lessonService := lessontest.New(lessontest.Options{Objects: new(playerfixture.MemoryObjects), AssetOrigin: playerfixture.AssetOrigin,
 		Pool:      db.Pool,
 		Engine:    mockEngine,
 		Financial: financial,
@@ -338,7 +339,7 @@ func TestReviewPersistenceFailureDoesNotChargeAndResumes(t *testing.T) {
 
 	// A persisted provider result must survive a worker restart without another paid call.
 	f.engine.err = errors.New("provider must not run again")
-	resumed := lessontest.New(lessontest.Options{Pool: f.db.Pool, Financial: f.financial, Engine: f.engine})
+	resumed := lessontest.New(lessontest.Options{Objects: new(playerfixture.MemoryObjects), AssetOrigin: playerfixture.AssetOrigin, Pool: f.db.Pool, Financial: f.financial, Engine: f.engine})
 	if err = resumed.RunLessonGeneration(t.Context(), id); err != nil {
 		t.Fatalf("resume: %v", err)
 	}

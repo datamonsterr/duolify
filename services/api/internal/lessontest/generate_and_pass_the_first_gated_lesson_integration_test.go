@@ -20,6 +20,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
+	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
@@ -173,7 +174,7 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 	}
 
 	coursesService := courses.New(courses.Options{Pool: db.Pool, Financial: financial})
-	lessonService := lessontest.New(lessontest.Options{
+	lessonService := lessontest.New(lessontest.Options{Objects: new(playerfixture.MemoryObjects), AssetOrigin: playerfixture.AssetOrigin,
 		Pool:      db.Pool,
 		Engine:    mockEngine,
 		Financial: financial,

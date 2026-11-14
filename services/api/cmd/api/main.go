@@ -46,6 +46,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
+	"github.com/riverqueue/river"
 )
 
 func main() {
@@ -201,7 +202,7 @@ func run(ctx context.Context, args []string) (result error) {
 			_ = notesQueue.Stop(stopCtx)
 		}()
 		if cfg.LessonTestTracerEnabled {
-			lessonService := lessontest.New(lessontest.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Events: events, Casts: characters.NewService(db.Pool, nil, events)})
+			lessonService := lessontest.New(lessontest.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Events: events, Casts: characters.NewService(db.Pool, nil, events), Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN")})
 			lessonQueue, err := lessonService.LessonQueue(logger)
 			if err != nil {
 				return err
@@ -214,6 +215,22 @@ func run(ctx context.Context, args []string) (result error) {
 				defer cancel()
 				_ = lessonQueue.Stop(stopCtx)
 			}()
+			legacyPlayer := player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN")})
+			backfillQueue, err := legacyPlayer.GeneratedBackfillQueue(logger)
+			if err != nil {
+				return err
+			}
+			if err = backfillQueue.Start(context.WithoutCancel(ctx)); err != nil {
+				return err
+			}
+			defer func() {
+				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+				defer cancel()
+				_ = backfillQueue.Stop(stopCtx)
+			}()
+			if _, err = backfillQueue.Insert(ctx, player.GeneratedBackfillArgs{}, &river.InsertOpts{Queue: "generated-publication", MaxAttempts: 10, UniqueOpts: river.UniqueOpts{ByArgs: true}}); err != nil {
+				return err
+			}
 		}
 		// E14-01: narration synthesis stays off until explicitly enabled; only the engine mock exists.
 		if os.Getenv("NARRATION_ENABLED") == "true" {
@@ -334,6 +351,8 @@ func run(ctx context.Context, args []string) (result error) {
 	var lessonPreparer *lessontest.Service
 	if cfg.LessonTestTracerEnabled {
 		lessonPreparer = lessontest.New(lessontest.Options{
+			Objects:             player.NewS3(os.Getenv),
+			AssetOrigin:         os.Getenv("LESSON_ASSET_ORIGIN"),
 			Pool:                db.Pool,
 			Engine:              backend,
 			Financial:           creditService,
