@@ -106,6 +106,24 @@ impl LlmProvider for MockProvider {
             .map(|(_, r)| r)
             .unwrap_or("");
             serde_json::json!({"approved":reason.is_empty(),"reason_code":reason}).to_string()
+        } else if data.as_ref().is_some_and(|v| v["task"] == "course_screen") {
+            // Deterministic fixture provider over every depth of the sample.
+            let text = data.unwrap()["sample"].to_string().to_lowercase();
+            let (verdict, code) = [
+                ("ignore policy", "block", "prompt_injection"),
+                ("reveal system prompt", "block", "prompt_injection"),
+                ("ignore previous instructions", "block", "prompt_injection"),
+                ("hidden payload", "block", "hidden_payload"),
+                ("real person likeness", "block", "real_person"),
+                ("sexual content", "block", "sexual_content"),
+                ("borderline", "needs_review", "harmful_content"),
+            ]
+            .into_iter()
+            .find(|(needle, _, _)| text.contains(needle))
+            .map(|(_, v, c)| (v, c))
+            .unwrap_or(("pass", ""));
+            let codes: Vec<&str> = if code.is_empty() { vec![] } else { vec![code] };
+            serde_json::json!({"verdict":verdict,"reason_codes":codes}).to_string()
         } else if data
             .as_ref()
             .is_some_and(|v| v["task"] == "character_create")
@@ -358,6 +376,7 @@ pub mod lessontest;
 pub mod narration;
 pub mod notes;
 pub mod pricing;
+pub mod sharing;
 pub mod slide;
 #[cfg(test)]
 mod tests;

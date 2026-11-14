@@ -298,6 +298,9 @@ func TestVersionedReservationTransactions(t *testing.T) {
 		if _, err = database.Pool.Exec(ctx, `INSERT INTO pricing_quote_policies(version,policy) SELECT 'e7-03-flip',policy FROM pricing_quote_policies WHERE version=$1`, q.PricingVersion); err != nil {
 			t.Fatal(err)
 		}
+		if _, err = database.Pool.Exec(ctx, "INSERT INTO pricing_activation_events(version) VALUES ('e7-03-flip')"); err != nil {
+			t.Fatal(err)
+		}
 		next := acceptedQuote(t, quotes, owner, "quick_note")
 		if next.ContentCeiling != 3 || next.PricingVersion == q.PricingVersion {
 			t.Fatal("new config not activated")

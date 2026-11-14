@@ -11,7 +11,7 @@ E14-02..04 narrate every Lesson in one default voice. Plus and Pro include curat
 - Global narration-off (Learner setting `narration` or `NARRATION_ENABLED`) skips enqueue, engine calls, quotes and charges. Insufficient audio credits disable only audio (`disabled`/`insufficient_credits`) and the player offers Retry and Add credits without blocking text or the test.
 - Client: voice panel in the player with the new character quote, Confirm/Decline, unentitled state (upsell shown only to plans without "No upsell banners", firing `credits_upsell_shown`), recovery states.
 - Analytics: existing `narration_cache_hit`, `narration_muted`, `credits_upsell_shown`; no new events or text properties.
-- Data: migration `20261113181405_narration_voices`, backup fixture, restore check, `docs/data-inventory.md`, privacy classification. Golden-set `lesson_narration` approved-voice and locale alignment rows with recorded fixture `evals/fixtures/narration.voices.json`.
+- Data: migration `20261115091405_narration_voices`, backup fixture, restore check, `docs/data-inventory.md`, privacy classification. Golden-set `lesson_narration` approved-voice and locale alignment rows with recorded fixture `evals/fixtures/narration.voices.json`.
 
 ## Impact
 services/api (narration, pricing quotes, player, httpapi, migrations, backuptest, accounts privacy, pricingserver), engine-core voices config and tests, evals fixtures, apps/client player and narration, docs.

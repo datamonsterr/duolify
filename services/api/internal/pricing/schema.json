@@ -35,7 +35,11 @@
       }
     },
     "stripe_mappings":{"type":"object","additionalProperties":{"oneOf":[{"type":"string"},{"type":"object","additionalProperties":{"type":"string"}}]}},
-    "store_mappings":{"type":"object","additionalProperties":{"type":"object","additionalProperties":{"type":"string"}}}
+    "store_mappings":{"type":"object","additionalProperties":{"type":"object","additionalProperties":{"type":"string"}}},
+    "design_chat_decision": {
+      "type": "string",
+      "enum": ["pending", "interim_adr_0012", "owner_approved"]
+    }
   },
   "$defs": {
     "id":{"type":"string","minLength":1},

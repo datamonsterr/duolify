@@ -5,6 +5,10 @@ export type Lesson = {
   title: string;
   state: "done" | "current" | "locked" | "ready_to_generate" | "generating";
   goal?: string;
+  /** "ready" lessons are playable as is; "needs_generation" ones are generated for credits. */
+  content?: "ready" | "needs_generation";
+  /** Arrived free with a published copy. */
+  reused?: boolean;
 };
 export type Course = {
   availability?: "available" | "unavailable";
@@ -12,6 +16,8 @@ export type Course = {
   title: string;
   description: string;
   level_override?: string;
+  /** Published version a copy is pinned to. */
+  pinned_version?: number | null;
   units: { id?: string; title: string; lessons: Lesson[] }[];
 };
 export type CoursesResponse = Course[] & { active_course_id?: string };

@@ -94,6 +94,7 @@ func (s *Service) ServeCoursesListHTTP(w http.ResponseWriter, r *http.Request) {
 				'title', c.title,
 				'description', c.description,
 				'level_override', COALESCE(e.level_override, ''),
+				'pinned_version', (SELECT cc.version FROM course_copies cc WHERE cc.copy_course_id=c.id),
 				'units', COALESCE((
 					SELECT jsonb_agg(
 						jsonb_build_object(
@@ -105,7 +106,9 @@ func (s *Service) ServeCoursesListHTTP(w http.ResponseWriter, r *http.Request) {
 										'id', l.id,
 										'title', l.title,
 										'goal', l.goal,
-										'state', l.status
+										'state', l.status,
+										'content', CASE WHEN EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=l.id) THEN 'ready' ELSE 'needs_generation' END,
+										'reused', l.reused_from_snapshot
 									) ORDER BY l.position
 								) FROM course_lesson_stubs l WHERE l.unit_id=u.id
 							), '[]'::jsonb)

@@ -80,7 +80,7 @@ func (q *Queries) GetLessonRetryPool(ctx context.Context, arg GetLessonRetryPool
 }
 
 const getLessonStub = `-- name: GetLessonStub :one
-SELECT id, learner_id, unit_id, authored_id, position, title, goal, status FROM course_lesson_stubs WHERE id = $1
+SELECT id, learner_id, unit_id, authored_id, position, title, goal, status, reused_from_snapshot FROM course_lesson_stubs WHERE id = $1
 `
 
 func (q *Queries) GetLessonStub(ctx context.Context, id pgtype.UUID) (CourseLessonStub, error) {
@@ -95,6 +95,7 @@ func (q *Queries) GetLessonStub(ctx context.Context, id pgtype.UUID) (CourseLess
 		&i.Title,
 		&i.Goal,
 		&i.Status,
+		&i.ReusedFromSnapshot,
 	)
 	return i, err
 }

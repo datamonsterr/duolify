@@ -38,6 +38,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
@@ -142,11 +143,28 @@ func run() (result error) {
 	})
 	tracerEnabled := os.Getenv("LESSON_TEST_TRACER_ENABLED") == "true"
 	var lessonHandler http.Handler
+	var sharingGeneration sharing.GenerationDeps
 	if tracerEnabled {
-		lessonHandler = lessontest.New(lessontest.Options{
+		// The fixture engine makes Course copy generation (E15-04) runnable end to end.
+		lessonSvc := lessontest.New(lessontest.Options{
 			Pool:      db.Pool,
+			Engine:    fixtureLessonEngine{},
 			Financial: creditService,
 		})
+		lessonHandler = lessonSvc
+		sharingGeneration = sharing.GenerationDeps{Quotes: pricing.NewQuotes(db.Pool), Wallet: creditService, Lessons: lessonSvc}
+		lessonQueue, err := lessonSvc.LessonQueue(logger)
+		if err != nil {
+			return err
+		}
+		if err := lessonQueue.Start(ctx); err != nil {
+			return err
+		}
+		defer func() {
+			stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = lessonQueue.Stop(stopCtx)
+		}()
 	}
 	objects := &fixtureObjects{values: playerfixture.Documents()}
 	lateNarration := &lateNarrationRecovery{}
@@ -382,7 +400,29 @@ func run() (result error) {
 		_ = notesQueue.Stop(stopCtx)
 	}()
 
+	mux.Handle("POST /test/sharing/fund", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Credits int `json:"credits"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 256)).Decode(&in) != nil || in.Credits <= 0 || in.Credits > 100000 {
+			http.Error(w, "invalid funding", http.StatusBadRequest)
+			return
+		}
+		owner := accounts.LearnerID(r.Context())
+		if _, err := db.Pool.Exec(r.Context(), `INSERT INTO credit_entries(learner_id, amount, kind, reference, pricing_version, provenance)
+			VALUES($1::uuid, $2, 'purchase', $3, $4, '{"bucket":"purchase"}'::jsonb)`, owner, in.Credits, "e15-fund:"+uuid.NewString(), catalogue.Config().Version); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_ = creditService.InvalidateCache(r.Context(), owner)
+		_ = paidCredits.InvalidateCache(r.Context(), owner)
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	mux.Handle("POST /test/sharing/course", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seedSharingCourse(w, r, db.Pool)
+	})))
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{
+		Sharing:                 newSharingService(db.Pool, objects, sharingGeneration),
 		Notes:                   notesService,
 		Player:                  lessonPlayer,
 		NarrationVoices:         narrationService.HTTP(),
@@ -597,7 +637,8 @@ func run() (result error) {
 	// E2E tests reset request throttles between cases; production API limits remain
 	// unchanged. This fixture server is loopback-only and is never deployed.
 	mux.HandleFunc("POST /test/reset-auth-rate-limits", func(w http.ResponseWriter, r *http.Request) {
-		if _, err := db.Pool.Exec(r.Context(), "DELETE FROM auth_rate_limits"); err != nil {
+		// Anonymous preview counters are per-IP and all E2E traffic is loopback, so they reset too.
+		if _, err := db.Pool.Exec(r.Context(), "DELETE FROM auth_rate_limits; DELETE FROM publication_preview_limits"); err != nil {
 			w.WriteHeader(500)
 			return
 		}
@@ -784,36 +825,38 @@ func (characterMapFixture) MapCharacter(_ context.Context, r *enginev1.MapCharac
 // Fixture documents are immutable and contain no personal content; integration
 // coverage separately exercises the real RustFS adapter and protected restore.
 type fixtureObjects struct {
-	mu     sync.Mutex
+	mu     sync.RWMutex
 	values map[string][]byte
 }
 
 func (f *fixtureObjects) snapshot(key string) []byte {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	return f.values[key]
 }
 
 func (f *fixtureObjects) Get(_ context.Context, key string) ([]byte, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	v, ok := f.values[key]
 	if !ok {
 		return nil, errors.New("missing fixture object")
 	}
 	return v, nil
 }
+
+// Put is write-once like the real bucket: new keys (published lesson copies) are stored,
+// rewriting a key with different bytes is refused.
 func (f *fixtureObjects) Put(_ context.Context, key string, value []byte) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	// Narration objects are new, hash-keyed and immutable; lesson fixtures never change.
-	if _, exists := f.values[key]; !exists && (strings.HasPrefix(key, "lessons/narration/v1/") || strings.HasPrefix(key, "lessons/fixture-salt/")) {
-		f.values[key] = append([]byte(nil), value...)
+	if old, ok := f.values[key]; ok {
+		if !bytes.Equal(old, value) {
+			return errors.New("fixture mutation")
+		}
 		return nil
 	}
-	if !bytes.Equal(f.values[key], value) {
-		return errors.New("fixture mutation")
-	}
+	f.values[key] = append([]byte(nil), value...)
 	return nil
 }
 

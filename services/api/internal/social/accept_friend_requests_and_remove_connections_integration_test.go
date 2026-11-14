@@ -454,14 +454,48 @@ func TestViewsExposeOnlyPublicFieldsAndErasureRemovesRows(t *testing.T) {
 	f := r.friends(a)[0]
 	for key := range f {
 		switch key {
-		case "id", "username", "display_name", "avatar", "since", "streak":
+		case "id", "username", "display_name", "avatar", "since", "streak", "friend_streak", "nudge":
 		default:
 			t.Fatalf("friend view leaks %q", key)
 		}
 	}
-	// Friend streaks arrive in E6-06: no streak is invented, and none is shown without a source.
+	// E6-07 adds the sender's own nudge state, and only that: whether today's nudge is spent.
+	for key := range f["nudge"].(map[string]any) {
+		if key != "sent" && key != "next_at" {
+			t.Fatalf("nudge state leaks %q", key)
+		}
+	}
+	// E6-06 adds the privacy-permitted shared streak object, and only that: counts, state and
+	// each friend's own local day. No personal streak is invented without a source.
 	if f["streak"] != nil {
 		t.Fatalf("unexpected streak: %v", f["streak"])
+	}
+	shared, ok := f["friend_streak"].(map[string]any)
+	if !ok {
+		t.Fatalf("friend_streak missing: %v", f)
+	}
+	for key := range shared {
+		switch key {
+		case "days", "longest", "state", "you", "friend", "checking_until":
+		default:
+			t.Fatalf("friend_streak leaks %q", key)
+		}
+	}
+	for _, side := range []string{"you", "friend"} {
+		for key := range shared[side].(map[string]any) {
+			switch key {
+			case "local_date", "time_zone", "done", "protected":
+			default:
+				t.Fatalf("friend_streak.%s leaks %q", side, key)
+			}
+		}
+	}
+	// Hidden entirely when the friend turns show_streak_to_friends off.
+	if s, o, _ := r.call("PATCH", "/v1/social/settings", `{"show_streak_to_friends":false}`, b.token); s != 200 {
+		t.Fatal(s, o)
+	}
+	if hidden := r.friends(a)[0]; hidden["friend_streak"] != nil || hidden["streak"] != nil {
+		t.Fatalf("streak exposed with the setting off: %v", hidden)
 	}
 	_, link := r.act(a, "POST", "/v1/social/friend-link")
 	_ = link

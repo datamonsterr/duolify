@@ -84,7 +84,7 @@ func (s *Service) retrieve(ctx context.Context, owner, course, message string, r
 FROM lesson_slides s
 JOIN course_lesson_stubs l ON l.id=s.lesson_stub_id AND l.learner_id=$1::uuid
 JOIN course_units u ON u.id=l.unit_id AND u.course_id=$2::uuid AND u.learner_id=$1::uuid
-WHERE s.learner_id=$1::uuid AND `+vector+` @@ to_tsquery('simple'::regconfig,$3)
+WHERE s.learner_id=$1::uuid AND l.status<>'locked' AND `+vector+` @@ to_tsquery('simple'::regconfig,$3)
 ORDER BY ts_rank_cd(`+vector+`, to_tsquery('simple'::regconfig,$3)) DESC,u.position,l.position,s.position
 LIMIT $4`, owner, course, terms, maxExcerpts)
 	if err != nil {

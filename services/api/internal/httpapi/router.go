@@ -42,14 +42,17 @@ type Dependencies struct {
 	Quotes          http.Handler
 	Credits         http.Handler
 	Player          http.Handler
+	Notes           http.Handler
+	Eval            http.Handler
+	Characters      http.Handler
+	Tutor           http.Handler
+	Gamification    http.Handler
+	Social          http.Handler
+	Sharing         interface {
+		MountRoutes(*http.ServeMux, func(http.Handler) http.Handler, func(http.Handler) http.Handler)
+	}
 	// NarrationVoices serves the voice list, quote and consent endpoints; nil when narration is off.
 	NarrationVoices         http.Handler
-	Notes                   http.Handler
-	Eval                    http.Handler
-	Characters              http.Handler
-	Tutor                   http.Handler
-	Gamification            http.Handler
-	Social                  http.Handler
 	LessonTestTracerEnabled bool
 	LessonTest              http.Handler
 	Accounts                interface {
@@ -73,6 +76,15 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	if deps.Gamification != nil && deps.Accounts != nil {
 		mux.Handle("/v1/gamification", deps.Accounts.Protect(deps.Gamification))
 		mux.Handle("/v1/gamification/", deps.Accounts.Protect(deps.Gamification))
+	}
+	if deps.Sharing != nil && deps.Accounts != nil {
+		optional := func(next http.Handler) http.Handler { return next }
+		if o, ok := deps.Accounts.(interface {
+			Optional(http.Handler) http.Handler
+		}); ok {
+			optional = o.Optional
+		}
+		deps.Sharing.MountRoutes(mux, deps.Accounts.Protect, optional)
 	}
 	if deps.Social != nil && deps.Accounts != nil {
 		mux.Handle("/v1/social/", deps.Accounts.Protect(deps.Social))
@@ -490,6 +502,10 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			case "/v1/auth/code", "/v1/auth/verify", "/v1/auth/refresh", "/v1/auth/logout", "/v1/auth/google/start", "/v1/auth/google/complete", "/v1/auth/apple/start", "/v1/auth/apple/complete", "/v1/payments/stripe/webhook", "/v1/eval/reports":
 				public = true
 			}
+		}
+		// Anonymous course link preview: the handler is rate limited, noindex and token-gated.
+		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/public/shares/") && strings.Count(r.URL.Path, "/") == 4 {
+			public = true
 		}
 		if public {
 			mux.ServeHTTP(w, r)

@@ -73,6 +73,10 @@ func (r *Rejection) Error() string {
 		return "We couldn't block that person."
 	case CodeBlockLimit:
 		return "Your blocked list is full. Unblock someone first."
+	case CodeNudgeUnavailable:
+		return "We couldn't send that nudge."
+	case CodeNudgeLimited:
+		return "You already sent a nudge today. Try again tomorrow."
 	}
 	return "That username isn't available. Try another."
 }
@@ -82,9 +86,9 @@ func (r *Rejection) Status() int {
 	switch r.Code {
 	case CodeTaken, CodeAlreadySet, CodeNotSet, CodeCooldown, CodePendingLimit, CodeFriendLimit, CodeNotPending, CodeBlockLimit:
 		return 409
-	case CodeRequestUnavailable, CodeInviteUnavailable, CodeBlockUnavailable:
+	case CodeRequestUnavailable, CodeInviteUnavailable, CodeBlockUnavailable, CodeNudgeUnavailable:
 		return 404
-	case CodeRateLimited:
+	case CodeRateLimited, CodeNudgeLimited:
 		return 429
 	}
 	return 422
@@ -127,6 +131,8 @@ type Config struct {
 	FriendPendingMax, FriendSendsPerDay, FriendMax, DeclineCooldownDays, LinkValidDays, LinkPerHour int
 	// BlockMax caps how many learners one learner can block (E6-04).
 	BlockMax int
+	// Nudges (E6-07): inbox retention and a sender's daily cap.
+	NudgeRetentionDays, NudgeSendsPerDay int
 }
 
 // lookalikes folds common digit substitutions; "1" may stand for i or l.

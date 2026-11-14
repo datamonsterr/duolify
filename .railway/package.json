@@ -4,5 +4,8 @@
   },
   "name": "duolify-railway",
   "private": true,
+  "scripts": {
+    "plan": "node plan.mjs"
+  },
   "type": "module"
 }
