@@ -265,3 +265,10 @@ The API SHALL catalogue and emit review_submitted (course_id, review_id, rating,
 #### Scenario: Review saved
 - **WHEN** a learner submits or edits a review
 - **THEN** the API sends only identifiers, stars, version and screening verdict through the consent gate
+
+### Requirement: Report outcomes
+The API SHALL catalogue and emit course_reported (report_id, course_id when known, reason, target_type) and course_hidden_by_reports (course_id, reporter_count). Identifiers SHALL be UUIDs, reasons and target types closed enums and the count a bounded integer. Events SHALL honor opt-out and SHALL NOT include report text, usernames or any reporter attribution to the owner.
+
+#### Scenario: Third reporter
+- **WHEN** a third distinct learner reports a course
+- **THEN** the API sends course_reported and one course_hidden_by_reports through the consent gate, with no report text
