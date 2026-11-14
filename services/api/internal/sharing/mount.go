@@ -24,6 +24,10 @@ func Mount(mux *http.ServeMux, s *Service, protect, optional func(http.Handler) 
 	mux.Handle("POST /v1/public/shares/{token}/enroll", enroll)
 	mux.Handle("GET /v1/public/shares/{token}/enrollment", enroll)
 	mountMissing(mux, s, protect)
+	updates := protect(NewUpdateHandler(s))
+	for _, pattern := range UpdatePatterns {
+		mux.Handle(pattern, updates)
+	}
 	invites := protect(NewInviteHandler(s))
 	for _, pattern := range InvitePatterns {
 		mux.Handle(pattern, invites)

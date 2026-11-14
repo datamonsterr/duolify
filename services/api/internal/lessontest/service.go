@@ -495,7 +495,7 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 			title string
 		}
 		var unitsList []unitInfo
-		uRows, uErr := s.opts.Pool.Query(ctx, `SELECT id::text, title FROM course_units WHERE course_id::text=$1 ORDER BY position ASC`, courseID)
+		uRows, uErr := s.opts.Pool.Query(ctx, `SELECT id::text, title FROM course_units WHERE course_id::text=$1 AND archived_at IS NULL ORDER BY position ASC`, courseID)
 		if uErr == nil {
 			for uRows.Next() {
 				var ui unitInfo

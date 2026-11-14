@@ -239,6 +239,9 @@ type Draft struct {
 	SampledLessons int           `json:"sampled_lessons"`
 	NarrationIncl  bool          `json:"narration_included"`
 	CreatedAt      time.Time     `json:"created_at"`
+	// Changelog is the owner's note for this version; Live means it is the latest passing version.
+	Changelog string `json:"changelog"`
+	Live      bool   `json:"live"`
 }
 
 // OutlineUnit is the owner-facing outline of a unit.

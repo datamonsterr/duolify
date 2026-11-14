@@ -97,16 +97,34 @@ func (s *Service) BuildDraft(ctx context.Context, owner, courseID string) (Draft
 	if err = owns(ctx, tx, owner, courseID); err != nil {
 		return Draft{}, err
 	}
-	snap, err := s.load(ctx, tx, courseID)
+	id, snap, findings, err := s.insertDraft(ctx, tx, owner, courseID, "", false)
 	if err != nil {
 		return Draft{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return Draft{}, err
+	}
+	s.runScreen(ctx, owner, id, snap, findings)
+	return s.Get(ctx, owner, courseID, id)
+}
+
+// insertDraft stores the next numbered version inside the caller's transaction, which already holds
+// the owner's course lock. Stable lesson keys are persisted before the snapshot is read.
+func (s *Service) insertDraft(ctx context.Context, tx pgx.Tx, owner, courseID, changelog string, republish bool) (string, Snapshot, []Finding, error) {
+	if _, err := tx.Exec(ctx, `UPDATE course_lesson_stubs st SET lesson_key=substr(encode(sha256(convert_to('lesson-key:'||st.id::text,'UTF8')),'hex'),1,32)
+FROM course_units u WHERE u.id=st.unit_id AND u.course_id=$1 AND st.lesson_key IS NULL`, courseID); err != nil {
+		return "", Snapshot{}, nil, err
+	}
+	snap, err := s.load(ctx, tx, courseID)
+	if err != nil {
+		return "", snap, nil, err
 	}
 	raw, err := json.Marshal(snap)
 	if err != nil {
-		return Draft{}, err
+		return "", snap, nil, err
 	}
 	if err = CheckAllowlist(raw); err != nil {
-		return Draft{}, err
+		return "", snap, nil, err
 	}
 	sum := sha256.Sum256(raw)
 	findings := ScanFindings(snap)
@@ -119,17 +137,10 @@ func (s *Service) BuildDraft(ctx context.Context, owner, courseID string) (Draft
 	}
 	fj, _ := json.Marshal(findings)
 	var id string
-	err = tx.QueryRow(ctx, `INSERT INTO publication_drafts(course_id,owner_id,number,content_hash,snapshot,lesson_count,findings)
-SELECT $1,$2,COALESCE(max(number),0)+1,$3,$4,$5,$6 FROM publication_drafts WHERE course_id=$1 RETURNING id::text`,
-		courseID, owner, hex.EncodeToString(sum[:]), raw, lessons, fj).Scan(&id)
-	if err != nil {
-		return Draft{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return Draft{}, err
-	}
-	s.runScreen(ctx, owner, id, snap, findings)
-	return s.Get(ctx, owner, courseID, id)
+	err = tx.QueryRow(ctx, `INSERT INTO publication_drafts(course_id,owner_id,number,content_hash,snapshot,lesson_count,findings,changelog,republish)
+SELECT $1,$2,COALESCE(max(number),0)+1,$3,$4,$5,$6,$7,$8 FROM publication_drafts WHERE course_id=$1 RETURNING id::text`,
+		courseID, owner, hex.EncodeToString(sum[:]), raw, lessons, fj, changelog, republish).Scan(&id)
+	return id, snap, findings, err
 }
 
 func (s *Service) load(ctx context.Context, tx pgx.Tx, courseID string) (Snapshot, error) {
@@ -137,9 +148,9 @@ func (s *Service) load(ctx context.Context, tx pgx.Tx, courseID string) (Snapsho
 	if err := tx.QueryRow(ctx, `SELECT title,description FROM courses WHERE id=$1`, courseID).Scan(&snap.Title, &snap.Description); err != nil {
 		return snap, err
 	}
-	rows, err := tx.Query(ctx, `SELECT u.position,u.title,st.id::text,COALESCE(g.title,st.title),st.goal
+	rows, err := tx.Query(ctx, `SELECT u.position,u.title,st.id::text,COALESCE(g.title,st.title),st.goal,COALESCE(st.lesson_key,'')
 FROM course_units u JOIN course_lesson_stubs st ON st.unit_id=u.id LEFT JOIN generated_lessons g ON g.lesson_stub_id=st.id
-WHERE u.course_id=$1 ORDER BY u.position,st.position`, courseID)
+WHERE u.course_id=$1 AND u.archived_at IS NULL ORDER BY u.position,st.position`, courseID)
 	if err != nil {
 		return snap, err
 	}
@@ -150,7 +161,7 @@ WHERE u.course_id=$1 ORDER BY u.position,st.position`, courseID)
 		var pos int
 		var ut, sid string
 		var l SnapshotLesson
-		if err = rows.Scan(&pos, &ut, &sid, &l.Title, &l.Goal); err != nil {
+		if err = rows.Scan(&pos, &ut, &sid, &l.Title, &l.Goal, &l.Key); err != nil {
 			rows.Close()
 			return snap, err
 		}
@@ -320,9 +331,10 @@ func (s *Service) Get(ctx context.Context, owner, courseID, draftID string) (Dra
 	}
 	var d Draft
 	var snap, findings []byte
-	err := s.pool.QueryRow(ctx, `SELECT d.id::text,d.course_id::text,d.number,d.content_hash,d.verdict,d.reason_codes,d.snapshot,d.findings,d.lesson_count,d.sampled_lessons,d.created_at
+	err := s.pool.QueryRow(ctx, `SELECT d.id::text,d.course_id::text,d.number,d.content_hash,d.verdict,d.reason_codes,d.snapshot,d.findings,d.lesson_count,d.sampled_lessons,d.created_at,d.changelog,
+  d.verdict='pass' AND d.number=(SELECT max(p.number) FROM publication_drafts p WHERE p.course_id=d.course_id AND p.verdict='pass')
 FROM publication_drafts d JOIN courses c ON c.id=d.course_id WHERE d.id=$1 AND d.course_id=$2 AND c.learner_id=$3 AND d.owner_id=$3 AND c.deleted_at IS NULL`, draftID, courseID, owner).
-		Scan(&d.ID, &d.CourseID, &d.Number, &d.ContentHash, &d.Verdict, &d.ReasonCodes, &snap, &findings, &d.LessonCount, &d.SampledLessons, &d.CreatedAt)
+		Scan(&d.ID, &d.CourseID, &d.Number, &d.ContentHash, &d.Verdict, &d.ReasonCodes, &snap, &findings, &d.LessonCount, &d.SampledLessons, &d.CreatedAt, &d.Changelog, &d.Live)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Draft{}, ErrUnavailable
 	}
@@ -370,7 +382,11 @@ func (s *Service) Rescreen(ctx context.Context, owner, courseID, draftID string)
 		return Draft{}, err
 	}
 	s.runScreen(ctx, owner, draftID, snap, d.Findings)
-	return s.Get(ctx, owner, courseID, draftID)
+	got, err := s.Get(ctx, owner, courseID, draftID)
+	if err == nil && got.Verdict == VerdictPass {
+		s.followLatestPass(ctx, courseID)
+	}
+	return got, err
 }
 
 // GenerateToken generates a 20-byte (160-bit) cryptographically random share token,

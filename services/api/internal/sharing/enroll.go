@@ -273,8 +273,8 @@ func (s *Service) createCopy(ctx context.Context, tx pgx.Tx, viewer, sourceID, d
 		}
 		for li, l := range u.Lessons {
 			var stubID string
-			if err := tx.QueryRow(ctx, `INSERT INTO course_lesson_stubs(learner_id,unit_id,authored_id,position,title,goal,status,reused_from_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id::text`,
-				viewer, unitID, fmt.Sprintf("l%d", li+1), li, strings.TrimSpace(l.Title), strings.TrimSpace(l.Goal), l.Status, l.Ready).Scan(&stubID); err != nil {
+			if err := tx.QueryRow(ctx, `INSERT INTO course_lesson_stubs(learner_id,unit_id,authored_id,position,title,goal,status,reused_from_snapshot,lesson_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id::text`,
+				viewer, unitID, fmt.Sprintf("l%d", li+1), li, strings.TrimSpace(l.Title), strings.TrimSpace(l.Goal), l.Status, l.Ready, KeyOrLegacy(l.Source, ui, li)).Scan(&stubID); err != nil {
 				return "", "", err
 			}
 			if !l.Ready {

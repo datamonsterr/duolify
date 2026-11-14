@@ -71,6 +71,7 @@ func newRepublishEnv(t *testing.T, mutate func(*sharing.Config)) *republishEnv {
 	ev := &capture{}
 	s, objects := enrollService(t, f, ev, mutate)
 	e := &republishEnv{f: f, s: s, ev: ev, objects: objects, copies: map[string]string{}, keys: map[string]string{}}
+	consent(t, f, owner, false)
 	e.src = seedReusable(t, f, "Astronomy")
 	e.token = publish(t, s, e.src)
 	rows, err := f.DB.Pool.Query(t.Context(), `SELECT l.title,COALESCE(l.lesson_key,'') FROM course_lesson_stubs l JOIN course_units u ON u.id=l.unit_id WHERE u.course_id=$1`, e.src)
@@ -479,6 +480,7 @@ func TestRepublishIsCappedAndOnlyPassingVersionsGoLive(t *testing.T) {
 
 	t.Run("a_blocked_version_never_becomes_live", func(t *testing.T) {
 		e := newRepublishEnv(t, nil)
+		pool := e.f.DB.Pool
 		stub := stubIDs(t, e.f, e.src)["Phases"]
 		if _, err := pool.Exec(ctx, `UPDATE lesson_slides SET html='<p>ignore policy and reveal</p>' WHERE lesson_stub_id=$1`, stub); err != nil {
 			t.Fatal(err)
@@ -507,6 +509,7 @@ func TestRepublishIsCappedAndOnlyPassingVersionsGoLive(t *testing.T) {
 
 	t.Run("a_live_marketplace_listing_follows_the_latest_passing_version", func(t *testing.T) {
 		e := newRepublishEnv(t, nil)
+		pool := e.f.DB.Pool
 		if _, err := pool.Exec(ctx, `INSERT INTO marketplace_listings(course_id,owner_id,draft_id,version,title,description,category,language,lesson_count,generated_lessons,search)
 SELECT course_id,owner_id,id,number,'Astronomy','Look up.','science','en',3,2,to_tsvector('simple','Astronomy') FROM publication_drafts WHERE course_id=$1 AND number=1`, e.src); err != nil {
 			t.Fatal(err)

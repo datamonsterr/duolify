@@ -113,7 +113,7 @@ func (s *Service) ServeCoursesListHTTP(w http.ResponseWriter, r *http.Request) {
 								) FROM course_lesson_stubs l WHERE l.unit_id=u.id
 							), '[]'::jsonb)
 						) ORDER BY u.position
-					) FROM course_units u WHERE u.course_id=c.id
+					) FROM course_units u WHERE u.course_id=c.id AND u.archived_at IS NULL
 				), '[]'::jsonb)
 			) ORDER BY e.last_active_at DESC, e.created_at DESC
 		), '[]'::jsonb)
