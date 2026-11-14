@@ -105,13 +105,18 @@ for (const mobile of [false, true]) {
             pricing_version: "usd-quotes-2026-11-09",
             content_ceiling: 140,
             audio_ceiling: 50,
-            accepted: true,
+            accepted: false,
             expired: false,
+            expires_at: new Date(Date.now() + 600000).toISOString(),
           },
         });
       }
       return r.continue();
     });
+
+    await page.route("**/v1/quotes/quote-123/accept", (r) =>
+      r.fulfill({ json: { accepted: true } }),
+    );
 
     await page.route(`**/v1/lessons/${lesson1Id}/prepare`, (r) => {
       lesson1State = "generating";
@@ -209,6 +214,7 @@ for (const mobile of [false, true]) {
 
     // Click prepare
     await prepareButton.click();
+    await page.getByRole("button", { name: "Accept quote terms" }).click();
 
     // Verify generating or ready node
     const startLink = page.getByRole("link", { name: /Start lesson/i });

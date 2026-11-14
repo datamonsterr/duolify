@@ -21,6 +21,9 @@ import { availableOffline } from "./features/player/cache";
 import { TutorChat } from "./features/chat/TutorChat";
 import { BlockedCourseNotice } from "./features/sharing/BlockedCopy";
 import { CopyOriginNotice } from "./features/sharing/CopyOriginNotice";
+import { QuotePanel } from "./features/pricing/QuotePanel";
+import { missingFailure, missingMessages } from "./features/sharing/missing";
+import "./features/sharing/sharing.css";
 import { CourseModerationBanner } from "./features/sharing/CourseModerationBanner";
 
 export function LearnPath({ courseId }: { courseId: string }) {
@@ -29,6 +32,9 @@ export function LearnPath({ courseId }: { courseId: string }) {
   const queryClient = useQueryClient();
   const tracerEnabled = useLessonTestTracerEnabled();
   const [preparingId, setPreparingId] = useState<string | null>(null);
+  // Lesson whose quote the learner is reviewing; prepare only runs after they accept it.
+  const [quotingId, setQuotingId] = useState<string | null>(null);
+  const [prepareError, setPrepareError] = useState<string | null>(null);
 
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== "undefined" ? navigator.onLine : true,
@@ -82,20 +88,19 @@ export function LearnPath({ courseId }: { courseId: string }) {
     retry: false,
   });
 
-  const handlePrepareLesson = async (lessonId: string) => {
+  const handlePrepareLesson = (lessonId: string) => {
+    setPrepareError(null);
+    setQuotingId(lessonId);
+  };
+
+  const prepareWithQuote = async (lessonId: string, quoteId: string) => {
+    setQuotingId(null);
     setPreparingId(lessonId);
     try {
-      const quote = await session.request<{ id: string }>(
-        "/v1/quotes",
-        "POST",
-        {
-          action: "lesson_content",
-        },
-      );
       const prep = await session.request<{ id: string }>(
         `/v1/lessons/${encodeURIComponent(lessonId)}/prepare`,
         "POST",
-        { quote_id: quote?.id },
+        { quote_id: quoteId },
       );
       if (prep?.id) {
         const base = import.meta.env.VITE_API_URL || "";
@@ -141,10 +146,9 @@ export function LearnPath({ courseId }: { courseId: string }) {
         refetch();
         queryClient.invalidateQueries({ queryKey: ["course", courseId] });
       }
-    } catch {
+    } catch (err) {
       setPreparingId(null);
-      refetch();
-      queryClient.invalidateQueries({ queryKey: ["course", courseId] });
+      setPrepareError(missingMessages[missingFailure(err)]);
     }
   };
 
@@ -227,6 +231,28 @@ export function LearnPath({ courseId }: { courseId: string }) {
           }}
         />
       ) : null}
+      {prepareError && <p role="alert">{prepareError}</p>}
+      {quotingId && (
+        <div className="missing-backdrop">
+          <div
+            className="missing-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Prepare lesson"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setQuotingId(null);
+            }}
+          >
+            <QuotePanel
+              consent={{
+                onAccepted: (quote) =>
+                  void prepareWithQuote(quotingId, quote.id),
+                onCancel: () => setQuotingId(null),
+              }}
+            />
+          </div>
+        </div>
+      )}
       <a className="shell-link" href={`/courses/${courseId}/cast`}>
         Course Cast
       </a>
