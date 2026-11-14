@@ -11,6 +11,8 @@ it("requires explicit consent, displays server price and retries the same quote 
       expires_at: "2099-01-01T00:00:00Z",
     }),
     accept: vi.fn().mockResolvedValue(undefined),
+    confirm: vi.fn(),
+    discard: vi.fn(),
     propose: vi
       .fn()
       .mockRejectedValueOnce(new Error("offline"))
@@ -49,8 +51,12 @@ it("requires explicit consent, displays server price and retries the same quote 
     ["c", "q"],
   ]);
   expect(
-    screen.queryByRole("button", { name: /Apply/ }),
-  ).not.toBeInTheDocument();
+    screen.getByText("Proposal ready. Your course has not changed."),
+  ).toBeVisible();
+  // Reviewing never applies or discards: only an explicit, separate confirm may change the outline.
+  expect(service.confirm).not.toHaveBeenCalled();
+  expect(service.discard).not.toHaveBeenCalled();
+  expect(screen.getByText("History")).toBeVisible();
 });
 
 import { AuthError } from "../accounts/session";

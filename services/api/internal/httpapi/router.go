@@ -243,6 +243,8 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 	if deps.Steering != nil && deps.Accounts != nil {
 		mux.Handle("POST /v1/courses/{id}/replan/quote", deps.Accounts.Protect(deps.Steering))
 		mux.Handle("POST /v1/courses/{id}/replan", deps.Accounts.Protect(deps.Steering))
+		mux.Handle("POST /v1/courses/{id}/replan/{proposalId}/confirm", deps.Accounts.Protect(deps.Steering))
+		mux.Handle("POST /v1/courses/{id}/replan/{proposalId}/discard", deps.Accounts.Protect(deps.Steering))
 		mux.Handle("POST /v1/courses/{id}/instructions", deps.Accounts.Protect(deps.Steering))
 		mux.Handle("GET /v1/courses/{id}/instructions", deps.Accounts.Protect(deps.Steering))
 		mux.Handle("GET /v1/courses/{id}/instructions/latest", deps.Accounts.Protect(deps.Steering))
