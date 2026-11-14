@@ -27,6 +27,10 @@ func (sharingScreener) ScreenCourse(_ context.Context, r *enginev1.ScreenCourseR
 	if strings.Contains(text, "ignore policy") {
 		verdict, codes = "block", []string{"prompt_injection"}
 	}
+	// Borderline educational content is held for a moderator (E15-10).
+	if strings.Contains(text, "e15-borderline") {
+		verdict, codes = "needs_review", []string{"harmful_content"}
+	}
 	return &enginev1.ScreenCourseResponse{Verdict: verdict, ReasonCodes: codes, PolicyVersion: sharing.PolicyVersion,
 		Attempts: []*enginev1.Usage{{Provider: "mock", Model: "mock", Attempt: 1, Delivered: true, InputTokens: 200, OutputTokens: 10}}}, nil
 }

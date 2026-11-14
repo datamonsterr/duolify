@@ -431,6 +431,15 @@ func run() (result error) {
 	mux.Handle("POST /test/marketplace/course", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seedMarketCourse(w, r, db.Pool)
 	})))
+	mux.Handle("POST /test/moderation/grant", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Grants the caller the moderator role; production grants are made in the database by the owner.
+		id := accounts.LearnerID(r.Context())
+		if _, err := db.Pool.Exec(r.Context(), `INSERT INTO moderator_grants(account_id) VALUES($1::uuid) ON CONFLICT DO NOTHING`, id); err != nil {
+			http.Error(w, "grant failed", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})))
 	mux.Handle("POST /test/marketplace/stats", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		setMarketStats(w, r, db.Pool)
 	})))
