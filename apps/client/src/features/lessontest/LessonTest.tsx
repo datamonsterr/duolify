@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useShellSession } from "../shell/ShellSession";
 import { version as appVersion } from "../../../package.json";
-import { authRequest, AuthError } from "../accounts/session";
+import { session as authSession, AuthError } from "../accounts/session";
 import { track } from "../../lib/analytics";
 import { RouteUnavailable } from "../shell/RouteBoundary";
 import { useLessonTestTracerEnabled } from "../../lib/features";
@@ -1460,25 +1460,27 @@ export function LessonTestRoute() {
   // Pinned Cast for display-only reactions; failure leaves the neutral default.
   useEffect(() => {
     if (!tracerEnabled) return;
-    authRequest<{ cast?: LessonCastSnapshot }>(
-      `/v1/lessons/${lessonId}/manifest`,
-    )
+    authSession
+      .request<{ cast?: LessonCastSnapshot }>(
+        `/v1/lessons/${lessonId}/manifest`,
+      )
       .then((m) => setCast(m.cast))
       .catch(() => setCast(undefined));
   }, [lessonId, tracerEnabled]);
 
   useEffect(() => {
     if (!tracerEnabled) return;
-    authRequest<{
-      course_id?: string;
-      questions: QuestionItem[];
-      total_topics?: number;
-      resolved_topics?: number;
-      min_gap?: number;
-      passed?: boolean;
-    }>(`/v1/lessons/${lessonId}/test`, undefined, undefined, "GET", {
-      "X-App-Version": appVersion,
-    })
+    authSession
+      .request<{
+        course_id?: string;
+        questions: QuestionItem[];
+        total_topics?: number;
+        resolved_topics?: number;
+        min_gap?: number;
+        passed?: boolean;
+      }>(`/v1/lessons/${lessonId}/test`, "GET", undefined, {
+        "X-App-Version": appVersion,
+      })
       .then((data) => {
         if (data.course_id) {
           setCourseId(data.course_id);
@@ -1508,15 +1510,14 @@ export function LessonTestRoute() {
     operationKey: string | undefined,
   ) => {
     const opKey = operationKey || generateOperationKey();
-    const res = await authRequest<AnswerResult>(
+    const res = await authSession.request<AnswerResult>(
       `/v1/lessons/${lessonId}/test/answer`,
+      "POST",
       {
         question_id: questionId,
         choice_index: choiceIndex,
         operation_key: opKey,
       },
-      undefined,
-      "POST",
       { "X-App-Version": appVersion },
     );
     return res;
