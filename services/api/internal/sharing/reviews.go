@@ -249,7 +249,8 @@ func (s *Service) screenReview(ctx context.Context, actor, text string) Outcome 
 	if err != nil {
 		return Outcome{Verdict: VerdictPending}
 	}
-	resp, err = s.reviewScreen.ScreenReview(ctx, &pb.ScreenReviewRequest{Text: text, Limits: &pb.UsageLimits{InputTokens: 4000, OutputTokens: 300, TimeoutMs: cfg.TimeoutMs, MaxAttempts: 2, MaxCostNanos: boundedUint64(cfg.MaxCostNanos), InputNanos: rates.Input, OutputNanos: rates.Output, CacheWriteNanos: rates.CacheWrite, CacheReadNanos: rates.CacheRead, DeadlineUnixMs: boundedUint64(time.Now().Add(time.Duration(cfg.TimeoutMs) * time.Millisecond).UnixMilli())}})
+	deadline, _ := ctx.Deadline()
+	resp, err = s.reviewScreen.ScreenReview(ctx, &pb.ScreenReviewRequest{Text: text, Limits: &pb.UsageLimits{InputTokens: 4000, OutputTokens: 300, TimeoutMs: cfg.TimeoutMs, MaxAttempts: 2, MaxCostNanos: boundedUint64(cfg.MaxCostNanos), InputNanos: rates.Input, OutputNanos: rates.Output, CacheWriteNanos: rates.CacheWrite, CacheReadNanos: rates.CacheRead, DeadlineUnixMs: boundedUint64(deadline.UnixMilli())}})
 	reported := false
 	if resp != nil {
 		for _, a := range resp.Attempts {
