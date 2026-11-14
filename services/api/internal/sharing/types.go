@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -52,6 +53,16 @@ type Config struct {
 	ReportMaxChars      int
 	ReportHideThreshold int
 	ReportRetentionDays int
+
+	// E15-10 moderation: first-response target, closed reason codes (severe ones also block existing
+	// copies on a takedown), text bounds, queue severity of held publications and audit retention.
+	ModerationTargetHours    int
+	ModerationReasonCodes    []string
+	ModerationSevereCodes    []string
+	ModerationReasonMaxChars int
+	AppealMaxChars           int
+	ModerationHeldSeverity   map[string]int
+	ModerationRetentionDays  int
 
 	MinPublisherAge int
 	// MaxEnrollmentsPerDay caps new Course copies per account per rolling day (E15-03).
@@ -114,9 +125,13 @@ func DefaultConfig() Config {
 		MarketplaceRatingMinCount: 10, MarketplaceRatingPrior: 3.5, MarketplaceCacheTTLSeconds: 60,
 		InviteSendsPerDay: 20, InviteExpiryDays: 30, InvitePurgeDays: 90, PushMaxAttempts: 3,
 		MaxRepublishesPerDay: 3, MaxChangelogLen: 500,
-		ReportReasons:   []string{"unsafe", "inappropriate", "spam", "copyright", "misleading", "other"},
-		ReportSeverity:  map[string]int{"unsafe": 100, "copyright": 80, "inappropriate": 60, "misleading": 40, "spam": 30, "other": 10},
-		ReportMaxPerDay: 10, ReportMaxChars: 500, ReportHideThreshold: 3, ReportRetentionDays: 1095,
+		ReportReasons:         []string{"unsafe", "inappropriate", "spam", "copyright", "misleading", "other"},
+		ReportSeverity:        map[string]int{"unsafe": 100, "copyright": 80, "inappropriate": 60, "misleading": 40, "spam": 30, "other": 10},
+		ModerationTargetHours: 48, ModerationReasonMaxChars: 1000, AppealMaxChars: 1000, ModerationRetentionDays: 1095,
+		ModerationReasonCodes:  []string{"unsafe", "legal", "inappropriate", "spam", "copyright", "misleading", "other", "no_violation"},
+		ModerationSevereCodes:  []string{"unsafe", "legal"},
+		ModerationHeldSeverity: map[string]int{VerdictReview: 90, VerdictPending: 50},
+		ReportMaxPerDay:        10, ReportMaxChars: 500, ReportHideThreshold: 3, ReportRetentionDays: 1095,
 	}
 }
 
@@ -186,6 +201,20 @@ func ConfigFromEnv(getenv func(string) string) Config {
 		if len(reasons) > 0 {
 			c.ReportReasons = reasons
 		}
+	}
+	positive("SHARING_MODERATION_TARGET_HOURS", &c.ModerationTargetHours, 1, 720)
+	positive("SHARING_MODERATION_REASON_MAX_CHARS", &c.ModerationReasonMaxChars, 1, 1000)
+	positive("SHARING_APPEAL_MAX_CHARS", &c.AppealMaxChars, 1, 1000)
+	positive("SHARING_MODERATION_RETENTION_DAYS", &c.ModerationRetentionDays, 365, 3650)
+	// Severe codes are a configured subset of the closed reason codes.
+	if raw := getenv("SHARING_MODERATION_SEVERE_CODES"); raw != "" {
+		var severe []string
+		for _, code := range strings.Split(raw, ",") {
+			if code = strings.TrimSpace(code); slices.Contains(c.ModerationReasonCodes, code) && !slices.Contains(severe, code) {
+				severe = append(severe, code)
+			}
+		}
+		c.ModerationSevereCodes = severe
 	}
 	positive("MARKETPLACE_MIN_ACCOUNT_AGE_DAYS", &c.MarketplaceMinAccountAgeDays, 0, 3650)
 	positive("MARKETPLACE_MIN_LESSONS", &c.MarketplaceMinLessons, 1, 1000)
