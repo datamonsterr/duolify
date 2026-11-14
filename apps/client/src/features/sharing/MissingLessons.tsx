@@ -43,6 +43,8 @@ export function MissingLessons({
   const [run, setRun] = useState<Run>({ kind: "idle" });
   const trigger = useRef<HTMLButtonElement>(null);
   const alive = useRef(true);
+  // Bumped on every open/close so a quote that resolves after Escape cannot reopen the sheet.
+  const ask = useRef(0);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -85,10 +87,12 @@ export function MissingLessons({
   const openQuote = () => {
     setRun({ kind: "idle" });
     setSheet({ kind: "quoting" });
+    const mine = ++ask.current;
+    const live = () => alive.current && ask.current === mine;
     requestQuote(courseId).then(
-      (quote) => alive.current && setSheet({ kind: "quote", quote }),
+      (quote) => live() && setSheet({ kind: "quote", quote }),
       (error: unknown) => {
-        if (!alive.current) return;
+        if (!live()) return;
         const failure = missingFailure(error);
         if (failure === "locked" || failure === "in_progress") {
           setSheet(null);
@@ -98,6 +102,7 @@ export function MissingLessons({
     );
   };
   const closeSheet = () => {
+    ask.current++;
     setSheet(null);
     queueMicrotask(() => trigger.current?.focus());
   };
@@ -128,6 +133,7 @@ export function MissingLessons({
   };
 
   const generate = (quote: MissingQuote) => {
+    ask.current++;
     setSheet(null);
     setRun({ kind: "running" });
     generateNext(courseId, quote).then(

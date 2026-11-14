@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MissingLessons } from "./MissingLessons";
 import { missingFailure, missingMessages } from "./missing";
@@ -224,6 +230,28 @@ describe("missing lessons panel", () => {
     fireEvent.keyDown(dialog, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(open).toHaveFocus();
+  });
+
+  it("stays closed when the quote arrives after Escape", async () => {
+    let release: (value: unknown) => void = () => {};
+    const slow = new Promise((resolve) => (release = resolve));
+    request.mockImplementation(async (path: string, method = "GET") => {
+      if (`${method} ${path}` === `GET ${base}`) return status() as never;
+      if (`${method} ${path}` === `POST ${base}/quote`)
+        return (await slow) as never;
+      throw new Error(`unexpected ${method} ${path}`);
+    });
+    view();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Review quote" }),
+    );
+    fireEvent.keyDown(await screen.findByRole("dialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await act(async () => {
+      release(quote());
+      await slow;
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("tells the learner a failed generation was released and offers Try again", async () => {
