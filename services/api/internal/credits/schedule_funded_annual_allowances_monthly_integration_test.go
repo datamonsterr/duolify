@@ -134,7 +134,7 @@ func TestScheduleFundedAnnualAllowancesMonthly(t *testing.T) {
 			wg.Wait()
 			count(4)
 			if refund {
-				provider.invoice.Refunded = true
+				provider.invoice.Refunds = []credits.ProviderRefund{{ID: "re_annual_full", AmountMinor: plan.Yearly.AmountMinor, Currency: plan.Yearly.Currency, Status: "succeeded"}}
 				notify("evt_refund_", "invoice.updated", provider.invoice.ID)
 				notify("evt_refund_alias_", "invoice.updated", provider.invoice.ID)
 			}
@@ -151,7 +151,7 @@ func TestScheduleFundedAnnualAllowancesMonthly(t *testing.T) {
 			}
 			count(want)
 			wallet, e := svc.GetWalletAt(ctx, owner, start.Add(time.Hour))
-			if e != nil || wallet.Plan == nil || wallet.Plan.Active == refund || wallet.Subscription != int64(want*plan.MonthlyCredits) {
+			if e != nil || wallet.Plan == nil || wallet.Plan.Active == refund || wallet.Subscription != int64(want*plan.MonthlyCredits)*int64(map[bool]int{false: 1, true: 0}[refund]) {
 				t.Fatalf("wallet=%+v %v", wallet, e)
 			}
 			var n int

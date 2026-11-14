@@ -24,7 +24,7 @@ var allowedKeys = map[string]bool{
 	"title": true, "description": true, "units": true, "lessons": true, "goal": true, "generated": true,
 	"slides": true, "questions": true, "retry_pool": true, "narration_refs": true, "id": true, "html": true,
 	"narration": true, "topic": true, "prompt": true, "choices": true, "answer_index": true,
-	"explanation": true, "variants": true, "question_id": true,
+	"explanation": true, "variants": true, "question_id": true, "key": true,
 }
 
 // CheckAllowlist rejects any JSON object key outside the snapshot allowlist, at any depth.

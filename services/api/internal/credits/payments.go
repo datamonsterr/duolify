@@ -44,6 +44,9 @@ type PaymentSession struct {
 	SubscriptionID, CustomerID                          string
 	AmountMinor                                         int
 	LiveMode                                            bool
+	// Refunds and Disputes are canonical provider objects, each with its own id.
+	Refunds  []ProviderRefund
+	Disputes []ProviderDispute
 }
 
 // PaymentOptions must be configured before serving requests or starting workers.
@@ -209,7 +212,7 @@ func (s *Service) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch event.Type {
-	case "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired", "invoice.paid", "invoice.payment_succeeded", "invoice.payment_failed", "invoice.updated", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted":
+	case "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed", "checkout.session.expired", "invoice.paid", "invoice.payment_succeeded", "invoice.payment_failed", "invoice.updated", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted", "charge.refunded", "charge.dispute.created":
 	default:
 		respondJSON(w, 200, map[string]bool{"received": true})
 		return
@@ -246,9 +249,12 @@ func (s *Service) ProcessPayments(ctx context.Context) error {
 	if s.payments.Mode != "test" || s.pool() == nil {
 		return nil
 	}
+	if err := s.terminalizeAbandonedClaims(ctx); err != nil {
+		return err
+	}
 	// A provider can deliver before CreateSession's binding transaction commits.
 	// Unmatched signed receipts wait durably, without starving bound work.
-	rows, err := s.pool().Query(ctx, `SELECT i.event_id FROM credit_payment_inbox i WHERE (EXISTS(SELECT 1 FROM credit_payment_sessions p WHERE p.session_id=i.session_id AND p.environment=i.environment) OR i.event_type LIKE 'invoice.%' OR i.event_type LIKE 'customer.subscription.%') AND NOT EXISTS(SELECT 1 FROM credit_payment_results r WHERE r.event_id=i.event_id) ORDER BY received_at,event_id LIMIT 100`)
+	rows, err := s.pool().Query(ctx, `SELECT i.event_id FROM credit_payment_inbox i LEFT JOIN credit_payment_attempts a USING(event_id) WHERE (a.event_id IS NULL OR (a.attempts<5 AND a.dead_letter_at IS NULL AND (a.next_attempt_at<=now() OR (a.waiting_for_binding AND EXISTS(SELECT 1 FROM credit_payment_sessions p WHERE p.session_id=i.session_id AND p.environment=i.environment))))) AND NOT EXISTS(SELECT 1 FROM credit_payment_results r WHERE r.event_id=i.event_id) ORDER BY received_at,event_id LIMIT 100`)
 	if err != nil {
 		return err
 	}
@@ -268,7 +274,7 @@ func (s *Service) ProcessPayments(ctx context.Context) error {
 	}
 	var failures []error
 	for _, id := range ids {
-		if err = s.processPayment(ctx, id); err != nil {
+		if err = s.processInboxEvent(ctx, id); err != nil {
 			failures = append(failures, err)
 		}
 	}
@@ -344,14 +350,19 @@ func (s *Service) processPayment(ctx context.Context, eventID string) error {
 	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM credit_payment_results WHERE (order_id=$1 AND state='paid') OR payment_key=$2)", order.ID, key).Scan(&processed); err != nil {
 		return err
 	}
-	if processed {
-		return paymentResult(ctx, tx, eventID, order.ID, "duplicate", "", 0)
-	}
 	state := "pending"
+	if processed {
+		state = "duplicate"
+	}
 	switch canonical.PaymentStatus {
 	case "paid":
-		state = "paid"
+		if !processed {
+			state = "paid"
+		}
 	case "unpaid":
+		if processed {
+			break
+		}
 		if canonical.Status == "expired" {
 			state = "expired"
 		} else if kind == "checkout.session.async_payment_failed" {
@@ -376,7 +387,21 @@ func (s *Service) processPayment(ctx context.Context, eventID string) error {
 			}
 		}
 	}
-	if err = paymentResult(ctx, tx, eventID, order.ID, state, key, ledgerID); err != nil {
+	// Fulfilment first, then reversals, in one transaction: a completion that is
+	// processed after (or alongside) a refund still fulfils exactly once.
+	if err = recordPaymentResult(ctx, tx, eventID, order.ID, state, key, ledgerID); err != nil {
+		return err
+	}
+	if len(canonical.Refunds) > 0 || len(canonical.Disputes) > 0 {
+		if canonical.PaymentStatus != "paid" {
+			return ErrReversalEvidence
+		}
+		unit := reversalUnit{orderID: order.ID, owner: *owner, ownerRef: ownerRef, platform: order.Platform, pricingVersion: order.PricingVersion, amountMinor: order.AmountMinor, currency: order.Currency}
+		if err = s.reconcileReversals(ctx, tx, eventID, unit, canonical.Refunds, canonical.Disputes); err != nil {
+			return err
+		}
+	}
+	if err = tx.Commit(ctx); err != nil {
 		return err
 	}
 	// Cache errors cannot change committed money. Force the next wallet read to
@@ -391,11 +416,15 @@ func (s *Service) processPayment(ctx context.Context, eventID string) error {
 // paymentResult commits the outcome with every ledger/outbox write. Receipt rows
 // are never updated or removed, including when validation rejects a payment.
 func paymentResult(ctx context.Context, tx pgx.Tx, eventID, orderID, state, key string, ledgerID int64) error {
-	_, err := tx.Exec(ctx, `INSERT INTO credit_payment_results(event_id,order_id,state,payment_key,ledger_id) VALUES($1,NULLIF($2,'')::uuid,$3,NULLIF($4,''),NULLIF($5,0))`, eventID, orderID, state, key, ledgerID)
-	if err != nil {
+	if err := recordPaymentResult(ctx, tx, eventID, orderID, state, key, ledgerID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func recordPaymentResult(ctx context.Context, tx pgx.Tx, eventID, orderID, state, key string, ledgerID int64) error {
+	_, err := tx.Exec(ctx, `INSERT INTO credit_payment_results(event_id,order_id,state,payment_key,ledger_id) VALUES($1,NULLIF($2,'')::uuid,$3,NULLIF($4,''),NULLIF($5,0))`, eventID, orderID, state, key, ledgerID)
+	return err
 }
 
 func purchaseOutbox(ctx context.Context, tx pgx.Tx, owner, key, event string, order CheckoutOrder, reason string) error {

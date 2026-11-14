@@ -59,6 +59,30 @@ type Config struct {
 	PreviewRateWindowSeconds int
 	// TrustedProxyHops is how many reverse proxies append to X-Forwarded-For (shared with auth).
 	TrustedProxyHops int
+	// E15-07 Marketplace. The release flag is OFF until moderation and takedown ship and legal
+	// approves (ADR 0012); every cap below is configuration.
+	MarketplaceEnabled             bool
+	MarketplaceMinAccountAgeDays   int
+	MarketplaceMinLessons          int
+	MarketplaceMaxTags             int
+	MarketplaceMaxListingsPerOwner int
+	MarketplacePageSize            int
+	MarketplaceMaxPageSize         int
+	MarketplaceMaxQueryLength      int
+	// MarketplaceRatingMinCount is the Bayesian minimum count C; the prior is the mean used
+	// when no listed course has a rating yet.
+	MarketplaceRatingMinCount  int
+	MarketplaceRatingPrior     float64
+	MarketplaceCacheTTLSeconds int
+	// E15-06 Course invites: sends per sender per rolling day, days until a pending invite expires,
+	// days a final invite is kept, and push attempts before an adapter failure is final.
+	InviteSendsPerDay int
+	InviteExpiryDays  int
+	InvitePurgeDays   int
+	PushMaxAttempts   int
+	// E15-05 Republish: versions per Course per rolling day and the owner changelog length.
+	MaxRepublishesPerDay int
+	MaxChangelogLen      int
 }
 
 // DefaultConfig is the conservative v1 policy.
@@ -69,6 +93,11 @@ func DefaultConfig() Config {
 		MaxCostNanos: 250_000_000, RetentionDays: 365,
 		PublicDomain: "localhost", AppScheme: "duolify",
 		PreviewRateLimitPerIP: 60, PreviewRateWindowSeconds: 60,
+		MarketplaceMinAccountAgeDays: 3, MarketplaceMinLessons: 3, MarketplaceMaxTags: 5, MarketplaceMaxListingsPerOwner: 20,
+		MarketplacePageSize: 20, MarketplaceMaxPageSize: 50, MarketplaceMaxQueryLength: 100,
+		MarketplaceRatingMinCount: 10, MarketplaceRatingPrior: 3.5, MarketplaceCacheTTLSeconds: 60,
+		InviteSendsPerDay: 20, InviteExpiryDays: 30, InvitePurgeDays: 90, PushMaxAttempts: 3,
+		MaxRepublishesPerDay: 3, MaxChangelogLen: 500,
 	}
 }
 
@@ -108,6 +137,34 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	if n, err := strconv.Atoi(getenv("AUTH_TRUSTED_PROXY_HOPS")); err == nil && n >= 0 && n <= 32 {
 		c.TrustedProxyHops = n
 	}
+	// Only the exact word "true" turns the Marketplace on.
+	c.MarketplaceEnabled = getenv("MARKETPLACE_ENABLED") == "true"
+	positive := func(key string, dst *int, lo, hi int) {
+		if n, err := strconv.Atoi(getenv(key)); err == nil && n >= lo && n <= hi {
+			*dst = n
+		}
+	}
+	positive("MARKETPLACE_MIN_ACCOUNT_AGE_DAYS", &c.MarketplaceMinAccountAgeDays, 0, 3650)
+	positive("MARKETPLACE_MIN_LESSONS", &c.MarketplaceMinLessons, 1, 1000)
+	positive("MARKETPLACE_MAX_TAGS", &c.MarketplaceMaxTags, 0, 10)
+	positive("MARKETPLACE_MAX_LISTINGS_PER_OWNER", &c.MarketplaceMaxListingsPerOwner, 1, 1000)
+	positive("MARKETPLACE_MAX_PAGE_SIZE", &c.MarketplaceMaxPageSize, 1, 100)
+	positive("MARKETPLACE_PAGE_SIZE", &c.MarketplacePageSize, 1, 100)
+	positive("MARKETPLACE_MAX_QUERY_LENGTH", &c.MarketplaceMaxQueryLength, 1, 200)
+	positive("MARKETPLACE_RATING_MIN_COUNT", &c.MarketplaceRatingMinCount, 1, 10000)
+	positive("MARKETPLACE_CACHE_TTL_SECONDS", &c.MarketplaceCacheTTLSeconds, 1, 3600)
+	positive("SHARING_INVITES_PER_DAY", &c.InviteSendsPerDay, 1, 1000)
+	positive("SHARING_INVITE_EXPIRY_DAYS", &c.InviteExpiryDays, 1, 365)
+	positive("SHARING_INVITE_PURGE_DAYS", &c.InvitePurgeDays, 1, 3650)
+	positive("SHARING_PUSH_MAX_ATTEMPTS", &c.PushMaxAttempts, 1, 10)
+	positive("SHARING_MAX_REPUBLISHES_PER_DAY", &c.MaxRepublishesPerDay, 1, 100)
+	positive("SHARING_MAX_CHANGELOG_LENGTH", &c.MaxChangelogLen, 1, 1000)
+	if f, err := strconv.ParseFloat(getenv("MARKETPLACE_RATING_PRIOR"), 64); err == nil && f >= 1 && f <= 5 {
+		c.MarketplaceRatingPrior = f
+	}
+	if c.MarketplacePageSize > c.MarketplaceMaxPageSize {
+		c.MarketplacePageSize = c.MarketplaceMaxPageSize
+	}
 	return c
 }
 
@@ -135,6 +192,8 @@ type SnapshotUnit struct {
 
 // SnapshotLesson is one Lesson's allowlisted content.
 type SnapshotLesson struct {
+	// Key is the stable lesson key (E15-05): it survives retitles and reordering.
+	Key           string          `json:"key,omitempty"`
 	Title         string          `json:"title"`
 	Goal          string          `json:"goal"`
 	Generated     bool            `json:"generated"`
@@ -180,6 +239,9 @@ type Draft struct {
 	SampledLessons int           `json:"sampled_lessons"`
 	NarrationIncl  bool          `json:"narration_included"`
 	CreatedAt      time.Time     `json:"created_at"`
+	// Changelog is the owner's note for this version; Live means it is the latest passing version.
+	Changelog string `json:"changelog"`
+	Live      bool   `json:"live"`
 }
 
 // OutlineUnit is the owner-facing outline of a unit.

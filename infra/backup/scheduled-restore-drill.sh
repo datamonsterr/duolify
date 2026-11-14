@@ -12,6 +12,15 @@ for variable in BACKUP_S3_ENDPOINT BACKUP_S3_BUCKET BACKUP_RESTORE_S3_ACCESS_KEY
   fi
 done
 
+if [[ ${DRILL_FINANCIAL_REPLAY:-false} == true ]]; then
+  for variable in BACKUP_FINANCIAL_FIXTURES BACKUP_FINANCIAL_FIXTURE_SIGNATURE BACKUP_FINANCIAL_FIXTURE_KEY; do
+    if [[ -z ${!variable:-} ]]; then
+      printf 'Financial replay skipped: %s is not configured (owner-supplied signed TEST fixtures required).\n' "$variable"
+      exit 0
+    fi
+  done
+fi
+
 pg_port=${DRILL_PG_PORT:-4112}
 redis_port=${DRILL_REDIS_PORT:-4113}
 name="duolify-drill-$$"

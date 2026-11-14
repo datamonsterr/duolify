@@ -40,6 +40,10 @@ var ClassifiedLearnerTables = map[string]string{
 	"publication_screenings":           "erased_1_year",
 	"publication_links":                "erased_hash_only",
 	"course_copies":                    "erased",
+	"course_invites":                   "erased_final_purged_90_days",
+	"course_invite_deliveries":         "erased_with_invite",
+	"marketplace_listings":             "erased",
+	"marketplace_listing_stats":        "erased",
 	"copy_generation_consents":         "erased",
 	"xp_events":                        "erased_account_lifetime",
 	"daily_goal_achievements":          "erased_account_lifetime",
@@ -88,10 +92,16 @@ var ClassifiedLearnerTables = map[string]string{
 	"credit_subscription_schedule":      "financial_retained_via_subscription",
 	"credit_subscription_revocations":   "financial_retained_via_subscription",
 	"credit_subscription_cancellations": "financial_retained_via_subscription",
+	"credit_reversals":                  "financial_retained_via_order",
+	"credit_refund_allocations":         "financial_retained_via_reversal",
+	"credit_dispute_keys":               "financial_retained_via_order",
+	"credit_debt_history":               "financial_retained_anonymized",
+	"credit_goodwill_audit":             "financial_retained_anonymized",
 	"credit_subscriptions":              "financial_retained_via_order",
 	"credit_subscription_terms":         "financial_retained_via_subscription",
 	"credit_payment_sessions":           "financial_retained_via_order",
 	"credit_payment_inbox":              "financial_retained_via_session",
+	"credit_payment_attempts":           "financial_retained_via_inbox_7_years",
 	"credit_payment_results":            "financial_retained_via_order",
 	"credit_payment_payloads":           "redacted_expire_30_days",
 	"credit_checkout_orders":            "financial_retained_anonymized",
@@ -145,6 +155,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		query string
 	}
 	queries := []exportQuery{
+		{table: "credit_payment_attempts", query: `SELECT COALESCE(jsonb_agg(to_jsonb(a)),'[]'::jsonb) FROM credit_payment_attempts a JOIN credit_payment_inbox i USING(event_id) WHERE EXISTS(SELECT 1 FROM credit_checkout_orders o LEFT JOIN credit_payment_sessions s ON s.order_id=o.id LEFT JOIN credit_subscriptions b ON b.order_id=o.id LEFT JOIN credit_subscription_terms t ON t.subscription_id=b.subscription_id LEFT JOIN credit_payment_results r ON r.order_id=o.id WHERE o.learner_id=$1 AND (i.session_id=s.session_id OR i.session_id=b.subscription_id OR i.session_id=t.invoice_id OR i.event_id=r.event_id))`},
 		{table: "character_versions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(v)),'[]'::jsonb) FROM character_versions v JOIN characters c ON c.id=v.character_id WHERE c.learner_id=$1`},
 		{table: "credit_subscription_lifecycle", query: `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]'::jsonb) FROM credit_subscription_lifecycle x JOIN credit_subscriptions b USING(subscription_id) JOIN credit_checkout_orders o ON o.id=b.order_id WHERE o.learner_id=$1`},
 		{table: "credit_subscription_transitions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]'::jsonb) FROM credit_subscription_transitions x JOIN credit_subscriptions b USING(subscription_id) JOIN credit_checkout_orders o ON o.id=b.order_id WHERE o.learner_id=$1`},
@@ -152,6 +163,10 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		{table: "credit_subscription_terms", query: `SELECT COALESCE(jsonb_agg(to_jsonb(t)),'[]'::jsonb) FROM credit_subscription_terms t JOIN credit_subscriptions s USING(subscription_id) JOIN credit_checkout_orders o ON o.id=s.order_id WHERE o.learner_id=$1`},
 		{table: "credit_payment_sessions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM credit_payment_sessions p JOIN credit_checkout_orders o ON o.id=p.order_id WHERE o.learner_id=$1`},
 		{table: "credit_payment_inbox", query: `SELECT COALESCE(jsonb_agg(to_jsonb(i)),'[]'::jsonb) FROM credit_payment_inbox i WHERE EXISTS(SELECT 1 FROM credit_checkout_orders o LEFT JOIN credit_payment_sessions s ON s.order_id=o.id LEFT JOIN credit_subscriptions b ON b.order_id=o.id LEFT JOIN credit_subscription_terms t ON t.subscription_id=b.subscription_id LEFT JOIN credit_payment_results r ON r.order_id=o.id WHERE o.learner_id=$1 AND (i.session_id=s.session_id OR i.session_id=b.subscription_id OR i.session_id=t.invoice_id OR i.event_id=r.event_id))`},
+		{table: "credit_reversals", query: `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]'::jsonb) FROM credit_reversals x JOIN credit_checkout_orders o ON o.id=x.order_id WHERE o.learner_id=$1`},
+		{table: "credit_refund_allocations", query: `SELECT COALESCE(jsonb_agg(to_jsonb(a)),'[]'::jsonb) FROM credit_refund_allocations a JOIN credit_reversals x USING(reversal_key) JOIN credit_checkout_orders o ON o.id=x.order_id WHERE o.learner_id=$1`},
+		{table: "credit_dispute_keys", query: `SELECT COALESCE(jsonb_agg(to_jsonb(d)),'[]'::jsonb) FROM credit_dispute_keys d JOIN credit_checkout_orders o ON o.id=d.order_id WHERE o.learner_id=$1`},
+		{table: "credit_debt_history", query: `SELECT COALESCE(jsonb_agg(to_jsonb(h)),'[]'::jsonb) FROM credit_debt_history h WHERE h.learner_id=$1`},
 		{table: "credit_payment_results", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM credit_payment_results p JOIN credit_checkout_orders o ON o.id=p.order_id WHERE o.learner_id=$1`},
 		{table: "credit_payment_payloads", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM credit_payment_payloads p JOIN credit_payment_inbox i ON i.event_id=p.event_id WHERE p.expires_at>now() AND EXISTS(SELECT 1 FROM credit_checkout_orders o LEFT JOIN credit_payment_sessions s ON s.order_id=o.id LEFT JOIN credit_subscriptions b ON b.order_id=o.id LEFT JOIN credit_subscription_terms t ON t.subscription_id=b.subscription_id LEFT JOIN credit_payment_results r ON r.order_id=o.id WHERE o.learner_id=$1 AND (i.session_id=s.session_id OR i.session_id=b.subscription_id OR i.session_id=t.invoice_id OR i.event_id=r.event_id))`},
 		{table: "course_brief_revisions", query: `SELECT COALESCE(jsonb_agg(to_jsonb(b)),'[]'::jsonb) FROM course_brief_revisions b WHERE learner_id=$1 AND expires_at>now()`},
@@ -164,11 +179,13 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		{table: "friend_streak_days", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('local_date',CASE WHEN d.learner_low=$1 THEN d.low_date ELSE d.high_date END,'run_no',d.run_no,'outcome',d.outcome,'length',d.length)),'[]'::jsonb) FROM friend_streak_days d WHERE d.learner_low=$1 OR d.learner_high=$1`},
 		{table: "friend_streak_milestones", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('reached_on',CASE WHEN m.learner_low=$1 THEN m.reached_low ELSE m.reached_high END,'run_no',m.run_no,'milestone_days',m.milestone_days)),'[]'::jsonb) FROM friend_streak_milestones m WHERE m.learner_low=$1 OR m.learner_high=$1`},
 		{table: "friend_nudges", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',n.id,'direction',CASE WHEN n.sender_id=$1 THEN 'sent' ELSE 'received' END,'local_date',n.sender_local_date,'created_at',n.created_at,'read_at',CASE WHEN n.recipient_id=$1 THEN n.read_at END,'other_username',u.username) ORDER BY n.created_at,n.id),'[]'::jsonb) FROM friend_nudges n JOIN learner_usernames u ON u.learner_id=CASE WHEN n.sender_id=$1 THEN n.recipient_id ELSE n.sender_id END WHERE (n.sender_id=$1 OR n.recipient_id=$1) AND (n.sender_id=$1 OR n.delivered)`},
-		{table: "publication_drafts", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'course_id',course_id,'number',number,'verdict',verdict,'created_at',created_at)),'[]'::jsonb) FROM publication_drafts WHERE owner_id=$1`},
+		{table: "publication_drafts", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'course_id',course_id,'number',number,'verdict',verdict,'changelog',changelog,'republish',republish,'created_at',created_at)),'[]'::jsonb) FROM publication_drafts WHERE owner_id=$1`},
 		{table: "publication_screenings", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('draft_id',draft_id,'verdict',verdict,'reason_codes',reason_codes,'created_at',created_at)),'[]'::jsonb) FROM publication_screenings WHERE owner_id=$1`},
 		{table: "publication_links", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',pl.id,'course_id',pl.course_id,'created_at',pl.created_at,'revoked_at',pl.revoked_at)),'[]'::jsonb) FROM publication_links pl JOIN courses c ON c.id=pl.course_id WHERE c.learner_id=$1`},
 		{table: "copy_generation_consents", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('generation_id',generation_id,'course_id',copy_course_id,'lesson_id',lesson_id,'pricing_version',pricing_version,'consented_at',consented_at)),'[]'::jsonb) FROM copy_generation_consents WHERE learner_id=$1`},
-		{table: "course_copies", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('course_id',copy_course_id,'version',version,'source',source,'created_at',created_at)),'[]'::jsonb) FROM course_copies WHERE learner_id=$1`},
+		{table: "marketplace_listings", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('course_id',course_id,'version',version,'category',category,'language',language,'tags',tags,'published_at',published_at,'delisted_at',delisted_at)),'[]'::jsonb) FROM marketplace_listings WHERE owner_id=$1`},
+		{table: "course_invites", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',i.id,'direction',CASE WHEN i.sender_id=$1 THEN 'sent' ELSE 'received' END,'course_id',i.course_id,'method',i.method,'status',CASE WHEN i.status='revoked' AND i.cancel_reason='block' THEN 'pending' ELSE i.status END,'created_at',i.created_at,'expires_at',i.expires_at,'resolved_at',CASE WHEN i.cancel_reason IS NULL THEN i.resolved_at END,'other_username',u.username) ORDER BY i.created_at,i.id),'[]'::jsonb) FROM course_invites i LEFT JOIN learner_usernames u ON u.learner_id=CASE WHEN i.sender_id=$1 THEN i.recipient_id ELSE i.sender_id END WHERE i.sender_id=$1 OR (i.recipient_id=$1 AND i.delivered AND i.cancel_reason IS NULL)`},
+		{table: "course_copies", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('course_id',copy_course_id,'version',version,'lock_version',lock_version,'forked',forked_at IS NOT NULL,'source',source,'created_at',created_at,'updated_at',updated_at)),'[]'::jsonb) FROM course_copies WHERE learner_id=$1`},
 		{table: "learner_blocks", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('created_at',b.created_at,'blocked_username',u.username)),'[]'::jsonb) FROM learner_blocks b JOIN learner_usernames u ON u.learner_id=b.blocked_id WHERE b.blocker_id=$1`},
 		{table: "learners", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'display_name',display_name,'created_at',created_at)),'[]'::jsonb) FROM learners WHERE id=$1`},
 		{table: "learner_profiles", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM learner_profiles p WHERE learner_id=$1`},
@@ -335,6 +352,9 @@ func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "UPDATE credit_entries SET learner_id=NULL,owner_reference=$2 WHERE learner_id=$1::uuid", id, ref); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, "UPDATE credit_debt_history SET learner_id=NULL,owner_reference=$2 WHERE learner_id=$1::uuid", id, ref); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "UPDATE credit_timezones SET learner_id=NULL,owner_reference=$2 WHERE learner_id=$1::uuid", id, ref); err != nil {

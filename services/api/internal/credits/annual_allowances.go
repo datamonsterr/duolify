@@ -3,7 +3,6 @@ package credits
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -38,48 +37,6 @@ func recordAnnualCancellation(ctx context.Context, tx pgx.Tx, event string, sub 
  WHERE b.subscription_id=$1 AND b.environment='test' AND b.customer_id=$3 AND o.id::text=$4 AND o.owner_reference=$5 AND o.billing_period='yearly'
  ON CONFLICT DO NOTHING`, sub.ID, event, sub.CustomerID, sub.OrderID, sub.OwnerReference)
 	return err
-}
-
-func (s *Service) revokeFundedTerm(ctx context.Context, tx pgx.Tx, event string, i SubscriptionInvoice, sub ProviderSubscription, r PaymentRequest, order CheckoutOrder, owner string) error {
-	// Full-term revocation must identify previously verified funding exactly. A
-	// changed status may be legitimate, but identity, amounts and service periods
-	// still have to match the canonical term and original configured order.
-	reason := "refunded"
-	if i.Disputed {
-		reason = "disputed"
-	}
-	checked := i
-	checked.Refunded = false
-	checked.Disputed = false
-	canonical := sub
-	canonical.Status = "active"
-	canonical.Trial = false
-	valid := order.BillingPeriod == "yearly" && annualFundingMatches(checked, canonical, r, time.Now()) || order.BillingPeriod == "monthly" && monthlyFundingMatches(checked, canonical, r, time.Now())
-	if !valid {
-		return paymentResult(ctx, tx, event, order.ID, "rejected", "", 0)
-	}
-	var term, plan, version string
-	err := tx.QueryRow(ctx, `SELECT t.period_key,t.plan_id,t.entitlement_version FROM credit_subscription_terms t JOIN credit_subscriptions b USING(subscription_id) WHERE t.invoice_id=$1 AND t.subscription_id=$2 AND b.order_id=$3 AND t.service_start=$4 AND t.paid_through=$5`, i.ID, sub.ID, order.ID, i.PeriodStart, i.PeriodEnd).Scan(&term, &plan, &version)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return paymentResult(ctx, tx, event, order.ID, "rejected", "", 0)
-	}
-	if err != nil {
-		return err
-	}
-	result, err := tx.Exec(ctx, `INSERT INTO credit_subscription_revocations(period_key,event_id,reason) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, term, event, reason)
-	if err != nil {
-		return err
-	}
-	if result.RowsAffected() > 0 {
-		if err = insertOutbox(ctx, tx, owner, term+":revoked", "entitlement_changed", map[string]any{"source": "api", "platform": order.Platform, "app_version": "development", "plan_id": plan, "entitlement_version": version, "reason_code": reason}); err != nil {
-			return err
-		}
-	}
-	if err = paymentResult(ctx, tx, event, order.ID, "pending", "", 0); err != nil {
-		return err
-	}
-	_ = s.InvalidateCache(ctx, owner)
-	return nil
 }
 
 // IssueAnnualAllowances catches up a bounded batch from durable funded schedules.

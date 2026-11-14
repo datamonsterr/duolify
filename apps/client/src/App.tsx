@@ -38,6 +38,8 @@ import { PricingView } from "./features/pricing/PricingView";
 import { NotesPage } from "./features/notes/NotesPage";
 import { BookmarksPage } from "./features/notes/BookmarksPage";
 import { PublicPreviewPage } from "./features/sharing/PublicPreviewPage";
+import { MarketplacePage } from "./features/sharing/MarketplacePage";
+import { MarketCoursePage } from "./features/sharing/MarketCoursePage";
 import { AppShell, MorePage } from "./features/shell/AppShell";
 import { getDownloadedCourses } from "./features/player/library";
 import {
@@ -136,6 +138,20 @@ const courses = createRoute({
   getParentRoute: () => root,
   path: "/courses",
   component: Courses,
+});
+const marketplace = createRoute({
+  getParentRoute: () => root,
+  path: "/marketplace",
+  component: MarketplacePage,
+});
+function MarketCourseRoute() {
+  const { courseId } = useParams({ from: "/marketplace/$courseId" });
+  return <MarketCoursePage id={courseId} />;
+}
+const marketplaceCourse = createRoute({
+  getParentRoute: () => root,
+  path: "/marketplace/$courseId",
+  component: MarketCourseRoute,
 });
 const createCourse = createRoute({
   getParentRoute: () => root,
@@ -319,6 +335,8 @@ export const createAppRouter = (history?: RouterHistory) =>
       index,
       courses,
       createCourse,
+      marketplace,
+      marketplaceCourse,
       course,
       lesson,
       profile,
