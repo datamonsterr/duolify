@@ -295,6 +295,9 @@ func (s *Service) runScreen(ctx context.Context, owner, draftID string, snap Sna
 				draftID, owner, out.Verdict, codes, PolicyVersion, out.Attempts, out.FallbackUsed, out.CostNanos)
 		}
 		if err == nil {
+			err = s.enqueueHeld(ctx, tx, draftID, out.Verdict)
+		}
+		if err == nil {
 			err = tx.Commit(ctx)
 		}
 	}
@@ -432,6 +435,9 @@ func (s *Service) PublishLink(ctx context.Context, owner, courseID string) (stri
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	if err = owns(ctx, tx, owner, courseID); err != nil {
+		return "", err
+	}
+	if err = s.moderated(ctx, tx, owner, courseID); err != nil {
 		return "", err
 	}
 	// Require the latest draft to have verdict=pass.

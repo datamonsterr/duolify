@@ -328,6 +328,9 @@ func (s *Service) ListCourse(ctx context.Context, owner, courseID string, in Lis
 	if err = owns(ctx, tx, owner, courseID); err != nil {
 		return Listing{}, err
 	}
+	if err = s.moderated(ctx, tx, owner, courseID); err != nil {
+		return Listing{}, err
+	}
 	var (
 		draftID, verdict string
 		number, total    int

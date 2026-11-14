@@ -11,6 +11,7 @@ import (
 
 	"github.com/datamonsterr/duolify/services/api/internal/backuptest"
 	"github.com/datamonsterr/duolify/services/api/internal/sharing"
+	"github.com/jackc/pgx/v5"
 )
 
 func grantModerator(t *testing.T, f *backuptest.Fixture, name string) string {
@@ -33,14 +34,18 @@ func reportedCourse(t *testing.T, f *backuptest.Fixture, s *sharing.Service, own
 	return itemFor(t, s, grantedAny(t, f), course)
 }
 
-var anyModerator string
-
+// grantedAny returns an existing moderator of this fixture, granting one if there is none yet.
 func grantedAny(t *testing.T, f *backuptest.Fixture) string {
 	t.Helper()
-	if count(t, f, `SELECT count(*) FROM moderator_grants WHERE account_id=$1`, anyModerator) == 0 {
-		anyModerator = grantModerator(t, f, "Queue reader")
+	var id string
+	err := f.DB.Pool.QueryRow(t.Context(), `SELECT account_id::text FROM moderator_grants ORDER BY granted_at,account_id LIMIT 1`).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return grantModerator(t, f, "Queue reader")
 	}
-	return anyModerator
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
 
 func itemFor(t *testing.T, s *sharing.Service, mod, target string) sharing.ModerationItem {
@@ -111,7 +116,8 @@ func TestModeratorRoleQueueOrderAndOverdueTarget(t *testing.T) {
 	for _, it := range view.Items {
 		order = append(order, it.TargetType+":"+it.Title)
 	}
-	want := []string{"publication:Chemistry safety borderline", "course:Queue high unsafe", "course:Queue low spam"}
+	// unsafe reports (100) outrank a held publication (90), which outranks spam (30).
+	want := []string{"course:Queue high unsafe", "publication:Chemistry safety borderline", "course:Queue low spam"}
 	if !slices.Equal(order, want) {
 		t.Fatalf("order = %v; want %v", order, want)
 	}
@@ -124,7 +130,7 @@ func TestModeratorRoleQueueOrderAndOverdueTarget(t *testing.T) {
 	if hiItem.DueAt.Sub(hiItem.OpenedAt).Hours() != 48 {
 		t.Fatalf("target = %v", hiItem.DueAt.Sub(hiItem.OpenedAt))
 	}
-	if pub := view.Items[0]; pub.Screening == nil || pub.Screening.Verdict != sharing.VerdictReview || len(pub.Screening.Codes) == 0 {
+	if pub := view.Items[1]; pub.Screening == nil || pub.Screening.Verdict != sharing.VerdictReview || len(pub.Screening.Codes) == 0 {
 		t.Fatalf("screening info = %+v", pub.Screening)
 	}
 }
@@ -222,9 +228,13 @@ func TestActionsNeedReasonsAndWriteAnAppendOnlyAudit(t *testing.T) {
 		t.Fatalf("resolved item = %v", err)
 	}
 	// A moderator cannot act on their own content.
-	own := listCourse(t, s, mod, marketCourse(t, f, mod, "Moderator own course", "Short lessons", 3), "tech", "en").CourseID
-	ownItem := reportedCourse(t, f, s, mod, own, "spam")
-	if _, err := s.ModerateItem(t.Context(), mod, ownItem.ID, sharing.ActionInput{Action: "dismiss", ReasonCode: "no_violation", Reason: "mine"}); !errors.Is(err, sharing.ErrSelfModeration) {
+	selfMod := marketOwner(t, f, "self-moderator")
+	if _, err := f.DB.Pool.Exec(t.Context(), `INSERT INTO moderator_grants(account_id) VALUES($1)`, selfMod); err != nil {
+		t.Fatal(err)
+	}
+	own := listCourse(t, s, selfMod, marketCourse(t, f, selfMod, "Moderator own course", "Short lessons", 3), "tech", "en").CourseID
+	ownItem := reportedCourse(t, f, s, selfMod, own, "spam")
+	if _, err := s.ModerateItem(t.Context(), selfMod, ownItem.ID, sharing.ActionInput{Action: "dismiss", ReasonCode: "no_violation", Reason: "mine"}); !errors.Is(err, sharing.ErrSelfModeration) {
 		t.Fatalf("self moderation = %v", err)
 	}
 }
