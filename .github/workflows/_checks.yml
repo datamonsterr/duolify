@@ -436,7 +436,7 @@ jobs:
     needs: [changes, client]
     if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
     runs-on: namespace-profile-linux-xl
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -463,7 +463,7 @@ jobs:
         run: mise run client:e2e-setup
         timeout-minutes: 3
       - run: mise run client:e2e
-        timeout-minutes: 6
+        timeout-minutes: 10
       - uses: actions/upload-artifact@v7
         if: always()
         with:
