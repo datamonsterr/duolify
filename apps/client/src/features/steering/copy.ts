@@ -20,7 +20,7 @@ const REASONS: Record<string, string> = {
     "Active instructions would pass the total character limit. Delete or shorten one.",
   invalid_input: "Check the text and scope, then try again.",
   screening_unavailable:
-    "Couldn't check right now. Nothing was saved. Try again in a moment.",
+    "Couldn't check right now. Nothing was saved. Your lessons keep working without it. Try again in a moment.",
   version_conflict:
     "This instruction changed elsewhere. The list was refreshed; your draft is kept.",
   not_editable: "This instruction was already applied, so it can't be edited.",
