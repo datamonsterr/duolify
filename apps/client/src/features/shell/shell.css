@@ -62,6 +62,13 @@
 .nav-icon-muted {
   color: var(--muted);
 }
+.nav-icon-warning {
+  color: var(--warning);
+}
+.app-frame .sidebar nav a .badge,
+.more-links a .badge {
+  margin-inline-start: auto;
+}
 .sidebar nav[aria-label="Main"] {
   display: flex;
   flex-direction: column;

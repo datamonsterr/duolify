@@ -62,6 +62,16 @@ workflow `API_TEST_PACKAGES` assignment on one line for the guard. `ci-ok` needs
 all three jobs directly; `join(needs.*.result, ' ')` passes their results to
 `ci:aggregate`, which rejects any failed or cancelled shard.
 
+Full-tier Playwright runs in three jobs, `playwright-1`, `playwright-2` and
+`playwright-3`, on `namespace-profile-linux-xl`. Each sets `E2E_SHARD=N/3`, which
+`client:e2e` validates (`N/M`, single digits, N <= M) and passes as
+`playwright test --shard=N/3`. Unset runs the full suite. One worker, no retries;
+`fullyParallel` is off, so Playwright shards by spec file and each spec runs once.
+Artifacts are `playwright-report-1..3`. `ci-ok` needs all three directly. These
+checks replace the former single `checks / playwright` check (#205); branch
+protection on `main` lists no required checks by name, so the rename needs no
+settings change.
+
 | Secret | Use |
 | --- | --- |
 | `RAILWAY_TOKEN` | Repository secret for full-tier plans; dev environment secret for deploys. Scope to development. |

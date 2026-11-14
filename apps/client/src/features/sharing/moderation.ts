@@ -1,3 +1,4 @@
+import { useEffect, useSyncExternalStore } from "react";
 import { session } from "../accounts/session";
 
 // ModerationAction covers human moderator actions available in the queue dialog.
@@ -215,9 +216,103 @@ export const decideAppeal = (
   );
 export const fetchNotices = () =>
   session.request<Notice[]>("/v1/moderation/notices");
-export const fileAppeal = (actionId: string, text: string) =>
-  session.request<{ id: string }>(
+
+let cachedOwnerId: string | null = null;
+let cachedNotices: Notice[] = [];
+let pendingFetch: Promise<Notice[]> | null = null;
+const noticeListeners = new Set<() => void>();
+
+export function getCachedNotices(): Notice[] {
+  return cachedNotices;
+}
+
+export function setCachedNotices(notices: Notice[]): void {
+  cachedNotices = notices;
+  noticeListeners.forEach((l) => l());
+}
+
+export function clearNoticesCache(): void {
+  cachedOwnerId = null;
+  cachedNotices = [];
+  pendingFetch = null;
+  noticeListeners.forEach((l) => l());
+}
+
+export async function refreshNotices(): Promise<Notice[]> {
+  const currentOwner = session.current()?.id ?? null;
+  if (!currentOwner) {
+    clearNoticesCache();
+    return [];
+  }
+  if (cachedOwnerId !== null && cachedOwnerId !== currentOwner) {
+    clearNoticesCache();
+  }
+  cachedOwnerId = currentOwner;
+  if (pendingFetch) return pendingFetch;
+  pendingFetch = (async () => {
+    try {
+      const list = await fetchNotices();
+      if (session.current()?.id !== currentOwner) {
+        return [];
+      }
+      const safeList = Array.isArray(list) ? list : [];
+      setCachedNotices(safeList);
+      return safeList;
+    } catch {
+      setCachedNotices([]);
+      return [];
+    } finally {
+      pendingFetch = null;
+    }
+  })();
+  return pendingFetch;
+}
+
+export function subscribeNotices(listener: () => void): () => void {
+  noticeListeners.add(listener);
+  return () => {
+    noticeListeners.delete(listener);
+  };
+}
+
+export function useModerationNotices(): Notice[] {
+  const notices = useSyncExternalStore(
+    subscribeNotices,
+    getCachedNotices,
+    () => [] as Notice[],
+  );
+
+  useEffect(() => {
+    let active = true;
+    const unsub = session.subscribe(() => {
+      if (active) void refreshNotices();
+    });
+    void refreshNotices();
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, []);
+
+  return notices;
+}
+
+export const fileAppeal = async (actionId: string, text: string) => {
+  const res = await session.request<{ id: string }>(
     `/v1/moderation/notices/${encodeURIComponent(actionId)}/appeal`,
     "POST",
     { text },
   );
+  setCachedNotices(
+    cachedNotices.map((x) =>
+      x.id === actionId
+        ? {
+            ...x,
+            can_appeal: false,
+            appeal: { status: "open" as const },
+          }
+        : x,
+    ),
+  );
+  return res;
+};

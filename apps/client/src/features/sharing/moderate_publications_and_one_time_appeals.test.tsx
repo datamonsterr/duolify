@@ -18,7 +18,13 @@ import {
 } from "./moderation";
 import { session } from "../accounts/session";
 
-vi.mock("../accounts/session", () => ({ session: { request: vi.fn() } }));
+vi.mock("../accounts/session", () => ({
+  session: {
+    request: vi.fn(),
+    current: vi.fn(() => ({ id: "author-1" })),
+    subscribe: vi.fn(() => () => {}),
+  },
+}));
 const request = vi.mocked(session.request);
 const rejected = (status: number) =>
   Object.assign(new Error("server text: pq password"), { status });

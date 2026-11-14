@@ -146,9 +146,11 @@ func (s *Service) pusher() PushSender {
 }
 
 // lockPair takes the same learner row locks as the E6 block, send and accept paths (ids sorted,
-// FOR UPDATE), so a CanInvite check made after it cannot race a concurrent block.
+// FOR NO KEY UPDATE), so a CanInvite check made after it cannot race a concurrent block. It must
+// not be FOR UPDATE: that conflicts with the FOR KEY SHARE that an in-flight enrollment's foreign
+// keys take on both learner rows, and the two deadlocked (one accept aborted with no copy id).
 func lockPair(ctx context.Context, tx pgx.Tx, ids ...string) error {
-	rows, err := tx.Query(ctx, `SELECT id FROM learners WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE`, ids)
+	rows, err := tx.Query(ctx, `SELECT id FROM learners WHERE id = ANY($1::uuid[]) ORDER BY id FOR NO KEY UPDATE`, ids)
 	if err != nil {
 		return err
 	}
