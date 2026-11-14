@@ -30,6 +30,18 @@ Active Course instructions MUST be sent to the Engine with every Lesson generati
 - **WHEN** a generation job for the next Lesson has started
 - **THEN** a new `next lesson` instruction waits for the Lesson after it
 
+#### Scenario: Edit or delete while a job runs
+- **WHEN** a Learner edits or deletes an instruction after a Lesson generation job pinned it
+- **THEN** that job, its retries and its Lesson test Retry variants keep the pinned text, an edited `next lesson` instruction stays active with its new text for the following job, and a deleted one is not used again
+
+#### Scenario: Stale edit
+- **WHEN** an edit carries an out-of-date instruction version
+- **THEN** the API refuses it with `version_conflict` and saves nothing
+
+#### Scenario: Deleted instruction retention
+- **WHEN** an instruction was deleted more than 30 days ago
+- **THEN** its record is purged while the snapshots of Lessons that used it remain
+
 ### Requirement: Instruction conflicts
 When instructions conflict, the newer instruction MUST win, and the generation request MUST state that precedence to the Engine.
 

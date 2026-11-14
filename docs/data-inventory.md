@@ -725,3 +725,7 @@ device audio caches are disposable derived state, never the recovery source. Seg
 | `steering_config` | Non-personal limits: 500 characters, 20 active, 4,000 total, 10 adds/Course/hour | Operational configuration, no Learner data | Nightly dump; server reads limits, hard ceilings prevent expanding v1 prompt envelope |
 
 Rejected raw text is never persisted. Analytics retain only closed enums, ids, lengths as buckets and bounded usage; consent applies to every event. Published Course copies are refused until E16-05.
+
+### E16-02 edit, delete and scope of Course instructions
+
+No new Learner tables or columns. Edits update `course_instructions` in place (text, scope, `version`+1, screening version/usage when the text changed); `added_at` is kept so conflict precedence stays stable. Delete is a soft delete (`status='deleted'`, `deleted_at`); `course_instructions_deleted_purge` (migration `20261115160201`) backs the hourly purge of rows deleted more than 30 days ago. Snapshots in `lesson_instruction_snapshots` are never edited or purged by instruction edits/deletes, so Lesson test Retry variants keep the original text. Export, account erasure and nightly dump coverage are unchanged from E16-01 (focused deletion/purge checks in `services/api/internal/steering`). Re-plan proposals (E16-07/08) will use their own 7-day policy and are not touched by the 30-day instruction purge. Analytics add `course_instruction_edited` and `course_instruction_deleted` with closed enums only; no text.
