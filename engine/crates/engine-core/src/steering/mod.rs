@@ -35,6 +35,13 @@ pub struct Instruction {
 /// Exactly one escaped section, after trusted rules and Course context. Input order is authoritative.
 pub fn prompt_section(entries: &[Instruction]) -> Result<String> {
     ensure!(entries.len() <= 20, "too many instructions");
+    // Precedence is positional ("newer wins"): an out-of-order list would invert it.
+    ensure!(
+        entries
+            .windows(2)
+            .all(|w| w[0].added_at_unix_ms <= w[1].added_at_unix_ms),
+        "instructions must be ordered by added_at"
+    );
     let mut total = 0;
     for i in entries {
         let n = i.text.chars().count();
