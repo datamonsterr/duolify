@@ -188,6 +188,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	cast, segments := s.pinnedCast(ctx, owner, id)
 	narrations := s.narrations(ctx, owner, id)
+	segmentStates := s.segmentNarrations(ctx, owner, id)
 	out := Manifest{Cast: cast, LessonID: id, CourseID: course, Title: title, Version: version, AssetOrigin: s.opts.AssetOrigin, Slides: make([]Slide, 0, len(m.Slides))}
 	for _, slide := range m.Slides {
 		raw, _, hashes, err := s.document(ctx, slide)
@@ -199,7 +200,13 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if explanation == "" {
 			explanation = slide.NarrationText
 		}
-		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: narrations.status(slide.ID), NarrationReason: narrations[slide.ID].Reason, Narration: narrations[slide.ID].Asset, NarrationText: slide.NarrationText, Explanation: explanation, HTMLSHA256: checksum(raw), AssetSHA256: hashes, Segments: segments[slide.ID]})
+		slideSegments, status, reason := decorateSegments(segments[slide.ID], segmentStates[slide.ID])
+		state := narrations[slide.ID]
+		if status != "" {
+			// Pinned speakers narrate this slide: the segments carry the audio and the slide shows their summary.
+			state = narrationState{Status: status, Reason: reason}
+		}
+		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: statusOf(state), NarrationReason: state.Reason, Narration: state.Asset, NarrationText: slide.NarrationText, Explanation: explanation, HTMLSHA256: checksum(raw), AssetSHA256: hashes, Segments: slideSegments})
 	}
 	respond(w, 200, out)
 }
@@ -320,9 +327,11 @@ type narrationState struct {
 
 type narrationStates map[string]narrationState
 
-func (n narrationStates) status(slide string) string {
-	if st := n[slide].Status; st != "" {
-		return st
+func (n narrationStates) status(slide string) string { return statusOf(n[slide]) }
+
+func statusOf(state narrationState) string {
+	if state.Status != "" {
+		return state.Status
 	}
 	return "disabled"
 }
@@ -333,7 +342,7 @@ func (s *Service) narrations(ctx context.Context, owner, lesson string) narratio
 	// One row per slide: a stored (ready) voice wins over a pending one, and the Learner's chosen
 	// voice wins among stored voices, so an old voice keeps playing until the new one is ready.
 	rows, err := s.opts.Pool.Query(ctx, `SELECT DISTINCT ON (slide_id) slide_id,status,duration_ms,characters,failure_code FROM slide_narrations
-		WHERE lesson_id::text=$1 AND learner_id::text=$2
+		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND speaker_key=''
 		ORDER BY slide_id,(status='ready') DESC,(voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id::text=$2),'default')) DESC,updated_at DESC`, lesson, owner)
 	if err != nil {
 		return out // text and animation stay usable without audio

@@ -474,5 +474,7 @@ pub fn tutor_fallback_props(reason: &str) -> std::collections::BTreeMap<&'static
     .into()
 }
 
+pub mod narrate;
+
 #[cfg(test)]
 mod tests;

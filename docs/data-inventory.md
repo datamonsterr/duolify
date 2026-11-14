@@ -691,6 +691,31 @@ on consent and is not stored. Analytics add no event: `narration_cache_hit` (fre
 `narration_muted` and `credits_upsell_shown` (only for plans without "No upsell banners") carry ids,
 counts and fixed codes only. Entitlements are read from verified Postgres subscription terms.
 
+E17-08 narrates pinned-Cast dialogue through the same E14 pipeline. Migration
+`20261115101701_character_narration_segments` adds to `slide_narrations` (no new table, so the
+existing erasure, export and nightly encrypted 14-day Postgres dump policy applies): `speaker_key`
+(bounded key from the job-pinned Cast), `segment_slide_id` (parent Slide), `segment_index`
+(Speaker order), `actual_voice_key` (the logical voice actually used), `voice_config_version` (the
+approved voice config version that resolved it) and `voice_fallback_reason` (`voice_retired`,
+`voice_unavailable` or `voice_not_entitled`, else empty). A segment row has its own `slide_id`
+(`<slide>__s<index>`), its caption text, content hash and object keys, so Speaker order, the
+actual voice/config and the alignment reference live with the manifests in Postgres. A Character's
+`voice_key` resolves only through the approved versioned voice config (engine `voices.json` and API
+`voices.json`); no provider ids, voice cloning or persona inference. A retired, unknown or
+unentitled voice uses the configured default voice for new synthesis only; stored audio and its
+hash never change. Audio and alignment are the existing hash-keyed, versioned objects under
+`lessons/narration/v1/…` with the protected asset copies and checksum manifests; restore resolves the
+original audio and voices from the restored rows and objects without paid TTS (the backup fixture
+restores a segment row and its asset reference). Unshared objects are purged within 30 days of
+Lesson or account deletion by `narration.UnsharedObjectKeys`; assets still referenced by another Lesson
+or an E15 snapshot stay under reference-counted retention. The restore-drill classification marks the
+new columns reviewed-safe (bounded keys and codes, no names or text). Analytics add
+`character_voice_fallback` (`speaker_key`, `reason_code`, `voice_config_version`; one per speaker and
+reason per run) and the existing `narration_generated` and `narration_cache_hit` gain `voice_key` and
+`speaker_key`; no spoken text, name, persona or provider id ever reaches PostHog or logs. PostHog and
+device audio caches are disposable derived state, never the recovery source. Segments never spend
+`character_create` Credits; newly synthesized characters use the existing narration reservation.
+
 ### E15-07 public marketplace listings
 
 Postgres `marketplace_listings` (course id, owner id, screened draft id, listed version, title and description copied from the passing draft, category from the fixed taxonomy, language, up to 10 topic tags, lesson counts, a `simple` full-text `tsvector` over title, tags and description, `published_at`, `delisted_at`) and `marketplace_listing_stats` (30-day enrollments, completion rate, popularity score, rating sum and count) are new tables linked to a learner through the Course. `course_id` and `owner_id` cascade from `courses` and `learners`, so account deletion erases both; the draft id is `ON DELETE SET NULL`. They hold the owner's public listing choices only: no search text, viewer, IP or session. Ranking inputs are recomputed from `course_copies`; `rating_sum` and `rating_count` are written by the ratings slice (E15-08) and are zero until then. Both tables are in the nightly encrypted dump (the fixture compares every row, including the search vector, after restore) and are listed in the privacy export (`marketplace_listings`: course, version, category, language, tags, dates) and deletion policy (`erased`).

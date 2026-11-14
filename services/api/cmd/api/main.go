@@ -214,7 +214,7 @@ func run(ctx context.Context, args []string) (result error) {
 		}
 		// E14-01: narration synthesis stays off until explicitly enabled; only the engine mock exists.
 		if os.Getenv("NARRATION_ENABLED") == "true" {
-			narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention()})
+			narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention(), Segments: characters.NewService(db.Pool, nil, events)})
 			narrationQueue, err := narrationService.Queue()
 			if err != nil {
 				return err
@@ -350,7 +350,7 @@ func run(ctx context.Context, args []string) (result error) {
 	var narrationVoices http.Handler
 	if os.Getenv("NARRATION_ENABLED") == "true" {
 		// Insert-only queue client: the worker process runs the jobs.
-		recovery := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention()})
+		recovery := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention(), Segments: characters.NewService(db.Pool, nil, events)})
 		if _, err = recovery.Queue(); err != nil {
 			return err
 		}

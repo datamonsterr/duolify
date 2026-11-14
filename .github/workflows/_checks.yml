@@ -195,7 +195,7 @@ jobs:
     needs: changes
     if: inputs.tier == 'full' && needs.changes.outputs.api == 'true'
     runs-on: namespace-profile-datamonster01
-    timeout-minutes: 15
+    timeout-minutes: 20
     # The task starts and removes Postgres 18 via testcontainers; Docker must be available.
     steps:
       - uses: actions/checkout@v7
@@ -205,7 +205,7 @@ jobs:
       - run: mise run api:test-e2e
         timeout-minutes: 3
       - run: mise run api:test-integration
-        timeout-minutes: 8
+        timeout-minutes: 12
       - name: Summary
         if: always()
         env:

@@ -28,15 +28,15 @@ This is the future implementation checklist; this change delivers documentation 
 ## 3. Lesson generation, player, narration and test reactions
 
 - [ ] 3.1 E2E first: chosen Cast narrates and speaks dialogue consistently across Slides; all expressions, pause/seek/replay/speed, reduced motion and offline replay work.
-- [ ] 3.2 E2E: voice-aware cached audio costs zero; removed voices use safe mappings; TTS failure gives captions; missing rigs use defaults and never block a test.
+- [x] 3.2 E2E: voice-aware cached audio costs zero; removed voices use safe mappings; TTS failure gives captions; missing rigs use defaults and never block a test.
 - [ ] 3.3 E2E: answer reactions follow authoritative grading, wrong answers still receive corrections/Retry variants, and only all-correct completion unlocks the next Lesson once.
 - [ ] 3.4 Integration: Course preview/lesson Cast input, instruction coexistence, job/Retry variant snapshot reuse, valid speaker keys, immutable past Lessons and unchanged Gated generation.
-- [ ] 3.5 Integration: multi-speaker voice resolution, segment order/alignment, synthesis deduplication and reservations/caps, captions fallback and no Character creation charge during use.
+- [x] 3.5 Integration: multi-speaker voice resolution, segment order/alignment, synthesis deduplication and reservations/caps, captions fallback and no Character creation charge during use.
 - [ ] 3.6 Unit: expression timeline/reset behavior, allowed speaker references, safe sandbox rendering, reaction-result mapping and voice-aware cache key composition.
 - [ ] 3.7 Unit: grading/answer-privacy invariants under adversarial persona content; render, generation, reaction and voice-fallback analytics emitters.
 - [ ] 3.8 Implement Engine Cast context/speaker validation and manifest/snapshot persistence with paired API/Engine transport changes if needed, preserving Course steering and generation contracts.
 - [ ] 3.9 Implement player rig/dialogue rendering, preloading/offline bundles and accessible static fallback without relaxing CSP/sandbox.
-- [ ] 3.10 Implement allowlisted per-speaker ElevenLabs synthesis under ADR 0009 with existing pricing, cache and alignment rules; confirm current provider docs and voice rights.
+- [x] 3.10 Implement allowlisted per-speaker ElevenLabs synthesis under ADR 0009 with existing pricing, cache and alignment rules; confirm current provider docs and voice rights.
 - [ ] 3.11 Implement deterministic presentation-only test reactions, approved supportive copy and key PostHog events; pass the slice's tests.
 
 ## 4. Tutor chat personas

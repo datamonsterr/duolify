@@ -95,3 +95,17 @@ func TestReactionShownKeepsOnlyClosedEnums(t *testing.T) {
 		t.Fatalf("free text accepted: %v", bad)
 	}
 }
+
+func TestVoiceFallbackEventKeepsOnlyBoundedFields(t *testing.T) {
+	if !allowlisted("character_voice_fallback") {
+		t.Fatal("character_voice_fallback dropped")
+	}
+	safe := safeProperties("character_voice_fallback", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "speaker_key": "supporter", "reason_code": "voice_retired", "voice_config_version": "2026-11-13.1", "text": "private-text", "name": "private-text", "voice_id": "private-text"})
+	raw, _ := json.Marshal(safe)
+	if strings.Contains(string(raw), "private-text") || safe["reason_code"] != "voice_retired" || safe["speaker_key"] != "supporter" {
+		t.Fatalf("unsafe or missing: %s", raw)
+	}
+	if bad := safeProperties("character_voice_fallback", map[string]any{"reason_code": "Nova said hello"}); bad["reason_code"] != nil {
+		t.Fatalf("free-text reason kept: %v", bad)
+	}
+}

@@ -328,13 +328,14 @@ func run() (result error) {
 
 	notesService := notes.NewServiceWithEnrichment(db.Pool, nil, paidCredits, engineClient)
 	// E14-01: queue mock narration for a seeded lesson; slide faults exercise recovery.
-	narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: objects, Speech: engineClient, Financial: paidCredits, Entitlements: paidCredits, FixtureVoices: true, JobAttempts: 1})
+	narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: objects, Speech: engineClient, Financial: paidCredits, Entitlements: paidCredits, FixtureVoices: true, JobAttempts: 1, Segments: characterService})
 	narrationQueue, err := narrationService.Queue()
 	if err != nil {
 		return err
 	}
 	lateNarration.service = narrationService
 	registerNarrationTestRoutes(mux, auth, db.Pool, objects, speechTwin, narrationService)
+	registerCharacterNarrationRoutes(mux, auth, db.Pool, characterService, speechTwin, objects)
 	if err := narrationQueue.Start(ctx); err != nil {
 		return err
 	}
@@ -366,6 +367,9 @@ func run() (result error) {
 			if mode := in.Fail[slide.ID]; mode != "" {
 				faults[slide.NarrationText] = mode
 			}
+		}
+		for text, mode := range currentSegmentFaults() {
+			faults[text] = mode
 		}
 		speechTwin.SetFaults(faults)
 		if !in.NoTopup {

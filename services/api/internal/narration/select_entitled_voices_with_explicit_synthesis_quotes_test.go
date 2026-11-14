@@ -77,8 +77,8 @@ func TestEngineVoiceConfigListsTheSameKeys(t *testing.T) {
 	for _, v := range engine.Voices {
 		keys = append(keys, v.Key)
 	}
-	if strings.Join(keys, ",") != strings.Join(set.Keys(), ",") {
-		t.Fatalf("engine voices %v differ from API voices %v", keys, set.Keys())
+	if strings.Join(keys, ",") != strings.Join(set.AllKeys(), ",") {
+		t.Fatalf("engine voices %v differ from API voices %v", keys, set.AllKeys())
 	}
 }
 

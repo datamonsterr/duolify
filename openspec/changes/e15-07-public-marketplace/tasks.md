@@ -5,7 +5,7 @@
 
 ## 2. Implementation
 - [x] 2.1 Analytics allowlist and catalogue, then emitters
-- [x] 2.2 Migration `20261115091507_marketplace_listings.sql`
+- [x] 2.2 Migration `20261115111507_marketplace_listings.sql`
 - [x] 2.3 Listing, search, ranking, cursor, Redis cache, flag
 - [x] 2.4 Routes, router public allowlist, enroll refactor
 - [x] 2.5 Client Marketplace and Course page

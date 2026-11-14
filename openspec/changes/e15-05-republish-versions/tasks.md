@@ -5,7 +5,7 @@
 
 ## 2. Implementation
 - [x] 2.1 Analytics allowlist and catalogue, then emitters
-- [x] 2.2 Migration `20261115111505_republish_versions.sql`
+- [x] 2.2 Migration `20261115131505_republish_versions.sql`
 - [x] 2.3 Republish, lesson keys, update, archive, retention, routes, wiring
 - [x] 2.4 Client owner republish and learner update sheet
 - [x] 2.5 Data inventory, privacy, backup fixture, restore and deletion checks, anonymize classification, `.env.example`

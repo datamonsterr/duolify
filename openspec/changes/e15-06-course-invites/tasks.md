@@ -5,7 +5,7 @@
 
 ## 2. Implementation
 - [x] 2.1 Analytics allowlist and catalogue, then emitters
-- [x] 2.2 Migration `20261115101506_course_invites.sql`
+- [x] 2.2 Migration `20261115121506_course_invites.sql`
 - [x] 2.3 Invite service, outbox, push adapter, block callback, routes, wiring
 - [ ] 2.4 Client invite sheet and received inbox
 - [x] 2.5 Data inventory, privacy policy, backup fixture, restore and deletion checks, anonymize classification, `.env.example`

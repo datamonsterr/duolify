@@ -571,10 +571,29 @@ impl EngineService for Service {
     ) -> Result<Response<pb::SynthesizeNarrationResponse>, Status> {
         use engine_core::narration as speech;
         let req = request.into_inner();
-        let voice = self
-            .speech
-            .voice(&req.voice_key)
-            .ok_or_else(|| Status::failed_precondition("voice unavailable"))?;
+        // E17-08: a pinned-speaker segment resolves its Character voice key only through the approved
+        // config (retired or unknown keys use the default) and runs under the stricter budgets.
+        let character = !req.speaker_key.is_empty();
+        let (voice_key, voice, fallback) = if character {
+            let r = engine_core::characters::narrate::resolve_voice(&req.voice_key);
+            // The provider decides which approved voices it can serve (live: only its configured default).
+            match self.speech.voice(&r.voice_key) {
+                Some(v) => (r.voice_key, v, r.fallback),
+                None => {
+                    let v = self
+                        .speech
+                        .voice("default")
+                        .ok_or_else(|| Status::failed_precondition("voice unavailable"))?;
+                    ("default".to_string(), v, Some("voice_unavailable"))
+                }
+            }
+        } else {
+            let v = self
+                .speech
+                .voice(&req.voice_key)
+                .ok_or_else(|| Status::failed_precondition("voice unavailable"))?;
+            (req.voice_key.clone(), v, None)
+        };
         let limits = req.limits.unwrap_or_default();
         if !limits.model.is_empty() && limits.model != voice.model_id {
             return Err(Status::failed_precondition(
@@ -585,6 +604,11 @@ impl EngineService for Service {
             voice_id: voice.voice_id.clone(),
             model_id: voice.model_id.clone(),
             settings_fingerprint: voice.fingerprint(),
+            voice_key,
+            voice_config_version: engine_core::characters::narrate::voices().version().into(),
+            voice_fallback_reason: fallback.unwrap_or_default().into(),
+            segment_id: req.segment_id.clone(),
+            speaker_key: req.speaker_key.clone(),
             ..Default::default()
         };
         if req.resolve_only {
@@ -596,14 +620,21 @@ impl EngineService for Service {
             voice_id: voice.voice_id,
             model_id: voice.model_id.clone(),
         };
-        // Launch limits: 60 s per call, one repair/retry after the primary, never above the quote.
-        let timeout_ms = match limits.timeout_ms {
-            0 => speech::MAX_TTS_TIMEOUT_MS,
-            t => t.min(speech::MAX_TTS_TIMEOUT_MS),
-        };
-        let attempts = match limits.max_attempts {
-            0 => speech::MAX_TTS_ATTEMPTS,
-            a => a.min(speech::MAX_TTS_ATTEMPTS),
+        // E14 launch limits: 60 s per call, one repair/retry after the primary, never above the quote.
+        // Character segments take the stricter 30 s ceiling.
+        let (timeout_ms, attempts) = if character {
+            engine_core::characters::narrate::budget(limits.timeout_ms, limits.max_attempts)
+        } else {
+            (
+                match limits.timeout_ms {
+                    0 => speech::MAX_TTS_TIMEOUT_MS,
+                    t => t.min(speech::MAX_TTS_TIMEOUT_MS),
+                },
+                match limits.max_attempts {
+                    0 => speech::MAX_TTS_ATTEMPTS,
+                    a => a.min(speech::MAX_TTS_ATTEMPTS),
+                },
+            )
         };
         let started = std::time::Instant::now();
         let (out, attempt) = speech::synthesize_bounded(
