@@ -80,6 +80,8 @@ func ResolveDownloadItem(lessonID, unitID, title string, position int, status st
 
 // Options supplies storage and the trusted asset origin.
 type Options struct {
+	// CastSafety reapplies current moderation to immutable Casts before playback.
+	CastSafety  func(context.Context, json.RawMessage) json.RawMessage
 	Pool        *pgxpool.Pool
 	Objects     Objects
 	AssetOrigin string
@@ -127,11 +129,19 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("lesson")
 	var key, course, title string
 	var version int
-	err := s.opts.Pool.QueryRow(ctx, `SELECT m.manifest_key,m.version,c.id::text,l.title
+	lookup := func() error {
+		return s.opts.Pool.QueryRow(ctx, `SELECT m.manifest_key,m.version,c.id::text,l.title
  FROM lesson_manifests m JOIN course_lesson_stubs l ON l.id=m.lesson_id
  JOIN course_units u ON u.id=l.unit_id JOIN courses c ON c.id=u.course_id
  JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id::text=$2
  WHERE m.lesson_id::text=$1 AND m.learner_id::text=$2 AND l.learner_id=m.learner_id AND l.status<>'locked' AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL)`, id, owner).Scan(&key, &version, &course, &title)
+	}
+	err := lookup()
+	if errors.Is(err, pgx.ErrNoRows) {
+		if err = s.MaterializeGenerated(ctx, owner, id); err == nil {
+			err = lookup()
+		}
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		failure(w, 404)
 		return
@@ -187,6 +197,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cast, segments := s.pinnedCast(ctx, owner, id)
+	if s.opts.CastSafety != nil {
+		cast = s.opts.CastSafety(ctx, cast)
+	}
+	segments = overlaySpeakerLabels(cast, segments)
 	narrations := s.narrations(ctx, owner, id)
 	segmentStates := s.segmentNarrations(ctx, owner, id)
 	out := Manifest{Cast: cast, LessonID: id, CourseID: course, Title: title, Version: version, AssetOrigin: s.opts.AssetOrigin, Slides: make([]Slide, 0, len(m.Slides))}

@@ -25,8 +25,19 @@ const base = (course: string) =>
 
 /** The actor always comes from the session; the server decides ownership. */
 export const drafts = {
-  build: (course: string) =>
-    session.request<PublicationDraft>(base(course), "POST", {}),
+  disclosure: (course: string) =>
+    session.request<{
+      names: string[];
+      character_count: number;
+      custom_count: number;
+      exports_enabled: boolean;
+    }>(`/v1/courses/${encodeURIComponent(course)}/character-export`),
+  build: (course: string, confirmed = false) =>
+    session.request<PublicationDraft>(
+      base(course),
+      "POST",
+      confirmed ? { character_export_confirmed: true } : {},
+    ),
   get: (course: string, id: string) =>
     session.request<PublicationDraft>(
       `${base(course)}/${encodeURIComponent(id)}`,

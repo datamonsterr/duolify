@@ -109,3 +109,57 @@ func TestVoiceFallbackEventKeepsOnlyBoundedFields(t *testing.T) {
 		t.Fatalf("free-text reason kept: %v", bad)
 	}
 }
+
+func TestPublishedCharacterSnapshotEventIsContentFree(t *testing.T) {
+	if !allowlisted("character_snapshot_published") {
+		t.Fatal("snapshot event dropped")
+	}
+	safe := safeProperties("character_snapshot_published", map[string]any{"course_version": 3, "character_count": 2, "custom_count": 1, "name": "private", "bio": "private", "persona": "private", "dialogue": "private", "answer": "private", "svg": "private", "prompt": "private", "owner_id": "private"})
+	if len(safe) != 3 || safe["course_version"] != 3 || safe["character_count"] != 2 || safe["custom_count"] != 1 {
+		t.Fatalf("unsafe publication props: %v", safe)
+	}
+}
+
+func TestPublishedSnapshotPostHogDeliveryAndOptOut(t *testing.T) {
+	var mu sync.Mutex
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var envelope struct {
+			Batch []map[string]any `json:"batch"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&envelope)
+		mu.Lock()
+		received = append(received, envelope.Batch...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	owner := "17111111-1111-4111-8111-111111111111"
+	for _, optOut := range []bool{false, true} {
+		events, err := NewWithOptions("fixture-only", server.URL, Options{Consent: allowConsent, OptOut: optOut})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = events.Capture(owner, "character_snapshot_published", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "course_version": 2, "character_count": 2, "custom_count": 1, "prompt": "private prompt", "persona": "private persona", "svg": "private SVG"}); err != nil {
+			t.Fatal(err)
+		}
+		if err = events.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 1 {
+		t.Fatalf("opt-out/delivery: %v", received)
+	}
+	raw, _ := json.Marshal(received[0])
+	if received[0]["distinct_id"] != owner || strings.Contains(string(raw), "private") {
+		t.Fatalf("unsafe PostHog event: %s", raw)
+	}
+	props := received[0]["properties"].(map[string]any)
+	for _, key := range []string{"source", "platform", "app_version", "course_version", "character_count", "custom_count"} {
+		if props[key] == nil {
+			t.Fatal("missing property", key)
+		}
+	}
+}

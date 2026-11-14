@@ -5,6 +5,18 @@ Define how Duolify uses PostHog: identity, privacy, the event catalog with names
 
 ## Requirements
 
+### Requirement: Published Character snapshot analytics
+The API SHALL emit `character_snapshot_published` with integer `course_version`,
+`character_count` and `custom_count` once per successfully published Course version.
+It SHALL include Learner UUID and common properties, respect current opt-out and
+use the non-blocking PostHog adapter. No Character text, prompts, persona, dialogue,
+answers, specs, SVG or private ownership links may be included. Persisted publication
+state, rather than analytics, SHALL deduplicate events and recover content.
+
+#### Scenario: Publication retries
+- **WHEN** the same version is published or screened again
+- **THEN** at most one snapshot publication event is delivered and no Character content is captured
+
 ### Requirement: Shared demo analytics catalogue
 The existing client event `course_preview_viewed` SHALL allow preview_kind=shared_demo and demo_version (fixed authored version), without a financial preview_id. The existing `ui_control_activated` SHALL allow control_id=shared_demo with surface=welcome|course_brief. Both SHALL carry UUID/common properties and honor opt-out. No paid generation, model usage, text, topic, title, HTML or draft properties SHALL be emitted for the shared demo.
 

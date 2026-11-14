@@ -49,11 +49,11 @@ const root = (course: string) => `/v1/courses/${course}/share-link`;
 export const links = {
   status: (course: string) => session.request<LinkState>(root(course)),
   /** Screens a fresh draft; only verdict "pass" is published. */
-  async publish(course: string): Promise<PublishResult> {
+  async publish(course: string, confirmed = false): Promise<PublishResult> {
     const draft = await session.request<PublicationDraft>(
       `/v1/courses/${course}/publication-drafts`,
       "POST",
-      {},
+      confirmed ? { character_export_confirmed: true } : {},
     );
     if (draft.verdict !== "pass")
       return { kind: "blocked", verdict: draft.verdict };

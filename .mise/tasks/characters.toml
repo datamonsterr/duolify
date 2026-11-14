@@ -18,7 +18,7 @@ dir = "{{config_root}}/apps/client"
 run = "pnpm exec vitest run src/features/characters"
 
 ["characters:format"]
-run = ["gofmt -w services/api/internal/characters", "pnpm --dir apps/client exec prettier --write src/features/characters e2e/characters-e17-03.spec.ts e2e/characters-e17-04.spec.ts"]
+run = ["gofmt -w services/api/internal/characters", "pnpm --dir apps/client exec prettier --write src/features/characters src/features/sharing e2e/characters-e17-03.spec.ts e2e/characters-e17-04.spec.ts e2e/characters-e17-09.spec.ts"]
 
 ["client:e2e-character-create"]
 depends = ["client:build"]

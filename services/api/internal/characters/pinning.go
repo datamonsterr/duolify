@@ -39,20 +39,25 @@ func (s *Service) PinJobCastTx(ctx context.Context, tx pgx.Tx, owner, course, jo
 	}
 	err := read()
 	if err == nil || !errors.Is(err, pgx.ErrNoRows) {
-		return out, err
+		return s.SafeCast(ctx, out), err
 	}
 	effective, err := s.effectiveCast(ctx, owner, course)
 	if err != nil {
 		return out, err
 	}
+	effective = s.SafeCast(ctx, effective)
 	raw, err := json.Marshal(effective)
 	if err != nil {
+		return out, err
+	}
+	if err = PinAssetReferences(ctx, tx, effective); err != nil {
 		return out, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO lesson_cast_snapshots(course_id,learner_id,lesson_key,snapshot) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, course, owner, jobKey, raw); err != nil {
 		return out, err
 	}
-	return out, read()
+	err = read()
+	return s.SafeCast(ctx, out), err
 }
 
 // SnapshotTx reads an already pinned job Cast without resolving current data.
@@ -68,7 +73,10 @@ func (s *Service) SnapshotTx(ctx context.Context, q interface {
 	if err != nil {
 		return out, err
 	}
-	return out, json.Unmarshal(raw, &out)
+	if err = json.Unmarshal(raw, &out); err != nil {
+		return out, err
+	}
+	return s.SafeCast(ctx, out), nil
 }
 
 // PersonasJSON is the immutable data-only payload sent to the engine.

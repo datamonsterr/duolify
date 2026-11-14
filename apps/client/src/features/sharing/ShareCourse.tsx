@@ -12,6 +12,8 @@ import { InviteFriends } from "./InviteFriends";
 import { RepublishPanel } from "./RepublishPanel";
 import { UnpublishDialog } from "./UnpublishDialog";
 import "./sharing.css";
+import { drafts } from "./drafts";
+import { CharacterExportConfirmation } from "../characters/CharacterExportConfirmation";
 
 /** Owner entry point on the course view. */
 export function ShareCourse({ courseId }: { courseId: string }) {
@@ -60,7 +62,20 @@ export function ShareCoursePanel({
   const [loading, setLoading] = useState(true);
   const [newVersion, setNewVersion] = useState(false);
   const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+  const [characters, setCharacters] = useState<string[] | null>(null);
+  const [exportsEnabled, setExportsEnabled] = useState(false);
+  const [online, setOnline] = useState(navigator.onLine);
   const unpublishTrigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
 
   const load = useCallback(() => {
     let active = true;
@@ -114,10 +129,18 @@ export function ShareCoursePanel({
     }
   }
 
-  const publish = () =>
+  const publish = (confirmed = false) =>
     run("checking", async () => {
       setVerdictNote(null);
-      const result = await links.publish(courseId);
+      if (!confirmed) {
+        const disclosure = await drafts.disclosure(courseId);
+        if (disclosure.character_count > 0) {
+          setCharacters(disclosure.names);
+          setExportsEnabled(disclosure.exports_enabled);
+          return;
+        }
+      }
+      const result = await links.publish(courseId, confirmed);
       if (result.kind === "blocked") {
         setVerdictNote(
           result.verdict === "block"
@@ -131,6 +154,7 @@ export function ShareCoursePanel({
       setLink(result.link);
       setVersion({ n: result.version, lessons: result.lessons });
       setState({ visibility: "link", active: true });
+      setCharacters(null);
     });
   const rotate = () =>
     run("rotating", async () => {
@@ -248,6 +272,20 @@ export function ShareCoursePanel({
           <p role="status">
             <span className="sharing-spinner" aria-hidden="true" />
             Checking this version for safety…
+          </p>
+        )}
+        {characters && exportsEnabled && (
+          <CharacterExportConfirmation
+            names={characters}
+            online={online}
+            busy={busy !== null}
+            onConfirm={() => void publish(true)}
+          />
+        )}
+        {characters && !exportsEnabled && (
+          <p role="status" className="sharing-banner">
+            Sharing Characters is not available yet. You can keep learning
+            privately, and existing copies keep working.
           </p>
         )}
         {shared && (

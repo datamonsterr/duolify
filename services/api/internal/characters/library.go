@@ -59,8 +59,9 @@ type CastSelection struct {
 // CastRecord is the versioned Course selection.
 type CastRecord struct {
 	CastSelection
-	Version  int                 `json:"version"`
-	Snapshot *LessonCastSnapshot `json:"snapshot,omitempty"`
+	Version   int                 `json:"version"`
+	Snapshot  *LessonCastSnapshot `json:"snapshot,omitempty"`
+	Published bool                `json:"published,omitempty"`
 }
 
 // ErrNotFound conceals foreign and missing private identifiers alike.
@@ -315,6 +316,11 @@ func (s *Service) SelectCast(ctx context.Context, owner, course string, in CastS
 	if err := s.checkCourse(ctx, owner, course); err != nil {
 		return CastRecord{}, err
 	}
+	if _, isCopy, forked, err := PublishedCopyCast(ctx, s.pool, owner, course); err != nil {
+		return CastRecord{}, err
+	} else if isCopy && !forked {
+		return CastRecord{}, ErrPublishedCast
+	}
 	if err := ValidateCastSelection(in); err != nil {
 		return CastRecord{}, err
 	}
@@ -346,6 +352,12 @@ func (s *Service) ReadCast(ctx context.Context, owner, course string) (CastRecor
 	if err := s.checkCourse(ctx, owner, course); err != nil {
 		return CastRecord{}, err
 	}
+	if cast, isCopy, forked, err := PublishedCopyCast(ctx, s.pool, owner, course); err != nil {
+		return CastRecord{}, err
+	} else if isCopy && !forked {
+		cast = s.SafeCast(ctx, cast)
+		return CastRecord{CastSelection: CastSelection{Supporting: []string{}}, Version: cast.CastVersion, Snapshot: &cast, Published: true}, nil
+	}
 	var raw []byte
 	var result CastRecord
 	err := s.pool.QueryRow(ctx, `SELECT selection,version FROM course_casts WHERE course_id=$1 AND learner_id=$2`, course, owner).Scan(&raw, &result.Version)
@@ -360,6 +372,23 @@ func (s *Service) ReadCast(ctx context.Context, owner, course string) (CastRecor
 	return result, err
 }
 func (s *Service) effectiveCast(ctx context.Context, owner, course string) (LessonCastSnapshot, error) {
+	if cast, isCopy, forked, err := PublishedCopyCast(ctx, s.pool, owner, course); err != nil {
+		return LessonCastSnapshot{}, err
+	} else if isCopy {
+		var own bool
+		if forked {
+			if err = s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM course_casts WHERE course_id=$1 AND learner_id=$2)`, course, owner).Scan(&own); err != nil {
+				return cast, err
+			}
+		}
+		if !forked || !own {
+			if len(cast.Speakers) == 0 {
+				m, _ := ProjectDefaultCastManifest("", "")
+				cast = m.Cast
+			}
+			return cast, nil
+		}
+	}
 	selected, err := s.ReadCast(ctx, owner, course)
 	if err != nil {
 		return LessonCastSnapshot{}, err
@@ -397,36 +426,24 @@ func (s *Service) effectiveCast(ctx context.Context, owner, course string) (Less
 	return out, nil
 }
 
+// CurrentCast resolves only the Course's attached selection for publication.
+func (s *Service) CurrentCast(ctx context.Context, owner, course string) (LessonCastSnapshot, error) {
+	return s.effectiveCast(ctx, owner, course)
+}
+
 // PinCast persists a full independent payload. Concurrent first attempts use
 // the winner and retries never resolve current private versions again.
 func (s *Service) PinCast(ctx context.Context, owner, course, lesson string) (LessonCastSnapshot, error) {
-	var out LessonCastSnapshot
-	if err := s.checkCourse(ctx, owner, course); err != nil {
-		return out, err
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return LessonCastSnapshot{}, err
 	}
-	var raw []byte
-	err := s.pool.QueryRow(ctx, `SELECT snapshot FROM lesson_cast_snapshots WHERE course_id=$1 AND lesson_key=$2 AND learner_id=$3`, course, lesson, owner).Scan(&raw)
-	if err == nil {
-		err = json.Unmarshal(raw, &out)
-		return out, err
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return out, err
-	}
-	out, err = s.effectiveCast(ctx, owner, course)
+	defer func() { _ = tx.Rollback(ctx) }()
+	out, err := s.PinJobCastTx(ctx, tx, owner, course, lesson)
 	if err != nil {
 		return out, err
 	}
-	raw, _ = json.Marshal(out)
-	_, err = s.pool.Exec(ctx, `INSERT INTO lesson_cast_snapshots(course_id,learner_id,lesson_key,snapshot) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, course, owner, lesson, raw)
-	if err != nil {
-		return out, err
-	}
-	err = s.pool.QueryRow(ctx, `SELECT snapshot FROM lesson_cast_snapshots WHERE course_id=$1 AND lesson_key=$2`, course, lesson).Scan(&raw)
-	if err == nil {
-		err = json.Unmarshal(raw, &out)
-	}
-	return out, err
+	return out, tx.Commit(ctx)
 }
 
 // Purge retains independent historical snapshots and erases unreferenced

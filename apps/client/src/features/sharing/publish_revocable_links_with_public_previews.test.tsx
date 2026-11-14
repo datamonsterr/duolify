@@ -4,6 +4,7 @@ import { PublicPreviewPage } from "./PublicPreviewPage";
 import { ShareCoursePanel } from "./ShareCourse";
 import { linkFailure, shortLink, type PublicPreview } from "./links";
 import { session } from "../accounts/session";
+import { drafts } from "./drafts";
 
 vi.mock("../accounts/session", () => ({ session: { request: vi.fn() } }));
 const request = vi.mocked(session.request);
@@ -20,6 +21,12 @@ const rejected = (status: number) =>
 beforeEach(() => {
   request.mockReset();
   vi.restoreAllMocks();
+  vi.spyOn(drafts, "disclosure").mockResolvedValue({
+    names: [],
+    character_count: 0,
+    custom_count: 0,
+    exports_enabled: false,
+  });
   Object.assign(navigator, {
     clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
   });
@@ -42,6 +49,43 @@ describe("link helpers", () => {
 describe("share panel", () => {
   const open = () =>
     render(<ShareCoursePanel courseId="c1" onClose={() => {}} />);
+
+  it("requires the same informed Character confirmation from the primary sharing action", async () => {
+    vi.mocked(drafts.disclosure).mockResolvedValue({
+      names: ["Original guide"],
+      character_count: 1,
+      custom_count: 1,
+      exports_enabled: true,
+    });
+    request
+      .mockResolvedValueOnce({ visibility: "private", active: false })
+      .mockResolvedValueOnce(pass)
+      .mockResolvedValueOnce(created);
+    open();
+    fireEvent.click(
+      await screen.findByRole("radio", { name: /Anyone with the link/ }),
+    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "Characters travel with this Course",
+      }),
+    ).toBeVisible();
+    expect(request).not.toHaveBeenCalledWith(
+      "/v1/courses/c1/publication-drafts",
+      "POST",
+      expect.anything(),
+    );
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm Character export" }),
+    );
+    expect(await screen.findByTestId("share-link-url")).toBeVisible();
+    expect(request).toHaveBeenCalledWith(
+      "/v1/courses/c1/publication-drafts",
+      "POST",
+      { character_export_confirmed: true },
+    );
+  });
 
   it("defaults to private with no link when none is active", async () => {
     request.mockResolvedValueOnce({ visibility: "private", active: false });

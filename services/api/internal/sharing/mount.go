@@ -12,6 +12,8 @@ func (s *Service) MountRoutes(mux *http.ServeMux, protect, optional func(http.Ha
 func Mount(mux *http.ServeMux, s *Service, protect, optional func(http.Handler) http.Handler) {
 	owner := protect(NewHandler(s))
 	for _, pattern := range []string{
+		"GET /v1/courses/{id}/character-export",
+		"POST /v1/moderation/character-snapshots/{snapshotId}/takedown",
 		"POST /v1/courses/{id}/publication-drafts", "GET /v1/courses/{id}/publication-drafts/{draftId}",
 		"POST /v1/courses/{id}/publication-drafts/{draftId}/screen", "POST /v1/courses/{id}/publish",
 		"GET /v1/courses/{id}/share-link", "POST /v1/courses/{id}/share-link",

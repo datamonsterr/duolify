@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/datamonsterr/duolify/services/api/internal/characters"
+
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/jackc/pgx/v5"
@@ -117,7 +119,11 @@ func LessonObjects(prefix string, l SnapshotLesson, slideMs int, origin string) 
 		}
 		key := fmt.Sprintf("%s/slide-%d.html", prefix, i)
 		docs[key] = []byte(sl.HTML)
-		m.Slides = append(m.Slides, player.ObjectSlide{ID: sl.ID, DurationMS: slideMs, HTMLKey: key, HTMLSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte(sl.HTML))),
+		duration := slideMs
+		if sl.DurationMS > 0 {
+			duration = sl.DurationMS
+		}
+		m.Slides = append(m.Slides, player.ObjectSlide{ID: sl.ID, DurationMS: duration, HTMLKey: key, HTMLSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte(sl.HTML))),
 			Assets: []string{}, Checkpoints: []player.Checkpoint{}, NarrationText: sl.Narration})
 	}
 	if err := player.ValidateManifest(m, origin); err != nil {
@@ -194,6 +200,17 @@ func (s *Service) enrollCourse(ctx context.Context, viewer, courseID, ownerID, s
 		return Enrollment{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	// Order enrollment with unpublish/account deletion: a resolved token alone is insufficient.
+	var active bool
+	if err = tx.QueryRow(ctx, `SELECT visibility<>'private' AND deleted_at IS NULL FROM courses WHERE id=$1 FOR SHARE`, courseID).Scan(&active); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Enrollment{}, ErrLinkNotFound
+		}
+		return Enrollment{}, err
+	}
+	if !active {
+		return Enrollment{}, ErrLinkNotFound
+	}
 	if viewer == ownerID {
 		total, ready, cerr := s.counts(ctx, tx, courseID)
 		return Enrollment{CourseID: courseID, TotalLessons: total, ReadyLessons: ready, NeedsGenerationLessons: total - ready}, cerr
@@ -292,19 +309,49 @@ func (s *Service) createCopy(ctx context.Context, tx pgx.Tx, viewer, sourceID, d
 			}
 		}
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,source_owner_id,draft_id,version,content_hash,source) VALUES($1,$2,$3,(SELECT learner_id FROM courses WHERE id=$3),$4,$5,$6,$7)`, copyID, viewer, sourceID, draftID, number, hash, source); err != nil {
+	var castRaw []byte
+	if snap.Cast != nil {
+		castRaw, _ = json.Marshal(snap.Cast)
+		if err := characters.PinAssetReferences(ctx, tx, *snap.Cast); err != nil {
+			return "", "", err
+		}
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,source_owner_id,draft_id,version,content_hash,source,character_cast) VALUES($1,$2,$3,(SELECT learner_id FROM courses WHERE id=$3),$4,$5,$6,$7,$8)`, copyID, viewer, sourceID, draftID, number, hash, source, castRaw); err != nil {
 		return "", "", err
 	}
 	return copyID, firstReady, nil
 }
 
 func (s *Service) copyLesson(ctx context.Context, tx pgx.Tx, viewer, copyID, stubID, prefix string, version int, l SnapshotLesson) error {
-	manifest, _ := json.Marshal(map[string]any{"slide_count": len(l.Slides), "question_count": len(l.Questions), "source": "published", "version": version})
+	metadata := map[string]any{"slide_count": len(l.Slides), "question_count": len(l.Questions), "source": "published", "version": version}
+	if l.Cast != nil {
+		castKey := fmt.Sprintf("published-%s-%d", stubID, version)
+		metadata["cast_key"] = castKey
+		raw, _ := json.Marshal(l.Cast)
+		if err := characters.ValidateExportCast(raw); err != nil {
+			return err
+		}
+		if err := characters.PinAssetReferences(ctx, tx, *l.Cast); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO lesson_cast_snapshots(course_id,learner_id,lesson_key,snapshot) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, copyID, viewer, castKey, raw); err != nil {
+			return err
+		}
+	}
+	manifest, _ := json.Marshal(metadata)
 	if _, err := tx.Exec(ctx, `INSERT INTO generated_lessons(lesson_stub_id,course_id,learner_id,title,manifest) VALUES($1,$2,$3,$4,$5)`, stubID, copyID, viewer, strings.TrimSpace(l.Title), manifest); err != nil {
 		return err
 	}
 	for i, sl := range l.Slides {
-		if _, err := tx.Exec(ctx, `INSERT INTO lesson_slides(lesson_stub_id,learner_id,position,slide_id,html,duration_ms,narration) VALUES($1,$2,$3,$4,$5,$6,$7)`, stubID, viewer, i, sl.ID, sl.HTML, s.cfg.CopySlideMs, sl.Narration); err != nil {
+		duration := s.cfg.CopySlideMs
+		if sl.DurationMS > 0 {
+			duration = sl.DurationMS
+		}
+		segments, _ := json.Marshal(sl.Segments)
+		if len(sl.Segments) == 0 {
+			segments = []byte(`[]`)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO lesson_slides(lesson_stub_id,learner_id,position,slide_id,html,duration_ms,narration,segments) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, stubID, viewer, i, sl.ID, sl.HTML, duration, sl.Narration, segments); err != nil {
 			return err
 		}
 	}

@@ -44,6 +44,7 @@ func (s *Service) NarrationSegments(ctx context.Context, owner, lessonID string)
 	if err = json.Unmarshal(raw, &cast); err != nil {
 		return nil, err
 	}
+	cast = s.SafeCast(ctx, cast)
 	rows, err := s.pool.Query(ctx, `SELECT slide_id,segments FROM lesson_slides WHERE lesson_stub_id::text=$1 AND learner_id::text=$2 ORDER BY position`, lessonID, owner)
 	if err != nil {
 		return nil, err

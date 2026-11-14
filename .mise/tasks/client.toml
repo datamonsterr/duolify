@@ -40,6 +40,9 @@ if [ -n "$shard" ]; then
   esac
   exec pnpm exec playwright test --shard="$shard"
 fi
+if [ -n "${E2E_SPEC:-}" ]; then
+  exec pnpm exec playwright test "$E2E_SPEC"
+fi
 exec pnpm exec playwright test
 '''
 

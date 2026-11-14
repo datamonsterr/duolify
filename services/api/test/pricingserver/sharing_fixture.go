@@ -18,6 +18,14 @@ import (
 // It never calls a provider: text markers decide the verdict, like the engine's mock provider.
 type sharingScreener struct{}
 
+func (sharingScreener) ScreenCharacter(ctx context.Context, r *enginev1.ScreenCharacterRequest) (*enginev1.ScreenCharacterResponse, error) {
+	result, err := (characterScreenFixture{}).ScreenCharacter(ctx, r)
+	if result != nil {
+		result.PublicationScreened = r.PublicationExport
+	}
+	return result, err
+}
+
 func (sharingScreener) ScreenCourse(_ context.Context, r *enginev1.ScreenCourseRequest) (*enginev1.ScreenCourseResponse, error) {
 	text := strings.ToLower(r.SampleJson)
 	if strings.Contains(text, "e15-screening-down") {
@@ -49,6 +57,7 @@ func newSharingService(pool *pgxpool.Pool, objects sharing.ObjectWriter, gen sha
 	cfg := sharing.DefaultConfig()
 	// The release flag is OFF by default; the disposable browser server enables it explicitly (E15-07).
 	cfg.MarketplaceEnabled, cfg.MarketplacePageSize = true, 2
+	cfg.CharacterExportsEnabled = true // Isolated mock browser fixture, never production authorization.
 	s := sharing.NewService(pool, nil, cfg).WithAgeSource(fixtureAdult{}).WithObjects(objects, playerfixture.AssetOrigin)
 	s.ConfigureScreening(sharingScreener{}, fixtureRates{})
 	s.WithPush(sharing.NewFakePush()) // dev/e2e only: no APNs/FCM credentials exist (ADR 0012)

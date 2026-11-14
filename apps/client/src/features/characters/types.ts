@@ -48,6 +48,7 @@ export interface PinnedSpeaker {
   character_version: number;
   spec: CharacterSpec;
   is_provisional?: boolean;
+  suppressed?: boolean;
 }
 
 export interface LessonCastSnapshot {

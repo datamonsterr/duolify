@@ -172,6 +172,12 @@ type CharacterScreening struct {
 	OperationID   pgtype.UUID        `json:"operation_id"`
 }
 
+type CharacterSuppression struct {
+	SnapshotID string             `json:"snapshot_id"`
+	ReasonCode string             `json:"reason_code"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type CharacterVersion struct {
 	CharacterID pgtype.UUID        `json:"character_id"`
 	Version     int32              `json:"version"`
@@ -255,6 +261,7 @@ type CourseCopy struct {
 	BlockedActionID pgtype.UUID        `json:"blocked_action_id"`
 	SourceOwnerID   pgtype.UUID        `json:"source_owner_id"`
 	ForkedAtLesson  pgtype.UUID        `json:"forked_at_lesson"`
+	CharacterCast   []byte             `json:"character_cast"`
 }
 
 type CourseCreation struct {
@@ -1309,21 +1316,22 @@ type PricingVersionCancellation struct {
 }
 
 type PublicationDraft struct {
-	ID             pgtype.UUID        `json:"id"`
-	CourseID       pgtype.UUID        `json:"course_id"`
-	OwnerID        pgtype.UUID        `json:"owner_id"`
-	Number         int32              `json:"number"`
-	ContentHash    string             `json:"content_hash"`
-	Snapshot       []byte             `json:"snapshot"`
-	LessonCount    int32              `json:"lesson_count"`
-	Findings       []byte             `json:"findings"`
-	Verdict        string             `json:"verdict"`
-	ReasonCodes    []string           `json:"reason_codes"`
-	SampledLessons int32              `json:"sampled_lessons"`
-	ScreenedAt     pgtype.Timestamptz `json:"screened_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	Changelog      string             `json:"changelog"`
-	Republish      bool               `json:"republish"`
+	ID                    pgtype.UUID        `json:"id"`
+	CourseID              pgtype.UUID        `json:"course_id"`
+	OwnerID               pgtype.UUID        `json:"owner_id"`
+	Number                int32              `json:"number"`
+	ContentHash           string             `json:"content_hash"`
+	Snapshot              []byte             `json:"snapshot"`
+	LessonCount           int32              `json:"lesson_count"`
+	Findings              []byte             `json:"findings"`
+	Verdict               string             `json:"verdict"`
+	ReasonCodes           []string           `json:"reason_codes"`
+	SampledLessons        int32              `json:"sampled_lessons"`
+	ScreenedAt            pgtype.Timestamptz `json:"screened_at"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	Changelog             string             `json:"changelog"`
+	Republish             bool               `json:"republish"`
+	CharacterEventEmitted bool               `json:"character_event_emitted"`
 }
 
 type PublicationLink struct {
@@ -1414,6 +1422,15 @@ type SharedAssetRetention struct {
 	ReleasedAt pgtype.Timestamptz `json:"released_at"`
 	PurgeAfter pgtype.Timestamptz `json:"purge_after"`
 	PurgedAt   pgtype.Timestamptz `json:"purged_at"`
+}
+
+type SharedCharacterAsset struct {
+	ContentHash string             `json:"content_hash"`
+	ObjectKey   string             `json:"object_key"`
+	RefCount    int64              `json:"ref_count"`
+	ReleasedAt  pgtype.Timestamptz `json:"released_at"`
+	PurgeAfter  pgtype.Timestamptz `json:"purge_after"`
+	PurgedAt    pgtype.Timestamptz `json:"purged_at"`
 }
 
 type SlideNarration struct {

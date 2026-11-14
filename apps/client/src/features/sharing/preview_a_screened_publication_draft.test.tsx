@@ -1,7 +1,12 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PublicationDraftPanel } from "./PublicationDraftPanel";
-import { draftFailure, draftMessages, type PublicationDraft } from "./drafts";
+import {
+  drafts,
+  draftFailure,
+  draftMessages,
+  type PublicationDraft,
+} from "./drafts";
 import { session } from "../accounts/session";
 
 vi.mock("../accounts/session", () => ({ session: { request: vi.fn() } }));
@@ -24,7 +29,15 @@ const draft = (extra: Partial<PublicationDraft> = {}): PublicationDraft => ({
   ...extra,
 });
 
-beforeEach(() => request.mockReset());
+beforeEach(() => {
+  request.mockReset();
+  vi.spyOn(drafts, "disclosure").mockResolvedValue({
+    names: [],
+    character_count: 0,
+    custom_count: 0,
+    exports_enabled: false,
+  });
+});
 
 describe("publication draft preview", () => {
   it("shows a loading state, then the verdict, outline and narration note", async () => {

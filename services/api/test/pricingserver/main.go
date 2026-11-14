@@ -149,6 +149,7 @@ func run() (result error) {
 	if tracerEnabled {
 		// The fixture engine makes Course copy generation (E15-04) runnable end to end.
 		lessonSvc := lessontest.New(lessontest.Options{
+			Casts:     characters.NewService(db.Pool, nil, nil),
 			Pool:      db.Pool,
 			Engine:    fixtureLessonEngine{},
 			Financial: creditService,
@@ -170,7 +171,7 @@ func run() (result error) {
 	}
 	objects := &fixtureObjects{values: playerfixture.Documents()}
 	lateNarration := &lateNarrationRecovery{}
-	lessonPlayer := player.New(player.Options{Pool: db.Pool, Objects: objects, AssetOrigin: playerfixture.AssetOrigin, Credits: paidCredits, Narration: lateNarration})
+	lessonPlayer := player.New(player.Options{Pool: db.Pool, Objects: objects, AssetOrigin: playerfixture.AssetOrigin, Credits: paidCredits, Narration: lateNarration, CastSafety: characters.PoolSafetyProjection(db.Pool)})
 	mux := http.NewServeMux()
 	registerSteeringFixture(mux, auth, db.Pool, objects)
 	characterService := characters.NewService(db.Pool, nil, nil)
@@ -178,6 +179,7 @@ func run() (result error) {
 	characterService.ConfigureCreation(creditService, characterMapFixture{}, "development", true)
 	go characterService.Maintain(boot)
 	charHandler := characters.NewHandler(characterService)
+	registerCharacterPublicationFixture(mux, auth, db.Pool, characterService)
 	mux.Handle("POST /test/characters/fund", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := db.Pool.Exec(r.Context(), `INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version) SELECT $1::uuid,(config->'actions'->'character_create'->>'credits')::bigint*3,'purchase','e17-funding-'||$1::text,'usd-dev-character-create-unapproved' FROM pricing_versions WHERE version='usd-dev-character-create-unapproved' ON CONFLICT DO NOTHING`, accounts.LearnerID(r.Context()))
 		if err != nil {

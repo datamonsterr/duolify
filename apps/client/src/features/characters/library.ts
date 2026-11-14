@@ -10,6 +10,7 @@ export type CastSelection = {
   guide: string;
   supporting: string[];
   version?: number;
+  published?: boolean;
 };
 export const characterLibrary = {
   list: () => session.request<CharacterRecord[]>("/v1/characters"),

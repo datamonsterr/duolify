@@ -343,3 +343,27 @@ fn recorded_character_narration_fixture_matches_the_engine_voice_config() {
     }
     assert_eq!(fixture["cases"].as_object().unwrap().len(), 7);
 }
+
+#[test]
+fn publication_screen_rejects_private_prompts_and_requires_compiled_appearance() {
+    let spec = include_str!(
+        "../../../../../services/api/internal/characters/schema/original.fixture.json"
+    );
+    assert!(publication_input_valid(
+        spec,
+        "<svg viewBox=\"0 0 100 100\"><path/></svg>",
+        ""
+    ));
+    assert!(!publication_input_valid(
+        spec,
+        "<svg/>",
+        "private creation prompt"
+    ));
+    assert!(!publication_input_valid(spec, "", ""));
+    assert!(!publication_input_valid("{}", "<svg/>", ""));
+    assert!(!publication_input_valid(
+        spec,
+        "<svg><script>unsafe</script></svg>",
+        ""
+    ));
+}

@@ -95,6 +95,9 @@ const liveRefs = `SELECT count(*) FROM (
 // is over. Every decision is made under the row lock after a fresh recount.
 func (s *Service) SweepAssets(ctx context.Context, now time.Time) (SweepResult, error) {
 	var res SweepResult
+	if err := s.sweepCharacterAssets(ctx, now); err != nil {
+		return res, err
+	}
 	if _, err := s.pool.Exec(ctx, `INSERT INTO shared_asset_retention(prefix)
 SELECT DISTINCT p FROM (
   SELECT 'lessons/published/'||draft_id::text||'/' AS p FROM course_copies WHERE draft_id IS NOT NULL
@@ -115,6 +118,15 @@ SELECT DISTINCT p FROM (
 		if err = s.sweepOne(ctx, prefix, now, &res); err != nil {
 			return res, err
 		}
+	}
+	// Content-only payloads retire with their last independent references too. A live source is a
+	// publication reference; a soft-deleted source must itself have completed the full grace period.
+	if _, err = s.pool.Exec(ctx, `DELETE FROM publication_drafts d USING courses c,shared_asset_retention r
+WHERE d.course_id=c.id AND d.snapshot ? 'cast' AND c.deleted_at<$1::timestamptz-interval '30 days'
+AND r.prefix='lessons/published/'||d.id::text||'/' AND r.purged_at IS NOT NULL
+AND NOT EXISTS(SELECT 1 FROM course_copies cc JOIN courses held ON held.id=cc.copy_course_id AND held.deleted_at IS NULL WHERE cc.draft_id=d.id)
+AND NOT EXISTS(SELECT 1 FROM lesson_manifests m JOIN course_lesson_stubs st ON st.id=m.lesson_id JOIN course_units u ON u.id=st.unit_id JOIN courses held ON held.id=u.course_id AND held.deleted_at IS NULL WHERE starts_with(m.manifest_key,r.prefix))`, now); err != nil {
+		return res, err
 	}
 	return res, nil
 }

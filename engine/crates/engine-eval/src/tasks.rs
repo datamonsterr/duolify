@@ -80,6 +80,7 @@ impl Default for TaskRegistry {
             "character_persona_lesson",
             "character_persona_chat",
             "character_reactions",
+            "character_snapshot",
         ] {
             registered_extensions.insert(task.into());
         }

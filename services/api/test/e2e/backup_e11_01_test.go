@@ -17,6 +17,9 @@ func TestBackupWorkerRecoversSyntheticDatabase(t *testing.T) {
 	date := time.Now().UTC().Format(time.DateOnly)
 	key := fixture.ArchiveKey(date)
 	fixture.RunJob(t, date)
+	// The packaged worker must protect versioned narration/rig assets with its
+	// own scoped identity; application credentials are deliberately absent.
+	fixture.RestoreCharacterAssets(t, date)
 	before := fixture.Ciphertext(t, key)
 	fixture.RunJob(t, date)
 	if got := fixture.Ciphertext(t, key); string(got) != string(before) {

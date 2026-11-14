@@ -9,6 +9,7 @@ import {
   type PublicationDraft,
 } from "./drafts";
 import "./sharing.css";
+import { CharacterExportConfirmation } from "../characters/CharacterExportConfirmation";
 
 type State =
   | { kind: "loading"; text: string }
@@ -30,6 +31,8 @@ export function PublicationDraftPanel({
     kind: "loading",
     text: "Building your draft…",
   });
+  const [disclosure, setDisclosure] = useState<string[] | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [online, setOnline] = useState(
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
@@ -48,7 +51,24 @@ export function PublicationDraftPanel({
     };
   }, []);
 
-  useEffect(() => run(() => drafts.build(courseId)), [courseId, run]);
+  const prepare = useCallback(() => {
+    let active = true;
+    drafts
+      .disclosure(courseId)
+      .then((value) => {
+        if (!active) return;
+        if (value.character_count > 0) setDisclosure(value.names);
+        else run(() => drafts.build(courseId));
+      })
+      .catch(
+        (error: unknown) =>
+          active && setState({ kind: "failed", failure: draftFailure(error) }),
+      );
+    return () => {
+      active = false;
+    };
+  }, [courseId, run]);
+  useEffect(() => prepare(), [prepare]);
 
   useEffect(() => {
     const on = () => setOnline(true);
@@ -91,7 +111,7 @@ export function PublicationDraftPanel({
         // Wrap focus inside the sheet; native modal focus can otherwise leave the page.
         const items = [
           ...event.currentTarget.querySelectorAll<HTMLElement>(
-            "button:not([disabled]), a[href], [tabindex]:not([tabindex='-1'])",
+            "button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex='-1'])",
           ),
         ];
         const first = items[0];
@@ -127,7 +147,19 @@ export function PublicationDraftPanel({
             You're offline. Reconnect to build or screen a draft.
           </p>
         )}
-        {state.kind === "loading" && (
+        {disclosure && !confirmed && (
+          <CharacterExportConfirmation
+            names={disclosure}
+            online={online}
+            busy={false}
+            onConfirm={() => {
+              setConfirmed(true);
+              setState({ kind: "loading", text: "Building your draft…" });
+              run(() => drafts.build(courseId, true));
+            }}
+          />
+        )}
+        {state.kind === "loading" && (!disclosure || confirmed) && (
           <p role="status" className="sharing-loading">
             <span className="sharing-spinner" aria-hidden="true" />
             {state.text}
@@ -142,7 +174,8 @@ export function PublicationDraftPanel({
                 className="duo-button secondary"
                 onClick={() => {
                   setState({ kind: "loading", text: "Building your draft…" });
-                  run(() => drafts.build(courseId));
+                  if (!disclosure) prepare();
+                  else run(() => drafts.build(courseId, confirmed));
                 }}
               >
                 Try again

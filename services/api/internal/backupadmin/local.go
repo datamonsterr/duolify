@@ -44,6 +44,11 @@ func Provision(ctx context.Context, root backup.S3Options, writerKey, writerSecr
 		map[string]any{"Effect": "Allow", "Action": []string{"s3:PutObject", "s3:GetObject"}, "Resource": []string{"arn:aws:s3:::" + root.Bucket + "/*"}},
 		map[string]any{"Effect": "Deny", "Action": []string{"s3:DeleteObject", "s3:DeleteObjectVersion", "s3:DeleteBucket", "s3:PutBucketPolicy"}, "Resource": []string{"arn:aws:s3:::" + root.Bucket, "arn:aws:s3:::" + root.Bucket + "/*"}},
 	}}
+	// Nightly protected copies read only immutable lesson assets. The worker still
+	// cannot write/delete application objects or use the application's credentials.
+	if root.ApplicationBucket != "" && root.ApplicationBucket != root.Bucket {
+		policy["Statement"] = append(policy["Statement"].([]any), allow([]string{"s3:GetObject"}, arn(root.ApplicationBucket+"/lessons/*")))
+	}
 	body, err := json.Marshal(policy)
 	if err != nil {
 		return err

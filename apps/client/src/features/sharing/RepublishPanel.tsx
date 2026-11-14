@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useId, useState } from "react";
+import { drafts } from "./drafts";
+import { CharacterExportConfirmation } from "../characters/CharacterExportConfirmation";
 import {
   MAX_CHANGELOG,
   republish,
@@ -19,6 +21,9 @@ export function RepublishPanel({ courseId }: { courseId: string }) {
   const [failure, setFailure] = useState<RepublishFailure | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [from, setFrom] = useState(1);
+  const [characters, setCharacters] = useState<string[] | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [releaseGated, setReleaseGated] = useState(false);
 
   const load = useCallback(() => {
     let active = true;
@@ -36,13 +41,25 @@ export function RepublishPanel({ courseId }: { courseId: string }) {
   const live = versions?.versions.find((v) => v.live)?.number ?? 0;
   const left = versions?.republishes_remaining ?? 0;
 
-  async function publish() {
+  async function publish(consent = false) {
     setBusy(true);
     setFailure(null);
     setResult(null);
     setFrom(live || 1);
     try {
-      const got = await republish.publish(courseId, text);
+      if (!consent) {
+        const disclosure = await drafts.disclosure(courseId);
+        if (disclosure.character_count > 0) {
+          if (!disclosure.exports_enabled) {
+            setReleaseGated(true);
+            return;
+          }
+          setCharacters(disclosure.names);
+          setConfirmed(false);
+          return;
+        }
+      }
+      const got = await republish.publish(courseId, text, consent);
       setResult(got);
       if (got.verdict === "pass") setText("");
       setVersions(await republish.versions(courseId).catch(() => versions));
@@ -104,6 +121,23 @@ export function RepublishPanel({ courseId }: { courseId: string }) {
             Publish new version
           </button>
         </>
+      )}
+      {characters && !confirmed && (
+        <CharacterExportConfirmation
+          names={characters}
+          online={navigator.onLine}
+          busy={busy}
+          onConfirm={() => {
+            setConfirmed(true);
+            void publish(true);
+          }}
+        />
+      )}
+      {releaseGated && (
+        <p role="status" className="sharing-banner">
+          Sharing Characters is not available yet. Your current version and
+          existing copies keep working.
+        </p>
       )}
       {busy && (
         <p role="status">

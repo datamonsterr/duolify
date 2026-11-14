@@ -111,9 +111,17 @@ func restoreFixture(w http.ResponseWriter, r *http.Request, pool *pgxpool.Pool, 
 			http.Error(w, "restore unavailable", http.StatusServiceUnavailable)
 			return
 		}
+		if _, err := pool.Exec(ctx, `DELETE FROM character_suppressions`); err != nil {
+			http.Error(w, "restore unavailable", http.StatusServiceUnavailable)
+			return
+		}
 	}
 	reblocked, err := backup.ReplayModerationBlocks(ctx, pool, ledger)
 	if err != nil {
+		http.Error(w, "restore unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if err = backup.ReplayCharacterSuppressions(ctx, pool, ledger); err != nil {
 		http.Error(w, "restore unavailable", http.StatusServiceUnavailable)
 		return
 	}

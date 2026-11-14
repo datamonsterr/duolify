@@ -76,7 +76,9 @@ export function CourseCast({ courseId }: { courseId: string }) {
           <p>
             {error === "not_found"
               ? "This course cannot change its Cast. Use your owned course or the confirmed fork flow."
-              : error}
+              : error === "published_cast_locked"
+                ? "This copy keeps its published Cast. Use Course steering and confirm the existing fork to choose a Cast for future lessons."
+                : error}
           </p>
           <Button onClick={() => setReload((n) => n + 1)}>
             Retry connection
@@ -85,7 +87,13 @@ export function CourseCast({ courseId }: { courseId: string }) {
       )}
       {notice && <p role="status">{notice}</p>}
       {records === null && !error && <p role="status">Loading Course Cast…</p>}
-      {records && (
+      {selection.published && (
+        <p role="status">
+          This copy keeps its published Cast. Use Course steering and confirm
+          the existing fork to choose a Cast for future lessons.
+        </p>
+      )}
+      {records && !selection.published && (
         <form
           className="character-editor"
           onSubmit={(e) => {

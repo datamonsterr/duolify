@@ -28,6 +28,8 @@ func write(w http.ResponseWriter, status int, v any) {
 
 func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, ErrCharacterConfirmation), errors.Is(err, ErrCharacterRelease):
+		write(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, ErrUnavailable):
 		write(w, http.StatusNotFound, map[string]string{"error": "draft_unavailable"})
 	case errors.Is(err, ErrOutOfAllowlist):
@@ -59,8 +61,44 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusOK
 	)
 	switch {
+	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/v1/moderation/character-snapshots/"):
+		var body struct {
+			Reason string `json:"reason_code"`
+		}
+		if !decodeBody(w, r, &body, false) {
+			return
+		}
+		if body.Reason != "unsafe" && body.Reason != "legal" {
+			write(w, 400, map[string]string{"error": "invalid_reason"})
+			return
+		}
+		err = h.s.SuppressCharacter(r.Context(), actor, r.PathValue("snapshotId"), body.Reason)
+		if errors.Is(err, ErrNotModerator) {
+			write(w, 403, map[string]string{"error": "not_moderator"})
+			return
+		}
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/character-export"):
+		disclosure, e := h.s.CharacterDisclosure(r.Context(), actor, course)
+		if e != nil {
+			h.fail(w, r, e)
+			return
+		}
+		write(w, http.StatusOK, disclosure)
+		return
 	case r.Method == http.MethodPost && draft == "" && r.URL.Path == "/v1/courses/"+course+"/publication-drafts":
-		d, err = h.s.BuildDraft(r.Context(), actor, course)
+		var body struct {
+			Confirmed bool `json:"character_export_confirmed"`
+		}
+		if !decodeBody(w, r, &body, true) {
+			return
+		}
+		d, err = h.s.BuildDraft(WithCharacterExportConfirmation(r.Context(), body.Confirmed), actor, course)
 		status = http.StatusCreated
 	case r.Method == http.MethodGet && draft != "":
 		d, err = h.s.Get(r.Context(), actor, course, draft)

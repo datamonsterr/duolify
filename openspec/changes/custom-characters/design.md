@@ -188,6 +188,23 @@ Offline recorded `character_spec`, `character_screen`, `character_injection`
 cases require every deterministic check to pass; live dataset promotion remains
 gated by E10-06, as recorded in ADR 0011.
 
+## E17-09 implementation defaults
+
+E17-09 publication extends E15's content allowlist with content-addressed Cast
+identities, validated schema/rig/voice versions and compiled rig checksums. Private
+Character identifiers and source version links are removed before hashing. Both
+Course selections and effective Casts on generated Lessons require the owner's
+explicit disclosure confirmation before an export is built. Copies persist the
+content independently and keep it through library/account erasure. The existing
+confirmed E16 steering fork is the only path to replacing a copy's future Cast.
+Suppression is a separate, replayable moderation overlay; stored payloads and
+grading stay immutable. Shared object retention uses atomic content-hash reference
+checks and a 30-day grace period after the last Lesson/publication reference.
+Rights, approved-voice and feature live-eval gates remain off by default (ADR 0012
+and ADR 0011 E17-09); no narration audio travels until redistribution is approved.
+Offline fixture evaluation is required; no Hugging Face revision or live promotion
+evidence is invented while E10-01/E10-06 remain unprovisioned.
+
 ## E17-05 implementation defaults
 
 - Pinning: `lesson_cast_snapshots.lesson_key` is the generation job id; `generated_lessons.manifest.cast_key` links the Lesson. Preview uses defaults (no Course yet).

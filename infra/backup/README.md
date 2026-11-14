@@ -26,6 +26,12 @@ The worker:
   to its own bucket. RustFS root credentials reach only initialization. Retention
   administration is separate: general backups **14 days**, financial backups
   **35 days** per ADR 0011; production lifecycle/snapshots must still be configured.
+  E17-09 additionally gives the backup writer read-only `GetObject` access to the
+  application bucket's `lessons/*` prefix for encrypted nightly rig/audio/alignment
+  copies and key/version/checksum manifests. It cannot write or delete application
+  objects or read unrelated prefixes; the worker receives no application keys.
+  Existing local policies must be refreshed by the normal `backup-init` task;
+  cloud IAM must carry the same reviewed prefix grant before rollout.
 - Emits `backup_completed` / `backup_failed` with size, duration and outcome via
   the existing non-blocking PostHog wrapper. The reserved operations UUID is
   `00000000-0000-4000-8000-000000000011`, platform=web, source=api, app_version from

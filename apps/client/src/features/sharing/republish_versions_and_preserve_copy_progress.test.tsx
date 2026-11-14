@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { session } from "../accounts/session";
+import { drafts } from "./drafts";
 import { ArchivedLessons } from "./ArchivedLessons";
 import { CourseUpdate } from "./CourseUpdate";
 import { RepublishPanel } from "./RepublishPanel";
@@ -58,6 +59,12 @@ function api(routes: Record<string, unknown | (() => unknown)>) {
 }
 
 beforeEach(() => {
+  vi.spyOn(drafts, "disclosure").mockResolvedValue({
+    names: [],
+    character_count: 0,
+    custom_count: 0,
+    exports_enabled: false,
+  });
   request.mockReset();
 });
 

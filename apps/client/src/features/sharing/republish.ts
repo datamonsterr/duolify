@@ -60,9 +60,10 @@ const course = (id: string) => `/v1/courses/${encodeURIComponent(id)}`;
 /** The actor always comes from the session; the server decides ownership. */
 export const republish = {
   versions: (id: string) => session.request<Versions>(`${course(id)}/versions`),
-  publish: (id: string, changelog: string) =>
+  publish: (id: string, changelog: string, confirmed = false) =>
     session.request<Republished>(`${course(id)}/republish`, "POST", {
       changelog: changelog.trim(),
+      ...(confirmed ? { character_export_confirmed: true } : {}),
     }),
 };
 
