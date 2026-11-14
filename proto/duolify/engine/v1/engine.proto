@@ -46,6 +46,11 @@ message SynthesizeNarrationRequest {
   UsageLimits limits = 5;
   // Return only the resolved voice/model/settings so the API can look up the dedup key first.
   bool resolve_only = 6;
+  // E17-08 additive: one pinned-Cast dialogue segment. `segment_id` is stable per Slide and order,
+  // `speaker_key` names the pinned speaker and `voice_key` is the Character's logical voice key,
+  // resolved only through the approved voice config (never a provider id). Empty for slide narration.
+  string segment_id = 7;
+  string speaker_key = 8;
 }
 
 // Alignment lists one entry per Unicode scalar value of the text, in order.
@@ -68,6 +73,13 @@ message SynthesizeNarrationResponse {
   uint32 audio_bytes = 9;
   // Actual usage (component `audio`, narration_characters) for settlement.
   Usage usage = 10;
+  // E17-08 additive: the logical voice actually used, the approved voice config version that
+  // resolved it, and a fixed reason code when a Character voice fell back to the safe default.
+  string voice_key = 11;
+  string voice_config_version = 12;
+  string voice_fallback_reason = 13;
+  string segment_id = 14;
+  string speaker_key = 15;
 }
 
 message MapCharacterRequest {

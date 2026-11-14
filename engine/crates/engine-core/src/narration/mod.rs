@@ -139,7 +139,7 @@ pub struct VoiceConfig {
 
 /// The approved voice set: the configured default voice plus test fixtures (ADR 0012, E14-05/06).
 /// Vendor voice ids and settings live in `voices.json`, never in code; live voices stay disabled.
-const VOICES_JSON: &str = include_str!("voices.json");
+pub(crate) const VOICES_JSON: &str = include_str!("voices.json");
 
 #[derive(serde::Deserialize)]
 struct VoiceEntry {
