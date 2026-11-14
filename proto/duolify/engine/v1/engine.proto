@@ -9,6 +9,8 @@ option go_package = "github.com/datamonsterr/duolify/services/api/gen/duolify/en
 service EngineService {
   // ScreenInstruction classifies untrusted style/focus data at platform expense.
   rpc ScreenInstruction(ScreenInstructionRequest) returns (ScreenInstructionResponse);
+  // ReplanOutline proposes remaining content; protected lessons must be echoed unchanged.
+  rpc ReplanOutline(ReplanOutlineRequest) returns (ReplanOutlineResponse);
   // ScreenCharacter screens a free structured edit; never maps prompts or bills Credits.
   rpc ScreenCharacter(ScreenCharacterRequest) returns (ScreenCharacterResponse);
   rpc MapCharacter(MapCharacterRequest) returns (MapCharacterResponse);
@@ -310,6 +312,20 @@ message ScreenInstructionResponse {
   string reason_code = 2;
   string screening_version = 3;
   repeated Usage attempts = 4;
+}
+
+message ReplanOutlineRequest {
+  CourseOutline outline = 1;
+  repeated string protected_lesson_ids = 2;
+  repeated CourseInstruction instructions = 3;
+  LearnerProfile learner = 4;
+  UsageLimits limits = 5;
+}
+
+message ReplanOutlineResponse {
+  CourseOutline outline = 1;
+  repeated Usage attempts = 2;
+  bool unavailable = 3;
 }
 
 message GenerateLessonRequest {
