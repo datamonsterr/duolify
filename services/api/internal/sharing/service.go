@@ -51,6 +51,8 @@ type Service struct {
 	gen GenerationDeps
 	// cache holds derived Marketplace result pages (E15-07); optional, never the source of truth.
 	cache *redis.Client
+	// push is the notification adapter for invites (E15-06); nil means disabled (in-app only).
+	push PushSender
 }
 
 // NewService wires the service behind the central fail-closed analytics consent gate.

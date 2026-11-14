@@ -4,7 +4,7 @@ A Learner who owns a shared Course wants to invite a friend or a Username to it,
 ## What Changes
 - Table `course_invites` (+ `course_invite_deliveries` outbox). Learner-ID based, so a rename changes nothing. States `pending`, `accepted`, `declined`, `expired` (30 days, config), `revoked`.
 - Owner routes `POST|GET /v1/courses/{id}/invites`; recipient routes `GET /v1/invites/received`, `POST /v1/invites/read`, `POST /v1/invites/{id}/accept|decline`; sender route `POST /v1/invites/{id}/revoke`. Actor always from the session.
-- `CanInvite` runs in the transaction that writes the invite, after locking the pair. A learner who cannot be invited (block, `nobody`, non-friend under `friends`) gets a neutral "sent" and nothing is delivered. An unknown, hidden or self username is the same neutral `invite_unavailable`.
+- `CanInvite` runs in the transaction that writes the invite, after locking the pair. A learner whose `course_invites_from` refuses the sender (`nobody`, or a non-friend under `friends`) gets a neutral "sent" and nothing is delivered. An unknown, hidden, self or blocked-either-way username is the same neutral `invite_unavailable`, like search.
 - Limits (config): 20 invites per sender per rolling day, one pending delivered invite per recipient and Course, 30-day expiry.
 - Accept enrolls through the E15-03 `enrollCourse` (source `invite`), once and idempotently with an existing copy.
 - Block callback registered with `social.OnBlock` cancels invites in both directions inside the block transaction.
