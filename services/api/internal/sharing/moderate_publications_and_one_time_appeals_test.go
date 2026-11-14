@@ -33,8 +33,8 @@ func TestActionMatrixPerTargetType(t *testing.T) {
 				t.Errorf("ActionAllowed(%s, %s) = %v; want %v", c.target, action, got, want)
 			}
 		}
-		if sharing.ActionAllowed(c.target, "obliterate") || sharing.ActionAllowed(c.target, "") || sharing.ActionAllowed(c.target, "DELIST") {
-			t.Errorf("%s accepts an unknown action", c.target)
+		if sharing.ActionAllowed(c.target, "obliterate") || sharing.ActionAllowed(c.target, "") || sharing.ActionAllowed(c.target, "DELIST") || sharing.ActionAllowed(c.target, "restore_link") {
+			t.Errorf("%s accepts an unknown or system-only action", c.target)
 		}
 	}
 	if sharing.ActionAllowed("lesson", "dismiss") {
@@ -54,15 +54,16 @@ func TestValidateModerationBoundaries(t *testing.T) {
 		t.Fatalf("exactly at the limit = %v", err)
 	}
 	for name, in := range map[string]sharing.ActionInput{
-		"blank reason":   {Action: "delist", ReasonCode: "spam", Reason: " \n\t "},
-		"empty reason":   {Action: "delist", ReasonCode: "spam"},
-		"over the limit": {Action: "delist", ReasonCode: "spam", Reason: strings.Repeat("界", cfg.ModerationReasonMaxChars+1)},
-		"nul byte":       {Action: "delist", ReasonCode: "spam", Reason: "a\x00b"},
-		"bad utf8":       {Action: "delist", ReasonCode: "spam", Reason: "a\xffb"},
-		"unknown code":   {Action: "delist", ReasonCode: "vibes", Reason: "x"},
-		"upper code":     {Action: "delist", ReasonCode: "SPAM", Reason: "x"},
-		"empty code":     {Action: "delist", Reason: "x"},
-		"unknown action": {Action: "burn", ReasonCode: "spam", Reason: "x"},
+		"blank reason":       {Action: "delist", ReasonCode: "spam", Reason: " \n\t "},
+		"empty reason":       {Action: "delist", ReasonCode: "spam"},
+		"over the limit":     {Action: "delist", ReasonCode: "spam", Reason: strings.Repeat("界", cfg.ModerationReasonMaxChars+1)},
+		"nul byte":           {Action: "delist", ReasonCode: "spam", Reason: "a\x00b"},
+		"bad utf8":           {Action: "delist", ReasonCode: "spam", Reason: "a\xffb"},
+		"unknown code":       {Action: "delist", ReasonCode: "vibes", Reason: "x"},
+		"upper code":         {Action: "delist", ReasonCode: "SPAM", Reason: "x"},
+		"empty code":         {Action: "delist", Reason: "x"},
+		"unknown action":     {Action: "burn", ReasonCode: "spam", Reason: "x"},
+		"system-only action": {Action: "restore_link", ReasonCode: "no_violation", Reason: "x"},
 	} {
 		if err := sharing.ValidateModeration("course", in, cfg); !errors.Is(err, sharing.ErrInvalidModeration) {
 			t.Errorf("%s = %v", name, err)

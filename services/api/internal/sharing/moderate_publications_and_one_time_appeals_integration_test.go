@@ -3,6 +3,7 @@
 package sharing_test
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -533,5 +534,192 @@ func TestReviewAndUserTargetsUseTheSameAuditedContract(t *testing.T) {
 	}
 	if _, err := s.PublishLink(t.Context(), owner, fresh); !errors.Is(err, sharing.ErrModerated) {
 		t.Fatalf("banned link = %v", err)
+	}
+}
+
+// TestOverturnedTakedownRestoresShareLink is the targeted integration test for issue #207.
+// When a takedown is overturned on appeal, the share link that the takedown revoked must be
+// re-activated (same token hash) so that previously shared URLs work again. Links that were
+// already revoked for other reasons must NOT be re-activated.
+func TestOverturnedTakedownRestoresShareLink(t *testing.T) {
+	f := newSharingFixture(t)
+	r := startRedis(t)
+	ev := &capture{}
+	s := marketService(t, f, ev, r, nil)
+	first := grantModerator(t, f, "Link-restore first moderator")
+	second := grantModerator(t, f, "Link-restore second moderator")
+	owner := marketOwner(t, f, "link-restore-owner")
+
+	// Owner publishes a course with a share link.
+	course := marketCourse(t, f, owner, "Link Restore Course", "Short lessons", 3)
+	if _, err := s.BuildDraft(t.Context(), owner, course); err != nil {
+		t.Fatal(err)
+	}
+	token, err := s.PublishLink(t.Context(), owner, course)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The share link works before takedown.
+	if _, err = s.GetPreview(t.Context(), token, ""); err != nil {
+		t.Fatalf("preview before takedown: %v", err)
+	}
+
+	queueItem := func(courseID string) string {
+		var id string
+		if err := f.DB.Pool.QueryRow(t.Context(), `INSERT INTO moderation_queue_items(target_type, target_id, severity, report_count) VALUES('course', $1, 1, 1) RETURNING id::text`, courseID).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+
+	// Moderator takes the course down; the share link must become 404.
+	item := queueItem(course)
+	res := act(t, s, first, item, "takedown", "spam")
+	if _, err = s.GetPreview(t.Context(), token, ""); !errors.Is(err, sharing.ErrLinkNotFound) {
+		t.Fatalf("preview after takedown = %v; want ErrLinkNotFound", err)
+	}
+	// revoked_by_action_id must be set so the restore can find this link.
+	if count(t, f, `SELECT count(*) FROM publication_links WHERE token_hash=$1 AND revoked_by_action_id=$2::uuid`, sharing.HashToken(token), res.ID) != 1 {
+		t.Fatal("revoked_by_action_id not set on revoked link")
+	}
+
+	// Owner cannot re-publish or re-link while the action stands.
+	if _, err = s.PublishLink(t.Context(), owner, course); !errors.Is(err, sharing.ErrModerated) {
+		t.Fatalf("re-link while taken down = %v", err)
+	}
+
+	// Owner appeals.
+	appealID, err := s.FileAppeal(t.Context(), owner, res.ID, "The content is fine.")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A second moderator overturns — appeal decision, link re-activation and audit row
+	// must all happen in one transaction (rollback leaves nothing half-done).
+	if err = s.DecideAppeal(t.Context(), second, appealID, "overturn", "No violation found."); err != nil {
+		t.Fatal(err)
+	}
+
+	// The original token works again (same hash, so old URLs live).
+	if _, err = s.GetPreview(t.Context(), token, ""); err != nil {
+		t.Fatalf("preview after overturn = %v; want nil", err)
+	}
+	// Course visibility must have been restored to link.
+	if count(t, f, `SELECT count(*) FROM courses WHERE id=$1 AND visibility='link'`, course) != 1 {
+		t.Fatalf("course visibility not restored to link after overturn")
+	}
+	// moderation_state must be cleared.
+	if count(t, f, `SELECT count(*) FROM courses WHERE id=$1 AND moderation_state='none'`, course) != 1 {
+		t.Fatal("moderation_state not cleared")
+	}
+	// revoked_by_action_id must be cleared (link is active again).
+	if count(t, f, `SELECT count(*) FROM publication_links WHERE token_hash=$1 AND revoked_at IS NULL AND revoked_by_action_id IS NULL`, sharing.HashToken(token)) != 1 {
+		t.Fatal("link not properly re-activated")
+	}
+	// A restore_link audit row must have been written inside the same transaction
+	// with moderator_id set to the deciding moderator (second), author_id NULL,
+	// and FetchNotices (s.Notices) for the author must not include it.
+	if count(t, f, `SELECT count(*) FROM moderation_actions WHERE course_id=$1 AND action='restore_link' AND moderator_id=$2::uuid AND author_id IS NULL`, course, second) != 1 {
+		t.Fatal("restore_link audit row missing expected moderator_id or non-null author_id")
+	}
+	notices, err := s.Notices(t.Context(), owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range notices {
+		if n.Action == "restore_link" {
+			t.Fatal("author notices must not include restore_link audit row")
+		}
+	}
+
+	// Owner-revoked links must NOT be re-activated on overturn.
+	course2 := marketCourse(t, f, owner, "Owner Revoked Course", "Short lessons", 3)
+	if _, err = s.BuildDraft(t.Context(), owner, course2); err != nil {
+		t.Fatal(err)
+	}
+	token2, err := s.PublishLink(t.Context(), owner, course2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Owner explicitly revokes the link before the takedown.
+	if err = s.RevokeLink(t.Context(), owner, course2); err != nil {
+		t.Fatal(err)
+	}
+	// Confirm it is revoked without a revoked_by_action_id.
+	if count(t, f, `SELECT count(*) FROM publication_links WHERE token_hash=$1 AND revoked_at IS NOT NULL AND revoked_by_action_id IS NULL`, sharing.HashToken(token2)) != 1 {
+		t.Fatal("owner-revoked link should have NULL revoked_by_action_id")
+	}
+	// Moderator takes the course down; no active link to revoke, so revoked_by_action_id stays NULL.
+	res2 := act(t, s, first, queueItem(course2), "takedown", "spam")
+	// Owner appeals and wins.
+	appeal2, err := s.FileAppeal(t.Context(), owner, res2.ID, "Fine content.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.DecideAppeal(t.Context(), second, appeal2, "overturn", "Agreed."); err != nil {
+		t.Fatal(err)
+	}
+	// Owner-revoked link must still be revoked after overturn.
+	if _, err = s.GetPreview(t.Context(), token2, ""); !errors.Is(err, sharing.ErrLinkNotFound) {
+		t.Fatalf("owner-revoked link unblocked after overturn = %v", err)
+	}
+	// Visibility is private (no active link) but moderation_state is cleared.
+	if count(t, f, `SELECT count(*) FROM courses WHERE id=$1 AND visibility='private' AND moderation_state='none'`, course2) != 1 {
+		t.Fatal("course2 state wrong after overturn of owner-revoked-link takedown")
+	}
+
+	// Upheld appeal must leave the link revoked (no change).
+	course3 := marketCourse(t, f, owner, "Upheld Link Course", "Short lessons", 3)
+	if _, err = s.BuildDraft(t.Context(), owner, course3); err != nil {
+		t.Fatal(err)
+	}
+	token3, err := s.PublishLink(t.Context(), owner, course3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res3 := act(t, s, first, queueItem(course3), "takedown", "spam")
+	appeal3, err := s.FileAppeal(t.Context(), owner, res3.ID, "Should be allowed.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.DecideAppeal(t.Context(), second, appeal3, "uphold", "Decision stands."); err != nil {
+		t.Fatal(err)
+	}
+	// Upheld: link must still be revoked.
+	if _, err = s.GetPreview(t.Context(), token3, ""); !errors.Is(err, sharing.ErrLinkNotFound) {
+		t.Fatalf("link unblocked after upheld appeal = %v", err)
+	}
+	// No restore_link audit row for course3.
+	if count(t, f, `SELECT count(*) FROM moderation_actions WHERE course_id=$1 AND action='restore_link'`, course3) != 0 {
+		t.Fatal("unexpected restore_link audit row for upheld appeal")
+	}
+
+	// Failure mid-transaction leaves nothing half-done (rollback leaves appeal open, link revoked, no audit row).
+	course4 := marketCourse(t, f, owner, "Rollback Link Course", "Short lessons", 3)
+	if _, err = s.BuildDraft(t.Context(), owner, course4); err != nil {
+		t.Fatal(err)
+	}
+	token4, err := s.PublishLink(t.Context(), owner, course4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res4 := act(t, s, first, queueItem(course4), "takedown", "spam")
+	appeal4, err := s.FileAppeal(t.Context(), owner, res4.ID, "Rollback test.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelledCtx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_ = s.DecideAppeal(cancelledCtx, second, appeal4, "overturn", "Should fail due to cancellation.")
+	// Verify nothing was half-done: appeal stays open, link stays revoked, no audit row.
+	if count(t, f, `SELECT count(*) FROM moderation_appeals WHERE id=$1 AND status='open'`, appeal4) != 1 {
+		t.Fatal("appeal should stay open after cancelled transaction")
+	}
+	if count(t, f, `SELECT count(*) FROM publication_links WHERE token_hash=$1 AND revoked_at IS NOT NULL`, sharing.HashToken(token4)) != 1 {
+		t.Fatal("link should stay revoked after cancelled transaction")
+	}
+	if count(t, f, `SELECT count(*) FROM moderation_actions WHERE course_id=$1 AND action='restore_link'`, course4) != 0 {
+		t.Fatal("restore_link audit row should not exist after cancelled transaction")
 	}
 }
