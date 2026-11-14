@@ -183,3 +183,39 @@ func seedSharingCourse(w http.ResponseWriter, r *http.Request, pool *pgxpool.Poo
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(map[string]string{"course_id": course})
 }
+
+// editSharingCourse is the E15-05 owner edit: retitle Tides, remove Eclipses and add Comets in a
+// course seeded by seedSharingCourse. Only the caller's own course is touched.
+func editSharingCourse(w http.ResponseWriter, r *http.Request, pool *pgxpool.Pool) {
+	var in struct {
+		CourseID string `json:"course_id"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&in) != nil || in.CourseID == "" {
+		http.Error(w, "course_id required", http.StatusBadRequest)
+		return
+	}
+	owner, ctx := accounts.LearnerID(r.Context()), r.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		http.Error(w, "edit unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	steps := []string{
+		`UPDATE generated_lessons SET title='Ocean tides' WHERE learner_id=$1 AND course_id=$2 AND title='Tides'`,
+		`UPDATE course_lesson_stubs SET title='Ocean tides' WHERE learner_id=$1 AND title='Tides' AND unit_id IN (SELECT id FROM course_units WHERE course_id=$2)`,
+		`DELETE FROM course_lesson_stubs WHERE learner_id=$1 AND title='Eclipses' AND unit_id IN (SELECT id FROM course_units WHERE course_id=$2)`,
+		`INSERT INTO course_lesson_stubs(learner_id,unit_id,authored_id,position,title,goal,status) SELECT $1,u.id,'l4',2,'Comets','Explain comets','locked' FROM course_units u WHERE u.course_id=$2 AND u.learner_id=$1`,
+	}
+	for _, q := range steps {
+		if _, err = tx.Exec(ctx, q, owner, in.CourseID); err != nil {
+			http.Error(w, "edit failed", http.StatusInternalServerError)
+			return
+		}
+	}
+	if err = tx.Commit(ctx); err != nil {
+		http.Error(w, "edit failed", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

@@ -644,11 +644,14 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		`INSERT INTO friend_links(owner_id,token_hash,expires_at) VALUES('a1111111-1111-4111-8111-111111111111',repeat('b',64),now()+interval '30 days')`,
 		`INSERT INTO learners(id,display_name) VALUES('a3333333-3333-4333-8333-333333333333','Backup Blocked')`,
 		`INSERT INTO learner_blocks(blocker_id,blocked_id,created_at) VALUES('a1111111-1111-4111-8111-111111111111','a3333333-3333-4333-8333-333333333333','2026-11-04T00:00:00Z')`,
-		`INSERT INTO publication_drafts(id,course_id,owner_id,number,content_hash,snapshot,lesson_count,verdict,reason_codes,sampled_lessons,screened_at,created_at) VALUES('e1500000-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111',1,'` + strings.Repeat("ab", 32) + `','{"title":"Synthetic sky","units":[]}'::jsonb,1,'needs_review','{personal_data}',1,'2026-11-05T00:00:00Z','2026-11-05T00:00:00Z')`,
+		`INSERT INTO publication_drafts(id,course_id,owner_id,number,content_hash,snapshot,lesson_count,verdict,reason_codes,sampled_lessons,screened_at,created_at,changelog,republish) VALUES('e1500000-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111',1,'` + strings.Repeat("ab", 32) + `','{"title":"Synthetic sky","units":[]}'::jsonb,1,'needs_review','{personal_data}',1,'2026-11-05T00:00:00Z','2026-11-05T00:00:00Z','Synthetic changelog',true)`,
 		`INSERT INTO publication_screenings(draft_id,owner_id,verdict,reason_codes,policy_version,attempts,cost_nanos,created_at) VALUES('e1500000-1111-4111-8111-111111111111','a1111111-1111-4111-8111-111111111111','needs_review','{personal_data}','course-v1',1,1234,now())`,
 		`INSERT INTO publication_links(id,course_id,token_hash,created_at,revoked_at) VALUES('e1502000-1111-4111-8111-111111111111','f1111111-1111-4111-8111-111111111111',encode(sha256(convert_to('fixture-revoked-token','UTF8')),'hex'),'2026-11-06T00:00:00Z','2026-11-07T00:00:00Z')`,
 		`INSERT INTO courses(id,learner_id,title) VALUES('e1503000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','Pinned copy')`,
-		`INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,draft_id,version,content_hash) VALUES('e1503000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','f1111111-1111-4111-8111-111111111111','e1500000-1111-4111-8111-111111111111',1,'` + strings.Repeat("ab", 32) + `')`,
+		`INSERT INTO course_copies(copy_course_id,learner_id,source_course_id,draft_id,version,content_hash,lock_version) VALUES('e1503000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','f1111111-1111-4111-8111-111111111111','e1500000-1111-4111-8111-111111111111',1,'` + strings.Repeat("ab", 32) + `',3)`,
+		// E15-05: a lesson removed upstream sits archived in the copy's hidden unit with its stable key.
+		`INSERT INTO course_units(id,learner_id,course_id,authored_id,position,title,archived_at) VALUES('e1505000-1111-4111-8111-111111111111','a2222222-2222-4222-8222-222222222222','e1503000-1111-4111-8111-111111111111','archived',1000000,'Archived lessons',now())`,
+		`INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status,lesson_key,archived_at,archived_from_version) VALUES('e1505000-2222-4222-8222-222222222222','a2222222-2222-4222-8222-222222222222','e1505000-1111-4111-8111-111111111111','a-1',0,'Removed lesson','Removed goal','done','` + strings.Repeat("c", 32) + `',now(),2)`,
 		`INSERT INTO daily_goal_achievements(learner_id,local_date,goal_xp) SELECT learner_id,local_date,amount FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO streak_days(learner_id,local_date,first_event_id) SELECT learner_id,local_date,id FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
 		`INSERT INTO streak_state(learner_id,current_days,longest_days,last_active_date,decided_through) SELECT learner_id,1,3,local_date,local_date FROM xp_events WHERE completion_id='faaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'`,
@@ -1143,6 +1146,15 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	var pins int
 	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM course_copies WHERE copy_course_id='e1503000-1111-4111-8111-111111111111' AND source_course_id='f1111111-1111-4111-8111-111111111111' AND draft_id='e1500000-1111-4111-8111-111111111111' AND version=1 AND length(content_hash)=64`).Scan(&pins); err != nil || pins != 1 {
 		t.Fatalf("restored course copy pin changed: %d %v", pins, err)
+	}
+	// E15-05: version changelog, lock version and archived history restore with the copy.
+	var versions int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM publication_drafts WHERE id='e1500000-1111-4111-8111-111111111111' AND republish AND changelog<>''`).Scan(&versions); err != nil || versions != 1 {
+		t.Fatalf("restored version changelog changed: %d %v", versions, err)
+	}
+	var archived int
+	if err := restored.Pool.QueryRow(t.Context(), `SELECT count(*) FROM course_copies cc JOIN course_units u ON u.course_id=cc.copy_course_id AND u.archived_at IS NOT NULL JOIN course_lesson_stubs st ON st.unit_id=u.id AND st.archived_at IS NOT NULL AND st.lesson_key=repeat('c',32) AND st.archived_from_version=2 WHERE cc.copy_course_id='e1503000-1111-4111-8111-111111111111' AND cc.lock_version=3`).Scan(&archived); err != nil || archived != 1 {
+		t.Fatalf("restored archived lesson or lock version changed: %d %v", archived, err)
 	}
 	// Copy-local generated Lesson and its consent restore with the copy; the published hash is unchanged.
 	var local int

@@ -255,15 +255,15 @@ func PlanUpdate(have []HeldLesson, next Snapshot, origin string) UpdatePlan {
 	return plan
 }
 
-// CleanChangelog drops control characters, trims the owner text and rejects one above max characters.
-func CleanChangelog(text string, max int) (string, error) {
+// CleanChangelog drops control characters, trims the owner text and rejects one above limit characters.
+func CleanChangelog(text string, limit int) (string, error) {
 	text = strings.TrimSpace(strings.Map(func(r rune) rune {
 		if r < 0x20 && r != '\n' && r != '\t' || r == 0x7f {
 			return -1
 		}
 		return r
 	}, text))
-	if utf8.RuneCountInString(text) > max {
+	if utf8.RuneCountInString(text) > limit {
 		return "", ErrChangelogTooLong
 	}
 	return text, nil
@@ -274,7 +274,8 @@ func (s *Service) ChangelogLimit() int { return s.cfg.MaxChangelogLen }
 
 // livePassDraft is the latest passing version of a course: the one every new enrollment, preview and
 // listing serves.
-const livePassSQL = `SELECT id::text, number, content_hash, snapshot, lesson_count FROM publication_drafts WHERE course_id=$1 AND verdict='pass' ORDER BY number DESC LIMIT 1`
+const livePassSQL = //nolint:gosec // SQL text, not a credential
+`SELECT id::text, number, content_hash, snapshot, lesson_count FROM publication_drafts WHERE course_id=$1 AND verdict='pass' ORDER BY number DESC LIMIT 1`
 
 // Republish builds version n+1 through the E15-01 draft and screening path. Only a passing version
 // becomes live; the previous live version keeps serving until then.

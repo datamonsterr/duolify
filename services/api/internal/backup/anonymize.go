@@ -101,6 +101,7 @@ var piiRules = []piiRule{
 	{"outline_proposals", "operations", `NULL`},
 	{"outline_proposals", "request", redacted},
 	{"outline_proposals", "result_outline", `NULL`},
+	{"publication_drafts", "changelog", redacted},
 	{"publication_drafts", "snapshot", emptyObj},
 	{"quick_note_enrichments", "links", `'{}'`},
 	{"quick_note_enrichments", "summary", redacted},

@@ -19,7 +19,8 @@ func TestLessonKeyIsDeterministicStableAndDistinct(t *testing.T) {
 	if !hex32.MatchString(sharing.LessonKey(a)) {
 		t.Fatalf("key %q is not 32 hex", sharing.LessonKey(a))
 	}
-	if sharing.LessonKey(a) != sharing.LessonKey(a) || sharing.LessonKey(a) == sharing.LessonKey(b) {
+	again := sharing.LessonKey(a)
+	if sharing.LessonKey(a) != again || again == sharing.LessonKey(b) {
 		t.Fatal("key must be deterministic per stub and differ between stubs")
 	}
 	if got := sharing.KeyOrLegacy(sharing.SnapshotLesson{Key: "abc"}, 1, 2); got != "abc" {
@@ -195,7 +196,7 @@ func serveUpdate(t *testing.T, f *fakeUpdater, method, path, body, actor string)
 	for _, p := range sharing.UpdatePatterns {
 		mux.Handle(p, h)
 	}
-	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
 	if actor != "" {
 		req = req.WithContext(accounts.WithLearnerID(req.Context(), actor))
 	}
