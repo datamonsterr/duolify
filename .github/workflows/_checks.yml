@@ -240,7 +240,7 @@ jobs:
     runs-on: namespace-profile-datamonster01
     timeout-minutes: 20
     env:
-      API_TEST_PACKAGES: ./internal/store/... ./internal/pricing/... ./internal/accounts/... ./internal/courses/... ./internal/player/... ./internal/eval/... ./internal/gamification/... ./internal/chat/...
+      API_TEST_PACKAGES: ./internal/store/... ./internal/pricing/... ./internal/accounts/... ./internal/courses/... ./internal/player/... ./internal/eval/... ./internal/gamification/... ./internal/chat/... ./internal/steering/...
     steps:
       - uses: actions/checkout@v7
         with:
