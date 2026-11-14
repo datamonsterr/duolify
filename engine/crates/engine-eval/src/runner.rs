@@ -1188,6 +1188,24 @@ async fn evaluate_course_screen(input: &serde_json::Value) -> Result<String> {
     Ok(serde_json::json!({"verdict":verdict,"reason_codes":codes,"attempt_count":outcome.attempts.len(),"fallback_used":outcome.attempts.iter().any(|a|a.fallback_used)}).to_string())
 }
 
+async fn evaluate_screen_review(input: &serde_json::Value) -> Result<String> {
+    let recorded: Vec<Option<engine_core::Completion>> =
+        serde_json::from_value(input["recorded"].clone())?;
+    let provider = Arc::new(RecordedCredits(Mutex::new(recorded.into())));
+    let router = engine_core::ProviderRouter::new(provider.clone(), provider)?;
+    let limits: engine_core::credits::Limits = serde_json::from_value(input["limits"].clone())?;
+    let sample = input["text"].as_str().unwrap_or("");
+    let Ok(outcome) = engine_core::sharing::screen_review(&router, sample, &limits).await else {
+        return Ok(serde_json::json!({"verdict":"pending_screening","reason_codes":[],"attempt_count":0,"fallback_used":false}).to_string());
+    };
+    let (verdict, codes) = outcome
+        .completion
+        .as_ref()
+        .and_then(|c| engine_core::sharing::verdict(&c.text))
+        .unwrap_or(("pending_screening".into(), vec![]));
+    Ok(serde_json::json!({"verdict":verdict,"reason_codes":codes,"attempt_count":outcome.attempts.len(),"fallback_used":outcome.attempts.iter().any(|a|a.fallback_used)}).to_string())
+}
+
 async fn evaluate_published_copy_lesson(input: &serde_json::Value) -> Result<String> {
     let recorded: Vec<Option<engine_core::Completion>> =
         serde_json::from_value(input["recorded"].clone())?;
@@ -1430,6 +1448,11 @@ impl Runner {
                 && self.custom_router.is_none()
             {
                 evaluate_published_copy_lesson(&case.input).await?
+            } else if case.task == "screen_review"
+                && self.provider_name == "mock"
+                && self.custom_router.is_none()
+            {
+                evaluate_screen_review(&case.input).await?
             } else if case.task == "course_screen"
                 && self.provider_name == "mock"
                 && self.custom_router.is_none()

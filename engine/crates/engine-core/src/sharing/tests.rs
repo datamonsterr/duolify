@@ -379,7 +379,7 @@ async fn review_schema_failure_uses_only_one_fallback_and_caps() {
     );
     assert_eq!(p.calls.load(Ordering::SeqCst), 2);
     let mut l = review_limits();
-    l.max_cost_nanos = 6_000_000;
+    l.max_cost_nanos = 7_000_000;
     let (p, r) = Scripted::router(vec![Some("bad".into()), Some("bad".into())], (4000, 300));
     assert!(
         screen_review(&r, "Good course", &l)

@@ -156,3 +156,115 @@
     width: 100%;
   }
 }
+
+.course-reviews,
+.review-editor,
+.review-list,
+.review-list li {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.course-reviews {
+  padding-block: var(--space-6);
+  border-block-start: 2px solid var(--line);
+}
+.review-editor,
+.review-list li {
+  padding: var(--space-4);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.review-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.review-list p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.review-editor h3 {
+  margin: 0;
+  font-size: var(--text-title);
+}
+.review-editor fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.review-stars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.review-stars label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: var(--size-target, 44px);
+  min-width: var(--size-target, 44px);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.review-stars label:has(:checked) {
+  border-color: var(--primary);
+  background: var(--raised);
+}
+.review-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  padding: var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.review-confirm {
+  box-sizing: border-box;
+  max-width: min(var(--size-dialog, 600px), 100%);
+  padding: var(--space-6);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+}
+.review-confirm::backdrop {
+  background: var(--canvas);
+  opacity: var(--opacity-backdrop, 0.9);
+}
+@media (max-width: 47.999rem) {
+  .review-confirm {
+    margin-inline: 0;
+    width: 100%;
+    padding: var(--space-4);
+  }
+}
+
+.market-course-details {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+}
+.market-outline {
+  min-width: 0;
+}
+@media (min-width: 48rem) {
+  .market-course {
+    width: min(var(--size-focused, 1000px), 100%);
+  }
+  .market-course-details {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+  .market-course-details .course-reviews {
+    border-block-start: 0;
+    padding-block: 0;
+  }
+}

@@ -245,3 +245,10 @@ The catalogue SHALL include API-owned `retry_variant_pool_exhausted` with course
 #### Scenario: Ask about the paused lesson
 - **WHEN** the Learner opens the lesson tutor sheet and sends a question
 - **THEN** `ui_sheet_opened` (`sheet_id=lesson_tutor`) and `tutor_message_sent` (`has_lesson_context=true`) are delivered with common properties and no question text
+
+### Requirement: Screened review outcomes
+The API SHALL catalogue and emit review_submitted (course_id, review_id, rating, version, verdict), review_deleted (course_id, review_id) and $ai_generation with feature screen_review. Identifiers SHALL be UUIDs; ratings SHALL be stars and verdicts closed enums. Events SHALL honor opt-out and SHALL NOT include review text or attribution.
+
+#### Scenario: Review saved
+- **WHEN** a learner submits or edits a review
+- **THEN** the API sends only identifiers, stars, version and screening verdict through the consent gate

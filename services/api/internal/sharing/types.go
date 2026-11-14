@@ -38,6 +38,12 @@ var (
 
 // Config holds every policy-like value; defaults are conservative (ADR 0012, E15-12 open).
 type Config struct {
+	ReviewMinLessons   int
+	ReviewMaxPerDay    int
+	ReviewMaxChars     int
+	ReviewTimeoutMs    uint32
+	ReviewMaxCostNanos int64
+
 	MinPublisherAge int
 	// MaxEnrollmentsPerDay caps new Course copies per account per rolling day (E15-03).
 	MaxEnrollmentsPerDay int
@@ -88,6 +94,7 @@ type Config struct {
 // DefaultConfig is the conservative v1 policy.
 func DefaultConfig() Config {
 	return Config{
+		ReviewMinLessons: 3, ReviewMaxPerDay: 20, ReviewMaxChars: 2000, ReviewTimeoutMs: 10000, ReviewMaxCostNanos: 20_000_000,
 		MinPublisherAge: 18, MaxEnrollmentsPerDay: 30, CopySlideMs: 8000, SampleMaxLessons: 12, SampleMaxBytes: 120000,
 		MaxInputTokens: 60000, MaxOutputTokens: 300, TimeoutMs: 120000, MaxAttempts: 2,
 		MaxCostNanos: 250_000_000, RetentionDays: 365,
@@ -143,6 +150,12 @@ func ConfigFromEnv(getenv func(string) string) Config {
 		if n, err := strconv.Atoi(getenv(key)); err == nil && n >= lo && n <= hi {
 			*dst = n
 		}
+	}
+	positive("SHARING_REVIEW_MIN_LESSONS", &c.ReviewMinLessons, 1, 1000)
+	positive("SHARING_REVIEWS_PER_DAY", &c.ReviewMaxPerDay, 1, 1000)
+	positive("SHARING_REVIEW_MAX_CHARS", &c.ReviewMaxChars, 1, 2000)
+	if n, err := strconv.ParseInt(getenv("SHARING_REVIEW_MAX_COST_NANOS"), 10, 64); err == nil && n > 0 && n <= c.ReviewMaxCostNanos {
+		c.ReviewMaxCostNanos = n
 	}
 	positive("MARKETPLACE_MIN_ACCOUNT_AGE_DAYS", &c.MarketplaceMinAccountAgeDays, 0, 3650)
 	positive("MARKETPLACE_MIN_LESSONS", &c.MarketplaceMinLessons, 1, 1000)

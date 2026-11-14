@@ -101,7 +101,7 @@ func allowlisted(event string) bool {
 		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
 		"marketplace_browsed", "marketplace_searched", "course_viewed",
 		"course_invite_sent", "course_invite_accepted", "course_invite_declined",
-		"course_republished", "course_update_applied",
+		"course_republished", "course_update_applied", "review_submitted", "review_deleted",
 		"narration_generated", "narration_failed", "narration_cache_hit", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled":
 		return true
 	default:
@@ -311,6 +311,19 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("course_id", "invite_id")
 		if v, _ := input["method"].(string); v == "username" || v == "friend" {
 			out["method"] = v
+		}
+	case "review_submitted", "review_deleted":
+		for _, key := range []string{"course_id", "review_id"} {
+			if v, _ := input[key].(string); marketUUID.MatchString(v) {
+				out[key] = v
+			}
+		}
+		numeric("version")
+		if v, ok := input["rating"].(int); ok && v >= 1 && v <= 5 {
+			out["rating"] = v
+		}
+		if v, _ := input["verdict"].(string); v == "pass" || v == "block" || v == "needs_review" || v == "pending_screening" {
+			out["verdict"] = v
 		}
 	case "course_republished":
 		ids("course_id")

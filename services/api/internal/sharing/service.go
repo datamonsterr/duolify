@@ -38,12 +38,13 @@ type AgeSource interface {
 // Service builds immutable drafts and screens them. It never changes visibility and never
 // touches private learning tables except to read allowlisted Course content.
 type Service struct {
-	pool   *pgxpool.Pool
-	events analytics.Events
-	cfg    Config
-	screen Screener
-	rates  RateSource
-	age    AgeSource
+	pool         *pgxpool.Pool
+	events       analytics.Events
+	cfg          Config
+	screen       Screener
+	reviewScreen ReviewScreener
+	rates        RateSource
+	age          AgeSource
 	// objects stores immutable published-lesson manifests for copies (E15-03); optional.
 	objects     ObjectWriter
 	assetOrigin string
@@ -66,6 +67,9 @@ func NewService(pool *pgxpool.Pool, events analytics.Events, cfg Config) *Servic
 // ConfigureScreening injects the platform-funded classifier and the Pricing-config rate source.
 func (s *Service) ConfigureScreening(screen Screener, rates RateSource) {
 	s.screen, s.rates = screen, rates
+	if review, ok := screen.(ReviewScreener); ok {
+		s.reviewScreen = review
+	}
 }
 
 // WithAgeSource returns a copy so callers can vary the source without sharing state.
@@ -676,6 +680,12 @@ func (s *Service) PurgeExpired(ctx context.Context) (int64, error) {
 
 // Maintain enforces the one-year screening retention even when no endpoint is visited.
 func (s *Service) Maintain(ctx context.Context) {
+	if _, err := s.pool.Exec(ctx, `DELETE FROM course_review_screenings WHERE created_at < now()-make_interval(days => $1)`, s.cfg.RetentionDays); err != nil {
+		slog.ErrorContext(ctx, "review screening retention failed", "error", err)
+	}
+	if _, err := s.pool.Exec(ctx, `DELETE FROM course_review_submissions WHERE created_at < now()-interval '24 hours'`); err != nil {
+		slog.ErrorContext(ctx, "review cap retention failed", "error", err)
+	}
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
 	for {

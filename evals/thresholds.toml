@@ -51,3 +51,6 @@ course_screen = 1.0
 # terminal failure as a strict 1.0 gate; any delivery past a failed gate is critical.
 # Live promotion stays disabled until E10-06 evidence exists.
 published_copy_lesson = 1.0
+
+# E15-08 strict offline recall, safe acceptance, injection, fallback and budget gate.
+screen_review = 1.0
