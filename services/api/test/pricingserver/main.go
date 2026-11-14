@@ -427,9 +427,22 @@ func run() (result error) {
 	mux.Handle("POST /test/sharing/course", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seedSharingCourse(w, r, db.Pool)
 	})))
+	mux.Handle("POST /test/sharing/edit", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		editSharingCourse(w, r, db.Pool)
+	})))
+	mux.Handle("POST /test/marketplace/course", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seedMarketCourse(w, r, db.Pool)
+	})))
+	mux.Handle("POST /test/marketplace/stats", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setMarketStats(w, r, db.Pool)
+	})))
+	sharingService := newSharingService(db.Pool, objects, sharingGeneration)
+	socialService := social.New(db.Pool, nil)
+	socialService.OnBlock(sharingService.CancelInvitesOnBlock)
+	go sharingService.MaintainInvites(ctx)
 	mux.Handle("/", httpapi.New(httpapi.Dependencies{
 		Steering:                steering.New(steering.Options{Pool: db.Pool, Engine: steeringScreenFixture{}}),
-		Sharing:                 newSharingService(db.Pool, objects, sharingGeneration),
+		Sharing:                 sharingService,
 		Notes:                   notesService,
 		Player:                  lessonPlayer,
 		NarrationVoices:         narrationService.HTTP(),
@@ -440,7 +453,7 @@ func run() (result error) {
 		Quotes:                  pricing.NewQuotes(db.Pool),
 		Credits:                 creditHandler,
 		Accounts:                auth,
-		Social:                  social.New(db.Pool, nil),
+		Social:                  socialService,
 		CourseBrief:             courses.New(courses.Options{Pool: db.Pool, Engine: mockE2EBriefEngine{}, Pricing: setupPricing, Environment: "development"}),
 	}, logger))
 	// Exercise the real expiry worker across a historical local date. Only the
@@ -519,10 +532,36 @@ func run() (result error) {
 		creditService.NotifyCreditArrival(r.Context(), owner)
 		w.WriteHeader(http.StatusNoContent)
 	})))
+	mux.Handle("POST /test/credits/spend-remaining", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner := accounts.LearnerID(r.Context())
+		var in struct {
+			Amount int64 `json:"amount"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		if in.Amount <= 0 {
+			in.Amount = 60
+		}
+		var sourceID int64
+		_ = db.Pool.QueryRow(r.Context(), `SELECT id FROM credit_entries WHERE learner_id=$1::uuid AND kind='purchase' ORDER BY id DESC LIMIT 1`, owner).Scan(&sourceID)
+		prov, _ := json.Marshal(map[string]any{"source_id": fmt.Sprint(sourceID), "bucket": "purchase", "action": "lesson_content"})
+		_, err := db.Pool.Exec(r.Context(), `INSERT INTO credit_entries(learner_id, owner_reference, amount, kind, reference, pricing_version, provenance)
+			VALUES($1::uuid, encode(sha256(convert_to($1::text,'UTF8')),'hex'), $2, 'spend', 'spend-deplete-' || gen_random_uuid(), 'usd-launch-2026-11-08', $3)`,
+			owner, -in.Amount, prov)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		_ = creditService.InvalidateCache(r.Context(), owner)
+		_ = paidCredits.InvalidateCache(r.Context(), owner)
+		w.WriteHeader(http.StatusOK)
+	})))
 	mux.HandleFunc("POST /test/stripe/{id}", func(w http.ResponseWriter, r *http.Request) {
 		var in struct {
-			State string `json:"state"`
-			Event string `json:"event"`
+			State       string `json:"state"`
+			Event       string `json:"event"`
+			AmountMinor int    `json:"amount_minor,omitempty"`
+			ReversalID  string `json:"reversal_id,omitempty"`
+			DisputeID   string `json:"dispute_id,omitempty"`
 		}
 		if json.NewDecoder(r.Body).Decode(&in) != nil {
 			w.WriteHeader(400)
@@ -533,7 +572,11 @@ func run() (result error) {
 			w.WriteHeader(404)
 			return
 		}
-		raw, signature, err := stripe.Notification(sessionID, in.State, in.Event)
+		reversalID := in.ReversalID
+		if reversalID == "" {
+			reversalID = in.DisputeID
+		}
+		raw, signature, err := stripe.NotificationWithDetails(sessionID, in.State, in.Event, in.AmountMinor, reversalID)
 		if err != nil {
 			w.WriteHeader(400)
 			return

@@ -162,6 +162,39 @@ func TestReconcileRenewalsAndSubscriptionChanges(t *testing.T) {
 		}
 	}
 
+	// An invoice observation can change lifecycle state after its term was
+	// funded. The reversal reconciliation shortcut must not skip that state,
+	// reissue the grant, or treat failure/stale snapshots as a refund.
+	for _, kind := range []string{"invoice.payment_failed", "invoice.updated"} {
+		suffix := strings.ReplaceAll(kind, ".", "_")
+		provider.subscription.Status = "past_due"
+		provider.invoice.Status = "open"
+		provider.invoice.StripePaid = false
+		provider.invoice.AmountPaid = 0
+		notify("evt_funded_failure_"+suffix, kind, provider.invoice.ID)
+		notify("evt_funded_failure_alias_"+suffix, kind, provider.invoice.ID)
+		assertPlan(now, "past-due", true, 2*int64(plan.MonthlyCredits))
+		provider.subscription.Status = "active"
+		provider.invoice.Status = "paid"
+		provider.invoice.StripePaid = true
+		provider.invoice.AmountPaid = order.AmountMinor
+		notify("evt_funded_recovery_"+suffix, "invoice.paid", provider.invoice.ID)
+		assertPlan(now, "active", true, 2*int64(plan.MonthlyCredits))
+		notify("evt_funded_stale_cancel_"+suffix, "customer.subscription.deleted", provider.subscription.ID)
+		assertPlan(now, "active", true, 2*int64(plan.MonthlyCredits))
+	}
+	var grants, reversals, revocations, failures int
+	if err = db.Pool.QueryRow(ctx, `SELECT
+	 (SELECT count(*) FROM credit_entries WHERE learner_id=$1 AND kind='subscription_grant'),
+	 (SELECT count(*) FROM credit_reversals WHERE order_id=$2),
+	 (SELECT count(*) FROM credit_subscription_revocations r JOIN credit_subscription_terms t USING(period_key) WHERE t.subscription_id=$3),
+	 (SELECT count(*) FROM credit_outbox WHERE learner_id=$1 AND event='subscription_payment_failed')`, owner, order.ID, provider.subscription.ID).Scan(&grants, &reversals, &revocations, &failures); err != nil {
+		t.Fatal(err)
+	}
+	if grants != 2 || reversals != 0 || revocations != 0 || failures != 1 {
+		t.Fatalf("funded lifecycle changed money or duplicated failure analytics: grants=%d reversals=%d revocations=%d failures=%d", grants, reversals, revocations, failures)
+	}
+
 	// Current funded terms authorize priority, never the non-expiring balance.
 	quotes := pricing.NewQuotes(db.Pool)
 	ordinary, e := db.Queries.CreateLearner(ctx, "Ordinary")

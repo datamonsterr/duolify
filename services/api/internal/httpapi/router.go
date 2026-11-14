@@ -227,8 +227,14 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		}
 	}
 	mux.HandleFunc("GET /v1/features", func(w http.ResponseWriter, _ *http.Request) {
+		marketplace := false
+		if m, ok := deps.Sharing.(interface{ MarketplaceEnabled() bool }); ok {
+			marketplace = m.MarketplaceEnabled()
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"lesson_test_tracer_enabled": deps.LessonTestTracerEnabled,
+			// E15-07 release flag: the Marketplace stays hidden until moderation, takedown and legal approval.
+			"marketplace_enabled": marketplace,
 		})
 	})
 	if deps.LessonTestTracerEnabled && deps.LessonTest != nil && deps.Accounts != nil {
@@ -513,6 +519,10 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		}
 		// Anonymous course link preview: the handler is rate limited, noindex and token-gated.
 		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/public/shares/") && strings.Count(r.URL.Path, "/") == 4 {
+			public = true
+		}
+		// Marketplace browse and Course page: anonymous-safe, rate limited and flag-gated in the handler.
+		if r.Method == http.MethodGet && (r.URL.Path == "/v1/marketplace/courses" || (strings.HasPrefix(r.URL.Path, "/v1/marketplace/courses/") && strings.Count(r.URL.Path, "/") == 4)) {
 			public = true
 		}
 		if public {

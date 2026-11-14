@@ -150,10 +150,8 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		creditService := credits.NewServiceWithCatalogue(db.Pool, nil, catalogue, events)
+		creditService.UseOperationalMonitor(monitor)
 		if err := creditService.ConfigurePaymentEnvironment(os.Getenv); err != nil {
-			return err
-		}
-		if err := creditService.PrunePaymentPayloads(ctx); err != nil {
 			return err
 		}
 		go creditService.Maintain(ctx, logger)
@@ -304,10 +302,8 @@ func run(ctx context.Context, args []string) (result error) {
 		Events:  events,
 	})
 	creditService := credits.NewServiceWithCatalogue(db.Pool, redis, catalogue, events)
+	creditService.UseOperationalMonitor(monitor)
 	if err := creditService.ConfigurePaymentEnvironment(os.Getenv); err != nil {
-		return err
-	}
-	if err := creditService.PrunePaymentPayloads(ctx); err != nil {
 		return err
 	}
 	go creditService.Maintain(ctx, logger)
@@ -366,6 +362,8 @@ func run(ctx context.Context, args []string) (result error) {
 	// Publishing needs an 18+ account (ADR 0012); no age data exists yet, so it fails closed.
 	sharingService := sharing.NewService(db.Pool, events, sharing.ConfigFromEnv(os.Getenv)).WithAgeSource(sharing.UnknownAge{}).WithObjects(player.NewS3(os.Getenv), os.Getenv("LESSON_ASSET_ORIGIN"))
 	sharingService.ConfigureScreening(backend, sharing.PricingRates{Pool: db.Pool})
+	// Marketplace pages are cached in Redis only as derived data; the flag MARKETPLACE_ENABLED stays off by default (E15-07).
+	sharingService = sharingService.WithMarketplaceCache(redis)
 	if lessonPreparer != nil {
 		// Missing Lessons in a pinned copy reuse the private generation pipeline and the learner's credits (E15-04).
 		sharingService = sharingService.WithGeneration(sharing.GenerationDeps{Quotes: quotesService, Wallet: creditService, Lessons: lessonPreparer})
@@ -373,6 +371,16 @@ func run(ctx context.Context, args []string) (result error) {
 	go sharingService.Maintain(ctx)
 	steeringService := steering.New(steering.Options{Pool: db.Pool, Engine: backend, Events: events})
 	go steeringService.Maintain(ctx)
+	// Course invites (E15-06): push goes only through the adapter, which is disabled unless chosen
+	// by environment (no APNs/FCM credentials exist yet, ADR 0012); the in-app inbox always works.
+	pushAdapter, pushName := sharing.PushFromEnv(os.Getenv)
+	sharingService.WithPush(pushAdapter)
+	if pushName == "disabled" && (os.Getenv("PUSH_APNS_KEY_ID") != "" || os.Getenv("PUSH_FCM_SERVICE_ACCOUNT_JSON") != "") {
+		logger.Warn("push credentials are set but no live push transport exists yet; invites are in-app only")
+	}
+	logger.Info("course invite push adapter", "adapter", pushName)
+	socialService.OnBlock(sharingService.CancelInvitesOnBlock)
+	go sharingService.MaintainInvites(ctx)
 	handler := httpapi.New(httpapi.Dependencies{
 		Steering:                steeringService,
 		Sharing:                 sharingService,

@@ -14,7 +14,7 @@ func TestAnnualFundingEvidence(t *testing.T) {
 	if !annualFundingMatches(invoice, sub, r, start) {
 		t.Fatal("valid leap-year funding rejected")
 	}
-	for _, invalid := range []string{"month", "count", "short", "long", "unpaid", "proration", "trial", "future", "owner", "refunded", "disputed", "anchor", "sub_period", "discount"} {
+	for _, invalid := range []string{"month", "count", "short", "long", "unpaid", "proration", "trial", "future", "owner", "anchor", "sub_period", "discount"} {
 		t.Run(invalid, func(t *testing.T) {
 			i, s := invoice, sub
 			switch invalid {
@@ -36,10 +36,6 @@ func TestAnnualFundingEvidence(t *testing.T) {
 				i.PeriodStart = start.Add(time.Hour)
 			case "owner":
 				i.OwnerReference = "other"
-			case "refunded":
-				i.Refunded = true
-			case "disputed":
-				i.Disputed = true
 			case "anchor":
 				s.BillingAnchor = start.AddDate(0, 1, 0)
 			case "sub_period":

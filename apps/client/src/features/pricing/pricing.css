@@ -163,3 +163,11 @@
   min-block-size: var(--size-target);
   max-inline-size: 100%;
 }
+
+.pricing-debt-note {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}

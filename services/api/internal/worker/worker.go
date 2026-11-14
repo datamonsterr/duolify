@@ -98,6 +98,7 @@ func NewWithCredits(pool *pgxpool.Pool, logger *slog.Logger, monitor *telemetry.
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &dummyWorker{logger: logger})
 	periodic := []*river.PeriodicJob{}
+	periodic = append(periodic, registerFinancialWorkers(workers, expirer)...)
 	if expirer != nil {
 		river.AddWorker(workers, &CreditsWorker{Expirer: expirer, Logger: logger})
 		periodic = append(periodic, PeriodicCreditsJob())

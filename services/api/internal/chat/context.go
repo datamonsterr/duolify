@@ -53,7 +53,7 @@ func (s *Service) assemble(ctx context.Context, owner, course, thread, message s
 	if err := s.opts.Pool.QueryRow(ctx, `SELECT title,description FROM courses WHERE id=$1::uuid AND learner_id=$2::uuid`, course, owner).Scan(&req.Outline.Title, &req.Outline.Description); err != nil {
 		return nil, err
 	}
-	rows, err := s.opts.Pool.Query(ctx, `SELECT u.id::text,u.title,COALESCE(l.id::text,''),COALESCE(l.title,''),COALESCE(l.goal,'') FROM course_units u LEFT JOIN course_lesson_stubs l ON l.unit_id=u.id AND l.learner_id=$2::uuid WHERE u.course_id=$1::uuid AND u.learner_id=$2::uuid ORDER BY u.position,l.position`, course, owner)
+	rows, err := s.opts.Pool.Query(ctx, `SELECT u.id::text,u.title,COALESCE(l.id::text,''),COALESCE(l.title,''),COALESCE(l.goal,'') FROM course_units u LEFT JOIN course_lesson_stubs l ON l.unit_id=u.id AND l.learner_id=$2::uuid WHERE u.course_id=$1::uuid AND u.learner_id=$2::uuid AND u.archived_at IS NULL ORDER BY u.position,l.position`, course, owner)
 	if err != nil {
 		return nil, err
 	}

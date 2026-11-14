@@ -6,6 +6,24 @@ import { Button } from "../design/Button";
 import { useUiPreferences } from "../design/localization/Preferences";
 import "./wallet.css";
 
+const REVERSAL_LABELS: Record<string, string> = {
+  refund: "Refund",
+  chargeback: "Chargeback",
+  dispute: "Chargeback",
+};
+const PROVIDER_ID =
+  /\s*·?\s*\b(?:re|dp|ch|pi|py|cs|in|sub|evt|txn)_[A-Za-z0-9_]+/g;
+
+// Reversal rows show a fixed label only: provider ids and operator notes are private.
+function publicActivity(item: ActivityItem) {
+  const label = REVERSAL_LABELS[item.kind];
+  if (label) return { activity: label, detail: undefined };
+  return {
+    activity: item.activity.replace(PROVIDER_ID, ""),
+    detail: item.detail?.replace(PROVIDER_ID, ""),
+  };
+}
+
 export type WalletViewProps = {
   wallet: WalletResponse;
   onViewOptions?: () => void;
@@ -59,6 +77,22 @@ export function WalletView({
 
   return (
     <div className="wallet-container">
+      {wallet.source_debt != null && wallet.source_debt > 0 && (
+        <div role="alert" className="wallet-banner wallet-banner-danger">
+          <div>
+            <b className="wallet-banner-title">
+              Paid AI features paused pending resolution ·{" "}
+              {number(wallet.source_debt)} credits source debt
+            </b>
+            <p>
+              A payment reversal exceeded unspent credits on the original
+              purchase. Paid AI features are paused pending resolution. Your
+              daily free credits remain available for practice.
+            </p>
+          </div>
+        </div>
+      )}
+
       {wallet.unverified && (
         <div role="alert" className="wallet-banner wallet-banner-warn">
           <div>
@@ -177,6 +211,26 @@ export function WalletView({
         don't carry over.
       </p>
 
+      {/* Channel-Correct Refund Guidance */}
+      <div className="wallet-channel-guidance">
+        {wallet.refund_channel === "apple" ? (
+          <p>
+            Apple App Store purchases must be refunded through Apple:
+            reportaproblem.apple.com
+          </p>
+        ) : wallet.refund_channel === "google" ? (
+          <p>
+            Google Play purchases must be refunded through Google Play purchase
+            history.
+          </p>
+        ) : (
+          <p>
+            Refund policy · Contact support@duolify.com to request a refund for
+            unused credits.
+          </p>
+        )}
+      </div>
+
       {/* Exhausted Recovery Banner */}
       {isExhausted && !suppressUpsell && (
         <div className="wallet-banner wallet-banner-info">
@@ -262,19 +316,20 @@ export function WalletView({
                   ? "wallet-amount-positive"
                   : "wallet-amount-negative";
 
+              const { activity, detail } = publicActivity(item);
               return (
                 <div key={item.id} className="wallet-activity-row">
                   <div>
                     <span>{item.date}</span>
                   </div>
                   <div>
-                    <span>{item.activity}</span>
-                    {item.detail && (
+                    <span>{activity}</span>
+                    {detail && (
                       <span
                         className="wallet-activity-meta"
                         style={{ display: "block" }}
                       >
-                        {item.detail}
+                        {detail}
                       </span>
                     )}
                   </div>
