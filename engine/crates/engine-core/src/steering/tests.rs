@@ -305,3 +305,33 @@ fn fork_point_lesson_carries_the_approved_snapshot_and_a_cancelled_fork_carries_
     assert!(!cancelled.contains("learner_instructions"));
     assert!(!cancelled.contains("More examples in Go"));
 }
+
+#[test]
+fn replan_prompt_goes_through_the_hardened_boundary() {
+    use crate::courses::outline::{Lesson, Unit};
+    let lesson = |n: usize, goal: String| Lesson {
+        id: format!("l{n}"),
+        title: format!("Lesson {n}"),
+        goal,
+    };
+    let base = vec![Unit {
+        id: "u1".into(),
+        title: "Basics".into(),
+        lessons: vec![lesson(1, "Keep".into()), lesson(2, "Focus".into())],
+    }];
+    let entries = vec![entry("a", "More Go examples", 2, 1, 1)];
+    let prompt = replan::prompt(&base, &["l1".to_string()], &entries).unwrap();
+    let data = provider_data(&prompt).expect("trusted envelope");
+    assert!(data.contains("<learner_instructions") || data.contains("learner_instructions"));
+    assert!(replan::prompt(&base, &[], &[entry("a", "a\u{200b}b", 2, 1, 1)]).is_err());
+    // The shared size bound applies to the whole replan prompt, not only the instruction section.
+    let big = |n: usize| Unit {
+        id: format!("u{n}"),
+        title: format!("Unit {n}"),
+        lessons: (0..20)
+            .map(|j| lesson(n * 100 + j, "g".repeat(3900)))
+            .collect(),
+    };
+    let huge: Vec<Unit> = (0..10).map(big).collect();
+    assert!(replan::prompt(&huge, &[], &entries).is_err());
+}
