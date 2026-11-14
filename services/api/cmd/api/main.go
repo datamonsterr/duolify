@@ -35,6 +35,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/gamification"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/lessontest"
+	"github.com/datamonsterr/duolify/services/api/internal/narration"
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -211,6 +212,24 @@ func run(ctx context.Context, args []string) (result error) {
 				_ = lessonQueue.Stop(stopCtx)
 			}()
 		}
+		// E14-01: narration synthesis stays off until explicitly enabled; only the engine mock exists.
+		if os.Getenv("NARRATION_ENABLED") == "true" {
+			narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention()})
+			narrationQueue, err := narrationService.Queue()
+			if err != nil {
+				return err
+			}
+			if err = narrationQueue.Start(context.WithoutCancel(ctx)); err != nil {
+				return err
+			}
+			// Operator queue and retention: regenerate missing objects and delete expired assets.
+			go narrationService.RunMaintenance(ctx, time.Hour)
+			defer func() {
+				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+				defer cancel()
+				_ = narrationQueue.Stop(stopCtx)
+			}()
+		}
 		return worker.RunWithCredits(ctx, db.Pool, logger, creditService, service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
@@ -327,6 +346,17 @@ func run(ctx context.Context, args []string) (result error) {
 		lessonHandler = lessonPreparer
 	}
 
+	var narrationRecovery player.NarrationRecovery
+	var narrationVoices http.Handler
+	if os.Getenv("NARRATION_ENABLED") == "true" {
+		// Insert-only queue client: the worker process runs the jobs.
+		recovery := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention()})
+		if _, err = recovery.Queue(); err != nil {
+			return err
+		}
+		narrationRecovery = recovery
+		narrationVoices = recovery.HTTP()
+	}
 	quotesService := pricing.NewQuotes(db.Pool)
 	quotesService.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
 	quotesService.SetOwnerID(os.Getenv("PRICING_OWNER_ID"))
@@ -358,7 +388,8 @@ func run(ctx context.Context, args []string) (result error) {
 		Gamification:            xpService,
 		Social:                  socialService,
 		Monitor:                 monitor,
-		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService}),
+		NarrationVoices:         narrationVoices,
+		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService, Narration: narrationRecovery}),
 		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
 		Accounts:                auth,
 		Credits:                 creditService,
@@ -647,6 +678,15 @@ func healthcheck(ctx context.Context, args []string) error {
 		return fmt.Errorf("healthcheck returned HTTP %d", response.StatusCode)
 	}
 	return nil
+}
+
+// narrationRetention reads how many days an unreferenced narration asset is kept (default 30).
+func narrationRetention() time.Duration {
+	days, err := strconv.Atoi(os.Getenv("NARRATION_RETENTION_DAYS"))
+	if err != nil || days < 1 {
+		return narration.DefaultRetention
+	}
+	return time.Duration(days) * 24 * time.Hour
 }
 
 // friendStreakSettler settles a learner's Friend streaks after their streak projection

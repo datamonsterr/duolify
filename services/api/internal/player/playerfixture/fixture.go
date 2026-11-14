@@ -114,3 +114,27 @@ func Seed(ctx context.Context, pool *pgxpool.Pool, objects Writer, owner string)
 	}
 	return lesson, Publish(ctx, pool, objects, owner, lesson)
 }
+
+// Twin adds a second Lesson to the fixture Course whose manifest is the same object, so
+// two Lessons carry identical narration text (E14-02 deduplication). Idempotent per owner.
+func Twin(ctx context.Context, pool *pgxpool.Pool, owner, lesson string) (string, error) {
+	var twin string
+	err := pool.QueryRow(ctx, `SELECT id::text FROM course_lesson_stubs WHERE learner_id::text=$1 AND authored_id='player-twin' LIMIT 1`, owner).Scan(&twin)
+	if err == nil {
+		return twin, nil
+	}
+	twin = uuid.NewString()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err = tx.Exec(ctx, `INSERT INTO course_lesson_stubs(id,learner_id,unit_id,authored_id,position,title,goal,status)
+		SELECT $2,learner_id,unit_id,'player-twin',position+1,'Why the sky changes, again',goal,status FROM course_lesson_stubs WHERE id::text=$1`, lesson, twin); err != nil {
+		return "", err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO lesson_manifests(lesson_id,learner_id,version,manifest_key) SELECT $1,learner_id,version,manifest_key FROM lesson_manifests WHERE lesson_id::text=$2`, twin, lesson); err != nil {
+		return "", err
+	}
+	return twin, tx.Commit(ctx)
+}

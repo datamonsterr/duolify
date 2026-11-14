@@ -108,6 +108,7 @@ var piiRules = []piiRule{
 	{"quick_note_enrichments", "tags", `'{}'`},
 	{"quick_notes", "raw_text", redacted},
 	{"quick_notes", "slide_title", redacted},
+	{"slide_narrations", "narration_text", redacted},
 	{"tutor_messages", "content", redacted},
 }
 
@@ -136,7 +137,7 @@ credit_subscription_terms.benefits credit_subscription_terms.plan_name credit_su
 credit_subscriptions.environment credit_usage.usage eval_alert_configs.id eval_alert_events.properties eval_alert_events.scope
 eval_operational_aggregates.task eval_reports.dataset_revision eval_reports.prompt_revision eval_reports.report_json eval_reports.task
 friend_requests.method gamification_config.goal_options gamification_config.league_tiers
-learner_profiles.appearance learner_profiles.haptics learner_profiles.level learner_profiles.motion learner_profiles.reminder_time
+learner_profiles.appearance learner_profiles.haptics learner_profiles.level learner_profiles.motion learner_profiles.narration_voice narration_assets.settings_fingerprint slide_narrations.settings_fingerprint learner_profiles.reminder_time
 learner_social_settings.course_invites_from learner_social_settings.request_policy
 lesson_test_variant_snapshots.reason lesson_test_variant_snapshots.variant_of lesson_questions.variant_of outline_proposals.decision
 pricing_audit.action pricing_audit.change_class pricing_audit.diff_summary pricing_audit.override_reason pricing_audit.reason

@@ -140,7 +140,7 @@ and production drills still require provisioning. See [backup tooling](../infra/
 | Postgres `bookmarks` | Learner-owned unique lesson/slide bookmarks, stable action key, course/lesson/slide titles | Full nightly encrypted database dumps, 14-day retention; populated backup fixture compares full rows | Authenticated owner read/export; deleted with the account within 30 days; restore tombstones erase before serving | [E9-05 change](../openspec/changes/e9-05-bookmark-lessons-and-slides/design.md), [bookmarks](../openspec/specs/bookmarks/spec.md) |
 | Postgres (planned) | Tutor chat threads/messages; enrichment tags/links | Nightly dump | Per-item deletion where supported; account deletion within 30 days | [tutor-chat](../openspec/specs/tutor-chat/spec.md) |
 | Redis | Disposable session/cache entries, rate limits, cached balances, leaderboards and streak counters | No backup; rebuild from Postgres | TTL or eviction; never sole copy of product data | [data-backup](../openspec/specs/data-backup/spec.md), [gamification](../openspec/specs/gamification/spec.md) |
-| S3 application bucket | Motion HTML slides, manifests (including static slide explanations), lesson assets; optional golden-set mirror | Object versioning; tracked regeneration jobs; verify cloud capability before use | Match owning course/account deletion; object-version expiry policy must be specified before real data | [lesson-player](../openspec/specs/lesson-player/spec.md), [course-creation](../openspec/specs/course-creation/spec.md) |
+| S3 application bucket | Motion HTML slides, manifests (including static slide explanations), lesson assets, versioned narration audio and alignment (`lessons/narration/v1/<sha256>/audio.wav`, `alignment.json`); optional golden-set mirror | Object versioning; tracked regeneration jobs; verify cloud capability before use | Match owning course/account deletion; object-version expiry policy must be specified before real data | [lesson-player](../openspec/specs/lesson-player/spec.md), [course-creation](../openspec/specs/course-creation/spec.md) |
 | S3 separate backup bucket | age-encrypted custom Postgres dumps at `YYYY-MM-DD/schema-<Goose version>.dump.age`; includes learner, append-only ledger and migration/queue state | Worker at 02:00 UTC plus startup catch-up; public X25519 recipient only, conditional whole-object upload, no multipart remnants. Railway snapshots remain a separately provisioned second layer | General backups 14 days; financial backup policy 35 days per ADR 0011. API has no backup access; writer can read/put but cannot delete or administer buckets. Separate retention administrator owns expiry; cloud lifecycle automation remains a follow-up | [data-backup](../openspec/specs/data-backup/spec.md), [ADR 0011](adr/0011-owner-decisions-2026-11-09.md) |
 | Worker temporary filesystem | Ciphertext-only private staging file (0600); no plaintext database archive | Disposable, never a recovery source; removed on success, dump failure and upload failure | One bounded job (30 minutes, at most 4 GiB encrypted output); container filesystem is ephemeral after abnormal process termination | [worker backup change](../openspec/changes/worker-database-backup/design.md) |
 | Local RustFS IAM metadata | Separate application, backup writer and root/retention identities and policies; local fixture secrets are environment settings | Reprovisioned by the development-only initializer; production IAM/keys managed separately | Never pass root or backup credentials to API containers; private age recovery key is never in worker images or environment | [worker backup change](../openspec/changes/worker-database-backup/design.md) |
@@ -377,6 +377,53 @@ application shell files enter the service worker cache. All device copies can be
 evicted and are excluded from backups/export. Authoritative immutable server
 objects and existing lesson metadata retain E3-01 backup/export/deletion policies;
 restore fixtures assert byte-identical checksums. No new learner tables or AI calls.
+
+E14-01 stores `slide_narrations` (owned Lesson UUID, slide id, narration text copied from
+the stored manifest, `pending|ready|failed|disabled` status, failure code, content
+hash, resolved voice id, model id and settings fingerprint, object keys, characters,
+bytes, duration, reservation id) in the encrypted nightly general Postgres dump with
+14-day rotation, so text and status survive a restore (the backup fixture compares the
+restored rows). Account export lists the table; Lesson/Course/account cascades erase the
+rows. Audio and alignment are immutable hash-keyed objects under the application bucket
+`lessons/narration/v1/…` with the existing object versioning and protected asset-copy
+policy; identical text/voice/model/settings reuse one object across Lessons and Learners
+at zero charge. `narration.UnsharedObjectKeys` lists objects referenced only by the
+Lessons being deleted; those are removed within 30 days of Course or account deletion,
+while keys still referenced by any other Lesson stay. Narration text is never sent to
+PostHog or logs: `narration_generated`, `narration_cache_hit`, `narration_failed`
+(fixed error code), `narration_played` (ids and duration) and `$ai_generation`
+(`feature=narration`, character count) carry ids and counts only. Device copies of audio
+are in-memory object URLs and disposable. The deterministic mock is the default;
+`NARRATION_ENABLED` defaults off. E14-04 adds the ElevenLabs adapter with no new persisted data:
+it runs only when `ELEVENLABS_API_KEY` (secret store/env only) AND `NARRATION_LIVE_ENABLED=true`
+are set, sends the normalized narration text to the vendor for synthesis only, and stores nothing
+extra. Vendor errors, logs and events carry fixed codes (`rate_limited`, `engine_unavailable`,
+`timeout`), never keys, vendor bodies or text. Existing narration asset backup policy applies.
+
+E14-02 adds `narration_assets` (content hash primary key, text hash linking retained settings
+versions of the same normalized text, voice id, model id, settings fingerprint, audio and
+alignment object keys, characters, bytes, duration, `ready|missing` state, trigger-maintained
+`ref_count` and `unreferenced_at`) and `narration_regenerations` (content hash, `requested|
+completed|failed`, fixed failure code, characters, timestamps). Neither table holds narration
+text or a Learner id: Learners reach an asset only through `slide_narrations`, so export lists
+`slide_narrations` (with its content hash and object keys) and the asset rows are classified
+`unlinked_deleted_after_last_reference_and_retention`. Both tables are in the encrypted nightly
+general Postgres dump (14-day rotation); the backup fixture restores hashes, object keys and
+reference counts and checks the restored trigger still counts. Deleting a Lesson, Course or
+account removes only that Learner's references. A versioned asset and its two objects are
+deleted only after its last reference ends **and** the owner retention period elapses
+(`NARRATION_RETENTION_DAYS`, default 30); the worker purges daily and the bucket's object
+versioning keeps non-current versions under the existing protected-copy policy. A missing
+object is recovered at zero charge by restoring the latest retained bucket version, by
+repointing to a retained prior settings version of the same text, or by a tracked operator
+regeneration at the original hash. Content hashes and fixed codes only reach analytics
+(`narration_cache_hit`, `narration_generated`, `narration_failed`); learner text never does.
+
+E14-03 adds synchronized narration clocking, offline audio preloading, and player preference persistence:
+- **Disposable Client Cache**: Preloaded audio and alignment assets are retained in the browser's Cache API under cache name `duolify-narration-v1`. This client cache is disposable, enables offline restart and slide narration playback, is purged on lesson completion or explicit eviction (`clearLessonCache`), and is never backed up to servers.
+- **Per-Device Preferences**: Player preferences (`rate` within allowed speeds 0.75/1/1.25/1.5, `muted` boolean, `captions` boolean) persist per-device in `localStorage` under `duolify.player-preferences`. These store non-identifying player settings without learner PII, private text, or credentials.
+- **Authoritative Assets & Backup**: No new Postgres tables or database columns are introduced. Authoritative audio and alignment objects remain in versioned object storage (`lessons/narration/v1/...`) linked via `slide_narrations` and `narration_assets` with existing 14-day general database dump rotation and 30-day retention cascades.
+- **Analytics Telemetry**: Adds `narration_muted` (`muted` boolean), `narration_speed_changed` (`speed` numeric), and `captions_toggled` (`captions` boolean) to the client catalogue and API allowlist. Events carry standard UUID and context properties (`lesson_id`, `slide_id`), exclude all transcript text and slide explanations, and respect telemetry opt-out.
 
 E10-02: Score each AI task with critical checks. Versioned golden-set revisions
 are maintained on Hugging Face (or Git-pinned in `evals/fixtures/golden.sample.jsonl`
@@ -627,6 +674,22 @@ The table enters the nightly encrypted dump; the backup fixture restores a pin a
 A Lesson generated beyond the published snapshot reuses the private pipeline, so its content lives in the learner's own `generated_lessons`, `lesson_slides`, `lesson_questions`, `lesson_retry_pools` and `lesson_generations` rows keyed by the copy's Lesson stub: copy-local, in the nightly encrypted dump and the versioned asset copy, erased with the learner or the copy. The published snapshot, `course_copies.content_hash` and every other copy are never written.
 
 Postgres `copy_generation_consents` (generation id, learner id, copy course id, Lesson id, quote id, Pricing config version, `consented_at`) records the explicit consent behind each generation. `generation_id`, `learner_id`, `copy_course_id` and `lesson_id` cascade, so account or copy deletion erases it; it holds no Lesson text. Reservation, settlement and ledger rows belong to the generating learner only (ADR 0012: no flow-back to the owner). The backup fixture restores a copy-local Lesson with its consent and the unchanged pin hash and checks an erased learner's consent is gone; privacy export lists consents by id, version and date, policy `copy_generation_consents: erased`. PostHog gets `published_lesson_generated_on_demand` (copy and Lesson UUIDs, version) next to the existing `lesson_generated` and `$ai_generation`: no title, Slide text or answer, and nothing for opted-out learners. The Engine keeps nothing; no new environment variable and no proto change.
+E14-06 adds the Learner's narration voice. `learner_profiles.narration_voice` stores a logical
+voice key from the approved voice config (`services/api/internal/narration/voices.json`; the
+default voice plus test fixtures, ADR 0012), never a vendor voice id or a price. It is in the
+nightly encrypted general Postgres dump, is listed in the profile export (`to_jsonb` of the
+profile row), is erased with the account, and is withheld from the learner-context and
+settings JSON. A voice change keeps the old voice: `slide_narrations` is keyed by lesson, slide
+and `voice_key`, so each voice has its own row, content hash and object keys and the old asset
+keeps its trigger-maintained reference (and so its retention) while the new voice plays. Replaying
+a stored voice, or switching back to it, is free. The restore fixture compares the preference,
+both voices' hashes and asset reference counts; deleting a Lesson, Course or account erases every
+voice row and starts retention for assets that no other Lesson references. Quotes (`pricing_quotes`
+and consent) keep their existing seven-year pseudonymous retention; they hold counts, a logical
+voice key and the Pricing version, never narration text. A quote's voice-config hash is compared
+on consent and is not stored. Analytics add no event: `narration_cache_hit` (free switch back),
+`narration_muted` and `credits_upsell_shown` (only for plans without "No upsell banners") carry ids,
+counts and fixed codes only. Entitlements are read from verified Postgres subscription terms.
 
 ### E15-07 public marketplace listings
 

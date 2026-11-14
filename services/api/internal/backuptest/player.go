@@ -60,6 +60,61 @@ func (f *Fixture) AssertPlaybackPositionRestored(t *testing.T, restored *pgxpool
 	}
 }
 
+// AssertNarrationRestored compares narration text and status rows from the encrypted dump.
+func (f *Fixture) AssertNarrationRestored(t *testing.T, restored *pgxpool.Pool) {
+	t.Helper()
+	const query = "SELECT coalesce(jsonb_agg(to_jsonb(n) ORDER BY n.slide_id), '[]'::jsonb)::text FROM slide_narrations n"
+	var before, after string
+	if err := f.DB.Pool.QueryRow(t.Context(), query).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.QueryRow(t.Context(), query).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if before != after || !bytes.Contains([]byte(after), []byte(`"narration_text": "Seeded narration text."`)) || !bytes.Contains([]byte(after), []byte(`"status": "ready"`)) {
+		t.Fatal("narration text/status restore mismatch", before, after)
+	}
+	// E14-02: content hashes, object keys, reference counts and regeneration tracking survive restore.
+	const assets = `SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY a.content_hash), '[]'::jsonb)::text FROM narration_assets a`
+	var assetsBefore, assetsAfter string
+	if err := f.DB.Pool.QueryRow(t.Context(), assets).Scan(&assetsBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.QueryRow(t.Context(), assets).Scan(&assetsAfter); err != nil {
+		t.Fatal(err)
+	}
+	if assetsBefore != assetsAfter || !bytes.Contains([]byte(assetsAfter), []byte(`"ref_count": 1`)) || !bytes.Contains([]byte(assetsAfter), []byte("lessons/narration/v1/")) {
+		t.Fatal("narration asset hash/reference restore mismatch", assetsBefore, assetsAfter)
+	}
+	// E14-06: the voice preference and both voices' manifest references (old asset retained) survive restore.
+	const voices = `SELECT (SELECT narration_voice FROM learner_profiles WHERE learner_id='a1111111-1111-4111-8111-111111111111') || ':' ||
+		(SELECT string_agg(voice_key||'='||content_hash, ',' ORDER BY voice_key) FROM slide_narrations WHERE slide_id='seed-ready') || ':' ||
+		(SELECT string_agg(ref_count::text, ',' ORDER BY content_hash) FROM narration_assets WHERE content_hash IN (repeat('ab',32),repeat('ef',32)))`
+	var voicesBefore, voicesAfter string
+	if err := f.DB.Pool.QueryRow(t.Context(), voices).Scan(&voicesBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.QueryRow(t.Context(), voices).Scan(&voicesAfter); err != nil {
+		t.Fatal(err)
+	}
+	if voicesBefore != voicesAfter || !bytes.HasPrefix([]byte(voicesAfter), []byte("fixture-warm:default="+"abababab")) || !bytes.HasSuffix([]byte(voicesAfter), []byte(":1,1")) {
+		t.Fatal("voice preference or retained voice references restore mismatch", voicesBefore, voicesAfter)
+	}
+	// The restored trigger keeps counting: deleting the only reference starts retention.
+	var unreferenced bool
+	tx, err := restored.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(t.Context()) }()
+	if _, err = tx.Exec(t.Context(), `DELETE FROM slide_narrations WHERE content_hash=repeat('ab',32)`); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.QueryRow(t.Context(), `SELECT ref_count=0 AND unreferenced_at IS NOT NULL FROM narration_assets WHERE content_hash=repeat('ab',32)`).Scan(&unreferenced); err != nil || !unreferenced {
+		t.Fatal("restored database must keep reference counting", err)
+	}
+}
+
 // BackupPlayerObjects exercises the protected-copy/key-version-checksum contract
 // without adding application objects to the database archive bucket.
 func (f *Fixture) BackupPlayerObjects(t *testing.T) {

@@ -45,6 +45,14 @@ type ObjectManifest struct {
 	Slides  []ObjectSlide `json:"slides"`
 }
 
+// NarrationAsset points at owner-only audio and alignment routes.
+type NarrationAsset struct {
+	AudioURL     string `json:"audio_url"`
+	AlignmentURL string `json:"alignment_url"`
+	DurationMS   int    `json:"duration_ms"`
+	Characters   int    `json:"characters"`
+}
+
 // Slide is the public manifest projection, without internal object keys.
 type Slide struct {
 	HTMLSHA256      string            `json:"html_sha256"`
@@ -55,8 +63,12 @@ type Slide struct {
 	Assets          []string          `json:"assets"`
 	Checkpoints     []Checkpoint      `json:"checkpoints"`
 	NarrationStatus string            `json:"narration_status"`
-	NarrationText   string            `json:"narration_text"`
-	Explanation     string            `json:"explanation"`
+	// NarrationReason is a fixed code for a disabled slide (for example insufficient_credits).
+	NarrationReason string `json:"narration_reason,omitempty"`
+	// Narration is present only when status is ready; it never exposes object keys.
+	Narration     *NarrationAsset `json:"narration,omitempty"`
+	NarrationText string          `json:"narration_text"`
+	Explanation   string          `json:"explanation"`
 	// Segments are plain-text dialogue for pinned speakers, validated at job time.
 	Segments json.RawMessage `json:"segments,omitempty"`
 }

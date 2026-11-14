@@ -58,6 +58,13 @@ export async function authRequest<T>(
     ? (undefined as T)
     : (response.json() as Promise<T>);
 }
+async function authBlob(path: string, access: string): Promise<Blob> {
+  const response = await fetch(`${base}${path}`, {
+    headers: { Authorization: `Bearer ${access}` },
+  });
+  if (!response.ok) throw new AuthError("Download failed.", response.status);
+  return response.blob();
+}
 export class AuthError extends Error {
   constructor(
     message: string,
@@ -256,6 +263,21 @@ export const session = {
           await expire(expected);
         throw refreshError;
       }
+    }
+  },
+  /** Authenticated binary read (narration audio); rotates the session once on 401. */
+  async blob(path: string): Promise<Blob> {
+    const expected = generation;
+    const tokens = await credentialStore.read();
+    if (!tokens || expected !== generation)
+      throw new AuthError("Sign in again.", 401);
+    try {
+      return await authBlob(path, tokens.access_token);
+    } catch (error) {
+      if (!(error instanceof AuthError) || error.status !== 401) throw error;
+      const rotated = await rotate(tokens, expected);
+      if (expected !== generation) throw new AuthError("Session changed.", 401);
+      return authBlob(path, rotated.access_token);
     }
   },
   load(): Promise<Learner | null> {

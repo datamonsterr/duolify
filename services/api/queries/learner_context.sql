@@ -1,9 +1,9 @@
 -- name: GetLearnerContext :one
-SELECT (to_jsonb(p) - 'age_confirmed_at' - 'analytics_opt_out' - 'appearance' - 'motion' - 'narration' - 'narration_speed' - 'captions' - 'text_size' - 'ui_sounds' - 'haptics')::jsonb AS context
+SELECT (to_jsonb(p) - 'age_confirmed_at' - 'analytics_opt_out' - 'appearance' - 'motion' - 'narration' - 'narration_voice' - 'narration_speed' - 'captions' - 'text_size' - 'ui_sounds' - 'haptics')::jsonb AS context
 FROM learner_profiles p WHERE learner_id=sqlc.arg(learner_id)::uuid FOR UPDATE;
 
 -- name: GetLearnerSettings :one
-SELECT (to_jsonb(p) - 'age_confirmed_at' - 'goal' - 'topic' - 'background' - 'level' - 'setup_completed')::jsonb AS context
+SELECT (to_jsonb(p) - 'age_confirmed_at' - 'narration_voice' - 'goal' - 'topic' - 'background' - 'level' - 'setup_completed')::jsonb AS context
 FROM learner_profiles p WHERE learner_id=sqlc.arg(learner_id)::uuid FOR UPDATE;
 
 -- name: SaveLearnerContext :exec

@@ -11,7 +11,16 @@ export type ManifestSlide = {
   html_url: string;
   assets: string[];
   checkpoints: Checkpoint[];
-  narration_status: "disabled" | "pending" | "failed";
+  narration_status: "disabled" | "pending" | "ready" | "failed";
+  /** Fixed code for a disabled slide, for example insufficient_credits. */
+  narration_reason?: string;
+  /** Present only when narration_status is ready; routes are owner-only. */
+  narration?: {
+    audio_url: string;
+    alignment_url: string;
+    duration_ms: number;
+    characters: number;
+  };
   narration_text: string;
   explanation?: string;
   /** Pinned, validated character dialogue; absent for non-cast lessons. */
@@ -82,6 +91,22 @@ function validSegments(value: unknown, duration: number, cast?: unknown) {
       Number(s.start_ms) + Number(s.duration_ms) <= duration,
   );
 }
+function validNarration(lesson: string, slide: Record<string, unknown>) {
+  const ready = slide.narration_status === "ready";
+  const n = slide.narration;
+  if (!ready) return n === undefined;
+  const base = `/v1/lessons/${lesson}/slides/${String(slide.slide_id)}/narration/`;
+  return (
+    record(n) &&
+    keys(n, ["audio_url", "alignment_url", "duration_ms", "characters"]) &&
+    n.audio_url === `${base}audio` &&
+    n.alignment_url === `${base}alignment` &&
+    Number.isSafeInteger(n.duration_ms) &&
+    Number(n.duration_ms) > 0 &&
+    Number.isSafeInteger(n.characters) &&
+    Number(n.characters) > 0
+  );
+}
 function keys(value: Record<string, unknown>, names: string[]) {
   return (
     Object.keys(value).length === names.length &&
@@ -136,48 +161,60 @@ export function isManifest(value: unknown): value is Manifest {
     if (
       !record(slide) ||
       !(
-        keys(omit(slide, "segments"), [
-          "slide_id",
-          "html_sha256",
-          "asset_sha256",
-          "duration_ms",
-          "html_url",
-          "assets",
-          "checkpoints",
-          "narration_status",
-          "narration_text",
-          "explanation",
-        ]) ||
-        keys(omit(slide, "segments"), [
-          "slide_id",
-          "duration_ms",
-          "html_url",
-          "assets",
-          "checkpoints",
-          "narration_status",
-          "narration_text",
-          "explanation",
-        ]) ||
-        keys(omit(slide, "segments"), [
-          "slide_id",
-          "html_sha256",
-          "asset_sha256",
-          "duration_ms",
-          "html_url",
-          "assets",
-          "checkpoints",
-          "narration_status",
-          "narration_text",
-        ]) ||
-        keys(omit(slide, "segments"), [
-          "slide_id",
-          "duration_ms",
-          "html_url",
-          "assets",
-          "checkpoints",
-          "narration_status",
-          "narration_text",
-        ])
+        keys(
+          omit(omit(omit(slide, "segments"), "narration"), "narration_reason"),
+          [
+            "slide_id",
+            "html_sha256",
+            "asset_sha256",
+            "duration_ms",
+            "html_url",
+            "assets",
+            "checkpoints",
+            "narration_status",
+            "narration_text",
+            "explanation",
+          ],
+        ) ||
+        keys(
+          omit(omit(omit(slide, "segments"), "narration"), "narration_reason"),
+          [
+            "slide_id",
+            "duration_ms",
+            "html_url",
+            "assets",
+            "checkpoints",
+            "narration_status",
+            "narration_text",
+            "explanation",
+          ],
+        ) ||
+        keys(
+          omit(omit(omit(slide, "segments"), "narration"), "narration_reason"),
+          [
+            "slide_id",
+            "html_sha256",
+            "asset_sha256",
+            "duration_ms",
+            "html_url",
+            "assets",
+            "checkpoints",
+            "narration_status",
+            "narration_text",
+          ],
+        ) ||
+        keys(
+          omit(omit(omit(slide, "segments"), "narration"), "narration_reason"),
+          [
+            "slide_id",
+            "duration_ms",
+            "html_url",
+            "assets",
+            "checkpoints",
+            "narration_status",
+            "narration_text",
+          ],
+        )
       ) ||
       typeof slide.slide_id !== "string" ||
       (slide.html_sha256 !== undefined &&
@@ -192,9 +229,13 @@ export function isManifest(value: unknown): value is Manifest {
       !validSegments(slide.segments, Number(slide.duration_ms), value.cast) ||
       slide.html_url !==
         `/v1/lessons/${value.lesson_id}/slides/${slide.slide_id}` ||
-      !["disabled", "pending", "failed"].includes(
+      !["disabled", "pending", "ready", "failed"].includes(
         String(slide.narration_status),
       ) ||
+      (slide.narration_reason !== undefined &&
+        (typeof slide.narration_reason !== "string" ||
+          !/^[a-z_]{1,64}$/.test(slide.narration_reason))) ||
+      !validNarration(String(value.lesson_id), slide) ||
       typeof slide.narration_text !== "string" ||
       slide.narration_text.length > 20000 ||
       (slide.explanation !== undefined &&

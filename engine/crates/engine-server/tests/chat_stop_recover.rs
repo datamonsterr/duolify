@@ -61,6 +61,7 @@ async fn serve(
     let addr = listener.local_addr().unwrap();
     let service = EngineServiceServer::new(Service {
         router: Arc::new(ProviderRouter::new(Arc::new(primary), Arc::new(fallback)).unwrap()),
+        speech: Arc::new(engine_core::narration::MockSpeechProvider),
     });
     tokio::spawn(async move {
         Server::builder()

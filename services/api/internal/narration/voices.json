@@ -1,0 +1,8 @@
+{
+  "version": "2026-11-13.1",
+  "voices": [
+    { "key": "default", "label": "Default voice", "curated": false, "fixture": false },
+    { "key": "fixture-warm", "label": "Warm (test voice)", "curated": true, "fixture": true },
+    { "key": "fixture-calm", "label": "Calm (test voice)", "curated": true, "fixture": true }
+  ]
+}

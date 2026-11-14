@@ -24,6 +24,7 @@ One term, one meaning. Use these words in code, specs and UI copy.
 | **Daily free credits** | Credits granted every day to every learner, sized to cover 3 quick notes and 5 to 8 tutor chat messages. They expire at the end of the day and are spent before purchased credits. |
 | **Subscription** | Paid monthly or yearly plan that grants a monthly credit allowance and extra benefits (see the monetization epic). |
 | **Narration** | Spoken audio for a slide, generated from the slide's narration text with the ElevenLabs API and played in sync with the slide. |
+| **Curated voice** | A narration voice from the approved no-surcharge set (the default voice plus test fixtures for now). Plus and Pro entitle choosing a non-default one; synthesis still consumes the disclosed narration credits. Changing voice is a new optional synthesis that needs the Learner's explicit consent to a quote; the old voice stays and replays free. |
 | **Tutor chat** | Chatbot with context of the whole course, the current lesson, the learner profile and history. |
 | **Character** | An original mascot-style lesson persona with a name, bio, backstory, speaking style, appearance and an allowlisted voice. Learners can create and customize their own. |
 | **Character spec** | Versioned, schema-validated structured JSON (`CharacterSpec`) describing a Character's appearance, personality, info and voice key. Learner content is treated as data, never system instructions. |

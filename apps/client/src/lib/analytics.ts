@@ -785,6 +785,111 @@ export function trackPlayer(
   }
 }
 
+// E14-01 catalogue: narrate-one-slide-mock-speech/specs/analytics/spec.md. Ids and a
+// duration only; narration text, audio and URLs never leave the device.
+export function trackNarrationPlayed(value: {
+  lesson_id: string;
+  slide_id: string;
+  duration_ms: number;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  const id = /^[A-Za-z0-9_-]{1,100}$/;
+  if (!id.test(value.lesson_id) || !id.test(value.slide_id)) return;
+  const properties: Record<string, string | number> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? "0.1.0",
+    source: "client",
+    lesson_id: value.lesson_id,
+    slide_id: value.slide_id,
+  };
+  if (Number.isSafeInteger(value.duration_ms) && value.duration_ms > 0)
+    properties.duration_ms = value.duration_ms;
+  try {
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture("narration_played", properties);
+  } catch {
+    /* Playback never depends on analytics. */
+  }
+}
+
+// E14-03 catalogue: synchronize-audio-captions-and-offline-playback/specs/analytics/spec.md
+export function trackNarrationMuted(value: {
+  lesson_id: string;
+  slide_id: string;
+  muted: boolean;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  const id = /^[A-Za-z0-9_-]{1,100}$/;
+  if (!id.test(value.lesson_id) || !id.test(value.slide_id)) return;
+  const properties: Record<string, string | boolean> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? "0.1.0",
+    source: "client",
+    lesson_id: value.lesson_id,
+    slide_id: value.slide_id,
+    muted: Boolean(value.muted),
+  };
+  try {
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture("narration_muted", properties);
+  } catch {
+    /* Playback never depends on analytics. */
+  }
+}
+
+export function trackNarrationSpeedChanged(value: {
+  lesson_id: string;
+  slide_id: string;
+  speed: number;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  const id = /^[A-Za-z0-9_-]{1,100}$/;
+  if (!id.test(value.lesson_id) || !id.test(value.slide_id)) return;
+  if (![0.75, 1, 1.25, 1.5, 2].includes(value.speed)) return;
+  const properties: Record<string, string | number> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? "0.1.0",
+    source: "client",
+    lesson_id: value.lesson_id,
+    slide_id: value.slide_id,
+    speed: value.speed,
+  };
+  try {
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture("narration_speed_changed", properties);
+  } catch {
+    /* Playback never depends on analytics. */
+  }
+}
+
+export function trackCaptionsToggled(value: {
+  lesson_id: string;
+  slide_id: string;
+  captions: boolean;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  const id = /^[A-Za-z0-9_-]{1,100}$/;
+  if (!id.test(value.lesson_id) || !id.test(value.slide_id)) return;
+  const properties: Record<string, string | boolean> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? "0.1.0",
+    source: "client",
+    lesson_id: value.lesson_id,
+    slide_id: value.slide_id,
+    captions: Boolean(value.captions),
+  };
+  try {
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture("captions_toggled", properties);
+  } catch {
+    /* Playback never depends on analytics. */
+  }
+}
+
 // Registered by the E3-03 cache recovery and E3-05 static recovery catalogue before emitters.
 export function trackPlayerRecovery(
   action: "retry" | "exit",

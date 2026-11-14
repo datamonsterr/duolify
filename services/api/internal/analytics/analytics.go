@@ -101,7 +101,8 @@ func allowlisted(event string) bool {
 		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
 		"marketplace_browsed", "marketplace_searched", "course_viewed",
 		"course_invite_sent", "course_invite_accepted", "course_invite_declined",
-		"course_republished", "course_update_applied":
+		"course_republished", "course_update_applied",
+		"narration_generated", "narration_failed", "narration_cache_hit", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled":
 		return true
 	default:
 		return false
@@ -466,6 +467,25 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("scope", "status", "pricing_version")
 		numeric("actual_usd", "budget_usd", "threshold", "actual_percent", "cost_nanos", "budget_nanos", "cache_hit_rate", "paid_margin")
 		boolean("ok")
+	case "narration_generated":
+		ids("lesson_id", "slide_id", "voice_id", "model")
+		numeric("characters", "latency_ms")
+	case "narration_cache_hit":
+		ids("lesson_id", "slide_id", "model")
+	case "narration_failed":
+		ids("lesson_id", "slide_id", "error_code")
+	case "narration_played":
+		ids("lesson_id", "slide_id")
+		numeric("duration_ms")
+	case "narration_muted":
+		ids("lesson_id", "slide_id")
+		boolean("muted")
+	case "narration_speed_changed":
+		ids("lesson_id", "slide_id")
+		numeric("speed")
+	case "captions_toggled":
+		ids("lesson_id", "slide_id")
+		boolean("captions")
 	case "$ai_generation":
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
 		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available", "usage_estimated")
