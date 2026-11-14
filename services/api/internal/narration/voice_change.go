@@ -104,7 +104,7 @@ type slideText struct{ id, text string }
 // lessonTexts lists each slide's narration text once, whichever voice stored it.
 func (s *Service) lessonTexts(ctx context.Context, owner, lessonID string) ([]slideText, error) {
 	rows, err := s.opts.Pool.Query(ctx, `SELECT DISTINCT ON (slide_id) slide_id, narration_text FROM slide_narrations
-		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND narration_text<>'' ORDER BY slide_id, updated_at DESC`, lessonID, owner)
+		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND narration_text<>'' AND speaker_key='' ORDER BY slide_id, updated_at DESC`, lessonID, owner)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (s *Service) ApplyVoice(ctx context.Context, owner, lessonID, voice, quoteI
 		return "", err
 	}
 	var pending int
-	if err = tx.QueryRow(ctx, `SELECT count(*) FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND voice_key=$3 AND status='pending'`, lessonID, owner, voice).Scan(&pending); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND voice_key=$3 AND speaker_key='' AND status='pending'`, lessonID, owner, voice).Scan(&pending); err != nil {
 		return "", err
 	}
 	if pending > 0 {
@@ -284,7 +284,7 @@ type VoiceChange struct {
 // VoiceState reports the selected voice's rows for a Lesson, worst state first.
 func (s *Service) VoiceState(ctx context.Context, owner, lessonID, voice string) (VoiceChange, error) {
 	out := VoiceChange{VoiceKey: voice, State: "none"}
-	rows, err := s.opts.Pool.Query(ctx, `SELECT status, failure_code FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND voice_key=$3`, lessonID, owner, voice)
+	rows, err := s.opts.Pool.Query(ctx, `SELECT status, failure_code FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND voice_key=$3 AND speaker_key=''`, lessonID, owner, voice)
 	if err != nil {
 		return out, err
 	}

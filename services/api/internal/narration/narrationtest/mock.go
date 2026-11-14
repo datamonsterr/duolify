@@ -33,11 +33,20 @@ var voiceIDs = map[string]string{
 	"default":      "mock-default-voice",
 	"fixture-warm": "mock-fixture-warm-voice",
 	"fixture-calm": "mock-fixture-calm-voice",
+	// Character speaker voices (E17-08). Fingerprints follow the Engine config speeds.
+	"voice-provisional-guide":     "mock-character-guide-voice",
+	"voice-provisional-supporter": "mock-character-supporter-voice",
+	"voice-provisional-companion": "mock-character-companion-voice",
 }
 
-func fingerprint(voiceID string) string {
+// characterSpeed mirrors the Engine config's speaking rate per Character voice.
+var characterSpeed = map[string]float64{"voice-provisional-guide": 1.0, "voice-provisional-supporter": 1.05, "voice-provisional-companion": 0.95}
+
+const configVersion = "2026-11-13.1"
+
+func fingerprint(voiceID string, speed float64) string {
 	h := uint64(0xcbf29ce484222325)
-	for _, b := range []byte(fmt.Sprintf("v1|%s|%.3f|%.3f|%.3f", voiceID, 0.5, 0.75, 1.0)) {
+	for _, b := range []byte(fmt.Sprintf("v1|%s|%.3f|%.3f|%.3f", voiceID, 0.5, 0.75, speed)) {
 		h = (h ^ uint64(b)) * 0x100000001b3
 	}
 	return fmt.Sprintf("fp1-%016x", h)
@@ -45,7 +54,29 @@ func fingerprint(voiceID string) string {
 
 // Synthesize mirrors engine_core::narration::MockSpeechProvider and the RPC response.
 func Synthesize(req *enginev1.SynthesizeNarrationRequest) (*enginev1.SynthesizeNarrationResponse, error) {
-	voiceID, ok := voiceIDs[req.GetVoiceKey()]
+	return synthesize(req, nil)
+}
+
+func synthesize(req *enginev1.SynthesizeNarrationRequest, retired map[string]bool) (*enginev1.SynthesizeNarrationResponse, error) {
+	key, fallback, version, speed := req.GetVoiceKey(), "", configVersion, 1.0
+	if req.GetSpeakerKey() != "" {
+		// A pinned-speaker segment resolves only through the approved config; retired or unknown
+		// keys use the default voice and say why.
+		_, ok := characterSpeed[key]
+		switch {
+		case key == "default":
+		case ok && retired[key]:
+			key, fallback = "default", "voice_retired"
+		case !ok:
+			key, fallback = "default", "voice_unavailable"
+		default:
+			speed = characterSpeed[key]
+		}
+		if len(retired) > 0 {
+			version = configVersion + "+retired"
+		}
+	}
+	voiceID, ok := voiceIDs[key]
 	if !ok {
 		return nil, status.Error(codes.FailedPrecondition, "voice unavailable")
 	}
@@ -53,7 +84,8 @@ func Synthesize(req *enginev1.SynthesizeNarrationRequest) (*enginev1.SynthesizeN
 	if model != "" && model != modelID {
 		return nil, status.Error(codes.FailedPrecondition, "quote route differs from evaluated route")
 	}
-	out := &enginev1.SynthesizeNarrationResponse{VoiceId: voiceID, ModelId: modelID, SettingsFingerprint: fingerprint(voiceID)}
+	out := &enginev1.SynthesizeNarrationResponse{VoiceId: voiceID, ModelId: modelID, SettingsFingerprint: fingerprint(voiceID, speed),
+		VoiceKey: key, VoiceConfigVersion: version, VoiceFallbackReason: fallback, SegmentId: req.GetSegmentId(), SpeakerKey: req.GetSpeakerKey()}
 	if req.GetResolveOnly() {
 		return out, nil
 	}
@@ -104,6 +136,33 @@ type Engine struct {
 	faults    map[string]string
 	synthCall int
 	texts     []string
+	retired   map[string]bool
+	voices    []string
+	timeouts  []uint32
+}
+
+// RetireVoices marks Character voice keys retired in the twin's approved config.
+func (e *Engine) RetireVoices(keys ...string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.retired = map[string]bool{}
+	for _, k := range keys {
+		e.retired[k] = true
+	}
+}
+
+// VoicesUsed lists the logical voice keys of non-resolve synthesis requests, in call order.
+func (e *Engine) VoicesUsed() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]string(nil), e.voices...)
+}
+
+// SegmentTimeouts lists the call timeouts (ms) of segment synthesis requests, in call order.
+func (e *Engine) SegmentTimeouts() []uint32 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]uint32(nil), e.timeouts...)
 }
 
 // SetFaults replaces the fault table.
@@ -130,9 +189,14 @@ func (e *Engine) Calls() int { e.mu.Lock(); defer e.mu.Unlock(); return e.synthC
 func (e *Engine) SynthesizeNarration(_ context.Context, req *enginev1.SynthesizeNarrationRequest) (*enginev1.SynthesizeNarrationResponse, error) {
 	e.mu.Lock()
 	fault := e.faults[req.GetText()]
+	retired := e.retired
 	if !req.GetResolveOnly() {
 		e.synthCall++
 		e.texts = append(e.texts, req.GetText())
+		e.voices = append(e.voices, req.GetVoiceKey())
+		if req.GetSpeakerKey() != "" {
+			e.timeouts = append(e.timeouts, req.GetLimits().GetTimeoutMs())
+		}
 	}
 	e.mu.Unlock()
 	if (fault == "engine" || fault == "vendor_outage") && !req.GetResolveOnly() {
@@ -141,7 +205,7 @@ func (e *Engine) SynthesizeNarration(_ context.Context, req *enginev1.Synthesize
 	if fault == "ratelimit" && !req.GetResolveOnly() {
 		return nil, status.Error(codes.ResourceExhausted, "speech provider rate limited")
 	}
-	out, err := Synthesize(req)
+	out, err := synthesize(req, retired)
 	if err == nil && fault == "alignment" && len(out.GetAlignment().GetCharacters()) > 1 {
 		a := out.Alignment
 		a.Characters, a.StartMs, a.EndMs = a.Characters[1:], a.StartMs[1:], a.EndMs[1:]

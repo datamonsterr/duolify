@@ -39,6 +39,7 @@ fn request(text: &str, resolve_only: bool) -> pb::SynthesizeNarrationRequest {
             ..Default::default()
         }),
         resolve_only,
+        ..Default::default()
     }
 }
 
@@ -181,4 +182,59 @@ async fn vendor_failures_stay_inside_one_retry_and_map_to_fixed_statuses() {
         assert!(!err.message().contains("sky"));
         assert_eq!(down.0.load(std::sync::atomic::Ordering::SeqCst), 2);
     }
+}
+
+fn segment(text: &str, voice: &str, resolve_only: bool) -> pb::SynthesizeNarrationRequest {
+    pb::SynthesizeNarrationRequest {
+        segment_id: "sky-1__s0".into(),
+        speaker_key: "guide".into(),
+        voice_key: voice.into(),
+        ..request(text, resolve_only)
+    }
+}
+
+#[tokio::test]
+async fn character_segments_use_allowlisted_voices_and_fall_back_without_provider_ids() {
+    let mut c = client().await;
+    let guide = c
+        .synthesize_narration(segment("x", "voice-provisional-guide", true))
+        .await
+        .unwrap()
+        .into_inner();
+    let supporter = c
+        .synthesize_narration(segment("x", "voice-provisional-supporter", true))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(guide.voice_id, "mock-character-guide-voice");
+    assert_eq!(guide.voice_key, "voice-provisional-guide");
+    assert_eq!(
+        (guide.segment_id.as_str(), guide.speaker_key.as_str()),
+        ("sky-1__s0", "guide")
+    );
+    assert_ne!(guide.settings_fingerprint, supporter.settings_fingerprint);
+    assert_eq!(guide.voice_fallback_reason, "");
+    for raw in ["mock-character-guide-voice", "clone-me"] {
+        let r = c
+            .synthesize_narration(segment("x", raw, true))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(r.voice_key, "default");
+        assert_eq!(r.voice_id, "mock-default-voice");
+        assert_eq!(r.voice_fallback_reason, "voice_unavailable");
+        assert!(!r.voice_config_version.is_empty());
+    }
+    let text = "Look closely.";
+    let r = c
+        .synthesize_narration(segment(text, "voice-provisional-guide", false))
+        .await
+        .unwrap()
+        .into_inner();
+    let u = r.usage.unwrap();
+    assert_eq!(
+        (u.component.as_str(), u.narration_characters),
+        ("audio", text.chars().count() as u32)
+    );
+    assert_eq!(r.alignment.unwrap().characters.len(), text.chars().count());
 }

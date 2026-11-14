@@ -31,7 +31,12 @@ type SynthesizeNarrationRequest struct {
 	VoiceKey string       `protobuf:"bytes,4,opt,name=voice_key,json=voiceKey,proto3" json:"voice_key,omitempty"`
 	Limits   *UsageLimits `protobuf:"bytes,5,opt,name=limits,proto3" json:"limits,omitempty"`
 	// Return only the resolved voice/model/settings so the API can look up the dedup key first.
-	ResolveOnly   bool `protobuf:"varint,6,opt,name=resolve_only,json=resolveOnly,proto3" json:"resolve_only,omitempty"`
+	ResolveOnly bool `protobuf:"varint,6,opt,name=resolve_only,json=resolveOnly,proto3" json:"resolve_only,omitempty"`
+	// E17-08 additive: one pinned-Cast dialogue segment. `segment_id` is stable per Slide and order,
+	// `speaker_key` names the pinned speaker and `voice_key` is the Character's logical voice key,
+	// resolved only through the approved voice config (never a provider id). Empty for slide narration.
+	SegmentId     string `protobuf:"bytes,7,opt,name=segment_id,json=segmentId,proto3" json:"segment_id,omitempty"`
+	SpeakerKey    string `protobuf:"bytes,8,opt,name=speaker_key,json=speakerKey,proto3" json:"speaker_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -108,6 +113,20 @@ func (x *SynthesizeNarrationRequest) GetResolveOnly() bool {
 	return false
 }
 
+func (x *SynthesizeNarrationRequest) GetSegmentId() string {
+	if x != nil {
+		return x.SegmentId
+	}
+	return ""
+}
+
+func (x *SynthesizeNarrationRequest) GetSpeakerKey() string {
+	if x != nil {
+		return x.SpeakerKey
+	}
+	return ""
+}
+
 // Alignment lists one entry per Unicode scalar value of the text, in order.
 type NarrationAlignment struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -182,9 +201,16 @@ type SynthesizeNarrationResponse struct {
 	Characters          uint32 `protobuf:"varint,8,opt,name=characters,proto3" json:"characters,omitempty"`
 	AudioBytes          uint32 `protobuf:"varint,9,opt,name=audio_bytes,json=audioBytes,proto3" json:"audio_bytes,omitempty"`
 	// Actual usage (component `audio`, narration_characters) for settlement.
-	Usage         *Usage `protobuf:"bytes,10,opt,name=usage,proto3" json:"usage,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Usage *Usage `protobuf:"bytes,10,opt,name=usage,proto3" json:"usage,omitempty"`
+	// E17-08 additive: the logical voice actually used, the approved voice config version that
+	// resolved it, and a fixed reason code when a Character voice fell back to the safe default.
+	VoiceKey            string `protobuf:"bytes,11,opt,name=voice_key,json=voiceKey,proto3" json:"voice_key,omitempty"`
+	VoiceConfigVersion  string `protobuf:"bytes,12,opt,name=voice_config_version,json=voiceConfigVersion,proto3" json:"voice_config_version,omitempty"`
+	VoiceFallbackReason string `protobuf:"bytes,13,opt,name=voice_fallback_reason,json=voiceFallbackReason,proto3" json:"voice_fallback_reason,omitempty"`
+	SegmentId           string `protobuf:"bytes,14,opt,name=segment_id,json=segmentId,proto3" json:"segment_id,omitempty"`
+	SpeakerKey          string `protobuf:"bytes,15,opt,name=speaker_key,json=speakerKey,proto3" json:"speaker_key,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *SynthesizeNarrationResponse) Reset() {
@@ -285,6 +311,41 @@ func (x *SynthesizeNarrationResponse) GetUsage() *Usage {
 		return x.Usage
 	}
 	return nil
+}
+
+func (x *SynthesizeNarrationResponse) GetVoiceKey() string {
+	if x != nil {
+		return x.VoiceKey
+	}
+	return ""
+}
+
+func (x *SynthesizeNarrationResponse) GetVoiceConfigVersion() string {
+	if x != nil {
+		return x.VoiceConfigVersion
+	}
+	return ""
+}
+
+func (x *SynthesizeNarrationResponse) GetVoiceFallbackReason() string {
+	if x != nil {
+		return x.VoiceFallbackReason
+	}
+	return ""
+}
+
+func (x *SynthesizeNarrationResponse) GetSegmentId() string {
+	if x != nil {
+		return x.SegmentId
+	}
+	return ""
+}
+
+func (x *SynthesizeNarrationResponse) GetSpeakerKey() string {
+	if x != nil {
+		return x.SpeakerKey
+	}
+	return ""
 }
 
 type MapCharacterRequest struct {
@@ -4016,20 +4077,24 @@ var File_duolify_engine_v1_engine_proto protoreflect.FileDescriptor
 
 const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\n" +
-	"\x1eduolify/engine/v1/engine.proto\x12\x11duolify.engine.v1\"\xdf\x01\n" +
+	"\x1eduolify/engine/v1/engine.proto\x12\x11duolify.engine.v1\"\x9f\x02\n" +
 	"\x1aSynthesizeNarrationRequest\x12\x19\n" +
 	"\bslide_id\x18\x01 \x01(\tR\aslideId\x12\x12\n" +
 	"\x04text\x18\x02 \x01(\tR\x04text\x12\x1a\n" +
 	"\blanguage\x18\x03 \x01(\tR\blanguage\x12\x1b\n" +
 	"\tvoice_key\x18\x04 \x01(\tR\bvoiceKey\x126\n" +
 	"\x06limits\x18\x05 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\x12!\n" +
-	"\fresolve_only\x18\x06 \x01(\bR\vresolveOnly\"f\n" +
+	"\fresolve_only\x18\x06 \x01(\bR\vresolveOnly\x12\x1d\n" +
+	"\n" +
+	"segment_id\x18\a \x01(\tR\tsegmentId\x12\x1f\n" +
+	"\vspeaker_key\x18\b \x01(\tR\n" +
+	"speakerKey\"f\n" +
 	"\x12NarrationAlignment\x12\x1e\n" +
 	"\n" +
 	"characters\x18\x01 \x03(\tR\n" +
 	"characters\x12\x19\n" +
 	"\bstart_ms\x18\x02 \x03(\rR\astartMs\x12\x15\n" +
-	"\x06end_ms\x18\x03 \x03(\rR\x05endMs\"\x96\x03\n" +
+	"\x06end_ms\x18\x03 \x03(\rR\x05endMs\"\xd9\x04\n" +
 	"\x1bSynthesizeNarrationResponse\x12\x14\n" +
 	"\x05audio\x18\x01 \x01(\fR\x05audio\x12!\n" +
 	"\faudio_format\x18\x02 \x01(\tR\vaudioFormat\x12\x1f\n" +
@@ -4045,7 +4110,14 @@ const file_duolify_engine_v1_engine_proto_rawDesc = "" +
 	"\vaudio_bytes\x18\t \x01(\rR\n" +
 	"audioBytes\x12.\n" +
 	"\x05usage\x18\n" +
-	" \x01(\v2\x18.duolify.engine.v1.UsageR\x05usage\"e\n" +
+	" \x01(\v2\x18.duolify.engine.v1.UsageR\x05usage\x12\x1b\n" +
+	"\tvoice_key\x18\v \x01(\tR\bvoiceKey\x120\n" +
+	"\x14voice_config_version\x18\f \x01(\tR\x12voiceConfigVersion\x122\n" +
+	"\x15voice_fallback_reason\x18\r \x01(\tR\x13voiceFallbackReason\x12\x1d\n" +
+	"\n" +
+	"segment_id\x18\x0e \x01(\tR\tsegmentId\x12\x1f\n" +
+	"\vspeaker_key\x18\x0f \x01(\tR\n" +
+	"speakerKey\"e\n" +
 	"\x13MapCharacterRequest\x12\x16\n" +
 	"\x06prompt\x18\x01 \x01(\tR\x06prompt\x126\n" +
 	"\x06limits\x18\x02 \x01(\v2\x1e.duolify.engine.v1.UsageLimitsR\x06limits\"i\n" +

@@ -1,0 +1,109 @@
+{
+  "description": "Recorded mock cases for character_persona_lesson narration (E17-08): approved Character voices, multilingual multi-speaker alignment, rate bounds, cache keys, retired-voice fallback and the captions-only failure path. Replayed by engine-eval and the engine-core character tests; live voices stay disabled (ADR 0012 E14-05, E10-06).",
+  "model_id": "eleven_flash_v2_5",
+  "voice_config": {
+    "version": "2026-11-13.1",
+    "voices": [
+      {
+        "key": "default",
+        "voice_id": "mock-default-voice",
+        "model_id": "eleven_flash_v2_5",
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "speed": 1.0
+      },
+      {
+        "key": "voice-provisional-guide",
+        "voice_id": "mock-character-guide-voice",
+        "model_id": "eleven_flash_v2_5",
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "speed": 1.0
+      },
+      {
+        "key": "voice-provisional-supporter",
+        "voice_id": "mock-character-supporter-voice",
+        "model_id": "eleven_flash_v2_5",
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "speed": 1.05
+      },
+      {
+        "key": "voice-old",
+        "voice_id": "mock-old-voice",
+        "model_id": "eleven_flash_v2_5",
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "speed": 1.0,
+        "retired": true
+      }
+    ]
+  },
+  "cases": {
+    "multilingual-multi-speaker": {
+      "row": "e17-08-narration-multilingual-multi-speaker",
+      "expect": {
+        "speakers_valid": true,
+        "voices_valid": true,
+        "rate_in_bounds": true,
+        "order_valid": true,
+        "alignment_covers": true,
+        "audio_delivered": true,
+        "unique_cache_keys": 3,
+        "charged_characters": 39
+      }
+    },
+    "speaking-rate-bounds": {
+      "row": "e17-08-narration-speaking-rate-bounds",
+      "expect": {
+        "rate_in_bounds": true,
+        "voices_valid": true,
+        "unique_cache_keys": 2
+      }
+    },
+    "alignment-coverage-order": {
+      "row": "e17-08-narration-alignment-coverage-order",
+      "expect": {
+        "order_valid": false,
+        "alignment_covers": true
+      }
+    },
+    "alignment-gap-rejected": {
+      "row": "e17-08-narration-alignment-gap-rejected",
+      "expect": {
+        "alignment_covers": false,
+        "output_rejected": true,
+        "audio_delivered": false,
+        "charged_characters": 0,
+        "captions_kept": true
+      }
+    },
+    "cache-same-text-voices": {
+      "row": "e17-08-narration-cache-same-text-voices",
+      "expect": {
+        "requests": 3,
+        "unique_cache_keys": 2
+      }
+    },
+    "retired-voice-fallback": {
+      "row": "e17-08-narration-retired-voice-fallback",
+      "expect": {
+        "fallback_reasons": [
+          "voice_retired",
+          "voice_unavailable"
+        ],
+        "voices_valid": true,
+        "unique_cache_keys": 1
+      }
+    },
+    "captions-only-failure": {
+      "row": "e17-08-narration-captions-only-failure",
+      "expect": {
+        "audio_delivered": false,
+        "captions_kept": true,
+        "charged_characters": 0,
+        "character_create_charges": 0
+      }
+    }
+  }
+}

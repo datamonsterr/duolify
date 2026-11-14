@@ -1,4 +1,5 @@
 import { session } from "../accounts/session";
+import { playableSegments } from "../characters/narration";
 import type { ManifestSlide } from "../player/manifest";
 
 export const NARRATION_CACHE_NAME = "duolify-narration-v1";
@@ -76,7 +77,16 @@ export async function fetchNarrationAssets(
 export async function preloadNarration(
   slide: ManifestSlide | undefined,
 ): Promise<void> {
-  if (!slide || slide.narration_status !== "ready" || !slide.narration) return;
+  if (!slide) return;
+  // Pinned-speaker segments are cached like slide narration so replay and seek work offline.
+  for (const play of playableSegments(slide)) {
+    try {
+      await fetchNarrationAssets(play.audio_url, play.alignment_url);
+    } catch {
+      // Background preload fails silently
+    }
+  }
+  if (slide.narration_status !== "ready" || !slide.narration) return;
   try {
     await fetchNarrationAssets(
       slide.narration.audio_url,
