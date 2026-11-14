@@ -1,6 +1,7 @@
 package characters_test
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -128,11 +129,11 @@ func TestFallbackEventCarriesNoNamesOrText(t *testing.T) {
 
 func TestNarrationChargesUseOnlyTheNarrationAction(t *testing.T) {
 	// Segments are priced as the existing narration action; no Character creation action is involved.
-	src, err := readSource("../narration/service.go")
+	src, err := os.ReadFile("../narration/service.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(src, "character_create") {
+	if strings.Contains(string(src), "character_create") {
 		t.Fatal("narration must never spend character_create Credits")
 	}
 }
