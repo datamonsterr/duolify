@@ -258,3 +258,24 @@ The catalogue SHALL include API-owned `retry_variant_pool_exhausted` with course
 #### Scenario: Ask about the paused lesson
 - **WHEN** the Learner opens the lesson tutor sheet and sends a question
 - **THEN** `ui_sheet_opened` (`sheet_id=lesson_tutor`) and `tutor_message_sent` (`has_lesson_context=true`) are delivered with common properties and no question text
+
+### Requirement: Screened review outcomes
+The API SHALL catalogue and emit review_submitted (course_id, review_id, rating, version, verdict), review_deleted (course_id, review_id) and $ai_generation with feature screen_review. Identifiers SHALL be UUIDs; ratings SHALL be stars and verdicts closed enums. Events SHALL honor opt-out and SHALL NOT include review text or attribution.
+
+#### Scenario: Review saved
+- **WHEN** a learner submits or edits a review
+- **THEN** the API sends only identifiers, stars, version and screening verdict through the consent gate
+
+### Requirement: Report outcomes
+The API SHALL catalogue and emit course_reported (report_id, course_id when known, reason, target_type) and course_hidden_by_reports (course_id, reporter_count). Identifiers SHALL be UUIDs, reasons and target types closed enums and the count a bounded integer. Events SHALL honor opt-out and SHALL NOT include report text, usernames or any reporter attribution to the owner.
+
+#### Scenario: Third reporter
+- **WHEN** a third distinct learner reports a course
+- **THEN** the API sends course_reported and one course_hidden_by_reports through the consent gate, with no report text
+
+### Requirement: Moderation outcomes
+The API SHALL catalogue and emit moderation_action (course_id when known, action, reason_code, target_type), moderation_appeal (course_id when known, outcome filed, upheld or overturned) and course_visibility_changed with from, to and cause moderation. Identifiers SHALL be UUIDs and the rest closed enums. Events SHALL honor opt-out and SHALL NOT include reason text, appeal text, usernames or moderator identity.
+
+#### Scenario: Takedown
+- **WHEN** a moderator takes a course down
+- **THEN** the API sends moderation_action and course_visibility_changed through the consent gate with no reason text

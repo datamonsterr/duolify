@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -38,6 +40,30 @@ var (
 
 // Config holds every policy-like value; defaults are conservative (ADR 0012, E15-12 open).
 type Config struct {
+	ReviewMinLessons   int
+	ReviewMaxPerDay    int
+	ReviewMaxChars     int
+	ReviewTimeoutMs    uint32
+	ReviewMaxCostNanos int64
+
+	// E15-09 reports. Reasons, severities, caps and the hide threshold are configuration.
+	ReportReasons       []string
+	ReportSeverity      map[string]int
+	ReportMaxPerDay     int
+	ReportMaxChars      int
+	ReportHideThreshold int
+	ReportRetentionDays int
+
+	// E15-10 moderation: first-response target, closed reason codes (severe ones also block existing
+	// copies on a takedown), text bounds, queue severity of held publications and audit retention.
+	ModerationTargetHours    int
+	ModerationReasonCodes    []string
+	ModerationSevereCodes    []string
+	ModerationReasonMaxChars int
+	AppealMaxChars           int
+	ModerationHeldSeverity   map[string]int
+	ModerationRetentionDays  int
+
 	MinPublisherAge int
 	// MaxEnrollmentsPerDay caps new Course copies per account per rolling day (E15-03).
 	MaxEnrollmentsPerDay int
@@ -88,6 +114,7 @@ type Config struct {
 // DefaultConfig is the conservative v1 policy.
 func DefaultConfig() Config {
 	return Config{
+		ReviewMinLessons: 3, ReviewMaxPerDay: 20, ReviewMaxChars: 2000, ReviewTimeoutMs: 10000, ReviewMaxCostNanos: 20_000_000,
 		MinPublisherAge: 18, MaxEnrollmentsPerDay: 30, CopySlideMs: 8000, SampleMaxLessons: 12, SampleMaxBytes: 120000,
 		MaxInputTokens: 60000, MaxOutputTokens: 300, TimeoutMs: 120000, MaxAttempts: 2,
 		MaxCostNanos: 250_000_000, RetentionDays: 365,
@@ -98,6 +125,13 @@ func DefaultConfig() Config {
 		MarketplaceRatingMinCount: 10, MarketplaceRatingPrior: 3.5, MarketplaceCacheTTLSeconds: 60,
 		InviteSendsPerDay: 20, InviteExpiryDays: 30, InvitePurgeDays: 90, PushMaxAttempts: 3,
 		MaxRepublishesPerDay: 3, MaxChangelogLen: 500,
+		ReportReasons:         []string{"unsafe", "inappropriate", "spam", "copyright", "misleading", "other"},
+		ReportSeverity:        map[string]int{"unsafe": 100, "copyright": 80, "inappropriate": 60, "misleading": 40, "spam": 30, "other": 10},
+		ModerationTargetHours: 48, ModerationReasonMaxChars: 1000, AppealMaxChars: 1000, ModerationRetentionDays: 1095,
+		ModerationReasonCodes:  []string{"unsafe", "legal", "inappropriate", "spam", "copyright", "misleading", "other", "no_violation"},
+		ModerationSevereCodes:  []string{"unsafe", "legal"},
+		ModerationHeldSeverity: map[string]int{VerdictReview: 90, VerdictPending: 50},
+		ReportMaxPerDay:        10, ReportMaxChars: 500, ReportHideThreshold: 3, ReportRetentionDays: 1095,
 	}
 }
 
@@ -143,6 +177,44 @@ func ConfigFromEnv(getenv func(string) string) Config {
 		if n, err := strconv.Atoi(getenv(key)); err == nil && n >= lo && n <= hi {
 			*dst = n
 		}
+	}
+	positive("SHARING_REVIEW_MIN_LESSONS", &c.ReviewMinLessons, 1, 1000)
+	positive("SHARING_REVIEWS_PER_DAY", &c.ReviewMaxPerDay, 1, 1000)
+	positive("SHARING_REVIEW_MAX_CHARS", &c.ReviewMaxChars, 1, 2000)
+	if n, err := strconv.ParseInt(getenv("SHARING_REVIEW_MAX_COST_NANOS"), 10, 64); err == nil && n > 0 && n <= c.ReviewMaxCostNanos {
+		c.ReviewMaxCostNanos = n
+	}
+	positive("SHARING_REPORTS_PER_DAY", &c.ReportMaxPerDay, 1, 1000)
+	positive("SHARING_REPORT_MAX_CHARS", &c.ReportMaxChars, 1, 500)
+	positive("SHARING_REPORT_HIDE_THRESHOLD", &c.ReportHideThreshold, 1, 100)
+	positive("SHARING_REPORT_RETENTION_DAYS", &c.ReportRetentionDays, 365, 3650)
+	// Reasons are a configured subset of the known severities, in the configured order.
+	if raw := getenv("SHARING_REPORT_REASONS"); raw != "" {
+		var reasons []string
+		seen := map[string]bool{}
+		for _, r := range strings.Split(raw, ",") {
+			if r = strings.TrimSpace(r); !seen[r] && c.ReportSeverity[r] > 0 {
+				seen[r] = true
+				reasons = append(reasons, r)
+			}
+		}
+		if len(reasons) > 0 {
+			c.ReportReasons = reasons
+		}
+	}
+	positive("SHARING_MODERATION_TARGET_HOURS", &c.ModerationTargetHours, 1, 720)
+	positive("SHARING_MODERATION_REASON_MAX_CHARS", &c.ModerationReasonMaxChars, 1, 1000)
+	positive("SHARING_APPEAL_MAX_CHARS", &c.AppealMaxChars, 1, 1000)
+	positive("SHARING_MODERATION_RETENTION_DAYS", &c.ModerationRetentionDays, 365, 3650)
+	// Severe codes are a configured subset of the closed reason codes.
+	if raw := getenv("SHARING_MODERATION_SEVERE_CODES"); raw != "" {
+		var severe []string
+		for _, code := range strings.Split(raw, ",") {
+			if code = strings.TrimSpace(code); slices.Contains(c.ModerationReasonCodes, code) && !slices.Contains(severe, code) {
+				severe = append(severe, code)
+			}
+		}
+		c.ModerationSevereCodes = severe
 	}
 	positive("MARKETPLACE_MIN_ACCOUNT_AGE_DAYS", &c.MarketplaceMinAccountAgeDays, 0, 3650)
 	positive("MARKETPLACE_MIN_LESSONS", &c.MarketplaceMinLessons, 1, 1000)

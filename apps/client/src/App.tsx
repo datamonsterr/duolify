@@ -40,6 +40,9 @@ import { BookmarksPage } from "./features/notes/BookmarksPage";
 import { PublicPreviewPage } from "./features/sharing/PublicPreviewPage";
 import { MarketplacePage } from "./features/sharing/MarketplacePage";
 import { MarketCoursePage } from "./features/sharing/MarketCoursePage";
+import { ModeratorQueue } from "./features/sharing/ModeratorQueue";
+import { ModerationNotices } from "./features/sharing/ModerationNotices";
+import { BlockedCopy } from "./features/sharing/BlockedCopy";
 import { AppShell, MorePage } from "./features/shell/AppShell";
 import { getDownloadedCourses } from "./features/player/library";
 import {
@@ -152,6 +155,25 @@ const marketplaceCourse = createRoute({
   getParentRoute: () => root,
   path: "/marketplace/$courseId",
   component: MarketCourseRoute,
+});
+const moderation = createRoute({
+  getParentRoute: () => root,
+  path: "/moderation",
+  component: ModeratorQueue,
+});
+const moderationNotices = createRoute({
+  getParentRoute: () => root,
+  path: "/moderation/notices",
+  component: ModerationNotices,
+});
+function BlockedCopyRoute() {
+  const { courseId } = useParams({ from: "/moderation/blocked/$courseId" });
+  return <BlockedCopy courseId={courseId} />;
+}
+const moderationBlocked = createRoute({
+  getParentRoute: () => root,
+  path: "/moderation/blocked/$courseId",
+  component: BlockedCopyRoute,
 });
 const createCourse = createRoute({
   getParentRoute: () => root,
@@ -337,6 +359,9 @@ export const createAppRouter = (history?: RouterHistory) =>
       createCourse,
       marketplace,
       marketplaceCourse,
+      moderation,
+      moderationNotices,
+      moderationBlocked,
       course,
       lesson,
       profile,

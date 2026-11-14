@@ -12,6 +12,8 @@ service EngineService {
   rpc MapCharacter(MapCharacterRequest) returns (MapCharacterResponse);
   // ScreenCourse classifies a bounded, allowlisted publication sample (<=12 lessons). Platform-funded; never bills Credits.
   rpc ScreenCourse(ScreenCourseRequest) returns (ScreenCourseResponse);
+  // ScreenReview classifies optional review text within a ten-second platform budget.
+  rpc ScreenReview(ScreenReviewRequest) returns (ScreenReviewResponse);
   // Health reports readiness and configured providers.
   rpc Health(HealthRequest) returns (HealthResponse);
   // PreviewCourse returns a sample outline and example slides before the learner commits.
@@ -119,6 +121,21 @@ message ScreenCourseResponse {
   string verdict = 1;
   // Closed codes: personal_data, secret, real_person, third_party_ip, sexual_content,
   // age_inappropriate, prompt_injection, hidden_payload, harmful_content.
+  repeated string reason_codes = 2;
+  string policy_version = 3;
+  repeated Usage attempts = 4;
+}
+
+message ScreenReviewRequest {
+  // Untrusted learner text, at most 2000 Unicode characters.
+  string text = 1;
+  UsageLimits limits = 2;
+}
+
+message ScreenReviewResponse {
+  // pass | needs_review | block | pending_screening. Only pass exposes text.
+  string verdict = 1;
+  // Same closed reason-code vocabulary as ScreenCourse.
   repeated string reason_codes = 2;
   string policy_version = 3;
   repeated Usage attempts = 4;

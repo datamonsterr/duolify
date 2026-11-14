@@ -18,6 +18,7 @@ import {
 } from "./features/player/library";
 import { availableOffline } from "./features/player/cache";
 import { TutorChat } from "./features/chat/TutorChat";
+import { BlockedCourseNotice } from "./features/sharing/BlockedCopy";
 
 export function LearnPath({ courseId }: { courseId: string }) {
   const returnTo = useLocation({ select: (location) => location.pathname });
@@ -188,6 +189,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
   if (!course || course.availability === "unavailable") {
     return <RouteUnavailable />;
   }
+  if (course.moderation_blocked) return <BlockedCourseNotice />;
   const directPrepare = tracerEnabled && !course.pinned_version;
 
   return (

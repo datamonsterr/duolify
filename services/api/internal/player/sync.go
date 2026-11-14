@@ -145,7 +145,7 @@ func (s *Service) sync(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	err = s.opts.Pool.QueryRow(ctx, `SELECT c.id::text FROM lesson_manifests m
  JOIN course_lesson_stubs l ON l.id=m.lesson_id JOIN course_units u ON u.id=l.unit_id
  JOIN courses c ON c.id=u.course_id JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=m.learner_id
- WHERE m.learner_id::text=$1 AND m.lesson_id::text=$2 AND m.version=$3 AND c.deleted_at IS NULL`, owner, lesson, m.Version).Scan(&courseID)
+ WHERE m.learner_id::text=$1 AND m.lesson_id::text=$2 AND m.version=$3 AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL)`, owner, lesson, m.Version).Scan(&courseID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		failure(w, http.StatusNotFound)
 		return

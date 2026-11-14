@@ -514,7 +514,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			public = true
 		}
 		// Marketplace browse and Course page: anonymous-safe, rate limited and flag-gated in the handler.
-		if r.Method == http.MethodGet && (r.URL.Path == "/v1/marketplace/courses" || (strings.HasPrefix(r.URL.Path, "/v1/marketplace/courses/") && strings.Count(r.URL.Path, "/") == 4)) {
+		if r.Method == http.MethodGet && (r.URL.Path == "/v1/marketplace/courses" || (strings.HasPrefix(r.URL.Path, "/v1/marketplace/courses/") && (strings.Count(r.URL.Path, "/") == 4 || (strings.Count(r.URL.Path, "/") == 5 && strings.HasSuffix(r.URL.Path, "/reviews"))))) {
 			public = true
 		}
 		if public {

@@ -131,7 +131,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
  FROM lesson_manifests m JOIN course_lesson_stubs l ON l.id=m.lesson_id
  JOIN course_units u ON u.id=l.unit_id JOIN courses c ON c.id=u.course_id
  JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id::text=$2
- WHERE m.lesson_id::text=$1 AND m.learner_id::text=$2 AND l.learner_id=m.learner_id AND l.status<>'locked' AND c.deleted_at IS NULL`, id, owner).Scan(&key, &version, &course, &title)
+ WHERE m.lesson_id::text=$1 AND m.learner_id::text=$2 AND l.learner_id=m.learner_id AND l.status<>'locked' AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL)`, id, owner).Scan(&key, &version, &course, &title)
 	if errors.Is(err, pgx.ErrNoRows) {
 		failure(w, 404)
 		return
@@ -232,7 +232,7 @@ func (s *Service) downloadLibrary(ctx context.Context, w http.ResponseWriter, _ 
 	var courseTitle string
 	err = s.opts.Pool.QueryRow(ctx, `SELECT c.title
 		FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id::text=$2
-		WHERE c.id::text=$1 AND c.deleted_at IS NULL`, courseID, owner).Scan(&courseTitle)
+		WHERE c.id::text=$1 AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL)`, courseID, owner).Scan(&courseTitle)
 	if errors.Is(err, pgx.ErrNoRows) {
 		failure(w, 404)
 		return

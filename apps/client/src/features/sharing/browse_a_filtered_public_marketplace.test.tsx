@@ -49,6 +49,21 @@ const page = (items: CatalogueItem[], next_cursor = "") => ({
 
 beforeEach(() => {
   request.mockReset();
+  request.mockImplementation(async (path) => {
+    if (path.endsWith("/reviews"))
+      return {
+        items: [],
+        mine: null,
+        can_review: false,
+        owner: false,
+        lessons_needed: 3,
+        completed_lessons: 0,
+        min_lessons: 3,
+        rating_count: 0,
+        rating_average: null,
+      };
+    throw new Error(`Unconfigured request: ${path}`);
+  });
   window.history.replaceState(null, "", "/marketplace");
 });
 

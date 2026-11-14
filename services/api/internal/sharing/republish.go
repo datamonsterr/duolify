@@ -304,6 +304,9 @@ func (s *Service) Republish(ctx context.Context, owner, courseID, changelog stri
 	if err = owns(ctx, tx, owner, courseID); err != nil {
 		return Draft{}, err
 	}
+	if err = s.moderated(ctx, tx, owner, courseID); err != nil {
+		return Draft{}, err
+	}
 	// Serialized by the owner's course row lock, so concurrent republishes cannot exceed the cap.
 	var published bool
 	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM publication_drafts WHERE course_id=$1 AND verdict='pass')
