@@ -10,6 +10,8 @@ import {
   type MarketFailure,
 } from "./market";
 import { CourseReviews } from "./CourseReviews";
+import { ReportSheet } from "./ReportSheet";
+import type { ReportTarget } from "./reports";
 import type { EnrollResult } from "./links";
 import "./sharing.css";
 import "./market.css";
@@ -36,6 +38,12 @@ export function MarketCoursePage({ id }: { id: string }) {
   const [slide, setSlide] = useState(0);
   const [enroll, setEnroll] = useState<Enrolled>({ kind: "idle" });
   const busy = useRef(false);
+  const [menu, setMenu] = useState(false);
+  const [report, setReport] = useState<{
+    target: ReportTarget;
+    title: string;
+  }>();
+  const more = useRef<HTMLButtonElement>(null);
 
   const load = useCallback(() => {
     let active = true;
@@ -111,7 +119,66 @@ export function MarketCoursePage({ id }: { id: string }) {
       <a className="market-back" href="/marketplace">
         ← Marketplace
       </a>
-      <h1 dir="auto">{c.title}</h1>
+      <div className="market-title-row">
+        <h1 dir="auto">{c.title}</h1>
+        {!c.viewer.owner && (
+          <div
+            className="report-menu"
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && menu) {
+                e.stopPropagation();
+                setMenu(false);
+                more.current?.focus();
+              }
+            }}
+          >
+            <button
+              ref={more}
+              type="button"
+              className="report-more"
+              aria-label="More: report course"
+              aria-haspopup="menu"
+              aria-expanded={menu}
+              onClick={() => setMenu(!menu)}
+            >
+              <span aria-hidden="true">⋯</span>
+            </button>
+            {menu && (
+              <div role="menu" className="report-menu-list">
+                <button
+                  type="button"
+                  role="menuitem"
+                  autoFocus
+                  onClick={() => {
+                    setMenu(false);
+                    setReport({
+                      target: { type: "course", id },
+                      title: "Report this course",
+                    });
+                  }}
+                >
+                  Report this course
+                </button>
+                {c.creator.username && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenu(false);
+                      setReport({
+                        target: { type: "user", id: c.creator.username },
+                        title: "Report this creator",
+                      });
+                    }}
+                  >
+                    Report creator
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       <p className="market-meta" data-testid="creator">
         by {name} · v{c.version} · published {published(c.published_at)} ·{" "}
         {ratingLabel(c)} · {learnersLabel(c.enrollment_count)}
@@ -245,6 +312,14 @@ export function MarketCoursePage({ id }: { id: string }) {
           }
         />
       </div>
+      {report && (
+        <ReportSheet
+          target={report.target}
+          title={report.title}
+          returnFocus={more}
+          onClose={() => setReport(undefined)}
+        />
+      )}
     </div>
   );
 }

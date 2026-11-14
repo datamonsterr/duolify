@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { session } from "../accounts/session";
 import { marketFailure, marketMessages } from "./market";
+import { ReportSheet } from "./ReportSheet";
 
 type Review = {
   id: string;
@@ -42,6 +43,7 @@ export function CourseReviews({
   const [text, setText] = useState("");
   const [status, setStatus] = useState("");
   const [confirm, setConfirm] = useState(false);
+  const [reporting, setReporting] = useState<string>();
   const heading = useRef<HTMLHeadingElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const deleteButton = useRef<HTMLButtonElement>(null);
@@ -267,11 +269,27 @@ export function CourseReviews({
                       <p className="sharing-note">{t("review.hidden_text")}</p>
                     )
                   )}
+                  {data.mine?.id !== r.id && (
+                    <button
+                      type="button"
+                      className="report-link"
+                      onClick={() => setReporting(r.id)}
+                    >
+                      Report review
+                    </button>
+                  )}
                 </li>
               ))}
             </ol>
           )}
         </>
+      )}
+      {reporting && (
+        <ReportSheet
+          target={{ type: "review", id: reporting }}
+          title="Report this review"
+          onClose={() => setReporting(undefined)}
+        />
       )}
       {confirm && (
         <dialog

@@ -140,9 +140,12 @@ describe("report sheet", () => {
     const onClose = open();
     const dialog = screen.getByRole("dialog");
     const close = screen.getByRole("button", { name: "Close" });
+    const details = screen.getByLabelText("Details, optional");
     close.focus();
     fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
-    expect(screen.getByLabelText("Unsafe instructions")).toHaveFocus(); // wraps from the first control
+    expect(details).toHaveFocus(); // wraps from the first control to the last enabled one
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(close).toHaveFocus();
     fireEvent.keyDown(dialog, { key: "Escape" });
     fireEvent.click(close);
     expect(onClose).toHaveBeenCalledTimes(2);
