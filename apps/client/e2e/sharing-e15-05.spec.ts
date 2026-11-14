@@ -40,6 +40,25 @@ async function publish(request: APIRequestContext, headers: Headers) {
   return { course, token };
 }
 
+/** The web build talks to its own API origin; the disposable API listens elsewhere. */
+async function forward(page: Page, request: APIRequestContext) {
+  await page.route("**/v1/**", async (route) => {
+    const original = route.request();
+    const target = new URL(original.url());
+    const headers = original.headers();
+    delete headers.origin;
+    target.host = new URL(apiBase).host;
+    target.protocol = new URL(apiBase).protocol;
+    await route.fulfill({
+      response: await request.fetch(target.href, {
+        method: original.method(),
+        headers,
+        data: original.postData() ?? undefined,
+      }),
+    });
+  });
+}
+
 /** A second, signed-in learner in a fresh context. */
 async function learner(
   browser: Browser,
@@ -93,21 +112,7 @@ async function learner(
     );
   }, tokens);
   const page = await context.newPage();
-  await page.route("**/v1/**", async (route) => {
-    const original = route.request();
-    const target = new URL(original.url());
-    const headers = original.headers();
-    delete headers.origin;
-    target.host = new URL(apiBase).host;
-    target.protocol = new URL(apiBase).protocol;
-    await route.fulfill({
-      response: await request.fetch(target.href, {
-        method: original.method(),
-        headers,
-        data: original.postData() ?? undefined,
-      }),
-    });
-  });
+  await forward(page, request);
   const headers: Headers = { Authorization: `Bearer ${tokens.access_token}` };
   return { context, page, headers };
 }
@@ -187,6 +192,7 @@ test("republish keeps the old version, then the learner updates with retitled an
   const { owner, course, l, copy } = await copied(page, request, browser);
 
   // Owner: Publish new version with a changelog, screened anew.
+  await forward(page, request);
   await page.goto(`/course/${course}`);
   await page.getByTestId("share-course").click();
   const panel = page.getByTestId("share-course-panel");
@@ -251,6 +257,7 @@ test("the fourth republish in a day is refused and the panel explains it", async
   expect(refused.status()).toBe(429);
   expect(await refused.json()).toEqual({ error: "republish_limit" });
 
+  await forward(page, request);
   await page.goto(`/course/${course}`);
   await page.getByTestId("share-course").click();
   const panel = page.getByTestId("share-course-panel");
