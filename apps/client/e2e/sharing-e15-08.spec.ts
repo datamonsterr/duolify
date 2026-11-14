@@ -137,7 +137,12 @@ for (const mobile of [false, true]) {
       await pass(lessons[1].id);
       await pass(lessons[2].id);
       await page.reload();
-      await page.getByLabel("5 stars", { exact: true }).check();
+      const lastStar = page.locator(".review-stars label").last();
+      const target = await lastStar.boundingBox();
+      expect(target?.height).toBeGreaterThanOrEqual(44);
+      expect(target?.width).toBeGreaterThanOrEqual(44);
+      if (mobile) await lastStar.tap();
+      else await page.getByLabel("5 stars", { exact: true }).check();
       await page.getByLabel("Review text").fill("Helpful and clear");
       await page
         .getByRole("button", { name: "Post review", exact: true })
@@ -168,6 +173,24 @@ for (const mobile of [false, true]) {
       await expect(page.getByTestId("course-reviews")).not.toContainText(
         "worthless",
       );
+      await page
+        .getByRole("button", { name: "Delete review", exact: true })
+        .click();
+      await expect(
+        page.getByRole("button", { name: "Cancel", exact: true }),
+      ).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(
+        page.getByRole("button", { name: "Confirm delete", exact: true }),
+      ).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(
+        page.getByRole("button", { name: "Cancel", exact: true }),
+      ).toBeFocused();
+      await page.keyboard.press("Escape");
+      await expect(
+        page.getByRole("button", { name: "Delete review", exact: true }),
+      ).toBeFocused();
       await page
         .getByRole("button", { name: "Delete review", exact: true })
         .click();
@@ -269,4 +292,9 @@ test("review loading, empty, offline draft recovery, long content, keyboard, dar
   expect(
     await page.evaluate(() => getComputedStyle(document.body).backgroundColor),
   ).not.toBe("rgb(255, 255, 255)");
+  expect(
+    await page
+      .locator(".review-editor")
+      .evaluate((el) => getComputedStyle(el).animationName),
+  ).toBe("none");
 });

@@ -672,20 +672,22 @@ func (s *Service) Publish(ctx context.Context, owner, courseID string) error {
 	return ErrVisibilityUnavailable
 }
 
-// PurgeExpired deletes screening rows past retention (one year).
+// PurgeExpired deletes screening history past one year and submission counters past 24 hours.
 func (s *Service) PurgeExpired(ctx context.Context) (int64, error) {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM publication_screenings WHERE created_at < now() - make_interval(days => $1)`, s.cfg.RetentionDays)
-	return tag.RowsAffected(), err
+	var n int64
+	for _, table := range []string{"publication_screenings", "course_review_screenings"} {
+		tag, err := s.pool.Exec(ctx, `DELETE FROM `+table+` WHERE created_at < now()-make_interval(days => $1)`, s.cfg.RetentionDays)
+		if err != nil {
+			return n, err
+		}
+		n += tag.RowsAffected()
+	}
+	tag, err := s.pool.Exec(ctx, `DELETE FROM course_review_submissions WHERE created_at < now()-interval '24 hours'`)
+	return n + tag.RowsAffected(), err
 }
 
 // Maintain enforces the one-year screening retention even when no endpoint is visited.
 func (s *Service) Maintain(ctx context.Context) {
-	if _, err := s.pool.Exec(ctx, `DELETE FROM course_review_screenings WHERE created_at < now()-make_interval(days => $1)`, s.cfg.RetentionDays); err != nil {
-		slog.ErrorContext(ctx, "review screening retention failed", "error", err)
-	}
-	if _, err := s.pool.Exec(ctx, `DELETE FROM course_review_submissions WHERE created_at < now()-interval '24 hours'`); err != nil {
-		slog.ErrorContext(ctx, "review cap retention failed", "error", err)
-	}
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
 	for {

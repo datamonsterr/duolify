@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useUiPreferences } from "../design/localization/Preferences";
 import { session } from "../accounts/session";
 import { marketFailure, marketMessages } from "./market";
 
@@ -22,14 +23,6 @@ type Reviews = {
   rating_count: number;
   rating_average: number | null;
 };
-const messages = {
-  "review.saved": "Review saved.",
-  "review.hidden":
-    "Your stars are saved. Your review text is hidden while it awaits approval or needs changes.",
-  "review.deleted": "Review deleted.",
-  "review.loading": "Loading reviews…",
-  "review.empty": "No reviews yet. Share your view after learning.",
-};
 
 /** The same inline editor and review list work on desktop and phone. Text is never HTML. */
 export function CourseReviews({
@@ -41,6 +34,7 @@ export function CourseReviews({
   refreshKey?: string;
   onRatingChange?: (count: number, average: number | null) => void;
 }) {
+  const { t, number } = useUiPreferences();
   const [data, setData] = useState<Reviews>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -110,7 +104,7 @@ export function CourseReviews({
         setText("");
         setStars(0);
         setConfirm(false);
-        setStatus(messages["review.deleted"]);
+        setStatus(t("review.deleted"));
       } else {
         const r = await session.request<Review>(`${base}/review`, "PUT", {
           stars,
@@ -118,9 +112,7 @@ export function CourseReviews({
         });
         setText(r.text ?? "");
         setStatus(
-          r.verdict === "pass"
-            ? messages["review.saved"]
-            : messages["review.hidden"],
+          r.verdict === "pass" ? t("review.saved") : t("review.hidden"),
         );
       }
       const next = await load();
@@ -142,9 +134,9 @@ export function CourseReviews({
       aria-busy={busy || !data}
     >
       <h2 ref={heading} tabIndex={-1}>
-        Reviews
+        {t("review.title")}
       </h2>
-      {!data && !error && <p role="status">{messages["review.loading"]}</p>}
+      {!data && !error && <p role="status">{t("review.loading")}</p>}
       {error && (
         <div className="sharing-error" role="alert">
           <p>{error}</p>
@@ -153,7 +145,7 @@ export function CourseReviews({
             className="duo-button secondary"
             onClick={() => void retry()}
           >
-            Retry
+            {t("review.retry")}
           </button>
         </div>
       )}
@@ -165,19 +157,21 @@ export function CourseReviews({
       {data && (
         <>
           <p className="market-meta">
-            {data.rating_count.toLocaleString()} reviews
+            {t("review.count", { count: data.rating_count })}
             {data.rating_average !== null
-              ? ` · ★ ${data.rating_average.toFixed(1)}`
+              ? ` · ★ ${number(data.rating_average)}`
               : ""}
           </p>
           {data.owner ? (
-            <p data-testid="review-gate">You can't review your own course.</p>
+            <p data-testid="review-gate">{t("review.owner")}</p>
           ) : !data.can_review ? (
             <div className="sharing-note" data-testid="review-gate">
-              <strong>Reviews open after {data.min_lessons} lessons</strong>
+              <strong>{t("review.unlock", { count: data.min_lessons })}</strong>
               <p>
-                You've finished {data.completed_lessons}. Complete{" "}
-                {data.lessons_needed} more to share your view.
+                {t("review.progress", {
+                  completed: data.completed_lessons,
+                  needed: data.lessons_needed,
+                })}
               </p>
             </div>
           ) : (
@@ -189,17 +183,19 @@ export function CourseReviews({
               }}
             >
               <h3>
-                Your review{data.mine ? ` · on v${data.mine.version}` : ""}
+                {data.mine
+                  ? t("review.yours_version", { version: data.mine.version })
+                  : t("review.yours")}
               </h3>
               <fieldset disabled={busy}>
-                <legend>Star rating</legend>
+                <legend>{t("review.rating")}</legend>
                 <div className="review-stars">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <label key={n}>
                       <input
                         type="radio"
                         name={`review-stars-${courseId}`}
-                        aria-label={`${n} ${n === 1 ? "star" : "stars"}`}
+                        aria-label={t("review.star_label", { count: n })}
                         value={n}
                         checked={stars === n}
                         onChange={() => setStars(n)}
@@ -210,7 +206,9 @@ export function CourseReviews({
                   ))}
                 </div>
               </fieldset>
-              <label htmlFor={`review-text-${courseId}`}>Review text</label>
+              <label htmlFor={`review-text-${courseId}`}>
+                {t("review.text")}
+              </label>
               <textarea
                 id={`review-text-${courseId}`}
                 rows={4}
@@ -221,9 +219,7 @@ export function CourseReviews({
                 aria-invalid={chars > maxChars}
               />
               <p className="sharing-note" id={`review-help-${courseId}`}>
-                Optional · {chars.toLocaleString()} /{" "}
-                {maxChars.toLocaleString()} characters. Text is checked before
-                it appears.
+                {t("review.text_help", { count: chars, max: maxChars })}
               </p>
               <div className="share-slide-nav">
                 <button
@@ -231,7 +227,11 @@ export function CourseReviews({
                   className="duo-button"
                   disabled={busy || stars === 0 || chars > maxChars}
                 >
-                  {busy ? "Saving…" : data.mine ? "Save review" : "Post review"}
+                  {busy
+                    ? t("review.saving")
+                    : data.mine
+                      ? t("review.save")
+                      : t("review.post")}
                 </button>
                 {data.mine && (
                   <button
@@ -241,26 +241,30 @@ export function CourseReviews({
                     disabled={busy}
                     onClick={() => setConfirm(true)}
                   >
-                    Delete review
+                    {t("review.delete")}
                   </button>
                 )}
               </div>
             </form>
           )}
           {data.items.length === 0 ? (
-            <p>{messages["review.empty"]}</p>
+            <p>{t("review.empty")}</p>
           ) : (
-            <ol className="review-list" aria-label="Course reviews">
+            <ol className="review-list" aria-label={t("review.list")}>
               {data.items.map((r) => (
                 <li key={r.id}>
                   <strong dir="auto">
-                    {r.author} · {"★".repeat(r.stars)} · on v{r.version}
+                    {t("review.item", {
+                      author: r.author,
+                      stars: "★".repeat(r.stars),
+                      version: r.version,
+                    })}
                   </strong>
                   {r.text ? (
                     <p dir="auto">{r.text}</p>
                   ) : (
                     r.verdict !== "pass" && (
-                      <p className="sharing-note">Review text is hidden.</p>
+                      <p className="sharing-note">{t("review.hidden_text")}</p>
                     )
                   )}
                 </li>
@@ -297,8 +301,8 @@ export function CourseReviews({
             }
           }}
         >
-          <h2 id="review-delete-title">Delete your review?</h2>
-          <p>This removes your stars and review from this course.</p>
+          <h2 id="review-delete-title">{t("review.confirm_title")}</h2>
+          <p>{t("review.confirm_body")}</p>
           {error && <p role="alert">{error}</p>}
           <div className="share-slide-nav">
             <button
@@ -307,7 +311,7 @@ export function CourseReviews({
               disabled={busy}
               onClick={() => setConfirm(false)}
             >
-              Cancel
+              {t("review.cancel")}
             </button>
             <button
               type="button"
@@ -315,7 +319,7 @@ export function CourseReviews({
               disabled={busy}
               onClick={() => void run(true)}
             >
-              Confirm delete
+              {t("review.confirm")}
             </button>
           </div>
         </dialog>

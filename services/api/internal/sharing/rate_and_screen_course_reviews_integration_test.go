@@ -47,6 +47,11 @@ func TestRateAndScreenCourseReviews(t *testing.T) {
 		t.Fatalf("save=%+v %v", saved, err)
 	}
 	assertReviewAggregate(t, f, l.CourseID, 5, 1)
+	page, err := s.MarketCourse(t.Context(), learner, l.CourseID)
+	if err != nil || page.RatingCount != 1 || page.RatingAverage == nil || *page.RatingAverage != 5 {
+		t.Fatalf("marketplace did not consume real review aggregate: %+v %v", page, err)
+	}
+
 	// Copy update does not rewrite the version originally reviewed.
 	if _, err = f.DB.Pool.Exec(t.Context(), `UPDATE course_copies SET version=2 WHERE learner_id=$1 AND source_course_id=$2`, learner, l.CourseID); err != nil {
 		t.Fatal(err)
@@ -134,6 +139,20 @@ func TestRateAndScreenCourseReviews(t *testing.T) {
 			t.Fatalf("event common/identity=%+v", e)
 		}
 	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `UPDATE course_review_screenings SET created_at=now()-interval '2 years'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.DB.Pool.Exec(t.Context(), `UPDATE course_review_submissions SET created_at=now()-interval '2 days'`); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.PurgeExpired(t.Context()); err != nil || n == 0 {
+		t.Fatalf("review retention purge=%d %v", n, err)
+	}
+	if n := count(t, f, `SELECT (SELECT count(*) FROM course_review_screenings)+(SELECT count(*) FROM course_review_submissions)`); n != 0 {
+		t.Fatalf("expired metadata rows=%d", n)
+	}
+	assertReviewAggregate(t, f, l.CourseID, 6, 2)
+
 }
 
 func completeReviewLessons(t *testing.T, f *backuptest.Fixture, actor, course string) {
@@ -182,4 +201,58 @@ func (classifier) ScreenReview(ctx context.Context, r *pb.ScreenReviewRequest) (
 
 func (c rpcScreener) ScreenReview(ctx context.Context, r *pb.ScreenReviewRequest) (*pb.ScreenReviewResponse, error) {
 	return c.EngineServiceClient.ScreenReview(ctx, r)
+}
+
+// A provider may finish after a concurrent delete. Its old verdict must never restore content.
+type heldReviewScreener struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (h heldReviewScreener) ScreenReview(ctx context.Context, r *pb.ScreenReviewRequest) (*pb.ScreenReviewResponse, error) {
+	close(h.started)
+	select {
+	case <-h.release:
+		return classifier{}.ScreenReview(ctx, r)
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+func TestReviewScreeningLateResponseCannotRestoreDeletedText(t *testing.T) {
+	f := backuptest.New(t)
+	s := marketService(t, f, &capture{}, nil, nil)
+	o := marketOwner(t, f, "late-review-owner")
+	l := listCourse(t, s, o, marketCourse(t, f, o, "Late screening", "Description", 3), "tech", "en")
+	actor := newLearner(t, f, "late-reviewer")
+	if _, err := s.EnrollMarketplace(t.Context(), actor, l.CourseID); err != nil {
+		t.Fatal(err)
+	}
+	completeReviewLessons(t, f, actor, l.CourseID)
+	held := heldReviewScreener{started: make(chan struct{}), release: make(chan struct{})}
+	s.ConfigureReviewScreening(held)
+	done := make(chan error, 1)
+	go func() { _, err := s.SaveReview(t.Context(), actor, l.CourseID, 5, "Private pending text"); done <- err }()
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(held.release) }) }
+	defer release()
+	select {
+	case <-held.started:
+	case err := <-done:
+		t.Fatalf("save failed before screening: %v", err)
+	}
+	p, err := s.Reviews(t.Context(), actor, l.CourseID)
+	if err != nil || p.Mine == nil || p.Mine.Text != "" || p.Mine.Verdict != "pending_screening" {
+		t.Fatalf("pending text was visible: %+v %v", p, err)
+	}
+	if err = s.DeleteReview(t.Context(), actor, l.CourseID); err != nil {
+		t.Fatal(err)
+	}
+	release()
+	if err = <-done; !errors.Is(err, sharing.ErrCourseUnavailable) {
+		t.Fatalf("stale response=%v", err)
+	}
+	assertReviewAggregate(t, f, l.CourseID, 0, 0)
+	if n := count(t, f, `SELECT count(*) FROM course_reviews WHERE course_id=$1`, l.CourseID); n != 0 {
+		t.Fatal("late response restored deleted review")
+	}
 }
