@@ -11,6 +11,7 @@ import (
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 )
@@ -20,7 +21,7 @@ type Replanner interface {
 	ReplanOutline(context.Context, *pb.ReplanOutlineRequest) (*pb.ReplanOutlineResponse, error)
 }
 
-// ReplanProposal is review-only; its result never mutates the Course in E16-07.
+// ReplanProposal represents a proposed outline change for learner review.
 type ReplanProposal struct {
 	ID             string       `json:"id"`
 	OutlineVersion int64        `json:"outline_version"`
@@ -28,6 +29,8 @@ type ReplanProposal struct {
 	ExpiresAt      time.Time    `json:"expires_at"`
 	Diff           []ReplanDiff `json:"diff"`
 	Reason         string       `json:"reason_code,omitempty"`
+	Decision       string       `json:"decision,omitempty"`
+	DecidedAt      *time.Time   `json:"decided_at,omitempty"`
 }
 type replanInput struct {
 	Outline      *pb.CourseOutline       `json:"outline"`
@@ -46,7 +49,7 @@ func (s *Service) replanSnapshot(ctx context.Context, tx pgx.Tx, owner, course s
 	if err := tx.QueryRow(ctx, `SELECT title,description,outline_version FROM courses WHERE id=$1::uuid AND learner_id=$2::uuid AND deleted_at IS NULL AND visibility='private' AND NOT EXISTS(SELECT 1 FROM course_copies WHERE copy_course_id=$1::uuid AND forked_at IS NULL) AND EXISTS(SELECT 1 FROM course_enrollments WHERE course_id=$1::uuid AND learner_id=$2::uuid) FOR UPDATE`, course, owner).Scan(&in.Outline.Title, &in.Outline.Description, &in.Version); err != nil {
 		return in, refusal("not_found")
 	}
-	rows, err := tx.Query(ctx, `SELECT u.id::text,u.title,l.id::text,l.title,l.goal,l.status<>'locked' OR EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=l.id) FROM course_units u JOIN course_lesson_stubs l ON l.unit_id=u.id WHERE u.course_id=$1::uuid AND u.learner_id=$2::uuid ORDER BY u.position,l.position`, course, owner)
+	rows, err := tx.Query(ctx, `SELECT u.id::text,u.title,l.id::text,l.title,l.goal,l.status<>'locked' OR EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=l.id) OR EXISTS(SELECT 1 FROM lesson_generations lg WHERE lg.lesson_id=l.id) FROM course_units u JOIN course_lesson_stubs l ON l.unit_id=u.id WHERE u.course_id=$1::uuid AND u.learner_id=$2::uuid AND u.archived_at IS NULL AND l.archived_at IS NULL ORDER BY u.position,l.position`, course, owner)
 	if err != nil {
 		return in, err
 	}
@@ -129,11 +132,294 @@ func (s *Service) QuoteReplan(ctx context.Context, owner, course string) (pricin
 func (s *Service) readReplan(ctx context.Context, owner, course, quote string) (ReplanProposal, error) {
 	p := ReplanProposal{}
 	var raw []byte
-	err := s.opts.Pool.QueryRow(ctx, `SELECT id::text,outline_version,state,expires_at,diff,reason FROM course_replan_proposals WHERE learner_id::text=$1 AND course_id::text=$2 AND quote_id::text=$3`, owner, course, quote).Scan(&p.ID, &p.OutlineVersion, &p.State, &p.ExpiresAt, &raw, &p.Reason)
+	var dec *string
+	err := s.opts.Pool.QueryRow(ctx, `SELECT id::text,outline_version,state,expires_at,diff,reason,decision,decided_at FROM course_replan_proposals WHERE learner_id::text=$1 AND course_id::text=$2 AND quote_id::text=$3`, owner, course, quote).Scan(&p.ID, &p.OutlineVersion, &p.State, &p.ExpiresAt, &raw, &p.Reason, &dec, &p.DecidedAt)
+	if dec != nil {
+		p.Decision = *dec
+	}
 	if err == nil {
 		err = json.Unmarshal(raw, &p.Diff)
 	}
 	return p, err
+}
+
+func diffCounts(diff []ReplanDiff) (added, removed, changed int) {
+	touched := map[string]bool{}
+	for _, d := range diff {
+		switch d.Kind {
+		case "added":
+			added++
+		case "removed":
+			removed++
+		default:
+			touched[d.LessonID] = true
+		}
+	}
+	return added, removed, len(touched)
+}
+
+func checkCanConfirm(state, decision string, expiresAt, now time.Time) string {
+	if state != "proposed" {
+		return "proposal_not_ready"
+	}
+	if decision == "confirmed" {
+		return "already_confirmed"
+	}
+	if decision == "discarded" {
+		return "proposal_discarded"
+	}
+	if !now.Before(expiresAt) {
+		return "proposal_expired"
+	}
+	return ""
+}
+
+func checkCanDiscard(state, decision string) string {
+	if decision == "discarded" {
+		return "already_discarded"
+	}
+	if decision == "confirmed" {
+		return "proposal_confirmed"
+	}
+	if state != "proposed" {
+		return "proposal_not_ready"
+	}
+	return ""
+}
+
+// ConfirmReplan applies the proposed remaining outline atomically and increases outline_version.
+func (s *Service) ConfirmReplan(ctx context.Context, owner, course, proposalID string) (ReplanProposal, error) {
+	if _, err := uuid.Parse(proposalID); err != nil {
+		return ReplanProposal{}, refusal("not_found")
+	}
+	if _, err := s.privateCourse(ctx, owner, course); err != nil {
+		return ReplanProposal{}, err
+	}
+	tx, err := s.opts.Pool.Begin(ctx)
+	if err != nil {
+		return ReplanProposal{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var currentVersion int64
+	if err = tx.QueryRow(ctx, `SELECT outline_version FROM courses WHERE id=$1::uuid AND learner_id=$2::uuid AND deleted_at IS NULL AND visibility='private' FOR UPDATE`, course, owner).Scan(&currentVersion); err != nil {
+		return ReplanProposal{}, refusal("not_found")
+	}
+	var unforked bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM course_copies WHERE copy_course_id=$1::uuid AND forked_at IS NULL)`, course).Scan(&unforked); err != nil {
+		return ReplanProposal{}, err
+	}
+	if unforked {
+		return ReplanProposal{}, refusal("fork_confirmation_required")
+	}
+	// Serialise with lesson unlock/generation, which flip stub rows, before judging protection.
+	if _, err = tx.Exec(ctx, `SELECT l.id FROM course_lesson_stubs l JOIN course_units u ON u.id=l.unit_id WHERE u.course_id=$1::uuid FOR UPDATE OF l`, course); err != nil {
+		return ReplanProposal{}, err
+	}
+
+	var p ReplanProposal
+	var dec *string
+	var diffRaw []byte
+	var resultRaw []byte
+	var inputRaw []byte
+	err = tx.QueryRow(ctx, `SELECT id::text,outline_version,state,expires_at,diff,reason,decision,decided_at,result_outline,input FROM course_replan_proposals WHERE id=$1::uuid AND learner_id=$2::uuid AND course_id=$3::uuid FOR UPDATE`, proposalID, owner, course).Scan(&p.ID, &p.OutlineVersion, &p.State, &p.ExpiresAt, &diffRaw, &p.Reason, &dec, &p.DecidedAt, &resultRaw, &inputRaw)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return p, refusal("not_found")
+		}
+		return p, err
+	}
+	if dec != nil {
+		p.Decision = *dec
+	}
+	if len(diffRaw) > 0 {
+		_ = json.Unmarshal(diffRaw, &p.Diff)
+	}
+
+	var dbNow time.Time
+	if err = tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&dbNow); err != nil {
+		return p, err
+	}
+	validity := checkCanConfirm(p.State, p.Decision, p.ExpiresAt, dbNow)
+	if validity == "already_confirmed" {
+		return p, nil
+	}
+	if validity != "" {
+		return p, refusal(validity)
+	}
+
+	if currentVersion != p.OutlineVersion {
+		return p, refusal("version_conflict")
+	}
+
+	var in replanInput
+	if err = json.Unmarshal(inputRaw, &in); err != nil {
+		return p, refusal("invalid_proposal")
+	}
+
+	var newlyProtected int
+	err = tx.QueryRow(ctx, `SELECT count(*) FROM course_lesson_stubs l JOIN course_units u ON u.id=l.unit_id WHERE u.course_id=$1::uuid AND u.archived_at IS NULL AND l.archived_at IS NULL AND (l.status<>'locked' OR EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=l.id) OR EXISTS(SELECT 1 FROM lesson_generations lg WHERE lg.lesson_id=l.id)) AND l.id != ALL($2::uuid[])`, course, in.Protected).Scan(&newlyProtected)
+	if err != nil || newlyProtected > 0 {
+		return p, refusal("version_conflict")
+	}
+
+	var out pb.CourseOutline
+	if err = json.Unmarshal(resultRaw, &out); err != nil {
+		return p, refusal("invalid_proposal")
+	}
+
+	if _, err = ValidateReplan(in.Outline, &out, in.Protected); err != nil {
+		return p, err
+	}
+
+	// Only rows of the snapshot may be reused; a model-supplied id never reaches another course's rows.
+	baseUnits := map[string]bool{}
+	baseLessons := map[string]string{}
+	for _, u := range in.Outline.Units {
+		baseUnits[u.UnitId] = true
+		for _, l := range u.Lessons {
+			baseLessons[l.LessonId] = u.UnitId
+		}
+	}
+
+	// Park live rows far above any real position (at most 10 units x 20 lessons) so the unique
+	// (parent, position) keys never collide mid-rewrite. The final guard proves none stays parked.
+	if _, err = tx.Exec(ctx, `UPDATE course_units SET position=position+500000 WHERE course_id=$1::uuid AND archived_at IS NULL`, course); err != nil {
+		return p, err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs st SET position=st.position+500000 FROM course_units u WHERE u.id=st.unit_id AND u.course_id=$1::uuid AND u.archived_at IS NULL AND st.archived_at IS NULL`, course); err != nil {
+		return p, err
+	}
+
+	var keptUnitIDs []string
+	var keptLessonIDs []string
+	for ui, u := range out.Units {
+		var unitID string
+		if baseUnits[u.UnitId] {
+			unitID = u.UnitId
+			if _, err = tx.Exec(ctx, `UPDATE course_units SET position=$2, title=$3 WHERE id=$1::uuid AND course_id=$4::uuid`, unitID, ui, u.Title, course); err != nil {
+				return p, err
+			}
+		} else if err = tx.QueryRow(ctx, `INSERT INTO course_units(learner_id, course_id, authored_id, position, title) VALUES($1::uuid, $2::uuid, 'replan-'||gen_random_uuid()::text, $3, $4) RETURNING id::text`, owner, course, ui, u.Title).Scan(&unitID); err != nil {
+			return p, err
+		}
+		keptUnitIDs = append(keptUnitIDs, unitID)
+
+		for li, l := range u.Lessons {
+			var lessonID string
+			if from, ok := baseLessons[l.LessonId]; ok {
+				lessonID = l.LessonId
+				// A lesson that changes unit gets a fresh authored_id so it cannot collide there; protected lessons never move.
+				if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs SET unit_id=$2::uuid, position=$3, title=$4, goal=$5, authored_id=CASE WHEN $6::boolean THEN 'replan-'||id::text ELSE authored_id END WHERE id=$1::uuid`, lessonID, unitID, li, l.Title, l.Goal, from != u.UnitId); err != nil {
+					return p, err
+				}
+			} else if err = tx.QueryRow(ctx, `INSERT INTO course_lesson_stubs(learner_id, unit_id, authored_id, position, title, goal, status) VALUES($1::uuid, $2::uuid, 'replan-'||gen_random_uuid()::text, $3, $4, $5, 'locked') RETURNING id::text`, owner, unitID, li, l.Title, l.Goal).Scan(&lessonID); err != nil {
+				return p, err
+			}
+			keptLessonIDs = append(keptLessonIDs, lessonID)
+		}
+	}
+
+	// Remove only untouched stubs (locked, no generation, manifest or consent rows): their cascades hold no learner data.
+	if _, err = tx.Exec(ctx, `DELETE FROM course_lesson_stubs st USING course_units u WHERE u.id=st.unit_id AND u.course_id=$1::uuid AND u.archived_at IS NULL AND st.archived_at IS NULL AND st.id != ALL($2::uuid[]) AND st.status='locked'
+		AND NOT EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=st.id)
+		AND NOT EXISTS(SELECT 1 FROM lesson_generations g WHERE g.lesson_id=st.id)
+		AND NOT EXISTS(SELECT 1 FROM lesson_manifests m WHERE m.lesson_id=st.id)
+		AND NOT EXISTS(SELECT 1 FROM copy_generation_consents c WHERE c.lesson_id=st.id)`, course, keptLessonIDs); err != nil {
+		return p, err
+	}
+	// Anything still parked (or inside a unit about to be dropped) is real learner data: abort instead of cascading.
+	var parked int
+	if err = tx.QueryRow(ctx, `SELECT (SELECT count(*) FROM course_lesson_stubs st JOIN course_units u ON u.id=st.unit_id WHERE u.course_id=$1::uuid AND st.position>=500000) + (SELECT count(*) FROM course_lesson_stubs st JOIN course_units u ON u.id=st.unit_id WHERE u.course_id=$1::uuid AND u.archived_at IS NULL AND st.archived_at IS NULL AND NOT (u.id=ANY($2::uuid[])))`, course, keptUnitIDs).Scan(&parked); err != nil {
+		return p, err
+	}
+	if parked > 0 {
+		return p, refusal("version_conflict")
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM course_units WHERE course_id=$1::uuid AND archived_at IS NULL AND id != ALL($2::uuid[])`, course, keptUnitIDs); err != nil {
+		return p, err
+	}
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM course_units WHERE course_id=$1::uuid AND position>=500000`, course).Scan(&parked); err != nil || parked > 0 {
+		if err == nil {
+			err = refusal("version_conflict")
+		}
+		return p, err
+	}
+
+	var nextVersion int64
+	if err = tx.QueryRow(ctx, `UPDATE courses SET outline_version=outline_version+1 WHERE id=$1::uuid RETURNING outline_version`, course).Scan(&nextVersion); err != nil {
+		return p, err
+	}
+
+	var decidedAt time.Time
+	if err = tx.QueryRow(ctx, `UPDATE course_replan_proposals SET decision='confirmed', decided_at=clock_timestamp() WHERE id=$1::uuid RETURNING decided_at`, proposalID).Scan(&decidedAt); err != nil {
+		return p, err
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return p, err
+	}
+
+	p.Decision = "confirmed"
+	p.DecidedAt = &decidedAt
+
+	added, removed, changed := diffCounts(p.Diff)
+	s.emit(owner, "course_replan_confirmed", map[string]any{"course_id": course, "proposal_id": proposalID, "outline_version": nextVersion, "lessons_added": added, "lessons_removed": removed, "lessons_changed": changed})
+	return p, nil
+}
+
+// DiscardReplan marks the proposal discarded without modifying the course outline or refunding.
+func (s *Service) DiscardReplan(ctx context.Context, owner, course, proposalID string) (ReplanProposal, error) {
+	if _, err := uuid.Parse(proposalID); err != nil {
+		return ReplanProposal{}, refusal("not_found")
+	}
+	if _, err := s.privateCourse(ctx, owner, course); err != nil {
+		return ReplanProposal{}, err
+	}
+	tx, err := s.opts.Pool.Begin(ctx)
+	if err != nil {
+		return ReplanProposal{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var p ReplanProposal
+	var dec *string
+	var diffRaw []byte
+	err = tx.QueryRow(ctx, `SELECT id::text,outline_version,state,expires_at,diff,reason,decision,decided_at FROM course_replan_proposals WHERE id=$1::uuid AND learner_id=$2::uuid AND course_id=$3::uuid FOR UPDATE`, proposalID, owner, course).Scan(&p.ID, &p.OutlineVersion, &p.State, &p.ExpiresAt, &diffRaw, &p.Reason, &dec, &p.DecidedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return p, refusal("not_found")
+		}
+		return p, err
+	}
+	if dec != nil {
+		p.Decision = *dec
+	}
+	if len(diffRaw) > 0 {
+		_ = json.Unmarshal(diffRaw, &p.Diff)
+	}
+
+	validity := checkCanDiscard(p.State, p.Decision)
+	if validity == "already_discarded" {
+		return p, nil
+	}
+	if validity != "" {
+		return p, refusal(validity)
+	}
+
+	var decidedAt time.Time
+	if err = tx.QueryRow(ctx, `UPDATE course_replan_proposals SET decision='discarded', decided_at=clock_timestamp() WHERE id=$1::uuid RETURNING decided_at`, proposalID).Scan(&decidedAt); err != nil {
+		return p, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return p, err
+	}
+
+	p.Decision = "discarded"
+	p.DecidedAt = &decidedAt
+
+	s.emit(owner, "course_replan_discarded", map[string]any{"course_id": course, "proposal_id": proposalID})
+	return p, nil
 }
 
 // ProposeReplan resumes one immutable quote. Consent only permits this server-owned action.
@@ -266,18 +552,8 @@ func (s *Service) ProposeReplan(ctx context.Context, owner, course, quoteID stri
 		return p, s.failReplan(owner, course, p.ID, job.ID, "invalid_proposal", attempts)
 	}
 	s.replanUsage(owner, q.PricingVersion, attempts, true)
-	added, removed, changed := 0, 0, map[string]bool{}
-	for _, d := range diff {
-		switch d.Kind {
-		case "added":
-			added++
-		case "removed":
-			removed++
-		default:
-			changed[d.LessonID] = true
-		}
-	}
-	s.emit(owner, "course_replan_proposed", map[string]any{"course_id": course, "proposal_id": p.ID, "lessons_added": added, "lessons_removed": removed, "lessons_changed": len(changed)})
+	added, removed, changed := diffCounts(diff)
+	s.emit(owner, "course_replan_proposed", map[string]any{"course_id": course, "proposal_id": p.ID, "lessons_added": added, "lessons_removed": removed, "lessons_changed": changed})
 	return s.readReplan(settleCtx, owner, course, quoteID)
 }
 func (s *Service) replanUsage(owner, version string, attempts []*pb.Usage, success bool) {

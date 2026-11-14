@@ -19,6 +19,11 @@ for (const mobile of [false, true]) {
       let accepted = false;
       let work = 0;
       let quoteFailures = 1;
+      let decisions = 0;
+      await page.route(`**/v1/courses/${course}/replan/*/*`, (r) => {
+        decisions++;
+        return r.abort("failed");
+      });
       await page.route(`**/v1/courses/${course}`, (r) =>
         r.fulfill({ json: { id: course, title: "Navigation", units: [] } }),
       );
@@ -117,8 +122,9 @@ for (const mobile of [false, true]) {
           .evaluate((n) => n.scrollWidth > n.clientWidth + 1),
       ).toBe(false);
       await expect(
-        page.getByRole("button", { name: /apply|confirm changes/i }),
-      ).toHaveCount(0);
+        page.getByText("Proposal ready. Your course has not changed."),
+      ).toBeVisible();
+      const diffBefore = await page.locator(".replan-diff").innerText();
       await page.getByRole("button", { name: "Back to instructions" }).click();
       await page
         .getByRole("button", { name: "Re-plan remaining outline" })
@@ -126,7 +132,12 @@ for (const mobile of [false, true]) {
       await expect(
         page.getByRole("heading", { name: "Proposed changes" }),
       ).toBeVisible();
+      await expect(
+        page.getByText("Proposal ready. Your course has not changed."),
+      ).toBeVisible();
       expect(work).toBe(1);
+      expect(await page.locator(".replan-diff").innerText()).toBe(diffBefore);
+      expect(decisions).toBe(0);
       await page.keyboard.press("Escape");
       await expect(
         page.getByRole("button", { name: "Steer course" }),
