@@ -88,6 +88,10 @@ var piiRules = []piiRule{
 	{"lesson_test_variant_snapshots", "explanation", redacted},
 	{"lesson_test_variant_snapshots", "instruction_snapshot", emptyObj},
 	{"lesson_test_variant_snapshots", "prompt", redacted},
+	{"marketplace_listings", "description", redacted},
+	{"marketplace_listings", "search", `''::tsvector`},
+	{"marketplace_listings", "tags", `'{}'`},
+	{"marketplace_listings", "title", redacted},
 	{"outline_drafts", "confirmed", `NULL`},
 	{"outline_drafts", "history", emptyArr},
 	{"outline_drafts", "outline", emptyArr},
@@ -133,6 +137,7 @@ friend_requests.method gamification_config.goal_options gamification_config.leag
 learner_profiles.appearance learner_profiles.haptics learner_profiles.level learner_profiles.motion learner_profiles.reminder_time
 learner_social_settings.course_invites_from learner_social_settings.request_policy
 lesson_test_variant_snapshots.reason lesson_test_variant_snapshots.variant_of lesson_questions.variant_of outline_proposals.decision
+marketplace_listings.category marketplace_listings.language
 pricing_audit.action pricing_audit.change_class pricing_audit.diff_summary pricing_audit.override_reason pricing_audit.reason
 pricing_drafts.change_class pricing_drafts.config pricing_drafts.created_by pricing_drafts.reviewed_by pricing_quote_policies.policy
 pricing_quotes.snapshot pricing_verification_evidence.evidence pricing_version_cancellations.cancelled_by pricing_version_cancellations.reason
