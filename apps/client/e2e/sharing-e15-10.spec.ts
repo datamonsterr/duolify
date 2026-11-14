@@ -499,3 +499,102 @@ test("a person without the moderator role sees nothing", async ({
   ).toBeVisible();
   await context.close();
 });
+
+test("overturned takedown re-activates the original share link (issue #207)", async ({
+  request,
+}) => {
+  // Author creates a course and publishes a share link.
+  const author = await account(request);
+  const { course } = await seeded(
+    request,
+    author,
+    "Link restore course",
+    "Short lessons",
+  );
+  expect((await list(request, author, course)).status()).toBe(200);
+  const linkRes = await request.post(
+    `${apiBase}/v1/courses/${course}/share-link`,
+    { headers: author.headers, data: {} },
+  );
+  expect(linkRes.status()).toBe(201);
+  const { token } = (await linkRes.json()) as { token: string };
+
+  // The original URL works.
+  const previewBefore = await request.get(
+    `${apiBase}/v1/public/shares/${token}`,
+  );
+  expect(previewBefore.status()).toBe(200);
+
+  // Three reporters trigger the queue.
+  for (const reason of ["spam", "spam", "other"]) {
+    await request.post(`${apiBase}/v1/marketplace/reports`, {
+      headers: (await account(request)).headers,
+      data: { target_type: "course", target_id: course, reason },
+    });
+  }
+
+  // First moderator takes the course down.
+  const first = await moderator(request);
+  const second = await moderator(request);
+  const queueRes = await request.get(`${apiBase}/v1/moderation/queue`, {
+    headers: first.headers,
+  });
+  const queue = await queueRes.json();
+  const item = (queue.items as { id: string; target_id: string }[]).find(
+    (i) => i.target_id === course,
+  )!;
+  const takedownRes = await request.post(
+    `${apiBase}/v1/moderation/items/${item.id}/actions`,
+    {
+      headers: first.headers,
+      data: {
+        action: "takedown",
+        reason_code: "spam",
+        reason: "Promotional content throughout all lessons.",
+      },
+    },
+  );
+  expect(takedownRes.status()).toBe(201);
+  const actionId = (await takedownRes.json()).id as string;
+
+  // The original share URL is now dead (404).
+  const previewAfter = await request.get(
+    `${apiBase}/v1/public/shares/${token}`,
+  );
+  expect(previewAfter.status()).toBe(404);
+
+  // Author appeals.
+  const appealRes = await request.post(
+    `${apiBase}/v1/moderation/notices/${actionId}/appeal`,
+    {
+      headers: author.headers,
+      data: { text: "The course is educational." },
+    },
+  );
+  expect(appealRes.status()).toBe(201);
+  const { id: appealId } = (await appealRes.json()) as { id: string };
+
+  // A different moderator overturns the appeal.
+  const decideRes = await request.post(
+    `${apiBase}/v1/moderation/appeals/${appealId}/decision`,
+    {
+      headers: second.headers,
+      data: { decision: "overturn", reason: "No policy violation found." },
+    },
+  );
+  expect(decideRes.status()).toBe(204);
+
+  // The ORIGINAL share URL works again (same token, so old links are live).
+  const previewRestored = await request.get(
+    `${apiBase}/v1/public/shares/${token}`,
+  );
+  expect(previewRestored.status()).toBe(200);
+
+  // Author's moderation notices must not include the system-only restore_link audit row.
+  const noticesRes = await request.get(`${apiBase}/v1/moderation/notices`, {
+    headers: author.headers,
+  });
+  expect(noticesRes.status()).toBe(200);
+  const notices = (await noticesRes.json()) as { action: string }[];
+  expect(notices.some((n) => n.action === "restore_link")).toBe(false);
+});

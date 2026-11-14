@@ -1,5 +1,8 @@
 import { session } from "../accounts/session";
 
+// ModerationAction covers human moderator actions available in the queue dialog.
+// The system audit action "restore_link" is deliberately excluded: it is recorded
+// automatically on appeal overturn and is never an action dialog choice.
 export type ModerationAction =
   "dismiss" | "warn" | "delist" | "takedown" | "ban_publishing";
 export type TargetType = "course" | "publication" | "review" | "user";
@@ -139,6 +142,7 @@ export const auditWords: Record<string, string> = {
   delist: "Delisted",
   takedown: "Took down",
   ban_publishing: "Banned publishing",
+  restore_link: "Share link restored",
 };
 
 export function noticeLabel(n: Pick<Notice, "target_type" | "action">) {

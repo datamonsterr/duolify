@@ -38,11 +38,21 @@ A takedown MUST delist the course, revoke its share link and block new enrollmen
 - **THEN** existing copies are blocked with a notice
 
 ### Requirement: One appeal by another moderator
-The author SHALL see the reason of every action against their content and MAY appeal each action once. A different moderator than the acting one MUST decide; the actor MUST be refused, and a second appeal MUST be refused. Overturning restores the action's effects.
+The author SHALL see the reason of every action against their content and MAY appeal each action once. A different moderator than the acting one MUST decide; the actor MUST be refused, and a second appeal MUST be refused. Overturning restores the action's effects: for a takedown this MUST include re-activating the share link(s) that the takedown revoked, using the same token hash so that previously shared URLs work again. Links that were already revoked for other reasons (owner revoked, link expired) before or after the takedown MUST NOT be re-activated. The appeal decision, link state change and moderation audit row MUST all commit in one transaction; a rollback must leave nothing half-done.
 
 #### Scenario: Same moderator
 - **WHEN** the acting moderator tries to decide the appeal
 - **THEN** the API refuses and the appeal stays open
+
+#### Scenario: Overturned takedown restores share link
+- **GIVEN** an author published a course with a share link, a moderator took it down (revoking the link), and the author appealed
+- **WHEN** a different moderator overturns the appeal
+- **THEN** the original share URL (same token hash) works again, the course visibility is restored to `link`, the moderation state is cleared, and a `restore_link` audit row is written in the same transaction
+
+#### Scenario: Owner-revoked link is not restored
+- **GIVEN** an author explicitly revoked their share link before the takedown, and the takedown was later overturned
+- **WHEN** the overturn completes
+- **THEN** the owner-revoked link remains revoked and the course visibility stays `private` (or `public` if the listing was active)
 
 ### Requirement: Moderation analytics, backup and erasure
 The API SHALL emit `moderation_action` (action, reason_code, target_type), `moderation_appeal` (outcome `filed`, `upheld` or `overturned`) and `course_visibility_changed`, with UUIDs and closed enums only and never reason or appeal text. Actions, appeals and queue items SHALL be in nightly dumps and kept three years; deleting an account MUST remove its personal references while keeping the audit rows.
