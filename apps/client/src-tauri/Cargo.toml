@@ -26,4 +26,4 @@ keyring = { version = "=4.2.0", default-features = false, features = ["v1"] }
 keyring-core = "=1.0.1"
 
 [target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
-tauri-plugin-keyring-store = { version = "=0.3.1", default-features = false }
+tauri-plugin-keyring-store = { version = "=0.3.2", default-features = false }
