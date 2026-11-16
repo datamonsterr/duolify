@@ -14,16 +14,15 @@ learner (SEA) ─▶ Cloudflare (DNS, CDN, WAF, Tiered Cache; web client on Work
                    │ free eu-central traffic
                    ▼
    Hetzner Object Storage hel1: lesson-assets (versioned)
-   Hetzner Object Storage fsn1/nbg1 (pending owner): backups (versioned; deletion ledger retention-locked),
+   Hetzner Object Storage fsn1/nbg1: backups (versioned; deletion ledger retention-locked),
                                                      WAL archive, lesson-assets DR copy (versioned)
-   optional (pending owner): Contabo Object Storage EU, third copy of encrypted dumps
 ```
 
 ## Key decisions
 
 - **Direct Postgres connections.** The session-level `pg_advisory_lock` calls (lessontest, course creation, narration) and River need session semantics, so no transaction pooler is used.
 - **Hetzner Object Storage for `lesson-assets` in Helsinki.** It is versioned and Object Lock capable, VM↔bucket traffic in `eu-central` is free, and it is cheaper than a Volume at every load level (€0 marginal up to 1 TB, ~€12.5 at 3 TB against €132 on a Volume). `infra:s3-conformance` must pass first. If it fails, RustFS on a Volume, already the local store, is the fallback.
-- **Backups off-site from Helsinki (pending owner).** The recommendation is a second Hetzner EU location (Falkenstein or Nuremberg). It holds `pg_dump` (age-encrypted), the WAL archive, the deletion ledger and the DR copy. It shares the account's base price, has free transfer and restores at Gbit speed. Contabo Object Storage (80 Mbit/s cap) is only considered for an optional provider-independent third copy of dumps.
+- **Backups off-site from Helsinki (owner, 2026-11-17).** They go to a second Hetzner EU location (Falkenstein or Nuremberg). It holds `pg_dump` (age-encrypted), the WAL archive, the deletion ledger and the DR copy. It shares the account's base price, has free transfer and restores at Gbit speed. There is no Contabo copy.
 - **Latency.** Uncached requests from Southeast Asia gain about 175 ms per round trip (WonderNetwork, 2026-11-02 to 2026-11-16). Cached immutable objects are served from Southeast Asian edges. Server-side p95 is gated, and the client-side p95 from Southeast Asia is recorded.
 - **Engine stays private.** gRPC runs over the private network and the Engine is never proxied by Cloudflare.
 - **SSE through Cloudflare.** A comment heartbeat is sent at most every 25 s on every SSE route, well under Cloudflare's 125 s Proxy Read Timeout.
@@ -74,7 +73,7 @@ Redis is derived data, so it is not migrated. It starts cold, and every key fami
   - Railway buckets are kept read-only for 35 days after verification.
   - Replication slots are always dropped at detach or rollback.
 - The restore drill runs on the Helsinki staging stack before prod migration and on the existing schedule afterwards.
-- Residency: primary data in Finland and backups in Germany (recommended) keep all learner data in the EU. The privacy notice must state the transfer from learners' countries to the EU. Contabo Singapore for backups would add Singapore.
+- Residency: the app in Finland and backups in Germany keep all learner data in the EU, served through Cloudflare. The privacy notice states this (owner-approved wording, 2026-11-17).
 
 ## Analytics
 
