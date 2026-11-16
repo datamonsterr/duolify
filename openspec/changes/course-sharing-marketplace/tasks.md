@@ -52,6 +52,13 @@
 - [x] 9.1 E2E first: desktop/mobile missing-date prompt, adult resumes and minor remains private.
 - [x] 9.2 Integration second: authenticated setter, real-date/future/lower-bound validation, server age boundary, publish/republish/rotation gates, export/deletion and backup anonymization.
 - [x] 9.3 Unit third: calendar age including leap birthdays and UTC, strict date parsing, typed client errors and accessible save/retry form.
-- [x] 9.4 Add migration 20261116121501 with only nullable account DATE, wire the real age source and client continuation, update privacy policy/inventory/restore PII registry and synthetic fixtures without PII analytics.
+- [x] 9.4 Add migration 20261116121503 with only nullable account DATE, wire the real age source and client continuation, update privacy policy/inventory/restore PII registry and synthetic fixtures without PII analytics.
 - [x] 9.5 Run focused API/client tasks and ci:openspec; native Tauri checks remain CI-only on this host.
 - [x] 9.6 Write-once follow-up: failing e2e minor overwrite/refusal, integration HTTP idempotence and concurrent database writes, then unit locked-form state; implement atomic NULL-only save and support-correction message, update spec/design/inventory and rerun focused checks.
+
+## 6. Narration audio reuse (ADR 0013, #229)
+
+- [x] 6.1 e2e: shared copy plays the owner's audio over HTTP, no Credit rows, foreign lesson and anonymous callers refused, blocked copy refused (`TestSharedCopyPlaysOwnerNarrationAudioOverHTTP`).
+- [x] 6.2 Integration: snapshot refs and pins, free reuse and dedupe, missing-asset fallback, severe takedown and appeal lift, pin retention and purge.
+- [x] 6.3 Unit: allowlist, `ReusableNarration`, config default and kill switch.
+- [x] 6.4 Migration `20261116121502`, retention, takedown, privacy policy, `docs/data-inventory.md`.

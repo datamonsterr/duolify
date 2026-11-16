@@ -13,6 +13,7 @@ import (
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/narration"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -166,7 +167,56 @@ SELECT $1,$2,COALESCE(max(number),0)+1,$3,$4,$5,$6,$7,$8 FROM publication_drafts
 	if err == nil && len(publicationCasts(snap)) > 0 {
 		err = pinPrefix(ctx, tx, id)
 	}
+	if err == nil {
+		err = pinNarrationAudio(ctx, tx, id, snap)
+	}
 	return id, snap, findings, err
+}
+
+// loadNarrationAudio references the owner's ready narration (E14) by content hash (ADR 0013). A
+// narration whose text no longer matches its slide, whose asset object is missing, or that belongs
+// to a pinned-speaker slide is left out; those learners regenerate as before.
+func (s *Service) loadNarrationAudio(ctx context.Context, tx pgx.Tx, courseID string, at func(string) *SnapshotLesson) error {
+	rows, err := tx.Query(ctx, `SELECT DISTINCT ON (sn.lesson_id,sn.slide_id) sn.lesson_id::text,sn.slide_id,a.content_hash,a.text_hash,a.duration_ms,a.characters
+FROM slide_narrations sn JOIN narration_assets a ON a.content_hash=sn.content_hash AND a.state='ready'
+JOIN course_lesson_stubs st ON st.id=sn.lesson_id JOIN course_units u ON u.id=st.unit_id JOIN courses c ON c.id=u.course_id
+WHERE u.course_id=$1 AND sn.learner_id=c.learner_id AND sn.status='ready' AND sn.speaker_key=''
+ORDER BY sn.lesson_id,sn.slide_id,(sn.voice_key='default') DESC,sn.updated_at DESC`, courseID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var stubID, textHash string
+		var ref NarrationAudioRef
+		if err = rows.Scan(&stubID, &ref.SlideID, &ref.ContentHash, &textHash, &ref.DurationMS, &ref.Characters); err != nil {
+			return err
+		}
+		l := at(stubID)
+		if l == nil {
+			continue
+		}
+		for _, sl := range l.Slides {
+			if sl.ID == ref.SlideID && len(sl.Segments) == 0 && textHash == narration.TextHash(narration.NormalizeText(sl.Narration)) {
+				l.NarrationAudio = append(l.NarrationAudio, ref)
+			}
+		}
+	}
+	return rows.Err()
+}
+
+// pinNarrationAudio keeps the referenced assets alive while the snapshot can still be enrolled.
+func pinNarrationAudio(ctx context.Context, tx pgx.Tx, draftID string, snap Snapshot) error {
+	for _, u := range snap.Units {
+		for _, l := range u.Lessons {
+			for _, r := range l.NarrationAudio {
+				if _, err := tx.Exec(ctx, `INSERT INTO published_narration_pins(draft_id,content_hash) VALUES($1,$2) ON CONFLICT DO NOTHING`, draftID, r.ContentHash); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (s *Service) load(ctx context.Context, tx pgx.Tx, courseID string) (Snapshot, error) {
@@ -231,14 +281,16 @@ JOIN course_lesson_stubs st ON st.id=s.lesson_stub_id JOIN course_units u ON u.i
 		if l := at(sid); l != nil {
 			l.Generated = true
 			l.Slides = append(l.Slides, sl)
-			if s.cfg.IncludeNarration {
-				l.NarrationRefs = append(l.NarrationRefs, sl.ID)
-			}
 		}
 	}
 	srows.Close()
 	if err = srows.Err(); err != nil {
 		return snap, err
+	}
+	if s.cfg.IncludeNarration {
+		if err = s.loadNarrationAudio(ctx, tx, courseID, at); err != nil {
+			return snap, err
+		}
 	}
 	qrows, err := tx.Query(ctx, `SELECT q.lesson_stub_id::text,q.topic_id,q.prompt,q.choices,q.answer_index,q.explanation FROM lesson_questions q
 JOIN course_lesson_stubs st ON st.id=q.lesson_stub_id JOIN course_units u ON u.id=st.unit_id WHERE u.course_id=$1 AND q.variant_of IS NULL ORDER BY q.lesson_stub_id,q.position`, courseID)

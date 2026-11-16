@@ -548,6 +548,12 @@ func (s *Service) apply(ctx context.Context, tx pgx.Tx, kind, id string, t targe
 					return nil, 0, err
 				}
 				blocked = int(tag.RowsAffected())
+				// Reused owner audio of a blocked copy stops being served and releases its reference.
+				if _, err = tx.Exec(ctx, `UPDATE slide_narrations n SET status='disabled',failure_code='moderation_blocked',updated_at=now()
+FROM course_lesson_stubs l JOIN course_units u ON u.id=l.unit_id JOIN course_copies cc ON cc.copy_course_id=u.course_id
+WHERE n.lesson_id=l.id AND n.shared_draft_id IS NOT NULL AND n.status='ready' AND cc.blocked_action_id=$1::uuid`, res.ID); err != nil {
+					return nil, 0, err
+				}
 				// Durable before the takedown commits, so a restore of an older dump cannot lift the block.
 				if s.ledger != nil {
 					if err = s.ledger.RecordBlock(ctx, LedgerRef(id), LedgerRef(res.ID)); err != nil {
@@ -761,6 +767,18 @@ func (s *Service) restore(ctx context.Context, tx pgx.Tx, actor, actionID, kind,
 	}
 	switch kind {
 	case "course":
+		// Reused audio comes back where its asset still exists; otherwise the learner regenerates as usual.
+		if _, err := tx.Exec(ctx, `UPDATE slide_narrations n SET status='ready',failure_code='',updated_at=now()
+FROM course_lesson_stubs l JOIN course_units u ON u.id=l.unit_id JOIN course_copies cc ON cc.copy_course_id=u.course_id
+WHERE n.lesson_id=l.id AND n.shared_draft_id IS NOT NULL AND n.status='disabled' AND n.failure_code='moderation_blocked' AND cc.blocked_action_id=$1
+AND EXISTS(SELECT 1 FROM narration_assets a WHERE a.content_hash=n.content_hash AND a.state='ready')`, actionID); err != nil {
+			return nil, err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM slide_narrations n USING course_lesson_stubs l, course_units u, course_copies cc
+WHERE n.lesson_id=l.id AND u.id=l.unit_id AND cc.copy_course_id=u.course_id AND n.shared_draft_id IS NOT NULL AND n.status='disabled'
+AND n.failure_code='moderation_blocked' AND cc.blocked_action_id=$1`, actionID); err != nil {
+			return nil, err
+		}
 		if _, err := tx.Exec(ctx, `UPDATE course_copies SET blocked_at=NULL,blocked_action_id=NULL WHERE blocked_action_id=$1`, actionID); err != nil {
 			return nil, err
 		}

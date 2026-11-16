@@ -668,7 +668,7 @@ func (s *Service) applyPlan(ctx context.Context, tx pgx.Tx, learner, copyID, dra
 					return err
 				}
 				if ready {
-					if err = s.copyLesson(ctx, tx, learner, copyID, stub, prefix, version, l.Source); err != nil {
+					if err = s.copyLesson(ctx, tx, learner, copyID, stub, draftID, prefix, version, l.Source); err != nil {
 						return err
 					}
 				}
@@ -681,7 +681,7 @@ func (s *Service) applyPlan(ctx context.Context, tx pgx.Tx, learner, copyID, dra
 					}
 				}
 				if ready {
-					if err = s.copyLesson(ctx, tx, learner, copyID, stub, prefix, version, l.Source); err != nil {
+					if err = s.copyLesson(ctx, tx, learner, copyID, stub, draftID, prefix, version, l.Source); err != nil {
 						return err
 					}
 				}

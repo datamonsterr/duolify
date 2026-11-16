@@ -252,7 +252,9 @@ func (s *Service) PurgeUnreferenced(ctx context.Context) (int, error) {
 	cutoff := time.Now().Add(-s.opts.Retention)
 	rows, err := s.opts.Pool.Query(ctx, `SELECT content_hash,audio_key,alignment_key FROM narration_assets a
 		WHERE ref_count=0 AND unreferenced_at IS NOT NULL AND unreferenced_at<=$1
-		AND NOT EXISTS(SELECT 1 FROM slide_narrations n WHERE n.content_hash=a.content_hash) ORDER BY unreferenced_at LIMIT 500`, cutoff)
+		AND NOT EXISTS(SELECT 1 FROM slide_narrations n WHERE n.content_hash=a.content_hash)
+		AND NOT EXISTS(SELECT 1 FROM published_narration_pins p WHERE p.content_hash=a.content_hash AND (p.unpinned_at IS NULL OR p.unpinned_at>$1))
+		ORDER BY unreferenced_at LIMIT 500`, cutoff)
 	if err != nil {
 		return 0, err
 	}
@@ -270,7 +272,8 @@ func (s *Service) PurgeUnreferenced(ctx context.Context) (int, error) {
 	purged := 0
 	for _, e := range list {
 		// Re-check inside the delete: a new reference since the scan keeps the asset.
-		tag, err := s.opts.Pool.Exec(ctx, `DELETE FROM narration_assets a WHERE content_hash=$1 AND ref_count=0 AND NOT EXISTS(SELECT 1 FROM slide_narrations n WHERE n.content_hash=a.content_hash)`, e.hash)
+		tag, err := s.opts.Pool.Exec(ctx, `DELETE FROM narration_assets a WHERE content_hash=$1 AND ref_count=0 AND NOT EXISTS(SELECT 1 FROM slide_narrations n WHERE n.content_hash=a.content_hash)
+		AND NOT EXISTS(SELECT 1 FROM published_narration_pins p WHERE p.content_hash=a.content_hash AND (p.unpinned_at IS NULL OR p.unpinned_at>$2))`, e.hash, cutoff)
 		if err != nil {
 			return purged, err
 		}
