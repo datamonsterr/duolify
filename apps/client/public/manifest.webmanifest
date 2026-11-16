@@ -1,0 +1,26 @@
+{
+  "name": "Duolify",
+  "short_name": "Duolify",
+  "description": "Learn any topic, a little at a time.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f9f4",
+  "theme_color": "#1f7a0d",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -14,6 +14,7 @@ import { UnpublishDialog } from "./UnpublishDialog";
 import "./sharing.css";
 import { drafts } from "./drafts";
 import { CharacterExportConfirmation } from "../characters/CharacterExportConfirmation";
+import { BirthDatePrompt, publisherAgeError } from "./BirthDatePrompt";
 
 /** Owner entry point on the course view. */
 export function ShareCourse({ courseId }: { courseId: string }) {
@@ -57,7 +58,10 @@ export function ShareCoursePanel({
   );
   const [busy, setBusy] = useState<Busy>(null);
   const [notice, setNotice] = useState<Notice>(null);
-  const [failure, setFailure] = useState<LinkFailure | null>(null);
+  const [failure, setFailure] = useState<LinkFailure | "adult" | null>(null);
+  const [resumeAfterAge, setResumeAfterAge] = useState<(() => void) | null>(
+    null,
+  );
   const [verdictNote, setVerdictNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [newVersion, setNewVersion] = useState(false);
@@ -123,7 +127,13 @@ export function ShareCoursePanel({
     try {
       await task();
     } catch (error) {
-      setFailure(linkFailure(error));
+      if (publisherAgeError(error) === "birth_date_required") {
+        setResumeAfterAge(() => () => void run(work, task));
+      } else if (publisherAgeError(error) === "adult_required") {
+        setFailure("adult");
+      } else {
+        setFailure(linkFailure(error));
+      }
     } finally {
       setBusy(null);
     }
@@ -229,7 +239,11 @@ export function ShareCoursePanel({
         )}
         {failure && (
           <div className="sharing-error" role="alert">
-            <p>{linkMessages[failure]}</p>
+            <p>
+              {failure === "adult"
+                ? "You must be 18 or older to publish. You can keep learning privately."
+                : linkMessages[failure]}
+            </p>
             {failure === "offline" && !state && (
               <button type="button" className="duo-button" onClick={retry}>
                 Retry
@@ -241,6 +255,15 @@ export function ShareCoursePanel({
           <p className="sharing-banner" role="alert">
             {verdictNote}
           </p>
+        )}
+        {resumeAfterAge && (
+          <BirthDatePrompt
+            onSaved={() => {
+              setResumeAfterAge(null);
+              resumeAfterAge();
+            }}
+            onCancel={() => setResumeAfterAge(null)}
+          />
         )}
         {state && (
           <fieldset className="sharing-visibility" disabled={busy !== null}>

@@ -17,6 +17,7 @@ import (
 // ClassifiedLearnerTables lists every table holding learner data and its retention policy.
 // Lesson generation checkpoints join full-row owner export and cascading deletion.
 var ClassifiedLearnerTables = map[string]string{
+	"learners":                         "erased_including_birth_date_date_only",
 	"course_replan_proposals":          "erased_retention_7_days",
 	"course_instructions":              "erased_soft_deleted_30_days",
 	"lesson_instruction_snapshots":     "erased_independent_payload",
@@ -207,7 +208,7 @@ func (s *Service) exportAccountData(w http.ResponseWriter, r *http.Request) {
 		{table: "course_invites", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',i.id,'direction',CASE WHEN i.sender_id=$1 THEN 'sent' ELSE 'received' END,'course_id',i.course_id,'method',i.method,'status',CASE WHEN i.status='revoked' AND i.cancel_reason='block' THEN 'pending' ELSE i.status END,'created_at',i.created_at,'expires_at',i.expires_at,'resolved_at',CASE WHEN i.cancel_reason IS NULL THEN i.resolved_at END,'other_username',u.username) ORDER BY i.created_at,i.id),'[]'::jsonb) FROM course_invites i LEFT JOIN learner_usernames u ON u.learner_id=CASE WHEN i.sender_id=$1 THEN i.recipient_id ELSE i.sender_id END WHERE i.sender_id=$1 OR (i.recipient_id=$1 AND i.delivered AND i.cancel_reason IS NULL)`},
 		{table: "course_copies", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('course_id',copy_course_id,'version',version,'lock_version',lock_version,'forked',forked_at IS NOT NULL,'forked_at_lesson',forked_at_lesson,'source',source,'character_cast',character_cast,'created_at',created_at,'updated_at',updated_at)),'[]'::jsonb) FROM course_copies WHERE learner_id=$1`},
 		{table: "learner_blocks", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('created_at',b.created_at,'blocked_username',u.username)),'[]'::jsonb) FROM learner_blocks b JOIN learner_usernames u ON u.learner_id=b.blocked_id WHERE b.blocker_id=$1`},
-		{table: "learners", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'display_name',display_name,'created_at',created_at)),'[]'::jsonb) FROM learners WHERE id=$1`},
+		{table: "learners", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'display_name',display_name,'created_at',created_at,'birth_date',birth_date)),'[]'::jsonb) FROM learners WHERE id=$1`},
 		{table: "learner_profiles", query: `SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM learner_profiles p WHERE learner_id=$1`},
 		{table: "auth_identities", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('email',email,'created_at',created_at)),'[]'::jsonb) FROM auth_identities WHERE learner_id=$1`},
 		{table: "auth_provider_identities", query: `SELECT COALESCE(jsonb_agg(jsonb_build_object('provider',provider,'verified_email',verified_email,'created_at',created_at)),'[]'::jsonb) FROM auth_provider_identities WHERE learner_id=$1`},

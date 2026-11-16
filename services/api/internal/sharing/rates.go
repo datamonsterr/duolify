@@ -31,9 +31,3 @@ func (p PricingRates) Rates(ctx context.Context) (Rates, error) {
 	}
 	return r, nil
 }
-
-// UnknownAge fails closed until an account age source exists (ADR 0012: publishing is 18+).
-type UnknownAge struct{}
-
-// MeetsMinAge is always false: publishing waits for a real age source.
-func (UnknownAge) MeetsMinAge(context.Context, string, int) (bool, error) { return false, nil }

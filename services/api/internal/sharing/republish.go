@@ -788,6 +788,8 @@ func (h *UpdateHandler) fail(w http.ResponseWriter, r *http.Request, err error) 
 		code(http.StatusConflict, err.Error())
 	case errors.Is(err, ErrAdultRequired):
 		code(http.StatusForbidden, "adult_required")
+	case errors.Is(err, ErrBirthDateRequired):
+		code(http.StatusConflict, "birth_date_required")
 	case errors.Is(err, ErrNotPublished):
 		code(http.StatusConflict, "not_published")
 	case errors.Is(err, ErrRepublishLimit):

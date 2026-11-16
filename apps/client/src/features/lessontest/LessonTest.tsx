@@ -1,6 +1,7 @@
 import { CompletionXP } from "../gamification/DailyGoal";
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { triggerFeedbackCue } from "../design/feedback/feedbackBridge";
 import { useShellSession } from "../shell/ShellSession";
 import { version as appVersion } from "../../../package.json";
 import { session as authSession, AuthError } from "../accounts/session";
@@ -319,6 +320,9 @@ export function LessonTest({
                 )
               : await onAnswer(currentQuestion.question_id, selectedChoice);
           setFeedback(result);
+          if (!result.correct) {
+            triggerFeedbackCue("correction");
+          }
           applyResult(result, currentQuestion.question_id);
         } catch (err) {
           if (!isNetworkError(err)) throw err;
@@ -372,6 +376,7 @@ export function LessonTest({
 
     if (feedback.passed) {
       setFinished(true);
+      triggerFeedbackCue("completion");
       onPass();
       return;
     }

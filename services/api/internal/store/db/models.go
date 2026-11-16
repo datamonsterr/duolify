@@ -873,6 +873,7 @@ type Learner struct {
 	ID          pgtype.UUID        `json:"id"`
 	DisplayName string             `json:"display_name"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	BirthDate   pgtype.Date        `json:"birth_date"`
 }
 
 type LearnerBlock struct {

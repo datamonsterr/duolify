@@ -70,11 +70,17 @@ func TestAnonymizerRemovesSeededPIIAndRegistryClassifiesEveryTextColumn(t *testi
 	fixture.Seed(t)
 	fixture.RunJob(t, "2026-11-12")
 	options := fixture.DrillOptions(t, drillNow("2026-11-12"))
-	var before, after int
+	var before, after, birthDatesBefore, birthDatesAfter int
 	options.BeforeAnonymize = func(ctx context.Context, p *pgxpool.Pool) error {
+		if err := p.QueryRow(ctx, "SELECT count(*) FROM learners WHERE birth_date IS NOT NULL").Scan(&birthDatesBefore); err != nil {
+			return err
+		}
 		return p.QueryRow(ctx, "SELECT count(*) FROM learners WHERE display_name LIKE 'Synthetic Learner%'").Scan(&before)
 	}
 	options.Inspect = func(ctx context.Context, p *pgxpool.Pool) error {
+		if err := p.QueryRow(ctx, "SELECT count(*) FROM learners WHERE birth_date IS NOT NULL").Scan(&birthDatesAfter); err != nil {
+			return err
+		}
 		return p.QueryRow(ctx, "SELECT count(*) FROM learners WHERE display_name LIKE 'Synthetic Learner%'").Scan(&after)
 	}
 	if report, err := backup.RunDrill(t.Context(), options); err != nil || !report.OK {
@@ -82,6 +88,9 @@ func TestAnonymizerRemovesSeededPIIAndRegistryClassifiesEveryTextColumn(t *testi
 	}
 	if before == 0 || after != 0 {
 		t.Fatalf("seeded display names before=%d after=%d", before, after)
+	}
+	if birthDatesBefore == 0 || birthDatesAfter != 0 {
+		t.Fatalf("birth dates before=%d after=%d", birthDatesBefore, birthDatesAfter)
 	}
 }
 
@@ -144,4 +153,27 @@ func TestMigrationRegistryCoversEveryEmbeddedMigration(t *testing.T) {
 	if !seen || report.SchemaVersion < 1 {
 		t.Fatalf("registry check missing: %+v", report)
 	}
+}
+
+func TestPrivacyChecksRejectSurvivingBirthDate(t *testing.T) {
+	fixture := backuptest.New(t)
+	fixture.Seed(t)
+	fixture.RunJob(t, "2026-11-12")
+	options := fixture.DrillOptions(t, drillNow("2026-11-12"))
+	// Feature checks run after anonymization and before the independent privacy checks.
+	// Reintroducing a date must fail even when it is not a known forbidden fixture string.
+	options.Checks = append(options.Checks, backup.Check{Name: "synthetic birth date leak", Kind: backup.KindPrivacy, Run: func(ctx context.Context, p *pgxpool.Pool) error {
+		_, err := p.Exec(ctx, `UPDATE learners SET birth_date=DATE '1991-08-23'`)
+		return err
+	}})
+	report, err := backup.RunDrill(t.Context(), options)
+	if err == nil || report.OK {
+		t.Fatal("an anonymized drill must reject every surviving birth date")
+	}
+	for _, check := range report.Checks {
+		if check.Name == "restored output contains no pii" && !check.OK {
+			return
+		}
+	}
+	t.Fatal("surviving date did not fail the privacy check")
 }

@@ -12,8 +12,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// seedMarketCourse gives the caller an account old enough to list (E15-07) and a Course with
-// three generated Lessons plus one still to generate. The email is already verified by sign-in.
+// seedMarketCourse gives the caller an adult publisher account old enough to list (E15-07)
+// and a Course with three generated Lessons plus one still to generate.
+// The email is already verified by sign-in.
 func seedMarketCourse(w http.ResponseWriter, r *http.Request, pool *pgxpool.Pool) {
 	var in struct {
 		Title       string `json:"title"`
@@ -33,7 +34,8 @@ func seedMarketCourse(w http.ResponseWriter, r *http.Request, pool *pgxpool.Pool
 	var quote, creation, course, unit string
 	steps := []func() error{
 		func() error {
-			_, e := tx.Exec(ctx, `UPDATE learners SET created_at = now() - interval '10 days' WHERE id=$1`, owner)
+			// Match the sharing fixture's adult default while preserving any saved birth date.
+			_, e := tx.Exec(ctx, `UPDATE learners SET created_at = now() - interval '10 days', birth_date = COALESCE(birth_date, DATE '1990-06-15') WHERE id=$1`, owner)
 			return e
 		},
 		func() error {
