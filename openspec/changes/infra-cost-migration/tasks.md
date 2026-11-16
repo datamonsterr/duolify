@@ -1,7 +1,7 @@
 ## 1. Preflight
 
 - [ ] 1.1 Owner: create the Hetzner and Cloudflare accounts. Report Railway Postgres `wal_level`, the role's REPLICATION attribute, the service region and TCP-proxy reachability from Helsinki. Record the provisional plan A/plan B choice (human).
-- [ ] 1.4 Owner: choose the backup/DR location (recommended: Hetzner Object Storage in Falkenstein or Nuremberg; optional Contabo Object Storage EU third copy of encrypted dumps) and confirm the privacy-notice wording (human).
+- [x] 1.4 Owner: choose the backup/DR location and the privacy-notice wording. Decided 2026-11-17 (#251): Hetzner Object Storage in Falkenstein or Nuremberg; no Contabo copy; the notice states EU storage (app in Finland, backups in Germany, served through Cloudflare).
 - [ ] 1.2 Add `mise run infra:pg-replication-check`, which:
   - lists tables without a PK or replica identity, any large objects and all sequences;
   - reports publisher/subscriber LSN lag;

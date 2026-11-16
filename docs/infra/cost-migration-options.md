@@ -1,6 +1,6 @@
 # E18: Infrastructure cost migration options
 
-- Status: **decided 2026-11-17, revised the same day: Option C in Hetzner Helsinki, Cloudflare in front, zero-downtime cutover with a ≤15-minute read-only fallback** ([ADR 0014](../adr/0014-infrastructure-cost-migration.md), Accepted; backup/DR location pending owner). §10 is the current plan. §1–§4 are the 2026-11-16 comparison and §5–§9 the superseded Singapore plan, both kept for context.
+- Status: **decided 2026-11-17, revised the same day: Option C in Hetzner Helsinki, Cloudflare in front, zero-downtime cutover with a ≤15-minute read-only fallback** ([ADR 0014](../adr/0014-infrastructure-cost-migration.md), Accepted; backups on Hetzner Object Storage FSN/NBG, decided 2026-11-17). §10 is the current plan. §1–§4 are the 2026-11-16 comparison and §5–§9 the superseded Singapore plan, both kept for context.
 - Prices and limits read on **2026-11-16** from the official pages linked in [Sources](#sources). Items marked **(verify)** were not confirmed on an official page and must be checked in the matching ticket before any money is spent.
 - Scope: hosting for `services/api` (serve + worker), `engine`, Postgres, Redis, object storage, the static web client, backups and CI deploy. AI provider spend (OpenRouter, Anthropic, ElevenLabs) is the dominant unit cost (`docs/business/monetization.md`) and does not change with hosting.
 
@@ -403,14 +403,13 @@ The sources disagree on raw CPU: VPSBenchmarks' sysbench shows Contabo Plus 4 ah
    - In exchange it brings weaker and less consistent performance, an 80 Mbit/s object store that would throttle uncached asset delivery and restores, fair-use throttling and slower support.
    - Contabo Singapore is the only option that removes the ~175 ms. Its Core VPS plans are out of stock, though, and the VDS layouts cost more than Helsinki at 1k and 10k DAU.
    - Revisit Contabo Singapore only if the Helsinki staging measurements (E18-10) show the latency hurts lesson completion.
-2. **Backups and DR (pending owner): Hetzner Object Storage in Falkenstein or Nuremberg.** This covers `pg_dump`, the WAL archive, the deletion ledger with retention lock, and a nightly versioned copy of `lesson-assets`.
+2. **Backups and DR: Hetzner Object Storage in Falkenstein or Nuremberg (owner-accepted 2026-11-17).** This covers `pg_dump`, the WAL archive, the deletion ledger with retention lock, and a nightly versioned copy of `lesson-assets`.
    - It is off-site from Helsinki at no extra base fee.
    - Transfer is free, and restores run at Gbit speed.
-3. **Optional (pending owner): a provider-independent third copy** of the age-encrypted dumps only on Contabo Object Storage EU, for $2.99 per 250 GB. It covers loss of the Hetzner account, at the cost of a slow restore.
+3. **Rejected by owner 2026-11-17: a provider-independent third copy** of the age-encrypted dumps only on Contabo Object Storage EU, for $2.99 per 250 GB. It covers loss of the Hetzner account, at the cost of a slow restore.
 4. **Privacy notice.**
-   - With 2 and 3, all learner data stays in the EU: primary in Finland, backups in Germany. The notice must state the transfer from learners' countries to the EU.
-   - Contabo Singapore for backups would add Singapore as a second storage country.
-   - Owner/legal confirms the wording.
+   - All learner data stays in the EU: the app in Finland, backups in Germany, served through Cloudflare. The owner approved this wording on 2026-11-17.
+   - Contabo Singapore for backups would have added Singapore as a second storage country.
 
 ### 10.9 Cutover: plan A, plan B and the decision point
 
@@ -458,8 +457,8 @@ The §8 phases still apply, with these changes:
 ### 10.11 Open items
 
 1. Railway Postgres facts: `wal_level`, REPLICATION, region, and TCP proxy reachability from Helsinki. These decide plan A or plan B (E18-01).
-2. **Owner:** backup/DR location (Hetzner FSN1/NBG1 recommended) and the optional Contabo EU third copy. Privacy-notice wording follows from it.
-3. **Owner:** Argo, only after staging latency data.
+2. ~~Backup/DR location~~: decided 2026-11-17. It is Hetzner Object Storage FSN/NBG, with no Contabo copy and EU privacy wording approved (#251).
+3. Argo: the owner decides after the staging latency data (E18-10).
 4. Hetzner CX availability at order time (it saves ~$9 a month at 100 DAU).
 5. Revisit R2 only if the versioning code is rewritten.
 

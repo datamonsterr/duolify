@@ -28,7 +28,7 @@ The owner accepts about +175 ms per uncached round trip for Southeast Asian lear
   - **Validation:** an S3 conformance suite must pass on every target store. RustFS on a Volume is the fallback if Hetzner Object Storage fails it.
   - **Copy:** a copy/verify tool moves all versions.
   - **Cutover:** temporary read-fallback to the Railway buckets.
-  - **Backup/DR location (pending owner, recommended):** Hetzner Object Storage in a second EU location (Falkenstein or Nuremberg) for backups, the WAL archive and a nightly versioned DR copy of `lesson-assets`. Optionally, a third copy of the encrypted dumps on Contabo Object Storage EU.
+  - **Backup/DR location (owner, 2026-11-17):** Hetzner Object Storage in Falkenstein or Nuremberg for backups, the WAL archive and a nightly versioned DR copy of `lesson-assets`. There is no Contabo copy.
 - **Database switchover:**
   - **Gate:** a switchover gate in the API holds new database work for at most 15 s, waits for in-flight transactions and session advisory lock holders, stops River and swaps the pgx pool. Compute and the database move together.
   - **Read-only mode:** the gate also has a read-only mode for the fallback. Reads continue, and writes get `503` with `Retry-After`.
@@ -55,9 +55,8 @@ The owner accepts about +175 ms per uncached round trip for Southeast Asian lear
   - `infra/deploy` overlay, Postgres and WAL configuration;
   - mise tasks: `infra:s3-conformance`, `infra:s3-copy-verify`, `infra:pg-replication-check`, `infra:deploy-plan`, `infra:load-baseline`;
   - runbooks and alerts.
-- **ADRs:** 0014 (Accepted; backup location pending owner). 0003 and 0008 are amended at decommission. 0002 is kept.
+- **ADRs:** 0014 (Accepted). 0003 and 0008 are amended at decommission. 0002 is kept.
 - **Owner gates (ready-for-human):**
   - Hetzner and Cloudflare accounts, DNS and secrets;
   - Railway `wal_level`/role/region preflight;
-  - the backup/DR location and privacy-notice wording;
   - executing the migration runbook.
