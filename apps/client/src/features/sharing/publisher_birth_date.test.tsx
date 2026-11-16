@@ -123,7 +123,7 @@ it("replaces a locked birth-date form with a support message and no resubmission
   expect(notice).toHaveTextContent(
     "A birth date is already on your account. Contact support if it needs correcting.",
   );
-  expect(notice).toHaveFocus();
+  await waitFor(() => expect(notice).toHaveFocus());
   expect(screen.queryByLabelText("Birth date", { exact: true })).toBeNull();
   expect(screen.queryByRole("form")).toBeNull();
   expect(
