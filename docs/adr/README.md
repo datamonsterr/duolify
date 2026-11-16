@@ -15,6 +15,6 @@
 | [0011](0011-owner-decisions-2026-11-09.md) | Owner decisions for the E1–E17 breakdown | Accepted |
 | [0012](0012-interim-defaults-2026-11-13.md) | Interim defaults for open human gates and integration flow | Accepted |
 | [0013](0013-owner-decisions-2026-11-16.md) | Owner decisions for the remaining human gates | Accepted |
-| [0014](0014-infrastructure-cost-migration.md) | Infrastructure migration off Railway to Hetzner Singapore behind Cloudflare | Accepted |
+| [0014](0014-infrastructure-cost-migration.md) | Infrastructure migration off Railway to Hetzner Helsinki behind Cloudflare | Accepted (backup location pending owner) |
 
 New ADR: copy the newest file, increase the number, keep it under one page.
