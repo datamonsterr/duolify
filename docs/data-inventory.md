@@ -590,6 +590,10 @@ Postgres `learner_blocks` (`blocker_id`, `blocked_id`, `created_at`; primary key
 
 `learner_blocks` enters nightly encrypted Postgres dumps (14-day general retention). The backup fixture adds a block with a fixed date and a non-default `course_invites_from`, compares the restored rows and checks the self-block constraint. Account export lists the learner's own blocks by blocked username and date only (never blocks placed against them). Account erasure (live and tombstone replay) deletes blocks the learner placed **and** blocks placed against them: no opaque hash of the erased learner is retained (the product spec only permits it), because a new account gets a new UUID that such a hash could never match, so keeping it would retain data for no protection (integration test `TestBlocksFollowAccountErasureInBothDirections`); classified `erased`. PostHog receives `learner_blocked` (`was_friend` boolean) and `privacy_setting_changed` with `setting=course_invites_from` through the fail-closed consent gate, keyed by learner UUID; never usernames, display names or the blocked learner's identifier. There is no unblock event.
 
+### E13-06 approved identity and optional feedback settings
+
+Approved brand assets (SVG mark, wordmark, web favicon, manifest, and Tauri application icons) are Git-backed source assets versioned in the repository. Optional feedback preferences (`ui_sounds` boolean, `haptics` enum `system|on|off`) reuse existing PostgreSQL `learner_profiles` persistence (E1) without new tables or schema changes. These settings are included in nightly encrypted general PostgreSQL dumps (14-day retention), exported with learner profile data, and deleted on account erasure. No audio assets are shipped in v1; sound cues remain silent no-ops with zero network fetch. Telemetry emits only allowlisted `ui_control_activated` with `surface=settings` and `control_id=ui_sounds|haptics` under learner consent; no private learner text or repeated cues are emitted.
+
 # E17-05 pinned Course Casts in generated Lessons
 
 Each Lesson generation job pins its effective Cast in `lesson_cast_snapshots`

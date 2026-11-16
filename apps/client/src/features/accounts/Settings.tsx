@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   setAnalyticsConsent,
   trackAppearanceChanged,
+  trackPreference,
 } from "../../lib/analytics";
 import { Button } from "../design/Button";
 import { Feedback } from "../design/chat/Feedback";
@@ -109,6 +110,10 @@ export function Settings() {
       if (!optedOut) setAnalyticsConsent(true);
       if (!optedOut && saved.appearance !== result.appearance)
         trackAppearanceChanged(result.appearance);
+      if (!optedOut && saved.ui_sounds !== result.ui_sounds)
+        trackPreference("ui_sounds");
+      if (!optedOut && saved.haptics !== result.haptics)
+        trackPreference("haptics");
       applyVisualPreferences(result);
       setNotice("Settings saved");
     } catch (cause) {
@@ -220,17 +225,21 @@ export function Settings() {
                 ))}
               </select>
             </label>
-            <label>
+            <label htmlFor="settings-ui-sounds">
               <input
+                id="settings-ui-sounds"
+                aria-label="UI sounds"
                 type="checkbox"
                 checked={draft.ui_sounds}
                 onChange={(event) => update("ui_sounds", event.target.checked)}
               />
               UI sounds
             </label>
-            <label>
+            <label htmlFor="settings-haptics">
               Haptics
               <select
+                id="settings-haptics"
+                aria-label="Haptics"
                 value={draft.haptics}
                 onChange={(event) =>
                   update(
