@@ -422,7 +422,8 @@
   margin: 0;
   font-size: 1rem;
 }
-.sharing-textarea {
+.sharing-textarea,
+.sharing-birth-date {
   box-sizing: border-box;
   width: 100%;
   min-height: 4.5rem;
@@ -434,7 +435,8 @@
   color: var(--text);
   font: inherit;
 }
-.sharing-textarea:focus-visible {
+.sharing-textarea:focus-visible,
+.sharing-birth-date:focus-visible {
   outline: 3px solid var(--focus, currentColor);
   outline-offset: 2px;
 }
@@ -491,4 +493,9 @@
 .sharing-confirm input {
   min-width: var(--size-target, 44px);
   min-height: var(--size-target, 44px);
+}
+
+.sharing-birth-date {
+  min-inline-size: 0;
+  min-height: var(--size-target);
 }

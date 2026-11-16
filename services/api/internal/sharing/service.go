@@ -30,7 +30,7 @@ type RateSource interface {
 	Rates(context.Context) (Rates, error)
 }
 
-// AgeSource reports whether a Learner meets the configured publisher age. Unknown means false.
+// AgeSource reports whether a Learner meets the publisher age; unknown dates return ErrBirthDateRequired.
 type AgeSource interface {
 	MeetsMinAge(ctx context.Context, learnerID string, minAge int) (bool, error)
 }
@@ -64,7 +64,8 @@ func NewService(pool *pgxpool.Pool, events analytics.Events, cfg Config) *Servic
 	if events != nil {
 		events = analytics.WithConsent(events, analytics.DatabaseConsent(pool))
 	}
-	return &Service{pool: pool, events: events, cfg: cfg}
+	cfg.MinPublisherAge = max(18, cfg.MinPublisherAge)
+	return &Service{pool: pool, events: events, cfg: cfg, age: AccountAge{Pool: pool}}
 }
 
 // ConfigureScreening injects the platform-funded classifier and the Pricing-config rate source.

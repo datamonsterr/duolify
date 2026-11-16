@@ -82,3 +82,9 @@ Snapshots in object storage (versioned bucket, replicated per the backup spec); 
 6. Public course pages indexable by search engines, and CDN for previews.
 7. Updates for forked (steered) Course copies.
 8. Minimum age and parental rules for reviews, usernames and the Friend list.
+
+### Account birth date for publishing (#228, ADR 0013)
+
+Use nullable `learners.birth_date DATE` as the sole publisher age source. Store no computed age or verification metadata. `PUT /v1/me/birth-date` authenticates the account, accepts only a real ISO date from 1900-01-01 through today's server UTC date, and returns no private value. Account export includes the date; account deletion and restored deletion-ledger replay erase it with the learner row. Encrypted backups retain it under existing account retention; the synthetic backup fixture verifies date round trips and anonymization registers the column as PII and clears it.
+
+The production sharing service reads this date on each publish, republish and link rotation. Unknown dates return `birth_date_required` (409); minors return `adult_required` (403). Compare calendar month/day against UTC server time, including the conservative March 1 anniversary for February 29 births. Never accept client age or use the unrelated 16+ signup confirmation. The client handles the typed error with a labelled date form within the existing responsive Share dialog/sheet, focuses the field, announces errors, supports keyboard submission and retries the requested action after saving. Keep existing Character consent, screening and publish limits. The date and derived age never enter analytics, model input, snapshots or logs; no event or new AI behavior is added.

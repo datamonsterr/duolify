@@ -1,5 +1,26 @@
 ## ADDED Requirements
 
+### Requirement: Publisher birth date and adult gate
+Publishing, republishing and rotating a Share link MUST require an account birth date proving the owner is at least 18. The API SHALL compute calendar age from the server's UTC date; client ages and signup age confirmations MUST NOT establish publishing eligibility. A missing date MUST return `birth_date_required`; a known under-18 date MUST return `adult_required`, without changing visibility. The first-publish desktop dialog and mobile sheet SHALL offer a labelled, keyboard-accessible birth-date form on `birth_date_required`, announce validation and under-18 errors, and resume the requested action after saving. Existing screening and publication restrictions MUST still apply.
+
+Only a nullable date (no time, age, document or extra verification metadata) SHALL be stored on the account. An authenticated learner MAY set or correct their own date through `PUT /v1/me/birth-date`, accepting only `birth_date` in strict `YYYY-MM-DD` form, a real date between `1900-01-01` and the server's current UTC date inclusive. February 29 birthdays MUST become eligible on March 1 in a non-leap anniversary year. The birth date MUST be included in account export, erased with account deletion and restored only subject to the existing deletion-ledger replay. Encrypted account backups SHALL include it; anonymized restore drills SHALL classify it as PII and replace it with NULL. Neither birth date nor age SHALL enter analytics, published content, AI input or logs; this flow SHALL add no analytics event or AI behavior and SHALL preserve existing screening reliability gates.
+
+#### Scenario: Missing birth date
+- **WHEN** an owner without a stored birth date first tries to publish
+- **THEN** the server returns `birth_date_required` and the client asks for the date before continuing
+
+#### Scenario: Minor attempts to publish
+- **WHEN** an owner whose eighteenth birthday is tomorrow tries to publish
+- **THEN** the server returns `adult_required`, the client explains the 18+ requirement, and the Course remains private
+
+#### Scenario: Adult continues safely
+- **WHEN** the owner saves a valid birth date and today is their eighteenth birthday in UTC
+- **THEN** the client resumes the action and the existing screening and publish restrictions determine the outcome
+
+#### Scenario: Privacy lifecycle
+- **WHEN** a learner exports and then deletes their account, or an anonymized restore drill runs
+- **THEN** export contains the birth date, deletion removes it including after deletion-ledger replay, and the anonymized database contains no birth dates
+
 ### Requirement: Course visibility
 Every Course SHALL have a Course visibility of `private` (default, only the owner), `link` (anyone with the Share link) or `public` (listed in the Marketplace). Only the owner MUST be able to change it. Changing to `link` or `public` MUST publish a new version after safety screening. `public` MUST also require listing eligibility: title, description, category, language, at least the configured minimum of generated Lessons (default 3), and an owner account at least 3 days old with a verified email.
 

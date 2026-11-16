@@ -113,7 +113,7 @@ export const republishMessages: Record<RepublishFailure, string> = {
   limit: "You've reached today's limit for new versions. Try again tomorrow.",
   not_published:
     "Share this course with a link before publishing a new version.",
-  adult: "Publishing needs an adult account.",
+  adult: "You must be 18 or older to publish. You can keep learning privately.",
   unavailable: "This course isn't available to share.",
   offline,
 };

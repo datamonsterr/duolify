@@ -49,16 +49,12 @@ func (fixtureRates) Rates(context.Context) (sharing.Rates, error) {
 	return sharing.Rates{Input: 1000, Output: 5000, CacheWrite: 1250, CacheRead: 100}, nil
 }
 
-type fixtureAdult struct{}
-
-func (fixtureAdult) MeetsMinAge(context.Context, string, int) (bool, error) { return true, nil }
-
 func newSharingService(pool *pgxpool.Pool, objects sharing.ObjectWriter, gen sharing.GenerationDeps) *sharing.Service {
 	cfg := sharing.DefaultConfig()
 	// The release flag is OFF by default; the disposable browser server enables it explicitly (E15-07).
 	cfg.MarketplaceEnabled, cfg.MarketplacePageSize = true, 2
 	cfg.CharacterExportsEnabled = true // Isolated mock browser fixture, never production authorization.
-	s := sharing.NewService(pool, nil, cfg).WithAgeSource(fixtureAdult{}).WithObjects(objects, playerfixture.AssetOrigin)
+	s := sharing.NewService(pool, nil, cfg).WithObjects(objects, playerfixture.AssetOrigin)
 	s.ConfigureScreening(sharingScreener{}, fixtureRates{})
 	s.WithPush(sharing.NewFakePush()) // dev/e2e only: no APNs/FCM credentials exist (ADR 0012)
 	if gen.Lessons != nil {
@@ -71,7 +67,8 @@ func newSharingService(pool *pgxpool.Pool, objects sharing.ObjectWriter, gen sha
 // the variant, plus private learner rows that must never reach a snapshot.
 func seedSharingCourse(w http.ResponseWriter, r *http.Request, pool *pgxpool.Pool) {
 	var in struct {
-		Variant string `json:"variant"`
+		Variant          string `json:"variant"`
+		BirthDateUnknown bool   `json:"birth_date_unknown"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&in) != nil {
 		in.Variant = "safe"
@@ -99,6 +96,12 @@ func seedSharingCourse(w http.ResponseWriter, r *http.Request, pool *pgxpool.Poo
 		return
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	// Existing sharing fixtures represent known adult publishers. Age-gate acceptance
+	// explicitly requests an unknown date and exercises the same database source as production.
+	if _, err = tx.Exec(ctx, `UPDATE learners SET birth_date=CASE WHEN $2 THEN NULL ELSE COALESCE(birth_date, DATE '1990-06-15') END WHERE id=$1`, owner, in.BirthDateUnknown); err != nil {
+		http.Error(w, "seed unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	var quote, creation, course, unit, stub string
 	goal := "Explain eclipses"
 	if in.Variant == "reuse_down" {

@@ -57,6 +57,7 @@ var piiRules = []piiRule{
 	{"moderation_appeals", "text", redacted},
 	{"moderation_appeals", "decision_reason", redacted},
 	{"learners", "display_name", `'Learner ' || left(md5(id::text), 8)`},
+	{"learners", "birth_date", `NULL`},
 	{"auth_identities", "email", `'learner-' || replace(learner_id::text, '-', '') || '@` + AnonymizedDomain + `'`},
 	{"auth_provider_identities", "subject", `'anon-' || md5(provider || learner_id::text)`},
 	{"auth_provider_identities", "verified_email", `'learner-' || replace(learner_id::text, '-', '') || '@` + AnonymizedDomain + `'`},

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { drafts } from "./drafts";
 import { CharacterExportConfirmation } from "../characters/CharacterExportConfirmation";
+import { BirthDatePrompt, publisherAgeError } from "./BirthDatePrompt";
 import {
   MAX_CHANGELOG,
   republish,
@@ -24,6 +25,9 @@ export function RepublishPanel({ courseId }: { courseId: string }) {
   const [characters, setCharacters] = useState<string[] | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [releaseGated, setReleaseGated] = useState(false);
+  const [resumeAfterAge, setResumeAfterAge] = useState<(() => void) | null>(
+    null,
+  );
 
   const load = useCallback(() => {
     let active = true;
@@ -64,7 +68,11 @@ export function RepublishPanel({ courseId }: { courseId: string }) {
       if (got.verdict === "pass") setText("");
       setVersions(await republish.versions(courseId).catch(() => versions));
     } catch (error) {
-      setFailure(republishFailure(error));
+      if (publisherAgeError(error) === "birth_date_required") {
+        setResumeAfterAge(() => () => void publish(consent));
+      } else {
+        setFailure(republishFailure(error));
+      }
     } finally {
       setBusy(false);
     }
@@ -77,6 +85,15 @@ export function RepublishPanel({ courseId }: { courseId: string }) {
       data-testid="republish-panel"
     >
       <h3>New version</h3>
+      {resumeAfterAge && (
+        <BirthDatePrompt
+          onSaved={() => {
+            setResumeAfterAge(null);
+            resumeAfterAge();
+          }}
+          onCancel={() => setResumeAfterAge(null)}
+        />
+      )}
       {!loaded && (
         <p role="status">
           <span className="sharing-spinner" aria-hidden="true" />
