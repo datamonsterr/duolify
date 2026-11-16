@@ -30,3 +30,8 @@ updates:
     groups:
       javascript:
         patterns: ['*']
+    ignore:
+      # typescript-eslint does not support TypeScript 7 yet (client:lint-web fails on #2 and #224).
+      # Remove once typescript-eslint supports TS 7.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']

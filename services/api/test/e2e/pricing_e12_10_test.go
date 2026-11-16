@@ -366,7 +366,7 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 		rollbackEffective := time.Now().UTC().Add(800 * time.Millisecond)
 		rollbackPayload, _ := json.Marshal(map[string]any{
 			"version":        "usd-rollback-e12-10",
-			"effective_from": rollbackEffective.Format(time.RFC3339Nano),
+			"effective_from": rollbackEffective.Truncate(time.Microsecond).Format(time.RFC3339Nano),
 			"reason":         "reverting design chat prices to base catalogue",
 		})
 		w := request(http.MethodPost, "/admin/v1/pricing/drafts/usd-quotes-2026-11-09/rollback", authorToken, rollbackPayload)
@@ -434,6 +434,10 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("preview quote should still succeed after rollback: status=%d body=%s", w.Code, w.Body)
 		}
+	})
+
+	t.Run("OwnerApprovedProductionLifecycle", func(t *testing.T) {
+		testOwnerApprovedDesignChatHTTP(t, db, admin, runtimePricing, quotesService, request, authorToken, approverToken, ownerToken, ownerID)
 	})
 
 	t.Run("Analytics events emitted without reason or chat text", func(t *testing.T) {

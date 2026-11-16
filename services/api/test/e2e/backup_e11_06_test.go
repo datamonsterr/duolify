@@ -60,15 +60,17 @@ func (mockEngine) SetupChat(context.Context, *enginev1.SetupChatRequest) (*engin
 
 func TestE2EPlanEnvironmentChangesAndRejectViolations(t *testing.T) {
 	root := repoRootDir(t)
-	apiDir := filepath.Join(root, "services", "api")
 	planScript := filepath.Join(root, ".railway", "plan.mjs")
 
-	// Build the real api binary to test CLI end to end
-	apiBin := filepath.Join(t.TempDir(), "api-cli")
-	buildCmd := exec.CommandContext(t.Context(), "go", "build", "-o", apiBin, "./cmd/api") // #nosec G204
-	buildCmd.Dir = apiDir
-	if out, err := buildCmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to build api CLI binary: %v\noutput: %s", err, string(out))
+	// api:test-e2e already builds this image via infra:build-worker. Exercise
+	// its real API CLI instead of rebuilding the entire API on the host, where
+	// pricing changes invalidate the separate non-race Go build cache.
+	validate := func(t *testing.T, plan []byte) ([]byte, error) {
+		t.Helper()
+		cmd := exec.CommandContext(t.Context(), "docker", "run", "--rm", "--interactive", "--pull=never", // #nosec G204
+			"--env", "DUOLIFY_ENV", "duolify-worker:local", "admin", "infra", "validate")
+		cmd.Stdin = bytes.NewReader(plan)
+		return cmd.CombinedOutput()
 	}
 
 	// 1. Render real railway.ts end to end and validate with real built binary
@@ -79,9 +81,7 @@ func TestE2EPlanEnvironmentChangesAndRejectViolations(t *testing.T) {
 			t.Fatalf("failed to render railway.ts via %s: %v\noutput: %s", planScript, err, string(renderOut))
 		}
 
-		validateCmd := exec.CommandContext(t.Context(), apiBin, "admin", "infra", "validate") // #nosec G204
-		validateCmd.Stdin = bytes.NewReader(renderOut)
-		valOut, err := validateCmd.CombinedOutput()
+		valOut, err := validate(t, renderOut)
 		outStr := string(valOut)
 		if err != nil {
 			t.Fatalf("expected real railway.ts plan to pass validation, failed: %v\noutput: %s", err, outStr)
@@ -125,9 +125,7 @@ func TestE2EPlanEnvironmentChangesAndRejectViolations(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		validateCmd := exec.CommandContext(t.Context(), apiBin, "admin", "infra", "validate") // #nosec G204
-		validateCmd.Stdin = bytes.NewReader(mutatedJSON)
-		valOut, err := validateCmd.CombinedOutput()
+		valOut, err := validate(t, mutatedJSON)
 		if err == nil {
 			t.Fatal("expected validation to fail for public engine domain")
 		}
@@ -162,9 +160,7 @@ func TestE2EPlanEnvironmentChangesAndRejectViolations(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		validateCmd := exec.CommandContext(t.Context(), apiBin, "admin", "infra", "validate") // #nosec G204
-		validateCmd.Stdin = bytes.NewReader(mutatedJSON)
-		valOut, err := validateCmd.CombinedOutput()
+		valOut, err := validate(t, mutatedJSON)
 		if err == nil {
 			t.Fatal("expected validation to fail when backups dependency is dropped")
 		}
@@ -193,9 +189,7 @@ func TestE2EPlanEnvironmentChangesAndRejectViolations(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		validateCmd := exec.CommandContext(t.Context(), apiBin, "admin", "infra", "validate") // #nosec G204
-		validateCmd.Stdin = bytes.NewReader(mutatedJSON)
-		valOut, err := validateCmd.CombinedOutput()
+		valOut, err := validate(t, mutatedJSON)
 		if err == nil {
 			t.Fatal("expected validation to fail when plaintext secret is inlined")
 		}

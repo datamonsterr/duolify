@@ -208,7 +208,7 @@ func TestActivateDesignChatPricesIntegration(t *testing.T) {
 		}
 
 		// Now draft, approve, and activate new version
-		eff := time.Now().UTC().Add(800 * time.Millisecond)
+		eff := time.Now().UTC().Add(5 * time.Second)
 		newCfg := makeConfig("usd-settle-test", "interim_adr_0012", eff)
 		callAdmin(adminID, http.MethodPost, "/admin/v1/pricing/drafts", map[string]any{"config": newCfg, "reason": "draft"})
 		callAdmin(adminID, http.MethodPost, "/admin/v1/pricing/drafts/usd-settle-test/submit", map[string]any{"reason": "submit"})
@@ -217,7 +217,7 @@ func TestActivateDesignChatPricesIntegration(t *testing.T) {
 			t.Fatalf("approve failed: code=%d body=%s", code, body)
 		}
 
-		time.Sleep(900 * time.Millisecond)
+		time.Sleep(5100 * time.Millisecond)
 
 		runtime := pricing.NewRuntimeCatalogue(initialCat, db.Queries, db.Pool, nil)
 		runtime.SetEnvironment("development")
@@ -247,6 +247,10 @@ func TestActivateDesignChatPricesIntegration(t *testing.T) {
 		if settleVersion != "usd-quotes-2026-11-09" {
 			t.Fatalf("settled version = %s, want original usd-quotes-2026-11-09", settleVersion)
 		}
+	})
+
+	t.Run("OwnerApprovedProductionFixture", func(t *testing.T) {
+		approveOwnerDesignChatFixture(t, db, admin, ownerID, adminID)
 	})
 
 	t.Run("Backup and restore preserves active version and action flags", func(t *testing.T) {
@@ -283,6 +287,20 @@ func TestActivateDesignChatPricesIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		const historySQL = `SELECT jsonb_build_object(
+            'drafts', (SELECT jsonb_agg(to_jsonb(d) ORDER BY version) FROM pricing_drafts d),
+            'audit', (SELECT jsonb_agg(to_jsonb(a) ORDER BY id) FROM pricing_audit a),
+            'activations', (SELECT jsonb_agg(to_jsonb(a) ORDER BY version) FROM pricing_activation_events a))`
+		var originalHistory, restoredHistory map[string]any
+		if err := db.Pool.QueryRow(ctx, historySQL).Scan(&originalHistory); err != nil {
+			t.Fatal(err)
+		}
+		if err := restoredStore.Pool.QueryRow(ctx, historySQL).Scan(&restoredHistory); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(originalHistory, restoredHistory) {
+			t.Fatal("financial restore changed approval, reviewer, audit or activation history")
+		}
 		if !reflect.DeepEqual(initialCat.Config(), restoredCat.Config()) {
 			t.Fatalf("restored catalogue differs from initial: got %+v want %+v", restoredCat.Config(), initialCat.Config())
 		}
