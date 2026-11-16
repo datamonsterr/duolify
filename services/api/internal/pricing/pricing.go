@@ -77,15 +77,16 @@ type Config struct {
 		Expires         string   `json:"expires"`
 		SpendFirst      bool     `json:"spend_first"`
 	} `json:"daily_free"`
-	Packs               []Pack                       `json:"packs"`
-	Plans               []Plan                       `json:"plans"`
-	PaidCredits         json.RawMessage              `json:"paid_credits"`
-	Limits              json.RawMessage              `json:"limits"`
-	ProcessingFees      *ProviderRateConfig          `json:"processing_fees,omitempty"`
-	DevelopmentMappings map[string]string            `json:"development_mappings,omitempty"`
-	StripeMappings      map[string]any               `json:"stripe_mappings,omitempty"`
-	StoreMappings       map[string]map[string]string `json:"store_mappings,omitempty"`
-	DesignChatDecision  string                       `json:"design_chat_decision,omitempty"`
+	Packs                   []Pack                       `json:"packs"`
+	Plans                   []Plan                       `json:"plans"`
+	PaidCredits             json.RawMessage              `json:"paid_credits"`
+	Limits                  json.RawMessage              `json:"limits"`
+	ProcessingFees          *ProviderRateConfig          `json:"processing_fees,omitempty"`
+	DevelopmentMappings     map[string]string            `json:"development_mappings,omitempty"`
+	StripeMappings          map[string]any               `json:"stripe_mappings,omitempty"`
+	StoreMappings           map[string]map[string]string `json:"store_mappings,omitempty"`
+	DesignChatDecision      string                       `json:"design_chat_decision,omitempty"`
+	CharacterCreateDecision string                       `json:"character_create_decision,omitempty"`
 }
 
 // Public strips provider mappings. No sales are activated by this read-only ticket.
@@ -149,6 +150,9 @@ func Parse(raw []byte) (Config, error) {
 	}
 	if c.Narration.Credits != c.Actions["narration"].Credits {
 		return zero, errors.New("narration.credits must match actions.narration.credits")
+	}
+	if err := validateCharacterCreate(c); err != nil {
+		return zero, err
 	}
 	for _, key := range c.DailyFree.EligibleActions {
 		if _, ok := c.Actions[key]; !ok {
@@ -423,6 +427,14 @@ func (c *RuntimeCatalogue) ActivateDue(ctx context.Context, admin *Admin) error 
 		if err != nil {
 			return err
 		}
+		if _, ok := parsed.Actions["character_create"]; ok {
+			var reviewer string
+			_ = c.pool.QueryRow(ctx, "SELECT coalesce((SELECT reviewed_by FROM pricing_drafts WHERE version=$1 AND status='approved'),'')", v.version).Scan(&reviewer)
+			if gateErr := CheckCharacterCreateDecision(parsed, reviewer, admin.owner); gateErr != nil {
+				slog.WarnContext(ctx, "pricing activation refused", "version", v.version, "error", gateErr)
+				continue
+			}
+		}
 		if HasDesignChatKeys(parsed) {
 			var reviewer string
 			_ = c.pool.QueryRow(ctx, "SELECT coalesce((SELECT reviewed_by FROM pricing_drafts WHERE version=$1),'')", v.version).Scan(&reviewer)
@@ -570,6 +582,9 @@ func LoadDevelopment(ctx context.Context, pool *pgxpool.Pool) (*Catalogue, error
 // HasAction reports whether the catalogue defines the given action.
 func (c *Catalogue) HasAction(name string) bool {
 	if c == nil {
+		return false
+	}
+	if name == "character_create" && c.config.CharacterCreateDecision != "owner_approved" {
 		return false
 	}
 	_, ok := c.config.Actions[name]

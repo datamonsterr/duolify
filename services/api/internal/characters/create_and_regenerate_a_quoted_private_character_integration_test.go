@@ -395,13 +395,17 @@ func TestCharacterCreateGuardsAndCancellation(t *testing.T) {
 	})
 	t.Run("quoted version survives an approved active price flip", func(t *testing.T) {
 		owner, s, m := setup(t, true)
+		t.Setenv("PRICING_OWNER_ID", owner)
 		// Synthetic approval in an isolated test database is not commercial approval.
-		_, e := f.DB.Pool.Exec(ctx, `INSERT INTO pricing_versions(version,effective_from,approved,config) SELECT 'e17-approved-test-before',now()-interval '2 seconds',true,jsonb_set(jsonb_set(config,'{version}','"e17-approved-test-before"'),'{effective_from}',to_jsonb(now()-interval '2 seconds')) FROM pricing_versions WHERE version='usd-dev-character-create-unapproved'`)
+		_, e := f.DB.Pool.Exec(ctx, `INSERT INTO pricing_versions(version,effective_from,approved,config) SELECT 'e17-approved-test-before',now()-interval '2 seconds',true,jsonb_set(jsonb_set(config||'{"character_create_decision":"owner_approved"}'::jsonb,'{version}','"e17-approved-test-before"'),'{effective_from}',to_jsonb(now()-interval '2 seconds')) FROM pricing_versions WHERE version='usd-dev-character-create-unapproved'`)
 		if e != nil {
 			t.Fatal(e)
 		}
 		_, e = f.DB.Pool.Exec(ctx, `INSERT INTO pricing_quote_policies(version,policy) SELECT 'e17-approved-test-before',policy FROM pricing_quote_policies WHERE version='usd-dev-character-create-unapproved'`)
 		if e != nil {
+			t.Fatal(e)
+		}
+		if _, e = f.DB.Pool.Exec(ctx, `INSERT INTO pricing_drafts(version,parent_version,config,created_by,status,change_class,reviewed_by,reviewed_at) SELECT version,'usd-dev-character-create-unapproved',config,$1,'approved','non_adverse',$1,now() FROM pricing_versions WHERE version='e17-approved-test-before'`, owner); e != nil {
 			t.Fatal(e)
 		}
 		if _, e = f.DB.Pool.Exec(ctx, "INSERT INTO pricing_activation_events(version) VALUES ('e17-approved-test-before')"); e != nil {
@@ -410,8 +414,11 @@ func TestCharacterCreateGuardsAndCancellation(t *testing.T) {
 		s.ConfigureCreation(wallet, newMappingRPC(t, m), "production")
 		j := quote(t, s, owner, "flip", "original gardener")
 		// A new immutable active version changes only this isolated fixture's price.
-		_, e = f.DB.Pool.Exec(ctx, `INSERT INTO pricing_versions(version,effective_from,approved,config) SELECT 'e17-approved-test-after',now()-interval '1 second',true,jsonb_set(jsonb_set(jsonb_set(config,'{version}','"e17-approved-test-after"'),'{effective_from}',to_jsonb(now()-interval '1 second')),'{actions,character_create,credits}',to_jsonb((config->'actions'->'character_create'->>'credits')::int+1)) FROM pricing_versions WHERE version='usd-dev-character-create-unapproved'`)
+		_, e = f.DB.Pool.Exec(ctx, `INSERT INTO pricing_versions(version,effective_from,approved,config) SELECT 'e17-approved-test-after',now()-interval '1 second',true,jsonb_set(jsonb_set(jsonb_set(config,'{version}','"e17-approved-test-after"'),'{effective_from}',to_jsonb(now()-interval '1 second')),'{actions,character_create,credits}',to_jsonb((config->'actions'->'character_create'->>'credits')::int+1)) FROM pricing_versions WHERE version='e17-approved-test-before'`)
 		if e != nil {
+			t.Fatal(e)
+		}
+		if _, e = f.DB.Pool.Exec(ctx, `INSERT INTO pricing_drafts(version,parent_version,config,created_by,status,change_class,reviewed_by,reviewed_at) SELECT version,'e17-approved-test-before',config,$1,'approved','non_adverse',$1,now() FROM pricing_versions WHERE version='e17-approved-test-after'`, owner); e != nil {
 			t.Fatal(e)
 		}
 		_, e = f.DB.Pool.Exec(ctx, `INSERT INTO pricing_quote_policies(version,policy) SELECT 'e17-approved-test-after',policy FROM pricing_quote_policies WHERE version='usd-dev-character-create-unapproved'`)

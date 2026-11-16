@@ -36,6 +36,7 @@
     },
     "stripe_mappings":{"type":"object","additionalProperties":{"oneOf":[{"type":"string"},{"type":"object","additionalProperties":{"type":"string"}}]}},
     "store_mappings":{"type":"object","additionalProperties":{"type":"object","additionalProperties":{"type":"string"}}},
+    "character_create_decision": {"type":"string", "enum":["pending", "owner_approved"]},
     "design_chat_decision": {
       "type": "string",
       "enum": ["pending", "interim_adr_0012", "owner_approved"]

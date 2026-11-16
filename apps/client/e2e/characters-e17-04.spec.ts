@@ -2,6 +2,9 @@ import { resetTokens, test, expect } from "./accounts-fixture";
 import { apiBase } from "./servers";
 import type { Page, APIRequestContext } from "./native-store-fixture";
 
+// ADR 0013's approved active-version path is covered by characters-e17-02-pricing.
+// These explicit mock-only proposal fixtures retain provisional default-cast art.
+
 test.beforeEach(() => resetTokens());
 async function connect(page: Page, request: APIRequestContext) {
   await page.goto("/settings/characters");

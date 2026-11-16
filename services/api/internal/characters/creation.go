@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"strings"
 	"time"
 	"unicode"
@@ -117,6 +118,13 @@ func (s *Service) creationConfig(ctx context.Context) (pricing.Config, pricing.Q
 	c, err = pricing.Parse(row.Config)
 	if err != nil || json.Unmarshal(row.Policy, &p) != nil {
 		return c, p, errCreationDisabled
+	}
+	if !s.creation.allowUnapprovedPricing || !isDevOrTest {
+		var reviewer string
+		_ = s.pool.QueryRow(ctx, "SELECT coalesce((SELECT reviewed_by FROM pricing_drafts WHERE version=$1 AND status='approved'),'')", c.Version).Scan(&reviewer)
+		if pricing.CheckCharacterCreateDecision(c, reviewer, os.Getenv("PRICING_OWNER_ID")) != nil {
+			return c, p, errCreationDisabled
+		}
 	}
 	if _, err = pricing.CalculateQuote(c, p, pricing.QuoteInput{Action: "character_create"}, time.Now()); err != nil {
 		return c, p, errCreationDisabled

@@ -365,6 +365,13 @@ func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput,
 	if err != nil {
 		return Quote{}, err
 	}
+	if in.Action == "character_create" && version == "" {
+		var reviewer string
+		_ = s.pool.QueryRow(ctx, "SELECT coalesce((SELECT reviewed_by FROM pricing_drafts WHERE version=$1 AND status='approved'),'')", c.Version).Scan(&reviewer)
+		if CheckCharacterCreateDecision(c, reviewer, s.ownerID) != nil {
+			return Quote{}, errQuote
+		}
+	}
 	if IsDesignChatAction(in.Action) {
 		if _, ok := c.Actions[in.Action]; !ok {
 			return Quote{}, errQuote

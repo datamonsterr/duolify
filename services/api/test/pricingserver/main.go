@@ -176,9 +176,10 @@ func run() (result error) {
 	registerSteeringFixture(mux, auth, db.Pool, objects)
 	characterService := characters.NewService(db.Pool, nil, nil)
 	characterService.ConfigureScreening(characterScreenFixture{})
-	characterService.ConfigureCreation(creditService, characterMapFixture{}, "development", true)
+	characterService.ConfigureCreation(creditService, characterMapFixture{}, "development", os.Getenv("ALLOW_UNAPPROVED_PRICING") == "true")
 	go characterService.Maintain(boot)
 	charHandler := characters.NewHandler(characterService)
+	registerCharacterPricingFixture(mux, auth, db.Pool)
 	registerCharacterPublicationFixture(mux, auth, db.Pool, characterService)
 	mux.Handle("POST /test/characters/fund", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := db.Pool.Exec(r.Context(), `INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version) SELECT $1::uuid,(config->'actions'->'character_create'->>'credits')::bigint*3,'purchase','e17-funding-'||$1::text,'usd-dev-character-create-unapproved' FROM pricing_versions WHERE version='usd-dev-character-create-unapproved' ON CONFLICT DO NOTHING`, accounts.LearnerID(r.Context()))

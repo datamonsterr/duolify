@@ -190,3 +190,38 @@ Alternatively, run the documented mise task:
 mise run api:pricing-activate-interim
 ```
 
+E17-02 (ADR 0013, 2026-11-16) supplies the separate, Git-backed
+`fixtures/usd_character_create.json` version `usd-character-create-2026-11-16`:
+`character_create` costs 25 Credits and is absent from
+`daily_free.eligible_actions` (`daily_free_eligible: false` in quotes). Other
+commercial terms are unchanged; the design-chat fixture/version is separate.
+This file is a proposal for the existing draft → submit → owner approve →
+activate workflow, never a migration seed or automatic production activation.
+Use a fresh version/effective time when the destination already has the named
+version or newer commercial terms; preserve those terms when composing a successor.
+
+The schema records `character_create_decision: owner_approved`. Approval and
+activation require review by `PRICING_OWNER_ID`, including in dev/test. Normal
+availability and quote creation require that same evidence on the currently
+activated version, a supported action and its complete execution envelope.
+Missing decision/reviewer/owner/key/policy fails closed. Rolling forward to a
+version without the key disables creation and confirmation while saved quotes
+and Characters retain their original versions. Quotes/reservations/settlement
+use config prices; Daily free credits cannot fund creation or regeneration.
+
+The existing explicit `ALLOW_UNAPPROVED_PRICING` mock proposal remains confined
+to exact `development`/`test` environments. It is independent of the normal
+approved-version path. The new browser acceptance task disables that bypass.
+Inherited quote policy assigns `character_create` to the existing bounded
+`haiku` route; this config does not enable a live provider. The established
+90-second/two-attempt mapping and screening bounds remain; the config carries
+10 active Characters, 5 attempts/day, 2/minute and 1,500 prompt characters.
+Config validation rejects relaxed bounds and Daily-free eligibility. Existing
+server checks retain 20 edits/hour, 8 KiB specs, 2,400 combined persona/info
+characters and one guide plus 0–2 distinct supporting Characters.
+
+The pricing decision does not approve default-cast art. Original fixture art,
+provider provisioning, eval promotion and production feature flags retain their
+existing gates. No new learner data, events, provider calls or secrets are added;
+the decision field follows existing financial JSON backup and retention policy.
+

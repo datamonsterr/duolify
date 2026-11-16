@@ -178,6 +178,11 @@ and production drills still require provisioning. See [backup tooling](../infra/
 | Postgres River job metadata | Validated request_id, trace_id and parent span_id under correlation; backup args remain UTC date only | Existing encrypted nightly database dumps; focused synthetic dump/restore compares the metadata of a completed retried job | Existing River terminal-job cleanup; no learner ID or content. Legacy jobs get fresh correlation; account deletion needs no new personal-data store | [E11-04 change](../openspec/changes/trace-requests-workers-alerts/design.md) |
 | Private operational metrics and incident memory | Fixed-label call/error/duration/alert counters; bounded dedupe keys for terminal jobs and dependency outage state, independent of PostHog | Disposable memory and derived Prometheus volume; scrape/alert config and dashboard queries in infra are Git-backed | In-process counters reset on restart; dedupe capped at 4096 keys. Collector metrics expire after seven days or 256 MB; deletion/recreation resets the derived store | [E11-04 observability](../infra/observability/README.md) |
 
+The `character_create_decision` field in versioned Pricing config JSON records
+ADR 0013's owner-approved pricing gate. It contains no identity or learner text;
+existing full-dump coverage, seven-year financial retention and identity-free
+catalogue deletion policy apply. No learner table or column is added.
+
 Pricing administrator grants are included in account exports and the learner-table
 deletion classification; the focused privacy fixture seeds a grant, checks its
 export and verifies its existing ON DELETE CASCADE policy removes it.
