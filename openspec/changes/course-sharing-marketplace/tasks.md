@@ -46,3 +46,10 @@
 - [ ] 5.2 Add events to the `analytics` catalog through its change-control rule.
 - [ ] 5.3 Add tables and object prefixes to `docs/business/data-inventory.md`; confirm dump and bucket versioning cover them; deletion tests.
 - [ ] 5.4 `.env.example`: app domain for links, push credentials names with comments.
+
+## 6. Narration audio reuse (ADR 0013, #229)
+
+- [x] 6.1 e2e: shared copy plays the owner's audio over HTTP, no Credit rows, foreign lesson and anonymous callers refused, blocked copy refused (`TestSharedCopyPlaysOwnerNarrationAudioOverHTTP`).
+- [x] 6.2 Integration: snapshot refs and pins, free reuse and dedupe, missing-asset fallback, severe takedown and appeal lift, pin retention and purge.
+- [x] 6.3 Unit: allowlist, `ReusableNarration`, config default and kill switch.
+- [x] 6.4 Migration `20261116121502`, retention, takedown, privacy policy, `docs/data-inventory.md`.

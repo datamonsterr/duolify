@@ -1,6 +1,6 @@
 # E18: Infrastructure cost migration options
 
-- Status: investigation, owner decision pending ([ADR 0014](../adr/0014-infrastructure-cost-migration.md))
+- Status: **decided 2026-11-17: Option C in Singapore, zero-downtime cutover** ([ADR 0014](../adr/0014-infrastructure-cost-migration.md), Accepted). Sections 1–4 are the 2026-11-16 comparison (EU prices) kept for context; sections 5–9 are the plan.
 - Prices and limits read on **2026-11-16** from the official pages linked in [Sources](#sources). Items marked **(verify)** were not confirmed on an official page and must be checked in the matching ticket before any money is spent.
 - Scope: hosting for `services/api` (serve + worker), `engine`, Postgres, Redis, object storage, the static web client, backups and CI deploy. AI provider spend (OpenRouter, Anthropic, ElevenLabs) is the dominant unit cost (`docs/business/monetization.md`) and does not change with hosting.
 
@@ -92,30 +92,120 @@ Monthly prod cost in USD (EUR ≈ USD at 1.15 for estimates). p95 is the API rea
 
 Free credits worth applying for (none assumed in the numbers): Cloudflare for Startups ($10,000 for bootstrapped/<$1M raised, 1 year, needs incorporated for-profit with live site), Google for Startups Start tier (up to $2,000, verify), AWS Activate Founders (up to $5,000), Microsoft for Startups (up to $5,000 after verification), Neon Startup Program (up to $100k, venture-funded only), Koyeb startups (up to $30k). GitHub Student Developer Pack: Azure $100, Heroku $13/month for 24 months; no DigitalOcean offer listed.
 
-## 5. Recommendation
+## 5. Owner decisions (2026-11-17)
 
-**Phased: D now, then C at a trigger, keeping Railway as warm fallback until C passes its restore drill.**
+Recorded in [ADR 0014](../adr/0014-infrastructure-cost-migration.md) (Accepted). The phased "D first" recommendation of 2026-11-16 is superseded.
 
-At 100 DAU Railway trimmed costs about the same as anything else and needs no migration, so moving compute today buys little. The savings appear at 1k–10k DAU, where self-managed Hetzner is 2–3× cheaper than Railway and managed alternatives while giving lower latency (LAN database, no cold starts). R2 is attractive for zero egress, but its missing versioning makes it a code change; Hetzner Object Storage keeps the current S3 code unchanged and includes 1 TB of egress.
+1. **Option C, straight away.** Compute, Postgres, Redis and objects all move to Hetzner Cloud VMs. They run the existing Docker stack behind Cloudflare. There is no Railway-trimming detour.
+2. **Region: Southeast Asia.** Most learners are there, so everything runs in Hetzner **Singapore (`sin`, network zone `ap-southeast`)**.
+3. **Postgres is self-managed on the VM.** It reuses `infra/backup` (encrypted `pg_dump`, restore drills) and adds WAL archiving.
+4. **Zero-downtime cutover.** There is no maintenance window or write freeze: logical replication runs from Railway to Hetzner, followed by a seconds-long, request-holding switchover (section 7).
+5. **No startup credits for now.**
 
-| Phase | What moves | Trigger | Effort | Rollback |
-|---|---|---|---|---|
-| 0 Measure | Export Railway usage per service; k6 load test at 1k-DAU profile; record p95 baselines and SSE timings | now | 1 day | n/a |
-| 1 Edge | Cloudflare DNS/CDN/WAF in front of the API (SSE heartbeat < 100 s, verified); web client on Workers static assets; immutable object cache headers; dev/staging App Sleeping | now | 2 days | flip DNS record to DNS-only / back to Railway domain |
-| 2 Objects | Conformance-test Hetzner Object Storage (versioning, delete-marker restore, `If-None-Match`, Object Lock); copy buckets; switch `S3_*`/`BACKUP_S3_*` env; keep Railway buckets read-only 35 days | after phase 1 | 2 days | switch env back; Railway buckets untouched |
-| 3 Staging on VMs | Compose prod overlay, deploy job, WAL archiving, restore drill on a Hetzner staging VM (or Oracle Always Free) | Railway prod bill > $60/month **or** sustained 500 DAU | 3 days | none needed (staging) |
-| 4 Prod cutover | Freeze writes (maintenance mode ≤ 15 min), final `pg_dump`/restore to Hetzner, flip Cloudflare origin, keep Railway stack scaled down but deployable for 30 days | phase 3 restore drill green + owner go | 1–2 days | flip origin back; replay from last dump (RPO = freeze window) |
-| 5 Decommission | Remove Railway services after 30 days clean; archive `.railway/` IaC | 30 days after cutover | 0.5 day | redeploy from archived IaC |
+## 6. Chosen design: Option C in Singapore
 
-CI keeps `ci-ok` and GHCR publishing unchanged. `deploy-dev.yml` gains a second target (SSH or a pull-based agent on the VM deploying an image digest; verify mechanism in ticket) behind the same `ci-ok` gate; Railway plan/apply jobs stay until phase 5.
+Prices below were read on 2026-11-17 from Hetzner's public price service. It backs the plan tables on hetzner.com (`website-price-api.hetzner.com/api/v1/products/<id>`) and is cross-checked against https://www.hetzner.com/cloud-singapore/. All prices are EUR excl. VAT. The figures include a primary IPv4 at €0.50 (matching the page's "from" prices), and USD is about EUR × 1.17 (the price service's own USD figures).
 
-## 6. Open questions for the owner
+### Singapore availability (official, 2026-11-17)
 
-1. Where are learners? EU-only Hetzner locations favour Europe; US learners would use Ashburn/Hillsboro (fewer plan types) or option B.
-2. Is the operational burden of self-managed Postgres (patching, WAL/PITR, upgrades) acceptable, or should phase 4 use Supabase Pro (+$25–135/month, +$100 for PITR) with Hetzner compute?
-3. Is the company incorporated, with a live site, so it can apply for Cloudflare for Startups ($10k) or other credits?
-4. Accept a ≤ 15-minute write freeze for the production cutover?
-5. Should R2 replace Hetzner Object Storage later (zero egress) at the cost of rewriting the versioning-based backup and restore code?
+| Item | Singapore (`sin`) | Source |
+|---|---|---|
+| Cloud Shared AMD (CPX), Cloud Dedicated AMD (CCX) | ✓. Cost-optimized (CX/CAX) is **not** offered | https://docs.hetzner.com/cloud/general/locations/ |
+| Volumes, Networks, Firewalls, Load Balancers, Backups, Snapshots, Floating IPs | ✓. Networks and LBs must be in the same network zone (`ap-southeast`) | same |
+| **Object Storage** | **✗. Only Falkenstein, Nuremberg and Helsinki** | same; https://docs.hetzner.com/storage/object-storage/overview |
+| Traffic | 0.5–5 TB outbound included depending on plan, then **$8.49/TB** (EU: €1/TB). Internal and private-network traffic is free | https://www.hetzner.com/cloud-singapore/ ; https://docs.hetzner.com/cloud/billing/faq/ |
+| Volume price | not published on a fetchable official page (**verify** in the console before ordering) | https://www.hetzner.com/cloud/block-storage/ |
+
+| Plan | vCPU / RAM / disk | SIN €/month | HEL €/month (reference) |
+|---|---|---|---|
+| CPX12 | 1 shared / 2 GB / 40 GB | 15.99 | 9.99 |
+| CPX22 | 2 shared / 4 GB / 80 GB | 26.99 | 16.99 |
+| CPX32 | 4 shared / 8 GB / 160 GB | 49.49 | 30.49 |
+| CPX42 | 8 shared / 16 GB / 320 GB | 93.99 | 59.49 |
+| CCX13 | 2 dedicated / 8 GB / 80 GB | 54.49 | 36.99 |
+| CCX23 | 4 dedicated / 16 GB / 160 GB | 108.99 | 73.49 |
+| CCX33 | 8 dedicated / 32 GB / 240 GB | 174.99 | 117.99 |
+
+Singapore costs about 1.5–1.6× Helsinki. **This erodes the savings estimated on 2026-11-16 (EU prices).**
+
+### Object storage without Hetzner Object Storage in Singapore
+
+Railway's buckets are in `sin` today (`.railway/railway.ts`), so assets served from Helsinki would add an intercontinental round trip to every uncached slide or audio read. Lessons are mostly per-learner, so the CDN hit rate is low on first view. Decision:
+
+- **`lesson-assets`: self-hosted RustFS** on the Singapore app VM, with data on a Hetzner Volume. It is the same `rustfs/rustfs` image `docker-compose.yml` uses, and the repository's backup and player integration tests already exercise versioning, delete-marker restore and `If-None-Match` against it. The conformance suite (E18) re-proves this on the target.
+- **`backups` (pg_dump, WAL archive, deletion ledger) and a nightly versioned DR copy of `lesson-assets`: Hetzner Object Storage, Helsinki.** It is off-site from Singapore, versioned with Object Lock advertised, and costs €6.49/month including 1 TB storage and 1 TB egress (then €0.0087/TB-hour and €1/TB). The SG→HEL round trip only affects backup writes and account-deletion ledger writes, which are not latency-critical.
+- **Considered and rejected for now:**
+  - **Cloudflare R2 with an APAC location hint:** no S3 versioning, so it needs a code rewrite.
+  - **Hetzner Object Storage in Helsinki as the primary store:** adds a long round trip on cache misses.
+- **Residency note:** backups stored in the EU are a cross-border transfer from Singapore. Record this in the privacy notice (owner/legal).
+
+### Topology
+
+```text
+learner (SEA) ─▶ Cloudflare (DNS, CDN, WAF; web client on Workers static assets; SIN edge)
+                   │ proxied HTTPS; origin firewall allows Cloudflare ranges only
+                   ▼
+   Hetzner sin, private network (ap-southeast)
+   ├─ app VM:  api serve ×2 (HTTP + SSE), worker (River), engine (gRPC, private), redis, rustfs (+ volume)
+   └─ db VM:   postgres 18 (local NVMe), WAL archive ─┐
+                                                     ▼
+   Hetzner Object Storage hel1: backups (versioned, ledger locked), lesson-assets DR copy
+```
+
+### Cost (prod, per month, SIN)
+
+| Load | Layout | Hetzner compute | Object Storage HEL | Volume (assets) | Est. total | Railway est. |
+|---|---|---|---|---|---|---|
+| 100 DAU | 1× CPX22 (everything) | €26.99 | €6.49 | 30 GB (verify price) | **~€33.5 ≈ $39** + volume | ~$20 |
+| 1k DAU | CPX32 app + CCX13 db | €103.98 | €6.49 | 300 GB (verify) | **~€110 ≈ $129** + volume | ~$70 |
+| 1k DAU, lean | 1× CPX32 (everything) | €49.49 | €6.49 | 300 GB (verify) | **~€56 ≈ $66** + volume | ~$70 |
+| 10k DAU | CPX42 app + CCX23 db (+ CPX22 engine/worker) | €229.97 | ~€19 (3 TB DR) | 3 TB (verify) | **~€249 ≈ $291** + volume | ~$310–450 |
+
+Traffic: Cloudflare caches immutable objects, so origin egress stays inside the 0.5–5 TB included allowance at 1k DAU. Above it, Singapore egress is $8.49/TB, against $50/TB on Railway.
+
+**Honest read:** in Singapore, Option C costs **more than Railway at 100 DAU** and about the same at 1k DAU (lean layout). It saves roughly 5–35% at 10k DAU before volume costs. That is far less than the EU estimate. The other gains are a fixed, predictable bill, a LAN database, and no per-GB egress shock ($8.49/TB against $50/TB). Railway's rates were read on 2026-11-16 and are not region-dependent on its pricing page.
+
+## 7. Zero-downtime cutover design
+
+Facts (read 2026-11-17):
+
+- **Railway's Postgres image:** the template deploys `ghcr.io/railwayapp-templates/postgres-ssl:18`. Railway documents no `wal_level=logical`, REPLICATION role or logical-replication guide. Setting config through `ALTER SYSTEM` is allowed but ends Railway database support, and **`wal_level` changes need a Postgres restart**.
+- **What PostgreSQL 18 logical replication does not copy:** DDL, **sequences**, large objects or NOTIFY. Every table needs a primary key or replica identity.
+- **River:** elects one leader per database through the unlogged `river_leader` table (5 s TTL). Its `Stop` performs a soft stop with `SoftStopTimeout`.
+- **Advisory locks are session-local and never replicated.**
+
+| Step | Action | User impact |
+|---|---|---|
+| 0 Preflight | Owner checks `SHOW wal_level`, role attributes, Railway service region. Agent query lists tables without PK/replica identity and any large objects. **If `wal_level` ≠ `logical`:** schedule one Railway Postgres restart in the lowest-traffic minute (seconds of reconnects; pgx pools retry). This is the only unavoidable blip. | ≤ seconds, once |
+| 1 Objects | Copy `lesson-assets` and `backups` (all versions) Railway → RustFS SIN / HEL with `infra:s3-copy-verify`. Deploy **read-fallback**: reads miss the new store, then fall back to the Railway bucket. Switch writes to the new stores (rolling deploy), then run an incremental copy and verify. Remove the fallback after verification. | none |
+| 2 Replicate | `pg_dump --schema-only` → Hetzner. Publication `FOR ALL TABLES` on Railway (TLS via TCP proxy), subscription on Hetzner with `copy_data`. Monitor lag (`pg_stat_subscription`, `pg_stat_replication`). **Migrations are frozen** until step 5 (DDL is not replicated). | none |
+| 3 Shift compute | Deploy the Hetzner app stack **pointing at Railway Postgres** (same DB → no split brain; River elects one leader across both stacks; advisory locks shared). Shift traffic with the Cloudflare origin, then scale Railway compute to zero. Requires Railway to be in Singapore or nearby, otherwise this step adds DB latency and should be kept short (**verify region**). | none (rolling) |
+| 4 DB switchover | Hetzner API enters **switchover gate** (new code): new DB work is held, not rejected, up to 15 s; in-flight transactions and session-lock holders finish (bounded wait); River `Stop` (soft). Railway DB: `ALTER DATABASE … SET default_transaction_read_only = on` + terminate remaining sessions. Wait until subscriber LSN = publisher LSN. `setval` every sequence from Railway values + safety margin. Swap the pgx pool to Hetzner DB, start River, release the gate. | requests pause ≤ 15 s (target < 5 s); no errors |
+| 5 Detach | Drop subscription; **drop the replication slot on Railway** (an orphaned slot fills the disk); unfreeze migrations. | none |
+| Rollback before 5 | Release gate back to the Railway pool (Railway is still the publisher; clear `read_only`). | ≤ 15 s pause |
+| Rollback after 5 | Reverse logical replication Hetzner → Railway is set up during the 30-day fallback window (publication on Hetzner, subscription on Railway), so the same gate flips back. | ≤ 15 s pause |
+
+Redis is not migrated: it is derived data (ADR 0003). The Hetzner Redis starts cold, and rate-limit windows reset once. A ticket checks that every Redis key family rebuilds from Postgres.
+
+## 8. Phased plan (supersedes the 2026-11-16 phases)
+
+| Phase | Content | Owner / agent | Effort |
+|---|---|---|---|
+| 0 Preflight | Owner: Hetzner + Cloudflare accounts, Railway `wal_level`/region/role facts. Agent: PK/large-object audit query, k6 baseline. | both | 1 day |
+| 1 Build | Agent: compose prod overlay (RustFS, Postgres tuning, WAL archiving to HEL), SSE heartbeats + cache headers, S3 conformance, copy/verify + read-fallback, switchover gate, deploy job. | agent | 5–7 days |
+| 2 Staging in SIN | Owner provisions staging VMs and secrets. Agent runs the restore drill, `engine:eval` + live sample eval, load test, and a rehearsal of steps 1–5 against a Railway staging DB. | both | 2 days |
+| 3 Edge | Cloudflare in front of Railway prod and web client on Workers static assets (no origin change yet). | owner | 0.5 day |
+| 4 Prod migration | Steps 0–5 of section 7. | owner executes runbook | 1 day + 30-day watch |
+| 5 Decommission | Remove Railway after 30 clean days. Update ADR 0003/0008 and archive `.railway/`. | agent + owner | 0.5 day |
+
+CI: `ci-ok` and GHCR publishing are unchanged. The deploy job (Namespace runner) deploys image digests to the VMs after `ci-ok`. The mechanism (SSH with a restricted deploy key, or a pull-based agent on the VM) is decided in its ticket. Railway plan/apply jobs remain until phase 5.
+
+## 9. Remaining open items
+
+1. Railway Postgres facts (`wal_level`, REPLICATION attribute, service region). These decide whether step 0 needs a restart, and whether step 3 adds latency.
+2. Hetzner Volume price in Singapore (console).
+3. Legal: backups in the EU (Helsinki) for Singapore-hosted learner data.
+4. Revisit R2 (zero egress, APAC hint) only if the versioning code is rewritten.
 
 ## Sources
 
@@ -139,3 +229,7 @@ All read 2026-11-16.
 - Backblaze B2: https://www.backblaze.com/cloud-storage/pricing , https://www.backblaze.com/docs/cloud-storage-s3-compatible-api
 - Credits: https://aws.amazon.com/startups/credits , https://www.microsoft.com/en-us/startups , https://cloud.google.com/startup , https://education.github.com/pack
 - River poll-only mode: https://github.com/riverqueue/river/issues/302
+- Hetzner Singapore (read 2026-11-17): locations and products https://docs.hetzner.com/cloud/general/locations/ , Singapore page and traffic https://www.hetzner.com/cloud-singapore/ , billing FAQ https://docs.hetzner.com/cloud/billing/faq/ , plan prices via https://website-price-api.hetzner.com/api/v1/products/CLOUD_141 … CLOUD_149 (backs https://www.hetzner.com/cloud/regular-performance/ and https://www.hetzner.com/cloud/general-purpose/), volumes https://docs.hetzner.com/cloud/volumes/overview/
+- Railway Postgres (read 2026-11-17): https://railway.com/deploy/postgres , https://github.com/railwayapp-templates/postgres-ssl , support scope https://docs.railway.com/databases#database-support-scope , TCP proxy https://docs.railway.com/networking/tcp-proxy , HA https://docs.railway.com/databases/postgresql-ha
+- PostgreSQL 18 logical replication (read 2026-11-17): restrictions https://www.postgresql.org/docs/18/logical-replication-restrictions.html , config https://www.postgresql.org/docs/18/logical-replication-config.html , security https://www.postgresql.org/docs/18/logical-replication-security.html , monitoring https://www.postgresql.org/docs/18/logical-replication-monitoring.html , CREATE SUBSCRIPTION https://www.postgresql.org/docs/18/sql-createsubscription.html , `default_transaction_read_only` https://www.postgresql.org/docs/18/runtime-config-client.html
+- River (read 2026-11-17): leader election https://riverqueue.com/docs/leader-election , graceful shutdown https://riverqueue.com/docs/graceful-shutdown , drivers https://riverqueue.com/docs/database-drivers

@@ -106,6 +106,15 @@ SELECT DISTINCT p FROM (
 ) x WHERE p IS NOT NULL ON CONFLICT DO NOTHING`); err != nil {
 		return res, err
 	}
+	// A narration pin lives while its snapshot can still be enrolled: the latest passing version of a
+	// public, unmoderated Course. Otherwise the E14 retention window starts at this pass.
+	if _, err := s.pool.Exec(ctx, `UPDATE published_narration_pins p SET unpinned_at=CASE WHEN EXISTS(
+ SELECT 1 FROM publication_drafts d JOIN courses c ON c.id=d.course_id
+ WHERE d.id=p.draft_id AND c.deleted_at IS NULL AND c.visibility<>'private' AND c.moderation_state='none'
+ AND d.id=(SELECT x.id FROM publication_drafts x WHERE x.course_id=d.course_id AND x.verdict='pass' ORDER BY x.number DESC LIMIT 1)
+) THEN NULL ELSE COALESCE(p.unpinned_at,$1) END`, now); err != nil {
+		return res, err
+	}
 	rows, err := s.pool.Query(ctx, `SELECT prefix FROM shared_asset_retention ORDER BY prefix`)
 	if err != nil {
 		return res, err
