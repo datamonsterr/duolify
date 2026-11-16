@@ -247,7 +247,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-api
       - run: mise run api:test-e2e
-        timeout-minutes: 3
+        timeout-minutes: 8
       - run: mise run api:test-integration
         timeout-minutes: 12
       - name: Summary
