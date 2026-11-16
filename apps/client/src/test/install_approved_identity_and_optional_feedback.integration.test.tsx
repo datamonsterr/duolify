@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,7 +9,12 @@ import {
   BrandMark,
   BrandWordmark,
 } from "../features/design/brand/Brand";
-import { triggerFeedbackCue } from "../features/design/feedback/feedbackBridge";
+import {
+  triggerFeedbackCue,
+  setFeedbackSettings,
+} from "../features/design/feedback/feedbackBridge";
+import { Button } from "../features/design/Button";
+import { LessonTest } from "../features/lessontest/LessonTest";
 import { Settings } from "../features/accounts/Settings";
 import { emptySettings } from "../features/accounts/learner-context";
 import { credentialStore, session } from "../features/accounts/session";
@@ -110,6 +117,42 @@ describe("install_approved_identity_and_optional_feedback integration", () => {
         brandLink.querySelector('[data-brand-mark="true"]'),
       ).toBeInTheDocument();
     });
+
+    it("verifies PNG header dimensions of manifest and Tauri icon assets match declared sizes", () => {
+      function getPngDimensions(relPath: string) {
+        const fullPath = path.resolve(__dirname, relPath);
+        const buffer = fs.readFileSync(fullPath);
+        expect(buffer.toString("ascii", 1, 4)).toBe("PNG");
+        return {
+          width: buffer.readUInt32BE(16),
+          height: buffer.readUInt32BE(20),
+        };
+      }
+
+      // Web manifest icons
+      expect(getPngDimensions("../../public/icon-192.png")).toEqual({
+        width: 192,
+        height: 192,
+      });
+      expect(getPngDimensions("../../public/icon-512.png")).toEqual({
+        width: 512,
+        height: 512,
+      });
+
+      // Tauri desktop and mobile standard sizes
+      expect(getPngDimensions("../../src-tauri/icons/32x32.png")).toEqual({
+        width: 32,
+        height: 32,
+      });
+      expect(getPngDimensions("../../src-tauri/icons/128x128.png")).toEqual({
+        width: 128,
+        height: 128,
+      });
+      expect(getPngDimensions("../../src-tauri/icons/icon.png")).toEqual({
+        width: 512,
+        height: 512,
+      });
+    });
   });
 
   describe("Tauri sound/haptic platform bridge double", () => {
@@ -140,10 +183,10 @@ describe("install_approved_identity_and_optional_feedback integration", () => {
         reduceMotion: false,
       });
 
-      expect(vibrateSpy).toHaveBeenCalled();
+      expect(vibrateSpy).toHaveBeenCalledWith([20, 40, 20]);
     });
 
-    it("suppresses celebratory haptics when reduced motion is requested", () => {
+    it("keeps paired pulse haptics on completion even when reduced motion is requested", () => {
       triggerFeedbackCue({
         type: "completion",
         soundEnabled: false,
@@ -151,7 +194,8 @@ describe("install_approved_identity_and_optional_feedback integration", () => {
         reduceMotion: true,
       });
 
-      expect(vibrateSpy).not.toHaveBeenCalled();
+      // Reduced motion suppresses celebration movement only, not opt-in haptics
+      expect(vibrateSpy).toHaveBeenCalledWith([20, 40, 20]);
     });
 
     it("never produces punishment vibration on mistakes or corrections", () => {
@@ -163,6 +207,51 @@ describe("install_approved_identity_and_optional_feedback integration", () => {
       });
 
       // Corrections must be neutral/silent, never punishing
+      expect(vibrateSpy).not.toHaveBeenCalled();
+    });
+
+    it("wires tap feedback into shared design Button confirmed press", () => {
+      setFeedbackSettings({ haptics: "on" });
+      const onClick = vi.fn();
+      render(<Button onClick={onClick}>Confirm action</Button>);
+
+      fireEvent.click(screen.getByRole("button", { name: "Confirm action" }));
+      expect(onClick).toHaveBeenCalled();
+      expect(vibrateSpy).toHaveBeenCalledWith([15]);
+    });
+
+    it("wires correction feedback into lesson-test wrong answer without vibration", async () => {
+      setFeedbackSettings({ haptics: "on" });
+      const onAnswer = vi.fn().mockResolvedValue({
+        correct: false,
+        explanation: "Incorrect answer explanation",
+      });
+
+      render(
+        <LessonTest
+          lessonId="l1"
+          courseId="c1"
+          title="Sample Test"
+          questions={[
+            {
+              question_id: "q1",
+              topic_id: "t1",
+              prompt: "Select correct choice",
+              choices: ["Choice A", "Choice B"],
+            },
+          ]}
+          onPass={vi.fn()}
+          onExit={vi.fn()}
+          onAnswer={onAnswer}
+        />,
+      );
+
+      fireEvent.click(screen.getByLabelText("Choice A"));
+      fireEvent.click(screen.getByRole("button", { name: /Check/i }));
+
+      await screen.findByText(/Not quite/i);
+      expect(onAnswer).toHaveBeenCalled();
+      // Correction cue was called, but must be a no-op haptic
       expect(vibrateSpy).not.toHaveBeenCalled();
     });
   });

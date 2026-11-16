@@ -21,6 +21,15 @@ async function seedSettingsAccount(page: Page) {
   };
 
   await page.addInitScript(() => {
+    (
+      window as unknown as { __vibrations: (number | number[])[] }
+    ).__vibrations = [];
+    navigator.vibrate = (pattern: number | number[]) => {
+      (
+        window as unknown as { __vibrations: (number | number[])[] }
+      ).__vibrations.push(pattern);
+      return true;
+    };
     sessionStorage.setItem(
       "duolify.native-store-fixture",
       JSON.stringify({
@@ -150,6 +159,34 @@ for (const width of [1280, 360]) {
     const saveNotice = page.locator('.settings-actions [role="status"]');
     await saveButton.click();
     await expect(saveNotice).toHaveText("Settings saved");
+
+    // Verify haptics was called on confirmed button press when haptics=on
+    const vibrationsOn = await page.evaluate(
+      () =>
+        (window as unknown as { __vibrations: (number | number[])[] })
+          .__vibrations,
+    );
+    expect(vibrationsOn.length).toBeGreaterThan(0);
+
+    // Turn haptics off, save, and verify navigator.vibrate is not called
+    await hapticsSelect.selectOption("off");
+    await saveButton.click();
+    await expect(saveNotice).toHaveText("Settings saved");
+
+    // Clear tracked vibrations and click again
+    await page.evaluate(() => {
+      (
+        window as unknown as { __vibrations: (number | number[])[] }
+      ).__vibrations = [];
+    });
+    await saveButton.click();
+    await expect(saveNotice).toHaveText("Settings saved");
+    const vibrationsOff = await page.evaluate(
+      () =>
+        (window as unknown as { __vibrations: (number | number[])[] })
+          .__vibrations,
+    );
+    expect(vibrationsOff).toHaveLength(0);
 
     // Verify silent no-op: no audio requests sent across the wire
     expect(audioRequests).toHaveLength(0);

@@ -12,15 +12,15 @@ The client application SHALL provide dedicated accessible `BrandMark`, `BrandWor
 - **THEN** an accessible name "Duolify" is exposed and decorative tiles are hidden from screen readers
 
 ### Requirement: Optional feedback cues and settings
-The client SHALL provide independent settings for UI sounds and haptics on the Settings screen (S23). UI sound cues SHALL remain silent no-ops in v1 without downloading audio assets over the network. Haptic feedback SHALL trigger only on user-initiated actions when supported by the platform, MUST NOT punish incorrect answers, and MUST be suppressed when reduced motion is requested by the learner or the operating system.
+The client SHALL provide independent settings for UI sounds and haptics on the Settings screen (S23). UI sound cues SHALL remain silent no-ops in v1 without downloading audio assets over the network. Haptic feedback SHALL trigger only on user-initiated actions when supported by the platform, MUST NOT punish incorrect answers, and SHALL remain a separate opt-in control independently of reduced motion (reduced motion suppresses celebration movement only; completion keeps the short paired pulse when haptics are enabled).
 
 #### Scenario: UI sound cue trigger with sound disabled or missing assets
 - **WHEN** a user activates a UI control with sounds enabled
 - **THEN** no network audio request is dispatched and playback completes silently
 
-#### Scenario: Reduced motion suppresses celebratory haptics
+#### Scenario: Reduced motion decouples from haptic vibration
 - **WHEN** the learner enables reduced motion or the operating system prefers reduced motion
-- **THEN** tactile celebratory vibrations are suppressed
+- **THEN** celebration movement is suppressed while opt-in haptic vibration remains active according to the learner's haptic setting
 
 ### Requirement: Feedback and identity analytics events
 The analytics catalogue SHALL include `ui_control_activated` with surface `settings` and control IDs `ui_sounds` and `haptics`. Telemetry MUST NOT emit repeated cues for purchase success or learner private text.

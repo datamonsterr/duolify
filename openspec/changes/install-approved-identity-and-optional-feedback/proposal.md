@@ -6,7 +6,7 @@ Owner decision (ADR 0013, 2026-11-16) accepted the original geometric placeholde
 ## What Changes
 - Add dedicated `BrandMark`, `BrandWordmark`, and `Brand` components implementing the approved original two-tile mark and lowercase wordmark with accessible names and token-based contrast across 16px to app-icon sizes.
 - Commit canonical SVG icon sources to the repository, generate Tauri app icons for `apps/client/src-tauri/icons`, and provide a web manifest and favicon in `apps/client/public/`.
-- Provide an optional feedback cue engine and platform bridge double supporting independent UI sounds and haptic toggles with conservative defaults (UI sounds off; haptics matching system preferences). Sound cues remain silent no-ops without audio assets or network requests; haptics trigger only on supported devices and respect reduced motion and OS settings.
+- Provide an optional feedback cue engine and platform bridge double supporting independent UI sounds and haptic toggles with conservative defaults (UI sounds off; haptics matching system preferences). Sound cues remain silent no-ops without audio assets or network requests; haptics trigger only on supported devices without punishment, remaining an independent opt-in control decoupled from reduced-motion movement suppression.
 - Align Settings (S23) across desktop panels and mobile sheets, providing accessible loading, saved, and recoverable error states.
 - Emit `ui_control_activated` only for settings interaction without personal text or repeated sound triggers.
 

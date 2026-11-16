@@ -15,7 +15,7 @@ ADR 0013 confirmed that the original placeholder mark (two offset rounded tiles 
 ## Optional Feedback Engine & Platform Bridge
 - **Feedback Controller**: Exposes methods for user-triggered interaction cues: `playCue(type: "tap" | "completion" | "correction")`.
   - Sound: Since no audio assets ship for v1, audio cues execute as a silent no-op without any network requests.
-  - Haptics: Executes `navigator.vibrate` or Tauri vibration bridge if supported, unless `draft.haptics === "off"` or `draft.motion === "reduce"` or OS prefers reduced motion.
+  - Haptics: Executes `navigator.vibrate` or Tauri vibration bridge if supported, unless `draft.haptics === "off"`. Never punishes mistakes. Reduced motion suppresses celebratory movement only; haptics and sound remain separate opt-in controls per docs/design/brand.md.
   - Narration ducking: Narration remains the primary audio; UI cues duck below narration and never autoplay or punish mistakes.
 - **Settings Screen (S23)**:
   - Exposes toggles for UI sounds and Haptics (`system`, `on`, `off`).

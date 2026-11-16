@@ -18,6 +18,7 @@ import {
   type LearnerSettings,
   type SettingsFields,
 } from "./learner-context";
+import { setFeedbackSettings } from "../design/feedback/feedbackBridge";
 import { analyticsOptOut, setAnalyticsOptOut } from "./session";
 import "./settings.css";
 
@@ -69,6 +70,10 @@ export function Settings() {
           setDraft(current);
           setAnalyticsOptOut(optedOut);
           setAnalyticsConsent(!optedOut);
+          setFeedbackSettings({
+            ui_sounds: value.ui_sounds,
+            haptics: value.haptics,
+          });
           applyVisualPreferences(value);
         }
       })
@@ -108,6 +113,10 @@ export function Settings() {
       setDraft(result);
       setAnalyticsOptOut(optedOut);
       if (!optedOut) setAnalyticsConsent(true);
+      setFeedbackSettings({
+        ui_sounds: result.ui_sounds,
+        haptics: result.haptics,
+      });
       if (!optedOut && saved.appearance !== result.appearance)
         trackAppearanceChanged(result.appearance);
       if (!optedOut && saved.ui_sounds !== result.ui_sounds)

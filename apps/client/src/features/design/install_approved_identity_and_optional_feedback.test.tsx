@@ -2,6 +2,9 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
   determineHapticPattern,
   shouldPlaySound,
+  triggerFeedbackCue,
+  setFeedbackSettings,
+  readFeedbackSettings,
 } from "./feedback/feedbackBridge";
 import { configureUiAnalytics, trackPreference } from "../../lib/analytics";
 
@@ -49,13 +52,14 @@ describe("install_approved_identity_and_optional_feedback unit tests", () => {
       expect(pattern).toEqual([20, 40, 20]);
     });
 
-    it("suppresses celebratory haptic pattern when reduce motion is enabled", () => {
+    it("keeps paired pulse haptic pattern for completion even when reduce motion is enabled", () => {
       const pattern = determineHapticPattern({
         type: "completion",
         hapticsSetting: "on",
         reduceMotion: true,
       });
-      expect(pattern).toBeNull();
+      // Reduced motion suppresses celebration movement only; haptics remain separate opt-in
+      expect(pattern).toEqual([20, 40, 20]);
     });
 
     it("returns null pattern when haptics setting is off", () => {
@@ -75,6 +79,51 @@ describe("install_approved_identity_and_optional_feedback unit tests", () => {
       });
       // No punishment / vibration on mistakes
       expect(pattern).toBeNull();
+    });
+  });
+
+  describe("Settings mapping and triggerFeedbackCue", () => {
+    let vibrateSpy: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      vibrateSpy = vi.fn();
+      Object.defineProperty(navigator, "vibrate", {
+        value: vibrateSpy,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it("reads saved settings defaults and updates through setFeedbackSettings", () => {
+      setFeedbackSettings({ ui_sounds: true, haptics: "on" });
+      const current = readFeedbackSettings();
+      expect(current.ui_sounds).toBe(true);
+      expect(current.haptics).toBe("on");
+    });
+
+    it("maps tap cue to one light haptic pulse when haptics=on", () => {
+      setFeedbackSettings({ haptics: "on" });
+      triggerFeedbackCue("tap");
+      expect(vibrateSpy).toHaveBeenCalledWith([15]);
+    });
+
+    it("maps completion cue to paired pulse haptic when haptics=on", () => {
+      setFeedbackSettings({ haptics: "on" });
+      triggerFeedbackCue("completion");
+      expect(vibrateSpy).toHaveBeenCalledWith([20, 40, 20]);
+    });
+
+    it("maps correction cue to a no-op haptic without vibrating", () => {
+      setFeedbackSettings({ haptics: "on" });
+      triggerFeedbackCue("correction");
+      expect(vibrateSpy).not.toHaveBeenCalled();
+    });
+
+    it("suppresses all vibration when haptics=off", () => {
+      setFeedbackSettings({ haptics: "off" });
+      triggerFeedbackCue("tap");
+      triggerFeedbackCue("completion");
+      expect(vibrateSpy).not.toHaveBeenCalled();
     });
   });
 
