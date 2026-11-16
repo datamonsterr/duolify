@@ -86,6 +86,9 @@ type Config struct {
 	StripeMappings      map[string]any               `json:"stripe_mappings,omitempty"`
 	StoreMappings       map[string]map[string]string `json:"store_mappings,omitempty"`
 	DesignChatDecision  string                       `json:"design_chat_decision,omitempty"`
+	// DesignChatPolicy records the approved settlement rules without changing
+	// historical versions that predate the owner decision.
+	DesignChatPolicy map[string]string `json:"design_chat_policy,omitempty"`
 }
 
 // Public strips provider mappings. No sales are activated by this read-only ticket.
@@ -116,6 +119,21 @@ func (c Config) ProviderMappings(environment string) map[string]string {
 	return result
 }
 
+// The embedded schema is immutable. Share its compiled form across catalogue
+// reloads and quote requests, while validating each document independently.
+var compiledPricingSchema = sync.OnceValues(func() (*jsonschema.Schema, error) {
+	schema, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaJSON))
+	if err != nil {
+		return nil, err
+	}
+	compiler := jsonschema.NewCompiler()
+	compiler.AssertFormat()
+	if err := compiler.AddResource("urn:duolify:pricing", schema); err != nil {
+		return nil, err
+	}
+	return compiler.Compile("urn:duolify:pricing")
+})
+
 // Parse enforces JSON Schema followed by relationships that JSON Schema cannot express.
 func Parse(raw []byte) (Config, error) {
 	var zero Config
@@ -123,16 +141,7 @@ func Parse(raw []byte) (Config, error) {
 	if err != nil {
 		return zero, fmt.Errorf("pricing JSON: %w", err)
 	}
-	schema, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaJSON))
-	if err != nil {
-		return zero, err
-	}
-	compiler := jsonschema.NewCompiler()
-	compiler.AssertFormat()
-	if err := compiler.AddResource("urn:duolify:pricing", schema); err != nil {
-		return zero, err
-	}
-	compiled, err := compiler.Compile("urn:duolify:pricing")
+	compiled, err := compiledPricingSchema()
 	if err != nil {
 		return zero, err
 	}
