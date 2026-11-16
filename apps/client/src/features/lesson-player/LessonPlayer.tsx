@@ -3,6 +3,7 @@ import { SegmentNarration } from "../narration/SegmentNarration";
 import { hasSegmentNarration, narratedDuration } from "../characters/narration";
 import { VoicePanel } from "../narration/VoicePanel";
 import { useUiPreferences } from "../design/localization/Preferences";
+import { triggerFeedbackCue } from "../design/feedback/feedbackBridge";
 import {
   useCallback,
   useEffect,
@@ -499,6 +500,7 @@ function TracerLessonPlayer({
             onClick={() => {
               if (index === slides.length - 1) {
                 setFinished(true);
+                triggerFeedbackCue("completion");
               } else goToSlide(nextSlide(index, slides.length));
             }}
           >

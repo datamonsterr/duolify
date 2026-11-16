@@ -463,12 +463,15 @@ export function trackSessionRecovery() {
   });
 }
 
-// E13-04 catalogue: localized-appearance/specs/design-system/spec.md.
+// E13-04 & E13-06 catalogue: design-system/spec.md.
 function trackSettings(
   event: "ui_appearance_changed" | "ui_control_activated",
   properties:
     | { mode: "system" | "light" | "dark" }
-    | { surface: "settings"; control_id: "locale" | "motion" | "reset" },
+    | {
+        surface: "settings";
+        control_id: "locale" | "motion" | "reset" | "ui_sounds" | "haptics";
+      },
 ) {
   if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
   try {
@@ -488,8 +491,11 @@ export function trackAppearance(mode: "system" | "light" | "dark") {
   if (!["system", "light", "dark"].includes(mode)) return;
   trackSettings("ui_appearance_changed", { mode });
 }
-export function trackPreference(control: "locale" | "motion" | "reset") {
-  if (!["locale", "motion", "reset"].includes(control)) return;
+export function trackPreference(
+  control: "locale" | "motion" | "reset" | "ui_sounds" | "haptics",
+) {
+  if (!["locale", "motion", "reset", "ui_sounds", "haptics"].includes(control))
+    return;
   trackSettings("ui_control_activated", {
     surface: "settings",
     control_id: control,

@@ -1,4 +1,5 @@
 import { authRequest, credentialStore, session } from "./session";
+import { setFeedbackSettings } from "../design/feedback/feedbackBridge";
 
 export const contextFields = [
   { id: "goal", label: "Goal", kind: "text" },
@@ -172,18 +173,28 @@ export const profileApi = {
     }>("/v1/me/setup-chat", turn, await accessToken());
   },
   async readSettings() {
-    return authRequest<LearnerSettings>(
+    const settings = await authRequest<LearnerSettings>(
       "/v1/me/settings",
       undefined,
       await accessToken(),
     );
+    setFeedbackSettings({
+      ui_sounds: settings.ui_sounds,
+      haptics: settings.haptics,
+    });
+    return settings;
   },
   async saveSettings(fields: Partial<SettingsFields>) {
-    return authRequest<LearnerSettings>(
+    const settings = await authRequest<LearnerSettings>(
       "/v1/me/settings",
       { confirmed: true, fields },
       await accessToken(),
     );
+    setFeedbackSettings({
+      ui_sounds: settings.ui_sounds,
+      haptics: settings.haptics,
+    });
+    return settings;
   },
   async export() {
     return authRequest<LearnerContext>(
