@@ -22,7 +22,9 @@ run = '''
 set -eu
 docker compose config -q
 git ls-files --cached --others --exclude-standard -z -- '*Dockerfile' | xargs -0 hadolint
-shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh infra/hooks/*.sh infra/s3/*.sh
+shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh infra/hooks/*.sh infra/s3/*.sh infra/deploy/*.sh
+docker compose --file infra/deploy/compose.yml --env-file infra/deploy/.env.example config -q
+docker run --rm --network none -v "$PWD/infra/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 docker compose --profile observability run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
 '''
 
@@ -80,3 +82,28 @@ depends = ["infra:deps"]
 run = '''
 printf '%s\n' 'In separate terminals:' 'mise run api:migrate && mise run api:run' 'mise run engine:run' 'mise run client:dev'
 '''
+
+["infra:selfhost-up"]
+description = "Self-hosted stack: create infra/deploy/.env if missing, build or pull images, start and wait for health"
+run = "bash infra/deploy/selfhost.sh up"
+
+["infra:selfhost-down"]
+description = "Self-hosted stack: stop all services; named volumes (data) are kept"
+run = "bash infra/deploy/selfhost.sh down"
+
+["infra:selfhost-logs"]
+description = "Self-hosted stack: follow logs (optionally for given services)"
+usage = 'arg "[service]..." var=#true help="Services to follow; default all"'
+run = 'bash infra/deploy/selfhost.sh logs ${usage_service:-}'
+
+["infra:selfhost-smoke"]
+description = "Self-hosted stack: health, proxy routing, CORS, unbuffered SSE and web client checks"
+run = "bash infra/deploy/selfhost.sh smoke"
+
+["infra:selfhost-backup"]
+description = "Self-hosted stack: ensure today's encrypted Postgres backup exists in the local backup bucket"
+run = "bash infra/deploy/selfhost.sh backup"
+
+["infra:selfhost-restore-drill"]
+description = "Self-hosted stack: decrypt the newest backup into a throwaway Postgres and verify it"
+run = "bash infra/deploy/selfhost.sh restore-drill"

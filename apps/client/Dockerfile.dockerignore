@@ -1,0 +1,14 @@
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!apps/client
+apps/client/node_modules
+apps/client/dist
+apps/client/src-tauri/target
+apps/client/src-tauri/gen
+apps/client/test-results
+apps/client/playwright-report
+!docs/design/tokens.json
+!services/api/internal/characters/schema
+!infra/deploy/Caddyfile

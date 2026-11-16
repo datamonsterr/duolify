@@ -27,7 +27,7 @@ export type Course = {
   units: { id?: string; title: string; lessons: Lesson[] }[];
 };
 export type CoursesResponse = Course[] & { active_course_id?: string };
-const base = import.meta.env.VITE_API_URL || "http://localhost:8080";
+const base = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 const pricingCacheKey = "pricing:last-known";
 type PricingCache = { pricing: Pricing; etag: string | null };
 

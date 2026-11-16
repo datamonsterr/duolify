@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# Input must be a decrypted, anonymized pg_dump --format=custom archive.
+# Input must be a decrypted, anonymized pg_dump --format=custom archive, or "-"
+# to stream one from stdin (infra/deploy/selfhost.sh restore-drill pipes a
+# just-decrypted self-hosted backup that never touches disk).
 set -euo pipefail
 
-if [[ $# != 1 || ! -r $1 ]]; then
-  printf 'Usage: mise run infra:restore-drill -- /path/to/anonymized.dump\n' >&2
+if [[ $# != 1 || ( $1 != - && ! -r $1 ) ]]; then
+  printf 'Usage: mise run infra:restore-drill -- /path/to/anonymized.dump  (or - for stdin)\n' >&2
   exit 2
+fi
+input=$1
+if [[ $input == - ]]; then
+  input=/dev/stdin
 fi
 
 drill_container=
@@ -34,7 +40,7 @@ for attempt in {1..60}; do
 done
 
 docker exec -i "$drill_container" pg_restore \
-  --exit-on-error --no-owner --no-acl -U postgres -d restore_drill < "$1"
+  --exit-on-error --no-owner --no-acl -U postgres -d restore_drill < "$input"
 
 # Fail closed on absent migration metadata, failed Goose state, missing tables,
 # or broken ledger relationships. Empty bootstrap tables remain valid.

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -98,5 +99,53 @@ func TestProductionCORSAndUnknownRouteFailClosed(t *testing.T) {
 		if w.Code != 401 {
 			t.Errorf("unguarded unknown route: %d", w.Code)
 		}
+	}
+}
+
+func TestConfiguredWebOriginsAllowedInEveryEnvironment(t *testing.T) {
+	for _, environment := range []string{"", "production", "development"} {
+		t.Setenv("DUOLIFY_ENV", environment)
+		t.Setenv("API_ALLOWED_ORIGINS", " https://learn.example.com ,http://localhost:8088")
+		router := New(Dependencies{}, slog.Default())
+		for origin, want := range map[string]int{
+			"https://learn.example.com": 200,
+			"http://localhost:8088":     200,
+			"https://learn.example.org": 403,
+			"http://localhost:8089":     403,
+			"":                          200,
+		} {
+			r := httptest.NewRequestWithContext(t.Context(), "GET", "/healthz", nil)
+			if origin != "" {
+				r.Header.Set("Origin", origin)
+			}
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r)
+			if w.Code != want {
+				t.Errorf("%q origin %q got %d", environment, origin, w.Code)
+			}
+			if want == 200 && origin != "" && w.Header().Get("Access-Control-Allow-Origin") != origin {
+				t.Errorf("%q origin %q missing CORS header", environment, origin)
+			}
+		}
+	}
+}
+
+func TestStreamCheckDeliversEventsUnauthenticated(t *testing.T) {
+	server := httptest.NewServer(New(Dependencies{}, slog.Default()))
+	defer server.Close()
+	resp, err := http.Get(server.URL + "/v1/stream-check")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "text/event-stream" || resp.Header.Get("X-Accel-Buffering") != "no" {
+		t.Fatalf("status=%d headers=%v", resp.StatusCode, resp.Header)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(body), "event: ping\n") != 2 || !strings.Contains(string(body), `data: {"seq":2}`) {
+		t.Fatalf("body=%q", body)
 	}
 }
