@@ -253,7 +253,7 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 		runtimePricing.SetEnvironment("development")
 		quotesService.SetEnvironment("development")
 
-		effective := time.Now().UTC().Add(800 * time.Millisecond)
+		effective := time.Now().UTC().Add(5 * time.Second)
 		interimConfig := makeInterimConfig("usd-interim-e12-10", "interim_adr_0012", effective)
 		payload, _ := json.Marshal(map[string]any{
 			"config": interimConfig,
@@ -277,7 +277,7 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 		}
 
 		// Wait until effective_from has passed in DB
-		time.Sleep(900 * time.Millisecond)
+		time.Sleep(5100 * time.Millisecond)
 
 		// Activate the due version
 		if err := runtimePricing.ActivateDue(ctx, admin); err != nil {
@@ -363,10 +363,10 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 
 	t.Run("Forward rollback disables design chat actions while preserving catalogue", func(t *testing.T) {
 		// Roll back to usd-quotes-2026-11-09 (which lacks design chat actions)
-		rollbackEffective := time.Now().UTC().Add(800 * time.Millisecond)
+		rollbackEffective := time.Now().UTC().Add(5 * time.Second)
 		rollbackPayload, _ := json.Marshal(map[string]any{
 			"version":        "usd-rollback-e12-10",
-			"effective_from": rollbackEffective.Format(time.RFC3339Nano),
+			"effective_from": rollbackEffective.Truncate(time.Microsecond).Format(time.RFC3339Nano),
 			"reason":         "reverting design chat prices to base catalogue",
 		})
 		w := request(http.MethodPost, "/admin/v1/pricing/drafts/usd-quotes-2026-11-09/rollback", authorToken, rollbackPayload)
@@ -385,7 +385,7 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 		}
 
 		// Wait until rollback effective_from has passed in DB
-		time.Sleep(900 * time.Millisecond)
+		time.Sleep(5100 * time.Millisecond)
 
 		if err := runtimePricing.ActivateDue(ctx, admin); err != nil {
 			t.Fatalf("ActivateDue after rollback failed: %v", err)
@@ -434,6 +434,10 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("preview quote should still succeed after rollback: status=%d body=%s", w.Code, w.Body)
 		}
+	})
+
+	t.Run("OwnerApprovedProductionLifecycle", func(t *testing.T) {
+		testOwnerApprovedDesignChatHTTP(t, db, admin, runtimePricing, quotesService, request, authorToken, approverToken, ownerToken, ownerID)
 	})
 
 	t.Run("Analytics events emitted without reason or chat text", func(t *testing.T) {

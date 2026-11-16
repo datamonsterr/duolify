@@ -1113,7 +1113,7 @@ func adverseObject(before, after map[string]any, path string, removed map[string
 	for key, oldValue := range before {
 		newValue, ok := after[key]
 		if !ok {
-			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision") {
+			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision" || key == "design_chat_policy") {
 				continue
 			}
 			if key == "stripe_price_id" || key == "store_product_ids" {
@@ -1128,7 +1128,7 @@ func adverseObject(before, after map[string]any, path string, removed map[string
 		if path != "" {
 			full = path + "." + key
 		}
-		if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision") {
+		if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision" || key == "design_chat_policy") {
 			continue
 		}
 		if key == "stripe_price_id" || key == "store_product_ids" {
@@ -1141,7 +1141,7 @@ func adverseObject(before, after map[string]any, path string, removed map[string
 	}
 	for key := range after {
 		if _, ok := before[key]; !ok {
-			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision") {
+			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision" || key == "design_chat_policy") {
 				continue
 			}
 			if key == "stripe_price_id" || key == "store_product_ids" {

@@ -661,6 +661,20 @@ Ticket E12-10 introduces interim ADR 0012 design chat pricing (`setup_chat=0`, `
 - Server-side gate fails closed: outside `DUOLIFY_ENV` development/test, approving/activating/quoting a version containing design chat actions is rejected unless `design_chat_decision` is `owner_approved` and approval was submitted by the `PRICING_OWNER_ID` admin.
 - Custom-format dump and restore verification (`TestActivateDesignChatPricesIntegration`) asserts that restored databases resolve the exact same active version and action flags.
 - Forward rollback restores catalogue actions without design chat keys and disables only those actions; manual outline editing and Apply/Discard/Undo remain free.
+
+E12-09 adds the separate Git-backed `usd-design-chat-owner-approved-2026-11-16`
+candidate. Its existing immutable config JSON records `owner_approved` plus
+`design_chat_policy` (platform-paid clarification, valid-delivery settlement even
+if discarded, release before delivery, and free manual edits/Apply/Discard/Undo).
+The standard draft/owner-approval flow persists this metadata with the version;
+there is no automatic approved seed or live activation. No new tables or learner
+fields are introduced, and account export/deletion policies stay the same.
+Existing encrypted nightly financial dumps retain the policy, reviewer audit and
+activation history for at least seven years in the live history, with snapshots
+rotating after 35 days. `TestActivateDesignChatPricesIntegration` verifies the
+owner-approved config and complete draft/reviewer, audit and activation records
+survive custom-format dump/restore. The separate `outline_replan=55` terms and
+historical quote-version references remain intact across forward rollback.
 - Analytics events (`pricing_version_approved`, `pricing_version_activated`, `pricing_version_rolled_back`) contain strictly canonical metadata and actor IDs; operator reasons and chat text are excluded.
 
 E11-03 adds no tables. Backup objects now have two retention classes in the isolated,

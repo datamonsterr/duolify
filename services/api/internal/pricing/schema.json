@@ -40,6 +40,19 @@
     "design_chat_decision": {
       "type": "string",
       "enum": ["pending", "interim_adr_0012", "owner_approved"]
+    },
+    "design_chat_policy": {
+      "description": "ADR 0013 settlement metadata; historical versions may omit it. Runtime approval still requires the configured owner reviewer.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["setup_chat", "course_brief_chat", "outline_chat_change", "undelivered_proposal", "manual_edits_apply_discard_undo"],
+      "properties": {
+        "setup_chat": {"const": "platform_paid"},
+        "course_brief_chat": {"const": "platform_paid"},
+        "outline_chat_change": {"const": "valid_delivered_proposal_even_if_discarded"},
+        "undelivered_proposal": {"const": "release_reservation"},
+        "manual_edits_apply_discard_undo": {"const": "free"}
+      }
     }
   },
   "$defs": {
