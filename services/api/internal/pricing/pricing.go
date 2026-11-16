@@ -86,6 +86,9 @@ type Config struct {
 	StripeMappings      map[string]any               `json:"stripe_mappings,omitempty"`
 	StoreMappings       map[string]map[string]string `json:"store_mappings,omitempty"`
 	DesignChatDecision  string                       `json:"design_chat_decision,omitempty"`
+	// DesignChatPolicy records the approved settlement rules without changing
+	// historical versions that predate the owner decision.
+	DesignChatPolicy map[string]string `json:"design_chat_policy,omitempty"`
 }
 
 // Public strips provider mappings. No sales are activated by this read-only ticket.

@@ -190,3 +190,46 @@ Alternatively, run the documented mise task:
 mise run api:pricing-activate-interim
 ```
 
+## E12-09 owner-approved design chat version (ADR 0013)
+
+`fixtures/usd_design_chat_owner_approved.json` is the separate
+`usd-design-chat-owner-approved-2026-11-16` candidate. It records
+`design_chat_decision: owner_approved` and `design_chat_policy`: setup and
+course-brief chats are platform paid (0 Credits); outline chat changes cost
+5 Credits, are Daily free eligible, and settle only for a valid delivered
+proposal, including one later discarded. Undelivered proposals release their
+reservation. Manual reorder/rename/remove/add, Undo, Apply and Discard are free.
+The interim usage/cost envelopes and the separate `outline_replan=55` price and
+envelope are preserved. The parallel `character_create` candidate remains a
+separate version; operators must preserve any subsequently approved actions
+when composing a successor catalogue.
+
+The fixture is Git-backed input to the existing admin workflow, not an automatic
+database seed. No migration inserts an approved version, creates an activation
+marker, changes environment defaults or enables live sales/providers. Review the
+diff against the active catalogue, select a future `effective_from` before
+submission (the fixture timestamp is illustrative), and supply verified product
+mappings before a production rollout. Its synthetic mappings are fixtures only.
+Use the CLI above with this config file and version ID: draft → validate → diff
+→ submit → approve (or schedule). In production the reviewer **must** be the
+granted `PRICING_OWNER_ID` administrator; decision metadata alone is insufficient.
+Approval inserts the immutable version and inherited quote policy, so this flow
+needs no separate registry or seed. Ordinary cost, margin and adverse-notice
+checks still apply. A submitted draft can be edited before approval; once approved,
+use a new version ID for any change.
+
+For rollback, create a forward version that removes only `setup_chat`,
+`course_brief_chat`, `outline_chat_change`, their limits and Daily free eligibility,
+and their decision/policy metadata, preserving every unrelated active action.
+The standard rollback operation can use an earlier version with exactly those
+remaining terms. It follows the same submit/approve/schedule lifecycle. Existing
+quotes/reservations retain their original pricing version and settlement terms;
+manual editing and form fallbacks remain available.
+
+The schema validates the optional policy metadata without changing historical
+documents. Versions, decision/policy, reviewer audit and activation records remain
+in nightly encrypted financial dumps with seven-year history and 35-day snapshot
+rotation. Existing canonical pricing events cover this workflow without chat or
+reason text. No prompts, models, evaluation thresholds or fallback behavior change;
+E1-11/E2-06/E2-08 golden cases and independent live-promotion gates still apply.
+
