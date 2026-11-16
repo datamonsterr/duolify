@@ -27,9 +27,31 @@ type Outcome struct {
 var allowedKeys = map[string]bool{
 	"title": true, "description": true, "units": true, "lessons": true, "goal": true, "generated": true,
 	"slides": true, "questions": true, "retry_pool": true, "narration_refs": true, "id": true, "html": true,
-	"narration": true, "topic": true, "prompt": true, "choices": true, "answer_index": true,
+	"narration": true, "narration_audio": true, "content_hash": true, "characters": true, "topic": true, "prompt": true, "choices": true, "answer_index": true,
 	"explanation": true, "variants": true, "question_id": true, "key": true,
 	"duration_ms": true, "segments": true, "speaker_key": true, "speaker_label": true, "text": true, "expression": true, "start_ms": true,
+}
+
+var contentHashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
+
+// ReusableNarration returns the owner-audio refs a copy may use: one per slide that exists in the
+// lesson, with a well-formed content hash and a playable duration. Slides with pinned-speaker
+// segments keep their per-learner narration.
+func ReusableNarration(l SnapshotLesson) []NarrationAudioRef {
+	slides := map[string]bool{}
+	for _, sl := range l.Slides {
+		slides[sl.ID] = len(sl.Segments) == 0
+	}
+	seen := map[string]bool{}
+	var out []NarrationAudioRef
+	for _, r := range l.NarrationAudio {
+		if !slides[r.SlideID] || seen[r.SlideID] || !contentHashPattern.MatchString(r.ContentHash) || r.DurationMS <= 0 {
+			continue
+		}
+		seen[r.SlideID] = true
+		out = append(out, r)
+	}
+	return out
 }
 
 // CheckAllowlist rejects any JSON object key outside the snapshot allowlist, at any depth.

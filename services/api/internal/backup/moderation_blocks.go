@@ -101,6 +101,12 @@ func ReplayModerationBlocks(ctx context.Context, pool *pgxpool.Pool, store Block
 			return total, errors.New("moderation block replay failed")
 		}
 		total += int(tag.RowsAffected())
+		if _, err = pool.Exec(ctx, `UPDATE slide_narrations n SET status='disabled',failure_code='moderation_blocked',updated_at=now()
+FROM course_lesson_stubs l JOIN course_units u ON u.id=l.unit_id JOIN course_copies cc ON cc.copy_course_id=u.course_id
+WHERE n.lesson_id=l.id AND n.shared_draft_id IS NOT NULL AND n.status='ready' AND cc.blocked_at IS NOT NULL
+AND encode(sha256(convert_to(cc.source_course_id::text,'UTF8')),'hex')=$1`, rec.CourseRef); err != nil {
+			return total, errors.New("moderation block replay failed")
+		}
 		for _, stmt := range []string{
 			`UPDATE courses SET moderation_state='taken_down',visibility='private' WHERE encode(sha256(convert_to(id::text,'UTF8')),'hex')=$1`,
 			`UPDATE publication_links SET revoked_at=COALESCE(revoked_at,now()) WHERE encode(sha256(convert_to(course_id::text,'UTF8')),'hex')=$1`,

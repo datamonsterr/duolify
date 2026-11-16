@@ -12,7 +12,7 @@ Every Course SHALL have a Course visibility of `private` (default, only the owne
 - **THEN** the API refuses with `not_listing_eligible` and lists the missing items
 
 ### Requirement: Versioned frozen snapshot
-Publishing a Course SHALL create an immutable, numbered version containing the Course outline, every generated Lesson (Slide manifest, Motion HTML Slides, narration text, Lesson test questions and Retry variant pool), narration audio assets, a changelog and a content hash. A version MUST NOT change after creation. Later edits or new Lessons by the owner MUST NOT alter a published version.
+Publishing a Course SHALL create an immutable, numbered version containing the Course outline, every generated Lesson (Slide manifest, Motion HTML Slides, narration text, Lesson test questions and Retry variant pool), narration audio references (content hashes of the owner's ready narration; ADR 0013), a changelog and a content hash. A version MUST NOT change after creation. Later edits or new Lessons by the owner MUST NOT alter a published version.
 
 #### Scenario: Owner generates more lessons
 - **WHEN** the owner generates Lesson 6 after publishing version 1
@@ -138,3 +138,19 @@ On-demand Lesson generation MUST use the same Golden set gate, fallback, timeout
 #### Scenario: Generation fails for a Course copy
 - **WHEN** all providers fail while generating a Lesson beyond the snapshot
 - **THEN** the Learner is not charged and can retry
+
+### Requirement: Shared copies reuse the owner's narration audio
+
+A version SHALL reference the owner's ready narration audio by content hash. A Course copy MUST play that audio, with its caption and alignment data, without new narration generation and without any Credit quote, reservation or charge. Regeneration MUST happen only for a slide whose audio is not referenced or whose asset is missing, at the existing per-learner pricing. Audio MUST be served only to the Learner holding the copy and MUST stop when the copy is blocked by a severe takedown; an overturned takedown MUST restore it. Assets MUST stay deduplicated by content hash and be retained while any copy or enrollable version needs them, then removed by the narration retention policy.
+
+#### Scenario: Learner plays reused audio for free
+- **WHEN** a Learner enrolls in a published Course whose owner narration exists
+- **THEN** the copy holds ready narration rows for the referenced slides, no Credits move, and only the copy's Learner can fetch the audio
+
+#### Scenario: Audio is missing
+- **WHEN** a referenced asset is missing or purged at enrollment
+- **THEN** that slide has no reused row and narration is generated for the Learner under the existing quote and pricing
+
+#### Scenario: Severe takedown
+- **WHEN** a severe takedown blocks a copy
+- **THEN** its reused audio is no longer served and its reference is released

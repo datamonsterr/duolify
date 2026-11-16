@@ -187,6 +187,15 @@ func (s *Service) Enqueue(ctx context.Context, owner, lessonID string) (int, err
 	queued := 0
 	segments := s.segmentsBySlide(ctx, owner, lessonID)
 	for _, slide := range manifest.Slides {
+		// Owner audio that came with a shared copy (ADR 0013) is played as is, whatever voice the
+		// learner prefers: no row, no synthesis, no charge.
+		var reused bool
+		if err = s.opts.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND shared_draft_id IS NOT NULL AND status='ready')`, lessonID, owner, slide.ID).Scan(&reused); err != nil {
+			return queued, err
+		}
+		if reused {
+			continue
+		}
 		if list := segments[slide.ID]; len(list) > 0 {
 			// Pinned speakers narrate the slide segment by segment, in order; the slide-level text is not
 			// synthesized again, so nothing is paid twice.
