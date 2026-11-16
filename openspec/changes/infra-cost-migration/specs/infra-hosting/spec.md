@@ -1,50 +1,124 @@
 ## ADDED Requirements
 
 ### Requirement: Postgres session semantics on every host
-The API and worker SHALL connect to Postgres with direct or session-mode connections. A transaction-mode pooler MUST NOT be placed between them and Postgres while the code uses session-level advisory locks or River.
+The API and worker SHALL connect to Postgres with direct connections. A transaction-mode pooler MUST NOT be placed between them and Postgres while the code uses session-level advisory locks or River.
 
 #### Scenario: Session advisory lock survives on the target host
 - **WHEN** the integration suite runs course creation, narration and lesson test flows against the target database endpoint
 - **THEN** session-level `pg_advisory_lock` and `pg_advisory_unlock` succeed on the same connection and River jobs complete
 
 ### Requirement: Object storage conformance before migration
-Any object store that replaces the current one MUST pass `mise run infra:s3-conformance` before data moves. The suite SHALL cover versioned put returning a version ID, listing versions, reading by version, delete-marker restore, `If-None-Match: *` conditional create and retention locks on the deletion-ledger prefix.
+Any object store that replaces the current one MUST pass `mise run infra:s3-conformance` before data moves. This covers Hetzner Object Storage in Helsinki, the backup/DR store, and RustFS when used as the fallback. The suite SHALL cover:
+- a versioned put that returns a version ID;
+- listing versions;
+- reading by version;
+- delete-marker restore;
+- `If-None-Match: *` conditional create;
+- retention locks on the deletion-ledger prefix.
 
 #### Scenario: Unversioned store rejected
 - **WHEN** the conformance suite runs against a store without bucket versioning
 - **THEN** the suite fails and names the unsupported operation
 
+### Requirement: Object migration without unavailable reads
+During object migration, the API SHALL read from the new store first and fall back to the Railway bucket when an object is missing. Writes SHALL go to the new store only after the first full copy is verified. The fallback MUST be removed after the incremental copy verifies.
+
+#### Scenario: Object written before the incremental copy
+- **WHEN** a Slide object exists only in the Railway bucket during migration
+- **THEN** the Lesson still plays because the read falls back to the Railway bucket
+
 ### Requirement: Streaming through the edge proxy
-Every SSE route SHALL send data or a comment heartbeat at least every 25 seconds, so that streams of at least 10 minutes complete through Cloudflare's proxy.
+Every SSE route SHALL send data or a comment heartbeat at least every 25 seconds, so that streams of at least 10 minutes complete through Cloudflare's proxy (125-second Proxy Read Timeout).
 
 #### Scenario: Long Tutor chat stream
 - **WHEN** a Tutor chat stream stays open for 10 minutes through the edge proxy
 - **THEN** the client receives heartbeats and the final event without a 524 error
 
-### Requirement: Data backup and retention across the migration
-The migration SHALL preserve existing retention: general backups for 14 days, financial backups for 35 days, and the deletion ledger never expired. It SHALL add continuous WAL archiving with 7-day point-in-time recovery. Source buckets MUST stay read-only for 35 days after copy verification, and a restore drill MUST pass on the new host before production cutover.
+### Requirement: Zero-downtime database switchover
+The database SHALL move from Railway to Hetzner by logical replication followed by a switchover gate. The gate:
+- MUST hold, not reject, new database work for at most 15 seconds;
+- MUST wait for in-flight transactions and session advisory lock holders;
+- MUST stop River gracefully.
 
-#### Scenario: Restore drill gates cutover
-- **WHEN** the restore drill fails on the target host
-- **THEN** the production cutover task stays blocked and Railway remains the serving origin
+Before swapping the connection pool, the gate SHALL:
+- set the old database read-only;
+- verify subscriber LSN equals publisher LSN;
+- set every sequence from the publisher plus a safety margin.
+
+If any check fails, the gate MUST release back to the old database. Replication slots MUST be dropped at detach or rollback.
+
+#### Scenario: Successful switchover
+- **WHEN** the operator triggers the gate while replication lag is zero
+- **THEN** requests resume on the Hetzner database within 15 seconds with no request errors and sequences continue above the publisher values
+
+#### Scenario: Lag check fails
+- **WHEN** the subscriber LSN does not reach the publisher LSN within the gate timeout
+- **THEN** the gate clears read-only on Railway, keeps the Railway pool and releases held requests
+
+### Requirement: Data backup and retention across the migration
+The migration SHALL preserve existing retention: general backups for 14 days, financial backups for 35 days, and the deletion ledger never expired. It SHALL add:
+- WAL archiving with 7-day point-in-time recovery to a backup bucket outside the Helsinki site;
+- a nightly versioned DR copy of `lesson-assets` in that backup location.
+
+Railway buckets MUST stay read-only for 35 days after verification. A restore drill MUST pass on the Helsinki staging stack before production migration.
+
+#### Scenario: Restore drill gates migration
+- **WHEN** the restore drill fails on the Helsinki staging stack
+- **THEN** the production migration task stays blocked and Railway remains the serving origin
 
 ### Requirement: Analytics continuity
-The migration SHALL NOT add or rename PostHog events. Hourly PostHog product and LLM event counts for the 24 hours after cutover MUST stay within ±20% of the same hours in the previous week, or the cutover is rolled back.
+The migration SHALL NOT add or rename PostHog events. For the 24 hours after each traffic-changing step, hourly PostHog product and LLM event counts MUST stay within ±20% of the same hours in the previous week. Otherwise that step is rolled back.
 
 #### Scenario: Event loss detected
-- **WHEN** hourly event counts after cutover drop below the tolerance
-- **THEN** the runbook triggers a rollback to the Railway origin
+- **WHEN** hourly event counts after a migration step drop below the tolerance
+- **THEN** the runbook rolls that step back
 
 ### Requirement: Model testing and reliability on the new host
-Before production traffic moves, the Engine on the new host MUST pass `mise run engine:eval` and the live sample eval at CI thresholds. Its p95 time-to-first-token MUST be no more than 10% above the Railway baseline. Provider fallbacks, timeouts and cost limits SHALL be unchanged.
+Before the database switchover, the Engine on the Helsinki stack MUST:
+- pass `mise run engine:eval`;
+- pass the live sample eval at CI thresholds;
+- keep p95 time-to-first-token, measured at the origin, no more than 10% above the Railway baseline.
 
-#### Scenario: Eval regression blocks cutover
-- **WHEN** the live sample eval on the new host falls below CI thresholds
-- **THEN** cutover is blocked and the Engine keeps serving from Railway
+Provider fallbacks, timeouts and cost limits SHALL be unchanged.
 
-### Requirement: Reversible cutover
-Railway SHALL stay deployable with the last known-good image digests for 30 days after cutover. Rollback SHALL be a Cloudflare origin change plus a restore of the latest dump.
+#### Scenario: Eval regression blocks switchover
+- **WHEN** the live sample eval on the Helsinki stack falls below CI thresholds
+- **THEN** the switchover is blocked and the Engine keeps serving from Railway
+
+### Requirement: Reversible migration
+For 30 days after switchover, reverse logical replication from Hetzner to Railway SHALL keep Railway current. Rollback SHALL use the same switchover gate.
 
 #### Scenario: Rollback within 30 days
 - **WHEN** the owner triggers rollback during the 30-day window
-- **THEN** traffic is served by Railway again after the origin flip and data restore
+- **THEN** the gate swaps back to Railway Postgres within 15 seconds without request errors
+
+### Requirement: Read-only window fallback
+If logical replication from Railway is not possible, or the plan A rehearsal fails twice, the database SHALL move by a planned read-only window of at most 15 minutes. During the window:
+- reads and Lesson playback MUST keep working;
+- writes MUST return `503` with `Retry-After`;
+- River MUST be stopped.
+
+Data SHALL move by dump/restore, and row counts plus a checksum sample MUST match before traffic switches. If verification has not passed by minute 13, the window MUST be aborted and Railway made writable again.
+
+#### Scenario: Window completes
+- **WHEN** the operator runs the read-only window and verification passes
+- **THEN** writes resume on the Hetzner database within 15 minutes of the window start and sequences continue above the Railway values
+
+#### Scenario: Window aborted
+- **WHEN** verification has not passed 13 minutes after the window start
+- **THEN** read-only is cleared on Railway, Railway keeps serving and no write is lost
+
+### Requirement: Off-site backups from the primary region
+Backups, the WAL archive and the `lesson-assets` DR copy MUST be stored outside the Helsinki site, in a versioned store that passes `infra:s3-conformance`. The storage country MUST be listed in the privacy notice before production data is written there.
+
+#### Scenario: Backup target in the primary site rejected
+- **WHEN** `infra:deploy-plan` sees a backup endpoint in the same location as the primary stack
+- **THEN** the plan fails and names the backup variable
+
+### Requirement: Latency from Southeast Asia is measured
+Immutable object responses SHALL be cacheable at the edge so that repeat reads in Southeast Asia are served without an origin round trip. Server-side API p95 MUST be no worse than the Railway baseline. Client-side p95 from a Southeast Asian vantage point SHALL be recorded before and after the move.
+
+#### Scenario: Cached slide read from Southeast Asia
+- **WHEN** a learner in Southeast Asia requests an immutable Slide object that was fetched before through the same edge
+- **THEN** the response is a cache hit and no request reaches the Helsinki origin
+

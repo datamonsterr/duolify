@@ -93,12 +93,14 @@ func testOwnerApprovedDesignChatHTTP(t *testing.T, db *store.Store, admin *prici
 	}
 	// Fixture date is illustrative; approval always requires an explicit future
 	// schedule. Tests select one only in their disposable database.
-	cfg["effective_from"] = time.Now().UTC().Add(5 * time.Second).Truncate(time.Microsecond).Format(time.RFC3339Nano)
+	// Match PostgreSQL's microsecond precision without a long activation wait.
+	effectiveFrom := time.Now().UTC().Add(500 * time.Millisecond).Truncate(time.Microsecond)
+	cfg["effective_from"] = effectiveFrom.Format(time.RFC3339Nano)
 	path := "/admin/v1/pricing/drafts/" + version
 	call("/admin/v1/pricing/drafts", authorToken, map[string]any{"config": cfg, "reason": "ADR 0013 owner decision"}, http.StatusCreated)
 	call(path+"/submit", authorToken, map[string]string{"reason": "submit"}, http.StatusOK)
 	call(path+"/schedule", ownerToken, map[string]string{"reason": "owner approved schedule"}, http.StatusOK)
-	time.Sleep(5100 * time.Millisecond)
+	time.Sleep(time.Until(effectiveFrom))
 	if err := runtime.ActivateDue(ctx, admin); err != nil {
 		t.Fatal(err)
 	}
@@ -121,11 +123,12 @@ func testOwnerApprovedDesignChatHTTP(t *testing.T, db *store.Store, admin *prici
 		t.Fatalf("production quote: %s (%v)", w.Body, err)
 	}
 	rollbackVersion := version + "-rollback"
-	call("/admin/v1/pricing/drafts/"+base["version"].(string)+"/rollback", authorToken, map[string]any{"version": rollbackVersion, "effective_from": time.Now().UTC().Add(5 * time.Second).Truncate(time.Microsecond).Format(time.RFC3339Nano), "reason": "disable design chat only"}, http.StatusCreated)
+	rollbackEffective := time.Now().UTC().Add(500 * time.Millisecond).Truncate(time.Microsecond)
+	call("/admin/v1/pricing/drafts/"+base["version"].(string)+"/rollback", authorToken, map[string]any{"version": rollbackVersion, "effective_from": rollbackEffective.Format(time.RFC3339Nano), "reason": "disable design chat only"}, http.StatusCreated)
 	rollbackPath := "/admin/v1/pricing/drafts/" + rollbackVersion
 	call(rollbackPath+"/submit", authorToken, map[string]string{"reason": "submit rollback"}, http.StatusOK)
 	call(rollbackPath+"/approve", nonOwnerToken, map[string]string{"reason": "approve rollback"}, http.StatusOK)
-	time.Sleep(5100 * time.Millisecond)
+	time.Sleep(time.Until(rollbackEffective))
 	if err := runtime.ActivateDue(ctx, admin); err != nil {
 		t.Fatal(err)
 	}

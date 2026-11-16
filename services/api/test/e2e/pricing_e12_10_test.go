@@ -253,7 +253,7 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 		runtimePricing.SetEnvironment("development")
 		quotesService.SetEnvironment("development")
 
-		effective := time.Now().UTC().Add(5 * time.Second)
+		effective := time.Now().UTC().Add(800 * time.Millisecond)
 		interimConfig := makeInterimConfig("usd-interim-e12-10", "interim_adr_0012", effective)
 		payload, _ := json.Marshal(map[string]any{
 			"config": interimConfig,
@@ -277,7 +277,7 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 		}
 
 		// Wait until effective_from has passed in DB
-		time.Sleep(5100 * time.Millisecond)
+		time.Sleep(900 * time.Millisecond)
 
 		// Activate the due version
 		if err := runtimePricing.ActivateDue(ctx, admin); err != nil {
@@ -363,7 +363,7 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 
 	t.Run("Forward rollback disables design chat actions while preserving catalogue", func(t *testing.T) {
 		// Roll back to usd-quotes-2026-11-09 (which lacks design chat actions)
-		rollbackEffective := time.Now().UTC().Add(5 * time.Second)
+		rollbackEffective := time.Now().UTC().Add(800 * time.Millisecond)
 		rollbackPayload, _ := json.Marshal(map[string]any{
 			"version":        "usd-rollback-e12-10",
 			"effective_from": rollbackEffective.Truncate(time.Microsecond).Format(time.RFC3339Nano),
@@ -385,7 +385,7 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 		}
 
 		// Wait until rollback effective_from has passed in DB
-		time.Sleep(5100 * time.Millisecond)
+		time.Sleep(900 * time.Millisecond)
 
 		if err := runtimePricing.ActivateDue(ctx, admin); err != nil {
 			t.Fatalf("ActivateDue after rollback failed: %v", err)
