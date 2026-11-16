@@ -6,6 +6,7 @@ env = { E2E_WEB_PORT = "4170", E2E_API_BASE = "http://127.0.0.1:4171", VITE_API_
 run = "pnpm exec playwright test e2e/characters-e17-03.spec.ts e2e/characters-e17-04.spec.ts"
 
 ["api:test-characters-integration"]
+env = { DUOLIFY_ENV = "development" }
 dir = "{{config_root}}/services/api"
 run = "gotestsum -- -race -count=1 -tags integration ./internal/characters/..."
 
@@ -13,18 +14,34 @@ run = "gotestsum -- -race -count=1 -tags integration ./internal/characters/..."
 dir = "{{config_root}}/services/api"
 run = "gotestsum -- -race -count=1 ./internal/characters/..."
 
+["api:test-character-pricing"]
+env = { DUOLIFY_ENV = "development" }
+dir = "{{config_root}}/services/api"
+run = "gotestsum -- -race -count=1 ./internal/pricing/... ./internal/characters/..."
+
+["api:test-character-pricing-integration"]
+env = { DUOLIFY_ENV = "development" }
+dir = "{{config_root}}/services/api"
+run = "gotestsum -- -race -count=1 -tags integration -run 'TestApprovedCharacterPricing' ./internal/characters/..."
+
 ["client:test-characters"]
 dir = "{{config_root}}/apps/client"
 run = "pnpm exec vitest run src/features/characters"
 
 ["characters:format"]
-run = ["gofmt -w services/api/internal/characters", "pnpm --dir apps/client exec prettier --write src/features/characters src/features/sharing e2e/characters-e17-03.spec.ts e2e/characters-e17-04.spec.ts e2e/characters-e17-09.spec.ts"]
+run = ["gofmt -w services/api/internal/characters", "pnpm --dir apps/client exec prettier --write src/features/characters src/features/sharing e2e/characters-e17-02-pricing.spec.ts e2e/characters-e17-03.spec.ts e2e/characters-e17-04.spec.ts e2e/characters-e17-09.spec.ts"]
 
 ["client:e2e-character-create"]
 depends = ["client:build"]
 dir = "{{config_root}}/apps/client"
 env = { E2E_WEB_PORT = "4172", E2E_API_BASE = "http://127.0.0.1:4173", VITE_API_URL = "http://127.0.0.1:4173" }
 run = "pnpm exec playwright test e2e/characters-e17-04.spec.ts"
+
+["client:e2e-character-pricing"]
+depends = ["client:build"]
+dir = "{{config_root}}/apps/client"
+env = { E2E_WEB_PORT = "4176", E2E_API_BASE = "http://127.0.0.1:4177", VITE_API_URL = "http://127.0.0.1:4177" }
+run = "pnpm exec playwright test e2e/characters-e17-02-pricing.spec.ts"
 
 ["proto:breaking-characters"]
 description = "Check additive Character RPCs against the integration contract"

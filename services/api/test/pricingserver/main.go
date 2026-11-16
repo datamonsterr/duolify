@@ -61,6 +61,9 @@ func main() {
 }
 func run() (result error) {
 	_ = os.Setenv("FEATURE_CUSTOM_CHARACTERS", "true")
+	// Stable synthetic owner for isolated approval scenarios; never mutate the
+	// process-wide gate configuration while other browser specs are running.
+	_ = os.Setenv("PRICING_OWNER_ID", characterPricingOwner)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	boot, cancel := context.WithTimeout(ctx, 2*time.Minute)
@@ -176,9 +179,11 @@ func run() (result error) {
 	registerSteeringFixture(mux, auth, db.Pool, objects)
 	characterService := characters.NewService(db.Pool, nil, nil)
 	characterService.ConfigureScreening(characterScreenFixture{})
-	characterService.ConfigureCreation(creditService, characterMapFixture{}, "development", true)
+	characterService.ConfigureCreation(creditService, characterMapFixture{}, "development", os.Getenv("ALLOW_UNAPPROVED_PRICING") == "true")
 	go characterService.Maintain(boot)
 	charHandler := characters.NewHandler(characterService)
+	closePricingScenarios := registerCharacterPricingScenarios(mux, auth, db.Pool)
+	defer closePricingScenarios()
 	registerCharacterPublicationFixture(mux, auth, db.Pool, characterService)
 	mux.Handle("POST /test/characters/fund", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := db.Pool.Exec(r.Context(), `INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version) SELECT $1::uuid,(config->'actions'->'character_create'->>'credits')::bigint*3,'purchase','e17-funding-'||$1::text,'usd-dev-character-create-unapproved' FROM pricing_versions WHERE version='usd-dev-character-create-unapproved' ON CONFLICT DO NOTHING`, accounts.LearnerID(r.Context()))

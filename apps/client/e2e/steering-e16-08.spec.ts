@@ -133,7 +133,7 @@ for (const mobile of [false, true]) {
       await confirmDialogBtn.click();
 
       // Verifies confirmed state per canvas
-      expect(confirmCalled).toBe(true);
+      await expect.poll(() => confirmCalled).toBe(true);
       await expect(page.getByRole("status")).toContainText("Outline updated");
       await expect(
         page.getByRole("button", { name: "Back to learn path" }),
