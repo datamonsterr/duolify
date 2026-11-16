@@ -40,7 +40,7 @@ run = "pnpm exec playwright test e2e/characters-e17-04.spec.ts"
 ["client:e2e-character-pricing"]
 depends = ["client:build"]
 dir = "{{config_root}}/apps/client"
-env = { E2E_WEB_PORT = "4176", E2E_API_BASE = "http://127.0.0.1:4177", VITE_API_URL = "http://127.0.0.1:4177", ALLOW_UNAPPROVED_PRICING = "false" }
+env = { E2E_WEB_PORT = "4176", E2E_API_BASE = "http://127.0.0.1:4177", VITE_API_URL = "http://127.0.0.1:4177" }
 run = "pnpm exec playwright test e2e/characters-e17-02-pricing.spec.ts"
 
 ["proto:breaking-characters"]
