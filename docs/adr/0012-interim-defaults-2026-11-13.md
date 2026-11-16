@@ -1,6 +1,6 @@
 # ADR 0012: Interim defaults for open human gates and integration flow
 
-- Status: Proposed (orchestrator default, pending owner confirmation)
+- Status: Accepted (owner, 2026-11-16; see ADR 0013)
 - Date: 2026-11-13
 
 ## Context
