@@ -157,7 +157,7 @@ func TestPublicationDraftScreeningAndPrivacy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Number != 2 || len(d.ContentHash) != 64 || d.Verdict != sharing.VerdictPass || d.LessonCount != 1 || d.SampledLessons != 1 || d.NarrationIncl {
+	if d.Number != 2 || len(d.ContentHash) != 64 || d.Verdict != sharing.VerdictPass || d.LessonCount != 1 || d.SampledLessons != 1 || !d.NarrationIncl { // ADR 0013: narration reuse is on by default
 		t.Fatalf("draft=%+v", d)
 	}
 	if d.Findings == nil || d.ReasonCodes == nil || d.Outline == nil {
@@ -178,7 +178,7 @@ func TestPublicationDraftScreeningAndPrivacy(t *testing.T) {
 		}
 	}
 	if strings.Contains(raw, "narration_refs") {
-		t.Error("narration audio refs published while excluded")
+		t.Error("narration audio refs published for a slide without matching owner audio")
 	}
 
 	// Numbered, hashed, immutable.

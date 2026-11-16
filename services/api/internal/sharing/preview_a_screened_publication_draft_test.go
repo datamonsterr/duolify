@@ -130,12 +130,12 @@ func TestDecideCombinesScannerAndFallback(t *testing.T) {
 
 func TestConfigDefaultsAreConservative(t *testing.T) {
 	c := sharing.ConfigFromEnv(func(string) string { return "" })
-	if c.MinPublisherAge != 18 || c.IncludeNarration || c.SampleMaxLessons != 12 || c.MaxInputTokens != 60000 || c.TimeoutMs != 120000 || c.MaxAttempts != 2 {
+	if c.MinPublisherAge != 18 || !c.IncludeNarration || c.SampleMaxLessons != 12 || c.MaxInputTokens != 60000 || c.TimeoutMs != 120000 || c.MaxAttempts != 2 {
 		t.Errorf("defaults=%+v", c)
 	}
-	env := map[string]string{"SHARING_MIN_PUBLISHER_AGE": "21", "SHARING_INCLUDE_NARRATION": "true"}
+	env := map[string]string{"SHARING_MIN_PUBLISHER_AGE": "21", "SHARING_INCLUDE_NARRATION": "false"}
 	c = sharing.ConfigFromEnv(func(k string) string { return env[k] })
-	if c.MinPublisherAge != 21 || !c.IncludeNarration {
+	if c.MinPublisherAge != 21 || c.IncludeNarration { // ADR 0013: reuse is on; "false" is the kill switch
 		t.Errorf("overlay=%+v", c)
 	}
 }

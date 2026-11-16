@@ -11,6 +11,7 @@ import (
 
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
 
+	"github.com/datamonsterr/duolify/services/api/internal/narration"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/jackc/pgx/v5"
@@ -304,7 +305,7 @@ func (s *Service) createCopy(ctx context.Context, tx pgx.Tx, viewer, sourceID, d
 			if l.Status == "current" {
 				firstReady = stubID
 			}
-			if err := s.copyLesson(ctx, tx, viewer, copyID, stubID, fmt.Sprintf("lessons/published/%s/%d-%d", draftID, ui, li), number, l.Source); err != nil {
+			if err := s.copyLesson(ctx, tx, viewer, copyID, stubID, draftID, fmt.Sprintf("lessons/published/%s/%d-%d", draftID, ui, li), number, l.Source); err != nil {
 				return "", "", err
 			}
 		}
@@ -322,7 +323,7 @@ func (s *Service) createCopy(ctx context.Context, tx pgx.Tx, viewer, sourceID, d
 	return copyID, firstReady, nil
 }
 
-func (s *Service) copyLesson(ctx context.Context, tx pgx.Tx, viewer, copyID, stubID, prefix string, version int, l SnapshotLesson) error {
+func (s *Service) copyLesson(ctx context.Context, tx pgx.Tx, viewer, copyID, stubID, draftID, prefix string, version int, l SnapshotLesson) error {
 	metadata := map[string]any{"slide_count": len(l.Slides), "question_count": len(l.Questions), "source": "published", "version": version}
 	if l.Cast != nil {
 		castKey := fmt.Sprintf("published-%s-%d", stubID, version)
@@ -378,6 +379,27 @@ func (s *Service) copyLesson(ctx context.Context, tx pgx.Tx, viewer, copyID, stu
 			return err
 		}
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO lesson_manifests(lesson_id,learner_id,version,manifest_key) VALUES($1,$2,1,$3)`, stubID, viewer, key)
-	return err
+	if _, err = tx.Exec(ctx, `INSERT INTO lesson_manifests(lesson_id,learner_id,version,manifest_key) VALUES($1,$2,1,$3)`, stubID, viewer, key); err != nil {
+		return err
+	}
+	return copyNarrationAudio(ctx, tx, viewer, stubID, draftID, l)
+}
+
+// copyNarrationAudio gives the learner's lesson its own references to the owner's narration (ADR 0013).
+// The rows point at the shared asset, so playback needs no synthesis, quote or Credit. An asset that
+// is missing or purged gets no row: that slide falls back to the existing per-learner narration.
+func copyNarrationAudio(ctx context.Context, tx pgx.Tx, viewer, stubID, draftID string, l SnapshotLesson) error {
+	slides := map[string]string{}
+	for _, sl := range l.Slides {
+		slides[sl.ID] = sl.Narration
+	}
+	for _, ref := range ReusableNarration(l) {
+		if _, err := tx.Exec(ctx, `INSERT INTO slide_narrations(lesson_id,learner_id,slide_id,voice_key,status,narration_text,content_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms,shared_draft_id)
+SELECT $1,$2,$3,'default','ready',$4,a.content_hash,a.voice_id,a.model_id,a.settings_fingerprint,a.audio_key,a.alignment_key,a.characters,a.audio_bytes,a.duration_ms,$6
+FROM narration_assets a WHERE a.content_hash=$5 AND a.state='ready' AND a.text_hash=$7 ON CONFLICT DO NOTHING`,
+			stubID, viewer, ref.SlideID, narration.NormalizeText(slides[ref.SlideID]), ref.ContentHash, draftID, narration.TextHash(narration.NormalizeText(slides[ref.SlideID]))); err != nil {
+			return err
+		}
+	}
+	return nil
 }

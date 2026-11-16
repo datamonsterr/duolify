@@ -124,7 +124,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		ReviewMinLessons: 3, ReviewMaxPerDay: 20, ReviewMaxChars: 2000, ReviewTimeoutMs: 10000, ReviewMaxCostNanos: 20_000_000,
-		MinPublisherAge: 18, MaxEnrollmentsPerDay: 30, CopySlideMs: 8000, SampleMaxLessons: 12, SampleMaxBytes: 120000,
+		MinPublisherAge: 18, IncludeNarration: true, MaxEnrollmentsPerDay: 30, CopySlideMs: 8000, SampleMaxLessons: 12, SampleMaxBytes: 120000,
 		MaxInputTokens: 60000, MaxOutputTokens: 300, TimeoutMs: 120000, MaxAttempts: 2,
 		MaxCostNanos: 250_000_000, RetentionDays: 365,
 		PublicDomain: "localhost", AppScheme: "duolify",
@@ -159,8 +159,8 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	if n, err := strconv.Atoi(getenv("SHARING_COPY_SLIDE_MS")); err == nil && n >= 1000 && n <= 120000 {
 		c.CopySlideMs = n
 	}
-	if v := getenv("SHARING_INCLUDE_NARRATION"); v == "true" {
-		c.IncludeNarration = true
+	if v := getenv("SHARING_INCLUDE_NARRATION"); v == "false" { // ADR 0013: on by default; "false" is the kill switch
+		c.IncludeNarration = false
 	}
 	if n, err := strconv.ParseInt(getenv("SHARING_SCREEN_MAX_COST_NANOS"), 10, 64); err == nil && n > 0 && n <= c.MaxCostNanos {
 		c.MaxCostNanos = n
@@ -288,6 +288,17 @@ type SnapshotLesson struct {
 	Questions     []SnapshotQ     `json:"questions,omitempty"`
 	RetryPool     []RetryTopic    `json:"retry_pool,omitempty"`
 	NarrationRefs []string        `json:"narration_refs,omitempty"`
+	// NarrationAudio references the owner's narration audio by content hash (ADR 0013). Hashes only:
+	// object keys, voices and models stay in narration_assets.
+	NarrationAudio []NarrationAudioRef `json:"narration_audio,omitempty"`
+}
+
+// NarrationAudioRef points one slide at a shared narration asset.
+type NarrationAudioRef struct {
+	SlideID     string `json:"id"`
+	ContentHash string `json:"content_hash"`
+	DurationMS  int    `json:"duration_ms"`
+	Characters  int    `json:"characters"`
 }
 
 // SnapshotSlide is one generated Motion HTML Slide.
