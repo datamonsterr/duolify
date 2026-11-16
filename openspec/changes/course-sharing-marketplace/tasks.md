@@ -54,3 +54,4 @@
 - [x] 9.3 Unit third: calendar age including leap birthdays and UTC, strict date parsing, typed client errors and accessible save/retry form.
 - [x] 9.4 Add migration 20261116121501 with only nullable account DATE, wire the real age source and client continuation, update privacy policy/inventory/restore PII registry and synthetic fixtures without PII analytics.
 - [x] 9.5 Run focused API/client tasks and ci:openspec; native Tauri checks remain CI-only on this host.
+- [x] 9.6 Write-once follow-up: failing e2e minor overwrite/refusal, integration HTTP idempotence and concurrent database writes, then unit locked-form state; implement atomic NULL-only save and support-correction message, update spec/design/inventory and rerun focused checks.

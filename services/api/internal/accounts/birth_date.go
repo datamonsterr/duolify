@@ -54,10 +54,24 @@ func (s *Service) saveBirthDate(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, map[string]string{"error": "invalid_birth_date"})
 		return
 	}
-	rows, err := db.New(s.pool).SetLearnerBirthDate(r.Context(), db.SetLearnerBirthDateParams{BirthDate: pgtype.Date{Time: date, Valid: true}, LearnerID: contextID(r)})
-	if err != nil || rows != 1 {
+	queries := db.New(s.pool)
+	rows, err := queries.SetLearnerBirthDate(r.Context(), db.SetLearnerBirthDateParams{BirthDate: pgtype.Date{Time: date, Valid: true}, LearnerID: contextID(r)})
+	if err != nil {
 		respond(w, 503, map[string]string{"error": "birth_date_unavailable"})
 		return
+	}
+	if rows == 0 {
+		// The conditional update serializes competing first writes. A private read
+		// makes an identical retry idempotent without ever replacing the saved date.
+		saved, readErr := queries.GetLearnerBirthDate(r.Context(), contextID(r))
+		if readErr != nil {
+			respond(w, 503, map[string]string{"error": "birth_date_unavailable"})
+			return
+		}
+		if !saved.Valid || saved.InfinityModifier != pgtype.Finite || !saved.Time.Equal(date) {
+			respond(w, http.StatusConflict, map[string]string{"error": "birth_date_locked"})
+			return
+		}
 	}
 	// No analytics or response payload: neither the birth date nor derived age leaves this flow.
 	w.WriteHeader(http.StatusNoContent)

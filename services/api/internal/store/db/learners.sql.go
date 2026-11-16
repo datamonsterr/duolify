@@ -55,7 +55,7 @@ func (q *Queries) GetLearnerBirthDate(ctx context.Context, learnerID pgtype.UUID
 }
 
 const setLearnerBirthDate = `-- name: SetLearnerBirthDate :execrows
-UPDATE learners SET birth_date = $1 WHERE id = $2::uuid
+UPDATE learners SET birth_date = $1 WHERE id = $2::uuid AND birth_date IS NULL
 `
 
 type SetLearnerBirthDateParams struct {

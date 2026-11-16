@@ -3,7 +3,7 @@
 ### Requirement: Publisher birth date and adult gate
 Publishing, republishing and rotating a Share link MUST require an account birth date proving the owner is at least 18. The API SHALL compute calendar age from the server's UTC date; client ages and signup age confirmations MUST NOT establish publishing eligibility. A missing date MUST return `birth_date_required`; a known under-18 date MUST return `adult_required`, without changing visibility. The first-publish desktop dialog and mobile sheet SHALL offer a labelled, keyboard-accessible birth-date form on `birth_date_required`, announce validation and under-18 errors, and resume the requested action after saving. Existing screening and publication restrictions MUST still apply.
 
-Only a nullable date (no time, age, document or extra verification metadata) SHALL be stored on the account. An authenticated learner MAY set or correct their own date through `PUT /v1/me/birth-date`, accepting only `birth_date` in strict `YYYY-MM-DD` form, a real date between `1900-01-01` and the server's current UTC date inclusive. February 29 birthdays MUST become eligible on March 1 in a non-leap anniversary year. The birth date MUST be included in account export, erased with account deletion and restored only subject to the existing deletion-ledger replay. Encrypted account backups SHALL include it; anonymized restore drills SHALL classify it as PII and replace it with NULL. Neither birth date nor age SHALL enter analytics, published content, AI input or logs; this flow SHALL add no analytics event or AI behavior and SHALL preserve existing screening reliability gates.
+Only a nullable date (no time, age, document or extra verification metadata) SHALL be stored on the account. An authenticated learner MAY set their own date once through `PUT /v1/me/birth-date`, accepting only `birth_date` in strict `YYYY-MM-DD` form, a real date between `1900-01-01` and the server's current UTC date inclusive. The database write MUST update only an account whose birth date is NULL, including under concurrent requests. A different date submitted after the first save MUST return HTTP 409 with `birth_date_locked`; the identical date MAY return HTTP 204 idempotently. Corrections MUST go through support. On `birth_date_locked`, the client SHALL calmly explain that a date is already on the account and corrections go through support, without offering another date submission. Minors SHALL see the existing under-18 refusal without a retry-with-another-date path. February 29 birthdays MUST become eligible on March 1 in a non-leap anniversary year. The birth date MUST be included in account export, erased with account deletion and restored only subject to the existing deletion-ledger replay. Encrypted account backups SHALL include it; anonymized restore drills SHALL classify it as PII and replace it with NULL. Neither birth date nor age SHALL enter analytics, published content, AI input or logs; this flow SHALL add no analytics event or AI behavior and SHALL preserve existing screening reliability gates.
 
 #### Scenario: Missing birth date
 - **WHEN** an owner without a stored birth date first tries to publish
@@ -16,6 +16,14 @@ Only a nullable date (no time, age, document or extra verification metadata) SHA
 #### Scenario: Adult continues safely
 - **WHEN** the owner saves a valid birth date and today is their eighteenth birthday in UTC
 - **THEN** the client resumes the action and the existing screening and publish restrictions determine the outcome
+
+#### Scenario: Minor cannot replace a saved birth date
+- **WHEN** a learner refused as under 18 submits an older birth date
+- **THEN** the API returns HTTP 409 with `birth_date_locked`, preserves the original date, and publishing still returns `adult_required`; the client explains support corrections without another date-entry or retry action
+
+#### Scenario: First-save retry
+- **WHEN** a learner retries the identical birth date after the initial save
+- **THEN** the API returns HTTP 204 without changing the stored date; simultaneous submissions of different dates can save only one date
 
 #### Scenario: Privacy lifecycle
 - **WHEN** a learner exports and then deletes their account, or an anonymized restore drill runs

@@ -29,9 +29,11 @@ export function BirthDatePrompt({
 }) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
+  const lockedNotice = useRef<HTMLParagraphElement>(null);
   const [date, setDate] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
   useEffect(() => {
     const opener = document.activeElement;
     input.current?.focus();
@@ -39,8 +41,12 @@ export function BirthDatePrompt({
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
     };
   }, []);
+  useEffect(() => {
+    if (locked) lockedNotice.current?.focus();
+  }, [locked]);
 
   async function save() {
+    if (busy || locked) return;
     setError(null);
     if (!date) {
       setError(
@@ -57,15 +63,45 @@ export function BirthDatePrompt({
       setDate("");
       onSaved();
     } catch (failure) {
-      setError(
-        (failure as { status?: number } | null)?.status === 400
-          ? "Enter a real birth date from 1900 onward, no later than today."
-          : "Couldn't save your birth date. Check your connection and retry.",
-      );
-      input.current?.focus();
+      const response = failure as {
+        status?: number;
+        details?: { error?: string };
+      } | null;
+      if (
+        response?.status === 409 &&
+        response.details?.error === "birth_date_locked"
+      ) {
+        setDate("");
+        setLocked(true);
+      } else {
+        setError(
+          response?.status === 400
+            ? "Enter a real birth date from 1900 onward, no later than today."
+            : "Couldn't save your birth date. Check your connection and retry.",
+        );
+        input.current?.focus();
+      }
     } finally {
       setBusy(false);
     }
+  }
+
+  if (locked) {
+    return (
+      <section className="sharing-draft" aria-label="Birth date for publishing">
+        <p ref={lockedNotice} tabIndex={-1} role="alert">
+          A birth date is already on your account. Contact support if it needs
+          correcting.
+        </p>
+        <button
+          className="duo-button secondary"
+          type="button"
+          onClick={onCancel}
+        >
+          Back to sharing
+        </button>
+      </section>
+    );
   }
 
   return (
@@ -81,7 +117,8 @@ export function BirthDatePrompt({
       <h3>Before you publish</h3>
       <p id={`${id}-help`}>
         You must be 18 or older to publish. Your birth date stays private and is
-        used to check publishing eligibility.
+        used to check publishing eligibility. Once saved, corrections go through
+        support.
       </p>
       <label htmlFor={`${id}-date`}>Birth date</label>
       <input

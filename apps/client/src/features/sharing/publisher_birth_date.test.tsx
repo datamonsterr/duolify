@@ -106,6 +106,37 @@ it("asks for a missing date and resumes the existing screened publication flow",
   expect(screen.queryByLabelText("Birth date", { exact: true })).toBeNull();
 });
 
+it("replaces a locked birth-date form with a support message and no resubmission path", async () => {
+  const onSaved = vi.fn();
+  const onCancel = vi.fn();
+  request.mockRejectedValueOnce(
+    new AuthError("private server response", 409, {
+      error: "birth_date_locked",
+    }),
+  );
+  render(<BirthDatePrompt onSaved={onSaved} onCancel={onCancel} />);
+  fireEvent.change(screen.getByLabelText("Birth date", { exact: true }), {
+    target: { value: "1990-06-15" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+  const notice = await screen.findByRole("alert");
+  expect(notice).toHaveTextContent(
+    "A birth date is already on your account. Contact support if it needs correcting.",
+  );
+  expect(notice).toHaveFocus();
+  expect(screen.queryByLabelText("Birth date", { exact: true })).toBeNull();
+  expect(screen.queryByRole("form")).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Save and continue" }),
+  ).toBeNull();
+  expect(screen.queryByText("private server response")).toBeNull();
+  expect(screen.queryByText("1990-06-15")).toBeNull();
+  expect(onSaved).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Back to sharing" }));
+  expect(onCancel).toHaveBeenCalledOnce();
+  expect(request).toHaveBeenCalledOnce();
+});
+
 it("shows an under-18 refusal without treating it as a connection failure", async () => {
   vi.spyOn(drafts, "disclosure").mockResolvedValue({
     names: [],
@@ -130,4 +161,8 @@ it("shows an under-18 refusal without treating it as a connection failure", asyn
     "You must be 18 or older to publish",
   );
   expect(screen.queryByTestId("share-link-url")).toBeNull();
+  expect(screen.queryByLabelText("Birth date", { exact: true })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Save and continue" }),
+  ).toBeNull();
 });

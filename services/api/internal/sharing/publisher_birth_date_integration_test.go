@@ -12,6 +12,8 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/accountstest"
 	"github.com/datamonsterr/duolify/services/api/internal/sharing"
+	"github.com/datamonsterr/duolify/services/api/internal/store/db"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func TestPublisherBirthDateAccountValidationExportDeletion(t *testing.T) {
@@ -51,6 +53,12 @@ func TestPublisherBirthDateAccountValidationExportDeletion(t *testing.T) {
 	if w = call("PUT", "/v1/me/birth-date", `{"birth_date":"1990-06-15"}`, token.AccessToken); w.Code != 204 {
 		t.Fatalf("setter=%d %s", w.Code, w.Body)
 	}
+	if w = call("PUT", "/v1/me/birth-date", `{"birth_date":"1990-06-15"}`, token.AccessToken); w.Code != 204 {
+		t.Fatalf("identical retry=%d %s", w.Code, w.Body)
+	}
+	if w = call("PUT", "/v1/me/birth-date", `{"birth_date":"1980-01-01"}`, token.AccessToken); w.Code != 409 || strings.TrimSpace(w.Body.String()) != `{"error":"birth_date_locked"}` {
+		t.Fatalf("changed birth date=%d %s", w.Code, w.Body)
+	}
 	if w = call("GET", "/v1/me/data-export", "", token.AccessToken); w.Code != 200 || !strings.Contains(w.Body.String(), `"birth_date":"1990-06-15"`) {
 		t.Fatalf("export=%d %s", w.Code, w.Body)
 	}
@@ -60,6 +68,55 @@ func TestPublisherBirthDateAccountValidationExportDeletion(t *testing.T) {
 	var remaining int
 	if err = f.DB.Pool.QueryRow(t.Context(), `SELECT count(*) FROM learners WHERE birth_date IS NOT NULL`).Scan(&remaining); err != nil || remaining != 0 {
 		t.Fatalf("birth dates remain=%d err=%v", remaining, err)
+	}
+}
+
+func TestPublisherBirthDateConcurrentFirstWrite(t *testing.T) {
+	f := newSharingFixture(t)
+	ctx := t.Context()
+	var id pgtype.UUID
+	if err := f.DB.Pool.QueryRow(ctx, `INSERT INTO learners(display_name) VALUES('Concurrent birthday') RETURNING id`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	queries := db.New(f.DB.Pool)
+	type result struct {
+		date string
+		rows int64
+		err  error
+	}
+	start := make(chan struct{})
+	results := make(chan result, 2)
+	for _, raw := range []string{"1990-06-15", "2009-06-15"} {
+		go func() {
+			date, err := time.Parse(time.DateOnly, raw)
+			if err != nil {
+				results <- result{err: err}
+				return
+			}
+			<-start
+			rows, err := queries.SetLearnerBirthDate(ctx, db.SetLearnerBirthDateParams{LearnerID: id, BirthDate: pgtype.Date{Time: date, Valid: true}})
+			results <- result{date: raw, rows: rows, err: err}
+		}()
+	}
+	close(start)
+	writes := int64(0)
+	winner := ""
+	for range 2 {
+		r := <-results
+		if r.err != nil {
+			t.Fatal(r.err)
+		}
+		if r.rows < 0 || r.rows > 1 {
+			t.Fatalf("affected rows=%d", r.rows)
+		}
+		writes += r.rows
+		if r.rows == 1 {
+			winner = r.date
+		}
+	}
+	stored, err := queries.GetLearnerBirthDate(ctx, id)
+	if err != nil || writes != 1 || !stored.Valid || stored.Time.Format(time.DateOnly) != winner {
+		t.Fatalf("birth date first-write invariant failed: writes=%d err=%v", writes, err)
 	}
 }
 

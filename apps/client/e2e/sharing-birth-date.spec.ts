@@ -66,6 +66,29 @@ for (const width of [1280, 390]) {
             "You must be 18 or older to publish",
           );
           await expect(panel.getByTestId("share-link-url")).toHaveCount(0);
+          await expect(birthDate).toHaveCount(0);
+          await expect(
+            panel.getByRole("button", { name: "Save and continue" }),
+          ).toHaveCount(0);
+          const overwrite = await request.put(`${apiBase}/v1/me/birth-date`, {
+            headers,
+            data: { birth_date: "1990-06-15" },
+          });
+          expect(overwrite.status()).toBe(409);
+          expect(await overwrite.json()).toEqual({
+            error: "birth_date_locked",
+          });
+          const stillRefused = await request.post(
+            `${apiBase}/v1/courses/${course_id}/share-link`,
+            {
+              headers,
+              data: {},
+            },
+          );
+          expect(stillRefused.status()).toBe(403);
+          expect(await stillRefused.json()).toEqual({
+            error: "adult_required",
+          });
           expect(
             (
               await request.get(
