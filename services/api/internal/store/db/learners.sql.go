@@ -12,23 +12,61 @@ import (
 )
 
 const createLearner = `-- name: CreateLearner :one
-INSERT INTO learners (display_name) VALUES ($1) RETURNING id, display_name, created_at
+INSERT INTO learners (display_name) VALUES ($1) RETURNING id, display_name, created_at, birth_date
 `
 
 func (q *Queries) CreateLearner(ctx context.Context, displayName string) (Learner, error) {
 	row := q.db.QueryRow(ctx, createLearner, displayName)
 	var i Learner
-	err := row.Scan(&i.ID, &i.DisplayName, &i.CreatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.CreatedAt,
+		&i.BirthDate,
+	)
 	return i, err
 }
 
 const getLearner = `-- name: GetLearner :one
-SELECT id, display_name, created_at FROM learners WHERE id = $1
+SELECT id, display_name, created_at, birth_date FROM learners WHERE id = $1
 `
 
 func (q *Queries) GetLearner(ctx context.Context, id pgtype.UUID) (Learner, error) {
 	row := q.db.QueryRow(ctx, getLearner, id)
 	var i Learner
-	err := row.Scan(&i.ID, &i.DisplayName, &i.CreatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.CreatedAt,
+		&i.BirthDate,
+	)
 	return i, err
+}
+
+const getLearnerBirthDate = `-- name: GetLearnerBirthDate :one
+SELECT birth_date FROM learners WHERE id = $1::uuid
+`
+
+func (q *Queries) GetLearnerBirthDate(ctx context.Context, learnerID pgtype.UUID) (pgtype.Date, error) {
+	row := q.db.QueryRow(ctx, getLearnerBirthDate, learnerID)
+	var birth_date pgtype.Date
+	err := row.Scan(&birth_date)
+	return birth_date, err
+}
+
+const setLearnerBirthDate = `-- name: SetLearnerBirthDate :execrows
+UPDATE learners SET birth_date = $1 WHERE id = $2::uuid AND birth_date IS NULL
+`
+
+type SetLearnerBirthDateParams struct {
+	BirthDate pgtype.Date `json:"birth_date"`
+	LearnerID pgtype.UUID `json:"learner_id"`
+}
+
+func (q *Queries) SetLearnerBirthDate(ctx context.Context, arg SetLearnerBirthDateParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setLearnerBirthDate, arg.BirthDate, arg.LearnerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

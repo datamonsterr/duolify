@@ -36,6 +36,8 @@ func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 		write(w, http.StatusUnprocessableEntity, map[string]string{"error": "snapshot_rejected"})
 	case errors.Is(err, ErrAdultRequired):
 		write(w, http.StatusForbidden, map[string]string{"error": "adult_required"})
+	case errors.Is(err, ErrBirthDateRequired):
+		write(w, http.StatusConflict, map[string]string{"error": "birth_date_required"})
 	case errors.Is(err, ErrVisibilityUnavailable):
 		write(w, http.StatusConflict, map[string]string{"error": "visibility_unavailable"})
 	case errors.Is(err, ErrPublishNotAllowed):
