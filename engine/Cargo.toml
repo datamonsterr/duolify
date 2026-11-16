@@ -13,7 +13,7 @@ engine-providers = { path = "crates/engine-providers" }
 anyhow = "=1.0.104"
 async-trait = "=0.1.92"
 futures = "=0.3.34"
-prost = "=0.14.5"
+prost = "=0.14.6"
 regex = "=1.13.1"
 reqwest = { version = "=0.13.5", default-features = false, features = ["json", "stream", "rustls"] }
 ring = "=0.17.14"
