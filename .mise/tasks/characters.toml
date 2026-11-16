@@ -15,8 +15,9 @@ dir = "{{config_root}}/services/api"
 run = "gotestsum -- -race -count=1 ./internal/characters/..."
 
 ["api:test-character-pricing"]
+env = { DUOLIFY_ENV = "development" }
 dir = "{{config_root}}/services/api"
-run = "gotestsum -- -race -count=1 -run 'TestCharacterPricing' ./internal/pricing/... ./internal/characters/..."
+run = "gotestsum -- -race -count=1 ./internal/pricing/... ./internal/characters/..."
 
 ["api:test-character-pricing-integration"]
 env = { DUOLIFY_ENV = "development" }

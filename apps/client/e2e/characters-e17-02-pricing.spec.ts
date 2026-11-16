@@ -41,6 +41,31 @@ test("E17-02 approved active pricing enables creation and excludes daily-free cr
     enabled: true,
     proposal: false,
   });
+  const activePricing = await (
+    await request.get(`${apiBase}/v1/pricing`)
+  ).json();
+  expect(activePricing).toMatchObject({
+    version: "usd-character-create-2026-11-16",
+    design_chat_decision: "owner_approved",
+    character_create_decision: "owner_approved",
+    design_chat_policy: {
+      setup_chat: "platform_paid",
+      course_brief_chat: "platform_paid",
+      outline_chat_change: "valid_delivered_proposal_even_if_discarded",
+      undelivered_proposal: "release_reservation",
+      manual_edits_apply_discard_undo: "free",
+    },
+    actions: {
+      setup_chat: { credits: 0 },
+      course_brief_chat: { credits: 0 },
+      outline_chat_change: { credits: 5 },
+      outline_replan: { credits: 55 },
+      character_create: { credits: 25 },
+    },
+  });
+  expect(activePricing.daily_free.eligible_actions).not.toContain(
+    "character_create",
+  );
   await page.reload();
   await page
     .getByLabel("Describe your original character")

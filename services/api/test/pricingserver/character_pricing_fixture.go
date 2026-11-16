@@ -27,56 +27,90 @@ func registerCharacterPricingFixture(mux *http.ServeMux, auth *accounts.Service,
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		raw, err := os.ReadFile("internal/pricing/fixtures/usd_character_create.json")
+		// Model the existing E16 catalogue before approving the two successors.
+		// Only this disposable baseline is seeded; both owner decisions below go
+		// through the real draft, submit, approve and activation workflow.
+		baselineRaw, err := os.ReadFile("internal/pricing/fixtures/usd_outline_replan.json")
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		var cfg map[string]any
-		if err := json.Unmarshal(raw, &cfg); err != nil {
+		var baseline map[string]any
+		if err := json.Unmarshal(baselineRaw, &baseline); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		effective := time.Now().UTC().Add(10 * time.Second)
-		cfg["effective_from"] = effective.Format(time.RFC3339Nano)
-		admin := pricing.NewAdmin(pool, nil, owner)
-		admin.SetEnvironment("development")
-		admin.SetVerifier(&pricing.DevelopmentVerifier{})
-		operations := []struct {
-			path    string
-			payload any
-			want    int
-		}{
-			{"/admin/v1/pricing/drafts", map[string]any{"config": cfg, "reason": "ADR 0013 acceptance fixture"}, http.StatusCreated},
-			{fmt.Sprintf("/admin/v1/pricing/drafts/%s/submit", cfg["version"]), map[string]string{"reason": "submit fixture"}, http.StatusOK},
-			{fmt.Sprintf("/admin/v1/pricing/drafts/%s/approve", cfg["version"]), map[string]string{"reason": "owner approves fixture"}, http.StatusOK},
-		}
-		for _, op := range operations {
-			body, _ := json.Marshal(op.payload)
-			code, out := admin.ExecuteCLI(ctx, owner, http.MethodPost, op.path, body)
-			if code != op.want {
-				http.Error(w, fmt.Sprintf("%s: %d %s", op.path, code, out), 500)
+		baseline["version"] = "usd-character-pricing-baseline"
+		baseline["effective_from"] = time.Now().UTC().Truncate(time.Microsecond).Add(-time.Second).Format(time.RFC3339Nano)
+		baseline["limits"].(map[string]any)["free_concurrent_generation"] = 1
+		baselineRaw, _ = json.Marshal(baseline)
+		for _, statement := range []string{
+			`INSERT INTO pricing_versions(version,effective_from,approved,config) SELECT $1::jsonb->>'version',($1::jsonb->>'effective_from')::timestamptz,true,$1::jsonb`,
+			`INSERT INTO pricing_quote_policies(version,policy) SELECT $1::jsonb->>'version',policy FROM pricing_quote_policies WHERE version='usd-quotes-2026-11-09'`,
+			`INSERT INTO pricing_activation_events(version) SELECT $1::jsonb->>'version'`,
+		} {
+			if _, err := pool.Exec(ctx, statement, baselineRaw); err != nil {
+				http.Error(w, err.Error(), 500)
 				return
 			}
 		}
-		timer := time.NewTimer(time.Until(effective) + 10*time.Millisecond)
-		defer timer.Stop()
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			return
-		}
-		cat, err := pricing.Load(ctx, db.New(pool))
+		designRaw, err := os.ReadFile("internal/pricing/fixtures/usd_design_chat_owner_approved.json")
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		runtime := pricing.NewRuntimeCatalogue(cat, db.New(pool), pool, nil)
-		runtime.SetEnvironment("development")
-		runtime.SetOwnerID(owner)
-		if err := runtime.ActivateDue(ctx, admin); err != nil {
+		characterRaw, err := os.ReadFile("internal/pricing/fixtures/usd_character_create.json")
+		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
+		}
+		for _, raw := range [][]byte{designRaw, characterRaw} {
+			var cfg map[string]any
+			if err := json.Unmarshal(raw, &cfg); err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			effective := time.Now().UTC().Add(5 * time.Second)
+			cfg["effective_from"] = effective.Format(time.RFC3339Nano)
+			admin := pricing.NewAdmin(pool, nil, owner)
+			admin.SetEnvironment("production")
+			admin.SetVerifier(&pricing.DevelopmentVerifier{})
+			operations := []struct {
+				path    string
+				payload any
+				want    int
+			}{
+				{"/admin/v1/pricing/drafts", map[string]any{"config": cfg, "reason": "ADR 0013 acceptance fixture"}, http.StatusCreated},
+				{fmt.Sprintf("/admin/v1/pricing/drafts/%s/submit", cfg["version"]), map[string]string{"reason": "submit fixture"}, http.StatusOK},
+				{fmt.Sprintf("/admin/v1/pricing/drafts/%s/approve", cfg["version"]), map[string]string{"reason": "owner approves fixture"}, http.StatusOK},
+			}
+			for _, op := range operations {
+				body, _ := json.Marshal(op.payload)
+				code, out := admin.ExecuteCLI(ctx, owner, http.MethodPost, op.path, body)
+				if code != op.want {
+					http.Error(w, fmt.Sprintf("%s: %d %s", op.path, code, out), 500)
+					return
+				}
+			}
+			timer := time.NewTimer(time.Until(effective) + 10*time.Millisecond)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				return
+			}
+			cat, err := pricing.Load(ctx, db.New(pool))
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			runtime := pricing.NewRuntimeCatalogue(cat, db.New(pool), pool, nil)
+			runtime.SetEnvironment("production")
+			runtime.SetOwnerID(owner)
+			if err := runtime.ActivateDue(ctx, admin); err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})))

@@ -83,10 +83,10 @@ func TestCharacterPricingFixtureAndConfigOwnedQuote(t *testing.T) {
 	if fixture["character_create_decision"] != "owner_approved" {
 		t.Fatal("fixture lacks owner decision")
 	}
-	if _, ok := fixture["actions"].(map[string]any)["setup_chat"]; ok {
-		t.Fatal("character fixture changed parallel design-chat version")
+	if _, ok := fixture["actions"].(map[string]any)["setup_chat"]; !ok {
+		t.Fatal("character fixture dropped approved design-chat pricing")
 	}
-	baseRaw, err := os.ReadFile("../../../../apps/client/src/features/pricing/fixtures/approved.json")
+	baseRaw, err := os.ReadFile("fixtures/usd_design_chat_owner_approved.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,8 +94,6 @@ func TestCharacterPricingFixtureAndConfigOwnedQuote(t *testing.T) {
 	if err := json.Unmarshal(baseRaw, &base); err != nil {
 		t.Fatal(err)
 	}
-	// The active E7-03 successor adds only free concurrency to the launch terms.
-	base["limits"].(map[string]any)["free_concurrent_generation"] = float64(1)
 	delete(fixture["actions"].(map[string]any), "character_create")
 	delete(fixture["limits"].(map[string]any), "character_create")
 	delete(fixture, "character_create_decision")
@@ -105,6 +103,60 @@ func TestCharacterPricingFixtureAndConfigOwnedQuote(t *testing.T) {
 	}
 	if !jsonEqual(base, fixture) {
 		t.Fatal("character fixture changed existing approved pricing terms")
+	}
+}
+
+func TestCharacterPricingSupersetPreservesProductionDesignChatGate(t *testing.T) {
+	characterRaw, err := os.ReadFile("fixtures/usd_character_create.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	designRaw, err := os.ReadFile("fixtures/usd_design_chat_owner_approved.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	character, err := Parse(characterRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	design, err := Parse(designRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if character.EffectiveFrom.Before(design.EffectiveFrom) {
+		t.Errorf("character pricing takes effect before its design-chat predecessor: %s < %s", character.EffectiveFrom, design.EffectiveFrom)
+	}
+	for action, expected := range design.Actions {
+		if got, ok := character.Actions[action]; !ok || got != expected {
+			t.Errorf("predecessor action changed or missing: %s got=%+v present=%v want=%+v", action, got, ok, expected)
+		}
+	}
+	var characterDoc, designDoc map[string]any
+	if err := json.Unmarshal(characterRaw, &characterDoc); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(designRaw, &designDoc); err != nil {
+		t.Fatal(err)
+	}
+	delete(characterDoc["actions"].(map[string]any), "character_create")
+	delete(characterDoc["limits"].(map[string]any), "character_create")
+	delete(characterDoc, "character_create_decision")
+	for _, doc := range []map[string]any{characterDoc, designDoc} {
+		delete(doc, "version")
+		delete(doc, "effective_from")
+	}
+	if !jsonEqual(characterDoc, designDoc) {
+		t.Error("character snapshot must preserve every predecessor action, limit, policy and commercial term unchanged")
+	}
+	if character.DesignChatDecision != "owner_approved" || !HasDesignChatKeys(character) {
+		t.Error("character snapshot lost the owner-approved design-chat decision/actions")
+	}
+	const owner = "17020000-0000-4000-8000-000000000001"
+	if err := CheckDesignChatDecision(character, "production", owner, owner); err != nil {
+		t.Errorf("owner-approved superset failed the design-chat production gate: %v", err)
+	}
+	if CheckDesignChatDecision(character, "production", "", owner) == nil {
+		t.Error("superset bypassed production owner review")
 	}
 }
 

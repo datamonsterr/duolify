@@ -193,8 +193,12 @@ mise run api:pricing-activate-interim
 E17-02 (ADR 0013, 2026-11-16) supplies the separate, Git-backed
 `fixtures/usd_character_create.json` version `usd-character-create-2026-11-16`:
 `character_create` costs 25 Credits and is absent from
-`daily_free.eligible_actions` (`daily_free_eligible: false` in quotes). Other
-commercial terms are unchanged; the design-chat fixture/version is separate.
+`daily_free.eligible_actions` (`daily_free_eligible: false` in quotes). This full
+snapshot extends `usd-design-chat-owner-approved-2026-11-16` without changing
+any of its actions, limits, Daily free eligibility or `design_chat_policy`.
+Both `design_chat_decision` and `character_create_decision` remain
+`owner_approved`. Its effective time is `2026-11-20T00:00:01Z`, one second after
+the design-chat version, so the two fixtures have distinct activation times.
 This file is a proposal for the existing draft → submit → owner approve →
 activate workflow, never a migration seed or automatic production activation.
 Use a fresh version/effective time when the destination already has the named
@@ -235,9 +239,12 @@ course-brief chats are platform paid (0 Credits); outline chat changes cost
 proposal, including one later discarded. Undelivered proposals release their
 reservation. Manual reorder/rename/remove/add, Undo, Apply and Discard are free.
 The interim usage/cost envelopes and the separate `outline_replan=55` price and
-envelope are preserved. The parallel `character_create` candidate remains a
-separate version; operators must preserve any subsequently approved actions
-when composing a successor catalogue.
+envelope are preserved. Activate this predecessor before the separate
+`usd-character-create-2026-11-16` successor, which contains the complete
+design-chat snapshot plus character creation. Pricing versions are full
+snapshots: activating the predecessor after that successor would remove
+`character_create`. Operators must preserve all subsequently approved actions
+when composing further successor catalogues.
 
 The fixture is Git-backed input to the existing admin workflow, not an automatic
 database seed. No migration inserts an approved version, creates an activation

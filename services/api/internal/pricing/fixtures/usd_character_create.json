@@ -1,7 +1,8 @@
 {
   "version": "usd-character-create-2026-11-16",
-  "effective_from": "2026-11-16T00:00:00Z",
+  "effective_from": "2026-11-20T00:00:01Z",
   "currency": "USD",
+  "design_chat_decision": "owner_approved",
   "actions": {
     "preview": {
       "credits": 25
@@ -27,6 +28,18 @@
     "cached_replay": {
       "credits": 0
     },
+    "setup_chat": {
+      "credits": 0
+    },
+    "course_brief_chat": {
+      "credits": 0
+    },
+    "outline_chat_change": {
+      "credits": 5
+    },
+    "outline_replan": {
+      "credits": 55
+    },
     "character_create": {
       "credits": 25
     }
@@ -41,7 +54,8 @@
     "eligible_actions": [
       "quick_note",
       "tutor_short",
-      "tutor_long"
+      "tutor_long",
+      "outline_chat_change"
     ],
     "expires": "learner_local_day_end",
     "spend_first": true
@@ -149,12 +163,12 @@
     "annual_grant": "monthly_anniversary_month_end_clamp"
   },
   "limits": {
-    "free_concurrent_generation": 1,
     "protected_cost_ceiling_usd_per_credit": 0.0015,
     "free_learner_usd_per_local_day": 0.08,
     "paid_learner_usd_per_local_day": 5,
     "generation_usd_per_request": 0.5,
     "platform_usd_per_day": 50,
+    "free_concurrent_generation": 1,
     "preview": {
       "input_tokens": 2000,
       "output_tokens": 2500,
@@ -185,6 +199,28 @@
       "input_tokens": 1200,
       "output_tokens": 300
     },
+    "setup_chat": {
+      "input_tokens": 2000,
+      "output_tokens": 1000
+    },
+    "course_brief_chat": {
+      "input_tokens": 2000,
+      "output_tokens": 1000,
+      "attempt_timeout_ms": 3000,
+      "max_attempts": 3,
+      "max_cost_nanos": 2100000,
+      "input_nanos_per_token": 100,
+      "output_nanos_per_token": 500,
+      "requests_per_hour": 30,
+      "platform_requests_per_day": 10000
+    },
+    "outline_chat_change": {
+      "input_tokens": 12000,
+      "output_tokens": 2000,
+      "timeout_ms": 10000,
+      "max_attempts": 2,
+      "max_cost_nanos": 5000000
+    },
     "generation_deadline_seconds": 180,
     "tutor_note_deadline_seconds": 30,
     "tts_deadline_seconds": 60,
@@ -199,6 +235,13 @@
     "cost_review_increase_percent": 20,
     "cost_review_days": 7,
     "cache_hit_alert_below_percent": 60,
+    "outline_replan": {
+      "input_tokens": 4000,
+      "output_tokens": 6000,
+      "timeout_ms": 90000,
+      "max_attempts": 2,
+      "max_cost_nanos": 500000000
+    },
     "character_create": {
       "input_tokens": 4000,
       "output_tokens": 2000,
@@ -225,6 +268,13 @@
     "plus_yearly": "synthetic:plus_yearly",
     "pro_monthly": "synthetic:pro_monthly",
     "pro_yearly": "synthetic:pro_yearly"
+  },
+  "design_chat_policy": {
+    "setup_chat": "platform_paid",
+    "course_brief_chat": "platform_paid",
+    "outline_chat_change": "valid_delivered_proposal_even_if_discarded",
+    "undelivered_proposal": "release_reservation",
+    "manual_edits_apply_discard_undo": "free"
   },
   "character_create_decision": "owner_approved"
 }
