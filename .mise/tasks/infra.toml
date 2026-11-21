@@ -22,10 +22,13 @@ run = '''
 set -eu
 docker compose config -q
 git ls-files --cached --others --exclude-standard -z -- '*Dockerfile' | xargs -0 hadolint
-shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh infra/hooks/*.sh infra/s3/*.sh infra/deploy/*.sh
+shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh infra/hooks/*.sh infra/s3/*.sh infra/deploy/*.sh infra/deploy/walship/*.sh
 docker compose --file infra/deploy/compose.yml --env-file infra/deploy/.env.example config -q
+docker compose --file infra/deploy/compose.yml --file infra/deploy/compose.prod.yml --env-file infra/deploy/.env.prod.example --profile '*' config -q
 docker run --rm --network none -v "$PWD/infra/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 docker compose --profile observability run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
+docker run --rm --network none --entrypoint promtool -v "$PWD/infra/observability/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro" -v "$PWD/infra/observability/alerts.yml:/etc/prometheus/alerts.yml:ro" prom/prometheus:v3.8.0 check config /etc/prometheus/prometheus.yml
+docker run --rm --network none --entrypoint promtool -v "$PWD/infra/observability:/t:ro" -w /t prom/prometheus:v3.8.0 test rules alerts.test.yml
 '''
 
 ["infra:test"]
@@ -107,3 +110,65 @@ run = "bash infra/deploy/selfhost.sh backup"
 ["infra:selfhost-restore-drill"]
 description = "Self-hosted stack: decrypt the newest backup into a throwaway Postgres and verify it"
 run = "bash infra/deploy/selfhost.sh restore-drill"
+
+["infra:deploy-plan"]
+description = "Production overlay: static plan check (private Engine, direct Postgres, WAL archiving, backup env, DR job, off-site backup location, alerts) plus its unit tests"
+run = ["bash infra/deploy/test-deploy-plan.sh", "bash infra/deploy/test-deploy.sh", "bash infra/deploy/walship/test-walship.sh", "bash infra/deploy/walship/test-archive-wal.sh", "bash infra/deploy/test-backup-lifecycle.sh", "bash infra/deploy/deploy-plan.sh"]
+
+["infra:backup-lifecycle"]
+description = "Apply the wal/ + base/ retention lifecycle to the backup bucket (admin key from env: BACKUP_ADMIN_S3_ACCESS_KEY_ID/SECRET_ACCESS_KEY plus BACKUP_S3_ENDPOINT/REGION/BUCKET; needs the aws CLI; run from an admin machine, not the VM)"
+run = "bash infra/deploy/backup-lifecycle.sh apply"
+
+["infra:backup-preflight"]
+description = "Verify the backup bucket: versioned, lifecycle matches the policy (WAL outlives base, noncurrent expiry) and a base newer than the PITR window exists (same env as infra:backup-lifecycle)"
+run = "bash infra/deploy/backup-lifecycle.sh verify --require-base"
+
+["infra:overlay-lifecycle"]
+description = "Production overlay: apply and verify the backup-bucket lifecycle against local RustFS"
+run = "bash infra/deploy/overlay-tests.sh lifecycle"
+
+["infra:overlay-rolling"]
+description = "Production overlay: kill each API instance in turn under parallel GET+POST load (no failed GET), then a flaky-replica retry check"
+run = "bash infra/deploy/overlay-tests.sh rolling"
+
+["infra:overlay-sse"]
+description = "Production overlay: a mostly idle SSE stream (10-15 s silences, 165 s total) survives the Caddy /v1 proxy path unbuffered"
+run = "bash infra/deploy/overlay-tests.sh sse"
+
+["infra:overlay-e2e"]
+description = "Production overlay: bring up API x2, Engine, Redis, Postgres with WAL archiving on local RustFS; smoke and WAL shipping"
+run = "bash infra/deploy/overlay-tests.sh e2e"
+
+["infra:overlay-pitr"]
+description = "Production overlay: PITR drill from base backup plus archived WAL on a throwaway Postgres"
+run = "bash infra/deploy/overlay-tests.sh pitr"
+
+["infra:overlay-redis"]
+description = "Production overlay: flush and restart Redis; the stack keeps serving and state rebuilds from Postgres"
+run = "bash infra/deploy/overlay-tests.sh redis"
+
+["infra:overlay-dr"]
+description = "Production overlay: the nightly DR copy keeps every object version"
+run = "bash infra/deploy/overlay-tests.sh dr"
+
+["infra:deploy-vm"]
+description = "Deploy the tested commit to the VM over SSH (CI only; needs DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS, DEPLOY_SHA and the digests/<image> files from the image build)"
+run = '''
+set -eu
+: "${DEPLOY_HOST:?}" "${DEPLOY_USER:?}" "${DEPLOY_SSH_KEY:?}" "${DEPLOY_KNOWN_HOSTS:?}" "${DEPLOY_SHA:?}"
+path=${DEPLOY_PATH:-/opt/duolify}
+install -d -m 700 "$HOME/.ssh"
+(umask 077 && printf '%s\n' "$DEPLOY_SSH_KEY" >"$HOME/.ssh/deploy_key")
+printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >"$HOME/.ssh/known_hosts"
+ssh_cmd="ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts $DEPLOY_USER@$DEPLOY_HOST"
+git archive "$DEPLOY_SHA" infra | $ssh_cmd "mkdir -p '$path' && tar -x -C '$path'"
+# One digest-pinned reference per image, from the image build's artifacts (digests/<image>).
+images=''
+for name in api worker engine web backup-init; do
+  ref=$(cat "${DEPLOY_DIGESTS_DIR:-digests}/$name")
+  [[ $ref =~ ^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$ ]] || { echo "ERROR: $name is not a digest-pinned reference: '$ref'" >&2; exit 1; }
+  images="$images $name=$ref"
+done
+# shellcheck disable=SC2086 # references are validated above and again by deploy.sh
+$ssh_cmd "cd '$path' && bash infra/deploy/deploy.sh 'sha-$DEPLOY_SHA'$images"
+'''
