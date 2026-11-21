@@ -128,7 +128,7 @@ description = "Production overlay: apply and verify the backup-bucket lifecycle 
 run = "bash infra/deploy/overlay-tests.sh lifecycle"
 
 ["infra:overlay-rolling"]
-description = "Production overlay: kill each API instance in turn under GET+POST load; no 502/503/504 through the proxy"
+description = "Production overlay: kill each API instance in turn under parallel GET+POST load (no failed GET), then a flaky-replica retry check"
 run = "bash infra/deploy/overlay-tests.sh rolling"
 
 ["infra:overlay-sse"]
