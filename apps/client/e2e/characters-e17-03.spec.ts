@@ -1,7 +1,7 @@
 import { test, expect } from "./accounts-fixture";
 import { apiBase } from "./servers";
 
-// ADR 0011: original fixture art stays provisional; character_create is unapproved.
+// ADR 0013 approves only character_create pricing; original fixture art stays provisional.
 for (const mobile of [false, true]) {
   test(`E17-03 free private editor and Cast ${mobile ? "mobile" : "desktop"}`, async ({
     page,

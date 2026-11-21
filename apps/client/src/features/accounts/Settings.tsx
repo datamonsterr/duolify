@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   setAnalyticsConsent,
   trackAppearanceChanged,
+  trackPreference,
 } from "../../lib/analytics";
 import { Button } from "../design/Button";
 import { Feedback } from "../design/chat/Feedback";
@@ -17,6 +18,7 @@ import {
   type LearnerSettings,
   type SettingsFields,
 } from "./learner-context";
+import { setFeedbackSettings } from "../design/feedback/feedbackBridge";
 import { analyticsOptOut, setAnalyticsOptOut } from "./session";
 import "./settings.css";
 
@@ -68,6 +70,10 @@ export function Settings() {
           setDraft(current);
           setAnalyticsOptOut(optedOut);
           setAnalyticsConsent(!optedOut);
+          setFeedbackSettings({
+            ui_sounds: value.ui_sounds,
+            haptics: value.haptics,
+          });
           applyVisualPreferences(value);
         }
       })
@@ -107,8 +113,16 @@ export function Settings() {
       setDraft(result);
       setAnalyticsOptOut(optedOut);
       if (!optedOut) setAnalyticsConsent(true);
+      setFeedbackSettings({
+        ui_sounds: result.ui_sounds,
+        haptics: result.haptics,
+      });
       if (!optedOut && saved.appearance !== result.appearance)
         trackAppearanceChanged(result.appearance);
+      if (!optedOut && saved.ui_sounds !== result.ui_sounds)
+        trackPreference("ui_sounds");
+      if (!optedOut && saved.haptics !== result.haptics)
+        trackPreference("haptics");
       applyVisualPreferences(result);
       setNotice("Settings saved");
     } catch (cause) {
@@ -220,17 +234,21 @@ export function Settings() {
                 ))}
               </select>
             </label>
-            <label>
+            <label htmlFor="settings-ui-sounds">
               <input
+                id="settings-ui-sounds"
+                aria-label="UI sounds"
                 type="checkbox"
                 checked={draft.ui_sounds}
                 onChange={(event) => update("ui_sounds", event.target.checked)}
               />
               UI sounds
             </label>
-            <label>
+            <label htmlFor="settings-haptics">
               Haptics
               <select
+                id="settings-haptics"
+                aria-label="Haptics"
                 value={draft.haptics}
                 onChange={(event) =>
                   update(

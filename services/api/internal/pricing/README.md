@@ -190,3 +190,88 @@ Alternatively, run the documented mise task:
 mise run api:pricing-activate-interim
 ```
 
+E17-02 (ADR 0013, 2026-11-16) supplies the separate, Git-backed
+`fixtures/usd_character_create.json` version `usd-character-create-2026-11-16`:
+`character_create` costs 25 Credits and is absent from
+`daily_free.eligible_actions` (`daily_free_eligible: false` in quotes). This full
+snapshot extends `usd-design-chat-owner-approved-2026-11-16` without changing
+any of its actions, limits, Daily free eligibility or `design_chat_policy`.
+Both `design_chat_decision` and `character_create_decision` remain
+`owner_approved`. Its effective time is `2026-11-20T00:00:01Z`, one second after
+the design-chat version, so the two fixtures have distinct activation times.
+This file is a proposal for the existing draft → submit → owner approve →
+activate workflow, never a migration seed or automatic production activation.
+Use a fresh version/effective time when the destination already has the named
+version or newer commercial terms; preserve those terms when composing a successor.
+
+The schema records `character_create_decision: owner_approved`. Approval and
+activation require review by `PRICING_OWNER_ID`, including in dev/test. Normal
+availability and quote creation require that same evidence on the currently
+activated version, a supported action and its complete execution envelope.
+Missing decision/reviewer/owner/key/policy fails closed. Rolling forward to a
+version without the key disables creation and confirmation while saved quotes
+and Characters retain their original versions. Quotes/reservations/settlement
+use config prices; Daily free credits cannot fund creation or regeneration.
+
+The existing explicit `ALLOW_UNAPPROVED_PRICING` mock proposal remains confined
+to exact `development`/`test` environments. It is independent of the normal
+approved-version path. The new browser acceptance task disables that bypass.
+Inherited quote policy assigns `character_create` to the existing bounded
+`haiku` route; this config does not enable a live provider. The established
+90-second/two-attempt mapping and screening bounds remain; the config carries
+10 active Characters, 5 attempts/day, 2/minute and 1,500 prompt characters.
+Config validation rejects relaxed bounds and Daily-free eligibility. Existing
+server checks retain 20 edits/hour, 8 KiB specs, 2,400 combined persona/info
+characters and one guide plus 0–2 distinct supporting Characters.
+
+The pricing decision does not approve default-cast art. Original fixture art,
+provider provisioning, eval promotion and production feature flags retain their
+existing gates. No new learner data, events, provider calls or secrets are added;
+the decision field follows existing financial JSON backup and retention policy.
+
+## E12-09 owner-approved design chat version (ADR 0013)
+
+`fixtures/usd_design_chat_owner_approved.json` is the separate
+`usd-design-chat-owner-approved-2026-11-16` candidate. It records
+`design_chat_decision: owner_approved` and `design_chat_policy`: setup and
+course-brief chats are platform paid (0 Credits); outline chat changes cost
+5 Credits, are Daily free eligible, and settle only for a valid delivered
+proposal, including one later discarded. Undelivered proposals release their
+reservation. Manual reorder/rename/remove/add, Undo, Apply and Discard are free.
+The interim usage/cost envelopes and the separate `outline_replan=55` price and
+envelope are preserved. Activate this predecessor before the separate
+`usd-character-create-2026-11-16` successor, which contains the complete
+design-chat snapshot plus character creation. Pricing versions are full
+snapshots: activating the predecessor after that successor would remove
+`character_create`. Operators must preserve all subsequently approved actions
+when composing further successor catalogues.
+
+The fixture is Git-backed input to the existing admin workflow, not an automatic
+database seed. No migration inserts an approved version, creates an activation
+marker, changes environment defaults or enables live sales/providers. Review the
+diff against the active catalogue, select a future `effective_from` before
+submission (the fixture timestamp is illustrative), and supply verified product
+mappings before a production rollout. Its synthetic mappings are fixtures only.
+Use the CLI above with this config file and version ID: draft → validate → diff
+→ submit → approve (or schedule). In production the reviewer **must** be the
+granted `PRICING_OWNER_ID` administrator; decision metadata alone is insufficient.
+Approval inserts the immutable version and inherited quote policy, so this flow
+needs no separate registry or seed. Ordinary cost, margin and adverse-notice
+checks still apply. A submitted draft can be edited before approval; once approved,
+use a new version ID for any change.
+
+For rollback, create a forward version that removes only `setup_chat`,
+`course_brief_chat`, `outline_chat_change`, their limits and Daily free eligibility,
+and their decision/policy metadata, preserving every unrelated active action.
+The standard rollback operation can use an earlier version with exactly those
+remaining terms. It follows the same submit/approve/schedule lifecycle. Existing
+quotes/reservations retain their original pricing version and settlement terms;
+manual editing and form fallbacks remain available.
+
+The schema validates the optional policy metadata without changing historical
+documents. Versions, decision/policy, reviewer audit and activation records remain
+in nightly encrypted financial dumps with seven-year history and 35-day snapshot
+rotation. Existing canonical pricing events cover this workflow without chat or
+reason text. No prompts, models, evaluation thresholds or fallback behavior change;
+E1-11/E2-06/E2-08 golden cases and independent live-promotion gates still apply.
+

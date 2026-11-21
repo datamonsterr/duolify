@@ -178,6 +178,11 @@ and production drills still require provisioning. See [backup tooling](../infra/
 | Postgres River job metadata | Validated request_id, trace_id and parent span_id under correlation; backup args remain UTC date only | Existing encrypted nightly database dumps; focused synthetic dump/restore compares the metadata of a completed retried job | Existing River terminal-job cleanup; no learner ID or content. Legacy jobs get fresh correlation; account deletion needs no new personal-data store | [E11-04 change](../openspec/changes/trace-requests-workers-alerts/design.md) |
 | Private operational metrics and incident memory | Fixed-label call/error/duration/alert counters; bounded dedupe keys for terminal jobs and dependency outage state, independent of PostHog | Disposable memory and derived Prometheus volume; scrape/alert config and dashboard queries in infra are Git-backed | In-process counters reset on restart; dedupe capped at 4096 keys. Collector metrics expire after seven days or 256 MB; deletion/recreation resets the derived store | [E11-04 observability](../infra/observability/README.md) |
 
+The `character_create_decision` field in versioned Pricing config JSON records
+ADR 0013's owner-approved pricing gate. It contains no identity or learner text;
+existing full-dump coverage, seven-year financial retention and identity-free
+catalogue deletion policy apply. No learner table or column is added.
+
 Pricing administrator grants are included in account exports and the learner-table
 deletion classification; the focused privacy fixture seeds a grant, checks its
 export and verifies its existing ON DELETE CASCADE policy removes it.
@@ -590,6 +595,10 @@ Postgres `learner_blocks` (`blocker_id`, `blocked_id`, `created_at`; primary key
 
 `learner_blocks` enters nightly encrypted Postgres dumps (14-day general retention). The backup fixture adds a block with a fixed date and a non-default `course_invites_from`, compares the restored rows and checks the self-block constraint. Account export lists the learner's own blocks by blocked username and date only (never blocks placed against them). Account erasure (live and tombstone replay) deletes blocks the learner placed **and** blocks placed against them: no opaque hash of the erased learner is retained (the product spec only permits it), because a new account gets a new UUID that such a hash could never match, so keeping it would retain data for no protection (integration test `TestBlocksFollowAccountErasureInBothDirections`); classified `erased`. PostHog receives `learner_blocked` (`was_friend` boolean) and `privacy_setting_changed` with `setting=course_invites_from` through the fail-closed consent gate, keyed by learner UUID; never usernames, display names or the blocked learner's identifier. There is no unblock event.
 
+### E13-06 approved identity and optional feedback settings
+
+Approved brand assets (SVG mark, wordmark, web favicon, manifest, and Tauri application icons) are Git-backed source assets versioned in the repository. Optional feedback preferences (`ui_sounds` boolean, `haptics` enum `system|on|off`) reuse existing PostgreSQL `learner_profiles` persistence (E1) without new tables or schema changes. These settings are included in nightly encrypted general PostgreSQL dumps (14-day retention), exported with learner profile data, and deleted on account erasure. No audio assets are shipped in v1; sound cues remain silent no-ops with zero network fetch. Telemetry emits only allowlisted `ui_control_activated` with `surface=settings` and `control_id=ui_sounds|haptics` under learner consent; no private learner text or repeated cues are emitted.
+
 # E17-05 pinned Course Casts in generated Lessons
 
 Each Lesson generation job pins its effective Cast in `lesson_cast_snapshots`
@@ -656,6 +665,20 @@ Ticket E12-10 introduces interim ADR 0012 design chat pricing (`setup_chat=0`, `
 - Server-side gate fails closed: outside `DUOLIFY_ENV` development/test, approving/activating/quoting a version containing design chat actions is rejected unless `design_chat_decision` is `owner_approved` and approval was submitted by the `PRICING_OWNER_ID` admin.
 - Custom-format dump and restore verification (`TestActivateDesignChatPricesIntegration`) asserts that restored databases resolve the exact same active version and action flags.
 - Forward rollback restores catalogue actions without design chat keys and disables only those actions; manual outline editing and Apply/Discard/Undo remain free.
+
+E12-09 adds the separate Git-backed `usd-design-chat-owner-approved-2026-11-16`
+candidate. Its existing immutable config JSON records `owner_approved` plus
+`design_chat_policy` (platform-paid clarification, valid-delivery settlement even
+if discarded, release before delivery, and free manual edits/Apply/Discard/Undo).
+The standard draft/owner-approval flow persists this metadata with the version;
+there is no automatic approved seed or live activation. No new tables or learner
+fields are introduced, and account export/deletion policies stay the same.
+Existing encrypted nightly financial dumps retain the policy, reviewer audit and
+activation history for at least seven years in the live history, with snapshots
+rotating after 35 days. `TestActivateDesignChatPricesIntegration` verifies the
+owner-approved config and complete draft/reviewer, audit and activation records
+survive custom-format dump/restore. The separate `outline_replan=55` terms and
+historical quote-version references remain intact across forward rollback.
 - Analytics events (`pricing_version_approved`, `pricing_version_activated`, `pricing_version_rolled_back`) contain strictly canonical metadata and actor IDs; operator reasons and chat text are excluded.
 
 E11-03 adds no tables. Backup objects now have two retention classes in the isolated,
@@ -829,6 +852,8 @@ Postgres `course_copies` gains `forked_at_lesson` (nullable uuid, `ON DELETE SET
 | Safety suppression/tombstones | `character_suppressions`, nightly dump; append-only `character-suppressions/v1/` ledger contains only content identity and closed reason | Ownership-free safety overlay retained for restored references; replay before serving after restore/account deletion. Runtime substitutes approved defaults without changing immutable payloads or grading. |
 | Publication analytics dedupe | `publication_drafts.character_event_emitted`, nightly dump | Version-scoped once-only marker, no content. Opt-out suppresses PostHog; analytics never supplies recovery state. |
 | Generated Lesson player objects | Existing `lesson_manifests` and versioned `lessons/generated/<generated-lesson-id>/` objects, encrypted nightly dumps and protected asset manifests | An authorized first playback can idempotently materialize already validated, unlocked DB content; no LLM/TTS, progress or grading change. Concurrent reads share one advisory lock and one manifest. Protected bytes, including HTML checksums, restore with the database. |
+
+E15-01 #228 (ADR 0013): `learners.birth_date` is a nullable Postgres `date`, collected once at first publish when unknown through authenticated `PUT /v1/me/birth-date`; corrections go through support. The conditional database write only fills a NULL date. A different subsequent date returns 409 `birth_date_locked`; an identical retry returns 204 without a write. It stores no time of birth, computed age, document or extra verification metadata. Accept only real ISO dates from 1900-01-01 through the server's current UTC date. The server computes calendar age for publish, republish and Share link rotation; publishing requires at least 18. Birth date is private account PII: included in the account export's `learners` row and erased with the learner row on account deletion, including deletion-ledger replay after restore. Existing encrypted nightly dumps and account retention (14 days, with the existing financial snapshot rotation) apply. The synthetic backup fixture round-trips the date; the restore-drill PII registry explicitly classifies it and anonymization replaces it with NULL, checked after restore. Neither birth date nor derived age is included in snapshots, AI input, logs or PostHog; no event is added.
 
 # E15-12 owner narration audio in published snapshots (ADR 0013)
 

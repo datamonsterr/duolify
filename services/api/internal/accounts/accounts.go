@@ -107,6 +107,7 @@ func NewWithOAuthProviders(pool *pgxpool.Pool, secret string, mailer Mailer, goo
 	s.mux.Handle("DELETE /v1/auth/sessions", s.Protect(http.HandlerFunc(s.revokeSessions)))
 	s.mux.Handle("DELETE /v1/auth/sessions/{sessionID}", s.Protect(http.HandlerFunc(s.revokeSession)))
 	s.mux.Handle("GET /v1/me", s.Protect(http.HandlerFunc(s.me)))
+	s.mux.Handle("PUT /v1/me/birth-date", s.Protect(http.HandlerFunc(s.saveBirthDate)))
 	s.ConfigureProfile(ProfileOptions{TextLimit: 2000})
 	s.registerProfile()
 	s.registerPrivacy()

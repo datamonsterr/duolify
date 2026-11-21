@@ -1,4 +1,5 @@
 import { useUiPreferences } from "./localization/Preferences";
+import { triggerFeedbackCue } from "./feedback/feedbackBridge";
 import type { ButtonHTMLAttributes, Ref } from "react";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -13,6 +14,7 @@ export function Button({
   pending = false,
   disabled,
   className = "",
+  onClick,
   ...props
 }: Props) {
   const { t } = useUiPreferences();
@@ -23,6 +25,12 @@ export function Button({
       className={`duo-button ${variant} ${className}`}
       disabled={disabled || pending}
       aria-busy={pending || undefined}
+      onClick={(event) => {
+        if (!disabled && !pending) {
+          triggerFeedbackCue("tap");
+        }
+        onClick?.(event);
+      }}
     >
       {pending ? t("common.preparing") : children}
     </button>

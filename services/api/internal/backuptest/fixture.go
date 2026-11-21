@@ -452,7 +452,7 @@ func (f *Fixture) SeedDatabase(t *testing.T, objects playerfixture.Writer) {
 	t.Helper()
 	outline := courses.Outline{{ID: "fixture-unit", Title: "Moon", Lessons: []courses.OutlineLesson{{ID: "fixture-lesson", Title: "Phases", Goal: "Recognize phases"}}}}
 	for _, query := range []string{
-		"INSERT INTO learners (id,display_name) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner')",
+		"INSERT INTO learners (id,display_name,birth_date) VALUES ('a1111111-1111-4111-8111-111111111111','Synthetic Learner',DATE '1990-06-15')",
 		`INSERT INTO credit_checkout_orders(request_id,learner_id,owner_reference,pricing_version,sku,amount_minor,currency,credits,billing_period,platform,return_to)
 SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(convert_to('a1111111-1111-4111-8111-111111111111','UTF8')),'hex'),version,config->'packs'->0->>'sku',(config->'packs'->0->>'amount_minor')::bigint,config->'packs'->0->>'currency',(config->'packs'->0->>'credits')::bigint,'one_time','web','/credits' FROM pricing_versions WHERE version='usd-launch-2026-11-08'`,
 		"INSERT INTO credit_entries (learner_id,amount,kind,reference,pricing_version,provenance) VALUES ('a1111111-1111-4111-8111-111111111111',120,'purchase','synthetic-purchase','usd-launch-2026-11-08','{\"channel\":\"web\"}'::jsonb)",
@@ -1046,7 +1046,7 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	f.AssertPlaybackPositionRestored(t, restored.Pool)
 	f.AssertNarrationRestored(t, restored.Pool)
 	var version, learners, entries, balance, riverVersions int64
-	var name string
+	var name, birthDate string
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT max(version_id) FROM goose_db_version WHERE is_applied").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
@@ -1058,6 +1058,9 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT display_name FROM learners WHERE id='a1111111-1111-4111-8111-111111111111'").Scan(&name); err != nil {
 		t.Fatal(err)
+	}
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT birth_date::text FROM learners WHERE id='a1111111-1111-4111-8111-111111111111'").Scan(&birthDate); err != nil || birthDate != "1990-06-15" {
+		t.Fatal("restored birth date differs from synthetic fixture", err)
 	}
 	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*),sum(amount) FROM credit_entries WHERE learner_id='a1111111-1111-4111-8111-111111111111'").Scan(&entries, &balance); err != nil {
 		t.Fatal(err)

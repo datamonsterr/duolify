@@ -19,7 +19,7 @@ The API and worker SHALL connect to Postgres with direct connections. A transact
 - **THEN** session-level `pg_advisory_lock` and `pg_advisory_unlock` succeed on the same connection and River jobs complete
 
 ### Requirement: Object storage conformance before migration
-Any object store that replaces the current one MUST pass `mise run infra:s3-conformance` before data moves. This covers RustFS in Singapore and Hetzner Object Storage in Helsinki. The suite SHALL cover:
+Any object store that replaces the current one MUST pass `mise run infra:s3-conformance` before data moves. This covers Hetzner Object Storage in Helsinki, the backup/DR store, and RustFS when used as the fallback. The suite SHALL cover:
 - a versioned put that returns a version ID;
 - listing versions;
 - reading by version;
@@ -39,7 +39,7 @@ During object migration, the API SHALL read from the new store first and fall ba
 - **THEN** the Lesson still plays because the read falls back to the Railway bucket
 
 ### Requirement: Streaming through the edge proxy
-Every SSE route SHALL send data or a comment heartbeat at least every 25 seconds, so that streams of at least 10 minutes complete through Cloudflare's proxy.
+Every SSE route SHALL send data or a comment heartbeat at least every 25 seconds, so that streams of at least 10 minutes complete through Cloudflare's proxy (125-second Proxy Read Timeout).
 
 #### Scenario: Long Tutor chat stream
 - **WHEN** a Tutor chat stream stays open for 10 minutes through the edge proxy
@@ -68,13 +68,13 @@ If any check fails, the gate MUST release back to the old database. Replication 
 
 ### Requirement: Data backup and retention across the migration
 The migration SHALL preserve existing retention: general backups for 14 days, financial backups for 35 days, and the deletion ledger never expired. It SHALL add:
-- WAL archiving with 7-day point-in-time recovery to Hetzner Object Storage in Helsinki;
-- a nightly versioned DR copy of `lesson-assets`.
+- WAL archiving with 7-day point-in-time recovery to a backup bucket outside the Helsinki site;
+- a nightly versioned DR copy of `lesson-assets` in that backup location.
 
-Railway buckets MUST stay read-only for 35 days after verification. A restore drill MUST pass on the Singapore staging stack before production migration.
+Railway buckets MUST stay read-only for 35 days after verification. A restore drill MUST pass on the Helsinki staging stack before production migration.
 
 #### Scenario: Restore drill gates migration
-- **WHEN** the restore drill fails on the Singapore staging stack
+- **WHEN** the restore drill fails on the Helsinki staging stack
 - **THEN** the production migration task stays blocked and Railway remains the serving origin
 
 ### Requirement: Analytics continuity
@@ -85,15 +85,15 @@ The migration SHALL NOT add or rename PostHog events. For the 24 hours after eac
 - **THEN** the runbook rolls that step back
 
 ### Requirement: Model testing and reliability on the new host
-Before the database switchover, the Engine on the Singapore stack MUST:
+Before the database switchover, the Engine on the Helsinki stack MUST:
 - pass `mise run engine:eval`;
 - pass the live sample eval at CI thresholds;
-- keep p95 time-to-first-token no more than 10% above the Railway baseline.
+- keep p95 time-to-first-token, measured at the origin, no more than 10% above the Railway baseline.
 
 Provider fallbacks, timeouts and cost limits SHALL be unchanged.
 
 #### Scenario: Eval regression blocks switchover
-- **WHEN** the live sample eval on the Singapore stack falls below CI thresholds
+- **WHEN** the live sample eval on the Helsinki stack falls below CI thresholds
 - **THEN** the switchover is blocked and the Engine keeps serving from Railway
 
 ### Requirement: Reversible migration
@@ -102,3 +102,34 @@ For 30 days after switchover, reverse logical replication from Hetzner to Railwa
 #### Scenario: Rollback within 30 days
 - **WHEN** the owner triggers rollback during the 30-day window
 - **THEN** the gate swaps back to Railway Postgres within 15 seconds without request errors
+
+### Requirement: Read-only window fallback
+If logical replication from Railway is not possible, or the plan A rehearsal fails twice, the database SHALL move by a planned read-only window of at most 15 minutes. During the window:
+- reads and Lesson playback MUST keep working;
+- writes MUST return `503` with `Retry-After`;
+- River MUST be stopped.
+
+Data SHALL move by dump/restore, and row counts plus a checksum sample MUST match before traffic switches. If verification has not passed by minute 13, the window MUST be aborted and Railway made writable again.
+
+#### Scenario: Window completes
+- **WHEN** the operator runs the read-only window and verification passes
+- **THEN** writes resume on the Hetzner database within 15 minutes of the window start and sequences continue above the Railway values
+
+#### Scenario: Window aborted
+- **WHEN** verification has not passed 13 minutes after the window start
+- **THEN** read-only is cleared on Railway, Railway keeps serving and no write is lost
+
+### Requirement: Off-site backups from the primary region
+Backups, the WAL archive and the `lesson-assets` DR copy MUST be stored outside the Helsinki site, in a versioned store that passes `infra:s3-conformance`. The storage country MUST be listed in the privacy notice before production data is written there.
+
+#### Scenario: Backup target in the primary site rejected
+- **WHEN** `infra:deploy-plan` sees a backup endpoint in the same location as the primary stack
+- **THEN** the plan fails and names the backup variable
+
+### Requirement: Latency from Southeast Asia is measured
+Immutable object responses SHALL be cacheable at the edge so that repeat reads in Southeast Asia are served without an origin round trip. Server-side API p95 MUST be no worse than the Railway baseline. Client-side p95 from a Southeast Asian vantage point SHALL be recorded before and after the move.
+
+#### Scenario: Cached slide read from Southeast Asia
+- **WHEN** a learner in Southeast Asia requests an immutable Slide object that was fetched before through the same edge
+- **THEN** the response is a cache hit and no request reaches the Helsinki origin
+

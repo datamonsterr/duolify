@@ -77,15 +77,19 @@ type Config struct {
 		Expires         string   `json:"expires"`
 		SpendFirst      bool     `json:"spend_first"`
 	} `json:"daily_free"`
-	Packs               []Pack                       `json:"packs"`
-	Plans               []Plan                       `json:"plans"`
-	PaidCredits         json.RawMessage              `json:"paid_credits"`
-	Limits              json.RawMessage              `json:"limits"`
-	ProcessingFees      *ProviderRateConfig          `json:"processing_fees,omitempty"`
-	DevelopmentMappings map[string]string            `json:"development_mappings,omitempty"`
-	StripeMappings      map[string]any               `json:"stripe_mappings,omitempty"`
-	StoreMappings       map[string]map[string]string `json:"store_mappings,omitempty"`
-	DesignChatDecision  string                       `json:"design_chat_decision,omitempty"`
+	Packs                   []Pack                       `json:"packs"`
+	Plans                   []Plan                       `json:"plans"`
+	PaidCredits             json.RawMessage              `json:"paid_credits"`
+	Limits                  json.RawMessage              `json:"limits"`
+	ProcessingFees          *ProviderRateConfig          `json:"processing_fees,omitempty"`
+	DevelopmentMappings     map[string]string            `json:"development_mappings,omitempty"`
+	StripeMappings          map[string]any               `json:"stripe_mappings,omitempty"`
+	StoreMappings           map[string]map[string]string `json:"store_mappings,omitempty"`
+	DesignChatDecision      string                       `json:"design_chat_decision,omitempty"`
+	CharacterCreateDecision string                       `json:"character_create_decision,omitempty"`
+	// DesignChatPolicy records the approved settlement rules without changing
+	// historical versions that predate the owner decision.
+	DesignChatPolicy map[string]string `json:"design_chat_policy,omitempty"`
 }
 
 // Public strips provider mappings. No sales are activated by this read-only ticket.
@@ -116,6 +120,21 @@ func (c Config) ProviderMappings(environment string) map[string]string {
 	return result
 }
 
+// The embedded schema is immutable. Share its compiled form across catalogue
+// reloads and quote requests, while validating each document independently.
+var compiledPricingSchema = sync.OnceValues(func() (*jsonschema.Schema, error) {
+	schema, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaJSON))
+	if err != nil {
+		return nil, err
+	}
+	compiler := jsonschema.NewCompiler()
+	compiler.AssertFormat()
+	if err := compiler.AddResource("urn:duolify:pricing", schema); err != nil {
+		return nil, err
+	}
+	return compiler.Compile("urn:duolify:pricing")
+})
+
 // Parse enforces JSON Schema followed by relationships that JSON Schema cannot express.
 func Parse(raw []byte) (Config, error) {
 	var zero Config
@@ -123,16 +142,7 @@ func Parse(raw []byte) (Config, error) {
 	if err != nil {
 		return zero, fmt.Errorf("pricing JSON: %w", err)
 	}
-	schema, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaJSON))
-	if err != nil {
-		return zero, err
-	}
-	compiler := jsonschema.NewCompiler()
-	compiler.AssertFormat()
-	if err := compiler.AddResource("urn:duolify:pricing", schema); err != nil {
-		return zero, err
-	}
-	compiled, err := compiler.Compile("urn:duolify:pricing")
+	compiled, err := compiledPricingSchema()
 	if err != nil {
 		return zero, err
 	}
@@ -149,6 +159,9 @@ func Parse(raw []byte) (Config, error) {
 	}
 	if c.Narration.Credits != c.Actions["narration"].Credits {
 		return zero, errors.New("narration.credits must match actions.narration.credits")
+	}
+	if err := validateCharacterCreate(c); err != nil {
+		return zero, err
 	}
 	for _, key := range c.DailyFree.EligibleActions {
 		if _, ok := c.Actions[key]; !ok {
@@ -423,6 +436,14 @@ func (c *RuntimeCatalogue) ActivateDue(ctx context.Context, admin *Admin) error 
 		if err != nil {
 			return err
 		}
+		if _, ok := parsed.Actions["character_create"]; ok {
+			var reviewer string
+			_ = c.pool.QueryRow(ctx, "SELECT coalesce((SELECT reviewed_by FROM pricing_drafts WHERE version=$1 AND status='approved'),'')", v.version).Scan(&reviewer)
+			if gateErr := CheckCharacterCreateDecision(parsed, reviewer, admin.owner); gateErr != nil {
+				slog.WarnContext(ctx, "pricing activation refused", "version", v.version, "error", gateErr)
+				continue
+			}
+		}
 		if HasDesignChatKeys(parsed) {
 			var reviewer string
 			_ = c.pool.QueryRow(ctx, "SELECT coalesce((SELECT reviewed_by FROM pricing_drafts WHERE version=$1),'')", v.version).Scan(&reviewer)
@@ -570,6 +591,9 @@ func LoadDevelopment(ctx context.Context, pool *pgxpool.Pool) (*Catalogue, error
 // HasAction reports whether the catalogue defines the given action.
 func (c *Catalogue) HasAction(name string) bool {
 	if c == nil {
+		return false
+	}
+	if name == "character_create" && c.config.CharacterCreateDecision != "owner_approved" {
 		return false
 	}
 	_, ok := c.config.Actions[name]

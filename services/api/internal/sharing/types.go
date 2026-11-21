@@ -32,6 +32,8 @@ var (
 	ErrOutOfAllowlist = errors.New("snapshot_rejected")
 	// ErrAdultRequired means the owner is below the configured publisher age.
 	ErrAdultRequired = errors.New("adult_required")
+	// ErrBirthDateRequired asks the owner to supply their account birth date before publishing.
+	ErrBirthDateRequired = errors.New("birth_date_required")
 	// ErrVisibilityUnavailable means no public visibility exists yet (E15-01).
 	ErrVisibilityUnavailable = errors.New("visibility_unavailable")
 	// ErrPublishNotAllowed is returned when the latest draft verdict is not pass.
@@ -150,7 +152,7 @@ func ConfigFromEnv(getenv func(string) string) Config {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
-	if n, err := strconv.Atoi(getenv("SHARING_MIN_PUBLISHER_AGE")); err == nil && n >= 13 && n <= 99 {
+	if n, err := strconv.Atoi(getenv("SHARING_MIN_PUBLISHER_AGE")); err == nil && n >= 18 && n <= 99 {
 		c.MinPublisherAge = n
 	}
 	if n, err := strconv.Atoi(getenv("SHARING_MAX_ENROLLMENTS_PER_DAY")); err == nil && n > 0 {

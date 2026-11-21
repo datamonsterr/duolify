@@ -109,3 +109,8 @@ run = "pnpm exec prettier --write src/features/gamification src/features/lessont
 description = "Format steering panel and acceptance tests"
 dir = "{{config_root}}/apps/client"
 run = "pnpm exec prettier --write src/features/steering src/features/lessontest/LessonTest.tsx src/LearnPath.tsx src/lib/api.ts src/lib/analytics.ts e2e/steering-e16-01.spec.ts"
+
+["client:format-sharing"]
+description = "Format course sharing sources and browser acceptance tests"
+dir = "{{config_root}}/apps/client"
+run = "pnpm exec prettier --write src/features/sharing e2e/sharing*.spec.ts"

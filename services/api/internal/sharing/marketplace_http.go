@@ -181,6 +181,8 @@ func (h *ListingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		write(w, http.StatusNotFound, map[string]string{"error": "course_unavailable"})
 	case errors.Is(err, ErrAdultRequired):
 		write(w, http.StatusForbidden, map[string]string{"error": "adult_required"})
+	case errors.Is(err, ErrBirthDateRequired):
+		write(w, http.StatusConflict, map[string]string{"error": "birth_date_required"})
 	case errors.Is(err, ErrPublishNotAllowed):
 		write(w, http.StatusConflict, map[string]string{"error": "publish_not_allowed"})
 	default:

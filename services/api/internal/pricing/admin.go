@@ -583,6 +583,11 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		adminError(w, 409, "only submitted drafts can be approved")
 		return
 	}
+	if err = CheckCharacterCreateDecision(parsed, actor, a.owner); err != nil {
+		a.auditFailure(ctx, actor, "approval_denied", version, in.Reason, "{}", requestID(r))
+		adminError(w, 403, err.Error())
+		return
+	}
 	if HasDesignChatKeys(parsed) {
 		if err = CheckDesignChatDecision(parsed, a.env, actor, a.owner); err != nil {
 			a.auditFailure(ctx, actor, "approval_denied", version, in.Reason, "{}", requestID(r))
@@ -692,7 +697,7 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 						if actionKey == "outline_replan" {
 							policy.ActionModels[actionKey] = policy.ActionModels["outline"]
 						}
-						if actionKey == "setup_chat" || actionKey == "course_brief_chat" || actionKey == "outline_chat_change" {
+						if actionKey == "setup_chat" || actionKey == "course_brief_chat" || actionKey == "outline_chat_change" || actionKey == "character_create" {
 							policy.ActionModels[actionKey] = "haiku"
 						}
 					}
@@ -1108,7 +1113,7 @@ func adverseObject(before, after map[string]any, path string, removed map[string
 	for key, oldValue := range before {
 		newValue, ok := after[key]
 		if !ok {
-			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision") {
+			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision" || key == "design_chat_policy") {
 				continue
 			}
 			if key == "stripe_price_id" || key == "store_product_ids" {
@@ -1123,7 +1128,7 @@ func adverseObject(before, after map[string]any, path string, removed map[string
 		if path != "" {
 			full = path + "." + key
 		}
-		if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision") {
+		if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision" || key == "design_chat_policy") {
 			continue
 		}
 		if key == "stripe_price_id" || key == "store_product_ids" {
@@ -1136,13 +1141,13 @@ func adverseObject(before, after map[string]any, path string, removed map[string
 	}
 	for key := range after {
 		if _, ok := before[key]; !ok {
-			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision") {
+			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision" || key == "design_chat_policy") {
 				continue
 			}
 			if key == "stripe_price_id" || key == "store_product_ids" {
 				continue
 			}
-			if (path == "actions" || path == "limits") && IsDesignChatAction(key) {
+			if (path == "actions" || path == "limits") && (IsDesignChatAction(key) || key == "character_create") {
 				continue
 			}
 			return true
@@ -1217,7 +1222,7 @@ func adverseValue(old, next any, path string, removed map[string]bool) bool {
 	return !jsonEqual(old, next)
 }
 
-// removedDesignChat lists design chat actions present in before.actions and
+// removedDesignChat lists gated design chat/Character actions present in before.actions and
 // absent from after.actions (a rollback disabling the action). Only then is
 // dropping the action's limits or Daily-free eligibility non-adverse.
 func removedDesignChat(before, after map[string]any) map[string]bool {
@@ -1225,7 +1230,7 @@ func removedDesignChat(before, after map[string]any) map[string]bool {
 	newActions, _ := after["actions"].(map[string]any)
 	removed := map[string]bool{}
 	for key := range oldActions {
-		if _, ok := newActions[key]; !ok && IsDesignChatAction(key) {
+		if _, ok := newActions[key]; !ok && (IsDesignChatAction(key) || key == "character_create") {
 			removed[key] = true
 		}
 	}

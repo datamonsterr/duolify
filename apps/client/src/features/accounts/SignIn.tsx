@@ -24,6 +24,7 @@ import {
 } from "./google-oauth";
 import "./accounts.css";
 import { SharedDemo } from "../courses/SharedDemo";
+import { Brand } from "../design/brand/Brand";
 
 export function SignIn({
   onSignedIn,
@@ -282,13 +283,7 @@ export function SignIn({
   const content = (
     <div className="auth-page" hidden={demo} inert={demo}>
       <header className="auth-header">
-        <a className="brand" href="/sign-in">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-            <span />
-          </span>
-          duolify
-        </a>
+        <Brand href="/sign-in" />
         {step === "welcome" && (
           <Button variant="secondary" onClick={() => open(true)}>
             I have an account

@@ -18,6 +18,7 @@ import { useMobileLayout } from "./AdaptiveLayouts";
 import { ShellSession } from "./ShellSession";
 import { useMarketplaceEnabled } from "../../lib/features";
 import { ModerationNoticesLink } from "../sharing/ModerationNoticesLink";
+import { Brand } from "../design/brand/Brand";
 
 const icons: Record<string, string> = {
   home: "M3 11 12 4l9 7v9h-6v-6H9v6H3z",
@@ -50,17 +51,6 @@ function NavIcon({ name }: { name: string }) {
     >
       <path d={icons[name]} />
     </svg>
-  );
-}
-function Brand() {
-  return (
-    <Link className="brand" to="/">
-      <span className="brand-mark" aria-hidden="true">
-        <span />
-        <span />
-      </span>
-      duolify
-    </Link>
   );
 }
 function DestinationLink({
@@ -172,7 +162,7 @@ export function AppShell() {
         {!focused && (
           <>
             <aside className="sidebar">
-              <Brand />
+              <Brand to="/" />
               {!mobile && (
                 <nav aria-label={t("shell.main")}>
                   <div role="group" aria-label={t("shell.learning")}>
@@ -193,7 +183,7 @@ export function AppShell() {
               <p className="sidebar-foot">{t("shell.motto")}</p>
             </aside>
             <header className="mobile-header">
-              <Brand />
+              <Brand to="/" />
               <Link
                 className="credit-shortcut"
                 to="/credits"

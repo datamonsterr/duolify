@@ -336,7 +336,7 @@ type textColumn struct{ table, column string }
 func privacyChecks(forbidden []string) []Check {
 	columns := func(ctx context.Context, p *pgxpool.Pool) ([]textColumn, error) {
 		rows, err := p.Query(ctx, `SELECT table_name, column_name FROM information_schema.columns c
- WHERE table_schema='public' AND data_type IN ('text','character varying','jsonb','json','ARRAY')
+ WHERE table_schema='public' AND (data_type IN ('text','character varying','jsonb','json','ARRAY') OR column_name='birth_date')
  AND table_name NOT LIKE 'river%' AND table_name NOT LIKE 'goose%'
  AND EXISTS (SELECT 1 FROM information_schema.tables t WHERE t.table_schema='public' AND t.table_name=c.table_name AND t.table_type='BASE TABLE')`)
 		if err != nil {
@@ -368,6 +368,12 @@ func privacyChecks(forbidden []string) []Check {
 			const lookahead = `[A-Za-z0-9._%+-]+@(?!` + `anonymized\.invalid)[A-Za-z0-9.-]+\.[A-Za-z]{2,}`
 			for _, c := range cols {
 				ref := pgx.Identifier{c.table}.Sanitize() + "." + pgx.Identifier{c.column}.Sanitize()
+				if c.column == "birth_date" {
+					n, err := scalar(ctx, p, "SELECT count(*) FROM "+pgx.Identifier{c.table}.Sanitize()+" WHERE "+ref+" IS NOT NULL")
+					if err != nil || n != 0 {
+						return errDrill
+					}
+				}
 				n, err := scalar(ctx, p, "SELECT count(*) FROM "+pgx.Identifier{c.table}.Sanitize()+" WHERE "+ref+"::text ~* $1", lookahead)
 				if err != nil || n != 0 {
 					return errDrill
