@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# Tests for the production overlay (compose.prod.yml) against a throwaway local stack.
+#
+#   overlay-tests.sh e2e    stack up with the overlay: 2 API instances, private Engine, WAL reaches the bucket
+#   overlay-tests.sh pitr   PITR drill: base backup + archived WAL restored to a point in time
+#   overlay-tests.sh redis  Redis cold start: flush Redis, stack still serves, state rebuilds from Postgres
+#   overlay-tests.sh dr     nightly DR copy keeps every object version, even after a source delete
+#
+# Runs under its own Compose project and ports (never the owner's stack); removes its containers and
+# volumes on exit. Needs Docker and the duolify/*:local images (built on demand).
+set -euo pipefail
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+work=$(mktemp -d)
+chmod 700 "$work"
+export SELFHOST_PROJECT=duolify-e18-08-$(head -c 4 /dev/urandom | od -An -vtx1 | tr -d ' \n')
+export SELFHOST_ENV_FILE=$work/env
+export SELFHOST_AGE_IDENTITY_FILE=$work/age-identity.txt
+export SELFHOST_OVERLAY=$here/compose.prod.yml
+sh=$here/selfhost.sh
+
+compose() { bash "$sh" compose "$@"; }
+say() { printf '==> %s\n' "$*"; }
+die() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+port() { printf '%s' $((20000 + RANDOM % 20000)); }
+
+cleanup() {
+  compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1 || true
+  rm -rf "$work"
+}
+trap cleanup EXIT
+
+start_stack() {
+  (umask 077 && cp "$here/.env.example" "$SELFHOST_ENV_FILE")
+  {
+    printf 'BIND_ADDRESS=127.0.0.1\nHTTP_PORT=%s\nHTTPS_PORT=%s\n' "$(port)" "$(port)"
+    printf 'COMPOSE_PROFILES=local-s3\n'
+  } >>"$SELFHOST_ENV_FILE"
+  sed -i "s|^PUBLIC_ORIGIN=.*|PUBLIC_ORIGIN=http://127.0.0.1|" "$SELFHOST_ENV_FILE"
+  bash "$sh" up
+}
+
+# aws CLI with the RustFS root identity (test-only: inspects versions, which scoped keys cannot).
+root_aws() {
+  compose run --rm -T --no-deps --entrypoint aws s3-init "$@"
+}
+
+wait_for() { # SECONDS DESCRIPTION COMMAND...
+  local secs=$1 what=$2 i
+  shift 2
+  for ((i = 0; i < secs; i += 3)); do
+    if "$@" >/dev/null 2>&1; then return 0; fi
+    sleep 3
+  done
+  die "timed out waiting for $what"
+}
+
+wal_in_bucket() { # at least one archived WAL segment in the backup bucket
+  compose run --rm -T --no-deps backup-reader s3api list-objects-v2 --bucket duolify-backups \
+    --prefix wal/ --query 'length(Contents)' --output text | grep -qE '^[1-9]'
+}
+
+test_e2e() {
+  start_stack
+  bash "$sh" smoke
+  local n
+  n=$(compose ps --format '{{.Health}}' api | grep -c '^healthy$')
+  [[ $n == 2 ]] || die "expected 2 healthy API instances, got $n"
+  [[ $(compose config --format json | jq -r '.services.engine.ports // [] | length') == 0 ]] || die "engine publishes a port"
+  compose exec -T postgres psql -U duolify -d duolify -Atc 'select pg_switch_wal()' >/dev/null
+  wait_for 90 "WAL segment in the backup bucket" wal_in_bucket
+  [[ $(compose exec -T postgres psql -U duolify -d duolify -Atc 'select failed_count from pg_stat_archiver') == 0 ]] || die "archiver reports failures"
+  say "e2e passed"
+}
+
+test_pitr() {
+  start_stack
+  compose exec -T postgres psql -U duolify -d duolify -qc 'create table pitr_marker(label text)' -c "insert into pitr_marker values ('before')"
+  compose exec -T walship /walship.sh base
+  compose exec -T postgres psql -U duolify -d duolify -qc "insert into pitr_marker values ('kept')"
+  sleep 2
+  local target
+  target=$(compose exec -T postgres psql -U duolify -d duolify -Atc "select to_char(now() at time zone 'UTC','YYYY-MM-DD HH24:MI:SS')||'+00'")
+  sleep 2
+  compose exec -T postgres psql -U duolify -d duolify -qc "insert into pitr_marker values ('after')" -c 'select pg_switch_wal()'
+  wait_for 90 "WAL segment in the backup bucket" wal_in_bucket
+  sleep 15 # let the shipper pick up the segment holding 'after'
+  local out
+  out=$(bash "$sh" pitr-drill "$target")
+  printf '%s\n' "$out"
+  grep -qx 'pitr_labels=before,kept' <<<"$out" || die "PITR did not stop at the target time"
+  say "pitr passed"
+}
+
+test_redis() {
+  start_stack
+  compose exec -T redis redis-cli SET duolify:e18-08 1 >/dev/null
+  compose exec -T redis redis-cli FLUSHALL >/dev/null
+  compose restart redis >/dev/null
+  wait_for 60 "redis healthy" bash -c "[[ \$(bash '$sh' compose ps --format '{{.Health}}' redis) == healthy ]]"
+  compose exec -T redis redis-cli --raw EXISTS duolify:e18-08 | grep -qx 0 || die "redis kept state across the flush"
+  bash "$sh" smoke
+  say "redis passed"
+}
+
+test_dr() {
+  start_stack
+  local key=lessons/e18-08/dr-probe.txt dr=dr/lesson-assets/lessons/e18-08/dr-probe.txt
+  printf v1 >"$work/obj"
+  put() { root_aws s3 cp - "s3://duolify/$key" <"$work/obj"; }
+  put
+  compose exec -T walship /walship.sh dr-copy
+  printf v2 >"$work/obj"; put
+  compose exec -T walship /walship.sh dr-copy
+  root_aws s3 rm "s3://duolify/$key"
+  compose exec -T walship /walship.sh dr-copy
+  local versions marker
+  versions=$(root_aws s3api list-object-versions --bucket duolify-backups --prefix "$dr" --query 'length(Versions)' --output text)
+  marker=$(root_aws s3api list-object-versions --bucket duolify-backups --prefix "$dr" --query 'length(DeleteMarkers || `[]`)' --output text)
+  [[ $versions == 2 ]] || die "expected 2 DR versions, got $versions"
+  [[ $marker == 0 ]] || die "DR copy propagated the source delete"
+  say "dr passed"
+}
+
+case ${1:-} in
+  e2e) test_e2e ;;
+  pitr) test_pitr ;;
+  redis) test_redis ;;
+  dr) test_dr ;;
+  *) sed -n '2,7p' "$0" >&2; exit 2 ;;
+esac
