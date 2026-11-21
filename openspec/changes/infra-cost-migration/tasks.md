@@ -11,10 +11,10 @@
 
 ## 2. Edge
 
-- [ ] 2.1 e2e: HTTP e2e test that a chat stream gets a heartbeat within 25 s.
-- [ ] 2.2 Integration: SSE routes in chat, courses and lessontest emit heartbeats while idle.
-- [ ] 2.3 Unit: cache-header policy applies only to immutable, non-personal routes.
-- [ ] 2.4 Implement the heartbeat and cache headers. Add Workers static-assets config for the web build.
+- [x] 2.1 e2e: HTTP e2e test that a chat stream gets a heartbeat within 25 s.
+- [x] 2.2 Integration: SSE routes in chat, courses and lessontest emit heartbeats while idle.
+- [x] 2.3 Unit: cache-header policy applies only to immutable, non-personal routes.
+- [x] 2.4 Implement the heartbeat and cache headers. Add Workers static-assets config for the web build.
 - [ ] 2.5 Owner: Cloudflare zone and a proxied API record pointing at Railway first. Web client on Workers static assets (human).
 
 ## 3. Objects
