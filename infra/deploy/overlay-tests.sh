@@ -8,6 +8,7 @@
 #   overlay-tests.sh rolling    kill each API instance in turn under steady GET load: no failed request through the proxy
 #   overlay-tests.sh sse       a stream silent for 10-15 s at a time lives >150 s through the proxy, unbuffered
 #   overlay-tests.sh lifecycle  backup-lifecycle.sh apply/verify against the RustFS backup bucket
+#   overlay-tests.sh retry     two replicas behind one name, one drops connections: every GET still answered (also runs after rolling)
 #
 # Runs under its own Compose project and ports (never the owner's stack); removes its containers and
 # volumes on exit. Needs Docker and the duolify/*:local images (built on demand).
@@ -39,7 +40,9 @@ port() { # a random port nothing listens on and not handed out before
 }
 
 cleanup() {
-  docker rm -f "$SELFHOST_PROJECT-sse-proxy" "$SELFHOST_PROJECT-sse-stub" >/dev/null 2>&1 || true
+  docker rm -f "$SELFHOST_PROJECT-sse-proxy" "$SELFHOST_PROJECT-sse-stub" "$SELFHOST_PROJECT-retry-proxy" \
+    "$SELFHOST_PROJECT-retry-good" "$SELFHOST_PROJECT-retry-bad" >/dev/null 2>&1 || true
+  docker network rm "$SELFHOST_PROJECT-retry" >/dev/null 2>&1 || true
   compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$work"
 }
@@ -168,16 +171,23 @@ test_lifecycle() {
 
 test_rolling() {
   start_stack
-  local url n=0 bad=0 ok=0 code id pid pid2
+  local url n=0 bad=0 ok=0 code id
   url="http://127.0.0.1:$(sed -n 's/^HTTP_PORT=//p' "$SELFHOST_ENV_FILE" | tail -n 1)/v1/features"
   curl -fsS "$url" >/dev/null || die "baseline request failed"
   : >"$work/codes"
   touch "$work/load"
-  # Two clients: GET and POST (a POST answered with 4xx is fine; a proxy error 502/503/504 or no answer is not).
-  (while [[ -e $work/load ]]; do curl -s -o /dev/null -w '%{http_code}\n' --max-time 10 "$url" >>"$work/codes" || echo 000 >>"$work/codes"; sleep 0.02; done) &
-  pid=$!
-  (while [[ -e $work/load ]]; do curl -s -o /dev/null -w '%{http_code}\n' --max-time 10 -X POST -d '{}' -H 'content-type: application/json' "$url" >>"$work/codes" || echo 000 >>"$work/codes"; sleep 0.02; done) &
-  pid2=$!
+  # Many parallel clients, no pause: requests are in flight on the instance at the moment it is killed.
+  # Every GET must succeed (Caddy replays a GET whose upstream died mid-request). A POST is never replayed, so
+  # one cut off mid-request legitimately fails: POST results are printed, not asserted.
+  local i pids=()
+  for i in 1 2 3 4 5 6 7 8; do
+    (while [[ -e $work/load ]]; do curl -s -o /dev/null -w '%{http_code}\n' --max-time 10 "$url" >>"$work/codes.$i" || echo 000 >>"$work/codes.$i"; done) &
+    pids+=($!)
+  done
+  for i in 9 10 11 12; do
+    (while [[ -e $work/load ]]; do curl -s -o /dev/null -w '%{http_code}\n' --max-time 10 -X POST -d '{}' -H 'content-type: application/json' "$url" >>"$work/post.$i" || echo 000 >>"$work/post.$i"; done) &
+    pids+=($!)
+  done
   sleep 2
   for id in $(compose ps --quiet api); do
     # SIGKILL (worst case: no graceful drain): the proxy must retry onto the surviving instance.
@@ -188,13 +198,18 @@ test_rolling() {
     sleep 2
   done
   rm -f "$work/load"
-  wait "$pid" "$pid2"
+  wait "${pids[@]}"
+  cat "$work"/codes.* >"$work/codes"
+  cat "$work"/post.* >"$work/posts"
   while read -r code; do n=$((n + 1)); if [[ $code =~ ^[1-4][0-9][0-9]$ ]]; then ok=$((ok + 1)); else bad=$((bad + 1)); fi; done <"$work/codes"
   printf 'rolling: %s requests, %s ok, %s failed\n' "$n" "$ok" "$bad"
   sort "$work/codes" | uniq -c
+  printf 'rolling: POST statuses (informational):\n'
+  sort "$work/posts" | uniq -c
   ((n > 100)) || die "load generator produced too few requests"
   ((bad == 0)) || die "$bad request(s) failed while API instances were stopped"
   say "rolling passed"
+  test_retry
 }
 
 # SSE through the proxy. A stub upstream (busybox nc) sends 14 events with 10-15 s of silence between
@@ -260,7 +275,33 @@ test_sse() {
   say "sse passed"
 }
 
+# One upstream name, two replicas: one accepts the connection and drops it without answering (a replica
+# dying mid-request), one answers. Without lb_try_duration Caddy gives up on the first dead answer (502);
+# with it a GET is replayed until the live replica answers. No stack needed.
+test_retry() {
+  local net=$SELFHOST_PROJECT-retry proxy=$SELFHOST_PROJECT-retry-proxy pport i code bad=0 n=40 image=caddy:2.11-alpine
+  pport=$(port)
+  printf '#!/bin/sh\nprintf "HTTP/1.1 200 OK\\r\\ncontent-length: 2\\r\\nconnection: close\\r\\n\\r\\nok"\n' >"$work/good.sh"
+  chmod 755 "$work/good.sh"
+  docker network create "$net" >/dev/null
+  docker run -d --name "$SELFHOST_PROJECT-retry-good" --network "$net" --network-alias flaky -v "$work/good.sh:/good.sh:ro" \
+    --entrypoint sh "$image" -c 'while true; do nc -l -p 8080 -e /good.sh; done' >/dev/null
+  docker run -d --name "$SELFHOST_PROJECT-retry-bad" --network "$net" --network-alias flaky \
+    --entrypoint sh "$image" -c 'while true; do nc -l -p 8080 -e /bin/true; done' >/dev/null
+  docker run -d --name "$proxy" --network "$net" -p "127.0.0.1:$pport:80" -e SITE_ADDRESS=:80 -e API_UPSTREAM=flaky:8080 \
+    -v "$here/Caddyfile:/etc/caddy/Caddyfile:ro" "$image" >/dev/null
+  wait_for 30 "retry proxy" docker exec "$proxy" wget -q -O /dev/null http://127.0.0.1:8081/healthz
+  for ((i = 0; i < n; i++)); do
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "http://127.0.0.1:$pport/v1/x" || true)
+    [[ $code == 200 ]] || bad=$((bad + 1))
+  done
+  printf 'retry: %s of %s GETs failed with one replica dropping connections\n' "$bad" "$n"
+  ((bad == 0)) || die "$bad GET(s) hit the dead replica and were not retried: the /v1 upstream needs lb_try_duration"
+  say "retry passed"
+}
+
 case ${1:-} in
+  retry) test_retry ;;
   sse) test_sse ;;
   rolling) test_rolling ;;
   lifecycle) test_lifecycle ;;
