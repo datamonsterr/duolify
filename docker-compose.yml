@@ -120,7 +120,7 @@ services:
       ENGINE_PROVIDER_MODE: ${ENGINE_PROVIDER_MODE:-mock}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-    ports: ["127.0.0.1:50051:50051"]
+    ports: ["127.0.0.1:${ENGINE_PORT:-50051}:50051"]
     healthcheck:
       <<: *health
       test: [CMD, /grpc_health_probe, -addr=127.0.0.1:50051]
@@ -136,7 +136,7 @@ services:
       BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-duolify-backups}
       BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-duolify-backup-writer}
       BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-local-backup-writer-only}
-    ports: ["127.0.0.1:8080:8080"]
+    ports: ["127.0.0.1:${API_PORT:-8080}:8080"]
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -180,6 +180,17 @@ services:
       <<: *health
       # Worker has no HTTP listener; verify its durable queue dependency.
       test: [CMD, /api, healthcheck, --database]
+
+  # Load baseline only (E18-02): serves the Tutor chat SSE surface with heartbeats, no provider.
+  mock-engine:
+    profiles: [load]
+    image: node:24-alpine
+    command: [node, /srv/mock-engine.mjs]
+    volumes: ["./infra/load/mock-engine.mjs:/srv/mock-engine.mjs:ro"]
+    ports: ["127.0.0.1:${MOCK_ENGINE_PORT:-8090}:8090"]
+    healthcheck:
+      <<: *health
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8090/healthz]
 
   prometheus:
     image: prom/prometheus:v3.8.0

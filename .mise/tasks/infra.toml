@@ -22,7 +22,7 @@ run = '''
 set -eu
 docker compose config -q
 git ls-files --cached --others --exclude-standard -z -- '*Dockerfile' | xargs -0 hadolint
-shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh infra/hooks/*.sh infra/s3/*.sh
+shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh infra/hooks/*.sh infra/s3/*.sh infra/load/*.sh
 docker compose --profile observability run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
 '''
 
@@ -64,6 +64,10 @@ run = '''
 echo "ERROR: Production live deployment is disabled in AFK tickets. Requires E11-07 owner approval." >&2
 exit 1
 '''
+
+["infra:load-baseline"]
+description = "k6 baseline on a throwaway compose stack: 1k-DAU read mix + 10-minute mock-Engine Tutor SSE (override READ_RPS, READ_DURATION, SSE_SECONDS, SSE_HEARTBEAT_SECONDS)"
+run = 'bash infra/load/run.sh'
 
 ["infra:load-baseline-test"]
 description = "E2E: short load-baseline variant (k6 read mix + mock-Engine SSE) against a throwaway compose stack"

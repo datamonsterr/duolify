@@ -6,7 +6,7 @@
   - lists tables without a PK or replica identity, any large objects and all sequences;
   - reports publisher/subscriber LSN lag;
   - has integration tests against two compose Postgres instances.
-- [ ] 1.3 Add `mise run infra:load-baseline` (k6: 1k-DAU mix plus a 10-minute SSE stream). Record the Railway baseline in `docs/infra/baseline.md`: server-side p95, plus client-side p95 from a Southeast Asian vantage point.
+- [x] 1.3 Add `mise run infra:load-baseline` (k6: 1k-DAU mix plus a 10-minute SSE stream). Record the Railway baseline in `docs/infra/baseline.md`: server-side p95, plus client-side p95 from a Southeast Asian vantage point.
 - [ ] 1.5 Extend `infra:pg-replication-check` with `--compare`: row counts per table and a checksum sample between two databases (plan B verify step).
 
 ## 2. Edge
