@@ -73,6 +73,17 @@ run = 'bash infra/load/run.sh'
 description = "E2E: short load-baseline variant (k6 read mix + mock-Engine SSE) against a throwaway compose stack"
 run = 'bash infra/load/baseline.e2e.sh'
 
+["infra:pg-replication-check"]
+description = "Logical-replication check (PUBLISHER_URL, SUBSCRIBER_URL; --compare for row counts + checksum sample). Without URLs, runs its integration test on two throwaway Postgres 18 containers"
+usage = 'flag "--compare" help="Compare row counts per table and a checksum sample between the two databases"'
+run = '''
+if [ -n "${PUBLISHER_URL:-}" ] && [ -n "${SUBSCRIBER_URL:-}" ]; then
+  bash infra/pg/replication-check.sh $([ "${usage_compare:-false}" = true ] && echo --compare)
+else
+  bash infra/pg/replication-check.e2e.sh
+fi
+'''
+
 ["infra:restore-drill"]
 description = "Restore an anonymized custom-format dump into disposable Postgres"
 usage = 'arg "<dump>" help="Path to an anonymized custom-format pg_dump archive"'
