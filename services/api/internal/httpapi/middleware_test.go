@@ -133,7 +133,11 @@ func TestConfiguredWebOriginsAllowedInEveryEnvironment(t *testing.T) {
 func TestStreamCheckDeliversEventsUnauthenticated(t *testing.T) {
 	server := httptest.NewServer(New(Dependencies{}, slog.Default()))
 	defer server.Close()
-	resp, err := http.Get(server.URL + "/v1/stream-check")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/v1/stream-check", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := server.Client().Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,5 +10,6 @@ apps/client/src-tauri/gen
 apps/client/test-results
 apps/client/playwright-report
 !docs/design/tokens.json
+!docs/design/theme.css
 !services/api/internal/characters/schema
 !infra/deploy/Caddyfile

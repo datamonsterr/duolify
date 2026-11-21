@@ -4,7 +4,7 @@
 #   selfhost.sh init           create infra/deploy/.env with fresh random secrets (idempotent)
 #   selfhost.sh up             build or pull images, then start everything and wait for health
 #   selfhost.sh down           stop the stack; named volumes (all data) are kept
-#   selfhost.sh logs [svc...]  follow logs
+#   selfhost.sh logs [svc...]  follow logs (prints once when not on a terminal)
 #   selfhost.sh smoke          health, routing, CORS, SSE streaming and web checks via the proxy
 #   selfhost.sh backup         make sure today's encrypted database backup exists
 #   selfhost.sh restore-drill  restore the newest backup into a throwaway Postgres and verify it
@@ -98,7 +98,7 @@ proxy_url() { # base URL plus curl options reaching the proxy on this host
   fi
 }
 
-check() { printf '  %-52s' "$1"; }
+check() { printf '  %-58s' "$1"; }
 ok() { printf 'ok\n'; }
 fail() { printf 'FAIL\n'; printf '    %s\n' "$@" >&2; failures=$((failures + 1)); }
 
@@ -154,9 +154,10 @@ cmd_smoke() {
 }
 
 newest_dump() { # newest general (non-financial) encrypted dump key, or empty
+  local day=${1:-'[0-9]{4}-[0-9]{2}-[0-9]{2}'} # quoted: a bare {4} would end the ${1:-} expansion
   compose run --rm -T --no-deps backup-reader s3api list-objects-v2 --bucket duolify-backups \
     --query 'Contents[].Key' --output text 2>/dev/null | tr '\t' '\n' \
-    | grep -E "^${1:-[0-9]{4}-[0-9]{2}-[0-9]{2}}/schema-[0-9]+\.dump\.age$" | sort | tail -n 1 || true
+    | grep -E "^${day}/schema-[0-9]+\.dump\.age$" | sort | tail -n 1 || true
 }
 
 cmd_backup() {
@@ -194,7 +195,9 @@ case ${1:-} in
   init) cmd_init ;;
   up) cmd_up ;;
   down) compose --profile tools down --remove-orphans ;;
-  logs) shift; compose logs --follow --tail 100 "$@" ;;
+  logs) # follow on a terminal; print once otherwise (CI failure dumps)
+    shift
+    if [[ -t 1 ]]; then compose logs --follow --tail 100 "$@"; else compose logs --no-color --tail 300 "$@"; fi ;;
   smoke) cmd_smoke ;;
   backup) cmd_backup ;;
   restore-drill) cmd_restore_drill ;;

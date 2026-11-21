@@ -9,7 +9,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/client/package.json apps/client/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter @duolify/client --ignore-scripts
-COPY docs/design/tokens.json docs/design/
+COPY docs/design/tokens.json docs/design/theme.css docs/design/
 COPY services/api/internal/characters/schema/ services/api/internal/characters/schema/
 COPY apps/client/ apps/client/
 ARG VITE_API_URL=""

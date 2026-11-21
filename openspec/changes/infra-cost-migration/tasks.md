@@ -24,6 +24,7 @@
 
 ## 4. Prod stack and deploy
 
+- [x] 4.0 Portable self-hosted stack (`infra/deploy`, `infra:selfhost-*`): one-command compose stack with a Caddy edge, generated secrets, local encrypted backups and a restore drill; CI `selfhost` job runs smoke, backup and restore drill. WAL archiving, the DR copy and the VM deploy job stay in 4.4.
 - [ ] 4.1 e2e: the HTTP e2e suite runs against the `infra/deploy` overlay (RustFS, Postgres with WAL archiving) in CI.
 - [ ] 4.2 Integration: the restore drill does PITR from WAL archive plus dump on a throwaway Postgres. A test proves the Redis key families rebuild from Postgres.
 - [ ] 4.3 Unit: `infra:deploy-plan` rejects a public Engine port, a transaction pooler, a missing backup env or a missing DR-copy job.
