@@ -6,6 +6,7 @@
 #   overlay-tests.sh redis  Redis cold start: flush Redis, stack still serves, state rebuilds from Postgres
 #   overlay-tests.sh dr     nightly DR copy keeps every object version, even after a source delete
 #   overlay-tests.sh rolling    kill each API instance in turn under steady GET load: no failed request through the proxy
+#   overlay-tests.sh sse       a stream silent for 10-15 s at a time lives >150 s through the proxy, unbuffered
 #   overlay-tests.sh lifecycle  backup-lifecycle.sh apply/verify against the RustFS backup bucket
 #
 # Runs under its own Compose project and ports (never the owner's stack); removes its containers and
@@ -38,6 +39,7 @@ port() { # a random port nothing listens on and not handed out before
 }
 
 cleanup() {
+  docker rm -f "$SELFHOST_PROJECT-sse-proxy" "$SELFHOST_PROJECT-sse-stub" >/dev/null 2>&1 || true
   compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$work"
 }
@@ -195,12 +197,76 @@ test_rolling() {
   say "rolling passed"
 }
 
+# SSE through the proxy. A stub upstream (busybox nc) sends 14 events with 10-15 s of silence between
+# them (~165 s). The real Caddyfile is mounted into a caddy container on the stack's edge network and
+# pointed at the stub with API_UPSTREAM, so the /v1 reverse_proxy options under test are the production
+# ones, not a copy. (The stack's own proxy can only reach `api`; #264 heartbeats are not needed.)
+# Each event carries the stub's send time and the client stamps its receive time. Both read the host
+# kernel's /proc/uptime (shared with containers), so the delay is measured to 10 ms.
+cs() { awk '{printf "%d", $1 * 100}' /proc/uptime; }
+
+sse_stub_script() {
+  cat <<'S'
+#!/bin/sh
+# nc -e entry: read the request head, then stream events with long silences.
+while IFS= read -r l; do [ "$l" = "$(printf '\r')" ] && break; done
+printf 'HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n'
+cs() { awk '{printf "%d", $1 * 100}' /proc/uptime; }
+i=0
+for gap in 10 15 12 14 11 13 15 10 12 14 11 13 15 12; do
+  i=$((i + 1))
+  printf 'data: {"seq":%s,"sent":%s}\n\n' "$i" "$(cs)"
+  sleep "$gap"
+done
+printf 'event: done\ndata: {"seq":%s,"sent":%s}\n\n' "$((i + 1))" "$(cs)"
+S
+}
+
+test_sse() {
+  start_stack
+  local net=${SELFHOST_PROJECT}_edge stub=$SELFHOST_PROJECT-sse-stub proxy=$SELFHOST_PROJECT-sse-proxy pport
+  local line sent recv delay seq n=0 maxdelay=0 late=0 t0 t1 prev=0 done_seen=0 image=caddy:2.11-alpine
+  pport=$(port)
+  sse_stub_script >"$work/stub.sh"
+  chmod 755 "$work/stub.sh"
+  docker run -d --name "$stub" --network "$net" --network-alias sse-stub -v "$work/stub.sh:/stub.sh:ro" \
+    --entrypoint sh "$image" -c 'while true; do nc -l -p 8080 -e /stub.sh; done' >/dev/null
+  docker run -d --name "$proxy" --network "$net" -p "127.0.0.1:$pport:80" -e SITE_ADDRESS=:80 -e API_UPSTREAM=sse-stub:8080 \
+    -v "$here/Caddyfile:/etc/caddy/Caddyfile:ro" "$image" >/dev/null
+  wait_for 30 "stub proxy" docker exec "$proxy" wget -q -O /dev/null http://127.0.0.1:8081/healthz
+  t0=$(date +%s)
+  # --compressed sends Accept-Encoding: gzip, so this also proves `encode` leaves the stream alone.
+  while IFS= read -r line; do
+    recv=$(cs)
+    case $line in
+      event:*) done_seen=1 ;;
+      data:*)
+        sent=$(sed -n 's/.*"sent":\([0-9]*\).*/\1/p' <<<"$line")
+        seq=$(sed -n 's/.*"seq":\([0-9]*\).*/\1/p' <<<"$line")
+        delay=$(((recv - sent) * 10))
+        printf 'sse: seq %s arrived %s ms after it was sent, %s s after the previous one\n' "$seq" "$delay" "$((prev ? (recv - prev) / 100 : 0))"
+        if ((delay > maxdelay)); then maxdelay=$delay; fi
+        if ((delay > 2000)); then late=$((late + 1)); fi
+        prev=$recv
+        if [[ $line != *'"seq":15,'* ]]; then n=$((n + 1)); fi
+        ;;
+    esac
+  done < <(curl -sSN --compressed --max-time 240 "http://127.0.0.1:$pport/v1/stream" 2>"$work/curl.err")
+  t1=$(date +%s)
+  printf 'sse: %s data events in %s s, slowest delivery %s ms, curl stderr: %s\n' "$n" "$((t1 - t0))" "$maxdelay" "$(cat "$work/curl.err")"
+  ((late == 0)) || die "$late event(s) arrived more than 2 s after they were sent: the proxy buffers"
+  ((n == 14 && done_seen == 1)) || die "stream cut after $((t1 - t0)) s: $n of 14 events, final event seen=$done_seen"
+  ((t1 - t0 >= 150)) || die "stream lasted only $((t1 - t0)) s; the test must hold it open for 150 s"
+  say "sse passed"
+}
+
 case ${1:-} in
+  sse) test_sse ;;
   rolling) test_rolling ;;
   lifecycle) test_lifecycle ;;
   e2e) test_e2e ;;
   pitr) test_pitr ;;
   redis) test_redis ;;
   dr) test_dr ;;
-  *) sed -n '2,9p' "$0" >&2; exit 2 ;;
+  *) sed -n '2,10p' "$0" >&2; exit 2 ;;
 esac

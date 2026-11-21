@@ -131,6 +131,10 @@ run = "bash infra/deploy/overlay-tests.sh lifecycle"
 description = "Production overlay: kill each API instance in turn under GET+POST load; no 502/503/504 through the proxy"
 run = "bash infra/deploy/overlay-tests.sh rolling"
 
+["infra:overlay-sse"]
+description = "Production overlay: a mostly idle SSE stream (10-15 s silences, 165 s total) survives the Caddy /v1 proxy path unbuffered"
+run = "bash infra/deploy/overlay-tests.sh sse"
+
 ["infra:overlay-e2e"]
 description = "Production overlay: bring up API x2, Engine, Redis, Postgres with WAL archiving on local RustFS; smoke and WAL shipping"
 run = "bash infra/deploy/overlay-tests.sh e2e"
