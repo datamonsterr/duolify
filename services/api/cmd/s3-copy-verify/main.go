@@ -49,15 +49,22 @@ func run(ctx context.Context) error {
 	if src.endpoint == dst.endpoint && src.bucket == dst.bucket {
 		return errors.New("source and target must differ")
 	}
-	sample := 200
+	// Default: checksum every version. A sample can pass while other versions differ.
+	sample := 0
 	if v := os.Getenv("COPY_VERIFY_SAMPLE"); v != "" {
 		if sample, err = strconv.Atoi(v); err != nil || sample < 0 {
 			return errors.New("invalid COPY_VERIFY_SAMPLE")
 		}
 	}
+	var partSize int64
+	if v := os.Getenv("COPY_PART_SIZE"); v != "" {
+		if partSize, err = strconv.ParseInt(v, 10, 64); err != nil || partSize < s3copy.MinPartSize {
+			return errors.New("invalid COPY_PART_SIZE")
+		}
+	}
 	// Credentials are never printed.
 	fmt.Printf("copy %s/%s -> %s/%s (credentials redacted, checksum sample %d)\n", src.endpoint, src.bucket, dst.endpoint, dst.bucket, sample)
-	report, err := s3copy.Run(ctx, s3copy.Options{Src: src.client(), SrcBucket: src.bucket, Dst: dst.client(), DstBucket: dst.bucket, SampleSize: sample})
+	report, err := s3copy.Run(ctx, s3copy.Options{Src: src.client(), SrcBucket: src.bucket, Dst: dst.client(), DstBucket: dst.bucket, SampleSize: sample, PartSize: partSize})
 	if report != nil {
 		fmt.Print(report.String())
 	}

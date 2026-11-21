@@ -28,8 +28,10 @@ const (
 )
 
 const (
-	// Copies buffer one object in memory because PutObject needs a seekable body.
-	maxObjectBytes = 512 << 20
+	// MinPartSize is the smallest part S3 accepts for a multipart upload.
+	MinPartSize = 5 << 20
+	// DefaultPartSize bounds memory: one part is buffered at a time, whatever the object size.
+	DefaultPartSize = 64 << 20
 	// sourceVersionMeta records which source version a target version came from.
 	sourceVersionMeta = "src-version-id"
 )
@@ -45,6 +47,10 @@ type Reader interface {
 type Writer interface {
 	Reader
 	PutObject(context.Context, *s3.PutObjectInput, ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+	CreateMultipartUpload(context.Context, *s3.CreateMultipartUploadInput, ...func(*s3.Options)) (*s3.CreateMultipartUploadOutput, error)
+	UploadPart(context.Context, *s3.UploadPartInput, ...func(*s3.Options)) (*s3.UploadPartOutput, error)
+	CompleteMultipartUpload(context.Context, *s3.CompleteMultipartUploadInput, ...func(*s3.Options)) (*s3.CompleteMultipartUploadOutput, error)
+	AbortMultipartUpload(context.Context, *s3.AbortMultipartUploadInput, ...func(*s3.Options)) (*s3.AbortMultipartUploadOutput, error)
 	DeleteObject(context.Context, *s3.DeleteObjectInput, ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
 }
 
@@ -56,6 +62,9 @@ type Options struct {
 	Dst        Writer
 	DstBucket  string
 	SampleSize int
+	// PartSize is the multipart part size and the most memory one copy holds; zero means
+	// DefaultPartSize. S3 allows 10000 parts per object.
+	PartSize int64
 }
 
 // Mismatch names one failed check.
@@ -162,25 +171,92 @@ func copyEntry(ctx context.Context, o Options, key string, e entry) error {
 		}
 		return nil
 	}
-	if e.Size > maxObjectBytes {
-		return fmt.Errorf("object %q is too large for a buffered copy", key)
+	partSize := o.PartSize
+	if partSize == 0 {
+		partSize = DefaultPartSize
+	}
+	if partSize < MinPartSize {
+		return fmt.Errorf("part size %d is below the S3 minimum %d", partSize, MinPartSize)
 	}
 	out, err := o.Src.GetObject(ctx, getInput(o.SrcBucket, key, e.Version))
 	if err != nil {
 		return fmt.Errorf("read source %q failed", key)
 	}
 	defer func() { _ = out.Body.Close() }()
-	body, err := io.ReadAll(io.LimitReader(out.Body, maxObjectBytes+1))
-	if err != nil || int64(len(body)) != e.Size {
-		return fmt.Errorf("read source %q returned an unexpected length", key)
-	}
 	meta := map[string]string{sourceVersionMeta: e.Version}
 	for k, v := range out.Metadata {
 		meta[k] = v
 	}
-	_, err = o.Dst.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(o.DstBucket), Key: aws.String(key), Body: bytes.NewReader(body), ContentLength: aws.Int64(int64(len(body))),
-		ContentType: out.ContentType, CacheControl: out.CacheControl, ContentDisposition: out.ContentDisposition, ContentEncoding: out.ContentEncoding, ContentLanguage: out.ContentLanguage, Metadata: meta})
+	h := headers{out.ContentType, out.CacheControl, out.ContentDisposition, out.ContentEncoding, out.ContentLanguage, meta}
+	return upload(ctx, o, key, out.Body, e.Size, partSize, h)
+}
+
+type headers struct {
+	ContentType, CacheControl, ContentDisposition, ContentEncoding, ContentLanguage *string
+	Metadata                                                                        map[string]string
+}
+
+// upload streams body to the target holding at most one part in memory. A body shorter
+// than one part goes up as a single PutObject; a longer one as a multipart upload that is
+// aborted on any failure. The target is only written when the body is exactly want bytes.
+func upload(ctx context.Context, o Options, key string, body io.Reader, want, partSize int64, h headers) error {
+	badLength := fmt.Errorf("read source %q returned an unexpected length", key)
+	buf := make([]byte, partSize)
+	n, err := io.ReadFull(body, buf)
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		if int64(n) != want {
+			return badLength
+		}
+		if _, err = o.Dst.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(o.DstBucket), Key: aws.String(key), Body: bytes.NewReader(buf[:n]), ContentLength: aws.Int64(int64(n)),
+			ContentType: h.ContentType, CacheControl: h.CacheControl, ContentDisposition: h.ContentDisposition, ContentEncoding: h.ContentEncoding, ContentLanguage: h.ContentLanguage, Metadata: h.Metadata}); err != nil {
+			return fmt.Errorf("write target %q failed", key)
+		}
+		return nil
+	}
 	if err != nil {
+		return fmt.Errorf("read source %q failed", key)
+	}
+	mpu, err := o.Dst.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{Bucket: aws.String(o.DstBucket), Key: aws.String(key),
+		ContentType: h.ContentType, CacheControl: h.CacheControl, ContentDisposition: h.ContentDisposition, ContentEncoding: h.ContentEncoding, ContentLanguage: h.ContentLanguage, Metadata: h.Metadata})
+	if err != nil {
+		return fmt.Errorf("write target %q failed", key)
+	}
+	abort := func() {
+		// The caller's context may be why we are failing; clean up on a fresh one.
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		_, _ = o.Dst.AbortMultipartUpload(cleanup, &s3.AbortMultipartUploadInput{Bucket: aws.String(o.DstBucket), Key: aws.String(key), UploadId: mpu.UploadId})
+	}
+	var (
+		parts []types.CompletedPart
+		total int64
+	)
+	for number := int32(1); ; number++ {
+		up, uerr := o.Dst.UploadPart(ctx, &s3.UploadPartInput{Bucket: aws.String(o.DstBucket), Key: aws.String(key), UploadId: mpu.UploadId, PartNumber: aws.Int32(number),
+			Body: bytes.NewReader(buf[:n]), ContentLength: aws.Int64(int64(n))})
+		if uerr != nil {
+			abort()
+			return fmt.Errorf("write target %q failed", key)
+		}
+		parts = append(parts, types.CompletedPart{ETag: up.ETag, PartNumber: aws.Int32(number)})
+		total += int64(n)
+		if err == io.ErrUnexpectedEOF {
+			break
+		}
+		if n, err = io.ReadFull(body, buf); err == io.EOF {
+			break
+		} else if err != nil && err != io.ErrUnexpectedEOF {
+			abort()
+			return fmt.Errorf("read source %q failed", key)
+		}
+	}
+	if total != want {
+		abort()
+		return badLength
+	}
+	if _, err = o.Dst.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{Bucket: aws.String(o.DstBucket), Key: aws.String(key), UploadId: mpu.UploadId,
+		MultipartUpload: &types.CompletedMultipartUpload{Parts: parts}}); err != nil {
+		abort()
 		return fmt.Errorf("write target %q failed", key)
 	}
 	return nil

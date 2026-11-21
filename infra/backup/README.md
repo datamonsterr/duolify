@@ -248,9 +248,10 @@ Moving objects:
 
 1. `mise run infra:s3-copy-verify` copies every version and delete marker, oldest first per
    key, from `COPY_SRC_*` to `COPY_DST_*` (the destination must be versioned). It then checks
-   count, bytes, a SHA-256 sample (`COPY_VERIFY_SAMPLE`, default 200, 0 = all) and the
+   count, bytes, a SHA-256 of every version (`COPY_VERIFY_SAMPLE` limits it; default 0 = all) and the
    version history, names each mismatch and exits non-zero. It only reads the source, prints
-   no credentials, and is resumable: a second run copies nothing and re-verifies. A
+   no credentials, streams each object (multipart, one `COPY_PART_SIZE` part in memory, so
+   large dumps and base backups are fine), and is resumable: a second run copies nothing and re-verifies. A
    destination history that is not a prefix of the source history is reported, not repaired.
    Version IDs change on copy; the source ID is kept in the `src-version-id` metadata.
 2. Run it once for the first full copy, then again for the incremental copy.
