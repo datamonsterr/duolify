@@ -2,12 +2,12 @@
 
 - [ ] 1.1 Owner: create the Hetzner and Cloudflare accounts. Report Railway Postgres `wal_level`, the role's REPLICATION attribute, the service region and TCP-proxy reachability from Helsinki. Record the provisional plan A/plan B choice (human).
 - [x] 1.4 Owner: choose the backup/DR location and the privacy-notice wording. Decided 2026-11-17 (#251): Hetzner Object Storage in Falkenstein or Nuremberg; no Contabo copy; the notice states EU storage (app in Finland, backups in Germany, served through Cloudflare).
-- [ ] 1.2 Add `mise run infra:pg-replication-check`, which:
+- [x] 1.2 Add `mise run infra:pg-replication-check`, which:
   - lists tables without a PK or replica identity, any large objects and all sequences;
   - reports publisher/subscriber LSN lag;
   - has integration tests against two compose Postgres instances.
 - [x] 1.3 Add `mise run infra:load-baseline` (k6: 1k-DAU mix plus a 10-minute SSE stream). Record the Railway baseline in `docs/infra/baseline.md`: server-side p95, plus client-side p95 from a Southeast Asian vantage point.
-- [ ] 1.5 Extend `infra:pg-replication-check` with `--compare`: row counts per table and a checksum sample between two databases (plan B verify step).
+- [x] 1.5 Extend `infra:pg-replication-check` with `--compare`: row counts per table and a checksum sample between two databases (plan B verify step).
 
 ## 2. Edge
 

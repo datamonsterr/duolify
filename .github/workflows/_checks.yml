@@ -651,6 +651,8 @@ jobs:
           area: infra-lint
       - run: mise run infra:lint
         timeout-minutes: 6
+      - run: mise run infra:pg-replication-check
+        timeout-minutes: 6
       - name: Summary
         if: always()
         env:
