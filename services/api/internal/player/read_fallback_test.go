@@ -101,3 +101,28 @@ func TestWritesNeverReachTheOldStore(t *testing.T) {
 		t.Fatal("write did not reach the new store")
 	}
 }
+
+// An error from the new store that is not "not found" must surface, never read the old store.
+func TestReadFallbackOnlyOnNotFound(t *testing.T) {
+	for _, status := range []int{http.StatusForbidden, http.StatusInternalServerError, http.StatusServiceUnavailable} {
+		legacy := &recorder{objects: map[string]string{"/old/lessons/a.json": "{}"}}
+		newServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(status) }))
+		oldServer := httptest.NewServer(legacy)
+		store, err := player.LoadS3(env(map[string]string{"S3_ENDPOINT": newServer.URL, "S3_BUCKET": "new", "S3_REGION": "r", "S3_ACCESS_KEY_ID": "k", "S3_SECRET_ACCESS_KEY": "s", "S3_FALLBACK_ENABLED": "true",
+			"S3_OLD_ENDPOINT": oldServer.URL, "S3_OLD_BUCKET": "old", "S3_OLD_REGION": "r", "S3_OLD_ACCESS_KEY_ID": "k2", "S3_OLD_SECRET_ACCESS_KEY": "s2"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = store.Get(t.Context(), "lessons/a.json"); err == nil {
+			t.Errorf("status %d: Get read the old store instead of failing", status)
+		}
+		if ok, err := store.Exists(t.Context(), "lessons/a.json"); err == nil || ok {
+			t.Errorf("status %d: Exists hid the new-store error: %v %v", status, ok, err)
+		}
+		if n := legacy.count(http.MethodGet) + legacy.count(http.MethodHead); n != 0 {
+			t.Errorf("status %d: old store got %d reads", status, n)
+		}
+		newServer.Close()
+		oldServer.Close()
+	}
+}
