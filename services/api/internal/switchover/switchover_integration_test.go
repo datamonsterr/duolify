@@ -43,7 +43,7 @@ func newPair(t *testing.T) (*switchovertest.Pair, context.Context) {
 }
 
 // stack builds one API stack: gate, pool on url and a River client under the gate.
-func stack(t *testing.T, ctx context.Context, url string, opts switchover.Options) (*switchover.Gate, *store.Store, *river.Client[pgx.Tx]) {
+func stack(ctx context.Context, t *testing.T, url string, opts switchover.Options) (*switchover.Gate, *store.Store, *river.Client[pgx.Tx]) {
 	t.Helper()
 	opts.SourceURL = url
 	if opts.Subscription == "" {
@@ -70,22 +70,23 @@ func stack(t *testing.T, ctx context.Context, url string, opts switchover.Option
 	return g, db, client
 }
 
-func serverPort(ctx context.Context, t *testing.T, db *store.Store) int {
+// serverPort names the cluster the pool is talking to (both containers listen on 5432 internally).
+func serverPort(ctx context.Context, t *testing.T, db *store.Store) int64 {
 	t.Helper()
-	var port int
-	if err := db.Pool.QueryRow(ctx, "SELECT inet_server_port()").Scan(&port); err != nil {
+	var id int64
+	if err := db.Pool.QueryRow(ctx, "SELECT system_identifier FROM pg_control_system()").Scan(&id); err != nil {
 		t.Fatal(err)
 	}
-	return port
+	return id
 }
 
-func urlPort(ctx context.Context, t *testing.T, url string) int {
+func urlPort(ctx context.Context, t *testing.T, url string) int64 {
 	t.Helper()
-	var port int
-	if err := switchovertest.QueryRow(ctx, t, url, "SELECT inet_server_port()").Scan(&port); err != nil {
+	var id int64
+	if err := switchovertest.QueryRow(ctx, t, url, "SELECT system_identifier FROM pg_control_system()").Scan(&id); err != nil {
 		t.Fatal(err)
 	}
-	return port
+	return id
 }
 
 func jobDone(ctx context.Context, t *testing.T, db *store.Store, id int64) bool {
@@ -111,12 +112,15 @@ func eventually(t *testing.T, what string, ok func() bool) {
 func TestSwitchWaitsForSessionLockHolderThenSwapsPoolAndRestartsRiver(t *testing.T) {
 	pair, ctx := newPair(t)
 	const margin = 500
-	g, db, client := stack(t, ctx, pair.SourceURL, switchover.Options{TargetURL: pair.TargetURL, SequenceMargin: margin, HoldMax: 15 * time.Second})
+	g, db, client := stack(ctx, t, pair.SourceURL, switchover.Options{TargetURL: pair.TargetURL, SequenceMargin: margin, HoldMax: 15 * time.Second})
 	var lastID int64
 	for range 5 {
 		if err := db.Pool.QueryRow(ctx, "INSERT INTO items(v) VALUES('before') RETURNING id").Scan(&lastID); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO tags(n) SELECT g FROM generate_series(1,3) g"); err != nil {
+		t.Fatal(err)
 	}
 	srcPort := serverPort(ctx, t, db)
 
@@ -140,8 +144,8 @@ func TestSwitchWaitsForSessionLockHolderThenSwapsPoolAndRestartsRiver(t *testing
 		insertDone <- id
 	}()
 	select {
-	case <-switched:
-		t.Fatal("switch finished while a session advisory lock was held")
+	case err := <-switched:
+		t.Fatalf("switch finished while a session advisory lock was held: %v", err)
 	case <-insertDone:
 		t.Fatal("new work ran while the gate was closed")
 	case <-time.After(300 * time.Millisecond):
@@ -161,10 +165,10 @@ func TestSwitchWaitsForSessionLockHolderThenSwapsPoolAndRestartsRiver(t *testing
 		t.Fatalf("held insert id %d must be above publisher last value %d + margin %d", id, lastID, margin)
 	}
 	if got, want := serverPort(ctx, t, db), urlPort(ctx, t, pair.TargetURL); got != want || got == srcPort {
-		t.Fatalf("pool serves port %d, want target %d (source %d)", got, want, srcPort)
+		t.Fatalf("pool serves cluster %d, want target %d (source %d)", got, want, srcPort)
 	}
 	var tagID int
-	if err = db.Pool.QueryRow(ctx, "INSERT INTO tags(n) VALUES(1) RETURNING id").Scan(&tagID); err != nil || tagID < 1+margin {
+	if err = db.Pool.QueryRow(ctx, "INSERT INTO tags(n) VALUES(1) RETURNING id").Scan(&tagID); err != nil || tagID <= 3+margin {
 		t.Fatalf("serial sequence not synced with margin: id=%d err=%v", tagID, err)
 	}
 	var n int
@@ -197,7 +201,7 @@ func pgxExec(ctx context.Context, t *testing.T, url, sql string) (pgconn.Command
 
 func TestForcedLagTimeoutReleasesBackToOldPool(t *testing.T) {
 	pair, ctx := newPair(t)
-	g, db, client := stack(t, ctx, pair.SourceURL, switchover.Options{TargetURL: pair.TargetURL, HoldMax: 15 * time.Second, LagTimeout: time.Second})
+	g, db, client := stack(ctx, t, pair.SourceURL, switchover.Options{TargetURL: pair.TargetURL, HoldMax: 15 * time.Second, LagTimeout: time.Second})
 	srcPort := serverPort(ctx, t, db)
 	// Disable the subscription and write on: the subscriber can never catch up.
 	switchovertest.Exec(ctx, t, pair.TargetURL, "ALTER SUBSCRIPTION "+switchovertest.Subscription+" DISABLE")
@@ -223,7 +227,7 @@ func TestForcedLagTimeoutReleasesBackToOldPool(t *testing.T) {
 		t.Fatalf("old pool must accept writes after rollback: %v", err)
 	}
 	if got := serverPort(ctx, t, db); got != srcPort {
-		t.Fatalf("pool moved to port %d", got)
+		t.Fatalf("pool moved to cluster %d", got)
 	}
 	res, err := client.Insert(ctx, worker.DummyArgs{}, nil)
 	if err != nil {
@@ -239,8 +243,8 @@ func switchovertestRow(ctx context.Context, t *testing.T, url, sql string, dest 
 
 func TestStandbyStackOpensOnTriggerAndOldStackDrainsThroughNewPool(t *testing.T) {
 	pair, ctx := newPair(t)
-	oldGate, oldDB, _ := stack(t, ctx, pair.SourceURL, switchover.Options{TargetURL: pair.TargetURL, HoldMax: 15 * time.Second})
-	newGate, newDB, newClient := stack(t, ctx, pair.TargetURL, switchover.Options{Standby: true})
+	oldGate, oldDB, _ := stack(ctx, t, pair.SourceURL, switchover.Options{TargetURL: pair.TargetURL, HoldMax: 15 * time.Second})
+	newGate, newDB, newClient := stack(ctx, t, pair.TargetURL, switchover.Options{Standby: true})
 	if newGate.State() != switchover.StateStandby {
 		t.Fatalf("state = %s", newGate.State())
 	}
@@ -281,14 +285,14 @@ func TestStandbyStackOpensOnTriggerAndOldStackDrainsThroughNewPool(t *testing.T)
 		}
 	}
 	if got, want := serverPort(ctx, t, oldDB), serverPort(ctx, t, newDB); got != want {
-		t.Fatalf("old stack serves port %d, new stack %d", got, want)
+		t.Fatalf("old stack serves cluster %d, new stack %d", got, want)
 	}
 	eventually(t, "queued River job to run once the standby opens", func() bool { return jobDone(ctx, t, newDB, res.Job.ID) })
 }
 
 func TestReadOnlyModeServesReadsRejectsWritesAndStopsRiver(t *testing.T) {
 	pair, ctx := newPair(t)
-	g, db, client := stack(t, ctx, pair.SourceURL, switchover.Options{})
+	g, db, client := stack(ctx, t, pair.SourceURL, switchover.Options{})
 	if _, err := db.Pool.Exec(ctx, "INSERT INTO items(v) VALUES('seed')"); err != nil {
 		t.Fatal(err)
 	}
@@ -306,23 +310,23 @@ func TestReadOnlyModeServesReadsRejectsWritesAndStopsRiver(t *testing.T) {
 	})
 	srv := httptest.NewServer(g.Middleware(mux))
 	t.Cleanup(srv.Close)
-	do := func(method, path string) *http.Response {
+	do := func(method, path string) (code int, retryAfter string) {
 		req, _ := http.NewRequestWithContext(ctx, method, srv.URL+path, nil)
 		resp, err := srv.Client().Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_ = resp.Body.Close()
-		return resp
+		defer func() { _ = resp.Body.Close() }()
+		return resp.StatusCode, resp.Header.Get("Retry-After")
 	}
 	if err := g.EnterReadOnly(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if r := do("GET", "/read"); r.StatusCode != 200 {
-		t.Fatalf("read = %d", r.StatusCode)
+	if code, _ := do("GET", "/read"); code != 200 {
+		t.Fatalf("read = %d", code)
 	}
-	if r := do("POST", "/write"); r.StatusCode != 503 || r.Header.Get("Retry-After") == "" {
-		t.Fatalf("write = %d retry-after=%q", r.StatusCode, r.Header.Get("Retry-After"))
+	if code, retryAfter := do("POST", "/write"); code != 503 || retryAfter == "" {
+		t.Fatalf("write = %d retry-after=%q", code, retryAfter)
 	}
 	// Even a write that bypasses HTTP is refused by the database.
 	var pgErr *pgconn.PgError
@@ -338,8 +342,8 @@ func TestReadOnlyModeServesReadsRejectsWritesAndStopsRiver(t *testing.T) {
 	if err := g.LeaveReadOnly(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if r := do("POST", "/write"); r.StatusCode != 200 {
-		t.Fatalf("write after leaving = %d", r.StatusCode)
+	if code, _ := do("POST", "/write"); code != 200 {
+		t.Fatalf("write after leaving = %d", code)
 	}
 	res, err := client.Insert(ctx, worker.DummyArgs{}, nil)
 	if err != nil {

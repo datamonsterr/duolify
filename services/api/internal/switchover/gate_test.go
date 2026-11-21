@@ -189,8 +189,8 @@ func TestStandbyStartsClosedWithQueuesOffAndOpensOnTrigger(t *testing.T) {
 	waited := make(chan error, 1)
 	go func() { waited <- g.wait(g.Admit(t.Context())) }()
 	select {
-	case <-waited:
-		t.Fatal("standby released a request")
+	case err := <-waited:
+		t.Fatalf("standby released a request: %v", err)
 	case <-time.After(30 * time.Millisecond):
 	}
 	if err := g.Open(t.Context()); err != nil {
@@ -211,7 +211,7 @@ func TestReadOnlyModeRejectsWritesAndStopsQueues(t *testing.T) {
 	h := g.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
 	call := func(method string) *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()
-		h.ServeHTTP(w, httptest.NewRequest(method, "/v1/lessons/x/sync", nil))
+		h.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), method, "/v1/lessons/x/sync", nil))
 		return w
 	}
 	if call("POST").Code != http.StatusNoContent {
@@ -260,7 +260,7 @@ func TestOperatorOnlyTrigger(t *testing.T) {
 			{"POST", "/admin/v1/switchover/resume"}, {"GET", "/admin/v1/switchover/status"},
 		} {
 			w := httptest.NewRecorder()
-			h.ServeHTTP(w, httptest.NewRequest(route.method, route.path, nil))
+			h.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), route.method, route.path, nil))
 			if w.Code != tc.want {
 				t.Errorf("%s %s %s = %d, want %d", tc.name, route.method, route.path, w.Code, tc.want)
 			}
@@ -271,17 +271,17 @@ func TestOperatorOnlyTrigger(t *testing.T) {
 	}
 	allow := g.Handler(func(*http.Request) (bool, error) { return true, nil })
 	w := httptest.NewRecorder()
-	allow.ServeHTTP(w, httptest.NewRequest("POST", "/admin/v1/switchover/switch", nil))
+	allow.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), "POST", "/admin/v1/switchover/switch", nil))
 	if w.Code != http.StatusOK || !g.Switched() {
 		t.Fatalf("operator switch = %d %s", w.Code, w.Body)
 	}
 	w = httptest.NewRecorder()
-	allow.ServeHTTP(w, httptest.NewRequest("GET", "/admin/v1/switchover/status", nil))
+	allow.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), "GET", "/admin/v1/switchover/status", nil))
 	if !strings.Contains(w.Body.String(), `"switched":true`) {
 		t.Fatalf("status = %s", w.Body)
 	}
 	w = httptest.NewRecorder()
-	allow.ServeHTTP(w, httptest.NewRequest("POST", "/admin/v1/switchover/switch", nil))
+	allow.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), "POST", "/admin/v1/switchover/switch", nil))
 	if w.Code != http.StatusConflict {
 		t.Fatalf("repeat switch = %d", w.Code)
 	}

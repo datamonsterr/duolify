@@ -37,10 +37,10 @@
 
 ## 5. Switchover gate
 
-- [ ] 5.1 Integration: the gate holds new transactions for at most 15 s, waits for session advisory lock holders and soft-stops River. It swaps the pgx pool to a second database, restarts River and releases with no request errors. On a failed check it releases back to the old pool.
-- [ ] 5.2 Unit: gate state machine and timeout handling. The operator-only trigger rejects non-operators.
-- [ ] 5.4 Integration: in read-only mode, reads succeed, writes return `503` with `Retry-After` and River is stopped. Leaving the mode resumes writes. e2e: the client retries a progress write after `503`.
-- [ ] 5.3 Implement the gate, the standby mode, the read-only mode and the sequence-sync step (`setval` from publisher values plus a margin).
+- [x] 5.1 Integration: the gate holds new transactions for at most 15 s, waits for session advisory lock holders and soft-stops River. It swaps the pgx pool to a second database, restarts River and releases with no request errors. On a failed check it releases back to the old pool.
+- [x] 5.2 Unit: gate state machine and timeout handling. The operator-only trigger rejects non-operators.
+- [x] 5.4 Integration: in read-only mode, reads succeed, writes return `503` with `Retry-After` and River is stopped. Leaving the mode resumes writes. e2e: the client retries a progress write after `503`.
+- [x] 5.3 Implement the gate, the standby mode, the read-only mode and the sequence-sync step (`setval` from publisher values plus a margin).
 
 ## 6. Staging rehearsal (Helsinki)
 

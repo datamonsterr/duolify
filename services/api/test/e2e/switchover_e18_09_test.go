@@ -107,10 +107,10 @@ func TestSwitchoverUnderLoad(t *testing.T) {
 	var maxLatency, maxStreamGap atomic.Int64
 	var acked sync.Map
 	var requests, events atomic.Int64
-	record := func(max *atomic.Int64, d time.Duration) {
+	record := func(longest *atomic.Int64, d time.Duration) {
 		for {
-			cur := max.Load()
-			if int64(d) <= cur || max.CompareAndSwap(cur, int64(d)) {
+			cur := longest.Load()
+			if int64(d) <= cur || longest.CompareAndSwap(cur, int64(d)) {
 				return
 			}
 		}
@@ -244,7 +244,7 @@ func TestSwitchoverUnderLoad(t *testing.T) {
 // session, and a signed-in learner who is not an operator is refused without changing the gate.
 func TestSwitchoverTriggerNeedsOperator(t *testing.T) {
 	auth, token, db := signedInDatabase(t)
-	gate, err := switchover.New(switchover.Options{SourceURL: "postgres://u:p@old:5432/app", TargetURL: "postgres://u:p@new:5432/app"})
+	gate, err := switchover.New(switchover.Options{SourceURL: "postgres://u@old:5432/app", TargetURL: "postgres://u@new:5432/app"})
 	if err != nil {
 		t.Fatal(err)
 	}
