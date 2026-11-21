@@ -67,11 +67,14 @@ services:
       - -c
       - archive_timeout=300
       - -c
-      # Copy into the spool atomically; walship encrypts and uploads, then removes the file.
-      - archive_command=test ! -f /wal-spool/%f && cp %p /wal-spool/%f.tmp && mv /wal-spool/%f.tmp /wal-spool/%f
+      # Durable, overwrite-safe copy into the spool (fsync file + directory); walship encrypts,
+      # uploads and then removes the file.
+      - archive_command=sh /usr/local/bin/archive-wal.sh %p %f
     configs:
       - source: pg_hba
         target: /etc/postgresql/pg_hba.conf
+      - source: archive_wal
+        target: /usr/local/bin/archive-wal.sh
     volumes: [wal-spool:/wal-spool]
     depends_on:
       spool-init: {condition: service_completed_successfully}
@@ -122,6 +125,8 @@ services:
     deploy: {resources: {limits: {cpus: "0.5", memory: 256M}}}
 
 configs:
+  archive_wal:
+    file: ./walship/archive-wal.sh
   pg_hba:
     content: |
       local all all trust

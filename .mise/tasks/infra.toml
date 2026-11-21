@@ -112,7 +112,7 @@ run = "bash infra/deploy/selfhost.sh restore-drill"
 
 ["infra:deploy-plan"]
 description = "Production overlay: static plan check (private Engine, direct Postgres, WAL archiving, backup env, DR job, off-site backup location, alerts) plus its unit tests"
-run = ["bash infra/deploy/test-deploy-plan.sh", "bash infra/deploy/walship/test-walship.sh", "bash infra/deploy/deploy-plan.sh"]
+run = ["bash infra/deploy/test-deploy-plan.sh", "bash infra/deploy/walship/test-walship.sh", "bash infra/deploy/walship/test-archive-wal.sh", "bash infra/deploy/deploy-plan.sh"]
 
 ["infra:overlay-e2e"]
 description = "Production overlay: bring up API x2, Engine, Redis, Postgres with WAL archiving on local RustFS; smoke and WAL shipping"
