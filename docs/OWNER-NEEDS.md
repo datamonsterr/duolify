@@ -15,7 +15,7 @@ Facts behind several items, checked on 2026-11-21:
 
 ### X1. CI runners are not picking up jobs
 
-Since 2026-11-21 08:04 UTC every `pr-draft` run (PRs #255, #259, #260, #261) has stayed queued with no job started, for 30 minutes and counting. The jobs wait for the Namespace runner profiles `namespace-profile-datamonster01` and `namespace-profile-linux-xl`. The last runs that worked were on 2026-11-16. Agents cannot fix this: it needs the Namespace account.
+Since 2026-11-21 08:04 UTC every `pr-draft` run (PRs #255, #259, #260, #261) has stayed queued with no job started, for an hour and counting as of 09:04 UTC (PRs #262 and #263 are affected too). The jobs wait for the Namespace runner profiles `namespace-profile-datamonster01` and `namespace-profile-linux-xl`. The last runs that worked were on 2026-11-16. Agents cannot fix this: it needs the Namespace account.
 
 Please check in the Namespace dashboard: is the GitHub integration still connected to `datamonsterr/duolify`, do both runner profiles still exist, and is the plan or its credit used up? Until this works no PR can show a green `ci-ok`; agents verify with the local mise tasks only.
 
@@ -57,6 +57,12 @@ Approve a branch protection rule on `main` that requires `checks / ci-ok`. I can
 3. **Decision D4: which domain** serves the app, the API and public share links? This is also the open question in #37 (`SHARING_PUBLIC_DOMAIN`) and is needed for the Cloudflare zone.
 4. Provision staging in `hel1` (#238): app and database VMs on a private network, firewall limited to Cloudflare ranges, SSH by key, a versioned `lesson-assets` bucket in `hel1`, and backup and DR-copy buckets in the D3 location with versioning and retention.
 5. Create GitHub environment `staging` with the deploy credentials and S3 keys. The S3 key used for the conformance run (`mise run infra:s3-conformance`, PR #260) needs rights to create and delete buckets, set versioning, use object lock and bypass governance retention.
+   From the prod overlay (PR #263), also needed for staging and later production:
+   - the backup key must not be able to delete, and the backup bucket needs a 7-day lifecycle rule on `wal/` and `base/`;
+   - set `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` and `DEPLOY_KNOWN_HOSTS` in the GitHub environment; the deploy job skips itself until they exist;
+   - set up the VM by `docs/infra/hardening.md`, run `SELFHOST_ENV_TEMPLATE=infra/deploy/.env.prod.example bash infra/deploy/selfhost.sh init`, add the Hetzner secrets to the env file, and move the backup recovery key off the VM;
+   - **Decision D7: container images.** Make the GHCR packages public (simplest; images hold no secrets), or keep them private and give the VM a read-only token. Suggested: private with a read-only token.
+   - **Decision D8: where alerts go.** Prometheus evaluates the alert rules but nothing sends them. Options: email, Telegram, or a hosted service such as Grafana Cloud's free tier. Say which and I will wire it.
 6. Cloudflare (#235): activate the zone, proxy the API record, serve the web client from Workers static assets, and keep the deploy token in GitHub environment secrets.
 7. Only if D1 = b: record the Railway Postgres facts listed in #232.
 
@@ -101,7 +107,7 @@ PostHog project and keys: `POSTHOG_API_KEY`, `POSTHOG_PROJECT_ID`, `POSTHOG_HOST
 
 ### A2. Default character art ([#40](https://github.com/datamonsterr/duolify/issues/40))
 
-Approve the names and art of the three built-in characters, still called "Provisional Glint", "Provisional Moss" and "Provisional Echo", across the five expressions (idle, happy, sad, thinking, celebrate). The art is code (`apps/client/src/features/characters/fixtures.ts` and `rig.ts`), so there is nothing to open yet. I will have an agent render a screenshot sheet and attach it to #40; you then approve or give changes and final names.
+Approve the names and art of the three built-in characters, still called "Provisional Glint", "Provisional Moss" and "Provisional Echo", across the five expressions (idle, happy, sad, thinking, celebrate). The review sheet is in PR #262 (`docs/design/characters/default-cast/sheet.png`). Answer three questions: approve the art or give changes; the final names; confirm no third-party likeness. Notes from review: Moss's idle mouth reads as surprised, and Echo's eyes look nearly the same in four of the five expressions.
 
 ### A3. Launch catalogue ([#111](https://github.com/datamonsterr/duolify/issues/111))
 
