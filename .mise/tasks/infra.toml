@@ -66,11 +66,11 @@ exit 1
 '''
 
 ["infra:load-baseline"]
-description = "k6 baseline on a throwaway compose stack: 1k-DAU read mix + 10-minute mock-Engine Tutor SSE (override READ_RPS, READ_DURATION, SSE_SECONDS, SSE_HEARTBEAT_SECONDS)"
+description = "Load baseline on a throwaway compose stack: k6 1k-DAU read mix (public + authenticated) plus a 10-minute Tutor chat SSE stream through the API with a mock Engine behind it (READ_RPS, READ_DURATION, SSE_SECONDS, SSE_HEARTBEAT_INTERVAL, MAX_GAP_SECONDS)"
 run = 'bash infra/load/run.sh'
 
 ["infra:load-baseline-test"]
-description = "E2E: short load-baseline variant (k6 read mix + mock-Engine SSE) against a throwaway compose stack"
+description = "E2E: short load-baseline variant (read mix + Tutor chat stream through the API) against a throwaway compose stack"
 run = 'bash infra/load/baseline.e2e.sh'
 
 ["infra:pg-replication-check"]

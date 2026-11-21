@@ -181,17 +181,6 @@ services:
       # Worker has no HTTP listener; verify its durable queue dependency.
       test: [CMD, /api, healthcheck, --database]
 
-  # Load baseline only (E18-02): serves the Tutor chat SSE surface with heartbeats, no provider.
-  mock-engine:
-    profiles: [load]
-    image: node:24-alpine
-    command: [node, /srv/mock-engine.mjs]
-    volumes: ["./infra/load/mock-engine.mjs:/srv/mock-engine.mjs:ro"]
-    ports: ["127.0.0.1:${MOCK_ENGINE_PORT:-8090}:8090"]
-    healthcheck:
-      <<: *health
-      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8090/healthz]
-
   prometheus:
     image: prom/prometheus:v3.8.0
     profiles: [observability]

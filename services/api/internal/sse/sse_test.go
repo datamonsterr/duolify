@@ -45,7 +45,8 @@ func TestHeartbeatExtendsServerWriteDeadline(t *testing.T) {
 	srv.Config.WriteTimeout = 300 * time.Millisecond
 	srv.Start()
 	defer srv.Close()
-	resp, err := http.Get(srv.URL)
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL, nil)
+	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
