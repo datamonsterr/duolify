@@ -153,3 +153,13 @@ it.each(["export", "delete"])(
     ).toHaveAttribute("href", "/sign-in?returnTo=%2Fsettings");
   },
 );
+
+it("states where account data is stored", async () => {
+  render(<Settings />);
+  await screen.findByRole("heading", { name: "Settings" });
+  expect(
+    screen.getByText(
+      /stored in the EU.*Finland \(Helsinki\).*Germany.*Cloudflare/s,
+    ),
+  ).toBeVisible();
+});
