@@ -65,6 +65,10 @@ echo "ERROR: Production live deployment is disabled in AFK tickets. Requires E11
 exit 1
 '''
 
+["infra:load-baseline-test"]
+description = "E2E: short load-baseline variant (k6 read mix + mock-Engine SSE) against a throwaway compose stack"
+run = 'bash infra/load/baseline.e2e.sh'
+
 ["infra:restore-drill"]
 description = "Restore an anonymized custom-format dump into disposable Postgres"
 usage = 'arg "<dump>" help="Path to an anonymized custom-format pg_dump archive"'
