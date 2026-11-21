@@ -25,7 +25,17 @@ sh=$here/selfhost.sh
 compose() { bash "$sh" compose "$@"; }
 say() { printf '==> %s\n' "$*"; }
 die() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-port() { printf '%s' $((20000 + RANDOM % 20000)); }
+port() { # a random port nothing listens on and not handed out before
+  local p
+  while :; do
+    p=$((20000 + RANDOM % 20000))
+    [[ " ${used_ports:-} " == *" $p "* ]] && continue
+    ss -ltn 2>/dev/null | awk '{print $4}' | grep -q ":$p\$" && continue
+    used_ports="${used_ports:-} $p"
+    printf '%s' "$p"
+    return
+  done
+}
 
 cleanup() {
   compose --profile '*' down --volumes --remove-orphans >/dev/null 2>&1 || true
