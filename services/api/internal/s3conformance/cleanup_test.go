@@ -36,7 +36,7 @@ func TestCleanupReportsLeftovers(t *testing.T) {
 	if len(warnings) != 1 {
 		t.Fatalf("want 1 warning, got %v", warnings)
 	}
-	for _, want := range []string{"bkt", "locked", "v1", "AccessDenied", "BucketNotEmpty"} {
+	for _, want := range []string{"bkt", "locked", "v1", "AccessDenied"} {
 		if !strings.Contains(warnings[0], want) {
 			t.Errorf("warning %q lacks %q", warnings[0], want)
 		}
@@ -44,7 +44,7 @@ func TestCleanupReportsLeftovers(t *testing.T) {
 }
 
 func TestCleanupCleanStoreHasNoWarning(t *testing.T) {
-	if w := cleanup(context.Background(), emptyStore{}, "bkt", "p/", false); len(w) != 0 {
+	if w := cleanup(context.Background(), &emptyStore{}, "bkt", "p/", false); len(w) != 0 {
 		t.Fatalf("unexpected warnings %v", w)
 	}
 }

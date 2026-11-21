@@ -35,7 +35,7 @@ func TestSuitePassesAgainstRustFSAndCleansUp(t *testing.T) {
 	cfg := startRustFS(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	results := Run(ctx, cfg)
+	results, _ := Run(ctx, cfg)
 	for _, r := range results {
 		t.Log(cfg.Redact(r.String()))
 		if r.Status != StatusPass {
@@ -61,7 +61,8 @@ func TestSuiteFailsNamingVersionedPutWhenVersioningIsOff(t *testing.T) {
 	}
 	cfg.Bucket = "unversioned"
 	failed := map[string]bool{}
-	for _, r := range Run(ctx, cfg) {
+	results, _ := Run(ctx, cfg)
+	for _, r := range results {
 		if r.Status == StatusFail {
 			failed[r.Operation] = true
 		}

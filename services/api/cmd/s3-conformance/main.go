@@ -32,11 +32,15 @@ func run() int {
 	}
 	fmt.Printf("S3 conformance against %s, bucket %s\n", cfg.Endpoint, bucket)
 	failed := 0
-	for _, r := range s3conformance.Run(ctx, cfg) {
+	results, warnings := s3conformance.Run(ctx, cfg)
+	for _, r := range results {
 		fmt.Println(cfg.Redact(r.String()))
 		if r.Status != s3conformance.StatusPass {
 			failed++
 		}
+	}
+	for _, w := range warnings {
+		fmt.Println(cfg.Redact("WARN  " + w))
 	}
 	if failed > 0 {
 		fmt.Printf("FAILED: %d unsupported operation(s)\n", failed)

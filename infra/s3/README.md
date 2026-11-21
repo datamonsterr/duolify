@@ -55,6 +55,7 @@ mise run infra:s3-conformance
   then writes under `s3-conformance/<random>/`, leaves versioning untouched (a
   bucket with versioning off fails by design) and never deletes the bucket. Retention
   lock needs a bucket created with object lock.
+- If cleanup cannot remove something (a key without `BypassGovernanceRetention` cannot delete the locked test object), the task prints a `WARN` line naming the leftover bucket or keys with version IDs and still exits 0; delete them by hand, or wait: the lock expires after one hour.
 - Use `S3_CONFORMANCE_PATH_STYLE=false` if the provider requires virtual-hosted style.
 - Runs against the real Hetzner stores are tracked in #238 (owner-provided accounts).
 

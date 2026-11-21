@@ -128,8 +128,10 @@ func Operations() []Operation {
 	}
 }
 
-// Run executes every operation and always cleans up what it created.
-func Run(ctx context.Context, cfg Config) []Result {
+// Run executes every operation and always cleans up what it created. The second
+// result lists redacted warnings for anything cleanup could not remove; they
+// are not conformance failures.
+func Run(ctx context.Context, cfg Config) (results []Result, warnings []string) {
 	client := cfg.Client()
 	env := Env{Client: client, Bucket: cfg.Bucket, Prefix: "s3-conformance/" + randomID() + "/"}
 	ownBucket := cfg.Bucket == ""
@@ -137,14 +139,17 @@ func Run(ctx context.Context, cfg Config) []Result {
 		env.Bucket = "s3conf-" + randomID()
 		env.Prefix = ""
 		if err := createOwnBucket(ctx, client, env.Bucket); err != nil {
-			return failAll(cfg, "create test bucket: "+err.Error())
+			return failAll(cfg, "create test bucket: "+err.Error()), nil
 		}
 	} else if _, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(env.Bucket)}); err != nil {
-		return failAll(cfg, "bucket not reachable: "+err.Error())
+		return failAll(cfg, "bucket not reachable: "+err.Error()), nil
 	}
-	defer cleanup(env, ownBucket)
+	defer func() {
+		for _, w := range cleanup(context.Background(), client, env.Bucket, env.Prefix, ownBucket) {
+			warnings = append(warnings, cfg.Redact(w))
+		}
+	}()
 
-	var results []Result
 	for _, op := range Operations() {
 		r := Result{Operation: op.Name, Status: StatusPass}
 		if err := op.Run(ctx, env); err != nil {
@@ -152,7 +157,7 @@ func Run(ctx context.Context, cfg Config) []Result {
 		}
 		results = append(results, r)
 	}
-	return results
+	return results, nil
 }
 
 func failAll(cfg Config, detail string) []Result {
@@ -176,37 +181,70 @@ func createOwnBucket(ctx context.Context, c *s3.Client, bucket string) error {
 	return nil
 }
 
+// cleanupAPI is the part of the S3 client cleanup uses; tests inject a failing one.
+type cleanupAPI interface {
+	s3.ListObjectVersionsAPIClient
+	s3.ListObjectsV2APIClient
+	DeleteObject(context.Context, *s3.DeleteObjectInput, ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
+	DeleteBucket(context.Context, *s3.DeleteBucketInput, ...func(*s3.Options)) (*s3.DeleteBucketOutput, error)
+}
+
 // cleanup removes every version and delete marker under our prefix (bypassing
-// governance retention) and the bucket only when we created it.
-func cleanup(env Env, ownBucket bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+// governance retention) and the bucket only when we created it. It returns one
+// warning naming what it could not remove, or nil.
+func cleanup(ctx context.Context, api cleanupAPI, bucket, prefix string, ownBucket bool) []string {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	pages := s3.NewListObjectVersionsPaginator(env.Client, &s3.ListObjectVersionsInput{Bucket: aws.String(env.Bucket), Prefix: aws.String(env.Prefix)})
+	var left []string
+	var firstErr error
+	fail := func(what string, err error) {
+		left = append(left, what)
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	del := func(key, version *string, bypass bool) {
+		in := &s3.DeleteObjectInput{Bucket: aws.String(bucket), Key: key, VersionId: version}
+		if bypass {
+			in.BypassGovernanceRetention = aws.Bool(true)
+		}
+		if _, err := api.DeleteObject(ctx, in); err != nil {
+			what := "key " + aws.ToString(key)
+			if version != nil {
+				what += " (version " + aws.ToString(version) + ")"
+			}
+			fail(what, err)
+		}
+	}
+	pages := s3.NewListObjectVersionsPaginator(api, &s3.ListObjectVersionsInput{Bucket: aws.String(bucket), Prefix: aws.String(prefix)})
 	for pages.HasMorePages() {
 		page, err := pages.NextPage(ctx)
 		if err != nil {
+			fail("unlisted versions under prefix "+prefix, err)
 			break
 		}
-		var ids []types.ObjectIdentifier
 		for _, v := range page.Versions {
-			ids = append(ids, types.ObjectIdentifier{Key: v.Key, VersionId: v.VersionId})
+			del(v.Key, v.VersionId, true)
 		}
 		for _, m := range page.DeleteMarkers {
-			ids = append(ids, types.ObjectIdentifier{Key: m.Key, VersionId: m.VersionId})
-		}
-		for _, id := range ids {
-			_, _ = env.Client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(env.Bucket), Key: id.Key, VersionId: id.VersionId, BypassGovernanceRetention: aws.Bool(true)})
+			del(m.Key, m.VersionId, true)
 		}
 	}
 	// Stores without versioning return plain objects here.
-	if out, err := env.Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{Bucket: aws.String(env.Bucket), Prefix: aws.String(env.Prefix)}); err == nil {
+	if out, err := api.ListObjectsV2(ctx, &s3.ListObjectsV2Input{Bucket: aws.String(bucket), Prefix: aws.String(prefix)}); err == nil {
 		for _, o := range out.Contents {
-			_, _ = env.Client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(env.Bucket), Key: o.Key})
+			del(o.Key, nil, false)
 		}
 	}
 	if ownBucket {
-		_, _ = env.Client.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(env.Bucket)})
+		if _, err := api.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)}); err != nil {
+			fail("bucket "+bucket, err)
+		}
 	}
+	if len(left) == 0 {
+		return nil
+	}
+	return []string{fmt.Sprintf("cleanup left behind %s; first error: %v", strings.Join(left, ", "), firstErr)}
 }
 
 func randomID() string {
