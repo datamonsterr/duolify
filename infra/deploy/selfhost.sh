@@ -204,10 +204,15 @@ cmd_pitr_drill() {
   [[ -r $identity_file ]] || die "age identity $identity_file not readable; the drill needs the backup private key"
   [[ -n $overlay ]] || die "pitr-drill needs the production overlay (SELFHOST_OVERLAY)"
   say "recovering to $1 from the newest base backup and the WAL archive (throwaway Postgres)"
-  compose run --rm -T --no-deps --volume "$identity_file:/identity:ro" \
-    --env "BACKUP_S3_ACCESS_KEY_ID=$(setting BACKUP_RESTORE_S3_ACCESS_KEY_ID | grep . || echo duolify-backup-restorer)" \
-    --env "BACKUP_S3_SECRET_ACCESS_KEY=$(setting BACKUP_RESTORE_S3_SECRET_ACCESS_KEY)" \
-    walship restore "$1"
+  # The restore secret goes through a 0600 temp env file, never an argv entry (visible in `ps`).
+  local restore_env
+  restore_env=$(umask 077 && mktemp)
+  trap 'rm -f "$restore_env"' RETURN
+  {
+    printf 'BACKUP_S3_ACCESS_KEY_ID=%s\n' "$(setting BACKUP_RESTORE_S3_ACCESS_KEY_ID | grep . || echo duolify-backup-restorer)"
+    printf 'BACKUP_S3_SECRET_ACCESS_KEY=%s\n' "$(setting BACKUP_RESTORE_S3_SECRET_ACCESS_KEY)"
+  } >"$restore_env"
+  compose run --rm -T --no-deps --volume "$identity_file:/identity:ro" --env-from-file "$restore_env" walship restore "$1"
 }
 
 case ${1:-} in
