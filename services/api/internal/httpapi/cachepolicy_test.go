@@ -56,3 +56,44 @@ func TestCachePolicyMiddlewareDefaultsPrivateAndKeepsHandlerChoice(t *testing.T)
 		}
 	}
 }
+
+func TestCachePolicyImmutableOnlyForSuccessStatuses(t *testing.T) {
+	path := "/v1/objects/sha256-" + strings.Repeat("c", 64)
+	for status, want := range map[int]string{
+		http.StatusOK:                  immutableHeader,
+		http.StatusNotModified:         immutableHeader,
+		http.StatusUnauthorized:        privateHeader,
+		http.StatusNotFound:            privateHeader,
+		http.StatusInternalServerError: privateHeader,
+	} {
+		h := CachePolicy(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(status)
+		}))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
+		if got := w.Header().Get("Cache-Control"); got != want {
+			t.Errorf("status %d: got %q want %q", status, got, want)
+		}
+	}
+}
+
+func TestCachePolicyImmutableImplicitOKAndHandlerOverride(t *testing.T) {
+	path := "/v1/objects/sha256-" + strings.Repeat("d", 64)
+	h := CachePolicy(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("x"))
+	}))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
+	if got := w.Header().Get("Cache-Control"); got != immutableHeader {
+		t.Errorf("implicit 200: got %q", got)
+	}
+	h = CachePolicy(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
+	if got := w.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("override: got %q", got)
+	}
+}
