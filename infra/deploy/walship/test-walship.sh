@@ -23,7 +23,10 @@ if [[ $AWS_ENDPOINT_URL == http://src ]]; then
   fi
   exit 0
 fi
-[[ -z ${FAKE_DEST_DOWN:-} ]] || { cat >/dev/null 2>&1 || true; exit 1; }
+if [[ -n ${FAKE_DEST_DOWN:-} ]]; then
+  if [[ $args == s3\ cp\ -* ]]; then cat >/dev/null; fi
+  exit 1
+fi
 if [[ $args == *head-object* ]]; then
   [[ -n ${FAKE_HEAD_SHA:-} ]] || exit 254
   echo "$FAKE_HEAD_SHA"; exit 0
@@ -43,7 +46,7 @@ run() { # args to walship.sh; env of the test is inherited
   PATH="$work/bin:$PATH" WALSHIP_SPOOL=$work/spool WALSHIP_STATE=$work/state AWS_CONFIG_FILE=$work/aws-config FAKE_LOG=$work/log \
     BACKUP_S3_ENDPOINT=http://dest BACKUP_S3_REGION=r BACKUP_S3_BUCKET=bk BACKUP_S3_ACCESS_KEY_ID=k BACKUP_S3_SECRET_ACCESS_KEY=s \
     S3_ENDPOINT=http://src S3_REGION=r S3_BUCKET=app S3_ACCESS_KEY_ID=k S3_SECRET_ACCESS_KEY=s BACKUP_AGE_RECIPIENT=age1x PGHOST=h \
-    bash "$here/walship.sh" "$@" >"$work/out" 2>&1
+    bash "$here/walship.sh" "$@" >"$work/out" 2>&1 </dev/null
 }
 
 check() { # NAME EXPECTED-RC STAMP-FILE-OR-"" EXPECT-STAMP-CHANGED(yes|no) -- command...

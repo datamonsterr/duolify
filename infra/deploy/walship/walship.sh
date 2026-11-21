@@ -10,6 +10,7 @@
 #   restore  PITR drill in a throwaway Postgres: newest base before the target time plus archived WAL,
 #            recovered to TARGET (e.g. '2026-11-21 10:00:00+00'); needs the age identity at /identity
 #   metrics  write Prometheus textfile metrics to /metrics/walship.prom
+#   daily    base, then dr-copy (as WALSHIP_JOBS allows); non-zero if either failed
 #   loop     ship every 10s, metrics every minute, base + dr-copy daily at 02:30 UTC
 #            (WALSHIP_JOBS selects which of ship,base,dr-copy run)
 #
@@ -34,12 +35,22 @@ src() {
 log() { printf '%s walship: %s\n' "$(date -u +%FT%TZ)" "$*" >&2; }
 stamp() { date -u +%s >"$state/$1.ts"; } # last-success marker read by metrics
 
+# Segments are immutable: a name that already exists in the bucket must hold the same bytes.
+# The plaintext sha256 travels as object metadata (age output is not deterministic).
 cmd_ship() {
-  local f name
+  local f name sha prior key
   for f in "$spool"/*; do
     [[ -f $f && $f != *.tmp ]] || continue
     name=$(basename "$f")
-    if gzip -c "$f" | age -r "$BACKUP_AGE_RECIPIENT" | dest s3 cp - "s3://$BACKUP_S3_BUCKET/wal/$name.gz.age" --only-show-errors; then
+    key=wal/$name.gz.age
+    sha=$(sha256sum "$f" | cut -d' ' -f1) || return 1
+    prior=$(dest s3api head-object --bucket "$BACKUP_S3_BUCKET" --key "$key" --query 'Metadata."src-sha256"' --output text 2>/dev/null || true)
+    if [[ -n $prior && $prior != None ]]; then
+      if [[ $prior == "$sha" ]]; then rm -f "$f"; continue; fi # re-archived after a crash: already shipped
+      log "REFUSING $name: $key exists with different content; the segment stays in the spool"
+      return 1
+    fi
+    if gzip -c "$f" | age -r "$BACKUP_AGE_RECIPIENT" | dest s3 cp - "s3://$BACKUP_S3_BUCKET/$key" --metadata "src-sha256=$sha" --only-show-errors; then
       rm -f "$f"
     else
       log "could not ship $name; it stays in the spool"
@@ -48,27 +59,40 @@ cmd_ship() {
   done
 }
 
+# Every step is checked explicitly: callers use `cmd || log`, which disables `set -e` in here.
+# The success stamp (read by the age alerts) is written only after the whole pipeline succeeded.
 cmd_base() {
   local at
-  at=$(date -u +%Y%m%dT%H%M%SZ)
-  pg_basebackup --dbname "host=${PGHOST:-postgres} user=${PGUSER:-duolify}" -D - -Ft -X none --checkpoint=fast --no-sync \
+  at=$(date -u +%Y%m%dT%H%M%SZ) || return 1
+  if ! { pg_basebackup --dbname "host=${PGHOST:-postgres} user=${PGUSER:-duolify}" -D - -Ft -X none --checkpoint=fast --no-sync \
     | gzip | age -r "$BACKUP_AGE_RECIPIENT" \
-    | dest s3 cp - "s3://$BACKUP_S3_BUCKET/base/$at/base.tar.gz.age" --only-show-errors
-  stamp base
+    | dest s3 cp - "s3://$BACKUP_S3_BUCKET/base/$at/base.tar.gz.age" --only-show-errors; }; then
+    log "base backup base/$at FAILED; not stamping"
+    # A truncated upload must never be picked as the newest base by a restore.
+    dest s3 rm "s3://$BACKUP_S3_BUCKET/base/$at/base.tar.gz.age" --only-show-errors >/dev/null 2>&1 || true
+    return 1
+  fi
+  stamp base || return 1
   log "base backup base/$at uploaded"
 }
 
 cmd_dr_copy() {
-  local key etag prior prefix=dr/lesson-assets/ copied=0
+  local key etag prior prefix=dr/lesson-assets/ copied=0 failed=0 listing
+  listing=$(src s3api list-objects-v2 --bucket "$S3_BUCKET" --query 'Contents[].[Key,ETag]' --output text) || { log "DR copy: cannot list $S3_BUCKET"; return 1; }
   while IFS=$'\t' read -r key etag; do
-    [[ -n $key ]] || continue
+    [[ -n $key && $key != None ]] || continue
     prior=$(dest s3api head-object --bucket "$BACKUP_S3_BUCKET" --key "$prefix$key" --query 'Metadata."src-etag"' --output text 2>/dev/null || true)
     [[ $prior != "$etag" ]] || continue
-    src s3 cp "s3://$S3_BUCKET/$key" - --only-show-errors \
-      | dest s3 cp - "s3://$BACKUP_S3_BUCKET/$prefix$key" --metadata "src-etag=$etag" --only-show-errors
-    copied=$((copied + 1))
-  done < <(src s3api list-objects-v2 --bucket "$S3_BUCKET" --query 'Contents[].[Key,ETag]' --output text | grep -v '^None' || true)
-  stamp dr
+    if { src s3 cp "s3://$S3_BUCKET/$key" - --only-show-errors \
+      | dest s3 cp - "s3://$BACKUP_S3_BUCKET/$prefix$key" --metadata "src-etag=$etag" --only-show-errors; }; then
+      copied=$((copied + 1))
+    else
+      log "DR copy: could not copy $key"
+      failed=$((failed + 1))
+    fi
+  done <<<"$listing"
+  if ((failed > 0)); then log "DR copy FAILED for $failed object(s); not stamping"; return 1; fi
+  stamp dr || return 1
   log "DR copy done: $copied object(s) copied"
 }
 
@@ -110,14 +134,11 @@ cmd_metrics() {
     if [[ $(stat -c %Y "$f") -lt $oldest ]]; then oldest=$(stat -c %Y "$f"); fi
   done
   age=$((now - oldest))
-  stats=$(psql -X -At -F' ' -c "select failed_count, coalesce(extract(epoch from now()-last_failed_time),0)::bigint from pg_stat_archiver" \
-    -c "select count(*), coalesce(max(pg_wal_lsn_diff(sent_lsn, replay_lsn)),0)::bigint from pg_stat_replication" 2>/dev/null || true)
+  stats=$(psql -X -At -F' ' -c "select failed_count from pg_stat_archiver" 2>/dev/null || true)
   {
     printf 'duolify_wal_spool_files %s\nduolify_wal_spool_oldest_age_seconds %s\n' "$files" "$age"
     if [[ -n $stats ]]; then
-      read -r failed _ <<<"$(sed -n 1p <<<"$stats")"
-      read -r replicas lag <<<"$(sed -n 2p <<<"$stats")"
-      printf 'duolify_pg_archive_failed_total %s\nduolify_pg_replicas %s\nduolify_pg_replication_lag_bytes %s\n' "$failed" "$replicas" "$lag"
+      printf 'duolify_pg_archive_failed_total %s\n' "$(sed -n 1p <<<"$stats")"
     fi
     for f in base dr; do
       if [[ -f $state/$f.ts ]]; then printf 'duolify_%s_last_success_timestamp_seconds %s\n' "$f" "$(cat "$state/$f.ts")"; fi
@@ -125,6 +146,7 @@ cmd_metrics() {
     for f in $(compgen -G "$state/bucket-*.bytes" || true); do
       printf 'duolify_bucket_bytes{bucket="%s"} %s\n' "$(basename "$f" .bytes | sed 's/^bucket-//')" "$(cat "$f")"
     done
+    if [[ -f $state/base-remote.ts ]]; then printf 'duolify_base_newest_object_timestamp_seconds %s\n' "$(cat "$state/base-remote.ts")"; fi
     if [[ -f $state/dump.ts ]]; then printf 'duolify_dump_last_object_timestamp_seconds %s\n' "$(cat "$state/dump.ts")"; fi
   } >"$out.tmp"
   mv "$out.tmp" "$out"
@@ -138,6 +160,13 @@ cmd_slow_metrics() { # hourly: bucket usage and the newest nightly application d
   newest=$(dest s3api list-objects-v2 --bucket "$BACKUP_S3_BUCKET" \
     --query 'sort_by(Contents[?contains(Key, `/schema-`)], &LastModified)[-1].LastModified' --output text 2>/dev/null || true)
   if [[ -n $newest && $newest != None ]]; then date -u -d "$newest" +%s >"$state/dump.ts"; fi
+  # Newest base backup actually in the bucket (not just the local success stamp): PITR needs one.
+  # A definite "none" removes the file so the metric disappears and the absent() alert fires.
+  # shellcheck disable=SC2016 # JMESPath
+  if newest=$(dest s3api list-objects-v2 --bucket "$BACKUP_S3_BUCKET" --prefix base/ \
+    --query "sort_by(Contents[?ends_with(Key, 'base.tar.gz.age')], &LastModified)[-1].LastModified" --output text 2>/dev/null); then
+    if [[ -n $newest && $newest != None ]]; then date -u -d "$newest" +%s >"$state/base-remote.ts"; else rm -f "$state/base-remote.ts"; fi
+  fi
 }
 
 has_job() { [[ ,${WALSHIP_JOBS:-ship,base,dr-copy}, == *",$1,"* ]]; }
