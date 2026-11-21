@@ -76,7 +76,7 @@ Keep security updates on, set `Unattended-Upgrade::Automatic-Reboot "true"` with
 
 **State after a failed deploy.**
 - Digest pull or `walship` build fails: nothing changed except the image variables in `.env`; the running stack is untouched.
-- `migrate` fails: the migration is transactional per goose file, so earlier files stay applied and the failing one is rolled back; containers are untouched, the old version keeps serving. Fix forward and redeploy.
+- `migrate` fails: goose runs each file in a transaction unless it opts out, so earlier files stay applied and the failing one is rolled back (check any `NO TRANSACTION` file by hand); containers are untouched, the old version keeps serving. Fix forward and redeploy.
 - Engine fails its healthcheck: new Engine container is unhealthy; the API instances are still the old ones. Redeploy the previous digests to roll the Engine back (migrations stay applied, hence expand/contract).
 - An API instance fails to become healthy: that step stops with the old instance still running (the new one starts first and the old one is stopped only after it is healthy). The rest of the fleet is old; the migration is applied. Redeploy the previous digests.
 - Worker or proxy fails: API and Engine are new, worker or edge may be old; redeploy.

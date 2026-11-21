@@ -5,7 +5,13 @@ set -euo pipefail
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 failures=0
 d1=$(printf 'a%.0s' {1..64})
-good=(api=ghcr.io/o/r/api@sha256:$d1 worker=ghcr.io/o/r/worker@sha256:$d1 engine=ghcr.io/o/r/engine@sha256:$d1 web=ghcr.io/o/r/web@sha256:$d1 backup-init=ghcr.io/o/r/backup-init@sha256:$d1)
+good=(
+  "api=ghcr.io/o/r/api@sha256:$d1"
+  "worker=ghcr.io/o/r/worker@sha256:$d1"
+  "engine=ghcr.io/o/r/engine@sha256:$d1"
+  "web=ghcr.io/o/r/web@sha256:$d1"
+  "backup-init=ghcr.io/o/r/backup-init@sha256:$d1"
+)
 
 run() { DEPLOY_VALIDATE_ONLY=1 SELFHOST_ENV_FILE=/nonexistent bash "$here/deploy.sh" "$@" 2>&1; }
 expect() { # NAME rc|ok WORD args...
@@ -22,10 +28,10 @@ expect "accepts a sha tag with five digest-pinned images" ok - sha-abcdef1 "${go
 expect "rejects a deploy with no images" rej digest sha-abcdef1
 expect "rejects a bad commit tag" rej tag latest "${good[@]}"
 expect "rejects a tag-only image reference" rej digest sha-abcdef1 api=ghcr.io/o/r/api:sha-abcdef1 "${good[@]:1}"
-expect "rejects a tag plus digest reference" rej digest sha-abcdef1 api=ghcr.io/o/r/api:sha-abcdef1@sha256:$d1 "${good[@]:1}"
+expect "rejects a tag plus digest reference" rej digest sha-abcdef1 api=ghcr.io/o/r/api:sha-abcdef1@sha256:"$d1" "${good[@]:1}"
 expect "rejects a truncated digest" rej digest sha-abcdef1 api=ghcr.io/o/r/api@sha256:abc "${good[@]:1}"
 expect "rejects a missing image" rej backup-init sha-abcdef1 "${good[@]:0:4}"
-expect "rejects an unknown image name" rej unknown sha-abcdef1 "${good[@]}" evil=ghcr.io/o/r/evil@sha256:$d1
+expect "rejects an unknown image name" rej unknown sha-abcdef1 "${good[@]}" evil=ghcr.io/o/r/evil@sha256:"$d1"
 expect "rejects shell metacharacters in a reference" rej digest sha-abcdef1 'api=ghcr.io/o/r/api@sha256:'"$d1"';rm -rf /' "${good[@]:1}"
 
 # The Compose files must honour the pinned references.

@@ -58,28 +58,28 @@ rule_value() { # PREFIX JMESPATH-after-rule -> value or empty
 }
 
 cmd_verify() {
-  local problems=0 bad_msg v bd wd nb nw newest age
-  bad_msg() { echo "backup-lifecycle: FAIL $*" >&2; problems=$((problems + 1)); }
+  local problems=0 v bd wd nb nw newest age
+  bad() { echo "backup-lifecycle: FAIL $*" >&2; problems=$((problems + 1)); }
   v=$(admin s3api get-bucket-versioning --bucket "$BACKUP_S3_BUCKET" --query Status --output text 2>/dev/null) || v=''
-  [[ $v == Enabled ]] || bad_msg "bucket $BACKUP_S3_BUCKET is not versioned (Status='$v')"
+  [[ $v == Enabled ]] || bad "bucket $BACKUP_S3_BUCKET is not versioned (Status='$v')"
   bd=$(rule_value base/ Expiration.Days) || bd=''
   wd=$(rule_value wal/ Expiration.Days) || wd=''
   nb=$(rule_value base/ NoncurrentVersionExpiration.NoncurrentDays) || nb=''
   nw=$(rule_value wal/ NoncurrentVersionExpiration.NoncurrentDays) || nw=''
-  [[ $bd =~ ^[0-9]+$ ]] || bad_msg "no enabled lifecycle rule expiring base/ (storage grows without bound)"
-  [[ $wd =~ ^[0-9]+$ ]] || bad_msg "no enabled lifecycle rule expiring wal/ (storage grows without bound)"
-  [[ $nb =~ ^[0-9]+$ ]] || bad_msg "base/ rule has no NoncurrentVersionExpiration (old versions are never freed)"
-  [[ $nw =~ ^[0-9]+$ ]] || bad_msg "wal/ rule has no NoncurrentVersionExpiration (old versions are never freed)"
-  if [[ $bd =~ ^[0-9]+$ && $bd -lt $base_days ]]; then bad_msg "base/ expires after $bd days, less than the $base_days needed for a $retention-day PITR window"; fi
-  if [[ $bd =~ ^[0-9]+$ && $wd =~ ^[0-9]+$ && $wd -le $bd ]]; then bad_msg "wal/ ($wd d) must expire later than base/ ($bd d), or the oldest base loses its WAL"; fi
+  [[ $bd =~ ^[0-9]+$ ]] || bad "no enabled lifecycle rule expiring base/ (storage grows without bound)"
+  [[ $wd =~ ^[0-9]+$ ]] || bad "no enabled lifecycle rule expiring wal/ (storage grows without bound)"
+  [[ $nb =~ ^[0-9]+$ ]] || bad "base/ rule has no NoncurrentVersionExpiration (old versions are never freed)"
+  [[ $nw =~ ^[0-9]+$ ]] || bad "wal/ rule has no NoncurrentVersionExpiration (old versions are never freed)"
+  if [[ $bd =~ ^[0-9]+$ && $bd -lt $base_days ]]; then bad "base/ expires after $bd days, less than the $base_days needed for a $retention-day PITR window"; fi
+  if [[ $bd =~ ^[0-9]+$ && $wd =~ ^[0-9]+$ && $wd -le $bd ]]; then bad "wal/ ($wd d) must expire later than base/ ($bd d), or the oldest base loses its WAL"; fi
   if [[ ${1:-} == --require-base ]]; then
     # shellcheck disable=SC2016 # JMESPath
     newest=$(admin s3api list-objects-v2 --bucket "$BACKUP_S3_BUCKET" --prefix base/ \
       --query "sort_by(Contents[?ends_with(Key, 'base.tar.gz.age')], &LastModified)[-1].LastModified" --output text 2>/dev/null) || newest=''
-    if [[ -z $newest || $newest == None ]]; then bad_msg "no base backup in $BACKUP_S3_BUCKET; PITR is impossible"
+    if [[ -z $newest || $newest == None ]]; then bad "no base backup in $BACKUP_S3_BUCKET; PITR is impossible"
     else
       age=$(( $(date -u +%s) - $(date -u -d "$newest" +%s) ))
-      if ((age > retention * 86400)); then bad_msg "newest base backup is $((age / 3600)) h old, older than the $retention-day window"; fi
+      if ((age > retention * 86400)); then bad "newest base backup is $((age / 3600)) h old, older than the $retention-day window"; fi
     fi
   fi
   ((problems == 0)) || return 1
