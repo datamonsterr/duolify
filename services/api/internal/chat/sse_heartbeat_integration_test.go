@@ -7,12 +7,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,9 +33,10 @@ import (
 	"google.golang.org/grpc"
 )
 
-// TestTutorStreamHeartbeatWhileEngineIsIdleIntegration holds the Engine silent for 600 ms with a
-// 100 ms heartbeat and expects ":" comment lines before the first delta, then the normal reply.
-func TestTutorStreamHeartbeatWhileEngineIsIdleIntegration(t *testing.T) {
+// streamWhileEngineIdle holds the Engine silent for 600 ms with a 100 ms heartbeat, sends one
+// tutor message through wrap(handler) and returns the streamed body.
+func streamWhileEngineIdle(t *testing.T, wrap func(http.Handler) http.Handler) string {
+	t.Helper()
 	t.Setenv("SSE_HEARTBEAT_INTERVAL", "100ms")
 	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
 	defer cancel()
@@ -80,7 +83,7 @@ func TestTutorStreamHeartbeatWhileEngineIsIdleIntegration(t *testing.T) {
 	financial := credits.NewServiceWithCatalogue(db.Pool, nil, cat, events)
 	courseService := courses.New(courses.Options{Pool: db.Pool, Environment: "test", Financial: financial, Events: events})
 	tutor := chat.New(chat.Options{Pool: db.Pool, Engine: engine, Financial: financial, Profiles: courseService, Events: events})
-	server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, Quotes: pricing.NewQuotes(db.Pool), Credits: financial, Tutor: tutor}, slog.New(slog.NewTextHandler(io.Discard, nil))))
+	server := httptest.NewServer(wrap(httpapi.New(httpapi.Dependencies{Accounts: auth, Quotes: pricing.NewQuotes(db.Pool), Credits: financial, Tutor: tutor}, slog.New(slog.NewTextHandler(io.Discard, nil)))))
 	defer server.Close()
 
 	call := func(path string, body any, token string) *http.Response {
@@ -147,7 +150,13 @@ func TestTutorStreamHeartbeatWhileEngineIsIdleIntegration(t *testing.T) {
 		t.Fatalf("status %d", resp.StatusCode)
 	}
 	raw, _ := io.ReadAll(bufio.NewReader(resp.Body))
-	body := string(raw)
+	return string(raw)
+}
+
+// TestTutorStreamHeartbeatWhileEngineIsIdleIntegration expects ":" comment lines before the first
+// delta, then the normal reply.
+func TestTutorStreamHeartbeatWhileEngineIsIdleIntegration(t *testing.T) {
+	body := streamWhileEngineIdle(t, func(h http.Handler) http.Handler { return h })
 	if !strings.Contains(body, "\n:") && !strings.HasPrefix(body, ":") {
 		t.Fatalf("no heartbeat comment in idle stream: %q", body)
 	}
@@ -158,5 +167,35 @@ func TestTutorStreamHeartbeatWhileEngineIsIdleIntegration(t *testing.T) {
 	}
 	if strings.Join(names, ",") != "thread,delta,delta,delta,done" {
 		t.Fatalf("heartbeats must not disturb event framing: %v", names)
+	}
+}
+
+// brokenBeatWriter fails every keepalive write, as a dropped proxy connection would.
+type brokenBeatWriter struct {
+	http.ResponseWriter
+	beats *atomic.Int32
+}
+
+func (w brokenBeatWriter) Write(b []byte) (int, error) {
+	if strings.HasPrefix(string(b), ": keepalive") {
+		w.beats.Add(1)
+		return 0, errors.New("broken pipe")
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+func (w brokenBeatWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// TestTutorStreamStopsAfterHeartbeatWriteErrorIntegration: a failed heartbeat write ends the loop
+// at once instead of ticking on for the rest of the 600 ms stall (courses and lessontest do the same).
+func TestTutorStreamStopsAfterHeartbeatWriteErrorIntegration(t *testing.T) {
+	var beats atomic.Int32
+	_ = streamWhileEngineIdle(t, func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(brokenBeatWriter{ResponseWriter: w, beats: &beats}, r)
+		})
+	})
+	if got := beats.Load(); got != 1 {
+		t.Fatalf("heartbeat writes after the first failure: got %d attempts, want 1", got)
 	}
 }
