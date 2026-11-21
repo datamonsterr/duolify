@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/datamonsterr/duolify/services/api/internal/sse"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -230,10 +231,13 @@ func (s *Service) creationEvents(w http.ResponseWriter, r *http.Request, owner, 
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
 	controller := http.NewResponseController(w)
 	timer := time.NewTicker(200 * time.Millisecond)
 	defer timer.Stop()
+	beat := time.NewTicker(sse.Interval())
+	defer beat.Stop()
 	previous := ""
 	for {
 		c, err := s.creation(r.Context(), owner, id)
@@ -256,6 +260,10 @@ func (s *Service) creationEvents(w http.ResponseWriter, r *http.Request, owner, 
 		select {
 		case <-r.Context().Done():
 			return
+		case <-beat.C:
+			if sse.Heartbeat(w) != nil {
+				return
+			}
 		case <-timer.C:
 		}
 	}

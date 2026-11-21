@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/datamonsterr/duolify/services/api/internal/sse"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -944,10 +945,13 @@ func (s *Service) handleGeneration(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) streamGenerationEvents(w http.ResponseWriter, r *http.Request, owner, id string) {
 	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
 	controller := http.NewResponseController(w)
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
+	beat := time.NewTicker(sse.Interval())
+	defer beat.Stop()
 
 	previous := ""
 	for {
@@ -977,6 +981,10 @@ func (s *Service) streamGenerationEvents(w http.ResponseWriter, r *http.Request,
 		select {
 		case <-r.Context().Done():
 			return
+		case <-beat.C:
+			if sse.Heartbeat(w) != nil {
+				return
+			}
 		case <-ticker.C:
 		}
 	}

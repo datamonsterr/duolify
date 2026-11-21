@@ -100,7 +100,8 @@ func TestTutorStreamHeartbeatWhileEngineIsIdleIntegration(t *testing.T) {
 		}
 		return resp
 	}
-	decode := func(resp *http.Response) map[string]any {
+	decode := func(path string, body any, token string) map[string]any {
+		resp := call(path, body, token)
 		defer func() { _ = resp.Body.Close() }()
 		var m map[string]any
 		_ = json.NewDecoder(resp.Body).Decode(&m)
@@ -108,7 +109,7 @@ func TestTutorStreamHeartbeatWhileEngineIsIdleIntegration(t *testing.T) {
 	}
 	email := "sse-hb@example.test"
 	_ = call("/v1/auth/code", map[string]any{"email": email, "age_confirmed": true}, "").Body.Close()
-	tokens := decode(call("/v1/auth/verify", map[string]any{"email": email, "age_confirmed": true, "code": mail.Code(email)}, ""))
+	tokens := decode("/v1/auth/verify", map[string]any{"email": email, "age_confirmed": true, "code": mail.Code(email)}, "")
 	token := tokens["access_token"].(string)
 	claims, err := auth.ParseAccess(token)
 	if err != nil {
@@ -137,7 +138,7 @@ func TestTutorStreamHeartbeatWhileEngineIsIdleIntegration(t *testing.T) {
 	 SELECT id::text FROM c`, owner, creation)
 
 	msg := "stall please"
-	q := decode(call("/v1/courses/"+course+"/tutor/quote", map[string]any{"class": "short", "message": msg}, token))
+	q := decode("/v1/courses/"+course+"/tutor/quote", map[string]any{"class": "short", "message": msg}, token)
 	id := q["id"].(string)
 	_ = call("/v1/quotes/"+id+"/accept", map[string]any{}, token).Body.Close()
 	resp := call("/v1/courses/"+course+"/tutor/messages", map[string]any{"quote_id": id, "idempotency_key": "hb-1", "class": "short", "message": msg}, token)

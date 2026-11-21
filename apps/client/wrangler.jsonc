@@ -1,0 +1,11 @@
+{
+  // Web build served by Workers static assets (ADR 0014). Static assets only: no Worker script.
+  // Deploy is owner-run (task 2.5); no account id or credentials live here.
+  "name": "duolify-web",
+  "compatibility_date": "2026-10-31",
+  "assets": {
+    "directory": "./dist",
+    // Unmatched navigation requests get /index.html with 200 for client-side routes.
+    "not_found_handling": "single-page-application"
+  }
+}

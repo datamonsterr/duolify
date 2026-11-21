@@ -50,7 +50,7 @@ func TestCachePolicyMiddlewareDefaultsPrivateAndKeepsHandlerChoice(t *testing.T)
 		"/v1/pricing":                  "public, max-age=60",
 	} {
 		w := httptest.NewRecorder()
-		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		h.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
 		if got := w.Header().Get("Cache-Control"); got != want {
 			t.Errorf("%s: got %q want %q", path, got, want)
 		}
