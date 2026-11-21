@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -53,7 +54,7 @@ func LoadS3(getenv func(string) string) (*S3, error) {
 // Get reads a bounded immutable lesson object, trying the old store when the new one fails.
 func (s *S3) Get(ctx context.Context, key string) ([]byte, error) {
 	raw, err := s.get(ctx, key)
-	if err != nil && s.Old != nil && !errors.Is(err, errInvalid) {
+	if err != nil && s.Old != nil && errors.Is(err, s3fallback.ErrNotFound) {
 		if oldRaw, oldErr := s.Old.get(ctx, key); oldErr == nil {
 			return oldRaw, nil
 		}
@@ -67,6 +68,9 @@ func (s *S3) get(ctx context.Context, key string) ([]byte, error) {
 	}
 	out, err := s.Client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key)})
 	if err != nil {
+		if s3fallback.IsNotFound(err) {
+			return nil, fmt.Errorf("lesson object unavailable: %w", s3fallback.ErrNotFound)
+		}
 		return nil, errors.New("lesson object unavailable")
 	}
 	defer func() { _ = out.Body.Close() }()
@@ -155,7 +159,7 @@ func (s *S3) List(ctx context.Context, prefix string) ([]string, error) {
 // Exists treats only an explicit NotFound as an absent object, for restore checks.
 func (s *S3) Exists(ctx context.Context, key string) (bool, error) {
 	ok, err := s.exists(ctx, key)
-	if !ok && s.Old != nil && !errors.Is(err, errInvalid) {
+	if !ok && err == nil && s.Old != nil {
 		if oldOK, oldErr := s.Old.exists(ctx, key); oldErr == nil && oldOK {
 			return true, nil
 		}

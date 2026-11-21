@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sort"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/datamonsterr/duolify/services/api/internal/s3fallback"
 )
 
 const maxObjectBytes = 256 << 20
@@ -44,7 +46,7 @@ func (s *S3) readWithFallback(ctx context.Context, key, versionID string) ([]byt
 		in.VersionId = aws.String(versionID)
 	}
 	data, err := s.read(ctx, in)
-	if err != nil && s.Old != nil {
+	if err != nil && s.Old != nil && errors.Is(err, s3fallback.ErrNotFound) {
 		old := *in
 		old.Bucket = aws.String(s.Old.Bucket)
 		if oldData, oldErr := s.Old.read(ctx, &old); oldErr == nil {
@@ -57,6 +59,9 @@ func (s *S3) readWithFallback(ctx context.Context, key, versionID string) ([]byt
 func (s *S3) read(ctx context.Context, in *s3.GetObjectInput) ([]byte, error) {
 	out, err := s.Client.GetObject(ctx, in)
 	if err != nil {
+		if s3fallback.IsNotFound(err) {
+			return nil, fmt.Errorf("object get failed: %w", s3fallback.ErrNotFound)
+		}
 		return nil, errors.New("object get failed")
 	}
 	defer func() { _ = out.Body.Close() }()

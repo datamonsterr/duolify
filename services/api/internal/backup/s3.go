@@ -59,7 +59,7 @@ func newClient(endpoint, region, accessKey, secretKey string) *s3.Client {
 // Exists only treats an explicit NotFound as an absent object.
 func (s *S3) Exists(ctx context.Context, key string) (bool, error) {
 	ok, err := s.exists(ctx, key)
-	if !ok && s.Old != nil {
+	if !ok && err == nil && s.Old != nil {
 		if oldOK, oldErr := s.Old.exists(ctx, key); oldErr == nil && oldOK {
 			return true, nil
 		}
