@@ -16,13 +16,16 @@ type Store struct {
 	Queries *db.Queries
 }
 
-// New constructs a pool; readiness performs the live connectivity check.
-func New(ctx context.Context, databaseURL string) (*Store, error) {
+// New constructs a pool, applying options (for example the switchover gate's hooks) before it starts; readiness performs the live connectivity check.
+func New(ctx context.Context, databaseURL string, options ...func(*pgxpool.Config)) (*Store, error) {
 	cfg, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid DATABASE_URL")
 	}
 	cfg.ConnConfig.ConnectTimeout = 3 * time.Second
+	for _, option := range options {
+		option(cfg)
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create postgres pool: %w", err)

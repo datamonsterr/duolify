@@ -39,17 +39,19 @@ type Dependencies struct {
 	Pricing         http.Handler
 	CourseBrief     http.Handler
 	PricingAdmin    http.Handler
-	Quotes          http.Handler
-	Credits         http.Handler
-	Player          http.Handler
-	Notes           http.Handler
-	Eval            http.Handler
-	Characters      http.Handler
-	Steering        http.Handler
-	Tutor           http.Handler
-	Gamification    http.Handler
-	Social          http.Handler
-	Sharing         interface {
+	// Switchover serves the operator-only database switchover endpoints; nil leaves them unmounted.
+	Switchover   http.Handler
+	Quotes       http.Handler
+	Credits      http.Handler
+	Player       http.Handler
+	Notes        http.Handler
+	Eval         http.Handler
+	Characters   http.Handler
+	Steering     http.Handler
+	Tutor        http.Handler
+	Gamification http.Handler
+	Social       http.Handler
+	Sharing      interface {
 		MountRoutes(*http.ServeMux, func(http.Handler) http.Handler, func(http.Handler) http.Handler)
 	}
 	// NarrationVoices serves the voice list, quote and consent endpoints; nil when narration is off.
@@ -105,6 +107,9 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.HandleFunc("GET /v1/pricing", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "pricing unavailable"})
 		})
+	}
+	if deps.Switchover != nil {
+		mux.Handle("/admin/v1/switchover/", deps.Switchover)
 	}
 	if deps.PricingAdmin != nil && deps.Accounts != nil {
 		if protected, ok := deps.Accounts.(interface {

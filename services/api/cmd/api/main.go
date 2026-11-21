@@ -43,6 +43,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/datamonsterr/duolify/services/api/internal/steering"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
+	"github.com/datamonsterr/duolify/services/api/internal/switchover"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
@@ -110,10 +111,15 @@ func run(ctx context.Context, args []string) (result error) {
 		}
 	}
 
-	db, err := store.New(ctx, cfg.DatabaseURL)
+	gate, err := switchover.FromEnv(os.Getenv, cfg.DatabaseURL, logger)
 	if err != nil {
 		return err
 	}
+	db, err := store.New(ctx, cfg.DatabaseURL, gate.PoolConfig)
+	if err != nil {
+		return err
+	}
+	gate.Attach(db.Pool)
 	defer db.Close()
 	backupConfig, err := backup.Load(os.Getenv)
 	if err != nil {
@@ -130,7 +136,12 @@ func run(ctx context.Context, args []string) (result error) {
 	if err := backup.ReplayCharacterSuppressions(ctx, db.Pool, objects); err != nil {
 		return fmt.Errorf("apply Character suppression tombstones: %w", err)
 	}
-	stopMetrics, err := monitor.Listen(ctx, metricsAddr)
+	var operations []telemetry.Route
+	if command == "worker" {
+		// The worker hosts River, so the gate must be controllable there too; it has no accounts, so a shared token guards the loopback listener.
+		operations = append(operations, telemetry.Route{Pattern: "/admin/v1/switchover/", Handler: gate.Handler(switchover.BearerToken(os.Getenv("SWITCHOVER_WORKER_TOKEN")))})
+	}
+	stopMetrics, err := monitor.Listen(ctx, metricsAddr, operations...)
 	if err != nil {
 		return err
 	}
@@ -177,7 +188,7 @@ func run(ctx context.Context, args []string) (result error) {
 		if err != nil {
 			return err
 		}
-		if err = outlineQueue.Start(context.WithoutCancel(ctx)); err != nil {
+		if err = gate.Start(context.WithoutCancel(ctx), outlineQueue); err != nil {
 			return err
 		}
 		defer func() {
@@ -193,7 +204,7 @@ func run(ctx context.Context, args []string) (result error) {
 		if err != nil {
 			return err
 		}
-		if err = notesQueue.Start(context.WithoutCancel(ctx)); err != nil {
+		if err = gate.Start(context.WithoutCancel(ctx), notesQueue); err != nil {
 			return err
 		}
 		defer func() {
@@ -207,7 +218,7 @@ func run(ctx context.Context, args []string) (result error) {
 			if err != nil {
 				return err
 			}
-			if err = lessonQueue.Start(context.WithoutCancel(ctx)); err != nil {
+			if err = gate.Start(context.WithoutCancel(ctx), lessonQueue); err != nil {
 				return err
 			}
 			defer func() {
@@ -220,7 +231,7 @@ func run(ctx context.Context, args []string) (result error) {
 			if err != nil {
 				return err
 			}
-			if err = backfillQueue.Start(context.WithoutCancel(ctx)); err != nil {
+			if err = gate.Start(context.WithoutCancel(ctx), backfillQueue); err != nil {
 				return err
 			}
 			defer func() {
@@ -239,7 +250,7 @@ func run(ctx context.Context, args []string) (result error) {
 			if err != nil {
 				return err
 			}
-			if err = narrationQueue.Start(context.WithoutCancel(ctx)); err != nil {
+			if err = gate.Start(context.WithoutCancel(ctx), narrationQueue); err != nil {
 				return err
 			}
 			// Operator queue and retention: regenerate missing objects and delete expired assets.
@@ -250,7 +261,7 @@ func run(ctx context.Context, args []string) (result error) {
 				_ = narrationQueue.Stop(stopCtx)
 			}()
 		}
-		return worker.RunWithCredits(ctx, db.Pool, logger, creditService, service)
+		return worker.RunWithCredits(ctx, db.Pool, logger, creditService, gate.Start, service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {
@@ -407,7 +418,8 @@ func run(ctx context.Context, args []string) (result error) {
 	logger.Info("course invite push adapter", "adapter", pushName)
 	socialService.OnBlock(sharingService.CancelInvitesOnBlock)
 	go sharingService.MaintainInvites(ctx)
-	handler := httpapi.New(httpapi.Dependencies{
+	handler := gate.Middleware(httpapi.New(httpapi.Dependencies{
+		Switchover:              gate.Handler(switchover.OperatorOnly(db.Pool)),
 		Steering:                steeringService,
 		Sharing:                 sharingService,
 		Characters:              characters.NewHandler(characterService),
@@ -428,10 +440,10 @@ func run(ctx context.Context, args []string) (result error) {
 		Eval:                    eval.NewService(db.Pool, catalogue, monitor, events),
 		LessonTestTracerEnabled: cfg.LessonTestTracerEnabled,
 		LessonTest:              lessonHandler,
-		Postgres:                db.Ping,
+		Postgres:                func(ctx context.Context) error { return gate.Ping(ctx, db.Ping) },
 		Redis:                   func(ctx context.Context) error { return redis.Ping(ctx).Err() },
 		Engine:                  backend,
-	}, logger)
+	}, logger))
 	server := httpapi.NewServer(cfg.Addr, handler)
 	listener, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.Addr)
 	if err != nil {

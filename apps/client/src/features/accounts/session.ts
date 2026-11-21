@@ -52,7 +52,16 @@ export async function authRequest<T>(
     } catch {
       /* No server body on offline/proxy errors. */
     }
-    throw new AuthError(message, response.status, details);
+    const retryAfter = Number.parseInt(
+      response.headers.get("Retry-After") ?? "",
+      10,
+    );
+    throw new AuthError(
+      message,
+      response.status,
+      details,
+      Number.isFinite(retryAfter) && retryAfter >= 0 ? retryAfter : undefined,
+    );
   }
   return response.status === 204
     ? (undefined as T)
@@ -70,6 +79,8 @@ export class AuthError extends Error {
     message: string,
     public status: number,
     public details?: unknown,
+    /** Seconds from a Retry-After header (503 during a database switchover or read-only window). */
+    public retryAfter?: number,
   ) {
     super(message);
   }

@@ -1,4 +1,4 @@
-import { session } from "../accounts/session";
+import { AuthError, session } from "../accounts/session";
 import type { Position } from "./position";
 
 export type PlaybackSyncEvent = {
@@ -139,6 +139,27 @@ export function hasPendingSync(owner: string, lessonId: string): boolean {
 }
 
 // Serialize synchronization operations across parallel triggers
+const maxUnavailableRetries = 3;
+const maxRetryAfterSeconds = 30;
+
+/** Retries a write that the API held back with 503 + Retry-After (switchover or read-only window). */
+async function requestWithRetryAfter<T>(send: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await send();
+    } catch (error) {
+      if (
+        !(error instanceof AuthError) ||
+        error.status !== 503 ||
+        attempt >= maxUnavailableRetries
+      )
+        throw error;
+      const seconds = Math.min(error.retryAfter ?? 2, maxRetryAfterSeconds);
+      await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+    }
+  }
+}
+
 let syncingPromise: Promise<Position | null> = Promise.resolve(null);
 
 export function synchronizeProgress(
@@ -182,13 +203,15 @@ export function synchronizeProgress(
         removeSyncEvents(owner, lessonId, invalid);
         if (events.length === 0) return position;
         const body = { events };
-        const response = await session.request<{
-          synced: boolean;
-          action_keys?: string[];
-          acked_keys?: string[];
-          rejected_keys?: string[];
-          position: Position;
-        }>(`/v1/lessons/${lessonId}/sync`, "POST", body);
+        const response = await requestWithRetryAfter(() =>
+          session.request<{
+            synced: boolean;
+            action_keys?: string[];
+            acked_keys?: string[];
+            rejected_keys?: string[];
+            position: Position;
+          }>(`/v1/lessons/${lessonId}/sync`, "POST", body),
+        );
 
         position = response?.position ?? position;
         if (!response?.synced) return position;

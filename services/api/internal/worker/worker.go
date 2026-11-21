@@ -134,11 +134,20 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger) error
 
 // Run starts queue processing and waits for a signal context, then drains workers.
 func Run(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, backups ...*backup.Service) error {
-	return RunWithCredits(ctx, pool, logger, nil, backups...)
+	return RunWithCredits(ctx, pool, logger, nil, nil, backups...)
+}
+
+// StartFunc starts a queue; the switchover gate supplies one that can stop and restart it.
+type StartFunc func(context.Context, Queue) error
+
+// Queue is a started River client.
+type Queue = interface {
+	Start(context.Context) error
+	Stop(context.Context) error
 }
 
 // RunWithCredits runs durable credit maintenance together with backup workers.
-func RunWithCredits(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, expirer Expirer, backups ...*backup.Service) error {
+func RunWithCredits(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, expirer Expirer, start StartFunc, backups ...*backup.Service) error {
 	monitor := telemetry.New(logger)
 	if len(backups) > 0 && backups[0] != nil && backups[0].Monitor() != nil {
 		monitor = backups[0].Monitor()
@@ -150,7 +159,10 @@ func RunWithCredits(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger
 	if err != nil {
 		return err
 	}
-	if err := client.Start(context.WithoutCancel(ctx)); err != nil {
+	if start == nil {
+		start = func(ctx context.Context, q Queue) error { return q.Start(ctx) }
+	}
+	if err := start(context.WithoutCancel(ctx), client); err != nil {
 		return err
 	}
 	<-ctx.Done()
