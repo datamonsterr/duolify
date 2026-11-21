@@ -113,7 +113,7 @@ run = "bash infra/deploy/selfhost.sh restore-drill"
 
 ["infra:deploy-plan"]
 description = "Production overlay: static plan check (private Engine, direct Postgres, WAL archiving, backup env, DR job, off-site backup location, alerts) plus its unit tests"
-run = ["bash infra/deploy/test-deploy-plan.sh", "bash infra/deploy/walship/test-walship.sh", "bash infra/deploy/walship/test-archive-wal.sh", "bash infra/deploy/test-backup-lifecycle.sh", "bash infra/deploy/deploy-plan.sh"]
+run = ["bash infra/deploy/test-deploy-plan.sh", "bash infra/deploy/test-deploy.sh", "bash infra/deploy/walship/test-walship.sh", "bash infra/deploy/walship/test-archive-wal.sh", "bash infra/deploy/test-backup-lifecycle.sh", "bash infra/deploy/deploy-plan.sh"]
 
 ["infra:backup-lifecycle"]
 description = "Apply the wal/ + base/ retention lifecycle to the backup bucket (admin key from env: BACKUP_ADMIN_S3_ACCESS_KEY_ID/SECRET_ACCESS_KEY plus BACKUP_S3_ENDPOINT/REGION/BUCKET; needs the aws CLI; run from an admin machine, not the VM)"
@@ -148,7 +148,7 @@ description = "Production overlay: the nightly DR copy keeps every object versio
 run = "bash infra/deploy/overlay-tests.sh dr"
 
 ["infra:deploy-vm"]
-description = "Deploy the tested commit to the VM over SSH (CI only; needs DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS, DEPLOY_SHA)"
+description = "Deploy the tested commit to the VM over SSH (CI only; needs DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS, DEPLOY_SHA and the digests/<image> files from the image build)"
 run = '''
 set -eu
 : "${DEPLOY_HOST:?}" "${DEPLOY_USER:?}" "${DEPLOY_SSH_KEY:?}" "${DEPLOY_KNOWN_HOSTS:?}" "${DEPLOY_SHA:?}"
@@ -158,5 +158,13 @@ install -d -m 700 "$HOME/.ssh"
 printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >"$HOME/.ssh/known_hosts"
 ssh_cmd="ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts $DEPLOY_USER@$DEPLOY_HOST"
 git archive "$DEPLOY_SHA" infra | $ssh_cmd "mkdir -p '$path' && tar -x -C '$path'"
-$ssh_cmd "cd '$path' && bash infra/deploy/deploy.sh 'sha-$DEPLOY_SHA'"
+# One digest-pinned reference per image, from the image build's artifacts (digests/<image>).
+images=''
+for name in api worker engine web backup-init; do
+  ref=$(cat "${DEPLOY_DIGESTS_DIR:-digests}/$name")
+  [[ $ref =~ ^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$ ]] || { echo "ERROR: $name is not a digest-pinned reference: '$ref'" >&2; exit 1; }
+  images="$images $name=$ref"
+done
+# shellcheck disable=SC2086 # references are validated above and again by deploy.sh
+$ssh_cmd "cd '$path' && bash infra/deploy/deploy.sh 'sha-$DEPLOY_SHA'$images"
 '''

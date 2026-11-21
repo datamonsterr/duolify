@@ -49,12 +49,12 @@ x-backup-writer: &backup-writer
   BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:?run selfhost.sh init}
 
 x-api-image: &api-image
-  image: ${IMAGE_REGISTRY:-duolify}/api:${IMAGE_TAG:-local}
+  image: ${API_IMAGE:-${IMAGE_REGISTRY:-duolify}/api:${IMAGE_TAG:-local}}
   build: {context: ../../services/api, target: api}
 
 services:
   proxy:
-    image: ${IMAGE_REGISTRY:-duolify}/web:${IMAGE_TAG:-local}
+    image: ${WEB_IMAGE:-${IMAGE_REGISTRY:-duolify}/web:${IMAGE_TAG:-local}}
     build: {context: ../.., dockerfile: apps/client/Dockerfile, target: web}
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
@@ -139,7 +139,7 @@ services:
   # The binary refuses anything but DUOLIFY_ENV=development by design: it only
   # administers this local RustFS, never a cloud object store.
   backup-init:
-    image: ${IMAGE_REGISTRY:-duolify}/backup-init:${IMAGE_TAG:-local}
+    image: ${BACKUP_INIT_IMAGE:-${IMAGE_REGISTRY:-duolify}/backup-init:${IMAGE_TAG:-local}}
     build: {context: ../../services/api, target: backup-init}
     environment:
       DUOLIFY_ENV: development
@@ -170,7 +170,7 @@ services:
     logging: *logs
 
   engine:
-    image: ${IMAGE_REGISTRY:-duolify}/engine:${IMAGE_TAG:-local}
+    image: ${ENGINE_IMAGE:-${IMAGE_REGISTRY:-duolify}/engine:${IMAGE_TAG:-local}}
     build: {context: ../.., dockerfile: engine/Dockerfile}
     environment:
       DUOLIFY_ENV: ${DUOLIFY_ENV:-development}
@@ -211,7 +211,7 @@ services:
 
   # River jobs, including the encrypted nightly backup at 02:00 UTC (and on start).
   worker:
-    image: ${IMAGE_REGISTRY:-duolify}/worker:${IMAGE_TAG:-local}
+    image: ${WORKER_IMAGE:-${IMAGE_REGISTRY:-duolify}/worker:${IMAGE_TAG:-local}}
     build: {context: ../../services/api, target: worker}
     command: [worker]
     environment:
