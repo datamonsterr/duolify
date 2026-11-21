@@ -42,7 +42,9 @@ describe("progress writes during a read-only or switchover window", () => {
           }),
       ),
     );
-    const error = await authRequest("/v1/x", {}, "token").catch((e) => e);
+    const error = (await authRequest("/v1/x", {}, "token").catch(
+      (e) => e,
+    )) as AuthError;
     expect(error).toBeInstanceOf(AuthError);
     expect(error.status).toBe(503);
     expect(error.retryAfter).toBe(7);
