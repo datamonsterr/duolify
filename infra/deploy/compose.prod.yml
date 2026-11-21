@@ -87,8 +87,8 @@ services:
     volumes: [wal-spool:/wal-spool]
     restart: "no"
 
-  # WAL shipping, nightly base backup (7-day PITR window comes from bucket lifecycle on wal/ and
-  # base/) and nightly DR copy of the application bucket. WALSHIP_JOBS must keep all three.
+  # WAL shipping, nightly base backup (7-day PITR window comes from the bucket lifecycle on wal/ and
+  # base/: `mise run infra:backup-lifecycle`, checked by `infra:backup-preflight`) and nightly DR copy of the application bucket. WALSHIP_JOBS must keep all three.
   walship:
     image: ${IMAGE_REGISTRY:-duolify}/walship:${IMAGE_TAG:-local}
     build: {context: ./walship}

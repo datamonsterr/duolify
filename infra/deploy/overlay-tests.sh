@@ -5,6 +5,7 @@
 #   overlay-tests.sh pitr   PITR drill: base backup + archived WAL restored to a point in time
 #   overlay-tests.sh redis  Redis cold start: flush Redis, stack still serves, state rebuilds from Postgres
 #   overlay-tests.sh dr     nightly DR copy keeps every object version, even after a source delete
+#   overlay-tests.sh lifecycle  backup-lifecycle.sh apply/verify against the RustFS backup bucket
 #
 # Runs under its own Compose project and ports (never the owner's stack); removes its containers and
 # volumes on exit. Needs Docker and the duolify/*:local images (built on demand).
@@ -124,10 +125,39 @@ test_dr() {
   say "dr passed"
 }
 
+# backup-lifecycle.sh runs inside the walship image (aws CLI) on the stack network, with the RustFS root key.
+lifecycle_sh() {
+  local envf=$work/lifecycle.env
+  (umask 077 && {
+    printf 'BACKUP_S3_ENDPOINT=http://objectstore:9000\nBACKUP_S3_REGION=us-east-1\nBACKUP_S3_BUCKET=duolify-backups\n'
+    printf 'BACKUP_ADMIN_S3_ACCESS_KEY_ID=duolify-admin\nBACKUP_ADMIN_S3_SECRET_ACCESS_KEY=%s\n' "$(sed -n 's/^S3_ROOT_SECRET_ACCESS_KEY=//p' "$SELFHOST_ENV_FILE" | tail -n 1)"
+  } >"$envf")
+  compose run --rm -T --no-deps --entrypoint bash --env-from-file "$envf" --volume "$here/backup-lifecycle.sh:/lc.sh:ro" walship /lc.sh "$@"
+}
+
+test_lifecycle() {
+  start_stack
+  if lifecycle_sh verify >"$work/o" 2>&1; then cat "$work/o"; die "verify passed before any lifecycle rule was applied"; fi
+  grep -q 'no enabled lifecycle rule' "$work/o" || { cat "$work/o"; die "verify did not report the missing rule"; }
+  lifecycle_sh apply
+  lifecycle_sh verify
+  if lifecycle_sh verify --require-base >"$work/o" 2>&1; then die "verify --require-base passed with no base backup"; fi
+  grep -q 'no base backup' "$work/o" || { cat "$work/o"; die "verify did not report the missing base"; }
+  compose exec -T walship /walship.sh base
+  lifecycle_sh verify --require-base
+  # A rule that expires wal/ no later than base/ must be rejected.
+  root_aws s3api put-bucket-lifecycle-configuration --bucket duolify-backups --lifecycle-configuration \
+    '{"Rules":[{"ID":"b","Status":"Enabled","Filter":{"Prefix":"base/"},"Expiration":{"Days":9},"NoncurrentVersionExpiration":{"NoncurrentDays":1}},{"ID":"w","Status":"Enabled","Filter":{"Prefix":"wal/"},"Expiration":{"Days":9},"NoncurrentVersionExpiration":{"NoncurrentDays":1}}]}'
+  if lifecycle_sh verify >"$work/o" 2>&1; then die "verify accepted wal/ expiring no later than base/"; fi
+  grep -q 'must expire later' "$work/o" || { cat "$work/o"; die "verify did not explain the wal/base ordering"; }
+  say "lifecycle passed"
+}
+
 case ${1:-} in
+  lifecycle) test_lifecycle ;;
   e2e) test_e2e ;;
   pitr) test_pitr ;;
   redis) test_redis ;;
   dr) test_dr ;;
-  *) sed -n '2,7p' "$0" >&2; exit 2 ;;
+  *) sed -n '2,8p' "$0" >&2; exit 2 ;;
 esac

@@ -113,7 +113,19 @@ run = "bash infra/deploy/selfhost.sh restore-drill"
 
 ["infra:deploy-plan"]
 description = "Production overlay: static plan check (private Engine, direct Postgres, WAL archiving, backup env, DR job, off-site backup location, alerts) plus its unit tests"
-run = ["bash infra/deploy/test-deploy-plan.sh", "bash infra/deploy/walship/test-walship.sh", "bash infra/deploy/walship/test-archive-wal.sh", "bash infra/deploy/deploy-plan.sh"]
+run = ["bash infra/deploy/test-deploy-plan.sh", "bash infra/deploy/walship/test-walship.sh", "bash infra/deploy/walship/test-archive-wal.sh", "bash infra/deploy/test-backup-lifecycle.sh", "bash infra/deploy/deploy-plan.sh"]
+
+["infra:backup-lifecycle"]
+description = "Apply the wal/ + base/ retention lifecycle to the backup bucket (admin key from env: BACKUP_ADMIN_S3_ACCESS_KEY_ID/SECRET_ACCESS_KEY plus BACKUP_S3_ENDPOINT/REGION/BUCKET; needs the aws CLI; run from an admin machine, not the VM)"
+run = "bash infra/deploy/backup-lifecycle.sh apply"
+
+["infra:backup-preflight"]
+description = "Verify the backup bucket: versioned, lifecycle matches the policy (WAL outlives base, noncurrent expiry) and a base newer than the PITR window exists (same env as infra:backup-lifecycle)"
+run = "bash infra/deploy/backup-lifecycle.sh verify --require-base"
+
+["infra:overlay-lifecycle"]
+description = "Production overlay: apply and verify the backup-bucket lifecycle against local RustFS"
+run = "bash infra/deploy/overlay-tests.sh lifecycle"
 
 ["infra:overlay-e2e"]
 description = "Production overlay: bring up API x2, Engine, Redis, Postgres with WAL archiving on local RustFS; smoke and WAL shipping"
