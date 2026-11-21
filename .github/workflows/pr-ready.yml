@@ -44,9 +44,24 @@ jobs:
           - image: api
             context: services/api
             file: services/api/Dockerfile
+            target: api
+          - image: worker
+            context: services/api
+            file: services/api/Dockerfile
+            target: worker
+          - image: backup-init
+            context: services/api
+            file: services/api/Dockerfile
+            target: backup-init
           - image: engine
             context: .
             file: engine/Dockerfile
+            target: ''
+          # Caddy edge + static web client for the self-hosted stack (infra/deploy).
+          - image: web
+            context: .
+            file: apps/client/Dockerfile
+            target: web
     env:
       MISE_AUTO_INSTALL: 'false'
     steps:
@@ -65,6 +80,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
           push: true
           tags: |
             ghcr.io/${{ github.repository }}/${{ matrix.image }}:sha-${{ github.sha }}

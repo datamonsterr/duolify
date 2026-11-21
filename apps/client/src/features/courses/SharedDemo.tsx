@@ -9,7 +9,7 @@ import type { Preview } from "./CoursePreview";
 import "./course-brief.css";
 
 type Demo = { kind: "shared_demo"; version: "sky-v1"; preview: Preview };
-const base = import.meta.env.VITE_API_URL || "http://localhost:8080";
+const base = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 async function loadDemo(signal: AbortSignal): Promise<Demo> {
   // Public authored content: no authorization, profile or draft is sent.
   const response = await fetch(`${base}/v1/courses/shared-demo`, {
