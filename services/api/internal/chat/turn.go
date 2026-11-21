@@ -340,11 +340,9 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		go func() {
 			for {
 				ev, rerr := stream.Recv()
-				select {
-				case msgs <- received{ev, rerr}:
-				case <-streamCtx.Done():
-					return
-				}
+				// Always deliver, including the terminal error: the loop below consumes until it
+				// sees one, so this send never blocks forever.
+				msgs <- received{ev, rerr}
 				if rerr != nil {
 					return
 				}
