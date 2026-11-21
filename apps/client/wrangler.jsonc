@@ -6,6 +6,6 @@
   "assets": {
     "directory": "./dist",
     // Unmatched navigation requests get /index.html with 200 for client-side routes.
-    "not_found_handling": "single-page-application"
-  }
+    "not_found_handling": "single-page-application",
+  },
 }
