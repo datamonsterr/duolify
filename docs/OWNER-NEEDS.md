@@ -58,7 +58,8 @@ Approve a branch protection rule on `main` that requires `checks / ci-ok`. I can
 4. Provision staging in `hel1` (#238): app and database VMs on a private network, firewall limited to Cloudflare ranges, SSH by key, a versioned `lesson-assets` bucket in `hel1`, and backup and DR-copy buckets in the D3 location with versioning and retention.
 5. Create GitHub environment `staging` with the deploy credentials and S3 keys. The S3 key used for the conformance run (`mise run infra:s3-conformance`, PR #260) needs rights to create and delete buckets, set versioning, use object lock and bypass governance retention.
    From the prod overlay (PR #263), also needed for staging and later production:
-   - the backup key must not be able to delete, and the backup bucket needs a 7-day lifecycle rule on `wal/` and `base/`;
+   - the backup key must not be able to delete; create one separate admin key (`BACKUP_ADMIN_S3_*`) and run `mise run infra:backup-lifecycle` once against the real backup bucket, then `mise run infra:backup-preflight` to verify (base backups expire after 9 days, WAL after 10; tested only against RustFS so far);
+   - the deploy job needs one successful `pr-ready` run on `main` first (it deploys the image digests that run published), which in turn needs X1;
    - set `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` and `DEPLOY_KNOWN_HOSTS` in the GitHub environment; the deploy job skips itself until they exist;
    - set up the VM by `docs/infra/hardening.md`, run `SELFHOST_ENV_TEMPLATE=infra/deploy/.env.prod.example bash infra/deploy/selfhost.sh init`, add the Hetzner secrets to the env file, and move the backup recovery key off the VM;
    - **Decision D7: container images.** Make the GHCR packages public (simplest; images hold no secrets), or keep them private and give the VM a read-only token. Suggested: private with a read-only token.
