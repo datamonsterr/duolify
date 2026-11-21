@@ -1,0 +1,4 @@
+# No immutable rule for /assets/*. With not_found_handling "single-page-application" a missing
+# /assets/<old-hash>.js is answered with index.html (200), and `_headers` matches the request URL,
+# so a rule on /assets/* would also mark that fallback HTML immutable. Hashed assets keep the
+# Workers default (public, max-age=0, must-revalidate + ETag): a cheap 304 on repeat visits.

@@ -1,0 +1,25 @@
+# Load baseline overlay (E18-02): the API talks to a mock Engine (gRPC, per proto/) instead of the
+# real one, and SSE_HEARTBEAT_INTERVAL is passed through. Use with the root docker-compose.yml.
+services:
+  mock-engine:
+    image: duolify-mock-engine:local
+    build:
+      context: services/api
+      dockerfile: Dockerfile
+      target: mock-engine
+    environment:
+      MOCK_ENGINE_CHAT_SECONDS: ${SSE_SECONDS:-600}
+    healthcheck:
+      test: [CMD, /mockengine, healthcheck]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  api:
+    environment:
+      ENGINE_ADDR: http://mock-engine:50051
+      SSE_HEARTBEAT_INTERVAL: ${SSE_HEARTBEAT_INTERVAL:-15s}
+      # Synthetic origin the fixture manifest is validated against (playerfixture.AssetOrigin).
+      LESSON_ASSET_ORIGIN: https://assets.example.test
+    depends_on:
+      engine: !reset null
+      mock-engine: {condition: service_healthy}

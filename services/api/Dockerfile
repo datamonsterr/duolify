@@ -6,7 +6,8 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api && \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/backup-init ./cmd/backup-init
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/backup-init ./cmd/backup-init && \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/mockengine ./cmd/mockengine
 
 # The public recipient is runtime config; recovery private keys never enter images.
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
@@ -33,3 +34,10 @@ USER 65532:65532
 EXPOSE 8080
 ENTRYPOINT ["/api"]
 CMD ["serve"]
+
+# Load-baseline only (E18-02): never deployed; stands in for the Engine behind the API.
+FROM gcr.io/distroless/static-debian13:nonroot AS mock-engine
+COPY --from=build /out/mockengine /mockengine
+USER 65532:65532
+EXPOSE 50051
+ENTRYPOINT ["/mockengine"]

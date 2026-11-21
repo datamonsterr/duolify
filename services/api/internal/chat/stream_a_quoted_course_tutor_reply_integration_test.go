@@ -70,6 +70,9 @@ func (e *tutorEngine) Chat(r *enginev1.ChatRequest, stream enginev1.EngineServic
 		}
 		return status.Error(codes.Unavailable, "provider died")
 	}
+	if strings.HasPrefix(text, "stall") {
+		time.Sleep(600 * time.Millisecond)
+	}
 	if strings.HasPrefix(text, "slow") {
 		time.Sleep(150 * time.Millisecond)
 	}

@@ -22,7 +22,7 @@ run = '''
 set -eu
 docker compose config -q
 git ls-files --cached --others --exclude-standard -z -- '*Dockerfile' | xargs -0 hadolint
-shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh infra/hooks/*.sh infra/s3/*.sh
+shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh infra/hooks/*.sh infra/s3/*.sh infra/load/*.sh infra/pg/*.sh
 docker compose --profile observability run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
 '''
 
@@ -63,6 +63,25 @@ description = "Production deployment release gate (gated on E11-07; disabled in 
 run = '''
 echo "ERROR: Production live deployment is disabled in AFK tickets. Requires E11-07 owner approval." >&2
 exit 1
+'''
+
+["infra:load-baseline"]
+description = "Load baseline on a throwaway compose stack: k6 1k-DAU read mix (public + authenticated) plus a 10-minute Tutor chat SSE stream through the API with a mock Engine behind it (READ_RPS, READ_DURATION, SSE_SECONDS, SSE_HEARTBEAT_INTERVAL, MAX_GAP_SECONDS)"
+run = 'bash infra/load/run.sh'
+
+["infra:load-baseline-test"]
+description = "E2E: short load-baseline variant (read mix + Tutor chat stream through the API) against a throwaway compose stack"
+run = 'bash infra/load/baseline.e2e.sh'
+
+["infra:pg-replication-check"]
+description = "Logical-replication check (PUBLISHER_URL, SUBSCRIBER_URL; --compare for row counts + checksum sample). Without URLs, runs its integration test on two throwaway Postgres 18 containers"
+usage = 'flag "--compare" help="Compare row counts per table and a checksum sample between the two databases"'
+run = '''
+if [ -n "${PUBLISHER_URL:-}" ] && [ -n "${SUBSCRIBER_URL:-}" ]; then
+  bash infra/pg/replication-check.sh $([ "${usage_compare:-false}" = true ] && echo --compare)
+else
+  bash infra/pg/replication-check.e2e.sh
+fi
 '''
 
 ["infra:restore-drill"]

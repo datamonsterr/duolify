@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/datamonsterr/duolify/services/api/internal/sse"
 	"io"
 	"math"
 	"net/http"
@@ -326,12 +327,61 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	var reply strings.Builder
 	var reported *enginev1.Usage
 	var streamErr, typedErr error
-	sse := false
+	streaming := false
 	if err != nil {
 		streamErr = err
 	} else {
+		// Recv blocks, so read in a goroutine and keep the stream warm while the Engine is silent.
+		type received struct {
+			ev  *enginev1.ChatEvent
+			err error
+		}
+		msgs := make(chan received)
+		loopDone := make(chan struct{})
+		defer close(loopDone)
+		go func() {
+			for {
+				ev, rerr := stream.Recv()
+				// Deliver every result, including the terminal error, until the loop below exits
+				// (it may stop early on a failed heartbeat write).
+				select {
+				case msgs <- received{ev, rerr}:
+				case <-loopDone:
+					return
+				}
+				if rerr != nil {
+					return
+				}
+			}
+		}()
+		begin := func() {
+			if streaming {
+				return
+			}
+			startSSE(w)
+			writeEvent(w, "thread", map[string]any{"thread_id": thread})
+			if pin.SpeakerKey != "" {
+				writeEvent(w, "tutor", tutorEvent(pin))
+			}
+			streaming = true
+		}
+		beat := time.NewTicker(sse.Interval())
+		defer beat.Stop()
+	recv:
 		for {
-			ev, rerr := stream.Recv()
+			var m received
+			select {
+			case m = <-msgs:
+			case <-beat.C:
+				begin()
+				if herr := sse.Heartbeat(w); herr != nil {
+					// The client connection is gone: stop reading and settle as an interrupted turn.
+					streamErr = herr
+					break recv
+				}
+				continue
+			}
+			ev, rerr := m.ev, m.err
 			if errors.Is(rerr, io.EOF) {
 				break
 			}
@@ -344,14 +394,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 				if e.Delta == "" {
 					continue
 				}
-				if !sse {
-					startSSE(w)
-					writeEvent(w, "thread", map[string]any{"thread_id": thread})
-					if pin.SpeakerKey != "" {
-						writeEvent(w, "tutor", tutorEvent(pin))
-					}
-					sse = true
-				}
+				begin()
 				reply.WriteString(e.Delta)
 				writeEvent(w, "delta", map[string]any{"text": e.Delta})
 			case *enginev1.ChatEvent_Usage:
@@ -389,6 +432,18 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		}
 		cleanup = !s.tombstone(turn, finished.Reason, job.ID)
 		ended(0)
+		if streaming {
+			// A heartbeat already committed the 200: report the failure as an event.
+			code := "engine_unavailable"
+			switch finished.Reason {
+			case "stop", "disconnect":
+				code = "stopped"
+			case "first_token_timeout", "idle_timeout", "deadline_exceeded", "provider_error":
+				code = finished.Reason
+			}
+			writeEvent(w, "error", map[string]any{"code": code, "interrupted": false, "retryable": finished.Retryable})
+			return
+		}
 		switch finished.Reason {
 		case "stop", "disconnect":
 			fail(w, http.StatusConflict, "stopped")
@@ -442,7 +497,7 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		s.opts.Logger.Error("tutor settlement failed", "error", err)
 		abort()
 		failure("persist_failed", false, true)
-		if sse {
+		if streaming {
 			writeEvent(w, "error", map[string]any{"code": "persist_failed", "interrupted": false, "retryable": true})
 		} else {
 			fail(w, http.StatusServiceUnavailable, "unavailable")

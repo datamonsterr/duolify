@@ -551,7 +551,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		protected.ServeHTTP(w, r)
 	})
 
-	return Middleware(logger, guard, deps.Monitor)
+	return Middleware(logger, CachePolicy(guard), deps.Monitor)
 }
 func writeJSON(w http.ResponseWriter, code int, value any) {
 	w.Header().Set("Content-Type", "application/json")
