@@ -14,3 +14,37 @@ groups:
           severity: critical
         annotations:
           summary: "Duolify {{ $labels.job }} metrics unavailable"
+  - name: duolify-data-protection
+    rules:
+      - alert: DuolifyDiskLow
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes < 0.15
+        for: 10m
+        labels: {severity: critical}
+        annotations: {summary: "Less than 15% disk free on {{ $labels.mountpoint }}"}
+      - alert: DuolifyWALArchiveFailing
+        expr: increase(duolify_pg_archive_failed_total[15m]) > 0
+        labels: {severity: critical}
+        annotations: {summary: "Postgres archive_command is failing; PITR window is shrinking"}
+      - alert: DuolifyWALSpoolBacklog
+        expr: duolify_wal_spool_oldest_age_seconds > 900
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "WAL segments wait over 15 minutes to reach the off-site bucket"}
+      - alert: DuolifyBackupStale
+        expr: time() - duolify_dump_last_object_timestamp_seconds > 129600 or time() - duolify_base_last_success_timestamp_seconds > 129600
+        labels: {severity: critical}
+        annotations: {summary: "Newest nightly dump or base backup is older than 36 hours"}
+      - alert: DuolifyReplicationLag
+        expr: duolify_pg_replication_lag_bytes > 67108864
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "A Postgres replica is more than 64 MiB behind"}
+      - alert: DuolifyBucketUsageHigh
+        expr: duolify_bucket_bytes > 0.8 * 1099511627776
+        for: 1h
+        labels: {severity: warning}
+        annotations: {summary: "Bucket {{ $labels.bucket }} holds over 0.8 TiB; review plan and retention"}
+      - alert: DuolifyDRCopyStale
+        expr: time() - duolify_dr_last_success_timestamp_seconds > 129600
+        labels: {severity: critical}
+        annotations: {summary: "The lesson-assets DR copy is older than 36 hours"}

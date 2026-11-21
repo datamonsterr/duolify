@@ -1,0 +1,134 @@
+# Production overlay (ADR 0014, hel1) on top of compose.yml:
+#   docker compose -f compose.yml -f compose.prod.yml --env-file .env up -d
+# (selfhost.sh does this when SELFHOST_OVERLAY points at this file.)
+#
+# Adds: API x2, Postgres 18 WAL archiving (7-day PITR, encrypted, shipped to the backup bucket
+# outside Helsinki), the nightly DR copy, node-exporter + Prometheus alerts. Object storage comes
+# from env: S3_* (Hetzner Object Storage hel1 in production) and BACKUP_S3_* (Falkenstein/Nuremberg).
+# RustFS is local-only: set COMPOSE_PROFILES=local-s3 (CI does) to run it, its initializers and
+# the scoped identities; otherwise those services do not start.
+x-walship-env: &walship-env
+  PGHOST: postgres
+  PGUSER: duolify
+  PGPASSWORD: ${POSTGRES_PASSWORD:?run selfhost.sh init}
+  BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-http://objectstore:9000}
+  BACKUP_S3_REGION: ${BACKUP_S3_REGION:-us-east-1}
+  BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-duolify-backups}
+  BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-duolify-backup-writer}
+  BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:?run selfhost.sh init}
+  S3_ENDPOINT: ${S3_ENDPOINT:-http://objectstore:9000}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_BUCKET: ${S3_BUCKET:-duolify}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-duolify-app}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?run selfhost.sh init}
+  BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?run selfhost.sh init}
+
+# Object-store endpoints from env instead of the local RustFS defaults.
+x-s3-env: &s3-env
+  S3_ENDPOINT: ${S3_ENDPOINT:-http://objectstore:9000}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_BUCKET: ${S3_BUCKET:-duolify}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-duolify-app}
+  BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-http://objectstore:9000}
+  BACKUP_S3_REGION: ${BACKUP_S3_REGION:-us-east-1}
+  BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-duolify-backups}
+  BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-duolify-backup-writer}
+
+services:
+  objectstore: {profiles: [local-s3]}
+  s3-init: {profiles: [local-s3]}
+  backup-init: {profiles: [local-s3]}
+
+  # The engine is reachable only on the private network: never add `ports` here.
+  engine:
+    labels: {duolify.exposure: private}
+
+  api:
+    environment: *s3-env
+    depends_on:
+      backup-init: {condition: service_completed_successfully, required: false}
+    deploy: {replicas: 2, resources: {limits: {cpus: "1", memory: 512M}}}
+
+  worker:
+    environment:
+      <<: *s3-env
+      S3_ACCESS_KEY_ID: ""
+    depends_on:
+      backup-init: {condition: service_completed_successfully, required: false}
+
+  # Direct connections only (session advisory locks, River): no pooler in front of Postgres.
+  postgres:
+    command:
+      - postgres
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_timeout=300
+      - -c
+      # Copy into the spool atomically; walship encrypts and uploads, then removes the file.
+      - archive_command=test ! -f /wal-spool/%f && cp %p /wal-spool/%f.tmp && mv /wal-spool/%f.tmp /wal-spool/%f
+    configs:
+      - source: pg_hba
+        target: /etc/postgresql/pg_hba.conf
+    volumes: [wal-spool:/wal-spool]
+    depends_on:
+      spool-init: {condition: service_completed_successfully}
+
+  # One-shot: let the postgres user (uid 999) write into the spool volume.
+  spool-init:
+    image: ${IMAGE_REGISTRY:-duolify}/walship:${IMAGE_TAG:-local}
+    build: {context: ./walship}
+    entrypoint: [chown, "999:999", /wal-spool]
+    volumes: [wal-spool:/wal-spool]
+    restart: "no"
+
+  # WAL shipping, nightly base backup (7-day PITR window comes from bucket lifecycle on wal/ and
+  # base/) and nightly DR copy of the application bucket. WALSHIP_JOBS must keep all three.
+  walship:
+    image: ${IMAGE_REGISTRY:-duolify}/walship:${IMAGE_TAG:-local}
+    build: {context: ./walship}
+    environment:
+      <<: *walship-env
+      WALSHIP_JOBS: ship,base,dr-copy
+    volumes: [wal-spool:/wal-spool, walship-metrics:/metrics]
+    depends_on:
+      postgres: {condition: service_healthy}
+      backup-init: {condition: service_completed_successfully, required: false}
+    restart: unless-stopped
+    logging: {driver: json-file, options: {max-size: "10m", max-file: "5"}}
+    deploy: {resources: {limits: {cpus: "1", memory: 256M}}}
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    command:
+      - --path.rootfs=/host
+      - --collector.textfile.directory=/metrics
+    volumes: ["/:/host:ro,rslave", "walship-metrics:/metrics:ro"]
+    restart: unless-stopped
+    deploy: {resources: {limits: {cpus: "0.25", memory: 64M}}}
+
+  prometheus:
+    image: prom/prometheus:v3.8.0
+    command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.retention.time=15d]
+    volumes:
+      - ../observability/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
+      - ../observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      node-exporter: {condition: service_started}
+    restart: unless-stopped
+    deploy: {resources: {limits: {cpus: "0.5", memory: 256M}}}
+
+configs:
+  pg_hba:
+    content: |
+      local all all trust
+      host all all all scram-sha-256
+      host replication all all scram-sha-256
+
+volumes:
+  wal-spool:
+  walship-metrics:
+  prometheus-data:

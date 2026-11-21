@@ -8,6 +8,7 @@
 #   selfhost.sh smoke          health, routing, CORS, SSE streaming and web checks via the proxy
 #   selfhost.sh backup         make sure today's encrypted database backup exists
 #   selfhost.sh restore-drill  restore the newest backup into a throwaway Postgres and verify it
+#   selfhost.sh pitr-drill T   point-in-time recovery to T ('YYYY-MM-DD HH:MM:SS+00') from base backup + WAL
 #   selfhost.sh compose ...    any other docker compose command against this stack
 set -euo pipefail
 
@@ -15,6 +16,11 @@ deploy_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_root=$(cd "$deploy_dir/../.." && pwd)
 env_file=${SELFHOST_ENV_FILE:-$deploy_dir/.env}
 identity_file=${SELFHOST_AGE_IDENTITY_FILE:-$deploy_dir/secrets/backup-age-identity.txt}
+# Production overlay: SELFHOST_OVERLAY=infra/deploy/compose.prod.yml; SELFHOST_PROJECT pins another
+# Compose project name (tests use it); SELFHOST_ENV_TEMPLATE=.env.prod.example seeds `init`.
+overlay=${SELFHOST_OVERLAY:-}
+project=${SELFHOST_PROJECT:-}
+env_template=${SELFHOST_ENV_TEMPLATE:-$deploy_dir/.env.example}
 
 die() { printf 'selfhost: %s\n' "$*" >&2; exit 1; }
 say() { printf '==> %s\n' "$*"; }
@@ -28,8 +34,8 @@ compose() {
   for name in "${keep[@]}"; do
     if [[ -n ${!name:-} ]]; then pass+=("$name=${!name}"); fi
   done
-  env -i "${pass[@]}" docker compose --project-directory "$deploy_dir" \
-    --file "$deploy_dir/compose.yml" --env-file "$env_file" "$@"
+  env -i "${pass[@]}" docker compose --project-directory "$deploy_dir" ${project:+--project-name "$project"} \
+    --file "$deploy_dir/compose.yml" ${overlay:+--file "$overlay"} --env-file "$env_file" "$@"
 }
 
 setting() { # value of KEY in the env file
@@ -50,7 +56,7 @@ image() { printf '%s/%s:%s' "$(setting IMAGE_REGISTRY)" "$1" "$(setting IMAGE_TA
 
 cmd_init() {
   if [[ ! -f $env_file ]]; then
-    (umask 077 && cp "$deploy_dir/.env.example" "$env_file")
+    (umask 077 && cp "$env_template" "$env_file")
     say "created $env_file"
   fi
   local key
@@ -108,9 +114,11 @@ cmd_smoke() {
   origin=$(setting PUBLIC_ORIGIN)
   say "smoke testing $base"
 
-  for service in proxy postgres redis objectstore engine api worker; do
+  services="proxy postgres redis engine api worker"
+  if [[ -z $overlay || $(setting COMPOSE_PROFILES) == *local-s3* ]]; then services+=" objectstore"; fi
+  for service in $services; do
     check "$service healthy"
-    health=$(compose ps --format '{{.Health}}' "$service" 2>/dev/null || true)
+    health=$(compose ps --format '{{.Health}}' "$service" 2>/dev/null | sort -u || true) # replicas must all agree
     if [[ $health == healthy ]]; then ok; else fail "health: ${health:-not running}"; fi
   done
 
@@ -191,6 +199,17 @@ cmd_restore_drill() {
   say "restore drill passed for $key"
 }
 
+cmd_pitr_drill() {
+  [[ -n ${1:-} ]] || die "usage: $0 pitr-drill 'YYYY-MM-DD HH:MM:SS+00'"
+  [[ -r $identity_file ]] || die "age identity $identity_file not readable; the drill needs the backup private key"
+  [[ -n $overlay ]] || die "pitr-drill needs the production overlay (SELFHOST_OVERLAY)"
+  say "recovering to $1 from the newest base backup and the WAL archive (throwaway Postgres)"
+  compose run --rm -T --no-deps --volume "$identity_file:/identity:ro" \
+    --env "BACKUP_S3_ACCESS_KEY_ID=$(setting BACKUP_RESTORE_S3_ACCESS_KEY_ID | grep . || echo duolify-backup-restorer)" \
+    --env "BACKUP_S3_SECRET_ACCESS_KEY=$(setting BACKUP_RESTORE_S3_SECRET_ACCESS_KEY)" \
+    walship restore "$1"
+}
+
 case ${1:-} in
   init) cmd_init ;;
   up) cmd_up ;;
@@ -201,6 +220,7 @@ case ${1:-} in
   smoke) cmd_smoke ;;
   backup) cmd_backup ;;
   restore-drill) cmd_restore_drill ;;
+  pitr-drill) shift; cmd_pitr_drill "$@" ;;
   compose) shift; compose "$@" ;;
-  *) sed -n '2,12p' "$0" >&2; exit 2 ;;
+  *) sed -n '2,13p' "$0" >&2; exit 2 ;;
 esac

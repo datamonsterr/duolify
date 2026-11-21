@@ -125,6 +125,7 @@ services:
       AWS_CONFIG_FILE: /aws-config
       AWS_PAGER: ""
       S3_BUCKET: duolify
+      BACKUP_BUCKET: duolify-backups
     volumes:
       - ../s3/init-buckets.sh:/init-buckets.sh:ro
       - ../s3/aws-config:/aws-config:ro

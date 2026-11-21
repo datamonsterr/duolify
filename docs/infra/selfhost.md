@@ -69,10 +69,7 @@ If the packages are private, run `docker login ghcr.io` first.
 - `infra:selfhost-restore-drill` downloads the newest dump with the read-only restorer identity and decrypts it with the age identity.
   It restores the dump into a throwaway Postgres container with no network, then checks the migrations and the credit ledger.
   The plaintext exists only in a pipe and in that container.
-- Backups are still on the same disk. Copy the backups off-site yourself until the DR copy job (#239) lands:
-  ```sh
-  bash infra/deploy/selfhost.sh compose run --rm -T -v "$PWD/backups:/out" backup-reader s3 sync s3://duolify-backups /out
-  ```
+- With the plain stack, backups are on the same disk. The production overlay (below) ships them, the WAL archive and the DR copy off-site.
   Keep the age identity separate from the backups.
 - Expiry of old backups (`cmd/backup-expire`) does not run here yet. Daily dumps accumulate until you delete them.
 
@@ -83,6 +80,21 @@ bash infra/deploy/selfhost.sh compose stop api worker
 age -d -i backup-age-identity.txt dump.age | bash infra/deploy/selfhost.sh compose exec -T postgres pg_restore --clean --if-exists -U duolify -d duolify
 bash infra/deploy/selfhost.sh compose start api worker
 ```
+
+## Production overlay (hel1)
+
+`infra/deploy/compose.prod.yml` stacks on `compose.yml` for the Hetzner VM ([ADR 0014](../adr/0014-infrastructure-cost-migration.md)). Use it with `SELFHOST_OVERLAY=infra/deploy/compose.prod.yml` (the CI tasks and `deploy.sh` set it).
+Seed the env file with `SELFHOST_ENV_TEMPLATE=infra/deploy/.env.prod.example bash infra/deploy/selfhost.sh init`.
+
+- **Services:** API x2, worker, Engine (private only), Redis, Postgres 18, `walship`, node-exporter and Prometheus. No pooler: the API and worker connect to Postgres directly.
+- **Object storage from env:** `S3_*` is the application bucket (Hetzner Object Storage `hel1`). `BACKUP_S3_*` is the backup bucket in `BACKUP_LOCATION` (`fsn1` or `nbg1`, never the primary). RustFS and the scoped-identity initializers only run with `COMPOSE_PROFILES=local-s3` (CI, local tests).
+- **WAL archiving (7-day PITR):** Postgres copies each finished WAL segment to a spool volume (`archive_mode=on`, `archive_command`, `archive_timeout=300`). `walship` gzips and age-encrypts it and uploads it to `wal/` in the backup bucket, then removes it. It also uploads an encrypted `pg_basebackup` to `base/<UTC time>/` nightly at 02:30 UTC. Set a bucket lifecycle rule that expires `wal/` and `base/` after 7 days; the scoped writer cannot delete.
+- **Nightly DR copy:** `walship dr-copy` copies new or changed objects of the application bucket to `dr/lesson-assets/` in the versioned backup bucket. It never deletes, so every version survives source overwrites and deletes.
+- **PITR drill:** `bash infra/deploy/selfhost.sh pitr-drill '2026-11-21 10:00:00+00'` restores the newest base backup before that time plus the WAL archive into a throwaway Postgres and prints the result. It uses the age identity from `infra/deploy/secrets/`.
+- **Alerts** (`infra/observability/alerts.yml`, evaluated by the overlay's Prometheus): `DuolifyDiskLow`, `DuolifyWALArchiveFailing`, `DuolifyWALSpoolBacklog` (WAL lag), `DuolifyBackupStale`, `DuolifyReplicationLag`, `DuolifyBucketUsageHigh`, `DuolifyDRCopyStale`. Prometheus has no notifier yet: add Alertmanager (or Grafana contact points) before relying on them.
+- **Checks:** `mise run infra:deploy-plan` rejects a public Engine port, a pooler, a missing backup env, a missing DR job and a backup endpoint in the primary location. `infra:overlay-e2e`, `-pitr`, `-redis` and `-dr` run the stack tests on local RustFS.
+- **Deploy:** `.github/workflows/deploy-vm.yml` runs after `pr-ready` (which runs `ci-ok` and publishes the GHCR images) and calls `mise run infra:deploy-vm`: it copies `infra/` to the VM, then `deploy.sh sha-<commit>` pulls the images (logging their digests), runs `/api migrate`, and restarts the Engine, each API instance one at a time, the worker and the proxy. The job skips itself unless the `staging` or `production` environment has `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` and `DEPLOY_KNOWN_HOSTS`.
+- **Hardening:** see [hardening.md](hardening.md).
 
 ## Move to another machine
 

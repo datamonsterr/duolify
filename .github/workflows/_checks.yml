@@ -726,6 +726,34 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
+  # Production overlay (infra/deploy/compose.prod.yml): plan check, then API x2 + WAL archiving on
+  # local RustFS with the e2e smoke, PITR drill, Redis cold start and DR copy tests.
+  overlay:
+    needs: changes
+    if: inputs.tier == 'full' && (needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.infra == 'true')
+    runs-on: namespace-profile-linux-xl
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+      - run: mise run infra:deploy-plan
+        timeout-minutes: 3
+      - run: mise run infra:overlay-e2e
+        timeout-minutes: 30
+      - run: mise run infra:overlay-pitr
+        timeout-minutes: 10
+      - run: mise run infra:overlay-redis
+        timeout-minutes: 8
+      - run: mise run infra:overlay-dr
+        timeout-minutes: 8
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
   ci-ok:
     name: ci-ok
     if: always()
@@ -753,6 +781,7 @@ jobs:
       - infra
       - infra-plan
       - selfhost
+      - overlay
     runs-on: namespace-profile-datamonster01
     timeout-minutes: 5
     steps:

@@ -13,7 +13,8 @@ set -euo pipefail
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 work=$(mktemp -d)
 chmod 700 "$work"
-export SELFHOST_PROJECT=duolify-e18-08-$(head -c 4 /dev/urandom | od -An -vtx1 | tr -d ' \n')
+suffix=$(head -c 4 /dev/urandom | od -An -vtx1 | tr -d ' \n')
+export SELFHOST_PROJECT=duolify-e18-08-$suffix
 export SELFHOST_ENV_FILE=$work/env
 export SELFHOST_AGE_IDENTITY_FILE=$work/age-identity.txt
 export SELFHOST_OVERLAY=$here/compose.prod.yml
@@ -116,6 +117,7 @@ test_dr() {
   compose exec -T walship /walship.sh dr-copy
   local versions marker
   versions=$(root_aws s3api list-object-versions --bucket duolify-backups --prefix "$dr" --query 'length(Versions)' --output text)
+  # shellcheck disable=SC2016 # JMESPath backticks are literals
   marker=$(root_aws s3api list-object-versions --bucket duolify-backups --prefix "$dr" --query 'length(DeleteMarkers || `[]`)' --output text)
   [[ $versions == 2 ]] || die "expected 2 DR versions, got $versions"
   [[ $marker == 0 ]] || die "DR copy propagated the source delete"
