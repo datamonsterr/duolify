@@ -17,10 +17,10 @@
 #      S3_{ENDPOINT,REGION,BUCKET,ACCESS_KEY_ID,SECRET_ACCESS_KEY}, BACKUP_AGE_RECIPIENT.
 set -euo pipefail
 
-spool=/wal-spool
-state=/metrics
+spool=${WALSHIP_SPOOL:-/wal-spool}
+state=${WALSHIP_STATE:-/metrics}
 export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required AWS_PAGER=""
-export AWS_CONFIG_FILE=/tmp/aws-config
+export AWS_CONFIG_FILE=${AWS_CONFIG_FILE:-/tmp/aws-config}
 printf '[default]\ns3 =\n    addressing_style = path\n' >"$AWS_CONFIG_FILE"
 
 dest() {
@@ -142,6 +142,13 @@ cmd_slow_metrics() { # hourly: bucket usage and the newest nightly application d
 
 has_job() { [[ ,${WALSHIP_JOBS:-ship,base,dr-copy}, == *",$1,"* ]]; }
 
+cmd_daily() { # the nightly jobs; non-zero if any failed
+  local rc=0
+  if has_job base; then cmd_base || { log "base backup failed"; rc=1; }; fi
+  if has_job dr-copy; then cmd_dr_copy || { log "DR copy failed"; rc=1; }; fi
+  return $rc
+}
+
 cmd_loop() {
   local tick=0 last_day='' job=0 day
   mkdir -p "$state"
@@ -155,7 +162,7 @@ cmd_loop() {
     if (( 10#$(date -u +%H%M) >= 230 )) && [[ $last_day != "$day" ]] || { has_job base && [[ ! -f $state/base.ts && -z $last_day ]]; }; then
       last_day=$day
       if ! kill -0 "$job" 2>/dev/null; then
-        (has_job base && { cmd_base || log "base backup failed"; }; has_job dr-copy && { cmd_dr_copy || log "DR copy failed"; }) &
+        cmd_daily &
         job=$!
       fi
     fi
@@ -168,6 +175,7 @@ case ${1:-loop} in
   ship) cmd_ship ;;
   base) cmd_base ;;
   dr-copy) cmd_dr_copy ;;
+  daily) cmd_daily ;;
   restore) shift; cmd_restore "$@" ;;
   metrics) cmd_metrics ;;
   loop) cmd_loop ;;
