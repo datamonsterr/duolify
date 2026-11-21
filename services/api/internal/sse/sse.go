@@ -20,10 +20,15 @@ func Interval() time.Duration {
 	return DefaultInterval
 }
 
-// Heartbeat writes a comment line, which clients ignore, and flushes it to the proxy.
+// Heartbeat writes a comment line, which clients ignore, and flushes it to the proxy. Each beat
+// also moves the connection's write deadline out by three intervals: the server-wide WriteTimeout
+// (20 s) would otherwise cut every stream, while a stalled client still times out.
 func Heartbeat(w http.ResponseWriter) error {
+	rc := http.NewResponseController(w)
+	// ErrNotSupported (test recorders) is fine: there is no deadline to extend.
+	_ = rc.SetWriteDeadline(time.Now().Add(3 * Interval()))
 	if _, err := fmt.Fprint(w, ": keepalive\n\n"); err != nil {
 		return err
 	}
-	return http.NewResponseController(w).Flush()
+	return rc.Flush()
 }
