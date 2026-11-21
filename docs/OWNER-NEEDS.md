@@ -26,7 +26,7 @@ E18 is written as a migration from a live Railway stack to Hetzner Helsinki, but
 - **a. Deploy fresh on Hetzner, skip Railway (recommended).** Drops the switchover gate (#240), the object copy tool and read-fallback (#237), the Railway rehearsal in #241, most of #243, the Railway facts in #232 and the Railway origin in #235. Keeps #233 (load baseline only), #234, #236, #239 and the self-hosted stack. I would rewrite the remaining tickets and ADR 0014 to match.
 - **b. Keep the plan as written.** Deploy to Railway first (needs I1), then migrate with plan A or plan B.
 
-Until you answer, agents work only on the tickets that survive both options: #255, #234, #236, #233 and #239. #240 and #237 are on hold.
+Update 2026-11-21: on your instruction to work through every agent-ready ticket, #240 and #237 are now being built as well. If you choose option a, their PRs are closed unmerged; the rest is unaffected.
 
 ### D2. What happens to the `deploy-dev` workflow? ([#54](https://github.com/datamonsterr/duolify/issues/54))
 

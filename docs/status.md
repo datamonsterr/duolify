@@ -1,43 +1,56 @@
 # Project status
 
-Updated 2026-11-14 14:30 UTC by the master orchestrator session. Ticket data: `docs/epics/tickets.json`; issue numbers: `docs/epics/issues.json`. DoD per ticket: acceptance criteria in `tickets.json`, the named e2e → integration → unit tests on `main`, full CI (`checks / ci-ok`) green. Issues are closed only with an evidence comment.
-
-**All agent-buildable work is merged.** Every open ticket now waits on an owner decision, credential or approval (HITL), or on a ticket that does.
+Updated 2026-11-21 by the master session. Everything needed from the owner is in [`OWNER-NEEDS.md`](OWNER-NEEDS.md); this file only tracks engineering state. Ticket data: `docs/epics/tickets.json`. Definition of done per ticket: its acceptance criteria, the named e2e, integration and unit tests on `main`, and a green `checks / ci-ok`.
 
 ## Summary
 
 | State | Epics |
 |---|---|
-| Complete (epic closed) | E2 #4, E3 #5, E4 #6, E5 #7, E6 #8, E8 #10, E9 #11, E16 #18 |
-| Agent work done, waiting only on owner (HITL) | E1 #3, E7 #9, E10 #12, E11 #13, E12 #14, E13 #15, E14 #16, E15 #17, E17 #19 |
+| Complete (epic closed) | E2 #4, E3 #5, E4 #6, E5 #7, E6 #8, E8 #10, E9 #11, E13 #15, E16 #18 |
+| Agent work done, waiting only on the owner | E1 #3, E7 #9, E10 #12, E11 #13, E12 #14, E14 #16, E15 #17, E17 #19 |
+| In progress | E18 #231 infrastructure cost migration (ADR 0014) |
+
+CI has been unavailable since 2026-11-21 08:04 UTC: no job is picked up by the Namespace runners (OWNER-NEEDS X1). Every PR below is verified only by local mise tasks.
 
 ## Open tickets per epic
 
-| Epic | Done | Open (all HITL or blocked by HITL) |
-|---|---|---|
-| E1 Accounts | 11/12 | E1-10 #48 live mail/OAuth credentials |
-| E7 Credits | 10/14 | E7-05 #24 billing policy + Stripe/Apple/Google accounts; E7-12 #143, E7-13 #144, E7-14 #145 store/Stripe pilots |
-| E10 Evals | 4/6 | E10-01 #25 HF dataset + eval secrets; E10-06 #109 (agent ticket, needs E10-01; code and missing-config path on main) |
-| E11 Ops | 5/7 | E11-02 #27 backup storage, key custody, IAM grants; E11-07 #54 env secrets + rollout approval |
-| E12 Monetization | 8/10 | E12-08 #111 real product mapping; E12-09 #154 chat prices (interim 0/0/5, dev/test only) |
-| E13 App design | 4/6 | E13-05 #35 brand assets + usability evidence; E13-06 #36 (agent ticket, needs E13-05) |
-| E14 Narration | 5/6 | E14-05 #116 approve live voices |
-| E15 Sharing | 11/13 | E15-12 #37 sharing rights/policy; E15-13 #147 marketplace pilot |
-| E17 Characters | 8/9 | E17-02 #40 character_create price + default-cast art |
+| Epic | Open tickets |
+|---|---|
+| E1 Accounts | #48 live mail and OAuth credentials (owner) |
+| E7 Credits | #24 Stripe account and keys (owner); #145 Stripe pilot (owner); #143, #144 Apple and Google billing (parked by ADR 0013) |
+| E10 Evals | #25 Hugging Face dataset and eval secrets (owner); #109 live-sample gate (agent, blocked by #25) |
+| E11 Ops | #27 backup keys and storage (owner); #54 environment secrets and rollout (owner) |
+| E12 Monetization | #111 real product mapping and catalogue activation (owner) |
+| E14 Narration | #116 live voices (owner, blocked by #109) |
+| E15 Sharing | #37 sharing release approvals (owner); #147 marketplace pilot (deferred by ADR 0013) |
+| E17 Characters | #40 default-cast art and names (owner; review sheet in PR #262) |
+| E18 Infrastructure | see below |
 
-All AI tickets closed with one known gap: golden rows live in `evals/fixtures` until the Hugging Face dataset exists (E10-01 #25).
+## E18 state
+
+| Ticket | State |
+|---|---|
+| Self-hosted Docker stack | Draft PR #255, reviewed, running on the owner's machine |
+| #233 load baseline and replication check | Draft PR #261, rework in progress (depends on #264) |
+| #234 SSE heartbeats and cache policy | Draft PR #264, reviewed and fixed |
+| #236 S3 conformance suite | Draft PR #260, reviewed and fixed |
+| #237 object copy tool and read-fallback | In progress |
+| #239 prod overlay, WAL archiving, DR copy, alerts, deploy job | Draft PR #263 (stacked on #255), reviewed and fixed |
+| #240 switchover gate | In progress |
+| #241 staging rehearsal and runbook | Blocked: needs Helsinki staging (#238, owner) |
+| #243 decommission Railway | Blocked: after the production migration (#242, owner) |
+| #232, #235, #238, #242 | Owner tasks |
+
+Open question that changes this epic: the Railway project has no services, so there may be nothing to migrate (OWNER-NEEDS D1).
 
 ## Defaults in force until the owner answers
 
-ADR 0011 "Defaults chosen during implementation" and ADR 0012 (interim defaults for human gates). Nothing goes live, charges real money or publishes publicly: live providers, Stripe live mode, marketplace (`MARKETPLACE_ENABLED`), public character export, live voices and push notifications all default off.
+ADR 0011 "Defaults chosen during implementation", ADR 0012 and ADR 0013. Nothing goes live, charges real money or publishes publicly: live providers, Stripe live mode, the marketplace (`MARKETPLACE_ENABLED`), public character export, live voices and push notifications all default off.
 
 ## Engineering notes
 
-- CI: API integration runs as three parallel shards (#200); Playwright runs as three shards (#210); `ci-ok` requires every shard.
-- Migrations: goose rejects versions older than main's newest; new migrations must sort after the newest file on `main` at merge time.
-- One shared Rust target dir for agents: `CARGO_TARGET_DIR=/home/dat/.cache/duolify-target`.
-- Generated lessons publish player manifests at settlement (#221); a worker backfill and the #219 read-time bridge cover older lessons.
-
-## Human-required
-
-GitHub secrets (`gh secret set <NAME> -R datamonsterr/duolify`): OPENROUTER_API_KEY, ANTHROPIC_API_KEY, ELEVENLABS_API_KEY, HF_TOKEN, RAILWAY_TOKEN, POSTHOG_API_KEY, BACKUP_S3_ENDPOINT, BACKUP_S3_REGION, BACKUP_S3_BUCKET, BACKUP_RESTORE_S3_ACCESS_KEY_ID, BACKUP_RESTORE_S3_SECRET_ACCESS_KEY, BACKUP_AGE_IDENTITY, BACKUP_FINANCIAL_FIXTURES, BACKUP_FINANCIAL_FIXTURE_SIGNATURE, BACKUP_FINANCIAL_FIXTURE_KEY. Hugging Face dataset `datamonsterr/duolify-golden` + pinned revision in `evals/pinned-datasets.toml`. Branch protection on `main` requiring `checks / ci-ok`. Cloud IAM: backup writer read-only on the app bucket `lessons/*`. Stale `OPENROUTER_API_KEY` in `~/.config/environment.d/60-opencode-providers.conf`. REA plugin install. Confirmation of ADR 0012 and the HITL issues above.
+- CI: API integration runs as three parallel shards and Playwright as three shards; `ci-ok` requires every shard. A PR that conflicts with `main` gets no CI run.
+- Migrations: goose rejects versions older than the newest on `main`; rename new migrations to sort after it at merge time.
+- One shared Rust target directory for agents: `CARGO_TARGET_DIR=/home/dat/.cache/duolify-target`.
+- The full `api:test-integration` task takes more than ten minutes; agents run it in package groups with `API_TEST_PACKAGES`.
+- Merge order for the open PRs: #264 before #261; #255 before #263; #260 and #262 are independent.
