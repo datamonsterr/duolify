@@ -35,8 +35,8 @@ expect_reject() { # NAME WORD-IN-MESSAGE MUTATION-COMMAND...
 
 expect_pass
 expect_reject public-engine-port ENGINE sed -i '/^  engine:/a\    ports: ["50051:50051"]' compose.prod.yml
-expect_reject host-network-engine host-network sed -i '/^  engine:/a\    network_mode: host' compose.prod.yml
-expect_reject host-network-api host-network sed -i '/^  api:/a\    network_mode: host' compose.prod.yml
+expect_reject host-network-engine network_mode sed -i '/^  engine:/a\    network_mode: host' compose.prod.yml
+expect_reject host-network-api network_mode sed -i '/^  api:/a\    network_mode: host' compose.prod.yml
 expect_reject long-syntax-port-api "publish host ports" sed -i '/^  api:/a\    ports: [{target: 8080, published: 18080, protocol: tcp, mode: host}]' compose.prod.yml
 expect_reject transaction-pooler pooler sed -i 's#@postgres:5432#@pgbouncer:6432#' compose.yml
 expect_reject missing-backup-env BACKUP_S3_ENDPOINT sed -i '/^BACKUP_S3_ENDPOINT=/d' env

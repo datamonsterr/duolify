@@ -28,6 +28,7 @@ docker compose --file infra/deploy/compose.yml --file infra/deploy/compose.prod.
 docker run --rm --network none -v "$PWD/infra/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 docker compose --profile observability run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
 docker run --rm --network none --entrypoint promtool -v "$PWD/infra/observability/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro" -v "$PWD/infra/observability/alerts.yml:/etc/prometheus/alerts.yml:ro" prom/prometheus:v3.8.0 check config /etc/prometheus/prometheus.yml
+docker run --rm --network none --entrypoint promtool -v "$PWD/infra/observability:/t:ro" -w /t prom/prometheus:v3.8.0 test rules alerts.test.yml
 '''
 
 ["infra:test"]

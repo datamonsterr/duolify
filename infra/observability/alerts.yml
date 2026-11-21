@@ -34,11 +34,6 @@ groups:
         expr: time() - duolify_dump_last_object_timestamp_seconds > 129600 or time() - duolify_base_last_success_timestamp_seconds > 129600
         labels: {severity: critical}
         annotations: {summary: "Newest nightly dump or base backup is older than 36 hours"}
-      - alert: DuolifyReplicationLag
-        expr: duolify_pg_replication_lag_bytes > 67108864
-        for: 5m
-        labels: {severity: warning}
-        annotations: {summary: "A Postgres replica is more than 64 MiB behind"}
       - alert: DuolifyBucketUsageHigh
         expr: duolify_bucket_bytes > 0.8 * 1099511627776
         for: 1h
@@ -48,3 +43,25 @@ groups:
         expr: time() - duolify_dr_last_success_timestamp_seconds > 129600
         labels: {severity: critical}
         annotations: {summary: "The lesson-assets DR copy is older than 36 hours"}
+      # A series that was never written is as bad as an old one: time() - x is empty without x,
+      # so these absent() rules catch "no backup / DR copy / walship metrics at all".
+      - alert: DuolifyBaseBackupMissing
+        expr: absent(duolify_base_last_success_timestamp_seconds)
+        for: 2h
+        labels: {severity: critical}
+        annotations: {summary: "No base backup has ever succeeded (or walship metrics are gone); PITR is impossible"}
+      - alert: DuolifyNoRecentBaseInBucket
+        expr: time() - duolify_base_newest_object_timestamp_seconds > 129600 or absent(duolify_base_newest_object_timestamp_seconds)
+        for: 1h
+        labels: {severity: critical}
+        annotations: {summary: "The backup bucket holds no base backup newer than 36 hours; the PITR window is not backed by a base"}
+      - alert: DuolifyDRCopyMissing
+        expr: absent(duolify_dr_last_success_timestamp_seconds)
+        for: 2h
+        labels: {severity: critical}
+        annotations: {summary: "The lesson-assets DR copy has never succeeded"}
+      - alert: DuolifyWalshipMetricsMissing
+        expr: absent(duolify_wal_spool_oldest_age_seconds) or time() - node_textfile_mtime_seconds{file=~".*walship.prom"} > 600
+        for: 10m
+        labels: {severity: critical}
+        annotations: {summary: "walship metrics are missing or stale; WAL shipping and backup jobs are not being observed"}

@@ -2,6 +2,17 @@
 # Static validation of the production overlay; starts nothing. Usage: deploy-plan.sh [DIR]
 # DIR (default: this directory) holds compose.yml, compose.prod.yml, env (default .env.prod.example)
 # and alerts.yml (default ../observability/alerts.yml). Exits 1 listing every violated rule.
+#
+# Limits (this is a static lint of the rendered Compose config, not a security boundary):
+#  - Port rules read `ports` after Compose normalises short and long syntax; they do not see
+#    `expose`, host networking via other means, or anything started outside this project.
+#  - The pooler rule matches service name/image against known pooler products and requires the
+#    DATABASE_URL of api/worker/migrate to target postgres:5432; a pooler behind another name,
+#    or a different DSN key, is not detected.
+#  - Location rules compare PRIMARY_LOCATION/BACKUP_LOCATION and the *.your-objectstorage.com
+#    host prefix as strings; they cannot know where a custom endpoint really is.
+#  - Alert rules are checked by name and by the absent() expression text, not by behaviour;
+#    infra/observability/alerts.test.yml (promtool) covers behaviour.
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -17,6 +28,10 @@ setting() { sed -n "s/^$1=//p" "$env_file" | tail -n 1; }
 
 config=$(docker compose --project-directory "$dir" --file "$dir/compose.yml" --file "$dir/compose.prod.yml" \
   --env-file "$env_file" --profile '*' config --format json) || { echo "deploy-plan: compose config failed" >&2; exit 1; }
+
+# 0. No service may share the host network namespace (it would bypass every port rule below).
+hostnet=$(jq -r '.services | to_entries[] | select(.value.network_mode == "host") | .key' <<<"$config")
+if [[ -n $hostnet ]]; then bad "services use network_mode: host (bypasses port isolation): $(tr '\n' ' ' <<<"$hostnet")"; fi
 
 # 1. The Engine is never public: no published port on it, and only the proxy publishes any.
 if [[ $(jq '.services.engine.ports // [] | length' <<<"$config") != 0 ]]; then bad "ENGINE publishes a host port; the engine must stay private"; fi
@@ -50,10 +65,17 @@ for job in ship base dr-copy; do
   if [[ ,$jobs, != *",$job,"* ]]; then bad "walship job $job missing from WALSHIP_JOBS ('$jobs'); the nightly DR copy needs ship,base,dr-copy"; fi
 done
 
-# 5. Alerts cover disk, WAL, backup age, replication lag, bucket usage and DR age.
-for name in DuolifyDiskLow DuolifyWALArchiveFailing DuolifyWALSpoolBacklog DuolifyBackupStale DuolifyReplicationLag DuolifyBucketUsageHigh DuolifyDRCopyStale; do
+# 5. Alerts cover disk, WAL, backup and DR age (and their absence), bucket usage.
+for name in DuolifyDiskLow DuolifyWALArchiveFailing DuolifyWALSpoolBacklog DuolifyBackupStale DuolifyBucketUsageHigh DuolifyDRCopyStale DuolifyBaseBackupMissing DuolifyNoRecentBaseInBucket DuolifyDRCopyMissing DuolifyWalshipMetricsMissing; do
   if ! grep -q "alert: $name\$" "$alerts"; then bad "alert $name missing from $(basename "$alerts")"; fi
 done
+
+# A never-written metric must fire too: time() - x is empty when x is absent.
+for metric in duolify_base_last_success_timestamp_seconds duolify_dr_last_success_timestamp_seconds duolify_wal_spool_oldest_age_seconds; do
+  if ! grep -q "absent($metric)" "$alerts"; then bad "no absent($metric) rule in $(basename "$alerts"); a never-written metric would not alert"; fi
+done
+# There is no replica in this stack: a replication-lag alert could never fire and only hides gaps.
+if grep -q 'alert: DuolifyReplicationLag' "$alerts"; then bad "DuolifyReplicationLag alert present (DuolifyReplicationLag); this stack has no replica, remove it"; fi
 
 if ((${#problems[@]} > 0)); then
   printf 'deploy-plan: %s\n' "${problems[@]}" >&2
