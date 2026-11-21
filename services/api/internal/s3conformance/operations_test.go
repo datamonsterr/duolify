@@ -27,7 +27,7 @@ func observedS3Calls(t *testing.T) map[string][]string {
 			if strings.HasSuffix(file, "_test.go") {
 				continue
 			}
-			raw, err := os.ReadFile(file)
+			raw, err := os.ReadFile(file) //nolint:gosec // fixed in-repo glob
 			if err != nil {
 				t.Fatal(err)
 			}
