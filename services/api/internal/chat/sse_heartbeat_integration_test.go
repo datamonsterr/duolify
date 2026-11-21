@@ -83,7 +83,10 @@ func streamWhileEngineIdle(t *testing.T, wrap func(http.Handler) http.Handler) s
 	financial := credits.NewServiceWithCatalogue(db.Pool, nil, cat, events)
 	courseService := courses.New(courses.Options{Pool: db.Pool, Environment: "test", Financial: financial, Events: events})
 	tutor := chat.New(chat.Options{Pool: db.Pool, Engine: engine, Financial: financial, Profiles: courseService, Events: events})
-	server := httptest.NewServer(wrap(httpapi.New(httpapi.Dependencies{Accounts: auth, Quotes: pricing.NewQuotes(db.Pool), Credits: financial, Tutor: tutor}, slog.New(slog.NewTextHandler(io.Discard, nil)))))
+	server := httptest.NewUnstartedServer(wrap(httpapi.New(httpapi.Dependencies{Accounts: auth, Quotes: pricing.NewQuotes(db.Pool), Credits: financial, Tutor: tutor}, slog.New(slog.NewTextHandler(io.Discard, nil)))))
+	// Shorter than the 600 ms Engine silence: the stream only survives if heartbeats extend the deadline.
+	server.Config.WriteTimeout = 400 * time.Millisecond
+	server.Start()
 	defer server.Close()
 
 	call := func(path string, body any, token string) *http.Response {

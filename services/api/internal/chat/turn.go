@@ -33,11 +33,13 @@ type sendInput struct {
 
 func writeEvent(w http.ResponseWriter, name string, data any) {
 	raw, _ := json.Marshal(data)
+	sse.Extend(w)
 	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", name, raw)
 	_ = http.NewResponseController(w).Flush()
 }
 
 func startSSE(w http.ResponseWriter) {
+	sse.Extend(w)
 	h := w.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-store")

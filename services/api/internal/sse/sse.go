@@ -20,13 +20,21 @@ func Interval() time.Duration {
 	return DefaultInterval
 }
 
+// Extend moves the connection's write deadline out by three intervals. The server-wide
+// WriteTimeout (20 s) would otherwise cut every stream, while a stalled client still times out
+// because the deadline only ever moves a bounded step past now. Call it before each write to a
+// stream, including the first. ErrNotSupported (test recorders, wrapped writers without Unwrap)
+// means there is no deadline to extend; other errors mean the connection is unusable and the next
+// write fails and ends the stream, so they are deliberately not handled here.
+func Extend(w http.ResponseWriter) {
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(3 * Interval()))
+}
+
 // Heartbeat writes a comment line, which clients ignore, and flushes it to the proxy. Each beat
-// also moves the connection's write deadline out by three intervals: the server-wide WriteTimeout
-// (20 s) would otherwise cut every stream, while a stalled client still times out.
+// also extends the write deadline (see Extend).
 func Heartbeat(w http.ResponseWriter) error {
+	Extend(w)
 	rc := http.NewResponseController(w)
-	// ErrNotSupported (test recorders) is fine: there is no deadline to extend.
-	_ = rc.SetWriteDeadline(time.Now().Add(3 * Interval()))
 	if _, err := fmt.Fprint(w, ": keepalive\n\n"); err != nil {
 		return err
 	}

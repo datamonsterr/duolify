@@ -230,6 +230,7 @@ func (s *Service) creationEvents(w http.ResponseWriter, r *http.Request, owner, 
 		outlineError(w, 404)
 		return
 	}
+	sse.Extend(w)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
@@ -246,6 +247,7 @@ func (s *Service) creationEvents(w http.ResponseWriter, r *http.Request, owner, 
 		}
 		if c.State != previous {
 			raw, _ := json.Marshal(c)
+			sse.Extend(w)
 			if _, err = fmt.Fprintf(w, "event: stage\ndata: %s\n\n", raw); err != nil {
 				return
 			}
