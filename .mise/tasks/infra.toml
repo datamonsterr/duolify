@@ -80,3 +80,8 @@ depends = ["infra:deps"]
 run = '''
 printf '%s\n' 'In separate terminals:' 'mise run api:migrate && mise run api:run' 'mise run engine:run' 'mise run client:dev'
 '''
+
+["infra:s3-copy-verify"]
+description = "Copy all object versions and delete markers from COPY_SRC_* to COPY_DST_* buckets, then verify count, bytes, a checksum sample and version history (never modifies the source)"
+dir = "{{config_root}}/services/api"
+run = "go run ./cmd/s3-copy-verify"

@@ -200,7 +200,7 @@ jobs:
     timeout-minutes: 20
     # The task starts and removes Postgres 18 via testcontainers; Docker must be available.
     env:
-      API_TEST_PACKAGES: ./internal/backup/... ./internal/social/... ./internal/sharing/...
+      API_TEST_PACKAGES: ./internal/backup/... ./internal/social/... ./internal/sharing/... ./internal/s3copy/...
     steps:
       - uses: actions/checkout@v7
         with:

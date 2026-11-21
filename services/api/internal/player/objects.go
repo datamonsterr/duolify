@@ -10,21 +10,58 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
+	"github.com/datamonsterr/duolify/services/api/internal/s3fallback"
 )
 
 // S3 uses the application's existing credentials, not backup-writer privileges.
 type S3 struct {
 	Client *s3.Client
 	Bucket string
+	// Old is the temporary read-only store used during object migration (ADR 0014). Only
+	// Get and Exists consult it, after the new store; no write ever reaches it.
+	Old *S3
 }
 
-// NewS3 uses explicit application credentials and bounded S3 retries.
+func newClient(endpoint, region, accessKey, secretKey string) *s3.Client {
+	return s3.New(s3.Options{Region: region, BaseEndpoint: aws.String(endpoint), UsePathStyle: true, Credentials: credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""), RetryMaxAttempts: 1, RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired})
+}
+
+// NewS3 uses explicit application credentials and bounded S3 retries. The read-fallback
+// is attached only when S3_FALLBACK_ENABLED is true and valid; LoadS3 reports why not.
 func NewS3(getenv func(string) string) *S3 {
-	return &S3{Bucket: getenv("S3_BUCKET"), Client: s3.New(s3.Options{Region: getenv("S3_REGION"), BaseEndpoint: aws.String(getenv("S3_ENDPOINT")), UsePathStyle: true, Credentials: credentials.NewStaticCredentialsProvider(getenv("S3_ACCESS_KEY_ID"), getenv("S3_SECRET_ACCESS_KEY"), ""), RetryMaxAttempts: 1, RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired})}
+	store, err := LoadS3(getenv)
+	if err != nil {
+		store = &S3{Bucket: getenv("S3_BUCKET"), Client: newClient(getenv("S3_ENDPOINT"), getenv("S3_REGION"), getenv("S3_ACCESS_KEY_ID"), getenv("S3_SECRET_ACCESS_KEY"))}
+	}
+	return store
 }
 
-// Get reads a bounded immutable lesson object.
+// LoadS3 builds the store and validates the temporary read-fallback: off by default;
+// when on it needs a complete old store that differs from the new one.
+func LoadS3(getenv func(string) string) (*S3, error) {
+	store := &S3{Bucket: getenv("S3_BUCKET"), Client: newClient(getenv("S3_ENDPOINT"), getenv("S3_REGION"), getenv("S3_ACCESS_KEY_ID"), getenv("S3_SECRET_ACCESS_KEY"))}
+	old, err := s3fallback.Load(getenv, "S3_FALLBACK_ENABLED", "S3_OLD", getenv("S3_ENDPOINT"), store.Bucket)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil {
+		store.Old = &S3{Bucket: old.Bucket, Client: newClient(old.Endpoint, old.Region, old.AccessKey, old.SecretKey)}
+	}
+	return store, nil
+}
+
+// Get reads a bounded immutable lesson object, trying the old store when the new one fails.
 func (s *S3) Get(ctx context.Context, key string) ([]byte, error) {
+	raw, err := s.get(ctx, key)
+	if err != nil && s.Old != nil && !errors.Is(err, errInvalid) {
+		if oldRaw, oldErr := s.Old.get(ctx, key); oldErr == nil {
+			return oldRaw, nil
+		}
+	}
+	return raw, err
+}
+
+func (s *S3) get(ctx context.Context, key string) ([]byte, error) {
 	if !validKey(key) {
 		return nil, errInvalid
 	}
@@ -117,6 +154,16 @@ func (s *S3) List(ctx context.Context, prefix string) ([]string, error) {
 
 // Exists treats only an explicit NotFound as an absent object, for restore checks.
 func (s *S3) Exists(ctx context.Context, key string) (bool, error) {
+	ok, err := s.exists(ctx, key)
+	if !ok && s.Old != nil && !errors.Is(err, errInvalid) {
+		if oldOK, oldErr := s.Old.exists(ctx, key); oldErr == nil && oldOK {
+			return true, nil
+		}
+	}
+	return ok, err
+}
+
+func (s *S3) exists(ctx context.Context, key string) (bool, error) {
 	if !validKey(key) {
 		return false, errInvalid
 	}

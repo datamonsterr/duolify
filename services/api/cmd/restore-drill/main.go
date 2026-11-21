@@ -53,6 +53,9 @@ func run() error {
 		}
 		financialProvider = provider
 	}
+	if _, err := player.LoadS3(os.Getenv); err != nil {
+		return err
+	}
 	store, err := backup.NewS3(cfg.S3)
 	if err != nil {
 		return err

@@ -167,7 +167,7 @@ func TestVerifyFailsOnPlantedMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	list, _ = srv2.Client.ListObjectVersions(t.Context(), &s3.ListObjectVersionsInput{Bucket: aws.String("target"), Prefix: aws.String("a.json")})
-	if _, err = srv2.Client.DeleteObject(t.Context(), &s3.DeleteObjectInput{Bucket: aws.String("target"), Key: aws.String("a.json"), VersionId: list.Versions[0].VersionId}); err != nil {
+	if _, err = srv2.Client.DeleteObject(t.Context(), &s3.DeleteObjectInput{Bucket: aws.String("target"), Key: aws.String("a.json"), VersionId: list.Versions[len(list.Versions)-1].VersionId}); err != nil {
 		t.Fatal(err)
 	}
 	report, err = s3copy.Run(t.Context(), opts2)

@@ -12,16 +12,23 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
+	"github.com/datamonsterr/duolify/services/api/internal/s3fallback"
 )
 
 // S3Options deliberately requires dedicated credentials; no default credential
 // chain can accidentally select the application's or a host administrator's key.
-type S3Options struct{ Endpoint, Region, Bucket, ApplicationBucket, AccessKey, SecretKey string }
+type S3Options struct {
+	Endpoint, Region, Bucket, ApplicationBucket, AccessKey, SecretKey string
+	// Fallback is the temporary read-only old store (ADR 0014); nil unless enabled.
+	Fallback *s3fallback.Store
+}
 
 // S3 publishes complete objects with a single conditional PutObject.
 type S3 struct {
 	Client *s3.Client
 	Bucket string
+	// Old serves reads the new store misses during migration; writes never reach it.
+	Old *S3
 }
 
 // NewS3 validates explicit storage configuration. Local RustFS uses HTTP.
@@ -33,16 +40,34 @@ func NewS3(options S3Options) (*S3, error) {
 	if options.Bucket == "" || options.Bucket == options.ApplicationBucket || options.Region == "" || options.AccessKey == "" || options.SecretKey == "" {
 		return nil, errors.New("dedicated backup bucket, region and writer credentials required")
 	}
-	return &S3{Bucket: options.Bucket, Client: s3.New(s3.Options{
-		Region: options.Region, BaseEndpoint: aws.String(options.Endpoint), UsePathStyle: true,
-		Credentials:                credentials.NewStaticCredentialsProvider(options.AccessKey, options.SecretKey, ""),
+	store := &S3{Bucket: options.Bucket, Client: newClient(options.Endpoint, options.Region, options.AccessKey, options.SecretKey)}
+	if old := options.Fallback; old != nil {
+		store.Old = &S3{Bucket: old.Bucket, Client: newClient(old.Endpoint, old.Region, old.AccessKey, old.SecretKey)}
+	}
+	return store, nil
+}
+
+func newClient(endpoint, region, accessKey, secretKey string) *s3.Client {
+	return s3.New(s3.Options{
+		Region: region, BaseEndpoint: aws.String(endpoint), UsePathStyle: true,
+		Credentials:                credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
 		RetryMaxAttempts:           1,
 		RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired,
-	})}, nil
+	})
 }
 
 // Exists only treats an explicit NotFound as an absent object.
 func (s *S3) Exists(ctx context.Context, key string) (bool, error) {
+	ok, err := s.exists(ctx, key)
+	if !ok && s.Old != nil {
+		if oldOK, oldErr := s.Old.exists(ctx, key); oldErr == nil && oldOK {
+			return true, nil
+		}
+	}
+	return ok, err
+}
+
+func (s *S3) exists(ctx context.Context, key string) (bool, error) {
 	_, err := s.Client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key)})
 	if err == nil {
 		return true, nil
