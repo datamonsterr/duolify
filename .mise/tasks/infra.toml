@@ -26,6 +26,20 @@ shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh
 docker compose --profile observability run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
 '''
 
+["infra:s3-conformance"]
+description = "Check an S3 store (S3_CONFORMANCE_* env; default compose RustFS) for versioning, delete-marker restore, If-None-Match and retention lock"
+run = '''
+set -eu
+if [ -z "${S3_CONFORMANCE_ENDPOINT:-}" ]; then
+  docker compose up -d --wait objectstore
+  export S3_CONFORMANCE_ENDPOINT="http://127.0.0.1:${S3_PORT:-9000}"
+  export S3_CONFORMANCE_ACCESS_KEY_ID="${S3_ROOT_ACCESS_KEY_ID:-duolify-admin}"
+  export S3_CONFORMANCE_SECRET_ACCESS_KEY="${S3_ROOT_SECRET_ACCESS_KEY:-local-rustfs-admin-only}"
+fi
+cd "{{config_root}}/services/api"
+go run ./cmd/s3-conformance
+'''
+
 ["infra:test"]
 description = "Verify healthy local dependencies"
 depends = ["infra:deps"]
