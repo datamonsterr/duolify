@@ -140,6 +140,7 @@ Provision production VMs in `hel1`, create GitHub environment `production` with 
 - **H2.** Remove the 36 local branches already merged into `main` and their worktrees. None are deleted without your yes.
 - **H3.** ADR 0011 has a table of defaults chosen by agents during implementation. ADR 0013 accepted the ADR 0012 defaults but not this table. Review it or say "accepted".
 - **H4.** `docs/status.md` is stale (2026-11-14). I will refresh it unless you prefer to delete it.
+- **H6.** Privacy notice placement (PR #265, #237): the repo has no privacy notice page, so the approved EU-storage sentence was added to Settings > Account. Keep it there, or name the page it belongs on.
 - **H5.** Agent capacity: all Claude agents share one usage limit with the master session. `codex-2` has free quota. Allow coding tickets on `codex-2`, or keep Claude only (slower, about three agents at a time)?
 
 ## Not needed now
