@@ -337,12 +337,18 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 			err error
 		}
 		msgs := make(chan received)
+		loopDone := make(chan struct{})
+		defer close(loopDone)
 		go func() {
 			for {
 				ev, rerr := stream.Recv()
-				// Always deliver, including the terminal error: the loop below consumes until it
-				// sees one, so this send never blocks forever.
-				msgs <- received{ev, rerr}
+				// Deliver every result, including the terminal error, until the loop below exits
+				// (it may stop early on a failed heartbeat write).
+				select {
+				case msgs <- received{ev, rerr}:
+				case <-loopDone:
+					return
+				}
 				if rerr != nil {
 					return
 				}
@@ -361,13 +367,18 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		}
 		beat := time.NewTicker(sse.Interval())
 		defer beat.Stop()
+	recv:
 		for {
 			var m received
 			select {
 			case m = <-msgs:
 			case <-beat.C:
 				begin()
-				_ = sse.Heartbeat(w)
+				if herr := sse.Heartbeat(w); herr != nil {
+					// The client connection is gone: stop reading and settle as an interrupted turn.
+					streamErr = herr
+					break recv
+				}
 				continue
 			}
 			ev, rerr := m.ev, m.err
