@@ -3,6 +3,8 @@ package backup
 import (
 	"errors"
 	"strconv"
+
+	"github.com/datamonsterr/duolify/services/api/internal/s3fallback"
 )
 
 // Runtime contains shared deletion-ledger storage settings; only the worker uses
@@ -25,6 +27,11 @@ func Load(getenv func(string) string) (Runtime, error) {
 			return Runtime{}, errors.New("invalid ANALYTICS_OPT_OUT")
 		}
 	}
+	fallback, err := s3fallback.Load(getenv, "BACKUP_S3_FALLBACK_ENABLED", "BACKUP_OLD_S3", cfg.S3.Endpoint, cfg.S3.Bucket)
+	if err != nil {
+		return Runtime{}, err
+	}
+	cfg.S3.Fallback = fallback
 	if cfg.S3.AccessKey != "" && cfg.S3.AccessKey == getenv("S3_ACCESS_KEY_ID") {
 		return Runtime{}, errors.New("backup writer must use separate credentials")
 	}

@@ -111,6 +111,11 @@ export function AccountPrivacy() {
         <p>
           Download a protected copy of your account data or remove your account.
         </p>
+        <p>
+          Your data is stored in the EU. The app runs in Finland (Helsinki),
+          backups are in Germany (Falkenstein or Nuremberg), and content is
+          served through Cloudflare.
+        </p>
         <div className="settings-actions">
           <Button
             type="button"

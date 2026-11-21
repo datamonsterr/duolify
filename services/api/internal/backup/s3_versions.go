@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sort"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/datamonsterr/duolify/services/api/internal/s3fallback"
 )
 
 const maxObjectBytes = 256 << 20
@@ -28,17 +30,38 @@ func (s *S3) PutVersioned(ctx context.Context, key string, body []byte, meta map
 
 // GetCurrent reads the newest version; a delete marker reads as an error.
 func (s *S3) GetCurrent(ctx context.Context, key string) ([]byte, error) {
-	return s.read(ctx, &s3.GetObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key)})
+	return s.readWithFallback(ctx, key, "")
 }
 
 // GetVersion reads one stored version.
 func (s *S3) GetVersion(ctx context.Context, key, versionID string) ([]byte, error) {
-	return s.read(ctx, &s3.GetObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key), VersionId: aws.String(versionID)})
+	return s.readWithFallback(ctx, key, versionID)
+}
+
+// readWithFallback reads the new store first and the old store second. A version ID is
+// only meaningful in the store that issued it, so the old store is asked for the same ID.
+func (s *S3) readWithFallback(ctx context.Context, key, versionID string) ([]byte, error) {
+	in := &s3.GetObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key)}
+	if versionID != "" {
+		in.VersionId = aws.String(versionID)
+	}
+	data, err := s.read(ctx, in)
+	if err != nil && s.Old != nil && errors.Is(err, s3fallback.ErrNotFound) {
+		old := *in
+		old.Bucket = aws.String(s.Old.Bucket)
+		if oldData, oldErr := s.Old.read(ctx, &old); oldErr == nil {
+			return oldData, nil
+		}
+	}
+	return data, err
 }
 
 func (s *S3) read(ctx context.Context, in *s3.GetObjectInput) ([]byte, error) {
 	out, err := s.Client.GetObject(ctx, in)
 	if err != nil {
+		if s3fallback.IsNotFound(err) {
+			return nil, fmt.Errorf("object get failed: %w", s3fallback.ErrNotFound)
+		}
 		return nil, errors.New("object get failed")
 	}
 	defer func() { _ = out.Body.Close() }()

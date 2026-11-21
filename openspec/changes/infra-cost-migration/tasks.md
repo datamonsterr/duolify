@@ -20,9 +20,9 @@
 ## 3. Objects
 
 - [ ] 3.1 Integration: `infra:s3-conformance` covers versioned put/list/get-by-version, delete-marker restore, `If-None-Match: *` 412 and retention lock. It runs against an env-provided endpoint: Hetzner Object Storage, RustFS as the fallback, and Contabo if the owner chooses it.
-- [ ] 3.2 Integration: `infra:s3-copy-verify` copies all versions and delete markers and checks count, bytes, checksum sample and versions.
-- [ ] 3.3 e2e/integration: the player and backup read-fallback reads the new store first and the old store second. It is config-gated and off by default.
-- [ ] 3.4 Implement 3.1–3.3. Update `docs/data-inventory.md` and `infra/backup/README.md` (assets on Hetzner Object Storage in Helsinki, backups and DR in the owner-chosen location, 35-day read-only source).
+- [x] 3.2 Integration: `infra:s3-copy-verify` copies all versions and delete markers and checks count, bytes, checksum sample and versions.
+- [x] 3.3 e2e/integration: the player and backup read-fallback reads the new store first and the old store second. It is config-gated and off by default.
+- [x] 3.4 Implement 3.1–3.3. Update `docs/data-inventory.md` and `infra/backup/README.md` (assets on Hetzner Object Storage in Helsinki, backups and DR in the owner-chosen location, 35-day read-only source).
 
 ## 4. Prod stack and deploy
 

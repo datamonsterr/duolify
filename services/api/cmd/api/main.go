@@ -119,6 +119,9 @@ func run(ctx context.Context, args []string) (result error) {
 	if err != nil {
 		return err
 	}
+	if _, err := player.LoadS3(os.Getenv); err != nil {
+		return err
+	}
 	objects, err := backup.NewS3(backupConfig.S3)
 	if err != nil {
 		return err

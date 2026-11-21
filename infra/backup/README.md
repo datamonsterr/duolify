@@ -230,3 +230,33 @@ After restoring a dump, start the API against the existing ledger bucket. Before
   them (`moderation blocks` step), so a dump older than the takedown cannot un-block copies.
 - `cmd/restore-drill` adds `copy pins resolve` when `S3_BUCKET` and the application credentials
   are configured.
+
+## Hetzner storage and the Railway read-only window (E18-06, ADR 0014)
+
+After the infra cost migration (owner decisions 2026-11-17, #251):
+
+- **Assets** (`lesson-assets`) live on Hetzner Object Storage in Helsinki (`hel1`),
+  versioned.
+- **Backups and DR** (`pg_dump`, WAL archive, deletion ledger, nightly versioned
+  `lesson-assets` copy) live on Hetzner Object Storage in Falkenstein or Nuremberg,
+  outside the Helsinki site. There is no third copy elsewhere.
+- **Railway buckets stay read-only for 35 days** after the copy verifies. Nothing writes
+  to them; they are the rollback source until the window ends.
+- Retention is unchanged: 14 days general, 35 days financial, deletion ledger never expired.
+
+Moving objects:
+
+1. `mise run infra:s3-copy-verify` copies every version and delete marker, oldest first per
+   key, from `COPY_SRC_*` to `COPY_DST_*` (the destination must be versioned). It then checks
+   count, bytes, a SHA-256 of every version (`COPY_VERIFY_SAMPLE` limits it; default 0 = all) and the
+   version history, names each mismatch and exits non-zero. It only reads the source, prints
+   no credentials, streams each object (multipart, one `COPY_PART_SIZE` part in memory, so
+   large dumps and base backups are fine), and is resumable: a second run copies nothing and re-verifies. A
+   destination history that is not a prefix of the source history is reported, not repaired.
+   Version IDs change on copy; the source ID is kept in the `src-version-id` metadata.
+2. Run it once for the first full copy, then again for the incremental copy.
+3. Between the two, set `S3_FALLBACK_ENABLED=true` (player reads) and
+   `BACKUP_S3_FALLBACK_ENABLED=true` (backup reads) with the old store in `S3_OLD_*` and
+   `BACKUP_OLD_S3_*`. Reads try the new store first and the old store second; writes never go
+   to the old store. The flags are off by default; startup fails on an incomplete old store or
+   one equal to the new store. Remove the fallback after the incremental copy verifies.
