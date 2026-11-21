@@ -415,8 +415,16 @@ export function useTutor(
         pending.current = null;
         setQuote(undefined);
       } catch (error) {
+        // A server-side stop is the same outcome as the user's Stop: HTTP 409 `stopped` before the
+        // stream opened, or an SSE `error` event with code `stopped` once a heartbeat committed the 200.
+        const serverStopped =
+          (error instanceof TutorApiError &&
+            error.status === 409 &&
+            error.code === "stopped") ||
+          (error instanceof TutorStreamError && error.code === "stopped");
         const aborted =
           controller.signal.aborted ||
+          serverStopped ||
           (error instanceof DOMException && error.name === "AbortError");
         if (opened) {
           const typed = error instanceof TutorStreamError ? error : undefined;
