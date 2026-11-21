@@ -53,7 +53,7 @@ Keep security updates on, set `Unattended-Upgrade::Automatic-Reboot "true"` with
 ## 5. Secrets
 
 - `infra/deploy/.env` is mode 0600, owned by `deploy`, never committed. `selfhost.sh init` generates the internal secrets; replace `S3_SECRET_ACCESS_KEY` and `BACKUP_S3_SECRET_ACCESS_KEY` with the Hetzner Object Storage keys.
-- Use separate Object Storage keys: the application key (read/write on the application bucket in `hel1`) and a backup key (put/get/list on the backup bucket; no delete). Retention and the 7-day expiry of `wal/` and `base/` run as a bucket lifecycle rule configured with an admin key that is not on the VM.
+- Use separate Object Storage keys: the application key (read/write on the application bucket in `hel1`) and a backup key (put/get/list on the backup bucket; no delete). Retention of `wal/` and `base/` is a bucket lifecycle rule applied with an admin key that is not on the VM: `BACKUP_ADMIN_S3_ACCESS_KEY_ID`/`BACKUP_ADMIN_S3_SECRET_ACCESS_KEY` plus `BACKUP_S3_ENDPOINT/REGION/BUCKET` in the environment, then `mise run infra:backup-lifecycle`. It sets `base/` to expire after 9 days and `wal/` after 10 (for the 7-day PITR window), noncurrent versions after 1 day (without that, a versioned bucket never frees space) and aborts incomplete uploads. Reasoning: to recover to any time in the last 7 days you need the base taken just before it (nightly, plus one missed night = 9 days), and every WAL segment after that base, so `wal/` must expire strictly later than `base/`; a retained base then always has its WAL. The lifecycle cannot protect the newest base if the base job stops: that is the `DuolifyBackupStale` / `DuolifyNoRecentBaseInBucket` alert (36 h), long before `base/` drains.
 - The age private identity (`infra/deploy/secrets/backup-age-identity.txt`) must not stay on the VM: copy it to your password manager and a second offline place, then delete it from the VM. The drill and a real restore need it back. Without it, no backup or WAL archive can be read.
 - CI holds only the four `DEPLOY_*` secrets. GHCR packages are public or the VM is logged in with a read-only token (`docker login ghcr.io`).
 
@@ -64,6 +64,24 @@ Keep security updates on, set `Unattended-Upgrade::Automatic-Reboot "true"` with
 3. A request that goes straight to the VM IP is refused (firewall, then Authenticated Origin Pulls).
 4. `selfhost.sh smoke` passes and two `api` containers are healthy.
 5. WAL is flowing: `select failed_count, last_archived_wal from pg_stat_archiver;` shows no failures, and `wal/` in the backup bucket grows. Run `docker compose exec walship /walship.sh base`, then `selfhost.sh pitr-drill` with a time a few minutes ago.
-6. The backup bucket is in `BACKUP_LOCATION` (not `hel1`), versioned, and passes `infra:s3-conformance` when that task exists; the lifecycle rule for `wal/` and `base/` is in place; the privacy notice lists the storage country.
+6. The backup bucket is in `BACKUP_LOCATION` (not `hel1`), versioned, and passes `infra:s3-conformance` when that task exists; `mise run infra:backup-preflight` passes (versioned, lifecycle as above, a base newer than the PITR window exists; run it after the first nightly base or `walship.sh base`); the privacy notice lists the storage country.
 7. Prometheus (`docker compose exec prometheus wget -qO- localhost:9090/api/v1/rules`) lists the `duolify-data-protection` rules, none firing; point an Alertmanager or notifier at it.
 8. Reboot the VM once: the stack returns without manual steps and the unattended-upgrade timer is active (`systemctl list-timers apt-daily-upgrade`).
+
+## 7. Deploys
+
+`deploy.sh` (run by `deploy-vm.yml`) deploys digest-pinned images only: `api=<repo>@sha256:…` for `api worker engine web backup-init`. Tags are refused.
+
+**Migrations must be expand/contract.** `deploy.sh` runs `/api migrate` first and only then replaces containers, so the old API keeps serving against the new schema during the whole roll, and keeps doing so if the deploy fails afterwards. Therefore a migration may only add things the old code ignores (new tables, nullable or defaulted columns, new indexes created concurrently). Dropping or renaming a column, tightening a constraint, or changing a type is a second release, after the code that stopped using it is live everywhere. There is no automatic down-migration.
+
+**State after a failed deploy.**
+- Digest pull or `walship` build fails: nothing changed except the image variables in `.env`; the running stack is untouched.
+- `migrate` fails: the migration is transactional per goose file, so earlier files stay applied and the failing one is rolled back; containers are untouched, the old version keeps serving. Fix forward and redeploy.
+- Engine fails its healthcheck: new Engine container is unhealthy; the API instances are still the old ones. Redeploy the previous digests to roll the Engine back (migrations stay applied, hence expand/contract).
+- An API instance fails to become healthy: that step stops with the old instance still running (the new one starts first and the old one is stopped only after it is healthy). The rest of the fleet is old; the migration is applied. Redeploy the previous digests.
+- Worker or proxy fails: API and Engine are new, worker or edge may be old; redeploy.
+Rollback is always "run `deploy.sh` with the previous commit's digests"; a Postgres restore is only for data loss, not for a bad deploy.
+
+**Restart order: Engine, then API instances, then worker, then proxy.** The API is the Engine's gRPC client, so the server goes first: a new Engine must keep serving the old API's calls and the new API then finds the RPCs it needs. That makes `proto` changes additive across one release (add fields/RPCs first; remove only in a later release after no client uses them), consistent with the rule that `proto` changes land together in `services/api` and `engine`. The mixed window (new Engine, old API) lasts until the last API instance is replaced; the Engine is not scaled, so during its restart requests that need it fail or retry. The worker restarts after the API so its jobs run the new code against the already migrated schema.
+
+**No 502s while an instance stops.** The Caddy upstream retries connection failures for up to 5 s (`lb_try_duration`), and `api` resolves to every replica; `mise run infra:overlay-rolling` kills each instance in turn under GET+POST load and expects no proxy error. A request that already reached a dying instance is retried only if it is a GET; a POST is never replayed.
