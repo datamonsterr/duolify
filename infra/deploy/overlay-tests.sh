@@ -5,6 +5,7 @@
 #   overlay-tests.sh pitr   PITR drill: base backup + archived WAL restored to a point in time
 #   overlay-tests.sh redis  Redis cold start: flush Redis, stack still serves, state rebuilds from Postgres
 #   overlay-tests.sh dr     nightly DR copy keeps every object version, even after a source delete
+#   overlay-tests.sh rolling    kill each API instance in turn under steady GET load: no failed request through the proxy
 #   overlay-tests.sh lifecycle  backup-lifecycle.sh apply/verify against the RustFS backup bucket
 #
 # Runs under its own Compose project and ports (never the owner's stack); removes its containers and
@@ -153,11 +154,43 @@ test_lifecycle() {
   say "lifecycle passed"
 }
 
+test_rolling() {
+  start_stack
+  local url n=0 bad=0 ok=0 code id pid pid2
+  url="http://127.0.0.1:$(sed -n 's/^HTTP_PORT=//p' "$SELFHOST_ENV_FILE" | tail -n 1)/v1/features"
+  curl -fsS "$url" >/dev/null || die "baseline request failed"
+  : >"$work/codes"
+  touch "$work/load"
+  # Two clients: GET and POST (a POST answered with 4xx is fine; a proxy error 502/503/504 or no answer is not).
+  (while [[ -e $work/load ]]; do curl -s -o /dev/null -w '%{http_code}\n' --max-time 10 "$url" >>"$work/codes" || echo 000 >>"$work/codes"; sleep 0.02; done) &
+  pid=$!
+  (while [[ -e $work/load ]]; do curl -s -o /dev/null -w '%{http_code}\n' --max-time 10 -X POST -d '{}' -H 'content-type: application/json' "$url" >>"$work/codes" || echo 000 >>"$work/codes"; sleep 0.02; done) &
+  pid2=$!
+  sleep 2
+  for id in $(compose ps --quiet api); do
+    # SIGKILL (worst case: no graceful drain): the proxy must retry onto the surviving instance.
+    docker kill "$id" >/dev/null
+    sleep 4
+    docker start "$id" >/dev/null
+    wait_for 90 "api instance back" bash -c "[[ \$(docker inspect --format '{{.State.Health.Status}}' $id) == healthy ]]"
+    sleep 2
+  done
+  rm -f "$work/load"
+  wait "$pid" "$pid2"
+  while read -r code; do n=$((n + 1)); if [[ $code =~ ^[1-4][0-9][0-9]$ ]]; then ok=$((ok + 1)); else bad=$((bad + 1)); fi; done <"$work/codes"
+  printf 'rolling: %s requests, %s ok, %s failed\n' "$n" "$ok" "$bad"
+  sort "$work/codes" | uniq -c
+  ((n > 100)) || die "load generator produced too few requests"
+  ((bad == 0)) || die "$bad request(s) failed while API instances were stopped"
+  say "rolling passed"
+}
+
 case ${1:-} in
+  rolling) test_rolling ;;
   lifecycle) test_lifecycle ;;
   e2e) test_e2e ;;
   pitr) test_pitr ;;
   redis) test_redis ;;
   dr) test_dr ;;
-  *) sed -n '2,8p' "$0" >&2; exit 2 ;;
+  *) sed -n '2,9p' "$0" >&2; exit 2 ;;
 esac
