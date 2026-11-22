@@ -375,7 +375,7 @@ func (s *Service) Limits(ctx context.Context, owner, id, action string) (*engine
 	if json.Unmarshal(raw, &q) != nil || q.Action != action {
 		return nil, ErrReservation
 	}
-	fallback := q.Policy.Models[q.Policy.FallbackModels[q.Input.Model]]
+	fallback := q.WorstRate()
 	toUint32 := func(n int64) (uint32, error) {
 		if n < 0 || n > math.MaxUint32 {
 			return 0, ErrUsage

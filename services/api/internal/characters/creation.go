@@ -559,7 +559,7 @@ func (s *Service) ExecuteCreate(ctx context.Context, owner, id string) error {
 // inside this operation's configured provider ceiling.
 func creationScreenLimits(q pricing.Quote, remaining int64) *pb.UsageLimits {
 	primary := q.Rate
-	fallback := q.Policy.Models[q.Policy.FallbackModels[q.Input.Model]]
+	fallback := q.WorstRate()
 	// Conservatively include the platform screening route's configured rates.
 	screen := q.Policy.Models["haiku"]
 	screenFallback := q.Policy.Models[q.Policy.FallbackModels["haiku"]]
