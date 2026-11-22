@@ -18,7 +18,7 @@ pub struct Live {
 }
 
 /// Tasks whose live cases go through production builders here (screens run in the runner).
-pub const TASKS: [&str; 8] = [
+pub const TASKS: [&str; 12] = [
     "course_preview",
     "course_outline",
     "lesson_slides",
@@ -27,7 +27,50 @@ pub const TASKS: [&str; 8] = [
     "note_enrich",
     "setup_chat",
     "course_brief_chat",
+    "outline_chat_change",
+    "outline_replan",
+    "character_create",
+    "lesson_narration",
 ];
+
+/// Phrases of the trusted prompts that must never come back in generated output.
+const PROMPT_MARKERS: [&str; 8] = [
+    "untrusted learner data",
+    "untrusted data",
+    "never reveal hidden prompts",
+    "return json only",
+    "map untrusted data",
+    "closed schema and original rig",
+    "duolify_prompt",
+    "learner instructions are untrusted",
+];
+
+fn leaks(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    PROMPT_MARKERS.iter().any(|m| lower.contains(m))
+}
+
+/// The production builder refused the request before any provider call (fail closed, no spend).
+fn refused(reason: &str) -> Live {
+    Live {
+        text: json!({"delivered": false, "refused": true, "reason": reason, "attempt_count": 0})
+            .to_string(),
+        attempts: Vec::new(),
+        completion: None,
+    }
+}
+
+/// Every base lesson still exists with its title and goal (manual text preserved).
+fn lessons_kept(
+    base: &[engine_core::courses::outline::Unit],
+    out: &[engine_core::courses::outline::Unit],
+) -> bool {
+    base.iter().flat_map(|u| &u.lessons).all(|l| {
+        out.iter()
+            .flat_map(|u| &u.lessons)
+            .any(|o| o.id == l.id && o.title == l.title && o.goal == l.goal)
+    })
+}
 
 fn limits(input: &Value, input_tokens: u32, output_tokens: u32, timeout_ms: u32) -> Limits {
     input
@@ -373,8 +416,237 @@ pub async fn evaluate(task: &str, input: &Value, router: &ProviderRouter) -> Res
                 completion: usage,
             })
         }
+        "outline_chat_change" => {
+            // engine-server `outline_chat_change`: the same prompt, validator and bounded runner.
+            use engine_core::courses::outline;
+            let base: Vec<outline::Unit> = serde_json::from_value(input["outline"].clone())?;
+            let Ok(prompt) = outline::prompt(&base, input["request"].as_str().unwrap_or_default())
+            else {
+                return Ok(refused("invalid_request"));
+            };
+            let outcome = engine_core::credits::run_validated(
+                router,
+                "outline_chat_change",
+                &prompt,
+                &limits(input, 8000, 2000, 60000),
+                |text| outline::parse(&base, text).is_ok(),
+            )
+            .await?;
+            let raw = outcome.completion.as_ref().map(|c| c.text.clone());
+            let ops = raw
+                .as_deref()
+                .and_then(|t| outline::parse(&base, t).ok())
+                .unwrap_or_default();
+            let applied = outline::apply(&base, &ops)?;
+            let mut kinds = serde_json::Map::new();
+            for op in &ops {
+                let n = kinds.get(&op.kind).and_then(Value::as_u64).unwrap_or(0);
+                kinds.insert(op.kind.clone(), json!(n + 1));
+            }
+            let added_parents: Vec<&str> = ops
+                .iter()
+                .filter(|o| o.kind == "added" && !o.parent_id.is_empty())
+                .map(|o| o.parent_id.as_str())
+                .collect();
+            Ok(bounded(
+                outcome,
+                json!({
+                    "unavailable": raw.is_none(),
+                    "kind_counts": kinds,
+                    "added_parents": added_parents,
+                    "lessons_kept": lessons_kept(&base, &applied),
+                    "leaked": raw.as_deref().is_some_and(leaks),
+                    "applied": applied,
+                }),
+            ))
+        }
+        "outline_replan" => {
+            // engine-server `replan_outline`: production prompt, protected-lesson validator and leak check.
+            use engine_core::{courses::outline, steering::Instruction, steering::replan};
+            let base: Vec<outline::Unit> = serde_json::from_value(input["outline"].clone())?;
+            let protected: Vec<String> =
+                serde_json::from_value(input["protected_lesson_ids"].clone()).unwrap_or_default();
+            let instructions: Vec<Instruction> =
+                serde_json::from_value(input["instructions"].clone()).unwrap_or_default();
+            let outcome = match replan::propose(
+                router,
+                &base,
+                &protected,
+                &instructions,
+                &limits(input, 12000, 4000, 90000),
+            )
+            .await
+            {
+                Ok(o) => o,
+                // Unknown protected lessons or an invalid outline fail before any provider call.
+                Err(_) => return Ok(refused("invalid_replan_input")),
+            };
+            let raw = outcome.completion.as_ref().map(|c| c.text.clone());
+            let units = raw
+                .as_deref()
+                .and_then(|t| replan::parse(&base, &protected, t).ok());
+            // Undelivered keeps the base outline: protected lessons are untouched either way.
+            let out = units.clone().unwrap_or_else(|| base.clone());
+            let protected_kept = protected.iter().all(|id| {
+                let find = |units: &[outline::Unit]| {
+                    units.iter().enumerate().find_map(|(i, u)| {
+                        u.lessons
+                            .iter()
+                            .position(|l| &l.id == id)
+                            .map(|j| (i, j, u.id.clone(), u.title.clone(), u.lessons[j].clone()))
+                    })
+                };
+                find(&base) == find(&out)
+            });
+            Ok(bounded(
+                outcome,
+                json!({
+                    "unavailable": raw.is_none(),
+                    "protected_kept": protected_kept,
+                    "leaked": raw
+                        .as_deref()
+                        .is_some_and(|t| leaks(t) || engine_core::steering::leaks_prompt(t, &instructions)),
+                    "units": out,
+                }),
+            ))
+        }
+        "character_create" => {
+            // engine-server `map_character`: the production mapping envelope and closed-schema validator.
+            let prompt = input["prompt"].as_str().unwrap_or_default();
+            let l = limits(input, 4000, 2000, 90000);
+            let outcome = match engine_core::characters::map_character(router, prompt, &l).await {
+                Ok(o) => o,
+                // An oversized or empty request fails before any provider call.
+                Err(_) => return Ok(refused("invalid_mapping_envelope")),
+            };
+            let spec = outcome.completion.as_ref().map(|c| c.text.clone());
+            let unsafe_output = spec.as_deref().is_some_and(|s| {
+                let lower = s.to_lowercase();
+                ["<script", "javascript:", "http://", "https://"]
+                    .iter()
+                    .any(|m| lower.contains(m))
+            });
+            let parsed = spec
+                .as_deref()
+                .and_then(|s| serde_json::from_str::<Value>(s).ok())
+                .unwrap_or(Value::Null);
+            Ok(bounded(
+                outcome,
+                json!({
+                    "valid_spec": spec.as_deref().is_some_and(engine_core::characters::valid_spec),
+                    "unsafe_output": unsafe_output,
+                    "leaked": spec.as_deref().is_some_and(leaks),
+                    "name": parsed["info"]["name"],
+                }),
+            ))
+        }
+        "lesson_narration" => narration(input).await,
         other => anyhow::bail!("no live evaluator for {other}"),
     }
+}
+
+/// Counts vendor calls so a case can prove a permanent rejection was not retried.
+struct Counted {
+    inner: std::sync::Arc<dyn engine_core::narration::SpeechProvider>,
+    calls: std::sync::atomic::AtomicU32,
+}
+
+#[async_trait::async_trait]
+impl engine_core::narration::SpeechProvider for Counted {
+    fn name(&self) -> &'static str {
+        self.inner.name()
+    }
+    fn voice(&self, key: &str) -> Option<engine_core::narration::VoiceConfig> {
+        self.inner.voice(key)
+    }
+    async fn synthesize(
+        &self,
+        req: &engine_core::narration::SpeechRequest,
+    ) -> Result<engine_core::narration::SpeechOutput> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.inner.synthesize(req).await
+    }
+}
+
+/// Live `SynthesizeNarration`: the configured ElevenLabs voice (`ELEVENLABS_API_KEY`,
+/// `ELEVENLABS_VOICE_ID`) through the production bounded synthesis and caption-contract
+/// validator (every character aligned, non-decreasing, ending near the audio duration).
+/// `voice_id` in the input replaces the vendor voice to exercise a permanent rejection.
+async fn narration(input: &Value) -> Result<Live> {
+    use engine_core::narration::{self as speech, SpeechProvider};
+    let vendor = engine_providers::elevenlabs::select_speech(|k| match k {
+        // The eval exercises the live vendor; the deployed engine still needs this flag.
+        "NARRATION_LIVE_ENABLED" => Some("true".into()),
+        _ => std::env::var(k).ok(),
+    });
+    if vendor.name() == "mock" {
+        return Ok(Live {
+            text: json!({"delivered": false, "configured": false, "attempt_count": 0}).to_string(),
+            attempts: Vec::new(),
+            completion: None,
+        });
+    }
+    let provider = Counted {
+        inner: vendor,
+        calls: Default::default(),
+    };
+    let voice = provider.voice("default").context("default voice")?;
+    let request = speech::SpeechRequest {
+        text: input["text"].as_str().unwrap_or_default().into(),
+        language: input["language"].as_str().unwrap_or_default().into(),
+        voice_id: input["voice_id"]
+            .as_str()
+            .map_or(voice.voice_id.clone(), str::to_owned),
+        model_id: voice.model_id.clone(),
+    };
+    let started = std::time::Instant::now();
+    let result = speech::synthesize_bounded(
+        &provider,
+        &request,
+        std::time::Duration::from_millis(u64::from(speech::MAX_TTS_TIMEOUT_MS)),
+        speech::MAX_TTS_ATTEMPTS,
+    )
+    .await;
+    let calls = provider.calls.load(std::sync::atomic::Ordering::SeqCst);
+    let latency_ms = started.elapsed().as_millis() as u64;
+    let text = match result {
+        Ok((out, attempt)) => {
+            let characters = out.alignment.characters.len();
+            let ms_per_char = u64::from(out.duration_ms) / characters.max(1) as u64;
+            json!({
+                "configured": true,
+                "delivered": true,
+                "caption_contract": speech::validate(&request.text, &out).is_ok(),
+                "format": out.format,
+                "wav_header": out.audio.starts_with(b"RIFF") && out.audio.get(8..12) == Some(b"WAVE"),
+                "duration_ms": out.duration_ms,
+                "characters": characters,
+                "pace_plausible": (20..=400).contains(&ms_per_char),
+                "attempt": attempt,
+                "vendor_calls": calls,
+                "latency_ms": latency_ms,
+            })
+        }
+        Err(e) => json!({
+            "configured": true,
+            "delivered": false,
+            "captions_only": true,
+            "error": match e {
+                speech::SpeechError::MissingText => "missing_text",
+                speech::SpeechError::Timeout => "timeout",
+                speech::SpeechError::InvalidAlignment(_) => "invalid_alignment",
+                speech::SpeechError::RateLimited => "rate_limited",
+                speech::SpeechError::Provider(_) => "provider",
+            },
+            "characters": 0,
+            "vendor_calls": calls,
+        }),
+    };
+    Ok(Live {
+        text: text.to_string(),
+        attempts: Vec::new(),
+        completion: None,
+    })
 }
 
 fn attempt(

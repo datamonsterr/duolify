@@ -267,6 +267,16 @@ async fn missing_stale_or_failed_evidence_fails_every_screen_closed_with_a_typed
     }
 }
 
+#[test]
+fn launch_tasks_are_exactly_the_gated_rpcs_plus_live_narration() {
+    let mut gated: Vec<&str> = engine_server::GATED.iter().map(|(_, t)| *t).collect();
+    gated.push("lesson_narration");
+    gated.sort_unstable();
+    let mut launch = engine_core::promotion::LAUNCH_TASKS.to_vec();
+    launch.sort_unstable();
+    assert_eq!(gated, launch);
+}
+
 #[tokio::test]
 async fn a_task_without_live_cases_stays_closed_even_when_the_run_passed() {
     let fp = engine_core::promotion::fingerprint();
