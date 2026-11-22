@@ -446,6 +446,34 @@ message ChatRequest {
   // E17-07: API-validated, bounded tutor persona JSON ({name,bio,backstory,traits,speaking_style,persona_prompt}).
   // Untrusted style data, never instructions. Empty means the neutral tutor.
   string tutor_persona_json = 8;
+  // Optional area of a Slide the Learner selected before asking. The API resolves it against the
+  // Slide manifest regions; the client never supplies Slide text. Unset for ordinary questions.
+  RegionQuestion region_question = 9;
+}
+
+// RegionQuestion grounds one tutor turn on part of a Slide. Every string in it comes from the
+// Slide manifest (model-generated content) and is untrusted data for the prompt, never instructions.
+message RegionQuestion {
+  uint32 slide_index = 1;
+  // The selected rectangle, normalized stage coordinates.
+  RegionBox rect = 2;
+  // Playback time on the Slide clock when the Learner selected the area.
+  uint32 at_ms = 3;
+  // True when no declared region intersects the rectangle at that time (or the Slide declares
+  // none): the turn is grounded on the whole Slide and `regions` is empty.
+  bool whole_slide = 4;
+  // Intersecting regions, best overlap first.
+  repeated QuestionRegion regions = 5;
+  // Manifest explanation of the Slide; the grounding text when `whole_slide` is true.
+  string slide_explanation = 6;
+}
+
+message QuestionRegion {
+  string region_id = 1;
+  RegionRole role = 2;
+  string description = 3;
+  // Intersection over union of the selection and the region box, 0..1.
+  double overlap = 4;
 }
 
 message SourceExcerpt {

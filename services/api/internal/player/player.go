@@ -148,21 +148,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		failure(w, 404)
 		return
 	}
-	var key, course, title string
-	var version int
-	lookup := func() error {
-		return s.opts.Pool.QueryRow(ctx, `SELECT m.manifest_key,m.version,c.id::text,l.title
- FROM lesson_manifests m JOIN course_lesson_stubs l ON l.id=m.lesson_id
- JOIN course_units u ON u.id=l.unit_id JOIN courses c ON c.id=u.course_id
- JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=$2::uuid
- WHERE m.lesson_id=$1::uuid AND m.learner_id=$2::uuid AND l.learner_id=m.learner_id AND l.status<>'locked' AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL)`, id, owner).Scan(&key, &version, &course, &title)
-	}
-	err := lookup()
-	if errors.Is(err, pgx.ErrNoRows) {
-		if err = s.MaterializeGenerated(ctx, owner, id); err == nil {
-			err = lookup()
-		}
-	}
+	key, version, course, title, err := s.manifestRef(ctx, owner, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		failure(w, 404)
 		return
@@ -461,4 +447,53 @@ func (s *Service) narrationRecovery(ctx context.Context, w http.ResponseWriter, 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 	_ = json.NewEncoder(w).Encode(map[string]string{"state": state})
+}
+
+// manifestRef authorizes a Lesson for its owner and returns its manifest object reference.
+// A generated Lesson without a manifest is published on first access. pgx.ErrNoRows means no access.
+func (s *Service) manifestRef(ctx context.Context, owner, id string) (key string, version int, course, title string, err error) {
+	lookup := func() error {
+		return s.opts.Pool.QueryRow(ctx, `SELECT m.manifest_key,m.version,c.id::text,l.title
+ FROM lesson_manifests m JOIN course_lesson_stubs l ON l.id=m.lesson_id
+ JOIN course_units u ON u.id=l.unit_id JOIN courses c ON c.id=u.course_id
+ JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=$2::uuid
+ WHERE m.lesson_id=$1::uuid AND m.learner_id=$2::uuid AND l.learner_id=m.learner_id AND l.status<>'locked' AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL)`, id, owner).Scan(&key, &version, &course, &title)
+	}
+	err = lookup()
+	if errors.Is(err, pgx.ErrNoRows) {
+		if err = s.MaterializeGenerated(ctx, owner, id); err == nil {
+			err = lookup()
+		}
+	}
+	return
+}
+
+// ErrSlideNotFound reports a Slide index beyond the Lesson.
+var ErrSlideNotFound = errors.New("slide not found")
+
+// SlideAt returns one Slide of a Lesson the owner may play, with its server-side regions, for
+// grounding tutor questions. pgx.ErrNoRows means the Lesson is not available to the owner.
+func (s *Service) SlideAt(ctx context.Context, owner, lesson string, index int) (ObjectSlide, error) {
+	id, ok := CanonicalUUID(lesson)
+	if !ok {
+		return ObjectSlide{}, pgx.ErrNoRows
+	}
+	if s.opts.Pool == nil || s.opts.Objects == nil || !ValidOrigin(s.opts.AssetOrigin) {
+		return ObjectSlide{}, errors.New("player storage unavailable")
+	}
+	key, version, _, _, err := s.manifestRef(ctx, owner, id)
+	if err != nil {
+		return ObjectSlide{}, err
+	}
+	if !validKey(key) {
+		return ObjectSlide{}, errInvalid
+	}
+	m, err := s.manifest(ctx, key, version)
+	if err != nil {
+		return ObjectSlide{}, err
+	}
+	if index < 0 || index >= len(m.Slides) {
+		return ObjectSlide{}, ErrSlideNotFound
+	}
+	return m.Slides[index], nil
 }
