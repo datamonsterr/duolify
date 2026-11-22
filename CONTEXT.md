@@ -35,6 +35,7 @@ One term, one meaning. Use these words in code, specs and UI copy.
 | **Bookmark** | Saved pointer to a slide or lesson. |
 | **Learner profile** | Background, goals and level the learner shares; used as AI context. |
 | **Golden set** | Versioned evaluation cases for AI features, stored as a Hugging Face dataset. |
+| **Promotion evidence** | The committed live eval report (`evals/promotion/live-report.json`) a deployed engine embeds; a live AI feature runs only when its task passed in it for the same build (ADR 0019). |
 | **API** | `services/api`, the Go service that clients call. |
 | **Engine** | `engine/`, the Rust service that runs AI agents. Only the API calls it. |
 | **Username** | Unique public handle of a learner, used for invites and the friend list. |
