@@ -7,7 +7,7 @@ import { expect, test } from "./stack";
 
 test.use({ flowId: "F6" });
 
-const balance = /Daily free (\d[\d,]*) · Purchased (\d[\d,]*)/;
+const balance = /Daily free (\d[\d,]*) · Check-in and paid (\d[\d,]*)/;
 const amount = (text: string | null, group: 1 | 2) =>
   Number((text?.match(balance)?.[group] ?? "NaN").replace(/,/g, ""));
 
@@ -28,7 +28,7 @@ test(
     await expect(
       page.getByRole("status").filter({ hasText: "Lesson paused" }),
     ).toBeVisible();
-    const tutor = page.getByRole("complementary", { name: "Tutor chat" });
+    const tutor = page.getByRole("region", { name: "Tutor chat" });
     await expect(tutor.getByRole("log", { name: "Tutor" })).toBeVisible();
     await flow.step("tutor open, lesson paused");
 
@@ -53,7 +53,7 @@ test(
     await expect(replies.first()).not.toBeEmpty();
     await flow.step("tutor replied");
 
-    // Daily free credits pay first; purchased credits are untouched.
+    // Daily free credits pay first; check-in and purchased credits are untouched.
     await expect
       .poll(async () => amount(await funds.textContent(), 1))
       .toBeLessThan(dailyBefore);
@@ -61,7 +61,10 @@ test(
     await flow.step("daily free credits spent");
 
     await page.getByRole("button", { name: "Close Ask tutor" }).click();
-    await expect(page.getByRole("button", { name: "Next" })).toBeVisible();
+    // Back on the last slide, where "Take lesson test" replaces "Next".
+    await expect(
+      page.getByRole("link", { name: "Take lesson test" }),
+    ).toBeVisible();
     await flow.step("back to the lesson");
   },
 );

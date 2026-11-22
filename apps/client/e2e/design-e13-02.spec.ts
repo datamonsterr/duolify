@@ -139,6 +139,9 @@ test("desktop navigation groups learning and account links and shows compact pro
       },
     }),
   );
+  await page.route("**/v1/gamification/streak", (r) =>
+    r.fulfill({ json: { current_days: 3, today_done: true } }),
+  );
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/courses");
 
@@ -157,7 +160,7 @@ test("desktop navigation groups learning and account links and shows compact pro
 
   const rail = page.getByRole("complementary", { name: "Your progress" });
   await expect(rail.getByRole("progressbar")).toHaveCount(2);
-  await expect(rail.getByText("3 of 7 days")).toBeVisible();
+  await expect(rail.getByText("3 day streak")).toBeVisible();
   await expect(rail.getByText("23 / 46 XP today")).toBeVisible();
   await expect(rail.getByText(/\$|€|£/)).toHaveCount(0);
 });

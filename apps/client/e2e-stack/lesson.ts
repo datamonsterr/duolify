@@ -1,6 +1,6 @@
 // Lesson steps shared by F3 and F4.
 import type { APIRequestContext, Page } from "@playwright/test";
-import { createCourse, fundLearner } from "./course";
+import { awaitFirstCheckIn, createCourse } from "./course";
 import {
   expect,
   features,
@@ -29,13 +29,8 @@ export async function requireLessonGeneration(
 
 /** New learner with a created course, on the course path page. */
 export async function learnerWithCourse(page: Page, flowId: string) {
-  const learner = await signUp(
-    page,
-    uniqueEmail(flowId),
-    undefined,
-    "/courses/create",
-  );
-  await fundLearner(learner);
+  await signUp(page, uniqueEmail(flowId), undefined, "/courses/create");
+  await awaitFirstCheckIn(page);
   await createCourse(page);
 }
 
@@ -54,28 +49,26 @@ export async function playFirstLesson(page: Page, flow: Flow): Promise<void> {
   await expect(start.or(failed)).toBeVisible({ timeout: 180_000 });
   if (await failed.isVisible()) {
     await flow.step("lesson generation failed");
-    test.fixme(
-      !live,
-      "Lesson generation fails in deterministic (mock engine) mode: the lesson prompt now names " +
-        "'variants' (LESSON_SHAPE, engine/crates/engine-core/src/lessontest/mod.rs:330), and the " +
-        "MockProvider dispatches any input containing 'variants' to its retry-variant fixture " +
-        "(engine/crates/engine-core/src/lib.rs:423-425) before the lesson fixture, so " +
-        "check_generated rejects it (test_weakened), both attempts end invalid_schema and " +
-        "GenerateLesson emits unavailable (engine/crates/engine-server/src/lib.rs:1144). " +
-        "Engine-owned: match the variant fixture on the GenerateRetryVariants prompt only, and " +
-        'add a GenerateLesson test through engine_providers::router("mock").',
-    );
     throw new Error(
-      "Lesson generation failed (live mode): see the api and engine logs",
+      `Lesson generation failed (${live ? "live" : "mock"} engine): see the api and engine logs`,
     );
   }
   await flow.step("first lesson generated");
   await start.click();
+  await playOpenedLesson(page, flow);
+}
+
+/** From a click that opens the player: play every slide to the end. */
+export async function playOpenedLesson(page: Page, flow: Flow): Promise<void> {
   await expect(page).toHaveURL(/\/lesson\/[^/]+$/);
   await expect(page.getByText(/Slide 1 of \d+/)).toBeVisible();
   await flow.step("lesson player, first slide");
-  const next = page.getByRole("button", { name: "Next" });
-  while (await next.isEnabled().catch(() => false)) {
+  // The last slide replaces "Next" with the "Take lesson test" link.
+  const next = page.getByRole("button", { name: "Next", exact: true });
+  const toTest = page.getByRole("link", { name: "Take lesson test" });
+  for (let i = 0; i < 100; i++) {
+    await expect(next.or(toTest)).toBeVisible();
+    if (await toTest.isVisible()) break;
     await next.click();
   }
   await expect(page.getByText(/Slide (\d+) of \1/)).toBeVisible();

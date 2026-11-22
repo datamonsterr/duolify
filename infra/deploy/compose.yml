@@ -273,9 +273,8 @@ services:
       POSTHOG_PERSONAL_API_KEY: ${POSTHOG_PERSONAL_API_KEY:-}
       OPERATIONS_ADDR: :9092
       GOMEMLIMIT: 300MiB
-      # Scoped backup identity only; no application object-store keys.
-      S3_ACCESS_KEY_ID: ""
-      S3_SECRET_ACCESS_KEY: ""
+      # Keeps the application object-store key from app-env: the lessons queue publishes
+      # generated lessons, narration and example decks to the application bucket.
       BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?run selfhost.sh init}
     depends_on:
       postgres: {condition: service_healthy}

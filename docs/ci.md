@@ -90,7 +90,7 @@ settings change.
 
 ## Full-stack flow suite
 
-`playwright-stack` (full tier, advisory: not yet in `ci-ok`) runs the real web
+`playwright-stack` (full tier, required by `ci-ok`) runs the real web
 client against the disposable `infra/e2e` stack: `infra/deploy/compose.yml` plus the
 test-only overlay `infra/e2e/compose.yml`, Compose project `duolify-e2e`, mock engine
 provider, no `page.route` mocks. Specs are `apps/client/e2e-stack/*.flow.ts`. Each flow
@@ -114,8 +114,21 @@ E2E_STACK_CODE_COMMAND='<prints codes for $1>' mise run client:e2e-stack` (no lo
 `fixme`). `E2E_LESSON_TEST_TRACER_ENABLED=false` runs with lesson generation off.
 
 Pricing: the suite never approves pricing. Flows that need a quote use the target's
-active approved version; if its quoted route is not one the engine serves, course preview
-fails and the flow reports `pricing not approved on target`.
+active approved version; a failed course preview or lesson generation fails the flow.
+
+Flows: F1 sign-up/sign-in, F1b new-learner home (check-in toast), F1c session persistence,
+F1d daily check-in once per day, F2 create a course, F3 play the first lesson, F4 lesson
+test pass, F5 fail then retry variant, F6 tutor, F7 notes and bookmarks, F8 streak/XP/daily
+goal, F9 credits, F10 settings, F11 export/delete, F12 friends, F13 free example course (no
+AI call, no paid credits), F14 first-run welcome and every tour step. Course flows are
+funded by the learner's real first daily check-in (keep check-in enabled on the target);
+only F9's purchase step uses `grant-credits`. Sign-ups without a deep link dismiss the
+welcome and tour as a learner would (`skipOnboarding` in `e2e-stack/stack.ts`).
+
+Staging (`E2E_STACK_URL=https://staging.duolify.online`): run only the flows without paid
+AI (`E2E_FLOW="F1 |F1b|F1c|F1d|F9|F10|F11|F12|F13|F14"`). Staging mails real codes through Resend
+and has no grant mechanism, so `E2E_STACK_CODE_COMMAND` and `E2E_STACK_GRANT_COMMAND` must
+be supplied by the operator; without a grant command F9's purchase step is `fixme`.
 
 | Secret | Use |
 | --- | --- |

@@ -57,6 +57,14 @@ d=$(fixture posthog-forwarding)
 printf 'POSTHOG_PROJECT_ID=project-test\nPOSTHOG_PERSONAL_API_KEY=private-test\n' >> "$d/env"
 rendered=$(env -u BACKUP_AGE_RECIPIENT docker compose --project-directory "$d" -f "$d/compose.yml" -f "$d/compose.prod.yml" --env-file "$d/env" --profile '*' config --format json)
 if jq -e '.services.worker.environment.POSTHOG_PROJECT_ID == "project-test" and .services.worker.environment.POSTHOG_PERSONAL_API_KEY == "private-test" and ((.services.web.environment // {}) | has("POSTHOG_PERSONAL_API_KEY") | not)' <<<"$rendered" >/dev/null; then printf 'ok   PostHog private credentials reach worker only\n'; else printf 'FAIL PostHog private credentials are not isolated to worker\n'; failures=$((failures+1)); fi
+# The worker publishes generated lessons, narration and example decks to the application bucket
+# (lessons queue: player.NewS3 in services/api/cmd/api/main.go), so it needs the application key.
+for f in "$d/compose.yml" "$d/compose.yml -f $d/compose.prod.yml"; do
+  # shellcheck disable=SC2086
+  worker=$(env -u BACKUP_AGE_RECIPIENT docker compose --project-directory "$d" -f $f --env-file "$d/env" --profile '*' config --format json | jq -r '.services.worker.environment | "\(.S3_ACCESS_KEY_ID // "")|\(.S3_SECRET_ACCESS_KEY // "")"')
+  if [[ $worker != "|"* && $worker != *"|" ]]; then printf 'ok   worker has the application object-store key (%s)\n' "${f##*/}"
+  else printf 'FAIL worker has no application object-store key (%s): generated lessons cannot be published\n' "${f##*/}"; failures=$((failures+1)); fi
+done
 expect_reject missing-app-versioning S3_VERSIONING sed -i "/^S3_VERSIONING=/d" env
 expect_reject invalid-app-versioning S3_VERSIONING sed -i "s/^S3_VERSIONING=.*/S3_VERSIONING=unknown/" env
 expect_reject missing-app-key S3_ACCESS_KEY_ID sed -i '/^S3_ACCESS_KEY_ID=/d' env
