@@ -906,30 +906,33 @@ type LearnerBlock struct {
 }
 
 type LearnerProfile struct {
-	LearnerID       pgtype.UUID        `json:"learner_id"`
-	Locale          string             `json:"locale"`
-	TimeZone        string             `json:"time_zone"`
-	Background      string             `json:"background"`
-	AnalyticsOptOut bool               `json:"analytics_opt_out"`
-	AgeConfirmedAt  pgtype.Timestamptz `json:"age_confirmed_at"`
-	Goal            string             `json:"goal"`
-	Topic           string             `json:"topic"`
-	Level           string             `json:"level"`
-	DailyMinutes    pgtype.Int4        `json:"daily_minutes"`
-	DailyXp         pgtype.Int4        `json:"daily_xp"`
-	ReminderEnabled pgtype.Bool        `json:"reminder_enabled"`
-	ReminderTime    string             `json:"reminder_time"`
-	SetupCompleted  bool               `json:"setup_completed"`
-	Appearance      string             `json:"appearance"`
-	Motion          string             `json:"motion"`
-	Narration       bool               `json:"narration"`
-	NarrationSpeed  pgtype.Numeric     `json:"narration_speed"`
-	Captions        bool               `json:"captions"`
-	TextSize        pgtype.Numeric     `json:"text_size"`
-	UiSounds        bool               `json:"ui_sounds"`
-	Haptics         string             `json:"haptics"`
-	ActiveCourseID  pgtype.UUID        `json:"active_course_id"`
-	NarrationVoice  string             `json:"narration_voice"`
+	LearnerID              pgtype.UUID        `json:"learner_id"`
+	Locale                 string             `json:"locale"`
+	TimeZone               string             `json:"time_zone"`
+	Background             string             `json:"background"`
+	AnalyticsOptOut        bool               `json:"analytics_opt_out"`
+	AgeConfirmedAt         pgtype.Timestamptz `json:"age_confirmed_at"`
+	Goal                   string             `json:"goal"`
+	Topic                  string             `json:"topic"`
+	Level                  string             `json:"level"`
+	DailyMinutes           pgtype.Int4        `json:"daily_minutes"`
+	DailyXp                pgtype.Int4        `json:"daily_xp"`
+	ReminderEnabled        pgtype.Bool        `json:"reminder_enabled"`
+	ReminderTime           string             `json:"reminder_time"`
+	SetupCompleted         bool               `json:"setup_completed"`
+	Appearance             string             `json:"appearance"`
+	Motion                 string             `json:"motion"`
+	Narration              bool               `json:"narration"`
+	NarrationSpeed         pgtype.Numeric     `json:"narration_speed"`
+	Captions               bool               `json:"captions"`
+	TextSize               pgtype.Numeric     `json:"text_size"`
+	UiSounds               bool               `json:"ui_sounds"`
+	Haptics                string             `json:"haptics"`
+	ActiveCourseID         pgtype.UUID        `json:"active_course_id"`
+	NarrationVoice         string             `json:"narration_voice"`
+	FullscreenOnRotate     bool               `json:"fullscreen_on_rotate"`
+	Autoplay               bool               `json:"autoplay"`
+	AutoSendAfterDictation bool               `json:"auto_send_after_dictation"`
 }
 
 type LearnerSocialSetting struct {
