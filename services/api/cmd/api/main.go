@@ -301,6 +301,11 @@ func run(ctx context.Context, args []string) (result error) {
 	if err != nil {
 		return err
 	}
+	clerkVerifier, clerkPublishableKey, err := accounts.ClerkFromEnv(os.Getenv)
+	if err != nil {
+		return err
+	}
+	auth.ConfigureClerk(clerkVerifier, clerkPublishableKey)
 	auth.ConfigureProfile(profileOptions)
 	auth.ConfigureDeletionLedger(deletionLedger)
 	if err := pricing.BootstrapAdmins(ctx, db.Pool, pricing.OperatorPricingAdminIDs()); err != nil {

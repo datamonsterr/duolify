@@ -531,13 +531,13 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		public := false
 		if r.Method == http.MethodGet {
 			switch r.URL.Path {
-			case "/healthz", "/readyz", "/v1/pricing", "/v1/features", "/v1/courses/shared-demo", "/v1/characters/default-cast", "/v1/stream-check":
+			case "/healthz", "/readyz", "/v1/pricing", "/v1/features", "/v1/courses/shared-demo", "/v1/characters/default-cast", "/v1/stream-check", "/v1/auth/sso/config":
 				public = true
 			}
 		}
 		if r.Method == http.MethodPost {
 			switch r.URL.Path {
-			case "/v1/auth/code", "/v1/auth/verify", "/v1/auth/refresh", "/v1/auth/logout", "/v1/auth/google/start", "/v1/auth/google/complete", "/v1/auth/apple/start", "/v1/auth/apple/complete", "/v1/payments/stripe/webhook", "/v1/eval/reports":
+			case "/v1/auth/code", "/v1/auth/verify", "/v1/auth/refresh", "/v1/auth/logout", "/v1/auth/sso/start", "/v1/auth/sso/handoff", "/v1/auth/sso/complete", "/v1/payments/stripe/webhook", "/v1/eval/reports":
 				public = true
 			}
 		}
