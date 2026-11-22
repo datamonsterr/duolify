@@ -7,7 +7,7 @@ import enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine
 func (l Lesson) Proto() *enginev1.Lesson {
 	out := &enginev1.Lesson{}
 	for _, s := range l.Slides {
-		out.Slides = append(out.Slides, &enginev1.Slide{SlideId: s.ID, Html: s.HTML, Narration: s.Narration, DurationMs: uint32(s.DurationMS), TopicIds: s.TopicIDs})
+		out.Slides = append(out.Slides, &enginev1.Slide{SlideId: s.ID, Html: s.HTML, Narration: s.Narration, DurationMs: uint32(s.DurationMS), TopicIds: s.TopicIDs}) //nolint:gosec // authored range checked by tests (3000 to 60000)
 	}
 	for _, q := range l.Test {
 		out.Test = append(out.Test, q.proto())
@@ -24,5 +24,5 @@ func (l Lesson) Proto() *enginev1.Lesson {
 }
 
 func (q Question) proto() *enginev1.Question {
-	return &enginev1.Question{QuestionId: q.ID, TopicId: q.TopicID, Prompt: q.Prompt, Choices: q.Choices, AnswerIndex: uint32(q.AnswerIndex), Explanation: q.Explanation, VariantOf: q.VariantOf}
+	return &enginev1.Question{QuestionId: q.ID, TopicId: q.TopicID, Prompt: q.Prompt, Choices: q.Choices, AnswerIndex: uint32(q.AnswerIndex), Explanation: q.Explanation, VariantOf: q.VariantOf} //nolint:gosec // authored index checked by tests
 }

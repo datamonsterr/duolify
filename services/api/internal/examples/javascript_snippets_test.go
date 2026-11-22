@@ -2,6 +2,7 @@ package examples_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -80,21 +81,13 @@ func TestJavaScriptSnippetsAreVerifiedWithNode(t *testing.T) {
 	}
 	covered := map[string]bool{}
 	for _, sn := range snippets {
-		cmd := exec.Command(node, "--input-type=commonjs", "-")
+		runCtx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		cmd := exec.CommandContext(runCtx, node, "--input-type=commonjs", "-") //nolint:gosec // node from PATH runs repository-authored snippets
 		cmd.Stdin = strings.NewReader(sn.Code)
 		var out, errb bytes.Buffer
 		cmd.Stdout, cmd.Stderr = &out, &errb
-		done := make(chan error, 1)
-		if err = cmd.Start(); err != nil {
-			t.Fatal(err)
-		}
-		go func() { done <- cmd.Wait() }()
-		select {
-		case err = <-done:
-		case <-time.After(10 * time.Second):
-			_ = cmd.Process.Kill()
-			t.Fatalf("%s: timed out", sn.ID)
-		}
+		err = cmd.Run()
+		cancel()
 		if err != nil {
 			t.Fatalf("%s: node failed: %v\n%s", sn.ID, err, errb.String())
 		}

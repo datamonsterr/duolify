@@ -255,8 +255,13 @@ func TestExampleCourseIsPlayableAtZeroCreditsWithoutTheEngine(t *testing.T) {
 	req, _ := http.NewRequestWithContext(ctx, "GET", server.URL+"/v1/courses/examples", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("If-None-Match", header.Get("ETag"))
-	if resp, e := server.Client().Do(req); e != nil || resp.StatusCode != 304 {
-		t.Fatalf("revalidation: %v %v", e, resp)
+	revalidated, e := server.Client().Do(req)
+	if e != nil {
+		t.Fatal(e)
+	}
+	_ = revalidated.Body.Close()
+	if revalidated.StatusCode != 304 {
+		t.Fatalf("revalidation: %d", revalidated.StatusCode)
 	}
 	if code, _, _ = call("POST", "/v1/courses/examples/nope/enroll", token, nil); code != 404 {
 		t.Fatalf("unknown slug: %d", code)
