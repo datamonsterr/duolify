@@ -14,7 +14,7 @@
 - [x] 2.4 Proto: regions on the generated Slide message; API and Engine updated together
 - [x] 2.5 Engine: Lesson prompt and strict schema emit regions; validators; corrective retry message for invalid regions (regions name a layout slot from `engine/config/regions.toml`; the Engine pins each `data-slot` element to its slot with an appended stylesheet, so boxes are true by construction: 0 of 72 rendered regions off by more than 1% of the stage in headless Chromium at 1280x720)
 - [x] 2.6 API: store regions in the manifest, validate at publication, expose nothing new to the client
-- [ ] 2.7 Golden set: region generation cases and thresholds; cost and latency compared with Lesson generation before regions; pin the new dataset revision
+- [x] 2.7 Golden set: region generation cases and thresholds; cost and latency compared with Lesson generation before regions; pin the new dataset revision (`datamonsterr/duolify-golden@1bf626ff`, four region cases; same three lesson cases x5 on hy4-flash before/after: failures 1/15 and 1/15, mean output tokens 1,258 to 1,748 (max 2,453, envelope 14,000), mean latency 10.0 s to 11.7 s, mean cost 0.000205 to 0.000338 USD; emission on)
 
 ## 3. Immersive presentation and controls (no AI)
 
