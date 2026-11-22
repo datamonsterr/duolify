@@ -17,7 +17,6 @@ import (
 	"net"
 	"net/http"
 	"net/mail"
-	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -52,8 +51,8 @@ type Service struct {
 	rateKey        []byte
 	sealKey        []byte
 	mail           Mailer
-	oauth          OAuthProvider
-	apple          AppleOAuthProvider
+	clerk          ClerkVerifier
+	clerkKey       string
 	mux            *http.ServeMux
 	profile        ProfileOptions
 	limits         RateLimits
@@ -62,45 +61,19 @@ type Service struct {
 	setupChat      SetupChatOptions
 }
 
-// New requires a shared signing/HMAC secret of at least 32 bytes.
+// New requires a shared signing/HMAC secret of at least 32 bytes. Clerk SSO stays
+// off until ConfigureClerk supplies a verifier and publishable key.
 func New(pool *pgxpool.Pool, secret string, mailer Mailer) (*Service, error) {
-	return NewWithOAuthProvider(pool, secret, mailer, unavailableOAuthProvider{})
-}
-
-// NewWithOAuthProvider injects the provider boundary used by Google and future Apple OAuth.
-func NewWithOAuthProvider(pool *pgxpool.Pool, secret string, mailer Mailer, provider OAuthProvider) (*Service, error) {
-	return NewWithOAuthProviders(pool, secret, mailer, provider, unavailableAppleProvider{})
-}
-
-// NewWithOAuthProviders injects independent Google and Apple adapters. Both default
-// to unavailable in production until their respective provisioning gates are met.
-func NewWithOAuthProviders(pool *pgxpool.Pool, secret string, mailer Mailer, google OAuthProvider, apple AppleOAuthProvider) (*Service, error) {
 	if len(secret) < 32 || mailer == nil {
-		return nil, errors.New("auth requires a 32-byte secret, Mailer, and OAuth providers")
+		return nil, errors.New("auth requires a 32-byte secret and Mailer")
 	}
-	if google == nil {
-		google = unavailableOAuthProvider{}
-	}
-	if apple == nil {
-		apple = unavailableAppleProvider{}
-	}
-	if os.Getenv("DUOLIFY_ENV") != "development" {
-		switch google.(type) {
-		case *FixtureGoogleProvider, *FixtureAppleProvider:
-			return nil, errors.New("fixture Google provider requires development")
-		}
-		switch apple.(type) {
-		case *FixtureGoogleProvider, *FixtureAppleProvider:
-			return nil, errors.New("fixture Apple provider requires development")
-		}
-	}
-	s := &Service{pool: pool, key: authKey(secret, "jwt"), otpKey: authKey(secret, "otp-hash"), oauthKey: authKey(secret, "oauth-hash"), rateKey: authKey(secret, "rate-hash"), sealKey: authKey(secret, "credential-encryption"), mail: mailer, oauth: google, apple: apple, mux: http.NewServeMux(), limits: DefaultRateLimits()}
+	s := &Service{pool: pool, key: authKey(secret, "jwt"), otpKey: authKey(secret, "otp-hash"), oauthKey: authKey(secret, "oauth-hash"), rateKey: authKey(secret, "rate-hash"), sealKey: authKey(secret, "credential-encryption"), mail: mailer, mux: http.NewServeMux(), limits: DefaultRateLimits()}
 	s.mux.HandleFunc("POST /v1/auth/code", s.requestCode)
 	s.mux.HandleFunc("POST /v1/auth/verify", s.verify)
-	s.mux.HandleFunc("POST /v1/auth/google/start", s.googleOAuthStart)
-	s.mux.HandleFunc("POST /v1/auth/google/complete", s.googleOAuthComplete)
-	s.mux.HandleFunc("POST /v1/auth/apple/start", s.appleOAuthStart)
-	s.mux.HandleFunc("POST /v1/auth/apple/complete", s.appleOAuthComplete)
+	s.mux.HandleFunc("GET /v1/auth/sso/config", s.ssoConfig)
+	s.mux.HandleFunc("POST /v1/auth/sso/start", s.ssoStart)
+	s.mux.HandleFunc("POST /v1/auth/sso/handoff", s.ssoHandoff)
+	s.mux.HandleFunc("POST /v1/auth/sso/complete", s.ssoComplete)
 	s.mux.HandleFunc("POST /v1/auth/refresh", s.refresh)
 	s.mux.HandleFunc("POST /v1/auth/logout", s.logout)
 	s.mux.Handle("GET /v1/auth/sessions", s.Protect(http.HandlerFunc(s.listSessions)))

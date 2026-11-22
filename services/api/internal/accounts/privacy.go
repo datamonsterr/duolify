@@ -132,6 +132,7 @@ var ClassifiedLearnerTables = map[string]string{
 	"learner_profiles":                  "erased",
 	"auth_identities":                   "erased",
 	"auth_provider_identities":          "erased",
+	"auth_oauth_attempts":               "erased",
 	"auth_sessions":                     "revoked_and_erased",
 	"credit_entries":                    "financial_retained_pseudonymous",
 	"pricing_quotes":                    "financial_retained_anonymized",

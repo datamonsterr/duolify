@@ -11,3 +11,5 @@ Add Apple sign-in to the existing first-party authentication flow through the sy
 - **Engine / proto / infra:** No changes.
 
 Relies on [ADR 0004](../../../adr/0004-auth.md), [ADR 0011](../../../adr/0011-owner-decisions-2026-11-09.md), and the learner-profile and analytics specifications.
+
+> Superseded by [clerk-sso-sign-in](../clerk-sso-sign-in/proposal.md) and ADR 0016: the first-party OAuth code, endpoints and environment variables are removed.

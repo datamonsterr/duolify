@@ -22,6 +22,7 @@ import {
 import { CourseBriefPage } from "./features/courses/CourseBrief";
 import { Sessions } from "./features/accounts/Sessions";
 import { SignIn } from "./features/accounts/SignIn";
+import { SsoBridge } from "./features/accounts/SsoBridge";
 import { RouteGuard } from "./features/accounts/RouteGuard";
 import { SetupProfile } from "./features/accounts/LearnerProfile";
 import { AccountProfile } from "./features/accounts/AccountProfile";
@@ -62,7 +63,11 @@ function AccountShell() {
 function AuthenticatedShell() {
   const path = useLocation({ select: (location) => location.pathname });
   // Sign-in and the anonymous course link preview render without a session.
-  if (path === "/sign-in" || /^\/c\/[A-Za-z0-9_-]+$/.test(path))
+  if (
+    path === "/sign-in" ||
+    path === "/sso-bridge" ||
+    /^\/c\/[A-Za-z0-9_-]+$/.test(path)
+  )
     return <Outlet />;
   return (
     <RouteGuard path={path}>
@@ -333,6 +338,11 @@ const signIn = createRoute({
   path: "/sign-in",
   component: SignInRoute,
 });
+const ssoBridge = createRoute({
+  getParentRoute: () => root,
+  path: "/sso-bridge",
+  component: SsoBridge,
+});
 const publicPreview = createRoute({
   getParentRoute: () => root,
   path: "/c/$token",
@@ -382,6 +392,7 @@ export const createAppRouter = (history?: RouterHistory) =>
       analytics,
       lessonTest,
       signIn,
+      ssoBridge,
       publicPreview,
     ]),
   });
