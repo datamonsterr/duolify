@@ -399,8 +399,7 @@ private generated-lesson prefixes (`lessons/generated/<id>/`) to Postgres
 identifiers) in the delete transaction, then deletes the objects after 15 days, a
 prefix a live manifest still names is skipped, and a storage failure retries next run.
 Published snapshots and deduplicated narration audio keep their own reference-counted
-retention. A versioned bucket keeps non-current versions under the operator's
-protected-copy policy. The ledger is in the nightly general dump.
+retention. The API sweep removes all versions and delete markers in a versioned application bucket; protected backup copies retain their separate expiry policy. The ledger is in the nightly general dump.
 
 The player holds document replicas in account-scoped query memory only; E3-03
 owns durable offline caching. Loading/failed/offline content never grants
@@ -882,11 +881,11 @@ E15-01 #228 (ADR 0013): `learners.birth_date` is a nullable Postgres `date`, col
 
 ## Object storage erasure by class
 
-Account erasure and the 30-day Course purge use one mechanism for private objects: the ledger `course_object_purges` (prefix, enqueued_at, purge_after, purged_at). Its rows are written in the same transaction as the row deletion (`accounts.QueuePrivateObjectPurges`, also on tombstone replay after a restore), outlive the learner (no foreign key, a prefix is a generated-lesson id, not personal data), and are drained by the daily `course_purge` job (`courses.SweepPurgedObjects`) 15 days later, longer than the 14-day nightly dumps. A prefix a live `lesson_manifests` row still names is skipped; a storage failure leaves the row pending and the next run retries; a second run is a no-op.
+Account erasure and the 30-day Course purge use one mechanism for private objects: the ledger `course_object_purges` (prefix, enqueued_at, purge_after, purged_at). Its rows are written in the same transaction as the row deletion (`accounts.QueuePrivateObjectPurges`, also on tombstone replay after a restore), outlive the learner (no foreign key, a prefix is a generated-lesson id, not personal data), and are drained by the API object sweep (`courses.SweepPurgedObjects`) 15 days later, longer than the 14-day nightly dumps. A prefix a live `lesson_manifests` row still names is skipped; a storage failure leaves the row pending and the next run retries; a second run is a no-op.
 
 | Object class | Where | Owner / sharing | Erasure behaviour |
 |---|---|---|---|
-| Generated Lesson objects (slide HTML, manifest) | `lessons/generated/<generated-lesson-id>/` | Private to the learner | Ledgered on account erasure (new) and on Course purge; deleted after 15 days unless still referenced. Before this change erasure left them in R2 |
+| Generated Lesson objects (slide HTML, manifest) | `lessons/generated/<generated-lesson-id>/` | Private to the learner | Ledgered on account erasure (new) and on Course purge; all object versions deleted after 15 days unless still referenced; the API uses the application identity |
 | Published snapshot objects | `lessons/published/<publication draft id>/` | Shared with every copy; also the objects an enrolled copy's manifests point at | Never ledgered. Retained while any copy pins the draft or holds a manifest under it, purged by `shared_asset_retention` (at least 15 days after the last reference). Specs keep them across the author's deletion |
 | Narration audio and alignment | `lessons/narration/v1/<sha256>/` | Content-hash, reference counted across Lessons | Not ledgered. Erasing the account cascades `slide_narrations`; the reference count drops and `narration` maintenance purges an unreferenced asset after its retention; an asset another learner still references stays |
 | Shared character assets and compiled rigs | `lessons/character-rigs/<rig version>/<sha256>.svg` (`shared_character_assets`) | Content-hash, no learner ownership | Not ledgered. Deleted only after the last independent reference plus 30 days (unchanged) |

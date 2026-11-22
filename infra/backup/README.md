@@ -93,7 +93,7 @@ Railway snapshots/PITR, production buckets and key custody are owner-provided
   | Writer | `BACKUP_S3_ACCESS_KEY_ID` | list/get/put backup bucket; delete and policy denied |
   | Expirer | `BACKUP_EXPIRE_S3_ACCESS_KEY_ID` | list + delete `20*`/`financial/*` only; no get/put; ledger delete denied |
   | Restorer | `BACKUP_RESTORE_S3_ACCESS_KEY_ID` | read-only backup bucket |
-  | Application | `S3_ACCESS_KEY_ID` | get/put/delete-marker on application bucket only; no version delete, no versioning or policy change |
+  | Application | `S3_ACCESS_KEY_ID` | get/put/delete-marker on application bucket; version deletion only under `lessons/generated/`; no versioning or policy change |
   | Asset recovery | `ASSET_RECOVERY_S3_ACCESS_KEY_ID` | list versions, get, put on application bucket; no delete |
 
   Rotate by re-running `mise run infra:deps` with new values (regeneration is tracked
@@ -222,7 +222,7 @@ After restoring a dump, start the API against the existing ledger bucket. Before
 - **Purge versus dumps.** Published objects are purged `SHARING_ASSET_PURGE_DAYS` (default 30,
   minimum 15) after the last copy ends, longer than the 14-day general dump window, so a dump the
   drill can restore never points at purged objects. Purge is a versioned delete in the application
-  bucket (delete markers), never `DeleteObjectVersion`.
+  bucket (delete markers); `DeleteObjectVersion` is restricted to `lessons/generated/` for erasure.
 - **Severe takedowns survive restores.** A severe moderation takedown writes
   `moderation-blocks/v1/<sha256 of action id>.json` (course hash and action hash only) before it
   commits; an overturned appeal writes `<hash>.lifted.json`. Records are write-once like

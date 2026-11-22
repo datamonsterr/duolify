@@ -22,6 +22,8 @@ type fakeObjects struct {
 	keys       []string
 	deleted    []string
 	failDelete bool
+	failAuth   bool
+	versions   map[string][]string
 }
 
 func (f *fakeObjects) List(_ context.Context, prefix string) ([]string, error) {
@@ -39,6 +41,30 @@ func (f *fakeObjects) Delete(_ context.Context, key string) error {
 		return errors.New("storage down")
 	}
 	f.deleted = append(f.deleted, key)
+	return nil
+}
+
+func (f *fakeObjects) PurgePrefix(ctx context.Context, prefix string) error {
+	if f.failAuth {
+		return errors.New("access denied")
+	}
+	keys, err := f.List(ctx, prefix)
+	if err != nil {
+		return err
+	}
+	for _, key := range keys {
+		if err := f.Delete(ctx, key); err != nil {
+			return err
+		}
+	}
+	for key := range f.versions {
+		if strings.HasPrefix(key, prefix) {
+			if f.failDelete {
+				return errors.New("storage down")
+			}
+			delete(f.versions, key)
+		}
+	}
 	return nil
 }
 
@@ -150,5 +176,74 @@ func TestObjectPurgeKeepsPrefixStillReferencedByALiveManifestIntegration(t *test
 	svc := courses.New(courses.Options{Pool: pool, Objects: objects})
 	if n, err := svc.SweepPurgedObjects(ctx, time.Now()); err != nil || n != 0 || len(objects.deleted) != 0 {
 		t.Fatalf("referenced prefix was deleted: n=%d err=%v deleted=%v", n, err, objects.deleted)
+	}
+}
+
+func TestReferencedPrefixesDoNotStarveEligiblePurgeIntegration(t *testing.T) {
+	ctx := t.Context()
+	pool, learner := objectPurgeDB(t)
+	_, stub, _ := seedGeneratedLesson(t, pool, learner, 0)
+	_, err := pool.Exec(ctx, `WITH new_stubs AS (
+ INSERT INTO course_lesson_stubs(unit_id,learner_id,authored_id,position,title,goal,status)
+ SELECT unit_id,learner_id,'extra-'||i, i,'l','g','locked' FROM course_lesson_stubs CROSS JOIN generate_series(1,200) i WHERE id=$1::uuid RETURNING id
+ ), manifests AS (
+ INSERT INTO lesson_manifests(lesson_id,learner_id,version,manifest_key)
+ SELECT id,$2::uuid,1,'lessons/generated/'||gen_random_uuid()::text||'/manifest.json' FROM new_stubs RETURNING manifest_key
+ ) INSERT INTO course_object_purges(prefix,purge_after)
+ SELECT replace(manifest_key,'manifest.json',''),now()-interval '2 hours' FROM manifests`, stub, learner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eligible := "lessons/generated/11111111-1111-4111-8111-111111111111/"
+	if _, err = pool.Exec(ctx, `INSERT INTO course_object_purges(prefix,purge_after) VALUES($1,now()-interval '1 hour')`, eligible); err != nil {
+		t.Fatal(err)
+	}
+	objects := &fakeObjects{keys: []string{eligible + "manifest.json"}}
+	svc := courses.New(courses.Options{Pool: pool, Objects: objects})
+	if n, err := svc.SweepPurgedObjects(ctx, time.Now()); err != nil || n != 1 {
+		t.Fatalf("eligible prefix starved: n=%d err=%v", n, err)
+	}
+	if _, err = pool.Exec(ctx, `DELETE FROM lesson_manifests WHERE lesson_id <> $1::uuid`, stub); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := svc.SweepPurgedObjects(ctx, time.Now()); err != nil || n != 200 {
+		t.Fatalf("released prefixes not reconsidered: n=%d err=%v", n, err)
+	}
+}
+
+func TestPurgeDeletesHistoricalVersionsIntegration(t *testing.T) {
+	pool, _ := objectPurgeDB(t)
+	prefix := "lessons/generated/11111111-1111-4111-8111-111111111111/"
+	if _, err := pool.Exec(t.Context(), `INSERT INTO course_object_purges(prefix,purge_after) VALUES($1, now()-interval '1 hour')`, prefix); err != nil {
+		t.Fatal(err)
+	}
+	objects := &fakeObjects{keys: []string{prefix + "slide.html"}, versions: map[string][]string{prefix + "slide.html": {"v1", "v2"}, prefix + "hidden.html": {"v1"}}}
+	svc := courses.New(courses.Options{Pool: pool, Objects: objects})
+	if _, err := svc.SweepPurgedObjects(t.Context(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if len(objects.versions) != 0 {
+		t.Fatal("historical versions remain after ledger marked done")
+	}
+}
+
+func TestObjectPurgeRetriesAuthenticationFailureIntegration(t *testing.T) {
+	pool, _ := objectPurgeDB(t)
+	prefix := "lessons/generated/11111111-1111-4111-8111-111111111111/"
+	if _, err := pool.Exec(t.Context(), `INSERT INTO course_object_purges(prefix,purge_after) VALUES($1,now()-interval '1 hour')`, prefix); err != nil {
+		t.Fatal(err)
+	}
+	objects := &fakeObjects{failAuth: true, keys: []string{prefix + "manifest.json"}}
+	svc := courses.New(courses.Options{Pool: pool, Objects: objects})
+	if _, err := svc.SweepPurgedObjects(t.Context(), time.Now()); err == nil {
+		t.Fatal("authentication failure must surface")
+	}
+	var pending bool
+	if err := pool.QueryRow(t.Context(), `SELECT purged_at IS NULL FROM course_object_purges WHERE prefix=$1`, prefix).Scan(&pending); err != nil || !pending {
+		t.Fatal("authentication failure lost ledger", err)
+	}
+	objects.failAuth = false
+	if n, err := svc.SweepPurgedObjects(t.Context(), time.Now()); err != nil || n != 1 {
+		t.Fatal(n, err)
 	}
 }
