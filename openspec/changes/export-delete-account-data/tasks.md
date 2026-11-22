@@ -6,7 +6,7 @@
 
 ## Erasure coverage (fix/account-erasure-coverage)
 
-- [x] PostHog person deletion was queued but never executed: River job `posthog_person_deletion` (every 10 minutes, `PostHogPersonEraser`), attempts counted, "person not found" is success, not scheduled without `POSTHOG_PROJECT_ID` and `POSTHOG_PERSONAL_API_KEY`, failures logged with counts only. Migration `20261122160000_posthog_person_deletion_attempts.sql`.
+- [x] PostHog person deletion was queued but never executed: River job `posthog_person_deletion` (every 10 minutes, `PostHogPersonEraser`), attempts counted, "person not found" is success, not scheduled without `POSTHOG_PROJECT_ID` and `POSTHOG_PERSONAL_API_KEY`, failures logged with counts only. Migration `20261123100000_posthog_person_deletion_attempts.sql`.
 - [x] Integration (Postgres + fake PostHog): erasure queues one request; outage keeps and counts it; recovery drains it; repeat is a no-op; "not found" is success; nothing is called without config. Worker unit tests: scheduled only when configured.
 - [x] Account erasure and tombstone replay ledger the learner's private generated-lesson prefixes in `course_object_purges` in the erasure transaction (`accounts.QueuePrivateObjectPurges`); the daily `course_purge` job deletes them after 15 days unless still referenced.
 - [x] Integration: erase with a generated course; inside the window nothing is deleted; a storage failure leaves the row pending; the retry deletes only the private prefix; published snapshot, narration and rig objects and another learner's prefix stay; a second run is a no-op; tombstone replay ledgers too.
