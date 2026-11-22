@@ -30,6 +30,9 @@ export function Courses() {
     useQuery({
       queryKey: ["courses"],
       queryFn: () => api.courses(),
+      // Lesson progress shows on the cards and nothing invalidates it when a lesson ends, so
+      // revalidate on every visit (a 304 when unchanged), though no longer on window focus.
+      staleTime: 0,
       retry: false,
     });
   const sessionActiveId = shell.courseId();

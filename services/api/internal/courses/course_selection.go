@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/datamonsterr/duolify/services/api/internal/httpcache"
 	"io"
 	"net/http"
 	"strings"
@@ -70,7 +71,10 @@ func (s *Service) EffectiveProfile(ctx context.Context, learnerID, courseID stri
 	return learner, nil
 }
 
-// ServeCoursesListHTTP returns all confirmed courses enrolled by the authenticated learner.
+// ServeCoursesListHTTP returns a summary of every confirmed course the authenticated learner is
+// enrolled in: what a course card needs, with progress counted in SQL and no unit or lesson
+// tree. The tree comes from GET /v1/courses/{id}. The response is per learner (private,
+// revalidated) with an ETag so an unchanged list is a 304.
 func (s *Service) ServeCoursesListHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	owner := accounts.LearnerID(r.Context())
@@ -85,82 +89,77 @@ func (s *Service) ServeCoursesListHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var activeCourseID string
 	// No profile row means no active course; a database failure must not report one as unset.
-	if err := s.opts.Pool.QueryRow(r.Context(), `SELECT COALESCE(active_course_id::text, '') FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(&activeCourseID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err := s.opts.Pool.QueryRow(r.Context(), `SELECT COALESCE(active_course_id::text, '') FROM learner_profiles WHERE learner_id=$1::uuid`, owner).Scan(&activeCourseID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		outlineError(w, 503)
 		return
 	}
 
 	var coursesRaw []byte
-	err := s.opts.Pool.QueryRow(r.Context(), `
-		SELECT COALESCE(jsonb_agg(
-			jsonb_build_object(
-				'id', c.id,
-				'title', c.title,
-				'description', c.description,
-				'level_override', COALESCE(e.level_override, ''),
-				'pinned_version', (SELECT cc.version FROM course_copies cc WHERE cc.copy_course_id=c.id),
-				'moderation_blocked', EXISTS(SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL),
-				'copy_origin', (SELECT jsonb_build_object('creator_username', u.username, 'creator_deleted', cc.source_owner_id IS NULL, 'source_available', EXISTS(SELECT 1 FROM courses sc WHERE sc.id=cc.source_course_id AND sc.deleted_at IS NULL AND sc.visibility<>'private')) FROM course_copies cc LEFT JOIN learner_usernames u ON u.learner_id=cc.source_owner_id WHERE cc.copy_course_id=c.id),
-				'units', COALESCE((
-					SELECT jsonb_agg(
-						jsonb_build_object(
-							'id', u.id,
-							'title', u.title,
-							'lessons', COALESCE((
-								SELECT jsonb_agg(
-									jsonb_build_object(
-										'id', l.id,
-										'title', l.title,
-										'goal', l.goal,
-										'state', l.status,
-										'content', CASE WHEN EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=l.id) THEN 'ready' ELSE 'needs_generation' END,
-										'reused', l.reused_from_snapshot
-									) ORDER BY l.position
-								) FROM course_lesson_stubs l WHERE l.unit_id=u.id
-							), '[]'::jsonb)
-						) ORDER BY u.position
-					) FROM course_units u WHERE u.course_id=c.id AND u.archived_at IS NULL
-				), '[]'::jsonb)
-			) ORDER BY e.last_active_at DESC, e.created_at DESC
-		), '[]'::jsonb)
-		FROM courses c
-		JOIN course_enrollments e ON e.course_id=c.id
-		WHERE e.learner_id::text=$1 AND c.deleted_at IS NULL
-	`, owner).Scan(&coursesRaw)
+	err := s.opts.Pool.QueryRow(r.Context(), courseSummariesSQL, owner).Scan(&coursesRaw)
 	if err != nil {
 		outlineError(w, 500)
 		return
 	}
 
-	type courseItem struct {
+	var items []struct {
 		ID string `json:"id"`
 	}
-	var items []courseItem
 	_ = json.Unmarshal(coursesRaw, &items)
-
-	if len(items) > 0 {
-		found := false
-		for _, item := range items {
-			if item.ID == activeCourseID {
-				found = true
-				break
-			}
+	found := false
+	for _, item := range items {
+		if item.ID == activeCourseID {
+			found = true
+			break
 		}
-		if !found {
+	}
+	if !found {
+		activeCourseID = ""
+		if len(items) > 0 {
 			activeCourseID = items[0].ID
 		}
-	} else {
-		activeCourseID = ""
 	}
 
-	var coursesJSON any
-	_ = json.Unmarshal(coursesRaw, &coursesJSON)
-
-	respond(w, 200, map[string]any{
-		"courses":          coursesJSON,
+	httpcache.WriteJSON(w, r, 200, httpcache.Private, map[string]any{
+		"courses":          json.RawMessage(coursesRaw),
 		"active_course_id": activeCourseID,
 	})
 }
+
+// courseSummariesSQL builds one JSON array of course summaries, newest activity first. Progress
+// is aggregated per course in a single pass over the lesson stubs, so the statement count and the
+// payload do not grow with lessons per course. unit_index and lesson_index are positions among
+// the non-archived units and the lessons of that unit; current is null when no lesson is current.
+const courseSummariesSQL = `
+	WITH mine AS (
+		SELECT c.id, c.title, c.description, COALESCE(e.level_override, '') AS level_override, e.last_active_at, e.created_at
+		FROM courses c JOIN course_enrollments e ON e.course_id=c.id
+		WHERE e.learner_id=$1::uuid AND c.deleted_at IS NULL
+	), ranked_units AS (
+		SELECT u.id, u.course_id, row_number() OVER (PARTITION BY u.course_id ORDER BY u.position) - 1 AS ui
+		FROM course_units u WHERE u.course_id IN (SELECT id FROM mine) AND u.archived_at IS NULL
+	), lessons AS (
+		SELECT ru.course_id, ru.ui, l.status,
+			row_number() OVER (PARTITION BY l.unit_id ORDER BY l.position) - 1 AS li,
+			count(*) OVER (PARTITION BY l.unit_id) AS unit_lessons
+		FROM course_lesson_stubs l JOIN ranked_units ru ON ru.id=l.unit_id
+	), progress AS (
+		SELECT course_id, count(*) AS total, count(*) FILTER (WHERE status='done') AS done,
+			(array_agg(jsonb_build_object('unit_index', ui, 'lesson_index', li, 'unit_lessons', unit_lessons) ORDER BY ui, li) FILTER (WHERE status='current'))[1] AS cur
+		FROM lessons GROUP BY course_id
+	)
+	SELECT COALESCE(jsonb_agg(
+		jsonb_build_object(
+			'id', m.id,
+			'title', m.title,
+			'description', m.description,
+			'level_override', m.level_override,
+			'pinned_version', (SELECT cc.version FROM course_copies cc WHERE cc.copy_course_id=m.id),
+			'moderation_blocked', EXISTS(SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=m.id AND bc.blocked_at IS NOT NULL),
+			'copy_origin', (SELECT jsonb_build_object('creator_username', u.username, 'creator_deleted', cc.source_owner_id IS NULL, 'source_available', EXISTS(SELECT 1 FROM courses sc WHERE sc.id=cc.source_course_id AND sc.deleted_at IS NULL AND sc.visibility<>'private')) FROM course_copies cc LEFT JOIN learner_usernames u ON u.learner_id=cc.source_owner_id WHERE cc.copy_course_id=m.id),
+			'progress', jsonb_build_object('lessons_total', COALESCE(p.total, 0), 'lessons_done', COALESCE(p.done, 0), 'current', p.cur)
+		) ORDER BY m.last_active_at DESC, m.created_at DESC
+	), '[]'::jsonb)
+	FROM mine m LEFT JOIN progress p ON p.course_id=m.id`
 
 // ServeCourseSelectHTTP updates the active course for an enrolled learner.
 func (s *Service) ServeCourseSelectHTTP(w http.ResponseWriter, r *http.Request) {
