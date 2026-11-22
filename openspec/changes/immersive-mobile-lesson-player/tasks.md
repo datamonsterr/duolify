@@ -45,7 +45,7 @@
 - [x] 5.1 e2e: typed note on a region saves with its anchor; "show in Lesson" opens the Slide at that time with the region outlined; offline note queues and syncs once (`apps/client/e2e/anchored-notes.spec.ts`, mocked suite at 390, 844×390 and 1280: typed note on a region by the keyboard path, anchor in the POST, Show in Lesson with the region outlined framed and immersive, offline queue syncs once, spread and handle adjustment; screenshots in the scratchpad)
 - [x] 5.2 integration: note creation accepts and validates the anchor; a removed Lesson leaves a source-unavailable note; export and erasure (`anchored_quick_notes_integration_test.go`: validation, replay keeps one anchor, foreign Lesson 403, removed Lesson reads source unavailable, note erasure cascades; backup fixture and drill include an anchor row)
 - [x] 5.3 unit: anchor serialisation in the offline queue (`anchored_note_queue.test.ts`)
-- [x] 5.4 API and client: anchor and source on Quick notes with migration and anonymizer classification (`quick_note_anchors` side table, migration `20261124300000`, anonymizer needs no new rule: all columns are ids, numbers or an `_kind` enum; export and erasure list the table)
+- [x] 5.4 API and client: anchor and source on Quick notes with migration and anonymizer classification (`quick_note_anchors` side table, migration `20261124340000`, anonymizer needs no new rule: all columns are ids, numbers or an `_kind` enum; export and erasure list the table)
 - [x] 5.5 Analytics: `lesson_anchored_note_created` (emitted by the API on first save, no text)
 
 ## 6. Voice input
