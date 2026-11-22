@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/datamonsterr/duolify/services/api/internal/backuptest"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -190,6 +191,7 @@ func TestSetupChatIntegration(t *testing.T) {
 	}
 	auth.ConfigureProfile(accounts.ProfileOptions{TextLimit: 2000, Events: events})
 
+	backuptest.ActivateLegacyPricingBaseline(t, db.Pool)
 	// Load pricing catalogue
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {
