@@ -4,7 +4,12 @@ import { useUiPreferences } from "../design/localization/Preferences";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { trackNavigation, trackScreen } from "../../lib/analytics";
-import { Badge } from "../design/Badge";
+import {
+  RailCreditsCard,
+  RailStreakCard,
+  useBalanceLabel,
+  useWallet,
+} from "./RailCards";
 import {
   accountNavigation,
   currentDestination,
@@ -122,6 +127,9 @@ export function AppShell() {
   const status = useRouterState({ select: (state) => state.status });
   const mobile = useMobileLayout();
   const focused = /^\/lesson\/[^/]+(?:\/test)?\/?$/.test(path);
+  // Refreshed on every navigation so spends and purchases show up in the rail.
+  const { data: wallet } = useWallet(path);
+  const balance = useBalanceLabel(wallet);
   const main = useRef<HTMLElement>(null);
   const positions = useRef(new Map<string, number>());
   const lastScreen = useRef<string | null>(null);
@@ -189,8 +197,7 @@ export function AppShell() {
                 to="/credits"
                 onClick={() => trackNavigation("credits")}
               >
-                {t("nav.credits")}{" "}
-                <span className="muted">{t("shell.balance")}</span>
+                {t("nav.credits")} <span className="muted">{balance}</span>
               </Link>
             </header>
           </>
@@ -207,24 +214,7 @@ export function AppShell() {
         {!focused && (
           <>
             <aside className="support-rail" aria-label={t("shell.progress")}>
-              <section className="card">
-                <h2>{t("nav.streak")}</h2>
-                <Badge role="streak">{t("shell.preview")}</Badge>
-                <p>{t("shell.streak_example")}</p>
-                <progress
-                  className="support-progress"
-                  value={3}
-                  max={7}
-                  aria-label={t("shell.streak_example_label")}
-                />
-                <Link
-                  className="shell-link"
-                  to="/streak"
-                  onClick={() => trackNavigation("streak")}
-                >
-                  {t("shell.streak")}
-                </Link>
-              </section>
+              <RailStreakCard revision={path} />
               {path !== "/streak" && (
                 <section className="card">
                   <DailyGoal compact />
@@ -238,18 +228,7 @@ export function AppShell() {
                 </section>
               )}
 
-              <section className="card">
-                <h2>Credit options</h2>
-                <Badge role="credit">Balance unavailable</Badge>
-                <p>Check your balance and available credits.</p>
-                <Link
-                  className="shell-link"
-                  to="/credits"
-                  onClick={() => trackNavigation("credits")}
-                >
-                  View credits
-                </Link>
-              </section>
+              <RailCreditsCard wallet={wallet} />
             </aside>
             {mobile && (
               <nav className="bottom-tabs" aria-label={t("shell.main")}>

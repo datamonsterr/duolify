@@ -58,17 +58,14 @@ test(
     await page.reload();
     await expect(page.getByText("+500")).toBeVisible();
     await flow.step("wallet after purchase");
-    if (
-      await page
-        .getByRole("complementary", { name: "Your progress" })
-        .getByText("Balance unavailable")
-        .isVisible()
-    )
-      flow.defect(
-        "The shell's right rail always shows 'Balance unavailable' and an example streak " +
-          "('Example: 3 of 7 days this week'): both cards are static placeholders " +
-          "(apps/client/src/features/shell/AppShell.tsx:210-252), even with a funded wallet.",
-      );
+    // The shell's right rail reads the same wallet: purchased 500 on top of daily free.
+    const rail = page.getByRole("complementary", { name: "Your progress" });
+    await expect(
+      rail.getByText(/^Daily free \d[\d,]* · Purchased 500$/),
+    ).toBeVisible();
+    await expect(rail.getByText(/^\d[\d,]* credits$/)).toBeVisible();
+    await expect(rail.getByText("Balance unavailable")).toHaveCount(0);
+    await flow.step("right rail shows the funded balance");
 
     await page.goto("/courses/create");
     await expect(
