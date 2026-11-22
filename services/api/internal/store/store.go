@@ -4,7 +4,7 @@ package store
 import (
 	"context"
 	"fmt"
-	"time"
+	"os"
 
 	"github.com/datamonsterr/duolify/services/api/internal/store/db"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,13 +16,18 @@ type Store struct {
 	Queries *db.Queries
 }
 
-// New constructs a pool; readiness performs the live connectivity check.
+// New constructs a pool sized by the DB_POOL_* environment (see PoolConfig); readiness performs the
+// live connectivity check.
 func New(ctx context.Context, databaseURL string) (*Store, error) {
 	cfg, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid DATABASE_URL")
 	}
-	cfg.ConnConfig.ConnectTimeout = 3 * time.Second
+	sizing, err := PoolConfigFromEnv(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	sizing.apply(cfg, databaseURL, os.Getenv)
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create postgres pool: %w", err)

@@ -34,9 +34,20 @@ Staging runs the [production overlay](selfhost.md#production-overlay-hel1) on on
 - `ENGINE_PROVIDER_MODE=live` with `OPENROUTER_API_KEY`. The route is set by `engine/config/models.toml`.
 - `RESEND_API_KEY` and `AUTH_MAIL_FROM` for sign-in mail.
 - `POSTHOG_API_KEY`, `POSTHOG_HOST` and `ANALYTICS_OPT_OUT=false` for server analytics. The web image gets `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST` at build time in `pr-ready`.
-- Narration: `NARRATION_ENABLED=true` and `NARRATION_LIVE_ENABLED=true`, with `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID`.
+- Narration: `NARRATION_ENABLED=true` and `NARRATION_LIVE_ENABLED=true`, with `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID`. The character budget is `NARRATION_MONTHLY_CHAR_LIMIT` (40000), `NARRATION_BUDGET_STOP_PERCENT` (95) and `NARRATION_CYCLE_START_DAY` (1); the compose file forwards them with those defaults. `NARRATION_LIVE_ENABLED` is forwarded to the API and worker too, because the budget is only read when it is `true`.
 - The lesson test is on through the API default. The client reads it from `/v1/features`.
 - Stripe, the marketplace and public character export stay off, because their variables are not set.
+
+## Settings `deploy.sh` checks first
+
+Before it pulls an image or migrates, `deploy.sh` runs `infra/deploy/deploy-plan.sh` against `.env` (it needs `jq` and `docker compose` on the VM) and stops with a list of what is wrong. It checks, among others:
+
+- `BACKUP_S3_ACCESS_KEY_ID` differs from `S3_ACCESS_KEY_ID`. The API refuses to start when the backup writer reuses the application key, so create a second R2 token scoped to `duolify-backups` only.
+- `BACKUP_AGE_RECIPIENT` is a real age recipient (`age1...`, 62 characters). CI never generates keys. Generate the pair **once**, on the owner workstation: `age-keygen -o staging-backup-age-identity.txt`, paste the `Public key:` line into the VM's `.env`, and keep the identity file only in the password manager and one offline copy (never on the VM, never in the repo). Do not regenerate it: every existing backup and WAL segment is encrypted to the old recipient, so losing or replacing the identity makes them unreadable.
+- `LESSON_ASSET_ORIGIN` is a public https origin when `DUOLIFY_ENV` is `staging` or `production`. The lesson iframe's CSP only lets a slide load from this origin and it is stored in the lesson HTML, so `http://localhost:9000` breaks every lesson. With R2, attach a custom domain to the application bucket (for example `assets.staging.duolify.online`, proxied by Cloudflare) and use `https://<that host>`. Set it before lessons are generated; lessons stored under another origin keep the old one.
+- `PUBLIC_ORIGIN` is the https origin of the web client without a path, and `SITE_ADDRESS` names the served hosts (not `:80`). `PUBLIC_ORIGIN` is also the default `API_ALLOWED_ORIGINS`; set `API_ALLOWED_ORIGINS` (comma-separated) to allow more, and set `CLERK_*` for Clerk web sign-in (cookie mode refuses to start without an allowed origin).
+- No `GENERATED`, `CHANGE_ME` or `ACCOUNT_ID` placeholder is left in `.env`.
+- The memory limits add up to at most 3.5 GB and the database pools fit under `max_connections` (see [hardening.md](hardening.md#8-sizing-cx23-2-vcpu-4-gb-40-gb)).
 
 ## Where secrets live (names only)
 
