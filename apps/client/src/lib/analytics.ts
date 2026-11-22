@@ -1,3 +1,4 @@
+import { appVersion } from "./client-build";
 import { posthog } from "./posthog";
 import {
   navigation,
@@ -54,7 +55,7 @@ export function trackAppearanceChanged(mode: "system" | "light" | "dark") {
     posthog.capture("ui_appearance_changed", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       mode,
     });
@@ -83,7 +84,7 @@ export function exposePricing(
     posthog.capture("pricing_version_exposed", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       pricing_version: version,
       surface,
@@ -124,7 +125,7 @@ export function track(
         ...properties,
         distinct_id: identity.learnerId,
         platform: identity.platform,
-        app_version: identity.appVersion ?? "0.1.0",
+        app_version: identity.appVersion ?? appVersion,
         source: "client",
       });
   } catch {
@@ -176,7 +177,7 @@ function captureSSOUI(
         (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
           ? "desktop"
           : "web"),
-      app_version: identity?.appVersion ?? "0.1.0",
+      app_version: identity?.appVersion ?? appVersion,
       source: "client",
       ...properties,
     });
@@ -207,7 +208,7 @@ function captureAuth(event: string, properties: Record<string, string>) {
     posthog.capture(event, {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       ...properties,
     });
@@ -251,7 +252,7 @@ export function trackPurchase(value: {
     posthog.capture(value.event, {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       price_table_version: value.pricingVersion,
       ...(value.feature ? { feature: value.feature } : {}),
@@ -280,7 +281,7 @@ export function trackControl(controlId: CourseControl, courseId?: string) {
     posthog.capture("ui_control_activated", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface: "courses",
       control_id: controlId,
@@ -301,7 +302,7 @@ export function trackExampleCoursesViewed(
     posthog.capture("example_courses_viewed", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface,
     });
@@ -320,7 +321,7 @@ export function trackPrivacyControl(
     posthog.capture("ui_control_activated", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface: "settings_privacy",
       control_id: controlId,
@@ -340,7 +341,7 @@ export function trackLearningAnalyticsControl(
     posthog.capture("ui_control_activated", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface: "learning_analytics",
       control_id: controlId,
@@ -360,7 +361,7 @@ function trackShell(
     posthog.capture(event, {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       ...properties,
     });
@@ -442,7 +443,7 @@ export function trackGuidedUi(value: GuidedUiEvent) {
   const properties: Record<string, string> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
   };
   if (
@@ -491,7 +492,7 @@ function trackSettings(
       posthog.capture(event, {
         distinct_id: identity.learnerId,
         platform: identity.platform,
-        app_version: identity.appVersion ?? "0.1.0",
+        app_version: identity.appVersion ?? appVersion,
         source: "client",
         ...properties,
       });
@@ -525,7 +526,7 @@ export function trackCourseRecovery(
     posthog.capture("ui_recovery_selected", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface,
       action,
@@ -546,7 +547,7 @@ export function trackTutorRecovery(
     posthog.capture("ui_recovery_selected", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface: "lesson_tutor",
       action,
@@ -564,7 +565,7 @@ export function trackTutorControl(controlId: "delete_thread") {
     posthog.capture("ui_control_activated", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface: "tutor_chat",
       control_id: controlId,
@@ -584,7 +585,7 @@ export function trackQuickNoteCreated(value: {
     posthog.capture("quick_note_created", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: value.source,
       length: value.length,
     });
@@ -600,7 +601,7 @@ export function trackQuickNoteReviewed(noteId: string) {
     posthog.capture("quick_note_reviewed", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       note_id: noteId,
     });
@@ -616,7 +617,7 @@ export function trackQuickNoteDeleted(noteId: string) {
     posthog.capture("quick_note_deleted", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       note_id: noteId,
     });
@@ -632,7 +633,7 @@ export function trackExportNotes() {
     posthog.capture("ui_control_activated", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface: "quick_notes",
       control_id: "export_notes",
@@ -654,7 +655,7 @@ export function trackBookmarkAdded(value: {
     posthog.capture("bookmark_added", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       target_type: value.targetType,
       ...(value.courseId ? { course_id: value.courseId } : {}),
@@ -678,7 +679,7 @@ export function trackBookmarkRemoved(value: {
     posthog.capture("bookmark_removed", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       target_type: value.targetType,
       ...(value.courseId ? { course_id: value.courseId } : {}),
@@ -702,7 +703,7 @@ export function trackBookmarkOpened(value: {
     posthog.capture("bookmark_opened", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       target_type: value.targetType,
       ...(value.courseId ? { course_id: value.courseId } : {}),
@@ -754,7 +755,7 @@ export function trackPlayer(
   const properties: Record<string, string | number | boolean> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
   };
   for (const name of (event === "lesson_started"
@@ -872,7 +873,7 @@ export function trackImmersive(
   const properties: Record<string, string | number> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
   };
   if (value.event === "immersive_control_used") {
@@ -922,7 +923,7 @@ export function trackNarrationPlayed(value: {
   const properties: Record<string, string | number> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
     lesson_id: value.lesson_id,
     slide_id: value.slide_id,
@@ -949,7 +950,7 @@ export function trackNarrationMuted(value: {
   const properties: Record<string, string | boolean> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
     lesson_id: value.lesson_id,
     slide_id: value.slide_id,
@@ -975,7 +976,7 @@ export function trackNarrationSpeedChanged(value: {
   const properties: Record<string, string | number> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
     lesson_id: value.lesson_id,
     slide_id: value.slide_id,
@@ -1000,7 +1001,7 @@ export function trackCaptionsToggled(value: {
   const properties: Record<string, string | boolean> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
     lesson_id: value.lesson_id,
     slide_id: value.slide_id,

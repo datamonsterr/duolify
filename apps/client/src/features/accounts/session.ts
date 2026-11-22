@@ -1,3 +1,4 @@
+import { appVersion, clientPlatform } from "../../lib/client-build";
 import { isTauri } from "@tauri-apps/api/core";
 import { configureAnalytics, setAnalyticsConsent } from "../../lib/analytics";
 import { secureStore, type Tokens } from "./secure-store";
@@ -155,8 +156,8 @@ function identify(value: Learner) {
   configureAnalytics({
     learnerId: value.id,
     optedOut: value.analytics_opt_out || analyticsOptOut(),
-    platform: isTauri() ? "desktop" : "web",
-    appVersion: "0.1.0",
+    platform: clientPlatform(isTauri(), import.meta.env.VITE_MOBILE_PLATFORM),
+    appVersion,
   });
 }
 // Serialize native keychain writes as well as browser writes. A late refresh
