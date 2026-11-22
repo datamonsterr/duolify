@@ -56,7 +56,7 @@ impl Thresholds {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CaseResult {
     pub id: String,
     pub task: String,
@@ -71,6 +71,15 @@ pub struct CaseResult {
     pub input_tokens: u32,
     #[serde(default)]
     pub output_tokens: u32,
+    /// Models that served each provider attempt, in order (live runs only).
+    #[serde(default)]
+    pub served_models: Vec<String>,
+    /// Summed provider latency over the attempts (live runs only).
+    #[serde(default)]
+    pub latency_ms: u64,
+    /// True when a fallback attempt ran.
+    #[serde(default)]
+    pub fallback_used: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -537,6 +546,7 @@ mod tests {
                 cost_usd: 0.0,
                 input_tokens: 0,
                 output_tokens: 0,
+                ..Default::default()
             },
             CaseResult {
                 id: "2".into(),
@@ -549,6 +559,7 @@ mod tests {
                 cost_usd: 0.0,
                 input_tokens: 0,
                 output_tokens: 0,
+                ..Default::default()
             },
             CaseResult {
                 id: "3".into(),
@@ -561,6 +572,7 @@ mod tests {
                 cost_usd: 0.0,
                 input_tokens: 0,
                 output_tokens: 0,
+                ..Default::default()
             },
         ];
 

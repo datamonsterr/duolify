@@ -7,3 +7,7 @@
 
 ["duolify-fixtures/e10-02"]
 "0123456789abcdef0123456789abcdef01234567" = "a85bb61544f516a792d8b6ee06eacef39ef552ca7aeb5db415c550f86e5cd93f"
+
+# Private production dataset (E10-01). Source bytes are reviewed in evals/datasets/duolify-golden/golden.jsonl.
+["datamonsterr/duolify-golden"]
+"04c5418d1ee7365ff9bcfdc51f4392de1f483429" = "efb56b475f5f7af0ecd1d03e22080ff06ea949716d6e0bfc89c2824495584563"
