@@ -26,3 +26,6 @@
 - [x] 5.3 F13 free example course for a new learner
 - [x] 5.4 Shell right rail reads the real wallet and streak; F8 and F9 assert it
 - [x] 5.5 F1d daily check-in (PR #300) and F14 welcome and tour (PR #311); course flows funded by the real check-in
+
+## 6. Staging sign-in
+- [x] 6.1 Test inbox for staging: Cloudflare Email Routing on `test.duolify.online` hands every message to the Worker in `infra/e2e-mailbox/`, which keeps the sign-in codes per address in KV for 10 minutes; `code.sh` reads them behind a bearer token (`E2E_STACK_CODE_COMMAND`, `E2E_STACK_EMAIL_DOMAIN=test.duolify.online`). Worker unit test: `node --test infra/e2e-mailbox/worker.test.mjs` (`infra:e2e-mailbox-test`)
