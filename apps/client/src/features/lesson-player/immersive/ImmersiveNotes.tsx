@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { QuickNotePanel } from "../../notes/QuickNotePanel";
+import { TutorChat } from "../../chat/TutorChat";
+import { ResponsivePanel } from "../../shell/AdaptiveLayouts";
+import { trackRegion } from "../../../lib/analytics";
+import AnswerPanel, { type PanelOutcome } from "./AnswerPanel";
+import { canDock, panelWidth, stageShift } from "./panelLayout";
 import type { NoteAnchor } from "../../notes/note-queue";
 import {
   ImmersiveExtensionsContext,
@@ -47,6 +52,15 @@ export default function ImmersiveNotes({
     slideIndex: number;
   } | null>(null);
   const [autoFocusRegion, setAutoFocusRegion] = useState(false);
+  const [answer, setAnswer] = useState<{
+    rect?: RegionRect;
+    atMs: number;
+    slideIndex: number;
+  } | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const uiWidth = layout.rotated ? layout.vh : layout.vw;
+  const docked = canDock(uiWidth);
+  const panel = panelWidth(uiWidth);
 
   const pauseForSelection = () => {
     const { view: v, actions: a } = latest.current;
@@ -80,6 +94,7 @@ export default function ImmersiveNotes({
     lastSlide.current = slideIndex;
     clear();
     setComposer(null);
+    setAnswer(null);
     pausedByUs.current = false;
     // `clear` is a stable reducer dispatch wrapper.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -99,6 +114,71 @@ export default function ImmersiveNotes({
     resume();
   };
 
+  // Keep the selected region clear of the panel by moving the stage left.
+  const shiftRect = answer?.rect;
+  const shifting = answer !== null && docked && !collapsed;
+  useEffect(() => {
+    const root = document.documentElement;
+    let shift = 0;
+    if (shifting && shiftRect)
+      shift = stageShift(shiftRect, uiWidth, layout.width, panel).shift;
+    root.style.setProperty(
+      "--imm-shift-x",
+      layout.rotated ? "0px" : `${-shift}px`,
+    );
+    root.style.setProperty(
+      "--imm-shift-y",
+      layout.rotated ? `${-shift}px` : "0px",
+    );
+    root.style.setProperty("--imm-panel", `${panel}px`);
+    // Captions never sit under the panel.
+    root.style.setProperty(
+      "--imm-panel-inset",
+      shifting && !layout.rotated ? `${panel + 16}px` : "0px",
+    );
+    if (shifting) root.dataset.immPanel = "open";
+    return () => {
+      root.style.removeProperty("--imm-panel-inset");
+      delete root.dataset.immPanel;
+      root.style.removeProperty("--imm-shift-x");
+      root.style.removeProperty("--imm-shift-y");
+      root.style.removeProperty("--imm-panel");
+    };
+  }, [shifting, shiftRect, uiWidth, layout.width, layout.rotated, panel]);
+
+  const openAnswer = (rect?: RegionRect) => {
+    pauseForSelection();
+    if (rect && selection.phase === "selected")
+      trackRegion({
+        event: "lesson_region_selected",
+        course_id: latest.current.view.courseId,
+        lesson_id: latest.current.view.lessonId,
+        slide_index: latest.current.view.index,
+        method: selection.method,
+        area: rect.w * rect.h,
+      });
+    setCollapsed(false);
+    setAnswer({
+      rect,
+      atMs: Math.round(latest.current.view.timeMs),
+      slideIndex: latest.current.view.index,
+    });
+  };
+  const closeAnswer = (result: PanelOutcome) => {
+    trackRegion({
+      event: "lesson_answer_panel_closed",
+      course_id: latest.current.view.courseId,
+      lesson_id: latest.current.view.lessonId,
+      slide_index: answer?.slideIndex ?? latest.current.view.index,
+      outcome: result.outcome,
+      saved_note: result.savedNote,
+      follow_ups: result.followUps,
+    });
+    setAnswer(null);
+    clear();
+    resume();
+  };
+
   const chooseArea = () => {
     selectArea();
     setAutoFocusRegion(true);
@@ -114,9 +194,22 @@ export default function ImmersiveNotes({
         className="imm-btn"
         data-testid="immersive-select-area"
         onClick={chooseArea}
-        disabled={composer !== null}
+        disabled={composer !== null || answer !== null}
       >
         Select area
+      </button>
+      <button
+        type="button"
+        className="imm-btn"
+        data-testid="immersive-ask"
+        onClick={() =>
+          openAnswer(
+            selection.phase === "selected" ? selection.rect : undefined,
+          )
+        }
+        disabled={composer !== null || answer !== null}
+      >
+        Ask
       </button>
       <button
         type="button"
@@ -161,7 +254,12 @@ export default function ImmersiveNotes({
             <RegionOutline region={highlight} />
           </StageSpace>
         )}
-        {selection.phase !== "none" && (
+        {answer?.rect && (
+          <StageSpace>
+            <RegionOutline region={answer.rect} />
+          </StageSpace>
+        )}
+        {selection.phase !== "none" && answer === null && (
           <RegionSelector
             region={selection.rect}
             drawing={selection.phase === "drawing"}
@@ -179,6 +277,14 @@ export default function ImmersiveNotes({
                   <button
                     type="button"
                     className="imm-btn imm-btn-big"
+                    data-testid="region-ask"
+                    onClick={() => openAnswer(selection.rect)}
+                  >
+                    Ask
+                  </button>
+                  <button
+                    type="button"
+                    className="imm-btn"
                     data-testid="region-note"
                     onClick={() => openComposer(selection.rect)}
                   >
@@ -201,6 +307,62 @@ export default function ImmersiveNotes({
           />
         )}
       </div>
+      {answer && docked && (
+        <div
+          className="imm-layer imm-ui imm-answer-ui"
+          data-rotated={layout.rotated || undefined}
+          style={uiStyle}
+        >
+          <AnswerPanel
+            courseId={view.courseId}
+            lessonId={view.lessonId}
+            slideIndex={answer.slideIndex}
+            slideTitle={slideTitle}
+            region={answer.rect}
+            atMs={answer.atMs}
+            collapsed={collapsed}
+            onCollapse={setCollapsed}
+            onRestore={(rect) => setAnswer((a) => (a ? { ...a, rect } : a))}
+            onClose={closeAnswer}
+          />
+        </div>
+      )}
+      {answer && !docked && (
+        <div className="imm-layer imm-ui imm-notes">
+          <ResponsivePanel
+            title="Ask tutor"
+            open={true}
+            onClose={() =>
+              closeAnswer({
+                outcome: "completed",
+                savedNote: false,
+                followUps: 0,
+              })
+            }
+          >
+            <TutorChat
+              courseId={view.courseId}
+              lesson={{
+                lesson_id: view.lessonId,
+                slide_index: answer.slideIndex,
+              }}
+              region={
+                answer.rect
+                  ? { rect: answer.rect, at_ms: answer.atMs, input: "text" }
+                  : undefined
+              }
+              embedded
+              onClose={() =>
+                closeAnswer({
+                  outcome: "completed",
+                  savedNote: false,
+                  followUps: 0,
+                })
+              }
+            />
+          </ResponsivePanel>
+        </div>
+      )}
       {composer && (
         <div
           className="imm-layer imm-ui imm-notes"
