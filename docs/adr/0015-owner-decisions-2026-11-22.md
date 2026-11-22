@@ -64,3 +64,11 @@ Pricing versions: the approved versions (`usd-launch-2026-11-08`, `usd-quotes-20
 - The `hcloud` CLI is a mise tool for Hetzner provisioning.
 - Backup and asset code targets R2 through its S3-compatible API; split R2 keys by role before live backups (#27).
 - The 40k characters per month narration cap needs a usage guard before narration goes live.
+
+## Further owner decisions (2026-11-22)
+
+- A published Course outlives its author's deleted account. Attribution is anonymized; existing enrolled copies and their retained assets remain available under the sharing retention rules.
+- Staging runs on Hetzner `cx23` in Falkenstein (`fsn1`): Helsinki had no suitable stock within the staging budget. Production location remains open. See [staging](../infra/staging.md).
+- Google and Apple sign-in use Clerk; email one-time codes remain first-party (ADR 0016).
+- Daily check-in credits are 150 per day, 250 on the first check-in, banked up to seven days and applied automatically on app open. The separate daily-check-in change and ADR 0020 define implementation details.
+- Example Courses (Product Management and JavaScript) and a first-run onboarding tour are being built in separate changes.

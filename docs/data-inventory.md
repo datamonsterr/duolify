@@ -896,3 +896,5 @@ Account erasure and the 30-day Course purge use one mechanism for private object
 | Backup bucket dumps and protected asset copies | separate backup bucket | Operator | 14-day (general) and 35-day (financial) classes; `account-deletions/` and `moderation-blocks/` ledgers are never expired. Unchanged |
 
 Clerk erasure recovery: immutable `account-deletions/clerk-v1/<SHA-256>.bin` objects in the separate backup bucket contain AES-GCM encrypted Clerk subjects, authenticated to their keys and encrypted using HKDF purpose separation from the escrowed `JWT_SECRET`. They outlive database snapshots and are not expired; startup requeues independently of learner/provider rows. Preserve the key through auth-secret rotation by migrating ledger encryption with the old key. SQL queue identifiers remain purged from nonproduction dumps. No new SQL columns, analytics events or AI data.
+
+Owner decision (2026-11-22): a published Course outlives its author's deleted account. Creator attribution is anonymized and retained snapshots and assets remain available to enrolled copies, subject to sharing retention and takedown rules; see ADR 0015 and `retain-shared-assets`.
