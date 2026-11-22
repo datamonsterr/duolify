@@ -598,9 +598,10 @@ func (s *Service) SweepInvites(ctx context.Context) error {
 	return err
 }
 
-// MaintainInvites drains push deliveries every few seconds and sweeps expiry and retention hourly.
+// MaintainInvites drains push deliveries every 30 seconds and sweeps expiry and retention
+// hourly. It runs only in the worker; the in-app inbox does not depend on the drain.
 func (s *Service) MaintainInvites(ctx context.Context) {
-	drain := time.NewTicker(10 * time.Second)
+	drain := time.NewTicker(30 * time.Second)
 	sweep := time.NewTicker(time.Hour)
 	defer drain.Stop()
 	defer sweep.Stop()

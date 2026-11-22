@@ -175,6 +175,12 @@ func run(ctx context.Context, args []string) (result error) {
 		go pricing.CheckActiveRoutes(ctx, db.Pool, logger, backend.Providers)
 		outlineService := courses.New(courses.Options{Pool: db.Pool, OutlineEngine: backend, Financial: creditService, Events: events})
 		go outlineService.Maintain(ctx, logger)
+		redis, err := cache.New(cfg.RedisURL)
+		if err != nil {
+			return err
+		}
+		defer func() { result = errors.Join(result, redis.Close()) }()
+		workerSweeps{Pool: db.Pool, Events: events, Credits: creditService, Engine: backend, Redis: redis}.start(ctx)
 		outlineQueue, err := outlineService.CreationQueue(logger)
 		if err != nil {
 			return err
@@ -343,21 +349,18 @@ func run(ctx context.Context, args []string) (result error) {
 	if err := creditService.ConfigurePaymentEnvironment(os.Getenv); err != nil {
 		return err
 	}
-	go creditService.Maintain(ctx, logger)
+	// No Maintain loop starts in this process: the worker owns every background sweep
+	// (credits, XP, streaks, friend streaks, characters, sharing, steering, course recovery),
+	// so replicas do not repeat them. The only background work left here is the pricing
+	// activator (in-memory copy) and the shared-asset sweep below.
 	xpService := gamification.New(db.Pool, events)
 	xpService.UseCache(redis)
 	xpService.UseEntitlements(creditService)
 	socialService := social.New(db.Pool, events)
 	xpService.OnSettled(friendStreakSettler(socialService, logger))
-	go xpService.Maintain(ctx, logger)
-	go socialService.Maintain(ctx, logger)
 	characterService := characters.NewService(db.Pool, nil, events)
 	characterService.ConfigureScreening(backend)
 	characterService.ConfigureCreation(creditService, backend, os.Getenv("DUOLIFY_ENV"), allowUnapprovedPricing)
-	if err := characterService.Purge(ctx); err != nil {
-		return err
-	}
-	go characterService.Maintain(ctx)
 	notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC())
 	creditService.SetCreditArrivalHook(func(ctx context.Context, learnerID string) {
 		_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
@@ -409,9 +412,9 @@ func run(ctx context.Context, args []string) (result error) {
 		// Missing Lessons in a pinned copy reuse the private generation pipeline and the learner's credits (E15-04).
 		sharingService = sharingService.WithGeneration(sharing.GenerationDeps{Quotes: quotesService, Wallet: creditService, Lessons: lessonPreparer})
 	}
-	go sharingService.Maintain(ctx)
 	steeringService := steering.New(steering.Options{Pool: db.Pool, Engine: backend, Replanner: backend, Quotes: quotesService, Financial: creditService, Events: events, Price: quotesService})
-	go steeringService.Maintain(ctx)
+	// Stays in the API: it deletes shared-asset objects with the application object-store
+	// keys, which the worker deliberately does not hold. It wakes every six hours.
 	go sharingService.MaintainAssets(ctx)
 	// Course invites (E15-06): push goes only through the adapter, which is disabled unless chosen
 	// by environment (no APNs/FCM credentials exist yet, ADR 0012); the in-app inbox always works.
@@ -422,7 +425,6 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	logger.Info("course invite push adapter", "adapter", pushName)
 	socialService.OnBlock(sharingService.CancelInvitesOnBlock)
-	go sharingService.MaintainInvites(ctx)
 	handler := httpapi.New(httpapi.Dependencies{
 		Steering:                steeringService,
 		Sharing:                 sharingService,

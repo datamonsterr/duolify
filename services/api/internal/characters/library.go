@@ -9,6 +9,7 @@ import (
 	"time"
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/maintenance"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -22,19 +23,17 @@ type Screener interface {
 func (s *Service) ConfigureScreening(screen Screener) { s.screener = screen }
 
 // Maintain enforces retention even when no Character endpoint is visited.
+// It runs only in the worker: queued creations are recovered every minute, the
+// 30-day purge (three deletes) once an hour.
 func (s *Service) Maintain(ctx context.Context) {
-	_ = s.RecoverCreateJobs(ctx)
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			_ = s.RecoverCreateJobs(ctx)
+	pass := 0
+	maintenance.Every(ctx, time.Minute, func(ctx context.Context) {
+		_ = s.RecoverCreateJobs(ctx)
+		if pass%60 == 0 {
 			_ = s.Purge(ctx)
 		}
-	}
+		pass++
+	})
 }
 
 // Record is an owned approved immutable Character version.
