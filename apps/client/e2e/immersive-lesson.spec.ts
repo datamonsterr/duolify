@@ -819,7 +819,7 @@ test.describe("enter on rotation", () => {
     await expect(page.locator(".player.immersive")).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator(".player.immersive")).toBeVisible();
-    expect((await geometry(page)).rotated).toBe(true);
+    await expect.poll(async () => (await geometry(page)).rotated).toBe(true);
   });
   test("setting off: rotation does nothing, only the control enters", async ({
     page,
