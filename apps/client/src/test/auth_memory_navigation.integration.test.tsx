@@ -50,7 +50,7 @@ it("navigates after browser sign-in without discarding in-memory credentials", a
     target: { value: "123456" },
   });
   fireEvent.click(screen.getByRole("button", { name: /^Sign in$/ }));
-  await waitFor(() => expect(router.state.location.pathname).toBe("/profile"));
+  await waitFor(() => expect(router.state.location.pathname).toBe("/"));
   await expect(credentialStore.read()).resolves.toMatchObject({
     refresh_token: "refresh",
   });

@@ -921,3 +921,47 @@ export function trackPlayerRecovery(
     action,
   });
 }
+
+// first-run-onboarding-tour catalogue: authored enums only, never learner text.
+type OnboardingEvent =
+  | { event: "onboarding_welcome_shown" | "onboarding_tour_completed" }
+  | {
+      event: "onboarding_path_chosen";
+      path: "topic" | "setup_chat" | "example" | "skip";
+    }
+  | { event: "onboarding_tour_started"; source: "first_run" | "settings" }
+  | { event: "onboarding_tour_step_viewed"; step: string }
+  | { event: "onboarding_tour_skipped"; at_step: string };
+export function trackOnboarding(value: OnboardingEvent) {
+  const steps = [
+    "path",
+    "next_lesson",
+    "credits",
+    "progress",
+    "notes",
+    "courses",
+    "settings",
+  ];
+  switch (value.event) {
+    case "onboarding_welcome_shown":
+    case "onboarding_tour_completed":
+      captureAuth(value.event, {});
+      break;
+    case "onboarding_path_chosen":
+      if (["topic", "setup_chat", "example", "skip"].includes(value.path))
+        captureAuth(value.event, { path: value.path });
+      break;
+    case "onboarding_tour_started":
+      if (["first_run", "settings"].includes(value.source))
+        captureAuth(value.event, { source: value.source });
+      break;
+    case "onboarding_tour_step_viewed":
+      if (steps.includes(value.step))
+        captureAuth(value.event, { step: value.step });
+      break;
+    case "onboarding_tour_skipped":
+      if (steps.includes(value.at_step))
+        captureAuth(value.event, { at_step: value.at_step });
+      break;
+  }
+}

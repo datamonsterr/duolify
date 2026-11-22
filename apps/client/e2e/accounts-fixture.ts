@@ -5,9 +5,10 @@ let tokens: Tokens | undefined;
 export function resetTokens() {
   tokens = undefined;
 }
-export const test = base.extend<{ authenticated: void }>({
+export const test = base.extend<{ authenticated: void; onboarding: boolean }>({
+  onboarding: [false, { option: true }],
   authenticated: [
-    async ({ context, request, page }, use) => {
+    async ({ context, request, page, onboarding }, use) => {
       await resetAuthRateLimits(request);
       if (!tokens) {
         const email = `browser-${crypto.randomUUID()}@example.test`;
@@ -26,6 +27,16 @@ export const test = base.extend<{ authenticated: void }>({
         });
         expect(response.status()).toBe(200);
         tokens = (await response.json()) as Tokens;
+      }
+      if (!onboarding) {
+        expect(
+          (
+            await request.patch(apiBase + "/v1/me/onboarding", {
+              headers: { Authorization: `Bearer ${tokens.access_token}` },
+              data: { welcome_state: "completed", tour_state: "completed" },
+            })
+          ).status(),
+        ).toBe(200);
       }
       await context.addInitScript((value) => {
         sessionStorage.setItem(

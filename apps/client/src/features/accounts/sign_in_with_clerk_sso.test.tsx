@@ -123,7 +123,7 @@ it("completes Clerk sign-in through the deep-link bridge without exposing the ve
   handle.callback?.({ state: "old".repeat(15), code: "c".repeat(43) });
   handle.callback?.({ state: "old".repeat(15), cancelled: true });
   handle.callback?.({ state, code: "c".repeat(43) });
-  await waitFor(() => expect(done).toHaveBeenCalledWith("/profile"));
+  await waitFor(() => expect(done).toHaveBeenCalledWith("/"));
   expect(JSON.stringify(posthog.capture.mock.calls)).not.toMatch(
     /private-access|private-refresh|sssss/,
   );
