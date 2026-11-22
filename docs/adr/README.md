@@ -21,5 +21,6 @@
 | [0017](0017-lesson-test-on-by-default.md) | The lesson test is on by default; the flag is a kill switch | Accepted |
 | [0018](0018-structured-outputs-and-screen-reasoning.md) | Structured outputs for JSON tasks, reasoning none for safety screens | Proposed |
 | [0019](0019-live-promotion-evidence-in-the-engine.md) | Live promotion evidence embedded in the engine | Proposed |
+| [0021](0021-voice-input-data-handling.md) | Voice input: audio processed in memory and never stored, ZDR providers only | Proposed |
 
 New ADR: copy the newest file, increase the number, keep it under one page.

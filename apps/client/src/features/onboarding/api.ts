@@ -1,4 +1,5 @@
-import { AuthError, session } from "../accounts/session";
+import { session } from "../accounts/session";
+import { api, type ExampleCourse } from "../../lib/api";
 import { mergeState, type ProgressState } from "./tour";
 export type Progress = {
   welcome_state: ProgressState;
@@ -109,28 +110,13 @@ async function syncProgress(owner: string): Promise<Progress> {
     syncing.delete(owner);
   }
 }
-export type Example = {
-  slug: string;
-  title: string;
-  description: string;
-  level: string;
-  units: number;
-  lessons: number;
-  estimated_minutes: number;
-};
+export type Example = ExampleCourse;
 export async function listExamples(): Promise<Example[]> {
   try {
-    const { examples } = await session.request<{ examples: Example[] }>(
-      "/v1/courses/examples",
-    );
-    return examples.filter((value) => /^[a-z0-9-]+$/.test(value.slug));
-  } catch (error) {
-    if (error instanceof AuthError && error.status === 404) return [];
-    return []; // Other paths remain useful while the catalogue is unavailable.
+    return await api.exampleCourses();
+  } catch {
+    return []; // 404 or outage hides the path; other paths stay useful.
   }
 }
 export const enrollExample = (slug: string) =>
-  session.request<{ course_id: string }>(
-    `/v1/courses/examples/${encodeURIComponent(slug)}/enroll`,
-    "POST",
-  );
+  api.enrollExample(slug, "onboarding");

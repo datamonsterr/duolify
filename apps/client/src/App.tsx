@@ -255,7 +255,7 @@ function IndexRoute() {
       return (
         <>
           <HomeProgressLink />
-          <Courses />
+          <Courses surface="learn_empty" />
         </>
       );
     }

@@ -15,6 +15,8 @@
 # healthy are removed (the old generation, which is only stopped after its replacement is healthy, keeps serving),
 # the env file gets its previous image references back, and any broken container is removed again. Data services
 # (postgres, redis, walship, prometheus, node-exporter) and volumes are never touched.
+# If the smoke test fails after the rollout, the whole stack is rolled back too: the env file gets its previous
+# image references and engine, API, worker and proxy are restarted on them, so what runs matches .env.
 # Private images: DEPLOY_REGISTRY_USER=<login> logs Docker in to ghcr.io with a token read from stdin
 # (deploy-vm passes the job's short-lived GITHUB_TOKEN, `packages: read`). The login lives in a throwaway
 # DOCKER_CONFIG and is logged out and deleted right after the pull and on any exit; the token never
@@ -118,12 +120,25 @@ fi
 on_exit() {
   local rc=$?
   registry_logout
-  if ((rc != 0)) && [[ $phase == converge ]]; then
+  if ((rc != 0)) && [[ $phase == converge || $phase == verify ]]; then
+    local failed_phase=rollout
+    [[ $phase == verify ]] && failed_phase=verify
     say "deploy failed (rc=$rc): rolling back"
-    rollback_api
+    [[ $failed_phase == rollout ]] && rollback_api
     remove_broken
     cp -p "$env_backup" "$env_file"
-    echo "deploy: rolled back; the previous healthy containers keep serving, $env_file has its previous image references" >&2
+    if [[ $failed_phase == rollout ]]; then
+      echo "deploy: rolled back; the previous healthy containers keep serving, $env_file has its previous image references" >&2
+    elif [[ -n $(setting_of API_IMAGE) ]]; then
+      # The new generation was already running (it failed the smoke test): bring the containers back to the
+      # previous image references so what runs matches .env. Never touches data services or volumes.
+      say "smoke failed after the rollout: restarting the previous generation"
+      phase=rollback
+      if (roll_all); then echo "deploy: rolled back to the previous image references; $env_file matches the running containers" >&2
+      else echo "deploy: ROLLBACK FAILED; containers may run a mix of generations, check 'docker ps' against $env_file" >&2; fi
+    else
+      echo "deploy: smoke failed and $env_file has no previous image references to return to; the new generation keeps running" >&2
+    fi
   fi
   rm -f "$env_backup"
   return "$rc"
@@ -146,20 +161,28 @@ compose up --detach --wait --no-recreate postgres redis walship node-exporter pr
 say "/api migrate"
 compose run --rm --no-deps migrate
 
-say "engine"
-compose up --detach --wait --no-deps engine
+roll_api() { # one new API instance is healthy before an old one stops
+  mapfile -t old < <(compose ps --quiet api)
+  local count=${#old[@]} id
+  ((count > 0)) || count=2
+  for id in "${old[@]}"; do
+    compose up --detach --wait --no-deps --no-recreate --scale "api=$((count + 1))" api
+    docker stop "$id" >/dev/null && docker rm "$id" >/dev/null
+  done
+  compose up --detach --wait --no-deps --no-recreate --scale "api=$count" api
+}
+roll_all() {
+  say "engine"
+  compose up --detach --wait --no-deps engine
+  say "rolling restart: API"
+  roll_api
+  say "worker and proxy"
+  compose up --detach --wait --no-deps worker proxy
+}
+setting_of() { sed -n "s/^$1=//p" "$env_file" | tail -n 1; }
 
-say "rolling restart: API"
-mapfile -t old < <(compose ps --quiet api)
-count=${#old[@]}
-((count > 0)) || count=2
-for id in "${old[@]}"; do
-  compose up --detach --wait --no-deps --no-recreate --scale "api=$((count + 1))" api
-  docker stop "$id" >/dev/null && docker rm "$id" >/dev/null
-done
-compose up --detach --wait --no-deps --no-recreate --scale "api=$count" api
-
-say "worker and proxy"
-compose up --detach --wait --no-deps worker proxy
+roll_all
+phase=verify
 bash "$here/selfhost.sh" smoke
+phase=finished
 say "deployed $tag"

@@ -76,6 +76,22 @@ async fn review(replies: &[&'static str]) -> (crate::credits::Outcome, Arc<Scrip
 }
 
 #[tokio::test]
+async fn each_bounded_attempt_is_one_single_model_request() {
+    // Review F3: a route that still carries fallback models lets the HTTP provider run its own
+    // chain inside one attempt, so the runner under-counts calls and mislabels the fallback.
+    let (o, p) = review(&["not json", r#"{"verdict":"pass","reason_codes":[]}"#]).await;
+    assert!(o.completion.is_some());
+    let routes = p.routes.lock().unwrap();
+    assert_eq!(routes.len(), 2);
+    assert!(
+        routes.iter().all(|r| r.fallbacks.is_empty()),
+        "{:?}",
+        routes.iter().map(|r| &r.fallbacks).collect::<Vec<_>>()
+    );
+    assert!(!o.attempts[0].fallback_used && o.attempts[1].fallback_used);
+}
+
+#[tokio::test]
 async fn fenced_answer_is_delivered_as_the_extracted_json() {
     let (o, p) = review(&["```json\n{\"verdict\":\"pass\",\"reason_codes\":[]}\n```"]).await;
     let c = o.completion.unwrap();
@@ -239,6 +255,42 @@ async fn lesson_generation_overrides_the_task_format_with_the_lesson_schema() {
         .unwrap();
     let f = p.routes.lock().unwrap()[0].response_format.clone().unwrap();
     assert_eq!(f["type"], "json_object");
+}
+
+#[test]
+fn same_order_variant_with_a_wrong_index_is_rotated_onto_the_source_answer() {
+    // Review F5: the rotation must follow the source's correct text, not the variant's index.
+    let lesson = serde_json::json!({
+        "test": [{"question_id": "q", "choices": ["A view over an array", "A copy of an array"], "answer_index": 0}],
+        "variant_pool": [{"topic_id": "t", "variants": [{"question_id": "q-v", "variant_of": "q",
+            "choices": ["A view over an array", "A copy of an array"], "answer_index": 1}]}]
+    })
+    .to_string();
+    let fixed: serde_json::Value =
+        serde_json::from_str(&crate::lessontest::prepare_lesson(&lesson).unwrap()).unwrap();
+    let variant = &fixed["variant_pool"][0]["variants"][0];
+    let at = variant["answer_index"].as_u64().unwrap() as usize;
+    assert_eq!(variant["choices"][at], "A view over an array");
+    assert_ne!(
+        variant["choices"][0], "A view over an array",
+        "order must change"
+    );
+}
+
+#[test]
+fn malformed_variant_pools_are_left_for_validation_without_panicking() {
+    // Review F6: primitive pool or variant entries must not hit panicking `Value` indexing.
+    for pool in [
+        serde_json::json!([1]),
+        serde_json::json!(["x"]),
+        serde_json::json!([[1]]),
+        serde_json::json!([{"variants": 3}]),
+        serde_json::json!([{"variants": [7, "y", null]}]),
+    ] {
+        let lesson = serde_json::json!({"test": [], "variant_pool": pool}).to_string();
+        let prepared = std::panic::catch_unwind(|| crate::lessontest::prepare_lesson(&lesson));
+        assert!(prepared.is_ok(), "panicked on {pool}");
+    }
 }
 
 #[test]

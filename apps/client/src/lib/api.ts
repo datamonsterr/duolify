@@ -26,6 +26,8 @@ export type Course = {
   pinned_version?: number | null;
   /** A severe takedown blocked this copy; the path shows a notice instead of lessons. */
   moderation_blocked?: boolean;
+  /** Set on a copy of an authored example course (free, labelled "Example"). */
+  example_slug?: string | null;
   /** Creator of a shared copy; null for a course the learner made. */
   copy_origin?: CopyOrigin | null;
   units: { id?: string; title: string; lessons: Lesson[] }[];
@@ -119,7 +121,36 @@ async function get<T>(path: string): Promise<T> {
   }
   return response.json() as Promise<T>;
 }
+/** One authored example course offered to new learners (GET /v1/courses/examples). */
+export type ExampleCourse = {
+  slug: string;
+  title: string;
+  description: string;
+  level: string;
+  units: number;
+  lessons: number;
+  estimated_minutes: number;
+};
+export type ExampleSurface = "courses" | "learn_empty" | "onboarding";
 export const api = {
+  exampleCourses: async (): Promise<ExampleCourse[]> =>
+    (
+      await session.request<{ examples: ExampleCourse[] }>(
+        "/v1/courses/examples",
+      )
+    ).examples ?? [],
+  enrollExample: async (
+    slug: string,
+    surface: ExampleSurface,
+  ): Promise<{ course_id: string }> => {
+    const result = await session.request<{ course_id: string }>(
+      `/v1/courses/examples/${encodeURIComponent(slug)}/enroll`,
+      "POST",
+      { surface },
+    );
+    invalidateCourseList();
+    return result;
+  },
   pricing: async () => {
     const cached = readPricingCache();
     const headers = new Headers();

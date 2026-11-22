@@ -175,10 +175,17 @@ impl LlmProvider for HttpProvider {
         } else {
             (&value["choices"][0]["message"]["content"], &value["usage"])
         };
-        let text = text
-            .as_str()
-            .context("missing completion text")?
-            .to_string();
+        // A null answer that reports usage still consumed tokens: keep it as an empty answer so
+        // the bounded runner rejects and prices the attempt instead of losing its cost.
+        let text = match text.as_str() {
+            Some(t) => t.to_string(),
+            None if usage.get("completion_tokens").is_some()
+                || usage.get("output_tokens").is_some() =>
+            {
+                String::new()
+            }
+            None => anyhow::bail!("missing completion text"),
+        };
         let count = |key: &str| {
             usage[key]
                 .as_u64()
