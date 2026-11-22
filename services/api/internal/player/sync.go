@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -37,7 +38,7 @@ func validateSyncEvent(raw rawSyncEvent, lesson string, m ObjectManifest) (SyncE
 	if raw.ActionKey == nil || raw.Version == nil || raw.SlideID == nil || raw.TimeMS == nil || raw.OccurredAt == nil {
 		return SyncEvent{}, errInvalid
 	}
-	if raw.LessonID != nil && *raw.LessonID != lesson {
+	if raw.LessonID != nil && !strings.EqualFold(*raw.LessonID, lesson) {
 		return SyncEvent{}, errInvalid
 	}
 	if !actionKeyRegex.MatchString(*raw.ActionKey) {
@@ -145,7 +146,7 @@ func (s *Service) sync(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	err = s.opts.Pool.QueryRow(ctx, `SELECT c.id::text FROM lesson_manifests m
  JOIN course_lesson_stubs l ON l.id=m.lesson_id JOIN course_units u ON u.id=l.unit_id
  JOIN courses c ON c.id=u.course_id JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=m.learner_id
- WHERE m.learner_id::text=$1 AND m.lesson_id::text=$2 AND m.version=$3 AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL)`, owner, lesson, m.Version).Scan(&courseID)
+ WHERE m.learner_id=$1::uuid AND m.lesson_id=$2::uuid AND m.version=$3 AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL)`, owner, lesson, m.Version).Scan(&courseID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		failure(w, http.StatusNotFound)
 		return
@@ -202,7 +203,7 @@ func (s *Service) sync(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	// Read canonical position
 	var p Position
 	// The sync is committed; a failed read-back must not report the zero position as canonical.
-	if err := s.opts.Pool.QueryRow(ctx, `SELECT version, slide_id, time_ms FROM lesson_playback_positions WHERE learner_id::text=$1 AND lesson_id::text=$2`, owner, lesson).Scan(&p.Version, &p.SlideID, &p.TimeMS); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err := s.opts.Pool.QueryRow(ctx, `SELECT version, slide_id, time_ms FROM lesson_playback_positions WHERE learner_id=$1::uuid AND lesson_id=$2::uuid`, owner, lesson).Scan(&p.Version, &p.SlideID, &p.TimeMS); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		failure(w, http.StatusServiceUnavailable)
 		return
 	}

@@ -88,6 +88,11 @@ type Options struct {
 	Credits     Entitlements
 	// Narration serves the Learner's Retry and Restore actions for failed or missing audio (E14-02).
 	Narration NarrationRecovery
+	// ManifestCacheEntries bounds the in-process LRU of decoded manifests (default 256).
+	ManifestCacheEntries int
+	// ManifestCacheTTL bounds how long a decoded manifest is trusted before the manifest
+	// object is read and validated again (default 10 minutes; negative disables the cache).
+	ManifestCacheTTL time.Duration
 }
 
 // ErrNarrationNotFound hides slides that do not belong to the caller.
@@ -100,10 +105,16 @@ type NarrationRecovery interface {
 }
 
 // Service serves enrolled lesson content without granting progress.
-type Service struct{ opts Options }
+type Service struct {
+	opts      Options
+	manifests *manifestCache
+}
 
 // New creates a fail-closed player service.
-func New(opts Options) *Service { return &Service{opts: opts} }
+func New(opts Options) *Service {
+	return &Service{opts: opts, manifests: newManifestCache(opts.ManifestCacheEntries, opts.ManifestCacheTTL)}
+}
+
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -123,18 +134,28 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		courseID = r.PathValue("id")
 	}
 	if courseID != "" && strings.HasSuffix(r.URL.Path, "/download") {
+		courseID, ok := CanonicalUUID(courseID)
+		if !ok {
+			failure(w, 404)
+			return
+		}
 		s.downloadLibrary(ctx, w, r, owner, courseID)
 		return
 	}
-	id := r.PathValue("lesson")
+	// Malformed ids share the unknown-lesson 404 and never reach a typed uuid bind.
+	id, ok := CanonicalUUID(r.PathValue("lesson"))
+	if !ok {
+		failure(w, 404)
+		return
+	}
 	var key, course, title string
 	var version int
 	lookup := func() error {
 		return s.opts.Pool.QueryRow(ctx, `SELECT m.manifest_key,m.version,c.id::text,l.title
  FROM lesson_manifests m JOIN course_lesson_stubs l ON l.id=m.lesson_id
  JOIN course_units u ON u.id=l.unit_id JOIN courses c ON c.id=u.course_id
- JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id::text=$2
- WHERE m.lesson_id::text=$1 AND m.learner_id::text=$2 AND l.learner_id=m.learner_id AND l.status<>'locked' AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL)`, id, owner).Scan(&key, &version, &course, &title)
+ JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=$2::uuid
+ WHERE m.lesson_id=$1::uuid AND m.learner_id=$2::uuid AND l.learner_id=m.learner_id AND l.status<>'locked' AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL)`, id, owner).Scan(&key, &version, &course, &title)
 	}
 	err := lookup()
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -154,13 +175,19 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		failure(w, 503)
 		return
 	}
-	raw, err := s.opts.Objects.Get(ctx, key)
-	if err != nil || len(raw) > maxObjectBytes {
-		failure(w, 503)
+	if part := r.PathValue("part"); part != "" {
+		// Narration audio and recovery need authorization only, not the manifest.
+		if r.Method == http.MethodPost {
+			s.narrationRecovery(ctx, w, owner, id, r.PathValue("slide"), part)
+			return
+		}
+		s.narrationObject(ctx, w, owner, id, r.PathValue("slide"), part)
 		return
 	}
-	m, err := decodeManifest(raw, s.opts.AssetOrigin)
-	if err != nil || m.Version != version {
+	// Authorization ran above on every request. The decoded manifest is learner
+	// independent and cached by immutable key and version; a warm hit reads no object.
+	m, err := s.manifest(ctx, key, version)
+	if err != nil {
 		failure(w, 503)
 		return
 	}
@@ -172,19 +199,12 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.sync(ctx, w, r, owner, id, m)
 		return
 	}
-	if part := r.PathValue("part"); part != "" {
-		if r.Method == http.MethodPost {
-			s.narrationRecovery(ctx, w, owner, id, r.PathValue("slide"), part)
-			return
-		}
-		s.narrationObject(ctx, w, owner, id, r.PathValue("slide"), part)
-		return
-	}
 	if r.PathValue("slide") != "" {
 		for _, slide := range m.Slides {
 			if slide.ID != r.PathValue("slide") {
 				continue
 			}
+			// The one place slide bytes are read and checked against the manifest digests.
 			raw, assets, _, err := s.document(ctx, slide)
 			if err != nil {
 				failure(w, 503)
@@ -205,11 +225,6 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	segmentStates := s.segmentNarrations(ctx, owner, id)
 	out := Manifest{Cast: cast, LessonID: id, CourseID: course, Title: title, Version: version, AssetOrigin: s.opts.AssetOrigin, Slides: make([]Slide, 0, len(m.Slides))}
 	for _, slide := range m.Slides {
-		raw, _, hashes, err := s.document(ctx, slide)
-		if err != nil {
-			failure(w, 503)
-			return
-		}
 		explanation := slide.Explanation
 		if explanation == "" {
 			explanation = slide.NarrationText
@@ -220,10 +235,20 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Pinned speakers narrate this slide: the segments carry the audio and the slide shows their summary.
 			state = narrationState{Status: status, Reason: reason}
 		}
-		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: statusOf(state), NarrationReason: state.Reason, Narration: state.Asset, NarrationText: slide.NarrationText, Explanation: explanation, HTMLSHA256: checksum(raw), AssetSHA256: hashes, Segments: slideSegments})
+		out.Slides = append(out.Slides, Slide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLURL: "/v1/lessons/" + id + "/slides/" + slide.ID, Assets: slide.Assets, Checkpoints: slide.Checkpoints, NarrationStatus: statusOf(state), NarrationReason: state.Reason, Narration: state.Asset, NarrationText: slide.NarrationText, Explanation: explanation, HTMLSHA256: slide.HTMLSHA256, AssetSHA256: assetDigests(slide), Segments: slideSegments})
 	}
 	respond(w, 200, out)
 }
+
+// assetDigests projects the stored asset digests; always a non-nil object in JSON.
+func assetDigests(slide ObjectSlide) map[string]string {
+	out := make(map[string]string, len(slide.Assets))
+	for _, ref := range slide.Assets {
+		out[ref] = slide.AssetSHA256[ref]
+	}
+	return out
+}
+
 func (s *Service) downloadLibrary(ctx context.Context, w http.ResponseWriter, _ *http.Request, owner, courseID string) {
 	if s.opts.Credits == nil {
 		failure(w, 503)
@@ -245,8 +270,8 @@ func (s *Service) downloadLibrary(ctx context.Context, w http.ResponseWriter, _ 
 
 	var courseTitle string
 	err = s.opts.Pool.QueryRow(ctx, `SELECT c.title
-		FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id::text=$2
-		WHERE c.id::text=$1 AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL)`, courseID, owner).Scan(&courseTitle)
+		FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=$2::uuid
+		WHERE c.id=$1::uuid AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL)`, courseID, owner).Scan(&courseTitle)
 	if errors.Is(err, pgx.ErrNoRows) {
 		failure(w, 404)
 		return
@@ -257,11 +282,11 @@ func (s *Service) downloadLibrary(ctx context.Context, w http.ResponseWriter, _ 
 	}
 
 	rows, err := s.opts.Pool.Query(ctx, `SELECT l.id::text, u.id::text, l.title, l.position, l.status,
-		EXISTS(SELECT 1 FROM lesson_manifests m WHERE m.lesson_id=l.id AND m.learner_id::text=$2) AS has_manifest
+		EXISTS(SELECT 1 FROM lesson_manifests m WHERE m.lesson_id=l.id AND m.learner_id=$2::uuid) AS has_manifest
 		FROM course_lesson_stubs l
 		JOIN course_units u ON u.id=l.unit_id
 		JOIN courses c ON c.id=u.course_id
-		WHERE c.id::text=$1 AND l.learner_id::text=$2 AND u.archived_at IS NULL
+		WHERE c.id=$1::uuid AND l.learner_id=$2::uuid AND u.archived_at IS NULL
 		ORDER BY u.position, l.position`, courseID, owner)
 	if err != nil {
 		failure(w, 503)
@@ -313,11 +338,11 @@ func respond(w http.ResponseWriter, status int, value any) {
 // deletions affect only new jobs. Missing data yields a plain Lesson.
 func (s *Service) pinnedCast(ctx context.Context, owner, lessonID string) (json.RawMessage, map[string]json.RawMessage) {
 	var cast []byte
-	err := s.opts.Pool.QueryRow(ctx, `SELECT c.snapshot FROM generated_lessons g JOIN lesson_cast_snapshots c ON c.course_id=g.course_id AND c.learner_id=g.learner_id AND c.lesson_key=g.manifest->>'cast_key' WHERE g.lesson_stub_id::text=$1 AND g.learner_id::text=$2`, lessonID, owner).Scan(&cast)
+	err := s.opts.Pool.QueryRow(ctx, `SELECT c.snapshot FROM generated_lessons g JOIN lesson_cast_snapshots c ON c.course_id=g.course_id AND c.learner_id=g.learner_id AND c.lesson_key=g.manifest->>'cast_key' WHERE g.lesson_stub_id=$1::uuid AND g.learner_id=$2::uuid`, lessonID, owner).Scan(&cast)
 	if err != nil {
 		return nil, nil
 	}
-	rows, err := s.opts.Pool.Query(ctx, `SELECT slide_id,segments FROM lesson_slides WHERE lesson_stub_id::text=$1 AND learner_id::text=$2`, lessonID, owner)
+	rows, err := s.opts.Pool.Query(ctx, `SELECT slide_id,segments FROM lesson_slides WHERE lesson_stub_id=$1::uuid AND learner_id=$2::uuid`, lessonID, owner)
 	if err != nil {
 		return nil, nil
 	}
@@ -356,8 +381,8 @@ func (s *Service) narrations(ctx context.Context, owner, lesson string) narratio
 	// One row per slide: a stored (ready) voice wins over a pending one, and the Learner's chosen
 	// voice wins among stored voices, so an old voice keeps playing until the new one is ready.
 	rows, err := s.opts.Pool.Query(ctx, `SELECT DISTINCT ON (slide_id) slide_id,status,duration_ms,characters,failure_code FROM slide_narrations
-		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND speaker_key=''
-		ORDER BY slide_id,(status='ready') DESC,(voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id::text=$2),'default')) DESC,updated_at DESC`, lesson, owner)
+		WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND speaker_key=''
+		ORDER BY slide_id,(status='ready') DESC,(voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id=$2::uuid),'default')) DESC,updated_at DESC`, lesson, owner)
 	if err != nil {
 		return out // text and animation stay usable without audio
 	}
@@ -391,8 +416,8 @@ func (s *Service) narrationObject(ctx context.Context, w http.ResponseWriter, ow
 		return
 	}
 	var key string
-	err := s.opts.Pool.QueryRow(ctx, `SELECT `+column+` FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND status='ready'
-		ORDER BY (voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id::text=$2),'default')) DESC,updated_at DESC LIMIT 1`, lesson, owner, slide).Scan(&key)
+	err := s.opts.Pool.QueryRow(ctx, `SELECT `+column+` FROM slide_narrations WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND slide_id=$3 AND status='ready'
+		ORDER BY (voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id=$2::uuid),'default')) DESC,updated_at DESC LIMIT 1`, lesson, owner, slide).Scan(&key)
 	if errors.Is(err, pgx.ErrNoRows) {
 		failure(w, 404)
 		return

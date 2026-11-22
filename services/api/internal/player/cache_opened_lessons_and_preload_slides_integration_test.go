@@ -31,7 +31,9 @@ func TestCacheOpenedLessonsAndPreloadSlidesIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := player.New(player.Options{Pool: f.DB.Pool, Objects: f.ApplicationObjects(), AssetOrigin: "https://assets.example.test"})
+	// Tamper checks below rewrite stored objects in place, so every read must be cold; the
+	// bounded manifest cache is covered by TestLessonPlayerHotPathObjectReadsIntegration.
+	service := player.New(player.Options{Pool: f.DB.Pool, Objects: f.ApplicationObjects(), AssetOrigin: "https://assets.example.test", ManifestCacheTTL: -1})
 	server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, Player: service}, slog.New(slog.NewTextHandler(io.Discard, nil))))
 	defer server.Close()
 	call := func(method, path, token string, body any) (int, []byte) {
