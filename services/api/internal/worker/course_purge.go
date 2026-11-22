@@ -16,6 +16,11 @@ type CoursePurger interface {
 	PurgeDeletedCourses(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
+// ObjectPurger deletes the stored objects of purged Courses after their retention.
+type ObjectPurger interface {
+	SweepPurgedObjects(ctx context.Context, now time.Time) (int, error)
+}
+
 // CoursePurgeArgs is the content-free daily course purge job.
 type CoursePurgeArgs struct{}
 
@@ -42,6 +47,15 @@ func (w *CoursePurgeWorker) Work(ctx context.Context, _ *river.Job[CoursePurgeAr
 	}
 	if n > 0 && w.Logger != nil {
 		w.Logger.InfoContext(ctx, "deleted courses purged", "count", n)
+	}
+	if op, ok := w.Service.(ObjectPurger); ok {
+		objects, err := op.SweepPurgedObjects(ctx, time.Now().UTC())
+		if err != nil {
+			return err
+		}
+		if objects > 0 && w.Logger != nil {
+			w.Logger.InfoContext(ctx, "purged course objects deleted", "prefixes", objects)
+		}
 	}
 	return nil
 }
