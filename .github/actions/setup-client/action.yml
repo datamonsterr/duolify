@@ -1,9 +1,12 @@
 name: Set up client
-description: mise Node, pnpm and Rust; pnpm store and separate Tauri cache.
+description: mise Node and pnpm, pnpm store, and (for native jobs) Rust, Tauri apt packages and a Tauri cache.
 inputs:
   tauri:
-    description: Install Rust and Tauri system dependencies when true.
-    default: 'true'
+    description: Install Rust, Tauri system dependencies and free disk space when true.
+    default: 'false'
+  cache-key:
+    description: Rust cache namespace for native jobs.
+    default: native
 runs:
   using: composite
   steps:
@@ -20,14 +23,26 @@ runs:
         path: ${{ steps.store.outputs.path }}
         key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'pnpm-lock.yaml') }}
         restore-keys: pnpm-${{ runner.os }}-${{ runner.arch }}-
-    - name: Tauri system dependencies
+    - name: mise run ci:free-disk
       if: inputs.tauri == 'true'
       shell: bash
-      run: mise run ci:tauri-deps
+      run: mise run ci:free-disk
+    # Tauri 2 prerequisites: https://tauri.app/start/prerequisites/ (WebKitGTK 4.1).
+    - name: Tauri system dependencies (cached apt)
+      if: inputs.tauri == 'true'
+      uses: awalsh128/cache-apt-pkgs-action@v1.6.3
+      with:
+        packages: >-
+          libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev
+          build-essential curl wget file libxdo-dev libssl-dev
+          libayatana-appindicator3-dev librsvg2-dev
+        version: '1'
+        execute_install_scripts: true
     - uses: Swatinem/rust-cache@v2
       if: inputs.tauri == 'true'
       with:
         workspaces: apps/client/src-tauri -> target
-        shared-key: client-tauri
-    - shell: bash
+        shared-key: client-${{ inputs.cache-key }}
+    - name: mise run client:install
+      shell: bash
       run: mise run client:install

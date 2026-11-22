@@ -34,5 +34,12 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     exclude: ["e2e/**", "node_modules/**"],
+    // CI: GitHub annotations plus JUnit for the job summary (scripts/ci/junit-summary.py).
+    reporters: process.env.CI
+      ? ["default", "github-actions", "junit"]
+      : ["default"],
+    outputFile: {
+      junit: process.env.VITEST_JUNIT_FILE ?? "./test-results/vitest-junit.xml",
+    },
   },
 });

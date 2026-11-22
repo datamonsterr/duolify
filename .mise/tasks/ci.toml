@@ -1,6 +1,6 @@
 ["ci:lint"]
 description = "Lint GitHub workflows and CI shell scripts"
-run = ["actionlint -color", "shellcheck scripts/ci/*.sh"]
+run = ["actionlint", "shellcheck scripts/ci/*.sh"]
 
 ["ci:api-integration-shards"]
 description = "Verify API integration shards cover the default package list exactly once and all integration test directories"
@@ -13,7 +13,7 @@ env = { OPENSPEC_TELEMETRY = "0" }
 run = "openspec validate --all --strict --no-interactive"
 
 ["ci:summary"]
-description = "Write a job status and duration summary"
+description = "Write the job summary (status, duration, failing tests with file:line) and emit failure annotations"
 run = "bash scripts/ci/job-summary.sh"
 
 ["ci:aggregate"]
@@ -33,16 +33,6 @@ test "${CHANGES_RESULT:?changes result required}" = success
 ["ci:pnpm-store"]
 description = "Expose the configured pnpm store to actions/cache"
 run = 'echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"'
-
-["ci:tauri-deps"]
-description = "Install Tauri 2 Linux prerequisites on the Namespace runner"
-run = '''
-sudo apt-get update -qq
-sudo apt-get install -y --no-install-recommends \
-  libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev \
-  build-essential curl wget file libxdo-dev libssl-dev \
-  libayatana-appindicator3-dev librsvg2-dev
-'''
 
 ["ci:playwright-deps"]
 description = "Install Chromium system dependencies, including on browser cache hits"
@@ -75,3 +65,19 @@ run = "cargo nextest archive --locked --workspace --archive-file nextest.tar.zst
 description = "Run the engine:test workspace suite from the precompiled nextest archive"
 dir = "{{config_root}}/engine"
 run = "cargo nextest run --archive-file nextest.tar.zst --workspace-remap ."
+
+["ci:matchers"]
+description = "Register GitHub problem matchers (tsc, eslint, golangci-lint, rustc, actionlint) for annotations"
+run = 'for f in .github/matchers/*.json; do echo "::add-matcher::$PWD/$f"; done'
+
+["ci:free-disk"]
+description = "Free about 25 GB on GitHub-hosted runners (no-op elsewhere)"
+run = "bash scripts/ci/free-disk.sh"
+
+["ci:require-secrets"]
+description = "Set enabled=true|false from REQUIRED_SECRETS; notice and summary line when skipped"
+run = "bash scripts/ci/require-secrets.sh"
+
+["ci:failures"]
+description = "Print failing jobs, steps, annotations and log tails for a PR number or run id (default: current branch PR). Usage: mise run ci:failures -- 123"
+run = "bash scripts/ci/failures.sh"

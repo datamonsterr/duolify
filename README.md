@@ -127,8 +127,8 @@ mise run infra:restore-drill -- /path/to/anonymized.dump
 Run only the focused area's checks locally. Every area exposes lint, test and
 build tasks; CI invokes mise tasks. Draft PRs run fast path-filtered lint, unit
 tests and mock evals. Ready PRs/main add integration, browser, container and Tauri
-builds plus live sample evals when secrets exist. Namespace profiles provide all
-CI runners; `ci-ok` is the aggregate required check. See [CI details](docs/ci.md).
+builds plus live sample evals when secrets exist. GitHub-hosted `ubuntu-24.04` runners run
+all CI; `ci-ok` is the aggregate required check. See [CI details](docs/ci.md).
 
 `mise run setup` installs Lefthook hooks. Pre-commit checks Go, Rust and client
 formatting in parallel for affected areas. Commit messages use
@@ -197,8 +197,6 @@ its worktree with `git worktree remove <path>` afterwards.
   `evals/fixtures/golden.sample.jsonl` and pin its revision for live evals.
 - [ ] Add GitHub secrets: `RAILWAY_TOKEN`, `ANTHROPIC_API_KEY`,
   `OPENROUTER_API_KEY`, `HF_TOKEN`, `POSTHOG_API_KEY`.
-- [ ] Connect Namespace runner profiles `namespace-profile-datamonster01` and
-  `namespace-profile-linux-xl` to this repository.
 - [ ] Configure branch protection requiring `ci-ok`.
 - [ ] Issue a Railway project token scoped to `duolify` / `dev`, populate cloud
   secrets and explicitly approve a reviewed plan before applying it.

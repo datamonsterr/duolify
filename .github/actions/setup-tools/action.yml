@@ -1,5 +1,5 @@
 name: Set up tools
-description: Install only the requested mise tools, cache them, and start the job timer.
+description: Install only the requested mise tools, cache them, register problem matchers and start the job timer.
 inputs:
   tools:
     description: Space-separated mise install arguments; empty installs mise only.
@@ -11,10 +11,15 @@ runs:
   using: composite
   steps:
     - shell: bash
-      run: echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+      run: |
+        echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+        mkdir -p "$RUNNER_TEMP/junit"
     - uses: jdx/mise-action@v5
       with:
         install: ${{ inputs.tools != '' }}
         install_args: ${{ inputs.tools }}
         cache: true
         cache_key_prefix: mise-${{ inputs.area }}-v1
+    - name: mise run ci:matchers
+      shell: bash
+      run: mise run ci:matchers

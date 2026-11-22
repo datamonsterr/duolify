@@ -23,7 +23,7 @@ jobs:
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
-    runs-on: namespace-profile-datamonster01
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: dev
     env:
@@ -36,18 +36,20 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
       - uses: ./.github/actions/setup-tools
+      # Without the dev token the deploy skips with a notice instead of failing.
+      - name: mise run ci:require-secrets
+        id: credentials
+        run: mise run ci:require-secrets -- 'dev deploy'
+        env:
+          REQUIRED_SECRETS: RAILWAY_TOKEN
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - uses: ./.github/actions/setup-tools
+        if: steps.credentials.outputs.enabled == 'true'
         with:
           tools: node pnpm railway
           area: infra
-      - name: Require dev credentials
-        env:
-          HAVE_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
-        run: |
-          if [[ "$HAVE_TOKEN" != true ]]; then
-            echo '::error::Set RAILWAY_TOKEN in the dev environment before deploying.'
-            exit 1
-          fi
-      - name: Deploy development environment
+      - name: mise run infra:deploy-dev
+        if: steps.credentials.outputs.enabled == 'true'
         run: mise run infra:deploy-dev
         timeout-minutes: 15
         env:
