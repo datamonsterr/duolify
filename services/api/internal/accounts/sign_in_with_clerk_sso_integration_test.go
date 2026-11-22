@@ -106,11 +106,24 @@ func TestClerkSSOLinkingReplayAndTakeover(t *testing.T) {
 		}
 		return tx.State
 	}
+	// lastCode holds the code the hand-off returned to the signing-in browser, per state.
+	lastCode := map[string]string{}
 	handoff := func(state, token string) int {
-		return call("POST", "/v1/auth/sso/handoff", map[string]any{"state": state, "session_token": token}).Code
+		w := call("POST", "/v1/auth/sso/handoff", map[string]any{"state": state, "session_token": token})
+		if w.Code == 200 {
+			var out struct{ Code string }
+			if json.Unmarshal(w.Body.Bytes(), &out) != nil || len(out.Code) < 32 {
+				t.Fatalf("handoff returned no code: %s", w.Body)
+			}
+			lastCode[state] = out.Code
+		}
+		return w.Code
+	}
+	completeWith := func(state, code, codeVerifier string) *httptest.ResponseRecorder {
+		return call("POST", "/v1/auth/sso/complete", map[string]any{"state": state, "code": code, "code_verifier": codeVerifier, "redirect_uri": "duolify://sso/callback"})
 	}
 	complete := func(state, codeVerifier string) *httptest.ResponseRecorder {
-		return call("POST", "/v1/auth/sso/complete", map[string]any{"state": state, "code_verifier": codeVerifier, "redirect_uri": "duolify://sso/callback"})
+		return completeWith(state, lastCode[state], codeVerifier)
 	}
 	learnerOf := func(w *httptest.ResponseRecorder) string {
 		var tokens accounts.Tokens
@@ -126,7 +139,7 @@ func TestClerkSSOLinkingReplayAndTakeover(t *testing.T) {
 
 	// Completion before hand-off, with a wrong verifier, or after replay fails.
 	state := begin()
-	if w := complete(state, verifier); w.Code != 401 {
+	if w := completeWith(state, strings.Repeat("c", 43), verifier); w.Code != 401 {
 		t.Fatalf("complete before handoff: %d", w.Code)
 	}
 	if code := handoff(state, "unverified"); code != 401 {
@@ -139,7 +152,7 @@ func TestClerkSSOLinkingReplayAndTakeover(t *testing.T) {
 	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM auth_provider_identities").Scan(&bindings); err != nil || bindings != 0 {
 		t.Fatalf("rejected handoffs persisted a binding: %d %v", bindings, err)
 	}
-	if code := handoff(state, "new-user"); code != 204 {
+	if code := handoff(state, "new-user"); code != 200 {
 		t.Fatalf("new-user handoff: %d", code)
 	}
 	if code := handoff(state, "new-user"); code != 401 {
@@ -157,9 +170,78 @@ func TestClerkSSOLinkingReplayAndTakeover(t *testing.T) {
 		t.Fatalf("new learner: %q %q %v", email, display, err)
 	}
 
+	// Complete requires the one-time code: state + verifier alone never suffice.
+	noCode := begin()
+	if handoff(noCode, "new-user") != 200 {
+		t.Fatal("handoff")
+	}
+	if w := completeWith(noCode, "", verifier); w.Code == 200 {
+		t.Fatal("complete without a code succeeded")
+	}
+	// Wrong codes are rejected without consuming the attempt, the right code still works,
+	// and the fifth wrong guess burns the attempt so the code cannot be brute forced.
+	if w := completeWith(noCode, strings.Repeat("c", 43), verifier); w.Code != 401 {
+		t.Fatalf("wrong code: %d", w.Code)
+	}
+	if learnerOf(complete(noCode, verifier)) != newLearner {
+		t.Fatal("a single wrong code consumed the attempt")
+	}
+	burned := begin()
+	if handoff(burned, "new-user") != 200 {
+		t.Fatal("handoff")
+	}
+	for i := 0; i < 5; i++ {
+		if w := completeWith(burned, strings.Repeat("c", 43), verifier); w.Code != 401 {
+			t.Fatalf("wrong code %d: %d", i, w.Code)
+		}
+	}
+	if w := complete(burned, verifier); w.Code != 401 {
+		t.Fatalf("attempt survived five wrong codes: %d", w.Code)
+	}
+	// An expired code is rejected.
+	expired := begin()
+	if handoff(expired, "new-user") != 200 {
+		t.Fatal("handoff")
+	}
+	if _, err = db.Pool.Exec(ctx, "UPDATE auth_oauth_attempts SET code_expires_at=now()-interval '1 second' WHERE code_hash IS NOT NULL AND consumed_at IS NULL"); err != nil {
+		t.Fatal(err)
+	}
+	if w := complete(expired, verifier); w.Code != 401 {
+		t.Fatalf("expired code accepted: %d", w.Code)
+	}
+	var stored int
+	if err = db.Pool.QueryRow(ctx, "SELECT count(*) FROM auth_oauth_attempts WHERE code_hash IS NOT NULL AND code_hash = ANY($1)", []string{lastCode[noCode], lastCode[burned]}).Scan(&stored); err != nil || stored != 0 {
+		t.Fatalf("plaintext code stored: %d %v", stored, err)
+	}
+
+	// Cross-device attack: the attacker starts SSO in their own app (state A, verifier VA)
+	// and sends the victim the bridge link. The victim signs in on the bridge; the code goes
+	// to the victim's browser and device. The attacker's app has state and verifier but no
+	// code, so it cannot obtain a session, and a code from another attempt does not help.
+	attackerVerifier := strings.Repeat("a", 43)
+	attackerStart := call("POST", "/v1/auth/sso/start", map[string]any{"redirect_uri": "duolify://sso/callback", "code_challenge": accounts.PKCEChallenge(attackerVerifier), "age_confirmed": true})
+	var attackerTx accounts.SSOTransaction
+	if err = json.Unmarshal(attackerStart.Body.Bytes(), &attackerTx); err != nil || attackerTx.State == "" {
+		t.Fatalf("attacker start: %d", attackerStart.Code)
+	}
+	if handoff(attackerTx.State, "existing-owner") != 200 {
+		t.Fatal("victim handoff")
+	}
+	victimCode := lastCode[attackerTx.State]
+	if w := completeWith(attackerTx.State, "", attackerVerifier); w.Code == 200 {
+		t.Fatal("attacker completed with state and verifier only")
+	}
+	if w := completeWith(attackerTx.State, lastCode[state], attackerVerifier); w.Code != 401 {
+		t.Fatalf("attacker used another attempt's code: %d", w.Code)
+	}
+	// Only the holder of both the code and the verifier gets a session (the victim's own app).
+	if w := completeWith(attackerTx.State, victimCode, verifier); w.Code != 401 {
+		t.Fatalf("code with the wrong verifier accepted: %d", w.Code)
+	}
+
 	// Signing in again with the same Clerk user returns the same learner.
 	again := begin()
-	if handoff(again, "new-user") != 204 || learnerOf(complete(again, verifier)) != newLearner {
+	if handoff(again, "new-user") != 200 || learnerOf(complete(again, verifier)) != newLearner {
 		t.Fatal("returning Clerk user did not resolve to the same learner")
 	}
 
@@ -170,11 +252,11 @@ func TestClerkSSOLinkingReplayAndTakeover(t *testing.T) {
 	code := sink.Code("existing@example.test")
 	existingLearner := learnerOf(call("POST", "/v1/auth/verify", map[string]any{"email": "existing@example.test", "code": code, "age_confirmed": true}))
 	linked := begin()
-	if handoff(linked, "existing-owner") != 204 || learnerOf(complete(linked, verifier)) != existingLearner {
+	if handoff(linked, "existing-owner") != 200 || learnerOf(complete(linked, verifier)) != existingLearner {
 		t.Fatal("verified email did not link to the existing learner")
 	}
 	renamed := begin()
-	if handoff(renamed, "existing-rename") != 204 || learnerOf(complete(renamed, verifier)) != existingLearner {
+	if handoff(renamed, "existing-rename") != 200 || learnerOf(complete(renamed, verifier)) != existingLearner {
 		t.Fatal("bound Clerk user changed learner after an email change")
 	}
 
@@ -183,7 +265,7 @@ func TestClerkSSOLinkingReplayAndTakeover(t *testing.T) {
 	if code := handoff(hostile, "takeover"); code != 409 {
 		t.Fatalf("takeover by second Clerk user: %d", code)
 	}
-	if w := complete(hostile, verifier); w.Code != 401 {
+	if w := completeWith(hostile, strings.Repeat("c", 43), verifier); w.Code != 401 {
 		t.Fatalf("takeover attempt issued tokens: %d", w.Code)
 	}
 	var users int

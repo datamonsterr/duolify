@@ -15,11 +15,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Clerk SSO (ADR 0016). Clerk authenticates the learner in a browser on a normal web
+// Clerk SSO (ADR 0016). RFC 8252 shape: PKCE verifier (app) + one-time code (browser that signed in). Clerk authenticates the learner in a browser on a normal web
 // origin; the API verifies the Clerk session token itself, links or creates the
 // Duolify account, and issues the existing Duolify session. The native app never
-// sees a Clerk token: it holds a PKCE verifier and receives only the one-time state
-// through the deep link, so an intercepted callback is useless without the verifier.
+// sees a Clerk token. The hand-off returns a one-time code to the browser that signed
+// in; the app on that device receives it through the deep link and redeems it with its
+// PKCE verifier. A different device's app never sees the code, and an app that only
+// intercepts the deep link lacks the verifier.
 
 var errSSOLinking = errors.New("account is already linked to another Clerk user")
 var errSSOState = errors.New("invalid or expired SSO transaction")
@@ -202,7 +204,7 @@ func (s *Service) ssoHandoff(w http.ResponseWriter, r *http.Request) {
 		failure(w, err)
 		return
 	}
-	err = s.bindClerkIdentity(ctx, identity, keyedHash(s.oauthKey, in.State))
+	code, err := s.bindClerkIdentity(ctx, identity, keyedHash(s.oauthKey, in.State))
 	switch {
 	case errors.Is(err, errSSOState), errors.Is(err, ErrClerkVerification):
 		respond(w, http.StatusUnauthorized, map[string]string{"error": "Sign-in could not be verified. Please retry."})
@@ -211,7 +213,9 @@ func (s *Service) ssoHandoff(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		failure(w, err)
 	default:
-		w.WriteHeader(http.StatusNoContent)
+		// The code goes only to the browser that completed Clerk sign-in. It is the
+		// proof that the device holding the attempt is the device that signed in.
+		respond(w, http.StatusOK, map[string]string{"code": code})
 	}
 }
 
@@ -235,20 +239,20 @@ func (s *Service) ssoThrottle(ctx context.Context, key string, maximum int) erro
 // Linking rules (ADR 0016): a known Clerk user id always wins and its email is
 // ignored; otherwise the Clerk primary email must be Clerk-verified. A learner that
 // already has a different Clerk user bound is never re-bound by email.
-func (s *Service) bindClerkIdentity(ctx context.Context, identity ClerkIdentity, stateHash string) error {
+func (s *Service) bindClerkIdentity(ctx context.Context, identity ClerkIdentity, stateHash string) (string, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var locale, zone string
 	var optOut, active bool
 	err = tx.QueryRow(ctx, `SELECT locale,time_zone,analytics_opt_out,expires_at>now() AND consumed_at IS NULL AND handed_off_at IS NULL FROM auth_oauth_attempts WHERE state_hash=$1 FOR UPDATE`, stateHash).Scan(&locale, &zone, &optOut, &active)
 	if errors.Is(err, pgx.ErrNoRows) || err == nil && !active {
-		return errSSOState
+		return "", errSSOState
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	var learnerID string
 	err = tx.QueryRow(ctx, "SELECT learner_id::text FROM auth_provider_identities WHERE provider='clerk' AND subject=$1", identity.UserID).Scan(&learnerID)
@@ -256,17 +260,24 @@ func (s *Service) bindClerkIdentity(ctx context.Context, identity ClerkIdentity,
 		learnerID, err = s.linkOrCreate(ctx, tx, identity, locale, zone, optOut)
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	if optOut {
 		if _, err = tx.Exec(ctx, "UPDATE learner_profiles SET analytics_opt_out=true WHERE learner_id=$1::uuid", learnerID); err != nil {
-			return err
+			return "", err
 		}
 	}
 	if _, err = tx.Exec(ctx, "UPDATE auth_oauth_attempts SET learner_id=$2::uuid,clerk_user_id=$3,handed_off_at=now() WHERE state_hash=$1", stateHash, learnerID, identity.UserID); err != nil {
-		return err
+		return "", err
 	}
-	return tx.Commit(ctx)
+	code, err := randomState()
+	if err != nil {
+		return "", err
+	}
+	if _, err = tx.Exec(ctx, "UPDATE auth_oauth_attempts SET code_hash=$2,code_expires_at=now()+interval '2 minutes',code_attempts=0 WHERE state_hash=$1", stateHash, ssoCodeHash(s.oauthKey, code)); err != nil {
+		return "", err
+	}
+	return code, tx.Commit(ctx)
 }
 
 func (s *Service) linkOrCreate(ctx context.Context, tx pgx.Tx, identity ClerkIdentity, locale, zone string, optOut bool) (string, error) {
@@ -309,8 +320,14 @@ func (s *Service) linkOrCreate(ctx context.Context, tx pgx.Tx, identity ClerkIde
 	return learnerID, err
 }
 
+func ssoCodeHash(key []byte, code string) string { return keyedHash(key, "sso-code:"+code) }
+
+// ssoMaxCodeTries bounds guesses against one hand-off before the attempt is burned.
+const ssoMaxCodeTries = 5
+
 type ssoCompleteInput struct {
 	State        string `json:"state"`
+	Code         string `json:"code"`
 	CodeVerifier string `json:"code_verifier"`
 	RedirectURI  string `json:"redirect_uri"`
 }
@@ -326,7 +343,7 @@ func (s *Service) ssoComplete(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
-	if len(in.State) < 32 || len(in.State) > 128 || !validPKCEVerifier(in.CodeVerifier) || !ValidSSORedirect(in.RedirectURI) {
+	if len(in.State) < 32 || len(in.State) > 128 || len(in.Code) < 32 || len(in.Code) > 128 || !validPKCEVerifier(in.CodeVerifier) || !ValidSSORedirect(in.RedirectURI) {
 		respond(w, http.StatusBadRequest, map[string]string{"error": "Invalid sign-in request."})
 		return
 	}
@@ -341,16 +358,35 @@ func (s *Service) ssoComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	var challenge, redirect, learnerID string
+	stateHash := keyedHash(s.oauthKey, in.State)
+	var challenge, redirect, learnerID, codeHash string
 	var ready bool
-	err = tx.QueryRow(ctx, `SELECT code_challenge,redirect_uri,COALESCE(learner_id::text,''),expires_at>now() AND consumed_at IS NULL AND handed_off_at IS NOT NULL FROM auth_oauth_attempts WHERE state_hash=$1 FOR UPDATE`, keyedHash(s.oauthKey, in.State)).Scan(&challenge, &redirect, &learnerID, &ready)
-	if err != nil || !ready || redirect != in.RedirectURI || subtle.ConstantTimeCompare([]byte(challenge), []byte(PKCEChallenge(in.CodeVerifier))) != 1 {
+	var tries int
+	err = tx.QueryRow(ctx, `SELECT code_challenge,redirect_uri,COALESCE(learner_id::text,''),COALESCE(code_hash,''),code_attempts,expires_at>now() AND consumed_at IS NULL AND handed_off_at IS NOT NULL AND code_expires_at>now() FROM auth_oauth_attempts WHERE state_hash=$1 FOR UPDATE`, stateHash).Scan(&challenge, &redirect, &learnerID, &codeHash, &tries, &ready)
+	if err != nil || !ready || tries >= ssoMaxCodeTries || codeHash == "" {
+		respond(w, http.StatusUnauthorized, map[string]string{"error": "Sign-in could not be verified. Please retry."})
+		return
+	}
+	// Every redemption needs the one-time code (delivered only to the browser that signed
+	// in), the PKCE verifier (held only by the app) and the exact redirect.
+	codeOK := subtle.ConstantTimeCompare([]byte(codeHash), []byte(ssoCodeHash(s.oauthKey, in.Code))) == 1
+	pkceOK := subtle.ConstantTimeCompare([]byte(challenge), []byte(PKCEChallenge(in.CodeVerifier))) == 1
+	if !codeOK || !pkceOK || redirect != in.RedirectURI {
+		// Count the failure; the fifth burns the attempt so the code cannot be brute forced.
+		burn := "UPDATE auth_oauth_attempts SET code_attempts=code_attempts+1, consumed_at=CASE WHEN code_attempts+1>=$2 THEN now() ELSE consumed_at END WHERE state_hash=$1"
+		if _, err = tx.Exec(ctx, burn, stateHash, ssoMaxCodeTries); err == nil {
+			err = tx.Commit(ctx)
+		}
+		if err != nil {
+			failure(w, err)
+			return
+		}
 		respond(w, http.StatusUnauthorized, map[string]string{"error": "Sign-in could not be verified. Please retry."})
 		return
 	}
 	var sessionID string
 	var expiry time.Time
-	if _, err = tx.Exec(ctx, "UPDATE auth_oauth_attempts SET consumed_at=now() WHERE state_hash=$1", keyedHash(s.oauthKey, in.State)); err == nil {
+	if _, err = tx.Exec(ctx, "UPDATE auth_oauth_attempts SET consumed_at=now(),code_hash=NULL WHERE state_hash=$1", stateHash); err == nil {
 		err = tx.QueryRow(ctx, "INSERT INTO auth_sessions(learner_id) VALUES($1::uuid) RETURNING id::text,expires_at", learnerID).Scan(&sessionID, &expiry)
 	}
 	var tokens Tokens

@@ -1,7 +1,7 @@
 ## 1. Tests first
 
 - [x] 1.1 Playwright: SSO cancel/recovery at 1280/390/320 light and dark, error retry, and callback completion with only `state` in the deep link (replaces E1-08/E1-09 OAuth specs).
-- [x] 1.2 API integration (Postgres): feature off without keys, start validation, hand-off and completion, replay, wrong verifier, unverified email, link existing email account, Clerk id wins after email change, second Clerk user cannot take over, expiry.
+- [x] 1.2 API integration (Postgres): feature off without keys, start validation, hand-off and completion, replay, missing/wrong/expired/replayed code, brute-force burn, cross-device phishing, wrong verifier, unverified email, link existing email account, Clerk id wins after email change, second Clerk user cannot take over, expiry.
 - [x] 1.3 Unit: Clerk verifier (signature, issuer, `azp`, expiry, subject mismatch, banned user, email verification), environment fail-closed, PKCE and redirect allowlist, client deep-link parser and bridge URL pinning.
 
 ## 2. Implementation

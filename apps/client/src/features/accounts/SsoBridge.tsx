@@ -20,10 +20,13 @@ import "./accounts.css";
 const strategies: SSOStrategy[] = ["oauth_google", "oauth_apple"];
 type Stage = "confirm" | "working" | "done" | "error";
 
-function deepLink(state: string | null, denied = false) {
+function deepLink(state: string | null, denied = false, code?: string) {
   const url = new URL(SSO_REDIRECT_URI);
   if (denied) url.searchParams.set("error", "access_denied");
-  else if (state) url.searchParams.set("state", state);
+  else if (state && code) {
+    url.searchParams.set("state", state);
+    url.searchParams.set("code", code);
+  }
   return url.href;
 }
 
@@ -48,6 +51,7 @@ export function SsoBridge() {
       : "This sign-in link is not valid. Return to Duolify and try again.",
   );
   const started = useRef(false);
+  const [handoffCode, setHandoffCode] = useState("");
 
   async function run() {
     if (!valid || !state || !strategy) return;
@@ -87,15 +91,16 @@ export function SsoBridge() {
       const token = await clerk.session.getToken();
       if (!token)
         throw new Error("Sign-in could not be verified. Please retry.");
-      await authRequest("/v1/auth/sso/handoff", {
-        state,
-        session_token: token,
-      });
+      const { code } = await authRequest<{ code: string }>(
+        "/v1/auth/sso/handoff",
+        { state, session_token: token },
+      );
       // Clerk is only the identity check; Duolify keeps the session. Drop Clerk's.
       await clerk.signOut().catch(() => {});
       if (!web) {
+        setHandoffCode(code);
         setStage("done");
-        location.assign(deepLink(state));
+        location.assign(deepLink(state, false, code));
         return;
       }
       const pending = takeWebPending();
@@ -103,6 +108,7 @@ export function SsoBridge() {
         throw new Error("Sign-in could not be verified. Please retry.");
       const tokens = await authRequest<Tokens>("/v1/auth/sso/complete", {
         state,
+        code,
         code_verifier: pending.verifier,
         redirect_uri: SSO_REDIRECT_URI,
       });
@@ -136,9 +142,8 @@ export function SsoBridge() {
             <>
               <h1>Sign in to the Duolify app</h1>
               <p>
-                Continue only if you just started sign-in from the Duolify app
-                on your own device. If someone sent you this link, close this
-                page.
+                This signs you in to the Duolify app on this device. If you did
+                not start it here, close this page.
               </p>
               <Button
                 onClick={() => {
@@ -166,7 +171,10 @@ export function SsoBridge() {
                 You are signed in. If the app did not open, use the button
                 below.
               </p>
-              <a className="auth-legal-link" href={deepLink(state)}>
+              <a
+                className="auth-legal-link"
+                href={deepLink(state, false, handoffCode)}
+              >
                 Open Duolify
               </a>
             </>

@@ -26,7 +26,7 @@ func (f fakeClerkUsers) Get(context.Context, string) (*clerk.User, error) {
 func clerkUser(id, email, status string) *clerk.User {
 	emailID := "idn_1"
 	first := "Ada"
-	return &clerk.User{ID: id, FirstName: &first, PrimaryEmailAddressID: &emailID, EmailAddresses: []*clerk.EmailAddress{{ID: emailID, EmailAddress: email, Verification: &clerk.Verification{Status: status}}}}
+	return &clerk.User{ID: id, FirstName: &first, PrimaryEmailAddressID: &emailID, EmailAddresses: []*clerk.EmailAddress{{ID: emailID, EmailAddress: email, Verification: &clerk.Verification{Status: status, Strategy: "from_oauth_google"}}}}
 }
 
 func TestClerkVerifierChecksSignatureIssuerPartyAndEmailVerification(t *testing.T) {
@@ -66,6 +66,18 @@ func TestClerkVerifierChecksSignatureIssuerPartyAndEmailVerification(t *testing.
 	}
 	if identity, err = build(clerkUser("user_1", "ada@example.test", "unverified")).Verify(ctx, good); err != nil || identity.EmailVerified {
 		t.Fatalf("unverified email must be reported unverified: %+v %v", identity, err)
+	}
+	for _, strategy := range []string{"admin", "ticket", "email_link", ""} {
+		user := clerkUser("user_1", "ada@example.test", "verified")
+		user.EmailAddresses[0].Verification.Strategy = strategy
+		if identity, err = build(user).Verify(ctx, good); err != nil || identity.EmailVerified {
+			t.Fatalf("strategy %q must not count as verified: %+v %v", strategy, identity, err)
+		}
+	}
+	secondary := clerkUser("user_1", "ada@example.test", "verified")
+	secondary.EmailAddresses = append(secondary.EmailAddresses, &clerk.EmailAddress{ID: "idn_2", EmailAddress: "victim@example.test", Verification: &clerk.Verification{Status: "verified", Strategy: "email_code"}})
+	if identity, err = build(secondary).Verify(ctx, good); err != nil || identity.Email != "ada@example.test" {
+		t.Fatalf("only the primary email may be used: %+v %v", identity, err)
 	}
 	banned := clerkUser("user_1", "ada@example.test", "verified")
 	banned.Banned = true

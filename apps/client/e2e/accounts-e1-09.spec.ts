@@ -11,12 +11,16 @@ for (const width of [1280, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await page.emulateMedia({ colorScheme: mode, reducedMotion: "reduce" });
       await page.addInitScript(() => {
-        const listeners = new Set<(result: { state: string } | null) => void>();
+        const listeners = new Set<
+          (result: { state: string; code: string } | null) => void
+        >();
         (
           window as typeof window & { __DUOLIFY_SSO_BRIDGE__?: unknown }
         ).__DUOLIFY_SSO_BRIDGE__ = {
           openSystemBrowser: async () => undefined,
-          listen: (listener: (result: { state: string } | null) => void) => {
+          listen: (
+            listener: (result: { state: string; code: string } | null) => void,
+          ) => {
             listeners.add(listener);
             return () => listeners.delete(listener);
           },
@@ -133,13 +137,14 @@ test("returning Apple subject completes when profile claims are omitted", async 
     }),
   );
   await page.addInitScript(() => {
-    let listener: ((result: { state: string } | null) => void) | undefined;
+    let listener:
+      ((result: { state: string; code: string } | null) => void) | undefined;
     (
       window as typeof window & {
         __DUOLIFY_SSO_BRIDGE__: {
           openSystemBrowser: () => Promise<void>;
           listen: (
-            cb: (result: { state: string } | null) => void,
+            cb: (result: { state: string; code: string } | null) => void,
           ) => Promise<() => void>;
           complete: () => void;
         };
@@ -150,13 +155,15 @@ test("returning Apple subject completes when profile claims are omitted", async 
         listener = cb;
         return () => undefined;
       },
-      complete: () => listener?.({ state: "s".repeat(43) }),
+      complete: () =>
+        listener?.({ state: "s".repeat(43), code: "c".repeat(43) }),
     };
   });
   await page.route("**/v1/auth/sso/complete", async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     expect(body).toMatchObject({
       state: "s".repeat(43),
+      code: "c".repeat(43),
       redirect_uri: "duolify://sso/callback",
     });
     expect(body.code_verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);

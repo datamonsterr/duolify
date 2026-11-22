@@ -11,12 +11,16 @@ for (const width of [1280, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await page.emulateMedia({ colorScheme: mode, reducedMotion: "reduce" });
       await page.addInitScript(() => {
-        const listeners = new Set<(result: { state: string } | null) => void>();
+        const listeners = new Set<
+          (result: { state: string; code: string } | null) => void
+        >();
         (
           window as typeof window & { __DUOLIFY_SSO_BRIDGE__?: unknown }
         ).__DUOLIFY_SSO_BRIDGE__ = {
           openSystemBrowser: async () => undefined,
-          listen: (listener: (result: { state: string } | null) => void) => {
+          listen: (
+            listener: (result: { state: string; code: string } | null) => void,
+          ) => {
             listeners.add(listener);
             return () => listeners.delete(listener);
           },
@@ -154,16 +158,20 @@ test("Google callback completes sign-in with transaction state", async ({
     }),
   );
   await page.addInitScript(() => {
-    let listener: ((result: { state: string } | null) => void) | undefined;
+    let listener:
+      ((result: { state: string; code: string } | null) => void) | undefined;
     (
       window as typeof window & { __DUOLIFY_SSO_BRIDGE__?: unknown }
     ).__DUOLIFY_SSO_BRIDGE__ = {
       openSystemBrowser: async () => undefined,
-      listen: async (callback: (result: { state: string } | null) => void) => {
+      listen: async (
+        callback: (result: { state: string; code: string } | null) => void,
+      ) => {
         listener = callback;
         return () => undefined;
       },
-      complete: () => listener?.({ state: "s".repeat(43) }),
+      complete: () =>
+        listener?.({ state: "s".repeat(43), code: "c".repeat(43) }),
     };
   });
   await page.goto("/sign-in");

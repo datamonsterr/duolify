@@ -34,7 +34,7 @@ const start = () =>
 
 function bridge(extra: { cancel?: () => void } = {}) {
   const handle: {
-    callback?: (value: { state: string } | null) => void;
+    callback?: (value: { state: string; code: string } | null) => void;
     openSystemBrowser: Mock<(url: string) => Promise<void>>;
   } = {
     openSystemBrowser: vi
@@ -76,6 +76,7 @@ it("completes Clerk sign-in through the deep-link bridge without exposing the ve
       const body = (await request.json()) as Record<string, unknown>;
       expect(body).toMatchObject({
         state,
+        code: "c".repeat(43),
         redirect_uri: "duolify://sso/callback",
       });
       expect(body.code_verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -117,7 +118,7 @@ it("completes Clerk sign-in through the deep-link bridge without exposing the ve
     "ui_control_activated",
     expect.objectContaining({ surface: "sign_in", control_id: "sign_in" }),
   );
-  handle.callback?.({ state });
+  handle.callback?.({ state, code: "c".repeat(43) });
   await waitFor(() => expect(done).toHaveBeenCalledWith("/profile"));
   expect(JSON.stringify(posthog.capture.mock.calls)).not.toMatch(
     /private-access|private-refresh|sssss/,
@@ -141,7 +142,7 @@ it("rejects a deep link whose state does not match the started transaction", asy
     await screen.findByRole("button", { name: "Continue with Apple" }),
   );
   await screen.findByRole("button", { name: "Cancel sign-in" });
-  handle.callback?.({ state: "x".repeat(43) });
+  handle.callback?.({ state: "x".repeat(43), code: "c".repeat(43) });
   await screen.findByText("Sign-in could not be verified. Please retry.");
   expect(completed).toBe(false);
 });

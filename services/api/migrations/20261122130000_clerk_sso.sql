@@ -15,14 +15,17 @@ ALTER TABLE auth_oauth_attempts
  ADD COLUMN locale text NOT NULL DEFAULT 'en',
  ADD COLUMN time_zone text NOT NULL DEFAULT 'UTC',
  ADD COLUMN analytics_opt_out boolean NOT NULL DEFAULT false,
- ADD COLUMN handed_off_at timestamptz;
+ ADD COLUMN handed_off_at timestamptz,
+ ADD COLUMN code_hash text,
+ ADD COLUMN code_expires_at timestamptz,
+ ADD COLUMN code_attempts integer NOT NULL DEFAULT 0;
 CREATE INDEX auth_oauth_attempt_learner_idx ON auth_oauth_attempts(learner_id) WHERE learner_id IS NOT NULL;
 
 -- +goose Down
 DROP INDEX auth_oauth_attempt_learner_idx;
 DELETE FROM auth_oauth_attempts;
 ALTER TABLE auth_oauth_attempts
- DROP COLUMN handed_off_at, DROP COLUMN analytics_opt_out, DROP COLUMN time_zone,
+ DROP COLUMN code_attempts, DROP COLUMN code_expires_at, DROP COLUMN code_hash, DROP COLUMN handed_off_at, DROP COLUMN analytics_opt_out, DROP COLUMN time_zone,
  DROP COLUMN locale, DROP COLUMN clerk_user_id, DROP COLUMN learner_id,
  ALTER COLUMN nonce_hash SET NOT NULL;
 DELETE FROM auth_provider_identities WHERE provider = 'clerk';

@@ -1,11 +1,12 @@
 import { expect, it } from "vitest";
 import { parseSSOCallback, ssoBridge, ssoBridgeUrl } from "./sso";
 
-it("accepts only the registered deep link and carries no secret", () => {
+it("accepts only the registered deep link with state and code", () => {
   const state = "s".repeat(43);
-  expect(parseSSOCallback(`duolify://sso/callback?state=${state}`)).toEqual({
-    state,
-  });
+  const code = "c".repeat(43);
+  expect(
+    parseSSOCallback(`duolify://sso/callback?state=${state}&code=${code}`),
+  ).toEqual({ state, code });
   expect(parseSSOCallback("duolify://sso/callback?error=access_denied")).toBe(
     null,
   );
@@ -14,6 +15,7 @@ it("accepts only the registered deep link and carries no secret", () => {
     "duolify://oauth/callback?state=x",
     "duolify://sso/other?state=x",
     "duolify://sso/callback",
+    `duolify://sso/callback?state=${state}`,
     "not a url",
   ])
     expect(parseSSOCallback(bad)).toBeUndefined();

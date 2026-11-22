@@ -199,6 +199,7 @@ export function SignIn({
     try {
       const tokens = await authRequest<Tokens>("/v1/auth/sso/complete", {
         state: value.state,
+        code: value.code,
         code_verifier: current.verifier,
         redirect_uri: SSO_REDIRECT_URI,
       });

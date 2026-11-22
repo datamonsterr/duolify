@@ -28,16 +28,21 @@ The API MUST verify every Clerk session token itself (signature, issuer, authori
 
 ### Requirement: SSO transaction integrity
 
-Each SSO attempt MUST bind an unpredictable one-time state, a PKCE challenge, the exact redirect `duolify://sso/callback` and a 10-minute expiry. Hand-off and completion MUST each succeed at most once per attempt. Completion MUST require the PKCE verifier. The deep link MUST carry only the state. Clerk tokens MUST NOT be persisted or logged.
+Each SSO attempt MUST bind an unpredictable one-time state, a PKCE challenge, the exact redirect `duolify://sso/callback` and a 10-minute expiry. Hand-off MUST mint a single-use authorization code, stored only as a keyed hash, expiring within two minutes and returned only to the browser that completed Clerk sign-in. Completion MUST require state, code and PKCE verifier, MUST compare the code in constant time, MUST count failed tries and burn the attempt after five, and MUST consume the attempt on success. An attempt MUST NOT be completable without the code. Clerk tokens MUST NOT be persisted or logged.
 
 #### Scenario: Replay or substitution
 
-- **WHEN** a state is reused, expired, completed with a wrong verifier, or completed before hand-off
+- **WHEN** a state or code is reused or expired, or completion uses a missing or wrong code, a wrong verifier, or happens before hand-off
 - **THEN** the API rejects it and issues no tokens
+
+#### Scenario: Cross-device phishing
+
+- **WHEN** an attacker starts SSO in their own app and a victim signs in through the attacker's bridge link
+- **THEN** the code is delivered only to the victim's browser, and the attacker's app, holding the state and verifier but not the code, cannot obtain a session
 
 ### Requirement: Account linking without takeover
 
-A known Clerk user id MUST resolve to its Learner regardless of email. A new Clerk user MAY link to an existing Learner only when Clerk reports its primary email as verified and the email matches exactly one Learner with no other Clerk user bound. Otherwise the API MUST reject the hand-off and leave all records unchanged. An unknown verified email MUST create a Learner and binding in one transaction. The resulting session MUST be the existing Duolify session (rotation, revocation, session listing unchanged).
+A known Clerk user id MUST resolve to its Learner regardless of email. A new Clerk user MAY link to an existing Learner only when Clerk reports its primary email address (not a secondary address) as verified by `email_code`, Google or Apple, and the email matches exactly one Learner with no other Clerk user bound. Otherwise the API MUST reject the hand-off and leave all records unchanged. An unknown verified email MUST create a Learner and binding in one transaction. The resulting session MUST be the existing Duolify session (rotation, revocation, session listing unchanged).
 
 #### Scenario: Second Clerk user, same email
 

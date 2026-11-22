@@ -3,11 +3,13 @@ import { authRequest } from "./session";
 
 // Clerk SSO (ADR 0016). Clerk runs only on the web bridge page (/sso-bridge) in a
 // normal browser. The native app opens that page in the system browser and gets back
-// a deep link carrying only the one-time `state`; the PKCE verifier never leaves the
-// app, so a hijacked deep link cannot be completed.
+// a deep link carrying the one-time `state` and a one-time `code` minted for the browser
+// that signed in (RFC 8252). The app redeems both with its PKCE verifier, which never
+// leaves the app: another device's app never sees the code, and an app that only
+// intercepts the deep link lacks the verifier.
 
 export type SSOStrategy = "oauth_google" | "oauth_apple";
-export type SSOCallback = { state: string } | null;
+export type SSOCallback = { state: string; code: string } | null;
 export interface SSOBridge {
   openSystemBrowser(url: string): Promise<void>;
   listen(callback: (value: SSOCallback) => void): Promise<() => void>;
@@ -68,7 +70,8 @@ export function parseSSOCallback(raw: string): SSOCallback | undefined {
     return undefined;
   if (url.searchParams.get("error") === "access_denied") return null;
   const state = url.searchParams.get("state");
-  return state ? { state } : undefined;
+  const code = url.searchParams.get("code");
+  return state && code ? { state, code } : undefined;
 }
 
 function assertBridgeUrl(raw: string) {

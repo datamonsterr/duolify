@@ -151,9 +151,24 @@ func (v *clerkVerifier) Verify(ctx context.Context, token string) (ClerkIdentity
 		for _, address := range account.EmailAddresses {
 			if address != nil && address.ID == *account.PrimaryEmailAddressID {
 				identity.Email = address.EmailAddress
-				identity.EmailVerified = address.Verification != nil && address.Verification.Status == "verified"
+				identity.EmailVerified = trustedEmailVerification(address.Verification)
 			}
 		}
 	}
 	return identity, nil
+}
+
+// trustedEmailVerification accepts only proof of mailbox control that Duolify can rely
+// on for account linking: Clerk's own email code, or a verified email returned by Google
+// or Apple sign-in. Status must be "verified" on the primary address itself; admin-set,
+// invitation and any other strategy never count.
+func trustedEmailVerification(v *clerk.Verification) bool {
+	if v == nil || v.Status != "verified" {
+		return false
+	}
+	switch v.Strategy {
+	case "email_code", "from_oauth_google", "from_oauth_apple":
+		return true
+	}
+	return false
 }
