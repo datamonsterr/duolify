@@ -90,7 +90,7 @@ settings change.
 
 ## Full-stack flow suite
 
-`playwright-stack` (full tier, advisory: not yet in `ci-ok`) runs the real web
+`playwright-stack` (full tier, required by `ci-ok`) runs the real web
 client against the disposable `infra/e2e` stack: `infra/deploy/compose.yml` plus the
 test-only overlay `infra/e2e/compose.yml`, Compose project `duolify-e2e`, mock engine
 provider, no `page.route` mocks. Specs are `apps/client/e2e-stack/*.flow.ts`. Each flow

@@ -18,7 +18,7 @@
 - [x] 4.2 F2-F8 written: F2-F4 wait on owner-approved pricing (PR #304); F3-F8, `fixme` on the engine mock-mode lesson defect
 - [x] 4.3 F5 retry variant, F6 tutor, F7 notes and bookmarks, F8 progress, F9 credits, F10 settings, F11 account data, F12 friends
 - [x] 4.4 Mocked e2e: offline Learn home with no active course shows the error state
-- [ ] 4.5 Add `playwright-stack` to `ci-ok` after two consecutive green CI runs
+- [x] 4.5 Add `playwright-stack` to `ci-ok` after two consecutive green CI runs
 
 ## 5. Round 3
 - [x] 5.1 Worker keeps the application object-store key (generated lessons were never published); deploy-plan test

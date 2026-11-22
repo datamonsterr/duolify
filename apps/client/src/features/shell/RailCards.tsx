@@ -33,7 +33,7 @@ export function useWallet(revision: string) {
   return useLearnerRead<WalletResponse>("/v1/me/credits", revision);
 }
 
-/** "1,234 credits" or the unavailable label while loading or offline. */
+/** The available credit total, or the unavailable label while loading or offline. */
 export function useBalanceLabel(wallet: WalletResponse | undefined) {
   const { t, number } = useUiPreferences();
   return wallet ? `${number(wallet.available)} credits` : t("shell.balance");
