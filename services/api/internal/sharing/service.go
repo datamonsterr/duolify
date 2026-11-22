@@ -13,6 +13,7 @@ import (
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/examples"
 	"github.com/datamonsterr/duolify/services/api/internal/narration"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/google/uuid"
@@ -49,6 +50,8 @@ type Service struct {
 	// objects stores immutable published-lesson manifests for copies (E15-03); optional.
 	objects     ObjectWriter
 	assetOrigin string
+	// exampleGet overrides the authored example lookup (tests only).
+	exampleGet func(slug string) (examples.Course, bool)
 	// gen is the reused private-generation pipeline for missing Lessons in copies (E15-04); optional.
 	gen GenerationDeps
 	// cache holds derived Marketplace result pages (E15-07); optional, never the source of truth.

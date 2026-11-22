@@ -38,8 +38,8 @@ Settings to review in `infra/deploy/.env`:
 
 - **Local test on busy ports:** `BIND_ADDRESS=127.0.0.1`, `HTTP_PORT=8088`, `PUBLIC_ORIGIN=http://localhost:8088`.
 - **Public server:** `SITE_ADDRESS=learn.example.com`, `PUBLIC_ORIGIN=https://learn.example.com`, default ports 80/443. Point DNS at the host first, and Caddy obtains the certificate.
-- **Real users:** `DUOLIFY_ENV=production`, `RESEND_API_KEY` and `AUTH_MAIL_FROM`.
-- **Live AI:** `ENGINE_PROVIDER_MODE=live` with `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY`.
+- **Real users:** `DUOLIFY_ENV=production`, `RESEND_API_KEY`, `AUTH_MAIL_FROM` and live AI: the engine refuses mock providers when `DUOLIFY_ENV` is `staging` or `production`.
+- **Live AI:** `ENGINE_PROVIDER_MODE=live` with `OPENROUTER_API_KEY` (the only live provider).
 
 `PUBLIC_ORIGIN` must match the browser URL exactly. The API rejects other origins.
 

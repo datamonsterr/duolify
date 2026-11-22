@@ -212,6 +212,9 @@ function IndexRoute() {
       }
     },
     staleTime: 60000,
+    // Run offline too: the default ("online") pauses the query, so the downloaded-course
+    // fallback and the error state never render and Learn shows "Loading course…" forever.
+    networkMode: "always",
     // Offline with no downloaded course, or signed out: retrying cannot help.
     retry: (failures, err) =>
       failures < 3 &&
@@ -237,7 +240,7 @@ function IndexRoute() {
 
   if (!resolvedCourseId) {
     if (coursesData && coursesData.length === 0) {
-      return <Courses />;
+      return <Courses surface="learn_empty" />;
     }
     // Course list failed with no offline copy: say so instead of loading forever.
     if (coursesFailed) return <p>{t("path.error")}</p>;

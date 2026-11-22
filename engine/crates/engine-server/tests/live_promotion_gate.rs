@@ -53,7 +53,7 @@ fn report(fingerprint: &str, failing: &[&str]) -> String {
         "dataset": "datamonsterr/duolify-golden", "dataset_revision": REV, "dataset_source": "repo",
         "dataset_verified": true, "dataset_sha256": SHA, "provider": "live", "status": "passed",
         "passed": failing.is_empty(), "critical_failure": !failing.is_empty(), "budget_exceeded": false,
-        "fingerprint": fingerprint, "task_reports": tasks
+        "fingerprint": fingerprint, "dataset_cases": 1, "task_reports": tasks
     })
     .to_string()
 }
@@ -265,6 +265,16 @@ async fn missing_stale_or_failed_evidence_fails_every_screen_closed_with_a_typed
             "{reason}: no provider call"
         );
     }
+}
+
+#[test]
+fn launch_tasks_are_exactly_the_gated_rpcs_plus_live_narration() {
+    let mut gated: Vec<&str> = engine_server::GATED.iter().map(|(_, t)| *t).collect();
+    gated.push("lesson_narration");
+    gated.sort_unstable();
+    let mut launch = engine_core::promotion::LAUNCH_TASKS.to_vec();
+    launch.sort_unstable();
+    assert_eq!(gated, launch);
 }
 
 #[tokio::test]

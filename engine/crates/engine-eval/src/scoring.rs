@@ -143,6 +143,9 @@ pub struct EvalReport {
     pub live_promoted: bool,
     pub passed: bool,
     pub critical_failure: bool,
+    /// Cases in the dataset before `--limit` sampling; promotion needs every one evaluated.
+    #[serde(default)]
+    pub dataset_cases: usize,
     pub task_reports: BTreeMap<String, TaskReport>,
     pub results: Vec<CaseResult>,
 }
@@ -166,6 +169,7 @@ impl Default for EvalReport {
             live_promoted: false,
             passed: false,
             critical_failure: false,
+            dataset_cases: 0,
             task_reports: BTreeMap::new(),
             results: Vec::new(),
         }
@@ -215,6 +219,14 @@ pub fn check_promotion_gate(report: &EvalReport) -> anyhow::Result<()> {
         anyhow::bail!(
             "promotion gate failed: dataset source must be a pinned dataset (hf, mirror, cache, repo), got '{}'",
             report.dataset_source
+        );
+    }
+
+    let evaluated: usize = report.task_reports.values().map(|t| t.total_cases).sum();
+    if report.dataset_cases == 0 || evaluated < report.dataset_cases {
+        anyhow::bail!(
+            "promotion gate failed: report is a sample ({evaluated} of {} cases); promotion needs every case of the pinned revision, including each screen's must-block rows",
+            report.dataset_cases
         );
     }
 
@@ -485,12 +497,48 @@ mod tests {
     }
 
     #[test]
+    fn promotion_refuses_a_sampled_report() {
+        // Review F4: `--limit 12` keeps one (benign) row per screen task.
+        let mut report = EvalReport {
+            passed: true,
+            provider: "live".into(),
+            dataset_source: "repo".into(),
+            dataset_verified: true,
+            dataset_revision: "0123456789abcdef0123456789abcdef01234567".into(),
+            dataset_cases: 20,
+            ..Default::default()
+        };
+        for task in crate::tasks::CANONICAL_TASKS {
+            report.task_reports.insert(
+                task.into(),
+                TaskReport {
+                    task: task.into(),
+                    model: "m".into(),
+                    score: 1.0,
+                    threshold: 1.0,
+                    passed: true,
+                    critical_failure: false,
+                    total_cases: 1,
+                    passed_cases: 1,
+                    deterministic_score: 1.0,
+                    judge_score: None,
+                },
+            );
+        }
+        let err = check_promotion_gate(&report).unwrap_err().to_string();
+        assert!(err.contains("sample"), "{err}");
+        report.dataset_cases = 6;
+        assert!(check_promotion_gate(&report).is_ok());
+    }
+
+    #[test]
     fn promotion_refuses_missing_or_false_dataset_verification() {
         let mut report = EvalReport {
             passed: true,
             provider: "live".into(),
             dataset_source: "mirror".into(),
             dataset_revision: "0123456789abcdef0123456789abcdef01234567".into(),
+            dataset_cases: 1,
             ..Default::default()
         };
         for task in crate::tasks::CANONICAL_TASKS {

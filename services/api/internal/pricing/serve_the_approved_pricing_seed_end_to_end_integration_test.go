@@ -49,6 +49,11 @@ func TestSeedResolveRestoreAndDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertApproved(t, catalog.Config())
+	var seed []byte
+	if err := db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version='usd-quotes-2026-11-09'").Scan(&seed); err != nil {
+		t.Fatal(err)
+	}
+	assertSeedMatchesClientFixture(t, seed)
 	recorder := httptest.NewRecorder()
 	catalog.ServeHTTP(recorder, httptest.NewRequestWithContext(ctx, "GET", "/v1/pricing", nil))
 	if recorder.Code != 200 || recorder.Header().Get("ETag") == "" || recorder.Header().Get("Cache-Control") != "public, max-age=10" {
@@ -117,7 +122,7 @@ func assertApproved(t *testing.T, c pricing.Config) {
 			t.Errorf("%s=%d want %d", key, c.Actions[key].Credits, value)
 		}
 	}
-	if c.Version != "usd-quotes-2026-11-09" || c.DailyFree.Credits != 46 || c.Actions["lesson_content"].Credits+c.Actions["narration"].Credits != 190 {
+	if c.DailyFree.Credits != 46 || c.Actions["lesson_content"].Credits+c.Actions["narration"].Credits != 190 {
 		t.Fatal("seed arithmetic drift")
 	}
 	want := []struct{ monthly, yearly, credits, parallel int }{{999, 9600, 600, 1}, {1999, 19200, 1600, 1}, {3999, 38400, 3600, 2}}
@@ -136,11 +141,21 @@ func assertApproved(t *testing.T, c pricing.Config) {
 	if !strings.Contains(string(encoded), "Learning history export") {
 		t.Fatal("benefit missing")
 	}
+}
+
+// The seeded usd-quotes-2026-11-09 row is still the complete catalogue the client fixture mirrors; the
+// active version is its owner-approved Hy4 successor with the same learner prices.
+func assertSeedMatchesClientFixture(t *testing.T, seed []byte) {
+	t.Helper()
 	raw, err := os.ReadFile("../../../../apps/client/src/features/pricing/fixtures/versioned-quotes.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	expectedConfig, err := pricing.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := pricing.Parse(seed)
 	if err != nil {
 		t.Fatal(err)
 	}

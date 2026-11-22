@@ -291,6 +291,25 @@ export function trackControl(controlId: CourseControl, courseId?: string) {
   }
 }
 
+// Example courses catalogue: openspec/changes/example-courses. Closed enum only, no course text.
+export function trackExampleCoursesViewed(
+  surface: "courses" | "learn_empty" | "onboarding",
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("example_courses_viewed", {
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+      surface,
+    });
+  } catch {
+    // Analytics is derived data; transport failure must never block the screen.
+  }
+}
+
 // E1-07 catalogue: openspec/changes/export-delete-account-data.
 export function trackPrivacyControl(
   controlId: "export_data" | "delete_account",

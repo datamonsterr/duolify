@@ -303,3 +303,23 @@ test("home offline fallback is owner scoped and never masks HTTP errors", async 
     ).toHaveCount(0);
   }
 });
+
+test("offline with no active course and nothing downloaded shows the error, not endless loading", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/profile");
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage))
+      if (key.startsWith("duolify:download-index:"))
+        localStorage.removeItem(key);
+    localStorage.removeItem("duolify:active-course");
+  });
+  // Real network loss: the browser is offline, so the course list fetch fails with a TypeError.
+  await context.setOffline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await page.getByRole("link", { name: "Learn" }).first().click();
+  await expect(page.getByText("Could not load this course.")).toBeVisible();
+  await expect(page.getByText("Loading course…")).toHaveCount(0);
+  await context.setOffline(false);
+});

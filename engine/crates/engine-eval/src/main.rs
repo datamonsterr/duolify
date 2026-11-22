@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
     }
 
     if args.len() >= 2 && args[1] == "evidence" {
-        return evidence_status();
+        return evidence_status(&args);
     }
     if args.len() >= 2 && args[1] == "promote" {
         return promote(&args);
@@ -150,6 +150,7 @@ async fn main() -> Result<()> {
                 live_promoted: false,
                 passed: false,
                 critical_failure: false,
+                dataset_cases: 0,
                 task_reports: std::collections::BTreeMap::new(),
                 results: Vec::new(),
             };
@@ -177,11 +178,16 @@ async fn main() -> Result<()> {
         let openrouter_key = std::env::var("OPENROUTER_API_KEY").unwrap_or_default();
         let hf_token = std::env::var("HF_TOKEN").unwrap_or_default();
         // OpenRouter is the primary provider (ADR 0015); ANTHROPIC_API_KEY is optional.
-        let has_secrets = !openrouter_key.is_empty() && (!needs_hf || !hf_token.is_empty());
+        // `lesson_narration` cases call the live ElevenLabs voice.
+        let has_voice = ["ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID"]
+            .iter()
+            .all(|k| std::env::var(k).is_ok_and(|v| !v.trim().is_empty()));
+        let has_secrets =
+            !openrouter_key.is_empty() && (!needs_hf || !hf_token.is_empty()) && has_voice;
 
         if !has_secrets {
             println!(
-                "::notice::Live sample evals skipped: credentials unavailable (OPENROUTER_API_KEY, HF_TOKEN); feature activation stays disabled without fabricating a live pass."
+                "::notice::Live sample evals skipped: credentials unavailable (OPENROUTER_API_KEY, HF_TOKEN, ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID); feature activation stays disabled without fabricating a live pass."
             );
             println!("eval status: missing_secrets; live promotion disabled");
 
@@ -210,6 +216,7 @@ async fn main() -> Result<()> {
                 live_promoted: false,
                 passed: false,
                 critical_failure: false,
+                dataset_cases: 0,
                 task_reports: std::collections::BTreeMap::new(),
                 results: Vec::new(),
             };
@@ -383,6 +390,7 @@ async fn main() -> Result<()> {
     runner.dataset_sha256 = dataset_sha256;
     runner.prompt_revision = prompt_rev;
     runner.budget_usd = budget;
+    runner.dataset_cases = Some(total);
 
     let report = runner.run_cases(cases, &thresholds).await?;
 
@@ -498,19 +506,18 @@ fn promote(args: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// `duolify-eval evidence`: prints whether the embedded evidence enables each gated task.
-fn evidence_status() -> Result<()> {
-    let gate = engine_core::promotion::Gate::embedded();
-    match gate.summary() {
-        Ok(s) => println!(
-            "promotion evidence: valid for this build ({}@{}); promoted tasks {:?}",
-            s.dataset, s.dataset_revision, s.passed_tasks
-        ),
-        Err(d) => println!(
-            "::notice::promotion evidence: {} ({}); live AI features fail closed in a deployed engine built from this commit",
-            d.code(),
-            d.detail()
-        ),
+/// `duolify-eval evidence [--require-launch]`: prints whether the embedded evidence is valid for
+/// this build and promotes every launch task. Stale, missing or partial evidence is a warning,
+/// and with `--require-launch` (ready pipeline) an error that fails the command.
+fn evidence_status(args: &[String]) -> Result<()> {
+    let strict = args.iter().any(|a| a == "--require-launch");
+    match engine_eval::launch_evidence(&engine_core::promotion::Gate::embedded()) {
+        Ok(message) => println!("{message}"),
+        Err(message) if strict => {
+            println!("::error::{message}");
+            bail!("promotion evidence does not cover every launch task");
+        }
+        Err(message) => println!("::warning::{message}"),
     }
     Ok(())
 }

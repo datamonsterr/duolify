@@ -192,11 +192,7 @@ pub async fn process(
         } else {
             &model.model
         };
-        let route = if fallback {
-            model.fallback_route()
-        } else {
-            model.primary_route()
-        };
+        let route = model.attempt_route(fallback);
         let start = Instant::now();
         let completion = tokio::time::timeout(
             Duration::from_millis(u64::from(limits.attempt_timeout_ms)),

@@ -39,8 +39,8 @@ func (m *mockResumeEngineServer) EnrichNote(_ context.Context, req *enginev1.Enr
 		Links:   []string{},
 		Usage: &enginev1.Usage{
 			Attempt:      1,
-			Model:        "claude-haiku-5-5",
-			Provider:     "anthropic",
+			Model:        "tencent/hy4-flash",
+			Provider:     "openrouter",
 			InputTokens:  100,
 			OutputTokens: 50,
 			Delivered:    true,
@@ -49,8 +49,8 @@ func (m *mockResumeEngineServer) EnrichNote(_ context.Context, req *enginev1.Enr
 		Attempts: []*enginev1.Usage{
 			{
 				Attempt:      1,
-				Model:        "claude-haiku-5-5",
-				Provider:     "anthropic",
+				Model:        "tencent/hy4-flash",
+				Provider:     "openrouter",
 				InputTokens:  100,
 				OutputTokens: 50,
 				Delivered:    true,

@@ -57,7 +57,7 @@ func TestConditionalPricingReadRevalidatesAcrossVersionFlip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if before.Config().Version != "usd-quotes-2026-11-09" {
+	if before.Config().Version != "usd-hy4-routing-2026-11-22" {
 		t.Fatalf("current version before flip=%s", before.Config().Version)
 	}
 	body := httptest.NewRecorder()

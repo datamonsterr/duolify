@@ -69,13 +69,13 @@ async function mockPrivateCourse(page: Page) {
       json: accepted ? { id: genId, state: "generating" } : { error: "quote" },
     });
   });
-  await page.route(`**/v1/lesson-generations/${genId}/events`, (r) => {
+  // Like the API: generation status needs the learner's bearer token (a plain EventSource
+  // cannot send one, so it gets 401).
+  await page.route(`**/v1/lesson-generations/${genId}**`, (r) => {
+    if (!/^Bearer .+/.test(r.request().headers().authorization ?? ""))
+      return r.fulfill({ status: 401, json: { error: "unauthorized" } });
     lessonState = "current";
-    return r.fulfill({
-      status: 200,
-      headers: { "Content-Type": "text/event-stream" },
-      body: 'event: stage\ndata: {"state":"completed","stage":"Ready"}\n\n',
-    });
+    return r.fulfill({ json: { id: genId, state: "completed" } });
   });
   return calls;
 }

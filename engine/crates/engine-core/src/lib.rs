@@ -101,6 +101,17 @@ impl Model {
             repair: None,
         }
     }
+    /// One bounded attempt: exactly one model request, no provider-side chain, so the bounded
+    /// runner counts, times, prices and labels every call it makes.
+    pub fn attempt_route(&self, fallback: bool) -> Route {
+        let mut route = if fallback {
+            self.fallback_route()
+        } else {
+            self.primary_route()
+        };
+        route.fallbacks.clear();
+        route
+    }
     pub fn fallback_route(&self) -> Route {
         Route {
             model: self.fallback_model.clone(),
@@ -184,10 +195,12 @@ impl ProviderRouter {
     }
     pub async fn complete(&self, task: &str, input: &str) -> Result<Completion> {
         let model = self.models.tasks.get(task).context("unknown task")?;
+        // An empty answer (null content with measured usage) is a failure here: use the fallback.
         if let Ok(value) = self
             .primary
             .complete_route(&model.primary_route(), input, 4096)
             .await
+            && !value.text.is_empty()
         {
             return Ok(value);
         }
@@ -396,7 +409,11 @@ impl LlmProvider for MockProvider {
             let data = serde_json::from_str::<serde_json::Value>(input).ok();
             let note = data
                 .as_ref()
-                .and_then(|d| d.get("note").and_then(|n| n.as_str()))
+                .and_then(|d| {
+                    d.pointer("/learner_data/note")
+                        .or_else(|| d.get("note"))
+                        .and_then(|n| n.as_str())
+                })
                 .unwrap_or_default();
             if note.contains("Trái Đất") || input.contains("vi-VN") {
                 serde_json::json!({
@@ -420,10 +437,11 @@ impl LlmProvider for MockProvider {
                 })
                 .to_string()
             }
-        } else if input.contains("lesson_test_variant")
-            || input.contains("variants")
-            || input.contains("source_question")
-        {
+        } else if data.as_ref().is_some_and(|v| {
+            v["task"] == "lesson_test_variant" || v.get("source_question").is_some()
+        }) {
+            // Only the GenerateRetryVariants request (lessontest::retry) gets this fixture: the
+            // lesson prompt also names `variants` (LESSON_SHAPE) and must get the lesson fixture.
             serde_json::json!({
                 "variants": [
                     {

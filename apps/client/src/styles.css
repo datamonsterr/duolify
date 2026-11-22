@@ -361,6 +361,23 @@ input {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
 }
+.example-courses {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-block: var(--space-6);
+}
+.example-courses h2,
+.example-courses p {
+  margin: 0;
+}
+.example-complete {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  margin-block: var(--space-4);
+}
 .course-card {
   min-inline-size: 0;
   border: 1px solid var(--line);
