@@ -1,4 +1,4 @@
-import posthog from "posthog-js/dist/module.no-external";
+import { posthog } from "./posthog";
 import {
   navigation,
   screenIds,
@@ -98,13 +98,6 @@ export function exposePricing(
     /* Analytics must never interrupt a price view. */
   }
 }
-if (key)
-  posthog.init(key, {
-    api_host: import.meta.env.VITE_POSTHOG_HOST || "https://us.i.posthog.com",
-    defaults: "2026-08-30",
-    autocapture: false,
-    capture_pageview: false,
-  });
 export function track(
   event:
     | "lesson_started"

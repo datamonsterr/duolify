@@ -1,4 +1,5 @@
 import { session } from "../accounts/session";
+import { invalidateCourseProgress } from "../../lib/courseQueries";
 import type { Manifest } from "./manifest";
 export type Position = { version: number; slide_id: string; time_ms: number };
 export function validPosition(
@@ -81,6 +82,7 @@ export function savePosition(owner: string, lesson: string, value: Position) {
         saved.time_ms !== value.time_ms
       )
         throw new Error("position_unavailable");
+      invalidateCourseProgress();
       return saved;
     });
   writing = operation;

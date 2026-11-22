@@ -156,7 +156,11 @@ func (s *Service) ServeOutlineHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if tail == "" && r.Method == "GET" {
 		var id string
-		err := s.opts.Pool.QueryRow(r.Context(), `SELECT d.id::text FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.learner_id::text=$1 AND d.brief_revision::text=$2 AND NOT d.is_recovery AND b.expires_at>now() ORDER BY d.updated_at DESC,d.id DESC LIMIT 1`, owner, r.URL.Query().Get("brief_revision")).Scan(&id)
+		if !validIDs(r.URL.Query().Get("brief_revision")) {
+			respond(w, 200, map[string]any{"draft": nil})
+			return
+		}
+		err := s.opts.Pool.QueryRow(r.Context(), `SELECT d.id::text FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.learner_id=$1::uuid AND d.brief_revision=$2::uuid AND NOT d.is_recovery AND b.expires_at>now() ORDER BY d.updated_at DESC,d.id DESC LIMIT 1`, owner, r.URL.Query().Get("brief_revision")).Scan(&id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			respond(w, 200, map[string]any{"draft": nil})
 			return
@@ -179,6 +183,14 @@ func (s *Service) ServeOutlineHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := parts[0]
+	if !validIDs(id) {
+		if len(parts) == 2 && parts[1] == "confirmed" {
+			outlineError(w, 409)
+		} else {
+			outlineError(w, 404)
+		}
+		return
+	}
 	if len(parts) == 2 {
 		switch {
 		case parts[1] == "confirm" && r.Method == "POST":
@@ -211,7 +223,7 @@ func (s *Service) ServeOutlineHTTP(w http.ResponseWriter, r *http.Request) {
 	case "PUT":
 		s.saveOutline(w, r, owner, id)
 	case "DELETE":
-		tag, err := s.opts.Pool.Exec(r.Context(), "DELETE FROM outline_drafts WHERE id::text=$1 AND learner_id::text=$2", id, owner)
+		tag, err := s.opts.Pool.Exec(r.Context(), "DELETE FROM outline_drafts WHERE id=$1::uuid AND learner_id=$2::uuid", id, owner)
 		if err != nil {
 			outlineError(w, 503)
 			return
@@ -252,13 +264,20 @@ func (s *Service) readOutline(ctx context.Context, owner, id string) (OutlineDra
 }
 
 func readOutline(ctx context.Context, conn db.DBTX, owner, id string) (OutlineDraft, error) {
-	return scanOutline(conn.QueryRow(ctx, `SELECT `+outlineColumns+` FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id::text=$1 AND d.learner_id::text=$2 AND b.expires_at>now()`, id, owner))
+	if !validIDs(owner, id) {
+		return OutlineDraft{}, pgx.ErrNoRows
+	}
+	return scanOutline(conn.QueryRow(ctx, `SELECT `+outlineColumns+` FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id=$1::uuid AND d.learner_id=$2::uuid AND b.expires_at>now()`, id, owner))
 }
 
 func (s *Service) createOutline(w http.ResponseWriter, r *http.Request, owner string) {
 	var in outlineInput
 	if !decodeOutline(w, r, &in) || in.validate() != nil || in.ExpectedRevision != 0 {
 		outlineError(w, 400)
+		return
+	}
+	if !validIDs(in.BriefRevision, owner) {
+		outlineError(w, 404)
 		return
 	}
 	if !s.limit(r.Context(), "outline-write:"+owner, 120, time.Hour) {
@@ -270,7 +289,7 @@ func (s *Service) createOutline(w http.ResponseWriter, r *http.Request, owner st
 		in.History = []OutlineSnapshot{}
 	}
 	history, _ := json.Marshal(in.History)
-	d, err := scanOutline(s.opts.Pool.QueryRow(r.Context(), `INSERT INTO outline_drafts AS d(learner_id,brief_revision,outline,history) SELECT learner_id,id,$3,$4 FROM course_brief_revisions WHERE id::text=$1 AND learner_id::text=$2 AND expires_at>now() RETURNING `+outlineColumns, in.BriefRevision, owner, raw, history))
+	d, err := scanOutline(s.opts.Pool.QueryRow(r.Context(), `INSERT INTO outline_drafts AS d(learner_id,brief_revision,outline,history) SELECT learner_id,id,$3,$4 FROM course_brief_revisions WHERE id=$1::uuid AND learner_id=$2::uuid AND expires_at>now() RETURNING `+outlineColumns, in.BriefRevision, owner, raw, history))
 	if err != nil {
 		outlineError(w, 404)
 		return
@@ -295,7 +314,7 @@ func (s *Service) saveOutline(w http.ResponseWriter, r *http.Request, owner, id 
 		return
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	current, err := scanOutline(tx.QueryRow(ctx, `SELECT `+outlineColumns+` FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id::text=$1 AND d.learner_id::text=$2 AND b.expires_at>now() FOR UPDATE OF d`, id, owner))
+	current, err := scanOutline(tx.QueryRow(ctx, `SELECT `+outlineColumns+` FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id=$1::uuid AND d.learner_id=$2::uuid AND b.expires_at>now() FOR UPDATE OF d`, id, owner))
 	if err != nil {
 		outlineError(w, 404)
 		return
@@ -318,7 +337,7 @@ func (s *Service) saveOutline(w http.ResponseWriter, r *http.Request, owner, id 
 		respond(w, 409, map[string]any{"error": "A newer outline is saved. Both drafts are kept; choose which to continue.", "current": current, "recovery": recovery})
 		return
 	}
-	d, err := scanOutline(tx.QueryRow(ctx, `UPDATE outline_drafts AS d SET outline=$3,history=$4,revision=revision+1,confirmed=NULL,is_recovery=false,updated_at=now() WHERE id::text=$1 AND learner_id::text=$2 RETURNING `+outlineColumns, id, owner, raw, history))
+	d, err := scanOutline(tx.QueryRow(ctx, `UPDATE outline_drafts AS d SET outline=$3,history=$4,revision=revision+1,confirmed=NULL,is_recovery=false,updated_at=now() WHERE id=$1::uuid AND learner_id=$2::uuid RETURNING `+outlineColumns, id, owner, raw, history))
 	if err != nil {
 		outlineError(w, 503)
 		return
@@ -345,7 +364,7 @@ func (s *Service) confirmOutline(w http.ResponseWriter, r *http.Request, owner, 
 		return
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	d, err := scanOutline(tx.QueryRow(ctx, `SELECT `+outlineColumns+` FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id::text=$1 AND d.learner_id::text=$2 AND b.expires_at>now() FOR UPDATE OF d`, id, owner))
+	d, err := scanOutline(tx.QueryRow(ctx, `SELECT `+outlineColumns+` FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id=$1::uuid AND d.learner_id=$2::uuid AND b.expires_at>now() FOR UPDATE OF d`, id, owner))
 	if err != nil {
 		outlineError(w, 404)
 		return
@@ -360,7 +379,7 @@ func (s *Service) confirmOutline(w http.ResponseWriter, r *http.Request, owner, 
 	}
 	c := ConfirmedOutline{DraftID: d.ID, Revision: d.Revision, ContentHash: d.Outline.Hash(), Outline: d.Outline}
 	raw, _ := json.Marshal(c)
-	if _, err = tx.Exec(ctx, `UPDATE outline_drafts SET confirmed=$2 WHERE id::text=$1`, id, raw); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE outline_drafts SET confirmed=$2 WHERE id=$1::uuid`, id, raw); err != nil {
 		outlineError(w, 503)
 		return
 	}

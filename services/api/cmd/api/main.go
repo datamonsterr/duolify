@@ -422,6 +422,9 @@ func run(ctx context.Context, args []string) (result error) {
 	// Stays in the API: it deletes shared-asset objects with the application object-store
 	// keys, which the worker deliberately does not hold. It wakes every six hours.
 	go sharingService.MaintainAssets(ctx)
+	// Same reason for narration audio of erased learners: it is purged here, with the object-store
+	// keys, and regardless of NARRATION_ENABLED (the worker only regenerates).
+	go narration.New(narration.Options{Pool: db.Pool, Objects: lessonObjects, Logger: logger, Retention: narrationRetention()}).MaintainOrphanedAudio(ctx, time.Hour)
 	// Course invites (E15-06): push goes only through the adapter, which is disabled unless chosen
 	// by environment (no APNs/FCM credentials exist yet, ADR 0012); the in-app inbox always works.
 	pushAdapter, pushName := sharing.PushFromEnv(os.Getenv)

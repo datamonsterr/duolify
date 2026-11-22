@@ -14,6 +14,7 @@ import (
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/ids"
 	"github.com/datamonsterr/duolify/services/api/internal/maintenance"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -345,7 +346,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// Check ownership before consuming anything; the caller cannot probe other learners.
 	var exists bool
-	err := s.pool.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM course_lesson_stubs WHERE id::text=$1 AND learner_id=$2::uuid)`, lesson, owner).Scan(&exists)
+	err := s.pool.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM course_lesson_stubs WHERE id=$1::uuid AND learner_id=$2::uuid)`, ids.Arg(lesson), owner).Scan(&exists)
 	if err != nil {
 		write(w, 503, map[string]string{"error": "Progress unavailable. Retry."})
 		return
@@ -360,7 +361,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	var xp int
 	var perfect bool
-	err = s.pool.QueryRow(r.Context(), `SELECT amount,perfect FROM xp_events WHERE learner_id=$1::uuid AND lesson_id::text=$2`, owner, lesson).Scan(&xp, &perfect)
+	err = s.pool.QueryRow(r.Context(), `SELECT amount,perfect FROM xp_events WHERE learner_id=$1::uuid AND lesson_id=$2::uuid`, owner, lesson).Scan(&xp, &perfect)
 	if errors.Is(err, pgx.ErrNoRows) {
 		write(w, 409, map[string]string{"error": "Completion is waiting to sync."})
 		return

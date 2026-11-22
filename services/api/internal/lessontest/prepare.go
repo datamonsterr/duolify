@@ -33,6 +33,10 @@ func (s *Service) Prepare(ctx context.Context, owner, lessonID, quoteID string, 
 		return "", ErrQuoteInvalid
 	}
 
+	if !validIDs(lessonID) {
+		return "", ErrLessonNotFound
+	}
+
 	tx, err := s.opts.Pool.Begin(ctx)
 	if err != nil {
 		return "", errors.Join(ErrPrepareUnavailable, err)
@@ -45,7 +49,7 @@ func (s *Service) Prepare(ctx context.Context, owner, lessonID, quoteID string, 
 		SELECT cls.unit_id::text, cls.position, cls.status, cu.position, cu.course_id::text
 		FROM course_lesson_stubs cls
 		JOIN course_units cu ON cu.id = cls.unit_id
-		WHERE cls.id::text=$1 AND cls.learner_id::text=$2 FOR UPDATE OF cls`, lessonID, owner).Scan(&unitID, &lessonPos, &status, &unitPos, &courseID)
+		WHERE cls.id=$1::uuid AND cls.learner_id=$2::uuid FOR UPDATE OF cls`, lessonID, owner).Scan(&unitID, &lessonPos, &status, &unitPos, &courseID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrLessonNotFound
 	}
@@ -64,12 +68,12 @@ func (s *Service) Prepare(ctx context.Context, owner, lessonID, quoteID string, 
 		if lessonPos > 0 {
 			predErr = tx.QueryRow(ctx, `
 				SELECT id::text, status FROM course_lesson_stubs
-				WHERE unit_id::text=$1 AND position=$2`, unitID, lessonPos-1).Scan(&predID, &predStatus)
+				WHERE unit_id=$1::uuid AND position=$2`, unitID, lessonPos-1).Scan(&predID, &predStatus)
 		} else if unitPos > 0 {
 			predErr = tx.QueryRow(ctx, `
 				SELECT cls.id::text, cls.status FROM course_lesson_stubs cls
 				JOIN course_units cu ON cu.id = cls.unit_id
-				WHERE cu.course_id::text=$1 AND cu.position=$2
+				WHERE cu.course_id=$1::uuid AND cu.position=$2
 				ORDER BY cls.position DESC LIMIT 1`, courseID, unitPos-1).Scan(&predID, &predStatus)
 		}
 		if predErr != nil && !errors.Is(predErr, pgx.ErrNoRows) {

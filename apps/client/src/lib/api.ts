@@ -1,3 +1,7 @@
+import {
+  invalidateCourseList,
+  invalidateCourseProgress,
+} from "./courseQueries";
 import { session } from "../features/accounts/session";
 import type { CopyOrigin } from "../features/sharing/retention";
 import { isValidPricing, type Pricing } from "../features/pricing/types";
@@ -178,26 +182,32 @@ export const api = {
     return Object.assign(list, { active_course_id: activeCourseId });
   },
   selectCourse: async (id: string): Promise<{ active_course_id: string }> => {
-    return session.request<{ active_course_id: string }>(
+    const result = await session.request<{ active_course_id: string }>(
       `/v1/courses/${encodeURIComponent(id)}/select`,
       "POST",
     );
+    invalidateCourseList();
+    return result;
   },
   setCourseLevel: async (
     id: string,
     level: string,
   ): Promise<{ level_override: string }> => {
-    return session.request<{ level_override: string }>(
+    const result = await session.request<{ level_override: string }>(
       `/v1/courses/${encodeURIComponent(id)}/level`,
       "POST",
       { level },
     );
+    invalidateCourseProgress();
+    return result;
   },
   deleteCourse: async (id: string): Promise<{ deleted: boolean }> => {
-    return session.request<{ deleted: boolean }>(
+    const result = await session.request<{ deleted: boolean }>(
       `/v1/courses/${encodeURIComponent(id)}`,
       "DELETE",
     );
+    invalidateCourseProgress();
+    return result;
   },
   course: (id: string) =>
     /^[0-9a-f-]{36}$/.test(id)

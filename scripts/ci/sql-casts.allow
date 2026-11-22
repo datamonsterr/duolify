@@ -1,0 +1,8 @@
+# Allowlist for `mise run ci:sql-casts` (scripts/ci/sql-casts.sh).
+#
+# One entry per line: <file path from the repo root><TAB><text that must appear on the flagged line>
+# Add an entry only when the cast column is genuinely text (or has no index to defeat) and a typed
+# `col = $n::uuid` bind would be wrong, and say why in a comment line above it. Prefer converting
+# the predicate: bind the parameter as uuid, validate the id at the handler boundary.
+#
+# (no entries: every flagged predicate was converted)

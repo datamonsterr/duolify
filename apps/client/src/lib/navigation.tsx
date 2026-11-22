@@ -10,6 +10,14 @@ export function registerNavigator(next: Navigator | null): void {
   navigator = next;
 }
 
+// Hover, focus and touch warm the target route's chunk so the click does not wait for it.
+type Preloader = (to: string) => void;
+let preloader: Preloader | null = null;
+
+export function registerPreloader(next: Preloader | null): void {
+  preloader = next;
+}
+
 export function navigateTo(to: string): void {
   if (navigator) navigator(to);
   else window.location.assign(to);
@@ -40,5 +48,15 @@ export function AppLink({
     event.preventDefault();
     navigateTo(href);
   }
-  return <a href={href} onClick={click} {...props} />;
+  const warm = () => preloader?.(href);
+  return (
+    <a
+      href={href}
+      onClick={click}
+      onPointerEnter={warm}
+      onFocus={warm}
+      onTouchStart={warm}
+      {...props}
+    />
+  );
 }

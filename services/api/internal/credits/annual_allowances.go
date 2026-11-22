@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/ids"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -34,8 +36,8 @@ func recordAnnualCancellation(ctx context.Context, tx pgx.Tx, event string, sub 
 	}
 	_, err := tx.Exec(ctx, `INSERT INTO credit_subscription_cancellations(period_key,event_id)
  SELECT t.period_key,$2 FROM credit_subscription_terms t JOIN credit_subscriptions b USING(subscription_id) JOIN credit_checkout_orders o ON o.id=b.order_id
- WHERE b.subscription_id=$1 AND b.environment='test' AND b.customer_id=$3 AND o.id::text=$4 AND o.owner_reference=$5 AND o.billing_period='yearly'
- ON CONFLICT DO NOTHING`, sub.ID, event, sub.CustomerID, sub.OrderID, sub.OwnerReference)
+ WHERE b.subscription_id=$1 AND b.environment='test' AND b.customer_id=$3 AND o.id=$4::uuid AND o.owner_reference=$5 AND o.billing_period='yearly'
+ ON CONFLICT DO NOTHING`, sub.ID, event, sub.CustomerID, ids.Arg(sub.OrderID), sub.OwnerReference)
 	return err
 }
 

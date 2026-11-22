@@ -26,6 +26,11 @@ description = "Build client web assets"
 dir = "{{config_root}}/apps/client"
 run = ["pnpm exec vitest run src/features/pricing/catalogue-boundary.test.ts", "pnpm build"]
 
+["client:bundle-budget"]
+description = "Fail if the first-load JS/CSS of the built client (dist/) exceeds apps/client/bundle-budget.json"
+dir = "{{config_root}}/apps/client"
+run = "node scripts/bundle-size.mjs --check"
+
 ["client:e2e-setup"]
 description = "Install browser for end-to-end tests"
 dir = "{{config_root}}/apps/client"

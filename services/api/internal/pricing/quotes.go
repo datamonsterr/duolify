@@ -361,12 +361,12 @@ func (s *Quotes) createVersion(ctx context.Context, owner string, in QuoteInput,
 	queries := db.New(s.pool)
 	if in.Action == "outline_chat_change" || in.Action == "outline" {
 		var exists bool
-		if len(in.RequestHash) != 64 || in.OutlineRevision < 1 || s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id::text=$1 AND d.learner_id::text=$2 AND d.revision=$3 AND b.expires_at>now())`, in.OutlineDraftID, owner, in.OutlineRevision).Scan(&exists) != nil || !exists {
+		if len(in.RequestHash) != 64 || in.OutlineRevision < 1 || s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id=$1::uuid AND d.learner_id=$2::uuid AND d.revision=$3 AND b.expires_at>now())`, in.OutlineDraftID, owner, in.OutlineRevision).Scan(&exists) != nil || !exists {
 			return Quote{}, errQuote
 		}
 	} else if in.Action == "outline_replan" {
 		var exists bool
-		if in.OutlineDraftID != "" || len(in.RequestHash) != 64 || in.OutlineRevision < 1 || s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=c.learner_id WHERE c.id::text=$1 AND c.learner_id::text=$2 AND c.outline_version=$3 AND c.deleted_at IS NULL AND c.visibility='private' AND NOT EXISTS(SELECT 1 FROM course_copies cc WHERE cc.copy_course_id=c.id AND cc.forked_at IS NULL))`, in.CourseID, owner, in.OutlineRevision).Scan(&exists) != nil || !exists {
+		if in.OutlineDraftID != "" || len(in.RequestHash) != 64 || in.OutlineRevision < 1 || s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM courses c JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=c.learner_id WHERE c.id=$1::uuid AND c.learner_id=$2::uuid AND c.outline_version=$3 AND c.deleted_at IS NULL AND c.visibility='private' AND NOT EXISTS(SELECT 1 FROM course_copies cc WHERE cc.copy_course_id=c.id AND cc.forked_at IS NULL))`, in.CourseID, owner, in.OutlineRevision).Scan(&exists) != nil || !exists {
 			return Quote{}, errQuote
 		}
 	} else if in.OutlineDraftID != "" || in.OutlineRevision != 0 || in.RequestHash != "" || in.CourseID != "" {
