@@ -383,3 +383,10 @@ The course-creation event stream SHALL read creation state at 200 ms after it op
 #### Scenario: Idle generation
 - **WHEN** a creation stays in one state for a minute
 - **THEN** the stream reads it fewer than 40 times and still sends heartbeats
+
+### Requirement: Course list summaries
+`GET /v1/courses` SHALL return the authenticated Learner's confirmed enrolled Courses as summaries including card progress, without a unit or Lesson tree. The detail route SHALL provide the tree. The list SHALL be private and revalidated with an ETag.
+
+#### Scenario: List courses
+- **WHEN** an authenticated Learner requests the Course list
+- **THEN** the response contains Course summaries and the active Course id without full unit or Lesson trees

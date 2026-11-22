@@ -14,6 +14,10 @@ on:
         required: false
       HF_TOKEN:
         required: false
+      ELEVENLABS_API_KEY:
+        required: false
+      ELEVENLABS_VOICE_ID:
+        required: false
       RAILWAY_TOKEN:
         required: false
 
@@ -77,6 +81,8 @@ jobs:
               - 'engine/**'
               - 'proto/**'
               - 'evals/**'
+              # Embedded by engine-core and fingerprinted by the promotion evidence.
+              - 'services/api/internal/characters/schema/**'
               - '.mise/tasks/engine.toml'
               - *tooling
               - *tasks
@@ -372,6 +378,12 @@ jobs:
       - name: mise run engine:eval
         run: mise run engine:eval
         timeout-minutes: 12
+      # E10-06: a fingerprinted engine change without refreshed evals/promotion/live-report.json
+      # would ship an engine that closes every live AI feature. Ready PRs, main and merge queues
+      # fail here (inside ci-ok) when the evidence is stale, missing or leaves a launch task
+      # closed; drafts only warn. The message names the refresh commands (evals/README.md).
+      - name: mise run engine:evidence
+        run: mise run engine:evidence ${{ inputs.tier == 'full' && '-- --require-launch' || '' }}
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -600,10 +612,11 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
-  # E10-06 ready gate: a pinned, task-stratified, budget-bounded live sample when OPENROUTER_API_KEY
-  # and HF_TOKEN exist. Without them the eval CLI records an explicit missing_secrets report (90-day
-  # artifact) and exits 0, so ci-ok stays green and no live pass is fabricated. Cost: about $0.002
-  # per full 20-case run on tencent/hy4-flash; EVAL_BUDGET_USD halts the run at $0.50.
+  # E10-06 ready gate: a pinned, task-stratified, budget-bounded live sample when OPENROUTER_API_KEY,
+  # HF_TOKEN, ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID exist. Without them the eval CLI records an
+  # explicit missing_secrets report (90-day artifact) and exits 0, so no live pass is fabricated (the
+  # engine-eval evidence check still fails a ready PR whose committed evidence is stale). Cost: about
+  # $0.003 OpenRouter and about 70 ElevenLabs characters per full 32-case run; EVAL_BUDGET_USD halts at $0.50.
   engine-eval-live:
     needs: changes
     if: inputs.tier == 'full' && needs.changes.outputs.engine == 'true'
@@ -618,9 +631,11 @@ jobs:
         id: credentials
         run: mise run ci:require-secrets -- 'live eval (status missing_secrets, live promotion disabled)'
         env:
-          REQUIRED_SECRETS: OPENROUTER_API_KEY HF_TOKEN
+          REQUIRED_SECRETS: OPENROUTER_API_KEY HF_TOKEN ELEVENLABS_API_KEY ELEVENLABS_VOICE_ID
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
       - uses: ./.github/actions/setup-engine
         with:
           cache-key: build
@@ -632,11 +647,13 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           HF_GOLDEN_DATASET: ${{ vars.HF_GOLDEN_DATASET || 'datamonsterr/duolify-golden' }}
           # Pinned revision (evals/pinned-datasets.toml); a repo variable may pin a newer reviewed one.
-          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || 'b7979d57f81401aaabb21aba2cb82c64cddafd96' }}
-          # 20 = every case of the pinned revision; a smaller sample cannot cover all 12 tasks.
-          EVAL_SAMPLE_LIMIT: ${{ vars.EVAL_SAMPLE_LIMIT || '20' }}
+          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || '943decec056d4dbb407f3b984fa3c8512be5ed94' }}
+          # 32 = every case of the pinned revision; a smaller sample cannot cover all 16 tasks.
+          EVAL_SAMPLE_LIMIT: ${{ vars.EVAL_SAMPLE_LIMIT || '32' }}
           EVAL_BUDGET_USD: ${{ vars.EVAL_BUDGET_USD || '0.50' }}
       - name: mise run engine:gate
         if: always()

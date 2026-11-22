@@ -48,6 +48,7 @@ func TestPersistWebSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	auth.ConfigureClerk(clerkFixture{}, "pk_test_fixture")
 	t.Setenv("API_ALLOWED_ORIGINS", webOrigin) // the CORS layer and cookie mode trust the same list
 	auth.ConfigureWebOrigins(accounts.WebOriginsFromEnv(os.Getenv))
 	handler := httpapi.New(httpapi.Dependencies{Accounts: auth}, slog.New(slog.NewTextHandler(io.Discard, nil)))
@@ -130,7 +131,7 @@ func TestPersistWebSession(t *testing.T) {
 		}
 		c := cookieOf(w)
 		raw := w.Header().Get("Set-Cookie")
-		if c.Value == "" || !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteStrictMode || c.Path != "/v1/auth/" || c.Domain != "" {
+		if c.Value == "" || !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteStrictMode || c.Path != "/" || c.Domain != "" {
 			t.Fatal("cookie attributes:", raw)
 		}
 		if c.MaxAge < 29*24*3600 || c.MaxAge > 30*24*3600 {
@@ -138,6 +139,45 @@ func TestPersistWebSession(t *testing.T) {
 		}
 		if strings.Contains(raw, "Domain") || !strings.Contains(raw, "SameSite=Strict") || !strings.Contains(raw, "HttpOnly") || !strings.Contains(raw, "Secure") {
 			t.Fatal(raw)
+		}
+	})
+
+	t.Run("legacy planted cookie is ignored and cleared", func(t *testing.T) {
+		first := login("planted@example.test", true)
+		planted := cookieOf(first).Value
+		req := httptest.NewRequestWithContext(ctx, "POST", "/v1/auth/refresh", nil)
+		req.Header.Set(accounts.ClientHeader, accounts.ClientWeb)
+		req.Header.Set("Origin", webOrigin)
+		req.Header.Set("Cookie", "duolify_refresh="+planted)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if w.Code != 401 {
+			t.Fatalf("planted legacy cookie accepted: %d", w.Code)
+		}
+		cleared := false
+		for _, c := range w.Result().Cookies() {
+			if c.Name == "duolify_refresh" && c.Path == "/v1/auth/" && c.MaxAge < 0 {
+				cleared = true
+			}
+		}
+		if !cleared {
+			t.Fatal("legacy cookie not cleared")
+		}
+		if accounts.RefreshCookieName != "__Host-duolify_refresh" {
+			t.Fatal("cookie lacks browser-enforced host binding")
+		}
+	})
+	t.Run("duplicate refresh cookies are rejected without revocation", func(t *testing.T) {
+		first := login("duplicates@example.test", true)
+		token := cookieOf(first).Value
+		for _, path := range []string{"/v1/auth/refresh", "/v1/auth/logout", "/v1/auth/verify", "/v1/auth/sso/complete"} {
+			w := call("POST", path, nil, opts{web: true, cookie: token + "; " + accounts.RefreshCookieName + "=" + token})
+			if w.Code != 400 {
+				t.Fatalf("%s accepted ambiguous cookies: %d", path, w.Code)
+			}
+		}
+		if w := call("POST", "/v1/auth/refresh", nil, opts{web: true, cookie: token}); w.Code != 200 {
+			t.Fatal("duplicate request revoked session", w.Code)
 		}
 	})
 
@@ -225,7 +265,7 @@ func TestPersistWebSession(t *testing.T) {
 		in := login("logout@example.test", true)
 		cookie, bearer := cookieOf(in).Value, access(in)
 		w := call("POST", "/v1/auth/logout", nil, opts{web: true, cookie: cookie})
-		if w.Code != 204 || cookieOf(w).MaxAge >= 0 || cookieOf(w).Path != "/v1/auth/" {
+		if w.Code != 204 || cookieOf(w).MaxAge >= 0 || cookieOf(w).Path != "/" {
 			t.Fatal("logout", w.Code, w.Header())
 		}
 		if r := call("GET", "/v1/me", nil, opts{bearer: bearer}); r.Code != 401 {

@@ -3,6 +3,8 @@
 - Status: Proposed (confirm)
 - Date: 2026-11-08
 
+> Status note (2026-11-22): Railway hosting and migration details below are historical; ADRs 0014 and 0015 record the current fresh Hetzner deployment, Cloudflare R2 and GitHub-hosted CI.
+
 ## Decision
 
 - **Postgres** (Railway Postgres; `postgres:18` locally): system of record. Access from Go with `pgx` + `sqlc`. Migrations with `goose` in `services/api/migrations`.

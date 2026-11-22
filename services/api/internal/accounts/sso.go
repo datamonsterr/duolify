@@ -248,6 +248,9 @@ func (s *Service) bindClerkIdentity(ctx context.Context, identity ClerkIdentity,
 		return "", err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended('clerk-link-erasure',0))"); err != nil {
+		return "", err
+	}
 	var locale, zone string
 	var optOut, active bool
 	err = tx.QueryRow(ctx, `SELECT locale,time_zone,analytics_opt_out,expires_at>now() AND consumed_at IS NULL AND handed_off_at IS NULL FROM auth_oauth_attempts WHERE state_hash=$1 FOR UPDATE`, stateHash).Scan(&locale, &zone, &optOut, &active)
@@ -256,6 +259,24 @@ func (s *Service) bindClerkIdentity(ctx context.Context, identity ClerkIdentity,
 	}
 	if err != nil {
 		return "", err
+	}
+	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended('clerk-subject:' || $1,0))", identity.UserID); err != nil {
+		return "", err
+	}
+	var erasing bool
+	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM clerk_user_deletion_requests WHERE clerk_user_id=$1)", identity.UserID).Scan(&erasing); err != nil {
+		return "", err
+	}
+	if !erasing {
+		if ledger, ok := s.deletionLedger.(ClerkDeletionLedger); ok {
+			erasing, err = ledger.ContainsClerk(ctx, identity.UserID)
+			if err != nil {
+				return "", err
+			}
+		}
+	}
+	if erasing {
+		return "", ErrClerkVerification
 	}
 	var learnerID string
 	err = tx.QueryRow(ctx, "SELECT learner_id::text FROM auth_provider_identities WHERE provider='clerk' AND subject=$1", identity.UserID).Scan(&learnerID)
