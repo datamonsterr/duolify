@@ -77,6 +77,9 @@ import {
 } from "./immersive/settings";
 import { useShellSession } from "../shell/ShellSession";
 import { QuickNotePanel } from "../notes/QuickNotePanel";
+import { RegionOutline } from "./immersive/RegionOutline";
+import type { NoteArrival } from "./arrival";
+import type { RegionRect } from "./immersive/gestures";
 import { TutorChat } from "../chat/TutorChat";
 import { bookmarkQueue } from "../notes/bookmark-queue";
 import { createDefaultTracerManifest } from "../characters/fixtures";
@@ -89,6 +92,9 @@ const speeds = [1, 1.25, 1.5, 0.75];
 const immersiveChunk = () => import("./immersive/ImmersiveUi");
 const ImmersiveHost = lazy(() =>
   immersiveChunk().then((m) => ({ default: m.ImmersiveHost })),
+);
+const ImmersiveNotes = lazy(() =>
+  immersiveChunk().then((m) => ({ default: m.ImmersiveNotes })),
 );
 const ImmersiveLayer = lazy(() =>
   immersiveChunk().then((m) => ({ default: m.ImmersiveLayer })),
@@ -103,11 +109,13 @@ export function LessonPlayer({
   returnTo,
   targetSlideId,
   initialSlide,
+  noteArrival,
 }: {
   lessonId?: string;
   returnTo?: string;
   targetSlideId?: string;
   initialSlide?: number;
+  noteArrival?: NoteArrival;
 } = {}) {
   if (lessonId === "tracer-default-cast" || lessonId.startsWith("tracer")) {
     return <TracerLessonPlayer lessonId={lessonId} returnTo={returnTo} />;
@@ -118,6 +126,7 @@ export function LessonPlayer({
       returnTo={returnTo}
       targetSlideId={targetSlideId}
       initialSlide={initialSlide}
+      noteArrival={noteArrival}
     />
   );
 }
@@ -127,11 +136,13 @@ function StandardLessonPlayer({
   returnTo,
   targetSlideId,
   initialSlide,
+  noteArrival,
 }: {
   lessonId: string;
   returnTo?: string;
   targetSlideId?: string;
   initialSlide?: number;
+  noteArrival?: NoteArrival;
 }) {
   const owner = session.current()?.id ?? "current";
   const shell = useShellSession();
@@ -182,6 +193,7 @@ function StandardLessonPlayer({
       returnTo={returnTo}
       targetSlideId={targetSlideId}
       initialSlide={initialSlide}
+      noteArrival={noteArrival}
     />
   );
 }
@@ -624,11 +636,13 @@ function ResumePlayback({
   returnTo,
   targetSlideId,
   initialSlide,
+  noteArrival,
 }: {
   manifest: Manifest;
   returnTo?: string;
   targetSlideId?: string;
   initialSlide?: number;
+  noteArrival?: NoteArrival;
 }) {
   const owner = session.current()?.id ?? "current";
   const position = useQuery({
@@ -654,6 +668,7 @@ function ResumePlayback({
       restoreError={!!position.error}
       targetSlideId={targetSlideId}
       initialSlide={initialSlide}
+      noteArrival={noteArrival}
     />
   );
 }
@@ -665,6 +680,7 @@ function ManifestPlayback({
   restoreError,
   targetSlideId,
   initialSlide,
+  noteArrival,
 }: {
   manifest: Manifest;
   returnTo?: string;
@@ -672,6 +688,7 @@ function ManifestPlayback({
   restoreError: boolean;
   targetSlideId?: string;
   initialSlide?: number;
+  noteArrival?: NoteArrival;
 }) {
   const [index, setIndex] = useState(() => {
     if (
@@ -706,7 +723,9 @@ function ManifestPlayback({
   const initialPrefs = useMemo(() => loadPlayerPreferences(), []);
   const [rate, setRate] = useState(initialPrefs.rate);
   const [muted, setMuted] = useState(initialPrefs.muted);
-  const [resuming, setResuming] = useState(!!initial);
+  // Opening a note's moment wins over the saved position; the first navigation ends it.
+  const [arrival, setArrival] = useState(noteArrival);
+  const [resuming, setResuming] = useState(!!initial && !noteArrival);
   const started = useRef(false);
   // Immersive mode is a second presentation of this player: the state above is
   // not touched when it opens or closes, and SlidePlayback is never remounted by it.
@@ -777,8 +796,11 @@ function ManifestPlayback({
         key={manifest.slides[index].slide_id}
         manifest={manifest}
         index={index}
-        initialTime={resuming ? (initial?.time_ms ?? 0) : 0}
-        autoplay={!resuming}
+        initialTime={
+          arrival ? arrival.timeMs : resuming ? (initial?.time_ms ?? 0) : 0
+        }
+        autoplay={!resuming && !arrival}
+        highlight={arrival?.rect}
         rate={rate}
         onRate={(newRate) => {
           setRate(newRate);
@@ -793,6 +815,7 @@ function ManifestPlayback({
         exit={playerReturnPath(returnTo, manifest.course_id)}
         onNavigate={(next) => {
           setResuming(false);
+          setArrival(undefined);
           setIndex(next);
         }}
         onStart={() => {
@@ -861,7 +884,9 @@ function SlidePlayback({
   onAutoAdvance,
   fullscreenOnRotate,
   onFullscreenOnRotate,
+  highlight,
 }: {
+  highlight?: RegionRect;
   manifest: Manifest;
   index: number;
   immersive: boolean;
@@ -1547,6 +1572,10 @@ function SlidePlayback({
                 lessonId,
                 slideId: index,
                 slideTitle: `Slide ${index + 1} · ${manifest.title || "Why the sky changes"}`,
+                anchor: {
+                  playbackMs: Math.round(clock.snapshot().time),
+                  input: "typed",
+                },
               }}
             />
           ) : (
@@ -1694,6 +1723,7 @@ function SlidePlayback({
                   }
                 }}
               />
+              {highlight && !immersive && <RegionOutline region={highlight} />}
             </div>
           )
         )}
@@ -1928,12 +1958,19 @@ function SlidePlayback({
       </PanelLayout>
       {immersive && (
         <Suspense fallback={null}>
-          <ImmersiveLayer
+          <ImmersiveNotes
             view={immersiveView}
             actions={immersiveActions}
-            lastSlide={lastSlide}
-            lessonId={lessonId}
-          />
+            highlight={highlight}
+            slideTitle={`Slide ${index + 1} · ${manifest.title}`}
+          >
+            <ImmersiveLayer
+              view={immersiveView}
+              actions={immersiveActions}
+              lastSlide={lastSlide}
+              lessonId={lessonId}
+            />
+          </ImmersiveNotes>
         </Suspense>
       )}
       {toastVisible && (

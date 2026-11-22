@@ -42,6 +42,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/notes"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
+	"github.com/datamonsterr/duolify/services/api/internal/retention"
 	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/datamonsterr/duolify/services/api/internal/social"
 	"github.com/datamonsterr/duolify/services/api/internal/steering"
@@ -268,7 +269,7 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		clerkEraser := accounts.NewClerkUserEraser(db.Pool, clerkDeleter)
-		return worker.RunWithAlerts(ctx, db.Pool, logger, workerServices{creditService, courseService, clerkEraser, accounts.NewPostHogPersonEraser(db.Pool, accounts.PostHogPersonDeleterFromEnv(os.Getenv))}, eval.NewService(db.Pool, catalogue, monitor, events), service)
+		return worker.RunWithAlerts(ctx, db.Pool, logger, workerServices{creditService, courseService, clerkEraser, accounts.NewPostHogPersonEraser(db.Pool, accounts.PostHogPersonDeleterFromEnv(os.Getenv)), retention.New(db.Pool, retention.ConfigFromEnv(os.Getenv, cfg.LessonTestSessionTTL), logger)}, eval.NewService(db.Pool, catalogue, monitor, events), service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {
@@ -790,6 +791,7 @@ type workerServices struct {
 	courseService
 	clerkEraserService
 	personEraserService
+	rowRetentionService
 }
 
 type (
@@ -797,6 +799,7 @@ type (
 	courseService       = *courses.Service
 	clerkEraserService  = *accounts.ClerkUserEraser
 	personEraserService = *accounts.PostHogPersonEraser
+	rowRetentionService = *retention.Service
 )
 
 var (
@@ -806,4 +809,5 @@ var (
 	_ worker.CoursePurger        = workerServices{}
 	_ worker.ClerkUserEraser     = workerServices{}
 	_ worker.PersonEraser        = workerServices{}
+	_ worker.RowRetainer         = workerServices{}
 )

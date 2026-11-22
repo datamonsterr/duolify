@@ -73,3 +73,22 @@ func TestImmersiveEventsKeepOnlyClosedProperties(t *testing.T) {
 		}
 	}
 }
+
+func TestAnchoredNoteEventKeepsOnlyClosedProperties(t *testing.T) {
+	got := safeProperties("lesson_anchored_note_created", map[string]any{
+		"source": "api", "entry_point": "voice", "course_id": "c1", "lesson_id": "l1", "slide_index": 3, "has_region": true,
+		"platform": "web", "app_version": "0.1.0", "raw_text": "private words", "rect": "0.1,0.1", "note_id": "n1",
+	})
+	want := map[string]any{"source": "api", "entry_point": "voice", "course_id": "c1", "lesson_id": "l1", "slide_index": 3, "has_region": true, "platform": "web", "app_version": "0.1.0"}
+	if len(got) != len(want) {
+		t.Fatalf("unexpected properties: %v", got)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Fatalf("%s = %v, want %v", k, got[k], v)
+		}
+	}
+	if bad := safeProperties("lesson_anchored_note_created", map[string]any{"entry_point": "telepathy"}); bad["entry_point"] != nil {
+		t.Fatalf("unknown source kept: %v", bad)
+	}
+}

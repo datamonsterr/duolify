@@ -808,3 +808,11 @@ Properties SHALL be opaque identifiers or closed enums. Events SHALL honor opt-o
 #### Scenario: Opted-out Learner
 - **WHEN** a Learner who opted out uses immersive playback or asks a region question
 - **THEN** no immersive or region event is delivered
+
+### Requirement: Anchored note analytics event
+The API SHALL emit `lesson_anchored_note_created` once when a Quick note with a Lesson-moment anchor is first saved, with only `course_id`, `lesson_id`, `slide_index`, `entry_point` (`typed` or `voice`) with `source` `api` and `has_region`. It MUST NOT contain note text, transcript text, region coordinates or Slide text, MUST NOT be repeated when an offline queue replays the same note, and MUST be dropped for a Learner who has opted out.
+
+#### Scenario: Anchored note created
+- **WHEN** a Learner saves a typed note on a region
+- **THEN** one `lesson_anchored_note_created` event with `entry_point` `typed` and `has_region` true is captured and no property holds note text
+

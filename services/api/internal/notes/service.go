@@ -53,6 +53,8 @@ type SaveNoteInput struct {
 	RawText    string  `json:"raw_text"`
 	// Chat links a note to the tutor reply it was saved from; the chat package sets it.
 	Chat *ChatProvenance `json:"-"`
+	// Anchor pins a slide note to a moment (and optionally a region) of its Lesson.
+	Anchor *AnchorInput `json:"anchor,omitempty"`
 }
 
 // Validate checks the input fields against boundary constraints.
@@ -77,6 +79,9 @@ func (in SaveNoteInput) Validate() error {
 			return ErrInvalidSlide
 		}
 	}
+	if in.Anchor != nil {
+		return in.Anchor.validate(in)
+	}
 	return nil
 }
 
@@ -100,6 +105,7 @@ type NoteDTO struct {
 	Tags       []string       `json:"tags,omitempty"`
 	Links      []string       `json:"links,omitempty"`
 	ChatSource *ChatSourceDTO `json:"chat_source,omitempty"`
+	Anchor     *AnchorDTO     `json:"anchor,omitempty"`
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
 }
@@ -304,6 +310,11 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 			return nil, err
 		}
 	}
+	if input.Anchor != nil {
+		if err = recordAnchor(ctx, tx, learnerID, formatUUID(note.ID), input.Anchor); err != nil {
+			return nil, err
+		}
+	}
 	if _, err = queue.InsertTx(ctx, tx, NoteEnrichArgs{LearnerID: learnerID, NoteID: formatUUID(note.ID), ExpectedVersion: int(note.RawVersion)}, nil); err != nil {
 		return nil, err
 	}
@@ -312,8 +323,15 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 	}
 	meta := s.AnalyticsMetadata(ctx)
 	_ = EmitQuickNoteCreated(s.events, learnerID, input.Source, len(input.RawText), meta.Platform, meta.AppVersion)
+	if input.Anchor != nil {
+		_ = EmitAnchoredNoteCreated(s.events, learnerID, coursePgUUID, lessonPgUUID, slideID, input.Anchor, meta.Platform, meta.AppVersion)
+	}
 
 	dto := toDTO(note)
+	if input.Anchor != nil {
+		a := &AnchorDTO{PlaybackMs: input.Anchor.PlaybackMs, Rect: input.Anchor.Rect, Input: input.Anchor.Input, SourceState: "available"}
+		dto.Anchor = a
+	}
 	if input.Chat != nil {
 		dto.ChatSource = &ChatSourceDTO{State: "available", ThreadID: &input.Chat.ThreadID, MessageID: &input.Chat.MessageID}
 	}
@@ -374,6 +392,9 @@ func (s *Service) GetNote(ctx context.Context, learnerID, noteID string) (*NoteD
 	if err = s.attachChatSources(ctx, learnerID, one); err != nil {
 		return nil, err
 	}
+	if err = s.attachAnchors(ctx, learnerID, one); err != nil {
+		return nil, err
+	}
 	return &one[0], nil
 }
 
@@ -394,6 +415,9 @@ func (s *Service) ListNotes(ctx context.Context, learnerID string) ([]NoteDTO, e
 		dtos[i] = toDTOFromListEnriched(n)
 	}
 	if err = s.attachChatSources(ctx, learnerID, dtos); err != nil {
+		return nil, err
+	}
+	if err = s.attachAnchors(ctx, learnerID, dtos); err != nil {
 		return nil, err
 	}
 	return dtos, nil
@@ -477,7 +501,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				errors.Is(err, ErrInvalidText),
 				errors.Is(err, ErrTextTooLong),
 				errors.Is(err, ErrInvalidSource),
-				errors.Is(err, ErrInvalidSlide):
+				errors.Is(err, ErrInvalidSlide),
+				errors.Is(err, ErrInvalidAnchor):
 				respondError(w, http.StatusBadRequest, err.Error())
 			case errors.Is(err, ErrUnauthorizedSource):
 				respondError(w, http.StatusForbidden, err.Error())
@@ -771,6 +796,30 @@ func EmitQuickNoteCreated(events analytics.Events, learnerID, source string, len
 		"source":      "api",
 		"entry_point": source,
 		"length":      length,
+		"platform":    platform,
+		"app_version": appVersion,
+	})
+}
+
+// EmitAnchoredNoteCreated captures lesson_anchored_note_created: identifiers, the input kind and
+// whether a region was attached. It never carries the note text or the region.
+func EmitAnchoredNoteCreated(events analytics.Events, learnerID string, course, lesson pgtype.UUID, slide pgtype.Int4, a *AnchorInput, platform, appVersion string) error {
+	if events == nil {
+		return nil
+	}
+	if platform == "" {
+		platform = "web"
+	}
+	if appVersion == "" {
+		appVersion = "0.1.0"
+	}
+	return events.Capture(learnerID, "lesson_anchored_note_created", map[string]any{
+		"course_id":   formatUUID(course),
+		"lesson_id":   formatUUID(lesson),
+		"slide_index": int(slide.Int32),
+		"source":      "api",
+		"entry_point": a.Input,
+		"has_region":  a.Rect != nil,
 		"platform":    platform,
 		"app_version": appVersion,
 	})

@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { trackGuidedUi } from "../../lib/analytics";
-import { noteQueue, type NoteSource, type QueuedNote } from "./note-queue";
+import {
+  anchorToWire,
+  noteQueue,
+  type NoteAnchor,
+  type NoteSource,
+  type QueuedNote,
+} from "./note-queue";
 import { session } from "../accounts/session";
 import { AppLink } from "../../lib/navigation";
 
@@ -11,6 +17,8 @@ export type QuickNoteContext = {
   lessonId?: string;
   slideId?: number;
   slideTitle?: string;
+  /** Pins the note to a moment (and region) of the Lesson. A synced anchored note is not reopened. */
+  anchor?: NoteAnchor;
 };
 
 export type QuickNotePanelProps = {
@@ -24,6 +32,7 @@ export type QuickNotePanelProps = {
     slideId?: number;
     slideTitle?: string;
     source: NoteSource;
+    anchor?: NoteAnchor;
     rawText: string;
   }) => Promise<{ id: string; status: string }>;
   isOffline?: boolean;
@@ -50,7 +59,12 @@ export function QuickNotePanel({
 }: QuickNotePanelProps) {
   const draftKey = getDraftKey(context);
   const [activeNote, setActiveNote] = useState<QueuedNote | null>(() => {
-    const queued = noteQueue.getQueue();
+    // An anchored note is a new moment each time: only a still-unsynced one is reopened.
+    const queued = noteQueue
+      .getQueue()
+      .filter(
+        (item) => !context.anchor || (item.anchor && item.status !== "synced"),
+      );
     return (
       queued.find((item) => {
         if (item.source !== context.source) return false;
@@ -114,6 +128,7 @@ export function QuickNotePanel({
       slideId: context.slideId,
       slideTitle: context.slideTitle,
       source: context.source,
+      anchor: context.anchor,
       rawText: noteText,
       status: "device_saved",
     });
@@ -138,6 +153,7 @@ export function QuickNotePanel({
           slideId: context.slideId,
           slideTitle: context.slideTitle,
           source: context.source,
+          anchor: context.anchor,
           rawText: noteText,
         });
         noteQueue.markSynced(queued.actionKey, res.id);
@@ -153,6 +169,7 @@ export function QuickNotePanel({
             slide_id: context.slideId,
             slide_title: context.slideTitle,
             source: context.source,
+            anchor: anchorToWire(context.anchor),
             raw_text: noteText,
           },
         );
@@ -178,6 +195,7 @@ export function QuickNotePanel({
           slideId: activeNote.slideId,
           slideTitle: activeNote.slideTitle,
           source: activeNote.source,
+          anchor: activeNote.anchor,
           rawText: activeNote.rawText,
         });
         noteQueue.markSynced(activeNote.actionKey, res.id);
@@ -193,6 +211,7 @@ export function QuickNotePanel({
             slide_id: activeNote.slideId,
             slide_title: activeNote.slideTitle,
             source: activeNote.source,
+            anchor: anchorToWire(activeNote.anchor),
             raw_text: activeNote.rawText,
           },
         );

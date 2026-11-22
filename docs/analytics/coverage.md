@@ -22,6 +22,8 @@ Common properties are `source` (emitting tier), `platform`, and `app_version`. T
 | `immersive_mode_exited` | analytics | `apps/client/src/features/lesson-player/immersive/ImmersiveHost.tsx:151` | Same as entry plus `seconds_in_mode` bucket | `apps/client/src/features/lesson-player/immersive/immersive_analytics.test.ts` | ok |
 | `immersive_control_used` | analytics | `apps/client/src/features/lesson-player/immersive/ImmersiveLayer.tsx:65` | `control`, `via`, common fields | `apps/client/src/features/lesson-player/immersive/immersive_analytics.test.ts` | ok |
 | `lesson_region_question_sent` | analytics | `services/api/internal/chat/turn.go:329` | `course_id`, `lesson_id`, `slide_index`, `input`, `has_region`, `grounding`, common fields | `services/api/internal/chat/ask_about_a_selected_slide_region_integration_test.go` | ok |
+| `lesson_anchored_note_created` | analytics, quick-notes | `services/api/internal/notes/service.go` (`EmitAnchoredNoteCreated`) | `course_id`, `lesson_id`, `slide_index`, `entry_point` (`typed`/`voice`), `has_region`, common fields (`source=api`); no text or region | `services/api/internal/analytics/immersive_events_test.go`, `services/api/internal/notes/anchored_quick_notes_integration_test.go` | ok |
+| `quick_note_created` | analytics, quick-notes | `services/api/internal/notes/service.go` (server-side, once per note) | `entry_point` (`slide`/`lesson`/`chat`), `length`, common fields | `services/api/internal/notes/save_raw_quick_notes_before_enrichment_integration_test.go` | ok |
 | `$ai_generation` | analytics, AI capabilities | Multiple API emitters, including `services/api/internal/credits/reservations.go:593` | Partial: some failure paths lack trustworthy usage or error details | Outbox and emitter tests exist; full coverage remains unaudited | wrong-props |
 | `lesson_region_selected` | analytics, immersive lesson | No emitter found | Not applicable | No | missing |
 | `lesson_answer_panel_closed` | analytics, immersive lesson | No emitter found | Not applicable | No | missing |
@@ -37,6 +39,16 @@ These definitions describe intended PostHog insights; collection completeness is
 5. **Lesson completion rate:** unique distinct-ID / `course_id` / `lesson_id` combinations with `lesson_completed` divided by those with `lesson_started` in the chosen cohort and period. Break down by `course_id`, with separate created-course and example-course cohorts joined through their enrollment events. Confirm started-event coverage before using this as a product rate.
 
 Quote conversion can join `action_quote_shown` and `action_quote_accepted` by `quote_id`, distinct ID and `feature`. Server-created automatic quotes may be accepted without a display and should not enter the shown-quote denominator.
+
+## Metrics these events enable
+
+- **Activation funnel:** `learner_signed_up` -> `course_enrolled` (or `example_course_enrolled`) -> `lesson_started` -> `lesson_completed` -> `lesson_test_passed`, by signup `method` and `platform`.
+- **Retention:** D1/D7 via `check_in_credits_granted` (zero-credit capped check-ins still count as attendance); streak health by `first_time`/`capped`.
+- **Monetisation:** quote conversion (`action_quote_shown` -> `action_quote_accepted` by `quote_id`), `credits_settled` by feature and `pricing_version`, `credits_insufficient` rate.
+- **Notes engagement:** `quick_note_created` by `entry_point`; anchored-note share via `lesson_anchored_note_created` (`typed` vs `voice`, `has_region`).
+- **AI quality and cost:** `$ai_generation` error, fallback and latency by feature/provider/model.
+
+Attribution rule: `source` is the emitting tier and `entry_point` is the UI place or feature origin that triggered the event. Neither carries email or free text.
 
 ## Known gaps and privacy review in progress
 

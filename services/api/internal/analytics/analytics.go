@@ -112,7 +112,7 @@ func allowlisted(event string) bool {
 		"course_republished", "course_update_applied", "review_submitted", "review_deleted", "course_reported", "course_hidden_by_reports",
 		"moderation_action", "moderation_appeal",
 		"narration_generated", "narration_failed", "narration_cache_hit", "narration_budget_exhausted", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled",
-		"immersive_mode_entered", "immersive_mode_exited", "immersive_control_used":
+		"immersive_mode_entered", "immersive_mode_exited", "immersive_control_used", "lesson_anchored_note_created":
 		return true
 	default:
 		return false
@@ -637,6 +637,14 @@ func safeProperties(event string, input map[string]any) map[string]any {
 			if event == "immersive_mode_exited" {
 				enum("seconds_in_mode", "lt_10", "10_30", "30_120", "120_600", "gt_600")
 			}
+		}
+	case "lesson_anchored_note_created":
+		// Identifiers, a closed enum and a flag; never the note text or the region contents.
+		ids("course_id", "lesson_id")
+		numeric("slide_index")
+		boolean("has_region")
+		if v, ok := input["entry_point"].(string); ok && (v == "typed" || v == "voice") {
+			out["entry_point"] = v
 		}
 	case "$ai_generation":
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
