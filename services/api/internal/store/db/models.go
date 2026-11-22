@@ -445,6 +445,16 @@ type CreditArtifact struct {
 	JobID          pgtype.UUID `json:"job_id"`
 }
 
+type CreditCheckIn struct {
+	LearnerID     pgtype.UUID        `json:"learner_id"`
+	LocalDate     pgtype.Date        `json:"local_date"`
+	TimeZone      string             `json:"time_zone"`
+	CheckedAt     pgtype.Timestamptz `json:"checked_at"`
+	NextCheckInAt pgtype.Timestamptz `json:"next_check_in_at"`
+	Granted       int64              `json:"granted"`
+	FirstTime     bool               `json:"first_time"`
+}
+
 type CreditCheckoutOrder struct {
 	ID             pgtype.UUID        `json:"id"`
 	RequestID      pgtype.UUID        `json:"request_id"`
