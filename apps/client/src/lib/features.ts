@@ -25,7 +25,8 @@ export function isLessonTestTracerEnabled(): boolean {
         .__LESSON_TEST_TRACER_ENABLED__,
     );
   }
-  return false;
+  // ADR 0017: on by default; only an explicit "false" disables it.
+  return true;
 }
 
 export async function fetchLessonTestTracerEnabled(): Promise<boolean> {
