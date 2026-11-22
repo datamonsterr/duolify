@@ -251,6 +251,9 @@ func (s *Service) FilterNotes(ctx context.Context, learnerID string, filter Filt
 	if err = s.attachChatSources(ctx, learnerID, dtos); err != nil {
 		return nil, err
 	}
+	if err = s.attachAnchors(ctx, learnerID, dtos); err != nil {
+		return nil, err
+	}
 	return dtos, nil
 }
 

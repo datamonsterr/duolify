@@ -642,6 +642,8 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		`INSERT INTO quick_note_chat_sources(note_id, learner_id, thread_id, message_id, lesson_id) VALUES ('fa111111-1111-4111-8111-111111111111', 'a1111111-1111-4111-8111-111111111111', 'f9111111-1111-4111-8111-111111111111', 'f9333333-3333-4333-8333-333333333333', NULL)`,
 		`INSERT INTO quick_note_chat_sources(note_id, learner_id, unavailable) VALUES ('fa222222-2222-4222-8222-222222222222', 'a1111111-1111-4111-8111-111111111111', true)`,
 		`INSERT INTO tutor_thread_deletion_tombstones(thread_id) VALUES ('fa333333-3333-4333-8333-333333333333')`,
+		`INSERT INTO quick_notes(id, learner_id, action_key, source, slide_id, raw_text, status) VALUES ('fa444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 'anchored-fixture', 'slide', 2, 'anchored fixture note', 'raw_only')`,
+		`INSERT INTO quick_note_anchors(note_id, learner_id, playback_ms, rect_x, rect_y, rect_w, rect_h, input_kind) VALUES ('fa444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 12500, 0.1, 0.2, 0.4, 0.3, 'voice')`,
 	} {
 		if _, err = f.DB.Pool.Exec(t.Context(), statement); err != nil {
 			t.Fatal(err)

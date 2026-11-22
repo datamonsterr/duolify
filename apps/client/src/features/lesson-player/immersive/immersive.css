@@ -251,6 +251,18 @@ html[data-imm-rotated] body {
 .imm-caption[data-raised] {
   bottom: calc(var(--sa-b, 0px) + 112px);
 }
+/* A short landscape screen has no room for more than one caption line between the
+   centre buttons and the bottom bar while the controls are up: clamp it there (it is
+   shown in full again as soon as the controls hide). */
+@media (max-height: 500px) {
+  .imm-caption[data-raised] {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    overflow: hidden;
+  }
+}
 .imm-list {
   position: absolute;
   inset-block: 72px 112px;
@@ -349,4 +361,98 @@ html[data-imm-rotated] body {
   .imm-ring {
     animation: none;
   }
+}
+
+/* Region selection and note anchors (reusable: RegionSelector, RegionOutline). */
+.imm-stage-space {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  inline-size: 1280px;
+  block-size: 720px;
+  margin: -360px 0 0 -640px;
+  transform: rotate(var(--imm-rot, 0deg)) scale(var(--imm-scale, 1));
+  transform-origin: center;
+  pointer-events: none;
+  z-index: 6;
+  --imm-px: calc(1px / var(--imm-scale, 1));
+}
+.imm-region {
+  position: absolute;
+  box-sizing: border-box;
+  border: calc(3 * var(--imm-px, 1px)) solid var(--primary);
+  border-radius: calc(4 * var(--imm-px, 1px));
+}
+.imm-region {
+  pointer-events: auto;
+  touch-action: none;
+  cursor: move;
+  box-shadow: 0 0 0 4000px color-mix(in srgb, var(--text) 45%, transparent);
+}
+.imm-region[data-drawing] {
+  pointer-events: none;
+}
+.imm-region:focus-visible {
+  outline: calc(3 * var(--imm-px, 1px)) solid var(--focus);
+  outline-offset: calc(3 * var(--imm-px, 1px));
+}
+.imm-region-handle {
+  position: absolute;
+  inline-size: calc(44 * var(--imm-px, 1px));
+  block-size: calc(44 * var(--imm-px, 1px));
+  padding: 0;
+  border: calc(3 * var(--imm-px, 1px)) solid var(--primary);
+  border-radius: 50%;
+  background: var(--surface);
+  touch-action: none;
+  cursor: nwse-resize;
+}
+.imm-region-handle:focus-visible {
+  outline: calc(3 * var(--imm-px, 1px)) solid var(--focus);
+}
+.imm-handle-nw {
+  left: calc(-22 * var(--imm-px, 1px));
+  top: calc(-22 * var(--imm-px, 1px));
+}
+.imm-handle-ne {
+  right: calc(-22 * var(--imm-px, 1px));
+  top: calc(-22 * var(--imm-px, 1px));
+}
+.imm-handle-sw {
+  left: calc(-22 * var(--imm-px, 1px));
+  bottom: calc(-22 * var(--imm-px, 1px));
+}
+.imm-handle-se {
+  right: calc(-22 * var(--imm-px, 1px));
+  bottom: calc(-22 * var(--imm-px, 1px));
+}
+.imm-region-actions {
+  position: absolute;
+  display: flex;
+  gap: calc(12 * var(--imm-px, 1px));
+  padding: calc(12 * var(--imm-px, 1px)) 0;
+  pointer-events: auto;
+  font-size: calc(16 * var(--imm-px, 1px));
+}
+.imm-region-actions .imm-btn {
+  min-inline-size: calc(44 * var(--imm-px, 1px));
+  min-block-size: calc(44 * var(--imm-px, 1px));
+  font-size: calc(16 * var(--imm-px, 1px));
+  padding-inline: calc(16 * var(--imm-px, 1px));
+}
+/* Notes composer inside immersive mode: same rotation as the controls. */
+.imm-notes {
+  pointer-events: none;
+  z-index: 7;
+  overflow-y: auto;
+  background: var(--canvas);
+}
+.imm-notes > * {
+  pointer-events: auto;
+}
+/* On a short screen the composer scrolls instead of pushing Save off-screen. */
+.imm-notes .adaptive-panel {
+  max-block-size: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }

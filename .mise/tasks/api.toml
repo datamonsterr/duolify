@@ -26,7 +26,7 @@ run = "gotestsum -- -race -count=1 -tags integration -run 'TestRestoreDrill|Test
 env = { DUOLIFY_ENV = "development" }
 description = "Test migrations, store and queue against Postgres 18 (Docker)"
 dir = "{{config_root}}/services/api"
-run = "gotestsum -- -race -count=1 -tags integration {{env.API_TEST_PACKAGES | default(value='./internal/store/... ./internal/backup/... ./internal/pricing/... ./internal/accounts/... ./internal/courses/... ./internal/credits/... ./internal/player/... ./internal/eval/... ./internal/lessontest/... ./internal/notes/... ./internal/characters/... ./internal/gamification/... ./internal/chat/... ./internal/social/... ./internal/sharing/... ./internal/narration/... ./internal/steering/... ./internal/maintenance/... ./internal/worker/...')}}"
+run = "gotestsum -- -race -count=1 -tags integration {{env.API_TEST_PACKAGES | default(value='./internal/store/... ./internal/backup/... ./internal/pricing/... ./internal/accounts/... ./internal/courses/... ./internal/credits/... ./internal/player/... ./internal/eval/... ./internal/lessontest/... ./internal/notes/... ./internal/characters/... ./internal/gamification/... ./internal/chat/... ./internal/social/... ./internal/sharing/... ./internal/narration/... ./internal/steering/... ./internal/maintenance/... ./internal/retention/... ./internal/worker/...')}}"
 
 ["api:build"]
 description = "Build the statically linked API binary"

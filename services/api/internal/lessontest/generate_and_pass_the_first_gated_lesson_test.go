@@ -37,6 +37,32 @@ func TestValidateGeneratedLesson(t *testing.T) {
 		},
 	}
 
+	cases := []struct {
+		name, html string
+		valid      bool
+	}{
+		{"attributes after id", `<div id="root" style="background:#fff"><h1 data-slot="top">Stars</h1></div>`, true},
+		{"attributes before id", `<div class="slide" id="root">Stars</div>`, true},
+		{"single quotes", `<div id='root' class='slide'>Stars</div>`, true},
+		{"whitespace and uppercase", " \n<DIV  ID = \"root\" >Stars</DIV>\n", true},
+		{"nested root", `<main><div id="root">Stars</div></main>`, false},
+		{"two roots", `<div id="root">Stars</div><p>Extra</p>`, false},
+		{"missing root", `<div>Stars</div>`, false},
+		{"text outside", `outside<div id="root">Stars</div>`, false},
+		{"engine stylesheet", `<div id="root"><h1 data-slot="top">Stars</h1></div><style data-duolify-regions>#root#root [data-slot="top"]{position:fixed!important}</style>`, true},
+		{"ordinary stylesheet outside", `<div id="root">Stars</div><style>p{color:red}</style>`, false},
+		{"commented root", `<!-- <div id="root">Stars</div> -->`, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			slide := &enginev1.Slide{SlideId: "s1", Html: tc.html, DurationMs: 4000, Narration: "Observing the night sky.", TopicIds: []string{"top-sky"}}
+			lesson := &enginev1.Lesson{Slides: []*enginev1.Slide{slide}, Test: validLesson.Test}
+			if err := lessontest.ValidateGeneratedLesson(lesson); (err == nil) != tc.valid {
+				t.Errorf("valid = %v, error = %v", tc.valid, err)
+			}
+		})
+	}
+
 	if err := lessontest.ValidateGeneratedLesson(validLesson); err != nil {
 		t.Fatalf("expected valid lesson to pass validation, got %v", err)
 	}
