@@ -171,7 +171,7 @@ fi
 '''
 
 ["infra:deploy-vm"]
-description = "Deploy the tested commit to the VM over SSH (CI only; needs DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS, DEPLOY_SHA and the digests/<image> files from the image build)"
+description = "Deploy the tested commit to the VM over SSH (CI only; needs DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS, DEPLOY_SHA and the digests/<image> files from the image build; GHCR_USER + GHCR_TOKEN log the VM in to ghcr.io for the pull)"
 run = '''
 set -eu
 : "${DEPLOY_HOST:?}" "${DEPLOY_USER:?}" "${DEPLOY_SSH_KEY:?}" "${DEPLOY_KNOWN_HOSTS:?}" "${DEPLOY_SHA:?}"
@@ -188,6 +188,13 @@ for name in api worker engine web backup-init; do
   [[ $ref =~ ^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$ ]] || { echo "ERROR: $name is not a digest-pinned reference: '$ref'" >&2; exit 1; }
   images="$images $name=$ref"
 done
+# Private GHCR images: the job's short-lived GITHUB_TOKEN (packages: read) goes over SSH on stdin;
+# deploy.sh logs in with a temporary Docker config and logs out after the pull.
+login=''
+if [[ -n ${GHCR_TOKEN:-} ]]; then
+  [[ ${GHCR_USER:-} =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}(\[bot\])?$ ]] || { echo "ERROR: GHCR_USER is not a GitHub login" >&2; exit 1; }
+  login="DEPLOY_REGISTRY_USER='$GHCR_USER' "
+fi
 # shellcheck disable=SC2086 # references are validated above and again by deploy.sh
-$ssh_cmd "cd '$path' && bash infra/deploy/deploy.sh 'sha-$DEPLOY_SHA'$images"
+printf '%s\n' "${GHCR_TOKEN:-}" | $ssh_cmd "cd '$path' && ${login}bash infra/deploy/deploy.sh 'sha-$DEPLOY_SHA'$images"
 '''

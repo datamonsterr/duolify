@@ -37,6 +37,10 @@ x-s3-env: &s3-env
 
 services:
   objectstore: {profiles: [local-s3]}
+
+  # Host-local Caddy site settings and certificates (git-ignored *.caddy, *.pem, *.key); see Caddyfile.
+  proxy:
+    volumes: [./site.d:/etc/caddy/site.d:ro]
   s3-init: {profiles: [local-s3]}
   backup-init: {profiles: [local-s3]}
 
