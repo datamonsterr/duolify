@@ -113,6 +113,10 @@ E2E_STACK_CODE_COMMAND='<prints codes for $1>' mise run client:e2e-stack` (no lo
 `E2E_STACK_GRANT_COMMAND` funds learners, otherwise flows that need paid credits are
 `fixme`). `E2E_LESSON_TEST_TRACER_ENABLED=false` runs with lesson generation off.
 
+Pricing: the suite never approves pricing. Flows that need a quote use the target's
+active approved version; if its quoted route is not one the engine serves, course preview
+fails and the flow reports `pricing not approved on target`.
+
 | Secret | Use |
 | --- | --- |
 | `RAILWAY_TOKEN` | Repository secret for full-tier plans; dev environment secret for deploys. Scope to development. |

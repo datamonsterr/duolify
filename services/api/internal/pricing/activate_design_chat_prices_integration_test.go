@@ -39,6 +39,7 @@ func TestActivateDesignChatPricesIntegration(t *testing.T) {
 	}
 	defer db.Close()
 
+	activateLegacyBaseline(t, db)
 	ownerID := "00000000-0000-4000-8000-000000000001"
 	adminID := "00000000-0000-4000-8000-000000000002"
 	for _, id := range []string{ownerID, adminID} {
@@ -54,7 +55,7 @@ func TestActivateDesignChatPricesIntegration(t *testing.T) {
 	admin.SetVerifier(&pricing.DevelopmentVerifier{})
 
 	var baseConfig map[string]any
-	if err = db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version='usd-quotes-2026-11-09'").Scan(&baseConfig); err != nil {
+	if err = db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version='usd-pre-hy4-baseline'").Scan(&baseConfig); err != nil {
 		t.Fatal(err)
 	}
 
@@ -185,17 +186,17 @@ func TestActivateDesignChatPricesIntegration(t *testing.T) {
 		quotes.SetEnvironment("development")
 
 		// Fund learner with 100 credits
-		if _, err := db.Pool.Exec(ctx, "INSERT INTO credit_entries(learner_id, amount, kind, reference, pricing_version) VALUES($1::uuid, 100, 'purchase', 'fund-preview', 'usd-quotes-2026-11-09')", learnerID); err != nil {
+		if _, err := db.Pool.Exec(ctx, "INSERT INTO credit_entries(learner_id, amount, kind, reference, pricing_version) VALUES($1::uuid, 100, 'purchase', 'fund-preview', 'usd-pre-hy4-baseline')", learnerID); err != nil {
 			t.Fatal(err)
 		}
 
-		// Create quote before activation (under usd-quotes-2026-11-09)
+		// Create quote before activation (under usd-pre-hy4-baseline)
 		oldQuote, err := quotes.Create(ctx, learnerID, pricing.QuoteInput{Action: "preview"})
 		if err != nil {
 			t.Fatalf("Create old quote: %v", err)
 		}
-		if oldQuote.PricingVersion != "usd-quotes-2026-11-09" {
-			t.Fatalf("old quote version = %s, want usd-quotes-2026-11-09", oldQuote.PricingVersion)
+		if oldQuote.PricingVersion != legacyBaseline {
+			t.Fatalf("old quote version = %s, want usd-pre-hy4-baseline", oldQuote.PricingVersion)
 		}
 		if err := quotes.Accept(ctx, learnerID, oldQuote.ID); err != nil {
 			t.Fatalf("Accept old quote: %v", err)
@@ -244,8 +245,8 @@ func TestActivateDesignChatPricesIntegration(t *testing.T) {
 		if err := db.Pool.QueryRow(ctx, "SELECT pricing_version FROM credit_entries WHERE learner_id=$1::uuid AND kind='spend' ORDER BY created_at DESC LIMIT 1", learnerID).Scan(&settleVersion); err != nil {
 			t.Fatalf("query spend entry: %v", err)
 		}
-		if settleVersion != "usd-quotes-2026-11-09" {
-			t.Fatalf("settled version = %s, want original usd-quotes-2026-11-09", settleVersion)
+		if settleVersion != legacyBaseline {
+			t.Fatalf("settled version = %s, want original usd-pre-hy4-baseline", settleVersion)
 		}
 	})
 
@@ -329,7 +330,7 @@ func TestActivateDesignChatPricesIntegration(t *testing.T) {
 			if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES($1,$2,true,$3::jsonb)", c["version"], c["effective_from"], raw); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_quote_policies(version,policy) SELECT $1,policy FROM pricing_quote_policies WHERE version='usd-quotes-2026-11-09'", c["version"]); err != nil {
+			if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_quote_policies(version,policy) SELECT $1,policy FROM pricing_quote_policies WHERE version='usd-pre-hy4-baseline'", c["version"]); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -394,7 +395,7 @@ func TestActivateDesignChatPricesIntegration(t *testing.T) {
 		if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES('usd-gate-rollback',$1,true,$2::jsonb)", at, raw); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_quote_policies(version,policy) SELECT 'usd-gate-rollback',policy FROM pricing_quote_policies WHERE version='usd-quotes-2026-11-09'"); err != nil {
+		if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_quote_policies(version,policy) SELECT 'usd-gate-rollback',policy FROM pricing_quote_policies WHERE version='usd-pre-hy4-baseline'"); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_activation_events(version,activated_at) VALUES('usd-gate-rollback',$1)", at); err != nil {

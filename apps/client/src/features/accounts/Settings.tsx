@@ -53,7 +53,21 @@ function applyVisualPreferences(settings: LearnerSettings) {
 }
 
 export function Settings() {
-  const { t } = useUiPreferences();
+  const { t, preferences, update: updateUi } = useUiPreferences();
+  // Saving the account's language and appearance applies them to the app, not only this form.
+  const applyToApp = (settings: LearnerSettings) => {
+    const next = {
+      locale: resolveLocale(settings.locale),
+      appearance: settings.appearance,
+      reduceMotion: settings.motion === "reduce",
+    };
+    if (
+      next.locale !== preferences.locale ||
+      next.appearance !== preferences.appearance ||
+      next.reduceMotion !== preferences.reduceMotion
+    )
+      updateUi(next);
+  };
   const [saved, setSaved] = useState<LearnerSettings | null>(null);
   const [draft, setDraft] = useState<LearnerSettings>(emptySettings);
   const [pending, setPending] = useState(false);
@@ -127,6 +141,7 @@ export function Settings() {
       if (!optedOut && saved.haptics !== result.haptics)
         trackPreference("haptics");
       applyVisualPreferences(result);
+      applyToApp(result);
       setNotice("Settings saved");
     } catch (cause) {
       setError(

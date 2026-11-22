@@ -19,6 +19,15 @@ export async function fundLearner(learnerId: string): Promise<void> {
  * Starts on /courses/create; ends on the new course's path page.
  */
 export async function createCourse(page: Page, flow?: Flow): Promise<void> {
+  await briefToPreviewQuote(page, flow);
+  await previewToCourse(page, flow);
+}
+
+/** Guided-chat brief up to the quoted "Ready to preview?" step. Starts on /courses/create. */
+export async function briefToPreviewQuote(
+  page: Page,
+  flow?: Flow,
+): Promise<void> {
   await expect(
     page.getByRole("heading", { name: "Create a course", level: 1 }),
   ).toBeVisible();
@@ -53,7 +62,10 @@ export async function createCourse(page: Page, flow?: Flow): Promise<void> {
     page.getByRole("heading", { name: "Ready to preview?" }),
   ).toBeVisible();
   await flow?.step("preview quote");
+}
 
+/** From the quoted preview step to the new course's path page. */
+export async function previewToCourse(page: Page, flow?: Flow): Promise<void> {
   await page.getByRole("button", { name: /^Confirm & preview/ }).click();
   const preview = page.getByRole("heading", { name: "Course preview" });
   const failed = page
@@ -62,16 +74,12 @@ export async function createCourse(page: Page, flow?: Flow): Promise<void> {
   await expect(preview.or(failed)).toBeVisible({ timeout: 120_000 });
   if (await failed.isVisible()) {
     await flow?.step("preview failed");
+    // The suite never approves pricing; the target's active version must quote the engine route.
     test.fixme(
       true,
-      "Course preview fails: the active approved pricing version (usd-quotes-2026-11-09) quotes " +
-        "anthropic/claude-sonnet-5-5, but the engine only accepts its own route from " +
-        "engine/config/models.toml (openrouter tencent/hy4-flash -> z-ai/glm-5.3-flash; provider " +
-        "'mock' in mock mode), so PreviewCourse returns FailedPrecondition 'quote route differs " +
-        "from evaluated route' (engine/crates/engine-server/src/lib.rs:897) and POST " +
-        "/v1/courses/preview is 502. Needs the owner to approve usd-hy4-routing-2026-11-22-unapproved " +
-        "through the pricing admin flow (PR #281); the API logs this at startup " +
-        "('active pricing quote route is not served by the engine').",
+      "pricing not approved on target: course preview failed. The active approved pricing " +
+        "version must quote the route the engine serves (the owner-approved Hy4/GLM version " +
+        "lands with PR #304, migration 20261123110000_hy4_routing_pricing_approved.sql).",
     );
   }
   await flow?.step("course preview");

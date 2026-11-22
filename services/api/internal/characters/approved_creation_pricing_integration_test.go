@@ -28,6 +28,7 @@ func TestApprovedCharacterPricingLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	backuptest.ActivateLegacyPricingBaseline(t, f.DB.Pool)
 	cat, err := pricing.Load(ctx, f.DB.Queries)
 	if err != nil {
 		t.Fatal(err)

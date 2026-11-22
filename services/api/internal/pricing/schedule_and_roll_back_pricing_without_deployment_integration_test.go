@@ -106,7 +106,7 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := read()
-	if before["version"] != "usd-quotes-2026-11-09" || before["next_scheduled"] == nil {
+	if before["version"] != "usd-hy4-routing-2026-11-22" || before["next_scheduled"] == nil {
 		t.Fatalf("scheduled response=%v", before)
 	}
 
@@ -121,7 +121,7 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	if err := runtime.ActivateDue(ctx, unverifiedAdmin); err == nil {
 		t.Fatal("activation accepted absent verifier")
 	}
-	if got := read(); got["version"] != "usd-quotes-2026-11-09" {
+	if got := read(); got["version"] != "usd-hy4-routing-2026-11-22" {
 		t.Fatalf("unverified successor exposed: %v", got)
 	}
 	// Run two independent replicas to exercise the shared transaction marker.

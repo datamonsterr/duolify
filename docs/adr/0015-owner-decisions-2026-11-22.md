@@ -65,6 +65,14 @@ Pricing versions: the approved versions (`usd-launch-2026-11-08`, `usd-quotes-20
 - Backup and asset code targets R2 through its S3-compatible API; split R2 keys by role before live backups (#27).
 - The 40k characters per month narration cap needs a usage guard before narration goes live.
 
+## Amendment 2026-11-22: owner approved the Hy4/GLM quote policy
+
+The product owner approved `usd-hy4-routing-2026-11-22-unapproved` ("Price approve"). Migration `20261123110000_hy4_routing_pricing_approved.sql` records it as the new immutable approved version `usd-hy4-routing-2026-11-22` (config identical except `version` and `effective_from`, quote policy verbatim) and activates it with the rows `ActivateDue` writes, so quotes name the route the engine serves and `POST /v1/courses/preview` stops returning 502. The unapproved row is untouched.
+
+- Learner credit prices, packs, plans and limits are unchanged; the change is non-adverse.
+- This approval covers the Hy4/GLM quote policy only. Any future learner-facing price change still goes through the owner approval flow and the 72-hour adverse-notice rule.
+- The owner review trail (approved draft, submit and approve audit rows) is written only where an owner-approved draft already exists; `PRICING_OWNER_ID` is not stored in the repo or migration, and no gate in code is weakened.
+
 ## Further owner decisions (2026-11-22)
 
 - A published Course outlives its author's deleted account. Attribution is anonymized; existing enrolled copies and their retained assets remain available under the sharing retention rules.
