@@ -50,12 +50,12 @@ func freeAddr(t *testing.T) string {
 	return l.Addr().String()
 }
 
-func TestUnavailableIsRetriedAndOtherCodesAreNot(t *testing.T) {
+func TestEngineAnsweredFailuresAreNeverRetried(t *testing.T) {
 	for _, tc := range []struct {
 		code      codes.Code
 		wantCalls int32
 		wantOK    bool
-	}{{codes.Unavailable, 3, true}, {codes.Internal, 1, false}} {
+	}{{codes.Unavailable, 1, false}, {codes.Internal, 1, false}} {
 		f := &flakyEngine{unavailOn: 2, code: tc.code}
 		addr := freeAddr(t)
 		serve(t, addr, f)
