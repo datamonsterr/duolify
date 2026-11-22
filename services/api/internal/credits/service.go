@@ -391,7 +391,10 @@ func (s *Service) GetWalletAt(ctx context.Context, learnerID string, at time.Tim
 	wallet.RefundChannel = "stripe"
 	if s.pool() != nil {
 		var platform string
-		_ = s.pool().QueryRow(ctx, `SELECT platform FROM credit_checkout_orders WHERE learner_id=$1 ORDER BY created_at DESC LIMIT 1`, learnerID).Scan(&platform)
+		// No order means the default Stripe channel; a failed read is logged and also falls back to it.
+		if err := s.pool().QueryRow(ctx, `SELECT platform FROM credit_checkout_orders WHERE learner_id=$1 ORDER BY created_at DESC LIMIT 1`, learnerID).Scan(&platform); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			slog.WarnContext(ctx, "refund channel lookup failed", "error", err, "learner_id", learnerID)
+		}
 		switch platform {
 		case "ios":
 			wallet.RefundChannel = "apple"
@@ -551,7 +554,12 @@ func (s *Service) EnsureDailyGrant(ctx context.Context, learnerID string, now ti
 	if s.pool() != nil {
 		// Fail closed when consent cannot be read; granting never requires analytics.
 		optedOut = true
-		_ = s.pool().QueryRow(ctx, "SELECT analytics_opt_out FROM learner_profiles WHERE learner_id=$1", learnerID).Scan(&optedOut)
+		var stored bool
+		if err := s.pool().QueryRow(ctx, "SELECT analytics_opt_out FROM learner_profiles WHERE learner_id=$1", learnerID).Scan(&stored); err != nil {
+			slog.WarnContext(ctx, "analytics consent unreadable; skipping analytics", "error", err, "learner_id", learnerID)
+		} else {
+			optedOut = stored
+		}
 	}
 	if s.events != nil && !optedOut {
 		_ = s.events.Capture(learnerID, "daily_credits_granted", map[string]any{

@@ -269,7 +269,10 @@ func (s *Service) ApplyVoice(ctx context.Context, owner, lessonID, voice, quoteI
 
 func (s *Service) modelFor(ctx context.Context, lessonID, owner, slideID, voice string) string {
 	var model string
-	_ = s.opts.Pool.QueryRow(ctx, `SELECT model_id FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND voice_key=$4`, lessonID, owner, slideID, voice).Scan(&model)
+	// Analytics property only (cache-hit event): a failed read leaves the model empty and is logged.
+	if err := s.opts.Pool.QueryRow(ctx, `SELECT model_id FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND voice_key=$4`, lessonID, owner, slideID, voice).Scan(&model); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		s.opts.Logger.Warn("narration model lookup failed", "error", err)
+	}
 	return model
 }
 

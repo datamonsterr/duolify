@@ -59,22 +59,29 @@ func (s *Service) Prepare(ctx context.Context, owner, lessonID, quoteID string, 
 	// Eligibility rule: First lesson (unit 0, pos 0) or predecessor has authoritative pass in outbox
 	if unitPos != 0 || lessonPos != 0 {
 		var predID, predStatus string
+		// No predecessor row is "not passed"; a database failure is "unavailable", never a wrong verdict.
+		var predErr error
 		if lessonPos > 0 {
-			_ = tx.QueryRow(ctx, `
+			predErr = tx.QueryRow(ctx, `
 				SELECT id::text, status FROM course_lesson_stubs
 				WHERE unit_id::text=$1 AND position=$2`, unitID, lessonPos-1).Scan(&predID, &predStatus)
 		} else if unitPos > 0 {
-			_ = tx.QueryRow(ctx, `
+			predErr = tx.QueryRow(ctx, `
 				SELECT cls.id::text, cls.status FROM course_lesson_stubs cls
 				JOIN course_units cu ON cu.id = cls.unit_id
 				WHERE cu.course_id::text=$1 AND cu.position=$2
 				ORDER BY cls.position DESC LIMIT 1`, courseID, unitPos-1).Scan(&predID, &predStatus)
 		}
+		if predErr != nil && !errors.Is(predErr, pgx.ErrNoRows) {
+			return "", errors.Join(ErrPrepareUnavailable, predErr)
+		}
 		var outboxExists bool
 		if predID != "" {
-			_ = tx.QueryRow(ctx, `
+			if err = tx.QueryRow(ctx, `
 				SELECT EXISTS(SELECT 1 FROM lesson_completion_outbox WHERE learner_id=$1::uuid AND lesson_id=$2::uuid)`,
-				owner, predID).Scan(&outboxExists)
+				owner, predID).Scan(&outboxExists); err != nil {
+				return "", errors.Join(ErrPrepareUnavailable, err)
+			}
 		}
 		if predStatus != "done" || !outboxExists {
 			return "", ErrPredecessorNotPassed
