@@ -8,7 +8,11 @@
 # pull them, apply migrations with `/api migrate`, then restart the engine, the API instances one at a
 # time (a new instance is healthy before an old one stops), the worker and the proxy.
 # See docs/infra/hardening.md "Deploys" for the migration and restart-order rules and failure states.
-# DEPLOY_VALIDATE_ONLY=1 checks the arguments and exits (tests).
+# Private images: DEPLOY_REGISTRY_USER=<login> logs Docker in to ghcr.io with a token read from stdin
+# (deploy-vm passes the job's short-lived GITHUB_TOKEN, `packages: read`). The login lives in a throwaway
+# DOCKER_CONFIG and is logged out and deleted right after the pull and on any exit; the token never
+# appears on a command line or in ~/.docker.
+# DEPLOY_VALIDATE_ONLY=1 checks the arguments (and the registry token, when a user is set) and exits (tests).
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -27,6 +31,13 @@ done
 for name in api worker engine web backup-init; do
   [[ -n ${pinned[$name]:-} ]] || die "no digest for image $name; pass $name=<repo>@sha256:<digest> (a deploy needs all five, and only digests)"
 done
+registry_user=${DEPLOY_REGISTRY_USER:-}
+registry_token=''
+if [[ -n $registry_user ]]; then
+  [[ $registry_user =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}(\[bot\])?$ ]] || die "DEPLOY_REGISTRY_USER '$registry_user' is not a GitHub login"
+  IFS= read -r registry_token || true
+  [[ -n $registry_token ]] || die "DEPLOY_REGISTRY_USER is set but no registry token arrived on stdin"
+fi
 [[ -z ${DEPLOY_VALIDATE_ONLY:-} ]] || exit 0
 
 export SELFHOST_OVERLAY=$here/compose.prod.yml
@@ -43,8 +54,24 @@ setenv ENGINE_IMAGE "${pinned[engine]}"
 setenv WEB_IMAGE "${pinned[web]}"
 setenv BACKUP_INIT_IMAGE "${pinned[backup-init]}"
 
+registry_logout() {
+  [[ -n ${DOCKER_CONFIG:-} && -d $DOCKER_CONFIG ]] || return 0
+  docker logout ghcr.io >/dev/null 2>&1 || true
+  rm -rf "$DOCKER_CONFIG"
+  unset DOCKER_CONFIG
+}
+if [[ -n $registry_user ]]; then
+  DOCKER_CONFIG=$(mktemp -d)
+  export DOCKER_CONFIG
+  trap registry_logout EXIT
+  say "registry login ghcr.io as $registry_user (temporary)"
+  printf '%s\n' "$registry_token" | docker login ghcr.io --username "$registry_user" --password-stdin >/dev/null
+  registry_token=''
+fi
+
 say "pulling digest-pinned images for $tag"
 compose pull --ignore-buildable api worker engine proxy backup-init
+registry_logout
 for name in api worker engine web backup-init; do echo "  $name ${pinned[$name]}"; done
 compose build walship
 

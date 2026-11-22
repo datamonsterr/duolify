@@ -1,5 +1,7 @@
 # Env & secrets
 infra/deploy/secrets/
+infra/deploy/site.d/*
+!infra/deploy/site.d/README.md
 .env
 .env.*
 !.env.example

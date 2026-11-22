@@ -18,6 +18,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
+	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/gamification"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
@@ -560,10 +561,14 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 		}
 		learner.ReminderEnabled = remEn
 
-		var courseLevelOverride *string
-		_ = s.opts.Pool.QueryRow(ctx, `SELECT course_level_override FROM courses WHERE id::text=$1 AND learner_id::text=$2`, courseID, owner).Scan(&courseLevelOverride)
-		if courseLevelOverride != nil && *courseLevelOverride != "" {
-			learner.Level = *courseLevelOverride
+		// Per-course level override lives on course_enrollments; read it through the
+		// same effective-profile source the tutor chat uses.
+		eff, effErr := courses.New(courses.Options{Pool: s.opts.Pool}).EffectiveProfile(ctx, owner, courseID)
+		if effErr != nil {
+			return fail("profile_unavailable", fmt.Errorf("effective profile: %w", effErr))
+		}
+		if eff.GetLevel() != "" {
+			learner.Level = eff.GetLevel()
 		}
 
 		// Build History: completed lesson summaries oldest first

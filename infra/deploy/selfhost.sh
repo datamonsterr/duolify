@@ -92,6 +92,8 @@ cmd_up() {
 proxy_url() { # base URL plus curl options reaching the proxy on this host
   local site port
   site=$(setting SITE_ADDRESS)
+  site=${site%%,*} # several addresses ("a.example, b.example"): test the first
+  site=${site%% *}
   site=${site#http://}
   if [[ $site == :* || $site == "" ]] || [[ $(setting SITE_ADDRESS) == http://* ]]; then
     port=$(setting HTTP_PORT)
@@ -101,6 +103,8 @@ proxy_url() { # base URL plus curl options reaching the proxy on this host
     port=$(setting HTTPS_PORT)
     base="https://$site:${port:-443}"
     curl_opts=(--resolve "$site:${port:-443}:127.0.0.1")
+    # An origin certificate from a private CA (Cloudflare Origin CA): trust its root for the smoke test.
+    if [[ -f $deploy_dir/site.d/origin-ca.pem ]]; then curl_opts+=(--cacert "$deploy_dir/site.d/origin-ca.pem"); fi
   fi
 }
 

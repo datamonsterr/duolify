@@ -250,7 +250,8 @@ func run(ctx context.Context, args []string) (result error) {
 				_ = narrationQueue.Stop(stopCtx)
 			}()
 		}
-		return worker.RunWithCredits(ctx, db.Pool, logger, creditService, service)
+		courseService := courses.New(courses.Options{Pool: db.Pool})
+		return worker.RunWithAlerts(ctx, db.Pool, logger, workerServices{creditService, courseService}, eval.NewService(db.Pool, catalogue, monitor, events), service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {
@@ -314,6 +315,8 @@ func run(ctx context.Context, args []string) (result error) {
 	runtimePricing := pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events)
 	runtimePricing.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
 	runtimePricing.SetOwnerID(os.Getenv("PRICING_OWNER_ID"))
+	evalService := eval.NewService(db.Pool, catalogue, monitor, events)
+	runtimePricing.SetAlertSink(evalService.RaiseOperationalAlert)
 	if err := runtimePricing.ActivateDue(ctx, pricingAdmin); err != nil {
 		return fmt.Errorf("pricing activation: %w", err)
 	}
@@ -430,7 +433,7 @@ func run(ctx context.Context, args []string) (result error) {
 		PricingAdmin:            pricingAdmin,
 		Quotes:                  quotesService,
 		Notes:                   notesService,
-		Eval:                    eval.NewService(db.Pool, catalogue, monitor, events),
+		Eval:                    evalService,
 		LessonTestTracerEnabled: cfg.LessonTestTracerEnabled,
 		LessonTest:              lessonHandler,
 		Postgres:                db.Ping,
@@ -729,3 +732,22 @@ func friendStreakSettler(svc *social.Service, logger *slog.Logger) func(context.
 		}
 	}
 }
+
+// workerServices lets the worker discover every maintenance capability by interface:
+// credit expiry, financial maintenance and the 30-day course purge.
+type workerServices struct {
+	creditsService
+	courseService
+}
+
+type (
+	creditsService = *credits.Service
+	courseService  = *courses.Service
+)
+
+var (
+	_ worker.Expirer             = workerServices{}
+	_ worker.AnnualIssuer        = workerServices{}
+	_ worker.FinancialMaintainer = workerServices{}
+	_ worker.CoursePurger        = workerServices{}
+)
