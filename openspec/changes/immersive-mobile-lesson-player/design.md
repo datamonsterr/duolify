@@ -104,12 +104,12 @@ In portrait and on narrow screens the existing lesson tutor sheet is used, with 
 
 Hold the microphone control to record, release to finish. A visible level meter and timer show while recording; sliding the finger off the control or pressing Escape cancels. Maximum 30 seconds, minimum 0.5 seconds. On release the audio is uploaded, the transcript appears in the composer, and:
 
-- for a question it is sent automatically after a 2-second window in which the Learner can edit or cancel (a setting can require an explicit send);
+- for a question it is sent automatically after a 2-second window in which the Learner can edit or cancel (a setting can require an explicit send). The setting defaults on, except that it defaults off when the transcript language is Vietnamese until the Golden set measures Vietnamese word error rate;
 - for a Quick note it is saved immediately as a raw Quick note, with undo.
 
 A tap (instead of a hold) on the microphone toggles recording on and off, for people who cannot hold. Typed input is always available next to the microphone.
 
-Recording uses `MediaRecorder` with the best supported container (WebM/Opus on Android and desktop Chromium, MP4/AAC on iOS). The API accepts both.
+Recording uses `MediaRecorder`. The client probes `audio/webm;codecs=opus` and then `audio/mp4`, uploads the Blob with `recorder.mimeType`, and lets the API identify the container itself (a browser may report `audio/mp4` yet hold Opus, and Safari 18.4 and later also records WebM/Opus). It requests `audioBitsPerSecond: 32000` (30 s is about 113 KB) and checks the Blob size, because Safari's bitrate options are not documented as supported. A level gate keeps near-silent recordings from being uploaded.
 
 ### 9. Transcription path and privacy
 
@@ -117,13 +117,17 @@ Recording uses `MediaRecorder` with the best supported container (WebM/Opus on A
 
 Audio is held in memory only, is never written to disk, object storage, logs, analytics or backups, and is dropped when the request ends. Only the transcript persists, as the Tutor chat message or Quick note it becomes, under the existing retention and erasure rules for those. A failed or empty transcription never produces a message or a note.
 
-Limits: 30 seconds, 1 MB, per-Learner rate limit and daily cap (configurable), Lesson must be one the Learner is entitled to.
+Limits: 30 seconds, 1 MB, per-Learner rate limit and a daily cap of 60 transcriptions per Learner (configurable), Lesson must be one the Learner is entitled to.
 
-Model choice is made by evaluation, not here: candidates on OpenRouter today include `openai/gpt-4o-mini-transcribe` and `openai/whisper-large-v3-turbo`. Primary and fallback go in `engine/config/models.toml` as a `transcribe` task.
+Models (decided from the spike): primary `qwen/qwen3-asr-0.6b`, fallback `openai/whisper-large-v3-turbo`, both called with `provider.zdr = true` and `data_collection = "deny"`, and a per-request cost ceiling of 0.0005 USD. They go in `engine/config/models.toml` as a `transcribe` task and still need promotion evidence from the Golden set (ADR 0019). Whisper-class models hallucinate text on silence, so the client's level gate runs before upload and the Golden set keeps the empty-text case.
+
+Privacy wording: "audio is never stored" holds for Duolify systems only. Learner-facing text and the spec say the audio is "processed by a speech provider that does not keep it", with zero data retention as the mechanism.
 
 ### 10. Credits and pricing
 
 A voice question is a Tutor chat turn and costs what that action costs today, with the same quote, daily free allowance and zero-Credits behaviour. A voice Quick note costs what a Quick note costs today. Transcription itself has no separate Learner price.
+
+The owner approved a pricing version that adds a transcription rate and no new Learner price (it is prepared on `feat/pricing-voice-preview`). The daily cap of 60 and the 30-second limit bound the provider cost; transcription is free to the Learner.
 
 Transcription still has a provider cost that settlement must account for. That needs a transcription rate in the quote policy of an owner-approved pricing version. Until that version is active, voice input is unavailable and the microphone control explains that typing still works. Nothing in this change approves pricing.
 
@@ -167,15 +171,13 @@ Each step is shippable on its own. Rollback is disabling the immersive entry con
 
 ## Open Questions
 
-- Should rotating the device enter immersive mode by default, or only the expand control? Proposed: on by default on mobile, with a setting.
-- Should a voice question be sent automatically after dictation? Proposed: yes, after a 2-second edit window, with a setting to require an explicit send.
-- Daily cap of voice transcriptions per Learner? Proposed: 60.
+- Resolved 2026-11-23 (owner: "You decide all"): rotating the device enters immersive mode by default on touch devices (`fullscreen_on_rotate` defaults true, already shipped); a voice question is sent automatically after a 2-second edit window, default off when the transcript language is Vietnamese; the daily cap is 60 transcriptions per Learner; the pricing version with a transcription rate and no new Learner price is approved.
 - Should the reply be read aloud with the Lesson's narration voice? Out of scope here; it would spend narration characters.
 - Should the two authored example Courses be re-authored with regions? Proposed: yes, in the change that builds them or a follow-up.
 
 ## Spike findings (2026-11-22, tasks 1.2 to 1.4)
 
-Proposed corrections from `docs/design/voice-input-platforms.md`, `evals/spikes/transcription/RESULTS.md` and ADR 0021. None is applied to the decisions above or to the specs; the owner decides.
+Proposed corrections from `docs/design/voice-input-platforms.md`, `evals/spikes/transcription/RESULTS.md` and ADR 0021. Applied on 2026-11-23 after the owner's "You decide all", with the owner's model choice (primary `qwen/qwen3-asr-0.6b`, fallback `openai/whisper-large-v3-turbo`) instead of Voxtral: the container probe, 32 kbps request, level gate and privacy wording are in decisions 8 and 9 and in the `voice-input` spec; the per-request ceiling is 0.0005 USD, not the 0.005 USD proposed in the spike.
 
 - **Decision 8, containers.** "WebM/Opus on Android and desktop Chromium, MP4/AAC on iOS" is not a safe rule: Chromium reports `audio/mp4` as supported but it holds Opus, and Safari 18.4 and later also records WebM/Opus. Correct to: probe `audio/webm;codecs=opus` then `audio/mp4`, upload `recorder.mimeType`, and let the API identify the container itself.
 - **Decision 8 and 9, size limit.** Chromium's default bitrate is about 129 kbps (30 s = 483 KB, within 2x of the 1 MB limit). Add: the client requests `audioBitsPerSecond: 32000` (30 s = about 113 KB) and checks the Blob size, because Safari's bitrate options are not documented as supported.
@@ -183,5 +185,5 @@ Proposed corrections from `docs/design/voice-input-platforms.md`, `evals/spikes/
 - **Decision 9 and spec "Silence".** The silence rule fails for Whisper and `gpt-4o-transcribe` ("Thank you.", "Blessing", "こんにちは。"). Add a level gate so near-silent recordings are not uploaded, and keep the "empty text" requirement for the Golden set.
 - **Decision 9 and the privacy claim.** "Audio is never stored" holds for Duolify systems only; the provider is a separate party. Word the Learner-facing text and the spec's privacy requirement as "processed by a speech provider that does not keep it", and name ZDR as the mechanism.
 - **Decision 9, limits and Decision 10.** At the proposed daily cap of 60, the worst case on the primary is about 0.10 USD per Learner per day (about 0.0017 USD per 30 s). Typical 5 s dictation costs about 0.0003 USD. Fits "no new Learner price", but the transcription rate in the pricing version must use the primary's rate and a per-request ceiling of 0.005 USD.
-- **Decision 8, auto-send.** Not contradicted. Observed Vietnamese WER of 3% to 9% on a few clips supports keeping the 2-second edit window; consider defaulting auto-send off for Vietnamese until the Golden set measures it.
+- **Decision 8, auto-send.** Not contradicted. Observed Vietnamese WER of 3% to 9% on a few clips supports keeping the 2-second edit window; applied: auto-send defaults off when the transcript language is Vietnamese.
 - **Impact, client.** iOS needs `NSMicrophoneUsageDescription` (use `src-tauri/Info.ios.plist`), Android needs `RECORD_AUDIO` and `MODIFY_AUDIO_SETTINGS` in the generated manifest; no Tauri plugin or capability is required. Whether `getUserMedia` is available under the iOS `tauri://` scheme is unverified and must be checked on a device before 6.6.

@@ -18,6 +18,6 @@
 - [x] 2.8 Retry a failed full daily expiry pass and serialize concurrent passes in a worker
 
 ## 3. Follow-ups (need an owner decision)
-- [ ] 3.1 Retention windows for `lesson_playback_sync_events`, `lesson_test_answer_operations` (see design)
+- [x] 3.1 Retention windows for `lesson_playback_sync_events`, `lesson_test_answer_operations` (done in `row-retention-windows`)
 - [ ] 3.2 Move the shared-asset sweep to the worker once it holds object-store keys
 - [ ] 3.3 Per-learner wallet balance projection (replaces whole-ledger recompute)

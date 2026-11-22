@@ -43,11 +43,16 @@ export async function briefToPreviewQuote(
   // The guided chat is only on where the owner approved it (development, test, or production with
   // COURSE_BRIEF_CHAT_LIVE_APPROVED); elsewhere, staging included, the brief is the form.
   const answer = page.getByRole("textbox", { name: "Your answer" });
-  // The config request decides which one renders; give the chat a few seconds to appear.
-  const chat = await answer.waitFor({ timeout: 8_000 }).then(
-    () => true,
-    () => false,
-  );
+  // Before the config request answers, the page says "Form entry is available..." and the chat is
+  // disabled, so that text alone proves nothing. "Clarifying: N credits" appears only once the chat is
+  // enabled; give the config a few seconds, then fall back to the form.
+  const chat = await page
+    .getByText(/Clarifying: [\d,]+ credits/)
+    .waitFor({ timeout: 10_000 })
+    .then(
+      () => true,
+      () => false,
+    );
   if (chat) {
     await answer.fill(topic);
     await page

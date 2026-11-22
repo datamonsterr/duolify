@@ -1,5 +1,22 @@
 export type NoteSource = "slide" | "lesson" | "chat";
 
+/** A Lesson moment a note points at: playback time, optional region (0..1 of the 16:9 stage), how it was entered. */
+export type NoteAnchor = {
+  playbackMs: number;
+  rect?: { x: number; y: number; w: number; h: number };
+  input: "typed" | "voice";
+};
+
+/** The wire shape of an anchor on `POST /v1/notes`. Serialised the same way for a live save and a queue replay. */
+export function anchorToWire(anchor: NoteAnchor | undefined) {
+  if (!anchor) return undefined;
+  return {
+    playback_ms: Math.max(0, Math.round(anchor.playbackMs)),
+    rect: anchor.rect,
+    input: anchor.input,
+  };
+}
+
 export type QueuedNote = {
   actionKey: string;
   courseId?: string;
@@ -7,6 +24,7 @@ export type QueuedNote = {
   slideId?: number;
   slideTitle?: string;
   source: NoteSource;
+  anchor?: NoteAnchor;
   rawText: string;
   status: "enrichment_pending" | "device_saved" | "synced";
   createdAt: string;
@@ -59,6 +77,7 @@ export const noteQueue = {
     slideId?: number;
     slideTitle?: string;
     source: NoteSource;
+    anchor?: NoteAnchor;
     rawText: string;
     status?: "device_saved" | "enrichment_pending" | "synced";
   }): QueuedNote {
@@ -73,6 +92,7 @@ export const noteQueue = {
       slideId: item.slideId,
       slideTitle: item.slideTitle,
       source: item.source,
+      anchor: item.anchor,
       rawText: item.rawText,
       status: item.status ?? "device_saved",
       createdAt: new Date().toISOString(),
