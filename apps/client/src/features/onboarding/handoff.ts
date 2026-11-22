@@ -32,3 +32,12 @@ export function takeReplay(owner: string) {
     return false;
   }
 }
+// A shell remount during navigation must not lose the request; it is consumed
+// only when the replayed tour finishes.
+export function peekReplay(owner: string) {
+  try {
+    return sessionStorage.getItem(replayKey(owner)) === "true";
+  } catch {
+    return false;
+  }
+}

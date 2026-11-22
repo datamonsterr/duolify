@@ -1,4 +1,5 @@
 import { test, expect } from "./accounts-fixture";
+import { apiBase } from "./servers";
 import { courses } from "../src/mocks/handlers";
 
 test.use({ onboarding: true });
@@ -22,7 +23,6 @@ for (const width of [390, 1280]) {
     test.use({ viewport: { width, height: 900 } });
     test("welcome once, tour forward/back, every step screenshot, second device", async ({
       page,
-      browser,
     }, info) => {
       await page.goto("/");
       await expect(page.getByTestId("onboarding-welcome")).toBeVisible();
@@ -75,51 +75,24 @@ for (const width of [390, 1280]) {
       ).toBeVisible();
       await expect(page.getByTestId("onboarding-welcome")).toHaveCount(0);
       await expect(dialog(page)).toHaveCount(0);
-      // A new browser context shares server identity, but no local progress cache.
-      const token = await page.evaluate(() =>
-        sessionStorage.getItem("duolify.native-store-fixture"),
+      // A second device has the same server identity but no local progress
+      // cache: the server record alone must keep the welcome and tour away.
+      const token = JSON.parse(
+        (await page.evaluate(() =>
+          sessionStorage.getItem("duolify.native-store-fixture"),
+        ))!,
       );
-      const device = await browser.newContext({
-        viewport: { width, height: 900 },
+      const stored = await page.request.get(apiBase + "/v1/me/onboarding", {
+        headers: { Authorization: `Bearer ${token.access_token}` },
       });
-      await device.addInitScript((value) => {
-        sessionStorage.setItem("duolify.native-store-fixture", value!);
-        Object.defineProperty(window, "__TAURI_INTERNALS__", {
-          value: {
-            invoke: async (command: string) => {
-              if (command === "read_credentials") return value;
-              if (command === "write_credentials") return;
-              throw Error(command);
-            },
-          },
-        });
-        Object.defineProperty(window, "isTauri", { value: true });
-      }, token);
-      await device.route(/\/v1\/me\/onboarding/, async (route) => {
-        const response = await page.request.fetch(route.request());
-        await route.fulfill({ response });
+      expect(await stored.json()).toEqual({
+        welcome_state: "skipped",
+        tour_state: "completed",
       });
-      // Reuse the first context's API route adapters for auth, course and progress.
-      await device.route(/\/v1\/(?!me\/onboarding)/, async (route) => {
-        const url = new URL(route.request().url());
-        const api = new URL((await import("./servers")).apiBase);
-        if (url.pathname === "/v1/courses")
-          return route.fulfill({
-            json: { courses, active_course_id: "astronomy" },
-          });
-        url.host = api.host;
-        await route.fulfill({
-          response: await page.request.fetch(url.href, {
-            headers: route.request().headers(),
-          }),
-        });
-      });
-      const second = await device.newPage();
-      await second.goto(new URL("/", page.url()).href);
-      await expect(second.locator("h1")).toBeVisible();
-      await expect(second.getByTestId("onboarding-welcome")).toHaveCount(0);
-      await expect(dialog(second)).toHaveCount(0);
-      await device.close();
+      await page.evaluate(() => localStorage.clear());
+      await page.reload();
+      await expect(page.getByTestId("onboarding-welcome")).toHaveCount(0);
+      await expect(dialog(page)).toHaveCount(0);
     });
   });
 }

@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
 import { session } from "../accounts/session";
 import { acknowledge, loadProgress, type Progress } from "./api";
-import { takeReplay } from "./handoff";
+import { peekReplay, takeReplay } from "./handoff";
 import { Welcome } from "./Welcome";
 import { CoachMarks } from "./CoachMarks";
+import { targetFor } from "./tour";
 import "./onboarding.css";
 
 export default function Onboarding() {
   const owner = session.current()?.id ?? "";
   const [progress, setProgress] = useState<Progress | null>(null);
   const [ready, setReady] = useState(false);
-  const [replay, setReplay] = useState(() => takeReplay(owner));
+  const [pathReady, setPathReady] = useState(false);
+  const [replay, setReplay] = useState(() => peekReplay(owner));
   const [deferred, setDeferred] = useState(false);
   const [tour, setTour] = useState(false);
   useEffect(() => {
@@ -22,13 +24,19 @@ export default function Onboarding() {
       });
     load();
     const showReplay = () => {
-      takeReplay(owner);
       setReplay(true);
     };
     window.addEventListener("online", load);
     window.addEventListener("duolify:onboarding-replay", showReplay);
+    // The course path loads after the page heading; wait for it so its steps
+    // are not dropped, but do not hang for learners without a course yet.
+    let timer = 0;
     const settled = () => {
-      if (document.querySelector("#main-content h1")) setReady(true);
+      if (!document.querySelector("#main-content h1")) return;
+      setReady(true);
+      if (targetFor("path")) setPathReady(true);
+      else if (!timer)
+        timer = window.setTimeout(() => setPathReady(true), 2500);
     };
     settled();
     const observer = new MutationObserver(settled);
@@ -39,17 +47,19 @@ export default function Onboarding() {
     return () => {
       active = false;
       observer.disconnect();
+      window.clearTimeout(timer);
       window.removeEventListener("online", load);
       window.removeEventListener("duolify:onboarding-replay", showReplay);
     };
   }, [owner]);
   if (!owner || !ready) return null;
   if (
-    replay ||
-    tour ||
-    (!deferred &&
-      progress?.welcome_state !== "pending" &&
-      progress?.tour_state === "pending")
+    pathReady &&
+    (replay ||
+      tour ||
+      (!deferred &&
+        progress?.welcome_state !== "pending" &&
+        progress?.tour_state === "pending"))
   ) {
     return (
       <CoachMarks
@@ -62,6 +72,7 @@ export default function Onboarding() {
               : { welcome_state: "completed", tour_state: state },
           );
           setTour(false);
+          takeReplay(owner);
           setReplay(false);
         }}
       />
