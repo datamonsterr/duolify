@@ -5,13 +5,92 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, pin::Pin, sync::Arc};
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(from = "RawModels")]
 pub struct Models {
     pub tasks: BTreeMap<String, Model>,
 }
+#[derive(Deserialize)]
+struct RawModels {
+    tasks: BTreeMap<String, Model>,
+    /// OpenRouter `reasoning.effort` per model id. Effort is per model because a fallback
+    /// chain mixes models with different reasoning support (GLM cannot disable reasoning).
+    #[serde(default)]
+    reasoning: BTreeMap<String, String>,
+}
+impl From<RawModels> for Models {
+    fn from(raw: RawModels) -> Self {
+        let mut tasks = raw.tasks;
+        for model in tasks.values_mut() {
+            model.reasoning = raw.reasoning.clone();
+            if let Some(effort) = model.reasoning_effort.clone() {
+                model.reasoning.insert(model.model.clone(), effort);
+            }
+        }
+        Self { tasks }
+    }
+}
+/// One task route. `model` is the primary id, `fallback_models` the ordered fallback chain.
+/// `fallback_model` is derived (first fallback) and is the stable second-slot identity
+/// that reservations pin.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(from = "RawModel")]
 pub struct Model {
     pub model: String,
     pub fallback_model: String,
+    pub fallback_models: Vec<String>,
+    /// `reasoning.effort` for the primary model (`none` or `low`).
+    pub reasoning_effort: Option<String>,
+    /// `reasoning.effort` per model id: the `[reasoning]` table plus the primary's own effort.
+    pub reasoning: BTreeMap<String, String>,
+}
+#[derive(Deserialize)]
+struct RawModel {
+    model: String,
+    #[serde(default)]
+    fallback_model: Option<String>,
+    #[serde(default)]
+    fallback_models: Vec<String>,
+    #[serde(default)]
+    reasoning_effort: Option<String>,
+}
+impl From<RawModel> for Model {
+    fn from(raw: RawModel) -> Self {
+        let mut fallback_models = raw.fallback_models;
+        if fallback_models.is_empty() {
+            fallback_models.extend(raw.fallback_model);
+        }
+        Self {
+            model: raw.model,
+            fallback_model: fallback_models.first().cloned().unwrap_or_default(),
+            fallback_models,
+            reasoning_effort: raw.reasoning_effort,
+            reasoning: BTreeMap::new(),
+        }
+    }
+}
+/// What a provider needs to serve one call. `fallbacks` are tried in order after `model`.
+#[derive(Debug, Clone, Default)]
+pub struct Route {
+    pub model: String,
+    pub fallbacks: Vec<String>,
+    /// Effort per model id; a model without an entry gets no `reasoning` field.
+    pub reasoning: BTreeMap<String, String>,
+}
+impl Model {
+    pub fn primary_route(&self) -> Route {
+        Route {
+            model: self.model.clone(),
+            fallbacks: self.fallback_models.clone(),
+            reasoning: self.reasoning.clone(),
+        }
+    }
+    pub fn fallback_route(&self) -> Route {
+        Route {
+            model: self.fallback_model.clone(),
+            fallbacks: self.fallback_models.iter().skip(1).cloned().collect(),
+            reasoning: self.reasoning.clone(),
+        }
+    }
 }
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Completion {
@@ -47,6 +126,18 @@ pub trait LlmProvider: Send + Sync {
         self.complete(model, input).await
     }
     async fn stream(&self, model: &str, input: &str) -> Result<CompletionStream>;
+    /// Route-aware call; providers without routing options serve the primary id only.
+    async fn complete_route(
+        &self,
+        route: &Route,
+        input: &str,
+        max_output: u32,
+    ) -> Result<Completion> {
+        self.complete_bounded(&route.model, input, max_output).await
+    }
+    async fn stream_route(&self, route: &Route, input: &str) -> Result<CompletionStream> {
+        self.stream(&route.model, input).await
+    }
 }
 #[derive(Clone)]
 pub struct ProviderRouter {
@@ -65,17 +156,29 @@ impl ProviderRouter {
     }
     pub async fn complete(&self, task: &str, input: &str) -> Result<Completion> {
         let model = self.models.tasks.get(task).context("unknown task")?;
-        if let Ok(value) = self.primary.complete(&model.model, input).await {
+        if let Ok(value) = self
+            .primary
+            .complete_route(&model.primary_route(), input, 4096)
+            .await
+        {
             return Ok(value);
         }
-        self.fallback.complete(&model.fallback_model, input).await
+        self.fallback
+            .complete_route(&model.fallback_route(), input, 4096)
+            .await
     }
     pub async fn stream(&self, task: &str, input: &str) -> Result<CompletionStream> {
         let model = self.models.tasks.get(task).context("unknown task")?;
-        if let Ok(value) = self.primary.stream(&model.model, input).await {
+        if let Ok(value) = self
+            .primary
+            .stream_route(&model.primary_route(), input)
+            .await
+        {
             return Ok(value);
         }
-        self.fallback.stream(&model.fallback_model, input).await
+        self.fallback
+            .stream_route(&model.fallback_route(), input)
+            .await
     }
 }
 pub struct MockProvider;

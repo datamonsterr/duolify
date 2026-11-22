@@ -299,8 +299,8 @@ impl engine_core::LlmProvider for RecordedProvider {
     fn name(&self) -> &'static str {
         "recorded"
     }
-    async fn complete(&self, model: &str, _input: &str) -> anyhow::Result<engine_core::Completion> {
-        if model.contains("haiku") {
+    async fn complete(&self, _model: &str, input: &str) -> anyhow::Result<engine_core::Completion> {
+        if input.starts_with("Judge this response") {
             Ok(self.judge_completion.clone())
         } else {
             Ok(self.primary_completion.clone())
@@ -377,9 +377,9 @@ async fn test_recorded_provider_budget_sums_primary_and_judge_using_price_table(
     let result = &report.results[0];
 
     // Primary: 100 in * 2000 nanos + 50 out * 10000 nanos = 700_000 nanos ($0.0007)
-    // Judge: 40 in * 1000 nanos + 10 out * 5000 nanos = 90_000 nanos ($0.00009)
-    // Total: 790_000 nanos ($0.00079)
-    let expected_cost = 0.000790;
+    // Judge: 40 in * 100 nanos + 10 out * 500 nanos = 9_000 nanos ($0.000009)
+    // Total: 709_000 nanos ($0.000709)
+    let expected_cost = 0.000709;
     assert!(
         (result.cost_usd - expected_cost).abs() < 1e-6,
         "expected cost {:.6}, got {:.6}",

@@ -203,6 +203,11 @@ pub async fn run_bounded_inputs<F: Fn(&str) -> bool>(
         } else {
             &router.primary
         };
+        let route_cfg = if fallback {
+            model.fallback_route()
+        } else {
+            model.primary_route()
+        };
 
         if spent
             .checked_add(worst)
@@ -231,8 +236,8 @@ pub async fn run_bounded_inputs<F: Fn(&str) -> bool>(
         };
         let response = tokio::time::timeout(
             timeout_duration,
-            provider.complete_bounded(
-                route,
+            provider.complete_route(
+                &route_cfg,
                 inputs[(index as usize).min(inputs.len() - 1)],
                 l.output_tokens,
             ),
@@ -248,7 +253,12 @@ pub async fn run_bounded_inputs<F: Fn(&str) -> bool>(
             Ok(Ok(c)) => {
                 let mut attempt = Attempt {
                     provider: provider.name().into(),
-                    model: route.clone(),
+                    // Fallbacks change the serving model; cost follows the model that served.
+                    model: if c.model.is_empty() {
+                        route.clone()
+                    } else {
+                        c.model.clone()
+                    },
                     input_tokens: c.input_tokens,
                     output_tokens: c.output_tokens,
                     cache_write_tokens: c.cache_write_tokens,
@@ -429,7 +439,10 @@ pub async fn stream_bounded_routed(
         first_token_timeout
     };
 
-    let primary_res = router.primary.stream(&model.model, input).await;
+    let primary_res = router
+        .primary
+        .stream_route(&model.primary_route(), input)
+        .await;
 
     let primary_route = StreamRoute {
         provider: router.primary.name().into(),
@@ -447,14 +460,19 @@ pub async fn stream_bounded_routed(
                 Ok(Some(Ok(event))) => (primary_stream, Some(Ok(event)), primary_route),
                 _ => {
                     // First token timed out or failed before any delta; fall back to secondary stream
-                    let fallback_stream =
-                        router.fallback.stream(&model.fallback_model, input).await?;
+                    let fallback_stream = router
+                        .fallback
+                        .stream_route(&model.fallback_route(), input)
+                        .await?;
                     (fallback_stream, None, fallback_route)
                 }
             }
         }
         Err(_) => {
-            let fallback_stream = router.fallback.stream(&model.fallback_model, input).await?;
+            let fallback_stream = router
+                .fallback
+                .stream_route(&model.fallback_route(), input)
+                .await?;
             (fallback_stream, None, fallback_route)
         }
     };

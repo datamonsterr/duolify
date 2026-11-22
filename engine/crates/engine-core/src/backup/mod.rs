@@ -134,12 +134,10 @@ impl EngineStartupConfig {
 
             // Gate 2: Required provider credentials in live provider mode.
             if self.provider_mode == "live" {
-                let has_llm_key =
-                    self.anthropic_api_key.is_some() || self.openrouter_api_key.is_some();
-                if !has_llm_key {
+                // OpenRouter is the only live provider (ADR 0015).
+                if self.openrouter_api_key.is_none() {
                     return Err(EngineConfigError::MissingDependency(
-                        "production live engine requires ANTHROPIC_API_KEY or OPENROUTER_API_KEY"
-                            .to_string(),
+                        "production live engine requires OPENROUTER_API_KEY".to_string(),
                     ));
                 }
             }

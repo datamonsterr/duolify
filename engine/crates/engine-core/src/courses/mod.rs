@@ -192,10 +192,15 @@ pub async fn process(
         } else {
             &model.model
         };
+        let route = if fallback {
+            model.fallback_route()
+        } else {
+            model.primary_route()
+        };
         let start = Instant::now();
         let completion = tokio::time::timeout(
             Duration::from_millis(u64::from(limits.attempt_timeout_ms)),
-            provider.complete_bounded(selected, &prompt, limits.output_tokens),
+            provider.complete_route(&route, &prompt, limits.output_tokens),
         )
         .await
         .ok()
@@ -211,7 +216,11 @@ pub async fn process(
         let success = classification.is_some();
         attempts.push(Attempt {
             provider: provider.name().into(),
-            model: selected.to_owned(),
+            model: completion
+                .as_ref()
+                .map(|c| c.model.clone())
+                .filter(|m| !m.is_empty())
+                .unwrap_or_else(|| selected.to_owned()),
             completion,
             fallback,
             succeeded: success,

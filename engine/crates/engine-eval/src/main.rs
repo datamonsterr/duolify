@@ -166,16 +166,14 @@ async fn main() -> Result<()> {
             return Ok(());
         }
 
-        let anthropic_key = std::env::var("ANTHROPIC_API_KEY").unwrap_or_default();
         let openrouter_key = std::env::var("OPENROUTER_API_KEY").unwrap_or_default();
         let hf_token = std::env::var("HF_TOKEN").unwrap_or_default();
-        let has_secrets = !anthropic_key.is_empty()
-            && !openrouter_key.is_empty()
-            && (!needs_hf || !hf_token.is_empty());
+        // OpenRouter is the primary provider (ADR 0015); ANTHROPIC_API_KEY is optional.
+        let has_secrets = !openrouter_key.is_empty() && (!needs_hf || !hf_token.is_empty());
 
         if !has_secrets {
             println!(
-                "::notice::Live sample evals skipped: credentials unavailable (ANTHROPIC_API_KEY, OPENROUTER_API_KEY, HF_TOKEN); feature activation stays disabled without fabricating a live pass."
+                "::notice::Live sample evals skipped: credentials unavailable (OPENROUTER_API_KEY, HF_TOKEN); feature activation stays disabled without fabricating a live pass."
             );
             println!("eval status: missing_secrets; live promotion disabled");
 

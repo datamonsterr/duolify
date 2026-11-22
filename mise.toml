@@ -17,6 +17,7 @@ shellcheck = "0.11"
 hadolint = "2.15"
 lefthook = "2"
 railway = "5"
+hcloud = "1.70"
 uv = "0.13"
 
 [env]
