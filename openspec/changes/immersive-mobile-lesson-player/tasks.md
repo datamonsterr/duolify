@@ -1,9 +1,9 @@
 ## 1. Spike and decisions
 
 - [ ] 1.1 Prove full screen and landscape on each platform (Tauri Android, Tauri iOS, Android Chrome, iOS Safari, desktop) with a throwaway build; record what the Tauri 2 mobile APIs support and choose the per-platform path or the CSS-rotated fallback
-- [ ] 1.2 Prove microphone capture with `MediaRecorder` in the Tauri mobile webviews and mobile browsers; record containers, permission strings and limits
-- [ ] 1.3 Compare transcription models on the OpenRouter audio transcription endpoint (accuracy, latency, cost for recordings up to 30 seconds) and pick primary and fallback
-- [ ] 1.4 Write the ADR for voice data handling (audio processed and discarded, never stored; provider data collection denied)
+- [x] 1.2 Prove microphone capture with `MediaRecorder` in the Tauri mobile webviews and mobile browsers; record containers, permission strings and limits (`docs/design/voice-input-platforms.md`; run only in desktop Chromium 158 with a fake device; iOS, Android, WebKit and permission denial or revocation are documentation-only and the iOS secure-context question for the Tauri scheme is open)
+- [x] 1.3 Compare transcription models on the OpenRouter audio transcription endpoint (accuracy, latency, cost for recordings up to 30 seconds) and pick primary and fallback (`evals/spikes/transcription/RESULTS.md`; 16 clips and 248 reference words, one run, synthetic technical clips; real Safari AAC not tested; recommendation needs a larger Golden set)
+- [x] 1.4 Write the ADR for voice data handling (audio processed and discarded, never stored; provider data collection denied) (`docs/adr/0021-voice-input-data-handling.md`, Proposed; Mistral's own retention text could not be retrieved, so primary ZDR rests on OpenRouter's flag)
 - [ ] 1.5 Owner decisions: enter on rotation by default, auto-send after dictation, daily transcription cap, and approval of a pricing version that adds the transcription rate with no new Learner price
 
 ## 2. Slide regions in the Slide manifest
