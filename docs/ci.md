@@ -133,7 +133,10 @@ Lesson object metadata: `lessons/` objects are written with an explicit `Content
 Objects written earlier keep `application/octet-stream` until rewritten. With the API's
 `S3_*` variables set for the target bucket, `mise run api:rewrite-asset-metadata` lists the
 objects that need it (dry run) and `mise run api:rewrite-asset-metadata -- -apply`
-rewrites them with a self-CopyObject (`MetadataDirective=REPLACE`); it is idempotent.
+rewrites them with a self-CopyObject (`MetadataDirective=REPLACE`); it is idempotent. mise lets the
+repository `.env` replace the caller's `S3_*`, so from a workstation with a development `.env` the run
+uses the local keys and fails with `InvalidAccessKeyId`: run the binary with a clean environment
+(`env -i PATH=... S3_ENDPOINT=... S3_REGION=auto S3_BUCKET=... S3_ACCESS_KEY_ID=... S3_SECRET_ACCESS_KEY=... go run ./cmd/rewrite-asset-metadata`, in `services/api`).
 
 Pricing: the suite never approves pricing. Flows that need a quote use the target's
 active approved version; a failed course preview or lesson generation fails the flow.

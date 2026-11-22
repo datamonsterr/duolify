@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
 
@@ -109,7 +110,7 @@ func (s *S3) List(ctx context.Context, prefix string) ([]string, error) {
 	for pages.HasMorePages() {
 		page, err := pages.NextPage(ctx)
 		if err != nil {
-			return nil, errors.New("lesson object listing failed")
+			return nil, fmt.Errorf("lesson object listing failed: %w", err) // SDK errors name the cause, never credentials
 		}
 		for _, o := range page.Contents {
 			keys = append(keys, aws.ToString(o.Key))
