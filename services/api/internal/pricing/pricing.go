@@ -454,10 +454,18 @@ func (c *RuntimeCatalogue) publish(loaded *Catalogue) {
 	c.mu.Unlock()
 }
 
-// RunActivator reconciles due versions on startup and every 200ms using the
-// database clock. Multiple API replicas share the once-only marker transaction.
+// ActivatorInterval is how often each API replica checks for a version that became due.
+// A scheduled version has an effective_from that is days or weeks ahead, and every
+// request reads the active version from Postgres by its own clock, so this tick only
+// decides how soon the audit marker, the analytics events and the in-memory copy appear:
+// at most this long after effective_from.
+var ActivatorInterval = 10 * time.Second
+
+// RunActivator reconciles due versions on startup and every ActivatorInterval using the
+// database clock. Multiple API replicas share the once-only marker transaction. It stays
+// in the API process, not the worker, because it refreshes this process's in-memory copy.
 func (c *RuntimeCatalogue) RunActivator(ctx context.Context, admin *Admin) {
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTicker(ActivatorInterval)
 	defer ticker.Stop()
 	for {
 		if err := c.ActivateDue(ctx, admin); err != nil && ctx.Err() == nil {

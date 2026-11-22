@@ -162,28 +162,58 @@ func (s *Service) reconcileStreak(ctx context.Context, tx pgx.Tx, owner, zone st
 // Rollover is the durable, idempotent worker pass: it judges ended local days for
 // learners whose zone has moved past their decided horizon and rebuilds lost projections.
 func (s *Service) Rollover(ctx context.Context) error {
+	_, err := s.rolloverDue(ctx)
+	return errors.Join(err, s.RepairMissingStreakState(ctx))
+}
+
+// rolloverDue judges the learners whose local day has ended and reports how many it found.
+// A learner is due when next_rollover_at (the instant their local clock reads two days past
+// decided_through, kept by a trigger) has passed, so the pass is an index range read and
+// touches no other learner and no time-zone table.
+func (s *Service) rolloverDue(ctx context.Context) (int, error) {
 	now := s.now()
-	rows, err := s.pool.Query(ctx, `SELECT s.learner_id::text,false FROM streak_state s
- JOIN learner_profiles p USING(learner_id) JOIN pg_timezone_names z ON z.name=p.time_zone
- WHERE (($1::timestamptz AT TIME ZONE z.name)::date-1)>s.decided_through
- UNION ALL
- (SELECT DISTINCT x.learner_id::text,true FROM xp_events x WHERE NOT EXISTS(SELECT 1 FROM streak_state s WHERE s.learner_id=x.learner_id) LIMIT 100)
- LIMIT 200`, now)
+	rows, err := s.pool.Query(ctx, `SELECT learner_id::text FROM streak_state WHERE next_rollover_at<=$1::timestamptz ORDER BY next_rollover_at,learner_id LIMIT 200`, now)
+	if err != nil {
+		return 0, err
+	}
+	owners := []string{}
+	for rows.Next() {
+		var owner string
+		if err = rows.Scan(&owner); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		owners = append(owners, owner)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return 0, err
+	}
+	var result error
+	for _, owner := range owners {
+		result = errors.Join(result, s.rollOne(ctx, owner, false, now))
+	}
+	return len(owners), result
+}
+
+// RepairMissingStreakState rebuilds the projection for learners that have XP events but no
+// streak_state row (a lost projection). It scans xp_events, so it runs every ten minutes,
+// not every minute; normal completions create the row in the request that earns the XP.
+func (s *Service) RepairMissingStreakState(ctx context.Context) error {
+	now := s.now()
+	rows, err := s.pool.Query(ctx, `SELECT DISTINCT x.learner_id::text FROM xp_events x WHERE NOT EXISTS(SELECT 1 FROM streak_state s WHERE s.learner_id=x.learner_id) LIMIT 100`)
 	if err != nil {
 		return err
 	}
-	type target struct {
-		owner  string
-		silent bool
-	}
-	targets := []target{}
+	owners := []string{}
 	for rows.Next() {
-		var t target
-		if err = rows.Scan(&t.owner, &t.silent); err != nil {
+		var owner string
+		if err = rows.Scan(&owner); err != nil {
 			rows.Close()
 			return err
 		}
-		targets = append(targets, t)
+		owners = append(owners, owner)
 	}
 	err = rows.Err()
 	rows.Close()
@@ -191,8 +221,8 @@ func (s *Service) Rollover(ctx context.Context) error {
 		return err
 	}
 	var result error
-	for _, t := range targets {
-		result = errors.Join(result, s.rollOne(ctx, t.owner, t.silent, now))
+	for _, owner := range owners {
+		result = errors.Join(result, s.rollOne(ctx, owner, true, now))
 	}
 	return result
 }
