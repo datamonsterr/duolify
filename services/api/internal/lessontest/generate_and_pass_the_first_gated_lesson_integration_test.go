@@ -118,7 +118,7 @@ func TestGenerateAndPassFirstGatedLessonIntegration(t *testing.T) {
 			Slides: []*enginev1.Slide{
 				{
 					SlideId:    "s1",
-					Html:       `<div id="root"><h1>Night Sky</h1><p>Observing the stars.</p></div>`,
+					Html:       `<div id="root" style="background:#fff"><h1 data-slot="top">Night Sky</h1><p>Observing the stars.</p></div><style data-duolify-regions>#root#root [data-slot="top"]{position:fixed!important}</style>`,
 					DurationMs: 3000,
 					Narration:  "Observing the stars tonight.",
 					TopicIds:   []string{"top-stars"},
