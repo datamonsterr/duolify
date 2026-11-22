@@ -393,6 +393,15 @@ contain no personal data and stay Git-backed; learner-linked content must be
 purged within 30 days when no independent references remain under existing object
 retention policy. This ticket adds no learner-specific asset generation.
 
+Purged Courses: the daily `course_purge` job writes each hard-deleted Course's
+private generated-lesson prefixes (`lessons/generated/<id>/`) to Postgres
+`course_object_purges` (prefix, enqueued/purge-after/purged timestamps; no learner
+identifiers) in the delete transaction, then deletes the objects after 15 days, a
+prefix a live manifest still names is skipped, and a storage failure retries next run.
+Published snapshots and deduplicated narration audio keep their own reference-counted
+retention. A versioned bucket keeps non-current versions under the operator's
+protected-copy policy. The ledger is in the nightly general dump.
+
 The player holds document replicas in account-scoped query memory only; E3-03
 owns durable offline caching. Loading/failed/offline content never grants
 completion; Take lesson test is only navigation. PostHog receives opaque IDs and

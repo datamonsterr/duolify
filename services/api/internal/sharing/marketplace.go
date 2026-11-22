@@ -450,7 +450,10 @@ WHERE id=$1 AND visibility='public' RETURNING 1) SELECT EXISTS (SELECT 1 FROM u)
 	s.invalidateCatalogue(ctx)
 	if changed {
 		var now string
-		_ = s.pool.QueryRow(ctx, `SELECT visibility::text FROM courses WHERE id=$1`, courseID).Scan(&now)
+		// Analytics property only: the visibility change is already committed, so a failed read is logged.
+		if err := s.pool.QueryRow(ctx, `SELECT visibility::text FROM courses WHERE id=$1`, courseID).Scan(&now); err != nil {
+			slog.WarnContext(ctx, "visibility read for analytics failed", "error", err)
+		}
 		s.emit(owner, "course_visibility_changed", map[string]any{"course_id": courseID, "from": "public", "to": now})
 	}
 	return nil

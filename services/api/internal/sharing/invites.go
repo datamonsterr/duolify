@@ -438,7 +438,10 @@ func (s *Service) RevokeInvite(ctx context.Context, actor, id string) (InviteOut
 
 func (s *Service) inviteCourse(ctx context.Context, id string) string {
 	var c string
-	_ = s.pool.QueryRow(ctx, `SELECT course_id::text FROM course_invites WHERE id=$1::uuid`, id).Scan(&c)
+	// Analytics property only: the decline is already committed, so a failed lookup is logged.
+	if err := s.pool.QueryRow(ctx, `SELECT course_id::text FROM course_invites WHERE id=$1::uuid`, id).Scan(&c); err != nil {
+		slog.WarnContext(ctx, "invite course lookup failed", "error", err)
+	}
 	return c
 }
 

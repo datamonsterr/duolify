@@ -84,7 +84,11 @@ func (s *Service) ServeCoursesListHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var activeCourseID string
-	_ = s.opts.Pool.QueryRow(r.Context(), `SELECT COALESCE(active_course_id::text, '') FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(&activeCourseID)
+	// No profile row means no active course; a database failure must not report one as unset.
+	if err := s.opts.Pool.QueryRow(r.Context(), `SELECT COALESCE(active_course_id::text, '') FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(&activeCourseID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		outlineError(w, 503)
+		return
+	}
 
 	var coursesRaw []byte
 	err := s.opts.Pool.QueryRow(r.Context(), `

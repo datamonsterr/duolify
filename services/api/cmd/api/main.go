@@ -250,7 +250,11 @@ func run(ctx context.Context, args []string) (result error) {
 				_ = narrationQueue.Stop(stopCtx)
 			}()
 		}
-		courseService := courses.New(courses.Options{Pool: db.Pool})
+		courseOptions := courses.Options{Pool: db.Pool}
+		if os.Getenv("S3_BUCKET") != "" {
+			courseOptions.Objects = player.NewS3(os.Getenv)
+		}
+		courseService := courses.New(courseOptions)
 		return worker.RunWithAlerts(ctx, db.Pool, logger, workerServices{creditService, courseService}, eval.NewService(db.Pool, catalogue, monitor, events), service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)

@@ -747,14 +747,19 @@ func (s *Service) GetPreview(ctx context.Context, token, viewerID string) (Previ
 	}
 	// Load creator public identity.
 	var creator CreatorInfo
-	_ = s.pool.QueryRow(ctx, `SELECT COALESCE(lu.username,''), COALESCE(l.display_name,'')
+	// A missing owner row is an anonymous creator; a database failure must not publish a blank one.
+	if err = s.pool.QueryRow(ctx, `SELECT COALESCE(lu.username,''), COALESCE(l.display_name,'')
 		FROM learners l
 		LEFT JOIN learner_usernames lu ON lu.learner_id=l.id
 		WHERE l.id=$1::uuid`, ownerID).
-		Scan(&creator.Username, &creator.DisplayName)
+		Scan(&creator.Username, &creator.DisplayName); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return PreviewPayload{}, err
+	}
 	// Load enrollment count (aggregate only).
 	var enrollmentCount int
-	_ = s.pool.QueryRow(ctx, `SELECT count(*) FROM course_copies WHERE source_course_id=$1`, courseID).Scan(&enrollmentCount)
+	if err = s.pool.QueryRow(ctx, `SELECT count(*) FROM course_copies WHERE source_course_id=$1`, courseID).Scan(&enrollmentCount); err != nil {
+		return PreviewPayload{}, err
+	}
 
 	payload := BuildPreviewPayload(snap, draft, creator, enrollmentCount)
 
@@ -900,7 +905,8 @@ expires_at=CASE WHEN publication_preview_limits.expires_at<=now() THEN now()+$2:
 	if err != nil {
 		return err
 	}
-	// Opportunistic purge keeps the table bounded without a worker.
+	// Opportunistic purge keeps the table bounded without a worker; a failure only delays cleanup
+	// (the limiter below ignores expired rows), so it is intentionally ignored.
 	_, _ = s.pool.Exec(ctx, `DELETE FROM publication_preview_limits WHERE expires_at<now()-interval '1 hour'`)
 	if count > s.cfg.PreviewRateLimitPerIP {
 		return ErrRateLimited

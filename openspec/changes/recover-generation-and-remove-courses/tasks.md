@@ -7,3 +7,4 @@
 - [ ] 1.6 Add analytics allowlist and safe properties for `ui_recovery_selected` in `services/api/internal/analytics/analytics.go` and client analytics.
 - [ ] 1.7 Update client creation step persistence and restoration across Brief, Preview, Outline and Create, and add course removal dialog to courses catalog.
 - [ ] 1.8 Verify data inventory, backup fixtures, engine evals, and run focused mise tasks.
+- [x] 1.9 Delete stored generated-lesson objects of purged courses through the `course_object_purges` ledger (`courses.SweepPurgedObjects`, run by the daily purge job) and make soft delete plus active-course reset atomic.

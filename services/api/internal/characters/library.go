@@ -159,6 +159,7 @@ func (s *Service) Edit(ctx context.Context, owner, id string, in EditRequest) (R
 	}
 	reject := func(reason string) (Record, error) {
 		reason = boundedReason(reason)
+		// Best effort: the caller already receives the rejection; the screening row is audit detail.
 		_, _ = s.pool.Exec(ctx, `UPDATE character_screenings SET verdict='rejected',reason_code=$2 WHERE id=$1`, op, reason)
 		s.emit(ctx, owner, "character_rejected", map[string]any{"operation": "manual_edit", "reason_code": reason})
 		return Record{}, errors.New(reason)

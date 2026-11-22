@@ -354,11 +354,13 @@ func (s *Service) CheckAndTriggerAlerts(ctx context.Context) ([]AlertResult, err
 
 	// 1. Platform daily budget check (from credit_cost_counters or operational aggregates)
 	var spentNanos int64
-	_ = s.pool.QueryRow(ctx, `
+	if err := s.scanOptional(ctx, `
 		SELECT COALESCE(spent_nanos, 0)
 		FROM credit_cost_counters
 		WHERE scope = 'platform' AND owner_reference = 'platform' AND day = $1::date
-	`, todayStr).Scan(&spentNanos)
+	`, &spentNanos, todayStr); err != nil {
+		return nil, err
+	}
 
 	spentUSD := float64(spentNanos) / 1e9
 	budgetRes := EvaluatePlatformBudget(spentUSD, cfg)
@@ -377,7 +379,10 @@ func (s *Service) CheckAndTriggerAlerts(ctx context.Context) ([]AlertResult, err
 
 	// 2. Operational rates check (fallback rate & error rate from eval_operational_aggregates)
 	totals, err := s.queries.GetOverallAggregateTotals(ctx, dateVal)
-	if err == nil && totals.TotalCalls > 0 {
+	if err != nil {
+		return nil, err
+	}
+	if totals.TotalCalls > 0 {
 		if EvaluateRate(totals.FallbackCalls, totals.TotalCalls, cfg.FallbackRateThreshold) {
 			key := DedupeKey("fallback_rate", now, cfg.AlertWindowMinutes)
 			rate := float64(totals.FallbackCalls) / float64(totals.TotalCalls)
@@ -414,19 +419,23 @@ func (s *Service) CheckAndTriggerAlerts(ctx context.Context) ([]AlertResult, err
 
 	// 5. Seven-day learner cost increase (+20%)
 	var priorAvgNanos, currentAvgNanos float64
-	_ = s.pool.QueryRow(ctx, `
+	if err := s.scanOptional(ctx, `
 		SELECT
 			COALESCE(AVG(spent_nanos), 0)
 		FROM credit_cost_counters
 		WHERE scope = 'learner' AND day >= ($1::date - interval '14 days') AND day < ($1::date - interval '7 days')
-	`, todayStr).Scan(&priorAvgNanos)
+	`, &priorAvgNanos, todayStr); err != nil {
+		return nil, err
+	}
 
-	_ = s.pool.QueryRow(ctx, `
+	if err := s.scanOptional(ctx, `
 		SELECT
 			COALESCE(AVG(spent_nanos), 0)
 		FROM credit_cost_counters
 		WHERE scope = 'learner' AND day >= ($1::date - interval '7 days') AND day <= $1::date
-	`, todayStr).Scan(&currentAvgNanos)
+	`, &currentAvgNanos, todayStr); err != nil {
+		return nil, err
+	}
 
 	if priorAvgNanos > 0 {
 		priorAvgUSD := priorAvgNanos / 1e9
@@ -473,10 +482,11 @@ func (s *Service) fireOrDedupe(ctx context.Context, scope, alertKey string, actu
 	}
 	if err != nil {
 		// History is best effort: enforcement and counters must still fire.
+		// Do not cache the key: the next run must retry the insert instead of waiting out the window.
 		slog.ErrorContext(ctx, "record alert history failed", "scope", scope, "error", err)
+	} else {
+		s.dedupe[alertKey] = time.Now().Add(60 * time.Minute)
 	}
-
-	s.dedupe[alertKey] = time.Now().Add(60 * time.Minute)
 
 	// Emit to monitor (independent server operational counter)
 	if s.monitor != nil {
@@ -497,6 +507,16 @@ func (s *Service) fireOrDedupe(ctx context.Context, scope, alertKey string, actu
 	}
 }
 
+// scanOptional scans one row into dest; a missing row leaves dest at its zero value (nothing recorded
+// yet), while any other error is returned so a failed read never looks like zero spend.
+func (s *Service) scanOptional(ctx context.Context, query string, dest any, args ...any) error {
+	err := s.pool.QueryRow(ctx, query, args...).Scan(dest)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	return err
+}
+
 // GetDashboards computes and returns both the reliability and cost dashboards.
 func (s *Service) GetDashboards(ctx context.Context) (Dashboards, error) {
 	now := time.Now().UTC()
@@ -506,7 +526,10 @@ func (s *Service) GetDashboards(ctx context.Context) (Dashboards, error) {
 	cfg, _ := s.LoadAlertConfig(ctx)
 
 	// Aggregate metrics
-	totals, _ := s.queries.GetOverallAggregateTotals(ctx, dateVal)
+	totals, err := s.queries.GetOverallAggregateTotals(ctx, dateVal)
+	if err != nil {
+		return Dashboards{}, err
+	}
 
 	var fallbackRate, errorRate float64
 	if totals.TotalCalls > 0 {
@@ -547,11 +570,13 @@ func (s *Service) GetDashboards(ctx context.Context) (Dashboards, error) {
 
 	// Platform spend
 	var spentNanos int64
-	_ = s.pool.QueryRow(ctx, `
+	if err := s.scanOptional(ctx, `
 		SELECT COALESCE(spent_nanos, 0)
 		FROM credit_cost_counters
 		WHERE scope = 'platform' AND owner_reference = 'platform' AND day = $1::date
-	`, todayStr).Scan(&spentNanos)
+	`, &spentNanos, todayStr); err != nil {
+		return Dashboards{}, err
+	}
 
 	spentUSD := float64(spentNanos) / 1e9
 	if spentUSD == 0 && totals.CostNanos > 0 {
@@ -579,11 +604,13 @@ func (s *Service) GetDashboards(ctx context.Context) (Dashboards, error) {
 
 	// Active learners
 	var activeLearners int64
-	_ = s.pool.QueryRow(ctx, `
+	if err := s.scanOptional(ctx, `
 		SELECT COUNT(DISTINCT owner_reference)
 		FROM credit_cost_counters
 		WHERE scope = 'learner' AND day = $1::date AND spent_nanos > 0
-	`, todayStr).Scan(&activeLearners)
+	`, &activeLearners, todayStr); err != nil {
+		return Dashboards{}, err
+	}
 
 	return Dashboards{
 		Reliability: ReliabilityDashboard{
@@ -729,6 +756,7 @@ func respondJSON(w http.ResponseWriter, code int, v any) {
 
 func floatToNumeric(f float64) pgtype.Numeric {
 	var num pgtype.Numeric
+	// A "%.4f" rendering of a float always parses; a failure would leave an invalid (NULL) numeric, which the NOT NULL columns reject loudly.
 	_ = num.Scan(fmt.Sprintf("%.4f", f))
 	return num
 }
