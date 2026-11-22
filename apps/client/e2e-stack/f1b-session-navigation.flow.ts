@@ -1,4 +1,4 @@
-import { expect, signUp, test, uniqueEmail } from "./stack";
+import { expect, signUp, skipOnboarding, test, uniqueEmail } from "./stack";
 
 test.use({ flowId: "F1b" });
 
@@ -12,13 +12,16 @@ test(
     },
   },
   async ({ page, flow }) => {
-    await signUp(page, uniqueEmail("f1b"));
+    await signUp(page, uniqueEmail("f1b"), undefined, undefined, {
+      keepOnboarding: true,
+    });
     await expect(
       page
         .getByRole("status")
         .filter({ hasText: /^\+\d[\d,]* Credits · daily check-in/ }),
     ).toBeVisible();
     await flow.step("first daily check-in toast");
+    await skipOnboarding(page);
     await page.getByRole("link", { name: "Learn" }).first().click();
     // A learner with no courses gets the empty Courses state, not a fixture course.
     await expect(

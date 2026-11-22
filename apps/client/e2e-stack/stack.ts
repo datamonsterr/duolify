@@ -179,12 +179,31 @@ export async function grantCredits(
   return true;
 }
 
-/** Email-code sign-up through the real UI; ends signed in. Returns the learner id. */
+/**
+ * First-run welcome and tour (openspec first-run-onboarding-tour): a fresh learner who signs
+ * up without a deep link lands on Learn behind the welcome, then the tour. Both block clicks
+ * by design; this dismisses them the way a learner would ("Skip for now", then Escape).
+ */
+export async function skipOnboarding(page: Page): Promise<void> {
+  await expect(page.getByTestId("onboarding-welcome")).toBeVisible();
+  await page.getByRole("button", { name: "Skip for now", exact: true }).click();
+  const tour = page.getByTestId("onboarding-tour");
+  await expect(tour).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(tour).toHaveCount(0);
+}
+
+/**
+ * Email-code sign-up through the real UI; ends signed in. Returns the learner id. Without
+ * `returnTo` the learner lands on Learn and the first-run welcome and tour are skipped
+ * unless `keepOnboarding` is set (F14 goes through them).
+ */
 export async function signUp(
   page: Page,
   email: string,
   flow?: Flow,
   returnTo?: string,
+  { keepOnboarding = false }: { keepOnboarding?: boolean } = {},
 ): Promise<string> {
   // Observe (not intercept) the first /v1/me the app makes after verifying the code.
   const me = page.waitForResponse(
@@ -209,6 +228,7 @@ export async function signUp(
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).not.toHaveURL(/\/sign-in/, { timeout: 15_000 });
   const { id } = (await (await me).json()) as { id: string };
+  if (!returnTo && !keepOnboarding) await skipOnboarding(page);
   return id;
 }
 
