@@ -289,6 +289,7 @@ func (s *Service) requestCode(w http.ResponseWriter, r *http.Request) {
 	}
 	if err = s.mail.SendCode(ctx, in.Email, code); err != nil {
 		// Preserve the code and attempt count after transient mail failure; allow retry.
+		// Best effort: if this fails the learner just waits out the normal resend cooldown.
 		_, _ = s.pool.Exec(ctx, "UPDATE auth_codes SET last_sent_at=now()-interval '60 seconds' WHERE email=$1 AND code_hash=$2", in.Email, hash)
 		failure(w, err)
 		return

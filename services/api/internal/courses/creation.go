@@ -331,6 +331,7 @@ func (s *Service) RunCreation(ctx context.Context, id string) error {
 	defer func() {
 		unlock, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 		defer cancel()
+		// Best effort: the lock is session-scoped and dropped when the connection is released.
 		_, _ = conn.Exec(unlock, `SELECT pg_advisory_unlock(hashtextextended($1,202))`, id)
 	}()
 	var owner, quoteID, state, reservation string

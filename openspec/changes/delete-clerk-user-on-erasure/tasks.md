@@ -5,7 +5,7 @@
 
 ## 2. Implementation
 
-- [x] 2.1 Migration `20261122140000_clerk_user_deletion_queue.sql`.
+- [x] 2.1 Migration `20261122150000_clerk_user_deletion_queue.sql`.
 - [x] 2.2 `clerk_deletion.go` (deleter, eraser, queue), erasure and tombstone replay, River job `clerk_user_deletion`, worker wiring in `cmd/api`.
 - [x] 2.3 Nonproduction backups purge the table; `docs/data-inventory.md`, ADR 0016 note, `.env.example` comment.
 

@@ -435,6 +435,7 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID, voice string,
 			return err
 		}
 		defer func() {
+			// Best effort: the lock is session-scoped and dropped when the connection is released.
 			_, _ = conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock(hashtextextended($1,0))`, "narration:"+hash)
 		}()
 	}

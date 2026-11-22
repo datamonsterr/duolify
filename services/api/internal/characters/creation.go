@@ -121,7 +121,10 @@ func (s *Service) creationConfig(ctx context.Context) (pricing.Config, pricing.Q
 	}
 	if !s.creation.allowUnapprovedPricing || !isDevOrTest {
 		var reviewer string
-		_ = s.pool.QueryRow(ctx, "SELECT coalesce((SELECT reviewed_by FROM pricing_drafts WHERE version=$1 AND status='approved'),'')", c.Version).Scan(&reviewer)
+		// An unreadable reviewer fails closed: creation stays disabled rather than passing on an empty reviewer.
+		if err = s.pool.QueryRow(ctx, "SELECT coalesce((SELECT reviewed_by FROM pricing_drafts WHERE version=$1 AND status='approved'),'')", c.Version).Scan(&reviewer); err != nil {
+			return c, p, errCreationDisabled
+		}
 		if pricing.CheckCharacterCreateDecision(c, reviewer, os.Getenv("PRICING_OWNER_ID")) != nil {
 			return c, p, errCreationDisabled
 		}

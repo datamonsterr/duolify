@@ -67,6 +67,8 @@ type Catalogue interface{ Config() pricing.Config }
 
 // Options wires the platform-funded assistant; forms need only Postgres.
 type Options struct {
+	// Objects deletes stored lesson objects of purged Courses; nil leaves them (retried once set).
+	Objects       ObjectStore
 	OutlineEngine interface {
 		GenerateCourseOutline(context.Context, *enginev1.GenerateCourseOutlineRequest) (*enginev1.GenerateCourseOutlineResponse, error)
 	}

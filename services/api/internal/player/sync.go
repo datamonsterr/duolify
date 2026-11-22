@@ -201,7 +201,11 @@ func (s *Service) sync(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	// Read canonical position
 	var p Position
-	_ = s.opts.Pool.QueryRow(ctx, `SELECT version, slide_id, time_ms FROM lesson_playback_positions WHERE learner_id::text=$1 AND lesson_id::text=$2`, owner, lesson).Scan(&p.Version, &p.SlideID, &p.TimeMS)
+	// The sync is committed; a failed read-back must not report the zero position as canonical.
+	if err := s.opts.Pool.QueryRow(ctx, `SELECT version, slide_id, time_ms FROM lesson_playback_positions WHERE learner_id::text=$1 AND lesson_id::text=$2`, owner, lesson).Scan(&p.Version, &p.SlideID, &p.TimeMS); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		failure(w, http.StatusServiceUnavailable)
+		return
+	}
 
 	respond(w, http.StatusOK, map[string]any{
 		"synced":        true,

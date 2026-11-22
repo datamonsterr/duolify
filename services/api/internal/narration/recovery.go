@@ -188,6 +188,7 @@ func (s *Service) RegenerateMissing(ctx context.Context) (int, error) {
 			break // the requests stay queued until the next cycle or a larger plan
 		} else if err != nil {
 			s.opts.Logger.Warn("narration regeneration failed", "id", j.id, "code", failureCode(err))
+			// Best effort: the request stays 'requested' if this fails and is retried next cycle.
 			_, _ = s.opts.Pool.Exec(ctx, `UPDATE narration_regenerations SET status='failed',failure_code=$2,completed_at=now() WHERE id::text=$1`, j.id, failureCode(err))
 			continue
 		}

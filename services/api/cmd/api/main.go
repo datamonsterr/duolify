@@ -250,7 +250,11 @@ func run(ctx context.Context, args []string) (result error) {
 				_ = narrationQueue.Stop(stopCtx)
 			}()
 		}
-		courseService := courses.New(courses.Options{Pool: db.Pool})
+		courseOptions := courses.Options{Pool: db.Pool}
+		if os.Getenv("S3_BUCKET") != "" {
+			courseOptions.Objects = player.NewS3(os.Getenv)
+		}
+		courseService := courses.New(courseOptions)
 		clerkDeleter, err := accounts.ClerkUserDeleterFromEnv(os.Getenv)
 		if err != nil {
 			return err

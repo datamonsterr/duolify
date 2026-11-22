@@ -9,4 +9,4 @@ Follow-up from `clerk-sso-sign-in` (ADR 0016, task 4.3). Erasing a Duolify accou
 - **Behaviour:** The learner's request never waits on Clerk. Local erasure never depends on Clerk. With no `CLERK_SECRET_KEY` the job is not scheduled and Clerk is never called; queued requests wait until Clerk is configured.
 - **Data and backup:** New table `clerk_user_deletion_requests` (Clerk user id, request time, attempts, last attempt). It holds no learner id, is emptied from nonproduction backups, and rows are deleted once Clerk confirms. Data inventory updated.
 - **Analytics:** none. **AI / Engine / proto:** none.
-- **Migration:** `20261122140000_clerk_user_deletion_queue.sql`.
+- **Migration:** `20261122150000_clerk_user_deletion_queue.sql`.
