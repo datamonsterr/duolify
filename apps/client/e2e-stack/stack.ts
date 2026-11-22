@@ -112,6 +112,22 @@ export const test = base.extend<FlowOptions & { flow: Flow }>({
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
     let n = 0;
+    // The stack serves the web client through Caddy with the production Content-Security-Policy, so every
+    // flow doubles as a policy check: a blocked script, frame, image or request fails the flow.
+    const violations: string[] = [];
+    page.on("console", (message) => {
+      const text = message.text();
+      if (
+        /Content Security Policy|Refused to (execute|load|connect|apply|frame|create)/i.test(
+          text,
+        ) &&
+        // A slide that nests its own <meta> CSP in <body>: ignored by the browser, not a violation.
+        !/delivered via a <meta> element outside the document's <head>/.test(
+          text,
+        )
+      )
+        violations.push(text);
+    });
     await provide({
       id: flowId,
       defect: (description) =>
@@ -127,6 +143,7 @@ export const test = base.extend<FlowOptions & { flow: Flow }>({
         });
       },
     });
+    expect(violations, "Content-Security-Policy violations").toEqual([]);
   },
 });
 export { expect };

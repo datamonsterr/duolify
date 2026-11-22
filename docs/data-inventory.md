@@ -905,6 +905,10 @@ Account erasure and the 30-day Course purge use one mechanism for private object
 | Authored example course objects | `lessons/examples/<slug>/v<N>/` | Shared, authored in Git, not learner data | Never purged: outside `lessons/published/` and `lessons/generated/`, rewritten byte for byte from the repository at enrollment and API start, and in the protected asset backup |
 | Backup bucket dumps and protected asset copies | separate backup bucket | Operator | 14-day (general) and 35-day (financial) classes; `account-deletions/` and `moderation-blocks/` ledgers are never expired. Unchanged |
 
+### First-run welcome and tour
+
+`learner_profiles.welcome_state` and `tour_state` hold only `pending|skipped|completed` (no history or learner text). Existing profiles are exempt at migration; new profiles default pending. Authenticated `GET/PATCH /v1/me/onboarding` uses learner ownership and monotonic acknowledgments. Full-row account export includes both; account deletion and restore tombstones cascade the profile. The enum columns are explicitly registered safe in the backup anonymizer and enter nightly encrypted general dumps with 14-day retention. A learner-scoped localStorage cache/outbox (`duolify.onboarding.v1:<UUID>`) holds the same enums plus dirty-field names for offline retry, is expendable and is not backed up. A single-use topic handoff remains only in sessionStorage until consumed by the existing course brief. No new model calls are introduced. PostHog receives only the closed event/step/path/source enums documented in the first-run-onboarding-tour change, through the existing consent gate.
+
 ## Daily check-in Credits (ADR 0020)
 
 `credit_check_ins`: Learner UUID, local date, IANA time zone, attendance time, frozen next-midnight time, granted amount and first-time flag. Indexed unique Learner/date; exported with the account and erased by account cascade/tombstone replay. Included in encrypted backups and restore registry; no content or email.

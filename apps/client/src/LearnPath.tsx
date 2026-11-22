@@ -208,7 +208,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
   return (
     <>
       <div className="eyebrow">{t("path.title")}</div>
-      <h1>
+      <h1 data-tour="path">
         <bdi>{course.title}</bdi>
       </h1>
       <p dir="auto">{course.description}</p>

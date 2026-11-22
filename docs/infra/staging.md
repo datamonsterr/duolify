@@ -26,6 +26,10 @@ Staging runs the [production overlay](selfhost.md#production-overlay-hel1) on on
 - `/opt/duolify/infra/deploy/site.d/` holds `tls.caddy`, `origin.pem`, `origin.key` and `origin-ca.pem`.
 - Both host names are served by the one Caddy site. The web client is on `/` and the API on `/v1` (SSE unbuffered). `PUBLIC_ORIGIN` is `https://staging.duolify.online`.
 
+## Security headers
+
+Caddy sends them on the web host and the API host names; see [selfhost.md](selfhost.md#security-headers) and ADR 0022. The asset host (`LESSON_ASSET_ORIGIN`, R2 custom domain) needs its own response headers in Cloudflare: the table in selfhost.md lists them. `deploy.sh` smoke fails the deploy when the proxy's headers are wrong.
+
 ## Runtime settings (names only)
 
 - `DUOLIFY_ENV=staging`. Every check outside `development` and `test` is fail-closed.

@@ -118,7 +118,16 @@ describe("controlled playback clock", () => {
       </QueryClientProvider>,
     );
     const oldFrame = (await screen.findByTitle("Slide 1")) as HTMLIFrameElement;
-    fireEvent.load(oldFrame);
+    // The slide frame reports "document_loaded" once the host page has written the slide (SandboxFrame).
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          source: oldFrame.contentWindow,
+          origin: "null",
+          data: { type: "document_loaded" },
+        }),
+      );
+    });
     const oldWindow = oldFrame.contentWindow;
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
     const viewed = () =>
