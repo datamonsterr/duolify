@@ -16,6 +16,7 @@ var settingsFields = map[string]bool{
 	"captions": true, "text_size": true, "ui_sounds": true, "haptics": true,
 	"locale": true, "time_zone": true, "daily_minutes": true, "daily_xp": true,
 	"reminder_enabled": true, "reminder_time": true, "analytics_opt_out": true,
+	"fullscreen_on_rotate": true, "autoplay": true, "auto_send_after_dictation": true,
 }
 
 // LearnerSettings contains only non-content preferences returned by the settings API.
@@ -36,6 +37,10 @@ type LearnerSettings struct {
 	TextSize        float64 `json:"text_size"`
 	UISounds        bool    `json:"ui_sounds"`
 	Haptics         string  `json:"haptics"`
+
+	FullscreenOnRotate     bool `json:"fullscreen_on_rotate"`
+	Autoplay               bool `json:"autoplay"`
+	AutoSendAfterDictation bool `json:"auto_send_after_dictation"`
 }
 
 func profileContextField(name string) bool {

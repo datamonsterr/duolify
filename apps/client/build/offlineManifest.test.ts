@@ -32,6 +32,15 @@ describe("offline manifest", () => {
       imports: ["assets/vendor.js", "assets/playback.js"],
     }),
     "assets/playback.js": chunk("assets/playback.js"),
+    "assets/ImmersiveUi.js": chunk("assets/ImmersiveUi.js", {
+      isDynamicEntry: true,
+      facadeModuleId: "/x/src/features/lesson-player/immersive/ImmersiveUi.tsx",
+      imports: ["assets/vendor.js"],
+      viteMetadata: {
+        importedCss: new Set(["assets/ImmersiveUi.css"]),
+        importedAssets: new Set(),
+      },
+    }),
     "assets/Marketplace.js": chunk("assets/Marketplace.js", {
       isDynamicEntry: true,
       facadeModuleId: "/x/src/features/sharing/MarketplacePage.tsx",
@@ -59,6 +68,8 @@ describe("offline manifest", () => {
   it("lists the lesson chunks, not already in the shell, as the offline set", () => {
     const { offline } = buildOfflineManifest(bundle);
     expect(offline.sort()).toEqual([
+      "/assets/ImmersiveUi.css",
+      "/assets/ImmersiveUi.js",
       "/assets/LessonPlayer.js",
       "/assets/playback.js",
     ]);

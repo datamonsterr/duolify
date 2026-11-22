@@ -109,7 +109,8 @@ func allowlisted(event string) bool {
 		"course_invite_sent", "course_invite_accepted", "course_invite_declined",
 		"course_republished", "course_update_applied", "review_submitted", "review_deleted", "course_reported", "course_hidden_by_reports",
 		"moderation_action", "moderation_appeal",
-		"narration_generated", "narration_failed", "narration_cache_hit", "narration_budget_exhausted", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled":
+		"narration_generated", "narration_failed", "narration_cache_hit", "narration_budget_exhausted", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled",
+		"immersive_mode_entered", "immersive_mode_exited", "immersive_control_used":
 		return true
 	default:
 		return false
@@ -601,6 +602,24 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "captions_toggled":
 		ids("lesson_id", "slide_id")
 		boolean("captions")
+	case "immersive_mode_entered", "immersive_mode_exited", "immersive_control_used":
+		// Closed enums and ids only (immersive-mobile-lesson-player analytics spec).
+		enum := func(key string, allowed ...string) {
+			if v, ok := input[key].(string); ok && slices.Contains(allowed, v) {
+				out[key] = v
+			}
+		}
+		if event == "immersive_control_used" {
+			enum("control", "play", "pause", "previous", "next", "replay_slide", "autoplay_on", "autoplay_off", "speed", "captions", "narration", "slide_list", "bookmark", "lock", "unlock")
+			enum("via", "button", "double_tap", "swipe", "keyboard")
+		} else {
+			ids("course_id", "lesson_id")
+			numeric("slide_index")
+			enum("trigger", "control", "rotation", "back", "escape")
+			if event == "immersive_mode_exited" {
+				enum("seconds_in_mode", "lt_10", "10_30", "30_120", "120_600", "gt_600")
+			}
+		}
 	case "$ai_generation":
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
 		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available", "usage_estimated")

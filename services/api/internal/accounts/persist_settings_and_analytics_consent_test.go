@@ -15,7 +15,9 @@ func TestSettingsPatchValidation(t *testing.T) {
 		{`{"appearance":"dark","motion":"reduce","narration":true,"narration_speed":1.25,"captions":true,"text_size":1.2,"ui_sounds":false,"haptics":"system"}`, true},
 		{`{"appearance":"neon"}`, false}, {`{"motion":"fast"}`, false},
 		{`{"narration_speed":8}`, false}, {`{"text_size":0.5}`, false},
-		{`{"haptics":"always"}`, false}, {`{"analytics_opt_out":true}`, true},
+		{`{"haptics":"always"}`, false},
+		{`{"fullscreen_on_rotate":false,"autoplay":false,"auto_send_after_dictation":false}`, true},
+		{`{"fullscreen_on_rotate":"yes"}`, false}, {`{"autoplay":null}`, false}, {`{"auto_send_after_dictation":1}`, false}, {`{"analytics_opt_out":true}`, true},
 	} {
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal([]byte(tc.body), &fields); err != nil {
