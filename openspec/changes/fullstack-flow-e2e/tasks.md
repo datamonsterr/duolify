@@ -19,3 +19,10 @@
 - [x] 4.3 F5 retry variant, F6 tutor, F7 notes and bookmarks, F8 progress, F9 credits, F10 settings, F11 account data, F12 friends
 - [x] 4.4 Mocked e2e: offline Learn home with no active course shows the error state
 - [ ] 4.5 Add `playwright-stack` to `ci-ok` after two consecutive green CI runs
+
+## 5. Round 3
+- [x] 5.1 Worker keeps the application object-store key (generated lessons were never published); deploy-plan test
+- [x] 5.2 F2-F8 un-fixme'd: preview and lesson generation failures are hard failures
+- [x] 5.3 F13 free example course for a new learner
+- [x] 5.4 Shell right rail reads the real wallet and streak; F8 and F9 assert it
+- [ ] 5.5 F1d daily check-in (PR #300) and F14 welcome and tour (PR #311) once merged
