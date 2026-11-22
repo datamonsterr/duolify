@@ -31,7 +31,7 @@ type fakeEngine struct {
 func (*fakeEngine) Health(context.Context, *enginev1.HealthRequest) (*enginev1.HealthResponse, error) {
 	return &enginev1.HealthResponse{Version: "test"}, nil
 }
-func (*fakeEngine) PreviewCourse(ctx context.Context, req *enginev1.PreviewCourseRequest) (*enginev1.PreviewCourseResponse, error) {
+func (*fakeEngine) PreviewCourse(_ context.Context, req *enginev1.PreviewCourseRequest) (*enginev1.PreviewCourseResponse, error) {
 	if req.GetTopic() == "fail" {
 		return nil, status.Error(codes.Unavailable, "private diagnostic")
 	}
