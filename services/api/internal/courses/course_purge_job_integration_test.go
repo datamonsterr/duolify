@@ -1,6 +1,6 @@
 //go:build integration
 
-package worker_test
+package courses_test
 
 import (
 	"testing"
