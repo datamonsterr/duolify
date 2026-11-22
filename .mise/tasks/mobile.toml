@@ -12,7 +12,11 @@ export VITE_API_URL="${VITE_API_URL:-https://staging-api.duolify.online}"
 export VITE_SSO_BRIDGE_URL="${VITE_SSO_BRIDGE_URL:-https://staging.duolify.online}"
 export VITE_MOBILE_PLATFORM=android
 mise run client:android-init
-pnpm tauri android build --ci --debug --apk --target x86_64
+if [ "${MOBILE_E2E:-}" = 1 ]; then
+  pnpm tauri android build --ci --debug --apk --target x86_64 --config src-tauri/tauri.android-e2e.conf.json
+else
+  pnpm tauri android build --ci --debug --apk --target x86_64
+fi
 '''
 
 ["client:ios-build"]
@@ -68,7 +72,21 @@ set -eu
 apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*debug*.apk' -print -quit)
 test -n "$apk"
 adb install -r "$apk"
-exec mise run client:mobile-test -- maestro/launch.yaml
+adb reverse tcp:18471 tcp:18471
+adb logcat -c
+mise run client:mobile-test -- maestro/launch.yaml
+export MOBILE_EMAIL="mobile-${GITHUB_RUN_ID:-local}@example.test"
+maestro test --test-output-dir mobile-screens -e "EMAIL=$MOBILE_EMAIL" maestro/android-request-code.yaml
+code=$(bash ../../infra/e2e/stack.sh code "$MOBILE_EMAIL" | tail -n 1)
+test -n "$code"
+maestro test --test-output-dir mobile-screens -e "CODE=$code" maestro/android-sign-in.yaml
+adb shell input keyevent 111
+maestro test --test-output-dir mobile-screens maestro/android-lesson.yaml
+adb logcat -d > mobile-screens/android-logcat.txt
+if grep -Ei 'CONSOLE.*(Content Security Policy|Refused to (execute|load|connect|frame)|Uncaught (Error|TypeError|ReferenceError))' mobile-screens/android-logcat.txt; then
+  echo "WebView reported a CSP or JavaScript error" >&2
+  exit 1
+fi
 '''
 
 ["client:ios-device-test"]
@@ -84,3 +102,7 @@ test -n "$app"
 xcrun simctl install "$udid" "$app"
 exec mise run client:mobile-test -- maestro/launch.yaml
 '''
+
+["client:android-free-disk"]
+description = "Free runner space while preserving the Android SDK"
+run = "sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL"

@@ -1,0 +1,16 @@
+appId: app.duolify.client
+androidWebViewHierarchy: devtools
+---
+- launchApp:
+    clearState: true
+- takeScreenshot: sign-in-welcome
+- tapOn: Get started
+- takeScreenshot: sign-in-form
+- tapOn: Email address
+- inputText: ${EMAIL}
+- takeScreenshot: sign-in-email
+- tapOn: I am 16 or older
+- takeScreenshot: sign-in-age
+- tapOn: Send code
+- assertVisible: One-time code
+- takeScreenshot: sign-in-code-requested

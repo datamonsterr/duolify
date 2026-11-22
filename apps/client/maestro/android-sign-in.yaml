@@ -1,0 +1,13 @@
+appId: app.duolify.client
+androidWebViewHierarchy: devtools
+---
+- tapOn: One-time code
+- inputText: ${CODE}
+- takeScreenshot: sign-in-code
+- tapOn: Sign in
+- assertVisible: ".*400 Credits.*daily check-in.*"
+- takeScreenshot: first-check-in
+- assertVisible: Skip for now
+- takeScreenshot: onboarding-welcome
+- tapOn: Skip for now
+- takeScreenshot: onboarding-tour

@@ -1,0 +1,22 @@
+# Bootstrap the dispatch entry point on main so a later release-pipeline branch
+# can be exercised before it is merged. This placeholder cannot publish.
+name: release
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build artifacts without publishing
+        type: boolean
+        default: true
+      test_missing_signing:
+        description: Exercise the missing-signing-secrets failure path
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  unavailable:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    steps:
+      - run: mise tasks
