@@ -61,13 +61,16 @@ func (s *Service) proposalEvent(ctx context.Context, owner, event, id string, re
 		return
 	}
 	var optout bool
-	if s.opts.Pool.QueryRow(ctx, "SELECT analytics_opt_out FROM learner_profiles WHERE learner_id::text=$1", owner).Scan(&optout) != nil || optout {
+	if s.opts.Pool.QueryRow(ctx, "SELECT analytics_opt_out FROM learner_profiles WHERE learner_id=$1::uuid", owner).Scan(&optout) != nil || optout {
 		return
 	}
 	_ = s.opts.Events.Capture(owner, event, map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "proposal_id": id, "base_revision": rev})
 }
 func (s *Service) readProposal(ctx context.Context, owner, id, quoteID string) (OutlineProposal, error) {
-	p, err := scanProposal(s.opts.Pool.QueryRow(ctx, `SELECT `+proposalColumns+` FROM outline_proposals p JOIN outline_drafts d ON d.id=p.draft_id JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE p.learner_id::text=$1 AND (p.id::text=$2 OR ($2='' AND p.quote_id::text=$3)) AND b.expires_at>now()`, owner, id, quoteID))
+	if !validIDs(owner) || (id != "" && !validIDs(id)) || (quoteID != "" && !validIDs(quoteID)) {
+		return OutlineProposal{}, pgx.ErrNoRows
+	}
+	p, err := scanProposal(s.opts.Pool.QueryRow(ctx, `SELECT `+proposalColumns+` FROM outline_proposals p JOIN outline_drafts d ON d.id=p.draft_id JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE p.learner_id=$1::uuid AND (p.id=NULLIF($2::text,'')::uuid OR ($2::text='' AND p.quote_id=NULLIF($3::text,'')::uuid)) AND b.expires_at>now()`, owner, id, quoteID))
 	return p, err
 }
 
@@ -194,7 +197,7 @@ func (s *Service) generateProposal(w http.ResponseWriter, r *http.Request, owner
 	job, err := s.opts.Financial.ReserveAction(r.Context(), owner, in.QuoteID, "outline_chat_change")
 	if err != nil {
 		var failedID string
-		e := s.opts.Pool.QueryRow(r.Context(), `UPDATE outline_proposals SET state='failed' WHERE id::text=$1 AND state='pending' RETURNING id::text`, p.ID).Scan(&failedID)
+		e := s.opts.Pool.QueryRow(r.Context(), `UPDATE outline_proposals SET state='failed' WHERE id=$1::uuid AND state='pending' RETURNING id::text`, p.ID).Scan(&failedID)
 		if e != nil && !errors.Is(e, pgx.ErrNoRows) {
 			outlineError(w, 503)
 			return
@@ -262,7 +265,7 @@ func (s *Service) generateProposal(w http.ResponseWriter, r *http.Request, owner
 	ops, _ := json.Marshal(p.Operations)
 	out, _ := json.Marshal(result)
 	usage, _ := json.Marshal(attempts)
-	tag, err := s.opts.Pool.Exec(finishCtx, "UPDATE outline_proposals SET operations=$2,result_outline=$3,attempts=$4,state='validated' WHERE id::text=$1 AND state='pending'", p.ID, ops, out, usage)
+	tag, err := s.opts.Pool.Exec(finishCtx, "UPDATE outline_proposals SET operations=$2,result_outline=$3,attempts=$4,state='validated' WHERE id=$1::uuid AND state='pending'", p.ID, ops, out, usage)
 	if err != nil {
 		outlineError(w, 503)
 		return
@@ -298,7 +301,7 @@ func (s *Service) deliverProposal(ctx context.Context, owner string, p OutlinePr
 	}
 	var job string
 	var raw []byte
-	if err := s.opts.Pool.QueryRow(ctx, `SELECT j.id::text,p.attempts FROM outline_proposals p JOIN credit_jobs j ON j.quote_id=p.quote_id WHERE p.id::text=$1 AND p.learner_id::text=$2`, p.ID, owner).Scan(&job, &raw); err != nil {
+	if err := s.opts.Pool.QueryRow(ctx, `SELECT j.id::text,p.attempts FROM outline_proposals p JOIN credit_jobs j ON j.quote_id=p.quote_id WHERE p.id=$1::uuid AND p.learner_id=$2::uuid`, p.ID, owner).Scan(&job, &raw); err != nil {
 		return p, err
 	}
 	var attempts []*enginev1.Usage
@@ -312,7 +315,7 @@ func (s *Service) deliverProposal(ctx context.Context, owner string, p OutlinePr
 		if r.State != "settled" {
 			target = "failed"
 		}
-		tag, err := tx.Exec(ctx, `UPDATE outline_proposals SET state=$2 WHERE id::text=$1 AND state='validated'`, p.ID, target)
+		tag, err := tx.Exec(ctx, `UPDATE outline_proposals SET state=$2 WHERE id=$1::uuid AND state='validated'`, p.ID, target)
 		if err != nil {
 			return err
 		}
@@ -362,7 +365,7 @@ func (s *Service) failProposal(ctx context.Context, owner, id, expected, job str
 	}
 	changed := false
 	transition := func(tx pgx.Tx, _ credits.Reservation) error {
-		tag, err := tx.Exec(ctx, `UPDATE outline_proposals SET state='failed' WHERE id::text=$1 AND state=$2`, id, expected)
+		tag, err := tx.Exec(ctx, `UPDATE outline_proposals SET state='failed' WHERE id=$1::uuid AND state=$2`, id, expected)
 		if err != nil {
 			return err
 		}
@@ -379,7 +382,7 @@ func (s *Service) failProposal(ctx context.Context, owner, id, expected, job str
 		}
 		if errors.Is(err, errStateLost) {
 			var state string
-			e := s.opts.Pool.QueryRow(ctx, `SELECT state FROM outline_proposals WHERE id::text=$1`, id).Scan(&state)
+			e := s.opts.Pool.QueryRow(ctx, `SELECT state FROM outline_proposals WHERE id=$1::uuid`, id).Scan(&state)
 			if errors.Is(e, pgx.ErrNoRows) {
 				return nil
 			}
@@ -415,7 +418,7 @@ func (s *Service) failProposal(ctx context.Context, owner, id, expected, job str
 		}
 	}
 	var rev int64
-	if err := s.opts.Pool.QueryRow(ctx, `SELECT base_revision FROM outline_proposals WHERE id::text=$1`, id).Scan(&rev); err != nil {
+	if err := s.opts.Pool.QueryRow(ctx, `SELECT base_revision FROM outline_proposals WHERE id=$1::uuid`, id).Scan(&rev); err != nil {
 		return err
 	}
 	s.proposalEvent(ctx, owner, "outline_proposal_failed", id, rev)
@@ -423,6 +426,10 @@ func (s *Service) failProposal(ctx context.Context, owner, id, expected, job str
 }
 
 func (s *Service) decideProposal(w http.ResponseWriter, r *http.Request, owner, id, action string) {
+	if !validIDs(id) {
+		outlineError(w, 404)
+		return
+	}
 	ctx := r.Context()
 	tx, err := s.opts.Pool.Begin(ctx)
 	if err != nil {
@@ -430,19 +437,19 @@ func (s *Service) decideProposal(w http.ResponseWriter, r *http.Request, owner, 
 		return
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	p, err := scanProposal(tx.QueryRow(ctx, `SELECT `+proposalColumns+` FROM outline_proposals p WHERE p.id::text=$1 AND p.learner_id::text=$2 FOR UPDATE`, id, owner))
+	p, err := scanProposal(tx.QueryRow(ctx, `SELECT `+proposalColumns+` FROM outline_proposals p WHERE p.id=$1::uuid AND p.learner_id=$2::uuid FOR UPDATE`, id, owner))
 	if err != nil {
 		outlineError(w, 404)
 		return
 	}
-	d, err := scanOutline(tx.QueryRow(ctx, `SELECT `+outlineColumns+` FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id::text=$1 AND d.learner_id::text=$2 AND b.expires_at>now() FOR UPDATE OF d`, p.DraftID, owner))
+	d, err := scanOutline(tx.QueryRow(ctx, `SELECT `+outlineColumns+` FROM outline_drafts d JOIN course_brief_revisions b ON b.id=d.brief_revision WHERE d.id=$1::uuid AND d.learner_id=$2::uuid AND b.expires_at>now() FOR UPDATE OF d`, p.DraftID, owner))
 	if err != nil {
 		outlineError(w, 404)
 		return
 	}
 	var base, result, decisionRaw []byte
 	var applied *int64
-	if tx.QueryRow(ctx, "SELECT base_outline,result_outline,applied_revision,decision_draft FROM outline_proposals WHERE id::text=$1", id).Scan(&base, &result, &applied, &decisionRaw) != nil {
+	if tx.QueryRow(ctx, "SELECT base_outline,result_outline,applied_revision,decision_draft FROM outline_proposals WHERE id=$1::uuid", id).Scan(&base, &result, &applied, &decisionRaw) != nil {
 		outlineError(w, 503)
 		return
 	}
@@ -480,13 +487,13 @@ func (s *Service) decideProposal(w http.ResponseWriter, r *http.Request, owner, 
 		d.Confirmed = nil
 		raw, _ := json.Marshal(d.Outline)
 		history, _ := json.Marshal(d.History)
-		if _, err = tx.Exec(ctx, "UPDATE outline_drafts SET outline=$2,history=$3,revision=$4,confirmed=NULL,updated_at=now() WHERE id::text=$1", d.ID, raw, history, d.Revision); err != nil {
+		if _, err = tx.Exec(ctx, "UPDATE outline_drafts SET outline=$2,history=$3,revision=$4,confirmed=NULL,updated_at=now() WHERE id=$1::uuid", d.ID, raw, history, d.Revision); err != nil {
 			outlineError(w, 503)
 			return
 		}
 	}
 	saved, _ := json.Marshal(d)
-	if _, err = tx.Exec(ctx, "UPDATE outline_proposals SET decision=$2,applied_revision=CASE WHEN $2='applied' THEN $3 ELSE applied_revision END,decision_draft=$4 WHERE id::text=$1", id, p.Decision, d.Revision, saved); err != nil || tx.Commit(ctx) != nil {
+	if _, err = tx.Exec(ctx, "UPDATE outline_proposals SET decision=$2,applied_revision=CASE WHEN $2='applied' THEN $3 ELSE applied_revision END,decision_draft=$4 WHERE id=$1::uuid", id, p.Decision, d.Revision, saved); err != nil || tx.Commit(ctx) != nil {
 		outlineError(w, 503)
 		return
 	}
