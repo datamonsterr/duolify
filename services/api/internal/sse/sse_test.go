@@ -45,8 +45,7 @@ func TestHeartbeatExtendsServerWriteDeadline(t *testing.T) {
 	srv.Config.WriteTimeout = 300 * time.Millisecond
 	srv.Start()
 	defer srv.Close()
-	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL, nil)
-	resp, err := srv.Client().Do(req)
+	resp, err := get(t, srv.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,4 +54,74 @@ func TestHeartbeatExtendsServerWriteDeadline(t *testing.T) {
 	if !strings.Contains(string(body), "event: done") {
 		t.Fatalf("stream cut by WriteTimeout, got %q", body)
 	}
+}
+
+// Event writes extend the deadline too, not only heartbeats: a handler that streams real events
+// (and no heartbeat) for longer than the server WriteTimeout must stay open.
+func TestExtendKeepsStreamOpenOnPlainEventWrites(t *testing.T) {
+	t.Setenv("SSE_HEARTBEAT_INTERVAL", "100ms")
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		for range 10 {
+			Extend(w)
+			if _, err := w.Write([]byte("event: x\n\n")); err != nil {
+				return
+			}
+			_ = http.NewResponseController(w).Flush()
+			time.Sleep(100 * time.Millisecond)
+		}
+		Extend(w)
+		_, _ = w.Write([]byte("event: done\n\n"))
+	}))
+	srv.Config.WriteTimeout = 300 * time.Millisecond
+	srv.Start()
+	defer srv.Close()
+	resp, err := get(t, srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "event: done") {
+		t.Fatalf("stream cut by WriteTimeout, got %q", body)
+	}
+}
+
+// A stalled client is still cut: the deadline moves out by a bounded amount, it is not disabled.
+func TestExtendIsBounded(t *testing.T) {
+	t.Setenv("SSE_HEARTBEAT_INTERVAL", "50ms")
+	cut := make(chan struct{}, 1)
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		Extend(w)
+		chunk := make([]byte, 1<<20)
+		for {
+			if _, err := w.Write(chunk); err != nil {
+				cut <- struct{}{}
+				return
+			}
+			_ = http.NewResponseController(w).Flush()
+		}
+	}))
+	srv.Config.WriteTimeout = time.Minute
+	srv.Start()
+	defer srv.Close()
+	resp, err := get(t, srv.URL) // never read the body: the client stalls
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	select {
+	case <-cut:
+	case <-time.After(5 * time.Second):
+		t.Fatal("stalled client was never disconnected")
+	}
+}
+
+func get(t *testing.T, url string) (*http.Response, error) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return http.DefaultClient.Do(req)
 }

@@ -48,7 +48,7 @@ const creationAPI: CreationService = {
   async watch(id, onStage, signal) {
     const tokens = await secureStore.read();
     const response = await fetch(
-      `${import.meta.env.VITE_API_URL || "http://localhost:8080"}/v1/course-creations/${encodeURIComponent(id)}/events`,
+      `${import.meta.env.VITE_API_URL ?? "http://localhost:8080"}/v1/course-creations/${encodeURIComponent(id)}/events`,
       {
         headers: { Authorization: `Bearer ${tokens?.access_token ?? ""}` },
         signal,

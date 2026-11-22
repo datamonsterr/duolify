@@ -944,6 +944,7 @@ func (s *Service) handleGeneration(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) streamGenerationEvents(w http.ResponseWriter, r *http.Request, owner, id string) {
+	sse.Extend(w)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
@@ -965,6 +966,7 @@ func (s *Service) streamGenerationEvents(w http.ResponseWriter, r *http.Request,
 
 		if state != previous {
 			data, _ := json.Marshal(map[string]any{"id": id, "state": state})
+			sse.Extend(w)
 			if _, err = fmt.Fprintf(w, "event: stage\ndata: %s\n\n", data); err != nil {
 				return
 			}

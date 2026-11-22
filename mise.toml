@@ -18,6 +18,7 @@ hadolint = "2.15"
 lefthook = "2"
 railway = "5"
 k6 = "2"
+hcloud = "1.70"
 uv = "0.13"
 
 [env]

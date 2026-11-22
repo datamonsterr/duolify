@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"math"
@@ -287,6 +288,25 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		http.NotFound(w, r)
 	})
 	mux.Handle("/v1/lessons/", lessonMux)
+	// Public, short-lived SSE probe: proves a reverse proxy streams without buffering.
+	mux.HandleFunc("GET /v1/stream-check", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Accel-Buffering", "no")
+		controller := http.NewResponseController(w)
+		for seq := 1; seq <= 2; seq++ {
+			if seq > 1 {
+				select {
+				case <-r.Context().Done():
+					return
+				case <-time.After(2 * time.Second):
+				}
+			}
+			if _, err := fmt.Fprintf(w, "event: ping\ndata: {\"seq\":%d}\n\n", seq); err != nil || controller.Flush() != nil {
+				return
+			}
+		}
+	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -511,7 +531,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		public := false
 		if r.Method == http.MethodGet {
 			switch r.URL.Path {
-			case "/healthz", "/readyz", "/v1/pricing", "/v1/features", "/v1/courses/shared-demo", "/v1/characters/default-cast":
+			case "/healthz", "/readyz", "/v1/pricing", "/v1/features", "/v1/courses/shared-demo", "/v1/characters/default-cast", "/v1/stream-check":
 				public = true
 			}
 		}

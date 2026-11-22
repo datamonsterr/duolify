@@ -42,7 +42,7 @@ export type PublishResult =
   | { kind: "published"; link: LinkCreated; version: number; lessons: number }
   | { kind: "blocked"; verdict: PublicationDraft["verdict"] };
 
-const apiBase = import.meta.env.VITE_API_URL || "http://localhost:8080";
+const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 const root = (course: string) => `/v1/courses/${course}/share-link`;
 
 /** The actor always comes from the session; the server decides ownership. */

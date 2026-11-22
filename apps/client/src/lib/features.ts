@@ -31,7 +31,7 @@ export function isLessonTestTracerEnabled(): boolean {
 export async function fetchLessonTestTracerEnabled(): Promise<boolean> {
   if (overrideFlag !== null) return overrideFlag;
   try {
-    const base = import.meta.env.VITE_API_URL || "http://localhost:8080";
+    const base = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
     const res = await fetch(`${base}/v1/features`);
     if (res.ok) {
       const data = (await res.json()) as {
@@ -74,7 +74,7 @@ let marketplaceFlag: Promise<boolean> | null = null;
 export function fetchMarketplaceEnabled(): Promise<boolean> {
   marketplaceFlag ??= (async () => {
     try {
-      const base = import.meta.env.VITE_API_URL || "http://localhost:8080";
+      const base = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
       const res = await fetch(`${base}/v1/features`);
       if (!res.ok) return false;
       const data = (await res.json()) as { marketplace_enabled?: unknown };

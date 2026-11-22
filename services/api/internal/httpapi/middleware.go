@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // RequestID returns the server-generated correlation ID.
@@ -32,6 +33,17 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 func (w *responseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// configuredOrigin reports whether the operator listed origin (exact match) in
+// API_ALLOWED_ORIGINS, e.g. the public URL of a self-hosted web client.
+func configuredOrigin(origin string) bool {
+	for _, allowed := range strings.Split(os.Getenv("API_ALLOWED_ORIGINS"), ",") {
+		if strings.TrimSpace(allowed) == origin {
+			return true
+		}
+	}
+	return false
+}
 
 // Middleware adds correlation, JSON access logs, panic recovery and a fixed Tauri allowlist.
 func Middleware(logger *slog.Logger, next http.Handler, monitors ...*telemetry.Monitor) http.Handler {
@@ -64,7 +76,7 @@ func Middleware(logger *slog.Logger, next http.Handler, monitors ...*telemetry.M
 		origin := r.Header.Get("Origin")
 		rw.Header().Add("Vary", "Origin")
 		if origin != "" {
-			allowed := origin == "tauri://localhost" || origin == "http://tauri.localhost" || origin == "https://tauri.localhost" || (os.Getenv("DUOLIFY_ENV") == "development" && (origin == "http://localhost:1420" || origin == "http://127.0.0.1:1420"))
+			allowed := origin == "tauri://localhost" || origin == "http://tauri.localhost" || origin == "https://tauri.localhost" || (os.Getenv("DUOLIFY_ENV") == "development" && (origin == "http://localhost:1420" || origin == "http://127.0.0.1:1420")) || configuredOrigin(origin)
 			if allowed {
 				rw.Header().Set("Access-Control-Allow-Origin", origin)
 				rw.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")

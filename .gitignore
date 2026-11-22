@@ -1,4 +1,5 @@
 # Env & secrets
+infra/deploy/secrets/
 .env
 .env.*
 !.env.example

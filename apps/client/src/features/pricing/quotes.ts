@@ -14,7 +14,7 @@ export type ActionQuote = {
   input?: { model: string; voice?: string };
   rate?: { model: string };
 };
-const base = import.meta.env.VITE_API_URL || "http://localhost:8080";
+const base = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 async function request<T>(path: string, body: unknown): Promise<T> {
   const tokens = await secureStore.read();
   const response = await fetch(base + path, {

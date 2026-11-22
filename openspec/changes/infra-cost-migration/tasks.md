@@ -2,12 +2,9 @@
 
 - [ ] 1.1 Owner: create the Hetzner and Cloudflare accounts. Report Railway Postgres `wal_level`, the role's REPLICATION attribute, the service region and TCP-proxy reachability from Helsinki. Record the provisional plan A/plan B choice (human).
 - [x] 1.4 Owner: choose the backup/DR location and the privacy-notice wording. Decided 2026-11-17 (#251): Hetzner Object Storage in Falkenstein or Nuremberg; no Contabo copy; the notice states EU storage (app in Finland, backups in Germany, served through Cloudflare).
-- [x] 1.2 Add `mise run infra:pg-replication-check`, which:
-  - lists tables without a PK or replica identity, any large objects and all sequences;
-  - reports publisher/subscriber LSN lag;
-  - has integration tests against two compose Postgres instances.
+- [~] 1.2 Dropped (owner decision D1, 2026-11-22: nothing to migrate from Railway, Duolify deploys fresh on Hetzner). The logical-replication check was not merged.
 - [x] 1.3 Add `mise run infra:load-baseline` (k6 1k-DAU read mix, public and authenticated, plus a 10-minute Tutor chat SSE stream through the API with a mock Engine behind it; heartbeat gap must stay under 25 s). Record the Railway baseline in `docs/infra/baseline.md`: server-side p95, plus client-side p95 from a Southeast Asian vantage point.
-- [x] 1.5 Extend `infra:pg-replication-check` with `--compare`: row counts per table and a checksum sample between two databases (plan B verify step).
+- [~] 1.5 Dropped with 1.2 (D1).
 
 ## 2. Edge
 
@@ -26,6 +23,7 @@
 
 ## 4. Prod stack and deploy
 
+- [x] 4.0 Portable self-hosted stack (`infra/deploy`, `infra:selfhost-*`): one-command compose stack with a Caddy edge, generated secrets, local encrypted backups and a restore drill; CI `selfhost` job runs smoke, backup and restore drill. WAL archiving, the DR copy and the VM deploy job stay in 4.4.
 - [ ] 4.1 e2e: the HTTP e2e suite runs against the `infra/deploy` overlay (S3 endpoint from env, Postgres with WAL archiving) in CI.
 - [ ] 4.2 Integration: the restore drill does PITR from WAL archive plus dump on a throwaway Postgres. A test proves the Redis key families rebuild from Postgres.
 - [ ] 4.3 Unit: `infra:deploy-plan` rejects a public Engine port, a transaction pooler, a missing backup env or a missing DR-copy job.

@@ -168,10 +168,9 @@ func TestDeployWorkflowPolicy(t *testing.T) {
 
 	deployWorkflowText := string(content)
 
-	// Verify runner is Namespace runner, NEVER ubuntu-latest
-	if !strings.Contains(deployWorkflowText, "runs-on: namespace-profile-datamonster01") &&
-		!strings.Contains(deployWorkflowText, "runs-on: namespace-profile-linux-xl") {
-		t.Fatal("deploy job must run on a namespace-profile runner")
+	// Verify runner is the pinned GitHub-hosted image, NEVER ubuntu-latest
+	if !strings.Contains(deployWorkflowText, "runs-on: ubuntu-24.04") {
+		t.Fatal("deploy job must run on ubuntu-24.04")
 	}
 	if strings.Contains(deployWorkflowText, "ubuntu-latest") {
 		t.Fatal("deploy job must never use ubuntu-latest")
@@ -193,7 +192,7 @@ func TestDeployWorkflowPolicy(t *testing.T) {
 name: deploy-prod
 jobs:
   deploy:
-    runs-on: namespace-profile-datamonster01
+    runs-on: ubuntu-24.04
     environment: prod
     steps:
       - run: railway config apply

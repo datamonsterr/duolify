@@ -191,7 +191,7 @@ export async function* parseSse(
   }
 }
 
-const base = import.meta.env.VITE_API_URL || "http://localhost:8080";
+const base = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 const course = (id: string) => `/v1/courses/${encodeURIComponent(id)}/tutor`;
 function asApiError(error: unknown): never {
   if (error instanceof AuthError) {
