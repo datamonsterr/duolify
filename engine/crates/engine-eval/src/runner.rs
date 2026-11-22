@@ -1996,77 +1996,92 @@ impl Runner {
             let mut errors = Vec::new();
             let mut critical_failed = false;
 
-            let (mut input_tokens, mut output_tokens, mut case_cost_usd) =
-                if self.provider_name != "mock" || self.custom_router.is_some() {
-                    let (in_tok, out_tok, cost) = if let Some(c) = &primary_completion {
-                        if c.usage_unavailable {
-                            errors.push(
-                                "usage_unavailable: provider usage missing or unmeasured".into(),
+            let (mut input_tokens, mut output_tokens, mut case_cost_usd) = if self.provider_name
+                != "mock"
+                || self.custom_router.is_some()
+            {
+                let (in_tok, out_tok, cost) = if let Some(c) = &primary_completion {
+                    if c.usage_unavailable {
+                        errors
+                            .push("usage_unavailable: provider usage missing or unmeasured".into());
+                        critical_failed = true;
+                    }
+                    // A failed or timed-out attempt with unknown usage cannot be priced: it
+                    // would count as $0 and let the run look inside budget.
+                    if !c.usage_unavailable && _attempts.iter().any(|a| a.usage_unavailable) {
+                        errors.push(
+                                "usage_unavailable: an earlier attempt's usage is unknown, so the case cost is unmeasured".into(),
                             );
-                            critical_failed = true;
-                        }
-                        // Failed attempts are billed too, so price every attempt when known.
-                        let cost = if _attempts.is_empty() {
-                            price_table.cost_usd(c)
-                        } else {
-                            _attempts
-                                .iter()
-                                .map(|a| price_table.attempt_cost_usd(a))
-                                .sum()
-                        };
-                        (c.input_tokens, c.output_tokens, cost)
+                        critical_failed = true;
+                    }
+                    // Failed attempts are billed too, so price every attempt when known.
+                    let cost = if _attempts.is_empty() {
+                        price_table.cost_usd(c)
                     } else {
-                        // Undelivered attempts are billed too.
-                        let cost = _attempts
+                        _attempts
                             .iter()
                             .map(|a| price_table.attempt_cost_usd(a))
-                            .sum();
-                        (0, 0, cost)
+                            .sum()
                     };
-                    (in_tok, out_tok, cost)
-                } else if self.budget_usd.is_none()
-                    && case.input.get("cost_usd").is_none()
-                    && case.input.get("cost_nanos").is_none()
-                {
-                    (0, 0, 0.0)
-                } else if let Some(cost) = case.input.get("cost_usd").and_then(|v| v.as_f64()) {
-                    (100, 50, cost)
-                } else if let Some(nanos) = case.input.get("cost_nanos").and_then(|v| v.as_f64()) {
-                    (100, 50, nanos / 1_000_000_000.0)
+                    (c.input_tokens, c.output_tokens, cost)
                 } else {
-                    let in_tok = case
-                        .input
-                        .get("recorded")
-                        .and_then(|r| r.get(0))
-                        .and_then(|c| c.get("input_tokens"))
-                        .and_then(|n| n.as_u64())
-                        .map(|n| n as u32)
-                        .unwrap_or_else(|| (case.input.to_string().len() / 4).max(1) as u32);
-                    let out_tok = case
-                        .input
-                        .get("recorded")
-                        .and_then(|r| r.get(0))
-                        .and_then(|c| c.get("output_tokens"))
-                        .and_then(|n| n.as_u64())
-                        .map(|n| n as u32)
-                        .unwrap_or_else(|| (response_text.len() / 4).max(1) as u32);
-
-                    let in_nanos = case
-                        .input
-                        .get("limits")
-                        .and_then(|l| l.get("input_nanos"))
-                        .and_then(|n| n.as_u64())
-                        .unwrap_or(2000);
-                    let out_nanos = case
-                        .input
-                        .get("limits")
-                        .and_then(|l| l.get("output_nanos"))
-                        .and_then(|n| n.as_u64())
-                        .unwrap_or(10000);
-
-                    let cost_nanos = (in_tok as u64 * in_nanos) + (out_tok as u64 * out_nanos);
-                    (in_tok, out_tok, cost_nanos as f64 / 1_000_000_000.0)
+                    if _attempts.iter().any(|a| a.usage_unavailable) {
+                        errors.push(
+                                "usage_unavailable: an undelivered attempt's usage is unknown, so the case cost is unmeasured".into(),
+                            );
+                        critical_failed = true;
+                    }
+                    // Undelivered attempts are billed too.
+                    let cost = _attempts
+                        .iter()
+                        .map(|a| price_table.attempt_cost_usd(a))
+                        .sum();
+                    (0, 0, cost)
                 };
+                (in_tok, out_tok, cost)
+            } else if self.budget_usd.is_none()
+                && case.input.get("cost_usd").is_none()
+                && case.input.get("cost_nanos").is_none()
+            {
+                (0, 0, 0.0)
+            } else if let Some(cost) = case.input.get("cost_usd").and_then(|v| v.as_f64()) {
+                (100, 50, cost)
+            } else if let Some(nanos) = case.input.get("cost_nanos").and_then(|v| v.as_f64()) {
+                (100, 50, nanos / 1_000_000_000.0)
+            } else {
+                let in_tok = case
+                    .input
+                    .get("recorded")
+                    .and_then(|r| r.get(0))
+                    .and_then(|c| c.get("input_tokens"))
+                    .and_then(|n| n.as_u64())
+                    .map(|n| n as u32)
+                    .unwrap_or_else(|| (case.input.to_string().len() / 4).max(1) as u32);
+                let out_tok = case
+                    .input
+                    .get("recorded")
+                    .and_then(|r| r.get(0))
+                    .and_then(|c| c.get("output_tokens"))
+                    .and_then(|n| n.as_u64())
+                    .map(|n| n as u32)
+                    .unwrap_or_else(|| (response_text.len() / 4).max(1) as u32);
+
+                let in_nanos = case
+                    .input
+                    .get("limits")
+                    .and_then(|l| l.get("input_nanos"))
+                    .and_then(|n| n.as_u64())
+                    .unwrap_or(2000);
+                let out_nanos = case
+                    .input
+                    .get("limits")
+                    .and_then(|l| l.get("output_nanos"))
+                    .and_then(|n| n.as_u64())
+                    .unwrap_or(10000);
+
+                let cost_nanos = (in_tok as u64 * in_nanos) + (out_tok as u64 * out_nanos);
+                (in_tok, out_tok, cost_nanos as f64 / 1_000_000_000.0)
+            };
 
             for check in &case.checks {
                 let valid = match check.kind.as_str() {

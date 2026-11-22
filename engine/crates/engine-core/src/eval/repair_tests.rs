@@ -258,6 +258,42 @@ async fn lesson_generation_overrides_the_task_format_with_the_lesson_schema() {
 }
 
 #[test]
+fn same_order_variant_with_a_wrong_index_is_rotated_onto_the_source_answer() {
+    // Review F5: the rotation must follow the source's correct text, not the variant's index.
+    let lesson = serde_json::json!({
+        "test": [{"question_id": "q", "choices": ["A view over an array", "A copy of an array"], "answer_index": 0}],
+        "variant_pool": [{"topic_id": "t", "variants": [{"question_id": "q-v", "variant_of": "q",
+            "choices": ["A view over an array", "A copy of an array"], "answer_index": 1}]}]
+    })
+    .to_string();
+    let fixed: serde_json::Value =
+        serde_json::from_str(&crate::lessontest::prepare_lesson(&lesson).unwrap()).unwrap();
+    let variant = &fixed["variant_pool"][0]["variants"][0];
+    let at = variant["answer_index"].as_u64().unwrap() as usize;
+    assert_eq!(variant["choices"][at], "A view over an array");
+    assert_ne!(
+        variant["choices"][0], "A view over an array",
+        "order must change"
+    );
+}
+
+#[test]
+fn malformed_variant_pools_are_left_for_validation_without_panicking() {
+    // Review F6: primitive pool or variant entries must not hit panicking `Value` indexing.
+    for pool in [
+        serde_json::json!([1]),
+        serde_json::json!(["x"]),
+        serde_json::json!([[1]]),
+        serde_json::json!([{"variants": 3}]),
+        serde_json::json!([{"variants": [7, "y", null]}]),
+    ] {
+        let lesson = serde_json::json!({"test": [], "variant_pool": pool}).to_string();
+        let prepared = std::panic::catch_unwind(|| crate::lessontest::prepare_lesson(&lesson));
+        assert!(prepared.is_ok(), "panicked on {pool}");
+    }
+}
+
+#[test]
 fn same_order_variant_is_rotated_and_then_validates() {
     let q = |id: &str, extra: serde_json::Value| {
         let mut v = serde_json::json!({"question_id": id, "topic_id": "t",

@@ -362,8 +362,19 @@ pub fn prepare_lesson(text: &str) -> Option<String> {
             })
             .collect();
     let mut changed = false;
-    for pool in v["variant_pool"].as_array_mut().into_iter().flatten() {
-        for var in pool["variants"].as_array_mut().into_iter().flatten() {
+    // Provider JSON is unvalidated here: only non-panicking accessors (`get_mut`), so a
+    // malformed pool is left for `validate_lesson` to reject.
+    let pools = v
+        .get_mut("variant_pool")
+        .and_then(serde_json::Value::as_array_mut);
+    for pool in pools.into_iter().flatten() {
+        let variants = pool
+            .get_mut("variants")
+            .and_then(serde_json::Value::as_array_mut);
+        for var in variants.into_iter().flatten() {
+            if !var.is_object() {
+                continue;
+            }
             let Some((source, correct)) = var["variant_of"].as_str().and_then(|id| sources.get(id))
             else {
                 continue;
@@ -390,10 +401,17 @@ pub fn prepare_lesson(text: &str) -> Option<String> {
             if &var["choices"] != source {
                 continue;
             }
-            let choices: Vec<String> = serde_json::from_value(var["choices"].clone()).ok()?;
-            let index = var["answer_index"]
-                .as_u64()
-                .and_then(|i| u32::try_from(i).ok())?;
+            let Ok(choices) = serde_json::from_value::<Vec<String>>(var["choices"].clone()) else {
+                continue;
+            };
+            // Rotate around the source's correct text, whatever index the variant claimed.
+            let Some(index) = choices
+                .iter()
+                .position(|c| correct == c)
+                .and_then(|i| u32::try_from(i).ok())
+            else {
+                continue;
+            };
             if let Ok((rotated, new_index)) = reorder_choices(&choices, index) {
                 var["choices"] = serde_json::json!(rotated);
                 var["answer_index"] = serde_json::json!(new_index);

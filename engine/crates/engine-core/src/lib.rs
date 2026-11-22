@@ -195,10 +195,12 @@ impl ProviderRouter {
     }
     pub async fn complete(&self, task: &str, input: &str) -> Result<Completion> {
         let model = self.models.tasks.get(task).context("unknown task")?;
+        // An empty answer (null content with measured usage) is a failure here: use the fallback.
         if let Ok(value) = self
             .primary
             .complete_route(&model.primary_route(), input, 4096)
             .await
+            && !value.text.is_empty()
         {
             return Ok(value);
         }
