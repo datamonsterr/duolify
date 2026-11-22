@@ -109,7 +109,7 @@ func ValidateGeneratedLesson(lesson *enginev1.Lesson) error {
 		if strings.TrimSpace(slide.Narration) == "" {
 			return fmt.Errorf("slide %d has empty narration", i)
 		}
-		if !strings.Contains(slide.Html, `<div id="root">`) && !strings.Contains(slide.Html, `<div id='root'>`) {
+		if !validSlideRoot(slide.Html) {
 			return fmt.Errorf("slide %d HTML missing root div element", i)
 		}
 		if strings.Contains(strings.ToLower(slide.Html), "<script") {
