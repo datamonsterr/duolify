@@ -36,7 +36,7 @@ func TestWebSessionRejectsCrossSiteRequests(t *testing.T) {
 		} {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, path, strings.NewReader(`{}`))
 			req.Header.Set(accounts.ClientHeader, accounts.ClientWeb)
-			req.AddCookie(&http.Cookie{Name: accounts.RefreshCookieName, Value: "stolen"})
+			req.Header.Add("Cookie", accounts.RefreshCookieName+"=stolen")
 			for k, v := range headers {
 				req.Header.Set(k, v)
 			}

@@ -265,6 +265,7 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ref := LearnerReference(learner)
+	clerkQueued := false
 	// The external intent is durable first: a failed SQL commit cannot resurrect
 	// this learner on restore. Retrying writes the same immutable object.
 	if s.deletionLedger == nil || s.deletionLedger.Append(ctx, ref) != nil {
@@ -304,6 +305,10 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.Exec(ctx, "INSERT INTO posthog_person_deletion_requests(distinct_id) VALUES($1::uuid) ON CONFLICT DO NOTHING", learner)
 	}
 	if err == nil {
+		// The Clerk user id cascades away with the learner row: queue its deletion first.
+		clerkQueued, err = queueClerkUserDeletion(ctx, tx, learner)
+	}
+	if err == nil {
 		err = s.clearEmailAuthentication(ctx, tx, learner)
 	}
 	if err == nil {
@@ -326,7 +331,7 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		cancel()
 	}
 	clearWebCookie(w, r)
-	respond(w, 200, map[string]any{"deleted": true, "deleted_at": time.Now().UTC(), "posthog_deletion_accepted": posthogAccepted, "retained_financial_reference": ref})
+	respond(w, 200, map[string]any{"deleted": true, "deleted_at": time.Now().UTC(), "posthog_deletion_accepted": posthogAccepted, "clerk_user_deletion_queued": clerkQueued, "retained_financial_reference": ref})
 }
 
 // ApplyDeletionTombstones is called after restoring a database and before its
@@ -393,6 +398,9 @@ func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "INSERT INTO posthog_person_deletion_requests(distinct_id) VALUES($1::uuid) ON CONFLICT DO NOTHING", id); err != nil {
+			return err
+		}
+		if _, err = queueClerkUserDeletion(ctx, tx, id); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "DELETE FROM learners WHERE id=$1::uuid", id); err != nil {

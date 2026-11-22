@@ -82,7 +82,7 @@ func TestPersistWebSession(t *testing.T) {
 			req.Header.Set("Sec-Fetch-Site", o.site)
 		}
 		if o.cookie != "" {
-			req.AddCookie(&http.Cookie{Name: accounts.RefreshCookieName, Value: o.cookie})
+			req.Header.Add("Cookie", accounts.RefreshCookieName+"="+o.cookie)
 		}
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
