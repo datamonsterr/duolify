@@ -815,6 +815,9 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		t.Fatal(err)
 	}
 	creditService := credits.NewServiceWithCatalogue(f.DB.Pool, nil, catalogue, nil)
+	if attendance, err := creditService.CheckInAt(t.Context(), "a1111111-1111-4111-8111-111111111111", time.Time{}); err != nil || attendance.Granted != 400 {
+		t.Fatalf("seed attendance: %+v %v", attendance, err)
+	}
 	for _, action := range []string{"quick_note", "preview"} {
 		input := pricing.QuoteInput{Action: action}
 		if action == "preview" {
@@ -1075,8 +1078,15 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 		t.Fatal(err)
 	}
 	// Four learners: the synthetic learner, the E6-03 friend, the E6-04 blocked row and the E15-04 copy generator. The refunded term's grant is reversed by one compensating ledger entry (E7-10).
-	if version != f.schemaVersion || riverVersions < 1 || learners != 4 || entries != 11 || balance != 104+packCredits+monthlyCredits || name != "Synthetic Learner" {
+	if version != f.schemaVersion || riverVersions < 1 || learners != 4 || entries != 13 || balance != 504+packCredits+monthlyCredits || name != "Synthetic Learner" {
 		t.Fatalf("invalid restored schema/learner/ledger: %d %d %d %d %d %s", version, riverVersions, learners, entries, balance, name)
+	}
+	var attendanceAt time.Time
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT checked_at FROM credit_check_ins WHERE learner_id='a1111111-1111-4111-8111-111111111111'").Scan(&attendanceAt); err != nil {
+		t.Fatal(err)
+	}
+	if attendance, err := credits.NewService(restored.Pool, nil).CheckInAt(t.Context(), "a1111111-1111-4111-8111-111111111111", attendanceAt); err != nil || attendance.Granted != 0 || attendance.CheckedIn {
+		t.Fatalf("restore duplicated attendance: %+v %v", attendance, err)
 	}
 	var pricingVersion string
 	var provenance map[string]any

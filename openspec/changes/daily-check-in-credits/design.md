@@ -1,0 +1,17 @@
+# Design
+
+Owner approval on 2026-11-22 authorizes only daily=150, first_time_bonus=250 and bank_days=7. An approved successor of the merged Hy4 routing catalogue adds `check_in` without changing other commercial terms or quote policy. Historical catalogues remain valid with check-in disabled when absent.
+
+An explicit `POST /v1/me/check-in` performs one indexed Postgres transaction. The existing Learner row and shared financial transaction lock serialize replicas; a `(learner_id, local_date)` unique key records attendance even for zero grants. Distinct `check_in_grant` and `check_in_bonus` ledger kinds share `check_in` provenance. A unique bonus key survives sessions/devices for the account lifetime.
+
+Regular grant = min(150, max(0, 1050 - banked_before)); then add 250 in full exactly once. Banked counts unspent Credits INCLUDING active reservations, so reserving before checking in cannot circumvent the cap. The bonus counts toward subsequent cap calculations; its full grant and later refunds may leave the bank above 1050, in which case further regular grants are zero until spending makes room. A returning Learner at 1049 receives 1; at 1050 receives 0. No Credits expire, get clipped or are retroactively granted.
+
+Eligibility uses the profile's existing delayed effective time zone. Each successful attendance freezes the next midnight instant in that zone; changing zone cannot advance that boundary. At or after it, the current effective zone supplies the local date; a date already attended remains deduplicated. Wait until that zone's next midnight if the date repeats after westward travel. There is no blanket 24-hour cooldown: ordinary midnight and 23/25-hour DST days work. Missing days are never caught up. A zone change cannot create a second check-in inside the already established day window or erase an already earned grant.
+
+Reservation order: eligible expiring Daily free credits, then oldest check-in sources, then oldest eligible subscription/purchase sources as today. Allocation provenance carries through settlement, release and source refunds. Check-in funds every action purchased Credits fund. Paid-debt restrictions remain unchanged.
+
+The response is `{granted: number, first_time: boolean, balance: number, banked_checkin: number, cap: number, next_check_in_at: RFC3339, checked_in: boolean}`. `granted` is the amount newly committed by THIS request; an idempotent retry has zero and `checked_in=false`. A newly recorded capped attendance has `checked_in=true`, amount zero. Client lifecycle calls on authenticated session start, returned boundary, visibility/online recovery; failed/offline calls retry without blocking Learn. Confirmation uses the existing Feedback status component in a fixed overlay, localised, once for a newly recorded attendance. Wallet adds the source within the existing source display.
+
+Attendance state/rows are exported and deleted with the account; append-only grants follow existing pseudonymous seven-year financial retention. Backups include state/dedupe keys; restore classification explicitly covers date/zone data. `check_in_credits_granted` is a transactional outbox event with closed non-PII amount, first_time, banked_after and capped properties and existing consent behavior. No model execution changes, fallbacks or new evals.
+
+Abuse risk: deletion and re-registration creates a new Learner account and a new first-time bonus. No cross-account identity tracking is introduced.

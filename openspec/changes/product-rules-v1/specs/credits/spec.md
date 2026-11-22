@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Append-only ledger
-Credits SHALL be stored as entries in `credit_entries` with learner, amount, kind (`daily_grant`, `purchase`, `subscription_grant`, `spend`, `reserve`, `release`, `refund`, `expire`) and reference. Entries MUST NOT be updated or deleted. Balance MUST be derived from entries and MAY be cached. Daily free credits, purchased Credits and subscription Credits MUST be separable by kind. There MUST be no `reward` kind.
+Credits SHALL be stored as entries in `credit_entries` with learner, amount, kind (`daily_grant`, `check_in_grant`, `check_in_bonus`, `purchase`, `subscription_grant`, `spend`, `reserve`, `release`, `refund`, `expire`) and reference. Entries MUST NOT be updated or deleted. Balance MUST be derived from entries and MAY be cached. Daily free credits, check-in Credits, purchased Credits and subscription Credits MUST be separable by kind. There MUST be no `reward` kind.
 
 #### Scenario: Correction
 - **WHEN** an operator corrects a wrong charge
@@ -47,14 +47,14 @@ Every Learner SHALL receive one Daily free credits grant (kind `daily_grant`) pe
 - **THEN** it settles against them and only the unreserved remainder expires
 
 ### Requirement: Spend order
-The API MUST spend Daily free credits before any other Credits. When a charge exceeds the Daily free credits left, the remainder MUST come from subscription Credits and then purchased Credits, in the order set by the monetization change. Each `reserve`, `spend` and `release` entry MUST reference the kind it draws from.
+The API MUST spend eligible Daily free credits before any other Credits, then check-in Credits, then oldest eligible subscription/purchased sources in the order set by the monetization change. Each `reserve`, `spend` and `release` entry MUST reference the kind it draws from.
 
 #### Scenario: Mixed balances
 - **WHEN** a Learner has Daily free credits and purchased Credits and sends a Tutor chat message
-- **THEN** the Daily free credits are spent first and purchased Credits only for the remainder
+- **THEN** the Daily free credits are spent first, then check-in Credits, and paid sources only for the remainder
 
 ### Requirement: No credit rewards for effort
-The system MUST NOT grant Credits as a reward for effort, including Streak milestones, Friend streak milestones and perfect Lesson tests. Effort is rewarded with XP, badges and Streak freezes.
+The system MUST NOT grant Credits as a reward for effort, including Streak milestones, Friend streak milestones and perfect Lesson tests. Effort is rewarded with XP, badges and Streak freezes. Daily check-in is attendance, not Lesson effort: ADR 0020 explicitly permits separate `check_in_grant` and `check_in_bonus` Credits on authenticated app open. These sources fund all purchased-Credit actions after eligible Daily free credits and before existing oldest eligible paid sources.
 
 #### Scenario: Streak milestone
 - **WHEN** a Streak reaches a milestone

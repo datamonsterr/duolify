@@ -41,7 +41,7 @@ export function WalletView({
   hasMore,
   trackView = true,
 }: WalletViewProps) {
-  const { number } = useUiPreferences();
+  const { number, t } = useUiPreferences();
   useEffect(() => {
     if (trackView) {
       trackScreen("credits");
@@ -203,6 +203,12 @@ export function WalletView({
           </div>
         </div>
       </div>
+
+      {wallet.check_in != null && (
+        <p className="wallet-reset-info">
+          {t("checkin.source")}: {number(wallet.check_in)}
+        </p>
+      )}
 
       {/* Helper Guidance Text */}
       <p className="wallet-reset-info">

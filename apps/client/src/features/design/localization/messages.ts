@@ -43,6 +43,12 @@ const reviewMessages = {
 } satisfies Record<string, Message>;
 export const en = {
   ...reviewMessages,
+  "checkin.granted": "+{amount} Credits · daily check-in",
+  "checkin.full": "Your check-in bank is full",
+  "checkin.balance": "Current balance: {balance} Credits.",
+  "checkin.capped":
+    "Bank cap reached ({cap}). Current balance: {balance} Credits.",
+  "checkin.source": "Check-in Credits",
   "outline.default_goal": "Describe what you learned.",
   "outline.goal_for": "Goal for {name}",
   "outline.goal_error": "Enter a lesson goal.",
@@ -258,7 +264,7 @@ export const en = {
   "tutor.estimate": "{reply} up to {credits} credits",
   "tutor.estimate_loading": "Checking the cost\u2026",
   "tutor.estimate_hint": "Type a question to see its estimate",
-  "tutor.balance": "Daily free {daily} \u00b7 Purchased {paid}",
+  "tutor.balance": "Daily free {daily} \u00b7 Check-in and paid {paid}",
   "tutor.send": "Send",
   "tutor.send_offline": "Send unavailable offline",
   "tutor.stop": "Stop reply",
@@ -404,6 +410,11 @@ export const en = {
 export type MessageId = keyof typeof en;
 export const ar: Record<MessageId, Message> = {
   ...reviewMessages,
+  "checkin.granted": "+{amount} رصيد · تسجيل الحضور اليومي",
+  "checkin.full": "رصيد تسجيل الحضور ممتلئ",
+  "checkin.balance": "الرصيد الحالي: {balance}.",
+  "checkin.capped": "تم بلوغ الحد ({cap}). الرصيد الحالي: {balance}.",
+  "checkin.source": "رصيد تسجيل الحضور",
   "outline.default_goal": "صِف ما تعلمته.",
   "outline.goal_for": "هدف {name}",
   "outline.goal_error": "أدخل هدف الدرس.",
@@ -628,7 +639,7 @@ export const ar: Record<MessageId, Message> = {
   "tutor.estimate": "{reply} بحد أقصى {credits} رصيد",
   "tutor.estimate_loading": "جارٍ التحقق من التكلفة…",
   "tutor.estimate_hint": "اكتب سؤالًا لترى تقديره",
-  "tutor.balance": "المجاني اليومي {daily} · المشتراة {paid}",
+  "tutor.balance": "المجاني اليومي {daily} · الحضور والمدفوع {paid}",
   "tutor.send": "إرسال",
   "tutor.send_offline": "الإرسال غير متاح دون اتصال",
   "tutor.stop": "إيقاف الرد",

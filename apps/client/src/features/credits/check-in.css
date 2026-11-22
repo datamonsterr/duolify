@@ -1,0 +1,8 @@
+.check-in-notice {
+  position: fixed;
+  inset-inline-end: max(1rem, env(safe-area-inset-right));
+  bottom: calc(5rem + env(safe-area-inset-bottom));
+  z-index: 70;
+  width: min(22rem, calc(100vw - 2rem));
+  pointer-events: none;
+}

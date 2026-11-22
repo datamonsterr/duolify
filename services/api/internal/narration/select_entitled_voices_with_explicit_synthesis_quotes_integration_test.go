@@ -189,7 +189,7 @@ func TestSelectEntitledVoicesWithExplicitSynthesisQuotesIntegration(t *testing.T
 	if _, err = h.pool.Exec(ctx, `INSERT INTO credit_entries (learner_id, amount, kind, reference, pricing_version, provenance)
 		SELECT $1, -sum(amount), 'expire', 'drain:'||gen_random_uuid(), '2026.04', jsonb_build_object('bucket', bucket)
 		FROM (SELECT amount, CASE WHEN kind='daily_grant' THEN 'daily_free' WHEN kind='subscription_grant' THEN 'subscription' WHEN kind='purchase' THEN 'purchase' ELSE COALESCE(provenance->>'bucket','purchase') END AS bucket
-			FROM credit_entries WHERE learner_id=$1 AND kind!='reward') e WHERE bucket IN ('purchase','subscription') GROUP BY bucket HAVING sum(amount) > 0`, owner); err != nil {
+			FROM credit_entries WHERE learner_id=$1 AND kind!='reward') e WHERE bucket IN ('purchase','subscription','check_in') GROUP BY bucket HAVING sum(amount) > 0`, owner); err != nil {
 		t.Fatal(err)
 	}
 	spent, calls = h.spent(), h.mock.Calls()
