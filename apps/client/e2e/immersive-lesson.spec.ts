@@ -445,17 +445,26 @@ for (const vp of VIEWPORTS) {
       await enter(page);
       await page.goBack();
       await expect(page.locator(".player.immersive")).toHaveCount(0);
+      await expect
+        .poll(() => page.evaluate(() => !document.fullscreenElement))
+        .toBe(true);
       expect(page.url()).toBe(url);
       expect(await frameState(page)).toMatchObject({ same: true, loads: 0 });
       await enter(page);
       await page.keyboard.press("Escape");
       await expect(page.locator(".player.immersive")).toHaveCount(0);
+      await expect
+        .poll(() => page.evaluate(() => !document.fullscreenElement))
+        .toBe(true);
       expect(page.url()).toBe(url);
       expect(await frameState(page)).toMatchObject({ same: true, loads: 0 });
       // history is not polluted: one back leaves the lesson, not an immersive entry
       await enter(page);
       await page.getByTestId("immersive-exit").click();
       await expect(page.locator(".player.immersive")).toHaveCount(0);
+      await expect
+        .poll(() => page.evaluate(() => !document.fullscreenElement))
+        .toBe(true);
       expect(page.url()).toBe(url);
     });
 

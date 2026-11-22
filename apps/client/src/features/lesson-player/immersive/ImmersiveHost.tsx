@@ -12,6 +12,10 @@ import {
 import { useLatest } from "./useLatest";
 import "./immersive.css";
 
+// history.back() from a finished entry is asynchronous; its popstate must not be read as a
+// back gesture by an immersive session that started in the meantime.
+let ignoredPops = 0;
+
 type Props = {
   trigger: EntryTrigger;
   courseId: string;
@@ -45,7 +49,6 @@ export default function ImmersiveHost({
   useEffect(() => {
     const startedAt = performance.now();
     let pushed = false;
-    let ignorePop = false;
     let sawFullscreen = !!document.fullscreenElement;
     const finish = (r: ExitReason) => exit.current(r);
 
@@ -105,7 +108,10 @@ export default function ImmersiveHost({
     history.pushState({ ...(history.state ?? {}), immersive: true }, "");
     pushed = true;
     const onPop = () => {
-      if (ignorePop) return;
+      if (ignoredPops > 0) {
+        ignoredPops--;
+        return;
+      }
       pushed = false;
       finish("back");
     };
@@ -138,7 +144,7 @@ export default function ImmersiveHost({
         /* never locked */
       }
       if (pushed && history.state?.immersive) {
-        ignorePop = true;
+        ignoredPops++;
         history.back();
       }
       trackImmersive({

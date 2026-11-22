@@ -10,17 +10,23 @@ type FsEl = HTMLElement & {
   webkitRequestFullscreen?: () => Promise<void> | void;
 };
 
+// Leaving can happen while full screen is still being entered; the late grant must not stick.
+let fullscreenWanted = false;
+
 /** Best effort. Must run inside the user's tap; a rejection leaves the CSS-only presentation. */
 export async function requestStageFullscreen(el: HTMLElement | null) {
   if (!el) return false;
+  fullscreenWanted = true;
   try {
     if (el.requestFullscreen) {
       await el.requestFullscreen({ navigationUI: "hide" });
+      if (!fullscreenWanted) exitStageFullscreen();
       return true;
     }
     const w = el as FsEl;
     if (w.webkitRequestFullscreen) {
       await w.webkitRequestFullscreen();
+      if (!fullscreenWanted) exitStageFullscreen();
       return true;
     }
   } catch {
@@ -30,6 +36,7 @@ export async function requestStageFullscreen(el: HTMLElement | null) {
 }
 
 export function exitStageFullscreen() {
+  fullscreenWanted = false;
   const d = document as FsDoc;
   try {
     if (d.fullscreenElement) void document.exitFullscreen();
