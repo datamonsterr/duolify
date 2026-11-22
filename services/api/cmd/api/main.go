@@ -20,6 +20,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	// Embedded zone database: browsers report legacy aliases (Asia/Saigon) that the images'
+	// system tzdata may lack, and credits.Reserve fails closed on an unknown zone.
+	_ "time/tzdata"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"

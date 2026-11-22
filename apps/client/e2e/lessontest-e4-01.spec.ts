@@ -131,17 +131,16 @@ for (const mobile of [false, true]) {
       });
     });
 
-    await page.route(
-      `**/v1/lesson-generations/${generationJobId}/events`,
-      (r) => {
-        lesson1State = "current";
-        return r.fulfill({
-          status: 200,
-          headers: { "Content-Type": "text/event-stream" },
-          body: 'event: stage\ndata: {"state":"generating","stage":"Generating slides"}\n\nevent: stage\ndata: {"state":"completed","stage":"Ready"}\n\n',
-        });
-      },
-    );
+    // Like the API: generation status needs the learner's bearer token.
+    let polls = 0;
+    await page.route(`**/v1/lesson-generations/${generationJobId}**`, (r) => {
+      if (!/^Bearer .+/.test(r.request().headers().authorization ?? ""))
+        return r.fulfill({ status: 401, json: { error: "unauthorized" } });
+      polls++;
+      const state = polls > 1 ? "completed" : "generating";
+      if (state === "completed") lesson1State = "current";
+      return r.fulfill({ json: { id: generationJobId, state } });
+    });
 
     await page.route(`**/v1/lessons/${lesson1Id}`, (r) => {
       return r.fulfill({ json: lessonData });

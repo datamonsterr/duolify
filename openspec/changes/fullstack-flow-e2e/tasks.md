@@ -12,3 +12,10 @@
 ## 3. CI and docs
 - [x] 3.1 Full-tier `playwright-stack` job uploading screenshots and `flows.json`
 - [x] 3.2 docs/ci.md and apps/client/README.md
+
+## 4. Core loop and more flows
+- [x] 4.1 Pricing approval stays with the owner: no harness approval; preview failures report `pricing not approved on target`
+- [x] 4.2 F2-F8 written: F2-F4 wait on owner-approved pricing (PR #304); F3-F8, `fixme` on the engine mock-mode lesson defect
+- [x] 4.3 F5 retry variant, F6 tutor, F7 notes and bookmarks, F8 progress, F9 credits, F10 settings, F11 account data, F12 friends
+- [x] 4.4 Mocked e2e: offline Learn home with no active course shows the error state
+- [ ] 4.5 Add `playwright-stack` to `ci-ok` after two consecutive green CI runs
