@@ -64,11 +64,14 @@ export async function createCourse(page: Page, flow?: Flow): Promise<void> {
     await flow?.step("preview failed");
     test.fixme(
       true,
-      "Course preview fails in the real stack: the API quotes the pricing catalogue route " +
-        "(usd-quotes-2026-11-09: anthropic/claude-sonnet-5-5) but the engine only accepts its " +
-        "own route from engine/config/models.toml (openrouter tencent/hy4-flash, or mock), so " +
-        "PreviewCourse returns FailedPrecondition 'quote route differs from evaluated route' " +
-        "(engine/crates/engine-server/src/lib.rs:897) and POST /v1/courses/preview is 502.",
+      "Course preview fails: the active approved pricing version (usd-quotes-2026-11-09) quotes " +
+        "anthropic/claude-sonnet-5-5, but the engine only accepts its own route from " +
+        "engine/config/models.toml (openrouter tencent/hy4-flash -> z-ai/glm-5.3-flash; provider " +
+        "'mock' in mock mode), so PreviewCourse returns FailedPrecondition 'quote route differs " +
+        "from evaluated route' (engine/crates/engine-server/src/lib.rs:897) and POST " +
+        "/v1/courses/preview is 502. Needs the owner to approve usd-hy4-routing-2026-11-22-unapproved " +
+        "through the pricing admin flow (PR #281); the API logs this at startup " +
+        "('active pricing quote route is not served by the engine').",
     );
   }
   await flow?.step("course preview");

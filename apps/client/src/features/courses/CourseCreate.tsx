@@ -5,6 +5,7 @@ import { secureStore } from "../accounts/secure-store";
 import { quoteAPI } from "../pricing/quotes";
 import { trackCourseRecovery } from "../../lib/analytics";
 import type { ConfirmedOutline } from "./outline";
+import { AppLink, navigateTo } from "../../lib/navigation";
 
 type Terms = {
   id: string;
@@ -83,7 +84,7 @@ export function CourseCreate({
   onBack,
   service = creationAPI,
   onEnrolled = (id) => {
-    window.location.assign(`/course/${encodeURIComponent(id)}`);
+    navigateTo(`/course/${encodeURIComponent(id)}`);
   },
 }: {
   snapshot: ConfirmedOutline;
@@ -295,7 +296,7 @@ export function CourseCreate({
         </Button>
       )}
       {(error || terms) && (
-        <a href="/credits">Get credits — your edits are kept</a>
+        <AppLink href="/credits">Get credits — your edits are kept</AppLink>
       )}
       <Button
         variant="quiet"

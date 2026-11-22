@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { authRequest } from "../accounts/session";
+import { session } from "../accounts/session";
 import { StreakPanel } from "./Streak";
 import "./gamification.css";
 
@@ -28,7 +28,8 @@ export function DailyGoal({
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     let active = true;
-    authRequest<Progress>("/v1/gamification", undefined, undefined, "GET")
+    session
+      .request<Progress>("/v1/gamification")
       .then((data) => {
         if (active) {
           setProgress(data);
@@ -50,12 +51,9 @@ export function DailyGoal({
     setBusy(true);
     setError("");
     try {
-      const data = await authRequest<Progress>(
-        "/v1/gamification",
-        { daily_goal: Number(goal) },
-        undefined,
-        "PUT",
-      );
+      const data = await session.request<Progress>("/v1/gamification", "PUT", {
+        daily_goal: Number(goal),
+      });
       setProgress(data);
     } catch (err) {
       setError(
@@ -149,12 +147,11 @@ export function CompletionXP({
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     let active = true;
-    authRequest<{ xp: number; perfect: boolean }>(
-      `/v1/gamification/lessons/${lessonId}`,
-      undefined,
-      undefined,
-      "GET",
-    )
+    session
+      .request<{
+        xp: number;
+        perfect: boolean;
+      }>(`/v1/gamification/lessons/${lessonId}`)
       .then((data) => {
         if (active) {
           setAward(data);

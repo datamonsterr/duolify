@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { authRequest } from "../accounts/session";
+import { session } from "../accounts/session";
 import { useUiPreferences } from "../design/localization/Preferences";
 import "./gamification.css";
+import { AppLink } from "../../lib/navigation";
 
 type DayState =
   "done" | "frozen" | "missed" | "today" | "pending" | "future" | "none";
@@ -62,7 +63,8 @@ export function StreakPanel() {
     const path = month
       ? `/v1/gamification/streak?month=${month}`
       : "/v1/gamification/streak";
-    authRequest<StreakData>(path, undefined, undefined, "GET")
+    session
+      .request<StreakData>(path)
       .then((next) => {
         if (active) {
           setData(next);
@@ -141,14 +143,14 @@ export function StreakPanel() {
                 Start with one small lesson. Your longest streak (
                 {data.longest_days} days) is still on record.
               </p>
-              <a href="/">Start a lesson</a>
+              <AppLink href="/">Start a lesson</AppLink>
             </div>
           )}
           {data.current_days === 0 && data.longest_days === 0 && (
             <div className="streak-note">
               <strong>Start your streak</strong>
               <p>Complete one lesson to begin. Days follow your time zone.</p>
-              <a href="/">Start a lesson</a>
+              <AppLink href="/">Start a lesson</AppLink>
             </div>
           )}
           {data.current_days > 0 && data.today_done && (
@@ -165,7 +167,7 @@ export function StreakPanel() {
                   Finish one lesson before the day ends to make it{" "}
                   {data.current_days + 1}.
                 </p>
-                <a href="/">Start a lesson</a>
+                <AppLink href="/">Start a lesson</AppLink>
               </div>
             )}
           {data.freezes && (
@@ -209,7 +211,7 @@ export function StreakPanel() {
               </p>
             </div>
           ))}
-          <a href="/analytics">{t("la.open")}</a>
+          <AppLink href="/analytics">{t("la.open")}</AppLink>
           <div className="streak-toolbar">
             <button type="button" onClick={() => go(-1)}>
               Previous month

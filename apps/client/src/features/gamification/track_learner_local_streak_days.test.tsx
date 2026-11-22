@@ -3,7 +3,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StreakPanel } from "./Streak";
 import { authRequest } from "../accounts/session";
 
-vi.mock("../accounts/session", () => ({ authRequest: vi.fn() }));
+// session.request is the authenticated path; the fake records the token it attaches.
+vi.mock("../accounts/session", () => {
+  const authRequest = vi.fn();
+  return {
+    authRequest,
+    session: {
+      request: (path: string, method = "GET", body?: unknown) =>
+        authRequest(path, body, "test-access-token", method),
+    },
+  };
+});
 const base = {
   current_days: 7,
   longest_days: 23,
@@ -75,7 +85,7 @@ describe("learner-local streak panel", () => {
       expect(authRequest).toHaveBeenLastCalledWith(
         "/v1/gamification/streak?month=2026-10",
         undefined,
-        undefined,
+        "test-access-token",
         "GET",
       ),
     );

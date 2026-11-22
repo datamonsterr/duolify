@@ -16,6 +16,7 @@ import {
 } from "./market";
 import "./sharing.css";
 import "./market.css";
+import { AppLink } from "../../lib/navigation";
 
 type Result = {
   key: string;
@@ -47,7 +48,7 @@ function Card({ item }: { item: CatalogueItem }) {
   return (
     <article className="market-card">
       <h2 dir="auto">
-        <a href={`/marketplace/${item.course_id}`}>{item.title}</a>
+        <AppLink href={`/marketplace/${item.course_id}`}>{item.title}</AppLink>
       </h2>
       <p className="market-meta">
         {creatorName(item)} · {ratingLabel(item)} ·{" "}
@@ -226,12 +227,12 @@ export function MarketplacePage() {
               : "No courses here yet"}
           </h2>
           <p>Try fewer words or another category, or make it yourself.</p>
-          <a
+          <AppLink
             className="duo-button secondary"
             href={`/courses/create${applied.q ? `?topic=${encodeURIComponent(applied.q)}` : ""}`}
           >
             Create this course
-          </a>
+          </AppLink>
         </section>
       )}
       {!loading && result && !result.failure && result.items.length > 0 && (

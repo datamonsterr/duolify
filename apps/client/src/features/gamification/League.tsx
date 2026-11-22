@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { authRequest } from "../accounts/session";
+import { session } from "../accounts/session";
 import { readLeagueCache, writeLeagueCache } from "./league-cache";
 import "./gamification.css";
+import { AppLink } from "../../lib/navigation";
 
 interface LeagueRow {
   rank: number;
@@ -129,7 +130,8 @@ export function LeaguePanel() {
       offset > 0
         ? `/v1/gamification/league?offset=${offset}`
         : "/v1/gamification/league";
-    authRequest<LeagueData>(path, undefined, undefined, "GET")
+    session
+      .request<LeagueData>(path)
       .then((next) => {
         if (!active) return;
         setData(next);
@@ -211,7 +213,7 @@ export function LeaguePanel() {
                 A group of learners at your pace is waiting. It's optional. Your
                 streak doesn't depend on it.
               </p>
-              <a href="/">Start a lesson</a>
+              <AppLink href="/">Start a lesson</AppLink>
             </div>
           )}
           {!lastWeek && data.state === "active" && info && (

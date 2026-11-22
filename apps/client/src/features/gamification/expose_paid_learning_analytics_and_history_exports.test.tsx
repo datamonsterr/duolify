@@ -10,7 +10,17 @@ import {
 } from "../../lib/analytics";
 import { screenForPath } from "../shell/navigation";
 
-vi.mock("../accounts/session", () => ({ authRequest: vi.fn() }));
+// session.request is the authenticated path; the fake records the token it attaches.
+vi.mock("../accounts/session", () => {
+  const authRequest = vi.fn();
+  return {
+    authRequest,
+    session: {
+      request: (path: string, method = "GET", body?: unknown) =>
+        authRequest(path, body, "test-access-token", method),
+    },
+  };
+});
 
 const posthog = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -229,7 +239,7 @@ describe("learning analytics component", () => {
       expect(authRequest).toHaveBeenCalledWith(
         "/v1/gamification/export/history",
         undefined,
-        undefined,
+        "test-access-token",
         "GET",
       );
     });
@@ -354,7 +364,7 @@ describe("learning analytics states", () => {
       expect(authRequest).toHaveBeenLastCalledWith(
         "/v1/gamification/export/analytics",
         { dimensions: ["course", "daily", "streak"] },
-        undefined,
+        "test-access-token",
         "POST",
       ),
     );

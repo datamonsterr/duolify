@@ -3,6 +3,7 @@ import { Button } from "../design/Button";
 import { characterCreation, type CreateJob } from "./creation";
 import type { CharacterRecord } from "./library";
 import { session } from "../accounts/session";
+import { AppLink } from "../../lib/navigation";
 
 const terminal = (j: CreateJob) =>
   ["succeeded", "failed", "rejected", "cancelled"].includes(j.state);
@@ -150,7 +151,7 @@ export function CreateCharacter({
             Retry connection
           </Button>
           {error === "insufficient_credits" && (
-            <a href="/credits">Review Credits</a>
+            <AppLink href="/credits">Review Credits</AppLink>
           )}
         </div>
       )}
@@ -251,9 +252,9 @@ export function CreateCharacter({
           </Button>
         </>
       )}
-      <a className="shell-link" href="/courses">
+      <AppLink className="shell-link" href="/courses">
         Use Default cast
-      </a>
+      </AppLink>
     </section>
   );
 }

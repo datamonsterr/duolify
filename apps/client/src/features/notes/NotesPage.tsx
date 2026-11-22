@@ -7,6 +7,7 @@ import {
   trackQuickNoteDeleted,
   trackQuickNoteReviewed,
 } from "../../lib/analytics";
+import { AppLink } from "../../lib/navigation";
 
 export type QuickNoteItem = {
   id: string;
@@ -647,7 +648,7 @@ export function NotesPage() {
                 Tap Add note in any slide. Your words are saved even without
                 credits.
               </p>
-              <a
+              <AppLink
                 href="/courses"
                 className="duo-button primary"
                 style={{
@@ -661,7 +662,7 @@ export function NotesPage() {
                 }}
               >
                 Go to lesson
-              </a>
+              </AppLink>
             </div>
           )}
 
@@ -1338,7 +1339,7 @@ export function NotesPage() {
                           }}
                         >
                           {selectedNote.links.map((link) => (
-                            <a
+                            <AppLink
                               key={link}
                               href="/courses"
                               style={{
@@ -1352,7 +1353,7 @@ export function NotesPage() {
                               }}
                             >
                               Lesson {link}
-                            </a>
+                            </AppLink>
                           ))}
                         </div>
                       </div>

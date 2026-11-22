@@ -124,6 +124,17 @@ func (c *Client) Health(ctx context.Context) error {
 	return err
 }
 
+// Providers returns the engine's primary and fallback provider names (Health).
+func (c *Client) Providers(ctx context.Context) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	res, err := c.rpc.Health(ctx, &enginev1.HealthRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return res.GetProviders(), nil
+}
+
 // PreviewCourse forwards the supplied context and bounds engine execution time.
 func (c *Client) PreviewCourse(ctx context.Context, request *enginev1.PreviewCourseRequest) (*enginev1.PreviewCourseResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)

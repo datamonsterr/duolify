@@ -7,6 +7,7 @@ import {
 } from "./library";
 import { getDefaultCastFixtures } from "./fixtures";
 import { CharacterPreview } from "./CharacterLibrary";
+import { AppLink } from "../../lib/navigation";
 
 export function CourseCast({ courseId }: { courseId: string }) {
   const [records, setRecords] = useState<CharacterRecord[] | null>(null);
@@ -58,9 +59,9 @@ export function CourseCast({ courseId }: { courseId: string }) {
   const selected = choices.find((r) => r.id === selection.guide) ?? builtIns[0];
   return (
     <section className="characters-page">
-      <a className="shell-link" href={`/course/${courseId}`}>
+      <AppLink className="shell-link" href={`/course/${courseId}`}>
         Back to Course
-      </a>
+      </AppLink>
       <h1>Course Cast</h1>
       <p>
         Choose one main guide and up to two distinct supporting characters.
@@ -173,9 +174,9 @@ export function CourseCast({ courseId }: { courseId: string }) {
           <Button type="submit" pending={pending} disabled={!distinct}>
             Save Course Cast
           </Button>
-          <a className="shell-link" href="/settings/characters">
+          <AppLink className="shell-link" href="/settings/characters">
             Edit private characters
-          </a>
+          </AppLink>
         </form>
       )}
     </section>

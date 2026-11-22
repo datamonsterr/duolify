@@ -15,6 +15,7 @@ import {
   type OutlineDraft,
 } from "./outline";
 import type { Outline } from "../design/chat/OutlineEditor";
+import { AppLink } from "../../lib/navigation";
 
 type PreviewQuote = Pick<
   ActionQuote,
@@ -423,7 +424,9 @@ export function CoursePreview({
               {quote ? "Renew preview quote" : "Review preview cost"}
             </Button>
             {(quote || error) && (
-              <a href="/credits">Get credits — your brief is kept</a>
+              <AppLink href="/credits">
+                Get credits — your brief is kept
+              </AppLink>
             )}
             <Button variant="quiet" onClick={back}>
               Back to brief

@@ -1,11 +1,15 @@
 import { ProgressPage } from "./features/gamification/DailyGoal";
 import { LearningAnalyticsPage } from "./features/gamification/LearningAnalytics";
 import { LeaguePage } from "./features/gamification/League";
-import { UiPreferencesProvider } from "./features/design/localization/Preferences";
+import {
+  UiPreferencesProvider,
+  useUiPreferences,
+} from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
 import { AuthError, session } from "./features/accounts/session";
 import { useQuery } from "@tanstack/react-query";
 import { api, type Course, type CoursesResponse } from "./lib/api";
+import { registerNavigator } from "./lib/navigation";
 import { useShellSession } from "./features/shell/ShellSession";
 import {
   createRootRoute,
@@ -51,6 +55,7 @@ import {
   RoutePending,
   RouteUnavailable,
 } from "./features/shell/RouteBoundary";
+import { AppLink } from "./lib/navigation";
 function AccountShell() {
   return (
     <UiPreferencesProvider
@@ -84,7 +89,8 @@ const root = createRootRoute({
 function IndexRoute() {
   const shell = useShellSession();
   const owner = session.current()?.id ?? "";
-  const { data: coursesData } = useQuery({
+  const { t } = useUiPreferences();
+  const { data: coursesData, isError: coursesFailed } = useQuery({
     queryKey: ["courses", owner],
     queryFn: async () => {
       try {
@@ -109,6 +115,11 @@ function IndexRoute() {
       }
     },
     staleTime: 60000,
+    // Offline with no downloaded course, or signed out: retrying cannot help.
+    retry: (failures, err) =>
+      failures < 3 &&
+      !(err instanceof TypeError) &&
+      !(err instanceof AuthError),
   });
 
   const activeId = shell.courseId();
@@ -131,6 +142,8 @@ function IndexRoute() {
     if (coursesData && coursesData.length === 0) {
       return <Courses />;
     }
+    // Course list failed with no offline copy: say so instead of loading forever.
+    if (coursesFailed) return <p>{t("path.error")}</p>;
     return <p role="status">Loading course…</p>;
   }
 
@@ -257,7 +270,7 @@ const billing = createRoute({
         approval. Issued credits remain available after cancellation. Plan
         changes apply at renewal.
       </p>
-      <a href="/credits">Return to your wallet</a>
+      <AppLink href="/credits">Return to your wallet</AppLink>
     </section>
   ),
 });
@@ -356,7 +369,13 @@ function SignInRoute() {
   const navigate = useNavigate();
   return <SignIn onSignedIn={(path) => void navigate({ to: path })} />;
 }
-export const createAppRouter = (history?: RouterHistory) =>
+export const createAppRouter = (history?: RouterHistory) => {
+  const router = buildRouter(history);
+  // Same-app links and redirects navigate through the router (see lib/navigation).
+  registerNavigator((to) => router.history.push(to));
+  return router;
+};
+const buildRouter = (history?: RouterHistory) =>
   createRouter({
     history,
     defaultPendingComponent: RoutePending,

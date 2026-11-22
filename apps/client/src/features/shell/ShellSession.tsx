@@ -11,9 +11,9 @@ import { api } from "../../lib/api";
 const freshSession = () => {
   let courseId = (() => {
     try {
-      return localStorage.getItem("duolify:active-course") || "astronomy";
+      return localStorage.getItem("duolify:active-course") || "";
     } catch {
-      return "astronomy";
+      return "";
     }
   })();
 
