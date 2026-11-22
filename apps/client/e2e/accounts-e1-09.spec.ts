@@ -11,29 +11,27 @@ for (const width of [1280, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await page.emulateMedia({ colorScheme: mode, reducedMotion: "reduce" });
       await page.addInitScript(() => {
-        const listeners = new Set<
-          (result: { code: string; state: string } | null) => void
-        >();
+        const listeners = new Set<(result: { state: string } | null) => void>();
         (
-          window as typeof window & { __DUOLIFY_OAUTH_BRIDGE__?: unknown }
-        ).__DUOLIFY_OAUTH_BRIDGE__ = {
+          window as typeof window & { __DUOLIFY_SSO_BRIDGE__?: unknown }
+        ).__DUOLIFY_SSO_BRIDGE__ = {
           openSystemBrowser: async () => undefined,
-          listen: (
-            listener: (result: { code: string; state: string } | null) => void,
-          ) => {
+          listen: (listener: (result: { state: string } | null) => void) => {
             listeners.add(listener);
             return () => listeners.delete(listener);
           },
           cancel: () => listeners.forEach((listener) => listener(null)),
         };
       });
-      await page.route("**/v1/auth/apple/start", (route) =>
+      await page.route("**/v1/auth/sso/config", (route) =>
+        route.fulfill({
+          json: { enabled: true, publishable_key: "pk_test_fixture" },
+        }),
+      );
+      await page.route("**/v1/auth/sso/start", (route) =>
         route.fulfill({
           json: {
-            state: "state-fixture",
-            nonce: "n".repeat(32),
-            authorization_url:
-              "https://appleid.apple.test/authorize?state=state-fixture",
+            state: "s".repeat(43),
           },
         }),
       );
@@ -61,9 +59,9 @@ for (const width of [1280, 390, 320]) {
       await page.evaluate(() => {
         const bridge = (
           window as typeof window & {
-            __DUOLIFY_OAUTH_BRIDGE__: { cancel: () => void };
+            __DUOLIFY_SSO_BRIDGE__: { cancel: () => void };
           }
-        ).__DUOLIFY_OAUTH_BRIDGE__;
+        ).__DUOLIFY_SSO_BRIDGE__;
         bridge.cancel();
       });
       await expect(page.getByRole("status")).toContainText("cancelled");
@@ -84,7 +82,12 @@ test("Apple sign-in error preserves destination and supports retry", async ({
   page,
 }) => {
   let starts = 0;
-  await page.route("**/v1/auth/apple/start", (route) => {
+  await page.route("**/v1/auth/sso/config", (route) =>
+    route.fulfill({
+      json: { enabled: true, publishable_key: "pk_test_fixture" },
+    }),
+  );
+  await page.route("**/v1/auth/sso/start", (route) => {
     starts++;
     if (starts === 1)
       return route.fulfill({
@@ -93,17 +96,14 @@ test("Apple sign-in error preserves destination and supports retry", async ({
       });
     return route.fulfill({
       json: {
-        state: "state-fixture",
-        nonce: "n".repeat(32),
-        authorization_url:
-          "https://appleid.apple.test/authorize?state=state-fixture",
+        state: "s".repeat(43),
       },
     });
   });
   await page.addInitScript(() => {
     (
-      window as typeof window & { __DUOLIFY_OAUTH_BRIDGE__?: unknown }
-    ).__DUOLIFY_OAUTH_BRIDGE__ = {
+      window as typeof window & { __DUOLIFY_SSO_BRIDGE__?: unknown }
+    ).__DUOLIFY_SSO_BRIDGE__ = {
       openSystemBrowser: async () => undefined,
       listen: async () => () => undefined,
     };
@@ -120,46 +120,44 @@ test("Apple sign-in error preserves destination and supports retry", async ({
 test("returning Apple subject completes when profile claims are omitted", async ({
   page,
 }) => {
-  await page.route("**/v1/auth/apple/start", (route) =>
+  await page.route("**/v1/auth/sso/config", (route) =>
+    route.fulfill({
+      json: { enabled: true, publishable_key: "pk_test_fixture" },
+    }),
+  );
+  await page.route("**/v1/auth/sso/start", (route) =>
     route.fulfill({
       json: {
-        state: "state-fixture",
-        nonce: "n".repeat(32),
-        authorization_url:
-          "https://appleid.apple.test/authorize?state=state-fixture",
+        state: "s".repeat(43),
       },
     }),
   );
   await page.addInitScript(() => {
-    let listener:
-      ((result: { code: string; state: string } | null) => void) | undefined;
+    let listener: ((result: { state: string } | null) => void) | undefined;
     (
       window as typeof window & {
-        __DUOLIFY_OAUTH_BRIDGE__: {
+        __DUOLIFY_SSO_BRIDGE__: {
           openSystemBrowser: () => Promise<void>;
           listen: (
-            cb: (result: { code: string; state: string } | null) => void,
+            cb: (result: { state: string } | null) => void,
           ) => Promise<() => void>;
           complete: () => void;
         };
       }
-    ).__DUOLIFY_OAUTH_BRIDGE__ = {
+    ).__DUOLIFY_SSO_BRIDGE__ = {
       openSystemBrowser: async () => undefined,
       listen: async (cb) => {
         listener = cb;
         return () => undefined;
       },
-      complete: () =>
-        listener?.({ code: "fixture-code", state: "state-fixture" }),
+      complete: () => listener?.({ state: "s".repeat(43) }),
     };
   });
-  await page.route("**/v1/auth/apple/complete", async (route) => {
+  await page.route("**/v1/auth/sso/complete", async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     expect(body).toMatchObject({
-      state: "state-fixture",
-      nonce: "n".repeat(32),
-      code: "fixture-code",
-      redirect_uri: "duolify://oauth/callback",
+      state: "s".repeat(43),
+      redirect_uri: "duolify://sso/callback",
       age_confirmed: true,
     });
     expect(body.code_verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -187,14 +185,14 @@ test("returning Apple subject completes when profile claims are omitted", async 
   await page.getByLabel("I am 16 or older").check();
   await page.getByRole("button", { name: "Continue with Apple" }).click();
   await expect(
-    page.getByRole("button", { name: "Cancel Apple sign-in" }),
+    page.getByRole("button", { name: "Cancel sign-in" }),
   ).toBeVisible();
   await page.evaluate(() => {
     const bridge = (
       window as typeof window & {
-        __DUOLIFY_OAUTH_BRIDGE__: { complete: () => void };
+        __DUOLIFY_SSO_BRIDGE__: { complete: () => void };
       }
-    ).__DUOLIFY_OAUTH_BRIDGE__;
+    ).__DUOLIFY_SSO_BRIDGE__;
     bridge.complete();
   });
   await expect(page).toHaveURL(/\/profile$/);

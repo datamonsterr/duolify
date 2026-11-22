@@ -51,7 +51,7 @@ func (f *Fixture) DrillOptions(t *testing.T, now time.Time) backup.DrillOptions 
 			}
 			return keys, nil
 		}, f.ApplicationStorage().Exists), backup.PinResolution(f.ApplicationStorage().Exists)},
-		ForbiddenValues: []string{"Synthetic Learner", "synthetic@example.test", "synthetic-google-subject"},
+		ForbiddenValues: []string{"Synthetic Learner", "synthetic@example.test", "user_synthetic-clerk-subject"},
 	}
 }
 

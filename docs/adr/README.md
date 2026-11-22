@@ -17,5 +17,6 @@
 | [0013](0013-owner-decisions-2026-11-16.md) | Owner decisions for the remaining human gates | Accepted |
 | [0014](0014-infrastructure-cost-migration.md) | Infrastructure migration off Railway to Hetzner Helsinki behind Cloudflare | Accepted |
 | [0015](0015-owner-decisions-2026-11-22.md) | Owner decisions of 2026-11-22: routing, Hetzner, R2, domain, narration, CI | Accepted |
+| [0016](0016-clerk-for-sso.md) | Clerk for SSO (Google, Apple, future social providers) | Accepted |
 
 New ADR: copy the newest file, increase the number, keep it under one page.

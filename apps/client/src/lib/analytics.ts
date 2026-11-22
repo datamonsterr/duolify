@@ -167,7 +167,7 @@ export function trackSignIn() {
     control_id: "sign_in",
   });
 }
-function captureOAuthUI(
+function captureSSOUI(
   event: string,
   properties: Record<string, string>,
   distinctID: string,
@@ -191,16 +191,16 @@ function captureOAuthUI(
     /* Sign-in continues if analytics is unavailable. */
   }
 }
-export function trackOAuthStarted(distinctID: string, optedOut: boolean) {
-  captureOAuthUI(
+export function trackSSOStarted(distinctID: string, optedOut: boolean) {
+  captureSSOUI(
     "ui_control_activated",
     { surface: "sign_in", control_id: "sign_in" },
     distinctID,
     optedOut,
   );
 }
-export function trackOAuthCancelled(distinctID: string, optedOut: boolean) {
-  captureOAuthUI(
+export function trackSSOCancelled(distinctID: string, optedOut: boolean) {
+  captureSSOUI(
     "ui_recovery_selected",
     { surface: "sign_in", error_code: "auth_cancelled", action: "retry" },
     distinctID,
