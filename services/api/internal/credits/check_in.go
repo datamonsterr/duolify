@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -172,6 +173,12 @@ func (s *Service) handleCheckIn(w http.ResponseWriter, r *http.Request) {
 	owner := extractLearnerID(r)
 	if owner == "" {
 		respondJSON(w, http.StatusUnauthorized, map[string]string{"error": "sign in required"})
+		return
+	}
+	// Disposable browser suites that assert exact wallet states run with the grant switched off; the
+	// switch is honoured only in development so it can never withhold Credits in a deployed environment.
+	if os.Getenv("DUOLIFY_ENV") == "development" && os.Getenv("CHECK_IN_DISABLED") == "true" {
+		respondJSON(w, http.StatusOK, CheckInResponse{NextCheckInAt: time.Now().Add(24 * time.Hour)})
 		return
 	}
 	result, err := s.CheckInAt(r.Context(), owner, time.Time{})
