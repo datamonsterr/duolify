@@ -105,11 +105,10 @@ test("cookie refresh responses are serialized across tabs", async ({
   const navSecond = second.goto("/profile");
   await firstEntered;
   const navThird = third.goto("/profile");
-  await third.waitForLoadState("domcontentloaded");
   // The first fetch has not processed its response; no other tab may mutate the jar.
   await expect
     .poll(() =>
-      third.evaluate(
+      page.evaluate(
         async () =>
           (await navigator.locks.query()).pending?.filter(
             (lock) => lock.name === "duolify-auth-cookie",
