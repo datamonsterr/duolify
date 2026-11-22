@@ -12,7 +12,7 @@ async function start() {
     "serviceWorker" in navigator
   ) {
     void navigator.serviceWorker
-      .register("/lesson-shell-sw.js")
+      .register(`/lesson-shell-sw.js?v=${__BUILD_ID__}`)
       .catch(() => {});
   }
   if (import.meta.env.DEV || import.meta.env.VITE_MOCK_API === "true") {

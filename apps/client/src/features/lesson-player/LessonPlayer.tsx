@@ -27,6 +27,7 @@ import {
   trackCaptionsToggled,
 } from "../../lib/analytics";
 import { availableOffline, preparedDocument } from "../player/cache";
+import { warmOfflineRoutes } from "../../lib/offlineRoutes";
 import { preloadNarration } from "../narration/cache";
 import {
   loadPlayerPreferences,
@@ -117,6 +118,10 @@ function StandardLessonPlayer({
     networkMode: "always",
     staleTime: 0,
   });
+  // An opened lesson must replay offline: cache the lesson-test and course-list chunks too.
+  useEffect(() => {
+    if (manifest.isSuccess) void warmOfflineRoutes();
+  }, [manifest.isSuccess]);
   useEffect(() => {
     if (manifest.error)
       trackPlayer("lesson_player_error", {

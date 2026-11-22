@@ -6,6 +6,7 @@ import {
   resetCacheBounds,
 } from "./cache";
 import { trackControl, trackPlayerRecovery } from "../../lib/analytics";
+import { warmOfflineRoutes } from "../../lib/offlineRoutes";
 import type { Manifest } from "./manifest";
 import type { Course } from "../../lib/api";
 
@@ -130,6 +131,8 @@ export async function downloadCourseLibrary(
 
   // Analytics: ui_control_activated(download_library)
   trackControl("download_library", courseId);
+  // The route chunks for playing the downloaded lessons must be offline too.
+  void warmOfflineRoutes();
 
   // Configure bounded cache for bulk library download
   configureCacheBounds({ maxLessons: 50, maxAccount: 100 * 1024 * 1024 });
