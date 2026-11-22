@@ -10,4 +10,5 @@
 - [x] Live eval drives production builders for non-screen tasks; rewrite those golden rows as production request data.
 - [x] `mise run engine:eval` stays green.
 - [x] Publish the golden rows to `datamonsterr/duolify-golden` and re-pin revision and SHA-256.
-- [ ] Three consecutive full live runs at 20/20 within the $1 budget, recorded in the PR.
+- [x] Three consecutive full live runs at 20/20 within the $1 budget, recorded in the PR.
+- [x] Mock provider mode serves the live route identity; tests for live-route quotes accepted in mock mode and unknown models refused in both modes.
