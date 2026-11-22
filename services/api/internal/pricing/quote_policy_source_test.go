@@ -43,6 +43,7 @@ func TestEffectiveQuotePolicyAdverseTerms(t *testing.T) {
 		{"higher provider rate", func(p *QuotePolicy) { r := p.Models["a"]; r.Input++; p.Models["a"] = r }, true},
 		{"less credit value", func(p *QuotePolicy) { p.USDNanosPerCredit-- }, true},
 		{"fewer attempts", func(p *QuotePolicy) { p.MaxAttempts-- }, true},
+		{"invalid rate", func(p *QuotePolicy) { r := p.Models["a"]; r.Output = 0; p.Models["a"] = r }, true},
 		{"less context", func(p *QuotePolicy) { r := p.Models["a"]; r.ContextMax--; p.Models["a"] = r }, true},
 		{"route only", func(p *QuotePolicy) {
 			r := p.Models["a"]

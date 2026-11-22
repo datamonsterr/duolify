@@ -1414,7 +1414,7 @@ func adverseQuotePolicy(before, after QuotePolicy) bool {
 		}
 		for i, r := range newRoute {
 			old := oldRoute[min(i, len(oldRoute)-1)]
-			if r.Input > old.Input || r.Output > old.Output || r.CacheWrite > old.CacheWrite || r.CacheRead > old.CacheRead || r.ContextMax < old.ContextMax {
+			if r.Provider == "" || r.Model == "" || r.Input <= 0 || r.Output <= 0 || r.CacheWrite <= 0 || r.CacheRead <= 0 || r.ContextMax <= 0 || r.Input > old.Input || r.Output > old.Output || r.CacheWrite > old.CacheWrite || r.CacheRead > old.CacheRead || r.ContextMax < old.ContextMax {
 				return true
 			}
 		}
