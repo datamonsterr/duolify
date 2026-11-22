@@ -104,44 +104,29 @@ export function LearnPath({ courseId }: { courseId: string }) {
         { quote_id: quoteId },
       );
       if (prep?.id) {
-        const base = import.meta.env.VITE_API_URL || "";
-        const sseUrl = `${base}/v1/lesson-generations/${encodeURIComponent(prep.id)}/events`;
-        try {
-          const es = new EventSource(sseUrl);
-          const finish = () => {
-            es.close();
-            setPreparingId(null);
-            refetch();
-            queryClient.invalidateQueries({ queryKey: ["course", courseId] });
-          };
-          es.onmessage = (event) => {
-            try {
-              const data = JSON.parse(event.data);
-              if (data.state === "completed" || data.state === "failed") {
-                finish();
-              }
-            } catch {
-              finish();
-            }
-          };
-          es.addEventListener("stage", (event: MessageEvent) => {
-            try {
-              const data = JSON.parse(event.data);
-              if (data.state === "completed" || data.state === "failed") {
-                finish();
-              }
-            } catch {
-              finish();
-            }
-          });
-          es.onerror = () => {
-            finish();
-          };
-        } catch {
-          setPreparingId(null);
-          refetch();
-          queryClient.invalidateQueries({ queryKey: ["course", courseId] });
+        // Poll the authenticated status endpoint. A plain EventSource cannot send the bearer
+        // token, so the events stream answered 401 and the path stayed "preparing" forever.
+        const statusPath = `/v1/lesson-generations/${encodeURIComponent(prep.id)}`;
+        let state = "";
+        for (
+          let i = 0;
+          i < 600 && state !== "completed" && state !== "failed";
+          i++
+        ) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, i === 0 ? 300 : 1000),
+          );
+          try {
+            state = (await session.request<{ state: string }>(statusPath))
+              .state;
+          } catch (err) {
+            if (err instanceof AuthError && err.status === 404) break;
+          }
         }
+        setPreparingId(null);
+        if (state === "failed") setPrepareError(missingMessages.failed);
+        refetch();
+        queryClient.invalidateQueries({ queryKey: ["course", courseId] });
       } else {
         setPreparingId(null);
         refetch();

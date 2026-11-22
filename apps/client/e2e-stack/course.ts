@@ -19,6 +19,15 @@ export async function fundLearner(learnerId: string): Promise<void> {
  * Starts on /courses/create; ends on the new course's path page.
  */
 export async function createCourse(page: Page, flow?: Flow): Promise<void> {
+  await briefToPreviewQuote(page, flow);
+  await previewToCourse(page, flow);
+}
+
+/** Guided-chat brief up to the quoted "Ready to preview?" step. Starts on /courses/create. */
+export async function briefToPreviewQuote(
+  page: Page,
+  flow?: Flow,
+): Promise<void> {
   await expect(
     page.getByRole("heading", { name: "Create a course", level: 1 }),
   ).toBeVisible();
@@ -53,7 +62,10 @@ export async function createCourse(page: Page, flow?: Flow): Promise<void> {
     page.getByRole("heading", { name: "Ready to preview?" }),
   ).toBeVisible();
   await flow?.step("preview quote");
+}
 
+/** From the quoted preview step to the new course's path page. */
+export async function previewToCourse(page: Page, flow?: Flow): Promise<void> {
   await page.getByRole("button", { name: /^Confirm & preview/ }).click();
   const preview = page.getByRole("heading", { name: "Course preview" });
   const failed = page
