@@ -17,7 +17,7 @@ const maxObjectBytes = 256 << 20
 func (s *S3) PutVersioned(ctx context.Context, key string, body []byte, meta map[string]string) (string, error) {
 	out, err := s.Client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key), Body: bytes.NewReader(body), ContentLength: aws.Int64(int64(len(body))), Metadata: meta})
 	if err != nil {
-		return "", errors.New("object put failed")
+		return "", s.fail(ctx, "put_versioned", "object put failed", key, err)
 	}
 	id := aws.ToString(out.VersionId)
 	if id == "" || id == "null" {
@@ -39,7 +39,7 @@ func (s *S3) GetVersion(ctx context.Context, key, versionID string) ([]byte, err
 func (s *S3) read(ctx context.Context, in *s3.GetObjectInput) ([]byte, error) {
 	out, err := s.Client.GetObject(ctx, in)
 	if err != nil {
-		return nil, errors.New("object get failed")
+		return nil, s.fail(ctx, "get", "object get failed", aws.ToString(in.Key), err)
 	}
 	defer func() { _ = out.Body.Close() }()
 	data, err := io.ReadAll(io.LimitReader(out.Body, maxObjectBytes+1))
@@ -57,7 +57,7 @@ func (s *S3) ListVersions(ctx context.Context, key string) ([]Version, error) {
 	for pages.HasMorePages() {
 		page, err := pages.NextPage(ctx)
 		if err != nil {
-			return nil, errors.New("object version listing failed")
+			return nil, s.fail(ctx, "list_versions", "object version listing failed", key, err)
 		}
 		for _, v := range page.Versions {
 			if aws.ToString(v.Key) != key {
@@ -65,7 +65,7 @@ func (s *S3) ListVersions(ctx context.Context, key string) ([]Version, error) {
 			}
 			head, err := s.Client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key), VersionId: v.VersionId})
 			if err != nil {
-				return nil, errors.New("object version metadata failed")
+				return nil, s.fail(ctx, "head_version", "object version metadata failed", key, err)
 			}
 			out = append(out, Version{ID: aws.ToString(v.VersionId), Latest: aws.ToBool(v.IsLatest), Size: aws.ToInt64(v.Size), Modified: aws.ToTime(v.LastModified), Metadata: head.Metadata})
 		}

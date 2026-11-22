@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -64,7 +65,7 @@ func ReplayModerationBlocks(ctx context.Context, pool *pgxpool.Pool, store Block
 	}
 	objects, err := store.List(ctx, blockPrefix)
 	if err != nil {
-		return 0, errLedger
+		return 0, fmt.Errorf("%w: %w", errLedger, err)
 	}
 	var blocks []string
 	lifted := map[string]bool{}
@@ -82,7 +83,7 @@ func ReplayModerationBlocks(ctx context.Context, pool *pgxpool.Pool, store Block
 	for _, key := range blocks {
 		raw, err := store.GetCurrent(ctx, key)
 		if err != nil {
-			return total, errLedger
+			return total, fmt.Errorf("%w: %w", errLedger, err)
 		}
 		var rec struct {
 			CourseRef string `json:"course_ref"`
