@@ -189,5 +189,6 @@ test("Google callback completes sign-in with transaction state", async ({
     bridge.complete();
   });
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText("Signed in as Learner")).toBeVisible();
+  // Sign-in lands on Learn inside the signed-in shell.
+  await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
 });

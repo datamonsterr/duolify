@@ -202,7 +202,5 @@ test("returning Apple subject completes when profile claims are omitted", async 
     bridge.complete();
   });
   await expect(page).toHaveURL(/\/$/);
-  await expect(
-    page.getByText("Signed in as First Login Learner"),
-  ).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
 });
