@@ -66,6 +66,7 @@ csp=$(curl -fsS -D - -o /dev/null "http://127.0.0.1:$web_port/sso-bridge" | tr -
 if [[ $csp == *"script-src 'self' https://clerk.test.example https://challenges.cloudflare.com"* ]]; then pass "/sso-bridge allows the derived Clerk origin"; else bad "sso csp: $csp"; fi
 csp=$(curl -fsS -D - -o /dev/null "http://127.0.0.1:$web_port/" | tr -d '\r' | sed -n 's/^[Cc]ontent-[Ss]ecurity-[Pp]olicy: //p')
 if [[ $csp != *clerk* && $csp == *"connect-src 'self'"*"$asset"*"https://us.i.posthog.com"* ]]; then pass "app pages have no Clerk origin; connect-src has asset and PostHog"; else bad "web csp: $csp"; fi
+if [[ $csp == *"https://us-assets.i.posthog.com"* ]]; then pass "connect-src allows the PostHog remote-config host (staging console error)"; else bad "no PostHog assets host: $csp"; fi
 code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: https://x.example' "http://127.0.0.1:$web_port/v1/features")
 if [[ $code == 200 ]]; then pass "/v1 still reaches the API through Caddy"; else bad "/v1 status $code"; fi
 

@@ -14,7 +14,7 @@
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), payment=(), usb=()"
-		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; media-src 'self' blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; font-src 'self'; connect-src 'self' {$API_ORIGIN:} {$LESSON_ASSET_ORIGIN:http://localhost:9000} {$POSTHOG_HOST:https://us.i.posthog.com}; frame-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; media-src 'self' blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; font-src 'self'; connect-src 'self' {$API_ORIGIN:} {$LESSON_ASSET_ORIGIN:http://localhost:9000} {$POSTHOG_HOST:https://us.i.posthog.com} {$POSTHOG_ASSETS_HOST:https://us-assets.i.posthog.com}; frame-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 	}
 }
 
@@ -22,7 +22,7 @@
 # Replaces the Content-Security-Policy of web_headers; the other headers stay.
 (sso_bridge_headers) {
 	header {
-		Content-Security-Policy "default-src 'self'; script-src 'self' {$CLERK_FAPI_ORIGIN:} https://challenges.cloudflare.com https://*.protect.clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://img.clerk.com {$LESSON_ASSET_ORIGIN:http://localhost:9000}; media-src 'self' blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; font-src 'self'; connect-src 'self' {$API_ORIGIN:} {$CLERK_FAPI_ORIGIN:} https://*.protect.clerk.com:* {$POSTHOG_HOST:https://us.i.posthog.com}; frame-src 'self' https://challenges.cloudflare.com https://*.protect.clerk.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' {$CLERK_FAPI_ORIGIN:} https://challenges.cloudflare.com https://*.protect.clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://img.clerk.com {$LESSON_ASSET_ORIGIN:http://localhost:9000}; media-src 'self' blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; font-src 'self'; connect-src 'self' {$API_ORIGIN:} {$CLERK_FAPI_ORIGIN:} https://*.protect.clerk.com:* {$POSTHOG_HOST:https://us.i.posthog.com} {$POSTHOG_ASSETS_HOST:https://us-assets.i.posthog.com}; frame-src 'self' https://challenges.cloudflare.com https://*.protect.clerk.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 	}
 }
 
