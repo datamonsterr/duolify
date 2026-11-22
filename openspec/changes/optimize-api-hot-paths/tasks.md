@@ -3,4 +3,4 @@
 - [x] Course list: integration test (summary shape, constant statements and bytes, 304); summary SQL; client summary type, `summarizeCourse` and `CourseCard` on progress.
 - [x] Client: configured query client with unit tests; `/courses` revalidates on visit.
 - [x] Creation stream: backoff with a unit test; existing heartbeat integration test unchanged.
-- [ ] Run the focused API, web and OpenSpec gates; merge once CI is green.
+- [x] Run the focused API, web and OpenSpec gates; merge once CI is green.
