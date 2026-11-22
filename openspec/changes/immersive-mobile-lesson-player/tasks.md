@@ -30,15 +30,15 @@
 
 ## 4. Region selection, typed questions and the answer panel
 
-- [ ] 4.1 e2e: two-finger spread selects a region and pauses; handles adjust it; "Select area" and keyboard paths give the same result; accidental touch is discarded
-- [ ] 4.2 e2e: ask by text about a region; reply streams in the opaque right-hand panel; region stays visible and the stage shifts when it would be covered; stop, follow-up, save as Quick note, collapse, close resumes playback; portrait falls back to the lesson tutor sheet
+- [x] 4.1 e2e: two-finger spread selects a region and pauses; handles adjust it; "Select area" and keyboard paths give the same result; accidental touch is discarded (`anchored-notes.spec.ts` for spread, handles, accidental touch and the keyboard path; `region-questions.spec.ts` for Select area then ask; mocked suite)
+- [x] 4.2 e2e: ask by text about a region; reply streams in the opaque right-hand panel; region stays visible and the stage shifts when it would be covered; stop, follow-up, save as Quick note, collapse, close resumes playback; portrait falls back to the lesson tutor sheet (`region-questions.spec.ts` at 844×390 and 1280: opaque right panel, stage shifts to keep the area visible, save as anchored Quick note, collapse, close resumes; narrow unrotated screens use the tutor sheet with a thumbnail. The panel's Stop button is not driven in e2e (a fulfilled stream cannot be held open); Stop semantics are covered by the existing hook tests. When the area still does not fit beside the panel the stage is shifted as far as it can go, not scaled)
 - [x] 4.3 integration: lesson tutor turn with a region assembles context from manifest regions; whole-Slide fallback; out-of-range Slide or rectangle and foreign Lesson are rejected with no Credits, message or Engine call; message stores the anchor
-- [ ] 4.4 unit: normalized coordinates from touch points under scale and rotation; stage shift maths; panel sizing
+- [x] 4.4 unit: normalized coordinates from touch points under scale and rotation; stage shift maths; panel sizing (`panelLayout.test.ts`: panel sizing and stage shift; coordinate maths from group 3)
 - [x] 4.5 Proto and Engine: region context on the tutor chat request; prompt builder treats region text as untrusted Slide content
 - [x] 4.6 API: region and playback time on the lesson tutor endpoint; anchor columns on tutor messages with migration, export, erasure and anonymizer classification
-- [ ] 4.7 Client: region selector, side rail, composer, answer panel sharing the lesson tutor thread
+- [x] 4.7 Client: region selector, side rail, composer, answer panel sharing the lesson tutor thread (`RegionSelector`, `ImmersiveNotes` rail and composer, `AnswerPanel` on `useTutor` with the region; docs/design/region-selection.md)
 - [x] 4.8 Golden set: region-grounded question cases (clear answer, unrelated question, several regions, no regions, injection in region text) and thresholds; pin the dataset revision
-- [ ] 4.9 Analytics: `lesson_region_selected`, `lesson_region_question_sent`, `lesson_answer_panel_closed` (API half done: `lesson_region_question_sent` is emitted on every region question and all three events are allowlisted; the client still emits `lesson_region_selected` and `lesson_answer_panel_closed`)
+- [x] 4.9 Analytics: `lesson_region_selected`, `lesson_region_question_sent`, `lesson_answer_panel_closed` (API half done: `lesson_region_question_sent` is emitted on every region question and all three events are allowlisted; the client still emits `lesson_region_selected` and `lesson_answer_panel_closed`) (client emits `lesson_region_selected` when the Learner asks or notes about the selected area and `lesson_answer_panel_closed`; the API emits `lesson_region_question_sent`)
 
 ## 5. Anchored Quick notes
 

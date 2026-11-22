@@ -235,10 +235,14 @@ html[data-imm-rotated] body {
 }
 .imm-caption {
   position: fixed;
-  left: 50%;
+  left: calc((100vw - var(--imm-panel-inset, 0px)) / 2);
   bottom: calc(var(--sa-b, 0px) + var(--space-4));
   translate: -50% 0;
-  max-inline-size: min(80vw, 720px);
+  max-inline-size: min(
+    80vw,
+    720px,
+    calc(100vw - var(--imm-panel-inset, 0px) - 32px)
+  );
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
@@ -455,4 +459,95 @@ html[data-imm-rotated] body {
   max-block-size: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* Answer panel (opaque, docked right inside the safe area). */
+.imm-answer-ui {
+  pointer-events: none;
+  z-index: 7;
+}
+.imm-answer-ui > * {
+  pointer-events: auto;
+}
+.imm-answer {
+  position: absolute;
+  inset-block: var(--pt) var(--pb);
+  inset-inline-end: var(--pr);
+  inline-size: var(--imm-panel, 360px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  overflow: hidden;
+}
+.imm-answer-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.imm-answer-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: var(--font-size-body);
+}
+.imm-answer-log {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-block-size: 0;
+}
+.imm-answer-msg p {
+  margin: 0 0 var(--space-1);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.imm-answer-user p {
+  font-weight: var(--weight-strong);
+}
+.imm-answer-note {
+  margin: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--raised);
+}
+.imm-answer-compose {
+  display: grid;
+  gap: var(--space-2);
+}
+.imm-answer-compose textarea {
+  inline-size: 100%;
+  box-sizing: border-box;
+  padding: var(--space-2);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.imm-answer-handle {
+  position: absolute;
+  inset-inline-end: var(--pr);
+  inset-block-end: calc(var(--pb) + var(--space-3));
+}
+/* The stage moves left to keep the selected region clear of the panel. */
+.player.immersive .stage-frame iframe,
+.imm-stage-space {
+  translate: var(--imm-shift-x, 0px) var(--imm-shift-y, 0px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .player.immersive .stage-frame iframe,
+  .imm-stage-space {
+    transition: translate var(--duration-fast) var(--ease-standard);
+  }
+}
+
+/* Rotated stage: the panel docks along the screen's bottom edge, where the caption is. */
+html[data-imm-rotated="true"][data-imm-panel] .imm-caption {
+  display: none;
 }
