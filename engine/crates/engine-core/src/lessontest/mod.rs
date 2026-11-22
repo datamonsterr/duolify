@@ -342,21 +342,51 @@ pub fn lesson_prompt(context: &str) -> String {
 
 /// Deterministic fix-up before acceptance: a variant whose choices repeat its source question in
 /// the same order is rotated with `reorder_choices` (the same rule the retry pool uses when it is
-/// exhausted), so the correct text and answer stay identical. Everything else is left for
-/// `validate_lesson`; `None` means nothing changed.
+/// exhausted), so the correct text and answer stay identical; a variant whose choices are a
+/// reordering of the source choices gets `answer_index` pointing at the source's correct text.
+/// Everything else is left for `validate_lesson`; `None` means nothing changed.
 pub fn prepare_lesson(text: &str) -> Option<String> {
     let mut v: serde_json::Value = serde_json::from_str(text).ok()?;
-    let sources: std::collections::HashMap<String, serde_json::Value> = v["test"]
-        .as_array()?
-        .iter()
-        .filter_map(|q| Some((q["question_id"].as_str()?.to_owned(), q["choices"].clone())))
-        .collect();
+    let sources: std::collections::HashMap<String, (serde_json::Value, serde_json::Value)> =
+        v["test"]
+            .as_array()?
+            .iter()
+            .filter_map(|q| {
+                let correct = q["choices"]
+                    .get(q["answer_index"].as_u64()? as usize)?
+                    .clone();
+                Some((
+                    q["question_id"].as_str()?.to_owned(),
+                    (q["choices"].clone(), correct),
+                ))
+            })
+            .collect();
     let mut changed = false;
     for pool in v["variant_pool"].as_array_mut().into_iter().flatten() {
         for var in pool["variants"].as_array_mut().into_iter().flatten() {
-            let Some(source) = var["variant_of"].as_str().and_then(|id| sources.get(id)) else {
+            let Some((source, correct)) = var["variant_of"].as_str().and_then(|id| sources.get(id))
+            else {
                 continue;
             };
+            // A reordered copy of the source choices must mark the source's correct text.
+            let sorted = |c: &serde_json::Value| {
+                let mut c: Vec<String> = serde_json::from_value(c.clone()).unwrap_or_default();
+                c.sort();
+                c
+            };
+            if &var["choices"] != source && sorted(&var["choices"]) == sorted(source) {
+                let Some(at) = var["choices"]
+                    .as_array()
+                    .and_then(|c| c.iter().position(|c| c == correct))
+                else {
+                    continue;
+                };
+                if var["answer_index"] != serde_json::json!(at) {
+                    var["answer_index"] = serde_json::json!(at);
+                    changed = true;
+                }
+                continue;
+            }
             if &var["choices"] != source {
                 continue;
             }

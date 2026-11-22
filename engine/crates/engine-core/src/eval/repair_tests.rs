@@ -275,6 +275,17 @@ fn same_order_variant_is_rotated_and_then_validates() {
     );
     // A lesson that needs no fix is left alone.
     assert!(crate::lessontest::prepare_lesson(&fixed).is_none());
+    // A reordered variant that marks the wrong choice points back at the source's correct text.
+    let mut wrong: serde_json::Value = serde_json::from_str(&fixed).unwrap();
+    wrong["variant_pool"][0]["variants"][0]["choices"] =
+        serde_json::json!(["Green", "Red", "Blue"]);
+    wrong["variant_pool"][0]["variants"][0]["answer_index"] = serde_json::json!(0);
+    let wrong = wrong.to_string();
+    assert!(crate::lessontest::check_generated(&wrong, &[], "").is_err());
+    let fixed = crate::lessontest::prepare_lesson(&wrong).unwrap();
+    crate::lessontest::check_generated(&fixed, &[], "").unwrap();
+    let v: serde_json::Value = serde_json::from_str(&fixed).unwrap();
+    assert_eq!(v["variant_pool"][0]["variants"][0]["answer_index"], 2);
 }
 
 #[test]
