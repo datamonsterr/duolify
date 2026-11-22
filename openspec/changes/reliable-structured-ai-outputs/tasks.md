@@ -1,0 +1,13 @@
+## Implementation
+- [x] Reproduce the live failures on the production route (12 of 20 on the baseline run).
+- [x] Check OpenRouter docs and live model metadata for `response_format`, `structured_outputs`, `require_parameters` and reasoning controls on both models.
+- [x] Unit tests first: extraction, request construction per task and model, explained validators, corrective repair.
+- [x] Add `engine_core::structured` (extraction, per-task `response_format`, repair message) and carry `response_format` and `repair` on `Route`.
+- [x] Send `response_format` with `provider.require_parameters` and replay the repair turn in the OpenRouter adapter.
+- [x] Extract and validate in the bounded runner and the brief classifier; quote the validation error on the second attempt.
+- [x] Screens: reasoning `none` on Hy4 (ADR 0016), closed enums and examples in every screen prompt.
+- [x] Move the lesson prompt and acceptance check into `engine-core`; the server and the eval share them.
+- [x] Live eval drives production builders for non-screen tasks; rewrite those golden rows as production request data.
+- [x] `mise run engine:eval` stays green.
+- [ ] Publish the golden rows to `datamonsterr/duolify-golden` and re-pin revision and SHA-256.
+- [ ] Three consecutive full live runs at 20/20 within the $1 budget, recorded in the PR.

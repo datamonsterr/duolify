@@ -346,7 +346,7 @@ async fn test_recorded_provider_budget_sums_primary_and_judge_using_price_table(
 
     let cases = vec![Case {
         id: "preview-01".into(),
-        task: "course_preview".into(),
+        task: "outline_chat_change".into(),
         input: serde_json::json!({
             "limits": {
                 "input_tokens": 4000,
@@ -427,7 +427,7 @@ async fn test_recorded_provider_fails_closed_on_primary_usage_unavailable() {
 
     let cases = vec![Case {
         id: "preview-01".into(),
-        task: "course_preview".into(),
+        task: "outline_chat_change".into(),
         input: serde_json::json!({}),
         rubric: "Valid preview".into(),
         checks: vec![],
@@ -481,7 +481,7 @@ async fn test_recorded_provider_fails_closed_on_judge_usage_unavailable() {
 
     let cases = vec![Case {
         id: "preview-01".into(),
-        task: "course_preview".into(),
+        task: "outline_chat_change".into(),
         input: serde_json::json!({}),
         rubric: "Valid preview".into(),
         checks: vec![],

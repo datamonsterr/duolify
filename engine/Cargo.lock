@@ -282,6 +282,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "engine-core",
+ "engine-proto",
  "engine-providers",
  "futures",
  "regex",

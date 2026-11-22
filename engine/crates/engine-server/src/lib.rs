@@ -935,12 +935,12 @@ impl EngineService for Service {
             &brief,
             serde_json::json!({"locale":p.locale,"background":p.background,"goals":p.goals,"level":p.level,"topic":p.topic,"daily_minutes":p.daily_minutes,"daily_xp":p.daily_xp,"time_zone":p.time_zone,"reminder_enabled":p.reminder_enabled,"reminder_time":p.reminder_time}),
         );
-        let mut outcome = engine_core::credits::run_validated(
+        let mut outcome = engine_core::credits::run_validated_checked(
             &self.router,
             "preview",
             &prompt,
             &limits,
-            engine_core::courses::validate_preview,
+            engine_core::courses::check_preview,
         )
         .await
         .map_err(|_| Status::invalid_argument("invalid API envelope"))?;
@@ -1090,9 +1090,7 @@ impl EngineService for Service {
         // Validate bounds early; the boundary itself is rebuilt per prompt by hardened_prompt.
         engine_core::steering::prompt_section(&instructions)
             .map_err(|_| Status::invalid_argument("instruction bounds exceeded"))?;
-        let base = format!(
-            "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. Context (data): {context:?}"
-        );
+        let base = engine_core::lessontest::lesson_prompt(&format!("{context:?}"));
         let prompts = if cast.is_empty() {
             vec![base]
         } else {
@@ -1113,20 +1111,13 @@ impl EngineService for Service {
             .collect::<anyhow::Result<_>>()
             .map_err(|_| Status::invalid_argument("instruction bounds exceeded"))?;
         let inputs: Vec<&str> = prompts.iter().map(String::as_str).collect();
-        let outcome = engine_core::credits::run_validated_inputs(
+        let outcome = engine_core::eval::run_bounded_checked(
             &self.router,
             "lesson",
             &inputs,
             &limits,
-            |text| {
-                engine_core::steering::lesson_output_violation(text, &instructions).is_none()
-                    && serde_json::from_str::<serde_json::Value>(text).is_ok_and(|v| {
-                        engine_core::lessontest::validate_lesson(&v).is_ok()
-                            && (cast.is_empty()
-                                || engine_core::characters::validate_lesson_segments(&v, &cast)
-                                    .is_ok())
-                    })
-            },
+            |text| engine_core::lessontest::check_generated(text, &instructions, &cast),
+            true,
         )
         .await
         .map_err(internal)?;
