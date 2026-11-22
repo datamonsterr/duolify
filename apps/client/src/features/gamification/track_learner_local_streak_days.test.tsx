@@ -44,6 +44,15 @@ describe("learner-local streak panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show as list" }));
     expect(screen.getByText("Nov 5, 2026: Missed")).toBeVisible();
   });
+  it("uses the singular for a one-day longest streak", async () => {
+    vi.mocked(authRequest).mockResolvedValueOnce({
+      ...base,
+      current_days: 1,
+      longest_days: 1,
+    });
+    render(<StreakPanel />);
+    expect(await screen.findByText("Longest streak: 1 day")).toBeVisible();
+  });
   it("shows reset, empty and pending rollover states from the server answer", async () => {
     vi.mocked(authRequest).mockResolvedValueOnce({
       ...base,

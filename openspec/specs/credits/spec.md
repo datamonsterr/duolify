@@ -415,7 +415,7 @@ The first authenticated app open of a new eligible local calendar day MUST call 
 
 #### Scenario: First open and retry
 - **WHEN** a new Learner opens the app and two devices retry check-in concurrently
-- **THEN** exactly one attendance grants 400 Credits, one lifetime bonus exists, and only the winning response triggers a non-blocking localised status confirmation with amount and balance
+- **THEN** exactly one attendance grants 400 Credits, one lifetime bonus exists, and only the winning response triggers a non-blocking localised status confirmation with amount and the spendable balance, which includes the Daily free credits
 
 #### Scenario: App remains open or reconnects
 - **WHEN** the returned day boundary arrives or connectivity returns
