@@ -2,8 +2,14 @@
 // Mocked suite: real client build, API fixture lesson ("sky": 3 slides of 3 s).
 import { copyFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { CDPSession, Page, TestInfo } from "@playwright/test";
+import type {
+  APIRequestContext,
+  CDPSession,
+  Page,
+  TestInfo,
+} from "@playwright/test";
 import { test, expect, resetTokens } from "./accounts-fixture";
+import { apiBase } from "./servers";
 
 resetTokens();
 test.afterEach(() => resetTokens());
@@ -32,6 +38,25 @@ async function shot(page: Page, info: TestInfo, vp: Vp, name: string) {
 const frame = (page: Page, n = 1) => page.locator(`iframe[title="Slide ${n}"]`);
 const controls = (page: Page) => page.getByTestId("immersive-controls");
 const enterButton = (page: Page) => page.getByTestId("immersive-enter");
+
+/** Per-Learner settings live on the API: store them there before opening the lesson. */
+async function setSettings(
+  page: Page,
+  request: APIRequestContext,
+  fields: Record<string, boolean>,
+) {
+  await page.goto("/profile");
+  const token = await page.evaluate(
+    () =>
+      JSON.parse(sessionStorage.getItem("duolify.native-store-fixture")!)
+        .access_token,
+  );
+  const r = await request.post(`${apiBase}/v1/me/settings`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { confirmed: true, fields },
+  });
+  expect(r.ok()).toBe(true);
+}
 
 async function openLesson(page: Page) {
   await page.goto("/lesson/sky");
@@ -300,13 +325,9 @@ for (const vp of VIEWPORTS) {
 
     test("autoplay off stops at the end with controls kept; on counts down and can be cancelled", async ({
       page,
+      request,
     }, info) => {
-      await page.addInitScript(() =>
-        localStorage.setItem(
-          "duolify.player-preferences",
-          JSON.stringify({ autoplay: false }),
-        ),
-      );
+      await setSettings(page, request, { autoplay: false });
       await openLesson(page);
       await enter(page);
       const auto = page.getByTestId("immersive-autoplay");
@@ -519,6 +540,7 @@ for (const vp of VIEWPORTS) {
         "captions",
         "narration",
         "slides",
+        "rotate",
         "lock",
       ];
       for (const id of ids) {
@@ -644,7 +666,7 @@ for (const vp of VIEWPORTS) {
       // logical order, starting from the top of the layer
       await page.getByTestId("immersive-exit").focus();
       const order: string[] = [];
-      for (let i = 0; i < 11; i++) {
+      for (let i = 0; i < 12; i++) {
         order.push(
           await page.evaluate(
             () => document.activeElement?.getAttribute("data-testid") ?? "",
@@ -663,6 +685,7 @@ for (const vp of VIEWPORTS) {
         "immersive-captions",
         "immersive-narration",
         "immersive-slides",
+        "immersive-rotate",
         "immersive-lock",
       ]);
       await expect(
@@ -701,12 +724,6 @@ for (const vp of VIEWPORTS) {
       page,
     }) => {
       await page.emulateMedia({ reducedMotion: "reduce" });
-      await page.addInitScript(() =>
-        localStorage.setItem(
-          "duolify.player-preferences",
-          JSON.stringify({ autoplay: true }),
-        ),
-      );
       await openLesson(page);
       await enter(page);
       await expect(page.getByTestId("immersive-countdown")).toBeVisible({
@@ -797,13 +814,9 @@ test.describe("enter on rotation", () => {
   });
   test("setting off: rotation does nothing, only the control enters", async ({
     page,
+    request,
   }) => {
-    await page.addInitScript(() =>
-      localStorage.setItem(
-        "duolify.player-preferences",
-        JSON.stringify({ fullscreenOnRotate: false }),
-      ),
-    );
+    await setSettings(page, request, { fullscreen_on_rotate: false });
     await openLesson(page);
     await page.setViewportSize({ width: 844, height: 390 });
     await page.waitForTimeout(500);
