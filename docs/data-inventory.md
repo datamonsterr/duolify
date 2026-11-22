@@ -905,6 +905,12 @@ Account erasure and the 30-day Course purge use one mechanism for private object
 | Authored example course objects | `lessons/examples/<slug>/v<N>/` | Shared, authored in Git, not learner data | Never purged: outside `lessons/published/` and `lessons/generated/`, rewritten byte for byte from the repository at enrollment and API start, and in the protected asset backup |
 | Backup bucket dumps and protected asset copies | separate backup bucket | Operator | 14-day (general) and 35-day (financial) classes; `account-deletions/` and `moderation-blocks/` ledgers are never expired. Unchanged |
 
+## Daily check-in Credits (ADR 0020)
+
+`credit_check_ins`: Learner UUID, local date, IANA time zone, attendance time, frozen next-midnight time, granted amount and first-time flag. Indexed unique Learner/date; exported with the account and erased by account cascade/tombstone replay. Included in encrypted backups and restore registry; no content or email.
+
+`credit_entries` kinds `check_in_grant` and `check_in_bonus` and `check_in` allocation provenance follow existing seven-year pseudonymous financial retention, export, erasure and backup rules. `credit_outbox` event `check_in_credits_granted` carries only amount, first_time, banked_after and capped plus common properties; existing consent and 90-day analytics-property retention apply.
+
 Clerk erasure recovery: immutable `account-deletions/clerk-v1/<SHA-256>.bin` objects in the separate backup bucket contain AES-GCM encrypted Clerk subjects, authenticated to their keys and encrypted using HKDF purpose separation from the escrowed `JWT_SECRET`. They outlive database snapshots and are not expired; startup requeues independently of learner/provider rows. Preserve the key through auth-secret rotation by migrating ledger encryption with the old key. SQL queue identifiers remain purged from nonproduction dumps. No new SQL columns, analytics events or AI data.
 
 Owner decision (2026-11-22): a published Course outlives its author's deleted account. Creator attribution is anonymized and retained snapshots and assets remain available to enrolled copies, subject to sharing retention and takedown rules; see ADR 0015 and `retain-shared-assets`.

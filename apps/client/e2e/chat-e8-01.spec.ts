@@ -127,7 +127,7 @@ for (const colorScheme of ["light", "dark"] as const)
           panel.getByText("Ask anything about this course"),
         ).toBeVisible();
         await expect(
-          panel.getByText(/Daily free 28 · Purchased 124/),
+          panel.getByText(/Daily free 28 · Check-in and paid 124/),
         ).toBeVisible();
         // Starters fill the composer and never send.
         await panel
