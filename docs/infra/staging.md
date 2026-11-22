@@ -66,6 +66,16 @@ gh workflow run deploy-vm.yml -f environment=staging -f publish_run_id=<run id>
 
 The job runs `infra:find-vm` (a Hetzner lookup of `duolify-staging`), then `infra:deploy-vm`, then `infra/deploy/deploy.sh` on the VM. `deploy.sh` logs in to ghcr.io with the job token on stdin, pulls the five digests and logs out. It then runs `/api migrate` and restarts the Engine, the API instances one at a time, the worker and the proxy, then runs `selfhost.sh smoke`.
 
+## How the smoke check connects
+
+`selfhost.sh smoke` tests the origin, not Cloudflare. It connects to `BIND_ADDRESS` (the VM's public IP on staging; loopback when it is empty or `0.0.0.0`) on `HTTPS_PORT`, with the first `SITE_ADDRESS` name as SNI and Host (`curl --resolve`) and `site.d/origin-ca.pem` as the trusted CA. It first waits up to `SMOKE_WAIT_SECONDS` (60) for the listener, because the proxy container is healthy (its healthcheck uses the unpublished port 8081) before Caddy answers on 443. Every other `SITE_ADDRESS` name is then checked on the same listener. A last check goes through the public name (Cloudflare) and only warns (`SMOKE_PUBLIC=0` skips it).
+
+The smoke test used to connect to `127.0.0.1`, where nothing listens when `BIND_ADDRESS` is the public IP, so every deploy ended with `curl: (7) Failed to connect ... after 0 ms` and rolled back. Test: `infra/deploy/test-smoke.sh`.
+
+## Read a failed deploy
+
+Open the `deploy-vm` run, step "Deploy over SSH". The last `==>` lines say the phase: a failure before `rolling restart` leaves the old containers running; a smoke failure means the new generation had been started, and `deploy.sh` then restarts engine, API, worker and proxy on the previous image references (`deploy: rolled back to the previous image references`). `deploy: ROLLBACK FAILED` means a mix: compare `sudo docker inspect -f '{{.Config.Image}}' duolify-selfhost-<svc>-1` with the `*_IMAGE=` lines in `.env`.
+
 ## Roll back
 
 Run the workflow again with the `publish_run_id` of the previous good `pr-ready` run. Migrations stay applied (they are expand/contract, see [hardening.md](hardening.md#7-deploys)). A database restore is only for data loss.
@@ -76,6 +86,17 @@ Run the workflow again with the `publish_run_id` of the previous good `pr-ready`
 curl -fsS https://staging.duolify.online/v1/features
 curl -fsS https://staging-api.duolify.online/v1/features
 ssh admin@<ip> 'cd /opt/duolify && sudo -u deploy env SELFHOST_OVERLAY=infra/deploy/compose.prod.yml bash infra/deploy/selfhost.sh smoke'
+```
+
+## Verify staging
+
+```sh
+curl -fsS https://staging-api.duolify.online/v1/features
+curl -fsS https://staging-api.duolify.online/v1/pricing
+curl -sS --max-time 15 https://staging-api.duolify.online/v1/stream-check          # SSE completes through Cloudflare
+ssh admin@<ip> 'sudo docker ps --format "{{.Names}} {{.Image}} {{.Status}}"'        # images match .env digests
+ssh admin@<ip> 'sudo docker logs --since 1h duolify-selfhost-worker-1 2>&1 | grep -ci x509'   # expect 0
+ssh admin@<ip> 'sudo docker exec duolify-selfhost-postgres-1 psql -U postgres -c "select archived_count, last_archived_time, failed_count from pg_stat_archiver"'
 ```
 
 ## Known gaps
