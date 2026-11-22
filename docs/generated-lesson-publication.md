@@ -23,7 +23,7 @@ Authorization, quote acceptance, credit calculation and grading are unchanged.
 ## Legacy repair and bridge removal
 
 Keep the read-time bridge until the backfill has run in each environment. The API
-`worker` command, with `LESSON_TEST_TRACER_ENABLED=true`, enqueues the versioned
+`worker` command, unless `LESSON_TEST_TRACER_ENABLED=false` (default on, ADR 0017), enqueues the versioned
 River kind `generated_lesson_publication_backfill_v1` in `generated-publication`.
 This is a one-off startup job, not a periodic sweep. Concurrent active jobs are
 deduplicated, and restarting the worker may enqueue another harmless run. River

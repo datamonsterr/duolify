@@ -38,6 +38,8 @@ x-app-env: &app-env
   PUSH_ADAPTER: disabled
   NARRATION_ENABLED: "false"
   POSTHOG_API_KEY: ${POSTHOG_API_KEY:-}
+  # ADR 0017: lesson test on by default; set false to disable.
+  LESSON_TEST_TRACER_ENABLED: ${LESSON_TEST_TRACER_ENABLED:-true}
   POSTHOG_HOST: ${POSTHOG_HOST:-https://us.i.posthog.com}
   ANALYTICS_OPT_OUT: ${ANALYTICS_OPT_OUT:-true}
 

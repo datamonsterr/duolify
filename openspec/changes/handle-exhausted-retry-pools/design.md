@@ -12,9 +12,8 @@ Per ADR 0011 (owner decision E4-06):
   - The API emits allowlisted event `retry_variant_pool_exhausted` with `topic_id` and `error_code: "pool_exhausted"` (no learner text).
   - The API emits `retry_variant_served` with `variant_source: "pool_exhausted_fallback"`.
 - If the pool is missing, empty, or invalid:
-  - Safe source fallback: the original source question for that topic is reused with reordered choices (`ReorderChoices`).
-  - The API emits `retry_variant_generation_failed` with `topic_id` and `error_code: "safe_source_fallback"`.
-  - The API emits `retry_variant_served` with `source: "safe_source_fallback"`.
+  - The API returns 503 `approved retry pool unavailable` without consuming the answer, charging credits or serving the source prompt (review #161). No event is emitted.
+  - There is no runtime generation, so `retry_variant_generation_failed` is never emitted (ADR 0011, E4-06).
 - The new choice order and updated answer index are calculated deterministically.
 
 ### 2. Never Auto-Pass & Recap Limits
@@ -52,5 +51,5 @@ Per ADR 0011 (owner decision E4-06):
   - Desktop and mobile layouts: keyboard shortcuts (1-9, Enter), touch targets, dark/light theme, and reduced-motion support.
 
 ### 5. Telemetry & Analytics
-- Allowlisted events: `retry_variant_generation_failed` (`course_id`, `lesson_id`, `topic_id`, `error_code`) and `retry_variant_served` (`course_id`, `lesson_id`, `topic_id`, `source`).
+- Allowlisted events: `retry_variant_pool_exhausted` (`course_id`, `lesson_id`, `topic_id`, `error_code`) and `retry_variant_served` (`course_id`, `lesson_id`, `topic_id`, `variant_source`). `retry_variant_generation_failed` is allowlisted but unused.
 - Never send learner text or question prompt/choices to PostHog.
