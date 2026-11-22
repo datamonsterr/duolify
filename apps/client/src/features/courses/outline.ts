@@ -147,9 +147,11 @@ export function sampleOutline(
   return units.map((unit) => ({
     id: crypto.randomUUID(),
     title: unit.title,
-    lessons: unit.lessons.map((lesson) => ({
-      ...lesson,
+    // Only draft fields: the API rejects unknown ones (a preview lesson carries lesson_id).
+    lessons: unit.lessons.map(({ title, goal }) => ({
       id: crypto.randomUUID(),
+      title,
+      goal,
     })),
   }));
 }

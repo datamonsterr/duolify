@@ -212,6 +212,9 @@ function IndexRoute() {
       }
     },
     staleTime: 60000,
+    // Run offline too: the default ("online") pauses the query, so the downloaded-course
+    // fallback and the error state never render and Learn shows "Loading course…" forever.
+    networkMode: "always",
     // Offline with no downloaded course, or signed out: retrying cannot help.
     retry: (failures, err) =>
       failures < 3 &&
