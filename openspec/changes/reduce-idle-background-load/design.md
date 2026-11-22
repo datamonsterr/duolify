@@ -20,7 +20,7 @@ Maintain loops are goroutine loops in the worker, not River periodic jobs. A Riv
 A scheduled pricing version has an `effective_from` days ahead and requests read the active version by the database clock, so activation bookkeeping may lag by one tick.
 
 ## Daily expiry
-A grant is due when its local date has ended. Reservations already expire every past day of the reserving learner. The sweep reads grant dates of the last three days from `credit_entries_daily_grant_date`, and the first pass of each worker process and one pass a day read all of them, so a worker that was down is repaired. A fully spent grant has no expire row, so "no expire row" cannot mark a grant as handled; the date window does.
+A grant is due when its local date has ended. Reservations already expire every past day of the reserving learner. The sweep reads grant dates of the last three days from `credit_entries_daily_grant_date`, and the first pass of each worker process and one pass a day read all of them, so a worker that was down is repaired. The worker records a full pass only after its query and every learner transaction succeed; concurrent passes on the same worker are serialized. A fully spent grant has no expire row, so "no expire row" cannot mark a grant as handled; the date window does.
 
 ## Retention
 Windows were looked up before any delete was added:

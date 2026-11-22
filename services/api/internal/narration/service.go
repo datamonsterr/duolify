@@ -556,24 +556,31 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 		}
 		return first
 	}
-	// The monthly provider budget is checked before any quote, reservation or live request. Items that
-	// do not fit stay captions-only; reused and shared audio never reaches this point.
-	if s.opts.Budget.Enabled() {
-		room, used, err := s.budgetRoom(ctx)
-		if err != nil {
-			return retryAll("budget_unavailable", err)
+	// Admit the worst case of two provider attempts per item before any live call.
+	budgetHolds := map[*item]string{}
+	defer func() {
+		for _, id := range budgetHolds {
+			_ = s.settleBudget(context.WithoutCancel(ctx), id, 0)
 		}
+	}()
+	if s.opts.Budget.Enabled() {
 		var admitted []*item
 		var denied int
-		var requested int64
+		var requested, lastUsed int64
 		for _, it := range fresh {
-			if int64(it.characters) <= room {
-				room -= int64(it.characters)
+			amount := int64(it.characters) * 2
+			id, used, err := s.reserveBudget(ctx, amount, time.Now())
+			if err != nil {
+				return retryAll("budget_unavailable", err)
+			}
+			lastUsed = used
+			if id != "" {
+				budgetHolds[it] = id
 				admitted = append(admitted, it)
 				continue
 			}
 			denied++
-			requested += int64(it.characters)
+			requested += amount
 			for _, slide := range it.slides {
 				if err := s.finish(ctx, owner, lessonID, it.rows[slide].voice, slide, StatusDisabled, CodeBudgetExhausted, nil); err != nil {
 					return err
@@ -581,7 +588,7 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 			}
 		}
 		if denied > 0 {
-			s.alertBudgetExhausted(owner, used, requested, denied)
+			s.alertBudgetExhausted(owner, lastUsed, requested, denied)
 		}
 		if fresh = admitted; len(fresh) == 0 {
 			return nil
@@ -655,7 +662,17 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 			callLimits = proto.Clone(limits).(*enginev1.UsageLimits)
 			SegmentLimits(callLimits)
 		}
+		// Once dispatch begins, an uncertain outcome retains the full reservation.
+		budgetID := budgetHolds[it]
+		delete(budgetHolds, it)
 		response, err := s.opts.Speech.SynthesizeNarration(callCtx, &enginev1.SynthesizeNarrationRequest{SlideId: it.slides[0], SegmentId: segmentOf(first.speaker, it.slides[0]), SpeakerKey: first.speaker, Text: it.text, VoiceKey: it.callVoice, Limits: callLimits})
+		if budgetID != "" && err == nil && response != nil && response.Usage != nil && response.Usage.Attempt >= 1 && response.Usage.Attempt <= 2 {
+			_ = s.settleBudget(context.WithoutCancel(ctx), budgetID, int64(it.characters)*int64(response.Usage.Attempt))
+		}
+		if _, _, refused := engine.NotPromoted(err); refused && budgetID != "" {
+			// The engine refused before any provider request: nothing was spent.
+			_ = s.settleBudget(context.WithoutCancel(ctx), budgetID, 0)
+		}
 		it.latency = latencyMS(time.Since(callStarted))
 		if err == nil {
 			err = ValidateOutput(it.text, response)

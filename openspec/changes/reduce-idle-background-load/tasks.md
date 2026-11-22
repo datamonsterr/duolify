@@ -15,6 +15,7 @@
 - [x] 2.5 Pricing activator 10 s
 - [x] 2.6 Move characters, steering and sharing loops to the worker
 - [x] 2.7 Migration with indexes
+- [x] 2.8 Retry a failed full daily expiry pass and serialize concurrent passes in a worker
 
 ## 3. Follow-ups (need an owner decision)
 - [ ] 3.1 Retention windows for `lesson_playback_sync_events`, `lesson_test_answer_operations` (see design)
