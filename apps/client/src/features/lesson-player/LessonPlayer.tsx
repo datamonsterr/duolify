@@ -67,6 +67,10 @@ import { generateMotionSlideHtml } from "../characters/motion-slide";
 import { generatedCharacterDocument } from "../characters/playback";
 
 const speeds = [1, 1.25, 1.5, 0.75];
+// While playing, the server position is a heartbeat. Pause, seek, checkpoints, slide
+// changes, hidden/pagehide and unmount still save at once, and every save also writes
+// the local resume position, so a longer interval only widens the crash-loss window.
+const POSITION_HEARTBEAT_MS = 10_000;
 
 export function LessonPlayer({
   lessonId = "sky",
@@ -1088,7 +1092,7 @@ function SlidePlayback({
       clock.tick(performance.now());
       const currentTime = clock.snapshot().time;
       command({ type: "tick", time: Math.min(currentTime, slide.duration_ms) });
-      if (performance.now() - lastSave >= 2000) {
+      if (performance.now() - lastSave >= POSITION_HEARTBEAT_MS) {
         persist();
         lastSave = performance.now();
       }

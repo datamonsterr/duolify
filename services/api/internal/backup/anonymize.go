@@ -128,7 +128,7 @@ var piiRules = []piiRule{
 
 // purgedTables hold credentials, one-time secrets or raw provider payloads.
 // They are emptied: nonproduction never needs a session, code or webhook body.
-var purgedTables = []string{"auth_refresh_tokens", "auth_sessions", "auth_codes", "auth_rate_limits", "auth_oauth_attempts", "credit_payment_payloads", "publication_preview_limits"}
+var purgedTables = []string{"auth_refresh_tokens", "auth_sessions", "auth_codes", "auth_rate_limits", "auth_oauth_attempts", "clerk_user_deletion_requests", "credit_payment_payloads", "publication_preview_limits"}
 
 // safeSuffix matches columns that hold identifiers, hashes or enumerations.
 var safeSuffix = regexp.MustCompile(`(^|_)(id|ids|hash|key|state|status|kind|role|source|provider|model|version|outcome|currency|locale|time_zone|code|type|reference|ref|sku|canonical|event_id)$`)

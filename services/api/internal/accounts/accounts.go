@@ -59,6 +59,7 @@ type Service struct {
 	personDeleter  PersonDeleter
 	deletionLedger DeletionLedger
 	setupChat      SetupChatOptions
+	webOrigins     []string
 }
 
 // New requires a shared signing/HMAC secret of at least 32 bytes. Clerk SSO stays
@@ -296,6 +297,10 @@ func (s *Service) requestCode(w http.ResponseWriter, r *http.Request) {
 	respond(w, 202, map[string]int{"expires_in": 600})
 }
 func (s *Service) verify(w http.ResponseWriter, r *http.Request) {
+	web, ok := s.webGate(w, r)
+	if !ok {
+		return
+	}
 	in, ok := input(w, r)
 	if !ok {
 		return
@@ -398,7 +403,7 @@ func (s *Service) verify(w http.ResponseWriter, r *http.Request) {
 		failure(w, err)
 		return
 	}
-	respond(w, 200, tokens)
+	respondTokens(w, web, tokens, expiry)
 }
 func (s *Service) issue(ctx context.Context, tx pgx.Tx, learnerID, sessionID string, expiry time.Time) (Tokens, error) {
 	var bytes [32]byte
@@ -421,9 +426,27 @@ type refreshInput struct {
 }
 
 func (s *Service) refresh(w http.ResponseWriter, r *http.Request) {
-	var in refreshInput
-	if !decode(w, r, &in) {
+	web, ok := s.webGate(w, r)
+	if !ok {
 		return
+	}
+	var in refreshInput
+	if web {
+		// Cookie mode ignores any body: the credential is only ever the cookie.
+		in.RefreshToken = cookieRefreshToken(r)
+		if in.RefreshToken == "" {
+			clearRefreshCookie(w)
+			failure(w, errCredentials)
+			return
+		}
+	} else if !decode(w, r, &in) {
+		return
+	}
+	fail := func(err error) {
+		if web && errors.Is(err, errCredentials) {
+			clearRefreshCookie(w)
+		}
+		failure(w, err)
 	}
 	ctx := r.Context()
 	tx, err := s.pool.Begin(ctx)
@@ -440,7 +463,7 @@ func (s *Service) refresh(w http.ResponseWriter, r *http.Request) {
 	err = tx.QueryRow(ctx, `SELECT s.learner_id::text,s.id::text,s.revoked_at IS NULL AND s.expires_at>now() AND t.expires_at>now(),t.consumed_at IS NOT NULL,s.expires_at,COALESCE(t.consumed_at>now()-interval '5 seconds',false),t.successor_ciphertext
  FROM auth_refresh_tokens t JOIN auth_sessions s ON s.id=t.session_id WHERE t.token_hash=$1 FOR UPDATE OF s,t`, refreshHash(in.RefreshToken)).Scan(&learnerID, &sessionID, &active, &used, &expiry, &withinGrace, &successor)
 	if errors.Is(err, pgx.ErrNoRows) {
-		failure(w, errCredentials)
+		fail(errCredentials)
 		return
 	}
 	if err != nil {
@@ -461,7 +484,7 @@ func (s *Service) refresh(w http.ResponseWriter, r *http.Request) {
 			failure(w, err)
 			return
 		}
-		respond(w, 200, tokens)
+		respondTokens(w, web, tokens, expiry)
 		return
 	}
 	if used || !active {
@@ -472,7 +495,7 @@ func (s *Service) refresh(w http.ResponseWriter, r *http.Request) {
 			failure(w, err)
 			return
 		}
-		failure(w, errCredentials)
+		fail(errCredentials)
 		return
 	}
 	_, err = tx.Exec(ctx, "UPDATE auth_refresh_tokens SET consumed_at=now() WHERE token_hash=$1", refreshHash(in.RefreshToken))
@@ -498,17 +521,26 @@ func (s *Service) refresh(w http.ResponseWriter, r *http.Request) {
 		failure(w, err)
 		return
 	}
-	respond(w, 200, tokens)
+	respondTokens(w, web, tokens, expiry)
 }
 func (s *Service) logout(w http.ResponseWriter, r *http.Request) {
+	web, ok := s.webGate(w, r)
+	if !ok {
+		return
+	}
 	var in refreshInput
-	if !decode(w, r, &in) {
+	if web {
+		in.RefreshToken = cookieRefreshToken(r)
+	} else if !decode(w, r, &in) {
 		return
 	}
 	_, err := s.pool.Exec(r.Context(), `UPDATE auth_sessions SET revoked_at=now() WHERE id IN(SELECT session_id FROM auth_refresh_tokens WHERE token_hash=$1)`, refreshHash(in.RefreshToken))
 	if err != nil {
 		failure(w, err)
 		return
+	}
+	if web {
+		clearRefreshCookie(w)
 	}
 	w.WriteHeader(204)
 }

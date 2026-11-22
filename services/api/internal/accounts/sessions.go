@@ -55,6 +55,9 @@ func (s *Service) revokeSession(w http.ResponseWriter, r *http.Request) {
 		respond(w, http.StatusNotFound, map[string]string{"error": "Session unavailable."})
 		return
 	}
+	if current, _ := r.Context().Value(sessionKey{}).(string); current == id {
+		clearWebCookie(w, r)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -65,5 +68,6 @@ func (s *Service) revokeSessions(w http.ResponseWriter, r *http.Request) {
 		failure(w, err)
 		return
 	}
+	clearWebCookie(w, r)
 	w.WriteHeader(http.StatusNoContent)
 }

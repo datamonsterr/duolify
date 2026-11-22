@@ -263,7 +263,12 @@ func run(ctx context.Context, args []string) (result error) {
 			courseOptions.Objects = player.NewS3(os.Getenv)
 		}
 		courseService := courses.New(courseOptions)
-		return worker.RunWithAlerts(ctx, db.Pool, logger, workerServices{creditService, courseService}, eval.NewService(db.Pool, catalogue, monitor, events), service)
+		clerkDeleter, err := accounts.ClerkUserDeleterFromEnv(os.Getenv)
+		if err != nil {
+			return err
+		}
+		clerkEraser := accounts.NewClerkUserEraser(db.Pool, clerkDeleter)
+		return worker.RunWithAlerts(ctx, db.Pool, logger, workerServices{creditService, courseService, clerkEraser}, eval.NewService(db.Pool, catalogue, monitor, events), service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {
@@ -316,6 +321,7 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	auth.ConfigureClerk(clerkVerifier, clerkPublishableKey)
+	auth.ConfigureWebOrigins(accounts.WebOriginsFromEnv(os.Getenv))
 	auth.ConfigureProfile(profileOptions)
 	auth.ConfigureDeletionLedger(deletionLedger)
 	if err := pricing.BootstrapAdmins(ctx, db.Pool, pricing.OperatorPricingAdminIDs()); err != nil {
@@ -765,15 +771,18 @@ func friendStreakSettler(svc *social.Service, logger *slog.Logger) func(context.
 }
 
 // workerServices lets the worker discover every maintenance capability by interface:
-// credit expiry, financial maintenance and the 30-day course purge.
+// credit expiry, financial maintenance, the 30-day course purge and deleting the Clerk users
+// of erased accounts (scheduled only when Clerk is configured).
 type workerServices struct {
 	creditsService
 	courseService
+	clerkEraserService
 }
 
 type (
-	creditsService = *credits.Service
-	courseService  = *courses.Service
+	creditsService     = *credits.Service
+	courseService      = *courses.Service
+	clerkEraserService = *accounts.ClerkUserEraser
 )
 
 var (
@@ -781,4 +790,5 @@ var (
 	_ worker.AnnualIssuer        = workerServices{}
 	_ worker.FinancialMaintainer = workerServices{}
 	_ worker.CoursePurger        = workerServices{}
+	_ worker.ClerkUserEraser     = workerServices{}
 )

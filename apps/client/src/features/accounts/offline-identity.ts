@@ -17,7 +17,10 @@ export function clearOfflineIdentity() {
     /* Disposable. */
   }
 }
+// The binding is a hash of the refresh credential. Cookie-mode sessions hold none in
+// script, so there is nothing to bind to and no offline identity is kept for them.
 export async function rememberOfflineIdentity(value: Learner, tokens: Tokens) {
+  if (!tokens.refresh_token) return;
   const credential = await binding(tokens);
   try {
     localStorage.setItem(
@@ -38,6 +41,7 @@ export async function readOfflineIdentity(
   try {
     const raw = JSON.parse(localStorage.getItem(key) ?? "null");
     if (
+      !tokens.refresh_token ||
       !raw ||
       !/^[a-f0-9-]{36}$/.test(raw.id) ||
       typeof raw.optOut !== "boolean" ||

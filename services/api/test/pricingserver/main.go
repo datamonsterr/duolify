@@ -105,6 +105,7 @@ func run() (result error) {
 	if err != nil {
 		return err
 	}
+	auth.ConfigureWebOrigins(accounts.WebOriginsFromEnv(os.Getenv))
 	ledger := accountstest.NewDeletionLedger()
 	auth.ConfigureDeletionLedger(ledger)
 	rateLimits, err := accounts.RateLimitsFromEnv(os.Getenv)
