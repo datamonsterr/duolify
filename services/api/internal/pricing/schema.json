@@ -41,6 +41,10 @@
       "type": "string",
       "enum": ["pending", "interim_adr_0012", "owner_approved"]
     },
+    "quote_policy_source": {
+      "description": "Existing version whose quote policy (models, fallbacks, provider rates) this version pins on approval, instead of inheriting its parent's. Not a price term.",
+      "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,99}$"
+    },
     "design_chat_policy": {
       "description": "ADR 0013 settlement metadata; historical versions may omit it. Runtime approval still requires the configured owner reviewer.",
       "type": "object",
