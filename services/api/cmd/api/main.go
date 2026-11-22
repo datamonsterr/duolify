@@ -119,6 +119,7 @@ func run(ctx context.Context, args []string) (result error) {
 	if err != nil {
 		return err
 	}
+	backupConfig.S3.Logger = logger
 	objects, err := backup.NewS3(backupConfig.S3)
 	if err != nil {
 		return err
@@ -145,7 +146,7 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		defer func() { result = errors.Join(result, events.Close()) }()
-		assetProtection := backup.CharacterAssetProtection{Pool: db.Pool, Application: &backup.S3{Client: objects.Client, Bucket: backupConfig.S3.ApplicationBucket}, Protected: objects, Recipient: backupConfig.Recipient}
+		assetProtection := backup.CharacterAssetProtection{Pool: db.Pool, Application: &backup.S3{Client: objects.Client, Bucket: backupConfig.S3.ApplicationBucket, Logger: logger}, Protected: objects, Recipient: backupConfig.Recipient, Unversioned: !backupConfig.Versioned}
 		service, err := backup.New(backup.Options{Source: backup.Postgres{Pool: db.Pool, DatabaseURL: cfg.DatabaseURL}, Objects: objects, Recipient: backupConfig.Recipient, Events: events, OptOut: backupConfig.OptOut, Monitor: monitor, FinancialCopy: true, ProtectAssets: assetProtection.Protect})
 		if err != nil {
 			return err
