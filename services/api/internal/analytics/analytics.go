@@ -92,6 +92,7 @@ func allowlisted(event string) bool {
 		"checkout_started", "credits_purchased", "credits_purchase_failed", "credits_refunded", "payment_reconciliation_failed",
 		"plan_purchased", "subscription_grant_issued", "entitlement_changed", "subscription_renewed", "subscription_cancelled", "subscription_payment_failed",
 		"backup_completed", "backup_failed", "restore_drill_completed", "eval_run_completed", "ai_cost_budget_alert",
+		"duolify_integration_check",
 		"$ai_generation", "tutor_message_sent", "tutor_reply_completed", "tutor_reply_failed", "tutor_reply_stopped", "ui_control_activated", "ui_navigation_selected", "ui_screen_viewed",
 		"paywall_viewed", "credits_upsell_shown", "pricing_version_exposed", "ui_purchase_option_selected", "ui_checkout_requested",
 		"pricing_version_created", "pricing_version_approved", "pricing_version_rejected",
@@ -590,7 +591,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("$ai_provider", "$ai_model", "feature", "error_code")
 		numeric("input_tokens", "output_tokens", "latency_ms", "attempt", "cache_write_tokens", "cache_read_tokens", "narration_characters", "provider_cost_nanos")
 		ids("provider", "model", "task", "pricing_version", "error_code", "envelope", "cache_class")
-		for legacy, canonical := range map[string]string{"input_tokens": "$ai_input_tokens", "output_tokens": "$ai_output_tokens", "latency_ms": "$ai_latency", "provider": "$ai_provider", "model": "$ai_model", "task": "feature"} {
+		for legacy, canonical := range map[string]string{"input_tokens": "$ai_input_tokens", "output_tokens": "$ai_output_tokens", "provider": "$ai_provider", "model": "$ai_model", "task": "feature"} {
 			if out[canonical] == nil && out[legacy] != nil {
 				out[canonical] = out[legacy]
 			}
@@ -599,6 +600,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 			succeeded, known := out["succeeded"].(bool)
 			out["$ai_is_error"] = known && !succeeded
 		}
+		llmAnalytics(input, out)
 	case "tutor_message_sent":
 		ids("course_id", "class")
 		numeric("message_length")
@@ -740,3 +742,37 @@ var (
 	moderationReasonCodes = map[string]bool{"unsafe": true, "legal": true, "inappropriate": true, "spam": true, "copyright": true, "misleading": true, "other": true, "no_violation": true}
 	marketUUID            = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 )
+
+// llmAnalytics adds the PostHog LLM analytics fields: latency in seconds, the USD
+// cost, and a trace id (PostHog groups generations by it). Ids and numbers only.
+func llmAnalytics(input, out map[string]any) {
+	if ms, ok := number(input["latency_ms"]); ok && ms >= 0 {
+		out["$ai_latency"] = ms / 1000
+	} else if sec, ok := number(input["$ai_latency"]); ok && sec >= 0 {
+		out["$ai_latency"] = sec
+	}
+	if nanos, ok := number(input["provider_cost_nanos"]); ok && nanos >= 0 {
+		out["$ai_total_cost_usd"] = nanos / 1e9
+	}
+	if id, ok := input["trace_id"].(string); ok && identifier.MatchString(id) {
+		out["$ai_trace_id"] = id
+	} else {
+		out["$ai_trace_id"] = uuid.NewString()
+	}
+}
+
+func number(v any) (float64, bool) {
+	switch n := v.(type) {
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case uint32:
+		return float64(n), true
+	case uint64:
+		return float64(n), true
+	case float64:
+		return n, n < 1e15
+	}
+	return 0, false
+}
