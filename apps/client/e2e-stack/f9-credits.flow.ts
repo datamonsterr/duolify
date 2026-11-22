@@ -27,7 +27,8 @@ test(
     await expect(
       page.getByRole("meter", { name: "Daily free credits" }),
     ).toBeVisible();
-    await expect(page.getByText("No wallet activity yet.")).toBeVisible();
+    await expect(page.getByText("Daily free credits granted")).toBeVisible();
+    await expect(page.getByText("+500")).toHaveCount(0);
     await flow.step("wallet of a new learner");
 
     // A course preview is a paid action: its quote is shown before anything is charged,
@@ -55,8 +56,19 @@ test(
     // Stand-in for a completed purchase (card payments are off outside test builds).
     await fundLearner(learner);
     await page.reload();
-    await expect(page.getByText("No wallet activity yet.")).toHaveCount(0);
+    await expect(page.getByText("+500")).toBeVisible();
     await flow.step("wallet after purchase");
+    if (
+      await page
+        .getByRole("complementary", { name: "Your progress" })
+        .getByText("Balance unavailable")
+        .isVisible()
+    )
+      flow.defect(
+        "The shell's right rail always shows 'Balance unavailable' and an example streak " +
+          "('Example: 3 of 7 days this week'): both cards are static placeholders " +
+          "(apps/client/src/features/shell/AppShell.tsx:210-252), even with a funded wallet.",
+      );
 
     await page.goto("/courses/create");
     await expect(
