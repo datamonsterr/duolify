@@ -50,7 +50,7 @@ func routeProtectedCost(p QuotePolicy, action string, input, output int64) (floa
 		}
 		seen[key] = true
 		rate, ok := p.Models[key]
-		if !ok || rate.Input <= 0 || rate.Output <= 0 {
+		if !ok || rate.Provider == "" || rate.Model == "" || rate.Input <= 0 || rate.Output <= 0 {
 			return 0, fmt.Errorf("missing economics rate for %s", action)
 		}
 		inRate, outRate = max(inRate, rate.Input), max(outRate, rate.Output)

@@ -14,8 +14,8 @@ func TestRouteProtectedCost(t *testing.T) {
 		ActionModels:   map[string]string{"preview": "primary"},
 		FallbackModels: map[string]string{"primary": "fallback"},
 		Models: map[string]ModelRate{
-			"primary":  {Input: 35, Output: 141},
-			"fallback": {Input: 40, Output: 79},
+			"primary":  {Provider: "openrouter", Model: "tencent/hy4-flash", Input: 35, Output: 141},
+			"fallback": {Provider: "openrouter", Model: "z-ai/glm-5.3-flash", Input: 40, Output: 79},
 		},
 	}
 	// Input and output are independently protected at the highest rate in the route.
@@ -30,7 +30,7 @@ func TestRouteProtectedCost(t *testing.T) {
 		t.Fatal(err)
 	}
 	route.MaxAttempts = 1
-	route.Models["primary"] = ModelRate{Input: 2000, Output: 10000}
+	route.Models["primary"] = ModelRate{Provider: "anthropic", Model: "sonnet", Input: 2000, Output: 10000}
 	got, err = routeProtectedCost(route, "preview", 2000, 2500)
 	if err != nil || math.Abs(got-0.0349914) > 1e-12 {
 		t.Fatalf("Sonnet protected cost = %g, %v", got, err)
@@ -69,14 +69,14 @@ func TestRouteEconomicsRejectsExpensiveVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy := QuotePolicy{MaxAttempts: 2, ActionModels: map[string]string{}, FallbackModels: map[string]string{"primary": "fallback"}, Models: map[string]ModelRate{"primary": {Input: 35, Output: 141}, "fallback": {Input: 40, Output: 79}}}
+	policy := QuotePolicy{MaxAttempts: 2, ActionModels: map[string]string{}, FallbackModels: map[string]string{"primary": "fallback"}, Models: map[string]ModelRate{"primary": {Provider: "openrouter", Model: "tencent/hy4-flash", Input: 35, Output: 141}, "fallback": {Provider: "openrouter", Model: "z-ai/glm-5.3-flash", Input: 40, Output: 79}}}
 	for _, name := range []string{"preview", "outline", "outline_replan", "lesson_content", "tutor_short", "tutor_long", "quick_note"} {
 		policy.ActionModels[name] = "primary"
 	}
 	if _, err = checkEconomics(context.Background(), raw, &DevelopmentVerifier{}, "", defaultEconomicsPolicy(), false, policy); err != nil {
 		t.Fatalf("approved route: %v", err)
 	}
-	policy.Models["primary"] = ModelRate{Input: 2000, Output: 10000}
+	policy.Models["primary"] = ModelRate{Provider: "anthropic", Model: "sonnet", Input: 2000, Output: 10000}
 	if _, err = checkEconomics(context.Background(), raw, &DevelopmentVerifier{}, "", defaultEconomicsPolicy(), false, policy); err == nil {
 		t.Fatal("expensive route passed version economics")
 	}

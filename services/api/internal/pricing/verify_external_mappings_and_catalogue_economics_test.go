@@ -25,7 +25,7 @@ func loadApprovedConfig(t *testing.T) map[string]any {
 func legacyRouteForTest() pricing.QuotePolicy {
 	return pricing.QuotePolicy{MaxAttempts: 1,
 		ActionModels: map[string]string{"preview": "sonnet", "outline": "sonnet", "outline_replan": "sonnet", "lesson_content": "sonnet", "quick_note": "haiku", "tutor_short": "haiku", "tutor_long": "haiku"},
-		Models:       map[string]pricing.ModelRate{"sonnet": {Input: 2000, Output: 10000}, "haiku": {Input: 100, Output: 500}},
+		Models:       map[string]pricing.ModelRate{"sonnet": {Provider: "anthropic", Model: "sonnet", Input: 2000, Output: 10000}, "haiku": {Provider: "anthropic", Model: "haiku", Input: 100, Output: 500}},
 	}
 }
 
