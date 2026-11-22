@@ -43,6 +43,22 @@ type QuotePolicy struct {
 	Models                    map[string]ModelRate `json:"models"`
 }
 
+// Fallbacks returns the rates of the ordered fallback chain behind the model key, nearest first.
+// A key without a configured rate ends the chain, and a cycle never repeats a key.
+func (p QuotePolicy) Fallbacks(key string) []ModelRate {
+	var route []ModelRate
+	seen := map[string]bool{key: true}
+	for next := p.FallbackModels[key]; next != "" && !seen[next]; next = p.FallbackModels[next] {
+		seen[next] = true
+		rate, ok := p.Models[next]
+		if !ok {
+			break
+		}
+		route = append(route, rate)
+	}
+	return route
+}
+
 // QuoteInput contains counts and allowlisted identifiers, never learner text.
 type QuoteInput struct {
 	CourseID        string `json:"course_id,omitempty"`
@@ -82,6 +98,16 @@ type Quote struct {
 	ExpiresAt            time.Time        `json:"expires_at"`
 	Accepted             bool             `json:"accepted"`
 	Expired              bool             `json:"expired"`
+}
+
+// WorstRate holds, per token class, the dearest rate among the quoted model and its fallbacks.
+func (q Quote) WorstRate() ModelRate {
+	worst := q.Rate
+	for _, f := range q.Policy.Fallbacks(q.Input.Model) {
+		worst.Input, worst.Output = max(worst.Input, f.Input), max(worst.Output, f.Output)
+		worst.CacheWrite, worst.CacheRead = max(worst.CacheWrite, f.CacheWrite), max(worst.CacheRead, f.CacheRead)
+	}
+	return worst
 }
 
 var errQuote = errors.New("quote unavailable: invalid action, bounds or missing rate")
