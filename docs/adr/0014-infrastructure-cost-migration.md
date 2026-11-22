@@ -49,3 +49,11 @@ Railway bills used CPU and RAM plus $0.05/GB service egress, and slides and audi
   - the S3 conformance and copy/verify tasks
   - the deploy job
 - **ADRs.** ADR 0003 and ADR 0008 are amended when Railway is decommissioned.
+
+## Amendment 2026-11-22: Cloudflare R2, domain, no Railway migration (owner)
+
+- **Object storage is Cloudflare R2** (S3-compatible, `https://<account>.r2.cloudflarestorage.com`, region `auto`) for the application bucket and for backups, WAL and the DR copy; not Hetzner Object Storage. The compute stays on Hetzner `hel1`, so `BACKUP_LOCATION` is `cloudflare-r2`, outside the VM. The overlay and env templates use generic `S3_*` / `BACKUP_S3_*` variables (`S3_ADDRESSING_STYLE`, `BACKUP_S3_VERSIONING`).
+- **R2 has no bucket versioning** (S3 `PutBucketVersioning` is unimplemented). Consequences: the backup lifecycle is expiry-only (`BACKUP_S3_VERSIONING=none`), `wal/` and `base/` are protected by R2 bucket lock rules (owner step, not settable via S3), and the DR copy cannot keep overwritten versions. Features that need object versions (point 1 above, version-aware asset recovery and the deletion ledger) are not available on R2 and need a decision before real assets go there.
+- **Domain:** `duolify.online`, Cloudflare in front.
+- **No migration from Railway** (D1): the Hetzner stack is a fresh deploy; the logical-replication cutover phases are not executed.
+- **Owner decision, same day: everything stays on R2 for this phase, backups included, and the missing versioning is accepted.** Bucket lock rules are set on `duolify-backups`: `wal/` 10 days, `base/` 9 days (equal to the lifecycle expiry). Protection is locks plus expiry instead of versions. Revisit before real lesson assets and the deletion ledger rely on object versions.

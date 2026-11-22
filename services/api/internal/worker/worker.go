@@ -95,10 +95,16 @@ func NewObserved(pool *pgxpool.Pool, logger *slog.Logger, monitor *telemetry.Mon
 
 // NewWithCredits registers backups, daily expiry and funded annual allowances.
 func NewWithCredits(pool *pgxpool.Pool, logger *slog.Logger, monitor *telemetry.Monitor, expirer Expirer, backups ...*backup.Service) (*river.Client[pgx.Tx], error) {
+	return NewWithAlerts(pool, logger, monitor, expirer, nil, backups...)
+}
+
+// NewWithAlerts also schedules reliability and AI cost alert evaluation when alerts is set.
+func NewWithAlerts(pool *pgxpool.Pool, logger *slog.Logger, monitor *telemetry.Monitor, expirer Expirer, alerts ReliabilityAlerter, backups ...*backup.Service) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &dummyWorker{logger: logger})
 	periodic := []*river.PeriodicJob{}
 	periodic = append(periodic, registerFinancialWorkers(workers, expirer)...)
+	periodic = append(periodic, registerReliabilityAlertWorkers(workers, alerts)...)
 	if expirer != nil {
 		river.AddWorker(workers, &CreditsWorker{Expirer: expirer, Logger: logger})
 		periodic = append(periodic, PeriodicCreditsJob())
@@ -139,6 +145,11 @@ func Run(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, backups .
 
 // RunWithCredits runs durable credit maintenance together with backup workers.
 func RunWithCredits(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, expirer Expirer, backups ...*backup.Service) error {
+	return RunWithAlerts(ctx, pool, logger, expirer, nil, backups...)
+}
+
+// RunWithAlerts runs credit maintenance, backups and scheduled alert evaluation.
+func RunWithAlerts(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, expirer Expirer, alerts ReliabilityAlerter, backups ...*backup.Service) error {
 	monitor := telemetry.New(logger)
 	if len(backups) > 0 && backups[0] != nil && backups[0].Monitor() != nil {
 		monitor = backups[0].Monitor()
@@ -146,7 +157,7 @@ func RunWithCredits(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger
 	watchCtx, watchCancel := context.WithCancel(ctx)
 	defer watchCancel()
 	go WatchQueue(watchCtx, monitor, pool.Ping, time.Second*15)
-	client, err := NewWithCredits(pool, logger, monitor, expirer, backups...)
+	client, err := NewWithAlerts(pool, logger, monitor, expirer, alerts, backups...)
 	if err != nil {
 		return err
 	}
