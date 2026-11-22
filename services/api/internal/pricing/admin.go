@@ -284,12 +284,6 @@ func (a *Admin) create(w http.ResponseWriter, r *http.Request, actor string) {
 		adminError(w, 422, "invalid pricing config")
 		return
 	}
-	if _, err = checkEconomics(r.Context(), in.Config, nil, in.OverrideReason, a.policy, true); err != nil {
-		a.auditFailure(r.Context(), actor, "validation_failed", c.Version, in.Reason, "{}", requestID(r))
-		a.emit(r.Context(), actor, c.Version, "pricing_version_rejected", "")
-		adminError(w, 422, err.Error())
-		return
-	}
 	ctx := r.Context()
 	tx, err := a.pool.Begin(ctx)
 	if err != nil {
@@ -317,6 +311,16 @@ func (a *Admin) create(w http.ResponseWriter, r *http.Request, actor string) {
 			adminError(w, 422, "quote policy source not found")
 			return
 		}
+	}
+	route, routeErr := economicsRoute(ctx, tx, economicsSource(c.QuotePolicySource, parent))
+	if routeErr == nil {
+		_, routeErr = checkEconomics(ctx, in.Config, nil, in.OverrideReason, a.policy, true, route)
+	}
+	if routeErr != nil {
+		a.auditFailure(ctx, actor, "validation_failed", c.Version, in.Reason, "{}", requestID(r))
+		a.emit(ctx, actor, c.Version, "pricing_version_rejected", "")
+		adminError(w, 422, routeErr.Error())
+		return
 	}
 	adverse, err := classifyEffective(ctx, tx, previous, in.Config, parent)
 	if err != nil {
@@ -366,12 +370,6 @@ func (a *Admin) edit(w http.ResponseWriter, r *http.Request, actor, version stri
 		adminError(w, 422, "invalid pricing config")
 		return
 	}
-	if _, err = checkEconomics(r.Context(), in.Config, a.verifier, in.OverrideReason, a.policy, false); err != nil {
-		a.auditFailure(r.Context(), actor, "validation_failed", version, in.Reason, "{}", requestID(r))
-		a.emit(r.Context(), actor, version, "pricing_version_rejected", "")
-		adminError(w, 422, err.Error())
-		return
-	}
 	ctx := r.Context()
 	tx, err := a.pool.Begin(ctx)
 	if err != nil {
@@ -402,6 +400,14 @@ func (a *Admin) edit(w http.ResponseWriter, r *http.Request, actor, version stri
 	if author != actor || status != "draft" {
 		a.auditFailure(r.Context(), actor, "edit_denied", version, in.Reason, "{}", requestID(r))
 		adminError(w, 409, "only the author may edit an unsubmitted draft")
+		return
+	}
+	route, routeErr := economicsRoute(ctx, tx, economicsSource(c.QuotePolicySource, parent))
+	if routeErr == nil {
+		_, routeErr = checkEconomics(ctx, in.Config, a.verifier, in.OverrideReason, a.policy, false, route)
+	}
+	if routeErr != nil {
+		adminError(w, 422, routeErr.Error())
 		return
 	}
 	var active []byte
@@ -489,7 +495,11 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 	}
 	var evidence verificationEvidence
 	if action != "diff" && action != "reject" {
-		if evidence, err = checkEconomics(ctx, cfg, a.verifier, in.OverrideReason, a.policy, false); err != nil {
+		route, routeErr := economicsRoute(ctx, tx, economicsSource(parsed.QuotePolicySource, parent))
+		if routeErr == nil {
+			evidence, routeErr = checkEconomics(ctx, cfg, a.verifier, in.OverrideReason, a.policy, false, route)
+		}
+		if err = routeErr; err != nil {
 			a.auditFailure(ctx, actor, "validation_failed", version, in.Reason, "{}", requestID(r))
 			a.emit(ctx, actor, version, "pricing_version_rejected", class)
 			adminError(w, 422, err.Error())
@@ -853,7 +863,11 @@ func (a *Admin) rollback(w http.ResponseWriter, r *http.Request, actor, source s
 		adminError(w, 409, err.Error())
 		return
 	}
-	if _, err = checkEconomics(ctx, content, a.verifier, in.OverrideReason, a.policy, false); err != nil {
+	route, routeErr := economicsRoute(ctx, tx, economicsSource(parsed.QuotePolicySource, parent))
+	if routeErr == nil {
+		_, routeErr = checkEconomics(ctx, content, a.verifier, in.OverrideReason, a.policy, false, route)
+	}
+	if err = routeErr; err != nil {
 		adminError(w, 422, err.Error())
 		return
 	}

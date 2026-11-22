@@ -45,7 +45,7 @@ func TestCheckInPricingAddsOnlyOwnerApprovedGrant(t *testing.T) {
 	if err = db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version='usd-hy4-routing-2026-11-22' AND approved").Scan(&parent); err != nil {
 		t.Fatal(err)
 	}
-	if err = db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version=$1 AND approved", cfg.Version).Scan(&child); err != nil {
+	if err = db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version='usd-hy4-check-in-2026-11-22' AND approved").Scan(&child); err != nil {
 		t.Fatal(err)
 	}
 	var a, b map[string]any
@@ -65,5 +65,37 @@ func TestCheckInPricingAddsOnlyOwnerApprovedGrant(t *testing.T) {
 	}
 	if err = db.Pool.QueryRow(ctx, `SELECT (SELECT policy FROM pricing_quote_policies WHERE version=$1)=(SELECT policy FROM pricing_quote_policies WHERE version='usd-hy4-routing-2026-11-22')`, cfg.Version).Scan(&samePolicy); err != nil || !samePolicy {
 		t.Fatalf("routing changed: %v", err)
+	}
+	var current []byte
+	if err = db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version=$1 AND approved", cfg.Version).Scan(&current); err != nil {
+		t.Fatal(err)
+	}
+	var base, next map[string]any
+	if err = json.Unmarshal(child, &base); err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(current, &next); err != nil {
+		t.Fatal(err)
+	}
+	if next["version"] != activeVersion {
+		t.Fatalf("unexpected active version: %v", next["version"])
+	}
+	transcribe, ok := next["transcribe"].(map[string]any)
+	if !ok || transcribe["credits"] != float64(0) || transcribe["usd_nanos_per_second"] != float64(3330) || transcribe["max_cost_nanos"] != float64(500000) || transcribe["daily_requests"] != float64(60) {
+		t.Fatalf("transcription pricing: %v", next["transcribe"])
+	}
+	basePreview := base["limits"].(map[string]any)["preview"].(map[string]any)
+	nextPreview := next["limits"].(map[string]any)["preview"].(map[string]any)
+	if nextPreview["output_tokens"] != float64(6000) {
+		t.Fatalf("preview cap: %v", nextPreview)
+	}
+	basePreview["output_tokens"] = float64(6000)
+	delete(next, "transcribe")
+	delete(base, "version")
+	delete(next, "version")
+	delete(base, "effective_from")
+	delete(next, "effective_from")
+	if !reflect.DeepEqual(base, next) {
+		t.Fatal("voice pricing migration changed unrelated terms")
 	}
 }

@@ -4,6 +4,7 @@ package credits_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
@@ -61,6 +62,88 @@ func TestDailyCheckInTransactions(t *testing.T) {
 		return v
 	}
 	day := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+	t.Run("free cap follows funding allocations", func(t *testing.T) {
+		catalogue, err := pricing.Load(ctx, db.Queries)
+		if err != nil {
+			t.Fatal(err)
+		}
+		financial := credits.NewServiceWithCatalogue(db.Pool, nil, catalogue, nil)
+		for _, tc := range []struct {
+			name                            string
+			hold, credits                   int64
+			checkIn, freeEligible, rejected bool
+			wantHeld                        int64
+		}{
+			{"check-in replan", 500000000, 100, true, false, false, 0},
+			{"free-only over cap", 90000000, 46, false, true, true, 0},
+			{"mixed", 100000000, 100, true, true, false, 46000000},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				id := learner(t, "UTC")
+				if tc.checkIn {
+					check(t, id, time.Now())
+				}
+				q, err := pricing.NewQuotes(db.Pool).Create(ctx, id, pricing.QuoteInput{Action: "quick_note"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				q.Action, q.Input.Action = "outline_replan", "outline_replan"
+				q.ContentCeiling, q.ContentMinimum = tc.credits, tc.credits
+				q.DailyFreeEligible = tc.freeEligible
+				q.Bounds["input_tokens"], q.Bounds["output_tokens"], q.Bounds["max_attempts"] = 1, 1, 2
+				q.Rate.Input, q.Rate.Output, q.Rate.CacheWrite, q.Rate.CacheRead = 0, tc.hold/2, 0, 0
+				q.Policy.FallbackModels = nil
+				raw, err := json.Marshal(q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var quoteID string
+				if err = db.Pool.QueryRow(ctx, `INSERT INTO pricing_quotes(learner_id,owner_reference,pricing_version,snapshot,created_at,expires_at) VALUES($1,$2,$3,$4,now(),now()+interval '5 minutes') RETURNING id::text`, id, accounts.LearnerReference(id), q.PricingVersion, raw).Scan(&quoteID); err != nil {
+					t.Fatal(err)
+				}
+				if _, err = db.Pool.Exec(ctx, `INSERT INTO pricing_quote_consents(quote_id) VALUES($1)`, quoteID); err != nil {
+					t.Fatal(err)
+				}
+				job, err := financial.Reserve(ctx, id, quoteID)
+				if tc.rejected {
+					if !errors.Is(err, credits.ErrBudget) {
+						t.Fatalf("want spend cap, got %v", err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				var learnerHeld, totalHeld int64
+				if err = db.Pool.QueryRow(ctx, `SELECT learner_held_nanos,held_nanos FROM credit_jobs WHERE id=$1`, job.ID).Scan(&learnerHeld, &totalHeld); err != nil {
+					t.Fatal(err)
+				}
+				if learnerHeld != tc.wantHeld || totalHeld != tc.hold {
+					t.Fatalf("learner=%d platform=%d", learnerHeld, totalHeld)
+				}
+				if tc.name == "mixed" {
+					if err = financial.Claim(ctx, id, job.ID); err != nil {
+						t.Fatal(err)
+					}
+					_, err = financial.Settle(ctx, id, job.ID, []*enginev1.Usage{{Component: "content", Provider: q.Rate.Provider, Model: q.Rate.Model, Attempt: 1, OutputTokens: 1, Delivered: true}})
+					if err != nil {
+						t.Fatal(err)
+					}
+					var spent, held int64
+					if err = db.Pool.QueryRow(ctx, `SELECT spent_nanos,held_nanos FROM credit_cost_counters WHERE scope='learner' AND owner_reference=$1 AND day=CURRENT_DATE`, accounts.LearnerReference(id)).Scan(&spent, &held); err != nil {
+						t.Fatal(err)
+					}
+					if spent != 23000000 || held != 0 {
+						t.Fatalf("settled learner spent=%d held=%d", spent, held)
+					}
+					return
+				}
+				if _, err = financial.Release(ctx, id, job.ID); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
+	})
 	t.Run("20 concurrent replicas grant once", func(t *testing.T) {
 		id := learner(t, "UTC")
 		var wg sync.WaitGroup

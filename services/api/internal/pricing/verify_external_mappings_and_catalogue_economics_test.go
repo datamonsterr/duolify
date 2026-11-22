@@ -22,6 +22,13 @@ func loadApprovedConfig(t *testing.T) map[string]any {
 	return cfg
 }
 
+func legacyRouteForTest() pricing.QuotePolicy {
+	return pricing.QuotePolicy{MaxAttempts: 1,
+		ActionModels: map[string]string{"preview": "sonnet", "outline": "sonnet", "outline_replan": "sonnet", "lesson_content": "sonnet", "quick_note": "haiku", "tutor_short": "haiku", "tutor_long": "haiku"},
+		Models:       map[string]pricing.ModelRate{"sonnet": {Input: 2000, Output: 10000}, "haiku": {Input: 100, Output: 500}},
+	}
+}
+
 func TestExactDailyAllowanceSizing(t *testing.T) {
 	cfg := loadApprovedConfig(t)
 	raw, _ := json.Marshal(cfg)
@@ -29,7 +36,7 @@ func TestExactDailyAllowanceSizing(t *testing.T) {
 	// Approved seed has 46 daily credits, which exactly equals:
 	// 3 * 2 (quick_note) + 8 * 5 (tutor_short) = 46
 	// 3 * 2 (quick_note) + 5 * 8 (tutor_long) = 46
-	if err := pricing.ValidateEconomics(raw, &pricing.DevelopmentVerifier{}, ""); err != nil {
+	if err := pricing.ValidateEconomics(raw, &pricing.DevelopmentVerifier{}, "", legacyRouteForTest()); err != nil {
 		t.Fatalf("approved config economics failed: %v", err)
 	}
 
@@ -37,7 +44,7 @@ func TestExactDailyAllowanceSizing(t *testing.T) {
 	daily := cfg["daily_free"].(map[string]any)
 	daily["credits"] = 45
 	badRaw, _ := json.Marshal(cfg)
-	err := pricing.ValidateEconomics(badRaw, &pricing.DevelopmentVerifier{}, "")
+	err := pricing.ValidateEconomics(badRaw, &pricing.DevelopmentVerifier{}, "", legacyRouteForTest())
 	if err == nil || !strings.Contains(err.Error(), "daily_free.credits must match exact sizing") {
 		t.Fatalf("expected exact daily allowance sizing error, got %v", err)
 	}
@@ -52,15 +59,15 @@ func TestStandardActionCostCeilingAndOverride(t *testing.T) {
 	raw, _ := json.Marshal(cfg)
 
 	// Without override, it must fail
-	err := pricing.ValidateEconomics(raw, &pricing.DevelopmentVerifier{}, "")
-	if err == nil || (!strings.Contains(err.Error(), "protected cost ceiling") && !strings.Contains(err.Error(), "ceiling")) {
+	err := pricing.ValidateEconomics(raw, &pricing.DevelopmentVerifier{}, "", legacyRouteForTest())
+	if err == nil || !strings.Contains(err.Error(), "exceeds budget") {
 		t.Fatalf("expected cost ceiling error, got %v", err)
 	}
 
-	// With explicit override reason, it is accepted
-	errWithOverride := pricing.ValidateEconomics(raw, &pricing.DevelopmentVerifier{}, "approved promotional reduction for launch testing")
-	if errWithOverride != nil {
-		t.Fatalf("expected override to be permitted for cost ceiling, got: %v", errWithOverride)
+	// Route costs above budget cannot be overridden.
+	errWithOverride := pricing.ValidateEconomics(raw, &pricing.DevelopmentVerifier{}, "approved promotional reduction for launch testing", legacyRouteForTest())
+	if errWithOverride == nil {
+		t.Fatal("route cost above budget accepted with override")
 	}
 }
 
@@ -76,13 +83,13 @@ func TestMarginFloor70PercentAlwaysBlocks(t *testing.T) {
 	raw, _ := json.Marshal(cfg)
 
 	// Must fail without override
-	err := pricing.ValidateEconomics(raw, &pricing.DevelopmentVerifier{}, "")
+	err := pricing.ValidateEconomics(raw, &pricing.DevelopmentVerifier{}, "", legacyRouteForTest())
 	if err == nil || !strings.Contains(err.Error(), "below 70% margin") {
 		t.Fatalf("expected below 70%% margin error, got %v", err)
 	}
 
 	// Even with override, 70% margin floor ALWAYS BLOCKS (ADR 0011)
-	errWithOverride := pricing.ValidateEconomics(raw, &pricing.DevelopmentVerifier{}, "trying to override 70% margin floor")
+	errWithOverride := pricing.ValidateEconomics(raw, &pricing.DevelopmentVerifier{}, "trying to override 70% margin floor", legacyRouteForTest())
 	if errWithOverride == nil || !strings.Contains(errWithOverride.Error(), "below 70% margin") {
 		t.Fatalf("70%% margin floor must ALWAYS block activation, got %v", errWithOverride)
 	}
@@ -221,7 +228,7 @@ func TestConfigurableProcessingFees(t *testing.T) {
 		"refund_reserve_rate":        0.05,
 	}
 	raw, _ := json.Marshal(cfg)
-	err := pricing.ValidateEconomics(raw, &pricing.DevelopmentVerifier{}, "")
+	err := pricing.ValidateEconomics(raw, &pricing.DevelopmentVerifier{}, "", legacyRouteForTest())
 	if err == nil || !strings.Contains(err.Error(), "below 70% margin") {
 		t.Fatalf("expected margin rejection with higher configured fee rates, got %v", err)
 	}

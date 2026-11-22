@@ -7,6 +7,13 @@
 [reasoning]
 "z-ai/glm-5.3-flash" = "low"
 
+[tasks.transcribe]
+model = "qwen/qwen3-asr-0.6b"
+fallback_models = ["openai/whisper-large-v3-turbo"]
+endpoint = "/api/v1/audio/transcriptions"
+zdr = true
+data_collection = "deny"
+
 [tasks.lesson]
 model = "tencent/hy4-flash"
 fallback_models = ["z-ai/glm-5.3-flash"]

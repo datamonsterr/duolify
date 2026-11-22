@@ -5,6 +5,16 @@ use engine_core::{Completion, CompletionStream, LlmProvider, Route, StreamEvent}
 use futures::{StreamExt, stream};
 use serde_json::{Value, json};
 
+fn truncation_reason(value: &Value, anthropic: bool) -> Option<&'static str> {
+    if anthropic && value["stop_reason"] == "max_tokens" {
+        Some("stop_reason=max_tokens")
+    } else if !anthropic && value["choices"][0]["finish_reason"] == "length" {
+        Some("finish_reason=length")
+    } else {
+        None
+    }
+}
+
 pub struct HttpProvider {
     client: reqwest::Client,
     url: String,
@@ -71,6 +81,9 @@ impl HttpProvider {
             }
             // Learner content must never be used for provider training.
             body["provider"] = json!({"data_collection":"deny"});
+            if route.zdr {
+                body["provider"]["zdr"] = json!(true);
+            }
         }
         if let Some(data) = engine_core::steering::provider_data(input) {
             if self.anthropic {
@@ -170,6 +183,9 @@ impl LlmProvider for HttpProvider {
             .error_for_status()?
             .json()
             .await?;
+        if let Some(reason) = truncation_reason(&value, self.anthropic) {
+            tracing::warn!(model, reason, "provider output truncated");
+        }
         let (text, usage) = if self.anthropic {
             (&value["content"][0]["text"], &value["usage"])
         } else {
@@ -513,4 +529,25 @@ pub fn router(mode: &str) -> Result<engine_core::ProviderRouter> {
         Arc::new(HttpProvider::openrouter(openrouter.clone(), url.into())),
         Arc::new(HttpProvider::openrouter(openrouter, url.into())),
     )
+}
+
+#[cfg(test)]
+mod truncation_tests {
+    use super::*;
+
+    #[test]
+    fn identifies_provider_output_limits() {
+        assert_eq!(
+            truncation_reason(&json!({"choices":[{"finish_reason":"length"}]}), false),
+            Some("finish_reason=length")
+        );
+        assert_eq!(
+            truncation_reason(&json!({"stop_reason":"max_tokens"}), true),
+            Some("stop_reason=max_tokens")
+        );
+        assert_eq!(
+            truncation_reason(&json!({"choices":[{"finish_reason":"stop"}]}), false),
+            None
+        );
+    }
 }

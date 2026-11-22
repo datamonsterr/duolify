@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"net/http"
 	"strings"
 	"time"
@@ -47,6 +48,18 @@ func (s *Service) pool() *pgxpool.Pool {
 func financialLock(ctx context.Context, tx pgx.Tx) error {
 	_, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended('credits:financial',0))")
 	return err
+}
+
+// learnerCost excludes check-in funding only from the free learner's cap.
+// Round upward so mixed allocations cannot evade the cap by rounding.
+func learnerCost(cost, total, checkIn int64, paid bool) int64 {
+	if paid || total <= 0 {
+		return cost
+	}
+	counted := total - checkIn
+	product := new(big.Int).Mul(big.NewInt(cost), big.NewInt(counted))
+	product.Add(product, big.NewInt(total-1))
+	return product.Div(product, big.NewInt(total)).Int64()
 }
 
 // ReserveAction binds a feature to its own quote before acquiring funds.
@@ -148,14 +161,34 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 	if hold < 0 || hold > q.Bounds["max_cost_nanos"] {
 		return Reservation{}, ErrBudget
 	}
+	result := Reservation{PricingVersion: q.PricingVersion, State: "reserved"}
+	err = tx.QueryRow(ctx, `INSERT INTO credit_jobs(quote_id,learner_id,owner_reference,state,local_date,platform_date,held_nanos,deadline_at) VALUES($1,$2,$3,'reserved',$4::date,$5::date,$6,$7) RETURNING id::text,deadline_at`, quoteID, owner, ref, localDay, platformDay, hold, now.Add(time.Duration(q.Bounds["timeout_ms"])*time.Millisecond)).Scan(&result.ID, &result.DeadlineAt)
+	if err != nil {
+		return Reservation{}, err
+	}
+	if err = allocateTx(ctx, tx, owner, result.ID, q, localDay); err != nil {
+		if errors.Is(err, ErrInsufficient) {
+			_ = tx.Rollback(ctx)
+			_ = s.refusal(ctx, owner, quoteID, q)
+		}
+		return Reservation{}, err
+	}
+	var allocated, checkIn int64
+	if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(amount),0), COALESCE(sum(amount) FILTER (WHERE bucket='check_in'),0) FROM credit_allocations WHERE job_id=$1`, result.ID).Scan(&allocated, &checkIn); err != nil {
+		return Reservation{}, err
+	}
+	learnerHold := learnerCost(hold, allocated, checkIn, paid)
+	if _, err = tx.Exec(ctx, `UPDATE credit_jobs SET learner_held_nanos=$2 WHERE id=$1`, result.ID, learnerHold); err != nil {
+		return Reservation{}, err
+	}
 	capNanos := q.Bounds["free_day_nanos"]
 	if paid {
 		capNanos = q.Bounds["paid_day_nanos"]
 	}
 	for _, counter := range []struct {
 		scope, ref, day string
-		cap             int64
-	}{{"learner", ref, localDay, capNanos}, {"platform", "platform", platformDay, q.Bounds["platform_day_nanos"]}} {
+		cap, amount     int64
+	}{{"learner", ref, localDay, capNanos, learnerHold}, {"platform", "platform", platformDay, q.Bounds["platform_day_nanos"], hold}} {
 		_, err = tx.Exec(ctx, `INSERT INTO credit_cost_counters(scope,owner_reference,day) VALUES($1,$2,$3::date) ON CONFLICT DO NOTHING`, counter.scope, counter.ref, counter.day)
 		if err != nil {
 			return Reservation{}, err
@@ -164,22 +197,9 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 		if err = tx.QueryRow(ctx, "SELECT held_nanos+spent_nanos FROM credit_cost_counters WHERE scope=$1 AND owner_reference=$2 AND day=$3::date", counter.scope, counter.ref, counter.day).Scan(&total); err != nil {
 			return Reservation{}, err
 		}
-		if hold > counter.cap-total {
+		if counter.amount > 0 && counter.amount > counter.cap-total {
 			return Reservation{}, ErrBudget
 		}
-	}
-	result := Reservation{PricingVersion: q.PricingVersion, State: "reserved"}
-	err = tx.QueryRow(ctx, `INSERT INTO credit_jobs(quote_id,learner_id,owner_reference,state,local_date,platform_date,held_nanos,deadline_at) VALUES($1,$2,$3,'reserved',$4::date,$5::date,$6,$7) RETURNING id::text,deadline_at`, quoteID, owner, ref, localDay, platformDay, hold, now.Add(time.Duration(q.Bounds["timeout_ms"])*time.Millisecond)).Scan(&result.ID, &result.DeadlineAt)
-	if err != nil {
-		return Reservation{}, err
-	}
-	if err = allocateTx(ctx, tx, owner, result.ID, q, localDay); err != nil {
-		if errors.Is(err, ErrInsufficient) {
-			// Persist the refusal event independently, without committing a partial job.
-			_ = tx.Rollback(ctx)
-			_ = s.refusal(ctx, owner, quoteID, q)
-		}
-		return Reservation{}, err
 	}
 	if active >= concurrency {
 		return Reservation{}, ErrConcurrency
@@ -188,8 +208,11 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 	if _, err = tx.Exec(ctx, "UPDATE credit_jobs SET result=$2 WHERE id=$1", result.ID, raw); err != nil {
 		return Reservation{}, err
 	}
-	for _, counter := range []struct{ scope, ref, day string }{{"learner", ref, localDay}, {"platform", "platform", platformDay}} {
-		if _, err = tx.Exec(ctx, "UPDATE credit_cost_counters SET held_nanos=held_nanos+$4 WHERE scope=$1 AND owner_reference=$2 AND day=$3::date", counter.scope, counter.ref, counter.day, hold); err != nil {
+	for _, counter := range []struct {
+		scope, ref, day string
+		amount          int64
+	}{{"learner", ref, localDay, learnerHold}, {"platform", "platform", platformDay, hold}} {
+		if _, err = tx.Exec(ctx, "UPDATE credit_cost_counters SET held_nanos=held_nanos+$4 WHERE scope=$1 AND owner_reference=$2 AND day=$3::date", counter.scope, counter.ref, counter.day, counter.amount); err != nil {
 			return Reservation{}, err
 		}
 	}
@@ -438,9 +461,9 @@ func (s *Service) finalize(ctx context.Context, owner, id string, usage []*engin
 		return Reservation{}, err
 	}
 	var quoteID, state, localDay, platformDay string
-	var hold int64
+	var hold, learnerHold int64
 	var saved []byte
-	err = tx.QueryRow(ctx, `SELECT quote_id::text,state,local_date::text,platform_date::text,held_nanos,result FROM credit_jobs WHERE id=$1 AND learner_id=$2 FOR UPDATE`, id, owner).Scan(&quoteID, &state, &localDay, &platformDay, &hold, &saved)
+	err = tx.QueryRow(ctx, `SELECT quote_id::text,state,local_date::text,platform_date::text,held_nanos,COALESCE(learner_held_nanos,held_nanos),result FROM credit_jobs WHERE id=$1 AND learner_id=$2 FOR UPDATE`, id, owner).Scan(&quoteID, &state, &localDay, &platformDay, &hold, &learnerHold, &saved)
 	if err != nil {
 		return Reservation{}, ErrReservation
 	}
@@ -556,8 +579,12 @@ func (s *Service) finalize(ctx context.Context, owner, id string, usage []*engin
 	if _, err = tx.Exec(ctx, `UPDATE credit_jobs SET state=$2,result=$3,finished_at=$4 WHERE id=$1`, id, result.State, raw, now); err != nil {
 		return result, err
 	}
-	for _, counter := range []struct{ scope, ref, day string }{{"learner", accounts.LearnerReference(owner), localDay}, {"platform", "platform", platformDay}} {
-		if _, err = tx.Exec(ctx, `UPDATE credit_cost_counters SET held_nanos=held_nanos-$4,spent_nanos=spent_nanos+$5 WHERE scope=$1 AND owner_reference=$2 AND day=$3::date`, counter.scope, counter.ref, counter.day, hold, result.CostNanos); err != nil {
+	learnerSpent := learnerCost(result.CostNanos, hold, hold-learnerHold, false)
+	for _, counter := range []struct {
+		scope, ref, day string
+		held, spent     int64
+	}{{"learner", accounts.LearnerReference(owner), localDay, learnerHold, learnerSpent}, {"platform", "platform", platformDay, hold, result.CostNanos}} {
+		if _, err = tx.Exec(ctx, `UPDATE credit_cost_counters SET held_nanos=held_nanos-$4,spent_nanos=spent_nanos+$5 WHERE scope=$1 AND owner_reference=$2 AND day=$3::date`, counter.scope, counter.ref, counter.day, counter.held, counter.spent); err != nil {
 			return result, err
 		}
 	}

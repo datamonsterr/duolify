@@ -40,7 +40,7 @@ func approveOwnerDesignChatFixture(t *testing.T, db *store.Store, admin *pricing
 	baseRaw, _ = json.Marshal(base)
 	for _, statement := range []string{
 		"INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES('usd-owner-replan-baseline',($1::jsonb->>'effective_from')::timestamptz,true,$1::jsonb)",
-		"INSERT INTO pricing_quote_policies(version,policy) SELECT 'usd-owner-replan-baseline',policy FROM pricing_quote_policies WHERE version='usd-quotes-2026-11-09' AND $1::jsonb IS NOT NULL",
+		"INSERT INTO pricing_quote_policies(version,policy) SELECT 'usd-owner-replan-baseline',policy FROM pricing_quote_policies WHERE version='usd-hy4-check-in-2026-11-22' AND $1::jsonb IS NOT NULL",
 		"INSERT INTO pricing_activation_events(version,activated_at) SELECT 'usd-owner-replan-baseline',now() WHERE $1::jsonb IS NOT NULL",
 	} {
 		if _, err := db.Pool.Exec(ctx, statement, baseRaw); err != nil {

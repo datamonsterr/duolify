@@ -135,18 +135,41 @@ fn parsed(c: &Option<Completion>) -> Value {
         .unwrap_or(Value::Null)
 }
 
-pub async fn evaluate(task: &str, input: &Value, router: &ProviderRouter) -> Result<Live> {
+pub async fn preview_output_limit(url: &str) -> Result<u32> {
+    let pricing: Value = reqwest::get(url).await?.error_for_status()?.json().await?;
+    pricing["limits"]["preview"]["output_tokens"]
+        .as_u64()
+        .and_then(|n| u32::try_from(n).ok())
+        .filter(|n| *n > 0)
+        .context("active pricing has no valid preview output limit")
+}
+
+pub async fn evaluate(
+    task: &str,
+    input: &Value,
+    router: &ProviderRouter,
+    preview_limit: Option<u32>,
+) -> Result<Live> {
     match task {
         "course_preview" => {
             let brief: engine_core::courses::Brief =
                 serde_json::from_value(input["brief"].clone())?;
             let prompt = engine_core::courses::preview_prompt(&brief, input["profile"].clone());
             let rejected = Rejections::new();
+            let mut preview_limits = limits(
+                input,
+                2000,
+                preview_limit.context("active preview limit required")?,
+                120000,
+            );
+            // Never let a golden case override the active output envelope.
+            preview_limits.output_tokens =
+                preview_limit.context("active preview limit required")?;
             let outcome = engine_core::credits::run_validated_checked(
                 router,
                 "preview",
                 &prompt,
-                &limits(input, 16000, 8000, 120000),
+                &preview_limits,
                 |text| rejected.check(text, engine_core::courses::check_preview(text)),
             )
             .await?;
@@ -727,5 +750,33 @@ impl From<Outline> for engine_proto::CourseOutline {
                 })
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod pricing_cap_tests {
+    use super::*;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    #[tokio::test]
+    async fn reads_preview_cap_from_pricing() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/pricing"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"limits":{"preview":{"output_tokens":6000}}})),
+            )
+            .mount(&server)
+            .await;
+        assert_eq!(
+            preview_output_limit(&format!("{}/v1/pricing", server.uri()))
+                .await
+                .unwrap(),
+            6000
+        );
     }
 }

@@ -69,11 +69,12 @@ type CheckInConfig struct {
 
 // Config is the validated immutable pricing document. Public excludes mappings.
 type Config struct {
-	CheckIn       *CheckInConfig    `json:"check_in,omitempty"`
-	Version       string            `json:"version"`
-	EffectiveFrom time.Time         `json:"effective_from"`
-	Currency      string            `json:"currency"`
-	Actions       map[string]Action `json:"actions"`
+	Transcribe    *TranscriptionConfig `json:"transcribe,omitempty"`
+	CheckIn       *CheckInConfig       `json:"check_in,omitempty"`
+	Version       string               `json:"version"`
+	EffectiveFrom time.Time            `json:"effective_from"`
+	Currency      string               `json:"currency"`
+	Actions       map[string]Action    `json:"actions"`
 	Narration     struct {
 		Credits    int    `json:"credits"`
 		Characters int    `json:"characters"`
@@ -100,6 +101,14 @@ type Config struct {
 	DesignChatPolicy map[string]string `json:"design_chat_policy,omitempty"`
 	// QuotePolicySource names the existing version whose quote policy approval pins. Empty inherits the parent's.
 	QuotePolicySource string `json:"quote_policy_source,omitempty"`
+}
+
+// TranscriptionConfig describes a duration-priced platform-funded future task.
+type TranscriptionConfig struct {
+	Credits           int64 `json:"credits"`
+	USDNanosPerSecond int64 `json:"usd_nanos_per_second"`
+	MaxCostNanos      int64 `json:"max_cost_nanos"`
+	DailyRequests     int64 `json:"daily_requests"`
 }
 
 // Public strips provider mappings. No sales are activated by this read-only ticket.
@@ -558,7 +567,11 @@ func (c *RuntimeCatalogue) ActivateDue(ctx context.Context, admin *Admin) error 
 				continue
 			}
 		}
-		if _, err = checkEconomics(ctx, v.raw, admin.verifier, v.override, admin.policy, false); err != nil {
+		route, routeErr := economicsRoute(ctx, c.pool, v.version)
+		if routeErr == nil {
+			_, routeErr = checkEconomics(ctx, v.raw, admin.verifier, v.override, admin.policy, false, route)
+		}
+		if err = routeErr; err != nil {
 			return fmt.Errorf("version %s: %w", v.version, err)
 		}
 		if err = c.recordActivation(ctx, v.version); err != nil {

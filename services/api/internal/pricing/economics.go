@@ -8,19 +8,73 @@ import (
 	"math"
 	"sort"
 	"strings"
+
+	"github.com/jackc/pgx/v5"
 )
 
-// Standard action protected costs from monetization.md (using official rates and reliability multipliers).
-var standardProtectedCostsUSD = map[string]float64{
-	"preview":        0.03499140,
-	"outline":        0.08204880,
-	"outline_replan": 0.08204880,
-	"lesson_content": 0.18822960,
-	"narration":      0.06336000,
-	"tutor_short":    0.0006889686,
-	"tutor_long":     0.0009906186,
-	"quick_note":     0.0003257820,
+type policyReader interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
 }
+
+func economicsRoute(ctx context.Context, db policyReader, source string) (QuotePolicy, error) {
+	var p QuotePolicy
+	var raw []byte
+	if err := db.QueryRow(ctx, `SELECT policy FROM pricing_quote_policies WHERE version=$1`, source).Scan(&raw); err != nil {
+		return p, fmt.Errorf("pricing route unavailable: %w", err)
+	}
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return p, fmt.Errorf("invalid pricing route: %w", err)
+	}
+	return p, nil
+}
+
+func economicsSource(explicit, parent string) string {
+	if explicit != "" {
+		return explicit
+	}
+	return parent
+}
+
+// routeProtectedCost prices every configured attempt at the highest input and
+// output rate in the pinned route, including the existing reliability reserve.
+func routeProtectedCost(p QuotePolicy, action string, input, output int64) (float64, error) {
+	key := p.ActionModels[action]
+	if key == "" || p.MaxAttempts <= 0 || input <= 0 || output <= 0 {
+		return 0, fmt.Errorf("missing economics route or bounds for %s", action)
+	}
+	seen := map[string]bool{}
+	var inRate, outRate int64
+	for key != "" {
+		if seen[key] {
+			return 0, fmt.Errorf("cyclic economics route for %s", action)
+		}
+		seen[key] = true
+		rate, ok := p.Models[key]
+		if !ok || rate.Input <= 0 || rate.Output <= 0 {
+			return 0, fmt.Errorf("missing economics rate for %s", action)
+		}
+		inRate, outRate = max(inRate, rate.Input), max(outRate, rate.Output)
+		key = p.FallbackModels[key]
+	}
+	return (float64(input)*float64(inRate) + float64(output)*float64(outRate)) * float64(p.MaxAttempts) * 1.2066 / 1e9, nil
+}
+
+func enforceRouteBudget(p QuotePolicy, action string, input, output, credits int64, ceiling float64) error {
+	cost, err := routeProtectedCost(p, action, input, output)
+	if err != nil {
+		return err
+	}
+	if cost > float64(credits)*ceiling {
+		return fmt.Errorf("standard action %s protected cost %.9f exceeds budget %.9f", action, cost, float64(credits)*ceiling)
+	}
+	return nil
+}
+
+// Text action costs come from the version-pinned route. Narration is billed by
+// character and retains its separately costed protected standard envelope.
+var standardActions = []string{"preview", "outline", "outline_replan", "lesson_content", "narration", "tutor_short", "tutor_long", "quick_note"}
+
+const standardNarrationProtectedCostUSD = 0.06336
 
 // ProviderRateConfig defines the payment provider processing fees and refund reserve
 // used for catalogue margin economics calculations.
@@ -68,13 +122,16 @@ func ResolveProviderRates(config map[string]any) ProviderRateConfig {
 }
 
 // ValidateEconomics performs complete catalogue economics, margin, and external mapping checks.
-func ValidateEconomics(raw []byte, verifier ExternalVerifier, overrideReason string) error {
-	return ValidateEconomicsWithContext(context.Background(), raw, verifier, overrideReason)
+func ValidateEconomics(raw []byte, verifier ExternalVerifier, overrideReason string, routes ...QuotePolicy) error {
+	return ValidateEconomicsWithContext(context.Background(), raw, verifier, overrideReason, routes...)
 }
 
 // ValidateEconomicsWithContext performs complete catalogue economics, margin, and external mapping checks with context.
-func ValidateEconomicsWithContext(ctx context.Context, raw []byte, verifier ExternalVerifier, overrideReason string) error {
-	_, err := checkEconomics(ctx, raw, verifier, overrideReason, defaultEconomicsPolicy(), false)
+func ValidateEconomicsWithContext(ctx context.Context, raw []byte, verifier ExternalVerifier, overrideReason string, routes ...QuotePolicy) error {
+	if len(routes) != 1 {
+		return errors.New("exactly one version-pinned pricing route is required")
+	}
+	_, err := checkEconomics(ctx, raw, verifier, overrideReason, defaultEconomicsPolicy(), false, routes[0])
 	return err
 }
 
@@ -110,7 +167,7 @@ func (v evidenceVerifier) VerifyStoreMapping(ctx context.Context, channel, id st
 	v.evidence.Checks = append(v.evidence.Checks, map[string]any{"check": "store_mapping", "channel": channel, "product_id": id, "verified": err == nil})
 	return err
 }
-func checkEconomics(ctx context.Context, raw []byte, verifier ExternalVerifier, overrideReason string, policy economicsPolicy, draftOnly bool) (verificationEvidence, error) {
+func checkEconomics(ctx context.Context, raw []byte, verifier ExternalVerifier, overrideReason string, policy economicsPolicy, draftOnly bool, route QuotePolicy) (verificationEvidence, error) {
 	evidence := verificationEvidence{Policy: policy}
 	if _, fake := verifier.(*DevelopmentVerifier); fake {
 		var cfg map[string]any
@@ -135,10 +192,10 @@ func checkEconomics(ctx context.Context, raw []byte, verifier ExternalVerifier, 
 	if verifier != nil {
 		wrapped = evidenceVerifier{verifier, &evidence}
 	}
-	err := validateEconomics(ctx, raw, wrapped, overrideReason, policy, draftOnly, &evidence)
+	err := validateEconomics(ctx, raw, wrapped, overrideReason, policy, draftOnly, &evidence, route)
 	return evidence, err
 }
-func validateEconomics(ctx context.Context, raw []byte, verifier ExternalVerifier, overrideReason string, policy economicsPolicy, draftOnly bool, evidence *verificationEvidence) error {
+func validateEconomics(ctx context.Context, raw []byte, verifier ExternalVerifier, overrideReason string, policy economicsPolicy, draftOnly bool, evidence *verificationEvidence, route QuotePolicy) error {
 	var config map[string]any
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return err
@@ -180,10 +237,35 @@ func validateEconomics(ctx context.Context, raw []byte, verifier ExternalVerifie
 
 	// 2. Standard action cost ceiling check (E12-04 override rules)
 	hasOverride := strings.TrimSpace(overrideReason) != ""
-	for actionName, protectedCost := range standardProtectedCostsUSD {
+	for _, actionName := range standardActions {
+		protectedCost := standardNarrationProtectedCostUSD
 		credits := actionCredits(actions, actionName)
 		if credits <= 0 {
 			continue
+		}
+		if actionName != "narration" {
+			p := route
+			key := actionName
+			class := ""
+			if actionName == "tutor_short" || actionName == "tutor_long" {
+				key, class = "tutor", strings.TrimPrefix(actionName, "tutor_")
+			}
+			bounds, _ := limits[key].(map[string]any)
+			in, _ := number(bounds["input_tokens"])
+			out, _ := number(bounds["output_tokens"])
+			if class != "" {
+				// Large-context quotes can use the whole configured prompt limit;
+				// price it uncached to protect the worst permitted request.
+				in, _ = number(bounds["prompt_tokens"])
+				out, _ = number(bounds[class+"_output_tokens"])
+			}
+			if attempts, ok := number(bounds["max_attempts"]); ok {
+				p.MaxAttempts = int64(attempts)
+			}
+			if err := enforceRouteBudget(p, actionName, int64(in), int64(out), int64(credits), ceiling); err != nil {
+				return err
+			}
+			protectedCost, _ = routeProtectedCost(p, actionName, int64(in), int64(out))
 		}
 		costPerCredit := protectedCost / float64(credits)
 		evidence.Checks = append(evidence.Checks, map[string]any{"check": "action_cost", "action": actionName, "cost_per_credit": costPerCredit, "ceiling": ceiling, "overridden": costPerCredit > ceiling && hasOverride, "verified": costPerCredit <= ceiling})
