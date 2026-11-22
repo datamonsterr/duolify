@@ -13,6 +13,7 @@ async fn client() -> EngineServiceClient<tonic::transport::Channel> {
     let server = EngineServiceServer::new(Service {
         router: Arc::new(engine_providers::router("mock").unwrap()),
         speech: Arc::new(engine_core::narration::MockSpeechProvider),
+        promotion: Default::default(),
     });
     tokio::spawn(async move {
         Server::builder()
@@ -143,6 +144,9 @@ async fn client_with(
     let server = EngineServiceServer::new(Service {
         router: Arc::new(engine_providers::router("mock").unwrap()),
         speech,
+        promotion: Arc::new(engine_core::promotion::Gate::for_tasks(&[
+            "lesson_narration",
+        ])),
     });
     tokio::spawn(async move {
         Server::builder()

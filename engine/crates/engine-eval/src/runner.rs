@@ -162,6 +162,16 @@ fn pinned_dataset_digest(dataset: &str, revision: &str) -> Result<String> {
     Ok(digest.to_ascii_lowercase())
 }
 
+/// Verifies local dataset bytes against the repository pin for `dataset@revision`.
+/// Returns the digest; a missing pin or any byte difference is an error.
+pub fn verify_pinned_file(dataset: &str, revision: &str, bytes: &[u8]) -> Result<String> {
+    if !is_pinned_commit(revision) {
+        bail!("dataset revision must be a pinned 40-character commit hash: '{revision}'");
+    }
+    let expected = pinned_dataset_digest(dataset, revision)?;
+    verify_pinned_digest(bytes, &expected, "pinned file")
+}
+
 fn verify_pinned_digest(bytes: &[u8], expected: &str, source: &str) -> Result<String> {
     let checksum = compute_sha256(bytes);
     if checksum != expected {
@@ -1745,6 +1755,7 @@ pub struct Runner {
     pub dataset_revision: String,
     pub dataset_source: String,
     pub dataset_verified: bool,
+    pub dataset_sha256: String,
     pub prompt_revision: String,
     pub judge_fixtures: HashMap<String, String>,
     pub budget_usd: Option<f64>,
@@ -1762,6 +1773,7 @@ impl Runner {
             dataset_revision: "pinned".to_string(),
             dataset_source: "fixture".to_string(),
             dataset_verified: false,
+            dataset_sha256: String::new(),
             prompt_revision: "head".to_string(),
             judge_fixtures: HashMap::new(),
             budget_usd: None,
@@ -1783,6 +1795,7 @@ impl Runner {
             dataset_revision: "pinned".to_string(),
             dataset_source: "fixture".to_string(),
             dataset_verified: false,
+            dataset_sha256: String::new(),
             prompt_revision: "head".to_string(),
             judge_fixtures: HashMap::new(),
             budget_usd: None,
@@ -2249,6 +2262,8 @@ impl Runner {
             dataset_revision: self.dataset_revision.clone(),
             dataset_source: self.dataset_source.clone(),
             dataset_verified: self.dataset_verified,
+            dataset_sha256: self.dataset_sha256.clone(),
+            fingerprint: engine_core::promotion::fingerprint(),
             prompt_revision: self.prompt_revision.clone(),
             provider: self.provider_name.clone(),
             budget_usd: self.budget_usd,

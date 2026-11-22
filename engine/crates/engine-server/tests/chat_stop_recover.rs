@@ -62,6 +62,7 @@ async fn serve(
     let service = EngineServiceServer::new(Service {
         router: Arc::new(ProviderRouter::new(Arc::new(primary), Arc::new(fallback)).unwrap()),
         speech: Arc::new(engine_core::narration::MockSpeechProvider),
+        promotion: Arc::new(engine_core::promotion::Gate::for_tasks(&["tutor_chat"])),
     });
     tokio::spawn(async move {
         Server::builder()

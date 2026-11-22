@@ -16,10 +16,13 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = startup_cfg.listen_addr.parse()?;
     let mode = startup_cfg.provider_mode;
-    let service = EngineServiceServer::new(Service {
-        router: Arc::new(engine_providers::router(&mode)?),
-        speech: engine_providers::elevenlabs::select_speech(|k| std::env::var(k).ok()),
-    });
+    let service = Service::new(
+        Arc::new(engine_providers::router(&mode)?),
+        engine_providers::elevenlabs::select_speech(|k| std::env::var(k).ok()),
+    );
+    // E10-06: one line per gated task, so a deploy without valid evidence is alertable.
+    engine_server::log_promotion_status(&service);
+    let service = EngineServiceServer::new(service);
     let (reporter, health) = tonic_health::server::health_reporter();
     reporter.set_serving::<EngineServiceServer<Service>>().await;
     let reflection = tonic_reflection::server::Builder::configure()

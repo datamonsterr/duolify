@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: CI modes
-Draft pull requests SHALL run evals in mock mode with recorded fixtures at no API cost. Ready pull requests that touch `engine/` MUST run a live sample when `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, and `HF_TOKEN` secrets exist, and MUST report `eval_run_completed`. In the absence of required secrets, ready runs SHALL report explicit missing-secret status, retain evaluation reports as 90-day artifacts, and keep the `ci-ok` aggregate passing without fabricating a live pass or enabling feature promotion.
+Draft pull requests SHALL run evals in mock mode with recorded fixtures at no API cost. Ready pull requests that touch `engine/` MUST run a live sample when `OPENROUTER_API_KEY` and `HF_TOKEN` secrets exist (ADR 0015: OpenRouter is the only provider), and MUST report `eval_run_completed`. In the absence of required secrets, ready runs SHALL report explicit missing-secret status, retain evaluation reports as 90-day artifacts, and keep the `ci-ok` aggregate passing without fabricating a live pass or enabling feature promotion.
 
 #### Scenario: Draft PR
 - **WHEN** a draft pull request runs CI
@@ -30,3 +30,15 @@ Promotion of new AI models or voices to production SHALL require passing all rel
 #### Scenario: Critical check failure during evaluation
 - **WHEN** an evaluation run encounters a critical safety, ledger, or cost check failure
 - **THEN** the run fails immediately even if overall score exceeds the task threshold
+
+#### Scenario: Deployed engine with passing live evidence
+- **WHEN** a live-mode engine is built with a committed live report that passes the promotion gate on a pinned, digest-verified revision and matches the build fingerprint (route config, thresholds, prompt and provider sources)
+- **THEN** each RPC whose Golden set task passed in that report calls the live route, and safety screens stay fail closed on invalid answers
+
+#### Scenario: Deployed engine without valid evidence
+- **WHEN** a live-mode engine has no committed live report, a rejected report, a report of another build, or no passing case for the RPC's task
+- **THEN** the RPC makes no provider call and fails with UNAVAILABLE and a typed `google.rpc.ErrorInfo` reason (`promotion_evidence_missing`, `promotion_evidence_rejected`, `promotion_evidence_stale`, `promotion_task_not_passed`), logged as `live_feature_not_promoted`; the API keeps its retryable "unavailable" response
+
+#### Scenario: Live voice without evidence
+- **WHEN** a live narration vendor is configured and no `lesson_narration` live case passed
+- **THEN** synthesis fails closed with the same typed reason and the API falls back to captions

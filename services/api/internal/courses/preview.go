@@ -24,7 +24,7 @@ func (s *Service) PreparePreview(ctx context.Context, owner, revision, quoteID s
 		return nil, errors.New("fresh accepted brief quote required")
 	}
 	var latest string
-	if s.opts.Pool.QueryRow(ctx, "SELECT id FROM course_brief_revisions WHERE learner_id::text=$1 AND expires_at>now() ORDER BY created_at DESC,id DESC LIMIT 1", owner).Scan(&latest) != nil || latest != revision {
+	if s.opts.Pool.QueryRow(ctx, "SELECT id FROM course_brief_revisions WHERE learner_id=$1::uuid AND expires_at>now() ORDER BY created_at DESC,id DESC LIMIT 1", owner).Scan(&latest) != nil || latest != revision {
 		return nil, errors.New("brief confirmation superseded")
 	}
 	row, err := db.New(s.opts.Pool).GetCourseBrief(ctx, db.GetCourseBriefParams{ID: revision, LearnerID: owner})
@@ -36,7 +36,7 @@ func (s *Service) PreparePreview(ctx context.Context, owner, revision, quoteID s
 		return nil, errors.New("invalid brief")
 	}
 	learner := &enginev1.LearnerProfile{LearnerId: owner}
-	err = s.opts.Pool.QueryRow(ctx, `SELECT locale,background,goal,level,topic,time_zone,COALESCE(daily_minutes,0),COALESCE(daily_xp,0),COALESCE(reminder_enabled,false),reminder_time FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(&learner.Locale, &learner.Background, &learner.Goals, &learner.Level, &learner.Topic, &learner.TimeZone, &learner.DailyMinutes, &learner.DailyXp, &learner.ReminderEnabled, &learner.ReminderTime)
+	err = s.opts.Pool.QueryRow(ctx, `SELECT locale,background,goal,level,topic,time_zone,COALESCE(daily_minutes,0),COALESCE(daily_xp,0),COALESCE(reminder_enabled,false),reminder_time FROM learner_profiles WHERE learner_id=$1::uuid`, owner).Scan(&learner.Locale, &learner.Background, &learner.Goals, &learner.Level, &learner.Topic, &learner.TimeZone, &learner.DailyMinutes, &learner.DailyXp, &learner.ReminderEnabled, &learner.ReminderTime)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func (s *Service) PreviewEvent(ctx context.Context, owner, event string, request
 		return
 	}
 	var optedOut bool
-	if s.opts.Pool.QueryRow(ctx, "SELECT analytics_opt_out FROM learner_profiles WHERE learner_id::text=$1", owner).Scan(&optedOut) != nil || optedOut {
+	if s.opts.Pool.QueryRow(ctx, "SELECT analytics_opt_out FROM learner_profiles WHERE learner_id=$1::uuid", owner).Scan(&optedOut) != nil || optedOut {
 		return
 	}
 	props := map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "stage": "preview", "preview_id": previewID, "duration_ms": durationMS}

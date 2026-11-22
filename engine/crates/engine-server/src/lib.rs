@@ -9,7 +9,138 @@ pub struct Service {
     pub router: Arc<ProviderRouter>,
     /// Narration provider; only the deterministic mock exists until E14-04.
     pub speech: Arc<dyn engine_core::narration::SpeechProvider>,
+    /// E10-06 live promotion evidence. Fixture routers bypass it; a live route runs a task only
+    /// when the gate reports a passing live case for it.
+    pub promotion: Arc<engine_core::promotion::Gate>,
 }
+impl Service {
+    /// Production wiring: the evidence embedded in this build.
+    pub fn new(
+        router: Arc<ProviderRouter>,
+        speech: Arc<dyn engine_core::narration::SpeechProvider>,
+    ) -> Self {
+        Self {
+            router,
+            speech,
+            promotion: Arc::new(engine_core::promotion::Gate::embedded()),
+        }
+    }
+    /// Fails closed unless `task` may call a live model: fixture routers always pass, a live
+    /// route needs passing promotion evidence for the task.
+    fn live_model(&self, rpc: &'static str, task: &'static str) -> Result<(), Status> {
+        if self.router.fixture_only() {
+            return Ok(());
+        }
+        self.promotion
+            .check(task)
+            .map_err(|denial| not_promoted(rpc, task, &denial))
+    }
+    /// Same rule for narration: a non-mock speech vendor needs `lesson_narration` evidence.
+    fn live_voice(&self, rpc: &'static str) -> Result<(), Status> {
+        if self.speech.name() == "mock" {
+            return Ok(());
+        }
+        self.promotion
+            .check("lesson_narration")
+            .map_err(|denial| not_promoted(rpc, "lesson_narration", &denial))
+    }
+}
+/// Domain of the `google.rpc.ErrorInfo` detail on a not-promoted refusal.
+pub const ERROR_DOMAIN: &str = "engine.duolify";
+/// UNAVAILABLE with a typed `ErrorInfo` (reason = denial code, metadata = rpc and task) so the API
+/// can log and alert on it while the learner sees a retryable "unavailable".
+fn not_promoted(rpc: &str, task: &str, denial: &engine_core::promotion::Denial) -> Status {
+    use tonic_types::{ErrorDetails, StatusExt};
+    tracing::error!(
+        event = "live_feature_not_promoted",
+        rpc,
+        task,
+        reason = denial.code(),
+        detail = %denial.detail(),
+        "live model call refused: no passing promotion evidence"
+    );
+    Status::with_error_details(
+        tonic::Code::Unavailable,
+        denial.code(),
+        ErrorDetails::with_error_info(
+            denial.code(),
+            ERROR_DOMAIN,
+            [
+                ("rpc".to_string(), rpc.to_string()),
+                ("task".to_string(), task.to_string()),
+            ],
+        ),
+    )
+}
+/// Logs the promotion state per gated task once at startup (alertable on error).
+pub fn log_promotion_status(service: &Service) {
+    let live = !service.router.fixture_only();
+    match service.promotion.summary() {
+        Ok(s) => tracing::info!(
+            event = "live_promotion_evidence",
+            live,
+            dataset = %s.dataset,
+            dataset_revision = %s.dataset_revision,
+            passed_tasks = ?s.passed_tasks,
+            "promotion evidence loaded"
+        ),
+        Err(d) if live => tracing::error!(
+            event = "live_promotion_evidence",
+            live,
+            reason = d.code(),
+            detail = %d.detail(),
+            "no valid promotion evidence: every live AI feature fails closed"
+        ),
+        Err(d) => tracing::info!(
+            event = "live_promotion_evidence",
+            live,
+            reason = d.code(),
+            "fixture router: promotion evidence not required"
+        ),
+    }
+    if live {
+        for (rpc, task) in GATED {
+            if let Err(d) = service.promotion.check(task) {
+                tracing::error!(
+                    event = "live_feature_not_promoted",
+                    rpc,
+                    task,
+                    reason = d.code(),
+                    "feature disabled on the live route"
+                );
+            }
+        }
+    }
+    if service.speech.name() != "mock"
+        && let Err(d) = service.promotion.check("lesson_narration")
+    {
+        tracing::error!(
+            event = "live_feature_not_promoted",
+            rpc = "SynthesizeNarration",
+            task = "lesson_narration",
+            reason = d.code(),
+            "live narration disabled"
+        );
+    }
+}
+/// Every model-backed RPC and the Golden set task whose live pass enables it.
+pub const GATED: [(&str, &str); 15] = [
+    ("PreviewCourse", "course_preview"),
+    ("GenerateCourseOutline", "course_outline"),
+    ("GenerateLesson", "lesson_slides"),
+    ("GenerateRetryVariants", "lesson_test"),
+    ("Chat", "tutor_chat"),
+    ("EnrichNote", "note_enrich"),
+    ("SetupChat", "setup_chat"),
+    ("CourseBriefChat", "course_brief_chat"),
+    ("OutlineChatChange", "outline_chat_change"),
+    ("ReplanOutline", "outline_replan"),
+    ("ScreenInstruction", "steer_screen"),
+    ("ScreenCharacter", "character_screen"),
+    ("ScreenCourse", "course_screen"),
+    ("ScreenReview", "screen_review"),
+    ("MapCharacter", "character_create"),
+];
 type RpcStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send>>;
 fn usage(c: &Completion) -> Option<pb::Usage> {
     usage_estimated(c, false)
@@ -333,10 +464,8 @@ impl EngineService for Service {
                 attempts: vec![],
             }));
         }
-        // E10-06: fixture-backed work never enables a live screening provider.
-        if !self.router.fixture_only() {
-            return Err(Status::unavailable("screening_unavailable"));
-        }
+        // E10-06: a live route screens only with passing live steer_screen evidence.
+        self.live_model("ScreenInstruction", "steer_screen")?;
         let outcome = engine_core::steering::screen(&self.router, &req.text, &req.course_topic)
             .await
             .map_err(|_| Status::unavailable("screening_unavailable"))?;
@@ -375,9 +504,7 @@ impl EngineService for Service {
             }));
         }
         // ADR 0011 / E10-06: missing live feature evidence keeps writes closed.
-        if !self.router.fixture_only() {
-            return Err(Status::unavailable("screening_unavailable"));
-        }
+        self.live_model("ScreenCharacter", "character_screen")?;
         let outcome = if let Some(b) = req.limits {
             let limits = engine_core::credits::Limits {
                 input_tokens: b.input_tokens,
@@ -439,10 +566,8 @@ impl EngineService for Service {
             cache_read_nanos: b.cache_read_nanos,
             deadline_unix_ms: b.deadline_unix_ms,
         };
-        // ADR 0011 / E10-06: no live feature evidence, so only the mock provider runs.
-        if !self.router.fixture_only() {
-            return Err(Status::unavailable("screening_unavailable"));
-        }
+        // ADR 0011 / E10-06: a live route screens only with passing live evidence.
+        self.live_model("ScreenCourse", "course_screen")?;
         engine_core::sharing::check_request(&req.sample_json, req.sampled_lessons, &limits)
             .map_err(|_| Status::invalid_argument("invalid_request"))?;
         let outcome = engine_core::sharing::screen_course(
@@ -485,10 +610,8 @@ impl EngineService for Service {
             cache_read_nanos: b.cache_read_nanos,
             deadline_unix_ms: b.deadline_unix_ms,
         };
-        // ADR 0011 / E10-06: no live feature evidence, so only the mock provider runs.
-        if !self.router.fixture_only() {
-            return Err(Status::unavailable("screening_unavailable"));
-        }
+        // ADR 0011 / E10-06: a live route screens only with passing live evidence.
+        self.live_model("ScreenReview", "screen_review")?;
         let outcome = engine_core::sharing::screen_review(&self.router, &req.text, &limits)
             .await
             .map_err(|_| Status::unavailable("screening_unavailable"))?;
@@ -509,11 +632,8 @@ impl EngineService for Service {
         request: Request<pb::MapCharacterRequest>,
     ) -> Result<Response<pb::MapCharacterResponse>, Status> {
         let req = request.into_inner();
-        // E10-06 has no feature-specific live evidence. No env switch can
-        // silently promote this feature or use a live provider.
-        if !self.router.fixture_only() {
-            return Err(Status::unavailable("creation_disabled"));
-        }
+        // E10-06: no env switch can promote this feature; only live character_create evidence.
+        self.live_model("MapCharacter", "character_create")?;
         let b = req
             .limits
             .ok_or_else(|| Status::invalid_argument("quote bounds required"))?;
@@ -562,6 +682,7 @@ impl EngineService for Service {
             steering::{Instruction, replan},
         };
         let req = request.into_inner();
+        self.live_model("ReplanOutline", "outline_replan")?;
         let b = req
             .limits
             .ok_or_else(|| Status::invalid_argument("quote required"))?;
@@ -666,6 +787,7 @@ impl EngineService for Service {
         request: Request<pb::OutlineChatChangeRequest>,
     ) -> Result<Response<pb::OutlineChatChangeResponse>, Status> {
         let req = request.into_inner();
+        self.live_model("OutlineChatChange", "outline_chat_change")?;
         if req.base_revision < 1 || req.draft_id.is_empty() || req.proposal_id.is_empty() {
             return Err(Status::invalid_argument("proposal identity required"));
         }
@@ -801,6 +923,8 @@ impl EngineService for Service {
         if req.resolve_only {
             return Ok(Response::new(response));
         }
+        // E10-06: a live voice vendor synthesizes only with passing live narration evidence.
+        self.live_voice("SynthesizeNarration")?;
         let speech_request = speech::SpeechRequest {
             text: req.text,
             language: req.language,
@@ -897,6 +1021,7 @@ impl EngineService for Service {
         request: Request<pb::PreviewCourseRequest>,
     ) -> Result<Response<pb::PreviewCourseResponse>, Status> {
         let req = request.into_inner();
+        self.live_model("PreviewCourse", "course_preview")?;
         let bounds = req
             .limits
             .as_ref()
@@ -984,6 +1109,7 @@ impl EngineService for Service {
         request: Request<pb::GenerateCourseOutlineRequest>,
     ) -> Result<Response<pb::GenerateCourseOutlineResponse>, Status> {
         let req = request.into_inner();
+        self.live_model("GenerateCourseOutline", "course_outline")?;
         if req.outline_revision < 1 || req.draft_id.is_empty() {
             return Err(Status::invalid_argument("confirmed revision required"));
         }
@@ -1071,6 +1197,7 @@ impl EngineService for Service {
         request: Request<pb::GenerateLessonRequest>,
     ) -> Result<Response<Self::GenerateLessonStream>, Status> {
         let mut req = request.into_inner();
+        self.live_model("GenerateLesson", "lesson_slides")?;
         if let Some(b) = req.limits.as_mut()
             && b.deadline_unix_ms == 0
         {
@@ -1247,6 +1374,7 @@ impl EngineService for Service {
         request: Request<pb::GenerateRetryVariantsRequest>,
     ) -> Result<Response<pb::GenerateRetryVariantsResponse>, Status> {
         let req = request.into_inner();
+        self.live_model("GenerateRetryVariants", "lesson_test")?;
         // Persona data never reaches grading prompts; it must still be valid.
         if !req.character_personas_json.is_empty() {
             engine_core::characters::lesson_personas(&req.character_personas_json)
@@ -1305,6 +1433,7 @@ impl EngineService for Service {
         request: Request<pb::ChatRequest>,
     ) -> Result<Response<Self::ChatStream>, Status> {
         let req = request.into_inner();
+        self.live_model("Chat", "tutor_chat")?;
         let first_to = req
             .limits
             .as_ref()
@@ -1404,6 +1533,7 @@ impl EngineService for Service {
         request: Request<pb::EnrichNoteRequest>,
     ) -> Result<Response<pb::EnrichNoteResponse>, Status> {
         let req = request.into_inner();
+        self.live_model("EnrichNote", "note_enrich")?;
         let route = self
             .router
             .models
@@ -1531,6 +1661,7 @@ impl EngineService for Service {
         request: Request<pb::CourseBriefChatRequest>,
     ) -> Result<Response<pb::CourseBriefChatResponse>, Status> {
         let req = request.into_inner();
+        self.live_model("CourseBriefChat", "course_brief_chat")?;
         let b = req.brief.unwrap_or_default();
         let brief = engine_core::courses::Brief {
             topic: b.topic,
@@ -1637,6 +1768,7 @@ impl EngineService for Service {
         request: Request<pb::SetupChatRequest>,
     ) -> Result<Response<pb::SetupChatResponse>, Status> {
         let req = request.into_inner();
+        self.live_model("SetupChat", "setup_chat")?;
         struct RouterModelAdapter<'a> {
             router: &'a ProviderRouter,
         }
@@ -1709,7 +1841,13 @@ impl EngineService for Service {
             is_complete: result.is_complete,
             usage: Some(pb::Usage {
                 provider: self.router.primary.name().into(),
-                model: "claude-haiku-5-5".into(),
+                model: self
+                    .router
+                    .models
+                    .tasks
+                    .get("setup_chat")
+                    .map(|m| m.model.clone())
+                    .unwrap_or_default(),
                 input_tokens: 100,
                 output_tokens: 50,
                 latency_ms: 0,
