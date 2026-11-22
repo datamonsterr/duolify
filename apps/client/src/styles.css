@@ -1028,3 +1028,14 @@ progress::-moz-progress-bar {
   transform-origin: 0 0;
   transform: scale(var(--frame-scale, 1));
 }
+
+/* Outline of the region a note was taken on ("Show in Lesson"); also used inside the immersive stage. */
+.region-outline {
+  position: absolute;
+  box-sizing: border-box;
+  border: calc(3 * var(--imm-px, 1px)) solid var(--primary);
+  border-radius: calc(4 * var(--imm-px, 1px));
+  box-shadow: 0 0 0 calc(2 * var(--imm-px, 1px)) var(--surface);
+  pointer-events: none;
+  z-index: 2;
+}
