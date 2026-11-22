@@ -42,13 +42,13 @@ export async function briefToPreviewQuote(
 
   // The guided chat is only on where the owner approved it (development, test, or production with
   // COURSE_BRIEF_CHAT_LIVE_APPROVED); elsewhere, staging included, the brief is the form.
-  const formOnly = page.getByRole("heading", {
-    name: "Course brief",
-    level: 2,
-  });
   const answer = page.getByRole("textbox", { name: "Your answer" });
-  await expect(answer.or(formOnly)).toBeVisible();
-  if (await answer.isVisible()) {
+  // The config request decides which one renders; give the chat a few seconds to appear.
+  const chat = await answer.waitFor({ timeout: 8_000 }).then(
+    () => true,
+    () => false,
+  );
+  if (chat) {
     await answer.fill(topic);
     await page
       .getByRole("button", { name: "Send answer", exact: true })
