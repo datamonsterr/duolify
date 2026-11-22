@@ -1,0 +1,109 @@
+name: deploy-vm
+
+# Deploys the tested main commit to the Hetzner VM over SSH after pr-ready (which runs ci-ok and
+# publishes the GHCR images) succeeds. Inert until the `staging` / `production` environment has
+# its secrets and the VM (Hetzner server duolify-<environment>) exists: the job is skipped cleanly (green) otherwise. CI logic lives in mise.
+on:
+  workflow_run:
+    workflows: [pr-ready]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [staging, production]
+        default: staging
+      publish_run_id:
+        description: Run ID of the pr-ready run (push to main) that published the images for this commit
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read # download the image digests published by the pr-ready run
+
+concurrency:
+  group: deploy-vm-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Automatic runs go to staging; production is a manual dispatch (approval via environment rules).
+    environment: ${{ inputs.environment || 'staging' }}
+    env:
+      MISE_AUTO_INSTALL: 'false'
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      PUBLISH_RUN_ID: ${{ github.event.workflow_run.id || inputs.publish_run_id }}
+      DEPLOY_ENV: ${{ inputs.environment || 'staging' }}
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Deploy exactly the tested commit.
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          area: infra
+      # Skip cleanly (green) until the secrets exist and the VM has been provisioned.
+      - name: mise run ci:require-secrets
+        id: secrets
+        run: mise run ci:require-secrets -- 'VM deploy'
+        env:
+          REQUIRED_SECRETS: HCLOUD_TOKEN DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS
+      - name: mise run infra:find-vm
+        id: vm
+        if: steps.secrets.outputs.enabled == 'true'
+        run: mise run infra:find-vm
+      - name: Decide
+        id: gate
+        env:
+          SECRETS_OK: ${{ steps.secrets.outputs.enabled }}
+          VM_EXISTS: ${{ steps.vm.outputs.exists }}
+        run: |
+          if [[ "$SECRETS_OK" == true && "$VM_EXISTS" == true ]]; then echo 'run=true' >>"$GITHUB_OUTPUT"; else echo 'run=false' >>"$GITHUB_OUTPUT"; fi
+      # Deploy the digests the image build pushed for this exact commit, never a mutable tag.
+      - name: Verify the publish run
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$PUBLISH_RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::publish_run_id must be numeric"; exit 1; }
+          IFS=$'\t' read -r sha workflow conclusion event < <(gh run view "$PUBLISH_RUN_ID" --repo "$GITHUB_REPOSITORY" --json headSha,workflowName,conclusion,event --jq '[.headSha,.workflowName,.conclusion,.event] | @tsv')
+          if [[ "$sha" != "$DEPLOY_SHA" || "$workflow" != pr-ready || "$conclusion" != success || "$event" != push ]]; then
+            echo "::error::run $PUBLISH_RUN_ID is not a successful pr-ready push run for $DEPLOY_SHA (sha=$sha workflow=$workflow conclusion=$conclusion event=$event)"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v8
+        if: steps.gate.outputs.run == 'true'
+        with:
+          pattern: digest-*
+          merge-multiple: true
+          path: digests
+          run-id: ${{ env.PUBLISH_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Deploy over SSH
+        if: steps.gate.outputs.run == 'true'
+        env:
+          DEPLOY_HOST: ${{ steps.vm.outputs.host }}
+        run: mise run infra:deploy-vm
+        timeout-minutes: 20
+      - name: Summary
+        if: always() && steps.gate.outputs.run == 'true'
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary

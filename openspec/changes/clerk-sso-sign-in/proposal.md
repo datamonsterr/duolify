@@ -12,4 +12,4 @@ Supersedes [google-oauth-sign-in](../google-oauth-sign-in/proposal.md) and [appl
 - **Analytics:** Reuses the catalogued `ui_control_activated` and `ui_recovery_selected` sign-in events; no new events or properties.
 - **AI / Engine / proto:** none. No evals or fallbacks apply.
 - **Config:** `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `CLERK_AUTHORIZED_PARTIES`, optional `CLERK_JWT_KEY`, optional `VITE_SSO_BRIDGE_URL`. No keys: feature off, email codes unaffected.
-- **Migration:** `20261122100000_clerk_sso.sql` drops fixture Google/Apple bindings (none exist in production) and restricts providers to `clerk`.
+- **Migration:** `20261122130000_clerk_sso.sql` drops fixture Google/Apple bindings (none exist in production) and restricts providers to `clerk`.

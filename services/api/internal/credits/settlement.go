@@ -43,12 +43,18 @@ func CalculateSettlement(q pricing.Quote, usage []*enginev1.Usage) (Reservation,
 		} else {
 			rate := q.Rate
 			if u.Provider != rate.Provider || u.Model != rate.Model {
-				fallbackKey := q.Policy.FallbackModels[q.Input.Model]
-				fallback, ok := q.Policy.Models[fallbackKey]
-				if !ok || u.Provider != fallback.Provider || u.Model != fallback.Model || !u.FallbackUsed {
+				// Any model of the quoted route may serve a call, charged at its own rate.
+				var served *pricing.ModelRate
+				for _, fallback := range q.Policy.Fallbacks(q.Input.Model) {
+					if u.Provider == fallback.Provider && u.Model == fallback.Model {
+						served = &fallback
+						break
+					}
+				}
+				if served == nil || !u.FallbackUsed {
 					return result, ErrUsage
 				}
-				rate = fallback
+				rate = *served
 			}
 			key := fmt.Sprintf("%s:%d", u.Component, u.Attempt)
 			total := totals[key]
@@ -118,10 +124,9 @@ func boolInt(b bool) int64 {
 	return 0
 }
 func attemptCost(q pricing.Quote) int64 {
-	rate := q.Rate
-	fallback := q.Policy.Models[q.Policy.FallbackModels[q.Input.Model]]
-	input := max(rate.Input, rate.CacheWrite, rate.CacheRead, fallback.Input, fallback.CacheWrite, fallback.CacheRead)
-	output := max(rate.Output, fallback.Output)
+	worst := q.WorstRate()
+	input := max(worst.Input, worst.CacheWrite, worst.CacheRead)
+	output := worst.Output
 	return sumProducts([2]int64{q.Bounds["input_tokens"], input}, [2]int64{q.Bounds["output_tokens"], output})
 }
 func reservationCost(q pricing.Quote) int64 {

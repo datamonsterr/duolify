@@ -1,7 +1,9 @@
 # Env & secrets
+infra/deploy/secrets/
 .env
 .env.*
 !.env.example
+!.env.*.example
 mise.local.toml
 *.pem
 

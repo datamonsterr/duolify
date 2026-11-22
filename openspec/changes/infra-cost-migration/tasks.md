@@ -11,10 +11,10 @@
 
 ## 2. Edge
 
-- [ ] 2.1 e2e: HTTP e2e test that a chat stream gets a heartbeat within 25 s.
-- [ ] 2.2 Integration: SSE routes in chat, courses and lessontest emit heartbeats while idle.
-- [ ] 2.3 Unit: cache-header policy applies only to immutable, non-personal routes.
-- [ ] 2.4 Implement the heartbeat and cache headers. Add Workers static-assets config for the web build.
+- [x] 2.1 e2e: HTTP e2e test that a chat stream gets a heartbeat within 25 s.
+- [x] 2.2 Integration: SSE routes in chat, courses and lessontest emit heartbeats while idle.
+- [x] 2.3 Unit: cache-header policy applies only to immutable, non-personal routes.
+- [x] 2.4 Implement the heartbeat and cache headers. Add Workers static-assets config for the web build.
 - [ ] 2.5 Owner: Cloudflare zone and a proxied API record pointing at Railway first. Web client on Workers static assets (human).
 
 ## 3. Objects
@@ -26,10 +26,11 @@
 
 ## 4. Prod stack and deploy
 
-- [ ] 4.1 e2e: the HTTP e2e suite runs against the `infra/deploy` overlay (S3 endpoint from env, Postgres with WAL archiving) in CI.
-- [ ] 4.2 Integration: the restore drill does PITR from WAL archive plus dump on a throwaway Postgres. A test proves the Redis key families rebuild from Postgres.
-- [ ] 4.3 Unit: `infra:deploy-plan` rejects a public Engine port, a transaction pooler, a missing backup env or a missing DR-copy job.
-- [ ] 4.4 Implement:
+- [x] 4.0 Portable self-hosted stack (`infra/deploy`, `infra:selfhost-*`): one-command compose stack with a Caddy edge, generated secrets, local encrypted backups and a restore drill; CI `selfhost` job runs smoke, backup and restore drill. WAL archiving, the DR copy and the VM deploy job stay in 4.4.
+- [x] 4.1 e2e: the HTTP e2e suite runs against the `infra/deploy` overlay (S3 endpoint from env, Postgres with WAL archiving) in CI.
+- [x] 4.2 Integration: the restore drill does PITR from WAL archive plus dump on a throwaway Postgres. A test proves the Redis key families rebuild from Postgres.
+- [x] 4.3 Unit: `infra:deploy-plan` rejects a public Engine port, a transaction pooler, a missing backup env or a missing DR-copy job.
+- [x] 4.4 Implement:
   - the overlay, WAL archiving and the nightly DR copy;
   - alerts for disk, WAL lag, backup age, replication lag and bucket usage;
   - a hardening runbook;
