@@ -137,6 +137,8 @@ mod tests {
             dataset_revision: "rev123".into(),
             dataset_source: "mirror".into(),
             dataset_verified: true,
+            dataset_sha256: String::new(),
+            fingerprint: String::new(),
             prompt_revision: "git-abc".into(),
             provider: "mock".into(),
             budget_usd: Some(5.0),

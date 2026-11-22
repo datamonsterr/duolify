@@ -12,7 +12,7 @@ pub use report::{generate_json_report, generate_markdown_report};
 pub use runner::{
     FetchedDataset, Runner, budget_from_args, compute_sha256, fetch_dataset,
     fetch_dataset_with_mirror, is_pinned_commit, mode_from_args, sample_limit_from_args,
-    select_cases,
+    select_cases, verify_pinned_file,
 };
 pub use scoring::{
     Case, CaseResult, Check, EvalReport, TaskReport, Thresholds, aggregate_task_reports,

@@ -53,6 +53,12 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    if args.len() >= 2 && args[1] == "evidence" {
+        return evidence_status();
+    }
+    if args.len() >= 2 && args[1] == "promote" {
+        return promote(&args);
+    }
     let (mode, allow_missing_secrets) = mode_from_args(&args);
     let mut offline = args.iter().any(|a| a == "--offline") || mode.as_deref() == Some("draft");
     let explicit_provider = args
@@ -132,6 +138,8 @@ async fn main() -> Result<()> {
                 dataset_revision: "none".to_string(),
                 dataset_source: "none".to_string(),
                 dataset_verified: false,
+                dataset_sha256: String::new(),
+                fingerprint: String::new(),
                 prompt_revision: std::env::var("PROMPT_REVISION")
                     .unwrap_or_else(|_| "git-head".to_string()),
                 provider: "none".to_string(),
@@ -190,6 +198,8 @@ async fn main() -> Result<()> {
                 dataset_revision: "none".to_string(),
                 dataset_source: "none".to_string(),
                 dataset_verified: false,
+                dataset_sha256: String::new(),
+                fingerprint: String::new(),
                 prompt_revision: std::env::var("PROMPT_REVISION")
                     .unwrap_or_else(|_| "git-head".to_string()),
                 provider: "none".to_string(),
@@ -225,17 +235,42 @@ async fn main() -> Result<()> {
         }
     }
 
+    // `--data <file> --revision <rev>` runs a local copy of a pinned revision: its bytes must
+    // match the repository digest pin, so the run is as reproducible as an HF download.
+    let pinned_revision = args
+        .windows(2)
+        .find(|a| a[0] == "--revision")
+        .map(|a| a[1].clone());
+    let pinned_dataset = args
+        .windows(2)
+        .find(|a| a[0] == "--dataset")
+        .map(|a| a[1].clone())
+        .unwrap_or_else(|| "datamonsterr/duolify-golden".into());
+    let mut dataset_sha256 = String::new();
     let (data, dataset_name, dataset_revision, dataset_source, dataset_verified) =
-        if let Some(path) = custom_data {
+        if let Some(path) = custom_data.clone() {
             let content = std::fs::read_to_string(&path)
                 .with_context(|| format!("failed to read custom data file at {path}"))?;
-            (
-                content,
-                path,
-                "custom".to_string(),
-                "custom".to_string(),
-                false,
-            )
+            if let Some(revision) = &pinned_revision {
+                dataset_sha256 =
+                    engine_eval::verify_pinned_file(&pinned_dataset, revision, content.as_bytes())?;
+                println!("dataset {pinned_dataset}@{revision} verified from {path}");
+                (
+                    content,
+                    pinned_dataset.clone(),
+                    revision.clone(),
+                    "repo".to_string(),
+                    true,
+                )
+            } else {
+                (
+                    content,
+                    path,
+                    "custom".to_string(),
+                    "custom".to_string(),
+                    false,
+                )
+            }
         } else if offline {
             let path = root.join("fixtures/golden.sample.jsonl");
             let content = std::fs::read_to_string(&path)
@@ -274,6 +309,7 @@ async fn main() -> Result<()> {
                 &cache_dir,
             )
             .await?;
+            dataset_sha256 = fetched.checksum.clone();
             (
                 fetched.content,
                 dataset,
@@ -300,8 +336,9 @@ async fn main() -> Result<()> {
     task_registry.register_extension("steering");
 
     // Only enforce full canonical task presence if evaluating the full standard dataset
-    let is_custom_run =
-        args.iter().any(|a| a == "--data") || std::env::var("EVAL_DATA_PATH").is_ok();
+    let is_custom_run = (args.iter().any(|a| a == "--data")
+        || std::env::var("EVAL_DATA_PATH").is_ok())
+        && dataset_source != "repo";
     if !is_custom_run {
         let present_tasks: Vec<String> = cases.iter().map(|c| c.task.clone()).collect();
         let missing = task_registry.missing_required_tasks(&present_tasks);
@@ -343,6 +380,7 @@ async fn main() -> Result<()> {
     runner.dataset_revision = dataset_revision;
     runner.dataset_source = dataset_source;
     runner.dataset_verified = dataset_verified;
+    runner.dataset_sha256 = dataset_sha256;
     runner.prompt_revision = prompt_rev;
     runner.budget_usd = budget;
 
@@ -418,6 +456,62 @@ async fn main() -> Result<()> {
         bail!("score below threshold");
     }
 
+    Ok(())
+}
+
+/// `duolify-eval promote <report.json> [out]`: records a live report as the promotion evidence
+/// a deployed engine embeds (`evals/promotion/live-report.json`). It refuses any report that
+/// fails the promotion gate or that another build produced, and prints the promoted tasks.
+fn promote(args: &[String]) -> Result<()> {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../evals");
+    let input = args
+        .get(2)
+        .context("usage: duolify-eval promote <report.json> [out.json]")?;
+    let out = args
+        .get(3)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join("promotion/live-report.json"));
+    let content = std::fs::read_to_string(input)
+        .with_context(|| format!("failed to read report file at {input}"))?;
+    let report: EvalReport = serde_json::from_str(&content)
+        .with_context(|| format!("failed to parse eval report at {input}"))?;
+    engine_eval::check_promotion_gate(&report)?;
+    let current = engine_core::promotion::fingerprint();
+    if report.fingerprint != current {
+        bail!(
+            "promotion refused: report fingerprint {} is not this build ({current}); rerun the live eval on this commit",
+            report.fingerprint
+        );
+    }
+    let gate = engine_core::promotion::Gate::from_report(&content, &current);
+    let summary = gate
+        .summary()
+        .map_err(|d| anyhow::anyhow!("promotion refused: {} ({})", d.code(), d.detail()))?;
+    std::fs::write(&out, content.as_bytes())?;
+    println!(
+        "promotion evidence recorded at {}: {}@{} promotes {:?}",
+        out.display(),
+        summary.dataset,
+        summary.dataset_revision,
+        summary.passed_tasks
+    );
+    Ok(())
+}
+
+/// `duolify-eval evidence`: prints whether the embedded evidence enables each gated task.
+fn evidence_status() -> Result<()> {
+    let gate = engine_core::promotion::Gate::embedded();
+    match gate.summary() {
+        Ok(s) => println!(
+            "promotion evidence: valid for this build ({}@{}); promoted tasks {:?}",
+            s.dataset, s.dataset_revision, s.passed_tasks
+        ),
+        Err(d) => println!(
+            "::notice::promotion evidence: {} ({}); live AI features fail closed in a deployed engine built from this commit",
+            d.code(),
+            d.detail()
+        ),
+    }
     Ok(())
 }
 

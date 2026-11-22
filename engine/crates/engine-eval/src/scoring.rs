@@ -121,6 +121,13 @@ pub struct EvalReport {
     /// True only after the dataset bytes match the repository digest pin.
     #[serde(default)]
     pub dataset_verified: bool,
+    /// SHA-256 of the evaluated dataset bytes (empty for fixtures and custom files).
+    #[serde(default)]
+    pub dataset_sha256: String,
+    /// `engine_core::promotion::fingerprint()` of the build that ran (route, thresholds,
+    /// prompt and provider sources). A deployed engine accepts the report only for that build.
+    #[serde(default)]
+    pub fingerprint: String,
     pub prompt_revision: String,
     #[serde(default = "default_provider")]
     pub provider: String,
@@ -148,6 +155,8 @@ impl Default for EvalReport {
             dataset_revision: "pinned".to_string(),
             dataset_source: "fixture".to_string(),
             dataset_verified: false,
+            dataset_sha256: String::new(),
+            fingerprint: String::new(),
             prompt_revision: "head".to_string(),
             provider: "mock".to_string(),
             budget_usd: None,
@@ -199,9 +208,12 @@ pub fn check_promotion_gate(report: &EvalReport) -> anyhow::Result<()> {
             report.dataset_revision
         );
     }
-    if report.dataset_source == "fixture" || report.dataset_source == "custom" {
+    if !matches!(
+        report.dataset_source.as_str(),
+        "hf" | "mirror" | "cache" | "repo"
+    ) {
         anyhow::bail!(
-            "promotion gate failed: dataset source must be live (hf, mirror, cache), got '{}'",
+            "promotion gate failed: dataset source must be a pinned dataset (hf, mirror, cache, repo), got '{}'",
             report.dataset_source
         );
     }
