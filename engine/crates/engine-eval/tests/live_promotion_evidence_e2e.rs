@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const REV: &str = "ef44a169c654d8e01d7719a5b632522824292b40";
-const SHA: &str = "bec26438482b5c975e1e28a83663755f19d6243fa425206faf5beecf4e9c1176";
+const SHA: &str = "fe1b8fdd99802a661c96855edf7839668d65d72f115b41d1b47b9f43644ca59f";
 
 fn temp(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
