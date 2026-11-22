@@ -13,6 +13,12 @@ test(
   },
   async ({ page, flow }) => {
     await signUp(page, uniqueEmail("f1b"));
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: /^\+\d[\d,]* Credits · daily check-in/ }),
+    ).toBeVisible();
+    await flow.step("first daily check-in toast");
     await page.getByRole("link", { name: "Learn" }).first().click();
     // A learner with no courses gets the empty Courses state, not a fixture course.
     await expect(

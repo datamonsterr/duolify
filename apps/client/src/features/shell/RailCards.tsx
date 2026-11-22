@@ -119,7 +119,14 @@ export function RailCreditsCard({
       <Badge role="credit">{label}</Badge>
       <p>
         {wallet
-          ? `Daily free ${number(wallet.daily_free.available)} · Purchased ${number(wallet.purchased)}`
+          ? [
+              `Daily free ${number(wallet.daily_free.available)}`,
+              typeof wallet.check_in === "number" &&
+                `Check-in ${number(wallet.check_in)}`,
+              `Purchased ${number(wallet.purchased)}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")
           : "Check your balance and available credits."}
       </p>
       <Link

@@ -1,17 +1,24 @@
 // Course creation through the real UI, shared by F2-F4.
 import type { Page } from "@playwright/test";
-import { expect, grantCredits, test, type Flow } from "./stack";
+import { expect, type Flow } from "./stack";
 
 export const topic = "Astronomy basics";
 
-/** Paid credits are required for previews and outlines; real payments are off. */
-export async function fundLearner(learnerId: string): Promise<void> {
-  const granted = await grantCredits(learnerId, 500);
-  test.fixme(
-    !granted,
-    "Course creation needs purchased credits and card payments are disabled (STRIPE_MODE); " +
-      "set E2E_STACK_GRANT_COMMAND to fund the learner on a remote stack.",
-  );
+/**
+ * Previews, outlines and lessons need check-in or paid credits. A new learner's first
+ * daily check-in (shown as a toast on first open) covers course creation and the first
+ * lesson, so course flows wait for it instead of granting credits.
+ */
+export async function awaitFirstCheckIn(
+  page: Page,
+  flow?: Flow,
+): Promise<void> {
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: /^\+\d[\d,]* Credits · daily check-in/ }),
+  ).toBeVisible();
+  await flow?.step("first daily check-in credits");
 }
 
 /**

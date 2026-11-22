@@ -7,7 +7,7 @@ import { expect, test } from "./stack";
 
 test.use({ flowId: "F6" });
 
-const balance = /Daily free (\d[\d,]*) · Purchased (\d[\d,]*)/;
+const balance = /Daily free (\d[\d,]*) · Check-in and paid (\d[\d,]*)/;
 const amount = (text: string | null, group: 1 | 2) =>
   Number((text?.match(balance)?.[group] ?? "NaN").replace(/,/g, ""));
 
@@ -53,7 +53,7 @@ test(
     await expect(replies.first()).not.toBeEmpty();
     await flow.step("tutor replied");
 
-    // Daily free credits pay first; purchased credits are untouched.
+    // Daily free credits pay first; check-in and purchased credits are untouched.
     await expect
       .poll(async () => amount(await funds.textContent(), 1))
       .toBeLessThan(dailyBefore);

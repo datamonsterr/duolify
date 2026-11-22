@@ -1,6 +1,6 @@
 // Lesson steps shared by F3 and F4.
 import type { APIRequestContext, Page } from "@playwright/test";
-import { createCourse, fundLearner } from "./course";
+import { awaitFirstCheckIn, createCourse } from "./course";
 import {
   expect,
   features,
@@ -29,13 +29,8 @@ export async function requireLessonGeneration(
 
 /** New learner with a created course, on the course path page. */
 export async function learnerWithCourse(page: Page, flowId: string) {
-  const learner = await signUp(
-    page,
-    uniqueEmail(flowId),
-    undefined,
-    "/courses/create",
-  );
-  await fundLearner(learner);
+  await signUp(page, uniqueEmail(flowId), undefined, "/courses/create");
+  await awaitFirstCheckIn(page);
   await createCourse(page);
 }
 
