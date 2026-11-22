@@ -17,18 +17,22 @@ A Learner SHALL bookmark a Slide or a Lesson with one tap and remove it with one
 - **THEN** only one Bookmark exists
 
 ### Requirement: Open a bookmark
-Opening a Bookmark SHALL open the Lesson at the saved Slide. When the Lesson content is not cached the client MUST fetch it.
+Opening a Bookmark SHALL open the Lesson at the saved Slide. When the Lesson content is not cached the client MUST fetch it or offer online recovery.
 
 #### Scenario: Open offline
 - **WHEN** the Lesson is cached and the device is offline
 - **THEN** the Bookmark opens at the Slide
 
+#### Scenario: Open uncached offline
+- **WHEN** the Lesson is not cached and the device is offline
+- **THEN** an offline recovery message indicates the slide is not downloaded and offers to open when online
+
 ### Requirement: List and filter
-The client SHALL list Bookmarks by Course with a Lesson title and Slide index. Bookmarks to a removed Lesson MUST be shown as unavailable and removable.
+The client SHALL list Bookmarks by Course with a Lesson title and Slide index. Bookmarks to a removed Lesson MUST be shown as unavailable and removable, and MUST NOT be silently redirected.
 
 #### Scenario: Lesson removed
 - **WHEN** a bookmarked Lesson is deleted
-- **THEN** the Bookmark shows as unavailable
+- **THEN** the Bookmark shows as unavailable and retains a Remove action
 
 ### Requirement: Offline use
 Bookmarks MUST be creatable offline and MUST sync once per action when online.
