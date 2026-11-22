@@ -187,6 +187,29 @@ pub async fn run_bounded_checked<F: Fn(&str) -> std::result::Result<(), String>>
     validate: F,
     reserve_fallback_time: bool,
 ) -> Result<Outcome> {
+    run_bounded_formatted(
+        router,
+        task,
+        inputs,
+        l,
+        None,
+        validate,
+        reserve_fallback_time,
+    )
+    .await
+}
+
+/// `run_bounded_checked` with an explicit `response_format` for this call, for a task route
+/// that serves several answer shapes (lesson generation versus retry variants on `lesson`).
+pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String>>(
+    router: &ProviderRouter,
+    task: &str,
+    inputs: &[&str],
+    l: &Limits,
+    format: Option<serde_json::Value>,
+    validate: F,
+    reserve_fallback_time: bool,
+) -> Result<Outcome> {
     validate_limits(l)?;
     anyhow::ensure!(!inputs.is_empty(), "input required");
     if inputs.iter().any(|i| i.len() > l.input_tokens as usize) {
@@ -244,6 +267,9 @@ pub async fn run_bounded_checked<F: Fn(&str) -> std::result::Result<(), String>>
         } else {
             model.primary_route()
         };
+        if format.is_some() {
+            route_cfg.response_format = format.clone();
+        }
         let input = inputs[(index as usize).min(inputs.len() - 1)];
         // The repair turn only rides along while the whole request stays inside the envelope.
         route_cfg.repair = repair.take().filter(|r| {

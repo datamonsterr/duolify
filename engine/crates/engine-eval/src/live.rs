@@ -173,11 +173,12 @@ pub async fn evaluate(task: &str, input: &Value, router: &ProviderRouter) -> Res
                 &[],
             )?;
             let rejected = Rejections::new();
-            let outcome = engine_core::eval::run_bounded_checked(
+            let outcome = engine_core::eval::run_bounded_formatted(
                 router,
                 "lesson",
                 &[&prompt],
                 &limits(input, 16000, 12000, 180000),
+                Some(engine_core::structured::lesson_format()),
                 |text| {
                     rejected.check(
                         text,

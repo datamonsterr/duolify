@@ -208,6 +208,36 @@ fn screen_validators_explain_each_rejection() {
     );
 }
 
+#[tokio::test]
+async fn lesson_generation_overrides_the_task_format_with_the_lesson_schema() {
+    let (formatted, p) = router(&["{}"]);
+    let _ = run_bounded_formatted(
+        &formatted,
+        "lesson",
+        &["{}"],
+        &limits(),
+        Some(crate::structured::lesson_format()),
+        |_| Ok(()),
+        true,
+    )
+    .await
+    .unwrap();
+    let f = p.routes.lock().unwrap()[0].response_format.clone().unwrap();
+    assert_eq!(f["json_schema"]["name"], "lesson");
+    assert_eq!(f["json_schema"]["strict"], true);
+    assert_eq!(
+        f["json_schema"]["schema"]["properties"]["test"]["minItems"],
+        1
+    );
+    // Without an override the shared `lesson` route keeps JSON mode (retry variants use it).
+    let (plain, p) = router(&["{}"]);
+    let _ = run_bounded_checked(&plain, "lesson", &["{}"], &limits(), |_| Ok(()), true)
+        .await
+        .unwrap();
+    let f = p.routes.lock().unwrap()[0].response_format.clone().unwrap();
+    assert_eq!(f["type"], "json_object");
+}
+
 #[test]
 fn lesson_rejection_names_the_offending_slide_text() {
     let lesson = serde_json::json!({

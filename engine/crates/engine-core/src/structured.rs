@@ -125,6 +125,49 @@ pub fn response_format(task: &str) -> Option<Value> {
     })
 }
 
+/// Strict schema for a generated lesson without Character segments (`lessontest::LESSON_SHAPE`).
+/// The `lesson` route also serves retry variants, which have another shape, so lesson generation
+/// passes this explicitly instead of taking the task default.
+pub fn lesson_format() -> Value {
+    let question = |variant: bool| {
+        let mut props = json!({
+            "question_id":{"type":"string"},"topic_id":{"type":"string"},
+            "prompt":{"type":"string"},
+            "choices":{"type":"array","items":{"type":"string"},"minItems":2},
+            "answer_index":{"type":"integer"},"explanation":{"type":"string"}});
+        let mut required = vec![
+            "question_id",
+            "topic_id",
+            "prompt",
+            "choices",
+            "answer_index",
+            "explanation",
+        ];
+        if variant {
+            props["variant_of"] = json!({"type":"string"});
+            required.push("variant_of");
+        }
+        json!({"type":"object","properties":props,"required":required,"additionalProperties":false})
+    };
+    schema(
+        "lesson",
+        json!({"type":"object","properties":{
+            "title":{"type":"string"},
+            "slides":{"type":"array","minItems":1,"items":{"type":"object","properties":{
+                "slide_id":{"type":"string"},"html":{"type":"string"},
+                "narration":{"type":"string"},"duration_ms":{"type":"integer"},
+                "topic_ids":{"type":"array","items":{"type":"string"},"minItems":1}},
+                "required":["slide_id","html","narration","duration_ms","topic_ids"],
+                "additionalProperties":false}},
+            "test":{"type":"array","minItems":1,"items":question(false)},
+            "variant_pool":{"type":"array","items":{"type":"object","properties":{
+                "topic_id":{"type":"string"},
+                "variants":{"type":"array","items":question(true)}},
+                "required":["topic_id","variants"],"additionalProperties":false}}},
+            "required":["title","slides","test","variant_pool"],"additionalProperties":false}),
+    )
+}
+
 /// Longest previous answer quoted back in a repair message.
 pub const REPAIR_QUOTE_CHARS: usize = 600;
 

@@ -1124,11 +1124,14 @@ impl EngineService for Service {
             .collect::<anyhow::Result<_>>()
             .map_err(|_| Status::invalid_argument("instruction bounds exceeded"))?;
         let inputs: Vec<&str> = prompts.iter().map(String::as_str).collect();
-        let outcome = engine_core::eval::run_bounded_checked(
+        // Character lessons add per-slide segments, so only plain lessons take the strict schema.
+        let format = cast.is_empty().then(engine_core::structured::lesson_format);
+        let outcome = engine_core::eval::run_bounded_formatted(
             &self.router,
             "lesson",
             &inputs,
             &limits,
+            format,
             |text| engine_core::lessontest::check_generated(text, &instructions, &cast),
             true,
         )
