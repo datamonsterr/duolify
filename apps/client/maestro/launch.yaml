@@ -4,7 +4,8 @@ androidWebViewHierarchy: devtools
 - launchApp:
     clearState: true
 - takeScreenshot: launch
-- assertVisible: "Get started"
+- scrollUntilVisible:
+    element: "Get started"
 - takeScreenshot: landing
 - tapOn: "Explore shared example"
 - takeScreenshot: shared-example

@@ -10,4 +10,5 @@ androidWebViewHierarchy: devtools
 - assertVisible: Skip for now
 - takeScreenshot: onboarding-welcome
 - tapOn: Skip for now
+- assertVisible: "Step 1 of.*"
 - takeScreenshot: onboarding-tour
