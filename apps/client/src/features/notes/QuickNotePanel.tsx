@@ -17,7 +17,7 @@ export type QuickNoteContext = {
   lessonId?: string;
   slideId?: number;
   slideTitle?: string;
-  /** Pins the note to a moment (and region) of the Lesson. Anchored notes always start a fresh draft. */
+  /** Pins the note to a moment (and region) of the Lesson. A synced anchored note is not reopened. */
   anchor?: NoteAnchor;
 };
 
@@ -59,8 +59,12 @@ export function QuickNotePanel({
 }: QuickNotePanelProps) {
   const draftKey = getDraftKey(context);
   const [activeNote, setActiveNote] = useState<QueuedNote | null>(() => {
-    if (context.anchor) return null;
-    const queued = noteQueue.getQueue();
+    // An anchored note is a new moment each time: only a still-unsynced one is reopened.
+    const queued = noteQueue
+      .getQueue()
+      .filter(
+        (item) => !context.anchor || (item.anchor && item.status !== "synced"),
+      );
     return (
       queued.find((item) => {
         if (item.source !== context.source) return false;

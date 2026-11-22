@@ -486,7 +486,7 @@ for (const vp of VIEWPORTS) {
       await expect(frame(page, 3)).toBeAttached();
     });
 
-    test("side rail handle is reachable while controls are hidden and its slot is empty", async ({
+    test("side rail handle is reachable while controls are hidden and its slot holds the note tools", async ({
       page,
     }, info) => {
       await openLesson(page);
@@ -500,7 +500,8 @@ for (const vp of VIEWPORTS) {
       await handle.click();
       await expect(handle).toHaveAttribute("aria-expanded", "true");
       await expect(page.getByTestId("immersive-side-rail-slot")).toBeVisible();
-      await expect(page.getByTestId("immersive-side-rail-slot")).toBeEmpty();
+      await expect(page.getByTestId("immersive-select-area")).toBeVisible();
+      await expect(page.getByTestId("immersive-quick-note")).toBeVisible();
       await shot(page, info, vp, "side-rail-open");
     });
 
