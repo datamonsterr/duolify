@@ -20,7 +20,8 @@ struct RawModels {
 impl From<RawModels> for Models {
     fn from(raw: RawModels) -> Self {
         let mut tasks = raw.tasks;
-        for model in tasks.values_mut() {
+        for (task, model) in tasks.iter_mut() {
+            model.response_format = structured::response_format(task);
             model.reasoning = raw.reasoning.clone();
             if let Some(effort) = model.reasoning_effort.clone() {
                 model.reasoning.insert(model.model.clone(), effort);
@@ -42,6 +43,8 @@ pub struct Model {
     pub reasoning_effort: Option<String>,
     /// `reasoning.effort` per model id: the `[reasoning]` table plus the primary's own effort.
     pub reasoning: BTreeMap<String, String>,
+    /// OpenRouter `response_format` for this task (`structured::response_format`).
+    pub response_format: Option<serde_json::Value>,
 }
 #[derive(Deserialize)]
 struct RawModel {
@@ -65,6 +68,7 @@ impl From<RawModel> for Model {
             fallback_models,
             reasoning_effort: raw.reasoning_effort,
             reasoning: BTreeMap::new(),
+            response_format: None,
         }
     }
 }
@@ -75,6 +79,17 @@ pub struct Route {
     pub fallbacks: Vec<String>,
     /// Effort per model id; a model without an entry gets no `reasoning` field.
     pub reasoning: BTreeMap<String, String>,
+    /// Structured-output request (`response_format`). Providers that send it also require
+    /// endpoints that honour it.
+    pub response_format: Option<serde_json::Value>,
+    /// The one bounded repair: the rejected answer and the corrective message after it.
+    pub repair: Option<Repair>,
+}
+/// A rejected answer and the corrective user message sent after it on the repair attempt.
+#[derive(Debug, Clone, Default)]
+pub struct Repair {
+    pub previous: String,
+    pub message: String,
 }
 impl Model {
     pub fn primary_route(&self) -> Route {
@@ -82,6 +97,8 @@ impl Model {
             model: self.model.clone(),
             fallbacks: self.fallback_models.clone(),
             reasoning: self.reasoning.clone(),
+            response_format: self.response_format.clone(),
+            repair: None,
         }
     }
     pub fn fallback_route(&self) -> Route {
@@ -89,6 +106,8 @@ impl Model {
             model: self.fallback_model.clone(),
             fallbacks: self.fallback_models.iter().skip(1).cloned().collect(),
             reasoning: self.reasoning.clone(),
+            response_format: self.response_format.clone(),
+            repair: None,
         }
     }
 }
@@ -507,3 +526,4 @@ pub mod slide;
 mod tests;
 
 pub mod steering;
+pub mod structured;

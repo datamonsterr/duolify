@@ -64,19 +64,19 @@ reasoning_effort = "low"
 [tasks.character_screen]
 model = "tencent/hy4-flash"
 fallback_models = ["z-ai/glm-5.3-flash"]
-reasoning_effort = "low"
+reasoning_effort = "none"
 
 [tasks.course_screen]
 model = "tencent/hy4-flash"
 fallback_models = ["z-ai/glm-5.3-flash"]
-reasoning_effort = "low"
+reasoning_effort = "none"
 
 [tasks.steer_screen]
 model = "tencent/hy4-flash"
 fallback_models = ["z-ai/glm-5.3-flash"]
-reasoning_effort = "low"
+reasoning_effort = "none"
 
 [tasks.screen_review]
 model = "tencent/hy4-flash"
 fallback_models = ["z-ai/glm-5.3-flash"]
-reasoning_effort = "low"
+reasoning_effort = "none"

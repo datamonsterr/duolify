@@ -18,10 +18,12 @@ fn config_has_all_tasks() {
         ("outline", "low"),
         ("outline_replan", "low"),
         ("character_create", "low"),
-        ("character_screen", "low"),
-        ("course_screen", "low"),
-        ("steer_screen", "low"),
-        ("screen_review", "low"),
+        // ADR 0016: screens answer a two-field schema under a 200-300 token cap, and Hy4 reasoning
+        // at `low` spent that cap before answering.
+        ("character_screen", "none"),
+        ("course_screen", "none"),
+        ("steer_screen", "none"),
+        ("screen_review", "none"),
     ] {
         let route = &config.tasks[task];
         assert_eq!(route.model, HY4, "{task}");

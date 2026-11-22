@@ -152,6 +152,39 @@ pub async fn run_bounded_inputs<F: Fn(&str) -> bool>(
     validate: F,
     reserve_fallback_time: bool,
 ) -> Result<Outcome> {
+    run_bounded_checked(
+        router,
+        task,
+        inputs,
+        l,
+        |text| {
+            if validate(text) {
+                Ok(())
+            } else {
+                Err(SCHEMA_MISMATCH.to_owned())
+            }
+        },
+        reserve_fallback_time,
+    )
+    .await
+}
+
+/// The repair message for validators that only report pass or fail.
+pub const SCHEMA_MISMATCH: &str = "the answer is not valid JSON for the required schema";
+
+/// The bounded runner with a validator that explains a rejection. Every completion passes
+/// through `structured::extract_json` before validation, and the delivered text is the extracted
+/// JSON. When an answer is rejected, the one remaining attempt carries a corrective repair turn
+/// that quotes the validation error, if it still fits the input envelope. Caps are unchanged:
+/// at most two attempts, the USD ceiling and the deadline.
+pub async fn run_bounded_checked<F: Fn(&str) -> std::result::Result<(), String>>(
+    router: &ProviderRouter,
+    task: &str,
+    inputs: &[&str],
+    l: &Limits,
+    validate: F,
+    reserve_fallback_time: bool,
+) -> Result<Outcome> {
     validate_limits(l)?;
     anyhow::ensure!(!inputs.is_empty(), "input required");
     if inputs.iter().any(|i| i.len() > l.input_tokens as usize) {
@@ -190,6 +223,7 @@ pub async fn run_bounded_inputs<F: Fn(&str) -> bool>(
 
     // Launch policy: at most 2 attempts total (primary + at most 1 repair/fallback)
     let max_attempts = l.max_attempts.min(2);
+    let mut repair: Option<crate::Repair> = None;
 
     for index in 0..max_attempts {
         let fallback = index > 0;
@@ -203,11 +237,16 @@ pub async fn run_bounded_inputs<F: Fn(&str) -> bool>(
         } else {
             &router.primary
         };
-        let route_cfg = if fallback {
+        let mut route_cfg = if fallback {
             model.fallback_route()
         } else {
             model.primary_route()
         };
+        let input = inputs[(index as usize).min(inputs.len() - 1)];
+        // The repair turn only rides along while the whole request stays inside the envelope.
+        route_cfg.repair = repair.take().filter(|r| {
+            input.len() + r.previous.len() + r.message.len() <= l.input_tokens as usize
+        });
 
         if spent
             .checked_add(worst)
@@ -236,11 +275,7 @@ pub async fn run_bounded_inputs<F: Fn(&str) -> bool>(
         };
         let response = tokio::time::timeout(
             timeout_duration,
-            provider.complete_route(
-                &route_cfg,
-                inputs[(index as usize).min(inputs.len() - 1)],
-                l.output_tokens,
-            ),
+            provider.complete_route(&route_cfg, input, l.output_tokens),
         )
         .await;
 
@@ -250,7 +285,11 @@ pub async fn run_bounded_inputs<F: Fn(&str) -> bool>(
             .min(u128::from(l.timeout_ms)) as u32;
 
         match response {
-            Ok(Ok(c)) => {
+            Ok(Ok(mut c)) => {
+                let extracted = crate::structured::extract_json(&c.text);
+                if extracted.len() != c.text.len() {
+                    c.text = extracted.to_owned();
+                }
                 let mut attempt = Attempt {
                     provider: provider.name().into(),
                     // Fallbacks change the serving model; cost follows the model that served.
@@ -287,13 +326,24 @@ pub async fn run_bounded_inputs<F: Fn(&str) -> bool>(
                             actual_cost
                         };
                         spent += cost;
-                        if validate(&c.text) {
-                            attempt.delivered = true;
-                            outcome.completion = Some(c);
-                            outcome.attempts.push(attempt);
-                            break;
-                        } else {
-                            attempt.error_code = Some("invalid_schema".into());
+                        match validate(&c.text) {
+                            Ok(()) => {
+                                attempt.delivered = true;
+                                outcome.completion = Some(c);
+                                outcome.attempts.push(attempt);
+                                break;
+                            }
+                            Err(error) => {
+                                attempt.error_code = Some("invalid_schema".into());
+                                repair = Some(crate::Repair {
+                                    previous: c
+                                        .text
+                                        .chars()
+                                        .take(crate::structured::REPAIR_QUOTE_CHARS)
+                                        .collect(),
+                                    message: crate::structured::repair_message(&error),
+                                });
+                            }
                         }
                     }
                     Err(_) => {

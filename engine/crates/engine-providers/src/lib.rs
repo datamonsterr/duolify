@@ -41,7 +41,7 @@ impl HttpProvider {
                 .map(|model| Route {
                     model: model.clone(),
                     fallbacks: Vec::new(),
-                    reasoning: route.reasoning.clone(),
+                    ..route.clone()
                 })
                 .collect(),
         )
@@ -79,6 +79,20 @@ impl HttpProvider {
             } else {
                 body["messages"] = json!([{"role":"system","content":engine_core::steering::POLICY},{"role":"user","content":data}]);
             }
+        }
+        // The one bounded repair replays the rejected answer and a corrective user turn.
+        if let Some(repair) = &route.repair
+            && let Some(messages) = body["messages"].as_array_mut()
+        {
+            messages.push(json!({"role":"assistant","content":repair.previous}));
+            messages.push(json!({"role":"user","content":repair.message}));
+        }
+        if !self.anthropic
+            && let Some(format) = &route.response_format
+        {
+            body["response_format"] = format.clone();
+            // Only endpoints that honour `response_format` may serve a structured task.
+            body["provider"]["require_parameters"] = json!(true);
         }
         let mut req = self.client.post(&self.url);
         if self.anthropic {

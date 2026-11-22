@@ -20,7 +20,133 @@ fn route(model: &str, fallbacks: &[&str], efforts: &[(&str, &str)]) -> Route {
             .iter()
             .map(|(m, e)| ((*m).into(), (*e).into()))
             .collect(),
+        ..Route::default()
     }
+}
+
+fn ok(content: &str) -> ResponseTemplate {
+    ResponseTemplate::new(200).set_body_json(json!({
+        "model": HY4,
+        "choices": [{"message": {"content": content}}],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 2}
+    }))
+}
+
+#[tokio::test]
+async fn structured_task_sends_its_schema_and_requires_supporting_endpoints() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ok("{}"))
+        .mount(&server)
+        .await;
+    let router = engine_core::ProviderRouter::new(
+        std::sync::Arc::new(engine_core::MockProvider),
+        std::sync::Arc::new(engine_core::MockProvider),
+    )
+    .unwrap();
+    let provider = HttpProvider::openrouter("key".into(), server.uri());
+    // Every screen, on both chain members, with the effort configured per model.
+    for task in [
+        "steer_screen",
+        "character_screen",
+        "course_screen",
+        "screen_review",
+    ] {
+        let route = router.models.tasks[task].primary_route();
+        provider.complete_route(&route, "{}", 200).await.unwrap();
+    }
+    let requests = server.received_requests().await.unwrap();
+    assert_eq!(requests.len(), 4);
+    for r in &requests {
+        let body: Value = r.body_json().unwrap();
+        assert_eq!(body["model"], HY4);
+        assert_eq!(
+            body["reasoning"]["effort"], "none",
+            "screens answer without reasoning"
+        );
+        assert_eq!(body["response_format"]["type"], "json_schema");
+        assert_eq!(body["response_format"]["json_schema"]["strict"], true);
+        assert_eq!(body["provider"]["require_parameters"], true);
+        assert_eq!(body["provider"]["data_collection"], "deny");
+    }
+}
+
+#[tokio::test]
+async fn fallback_member_keeps_the_schema_and_its_own_effort() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(body_partial_json(json!({"model": HY4})))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(body_partial_json(json!({"model": GLM})))
+        .respond_with(ok("{}"))
+        .mount(&server)
+        .await;
+    let router = engine_core::ProviderRouter::new(
+        std::sync::Arc::new(engine_core::MockProvider),
+        std::sync::Arc::new(engine_core::MockProvider),
+    )
+    .unwrap();
+    let provider = HttpProvider::openrouter("key".into(), server.uri());
+    let route = router.models.tasks["course_screen"].primary_route();
+    provider.complete_route(&route, "{}", 300).await.unwrap();
+    let glm: Value = server.received_requests().await.unwrap()[1]
+        .body_json()
+        .unwrap();
+    assert_eq!(glm["model"], GLM);
+    assert_eq!(glm["reasoning"]["effort"], "low");
+    assert_eq!(
+        glm["response_format"]["json_schema"]["name"],
+        "course_screen_verdict"
+    );
+    assert_eq!(glm["provider"]["require_parameters"], true);
+}
+
+#[tokio::test]
+async fn prose_tasks_send_no_response_format() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ok("hi"))
+        .mount(&server)
+        .await;
+    let provider = HttpProvider::openrouter("key".into(), server.uri());
+    provider
+        .complete_route(&route(HY4, &[], &[]), "hello", 10)
+        .await
+        .unwrap();
+    let body = first_body(&server).await;
+    assert!(body.get("response_format").is_none());
+    assert!(body["provider"].get("require_parameters").is_none());
+}
+
+#[tokio::test]
+async fn repair_attempt_replays_the_rejected_answer_and_the_correction() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ok("{}"))
+        .mount(&server)
+        .await;
+    let provider = HttpProvider::openrouter("key".into(), server.uri());
+    let mut r = route(GLM, &[], &[]);
+    r.repair = Some(engine_core::Repair {
+        previous: "**verdict:** pass".into(),
+        message: "Your previous answer was rejected: not JSON.".into(),
+    });
+    provider
+        .complete_route(&r, "screen this", 10)
+        .await
+        .unwrap();
+    let body = first_body(&server).await;
+    assert_eq!(
+        body["messages"],
+        json!([
+            {"role": "user", "content": "screen this"},
+            {"role": "assistant", "content": "**verdict:** pass"},
+            {"role": "user", "content": "Your previous answer was rejected: not JSON."}
+        ])
+    );
 }
 
 async fn first_body(server: &MockServer) -> Value {
