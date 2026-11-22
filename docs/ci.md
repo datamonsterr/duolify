@@ -82,6 +82,31 @@ checks replace the former single `checks / playwright` check (#205); branch
 protection on `main` lists no required checks by name, so the rename needs no
 settings change.
 
+## Full-stack flow suite
+
+`playwright-stack` (full tier, advisory: not yet in `ci-ok`) runs the real web
+client against the disposable `infra/e2e` stack: `infra/deploy/compose.yml` plus the
+test-only overlay `infra/e2e/compose.yml`, Compose project `duolify-e2e`, mock engine
+provider, no `page.route` mocks. Specs are `apps/client/e2e-stack/*.flow.ts`. Each flow
+saves `<flow-id>/<nn>-<step>.png` and the run writes `flows.json` (id, title, status,
+fixme reason, defects seen on the way, steps with screenshot paths) to
+`apps/client/test-results/stack-flows`; CI uploads it as the `stack-flows` artifact.
+A flow blocked by a real product gate or defect is reported `fixme` with the reason.
+
+```sh
+mise run client:e2e-stack-up      # build images (tag e2e), start on http://localhost:18471
+mise run client:e2e-stack         # all flows; E2E_FLOW="F1|F2" for a subset
+mise run client:e2e-stack-down    # delete containers and volumes
+```
+
+Sign-in codes come from the API's development log mailer (`infra/e2e/stack.sh code
+<email>`). Live provider: `OPENROUTER_API_KEY=... E2E_LIVE=1 mise run
+client:e2e-stack-up`, then run the suite with `E2E_LIVE=1` (longer timeouts); the key is
+passed through the environment only. Remote stack: `E2E_STACK_URL=https://staging.duolify.online
+E2E_STACK_CODE_COMMAND='<prints codes for $1>' mise run client:e2e-stack` (no local stack;
+`E2E_STACK_GRANT_COMMAND` funds learners, otherwise flows that need paid credits are
+`fixme`). `E2E_LESSON_TEST_TRACER_ENABLED=true` probes the lesson flows production keeps off.
+
 | Secret | Use |
 | --- | --- |
 | `RAILWAY_TOKEN` | Repository secret for full-tier plans; dev environment secret for deploys. Scope to development. |

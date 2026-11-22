@@ -43,3 +43,5 @@ evals/reports/
 
 # Built test server binary (go build in services/api/test/pricingserver)
 /services/api/test/pricingserver/pricingserver
+infra/e2e/.state/
+playwright-report-stack/
