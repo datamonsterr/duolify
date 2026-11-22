@@ -17,6 +17,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/narration/narrationtest"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
+	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -44,6 +45,14 @@ func authoredObjects() map[string][]byte {
 		objects["lessons/narration/v1/"+hash+"/alignment.json"] = alignment
 	}
 	for key, raw := range courses.SharedDemoDocuments() {
+		objects[key] = raw
+	}
+	// Authored example Courses: every version's slide and manifest objects are protected too.
+	exampleObjects, err := sharing.ExampleDocuments(playerfixture.AssetOrigin)
+	if err != nil {
+		panic("invalid authored example course fixture")
+	}
+	for key, raw := range exampleObjects {
 		objects[key] = raw
 	}
 	return objects

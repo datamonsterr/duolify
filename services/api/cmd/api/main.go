@@ -419,6 +419,12 @@ func run(ctx context.Context, args []string) (result error) {
 	// Stays in the API: it deletes shared-asset objects with the application object-store
 	// keys, which the worker deliberately does not hold. It wakes every six hours.
 	go sharingService.MaintainAssets(ctx)
+	// Authored example Courses: publish their immutable objects (identical bytes, safe on every replica and rerun).
+	go func() {
+		if err := sharingService.InstallExampleObjects(ctx); err != nil {
+			logger.Warn("example course objects not installed; they are written again at enrollment", "error", err)
+		}
+	}()
 	// Private generated lessons use the same application identity; the worker has no app credentials.
 	go courseService.MaintainPurgedObjects(ctx)
 	// Same reason for narration audio of erased learners: it is purged here, with the object-store

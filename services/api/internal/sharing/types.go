@@ -310,6 +310,8 @@ type SnapshotSlide struct {
 	ID         string                    `json:"id"`
 	HTML       string                    `json:"html"`
 	Narration  string                    `json:"narration"`
+	// TopicIDs are the topics the slide teaches (authored example lessons only).
+	TopicIDs []string `json:"topic_ids,omitempty"`
 }
 
 // SnapshotQ is one Lesson test question.

@@ -324,7 +324,11 @@ func (s *Service) createCopy(ctx context.Context, tx pgx.Tx, viewer, sourceID, d
 }
 
 func (s *Service) copyLesson(ctx context.Context, tx pgx.Tx, viewer, copyID, stubID, draftID, prefix string, version int, l SnapshotLesson) error {
-	metadata := map[string]any{"slide_count": len(l.Slides), "question_count": len(l.Questions), "source": "published", "version": version}
+	lessonSource := "published"
+	if draftID == "" {
+		lessonSource = "example"
+	}
+	metadata := map[string]any{"slide_count": len(l.Slides), "question_count": len(l.Questions), "source": lessonSource, "version": version}
 	if l.Cast != nil {
 		castKey := fmt.Sprintf("published-%s-%d", stubID, version)
 		metadata["cast_key"] = castKey
@@ -352,7 +356,7 @@ func (s *Service) copyLesson(ctx context.Context, tx pgx.Tx, viewer, copyID, stu
 		if len(sl.Segments) == 0 {
 			segments = []byte(`[]`)
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO lesson_slides(lesson_stub_id,learner_id,position,slide_id,html,duration_ms,narration,segments) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, stubID, viewer, i, sl.ID, sl.HTML, duration, sl.Narration, segments); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO lesson_slides(lesson_stub_id,learner_id,position,slide_id,html,duration_ms,narration,segments,topic_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, stubID, viewer, i, sl.ID, sl.HTML, duration, sl.Narration, segments, append([]string{}, sl.TopicIDs...)); err != nil {
 			return err
 		}
 	}
@@ -381,6 +385,9 @@ func (s *Service) copyLesson(ctx context.Context, tx pgx.Tx, viewer, copyID, stu
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO lesson_manifests(lesson_id,learner_id,version,manifest_key) VALUES($1,$2,1,$3)`, stubID, viewer, key); err != nil {
 		return err
+	}
+	if draftID == "" { // authored examples carry no shared narration audio
+		return nil
 	}
 	return copyNarrationAudio(ctx, tx, viewer, stubID, draftID, l)
 }
