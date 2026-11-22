@@ -6,7 +6,7 @@ Play a Lesson as a deck of small Motion HTML Slides inside the client. Slides an
 ## Requirements
 
 ### Requirement: Slide format and manifest
-Each Slide MUST be one self-contained Motion HTML document (HTML, CSS, JS) that plays a few seconds. A Lesson MUST have a Slide manifest listing Slides in order with `slide_id`, `duration_ms`, asset URLs and checkpoints. The Engine and API MUST validate Slide HTML before it is stored.
+Each Slide MUST be one self-contained Motion HTML document (HTML, CSS, JS) that plays a few seconds. A Lesson MUST have a Slide manifest listing Slides in order with `slide_id`, `duration_ms`, asset URLs, checkpoints and narration fields (`narration_text`, `narration_status`, `audio_url` and `alignment_url` when status is `ready`). The Engine and API MUST validate Slide HTML before it is stored.
 
 #### Scenario: Valid Lesson stored
 - **WHEN** the Engine returns a Lesson
@@ -28,14 +28,14 @@ The client SHALL load one Slide at a time into `<iframe sandbox="allow-scripts">
 - **THEN** access is denied by the sandbox
 
 ### Requirement: Playback protocol and controls
-The player SHALL control a Slide through a `postMessage` protocol with `play`, `pause`, `seek`, `ended` and `checkpoint`. The Learner MUST be able to pause, replay and step to the previous or next Slide.
+The player SHALL control a Slide through a `postMessage` protocol with `play`, `pause`, `seek`, `rate`, `ended` and `checkpoint`. The Learner MUST be able to pause, replay and step to the previous or next Slide, and to change playback speed. When Narration plays, these controls MUST drive the audio and the Slide together.
 
 #### Scenario: Pause and replay
 - **WHEN** the Learner taps pause and then replay
-- **THEN** the Slide pauses at the current time, then restarts from zero
+- **THEN** the Slide and its audio pause at the current time, then restart from zero
 
 #### Scenario: Slide ends
-- **WHEN** a Slide posts `ended`
+- **WHEN** a Slide posts `ended` and its audio, if any, has finished
 - **THEN** the player shows the next-step control and advances on tap or after auto-advance if enabled
 
 ### Requirement: Preload
@@ -57,7 +57,7 @@ The client MUST cache a Lesson's manifest, Slides and assets once the Lesson has
 - **THEN** queued progress events are sent once each
 
 ### Requirement: Player analytics events
-The client SHALL emit `lesson_started`, `slide_viewed`, `slide_replayed`, `slide_paused`, `lesson_completed` and `lesson_player_error` with properties from the `analytics` spec.
+The client SHALL emit `lesson_started`, `slide_viewed`, `slide_replayed`, `slide_paused`, `lesson_completed`, `lesson_player_error`, `narration_played`, `narration_muted`, `narration_speed_changed` and `captions_toggled` with properties from the `analytics` spec.
 
 #### Scenario: Slide viewed
 - **WHEN** a Slide reaches `ended`
@@ -76,3 +76,326 @@ Slides MUST have Golden set cases (task `lesson_slides`) with deterministic chec
 #### Scenario: Unsafe output in eval
 - **WHEN** a Golden set case yields a Slide with an external script
 - **THEN** the deterministic check fails the case and the eval run fails if it is below threshold
+
+### Requirement: Narration playback
+When a Slide has `narration_status` `ready`, the player SHALL play its audio in sync with the Slide animation, using the character alignment to fire Slide checkpoints and to highlight captions. The Slide MUST hold its last frame until the audio ends, and the audio MUST stop when the Learner leaves the Slide. The player MUST provide captions (on by default), a mute toggle and a speed control (0.75, 1, 1.25, 1.5), apply the speed to audio and Slide together, and persist these settings per device. Audio and alignment MUST be preloaded for the next Slide and MUST be stored in the offline cache with the Lesson. When `narration_status` is `pending`, `failed` or `disabled`, or audio fails to load, the player MUST show captions from `narration_text` only and the Lesson MUST stay playable. Muting MUST NOT affect captions.
+
+#### Scenario: Audio in sync
+- **WHEN** a Slide with ready narration plays
+- **THEN** audio starts only after the Learner presses "Play narration", captions highlight with the alignment, and checkpoints fire at their aligned times
+
+#### Scenario: Mute
+- **WHEN** the Learner mutes
+- **THEN** audio is silent, captions stay, and the setting persists for the next Slide and session
+
+#### Scenario: Audio missing
+- **WHEN** the audio object fails to load or `narration_status` is `failed`
+- **THEN** captions are shown, the Slide plays and the Lesson continues
+
+#### Scenario: Offline
+- **WHEN** a cached Lesson is opened offline
+- **THEN** its narration audio plays from the cache
+
+### Requirement: Character rendering in Motion HTML
+The player SHALL render Characters from the Lesson's pinned Cast and validated Character specs using only trusted, versioned original SVG rig parts. Slides MUST support a guide narrator and supporting dialogue speakers identified by stable Cast speaker keys, with `idle`, `happy`, `sad`, `thinking`, `celebrate` expressions. Rendering MUST retain the existing iframe sandbox and CSP, MUST NOT permit arbitrary SVG/HTML/URLs from Character data, and MUST keep readable speaker labels and dialogue/captions when audio or animation is unavailable.
+
+#### Scenario: Two speakers
+- **WHEN** a Slide has guide narration followed by a supporting Character's dialogue
+- **THEN** the correct pinned Character and speaker label are displayed for each segment without changing their base appearance
+
+#### Scenario: Untrusted appearance markup
+- **WHEN** Character data contains an event handler, script or external asset URL
+- **THEN** validation rejects it and the player uses a safe built-in appearance without relaxing the sandbox
+
+### Requirement: Character playback and offline fallback
+Character expression/animation transitions MUST follow the Slide playback clock through pause, seek, replay and speed changes. The player MUST preload/cache pinned rig/spec assets with the Lesson and support offline replay. Missing, invalid or unsupported assets MUST use the bundled Default cast; text, controls and captions MUST remain available. Reduced-motion mode MUST use static expressions without hiding dialogue.
+
+#### Scenario: Seek and replay
+- **WHEN** the Learner pauses, seeks back and replays a dialogue Slide
+- **THEN** the Character states and captions match the restored Slide time and speaker order
+
+#### Scenario: Missing rig offline
+- **WHEN** a cached Lesson cannot resolve a custom rig while offline
+- **THEN** a bundled default renders and the Lesson remains playable without network or model calls
+
+### Requirement: Character player analytics events
+The client SHALL emit PostHog `character_rendered` (speaker_key, character_version, rig_version, expression, offline) once per Slide speaker and `character_render_fallback` (reason_code, offline) when a slot falls back, with common Course/Lesson/Slide properties from the `analytics` delta. Events MUST respect opt-out and exclude Character text, SVG and dialogue.
+
+#### Scenario: Render fallback event
+- **WHEN** a missing rig causes a bundled fallback
+- **THEN** `character_render_fallback` reports the bounded reason and offline state without asset contents
+
+### Requirement: Character player backup and retention
+Pinned Cast/spec references and speaker/expression metadata MUST be stored with Lesson manifests in Postgres and covered by nightly dumps. Versioned S3 rig/compiled assets MUST be covered by nightly protected asset copies/manifests and restore checks under `custom-characters` and `data-backup`. Device caches MUST be disposable. Data MUST follow Lesson deletion within 30 days and E15 reference retention for shared assets; shared objects MUST NOT be purged while referenced.
+
+#### Scenario: Restore playable appearance
+- **WHEN** the Lesson database and asset backup are restored
+- **THEN** every manifest resolves its pinned Character assets without model calls and the player can cache it again
+
+### Requirement: Character Slide model testing and reliability
+Golden set `character_persona_lesson` cases MUST check valid speaker keys, supported expressions, schema/rig validity, safe HTML and persona adherence; scores MUST meet `custom-characters` thresholds in `evals/thresholds.toml` and pass `mise run engine:eval`. Rendering MUST be deterministic with no runtime LLM cost. Character generation failure MUST use the Default cast within the existing Lesson generation timeout and spend cap; if base Slide generation remains invalid, the existing retry/fallback and reservation release rules MUST apply.
+
+#### Scenario: Unknown generated speaker
+- **WHEN** a generated dialogue references a speaker outside the pinned Cast
+- **THEN** validation rejects it, bounded retry/default regeneration occurs and no invalid reference reaches the player
+
+### Requirement: Authorized object-backed lesson playback
+The API MUST return a closed manifest only to an enrolled Learner, containing stable ordered slide IDs, duration_ms, asset URLs, checkpoints and captions, with no assessment answer keys. It MUST authorize every document read, reject malformed manifests and serve fixture objects until generation is available. The host MUST render documents in sandbox="allow-scripts" without allow-same-origin, prepend a strict configured asset-origin CSP, and accept only source/origin/schema-valid active-slide messages. Reaching the last slide MUST offer Take lesson test without granting completion.
+
+#### Scenario: Authorized fixture lesson
+- **WHEN** an enrolled Learner opens a fixture lesson
+- **THEN** the manifest and versioned HTML load with stable IDs and the last slide links to the test without changing progress
+
+#### Scenario: Unauthorized or unsafe content
+- **WHEN** an anonymous or unenrolled caller requests a manifest or document, or a document attempts third-party network/storage access
+- **THEN** the API denies the read or the sandbox/CSP blocks access, and malformed messages cannot change host state
+
+#### Scenario: Content unavailable
+- **WHEN** an object is missing, corrupt, or the connection is offline
+- **THEN** the player shows readable recovery with Retry and Exit, without completion or learner text in analytics
+
+### Requirement: Playback metadata recovery and privacy
+Lesson metadata MUST join encrypted nightly 14-day Postgres backups, export and cascade erasure policies. Manifest/HTML/assets MUST use versioned application storage and existing protected asset backup policy. Restores MUST resolve original fixture objects and reapply account deletion tombstones. Device replicas remain disposable. E3-01 MUST NOT introduce AI calls or alter existing reliability gates.
+
+#### Scenario: Restore and erase
+- **WHEN** fixture metadata and protected objects are restored and learner deletion is replayed
+- **THEN** original content is readable before erasure and inaccessible afterwards without regenerating it
+
+### Requirement: Content-free playback telemetry
+The analytics allowlist and catalogue MUST define lesson_started (lesson_id, course_id) and lesson_player_error (lesson_id, slide_id when known, error_code) before emitters. Existing UUID/common properties and opt-out MUST apply; slide or learner text MUST never be captured.
+
+#### Scenario: Private playback event
+- **WHEN** playback starts or fails
+- **THEN** the PostHog double receives only allowed IDs/fixed codes and common properties, and opt-out suppresses delivery
+
+### Requirement: Controlled resumable playback
+The player SHALL provide play, pause, replay, seek, rate, previous and next using a parent clock and sandbox bridge. It SHALL handle only exact-schema active-frame ended/checkpoint messages, ignore stale frames, preserve sandbox allow-scripts without allow-same-origin and strict CSP, pause on hidden pages and sheets, and restore focus on sheet closure. Exit SHALL return to a validated originating path. Ended SHALL expose explicit next/test controls without completing a Lesson. Desktop and mobile SHALL have keyboard/touch, light/dark and reduced-motion parity.
+
+#### Scenario: Pause seek rate and resume
+- **WHEN** a learner pauses, seeks, changes speed, exits and reopens
+- **THEN** slide and bounded time restore paused, and explicit Play continues through the same playback controls
+
+#### Scenario: Hidden sheet or stale frame
+- **WHEN** the page hides or a sheet opens, or a replaced frame posts ended/checkpoint
+- **THEN** playback pauses with time retained or the stale event is ignored, and completion is never granted
+
+### Requirement: Learner position durability and recovery
+The API SHALL authorize cursor reads/writes by enrollment and validate manifest version, slide and integer time bounds. Cursors SHALL persist in Postgres, join encrypted nightly 14-day dumps, learner export, cascade deletion and restored deletion-tombstone replay. Learner-scoped disposable local cursors SHALL clear on logout. Offline or save errors SHALL offer understandable recovery without claiming synchronization. No AI behavior changes or new eval cases are introduced; existing reliability gates SHALL remain intact.
+
+#### Scenario: Restore and erase cursor
+- **WHEN** a backup is restored and learner deletion tombstones are replayed
+- **THEN** the original cursor restores before deletion and is erased afterwards
+
+#### Scenario: Save unavailable
+- **WHEN** saving position fails or the device is offline
+- **THEN** the learner retains local position, sees an unsaved recovery state and can retry or exit
+
+### Requirement: Control analytics catalogue
+Before emitters, the API allowlist and analytics catalogue SHALL register slide_viewed (lesson_id, slide_id, index, watch_ms, offline), slide_replayed and slide_paused (lesson_id, slide_id, index), and lesson_player_error with fixed codes including position_unavailable. Authenticated UUID/common properties and opt-out SHALL apply. No slide/learner text, HTML or URL SHALL be emitted. slide_viewed SHALL emit only on ended, at most once per playback attempt, using measured playing wall time and offline state. Playback SHALL never emit lesson_completed.
+
+#### Scenario: Viewed and replayed
+- **WHEN** a slide ends, duplicate ended arrives and the learner replays
+- **THEN** one slide_viewed emits for that attempt, replay emits slide_replayed, and seeking or mounting alone emits no view
+
+#### Scenario: Consent and private text
+- **WHEN** consent is disabled or a caller adds private properties
+- **THEN** the PostHog test double receives no event or only the closed registered properties
+
+### Requirement: Atomic disposable opened lesson cache
+The client SHALL verify SHA-256 HTML and asset checksums from authorized versioned manifests before atomically publishing a complete account-scoped lesson bundle. It SHALL bound each bundle to 8 MiB and each account to five lessons and 40 MiB, evict only after a successful replacement, and remove private cache and offline identity on logout/account change. Cached documents SHALL retain sandbox="allow-scripts" without allow-same-origin and a network-denying CSP with only verified embedded assets. Server objects SHALL remain authoritative, versioned and covered by existing backup/restore checks; device copies SHALL be disposable and excluded from backups. No new learner tables or AI behavior are introduced. Progress synchronization remains E3-04.
+
+#### Scenario: Restart offline
+- **WHEN** the authenticated learner restarts offline after a complete lesson download
+- **THEN** the public shell and credential-bound identity bootstrap without network and every slide and asset plays from the verified bundle
+
+#### Scenario: Interrupted replacement
+- **WHEN** a download is interrupted, fails its checksum or exceeds quota
+- **THEN** no partial lesson is published and the previous complete cached version remains playable
+
+#### Scenario: Evicted or foreign lesson
+- **WHEN** a lesson is missing, evicted, corrupt or belongs to another account
+- **THEN** no private content appears and accessible Retry and Exit recovery explains offline_uncached
+
+#### Scenario: Preloaded navigation
+- **WHEN** a slide plays
+- **THEN** the next document and assets are ready before navigation and slow downloads retain readable current content with a loading status
+
+#### Scenario: Recovery analytics
+- **WHEN** an opted-in learner selects Retry or Exit for an uncached offline lesson
+- **THEN** ui_recovery_selected carries surface=lesson_player, error_code=offline_uncached and action, while lesson_player_error carries a fixed allowlisted code, authenticated UUID and common properties without learner or slide text
+
+### Requirement: Synchronize offline playback progress once
+The client SHALL queue non-authoritative playback progress events with stable action keys in device storage while offline or encountering network failure, retaining events until acknowledged or permanently rejected by the server. While pending events exist, the player UI SHALL display "Waiting to sync" with desktop and mobile parity. On reconnection or retry, queued events SHALL be replayed once. The API SHALL authorize requests by course enrollment, reject foreign lessons and individually reject invalid events, persist events unique per learner and action key in Postgres, idempotently ignore duplicate action keys, and merge out-of-order events into the authoritative position cursor based on event timestamp. Playback synchronization SHALL NOT award completion or XP. Explicit logout SHALL clear the device queue.
+
+#### Scenario: Reconnect twice replays event once
+- **WHEN** an offline playback event is queued and the client reconnects twice
+- **THEN** the event is transmitted with its stable action key, reconciled canonically on the server, and "Waiting to sync" clears with exactly one progress action recorded
+
+#### Scenario: Out-of-order merge
+- **WHEN** progress events arrive out of chronological order
+- **THEN** both events are persisted uniquely and the canonical cursor reflects the latest event by occurred_at timestamp
+
+#### Scenario: Foreign or malformed event
+- **WHEN** an event is submitted for a non-enrolled lesson or with invalid schema
+- **THEN** foreign lessons fail closed; invalid events are individually returned in `rejected_keys` without altering stored progress, while valid events in the same batch are processed and returned in `acked_keys`
+
+### Requirement: Stable slide deep links
+The player SHALL accept a validated slide identifier deep link via `slide` query parameter. Valid slide identifiers SHALL open the player at the specified slide without implying lesson completion or awarding XP, even on the final slide. The final slide SHALL link solely to the lesson test.
+
+#### Scenario: Deep link to final slide
+- **WHEN** a learner opens a lesson deep link to the final slide
+- **THEN** the final slide loads without completion and links only to the lesson test
+
+#### Scenario: Independent learner keys and bounded request timestamps
+- **WHEN** two enrolled learners submit the same action key for their own lessons
+- **THEN** both events are acknowledged independently without disclosing any foreign key existence, timestamps clamp to 2000-01-01 UTC through server time plus two minutes, and requests over 64 KiB return 413
+
+### Requirement: Accessible static lesson recovery
+The player SHALL provide accessible non-animated static playback when reduced motion is preferred or active, presenting a meaningful static visual frame and a full instructional explanation. When a slide or required asset is missing or fails to load, the player SHALL present a recovery state with Retry and Exit actions, preserve the learner's position cursor, keep captions and transcript accessible, and disable advancement so that incomplete or failed lessons never grant completion or test progression.
+
+#### Scenario: Reduced motion playback
+- **WHEN** reduced motion is active
+- **THEN** animations are suppressed, the static visual frame and full explanation are displayed, and playback controls and transcript operate accessibly with keyboard and screen reader
+
+#### Scenario: Missing or failed asset recovery
+- **WHEN** a slide asset is missing or fails to load
+- **THEN** the player displays "This slide didn't load", offers Retry slide and Exit actions, retains the learner's place, leaves the transcript accessible, and disables Next without granting completion
+
+### Requirement: Manifest explanation contract
+The lesson manifest SHALL include an instructional `explanation` field for each slide in both the storage schema and public projection DTO. The API SHALL validate that explanation length is bounded (up to 20,000 characters) and does not disclose private assessment answers or storage keys.
+
+#### Scenario: Manifest explanation delivered
+- **WHEN** an authorized learner requests a lesson manifest
+- **THEN** each slide in the manifest includes an instructional explanation and no private assessment data is leaked
+
+### Requirement: Static recovery analytics catalogue
+The analytics catalogue and API allowlist SHALL register `lesson_player_error` with fixed error code `asset_unavailable` and `ui_recovery_selected` with `surface=lesson_player`, `error_code=asset_unavailable`, and `action=retry|exit`. Telemetry MUST include UUID identity and common properties, respect opt-out, and never include slide, narration or learner text.
+
+#### Scenario: Asset failure and recovery telemetry
+- **WHEN** an asset fails and the learner selects Retry or Exit
+- **THEN** `lesson_player_error` and `ui_recovery_selected` are emitted with allowlisted codes and UUID properties, and opt-out suppresses all delivery
+
+### Requirement: Entitled offline course library download
+The API SHALL provide a course library download authorization endpoint for enrolled learners. It SHALL verify server-side that the learner holds an active subscription whose verified plan benefits include "Offline course library downloads", reading plan benefits from the authoritative active pricing configuration rather than client-supplied or hardcoded values. When authorized, the endpoint SHALL return the course's generated and unlocked lessons available for download. When the learner lacks an active entitled subscription or the subscription has expired, the endpoint SHALL refuse bulk download authorization with status 403 and error code subscription_required. Universal caching and offline replay of individually opened lessons SHALL remain available across all accounts regardless of subscription state.
+
+#### Scenario: Active subscriber downloads course library
+- **WHEN** an authenticated learner with an active Learn, Plus, or Pro subscription requests bulk download for an enrolled course
+- **THEN** the API authorizes the download and returns downloadable unlocked lesson descriptors
+
+#### Scenario: Expired or unentitled learner requests library download
+- **WHEN** an authenticated learner with an expired subscription or free tier requests course library bulk download
+- **THEN** the API rejects the request with status 403 and error code subscription_required without altering existing cached lessons
+
+#### Scenario: Enrollment-only individual delivery after expiry
+- **WHEN** an enrolled learner without download entitlement fetches an individual lesson manifest or slide
+- **THEN** delivery remains available without a funded subscription, while the library listing and bulk download authorization return 403; already-delivered playback is never revoked
+
+### Requirement: Resumable library download and storage controls
+The client SHALL allow entitled learners to initiate resumable bulk downloads of unlocked lessons for an enrolled course, showing progress and storage controls. Downloads MUST be verified atomically using SHA-256 manifest and asset checksums before publication into the per-account cache. The client SHALL provide storage controls showing downloaded lesson count and approximate usage, and allow clearing downloaded courses. The download index SHALL be device-disposable and MUST be cleared on logout or session expiration.
+
+#### Scenario: Resumed bulk download
+- **WHEN** an interrupted course library download is resumed
+- **THEN** already downloaded and verified lessons are preserved, and download continues with remaining unlocked lessons
+
+#### Scenario: Expired subscription offline replay
+- **WHEN** a subscription expires after an offline course library has been downloaded
+- **THEN** already downloaded lessons remain playable offline, but new bulk downloads and future lesson generation cannot be initiated
+
+#### Scenario: Bulk attempt restores normal cache bounds
+- **WHEN** a bulk download succeeds, fails, or returns an empty library
+- **THEN** temporary bulk bounds are reset to the normal five lessons and 16 MiB for subsequent playback caching
+
+### Requirement: Library download interaction analytics catalogue
+The analytics catalogue and API allowlist SHALL register `ui_control_activated` with `control_id=download_library`, `surface=courses` or `course_path`, and `course_id`, and `ui_recovery_selected` with `action=retry|exit` and error codes including `subscription_required` and `download_failed`. Telemetry MUST include authenticated UUID identity and common properties, honor opt-out, and never contain learner text, slide HTML, or URLs.
+
+#### Scenario: Download library control activated
+- **WHEN** an opted-in learner activates course library download
+- **THEN** `ui_control_activated` is emitted with `control_id=download_library` and common properties without learner text
+
+### Requirement: Explicit narration playback
+The player SHALL start narration audio only after the Learner presses "Play narration", never automatically. It MUST show captions marked in sync with the alignment, offer Pause, and fall back to "Narration unavailable" with captions and transcript when status is not `ready` or the audio or alignment is invalid.
+
+#### Scenario: Press Play
+- **WHEN** a slide narration is ready and the Learner presses Play narration
+- **THEN** audio starts, the spoken characters are marked in the captions and `narration_played` is emitted
+
+#### Scenario: Narration unavailable
+- **WHEN** narration is failed or invalid
+- **THEN** the player shows "Narration unavailable", keeps captions and the animation, and the Learner can continue to the lesson test
+
+### Requirement: Narration recovery states
+The player SHALL show "Narration unavailable" with captions for failed or unreadable audio and offer `Retry narration` (failed) or `Restore narration` (object could not be read), reachable by keyboard and touch with a 44px target on mobile. While recovery is tracked it MUST show a status ("Narration is being prepared." or "Narration is being restored. Captions stay available.") and follow the manifest until audio is ready. Restored audio MUST wait for an explicit Play. Invalid audio MUST NOT offer Restore.
+
+#### Scenario: Restore on mobile
+- **WHEN** the Learner presses Restore narration with the keyboard on a 390px viewport
+- **THEN** the status text appears, captions remain and Play is offered only after audio is ready
+
+### Requirement: Synchronized playback and clock control
+The player SHALL drive both slide Motion HTML animation and narration audio from one learner-controlled media clock. Play, pause, seek, replay, and playback speeds (0.75, 1, 1.25, 1.5) MUST affect both animation and audio together. Checkpoints and caption highlights MUST align with character alignment timestamps. The slide MUST hold its final frame until narration audio completes, and audio MUST stop immediately when the Learner leaves the slide.
+
+#### Scenario: Synchronized play and seek
+- **WHEN** the Learner plays, pauses, seeks, or replays the slide
+- **THEN** both slide animation and narration audio move in lockstep to the target playback time
+
+#### Scenario: Hold final frame through audio end
+- **WHEN** the slide animation duration is shorter than the narration audio
+- **THEN** the slide holds its final frame until the audio finishes before advancing
+
+### Requirement: Resilient audio playback and offline fallback
+The player MUST provide captions (defaulting to ON), a mute toggle, and a speed selector. Muting audio MUST NOT hide captions. Per-device settings for speed, mute, and captions MUST persist. Audio and alignment for the next slide MUST be preloaded and cached for offline restart. When narration audio is pending, failed, disabled, or encounters a network error, the player MUST fall back to caption-only playback without interrupting slide animation or lesson completion.
+
+#### Scenario: Offline restart with cached audio
+- **WHEN** a cached lesson is reopened offline
+- **THEN** preloaded audio and alignment play from cache
+
+#### Scenario: Missing audio fallback
+- **WHEN** narration audio is unavailable or fails to load
+- **THEN** the slide displays captions and continues normal playback
+
+### Requirement: Voice panel and audio-credit recovery
+The player SHALL offer a voice panel that lists approved voices, shows the new character quote with Confirm and Decline before any synthesis, and keeps the current narration playable while the new voice is prepared. When audio credits are insufficient the player MUST disable only audio, say so, and offer Retry narration and Add credits without blocking text, captions or the Lesson test. Controls MUST be keyboard and touch reachable with 44px targets on mobile.
+
+#### Scenario: Decline on mobile
+- **WHEN** the Learner opens the voice panel at 390px, reads the quote and declines
+- **THEN** the panel closes, the old narration still plays and no credits change
+
+#### Scenario: Insufficient audio credits
+- **WHEN** a slide's audio is disabled for insufficient credits
+- **THEN** the text and test remain usable and Retry narration succeeds after credits arrive
+
+### Requirement: Lightweight lesson player hot path
+The API SHALL authorize every lesson player request against Postgres, never from a cache, and SHALL NOT read object storage for playback position, sync or narration audio requests while the manifest is cached. The decoded manifest SHALL be cached in a bounded in-process LRU keyed by the immutable manifest object key and version, expire after a bounded time, and be read at most once from storage per cold entry. Manifest reads SHALL return the SHA-256 digests stored in the manifest; slide reads SHALL validate the HTML and refuse bytes whose digest differs from the manifest. Malformed lesson or course identifiers SHALL return a client error. The client SHALL save position to the server immediately on pause, seek, checkpoint, slide change, hidden page and exit, and at most every 10 seconds while playing, and SHALL keep writing the local resume position on every save.
+
+#### Scenario: Warm manifest and position save
+- **WHEN** an enrolled learner reads a cached lesson manifest or saves position
+- **THEN** no object is read from storage and enrollment is still verified in Postgres
+
+#### Scenario: Another learner after a warm cache
+- **WHEN** an unenrolled learner requests a lesson another learner has just opened
+- **THEN** the API returns 404 for the manifest, slides, position, sync and narration
+
+#### Scenario: Tampered object
+- **WHEN** a slide differs from its manifest digest, or a manifest object is replaced and read cold
+- **THEN** the API fails closed with a retryable 503 and no private content
+
+### Requirement: Offline lesson playback does not depend on install-time precache
+The public service worker SHALL precache on install only the files the first screen needs. It SHALL cache the lesson-player, lesson-test and course-list route chunks when a lesson is opened or a course library is downloaded, keep them cached across service-worker versions once cached, and cache any other hashed asset on first use. A lesson that was opened or downloaded SHALL play after the device goes offline and the app is reloaded.
+
+#### Scenario: Opened lesson restarts offline
+- **WHEN** a learner opens a lesson online, goes offline and reloads
+- **THEN** the shell, the lesson-player chunk and the cached lesson bundle load without network and every slide plays
+
+#### Scenario: Chunks of unvisited routes are not precached
+- **WHEN** the service worker installs
+- **THEN** route chunks the first screen does not need (for example the marketplace) are not downloaded until first used
+
+#### Scenario: Route chunk fails to load
+- **WHEN** a route chunk cannot be fetched (offline, or replaced by a newer deploy)
+- **THEN** the page shows an error with Retry, and Retry loads the chunk once it is reachable
+
+### Requirement: First-load budget
+The built client SHALL keep the JavaScript and CSS loaded by `index.html` within the limits in `apps/client/bundle-budget.json`, and CI SHALL fail when they are exceeded.
+
+#### Scenario: Budget exceeded
+- **WHEN** a change grows first-load gzip JavaScript past the budget
+- **THEN** `mise run client:bundle-budget` fails and names the exceeded limit
