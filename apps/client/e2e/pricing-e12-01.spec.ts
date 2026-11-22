@@ -107,6 +107,7 @@ test("loading, stale offline version and long content remain readable", async ({
   request,
 }) => {
   let release!: () => void;
+  let pricingVersion: string;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
@@ -114,6 +115,7 @@ test("loading, stale offline version and long content remain readable", async ({
     await gate;
     const response = await request.get(apiBase + "/v1/pricing");
     const data = await response.json();
+    pricingVersion = data.version;
     data.plans[0].benefits = [
       "Offline library access and learning history export with expanded translated labels. ".repeat(
         12,
@@ -144,7 +146,7 @@ test("loading, stale offline version and long content remain readable", async ({
   );
   await page.reload();
   await expect(
-    page.getByText(/Offline · Last known prices · usd-quotes-2026-11-09/),
+    page.getByText(`Offline · Last known prices · ${pricingVersion} ·`),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Try again" })).toBeEnabled();
   await page.getByRole("button", { name: "Browse prices" }).tap();
