@@ -1,0 +1,4640 @@
+{
+ "rows": [
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 1.237,
+   "ok": true,
+   "bytes": 22070,
+   "text": "The second phase was subsequently canceled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 0.00017625,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 84,
+    "input_tokens": 65,
+    "output_tokens": 19,
+    "cost": 0.00017625
+   },
+   "wer": 0.07142857142857142
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 1.172,
+   "ok": true,
+   "bytes": 28157,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 0.00017625,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 84,
+    "input_tokens": 65,
+    "output_tokens": 19,
+    "cost": 0.00017625
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 1.527,
+   "ok": true,
+   "bytes": 18978,
+   "text": "In later levels, the Sentinel is assisted by a number of sentries.",
+   "cost": 0.00015125,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 70,
+    "input_tokens": 53,
+    "output_tokens": 17,
+    "cost": 0.00015125
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 1.744,
+   "ok": true,
+   "bytes": 23373,
+   "text": "In later levels, the Sentinel is assisted by a number of sentries.",
+   "cost": 0.00015125,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 70,
+    "input_tokens": 53,
+    "output_tokens": 17,
+    "cost": 0.00015125
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.216,
+   "ok": true,
+   "bytes": 22876,
+   "text": "The inmates being removed, at the appointed hour a few cannon balls were fired through the stone walls.",
+   "cost": 0.000195,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 90,
+    "input_tokens": 68,
+    "output_tokens": 22,
+    "cost": 0.000195
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.402,
+   "ok": true,
+   "bytes": 29150,
+   "text": "The inmates being removed, at the appointed hour a few cannon-balls were fired through the stone walls.",
+   "cost": 0.0002,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 91,
+    "input_tokens": 68,
+    "output_tokens": 23,
+    "cost": 0.0002
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 2.22,
+   "ok": true,
+   "bytes": 39470,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.00031625,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 151,
+    "input_tokens": 117,
+    "output_tokens": 34,
+    "cost": 0.00031625
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.486,
+   "ok": true,
+   "bytes": 49395,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.00031625,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 151,
+    "input_tokens": 117,
+    "output_tokens": 34,
+    "cost": 0.00031625
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.313,
+   "ok": true,
+   "bytes": 30620,
+   "text": "Relocated footnote. Governor Robinson being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 0.000265,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 122,
+    "input_tokens": 92,
+    "output_tokens": 30,
+    "cost": 0.000265
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.448,
+   "ok": true,
+   "bytes": 39018,
+   "text": "Relocated footnote. Governor Robinson being on his way East, the steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 0.000265,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 122,
+    "input_tokens": 92,
+    "output_tokens": 30,
+    "cost": 0.000265
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 1.407,
+   "ok": true,
+   "bytes": 36853,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.00031625,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 151,
+    "input_tokens": 117,
+    "output_tokens": 34,
+    "cost": 0.00031625
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 1.39,
+   "ok": true,
+   "bytes": 49142,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.00031625,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 151,
+    "input_tokens": 117,
+    "output_tokens": 34,
+    "cost": 0.00031625
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 3.372,
+   "ok": true,
+   "bytes": 29372,
+   "text": "Relocated footnote: Governor Robinson being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 0.000265,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 122,
+    "input_tokens": 92,
+    "output_tokens": 30,
+    "cost": 0.000265
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 1.396,
+   "ok": true,
+   "bytes": 38785,
+   "text": "Relocated footnote: Governor Robinson being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 0.000265,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 122,
+    "input_tokens": 92,
+    "output_tokens": 30,
+    "cost": 0.000265
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "webm",
+   "latency": 1.794,
+   "ok": true,
+   "bytes": 16893,
+   "text": "",
+   "cost": 8.5e-05,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 62,
+    "input_tokens": 60,
+    "output_tokens": 2,
+    "cost": 8.5e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "m4a",
+   "latency": 1.608,
+   "ok": true,
+   "bytes": 25663,
+   "text": "",
+   "cost": 8.5e-05,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 62,
+    "input_tokens": 60,
+    "output_tokens": 2,
+    "cost": 8.5e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "webm",
+   "latency": 1.112,
+   "ok": true,
+   "bytes": 8355,
+   "text": "",
+   "cost": 7.25e-05,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 52,
+    "input_tokens": 50,
+    "output_tokens": 2,
+    "cost": 7.25e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "m4a",
+   "latency": 0.946,
+   "ok": true,
+   "bytes": 1461,
+   "text": "",
+   "cost": 7.25e-05,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 52,
+    "input_tokens": 50,
+    "output_tokens": 2,
+    "cost": 7.25e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.314,
+   "ok": true,
+   "bytes": 14364,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 0.00013375,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 59,
+    "input_tokens": 43,
+    "output_tokens": 16,
+    "cost": 0.00013375
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.072,
+   "ok": true,
+   "bytes": 19127,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 0.000135,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 60,
+    "input_tokens": 44,
+    "output_tokens": 16,
+    "cost": 0.000135
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.229,
+   "ok": true,
+   "bytes": 20107,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 0.000175,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 80,
+    "input_tokens": 60,
+    "output_tokens": 20,
+    "cost": 0.000175
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.158,
+   "ok": true,
+   "bytes": 26047,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 0.00017625,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 81,
+    "input_tokens": 61,
+    "output_tokens": 20,
+    "cost": 0.00017625
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.223,
+   "ok": true,
+   "bytes": 21665,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 0.00018625,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 86,
+    "input_tokens": 65,
+    "output_tokens": 21,
+    "cost": 0.00018625
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.287,
+   "ok": true,
+   "bytes": 28543,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 0.00018625,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 86,
+    "input_tokens": 65,
+    "output_tokens": 21,
+    "cost": 0.00018625
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.172,
+   "ok": true,
+   "bytes": 15540,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 0.0001475,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 64,
+    "input_tokens": 46,
+    "output_tokens": 18,
+    "cost": 0.0001475
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 16.252,
+   "ok": true,
+   "bytes": 20270,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 0.0001475,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 64,
+    "input_tokens": 46,
+    "output_tokens": 18,
+    "cost": 0.0001475
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.393,
+   "ok": true,
+   "bytes": 30527,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u1ee3t tuy\u1ebfn l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc v\u00e0 quanh n\u0103m giao th\u00f4ng g\u1ea7n nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 0.0002825,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 127,
+    "input_tokens": 94,
+    "output_tokens": 33,
+    "cost": 0.0002825
+   },
+   "wer": 0.08333333333333333
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.528,
+   "ok": true,
+   "bytes": 39593,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u1ee3t t\u00edch l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc v\u00e0 quanh n\u0103m giao th\u00f4ng d\u01b0\u1eddng nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 0.0002875,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 128,
+    "input_tokens": 94,
+    "output_tokens": 34,
+    "cost": 0.0002875
+   },
+   "wer": 0.125
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.231,
+   "ok": true,
+   "bytes": 23106,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1c gi\u00e1c quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 danh ng\u1eef",
+   "cost": 0.000185,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 91,
+    "input_tokens": 72,
+    "output_tokens": 19,
+    "cost": 0.000185
+   },
+   "wer": 0.2
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.18,
+   "ok": true,
+   "bytes": 30665,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1c gi\u00e1c quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 danh ng\u1eef.",
+   "cost": 0.00019,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 92,
+    "input_tokens": 72,
+    "output_tokens": 20,
+    "cost": 0.00019
+   },
+   "wer": 0.2
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.313,
+   "ok": true,
+   "bytes": 29564,
+   "text": "S\u1ed1 Raspberry c\u00e0ng nh\u1ecf, ng\u00f4i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi ngh\u1ecbch \u0111\u1ea3o t\u1eeb tr\u01b0\u1eddng",
+   "cost": 0.00022875,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 114,
+    "input_tokens": 91,
+    "output_tokens": 23,
+    "cost": 0.00022875
+   },
+   "wer": 0.058823529411764705
+  },
+  {
+   "model": "openai/gpt-4o-mini-transcribe",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.257,
+   "ok": true,
+   "bytes": 38695,
+   "text": "s\u1ed1 Rusty c\u00e0ng nh\u1ecf, ngo\u00e0i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi ngh\u1ecbch \u0111\u1ea3o t\u1eeb tr\u01b0\u1eddng.",
+   "cost": 0.000235,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 116,
+    "input_tokens": 92,
+    "output_tokens": 24,
+    "cost": 0.000235
+   },
+   "wer": 0.11764705882352941
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 0.867,
+   "ok": true,
+   "bytes": 22070,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 7.28444444443716e-05,
+   "seconds": 6.556,
+   "usage": {
+    "seconds": 6.556,
+    "cost": 7.28444444443716e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 0.975,
+   "ok": true,
+   "bytes": 28157,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 7.28444444443716e-05,
+   "seconds": 6.556,
+   "usage": {
+    "seconds": 6.556,
+    "cost": 7.28444444443716e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 0.9,
+   "ok": true,
+   "bytes": 18978,
+   "text": "In later levels, the sentinel is assisted by a number of sentries.",
+   "cost": 5.96888888888292e-05,
+   "seconds": 5.372,
+   "usage": {
+    "seconds": 5.372,
+    "cost": 5.96888888888292e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 0.832,
+   "ok": true,
+   "bytes": 23373,
+   "text": "In later levels, the sentinel is assisted by a number of sentries.",
+   "cost": 5.96888888888292e-05,
+   "seconds": 5.372,
+   "usage": {
+    "seconds": 5.372,
+    "cost": 5.96888888888292e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.077,
+   "ok": true,
+   "bytes": 22876,
+   "text": "the inmates being removed at the appointed hour a few cannonballs were fired through the stone walls",
+   "cost": 7.57222222221465e-05,
+   "seconds": 6.815,
+   "usage": {
+    "seconds": 6.815,
+    "cost": 7.57222222221465e-05
+   },
+   "wer": 0.1111111111111111
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.118,
+   "ok": true,
+   "bytes": 29150,
+   "text": "the inmates being removed at the appointed hour a few cannon-balls were fired through the stone walls",
+   "cost": 7.57222222221465e-05,
+   "seconds": 6.815,
+   "usage": {
+    "seconds": 6.815,
+    "cost": 7.57222222221465e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 0.969,
+   "ok": true,
+   "bytes": 39470,
+   "text": "in this incident contrasting the creative and the destructive spirit of the factions the immigrant aid society of massachusetts finds its most honorable and triumphant vindication",
+   "cost": 0.000130666666666536,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 0.000130666666666536
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 0.999,
+   "ok": true,
+   "bytes": 49395,
+   "text": "in this incident contrasting the creative and the destructive spirit of the factions the immigrant aid society of massachusetts finds its most honorable and triumphant vindication",
+   "cost": 0.000130666666666536,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 0.000130666666666536
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 2.451,
+   "ok": true,
+   "bytes": 30620,
+   "text": "relocated footnote governor robinson being on his way east the steamboat on which he was traveling stopped at lexington missouri",
+   "cost": 0.0001024999999998975,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 0.0001024999999998975
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 0.872,
+   "ok": true,
+   "bytes": 39018,
+   "text": "relocated footnote governor robinson being on his way east the steamboat on which he was traveling stopped at lexington missouri",
+   "cost": 0.0001024999999998975,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 0.0001024999999998975
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 2.713,
+   "ok": true,
+   "bytes": 36853,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.000130666666666536,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 0.000130666666666536
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 2.691,
+   "ok": true,
+   "bytes": 49142,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.000130666666666536,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 0.000130666666666536
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 0.96,
+   "ok": true,
+   "bytes": 29372,
+   "text": "Relocated footnote. Governor Robinson being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri,",
+   "cost": 0.0001024999999998975,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 0.0001024999999998975
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 1.556,
+   "ok": true,
+   "bytes": 38785,
+   "text": "Relocated footnote. Governor Robinson being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri,",
+   "cost": 0.0001024999999998975,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 0.0001024999999998975
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "webm",
+   "latency": 0.848,
+   "ok": true,
+   "bytes": 16893,
+   "text": ".",
+   "cost": 6.66666666666e-05,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "cost": 6.66666666666e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "m4a",
+   "latency": 0.996,
+   "ok": true,
+   "bytes": 25663,
+   "text": ".",
+   "cost": 6.66666666666e-05,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "cost": 6.66666666666e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "webm",
+   "latency": 0.994,
+   "ok": true,
+   "bytes": 8355,
+   "text": "Thank you.",
+   "cost": 5.55555555555e-05,
+   "seconds": 5,
+   "usage": {
+    "seconds": 5,
+    "cost": 5.55555555555e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "m4a",
+   "latency": 1.104,
+   "ok": true,
+   "bytes": 1461,
+   "text": "Thank you.",
+   "cost": 5.55555555555e-05,
+   "seconds": 5,
+   "usage": {
+    "seconds": 5,
+    "cost": 5.55555555555e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.099,
+   "ok": true,
+   "bytes": 14364,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 4.8504166666618164e-05,
+   "seconds": 4.365375,
+   "usage": {
+    "seconds": 4.365375,
+    "cost": 4.8504166666618164e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.706,
+   "ok": true,
+   "bytes": 19127,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 4.8504166666618164e-05,
+   "seconds": 4.365375,
+   "usage": {
+    "seconds": 4.365375,
+    "cost": 4.8504166666618164e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 0.922,
+   "ok": true,
+   "bytes": 20107,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 6.759583333326573e-05,
+   "seconds": 6.083625,
+   "usage": {
+    "seconds": 6.083625,
+    "cost": 6.759583333326573e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 0.869,
+   "ok": true,
+   "bytes": 26047,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 6.759583333326573e-05,
+   "seconds": 6.083625,
+   "usage": {
+    "seconds": 6.083625,
+    "cost": 6.759583333326573e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.077,
+   "ok": true,
+   "bytes": 21665,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 7.275624999992725e-05,
+   "seconds": 6.5480625,
+   "usage": {
+    "seconds": 6.5480625,
+    "cost": 7.275624999992725e-05
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 0.853,
+   "ok": true,
+   "bytes": 28543,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 7.275624999992725e-05,
+   "seconds": 6.5480625,
+   "usage": {
+    "seconds": 6.5480625,
+    "cost": 7.275624999992725e-05
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 2.034,
+   "ok": true,
+   "bytes": 15540,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 5.15999999999484e-05,
+   "seconds": 4.644,
+   "usage": {
+    "seconds": 4.644,
+    "cost": 5.15999999999484e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.131,
+   "ok": true,
+   "bytes": 20270,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 5.15999999999484e-05,
+   "seconds": 4.644,
+   "usage": {
+    "seconds": 4.644,
+    "cost": 5.15999999999484e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 0.891,
+   "ok": true,
+   "bytes": 30527,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u00e0 tuy\u1ebft l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc, v\u00e0 quanh n\u0103m, giao th\u00f4ng g\u1ea7n nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 0.000104666666666562,
+   "seconds": 9.42,
+   "usage": {
+    "seconds": 9.42,
+    "cost": 0.000104666666666562
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.036,
+   "ok": true,
+   "bytes": 39593,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u00e0 tuy\u1ebft l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc v\u00e0 quanh n\u0103m giao th\u00f4ng g\u1ea7n nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 0.000104666666666562,
+   "seconds": 9.42,
+   "usage": {
+    "seconds": 9.42,
+    "cost": 0.000104666666666562
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.042,
+   "ok": true,
+   "bytes": 23106,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1ch r\u1ea5t quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 t\u0103ng ng\u1eef.",
+   "cost": 7.999999999992e-05,
+   "seconds": 7.2,
+   "usage": {
+    "seconds": 7.2,
+    "cost": 7.999999999992e-05
+   },
+   "wer": 0.06666666666666667
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.529,
+   "ok": true,
+   "bytes": 30665,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1ch r\u1ea5t quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 t\u0103ng ng\u1eef.",
+   "cost": 7.999999999992e-05,
+   "seconds": 7.2,
+   "usage": {
+    "seconds": 7.2,
+    "cost": 7.999999999992e-05
+   },
+   "wer": 0.06666666666666667
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 2.131,
+   "ok": true,
+   "bytes": 29564,
+   "text": "S\u1ed1 r\u1ed1t bi c\u00e0ng nh\u1ecf, ng\u00f4i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi ngh\u1ecbch \u0111\u1ea3o t\u1eeb tr\u01b0\u1eddng",
+   "cost": 0.000101999999999898,
+   "seconds": 9.18,
+   "usage": {
+    "seconds": 9.18,
+    "cost": 0.000101999999999898
+   },
+   "wer": 0.11764705882352941
+  },
+  {
+   "model": "openai/whisper-large-v3-turbo",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.119,
+   "ok": true,
+   "bytes": 38695,
+   "text": "S\u1ed1 r\u1ed1t bi c\u00e0ng nh\u1ecf, ng\u00f4i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi ngh\u1ecbch \u0111\u1ea3o t\u1eeb tr\u01b0\u1eddng",
+   "cost": 0.000101999999999898,
+   "seconds": 9.18,
+   "usage": {
+    "seconds": 9.18,
+    "cost": 0.000101999999999898
+   },
+   "wer": 0.11764705882352941
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 4.27,
+   "ok": true,
+   "bytes": 22070,
+   "text": "The second phase was subsequently canceled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 0.000534,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 182,
+    "input_tokens": 165,
+    "output_tokens": 17,
+    "cost": 0.000534
+   },
+   "wer": 0.07142857142857142
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 3.176,
+   "ok": true,
+   "bytes": 28157,
+   "text": "The second phase was subsequently canceled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 0.000536,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 183,
+    "input_tokens": 166,
+    "output_tokens": 17,
+    "cost": 0.000536
+   },
+   "wer": 0.07142857142857142
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 3.867,
+   "ok": true,
+   "bytes": 18978,
+   "text": "In later levels, the sentinel is assisted by a number of sentries.",
+   "cost": 0.000452,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 151,
+    "input_tokens": 136,
+    "output_tokens": 15,
+    "cost": 0.000452
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 4.824,
+   "ok": true,
+   "bytes": 23373,
+   "text": "In later levels, the sentinel is assisted by a number of sentries.",
+   "cost": 0.000452,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 151,
+    "input_tokens": 136,
+    "output_tokens": 15,
+    "cost": 0.000452
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 4.153,
+   "ok": true,
+   "bytes": 22876,
+   "text": "The inmates being removed, at the appointed hour a few cannon balls were fired through the stone walls.",
+   "cost": 0.000584,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 192,
+    "input_tokens": 172,
+    "output_tokens": 20,
+    "cost": 0.000584
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 3.393,
+   "ok": true,
+   "bytes": 29150,
+   "text": "The inmates being removed, at the appointed hour a few cannon balls were fired through the stone walls.",
+   "cost": 0.000586,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 193,
+    "input_tokens": 173,
+    "output_tokens": 20,
+    "cost": 0.000586
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 4.261,
+   "ok": true,
+   "bytes": 39470,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.000962,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 326,
+    "input_tokens": 295,
+    "output_tokens": 31,
+    "cost": 0.000962
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 4.151,
+   "ok": true,
+   "bytes": 49395,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.000964,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 327,
+    "input_tokens": 296,
+    "output_tokens": 31,
+    "cost": 0.000964
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 3.104,
+   "ok": true,
+   "bytes": 30620,
+   "text": "relocated footnote Governor Robinson being on his way east the steamboat on which he was traveling stopped at Lexington Missouri",
+   "cost": 0.00074,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 255,
+    "input_tokens": 232,
+    "output_tokens": 23,
+    "cost": 0.00074
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 4.863,
+   "ok": true,
+   "bytes": 39018,
+   "text": "relocated footnote Governor Robinson being on his way east the steamboat on which he was traveling stopped at Lexington Missouri",
+   "cost": 0.000742,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 256,
+    "input_tokens": 233,
+    "output_tokens": 23,
+    "cost": 0.000742
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 3.343,
+   "ok": true,
+   "bytes": 36853,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.000962,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 326,
+    "input_tokens": 295,
+    "output_tokens": 31,
+    "cost": 0.000962
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 4.333,
+   "ok": true,
+   "bytes": 49142,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.000964,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 327,
+    "input_tokens": 296,
+    "output_tokens": 31,
+    "cost": 0.000964
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 3.923,
+   "ok": true,
+   "bytes": 29372,
+   "text": "relocated footnote Governor Robinson being on his way east the steamboat on which he was traveling stopped at Lexington Missouri",
+   "cost": 0.00074,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 255,
+    "input_tokens": 232,
+    "output_tokens": 23,
+    "cost": 0.00074
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 4.032,
+   "ok": true,
+   "bytes": 38785,
+   "text": "relocated footnote Governor Robinson being on his way east the steamboat on which he was traveling stopped at Lexington Missouri",
+   "cost": 0.000742,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 256,
+    "input_tokens": 233,
+    "output_tokens": 23,
+    "cost": 0.000742
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "webm",
+   "latency": 3.965,
+   "ok": true,
+   "bytes": 16893,
+   "text": "",
+   "cost": 0.000302,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 151,
+    "input_tokens": 151,
+    "output_tokens": 0,
+    "cost": 0.000302
+   },
+   "wer": null
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "m4a",
+   "latency": 4.275,
+   "ok": true,
+   "bytes": 25663,
+   "text": "",
+   "cost": 0.000304,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 152,
+    "input_tokens": 152,
+    "output_tokens": 0,
+    "cost": 0.000304
+   },
+   "wer": null
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "webm",
+   "latency": 3.94,
+   "ok": true,
+   "bytes": 8355,
+   "text": "",
+   "cost": 0.000252,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 126,
+    "input_tokens": 126,
+    "output_tokens": 0,
+    "cost": 0.000252
+   },
+   "wer": null
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "m4a",
+   "latency": 3.739,
+   "ok": true,
+   "bytes": 1461,
+   "text": "",
+   "cost": 0.000256,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 128,
+    "input_tokens": 128,
+    "output_tokens": 0,
+    "cost": 0.000256
+   },
+   "wer": null
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 4.0,
+   "ok": true,
+   "bytes": 14364,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 0.00039,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 125,
+    "input_tokens": 111,
+    "output_tokens": 14,
+    "cost": 0.00039
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 3.158,
+   "ok": true,
+   "bytes": 19127,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 0.000392,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 126,
+    "input_tokens": 112,
+    "output_tokens": 14,
+    "cost": 0.000392
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 4.095,
+   "ok": true,
+   "bytes": 20107,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 0.000524,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 172,
+    "input_tokens": 154,
+    "output_tokens": 18,
+    "cost": 0.000524
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 3.634,
+   "ok": true,
+   "bytes": 26047,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 0.000526,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 173,
+    "input_tokens": 155,
+    "output_tokens": 18,
+    "cost": 0.000526
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 4.019,
+   "ok": true,
+   "bytes": 21665,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 0.000558,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 184,
+    "input_tokens": 165,
+    "output_tokens": 19,
+    "cost": 0.000558
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 3.688,
+   "ok": true,
+   "bytes": 28543,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 0.00056,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 185,
+    "input_tokens": 166,
+    "output_tokens": 19,
+    "cost": 0.00056
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 3.578,
+   "ok": true,
+   "bytes": 15540,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 0.000416,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 133,
+    "input_tokens": 118,
+    "output_tokens": 15,
+    "cost": 0.000416
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 4.08,
+   "ok": true,
+   "bytes": 20270,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 0.000416,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 133,
+    "input_tokens": 118,
+    "output_tokens": 15,
+    "cost": 0.000416
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 3.691,
+   "ok": true,
+   "bytes": 30527,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u00e0 tuy\u1ebft l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc v\u00e0 quanh n\u0103m giao th\u00f4ng g\u1ea7n nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 0.000822,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 266,
+    "input_tokens": 237,
+    "output_tokens": 29,
+    "cost": 0.000822
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 3.663,
+   "ok": true,
+   "bytes": 39593,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u00e0 tuy\u1ebft l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc v\u00e0 quanh n\u0103m giao th\u00f4ng g\u1ea7n nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 0.000824,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 267,
+    "input_tokens": 238,
+    "output_tokens": 29,
+    "cost": 0.000824
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 3.413,
+   "ok": true,
+   "bytes": 23106,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1ch r\u1ea5t quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 t\u00e2n ng\u1eef.",
+   "cost": 0.000554,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 197,
+    "input_tokens": 181,
+    "output_tokens": 16,
+    "cost": 0.000554
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 4.111,
+   "ok": true,
+   "bytes": 30665,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1ch r\u1ea5t quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 t\u00e2n ng\u1eef.",
+   "cost": 0.000556,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 198,
+    "input_tokens": 182,
+    "output_tokens": 16,
+    "cost": 0.000556
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 4.364,
+   "ok": true,
+   "bytes": 29564,
+   "text": "Sao Rossby c\u00e0ng nh\u1ecf, ng\u00f4i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi ngh\u1ecbch \u0111\u1ea3o t\u1eeb tr\u01b0\u1eddng.",
+   "cost": 0.000702,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 251,
+    "input_tokens": 231,
+    "output_tokens": 20,
+    "cost": 0.000702
+   },
+   "wer": 0.058823529411764705
+  },
+  {
+   "model": "google/gemini-3.5-transcribe",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 4.147,
+   "ok": true,
+   "bytes": 38695,
+   "text": "Sao Rossby c\u00e0ng nh\u1ecf, ng\u00f4i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi ngh\u1ecbch \u0111\u1ea3o t\u1eeb tr\u01b0\u1eddng.",
+   "cost": 0.000704,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 252,
+    "input_tokens": 232,
+    "output_tokens": 20,
+    "cost": 0.000704
+   },
+   "wer": 0.058823529411764705
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 1.984,
+   "ok": true,
+   "bytes": 22070,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the evergreen extension.",
+   "cost": 2.183148e-05,
+   "seconds": 6.556,
+   "usage": {
+    "seconds": 6.556,
+    "cost": 2.183148e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 1.471,
+   "ok": true,
+   "bytes": 28157,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the evergreen extension.",
+   "cost": 2.195136e-05,
+   "seconds": 6.592,
+   "usage": {
+    "seconds": 6.592,
+    "cost": 2.195136e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 1.618,
+   "ok": true,
+   "bytes": 18978,
+   "text": "In later levels, the Sentinel is assisted by a number of centuries.",
+   "cost": 1.788876e-05,
+   "seconds": 5.372,
+   "usage": {
+    "seconds": 5.372,
+    "cost": 1.788876e-05
+   },
+   "wer": 0.08333333333333333
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 1.434,
+   "ok": true,
+   "bytes": 23373,
+   "text": "In later levels, the Sentinel is assisted by a number of centuries.",
+   "cost": 1.790208e-05,
+   "seconds": 5.376,
+   "usage": {
+    "seconds": 5.376,
+    "cost": 1.790208e-05
+   },
+   "wer": 0.08333333333333333
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.656,
+   "ok": true,
+   "bytes": 22876,
+   "text": "The inmates being removed at the appointed hour a few cannonballs were fired through the stone walls.",
+   "cost": 2.269395e-05,
+   "seconds": 6.815,
+   "usage": {
+    "seconds": 6.815,
+    "cost": 2.269395e-05
+   },
+   "wer": 0.1111111111111111
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.598,
+   "ok": true,
+   "bytes": 29150,
+   "text": "The inmates being removed at the appointed hour a few cannon balls were fired through the stone walls.",
+   "cost": 2.280384e-05,
+   "seconds": 6.848,
+   "usage": {
+    "seconds": 6.848,
+    "cost": 2.280384e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 3.166,
+   "ok": true,
+   "bytes": 39470,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 3.91608e-05,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 3.91608e-05
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.95,
+   "ok": true,
+   "bytes": 49395,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the immigrant aid society of Massachusetts finds its most honourable and triumphant vindication.",
+   "cost": 3.921408e-05,
+   "seconds": 11.776,
+   "usage": {
+    "seconds": 11.776,
+    "cost": 3.921408e-05
+   },
+   "wer": 0.07692307692307693
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.864,
+   "ok": true,
+   "bytes": 30620,
+   "text": "Relocated footnote Governor Robinson, being on his way east, the steamboat on which he was travelling stopped at Lexington, Missouri.",
+   "cost": 3.071925e-05,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 3.071925e-05
+   },
+   "wer": 0.05
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.961,
+   "ok": true,
+   "bytes": 39018,
+   "text": "Relocated footnote Governor Robinson, being on his way east, the steamboat on which he was travelling stopped at Lexington, Missouri.",
+   "cost": 3.09024e-05,
+   "seconds": 9.28,
+   "usage": {
+    "seconds": 9.28,
+    "cost": 3.09024e-05
+   },
+   "wer": 0.05
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 1.703,
+   "ok": true,
+   "bytes": 36853,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 3.91608e-05,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 3.91608e-05
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 1.672,
+   "ok": true,
+   "bytes": 49142,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the immigrant aid society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 3.921408e-05,
+   "seconds": 11.776,
+   "usage": {
+    "seconds": 11.776,
+    "cost": 3.921408e-05
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 1.867,
+   "ok": true,
+   "bytes": 29372,
+   "text": "Relocated footnote, Governor Robinson, being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 3.071925e-05,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 3.071925e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 1.518,
+   "ok": true,
+   "bytes": 38785,
+   "text": "Relocated footnote Governor Robinson being on his way east, the steamboat on which he was travelling stopped at Lexington, Missouri.",
+   "cost": 3.09024e-05,
+   "seconds": 9.28,
+   "usage": {
+    "seconds": 9.28,
+    "cost": 3.09024e-05
+   },
+   "wer": 0.05
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "webm",
+   "latency": 1.451,
+   "ok": true,
+   "bytes": 16893,
+   "text": "",
+   "cost": 1.998e-05,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "cost": 1.998e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "m4a",
+   "latency": 1.568,
+   "ok": true,
+   "bytes": 25663,
+   "text": "",
+   "cost": 2.003328e-05,
+   "seconds": 6.016,
+   "usage": {
+    "seconds": 6.016,
+    "cost": 2.003328e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "webm",
+   "latency": 1.992,
+   "ok": true,
+   "bytes": 8355,
+   "text": "",
+   "cost": 1.665e-05,
+   "seconds": 5,
+   "usage": {
+    "seconds": 5,
+    "cost": 1.665e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "m4a",
+   "latency": 1.499,
+   "ok": true,
+   "bytes": 1461,
+   "text": "",
+   "cost": 1.683648e-05,
+   "seconds": 5.056,
+   "usage": {
+    "seconds": 5.056,
+    "cost": 1.683648e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.463,
+   "ok": true,
+   "bytes": 14364,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 1.453545e-05,
+   "seconds": 4.365,
+   "usage": {
+    "seconds": 4.365,
+    "cost": 1.453545e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.412,
+   "ok": true,
+   "bytes": 19127,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 1.470528e-05,
+   "seconds": 4.416,
+   "usage": {
+    "seconds": 4.416,
+    "cost": 1.470528e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.516,
+   "ok": true,
+   "bytes": 20107,
+   "text": "A promise resolves asynchronously, so awaited inside an async function before you read the result.",
+   "cost": 2.025639e-05,
+   "seconds": 6.083,
+   "usage": {
+    "seconds": 6.083,
+    "cost": 2.025639e-05
+   },
+   "wer": 0.125
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.563,
+   "ok": true,
+   "bytes": 26047,
+   "text": "A promise resolves asynchronously, so awaited inside an async function before you read the result.",
+   "cost": 2.045952e-05,
+   "seconds": 6.144,
+   "usage": {
+    "seconds": 6.144,
+    "cost": 2.045952e-05
+   },
+   "wer": 0.125
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.537,
+   "ok": true,
+   "bytes": 21665,
+   "text": "Our roadmap for next quarter lists three Okrs and the product manager will prioritize the backlog.",
+   "cost": 2.180484e-05,
+   "seconds": 6.548,
+   "usage": {
+    "seconds": 6.548,
+    "cost": 2.180484e-05
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.432,
+   "ok": true,
+   "bytes": 28543,
+   "text": "Our roadmap for next quarter lists three Okrs and the product manager will prioritize the backlog.",
+   "cost": 2.195136e-05,
+   "seconds": 6.592,
+   "usage": {
+    "seconds": 6.592,
+    "cost": 2.195136e-05
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.757,
+   "ok": true,
+   "bytes": 15540,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 1.546452e-05,
+   "seconds": 4.644,
+   "usage": {
+    "seconds": 4.644,
+    "cost": 1.546452e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.536,
+   "ok": true,
+   "bytes": 20270,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 1.555776e-05,
+   "seconds": 4.672,
+   "usage": {
+    "seconds": 4.672,
+    "cost": 1.555776e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.581,
+   "ok": true,
+   "bytes": 30527,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u00e0 tuy\u1ebft l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc v\u00e0 quanh n\u0103m giao th\u00f4ng g\u1ea7n nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 3.13686e-05,
+   "seconds": 9.42,
+   "usage": {
+    "seconds": 9.42,
+    "cost": 3.13686e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 2.06,
+   "ok": true,
+   "bytes": 39593,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u00e0 tuy\u1ebft l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc v\u00e0 quanh n\u0103m giao th\u00f4ng g\u1ea7n nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 3.154176e-05,
+   "seconds": 9.472,
+   "usage": {
+    "seconds": 9.472,
+    "cost": 3.154176e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.622,
+   "ok": true,
+   "bytes": 23106,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1ch g\u1eaft quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 t\u0103ng ng\u1eef.",
+   "cost": 2.3976e-05,
+   "seconds": 7.2,
+   "usage": {
+    "seconds": 7.2,
+    "cost": 2.3976e-05
+   },
+   "wer": 0.13333333333333333
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.597,
+   "ok": true,
+   "bytes": 30665,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1ch g\u1eaft quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 t\u0103ng ng\u1eef.",
+   "cost": 2.408256e-05,
+   "seconds": 7.232,
+   "usage": {
+    "seconds": 7.232,
+    "cost": 2.408256e-05
+   },
+   "wer": 0.13333333333333333
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.703,
+   "ok": true,
+   "bytes": 29564,
+   "text": "Sau Rospie c\u00e0ng nh\u1ecf ng\u00f4i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi ngh\u1ecbch \u0111\u1ea3o t\u1eeb tr\u01b0\u1eddng.",
+   "cost": 3.05694e-05,
+   "seconds": 9.18,
+   "usage": {
+    "seconds": 9.18,
+    "cost": 3.05694e-05
+   },
+   "wer": 0.11764705882352941
+  },
+  {
+   "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.827,
+   "ok": true,
+   "bytes": 38695,
+   "text": "Srosby c\u00e0y nh\u1ecf ng\u00f4i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi ngh\u1ecbch \u0111\u1ea3o t\u1eeb tr\u01b0\u1eddng.",
+   "cost": 3.068928e-05,
+   "seconds": 9.216,
+   "usage": {
+    "seconds": 9.216,
+    "cost": 3.068928e-05
+   },
+   "wer": 0.17647058823529413
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 1.866,
+   "ok": true,
+   "bytes": 22070,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 2.183148e-05,
+   "seconds": 6.556,
+   "usage": {
+    "seconds": 6.556,
+    "cost": 2.183148e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 1.027,
+   "ok": true,
+   "bytes": 28157,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 2.183148e-05,
+   "seconds": 6.556,
+   "usage": {
+    "seconds": 6.556,
+    "cost": 2.183148e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 1.289,
+   "ok": true,
+   "bytes": 18978,
+   "text": "In later levels, the sentinel is assisted by a number of sentries.",
+   "cost": 1.788876e-05,
+   "seconds": 5.372,
+   "usage": {
+    "seconds": 5.372,
+    "cost": 1.788876e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 1.356,
+   "ok": true,
+   "bytes": 23373,
+   "text": "In later levels, the sentinel is assisted by a number of sentries.",
+   "cost": 1.788876e-05,
+   "seconds": 5.372,
+   "usage": {
+    "seconds": 5.372,
+    "cost": 1.788876e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.354,
+   "ok": true,
+   "bytes": 22876,
+   "text": "The inmates being removed, at the appointed hour, a few cannon balls were fired through the stone walls.",
+   "cost": 2.269395e-05,
+   "seconds": 6.815,
+   "usage": {
+    "seconds": 6.815,
+    "cost": 2.269395e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.055,
+   "ok": true,
+   "bytes": 29150,
+   "text": "The inmates being removed, at the appointed hour, a few cannon balls were fired through the stone walls.",
+   "cost": 2.269395e-05,
+   "seconds": 6.815,
+   "usage": {
+    "seconds": 6.815,
+    "cost": 2.269395e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.181,
+   "ok": true,
+   "bytes": 39470,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 3.91608e-05,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 3.91608e-05
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.218,
+   "ok": true,
+   "bytes": 49395,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 3.91608e-05,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 3.91608e-05
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.636,
+   "ok": true,
+   "bytes": 30620,
+   "text": "Relocated footnote: Governor Robinson, being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 3.071925e-05,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 3.071925e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.365,
+   "ok": true,
+   "bytes": 39018,
+   "text": "Relocated footnote: Governor Robinson, being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 3.071925e-05,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 3.071925e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 1.028,
+   "ok": true,
+   "bytes": 36853,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 3.91608e-05,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 3.91608e-05
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 1.145,
+   "ok": true,
+   "bytes": 49142,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 3.91608e-05,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 3.91608e-05
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 1.162,
+   "ok": true,
+   "bytes": 29372,
+   "text": "Relocated footnupped, Governor Robinson being on his way east. The steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 3.071925e-05,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 3.071925e-05
+   },
+   "wer": 0.05
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 0.966,
+   "ok": true,
+   "bytes": 38785,
+   "text": "Relocated footnote: Governor Robinson, being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 3.071925e-05,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 3.071925e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "webm",
+   "latency": 1.187,
+   "ok": true,
+   "bytes": 16893,
+   "text": "",
+   "cost": 1.998e-05,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "cost": 1.998e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "m4a",
+   "latency": 0.905,
+   "ok": true,
+   "bytes": 25663,
+   "text": "",
+   "cost": 1.998e-05,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "cost": 1.998e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "webm",
+   "latency": 1.468,
+   "ok": true,
+   "bytes": 8355,
+   "text": "",
+   "cost": 1.665e-05,
+   "seconds": 5,
+   "usage": {
+    "seconds": 5,
+    "cost": 1.665e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "m4a",
+   "latency": 0.977,
+   "ok": true,
+   "bytes": 1461,
+   "text": "",
+   "cost": 1.665e-05,
+   "seconds": 5,
+   "usage": {
+    "seconds": 5,
+    "cost": 1.665e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 0.951,
+   "ok": true,
+   "bytes": 14364,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 1.453669875e-05,
+   "seconds": 4.365375,
+   "usage": {
+    "seconds": 4.365375,
+    "cost": 1.453669875e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 0.913,
+   "ok": true,
+   "bytes": 19127,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 1.453669875e-05,
+   "seconds": 4.365375,
+   "usage": {
+    "seconds": 4.365375,
+    "cost": 1.453669875e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 6.082,
+   "ok": true,
+   "bytes": 20107,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 2.025847125e-05,
+   "seconds": 6.083625,
+   "usage": {
+    "seconds": 6.083625,
+    "cost": 2.025847125e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.124,
+   "ok": true,
+   "bytes": 26047,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 2.025847125e-05,
+   "seconds": 6.083625,
+   "usage": {
+    "seconds": 6.083625,
+    "cost": 2.025847125e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 2.497,
+   "ok": true,
+   "bytes": 21665,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 2.1805048125e-05,
+   "seconds": 6.5480625,
+   "usage": {
+    "seconds": 6.5480625,
+    "cost": 2.1805048125e-05
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.013,
+   "ok": true,
+   "bytes": 28543,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 2.1805048125e-05,
+   "seconds": 6.5480625,
+   "usage": {
+    "seconds": 6.5480625,
+    "cost": 2.1805048125e-05
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.258,
+   "ok": true,
+   "bytes": 15540,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 1.546452e-05,
+   "seconds": 4.644,
+   "usage": {
+    "seconds": 4.644,
+    "cost": 1.546452e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.23,
+   "ok": true,
+   "bytes": 20270,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 1.546452e-05,
+   "seconds": 4.644,
+   "usage": {
+    "seconds": 4.644,
+    "cost": 1.546452e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.317,
+   "ok": true,
+   "bytes": 30527,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u00e0 tuy\u1ebft l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc v\u00e0 quanh n\u0103m giao th\u00f4ng g\u1ea7n nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 3.13686e-05,
+   "seconds": 9.42,
+   "usage": {
+    "seconds": 9.42,
+    "cost": 3.13686e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.059,
+   "ok": true,
+   "bytes": 39593,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u00e0 tuy\u1ebft l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc v\u00e0 quanh n\u0103m giao th\u00f4ng g\u1ea7n nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 3.13686e-05,
+   "seconds": 9.42,
+   "usage": {
+    "seconds": 9.42,
+    "cost": 3.13686e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 0.961,
+   "ok": true,
+   "bytes": 23106,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1ch r\u1ea5t quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 t\u00e2n ng\u1eef.",
+   "cost": 2.3976e-05,
+   "seconds": 7.2,
+   "usage": {
+    "seconds": 7.2,
+    "cost": 2.3976e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.197,
+   "ok": true,
+   "bytes": 30665,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1ch r\u1ea5t quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 t\u00e2n ng\u1eef.",
+   "cost": 2.3976e-05,
+   "seconds": 7.2,
+   "usage": {
+    "seconds": 7.2,
+    "cost": 2.3976e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.059,
+   "ok": true,
+   "bytes": 29564,
+   "text": "S\u1ed1 Raspberry c\u00e0i nh\u1ecf ngay sau c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi Nh\u1eadt \u0110\u1ea3o t\u1eeb ch\u1ed1i.",
+   "cost": 3.05694e-05,
+   "seconds": 9.18,
+   "usage": {
+    "seconds": 9.18,
+    "cost": 3.05694e-05
+   },
+   "wer": 0.35294117647058826
+  },
+  {
+   "model": "qwen/qwen3-asr-0.6b",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.013,
+   "ok": true,
+   "bytes": 38695,
+   "text": "S\u1ed1 Raspberry c\u1ea1n nh\u1ecf, ng\u00f4i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi Nh\u1eadt \u0110\u1ea3o t\u1eeb tr\u01b0\u1eddng.",
+   "cost": 3.05694e-05,
+   "seconds": 9.18,
+   "usage": {
+    "seconds": 9.18,
+    "cost": 3.05694e-05
+   },
+   "wer": 0.17647058823529413
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 1.304,
+   "ok": true,
+   "bytes": 22070,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 0.0003525,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 84,
+    "input_tokens": 65,
+    "output_tokens": 19,
+    "cost": 0.0003525
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 1.299,
+   "ok": true,
+   "bytes": 28157,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 0.0003525,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 84,
+    "input_tokens": 65,
+    "output_tokens": 19,
+    "cost": 0.0003525
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 1.209,
+   "ok": true,
+   "bytes": 18978,
+   "text": "In later levels, the Sentinel is assisted by a number of Sentries.",
+   "cost": 0.0003025,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 70,
+    "input_tokens": 53,
+    "output_tokens": 17,
+    "cost": 0.0003025
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 1.41,
+   "ok": true,
+   "bytes": 23373,
+   "text": "In later levels, the Sentinel is assisted by a number of Sentries.",
+   "cost": 0.0003025,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 70,
+    "input_tokens": 53,
+    "output_tokens": 17,
+    "cost": 0.0003025
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.38,
+   "ok": true,
+   "bytes": 22876,
+   "text": "The inmates being removed, at the appointed hour a few cannon balls were fired through the stone walls.",
+   "cost": 0.00039,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 90,
+    "input_tokens": 68,
+    "output_tokens": 22,
+    "cost": 0.00039
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.293,
+   "ok": true,
+   "bytes": 29150,
+   "text": "The inmates being removed, at the appointed hour a few cannonballs were fired through the stone walls",
+   "cost": 0.00038,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 89,
+    "input_tokens": 68,
+    "output_tokens": 21,
+    "cost": 0.00038
+   },
+   "wer": 0.1111111111111111
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.605,
+   "ok": true,
+   "bytes": 39470,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Emigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.0006325,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 151,
+    "input_tokens": 117,
+    "output_tokens": 34,
+    "cost": 0.0006325
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.661,
+   "ok": true,
+   "bytes": 49395,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.0006325,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 151,
+    "input_tokens": 117,
+    "output_tokens": 34,
+    "cost": 0.0006325
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.534,
+   "ok": true,
+   "bytes": 30620,
+   "text": "Relocated Footnote: Governor Robinson being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri,",
+   "cost": 0.00053,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 122,
+    "input_tokens": 92,
+    "output_tokens": 30,
+    "cost": 0.00053
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 6.462,
+   "ok": true,
+   "bytes": 39018,
+   "text": "Relocated Footnote: Governor Robinson being on his way East, the steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 0.00053,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 122,
+    "input_tokens": 92,
+    "output_tokens": 30,
+    "cost": 0.00053
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 3.819,
+   "ok": true,
+   "bytes": 36853,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Emigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.0006325,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 151,
+    "input_tokens": 117,
+    "output_tokens": 34,
+    "cost": 0.0006325
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 1.446,
+   "ok": true,
+   "bytes": 49142,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Emigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.0006325,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 151,
+    "input_tokens": 117,
+    "output_tokens": 34,
+    "cost": 0.0006325
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 1.451,
+   "ok": true,
+   "bytes": 29372,
+   "text": "Relocated Footnote: Governor Robinson being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri",
+   "cost": 0.00052,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 121,
+    "input_tokens": 92,
+    "output_tokens": 29,
+    "cost": 0.00052
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 1.49,
+   "ok": true,
+   "bytes": 38785,
+   "text": "Relocated footnote: Governor Robinson being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri",
+   "cost": 0.00052,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 121,
+    "input_tokens": 92,
+    "output_tokens": 29,
+    "cost": 0.00052
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "webm",
+   "latency": 3.491,
+   "ok": true,
+   "bytes": 16893,
+   "text": "\u3053\u3093\u306b\u3061\u306f\u3002",
+   "cost": 0.00019,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 64,
+    "input_tokens": 60,
+    "output_tokens": 4,
+    "cost": 0.00019
+   },
+   "wer": null
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "m4a",
+   "latency": 1.207,
+   "ok": true,
+   "bytes": 25663,
+   "text": "Mon travail.",
+   "cost": 0.0002,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 65,
+    "input_tokens": 60,
+    "output_tokens": 5,
+    "cost": 0.0002
+   },
+   "wer": null
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "webm",
+   "latency": 1.653,
+   "ok": true,
+   "bytes": 8355,
+   "text": "Blessing",
+   "cost": 0.000165,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 54,
+    "input_tokens": 50,
+    "output_tokens": 4,
+    "cost": 0.000165
+   },
+   "wer": null
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "m4a",
+   "latency": 1.235,
+   "ok": true,
+   "bytes": 1461,
+   "text": "Selbstst\u00e4ndiger.",
+   "cost": 0.000195,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 57,
+    "input_tokens": 50,
+    "output_tokens": 7,
+    "cost": 0.000195
+   },
+   "wer": null
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.227,
+   "ok": true,
+   "bytes": 14364,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 0.0002675,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 59,
+    "input_tokens": 43,
+    "output_tokens": 16,
+    "cost": 0.0002675
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.258,
+   "ok": true,
+   "bytes": 19127,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 0.00027,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 60,
+    "input_tokens": 44,
+    "output_tokens": 16,
+    "cost": 0.00027
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.282,
+   "ok": true,
+   "bytes": 20107,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 0.00035,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 80,
+    "input_tokens": 60,
+    "output_tokens": 20,
+    "cost": 0.00035
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 2.084,
+   "ok": true,
+   "bytes": 26047,
+   "text": "A Promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 0.0003525,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 81,
+    "input_tokens": 61,
+    "output_tokens": 20,
+    "cost": 0.0003525
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.372,
+   "ok": true,
+   "bytes": 21665,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 0.0003725,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 86,
+    "input_tokens": 65,
+    "output_tokens": 21,
+    "cost": 0.0003725
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.353,
+   "ok": true,
+   "bytes": 28543,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 0.0003725,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 86,
+    "input_tokens": 65,
+    "output_tokens": 21,
+    "cost": 0.0003725
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.426,
+   "ok": true,
+   "bytes": 15540,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 0.000295,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 64,
+    "input_tokens": 46,
+    "output_tokens": 18,
+    "cost": 0.000295
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.343,
+   "ok": true,
+   "bytes": 20270,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 0.000295,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 64,
+    "input_tokens": 46,
+    "output_tokens": 18,
+    "cost": 0.000295
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.649,
+   "ok": true,
+   "bytes": 30527,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u00e0 tuy\u1ebft l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc, v\u00e0 quanh n\u0103m giao th\u00f4ng d\u01b0\u1eddng nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 0.000575,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 128,
+    "input_tokens": 94,
+    "output_tokens": 34,
+    "cost": 0.000575
+   },
+   "wer": 0.041666666666666664
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.463,
+   "ok": true,
+   "bytes": 39593,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u00e0 tuy\u1ebft l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc, v\u00e0 quanh n\u0103m giao th\u00f4ng d\u01b0\u1eddng nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 0.000575,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 128,
+    "input_tokens": 94,
+    "output_tokens": 34,
+    "cost": 0.000575
+   },
+   "wer": 0.041666666666666664
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.441,
+   "ok": true,
+   "bytes": 23106,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1ch quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 t\u00e2n ng\u1eef.",
+   "cost": 0.00038,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 92,
+    "input_tokens": 72,
+    "output_tokens": 20,
+    "cost": 0.00038
+   },
+   "wer": 0.06666666666666667
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.255,
+   "ok": true,
+   "bytes": 30665,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1ch quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 t\u00e2n ng\u1eef.",
+   "cost": 0.00038,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 92,
+    "input_tokens": 72,
+    "output_tokens": 20,
+    "cost": 0.00038
+   },
+   "wer": 0.06666666666666667
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.554,
+   "ok": true,
+   "bytes": 29564,
+   "text": "Sao Rossby c\u00e0ng nh\u1ecf, ng\u00f4i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi ngh\u1ecbch \u0111\u1ea3o t\u1eeb tr\u01b0\u1eddng.",
+   "cost": 0.0004775,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 116,
+    "input_tokens": 91,
+    "output_tokens": 25,
+    "cost": 0.0004775
+   },
+   "wer": 0.058823529411764705
+  },
+  {
+   "model": "openai/gpt-4o-transcribe",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.486,
+   "ok": true,
+   "bytes": 38695,
+   "text": "S\u1ed1 v\u1ebft \u0111en c\u00e0ng nh\u1ecf, ng\u00f4i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi ngh\u1ecbch \u0111\u1ea3o t\u1eeb tr\u01b0\u1eddng.",
+   "cost": 0.0005,
+   "seconds": null,
+   "usage": {
+    "total_tokens": 119,
+    "input_tokens": 92,
+    "output_tokens": 27,
+    "cost": 0.0005
+   },
+   "wer": 0.11764705882352941
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 2.71,
+   "ok": true,
+   "bytes": 22070,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 0.0003499998,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "total_tokens": 397,
+    "input_tokens": 3,
+    "output_tokens": 19,
+    "cost": 0.0003499998
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 1.247,
+   "ok": true,
+   "bytes": 28157,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 0.0003499998,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "total_tokens": 397,
+    "input_tokens": 3,
+    "output_tokens": 19,
+    "cost": 0.0003499998
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 2.588,
+   "ok": true,
+   "bytes": 18978,
+   "text": "In later levels, the Sentinel is assisted by a number of sentries.",
+   "cost": 0.0002916665,
+   "seconds": 5,
+   "usage": {
+    "seconds": 5,
+    "total_tokens": 395,
+    "input_tokens": 3,
+    "output_tokens": 17,
+    "cost": 0.0002916665
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 0.948,
+   "ok": true,
+   "bytes": 23373,
+   "text": "In later levels, the Sentinel is assisted by a number of sentries.",
+   "cost": 0.0002916665,
+   "seconds": 5,
+   "usage": {
+    "seconds": 5,
+    "total_tokens": 395,
+    "input_tokens": 3,
+    "output_tokens": 17,
+    "cost": 0.0002916665
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.151,
+   "ok": true,
+   "bytes": 22876,
+   "text": "The inmates being removed, at the appointed hour, a few cannonballs were fired through the stone walls.",
+   "cost": 0.0003499998,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "total_tokens": 401,
+    "input_tokens": 3,
+    "output_tokens": 23,
+    "cost": 0.0003499998
+   },
+   "wer": 0.1111111111111111
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.086,
+   "ok": true,
+   "bytes": 29150,
+   "text": "The inmates being removed, at the appointed hour a few cannon balls were fired through the stone walls.",
+   "cost": 0.0003499998,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "total_tokens": 399,
+    "input_tokens": 3,
+    "output_tokens": 21,
+    "cost": 0.0003499998
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.572,
+   "ok": true,
+   "bytes": 39470,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.0006416663,
+   "seconds": 11,
+   "usage": {
+    "seconds": 11,
+    "total_tokens": 413,
+    "input_tokens": 3,
+    "output_tokens": 35,
+    "cost": 0.0006416663
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.288,
+   "ok": true,
+   "bytes": 49395,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.0006416663,
+   "seconds": 11,
+   "usage": {
+    "seconds": 11,
+    "total_tokens": 413,
+    "input_tokens": 3,
+    "output_tokens": 35,
+    "cost": 0.0006416663
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.788,
+   "ok": true,
+   "bytes": 30620,
+   "text": "Relocated footnote. Governor Robinson being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 0.0005249997,
+   "seconds": 9,
+   "usage": {
+    "seconds": 9,
+    "total_tokens": 406,
+    "input_tokens": 3,
+    "output_tokens": 28,
+    "cost": 0.0005249997
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.108,
+   "ok": true,
+   "bytes": 39018,
+   "text": "Relocated footnote. Governor Robinson being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 0.0005249997,
+   "seconds": 9,
+   "usage": {
+    "seconds": 9,
+    "total_tokens": 406,
+    "input_tokens": 3,
+    "output_tokens": 28,
+    "cost": 0.0005249997
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 1.354,
+   "ok": true,
+   "bytes": 36853,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.0006416663,
+   "seconds": 11,
+   "usage": {
+    "seconds": 11,
+    "total_tokens": 413,
+    "input_tokens": 3,
+    "output_tokens": 35,
+    "cost": 0.0006416663
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 1.178,
+   "ok": true,
+   "bytes": 49142,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.0006416663,
+   "seconds": 11,
+   "usage": {
+    "seconds": 11,
+    "total_tokens": 413,
+    "input_tokens": 3,
+    "output_tokens": 35,
+    "cost": 0.0006416663
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 2.248,
+   "ok": true,
+   "bytes": 29372,
+   "text": "Relocated footnote. Governor Robinson being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri,",
+   "cost": 0.0005249997,
+   "seconds": 9,
+   "usage": {
+    "seconds": 9,
+    "total_tokens": 406,
+    "input_tokens": 3,
+    "output_tokens": 28,
+    "cost": 0.0005249997
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 1.155,
+   "ok": true,
+   "bytes": 38785,
+   "text": "Relocated footnote. Governor Robinson being on his way east, the steamboat on which he was traveling stopped at Lexington, Missouri.",
+   "cost": 0.0005249997,
+   "seconds": 9,
+   "usage": {
+    "seconds": 9,
+    "total_tokens": 406,
+    "input_tokens": 3,
+    "output_tokens": 28,
+    "cost": 0.0005249997
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "webm",
+   "latency": 0.978,
+   "ok": true,
+   "bytes": 16893,
+   "text": "",
+   "cost": 0.0003499998,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "total_tokens": 0,
+    "input_tokens": 0,
+    "cost": 0.0003499998
+   },
+   "wer": null
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "m4a",
+   "latency": 2.683,
+   "ok": true,
+   "bytes": 25663,
+   "text": "",
+   "cost": 0.0003499998,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "total_tokens": 0,
+    "input_tokens": 0,
+    "cost": 0.0003499998
+   },
+   "wer": null
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "webm",
+   "latency": 0.739,
+   "ok": true,
+   "bytes": 8355,
+   "text": "",
+   "cost": 0.0002916665,
+   "seconds": 5,
+   "usage": {
+    "seconds": 5,
+    "total_tokens": 0,
+    "input_tokens": 0,
+    "cost": 0.0002916665
+   },
+   "wer": null
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "m4a",
+   "latency": 0.724,
+   "ok": true,
+   "bytes": 1461,
+   "text": "",
+   "cost": 0.0002916665,
+   "seconds": 5,
+   "usage": {
+    "seconds": 5,
+    "total_tokens": 0,
+    "input_tokens": 0,
+    "cost": 0.0002916665
+   },
+   "wer": null
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 0.994,
+   "ok": true,
+   "bytes": 14364,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 0.0002333332,
+   "seconds": 4,
+   "usage": {
+    "seconds": 4,
+    "total_tokens": 393,
+    "input_tokens": 3,
+    "output_tokens": 15,
+    "cost": 0.0002333332
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 0.975,
+   "ok": true,
+   "bytes": 19127,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 0.0002333332,
+   "seconds": 4,
+   "usage": {
+    "seconds": 4,
+    "total_tokens": 393,
+    "input_tokens": 3,
+    "output_tokens": 15,
+    "cost": 0.0002333332
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.636,
+   "ok": true,
+   "bytes": 20107,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 0.0003499998,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "total_tokens": 398,
+    "input_tokens": 3,
+    "output_tokens": 20,
+    "cost": 0.0003499998
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.003,
+   "ok": true,
+   "bytes": 26047,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 0.0003499998,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "total_tokens": 398,
+    "input_tokens": 3,
+    "output_tokens": 20,
+    "cost": 0.0003499998
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 0.928,
+   "ok": true,
+   "bytes": 21665,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 0.0003499998,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "total_tokens": 401,
+    "input_tokens": 3,
+    "output_tokens": 23,
+    "cost": 0.0003499998
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.094,
+   "ok": true,
+   "bytes": 28543,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 0.0003499998,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "total_tokens": 401,
+    "input_tokens": 3,
+    "output_tokens": 23,
+    "cost": 0.0003499998
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 2.712,
+   "ok": true,
+   "bytes": 15540,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 0.0002333332,
+   "seconds": 4,
+   "usage": {
+    "seconds": 4,
+    "total_tokens": 396,
+    "input_tokens": 3,
+    "output_tokens": 18,
+    "cost": 0.0002333332
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 0.964,
+   "ok": true,
+   "bytes": 20270,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 0.0002333332,
+   "seconds": 4,
+   "usage": {
+    "seconds": 4,
+    "total_tokens": 396,
+    "input_tokens": 3,
+    "output_tokens": 18,
+    "cost": 0.0002333332
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 3.314,
+   "ok": true,
+   "bytes": 30527,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u00e0 tuy\u1ebft l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc, v\u00e0 quanh n\u0103m giao th\u00f4ng g\u1ea7n nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 0.0005249997,
+   "seconds": 9,
+   "usage": {
+    "seconds": 9,
+    "total_tokens": 409,
+    "input_tokens": 3,
+    "output_tokens": 31,
+    "cost": 0.0005249997
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.7,
+   "ok": true,
+   "bytes": 39593,
+   "text": "M\u1eb7t kh\u00e1c, b\u0103ng v\u00e0 tuy\u1ebft l\u00e0 hi\u1ec7n t\u01b0\u1ee3ng b\u00ecnh th\u01b0\u1eddng \u1edf nhi\u1ec1u n\u01b0\u1edbc, v\u00e0 quanh n\u0103m giao th\u00f4ng g\u1ea7n nh\u01b0 kh\u00f4ng b\u1ecb gi\u00e1n \u0111o\u1ea1n.",
+   "cost": 0.0005249997,
+   "seconds": 9,
+   "usage": {
+    "seconds": 9,
+    "total_tokens": 409,
+    "input_tokens": 3,
+    "output_tokens": 31,
+    "cost": 0.0005249997
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 2.402,
+   "ok": true,
+   "bytes": 23106,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1ch r\u1ea5t quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 t\u00e2n ng\u1eef.",
+   "cost": 0.0004083331,
+   "seconds": 7,
+   "usage": {
+    "seconds": 7,
+    "total_tokens": 397,
+    "input_tokens": 3,
+    "output_tokens": 19,
+    "cost": 0.0004083331
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.005,
+   "ok": true,
+   "bytes": 30665,
+   "text": "\u0110\u00e2y l\u00e0 c\u00e1ch r\u1ea5t quan tr\u1ecdng \u0111\u1ec3 ph\u00e2n bi\u1ec7t gi\u1eefa \u0111\u1ed9ng t\u1eeb v\u00e0 t\u0103ng ng\u1eef.",
+   "cost": 0.0004083331,
+   "seconds": 7,
+   "usage": {
+    "seconds": 7,
+    "total_tokens": 396,
+    "input_tokens": 3,
+    "output_tokens": 18,
+    "cost": 0.0004083331
+   },
+   "wer": 0.06666666666666667
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.156,
+   "ok": true,
+   "bytes": 29564,
+   "text": "S\u1ed1 Rosby c\u00e0ng nh\u1ecf, ng\u00f4i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi ngh\u1ecbch \u0111\u1ea3o t\u1eeb tr\u01b0\u1eddng.",
+   "cost": 0.0005249997,
+   "seconds": 9,
+   "usage": {
+    "seconds": 9,
+    "total_tokens": 401,
+    "input_tokens": 3,
+    "output_tokens": 23,
+    "cost": 0.0005249997
+   },
+   "wer": 0.058823529411764705
+  },
+  {
+   "model": "mistralai/voxtral-mini-transcribe-3-0",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.349,
+   "ok": true,
+   "bytes": 38695,
+   "text": "S\u1ed1 Rosby c\u00e0ng nh\u1ecf, ng\u00f4i sao c\u00e0ng \u00edt ho\u1ea1t \u0111\u1ed9ng li\u00ean quan t\u1edbi ngh\u1ecbch \u0111\u1ea3o t\u1eeb tr\u01b0\u1eddng.",
+   "cost": 0.0005249997,
+   "seconds": 9,
+   "usage": {
+    "seconds": 9,
+    "total_tokens": 401,
+    "input_tokens": 3,
+    "output_tokens": 23,
+    "cost": 0.0005249997
+   },
+   "wer": 0.058823529411764705
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 1.326,
+   "ok": true,
+   "bytes": 22070,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 0.0001092668852,
+   "seconds": 6.556,
+   "usage": {
+    "seconds": 6.556,
+    "cost": 0.0001092668852
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-accent-1",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 2.688,
+   "ok": true,
+   "bytes": 28157,
+   "text": "The second phase was subsequently cancelled, later revived, and eventually branded the Evergreen Extension.",
+   "cost": 0.0001092668852,
+   "seconds": 6.556,
+   "usage": {
+    "seconds": 6.556,
+    "cost": 0.0001092668852
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "webm",
+   "latency": 0.915,
+   "ok": true,
+   "bytes": 18978,
+   "text": "In later levels the sentinel is assisted by a number of sentries.",
+   "cost": 8.95335124e-05,
+   "seconds": 5.372,
+   "usage": {
+    "seconds": 5.372,
+    "cost": 8.95335124e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-accent-2",
+   "category": "accented_en",
+   "container": "m4a",
+   "latency": 1.282,
+   "ok": true,
+   "bytes": 23373,
+   "text": "In later levels the sentinel is assisted by a number of sentries.",
+   "cost": 8.95335124e-05,
+   "seconds": 5.372,
+   "usage": {
+    "seconds": 5.372,
+    "cost": 8.95335124e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 0.901,
+   "ok": true,
+   "bytes": 22876,
+   "text": "The inmates being removed, at the appointed hour a few cannon balls were fired through the stone walls,",
+   "cost": 0.0001135835605,
+   "seconds": 6.815,
+   "usage": {
+    "seconds": 6.815,
+    "cost": 0.0001135835605
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-clean-1",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 1.451,
+   "ok": true,
+   "bytes": 29150,
+   "text": "The inmates being removed, at the appointed hour a few cannon balls were fired through the stone walls,",
+   "cost": 0.0001135835605,
+   "seconds": 6.815,
+   "usage": {
+    "seconds": 6.815,
+    "cost": 0.0001135835605
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.858,
+   "ok": true,
+   "bytes": 39470,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.000196000392,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 0.000196000392
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-clean-2",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 7.135,
+   "ok": true,
+   "bytes": 49395,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.000196000392,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 0.000196000392
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "webm",
+   "latency": 1.097,
+   "ok": true,
+   "bytes": 30620,
+   "text": "Relocated Footnote. Governor Robinson being on his way east, the steamboat on which he was travelling stopped at Lexington, Missouri,",
+   "cost": 0.0001537503075,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 0.0001537503075
+   },
+   "wer": 0.05
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-clean-3",
+   "category": "clean_en",
+   "container": "m4a",
+   "latency": 2.578,
+   "ok": true,
+   "bytes": 39018,
+   "text": "Relocated Footnote. Governor Robinson being on his way east, the steamboat on which he was travelling stopped at Lexington, Missouri,",
+   "cost": 0.0001537503075,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 0.0001537503075
+   },
+   "wer": 0.05
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 1.207,
+   "ok": true,
+   "bytes": 36853,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.000196000392,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 0.000196000392
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-noisy-1",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 0.995,
+   "ok": true,
+   "bytes": 49142,
+   "text": "In this incident, contrasting the creative and the destructive spirit of the factions, the Immigrant Aid Society of Massachusetts finds its most honorable and triumphant vindication.",
+   "cost": 0.000196000392,
+   "seconds": 11.76,
+   "usage": {
+    "seconds": 11.76,
+    "cost": 0.000196000392
+   },
+   "wer": 0.038461538461538464
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "webm",
+   "latency": 1.048,
+   "ok": true,
+   "bytes": 29372,
+   "text": "RELOCATED FOOTNOTE. Governor Robinson being on his way east, the steamboat on which he was travelling stopped at Lexington, Missouri,",
+   "cost": 0.0001537503075,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 0.0001537503075
+   },
+   "wer": 0.05
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "en-noisy-2",
+   "category": "noisy_en",
+   "container": "m4a",
+   "latency": 2.118,
+   "ok": true,
+   "bytes": 38785,
+   "text": "Relocated Footnote. Governor Robinson being on his way east, the steamboat on which he was travelling stopped at Lexington, Missouri,",
+   "cost": 0.0001537503075,
+   "seconds": 9.225,
+   "usage": {
+    "seconds": 9.225,
+    "cost": 0.0001537503075
+   },
+   "wer": 0.05
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "webm",
+   "latency": 0.889,
+   "ok": true,
+   "bytes": 16893,
+   "text": "",
+   "cost": 0.0001000002,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "cost": 0.0001000002
+   },
+   "wer": null
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "noise-only-1",
+   "category": "noise_only",
+   "container": "m4a",
+   "latency": 2.741,
+   "ok": true,
+   "bytes": 25663,
+   "text": "",
+   "cost": 0.0001000002,
+   "seconds": 6,
+   "usage": {
+    "seconds": 6,
+    "cost": 0.0001000002
+   },
+   "wer": null
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "webm",
+   "latency": 0.833,
+   "ok": true,
+   "bytes": 8355,
+   "text": "",
+   "cost": 8.33335e-05,
+   "seconds": 5,
+   "usage": {
+    "seconds": 5,
+    "cost": 8.33335e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "silence-1",
+   "category": "silence",
+   "container": "m4a",
+   "latency": 0.728,
+   "ok": true,
+   "bytes": 1461,
+   "text": "",
+   "cost": 8.33335e-05,
+   "seconds": 5,
+   "usage": {
+    "seconds": 5,
+    "cost": 8.33335e-05
+   },
+   "wer": null
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.349,
+   "ok": true,
+   "bytes": 14364,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 7.27563955125e-05,
+   "seconds": 4.365375,
+   "usage": {
+    "seconds": 4.365375,
+    "cost": 7.27563955125e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "tech-1",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 1.336,
+   "ok": true,
+   "bytes": 19127,
+   "text": "Declare the variable with const, then return a closure that captures it.",
+   "cost": 7.27563955125e-05,
+   "seconds": 4.365375,
+   "usage": {
+    "seconds": 4.365375,
+    "cost": 7.27563955125e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 0.855,
+   "ok": true,
+   "bytes": 20107,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 0.0001013939527875,
+   "seconds": 6.083625,
+   "usage": {
+    "seconds": 6.083625,
+    "cost": 0.0001013939527875
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "tech-2",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 2.081,
+   "ok": true,
+   "bytes": 26047,
+   "text": "A promise resolves asynchronously, so await it inside an async function before you read the result.",
+   "cost": 0.0001013939527875,
+   "seconds": 6.083625,
+   "usage": {
+    "seconds": 6.083625,
+    "cost": 0.0001013939527875
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 0.874,
+   "ok": true,
+   "bytes": 21665,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 0.00010913459326875,
+   "seconds": 6.5480625,
+   "usage": {
+    "seconds": 6.5480625,
+    "cost": 0.00010913459326875
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "tech-3",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 0.911,
+   "ok": true,
+   "bytes": 28543,
+   "text": "Our roadmap for next quarter lists three OKRs, and the product manager will prioritize the backlog.",
+   "cost": 0.00010913459326875,
+   "seconds": 6.5480625,
+   "usage": {
+    "seconds": 6.5480625,
+    "cost": 0.00010913459326875
+   },
+   "wer": 0.0625
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "webm",
+   "latency": 1.337,
+   "ok": true,
+   "bytes": 15540,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 7.74001548e-05,
+   "seconds": 4.644,
+   "usage": {
+    "seconds": 4.644,
+    "cost": 7.74001548e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "tech-4",
+   "category": "technical_en",
+   "container": "m4a",
+   "latency": 0.983,
+   "ok": true,
+   "bytes": 20270,
+   "text": "Run the sprint retrospective, then update the roadmap and the OKR scorecard.",
+   "cost": 7.74001548e-05,
+   "seconds": 4.644,
+   "usage": {
+    "seconds": 4.644,
+    "cost": 7.74001548e-05
+   },
+   "wer": 0.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.172,
+   "ok": true,
+   "bytes": 30527,
+   "text": "Baker Bangtu Blahitan Bhton Annu Bharatam Yatam ja Newsom Bayang Dang.",
+   "cost": 0.000157000314,
+   "seconds": 9.42,
+   "usage": {
+    "seconds": 9.42,
+    "cost": 0.000157000314
+   },
+   "wer": 1.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "vi-1",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 0.925,
+   "ok": true,
+   "bytes": 39593,
+   "text": "Maker Bangdu Blahintham Bentham Annual Bharatam Yatam ja Newsom Bayang.",
+   "cost": 0.000157000314,
+   "seconds": 9.42,
+   "usage": {
+    "seconds": 9.42,
+    "cost": 0.000157000314
+   },
+   "wer": 1.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 0.902,
+   "ok": true,
+   "bytes": 23106,
+   "text": "Dai Lakwanyam Dai sang bake Damtal Vatangal.",
+   "cost": 0.00012000024,
+   "seconds": 7.2,
+   "usage": {
+    "seconds": 7.2,
+    "cost": 0.00012000024
+   },
+   "wer": 1.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "vi-2",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.091,
+   "ok": true,
+   "bytes": 30665,
+   "text": "Dai Lakwanjam Bai sang by the Dhamtal Vatang.",
+   "cost": 0.00012000024,
+   "seconds": 7.2,
+   "usage": {
+    "seconds": 7.2,
+    "cost": 0.00012000024
+   },
+   "wer": 1.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "webm",
+   "latency": 1.172,
+   "ok": true,
+   "bytes": 29564,
+   "text": "So Rosby Kenya Gonzaleg Madam The Wanting Dao to June",
+   "cost": 0.000153000306,
+   "seconds": 9.18,
+   "usage": {
+    "seconds": 9.18,
+    "cost": 0.000153000306
+   },
+   "wer": 1.0
+  },
+  {
+   "model": "nvidia/parakeet-tdt-0.6b-v3",
+   "clip": "vi-3",
+   "category": "vietnamese",
+   "container": "m4a",
+   "latency": 1.073,
+   "ok": true,
+   "bytes": 38695,
+   "text": "So Roseby Kenya Gosh can eat Madame the Winter.",
+   "cost": 0.000153000306,
+   "seconds": 9.18,
+   "usage": {
+    "seconds": 9.18,
+    "cost": 0.000153000306
+   },
+   "wer": 1.0
+  }
+ ]
+}
