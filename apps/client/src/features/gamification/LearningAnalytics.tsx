@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { authRequest } from "../accounts/session";
+import { session } from "../accounts/session";
 import { trackLearningAnalyticsControl } from "../../lib/analytics";
 import { useUiPreferences } from "../design/localization/Preferences";
 import type { MessageId } from "../design/localization/messages";
 import "./gamification.css";
+import { AppLink } from "../../lib/navigation";
 
 interface CourseBreakdownItem {
   course_id: string;
@@ -114,12 +115,8 @@ export function LearningAnalytics() {
   // The app shell emits ui_screen_viewed(learning_analytics) once per route change.
   useEffect(() => {
     let active = true;
-    authRequest<AnalyticsData>(
-      "/v1/gamification/analytics",
-      undefined,
-      undefined,
-      "GET",
-    )
+    session
+      .request<AnalyticsData>("/v1/gamification/analytics")
       .then((res) => {
         if (!active) return;
         setData(res);
@@ -172,7 +169,7 @@ export function LearningAnalytics() {
       kind === "history" ? "export_history" : "export_analytics",
     );
     try {
-      download(file, await authRequest<unknown>(path, body, undefined, method));
+      download(file, await session.request<unknown>(path, method, body));
       setNotice(kind === "history" ? "la.history_done" : "la.custom_done");
     } catch {
       setNotice(kind === "history" ? "la.history_failed" : "la.custom_failed");
@@ -249,9 +246,9 @@ export function LearningAnalytics() {
         <div className="analytics-upsell-card" role="alert">
           <h2>{t("la.expired_title")}</h2>
           <p>{t("la.expired_body")}</p>
-          <a className="analytics-link" href="/credits">
+          <AppLink className="analytics-link" href="/credits">
             {t("la.renew")}
-          </a>
+          </AppLink>
         </div>
       )}
 
@@ -275,9 +272,9 @@ export function LearningAnalytics() {
             {denial.suppressUpsell ? (
               historyButton
             ) : (
-              <a className="analytics-link" href="/credits">
+              <AppLink className="analytics-link" href="/credits">
                 {t("la.view_plans")}
-              </a>
+              </AppLink>
             )}
           </div>
           {notice && denial.suppressUpsell && <p role="status">{t(notice)}</p>}

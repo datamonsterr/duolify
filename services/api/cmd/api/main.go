@@ -171,6 +171,8 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		defer func() { _ = backend.Close() }()
+		// Error-level signal for quoted actions the engine would refuse (route mismatch).
+		go pricing.CheckActiveRoutes(ctx, db.Pool, logger, backend.Providers)
 		outlineService := courses.New(courses.Options{Pool: db.Pool, OutlineEngine: backend, Financial: creditService, Events: events})
 		go outlineService.Maintain(ctx, logger)
 		outlineQueue, err := outlineService.CreationQueue(logger)
@@ -271,6 +273,8 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	defer func() { result = errors.Join(result, backend.Close()) }()
+	// Error-level signal for quoted actions the engine would refuse (route mismatch).
+	go pricing.CheckActiveRoutes(ctx, db.Pool, logger, backend.Providers)
 	analyticsKey := cfg.PostHogKey
 	if cfg.AnalyticsOptOut {
 		analyticsKey = ""

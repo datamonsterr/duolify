@@ -6,6 +6,7 @@ import { useShellSession } from "../shell/ShellSession";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
 import { CourseCard } from "./CourseCard";
+import { AppLink, navigateTo } from "../../lib/navigation";
 
 function subscribeOnline(notify: () => void) {
   window.addEventListener("online", notify);
@@ -35,8 +36,7 @@ export function Courses() {
   const activeCourseId =
     sessionActiveId && data?.some((c) => c.id === sessionActiveId)
       ? sessionActiveId
-      : data?.active_course_id ||
-        (data && data.length > 0 ? data[0].id : "astronomy");
+      : data?.active_course_id || (data && data.length > 0 ? data[0].id : "");
   const filtered = data?.filter((course) =>
     `${course.title} ${course.description}`
       .toLocaleLowerCase()
@@ -63,9 +63,9 @@ export function Courses() {
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-        <a className="duo-button primary" href="/courses/create">
+        <AppLink className="duo-button primary" href="/courses/create">
           Create a course
-        </a>
+        </AppLink>
       </header>
       <p id="creation-unavailable" className="muted">
         Start with a free course brief.
@@ -107,12 +107,12 @@ export function Courses() {
           Streaks grow with daily learning
         </Badge>
         <Badge role="credit">
-          <a href="/credits">
+          <AppLink href="/credits">
             <span aria-hidden="true" className="credit-icon">
               ◇
             </span>{" "}
             View credits
-          </a>
+          </AppLink>
         </Badge>
       </div>
       {!online && (
@@ -180,7 +180,7 @@ export function Courses() {
           </p>
           <Button
             onClick={() => {
-              location.assign("/courses/create");
+              navigateTo("/courses/create");
             }}
           >
             Create a course
@@ -203,7 +203,7 @@ export function Courses() {
               </Button>
               <Button
                 onClick={() => {
-                  location.assign("/courses/create");
+                  navigateTo("/courses/create");
                 }}
               >
                 Create a course

@@ -25,6 +25,7 @@ import {
 import "./course-brief.css";
 import { CoursePreview } from "./CoursePreview";
 import { SharedDemo } from "./SharedDemo";
+import { AppLink } from "../../lib/navigation";
 
 // Covers a stalled network as well as an assistant failure; API attempts finish sooner.
 async function withDeadline<T>(request: Promise<T>): Promise<T> {
@@ -345,7 +346,7 @@ export function CourseBrief({
       aria-labelledby="create-course-title"
     >
       <header className="guided-demo-top">
-        <a href="/courses">Cancel and keep draft</a>
+        <AppLink href="/courses">Cancel and keep draft</AppLink>
         <h1 id="create-course-title">Create a course</h1>
         <ol className="brief-steps" aria-label="Creation steps">
           <li aria-current={previewStep === 1 ? "step" : undefined}>1 Brief</li>

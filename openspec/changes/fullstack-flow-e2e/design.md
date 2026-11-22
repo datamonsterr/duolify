@@ -9,8 +9,8 @@ allowlisted environment only; in live mode `OPENROUTER_API_KEY` is passed throug
 environment and never written to disk.
 
 The overlay changes test plumbing only: sign-in throttles are raised (all requests come from
-one IP). `LESSON_TEST_TRACER_ENABLED` stays as in production (unset, so off) unless
-`E2E_LESSON_TEST_TRACER_ENABLED=true` is exported to probe the gated flows.
+one IP). `LESSON_TEST_TRACER_ENABLED` follows production (on since #279) unless
+`E2E_LESSON_TEST_TRACER_ENABLED=false` is exported.
 
 ## Sign-in codes
 `DUOLIFY_ENV=development` selects the API's `LogMailer`, which logs each code as

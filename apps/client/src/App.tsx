@@ -6,6 +6,7 @@ import { resolveLocale } from "./features/design/localization/messages";
 import { AuthError, session } from "./features/accounts/session";
 import { useQuery } from "@tanstack/react-query";
 import { api, type Course, type CoursesResponse } from "./lib/api";
+import { registerNavigator } from "./lib/navigation";
 import { useShellSession } from "./features/shell/ShellSession";
 import {
   createRootRoute,
@@ -50,6 +51,7 @@ import {
   RoutePending,
   RouteUnavailable,
 } from "./features/shell/RouteBoundary";
+import { AppLink } from "./lib/navigation";
 function AccountShell() {
   return (
     <UiPreferencesProvider
@@ -252,7 +254,7 @@ const billing = createRoute({
         approval. Issued credits remain available after cancellation. Plan
         changes apply at renewal.
       </p>
-      <a href="/credits">Return to your wallet</a>
+      <AppLink href="/credits">Return to your wallet</AppLink>
     </section>
   ),
 });
@@ -346,7 +348,13 @@ function SignInRoute() {
   const navigate = useNavigate();
   return <SignIn onSignedIn={(path) => void navigate({ to: path })} />;
 }
-export const createAppRouter = (history?: RouterHistory) =>
+export const createAppRouter = (history?: RouterHistory) => {
+  const router = buildRouter(history);
+  // Same-app links and redirects navigate through the router (see lib/navigation).
+  registerNavigator((to) => router.history.push(to));
+  return router;
+};
+const buildRouter = (history?: RouterHistory) =>
   createRouter({
     history,
     defaultPendingComponent: RoutePending,

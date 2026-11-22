@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from "react";
 import type { Course } from "../../lib/api";
 import { trackControl } from "../../lib/analytics";
 import { Badge } from "./Badge";
+import { AppLink } from "../../lib/navigation";
 
 export function CourseCard({
   course,
@@ -55,13 +56,13 @@ export function CourseCard({
           {unavailable ? (
             <bdi>{course.title}</bdi>
           ) : (
-            <a
+            <AppLink
               className="course-title"
               href={`/course/${encodeURIComponent(course.id)}`}
               onClick={() => trackControl("open_course", course.id)}
             >
               <bdi>{course.title}</bdi>
-            </a>
+            </AppLink>
           )}
         </h2>
       </div>

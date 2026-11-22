@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "../design/Button";
 import { AuthError, session } from "../accounts/session";
 import type { ActionQuote } from "../pricing/quotes";
+import { AppLink } from "../../lib/navigation";
 
 type Quote = Pick<
   ActionQuote,
@@ -455,7 +456,7 @@ export function ReplanPanel({
               </Button>
             )}
             {reason === "insufficient_credits" && (
-              <a href="/credits">View credit options</a>
+              <AppLink href="/credits">View credit options</AppLink>
             )}
             {state.accepted && !TERMINAL.has(reason) && (
               <Button onClick={() => void propose()}>

@@ -13,6 +13,7 @@ import {
 import type { ManifestSlide } from "../player/manifest";
 import { parseAlignment, spokenCount, type Alignment } from "./alignment";
 import { fetchNarrationAssets } from "./cache";
+import { AppLink } from "../../lib/navigation";
 
 type State = "idle" | "loading" | "playing" | "paused" | "unavailable";
 
@@ -257,9 +258,9 @@ export function SegmentNarration({
             </p>
           )}
         </div>
-        <a className="duo-button quiet narration-recover" href="/credits">
+        <AppLink className="duo-button quiet narration-recover" href="/credits">
           Add credits
-        </a>
+        </AppLink>
         {lines}
       </div>
     );

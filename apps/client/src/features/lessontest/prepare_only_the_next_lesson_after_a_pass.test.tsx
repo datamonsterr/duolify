@@ -1,12 +1,20 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { credentialStore } from "../accounts/session";
 import { LessonTest } from "./LessonTest";
 
 import { http, HttpResponse } from "msw";
 import { server } from "../../test/setup";
 
 describe("prepare only the next lesson after a pass - LessonTest & Finish", () => {
-  beforeEach(() => {
+  // XP and the daily goal are learner data, read with the session token.
+  afterEach(() => credentialStore.write(null));
+  beforeEach(async () => {
+    await credentialStore.write({
+      access_token: "finish-access",
+      refresh_token: "finish-refresh",
+      expires_in: 900,
+    });
     server.use(
       http.get("*/v1/gamification/lessons/l1", () =>
         HttpResponse.json({ xp: 15, perfect: true }),

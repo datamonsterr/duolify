@@ -25,6 +25,7 @@ import { QuotePanel } from "./features/pricing/QuotePanel";
 import { missingFailure, missingMessages } from "./features/sharing/missing";
 import "./features/sharing/sharing.css";
 import { CourseModerationBanner } from "./features/sharing/CourseModerationBanner";
+import { AppLink } from "./lib/navigation";
 
 export function LearnPath({ courseId }: { courseId: string }) {
   const returnTo = useLocation({ select: (location) => location.pathname });
@@ -253,9 +254,9 @@ export function LearnPath({ courseId }: { courseId: string }) {
           </div>
         </div>
       )}
-      <a className="shell-link" href={`/courses/${courseId}/cast`}>
+      <AppLink className="shell-link" href={`/courses/${courseId}/cast`}>
         Course Cast
-      </a>
+      </AppLink>
       {(!course.visibility || course.visibility === "private") && (
         <SteerCourse key={courseId} courseId={courseId} />
       )}

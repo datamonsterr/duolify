@@ -10,6 +10,7 @@ import {
   type SendResult,
 } from "./friends";
 import "./social.css";
+import { AppLink } from "../../lib/navigation";
 
 interface Inviter {
   username: string;
@@ -87,9 +88,9 @@ export function FriendInvite({ token }: { token: string }) {
               Retry
             </button>
           ) : (
-            <a href="/friends" className="duo-button quiet">
+            <AppLink href="/friends" className="duo-button quiet">
               Go to Friends
-            </a>
+            </AppLink>
           )}
         </div>
       )}
@@ -125,9 +126,9 @@ export function FriendInvite({ token }: { token: string }) {
           <p role="status">
             {state.status === "friends" ? "You're friends now" : "Request sent"}
           </p>
-          <a href="/friends" className="duo-button secondary">
+          <AppLink href="/friends" className="duo-button secondary">
             Go to Friends
-          </a>
+          </AppLink>
         </>
       )}
     </section>

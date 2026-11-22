@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { session } from "../accounts/session";
 import "./sharing.css";
 import "./moderation.css";
+import { AppLink } from "../../lib/navigation";
 
 /** Shown instead of the lessons of a copy that a severe takedown blocked. */
 export function BlockedCourseNotice() {
@@ -12,9 +13,9 @@ export function BlockedCourseNotice() {
         A moderator removed the course this copy came from. Its lessons can't be
         opened any more. Your progress and your other courses are not affected.
       </p>
-      <a className="duo-button secondary" href="/courses">
+      <AppLink className="duo-button secondary" href="/courses">
         Back to Courses
-      </a>
+      </AppLink>
     </section>
   );
 }
@@ -48,9 +49,9 @@ export function BlockedCopy({ courseId }: { courseId: string }) {
   return (
     <section className="mod">
       <h1>This page isn't available</h1>
-      <a className="duo-button secondary" href="/courses">
+      <AppLink className="duo-button secondary" href="/courses">
         Back to Courses
-      </a>
+      </AppLink>
     </section>
   );
 }

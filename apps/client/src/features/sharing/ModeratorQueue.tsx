@@ -23,6 +23,7 @@ import { ReasonDialog } from "./ReasonDialog";
 import "./sharing.css";
 import "./market.css";
 import "./moderation.css";
+import { AppLink } from "../../lib/navigation";
 
 type State =
   | { kind: "loading" }
@@ -107,9 +108,9 @@ export function ModeratorQueue() {
       <section className="mod">
         <h1 tabIndex={-1}>This page isn't available</h1>
         <p>Try your courses or return to your learning path.</p>
-        <a className="duo-button secondary" href="/courses">
+        <AppLink className="duo-button secondary" href="/courses">
           Back to Courses
-        </a>
+        </AppLink>
       </section>
     );
   if (state.kind === "loading")

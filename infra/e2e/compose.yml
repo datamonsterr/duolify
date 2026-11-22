@@ -1,19 +1,19 @@
 # Full-stack browser e2e overlay (openspec/changes/fullstack-flow-e2e). Merged on top
 # of the production-shaped infra/deploy/compose.yml by infra/e2e/stack.sh only; it is
 # never used for a real deployment. It changes test plumbing, not product behaviour:
-#   - sign-in throttles are raised so repeated runs from one host IP are not locked out;
-#   - lesson generation and the lesson test stay as in production (off) unless
-#     E2E_LESSON_TEST_TRACER_ENABLED=true is exported to probe them.
+# sign-in throttles are raised so repeated runs from one host IP are not locked out.
+# Lesson generation and the lesson test follow infra/deploy/compose.yml (on by default);
+# export E2E_LESSON_TEST_TRACER_ENABLED=false to run with them off.
 # Sign-in codes are read from the API's DUOLIFY_ENV=development log (LogMailer), so no
 # mail sink container is needed.
 services:
   api:
     environment:
-      LESSON_TEST_TRACER_ENABLED: ${E2E_LESSON_TEST_TRACER_ENABLED:-false}
+      LESSON_TEST_TRACER_ENABLED: ${E2E_LESSON_TEST_TRACER_ENABLED:-true}
       AUTH_CODE_REQUESTS_PER_IP_PER_HOUR: "100000"
       AUTH_CODE_REQUESTS_PER_EMAIL_PER_HOUR: "100000"
       AUTH_CODE_DELIVERIES_PER_EMAIL_PER_HOUR: "100000"
       AUTH_CODE_VERIFICATIONS_PER_IP_PER_HOUR: "100000"
   worker:
     environment:
-      LESSON_TEST_TRACER_ENABLED: ${E2E_LESSON_TEST_TRACER_ENABLED:-false}
+      LESSON_TEST_TRACER_ENABLED: ${E2E_LESSON_TEST_TRACER_ENABLED:-true}

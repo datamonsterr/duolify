@@ -7,6 +7,7 @@ import {
   type EnrollResult,
   type LinkFailure,
 } from "./links";
+import { AppLink } from "../../lib/navigation";
 
 type State =
   | { kind: "checking" }
@@ -135,13 +136,13 @@ export function EnrollPanel({
             </p>
           )}
           <div className="sharing-actions">
-            <a
+            <AppLink
               ref={open}
               className="duo-button"
               href={`/course/${encodeURIComponent(state.course)}`}
             >
               Open course
-            </a>
+            </AppLink>
           </div>
         </div>
       )}
