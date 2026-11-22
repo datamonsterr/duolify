@@ -130,7 +130,7 @@ var ClassifiedLearnerTables = map[string]string{
 	"tutor_threads":                     "erased_or_deleted_per_thread",
 	"tutor_messages":                    "erased_or_deleted_per_thread",
 	"tutor_turns":                       "erased",
-	"learner_profiles":                  "erased",
+	"learner_profiles":                  "erased_including_onboarding_progress",
 	"auth_identities":                   "erased",
 	"auth_provider_identities":          "erased",
 	"auth_oauth_attempts":               "erased",

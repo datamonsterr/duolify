@@ -175,6 +175,18 @@ const root = createRootRoute({
   errorComponent: RouteError,
   notFoundComponent: RouteUnavailable,
 });
+function HomeProgressLink() {
+  const { t } = useUiPreferences();
+  return (
+    <AppLink
+      className="shell-link home-progress-link"
+      data-tour="progress"
+      href="/streak"
+    >
+      {t("onboarding.progress_entry")}
+    </AppLink>
+  );
+}
 function IndexRoute() {
   const shell = useShellSession();
   const owner = session.current()?.id ?? "";
@@ -237,14 +249,24 @@ function IndexRoute() {
 
   if (!resolvedCourseId) {
     if (coursesData && coursesData.length === 0) {
-      return <Courses />;
+      return (
+        <>
+          <HomeProgressLink />
+          <Courses />
+        </>
+      );
     }
     // Course list failed with no offline copy: say so instead of loading forever.
     if (coursesFailed) return <p>{t("path.error")}</p>;
     return <p role="status">Loading course…</p>;
   }
 
-  return <LearnPath courseId={resolvedCourseId} />;
+  return (
+    <>
+      <HomeProgressLink />
+      <LearnPath courseId={resolvedCourseId} />
+    </>
+  );
 }
 
 const index = createRoute({

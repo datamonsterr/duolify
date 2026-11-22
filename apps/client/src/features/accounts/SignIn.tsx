@@ -76,7 +76,7 @@ export function SignIn({
   const oauthProvider = useRef<SSOStrategy>("oauth_google");
   const analyticsID = useRef(crypto.randomUUID());
   const destination = safeReturnTo(
-    new URLSearchParams(location.search).get("returnTo"),
+    new URLSearchParams(location.search).get("returnTo") ?? "/",
   );
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);

@@ -1,3 +1,6 @@
+import { requestReplay } from "../onboarding/handoff";
+import { navigateTo } from "../../lib/navigation";
+import { session } from "./session";
 import { useEffect, useState } from "react";
 import {
   setAnalyticsConsent,
@@ -149,6 +152,18 @@ export function Settings() {
   return (
     <section className="settings-page" aria-busy={pending}>
       <h1>{t("settings.title")}</h1>
+      <section className="card">
+        <p>{t("onboarding.replay_help")}</p>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            requestReplay(session.current()?.id ?? "");
+            navigateTo("/");
+          }}
+        >
+          {t("onboarding.replay")}
+        </Button>
+      </section>
       <p>Appearance, lessons, accessibility and privacy.</p>
       {!saved && !error && <p role="status">Loading settings…</p>}
       {error && (

@@ -1,3 +1,4 @@
+import { onboardingEn, onboardingAr } from "../../onboarding/messages";
 // Stable IDs and complete sentences. Feature content stays data, never a message key.
 // Plural branches follow Intl/CLDR categories; every branch includes its own sentence.
 export type PluralMessage = { other: string } & Partial<
@@ -42,6 +43,7 @@ const reviewMessages = {
   "review.retry": "Retry",
 } satisfies Record<string, Message>;
 export const en = {
+  ...onboardingEn,
   ...reviewMessages,
   "outline.default_goal": "Describe what you learned.",
   "outline.goal_for": "Goal for {name}",
@@ -403,6 +405,7 @@ export const en = {
 } satisfies Record<string, Message>;
 export type MessageId = keyof typeof en;
 export const ar: Record<MessageId, Message> = {
+  ...onboardingAr,
   ...reviewMessages,
   "outline.default_goal": "صِف ما تعلمته.",
   "outline.goal_for": "هدف {name}",

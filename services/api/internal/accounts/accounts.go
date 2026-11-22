@@ -84,6 +84,7 @@ func New(pool *pgxpool.Pool, secret string, mailer Mailer) (*Service, error) {
 	s.mux.Handle("PUT /v1/me/birth-date", s.Protect(http.HandlerFunc(s.saveBirthDate)))
 	s.ConfigureProfile(ProfileOptions{TextLimit: 2000})
 	s.registerProfile()
+	s.registerOnboarding()
 	s.registerPrivacy()
 	return s, nil
 }

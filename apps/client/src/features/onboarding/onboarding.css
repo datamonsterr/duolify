@@ -1,0 +1,227 @@
+/* Spotlight/card geometry is documented in the change design. All visual roles
+   use the app's green theme, typography and approved opaque surface pairs. */
+.onboarding-modal {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  inline-size: 100vw;
+  block-size: 100dvh;
+  max-inline-size: none;
+  max-block-size: none;
+  background: transparent;
+  color: var(--text);
+  overflow: hidden;
+}
+.onboarding-modal::backdrop {
+  background: transparent;
+}
+.onboarding-modal[data-testid="onboarding-welcome"] {
+  overflow: auto;
+  background: color-mix(in srgb, var(--canvas) 90%, transparent);
+  padding: var(--space-4);
+}
+.onboarding-welcome-card {
+  margin: max(var(--space-4), 6dvh) auto;
+  max-inline-size: 560px;
+  padding: var(--space-8);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.onboarding-welcome-card h2 {
+  font-size: var(--font-size-heading);
+}
+.onboarding-welcome-card form {
+  display: grid;
+  gap: var(--space-3);
+  margin-block: var(--space-6) var(--space-4);
+}
+.onboarding-welcome-card label {
+  font-weight: var(--weight-strong);
+}
+.onboarding-welcome-card input {
+  inline-size: 100%;
+  min-block-size: var(--size-target);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--canvas);
+  color: var(--text);
+}
+.onboarding-welcome-card input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.onboarding-choices {
+  display: grid;
+  gap: var(--space-3);
+}
+.onboarding-eyebrow {
+  color: var(--primary);
+  font-weight: var(--weight-heavy);
+  margin-block: var(--space-6) var(--space-2);
+}
+.onboarding-tiles {
+  display: flex;
+  gap: var(--space-2);
+  block-size: var(--space-12);
+  align-items: center;
+}
+.onboarding-tiles span {
+  inline-size: var(--space-10);
+  block-size: var(--space-10);
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  box-shadow: 0 4px 0 var(--primary-edge);
+  transform: rotate(-8deg);
+}
+.onboarding-tiles span + span {
+  background: var(--raised);
+  border: 2px solid var(--secondary);
+  transform: translateY(-8px) rotate(8deg);
+}
+.onboarding-privacy {
+  font-size: var(--font-size-caption);
+  margin-block-end: 0;
+}
+.onboarding-examples {
+  margin-block-start: var(--space-6);
+}
+.onboarding-examples .duo-button {
+  display: grid;
+  gap: var(--space-2);
+  inline-size: 100%;
+  margin-block: var(--space-3);
+  text-align: start;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.onboarding-examples strong {
+  color: var(--primary);
+}
+.onboarding-examples small {
+  font-weight: var(--weight-regular);
+}
+.onboarding-mask {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.onboarding-mask > path:first-child {
+  fill: var(--canvas);
+  opacity: var(--opacity-overlay);
+}
+.onboarding-ring {
+  fill: none;
+  stroke: var(--surface);
+  stroke-width: 3;
+}
+.onboarding-tour-card {
+  position: fixed;
+  inline-size: min(352px, calc(100vw - 24px));
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  isolation: isolate;
+}
+.onboarding-card-body {
+  padding: var(--space-6);
+  max-block-size: inherit;
+  overflow: auto;
+  border-radius: inherit;
+}
+.onboarding-tour-card h2 {
+  font-size: var(--font-size-title);
+  margin-block-start: var(--space-5);
+}
+.onboarding-tour-card p {
+  color: var(--muted);
+  line-height: var(--leading-body);
+}
+.onboarding-step-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--primary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--weight-strong);
+}
+.onboarding-dots {
+  display: flex;
+  gap: var(--space-1);
+}
+.onboarding-dots span {
+  inline-size: 8px;
+  block-size: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+}
+.onboarding-dots .current {
+  inline-size: var(--space-6);
+  border-color: var(--primary);
+  background: var(--primary);
+}
+.onboarding-dots .visited {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.onboarding-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-start: var(--space-5);
+}
+.onboarding-skip {
+  display: block;
+  margin: var(--space-3) auto 0;
+  min-block-size: var(--size-target);
+}
+.onboarding-arrow {
+  position: absolute;
+  inline-size: 16px;
+  block-size: 16px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  transform: rotate(45deg);
+  z-index: -1;
+}
+.onboarding-arrow.arrow-top {
+  top: -9px;
+  left: calc(var(--tour-arrow) - 8px);
+  border-inline-end: 0;
+  border-block-end: 0;
+}
+.onboarding-arrow.arrow-bottom {
+  bottom: -9px;
+  left: calc(var(--tour-arrow) - 8px);
+  border-inline-start: 0;
+  border-block-start: 0;
+}
+.onboarding-arrow.arrow-left {
+  left: -9px;
+  top: calc(var(--tour-arrow) - 8px);
+  border-right: 0;
+  border-top: 0;
+}
+.onboarding-arrow.arrow-right {
+  right: -9px;
+  top: calc(var(--tour-arrow) - 8px);
+  border-left: 0;
+  border-bottom: 0;
+}
+@media (max-width: 47.999rem) {
+  .onboarding-welcome-card {
+    padding: var(--space-5);
+    margin-block: var(--space-4);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-modal *,
+  .onboarding-modal *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}

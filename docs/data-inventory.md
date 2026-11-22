@@ -894,3 +894,7 @@ Account erasure and the 30-day Course purge use one mechanism for private object
 | Notes (`quick_notes`) | Postgres only | Private | Rows erased by cascade; no notes export object is written |
 | Shared demo bundle | `lessons/shared-demo/` | Shared, not learner data | Not touched |
 | Backup bucket dumps and protected asset copies | separate backup bucket | Operator | 14-day (general) and 35-day (financial) classes; `account-deletions/` and `moderation-blocks/` ledgers are never expired. Unchanged |
+
+### First-run welcome and tour
+
+`learner_profiles.welcome_state` and `tour_state` hold only `pending|skipped|completed` (no history or learner text). Existing profiles are exempt at migration; new profiles default pending. Authenticated `GET/PATCH /v1/me/onboarding` uses learner ownership and monotonic acknowledgments. Full-row account export includes both; account deletion and restore tombstones cascade the profile. The enum columns are explicitly registered safe in the backup anonymizer and enter nightly encrypted general dumps with 14-day retention. A learner-scoped localStorage cache/outbox (`duolify.onboarding.v1:<UUID>`) holds the same enums plus dirty-field names for offline retry, is expendable and is not backed up. A single-use topic handoff remains only in sessionStorage until consumed by the existing course brief. No new model calls are introduced. PostHog receives only the closed event/step/path/source enums documented in the first-run-onboarding-tour change, through the existing consent gate.
