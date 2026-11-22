@@ -41,6 +41,51 @@ Live evaluation budget sums provider-reported usage (primary and judge) using th
 
 Live evaluations accept `--limit <N>` or `EVAL_SAMPLE_LIMIT=N` to run a small sample. The command-line flag takes precedence over the environment variable. When a limit is set, cases are task-stratified using deterministic round-robin selection ordered by case `id` within each task, while still strictly enforcing minimum per-task coverage for every required canonical task. An unset limit or `0` runs all cases; values larger than the dataset also run all cases. In ready pipeline mode (`--mode ready`), missing credentials report an explicit missing-secret status and keep the `ci-ok` CI aggregate passing while keeping feature activation disabled without fabricating a pass.
 
+## Live promotion in a deployed engine
+
+A live (non-fixture) engine calls a model only for tasks with recorded live evidence. The
+evidence is `evals/promotion/live-report.json`, a live eval report embedded in the engine at
+build time (`engine_core::promotion`). No environment variable can enable a feature. Each
+model-backed RPC needs its task to pass in that report:
+
+| RPC | Task | | RPC | Task |
+|---|---|---|---|---|
+| PreviewCourse | `course_preview` | | OutlineChatChange | `outline_chat_change` |
+| GenerateCourseOutline | `course_outline` | | ReplanOutline | `outline_replan` |
+| GenerateLesson | `lesson_slides` | | ScreenInstruction | `steer_screen` |
+| GenerateRetryVariants | `lesson_test` | | ScreenCharacter | `character_screen` |
+| Chat | `tutor_chat` | | ScreenCourse | `course_screen` |
+| EnrichNote | `note_enrich` | | ScreenReview | `screen_review` |
+| SetupChat | `setup_chat` | | MapCharacter | `character_create` |
+| CourseBriefChat | `course_brief_chat` | | SynthesizeNarration (live voice) | `lesson_narration` |
+
+The report is accepted only when it is a live run (`provider = live`, `status = passed`, no
+critical failure, inside budget) on a 40-character revision whose bytes match the pin in
+`pinned-datasets.toml` (`dataset_sha256`), every canonical task passes, and its `fingerprint`
+equals the running build's: a SHA-256 over `engine/config/models.toml`, `evals/thresholds.toml`
+and every engine-core and engine-providers source that shapes a model call (listed in
+`promotion::SOURCES`; a test keeps the list complete). Changing a route, a threshold, a prompt,
+a validator or the provider client therefore makes the evidence stale. A refused call returns
+gRPC `UNAVAILABLE` with message and `google.rpc.ErrorInfo` reason `promotion_evidence_missing`,
+`promotion_evidence_rejected`, `promotion_evidence_stale` or `promotion_task_not_passed`
+(domain `engine.duolify`, metadata `rpc` and `task`). The engine logs
+`live_feature_not_promoted` at startup and per call; the API logs the same event and keeps its
+fail-closed, retryable "unavailable" response. Mock mode (fixture router) is unchanged.
+
+Refresh the evidence on the commit to deploy:
+
+```bash
+OPENROUTER_API_KEY=... mise run engine:eval-golden        # all 20 cases, about $0.002
+mise run engine:promote ../evals/reports/latest.json      # refuses any non-promotable or foreign-build report
+mise run engine:evidence                                  # what this build promotes
+```
+
+Commit `evals/promotion/live-report.json` with the change. `engine:eval-golden` verifies the
+local bytes in `datasets/duolify-golden/golden.jsonl` against the pin (`dataset_source = repo`),
+so it needs no `HF_TOKEN`. Tasks without live golden cases (`outline_chat_change`,
+`outline_replan`, `character_create`, `lesson_narration`) stay closed on a live engine until
+cases are published in a new pinned revision.
+
 ## Promotion gate
 
 Feature activation consumes the evaluation report via the promotion gate command:
@@ -52,7 +97,7 @@ duolify-eval gate <report.json>
 The promotion gate exits 0 only if:
 1. Report status is `passed` (not `missing_secrets`, `missing_config`, `budget_exceeded`, or `critical_failure`).
 2. Overall eval `passed = true` with no critical failures.
-3. Provider was `live` and dataset source was live (`hf`, `mirror`, or `cache`), never mock fixtures.
+3. Provider was `live` and dataset source was a pinned dataset (`hf`, `mirror`, `cache`, or `repo` for a local copy verified against the pin), never mock fixtures or custom files.
 4. Dataset revision is an immutable 40-character hex commit hash.
 5. Every required canonical task (`course_preview`, `course_outline`, `lesson_slides`, `lesson_test`, `tutor_chat`, `note_enrich`) is present with minimum per-task coverage (`total_cases >= 1`) and passing score above threshold.
 6. `dataset_verified = true`: dataset bytes were verified against the repository digest pin. Missing verification in older reports fails closed.
@@ -142,9 +187,9 @@ The private dataset `datamonsterr/duolify-golden` holds the 20-case live set (`e
 
 In live mode the four screen tasks run the production `screen` functions against the live router (same prompt, schema validation, fail-closed rule and fallback). Their output has `blocked_as_expected` and `unavailable`; a must-block case that is allowed is a critical failure. The other live tasks run the production prompt builders, validators and bounded runner (`engine-eval/src/live.rs`): their `input` is the request data the API sends (brief and profile for preview; the confirmed outline for outline; outline, lesson and learner for lessons; a source question for lesson-test retry variants; a tutor `context`; a note; a setup or brief turn), never a prompt. Most score `delivered` (the production validator accepted the answer) plus task checks. Every JSON task requests structured output (`response_format`, ADR 0018), the answer passes the shared extraction rule (one surrounding code fence) and the second attempt is a corrective repair quoting the validation error. Reports list the served model, fallback flag and latency per case, and failing live cases keep an excerpt of the scored output and the rejection reasons.
 
-`mise run engine:eval-golden` runs the reviewed bytes in `evals/datasets/duolify-golden/golden.jsonl` live with no judge (needs only `OPENROUTER_API_KEY`; set `EVAL_BUDGET_USD` and `EVAL_SAMPLE_LIMIT=20`).
+`mise run engine:eval-golden` runs every case of the reviewed bytes in `evals/datasets/duolify-golden/golden.jsonl` live with no judge, after verifying them against the pinned revision (needs only `OPENROUTER_API_KEY`; set `EVAL_BUDGET_USD`).
 
-Run a small, budgeted sample (no `HF_TOKEN` secret is set on GitHub, so ready PRs skip live evals):
+Run a small, budgeted sample (no `HF_TOKEN` secret is set on GitHub, so ready PRs record an explicit `missing_secrets` report and keep live promotion disabled):
 
 ```bash
 HF_GOLDEN_DATASET=datamonsterr/duolify-golden HF_GOLDEN_REVISION=b7979d57f81401aaabb21aba2cb82c64cddafd96 \

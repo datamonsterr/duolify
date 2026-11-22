@@ -28,6 +28,16 @@ dir = "engine"
 run = "cargo fmt --all"
 
 ["engine:eval-golden"]
-description = "Live eval of the reviewed golden bytes (evals/datasets/duolify-golden) on the production route, no judge; needs OPENROUTER_API_KEY"
+description = "Live eval of the pinned golden revision (local bytes verified against evals/pinned-datasets.toml) on the production route, all cases, no judge; needs OPENROUTER_API_KEY"
 dir = "engine"
-run = "cargo run -p engine-eval --bin duolify-eval -- --provider live --data ../evals/datasets/duolify-golden/golden.jsonl"
+run = "cargo run -p engine-eval --bin duolify-eval -- --provider live --data ../evals/datasets/duolify-golden/golden.jsonl --dataset datamonsterr/duolify-golden --revision b7979d57f81401aaabb21aba2cb82c64cddafd96 --limit 0"
+
+["engine:promote"]
+description = "Record a passing live eval report of this build as the promotion evidence a deployed engine embeds (evals/promotion/live-report.json)"
+dir = "engine"
+run = "cargo run -p engine-eval --bin duolify-eval -- promote"
+
+["engine:evidence"]
+description = "Print whether the embedded promotion evidence enables live AI features for this build"
+dir = "engine"
+run = "cargo run -p engine-eval --bin duolify-eval -- evidence"

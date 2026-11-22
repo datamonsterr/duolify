@@ -597,12 +597,15 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
-  # Live eval needs provider and dataset secrets; without them it skips with a notice.
+  # E10-06 ready gate: a pinned, task-stratified, budget-bounded live sample when OPENROUTER_API_KEY
+  # and HF_TOKEN exist. Without them the eval CLI records an explicit missing_secrets report (90-day
+  # artifact) and exits 0, so ci-ok stays green and no live pass is fabricated. Cost: about $0.002
+  # per full 20-case run on tencent/hy4-flash; EVAL_BUDGET_USD halts the run at $0.50.
   engine-eval-live:
     needs: changes
     if: inputs.tier == 'full' && needs.changes.outputs.engine == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
         with:
@@ -610,38 +613,42 @@ jobs:
       - uses: ./.github/actions/setup-tools
       - name: mise run ci:require-secrets
         id: credentials
-        run: mise run ci:require-secrets -- 'live eval'
+        run: mise run ci:require-secrets -- 'live eval (status missing_secrets, live promotion disabled)'
         env:
           REQUIRED_SECRETS: OPENROUTER_API_KEY HF_TOKEN
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      - if: steps.credentials.outputs.enabled == 'true'
-        uses: ./.github/actions/setup-engine
+      - uses: ./.github/actions/setup-engine
         with:
           cache-key: build
+      - name: mise run engine:evidence
+        run: mise run engine:evidence
       - name: mise run engine:eval-live
-        if: steps.credentials.outputs.enabled == 'true'
         run: mise run engine:eval-live
         timeout-minutes: 15
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_GOLDEN_DATASET: ${{ vars.HF_GOLDEN_DATASET || 'datamonsterr/duolify-golden' }}
-          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION }}
-          EVAL_SAMPLE_LIMIT: '10'
-          EVAL_BUDGET_USD: '5.00'
+          # Pinned revision (evals/pinned-datasets.toml); a repo variable may pin a newer reviewed one.
+          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || 'b7979d57f81401aaabb21aba2cb82c64cddafd96' }}
+          # 20 = every case of the pinned revision; a smaller sample cannot cover all 12 tasks.
+          EVAL_SAMPLE_LIMIT: ${{ vars.EVAL_SAMPLE_LIMIT || '20' }}
+          EVAL_BUDGET_USD: ${{ vars.EVAL_BUDGET_USD || '0.50' }}
       - name: mise run engine:gate
-        if: always() && steps.credentials.outputs.enabled == 'true'
+        if: always()
         run: mise run engine:gate evals/reports/latest.json
+      - name: mise run engine:promote
+        # A passing live run of this commit yields candidate evidence; committing it is a reviewed change.
+        if: success() && steps.credentials.outputs.enabled == 'true'
+        run: mise run engine:promote ../evals/reports/latest.json ../evals/reports/promotion-candidate.json
       - uses: actions/upload-artifact@v7
-        if: always() && steps.credentials.outputs.enabled == 'true'
+        if: always()
         with:
           name: eval-live-reports
           path: evals/reports
           retention-days: 90
-          if-no-files-found: ignore
+          if-no-files-found: warn
       - name: Summary
         if: always()
         env:

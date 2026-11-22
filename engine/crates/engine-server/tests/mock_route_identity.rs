@@ -13,6 +13,7 @@ fn service(router: ProviderRouter) -> Service {
     Service {
         router: Arc::new(router),
         speech: Arc::new(engine_core::narration::MockSpeechProvider),
+        promotion: Default::default(),
     }
 }
 
@@ -63,8 +64,10 @@ async fn mock_mode_accepts_the_live_route_quote() {
 
 #[tokio::test]
 async fn unknown_model_is_refused_in_mock_and_live_mode() {
-    for router in [engine_providers::router("mock").unwrap(), live()] {
-        let err = service(router)
+    let mut live = service(live());
+    live.promotion = Arc::new(engine_core::promotion::Gate::for_tasks(&["course_preview"]));
+    for svc in [service(engine_providers::router("mock").unwrap()), live] {
+        let err = svc
             .preview_course(preview("unknown/model"))
             .await
             .unwrap_err();

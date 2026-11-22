@@ -467,6 +467,12 @@ E14-03 adds synchronized narration clocking, offline audio preloading, and playe
 - **Authoritative Assets & Backup**: No new Postgres tables or database columns are introduced. Authoritative audio and alignment objects remain in versioned object storage (`lessons/narration/v1/...`) linked via `slide_narrations` and `narration_assets` with existing 14-day general database dump rotation and 30-day retention cascades.
 - **Analytics Telemetry**: Adds `narration_muted` (`muted` boolean), `narration_speed_changed` (`speed` numeric), and `captions_toggled` (`captions` boolean) to the client catalogue and API allowlist. Events carry standard UUID and context properties (`lesson_id`, `slide_id`), exclude all transcript text and slide explanations, and respect telemetry opt-out.
 
+E10-06 live promotion: `evals/promotion/live-report.json` is the committed live eval report a
+deployed engine embeds at build time as promotion evidence. It is Git-backed (history is the
+backup), holds only synthetic golden-set case ids, scores, served models, cost and short output
+excerpts of retried cases, and never learner data or credentials. No database table or object
+is added.
+
 E10-02: Score each AI task with critical checks. Versioned golden-set revisions
 are maintained on Hugging Face (or Git-pinned in `evals/fixtures/golden.sample.jsonl`
 for offline runs). Evaluation reports (JSON and Markdown) are written to

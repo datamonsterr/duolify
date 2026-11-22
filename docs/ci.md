@@ -118,12 +118,22 @@ E2E_STACK_CODE_COMMAND='<prints codes for $1>' mise run client:e2e-stack` (no lo
 | `RAILWAY_TOKEN` | Repository secret for full-tier plans; dev environment secret for deploys. Scope to development. |
 | `ANTHROPIC_API_KEY` | Unused by the engine since ADR 0015. |
 | `OPENROUTER_API_KEY` | Live sample eval primary provider (ADR 0015). |
-| `HF_TOKEN` | Live golden-set access. |
+| `HF_TOKEN` | Live golden-set access (read on `datamonsterr/duolify-golden`). Not set: ready PRs record `missing_secrets`. |
 | `POSTHOG_API_KEY` | Optional dev deployment analytics; no analytics key is passed to PR tests. |
 
 Missing secrets never fail CI. `mise run ci:require-secrets` (REQUIRED_SECRETS
 lists the names) writes `enabled=false`, a `::notice::` and a job-summary line, and
-the steps that need the secret are skipped: live eval (all three eval secrets),
+the steps that need the secret are skipped. The live eval job (`engine-eval-live`, full tier,
+engine changes) is the exception: it always runs `mise run engine:eval-live`, which without
+`OPENROUTER_API_KEY` and `HF_TOKEN` writes an explicit `missing_secrets` report (uploaded as the
+90-day `eval-live-reports` artifact), prints a notice and exits 0, so `ci-ok` stays green and no
+live pass is fabricated. With both secrets it runs every case of the pinned revision
+(`EVAL_SAMPLE_LIMIT=20`, `EVAL_BUDGET_USD=0.50`, about $0.002 per run), gates the report and
+uploads `promotion-candidate.json` when it passes. Optional repository variables override
+`HF_GOLDEN_REVISION`, `HF_GOLDEN_DATASET`, `EVAL_SAMPLE_LIMIT` and `EVAL_BUDGET_USD`. The job
+also prints `mise run engine:evidence`: whether a deployed engine built from the commit has
+valid promotion evidence (see `evals/README.md`, "Live promotion in a deployed engine").
+Other skipped steps:
 Railway plan, `deploy-dev` (`RAILWAY_TOKEN`) and the scheduled restore drill (the
 `BACKUP_*` owner credentials). Offline mock evals still run. GHCR uses the built-in
 `GITHUB_TOKEN`, with `packages: write` granted only to the main-only publish job.

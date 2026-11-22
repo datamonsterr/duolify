@@ -28,6 +28,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry cargo chef cook --releas
 COPY engine/ .
 # engine-core include_str!s the character schema owned by services/api.
 COPY services/api/internal/characters/schema/v1.json services/api/internal/characters/schema/original.fixture.json /app/services/api/internal/characters/schema/
+# engine-core include_str!s the E10-06 promotion evidence and the files its fingerprint covers.
+COPY evals/promotion/live-report.json /app/evals/promotion/
+COPY evals/pinned-datasets.toml evals/thresholds.toml /app/evals/
 RUN --mount=type=cache,target=/usr/local/cargo/registry cargo build --release --locked -p engine-server --bin duolify-engine
 FROM gcr.io/distroless/cc-debian13:nonroot
 COPY --from=probe /grpc_health_probe /grpc_health_probe

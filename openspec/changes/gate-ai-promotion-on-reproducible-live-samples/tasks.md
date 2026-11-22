@@ -31,3 +31,13 @@
 - [x] 4.8 Require explicit `HF_GOLDEN_REVISION` in `.env.example` and CI (no `main` fallback; missing reports missing-config status).
 - [x] 4.9 `stream_bounded` honors cost and deadline and falls back on first-token timeout; error on `--mode draft` with `--provider live`.
 - [x] 4.10 Analytics `eval_run_completed` includes provider, status, and budget with structural privacy guards.
+
+## 5. Live promotion in a deployed engine (E10-06 follow-up)
+- [x] 5.1 Map every AI task and engine-server RPC to its live-router behaviour (before: four screens and character mapping refused unconditionally; every other RPC called the live model with no evidence check; live narration enabled by `NARRATION_LIVE_ENABLED` alone).
+- [x] 5.2 Embed the committed live report (`evals/promotion/live-report.json`) as promotion evidence; accept it only when it passes the promotion gate, its dataset bytes match the repository pin, and its fingerprint matches the build (`engine_core::promotion`).
+- [x] 5.3 Gate every model-backed RPC and live narration on its task's live pass; refuse with UNAVAILABLE and a typed `google.rpc.ErrorInfo` reason, logged as `live_feature_not_promoted` (engine startup, per call, API interceptor).
+- [x] 5.4 `duolify-eval promote` and `evidence` subcommands; `--data --dataset --revision` verifies a local copy of a pinned revision (`dataset_source = repo`); reports record `dataset_sha256` and `fingerprint`.
+- [x] 5.5 Ready CI always produces a report (live, or explicit `missing_secrets`), samples all 20 pinned cases within a $0.50 budget, and uploads candidate evidence on a pass.
+- [x] 5.6 Tests: engine-server `live_promotion_gate`, engine-eval `live_promotion_evidence_e2e`, engine-core `promotion::tests`, API `internal/engine` promotion tests.
+- [x] 5.7 Record a passing live run of the merged build as evidence (`mise run engine:eval-golden`, then `mise run engine:promote`).
+
