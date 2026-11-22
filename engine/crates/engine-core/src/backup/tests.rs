@@ -56,10 +56,17 @@ fn engine_startup_config_validates_environments_and_enforces_release_gates() {
         listen_addr: "[::]:50051".to_string(),
         provider_mode: "live".to_string(),
         public_domain: None,
-        anthropic_api_key: Some("sk-ant-test-key-12345".to_string()),
-        openrouter_api_key: None,
+        anthropic_api_key: None,
+        openrouter_api_key: Some("sk-or-test-key-12345".to_string()),
     };
     assert!(prod_config.validate().is_ok());
+    // An Anthropic key alone is not enough: the engine only calls OpenRouter.
+    let anthropic_only = EngineStartupConfig {
+        anthropic_api_key: Some("sk-ant-test-key-12345".to_string()),
+        openrouter_api_key: None,
+        ..prod_config.clone()
+    };
+    assert!(anthropic_only.validate().is_err());
 
     // 4. Staging refuses to start if exposed publicly via domain
     let staging_exposed = EngineStartupConfig {
@@ -104,7 +111,7 @@ fn engine_startup_config_validates_environments_and_enforces_release_gates() {
     };
     match prod_missing_keys.validate() {
         Err(EngineConfigError::MissingDependency(msg)) => {
-            assert!(msg.contains("ANTHROPIC_API_KEY") || msg.contains("OPENROUTER_API_KEY"));
+            assert!(msg.contains("OPENROUTER_API_KEY"));
         }
         other => panic!("expected MissingDependency error, got {:?}", other),
     }

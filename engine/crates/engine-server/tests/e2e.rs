@@ -106,9 +106,9 @@ async fn all_rpcs() {
                 cache_write_nanos: 125,
                 cache_read_nanos: 10,
                 provider: "mock".into(),
-                model: "claude-haiku-5-5".into(),
+                model: "tencent/hy4-flash".into(),
                 fallback_provider: "mock".into(),
-                fallback_model: "anthropic/claude-haiku-5.5".into(),
+                fallback_model: "z-ai/glm-5.3-flash".into(),
                 ..Default::default()
             }),
         })
@@ -149,9 +149,9 @@ async fn all_rpcs() {
                 cache_write_nanos: 2500,
                 cache_read_nanos: 100,
                 provider: "mock".into(),
-                model: "claude-sonnet-5-5".into(),
+                model: "tencent/hy4-flash".into(),
                 fallback_provider: "mock".into(),
-                fallback_model: "anthropic/claude-sonnet-5.5".into(),
+                fallback_model: "z-ai/glm-5.3-flash".into(),
                 deadline_unix_ms: 0,
                 ..Default::default()
             }),
@@ -192,9 +192,9 @@ async fn all_rpcs() {
                 cache_write_nanos: 200,
                 cache_read_nanos: 50,
                 provider: "mock".into(),
-                model: "claude-sonnet-5-5".into(),
+                model: "tencent/hy4-flash".into(),
                 fallback_provider: "mock".into(),
-                fallback_model: "anthropic/claude-sonnet-5.5".into(),
+                fallback_model: "z-ai/glm-5.3-flash".into(),
                 deadline_unix_ms: 0,
                 ..Default::default()
             }),
@@ -220,8 +220,8 @@ async fn all_rpcs() {
                 cache_read_nanos: 100,
                 provider: "mock".into(),
                 fallback_provider: "mock".into(),
-                model: "claude-sonnet-5-5".into(),
-                fallback_model: "anthropic/claude-sonnet-5.5".into(),
+                model: "tencent/hy4-flash".into(),
+                fallback_model: "z-ai/glm-5.3-flash".into(),
                 ..Default::default()
             }),
             ..Default::default()
@@ -323,9 +323,9 @@ async fn all_rpcs() {
                 cache_write_nanos: 125,
                 cache_read_nanos: 10,
                 provider: "mock".into(),
-                model: "claude-haiku-5-5".into(),
+                model: "tencent/hy4-flash".into(),
                 fallback_provider: "mock".into(),
-                fallback_model: "anthropic/claude-haiku-5.5".into(),
+                fallback_model: "z-ai/glm-5.3-flash".into(),
                 deadline_unix_ms: 0,
                 ..Default::default()
             }),

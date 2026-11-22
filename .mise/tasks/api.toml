@@ -66,6 +66,16 @@ go run ./cmd/api admin pricing submit --version usd-interim-design-chat --actor 
 go run ./cmd/api admin pricing approve --version usd-interim-design-chat --actor "${PRICING_APPROVER_ID:-00000000-0000-4000-8000-000000000002}" --reason "approve interim design chat pricing under ADR 0012"
 """
 
+["api:posthog-verify"]
+description = "Send labelled test events through the API PostHog wrapper (event plus one $ai_generation), then confirm ingestion (needs POSTHOG_* env)"
+dir = "{{config_root}}/services/api"
+run = "go run ./cmd/posthog-setup verify --ai"
+
+["api:posthog-setup"]
+description = "Create or update the PostHog AI reliability and cost dashboard (idempotent; needs POSTHOG_* env)"
+dir = "{{config_root}}/services/api"
+run = "go run ./cmd/posthog-setup apply"
+
 ["api:format"]
 description = "Format Go source"
 dir = "{{config_root}}/services/api"

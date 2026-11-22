@@ -78,25 +78,32 @@ impl LlmProvider for PartialStreamProvider {
 }
 
 #[test]
-fn decimal_openrouter_aliases_in_models_config() {
+fn models_config_uses_only_the_two_allowlisted_openrouter_ids() {
+    const ALLOWED: [&str; 2] = ["tencent/hy4-flash", "z-ai/glm-5.3-flash"];
     let models: crate::Models =
         toml::from_str(include_str!("../../../../config/models.toml")).unwrap();
     for (task, model) in &models.tasks {
         assert!(
-            model.fallback_model.starts_with("anthropic/"),
-            "task {task} fallback_model {} must start with anthropic/",
-            model.fallback_model
+            !model.fallback_models.is_empty(),
+            "task {task} needs a fallback"
         );
-        assert!(
-            model.fallback_model.ends_with("-5.5"),
-            "task {task} fallback_model {} must end with decimal -5.5",
-            model.fallback_model
-        );
-        assert!(
-            !model.fallback_model.ends_with("-5-5"),
-            "task {task} fallback_model {} must not end with hyphenated -5-5",
-            model.fallback_model
-        );
+        assert_eq!(model.fallback_model, model.fallback_models[0]);
+        let mut chain = vec![&model.model];
+        chain.extend(&model.fallback_models);
+        for id in &chain {
+            assert!(
+                ALLOWED.contains(&id.as_str()),
+                "task {task}: {id} not allowlisted"
+            );
+        }
+        let unique: std::collections::BTreeSet<_> = chain.iter().collect();
+        assert_eq!(unique.len(), chain.len(), "task {task} repeats a model");
+        for id in &chain {
+            assert!(
+                model.reasoning.contains_key(id.as_str()),
+                "{task}: no effort for {id}"
+            );
+        }
     }
 }
 
