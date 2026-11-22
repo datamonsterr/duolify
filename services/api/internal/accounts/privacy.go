@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -279,6 +280,12 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	// Serialize identity binding with the erasure snapshot; the subject lock below
+	// additionally coordinates the outbox with the external deletion worker.
+	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended('clerk-link-erasure',0))"); err != nil {
+		failure(w, err)
+		return
+	}
 	if _, err = tx.Exec(ctx, "SELECT release_deleted_credit_jobs($1)", ref); err == nil {
 		_, err = tx.Exec(ctx, "UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE learner_id=$1", id)
 	}
@@ -307,7 +314,7 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil {
 		// The Clerk user id cascades away with the learner row: queue its deletion first.
-		clerkQueued, err = queueClerkUserDeletion(ctx, tx, learner)
+		clerkQueued, err = queueClerkUserDeletion(ctx, tx, learner, s.deletionLedger)
 	}
 	if err == nil {
 		// The cascade below removes the rows naming the learner's private objects: ledger them first.
@@ -326,6 +333,7 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		respond(w, 503, map[string]string{"error": "Could not request account removal. Retry."})
 		return
 	}
+	slog.InfoContext(ctx, "posthog person deletion queued; worker credentials required", "count", 1)
 	posthogAccepted := false
 	if s.personDeleter != nil {
 		requestCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
@@ -370,6 +378,10 @@ func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended('clerk-link-erasure',0))"); err != nil {
+		return err
+	}
+
 	for _, id := range ids {
 		ref := LearnerReference(id)
 		var exists bool

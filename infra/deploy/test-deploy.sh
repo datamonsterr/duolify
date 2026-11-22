@@ -107,4 +107,116 @@ out=$(API_IMAGE=ghcr.io/o/r/api@sha256:$d1 WORKER_IMAGE=ghcr.io/o/r/worker@sha25
 if [[ $(tr ' ' '\n' <<<"$out" | grep -c "@sha256:$d1\$") == 6 ]]; then printf 'ok   compose uses the pinned references\n'
 else printf 'FAIL compose did not use the pinned references: %s\n' "$out"; failures=$((failures + 1)); fi
 
+# Convergence (a failed deploy must not poison the next one). A stateful fake `docker` keeps one file per
+# container (service, state, exit code, health, generation) and models what Compose does: `up --wait`
+# fails while ANY container of the service is unhealthy or restarting (the staging failure "container
+# duolify-selfhost-api-3 is unhealthy"), and a bad new image produces a restarting container.
+fake=$tmp/fake
+mkdir -p "$fake/bin" "$fake/deploy"
+cp "$here/deploy.sh" "$fake/deploy/"
+# shellcheck disable=SC2016 # the stub's own $1 must stay literal
+printf '#!/usr/bin/env bash\n[[ $1 == compose ]] && { shift; exec docker compose "$@"; }\n[[ $1 == smoke ]] && exit 0\nexit 1\n' >"$fake/deploy/selfhost.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$fake/plan-ok.sh"
+cat >"$fake/lib.sh" <<'LIB'
+f() { sed -n "s/^$2=//p" "$st/c/$1"; }
+mk() { # service state exit health gen -> container name <service>-<n>
+  local n; n=$(($(cat "$st/seq-$1" 2>/dev/null || echo 0) + 1)); echo "$n" >"$st/seq-$1"
+  printf 'service=%s\nstate=%s\nexit=%s\nhealth=%s\ngen=%s\n' "$1" "$2" "$3" "$4" "$5" >"$st/c/$1-$n"
+}
+list() { ls "$st/c" | sort -t- -k1,1 -k2,2n; }
+LIB
+cat >"$fake/bin/docker" <<'STUB'
+#!/usr/bin/env bash
+st=$FAKE_STATE
+echo "$*" >>"$st/calls"
+. "$(dirname "$0")/../lib.sh"
+case $1 in
+  stop) echo "stop $2" >>"$st/events" ;;
+  rm) for a in "${@:2}"; do [[ $a == -* ]] || { echo "rm $a" >>"$st/events"; rm -f "$st/c/$a"; }; done ;;
+  compose)
+    shift; sub=$1; shift
+    case $sub in
+      pull | build | run) ;;
+      ps)
+        all=0 quiet=0 fmt='' svc=''
+        while (($#)); do case $1 in -a | --all) all=1 ;; -q | --quiet) quiet=1 ;; --format) fmt=$2; shift ;; *) svc=$1 ;; esac; shift; done
+        for n in $(list); do
+          [[ -z $svc || $(f "$n" service) == "$svc" ]] || continue
+          state=$(f "$n" state)
+          ((all)) || [[ $state == running || $state == restarting ]] || continue
+          if ((quiet)); then echo "$n"; else echo "$n|$(f "$n" service)|$state|$(f "$n" exit)|$(f "$n" health)"; fi
+        done ;;
+      up)
+        scale='' svcs=()
+        while (($#)); do case $1 in --scale) scale=${2#*=}; shift ;; -*) ;; *) svcs+=("$1") ;; esac; shift; done
+        for s in "${svcs[@]}"; do
+          echo "up $s" >>"$st/events"
+          for n in $(list); do
+            [[ $(f "$n" service) == "$s" ]] || continue
+            if [[ $(f "$n" state) == restarting || $(f "$n" health) == unhealthy ]]; then echo "container $n is unhealthy" >&2; exit 1; fi
+          done
+          if [[ $s == api ]]; then
+            have=$(ls "$st/c" | grep -c '^api-' || true)
+            for ((i = have; i < ${scale:-2}; i++)); do
+              if [[ -n ${NEW_API_BAD:-} ]]; then mk api restarting 1 '' new; echo "container api is unhealthy" >&2; exit 1; fi
+              mk api running 0 healthy new
+            done
+          elif [[ $s == "${FAIL_SERVICE:-}" ]]; then mk "$s" restarting 1 '' new; echo "container $s is unhealthy" >&2; exit 1
+          elif ! ls "$st/c" | grep -q "^$s-"; then mk "$s" running 0 healthy new
+          fi
+        done ;;
+    esac ;;
+esac
+STUB
+chmod +x "$fake/bin/docker"
+fake_deploy() { # populates the stack from "service:state:exit:health ..." and runs deploy.sh; sets rc, out
+  rm -rf "$fake/state"; mkdir -p "$fake/state/c"
+  local spec
+  # shellcheck disable=SC2034 # lib.sh reads $st
+  local st=$fake/state sv state x h
+  # shellcheck disable=SC1091
+  . "$fake/lib.sh"
+  for spec in $1; do IFS=: read -r sv state x h <<<"$spec"; mk "$sv" "$state" "$x" "$h" old; done
+  printf 'API_IMAGE=old-api\nIMAGE_TAG=old\n' >"$fake/env"
+  rc=0
+  out=$(FAKE_STATE=$fake/state PATH="$fake/bin:$PATH" DEPLOY_PLAN="$fake/plan-ok.sh" SELFHOST_ENV_FILE="$fake/env" \
+    bash "$fake/deploy/deploy.sh" sha-abcdef1 "${good[@]}" 2>&1 </dev/null) || rc=$?
+}
+events() { cat "$fake/state/events" 2>/dev/null || true; }
+healthy_api() { grep -l '^health=healthy' "$fake"/state/c/api-* 2>/dev/null | wc -l; }
+check() { # NAME condition-result
+  if [[ $2 == 1 ]]; then printf 'ok   %s\n' "$1"; else printf 'FAIL %s (rc=%s)\n%s\n--- events\n%s\n' "$1" "$rc" "$out" "$(events)"; failures=$((failures + 1)); fi
+}
+
+# Leftover crash loops from earlier failed deploys: api-1..3 restart forever, api-4/5 are healthy, and the
+# data services (one of them in an error state) must never be touched.
+fake_deploy "api:restarting:1: api:restarting:1: api:restarting:1: api:running:0:healthy api:running:0:healthy postgres:running:0:healthy redis:running:0:healthy walship:exited:1: prometheus:running:0:healthy"
+ev=$(events)
+check "leftover crash-looping api containers do not fail the next deploy" "$((rc == 0))"
+check "leftover crash-looping api containers are removed before health is judged" "$([[ -f $fake/state/c/api-1 || -f $fake/state/c/api-2 || -f $fake/state/c/api-3 ]] && echo 0 || echo 1)"
+check "after the deploy two healthy api containers serve" "$(($(healthy_api) == 2))"
+check "worker and proxy are started after the api converged" "$(grep -q '^up worker$' <<<"$ev" && grep -q '^up proxy$' <<<"$ev" && echo 1 || echo 0)"
+check "data services are never removed or stopped" "$(grep -E '^(rm|stop) (postgres|redis|walship|prometheus|node-exporter)' <<<"$ev" | grep -q . && echo 0 || echo 1)"
+check "no volume is removed (docker rm never gets -v/--volumes)" "$(grep -E '^(rm|stop)' "$fake/state/calls" >/dev/null; grep -E '^rm .*(-v|--volumes)' "$fake/state/calls" | grep -q . && echo 0 || echo 1)"
+
+# A rollout whose new container never becomes healthy: roll back by removing the new container; the old
+# generation keeps serving (never stopped), the script fails, and .env points at the old images again.
+NEW_API_BAD=1 fake_deploy "api:running:0:healthy api:running:0:healthy postgres:running:0:healthy"
+ev=$(events)
+check "a failed rollout fails the deploy" "$((rc != 0))"
+check "a failed rollout removes the new unhealthy container" "$([[ -f $fake/state/c/api-3 ]] && echo 0 || echo 1)"
+check "a failed rollout leaves the previous healthy generation serving" "$(($(healthy_api) == 2))"
+check "a failed rollout never stops an old container" "$(grep -q '^stop ' <<<"$ev" && echo 0 || echo 1)"
+check "a failed rollout does not start worker or proxy" "$(grep -qE '^up (worker|proxy)$' <<<"$ev" && echo 0 || echo 1)"
+check "a failed rollout restores the previous image references in .env" "$(grep -q '^API_IMAGE=old-api$' "$fake/env" && echo 1 || echo 0)"
+# The next deploy (healthy this time) starts from that state and converges.
+rc=0
+out=$(FAKE_STATE=$fake/state PATH="$fake/bin:$PATH" DEPLOY_PLAN="$fake/plan-ok.sh" SELFHOST_ENV_FILE="$fake/env" bash "$fake/deploy/deploy.sh" sha-abcdef1 "${good[@]}" 2>&1 </dev/null) || rc=$?
+check "the deploy after a failed rollout converges" "$((rc == 0 && $(healthy_api) == 2))"
+
+# The worker crash-looping (the staging TLS failure) fails the deploy but leaves no crash loop behind.
+FAIL_SERVICE=worker fake_deploy "api:running:0:healthy api:running:0:healthy postgres:running:0:healthy"
+check "a crash-looping worker fails the deploy" "$((rc != 0))"
+check "a crash-looping worker is removed, not left restarting" "$(compgen -G "$fake/state/c/worker-*" >/dev/null && echo 0 || echo 1)"
+
 ((failures == 0)) || { printf '%s failure(s)\n' "$failures" >&2; exit 1; }

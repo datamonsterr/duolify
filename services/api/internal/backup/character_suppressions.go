@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,12 +31,12 @@ func ReplayCharacterSuppressions(ctx context.Context, pool *pgxpool.Pool, store 
 	}
 	objects, err := store.List(ctx, characterSuppressionPrefix)
 	if err != nil {
-		return errLedger
+		return fmt.Errorf("%w: %w", errLedger, err)
 	}
 	for _, object := range objects {
 		raw, e := store.GetCurrent(ctx, object.Key)
 		if e != nil {
-			return errLedger
+			return fmt.Errorf("%w: %w", errLedger, e)
 		}
 		var rec struct {
 			ID     string `json:"snapshot_id"`

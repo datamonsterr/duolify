@@ -277,7 +277,12 @@ func (s *Service) QuoteCreate(ctx context.Context, owner string, in CreateReques
 	response, screenErr := s.screener.ScreenCharacter(screenCtx, &pb.ScreenCharacterRequest{RawPrompt: in.Prompt, Limits: creationScreenLimits(envelope, envelope.Bounds["max_cost_nanos"])})
 	cancel()
 	if reason = s.recordScreen(ctx, owner, id, response, screenErr, envelope); reason != "" {
-		return s.failCreate(ctx, owner, id, "rejected", reason, nil)
+		// An outage is not a verdict: it fails closed as retryable, never as rejected.
+		state = "rejected"
+		if reason == "screening_unavailable" {
+			state = "failed"
+		}
+		return s.failCreate(ctx, owner, id, state, reason, nil)
 	}
 	quotes := pricing.NewQuotes(s.pool)
 	var q pricing.Quote
@@ -676,7 +681,9 @@ func (s *Service) recordScreen(ctx context.Context, owner, id string, r *pb.Scre
 		return "screening_unavailable"
 	}
 	verdict := "approved"
-	if reason != "" {
+	if reason == "screening_unavailable" {
+		verdict = "pending"
+	} else if reason != "" {
 		verdict = "rejected"
 	}
 	_, e := s.pool.Exec(ctx, `INSERT INTO character_screenings(learner_id,verdict,reason_code,policy_version,operation_id) VALUES($1,$2,$3,'character-v1',$4)`, owner, verdict, reason, id)
