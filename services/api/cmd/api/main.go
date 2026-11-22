@@ -250,7 +250,8 @@ func run(ctx context.Context, args []string) (result error) {
 				_ = narrationQueue.Stop(stopCtx)
 			}()
 		}
-		return worker.RunWithAlerts(ctx, db.Pool, logger, creditService, eval.NewService(db.Pool, catalogue, monitor, events), service)
+		courseService := courses.New(courses.Options{Pool: db.Pool})
+		return worker.RunWithAlerts(ctx, db.Pool, logger, workerServices{creditService, courseService}, eval.NewService(db.Pool, catalogue, monitor, events), service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {
@@ -726,3 +727,22 @@ func friendStreakSettler(svc *social.Service, logger *slog.Logger) func(context.
 		}
 	}
 }
+
+// workerServices lets the worker discover every maintenance capability by interface:
+// credit expiry, financial maintenance and the 30-day course purge.
+type workerServices struct {
+	creditsService
+	courseService
+}
+
+type (
+	creditsService = *credits.Service
+	courseService  = *courses.Service
+)
+
+var (
+	_ worker.Expirer             = workerServices{}
+	_ worker.AnnualIssuer        = workerServices{}
+	_ worker.FinancialMaintainer = workerServices{}
+	_ worker.CoursePurger        = workerServices{}
+)
