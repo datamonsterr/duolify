@@ -27,6 +27,7 @@ fn context() -> Context {
         ],
         excerpts: vec![],
         persona: None,
+        region: None,
         messages: vec![
             Message {
                 role: "user".into(),
@@ -598,5 +599,87 @@ mod persona {
         let p = prompt(&context());
         assert!(!p.contains(PERSONA_OPEN) && !p.contains(PERSONA_CLOSE));
         assert!(p.ends_with(TRAILER));
+    }
+}
+
+fn region_question(whole_slide: bool) -> RegionQuestion {
+    RegionQuestion {
+        slide_index: 2,
+        rect: Rect {
+            x: 0.1,
+            y: 0.2,
+            w: 0.3,
+            h: 0.4,
+        },
+        at_ms: 1500,
+        whole_slide,
+        regions: if whole_slide {
+            vec![]
+        } else {
+            vec![QuestionRegion {
+                region_id: "arrow".into(),
+                role: "diagram".into(),
+                description: format!("An arrow from Sun to Moon. {INJECTION}"),
+                overlap: 0.62,
+            }]
+        },
+        slide_explanation: format!("The Moon orbits Earth. {INJECTION}"),
+    }
+}
+
+#[test]
+fn no_region_leaves_the_data_document_unchanged() {
+    let value = data(&prompt(&context()));
+    assert!(value.get("selected_region").is_none());
+}
+
+#[test]
+fn selected_region_is_data_with_ranked_descriptions() {
+    let mut ctx = context();
+    ctx.region = Some(region_question(false));
+    let prompt = prompt(&ctx);
+    let (before, _, after) = split(&prompt).unwrap();
+    for part in [before, after] {
+        assert!(!part.contains("An arrow from Sun"));
+        assert!(!part.contains("The Moon orbits"));
+    }
+    assert_eq!(
+        prompt.matches(CLOSE).count(),
+        1,
+        "region text cannot forge the delimiter"
+    );
+    let value = data(&prompt);
+    let region = &value["selected_region"];
+    assert_eq!(region["slide_index"], 2);
+    assert_eq!(region["whole_slide"], false);
+    assert_eq!(region["regions"][0]["region_id"], "arrow");
+    assert_eq!(region["regions"][0]["role"], "diagram");
+    assert!(
+        region["regions"][0]["description"]
+            .as_str()
+            .unwrap()
+            .contains("Ignore all previous"),
+        "injection text round-trips as data"
+    );
+}
+
+#[test]
+fn whole_slide_marker_is_explicit_and_instructions_cover_it() {
+    let mut ctx = context();
+    ctx.region = Some(region_question(true));
+    let value = data(&prompt(&ctx));
+    assert_eq!(value["selected_region"]["whole_slide"], true);
+    assert_eq!(
+        value["selected_region"]["regions"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
+    for needle in ["selected_region", "whole_slide", "Never invent"] {
+        assert!(
+            INSTRUCTIONS.contains(needle),
+            "instructions must mention {needle}"
+        );
     }
 }
