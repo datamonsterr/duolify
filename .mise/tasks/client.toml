@@ -44,13 +44,24 @@ if [ -n "$shard" ]; then
     [1-9]/[1-9]) [ "${shard%/*}" -le "${shard#*/}" ] || { echo "E2E_SHARD $shard: index exceeds total" >&2; exit 1; } ;;
     *) echo "E2E_SHARD must look like N/M (e.g. 2/3), got: $shard" >&2; exit 1 ;;
   esac
-  exec pnpm exec playwright test --shard="$shard"
+  pnpm exec playwright test --shard="$shard"
+  # The browser-session suite needs its own same-origin build; run it once, in shard 1.
+  if [ "${shard%/*}" = "1" ]; then exec mise run client:e2e-session; fi
+  exit 0
 fi
 if [ -n "${E2E_SPEC:-}" ]; then
   exec pnpm exec playwright test "$E2E_SPEC"
 fi
-exec pnpm exec playwright test
+pnpm exec playwright test
+exec mise run client:e2e-session
 '''
+
+["client:e2e-session"]
+description = "Browser session persistence e2e: the cookie session survives reload, typed URL and new tab (same-origin build, /v1 proxied)"
+depends = ["client:e2e-setup"]
+dir = "{{config_root}}/apps/client"
+env = { VITE_API_URL = "", VITE_LESSON_TEST_TRACER_ENABLED = "true" }
+run = ["pnpm exec vite build --outDir dist-session --emptyOutDir", "pnpm exec playwright test -c playwright.session.config.ts"]
 
 ["client:tauri-build"]
 description = "Build Tauri debug application"

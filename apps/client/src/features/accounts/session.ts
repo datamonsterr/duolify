@@ -19,6 +19,18 @@ export type Learner = {
   analytics_opt_out: boolean;
 };
 const base = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
+/**
+ * Browser sessions (openspec persist-web-session): the refresh credential lives in an
+ * HttpOnly cookie the server sets and reads; script holds only the in-memory access token.
+ * Cookie mode needs the API on the page's own origin (the deployed layout: Caddy serves
+ * `/` and `/v1`), because credentialed cross-origin CORS is deliberately not enabled. A
+ * cross-origin dev build and the Tauri app keep the body/secure-store flow.
+ */
+export function cookieMode(): boolean {
+  if (isTauri()) return false;
+  return base === "" || base === location.origin;
+}
+export const clientHeader = "X-Duolify-Client";
 export function safeReturnTo(raw: string | null | undefined): string {
   if (!raw || /[\\\s%?#]/.test(raw)) return "/profile";
   return /^(\/|\/profile|\/profile\/setup|\/courses|\/courses\/create|\/credits|\/more|\/friends|\/leagues|\/notes|\/bookmarks|\/settings|\/settings\/sessions|\/streak|\/friends\/invite\/[A-Za-z0-9_-]{43}|\/course\/[a-zA-Z0-9_-]+|\/c\/[A-Za-z0-9_-]{20,64}|\/lesson\/[a-zA-Z0-9_-]+(?:\/test)?)$/.test(
@@ -38,6 +50,7 @@ export async function authRequest<T>(
     method,
     headers: {
       ...requestHeaders,
+      ...(cookieMode() ? { [clientHeader]: "web" } : {}),
       "Content-Type": "application/json",
       ...(access ? { Authorization: `Bearer ${access}` } : {}),
     },
@@ -95,6 +108,7 @@ let revision = 0;
 let generation = 0;
 let loading: Promise<Learner | null> | null = null;
 let refreshing: Promise<Tokens> | null = null;
+let cookieChecked = false;
 let writing: Promise<void> = Promise.resolve();
 const listeners = new Set<() => void>();
 function publish() {
@@ -136,6 +150,34 @@ async function expire(expected: number) {
   // selection. Explicit logout clears it; no text or credentials are retained.
   publish();
 }
+// Cookie mode sends no body: the server reads the cookie and ignores anything else.
+async function refreshRequest(tokens: Tokens | null): Promise<Tokens> {
+  const web = cookieMode();
+  const rotated = await authRequest<Tokens>(
+    "/v1/auth/refresh",
+    web ? undefined : { refresh_token: tokens?.refresh_token },
+    undefined,
+    "POST",
+  );
+  return web ? { ...rotated, refresh_token: "" } : rotated;
+}
+// First load of a page with no in-memory credentials: ask the cookie for an access token.
+async function restoreFromCookie(expected: number): Promise<Tokens | null> {
+  if (!cookieMode() || cookieChecked) return null;
+  try {
+    const restored = await refreshRequest(null);
+    cookieChecked = true;
+    if (expected !== generation) return null;
+    await writeCredentials(restored, expected);
+    return restored;
+  } catch (error) {
+    if (error instanceof AuthError && error.status < 500) {
+      cookieChecked = true;
+      return null;
+    }
+    throw error;
+  }
+}
 async function rotate(tokens: Tokens, expected: number): Promise<Tokens> {
   if (!refreshing) {
     const work = (async () => {
@@ -143,11 +185,14 @@ async function rotate(tokens: Tokens, expected: number): Promise<Tokens> {
       // this 401 arrives. Reuse that result instead of replaying its old secret.
       const latest = await credentialStore.read();
       if (expected !== generation) throw new AuthError("Session changed.", 401);
-      if (latest && latest.refresh_token !== tokens.refresh_token)
+      if (
+        latest &&
+        (cookieMode()
+          ? latest.access_token !== tokens.access_token
+          : latest.refresh_token !== tokens.refresh_token)
+      )
         return latest;
-      const rotated = await authRequest<Tokens>("/v1/auth/refresh", {
-        refresh_token: tokens.refresh_token,
-      });
+      const rotated = await refreshRequest(tokens);
       await writeCredentials(rotated, expected);
       return rotated;
     })();
@@ -195,7 +240,11 @@ export const session = {
     configureAnalytics(null);
     publish();
   },
-  async accept(tokens: Tokens) {
+  async accept(issued: Tokens) {
+    const tokens: Tokens = cookieMode()
+      ? { ...issued, refresh_token: "" }
+      : issued;
+    cookieChecked = true;
     const expected = ++generation;
     refreshing = null;
     let value: Learner;
@@ -208,9 +257,12 @@ export const session = {
       await writeCredentials(tokens, expected);
       if (expected !== generation) throw new AuthError("Session changed.", 401);
     } catch (error) {
-      await authRequest("/v1/auth/logout", {
-        refresh_token: tokens.refresh_token,
-      }).catch(() => {});
+      await authRequest(
+        "/v1/auth/logout",
+        cookieMode() ? undefined : { refresh_token: tokens.refresh_token },
+        undefined,
+        "POST",
+      ).catch(() => {});
       throw error;
     }
     if (learner?.id !== value.id) {
@@ -284,7 +336,9 @@ export const session = {
     if (loading) return loading;
     const expected = generation;
     const work = (async () => {
-      const tokens = await credentialStore.read();
+      let tokens = await credentialStore.read();
+      if (expected !== generation) return null;
+      if (!tokens) tokens = await restoreFromCookie(expected);
       if (expected !== generation) return null;
       if (!tokens) {
         learner = null;
@@ -335,9 +389,12 @@ export const session = {
       const tokens = await credentialStore.read();
       // Offline failure retains credentials so Retry can revoke the server family.
       if (tokens)
-        await authRequest("/v1/auth/logout", {
-          refresh_token: tokens.refresh_token,
-        });
+        await authRequest(
+          "/v1/auth/logout",
+          cookieMode() ? undefined : { refresh_token: tokens.refresh_token },
+          undefined,
+          "POST",
+        );
     }
     if (started !== generation) return;
     const expected = ++generation;

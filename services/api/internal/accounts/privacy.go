@@ -325,6 +325,7 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		}
 		cancel()
 	}
+	clearWebCookie(w, r)
 	respond(w, 200, map[string]any{"deleted": true, "deleted_at": time.Now().UTC(), "posthog_deletion_accepted": posthogAccepted, "retained_financial_reference": ref})
 }
 

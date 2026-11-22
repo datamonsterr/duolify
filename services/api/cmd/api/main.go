@@ -302,6 +302,7 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	auth.ConfigureClerk(clerkVerifier, clerkPublishableKey)
+	auth.ConfigureWebOrigins(accounts.WebOriginsFromEnv(os.Getenv))
 	auth.ConfigureProfile(profileOptions)
 	auth.ConfigureDeletionLedger(deletionLedger)
 	if err := pricing.BootstrapAdmins(ctx, db.Pool, pricing.OperatorPricingAdminIDs()); err != nil {
