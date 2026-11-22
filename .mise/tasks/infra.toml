@@ -22,7 +22,7 @@ run = '''
 set -eu
 docker compose config -q
 git ls-files --cached --others --exclude-standard -z -- '*Dockerfile' | xargs -0 hadolint
-shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh infra/hooks/*.sh infra/s3/*.sh infra/deploy/*.sh infra/deploy/walship/*.sh
+shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh infra/hooks/*.sh infra/s3/*.sh infra/load/*.sh infra/deploy/*.sh infra/deploy/walship/*.sh
 docker compose --file infra/deploy/compose.yml --env-file infra/deploy/.env.example config -q
 docker compose --file infra/deploy/compose.yml --file infra/deploy/compose.prod.yml --env-file infra/deploy/.env.prod.example --profile '*' config -q
 docker run --rm --network none -v "$PWD/infra/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
@@ -69,6 +69,14 @@ run = '''
 echo "ERROR: Production live deployment is disabled in AFK tickets. Requires E11-07 owner approval." >&2
 exit 1
 '''
+
+["infra:load-baseline"]
+description = "Load baseline on a throwaway compose stack: k6 1k-DAU read mix (public + authenticated) plus a 10-minute Tutor chat SSE stream through the API with a mock Engine behind it (READ_RPS, READ_DURATION, SSE_SECONDS, SSE_HEARTBEAT_INTERVAL, MAX_GAP_SECONDS)"
+run = 'bash infra/load/run.sh'
+
+["infra:load-baseline-test"]
+description = "E2E: short load-baseline variant (read mix + Tutor chat stream through the API) against a throwaway compose stack"
+run = 'bash infra/load/baseline.e2e.sh'
 
 ["infra:restore-drill"]
 description = "Restore an anonymized custom-format dump into disposable Postgres"
