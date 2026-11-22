@@ -19,3 +19,9 @@
 ## 4. Owner steps
 
 - [ ] 4.1 Confirm `PUBLIC_ORIGIN` (compose) equals the public web origin on staging and production, so cookie mode accepts it.
+
+## 5. Independent security review
+
+- [x] 5.1 Reproduce cookie tossing, account switching and delayed cookie responses.
+- [x] 5.2 Require a host-prefixed cookie, reject duplicates and clear legacy cookies.
+- [x] 5.3 Bind request retries to the learner and coordinate cookie changes across tabs.

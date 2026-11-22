@@ -98,7 +98,7 @@ func TestWebSessionRefreshWithoutCookie(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Fatal(w.Code, w.Body)
 	}
-	if c := w.Header().Get("Set-Cookie"); !strings.Contains(c, "Max-Age=0") || !strings.Contains(c, "Path=/v1/auth/") {
+	if c := w.Header().Get("Set-Cookie"); !strings.Contains(c, "Max-Age=0") || !strings.Contains(c, "Path=/;") {
 		t.Fatal("cookie not cleared:", c)
 	}
 }

@@ -17,6 +17,13 @@ async function fresh(apiUrl: string) {
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
+  Object.defineProperty(navigator, "locks", {
+    configurable: true,
+    value: {
+      request: async (_name: string, callback: () => Promise<unknown>) =>
+        callback(),
+    },
+  });
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -141,4 +148,42 @@ it("keeps the body flow on a cross-origin build and sends no web header", async 
   });
   expect(sawHeader).toBeNull();
   session.clear();
+});
+
+it("never retries a stale tab mutation as a different learner", async () => {
+  const { session, credentialStore } = await fresh("");
+  let changedFor = "";
+  let refreshes = 0;
+  server.use(
+    http.get("*/v1/me", ({ request }) =>
+      HttpResponse.json(
+        request.headers.get("Authorization") === "Bearer account-B"
+          ? { ...profile, id: "learner-B" }
+          : profile,
+      ),
+    ),
+    http.patch("*/v1/social/settings", ({ request }) => {
+      if (request.headers.get("Authorization") === "Bearer account-B") {
+        changedFor = "B";
+        return HttpResponse.json({ ok: true });
+      }
+      return HttpResponse.json({}, { status: 401 });
+    }),
+    http.post("*/v1/auth/refresh", () => {
+      refreshes++;
+      return HttpResponse.json({ access_token: "account-B", expires_in: 900 });
+    }),
+  );
+  await session.accept({
+    access_token: "account-A",
+    refresh_token: "",
+    expires_in: 900,
+  });
+  await expect(
+    session.request("/v1/social/settings", "PATCH", { discoverable: true }),
+  ).rejects.toMatchObject({ status: 401 });
+  expect(refreshes).toBe(1);
+  expect(changedFor).toBe("");
+  expect(session.current()).toBeNull();
+  expect(await credentialStore.read()).toBeNull();
 });
