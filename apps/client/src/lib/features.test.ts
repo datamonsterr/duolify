@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  fetchLessonTestTracerEnabled,
   isLessonTestTracerEnabled,
   setLessonTestTracerEnabledForTest,
 } from "./features";
+import { http, HttpResponse } from "msw";
+import { server } from "../test/setup";
 
 describe("isLessonTestTracerEnabled (ADR 0017)", () => {
   afterEach(() => {
@@ -33,5 +36,20 @@ describe("isLessonTestTracerEnabled (ADR 0017)", () => {
       window as unknown as Record<string, unknown>
     ).__LESSON_TEST_TRACER_ENABLED__ = false;
     expect(isLessonTestTracerEnabled()).toBe(false);
+  });
+
+  it("resolves enabled from /v1/features with the VITE flag unset (web image)", async () => {
+    vi.stubEnv("VITE_LESSON_TEST_TRACER_ENABLED", "");
+    await expect(fetchLessonTestTracerEnabled()).resolves.toBe(true);
+  });
+
+  it("follows /v1/features when the server kill switch is off", async () => {
+    vi.stubEnv("VITE_LESSON_TEST_TRACER_ENABLED", "");
+    server.use(
+      http.get("*/v1/features", () =>
+        HttpResponse.json({ lesson_test_tracer_enabled: false }),
+      ),
+    );
+    await expect(fetchLessonTestTracerEnabled()).resolves.toBe(false);
   });
 });
