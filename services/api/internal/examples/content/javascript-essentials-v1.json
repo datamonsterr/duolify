@@ -1,0 +1,1141 @@
+{
+ "slug": "javascript-essentials",
+ "version": 1,
+ "order": 2,
+ "title": "JavaScript Essentials",
+ "description": "Learn the core of JavaScript, from values and variables to functions and loops.",
+ "level": "beginner",
+ "units": [
+  {
+   "title": "Values and variables",
+   "lessons": [
+    {
+     "key": "u1-l1",
+     "title": "Values and types",
+     "goal": "Tell numbers, strings and booleans apart, and print a value or its type with console.log.",
+     "slides": [
+      {
+       "slide_id": "s1",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 1 | IDEA</p><h1 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Values and types</h1><p class=\"a\" style=\"margin:0 0 14px;font-size:18px;line-height:1.45;animation-delay:0.8s\">A value is one piece of information a program works with.</p><div style=\"display:flex;flex-wrap:wrap;gap:12px;margin:0 0 14px\"><div class=\"a\" style=\"flex:1 1 100px;background:#f3f6f9;border-radius:16px;padding:14px;text-align:center;animation-delay:1.7s\"><div style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:24px;font-weight:700\">42</div><div style=\"font-size:16px;color:#46a302;margin-top:4px\">number</div></div><div class=\"a\" style=\"flex:1 1 100px;background:#f3f6f9;border-radius:16px;padding:14px;text-align:center;animation-delay:2.4s\"><div style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:24px;font-weight:700\">\"hello\"</div><div style=\"font-size:16px;color:#46a302;margin-top:4px\">string</div></div><div class=\"a\" style=\"flex:1 1 100px;background:#f3f6f9;border-radius:16px;padding:14px;text-align:center;animation-delay:3.1s\"><div style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:24px;font-weight:700\">true</div><div style=\"font-size:16px;color:#46a302;margin-top:4px\">boolean</div></div></div></div></div>",
+       "narration": "Every program works with values. A value is one piece of information, like a count, a word, or a yes or no answer. JavaScript sorts values into types. In this lesson you will meet three of them and learn how to ask JavaScript which type a value has.",
+       "duration_ms": 20700,
+       "topic_ids": [
+        "values-and-types"
+       ]
+      },
+      {
+       "slide_id": "s2",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 1 | CONCEPT</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Three types</h2><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #58cc02;animation-delay:0.8s\">number: 42 or 3.5</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #1cb0f6;animation-delay:1.7s\">string: text inside quotes</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #ff9600;animation-delay:2.6s\">boolean: true or false</div><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:3.5s\"><code>console.log(42)\nconsole.log(\"hello\")\nconsole.log(true)</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:4.4s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>42<br>hello<br>true</div></div></div>",
+       "narration": "A number is something you can count or measure, like 42 or 3.5. A string is text, and it always sits inside quotes. A boolean is either true or false. The command console.log shows a value on the screen. Notice that the quotes around hello are not printed.",
+       "duration_ms": 20700,
+       "topic_ids": [
+        "values-and-types",
+        "console-log"
+       ]
+      },
+      {
+       "slide_id": "s3",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 1 | EXAMPLE</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Ask for the type</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>console.log(typeof 42)\nconsole.log(typeof \"42\")\nconsole.log(typeof false)</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>number<br>string<br>boolean</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #ff9600;animation-delay:2.6s\">Quotes make a string, even around digits.</div></div></div>",
+       "narration": "To ask for a type, write typeof before a value. The number 42 gives number. But 42 inside quotes is text, so typeof says string. The quotes decide the type, not the characters inside. And true without quotes is a boolean.",
+       "duration_ms": 17700,
+       "topic_ids": [
+        "typeof-operator",
+        "values-and-types"
+       ]
+      },
+      {
+       "slide_id": "s4",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 1 | RECAP</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Remember</h2><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #58cc02;animation-delay:0.8s\">Every value has a type: number, string or boolean.</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #1cb0f6;animation-delay:1.7s\">Quotes make a string.</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #ff9600;animation-delay:2.6s\">typeof shows the type. console.log shows the value.</div></div></div>",
+       "narration": "Remember two things. First, every value has a type, and quotes make a string, even around digits. Second, console.log shows a value, and typeof tells you its type. When you are unsure what you are holding, ask typeof.",
+       "duration_ms": 16400,
+       "topic_ids": [
+        "values-and-types",
+        "typeof-operator"
+       ]
+      }
+     ],
+     "test": [
+      {
+       "question_id": "u1-l1-q1",
+       "topic_id": "values-and-types",
+       "prompt": "Which of these values is a string?",
+       "choices": [
+        "7",
+        "\"7\"",
+        "true",
+        "7.5"
+       ],
+       "answer_index": 1,
+       "explanation": "A value in quotes is a string, even when it contains only digits. 7 and 7.5 are numbers and true is a boolean."
+      },
+      {
+       "question_id": "u1-l1-q2",
+       "topic_id": "typeof-operator",
+       "prompt": "What does this code print?\n\nconsole.log(typeof \"true\")",
+       "choices": [
+        "string",
+        "boolean",
+        "true",
+        "number"
+       ],
+       "answer_index": 0,
+       "explanation": "typeof reports the type of the value after it. \"true\" is in quotes, so it is a string, not a boolean."
+      },
+      {
+       "question_id": "u1-l1-q3",
+       "topic_id": "console-log",
+       "prompt": "What appears on the screen when this code runs?\n\nconsole.log(\"Hi\")",
+       "choices": [
+        "Hi",
+        "\"Hi\"",
+        "string",
+        "console.log"
+       ],
+       "answer_index": 0,
+       "explanation": "console.log shows the value itself, so the quotes that mark a string are not printed."
+      }
+     ],
+     "variant_pool": [
+      {
+       "topic_id": "values-and-types",
+       "variants": [
+        {
+         "question_id": "u1-l1-q1-v1",
+         "variant_of": "u1-l1-q1",
+         "prompt": "A program contains these four values. Which one is text rather than a number or a boolean?",
+         "choices": [
+          "7.5",
+          "true",
+          "\"7\"",
+          "7"
+         ],
+         "answer_index": 2,
+         "explanation": "The quotes turn \"7\" into text. The other values have no quotes, so they are numbers or a boolean.",
+         "topic_id": "values-and-types"
+        },
+        {
+         "question_id": "u1-l1-q1-v2",
+         "variant_of": "u1-l1-q1",
+         "prompt": "JavaScript reads one of these values as a string. Which one?",
+         "choices": [
+          "true",
+          "7",
+          "7.5",
+          "\"7\""
+         ],
+         "answer_index": 3,
+         "explanation": "Quotes make a string, so \"7\" is text even though it looks like a number.",
+         "topic_id": "values-and-types"
+        }
+       ]
+      },
+      {
+       "topic_id": "typeof-operator",
+       "variants": [
+        {
+         "question_id": "u1-l1-q2-v1",
+         "variant_of": "u1-l1-q2",
+         "prompt": "Run this line in Node. What shows up on the screen?\n\nconsole.log(typeof \"false\")",
+         "choices": [
+          "boolean",
+          "string",
+          "number",
+          "true"
+         ],
+         "answer_index": 1,
+         "explanation": "The quotes make \"false\" a string, so typeof says string.",
+         "topic_id": "typeof-operator"
+        },
+        {
+         "question_id": "u1-l1-q2-v2",
+         "variant_of": "u1-l1-q2",
+         "prompt": "What is printed by this single line?\n\nconsole.log(typeof \"100\")",
+         "choices": [
+          "number",
+          "true",
+          "boolean",
+          "string"
+         ],
+         "answer_index": 3,
+         "explanation": "Digits inside quotes are text, so the type is string.",
+         "topic_id": "typeof-operator"
+        }
+       ]
+      },
+      {
+       "topic_id": "console-log",
+       "variants": [
+        {
+         "question_id": "u1-l1-q3-v1",
+         "variant_of": "u1-l1-q3",
+         "prompt": "A learner runs this line. What does the screen show?\n\nconsole.log('Hi')",
+         "choices": [
+          "string",
+          "console.log",
+          "Hi",
+          "\"Hi\""
+         ],
+         "answer_index": 2,
+         "explanation": "Single or double quotes both make a string, and neither is printed.",
+         "topic_id": "console-log"
+        },
+        {
+         "question_id": "u1-l1-q3-v2",
+         "variant_of": "u1-l1-q3",
+         "prompt": "Which output does this line produce?\n\nconsole.log(\"Hi\");",
+         "choices": [
+          "console.log",
+          "Hi",
+          "string",
+          "\"Hi\""
+         ],
+         "answer_index": 1,
+         "explanation": "The semicolon changes nothing. console.log prints the string without its quotes.",
+         "topic_id": "console-log"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "u1-l2",
+     "title": "let and const",
+     "goal": "Create variables with let and const, reassign a let, and choose clear names.",
+     "slides": [
+      {
+       "slide_id": "s1",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 2 | IDEA</p><h1 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">let and const</h1><p class=\"a\" style=\"margin:0 0 14px;font-size:18px;line-height:1.45;animation-delay:0.8s\">A variable is a name for a value, so you can use the value again.</p><div class=\"a\" style=\"margin:0 0 14px;animation-delay:1.7s\"><svg role=\"img\" aria-label=\"A box labelled score holding the value 10\" viewBox=\"0 0 300 110\" style=\"width:100%;max-width:320px;height:auto\"><rect x=\"10\" y=\"30\" width=\"150\" height=\"70\" rx=\"14\" fill=\"#f3f6f9\" stroke=\"#1cb0f6\" stroke-width=\"3\"/><text x=\"85\" y=\"76\" text-anchor=\"middle\" font-size=\"32\" font-weight=\"700\" fill=\"#1f2937\" font-family=\"monospace\">10</text><text x=\"85\" y=\"20\" text-anchor=\"middle\" font-size=\"18\" fill=\"#1f2937\" font-family=\"monospace\">score</text><path d=\"M170 65 H240\" stroke=\"#58cc02\" stroke-width=\"4\"/><path d=\"M240 65 l-10 -8 M240 65 l-10 8\" stroke=\"#58cc02\" stroke-width=\"4\"/><text x=\"250\" y=\"72\" font-size=\"16\" fill=\"#1f2937\" font-family=\"sans-serif\">use it</text></svg></div></div></div>",
+       "narration": "Programs need to remember things, like your score in a game. A variable is a name attached to a value, a bit like a labelled box. Once a value has a name, you can use it again and again. Today you will learn two ways to create variables.",
+       "duration_ms": 20700,
+       "topic_ids": [
+        "declaring-variables"
+       ]
+      },
+      {
+       "slide_id": "s2",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 2 | CONCEPT</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Declare a variable</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>let score = 10\nconsole.log(score)</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>10</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #1cb0f6;animation-delay:2.6s\">Names start with a letter and have no spaces. Style: bestScore. Capitals matter.</div></div></div>",
+       "narration": "Write let, then a name, then an equals sign, then the value. Now score holds 10, and console.log prints it. A name starts with a letter and has no spaces or dashes. The usual style joins words and capitalises each new one, like bestScore. Capitals matter, so score and Score are different names.",
+       "duration_ms": 22800,
+       "topic_ids": [
+        "declaring-variables",
+        "naming-variables"
+       ]
+      },
+      {
+       "slide_id": "s3",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 2 | EXAMPLE</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">let changes, const stays</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>let lives = 3\nlives = 2\nconst planet = \"Earth\"\nconsole.log(lives)\nconsole.log(planet)</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>2<br>Earth</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #ff9600;animation-delay:2.6s\">let: can get a new value. const: cannot, or you get an error.</div></div></div>",
+       "narration": "A let variable can be reassigned. Here lives starts at 3, then becomes 2, so the log prints 2. A const variable can never be reassigned, and trying to do it gives an error. A good habit is to start with const, and use let only when the value must change.",
+       "duration_ms": 22000,
+       "topic_ids": [
+        "let-vs-const"
+       ]
+      },
+      {
+       "slide_id": "s4",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 2 | RECAP</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Remember</h2><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #58cc02;animation-delay:0.8s\">let can be reassigned. const cannot.</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #1cb0f6;animation-delay:1.7s\">Start with const. Use let only when the value must change.</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #ff9600;animation-delay:2.6s\">Clear names: bestScore, not best score.</div></div></div>",
+       "narration": "Remember two things. First, let makes a variable you can change later, and const makes one that stays fixed. Start with const when you are not sure. Second, choose clear names like bestScore, starting with a letter and without spaces.",
+       "duration_ms": 17200,
+       "topic_ids": [
+        "let-vs-const",
+        "naming-variables"
+       ]
+      }
+     ],
+     "test": [
+      {
+       "question_id": "u1-l2-q1",
+       "topic_id": "declaring-variables",
+       "prompt": "What does this code print?\n\nlet coins = 5\nconsole.log(coins)",
+       "choices": [
+        "coins",
+        "5",
+        "0",
+        "let coins"
+       ],
+       "answer_index": 1,
+       "explanation": "The variable coins holds the value 5, so console.log(coins) prints that value, not the name."
+      },
+      {
+       "question_id": "u1-l2-q2",
+       "topic_id": "let-vs-const",
+       "prompt": "You write const age = 30 and later change it with age = 31. What happens?",
+       "choices": [
+        "age becomes 31",
+        "age stays 30 without any message",
+        "JavaScript shows an error",
+        "age becomes 61"
+       ],
+       "answer_index": 2,
+       "explanation": "A const cannot be reassigned, so JavaScript stops with an error. Only let allows a new value."
+      },
+      {
+       "question_id": "u1-l2-q3",
+       "topic_id": "naming-variables",
+       "prompt": "Which name is a good variable name for a player's best score, in the usual style?",
+       "choices": [
+        "best score",
+        "2best",
+        "bestScore",
+        "best-score"
+       ],
+       "answer_index": 2,
+       "explanation": "Names cannot contain spaces or dashes or start with a digit. bestScore follows the usual style."
+      }
+     ],
+     "variant_pool": [
+      {
+       "topic_id": "declaring-variables",
+       "variants": [
+        {
+         "question_id": "u1-l2-q1-v1",
+         "variant_of": "u1-l2-q1",
+         "prompt": "A tiny program stores a number and then shows it. What is printed?\n\nlet points = 5\nconsole.log(points)",
+         "choices": [
+          "5",
+          "coins",
+          "let coins",
+          "0"
+         ],
+         "answer_index": 0,
+         "explanation": "points holds 5, so the value 5 is printed rather than the name.",
+         "topic_id": "declaring-variables"
+        },
+        {
+         "question_id": "u1-l2-q1-v2",
+         "variant_of": "u1-l2-q1",
+         "prompt": "Which output do these two lines produce?\n\nlet level = 5\nconsole.log(level)",
+         "choices": [
+          "let coins",
+          "0",
+          "5",
+          "coins"
+         ],
+         "answer_index": 2,
+         "explanation": "Logging a variable shows the value stored in it, here 5.",
+         "topic_id": "declaring-variables"
+        }
+       ]
+      },
+      {
+       "topic_id": "let-vs-const",
+       "variants": [
+        {
+         "question_id": "u1-l2-q2-v1",
+         "variant_of": "u1-l2-q2",
+         "prompt": "A program declares const age = 30 and then, a few lines later, runs age = 31. What is the result?",
+         "choices": [
+          "JavaScript shows an error",
+          "age becomes 61",
+          "age becomes 31",
+          "age stays 30 without any message"
+         ],
+         "answer_index": 0,
+         "explanation": "const means the name cannot get a new value, so the second line causes an error.",
+         "topic_id": "let-vs-const"
+        },
+        {
+         "question_id": "u1-l2-q2-v2",
+         "variant_of": "u1-l2-q2",
+         "prompt": "A variable was created with const age = 30. Later the code tries age = 31. Which statement is true?",
+         "choices": [
+          "age becomes 61",
+          "age becomes 31",
+          "age stays 30 without any message",
+          "JavaScript shows an error"
+         ],
+         "answer_index": 3,
+         "explanation": "Reassigning a const fails with an error. It does not silently keep or change the value.",
+         "topic_id": "let-vs-const"
+        }
+       ]
+      },
+      {
+       "topic_id": "naming-variables",
+       "variants": [
+        {
+         "question_id": "u1-l2-q3-v1",
+         "variant_of": "u1-l2-q3",
+         "prompt": "You need a variable that holds the highest score a player reached. Which name is allowed and follows the usual style?",
+         "choices": [
+          "2best",
+          "best-score",
+          "best score",
+          "bestScore"
+         ],
+         "answer_index": 3,
+         "explanation": "Only bestScore-style names work. Spaces, dashes and a leading digit are not allowed.",
+         "topic_id": "naming-variables"
+        },
+        {
+         "question_id": "u1-l2-q3-v2",
+         "variant_of": "u1-l2-q3",
+         "prompt": "Pick the one name JavaScript accepts that also reads well.",
+         "choices": [
+          "best-score",
+          "bestScore",
+          "2best",
+          "best score"
+         ],
+         "answer_index": 1,
+         "explanation": "bestScore has no space or dash and starts with a letter, so it is valid.",
+         "topic_id": "naming-variables"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "u1-l3",
+     "title": "Strings, numbers and comparisons",
+     "goal": "Build text with template literals, avoid the plus trap, and compare values with ===.",
+     "slides": [
+      {
+       "slide_id": "s1",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 3 | IDEA</p><h1 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Strings, numbers and comparisons</h1><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>console.log(\"5\" + 3)\nconsole.log(\"5\" - 3)</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>53<br>2</div><p class=\"a\" style=\"margin:0 0 14px;font-size:18px;line-height:1.45;animation-delay:2.6s\">Same pieces, different result. Why?</p></div></div>",
+       "narration": "Look at these two lines. Both use the string 5 and the number 3, but one prints 53 and the other prints 2. When a plus sign has text next to it, it joins the pieces together. Minus can only do maths, so it works on the numbers. Keep this in mind for the rest of the lesson.",
+       "duration_ms": 25000,
+       "topic_ids": [
+        "plus-with-strings"
+       ]
+      },
+      {
+       "slide_id": "s2",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 3 | CONCEPT</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Build text</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>const name = \"Mia\"\nconst stars = 2 * 3\nconsole.log(\"Hello, \" + name + \"!\")\nconsole.log(`Hello, ${name}!`)\nconsole.log(`${name} has ${stars} stars`)</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>Hello, Mia!<br>Hello, Mia!<br>Mia has 6 stars</div></div></div>",
+       "narration": "There are two ways to build text from values. You can join pieces with plus. Or you can use backticks and put each value inside a dollar sign and curly braces, which is a template literal. It is easier to read. Maths works as usual, and the asterisk means times.",
+       "duration_ms": 21500,
+       "topic_ids": [
+        "template-literals",
+        "plus-with-strings"
+       ]
+      },
+      {
+       "slide_id": "s3",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 3 | EXAMPLE</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Compare values</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>console.log(5 === 5)\nconsole.log(5 === \"5\")\nconsole.log(7 > 3)\nconsole.log(7 >= 7)</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>true<br>false<br>true<br>true</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #ff9600;animation-delay:2.6s\">=== checks value and type. Use it by default. There is also ==, which is looser: avoid it.</div></div></div>",
+       "narration": "To compare values, JavaScript gives you true or false. Three equals signs check that the value and the type are the same, so 5 equals 5 is true but 5 and the string 5 are not equal. The signs greater than and greater than or equal compare sizes. Use three equals signs as your default.",
+       "duration_ms": 23700,
+       "topic_ids": [
+        "strict-equality"
+       ]
+      },
+      {
+       "slide_id": "s4",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 3 | RECAP</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Remember</h2><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #58cc02;animation-delay:0.8s\">A plus next to a string joins text. Minus always does maths.</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #1cb0f6;animation-delay:1.7s\">Backticks and a dollar sign with braces build text clearly.</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #ff9600;animation-delay:2.6s\">Compare with ===, which also checks the type.</div></div></div>",
+       "narration": "Remember two things. A plus next to text joins, while minus does maths, and template literals build text more cleanly. And when you compare, reach for three equals signs, because it also checks the type.",
+       "duration_ms": 15100,
+       "topic_ids": [
+        "plus-with-strings",
+        "strict-equality"
+       ]
+      }
+     ],
+     "test": [
+      {
+       "question_id": "u1-l3-q1",
+       "topic_id": "template-literals",
+       "prompt": "What does this code print?\n\nconst pet = \"cat\"\nconsole.log(`I have a ${pet}`)",
+       "choices": [
+        "I have a cat",
+        "I have a ${pet}",
+        "I have a pet",
+        "cat"
+       ],
+       "answer_index": 0,
+       "explanation": "Inside backticks, ${pet} is replaced by the value of pet, so the sentence ends with cat."
+      },
+      {
+       "question_id": "u1-l3-q2",
+       "topic_id": "plus-with-strings",
+       "prompt": "What shows on the screen?\n\nconsole.log(\"4\" + 2)",
+       "choices": [
+        "6",
+        "42",
+        "2",
+        "It shows an error"
+       ],
+       "answer_index": 1,
+       "explanation": "A plus with a string next to it joins text, so \"4\" and 2 become 42. It is not added as numbers."
+      },
+      {
+       "question_id": "u1-l3-q3",
+       "topic_id": "strict-equality",
+       "prompt": "What does this line print?\n\nconsole.log(10 === \"10\")",
+       "choices": [
+        "true",
+        "10",
+        "false",
+        "It shows an error"
+       ],
+       "answer_index": 2,
+       "explanation": "=== checks the type as well as the value. 10 is a number and \"10\" is a string, so the answer is false."
+      }
+     ],
+     "variant_pool": [
+      {
+       "topic_id": "template-literals",
+       "variants": [
+        {
+         "question_id": "u1-l3-q1-v1",
+         "variant_of": "u1-l3-q1",
+         "prompt": "A learner builds a sentence with a template literal. What is shown?\n\nconst animal = \"cat\"\nconsole.log(`I have a ${animal}`)",
+         "choices": [
+          "cat",
+          "I have a ${pet}",
+          "I have a pet",
+          "I have a cat"
+         ],
+         "answer_index": 3,
+         "explanation": "${animal} is replaced by the stored value, cat.",
+         "topic_id": "template-literals"
+        },
+        {
+         "question_id": "u1-l3-q1-v2",
+         "variant_of": "u1-l3-q1",
+         "prompt": "This version joins pieces with plus instead. What is printed?\n\nconst word = \"cat\"\nconsole.log(\"I have a \" + word)",
+         "choices": [
+          "I have a pet",
+          "I have a cat",
+          "cat",
+          "I have a ${pet}"
+         ],
+         "answer_index": 1,
+         "explanation": "Plus joins the text and the value, giving the same sentence.",
+         "topic_id": "template-literals"
+        }
+       ]
+      },
+      {
+       "topic_id": "plus-with-strings",
+       "variants": [
+        {
+         "question_id": "u1-l3-q2-v1",
+         "variant_of": "u1-l3-q2",
+         "prompt": "Both pieces here are strings. What does the program print?\n\nconsole.log(\"4\" + \"2\")",
+         "choices": [
+          "42",
+          "6",
+          "It shows an error",
+          "2"
+         ],
+         "answer_index": 0,
+         "explanation": "Plus joins two strings end to end, giving 42.",
+         "topic_id": "plus-with-strings"
+        },
+        {
+         "question_id": "u1-l3-q2-v2",
+         "variant_of": "u1-l3-q2",
+         "prompt": "A beginner expects 6. What does this line really print?\n\nconsole.log('4' + 2)",
+         "choices": [
+          "It shows an error",
+          "2",
+          "42",
+          "6"
+         ],
+         "answer_index": 2,
+         "explanation": "With a string present, plus joins instead of adding, so the result is 42.",
+         "topic_id": "plus-with-strings"
+        }
+       ]
+      },
+      {
+       "topic_id": "strict-equality",
+       "variants": [
+        {
+         "question_id": "u1-l3-q3-v1",
+         "variant_of": "u1-l3-q3",
+         "prompt": "What is the result of this comparison?\n\nconsole.log(3 === \"3\")",
+         "choices": [
+          "false",
+          "true",
+          "10",
+          "It shows an error"
+         ],
+         "answer_index": 0,
+         "explanation": "A number and a string are different types, so === gives false.",
+         "topic_id": "strict-equality"
+        },
+        {
+         "question_id": "u1-l3-q3-v2",
+         "variant_of": "u1-l3-q3",
+         "prompt": "Run this check. What appears?\n\nconsole.log(\"7\" === 7)",
+         "choices": [
+          "It shows an error",
+          "false",
+          "true",
+          "10"
+         ],
+         "answer_index": 1,
+         "explanation": "The types differ (string and number), so === is false even though the digits match.",
+         "topic_id": "strict-equality"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Functions and control flow",
+   "lessons": [
+    {
+     "key": "u2-l1",
+     "title": "Functions",
+     "goal": "Write a function with a parameter, return a value from it, and write the same function as an arrow function.",
+     "slides": [
+      {
+       "slide_id": "s1",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 4 | IDEA</p><h1 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Functions</h1><p class=\"a\" style=\"margin:0 0 14px;font-size:18px;line-height:1.45;animation-delay:0.8s\">A function is a named recipe you write once and use many times.</p><div style=\"display:flex;flex-wrap:wrap;gap:12px;margin:0 0 14px\"><div class=\"a\" style=\"flex:1 1 100px;background:#f3f6f9;border-radius:16px;padding:14px;text-align:center;animation-delay:1.7s\"><div style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:24px;font-weight:700\">in</div><div style=\"font-size:16px;color:#46a302;margin-top:4px\">parameter</div></div><div class=\"a\" style=\"flex:1 1 100px;background:#f3f6f9;border-radius:16px;padding:14px;text-align:center;animation-delay:2.4s\"><div style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:24px;font-weight:700\">steps</div><div style=\"font-size:16px;color:#46a302;margin-top:4px\">the body</div></div><div class=\"a\" style=\"flex:1 1 100px;background:#f3f6f9;border-radius:16px;padding:14px;text-align:center;animation-delay:3.1s\"><div style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:24px;font-weight:700\">out</div><div style=\"font-size:16px;color:#46a302;margin-top:4px\">return</div></div></div></div></div>",
+       "narration": "Sometimes you repeat the same steps again and again. A function is a named recipe: you write the steps once, give them a name, and then use them whenever you need. It can also take ingredients in and hand a result back. Let us see how to write one.",
+       "duration_ms": 21100,
+       "topic_ids": [
+        "defining-functions"
+       ]
+      },
+      {
+       "slide_id": "s2",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 4 | CONCEPT</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Write and call</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>function double(n) {\n  return n * 2\n}\nconsole.log(double(4))</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>8</div></div></div>",
+       "narration": "Write function, then a name, then the parameter in brackets. A parameter is a name for the value that goes in. The word return sends a result back out. To use the function, call it by writing its name with a value in brackets. Here double of 4 gives 8.",
+       "duration_ms": 21500,
+       "topic_ids": [
+        "defining-functions"
+       ]
+      },
+      {
+       "slide_id": "s3",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 4 | EXAMPLE</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">return or console.log</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>function square(n) {\n  return n * n\n}\nconst a = square(3)\nconst b = square(a)\nconsole.log(a)\nconsole.log(b)</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>9<br>81</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #ff9600;animation-delay:2.6s\">No return line: the call gives back undefined.</div></div></div>",
+       "narration": "Return hands a value back, so you can store it or pass it into another call. Here square of 3 is 9, and square of 9 is 81. A function that only prints with console.log gives nothing back. Its result is undefined, which means no value.",
+       "duration_ms": 19800,
+       "topic_ids": [
+        "return-vs-log"
+       ]
+      },
+      {
+       "slide_id": "s4",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 4 | RECAP</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">A shorter form</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>const double = (n) => n * 2\nconsole.log(double(4))</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>8</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #58cc02;animation-delay:2.6s\">return gives a value back. console.log only shows it.</div></div></div>",
+       "narration": "There is a shorter way to write a function, called an arrow function. It means the same thing as before. Remember two things. Use return to give a value back, and console.log only to look at a value. An arrow function is just a second way to write a function.",
+       "duration_ms": 21500,
+       "topic_ids": [
+        "arrow-functions",
+        "return-vs-log"
+       ]
+      }
+     ],
+     "test": [
+      {
+       "question_id": "u2-l1-q1",
+       "topic_id": "defining-functions",
+       "prompt": "What does this code print?\n\nfunction double(n) {\n  return n * 2\n}\nconsole.log(double(6))",
+       "choices": [
+        "6",
+        "26",
+        "12",
+        "double"
+       ],
+       "answer_index": 2,
+       "explanation": "double(6) runs return n * 2 with n set to 6, which gives 12."
+      },
+      {
+       "question_id": "u2-l1-q2",
+       "topic_id": "return-vs-log",
+       "prompt": "A function show(n) only prints n * 2 on the screen and has no return line. What does const x = show(4) store in x?",
+       "choices": [
+        "8",
+        "Nothing useful, because no value was returned",
+        "4",
+        "The text show"
+       ],
+       "answer_index": 1,
+       "explanation": "Without return the call gives back undefined, so x holds no useful value. Printing and returning are different jobs."
+      },
+      {
+       "question_id": "u2-l1-q3",
+       "topic_id": "arrow-functions",
+       "prompt": "What does this code print?\n\nconst triple = (n) => n * 3\nconsole.log(triple(5))",
+       "choices": [
+        "8",
+        "35",
+        "15",
+        "It shows an error"
+       ],
+       "answer_index": 2,
+       "explanation": "An arrow function is another way to write a function. triple(5) returns 5 * 3, which is 15."
+      }
+     ],
+     "variant_pool": [
+      {
+       "topic_id": "defining-functions",
+       "variants": [
+        {
+         "question_id": "u2-l1-q1-v1",
+         "variant_of": "u2-l1-q1",
+         "prompt": "A function named twice is written and called. What is printed?\n\nfunction twice(x) {\n  return x * 2\n}\nconsole.log(twice(6))",
+         "choices": [
+          "12",
+          "26",
+          "6",
+          "double"
+         ],
+         "answer_index": 0,
+         "explanation": "twice(6) returns 6 * 2, which is 12.",
+         "topic_id": "defining-functions"
+        },
+        {
+         "question_id": "u2-l1-q1-v2",
+         "variant_of": "u2-l1-q1",
+         "prompt": "Call the function below with 10. What does the screen show?\n\nfunction addTwo(n) {\n  return n + 2\n}\nconsole.log(addTwo(10))",
+         "choices": [
+          "double",
+          "12",
+          "26",
+          "6"
+         ],
+         "answer_index": 1,
+         "explanation": "addTwo(10) returns 10 + 2, so 12 is printed.",
+         "topic_id": "defining-functions"
+        }
+       ]
+      },
+      {
+       "topic_id": "return-vs-log",
+       "variants": [
+        {
+         "question_id": "u2-l1-q2-v1",
+         "variant_of": "u2-l1-q2",
+         "prompt": "A function prints its result on the screen but never returns it. You write const y = f(4). What is y?",
+         "choices": [
+          "Nothing useful, because no value was returned",
+          "8",
+          "The text show",
+          "4"
+         ],
+         "answer_index": 0,
+         "explanation": "Printing does not hand a value back. Only return does, so y has no useful value.",
+         "topic_id": "return-vs-log"
+        },
+        {
+         "question_id": "u2-l1-q2-v2",
+         "variant_of": "u2-l1-q2",
+         "prompt": "Which is true of a function whose only job is to print, with no return, when you store its call in a variable?",
+         "choices": [
+          "The text show",
+          "4",
+          "Nothing useful, because no value was returned",
+          "8"
+         ],
+         "answer_index": 2,
+         "explanation": "Nothing was returned, so the variable gets undefined, not the printed number.",
+         "topic_id": "return-vs-log"
+        }
+       ]
+      },
+      {
+       "topic_id": "arrow-functions",
+       "variants": [
+        {
+         "question_id": "u2-l1-q3-v1",
+         "variant_of": "u2-l1-q3",
+         "prompt": "Here is a function written in the arrow form. What does it print?\n\nconst times3 = (x) => x * 3\nconsole.log(times3(5))",
+         "choices": [
+          "15",
+          "It shows an error",
+          "8",
+          "35"
+         ],
+         "answer_index": 0,
+         "explanation": "times3(5) returns 5 * 3, which is 15.",
+         "topic_id": "arrow-functions"
+        },
+        {
+         "question_id": "u2-l1-q3-v2",
+         "variant_of": "u2-l1-q3",
+         "prompt": "What is the output of this arrow function call?\n\nconst plus10 = (n) => n + 10\nconsole.log(plus10(5))",
+         "choices": [
+          "It shows an error",
+          "35",
+          "15",
+          "8"
+         ],
+         "answer_index": 2,
+         "explanation": "plus10(5) returns 5 + 10, which is 15.",
+         "topic_id": "arrow-functions"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "u2-l2",
+     "title": "Conditionals",
+     "goal": "Choose between paths with if, else if and else, and combine conditions with && and ||.",
+     "slides": [
+      {
+       "slide_id": "s1",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 5 | IDEA</p><h1 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Conditionals</h1><p class=\"a\" style=\"margin:0 0 14px;font-size:18px;line-height:1.45;animation-delay:0.8s\">A conditional runs different code depending on a true or false question.</p><div style=\"display:flex;flex-wrap:wrap;gap:12px;margin:0 0 14px\"><div class=\"a\" style=\"flex:1 1 100px;background:#f3f6f9;border-radius:16px;padding:14px;text-align:center;animation-delay:1.7s\"><div style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:24px;font-weight:700\">if</div><div style=\"font-size:16px;color:#46a302;margin-top:4px\">true? run this</div></div><div class=\"a\" style=\"flex:1 1 100px;background:#f3f6f9;border-radius:16px;padding:14px;text-align:center;animation-delay:2.4s\"><div style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:24px;font-weight:700\">else</div><div style=\"font-size:16px;color:#46a302;margin-top:4px\">otherwise this</div></div></div></div></div>",
+       "narration": "Programs make decisions. If it is raining, take an umbrella. Otherwise, leave it at home. A conditional lets your code choose a path based on a question with a true or false answer. You will learn if, else if and else, and how to combine questions.",
+       "duration_ms": 19800,
+       "topic_ids": [
+        "if-else"
+       ]
+      },
+      {
+       "slide_id": "s2",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 5 | CONCEPT</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">if and else</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>const age = 16\nif (age >= 18) {\n  console.log(\"adult\")\n} else {\n  console.log(\"minor\")\n}</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>minor</div></div></div>",
+       "narration": "Write if, then a condition in brackets, then the code to run inside curly braces. If the condition is true, that code runs. If it is false, the else code runs instead. Here age is 16, which is not 18 or more, so the program prints minor.",
+       "duration_ms": 20300,
+       "topic_ids": [
+        "if-else"
+       ]
+      },
+      {
+       "slide_id": "s3",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 5 | EXAMPLE</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Chains and combos</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>const age = 20\nconst hasTicket = true\nif (age >= 18 && hasTicket) {\n  console.log(\"enter\")\n} else if (age >= 18) {\n  console.log(\"buy a ticket\")\n} else {\n  console.log(\"too young\")\n}</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>enter</div></div></div>",
+       "narration": "Use else if to check more cases in order. The first condition that is true wins, and the rest are skipped. Two ampersands mean and, so both sides must be true. Here the person is 20 and has a ticket, so the first branch runs and prints enter.",
+       "duration_ms": 20700,
+       "topic_ids": [
+        "else-if-chain",
+        "and-or"
+       ]
+      },
+      {
+       "slide_id": "s4",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 5 | RECAP</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">and, or</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>console.log(true && false)\nconsole.log(true || false)</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>false<br>true</div><div class=\"a\" style=\"background:#f3f6f9;border-radius:16px;padding:14px 16px;margin:0 0 12px;font-size:18px;line-height:1.4;border-left:6px solid #58cc02;animation-delay:2.6s\">&& needs both true. || needs at least one true. First true branch wins.</div></div></div>",
+       "narration": "Remember two things. In an else if chain, the first true condition wins. And for combining questions, and needs both sides true, while or needs at least one side true. True and false gives false, but true or false gives true.",
+       "duration_ms": 17700,
+       "topic_ids": [
+        "and-or",
+        "else-if-chain"
+       ]
+      }
+     ],
+     "test": [
+      {
+       "question_id": "u2-l2-q1",
+       "topic_id": "if-else",
+       "prompt": "What does this code print?\n\nconst temp = 30\nif (temp > 25) {\n  console.log(\"hot\")\n} else {\n  console.log(\"cool\")\n}",
+       "choices": [
+        "cool",
+        "hot",
+        "hot, cool",
+        "30"
+       ],
+       "answer_index": 1,
+       "explanation": "temp is 30, and 30 > 25 is true, so the if branch runs. The else branch is skipped."
+      },
+      {
+       "question_id": "u2-l2-q2",
+       "topic_id": "else-if-chain",
+       "prompt": "Which letter does this code print?\n\nconst score = 85\nif (score >= 90) {\n  console.log(\"A\")\n} else if (score >= 80) {\n  console.log(\"B\")\n} else {\n  console.log(\"C\")\n}",
+       "choices": [
+        "B",
+        "A",
+        "C",
+        "B, C"
+       ],
+       "answer_index": 0,
+       "explanation": "The score 85 is not 90 or more, so the first test fails. 85 >= 80 is true, so B prints and the chain stops."
+      },
+      {
+       "question_id": "u2-l2-q3",
+       "topic_id": "and-or",
+       "prompt": "What does this code print?\n\nconst raining = true\nconst hasUmbrella = false\nconsole.log(raining && hasUmbrella)",
+       "choices": [
+        "true",
+        "raining",
+        "It shows an error",
+        "false"
+       ],
+       "answer_index": 3,
+       "explanation": "&& needs both sides true. hasUmbrella is false, so the whole expression is false."
+      }
+     ],
+     "variant_pool": [
+      {
+       "topic_id": "if-else",
+       "variants": [
+        {
+         "question_id": "u2-l2-q1-v1",
+         "variant_of": "u2-l2-q1",
+         "prompt": "A weather program checks the heat. What is printed?\n\nconst heat = 35\nif (heat > 25) {\n  console.log(\"hot\")\n} else {\n  console.log(\"cool\")\n}",
+         "choices": [
+          "hot",
+          "cool",
+          "30",
+          "hot, cool"
+         ],
+         "answer_index": 0,
+         "explanation": "35 > 25 is true, so the if branch prints hot.",
+         "topic_id": "if-else"
+        },
+        {
+         "question_id": "u2-l2-q1-v2",
+         "variant_of": "u2-l2-q1",
+         "prompt": "Check the boundary. What does this program show?\n\nconst temp = 25\nif (temp >= 25) {\n  console.log(\"hot\")\n} else {\n  console.log(\"cool\")\n}",
+         "choices": [
+          "30",
+          "hot, cool",
+          "hot",
+          "cool"
+         ],
+         "answer_index": 2,
+         "explanation": "25 >= 25 is true, so the if branch runs and prints hot.",
+         "topic_id": "if-else"
+        }
+       ]
+      },
+      {
+       "topic_id": "else-if-chain",
+       "variants": [
+        {
+         "question_id": "u2-l2-q2-v1",
+         "variant_of": "u2-l2-q2",
+         "prompt": "A grading program gets a new score. What does it print?\n\nconst score = 80\nif (score >= 90) {\n  console.log(\"A\")\n} else if (score >= 80) {\n  console.log(\"B\")\n} else {\n  console.log(\"C\")\n}",
+         "choices": [
+          "C",
+          "B",
+          "B, C",
+          "A"
+         ],
+         "answer_index": 1,
+         "explanation": "80 fails the first test but passes score >= 80, so B prints.",
+         "topic_id": "else-if-chain"
+        },
+        {
+         "question_id": "u2-l2-q2-v2",
+         "variant_of": "u2-l2-q2",
+         "prompt": "Follow the chain from the top. What is the output?\n\nconst score = 89\nif (score >= 90) {\n  console.log(\"A\")\n} else if (score >= 80) {\n  console.log(\"B\")\n} else {\n  console.log(\"C\")\n}",
+         "choices": [
+          "B, C",
+          "A",
+          "B",
+          "C"
+         ],
+         "answer_index": 2,
+         "explanation": "89 is below 90 but at least 80, so only the else if branch runs.",
+         "topic_id": "else-if-chain"
+        }
+       ]
+      },
+      {
+       "topic_id": "and-or",
+       "variants": [
+        {
+         "question_id": "u2-l2-q3-v1",
+         "variant_of": "u2-l2-q3",
+         "prompt": "Two flags are combined with and. What is printed?\n\nconst sunny = false\nconst warm = true\nconsole.log(sunny && warm)",
+         "choices": [
+          "false",
+          "It shows an error",
+          "raining",
+          "true"
+         ],
+         "answer_index": 0,
+         "explanation": "and needs both sides true, and sunny is false, so the result is false.",
+         "topic_id": "and-or"
+        },
+        {
+         "question_id": "u2-l2-q3-v2",
+         "variant_of": "u2-l2-q3",
+         "prompt": "Here the or operator joins two false values. What is shown?\n\nconsole.log(false || false)",
+         "choices": [
+          "raining",
+          "false",
+          "true",
+          "It shows an error"
+         ],
+         "answer_index": 1,
+         "explanation": "or needs at least one true side. Both are false, so the result is false.",
+         "topic_id": "and-or"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "u2-l3",
+     "title": "Arrays and loops",
+     "goal": "Store a list in an array, read items by index, and loop over them to compute a total.",
+     "slides": [
+      {
+       "slide_id": "s1",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 6 | IDEA</p><h1 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Arrays and loops</h1><p class=\"a\" style=\"margin:0 0 14px;font-size:18px;line-height:1.45;animation-delay:0.8s\">An array is an ordered list. Positions start at 0.</p><div class=\"a\" style=\"margin:0 0 14px;animation-delay:1.7s\"><svg role=\"img\" aria-label=\"An array of three boxes holding 4, 8 and 6 with positions 0, 1 and 2\" viewBox=\"0 0 280 100\" style=\"width:100%;max-width:320px;height:auto\"><rect x=\"10\" y=\"14\" width=\"80\" height=\"56\" rx=\"12\" fill=\"#f3f6f9\" stroke=\"#1cb0f6\" stroke-width=\"3\"/><text x=\"50\" y=\"52\" text-anchor=\"middle\" font-size=\"26\" font-weight=\"700\" fill=\"#1f2937\" font-family=\"monospace\">4</text><text x=\"50\" y=\"92\" text-anchor=\"middle\" font-size=\"18\" fill=\"#46a302\" font-family=\"monospace\">0</text><rect x=\"100\" y=\"14\" width=\"80\" height=\"56\" rx=\"12\" fill=\"#f3f6f9\" stroke=\"#1cb0f6\" stroke-width=\"3\"/><text x=\"140\" y=\"52\" text-anchor=\"middle\" font-size=\"26\" font-weight=\"700\" fill=\"#1f2937\" font-family=\"monospace\">8</text><text x=\"140\" y=\"92\" text-anchor=\"middle\" font-size=\"18\" fill=\"#46a302\" font-family=\"monospace\">1</text><rect x=\"190\" y=\"14\" width=\"80\" height=\"56\" rx=\"12\" fill=\"#f3f6f9\" stroke=\"#1cb0f6\" stroke-width=\"3\"/><text x=\"230\" y=\"52\" text-anchor=\"middle\" font-size=\"26\" font-weight=\"700\" fill=\"#1f2937\" font-family=\"monospace\">6</text><text x=\"230\" y=\"92\" text-anchor=\"middle\" font-size=\"18\" fill=\"#46a302\" font-family=\"monospace\">2</text></svg></div></div></div>",
+       "narration": "Real programs deal with many values at once, like a list of scores or names. An array holds a list of values in order. Then a loop lets you do something with every item without writing the same line again and again. We start with arrays.",
+       "duration_ms": 19800,
+       "topic_ids": [
+        "array-basics"
+       ]
+      },
+      {
+       "slide_id": "s2",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 6 | CONCEPT</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Arrays</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>const scores = [4, 8, 6]\nconsole.log(scores[0])\nconsole.log(scores.length)\nscores.push(10)\nconsole.log(scores.length)</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>4<br>3<br>4</div></div></div>",
+       "narration": "An array is written with square brackets and commas. You read an item with its position, called the index, and counting starts at zero, so the first item is at index 0. The length tells you how many items there are, and push adds a new item to the end.",
+       "duration_ms": 21500,
+       "topic_ids": [
+        "array-basics"
+       ]
+      },
+      {
+       "slide_id": "s3",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 6 | EXAMPLE</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">for...of</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>const names = [\"Ana\", \"Ben\", \"Cy\"]\nfor (const name of names) {\n  console.log(name)\n}</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>Ana<br>Ben<br>Cy</div></div></div>",
+       "narration": "A for of loop visits each item in an array, one at a time. On each turn, the name before of holds the current item. Here name is Ana, then Ben, then Cy, and the body runs once for each. You write the body once, and it repeats for every item.",
+       "duration_ms": 22000,
+       "topic_ids": [
+        "for-of-loop"
+       ]
+      },
+      {
+       "slide_id": "s4",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><p class=\"a\" style=\"margin:0 0 8px;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 6 | RECAP</p><h2 class=\"a\" style=\"margin:0 0 16px;font-size:28px;line-height:1.2;animation-delay:.2s\">Add them up</h2><pre class=\"a\" style=\"margin:0 0 10px;padding:14px 16px;background:#1f2937;color:#f9fafb;border-radius:12px;font-size:16px;line-height:1.5;white-space:pre-wrap;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:0.8s\"><code>const scores = [4, 8, 6]\nlet total = 0\nfor (const score of scores) {\n  total = total + score\n}\nconsole.log(total)</code></pre><div class=\"a\" style=\"margin:0 0 14px;padding:10px 14px;background:#ecfbd9;border-left:6px solid #58cc02;border-radius:12px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;animation-delay:1.7s\"><span style=\"font-family:system-ui,sans-serif;font-weight:700;color:#46a302\">Prints</span><br>18</div></div></div>",
+       "narration": "Loops are great for totals. Start a let variable at zero, then add each item to it inside the loop. After the loop ends, total holds the sum, here 4 plus 8 plus 6, which is 18. Remember: arrays start at index 0, and for of visits every item.",
+       "duration_ms": 21100,
+       "topic_ids": [
+        "running-total",
+        "for-of-loop"
+       ]
+      }
+     ],
+     "test": [
+      {
+       "question_id": "u2-l3-q1",
+       "topic_id": "array-basics",
+       "prompt": "What does this code print?\n\nconst colors = [\"red\", \"green\", \"blue\"]\nconsole.log(colors[1])",
+       "choices": [
+        "green",
+        "red",
+        "blue",
+        "colors"
+       ],
+       "answer_index": 0,
+       "explanation": "Positions start at 0, so index 1 is the second item, green. Index 0 would be red."
+      },
+      {
+       "question_id": "u2-l3-q2",
+       "topic_id": "for-of-loop",
+       "prompt": "What does this code print?\n\nconst nums = [1, 2, 3]\nfor (const n of nums) {\n  console.log(n * 2)\n}",
+       "choices": [
+        "1, 2, 3",
+        "2, 4, 6",
+        "12",
+        "6"
+       ],
+       "answer_index": 1,
+       "explanation": "The loop body runs once per item and prints each item times 2, so three lines appear: 2, 4 and 6."
+      },
+      {
+       "question_id": "u2-l3-q3",
+       "topic_id": "running-total",
+       "prompt": "What does this code print?\n\nconst prices = [3, 5, 2]\nlet total = 0\nfor (const price of prices) {\n  total = total + price\n}\nconsole.log(total)",
+       "choices": [
+        "0",
+        "2",
+        "10",
+        "3, 5, 2"
+       ],
+       "answer_index": 2,
+       "explanation": "total starts at 0 and each loop turn adds one price: 3 + 5 + 2 makes 10, printed once after the loop."
+      }
+     ],
+     "variant_pool": [
+      {
+       "topic_id": "array-basics",
+       "variants": [
+        {
+         "question_id": "u2-l3-q1-v1",
+         "variant_of": "u2-l3-q1",
+         "prompt": "A list of lights is stored in an array. Which item does this line show?\n\nconst lights = [\"red\", \"green\", \"amber\"]\nconsole.log(lights[1])",
+         "choices": [
+          "blue",
+          "green",
+          "red",
+          "colors"
+         ],
+         "answer_index": 1,
+         "explanation": "Index 1 is the second item, because counting starts at 0.",
+         "topic_id": "array-basics"
+        },
+        {
+         "question_id": "u2-l3-q1-v2",
+         "variant_of": "u2-l3-q1",
+         "prompt": "Read the array carefully. What is printed?\n\nconst tray = [\"blue\", \"red\", \"green\"]\nconsole.log(tray[2])",
+         "choices": [
+          "colors",
+          "red",
+          "green",
+          "blue"
+         ],
+         "answer_index": 2,
+         "explanation": "Index 2 is the third item, which is green here.",
+         "topic_id": "array-basics"
+        }
+       ]
+      },
+      {
+       "topic_id": "for-of-loop",
+       "variants": [
+        {
+         "question_id": "u2-l3-q2-v1",
+         "variant_of": "u2-l3-q2",
+         "prompt": "A loop visits each item of a small array. What is shown?\n\nconst small = [1, 2, 3]\nfor (const item of small) {\n  console.log(item + item)\n}",
+         "choices": [
+          "6",
+          "12",
+          "2, 4, 6",
+          "1, 2, 3"
+         ],
+         "answer_index": 2,
+         "explanation": "Each item is doubled and printed on its own line: 2, 4, 6.",
+         "topic_id": "for-of-loop"
+        },
+        {
+         "question_id": "u2-l3-q2-v2",
+         "variant_of": "u2-l3-q2",
+         "prompt": "Follow the loop turn by turn. What is the output?\n\nconst steps = [1, 2, 3]\nfor (const s of steps) {\n  console.log(s * 2)\n}",
+         "choices": [
+          "2, 4, 6",
+          "1, 2, 3",
+          "6",
+          "12"
+         ],
+         "answer_index": 0,
+         "explanation": "The body runs three times, printing 2, then 4, then 6.",
+         "topic_id": "for-of-loop"
+        }
+       ]
+      },
+      {
+       "topic_id": "running-total",
+       "variants": [
+        {
+         "question_id": "u2-l3-q3-v1",
+         "variant_of": "u2-l3-q3",
+         "prompt": "A shopping basket is summed with a loop. What is printed at the end?\n\nconst bag = [4, 4, 2]\nlet total = 0\nfor (const item of bag) {\n  total = total + item\n}\nconsole.log(total)",
+         "choices": [
+          "10",
+          "3, 5, 2",
+          "0",
+          "2"
+         ],
+         "answer_index": 0,
+         "explanation": "4 + 4 + 2 is 10, and it is printed once because console.log sits after the loop.",
+         "topic_id": "running-total"
+        },
+        {
+         "question_id": "u2-l3-q3-v2",
+         "variant_of": "u2-l3-q3",
+         "prompt": "This loop adds up four numbers. What does it print?\n\nconst costs = [1, 2, 3, 4]\nlet sum = 0\nfor (const cost of costs) {\n  sum = sum + cost\n}\nconsole.log(sum)",
+         "choices": [
+          "3, 5, 2",
+          "0",
+          "2",
+          "10"
+         ],
+         "answer_index": 3,
+         "explanation": "1 + 2 + 3 + 4 is 10, printed once after the loop ends.",
+         "topic_id": "running-total"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

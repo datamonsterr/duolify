@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/examples"
 	"github.com/google/uuid"
 	"github.com/posthog/posthog-go"
 )
@@ -104,7 +105,7 @@ func allowlisted(event string) bool {
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
 		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
-		"marketplace_browsed", "marketplace_searched", "course_viewed",
+		"marketplace_browsed", "marketplace_searched", "course_viewed", "example_courses_viewed", "example_course_enrolled",
 		"course_invite_sent", "course_invite_accepted", "course_invite_declined",
 		"course_republished", "course_update_applied", "review_submitted", "review_deleted", "course_reported", "course_hidden_by_reports",
 		"moderation_action", "moderation_appeal",
@@ -228,6 +229,16 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		numeric("credits", "lessons_added", "lessons_removed", "lessons_changed", "outline_version")
 		if value, ok := input["reason"].(string); ok && slices.Contains([]string{"quote_invalid", "insufficient_credits", "protected_lesson_changed", "invalid_proposal", "replan_unavailable", "generation_failed"}, value) {
 			out["reason"] = value
+		}
+	case "example_courses_viewed", "example_course_enrolled":
+		if event == "example_course_enrolled" {
+			ids("course_id")
+			if value, ok := input["slug"].(string); ok && slices.Contains(examples.Slugs(), value) {
+				out["slug"] = value
+			}
+		}
+		if value, ok := input["surface"].(string); ok && slices.Contains([]string{"courses", "learn_empty", "onboarding"}, value) {
+			out["surface"] = value
 		}
 	case "course_forked_from_published":
 		ids("course_id")

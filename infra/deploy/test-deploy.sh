@@ -115,7 +115,7 @@ fake=$tmp/fake
 mkdir -p "$fake/bin" "$fake/deploy"
 cp "$here/deploy.sh" "$fake/deploy/"
 # shellcheck disable=SC2016 # the stub's own $1 must stay literal
-printf '#!/usr/bin/env bash\n[[ $1 == compose ]] && { shift; exec docker compose "$@"; }\n[[ $1 == smoke ]] && exit 0\nexit 1\n' >"$fake/deploy/selfhost.sh"
+printf '#!/usr/bin/env bash\n[[ $1 == compose ]] && { shift; exec docker compose "$@"; }\n[[ $1 == smoke ]] && exit ${FAKE_SMOKE_RC:-0}\nexit 1\n' >"$fake/deploy/selfhost.sh"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$fake/plan-ok.sh"
 cat >"$fake/lib.sh" <<'LIB'
 f() { sed -n "s/^$2=//p" "$st/c/$1"; }
@@ -151,6 +151,7 @@ case $1 in
         while (($#)); do case $1 in --scale) scale=${2#*=}; shift ;; -*) ;; *) svcs+=("$1") ;; esac; shift; done
         for s in "${svcs[@]}"; do
           echo "up $s" >>"$st/events"
+          echo "$s $(sed -n 's/^API_IMAGE=//p' "$SELFHOST_ENV_FILE")" >>"$st/ups"
           for n in $(list); do
             [[ $(f "$n" service) == "$s" ]] || continue
             if [[ $(f "$n" state) == restarting || $(f "$n" health) == unhealthy ]]; then echo "container $n is unhealthy" >&2; exit 1; fi
@@ -218,5 +219,17 @@ check "the deploy after a failed rollout converges" "$((rc == 0 && $(healthy_api
 FAIL_SERVICE=worker fake_deploy "api:running:0:healthy api:running:0:healthy postgres:running:0:healthy"
 check "a crash-looping worker fails the deploy" "$((rc != 0))"
 check "a crash-looping worker is removed, not left restarting" "$(compgen -G "$fake/state/c/worker-*" >/dev/null && echo 0 || echo 1)"
+
+# The smoke test fails after the whole new generation is running (the staging failure: smoke cannot reach the
+# proxy). The rollback must bring engine, API, worker and proxy back to the previous image references, not only
+# rewrite .env, and the deploy still fails.
+FAKE_SMOKE_RC=1 fake_deploy "api:running:0:healthy api:running:0:healthy postgres:running:0:healthy"
+ups=$(cat "$fake/state/ups" 2>/dev/null || true)
+check "a failed smoke test fails the deploy" "$((rc != 0))"
+check "the new generation was rolled out before the smoke test" "$(grep -q '^worker ghcr' <<<"$ups" && grep -q '^proxy ghcr' <<<"$ups" && echo 1 || echo 0)"
+check "a failed smoke test restores the previous image references in .env" "$(grep -q '^API_IMAGE=old-api$' "$fake/env" && echo 1 || echo 0)"
+check "a failed smoke test restarts engine, worker and proxy on the previous images" "$(for s in engine worker proxy; do grep "^$s " <<<"$ups" | tail -n 1; done | grep -c ' old-api$' | grep -qx 3 && echo 1 || echo 0)"
+check "a failed smoke test leaves two healthy api containers" "$(($(healthy_api) == 2))"
+check "a failed smoke test never removes a data service" "$(grep -E '^(rm|stop) (postgres|redis|walship|prometheus|node-exporter)' <<<"$(events)" | grep -q . && echo 0 || echo 1)"
 
 ((failures == 0)) || { printf '%s failure(s)\n' "$failures" >&2; exit 1; }

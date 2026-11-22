@@ -25,6 +25,15 @@ type Client struct {
 	timeout time.Duration
 }
 
+// quoted bounds a quote-priced generation call. The caller's quote/reservation deadline (minutes
+// for a live model) governs when it has one; the short default applies only to unbounded callers.
+func (c *Client) quoted(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, ok := ctx.Deadline(); ok {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, c.timeout)
+}
+
 // ReplanOutline retains the action-specific 90s ceiling and the reservation deadline.
 func (c *Client) ReplanOutline(ctx context.Context, r *enginev1.ReplanOutlineRequest) (*enginev1.ReplanOutlineResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
@@ -138,7 +147,7 @@ func (c *Client) Providers(ctx context.Context) ([]string, error) {
 
 // PreviewCourse forwards the supplied context and bounds engine execution time.
 func (c *Client) PreviewCourse(ctx context.Context, request *enginev1.PreviewCourseRequest) (*enginev1.PreviewCourseResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	ctx, cancel := c.quoted(ctx)
 	defer cancel()
 	return c.rpc.PreviewCourse(ctx, request)
 }
@@ -169,14 +178,14 @@ func (c *Client) EnrichNote(ctx context.Context, request *enginev1.EnrichNoteReq
 
 // GenerateCourseOutline forwards the exact authored outline within the API deadline.
 func (c *Client) GenerateCourseOutline(ctx context.Context, r *enginev1.GenerateCourseOutlineRequest) (*enginev1.GenerateCourseOutlineResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	ctx, cancel := c.quoted(ctx)
 	defer cancel()
 	return c.rpc.GenerateCourseOutline(ctx, r)
 }
 
 // GenerateLesson streams lesson generation and returns the completed lesson and usage attempts.
 func (c *Client) GenerateLesson(ctx context.Context, req *enginev1.GenerateLessonRequest) (*enginev1.Lesson, []*enginev1.Usage, error) {
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	ctx, cancel := c.quoted(ctx)
 	defer cancel()
 	stream, err := c.rpc.GenerateLesson(ctx, req)
 	if err != nil {

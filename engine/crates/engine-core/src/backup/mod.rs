@@ -132,7 +132,16 @@ impl EngineStartupConfig {
                 )));
             }
 
-            // Gate 2: Required provider credentials in live provider mode.
+            // Gate 2: staging and production serve only the live provider. A fixture router
+            // skips screening and the promotion gate while quoting the live route identity.
+            if self.provider_mode != "live" {
+                return Err(EngineConfigError::FixtureInProduction(format!(
+                    "ENGINE_PROVIDER_MODE={:?}; staging and production require live",
+                    self.provider_mode
+                )));
+            }
+
+            // Gate 3: Required provider credentials in live provider mode.
             if self.provider_mode == "live" {
                 // OpenRouter is the only live provider (ADR 0015).
                 if self.openrouter_api_key.is_none() {
@@ -152,6 +161,8 @@ pub enum EngineConfigError {
     PublicExposure(String),
     MissingDependency(String),
     InvalidAddress(String),
+    /// Production started on a mock or fixture provider.
+    FixtureInProduction(String),
 }
 
 impl std::fmt::Display for EngineConfigError {
@@ -162,8 +173,14 @@ impl std::fmt::Display for EngineConfigError {
                 write!(f, "missing required dependency or credential: {}", msg)
             }
             Self::InvalidAddress(msg) => write!(f, "invalid listen address: {}", msg),
+            Self::FixtureInProduction(msg) => {
+                write!(f, "fixture provider refused in production: {}", msg)
+            }
         }
     }
 }
 
 impl std::error::Error for EngineConfigError {}
+
+#[cfg(test)]
+mod tests;

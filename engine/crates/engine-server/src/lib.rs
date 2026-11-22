@@ -1001,6 +1001,14 @@ impl EngineService for Service {
             self.router.primary.name().to_string(),
             self.router.fallback.name().to_string(),
         ];
+        // Transport identity, separate from the quote identity: fixture routers report the live
+        // route names but never call a model, screen or check promotion evidence.
+        let mode = if self.router.fixture_only() {
+            "mode:fixture"
+        } else {
+            "mode:live"
+        };
+        providers.push(mode.to_string());
         providers.extend(self.router.models.tasks.iter().map(|(task, m)| {
             format!(
                 "route:{task}={}/{},{}/{}",

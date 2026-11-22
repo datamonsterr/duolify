@@ -89,23 +89,41 @@ cmd_up() {
   say "stack is up: $(setting PUBLIC_ORIGIN)"
 }
 
-proxy_url() { # base URL plus curl options reaching the proxy on this host
-  local site port
+proxy_url() { # base URL plus curl options reaching the proxy's origin listener on this host
+  local site port host bind
   site=$(setting SITE_ADDRESS)
   site=${site%%,*} # several addresses ("a.example, b.example"): test the first
   site=${site%% *}
   site=${site#http://}
+  # The proxy publishes on BIND_ADDRESS (the VM's public IP on staging), so loopback is not bound there:
+  # connect to the bound address. A wildcard or empty BIND_ADDRESS is reachable on loopback.
+  bind=$(setting BIND_ADDRESS)
+  case $bind in "" | 0.0.0.0 | "::" | "[::]") host=127.0.0.1 ;; *) host=$bind ;; esac
+  smoke_host=$host
   if [[ $site == :* || $site == "" ]] || [[ $(setting SITE_ADDRESS) == http://* ]]; then
     port=$(setting HTTP_PORT)
-    base="http://127.0.0.1:${port:-80}"
+    smoke_port=${port:-80}
+    base="http://$host:$smoke_port"
     curl_opts=()
   else
     port=$(setting HTTPS_PORT)
-    base="https://$site:${port:-443}"
-    curl_opts=(--resolve "$site:${port:-443}:127.0.0.1")
+    smoke_port=${port:-443}
+    base="https://$site:$smoke_port"
+    # Local connect with the site name as SNI and Host: the check tests the origin, not Cloudflare.
+    curl_opts=(--resolve "$site:$smoke_port:$host")
     # An origin certificate from a private CA (Cloudflare Origin CA): trust its root for the smoke test.
     if [[ -f $deploy_dir/site.d/origin-ca.pem ]]; then curl_opts+=(--cacert "$deploy_dir/site.d/origin-ca.pem"); fi
   fi
+}
+
+# The container is healthy before Caddy has bound (or reloaded) the published ports; wait for the origin to
+# answer (any HTTP status) for up to SMOKE_WAIT_SECONDS (default 60). Needs proxy_url first.
+wait_proxy() {
+  local deadline=$((SECONDS + ${SMOKE_WAIT_SECONDS:-60})) err
+  until err=$(curl -sS -o /dev/null --connect-timeout 2 --max-time 5 "${curl_opts[@]}" "$base/" 2>&1); do
+    if ((SECONDS >= deadline)); then printf '%s\n' "$err"; return 1; fi
+    sleep 1
+  done
 }
 
 check() { printf '  %-58s' "$1"; }
@@ -113,7 +131,7 @@ ok() { printf 'ok\n'; }
 fail() { printf 'FAIL\n'; printf '    %s\n' "$@" >&2; failures=$((failures + 1)); }
 
 cmd_smoke() {
-  local base curl_opts failures=0 service health body first published origin script
+  local base curl_opts smoke_host smoke_port failures=0 service health body first published origin script err
   proxy_url
   origin=$(setting PUBLIC_ORIGIN)
   say "smoke testing $base"
@@ -132,6 +150,9 @@ cmd_smoke() {
 
   check "API readiness (postgres, redis, object storage, engine)"
   if compose exec -T api /api healthcheck >/dev/null 2>&1; then ok; else fail "/api healthcheck failed"; fi
+
+  check "proxy origin $smoke_host:$smoke_port accepts connections"
+  if err=$(wait_proxy); then ok; else fail "$err"; die "$((failures + 1)) smoke check(s) failed"; fi
 
   check "GET /v1/features through the proxy"
   body=$(curl -fsS "${curl_opts[@]}" "$base/v1/features" 2>&1 || true)
@@ -161,7 +182,28 @@ cmd_smoke() {
     fail "bundle $script still targets localhost:8080 (VITE_API_URL)"
   elif [[ -n $script ]]; then ok; else fail "no /assets/*.js in index.html"; fi
 
+  # Every other served host name (for example the API host) answers on the same origin listener.
+  local addr first=${base#https://} others=()
+  first=${first%:*}
+  if [[ $base == https://* ]]; then
+    for addr in $(setting SITE_ADDRESS | tr ',' ' '); do
+      [[ $addr != "$first" ]] && others+=("$addr")
+    done
+  fi
+  for addr in ${others[@]+"${others[@]}"}; do
+    check "origin serves $addr (GET /v1/features)"
+    body=$(curl -fsS --resolve "$addr:$smoke_port:$smoke_host" "${curl_opts[@]:2}" "https://$addr:$smoke_port/v1/features" 2>&1 || true)
+    if [[ $body == *marketplace_enabled* ]]; then ok; else fail "$body"; fi
+  done
+
   if ((failures > 0)); then die "$failures smoke check(s) failed"; fi
+  # Second, informational check through the public name (Cloudflare when proxied). It never fails the
+  # deploy: a Cloudflare or DNS problem is not a reason to roll the stack back.
+  if [[ $origin == https://* && ${SMOKE_PUBLIC:-1} != 0 ]]; then
+    check "PUBLIC via Cloudflare: GET $origin/v1/features (info)"
+    if body=$(curl -fsS --max-time 15 "$origin/v1/features" 2>&1) && [[ $body == *marketplace_enabled* ]]; then ok
+    else printf 'WARN\n    %s\n' "$body" >&2; fi
+  fi
   say "smoke passed"
 }
 
@@ -227,6 +269,8 @@ case ${1:-} in
     shift
     if [[ -t 1 ]]; then compose logs --follow --tail 100 "$@"; else compose logs --no-color --tail 300 "$@"; fi ;;
   smoke) cmd_smoke ;;
+  smoke-target) base='' curl_opts=() smoke_host='' smoke_port=''; proxy_url; printf '%s\n' "$base" "${curl_opts[@]}" ;; # test seam
+  smoke-wait) base='' curl_opts=() smoke_host='' smoke_port=''; proxy_url; wait_proxy ;; # test seam
   backup) cmd_backup ;;
   restore-drill) cmd_restore_drill ;;
   pitr-drill) shift; cmd_pitr_drill "$@" ;;
