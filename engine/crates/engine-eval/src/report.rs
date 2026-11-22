@@ -69,6 +69,26 @@ pub fn generate_markdown_report(report: &EvalReport) -> String {
         ));
     }
 
+    if report.results.iter().any(|r| !r.served_models.is_empty()) {
+        md.push_str("\n## Cases\n\n");
+        md.push_str(
+            "| Case | Task | Passed | Served model | Fallback | Latency (ms) | Cost (USD) |\n",
+        );
+        md.push_str("|---|---|---|---|---|---|---|\n");
+        for r in &report.results {
+            md.push_str(&format!(
+                "| {} | {} | {} | {} | {} | {} | ${:.6} |\n",
+                r.id,
+                r.task,
+                if r.passed { "PASS" } else { "FAIL" },
+                r.served_models.join(" -> "),
+                if r.fallback_used { "YES" } else { "NO" },
+                r.latency_ms,
+                r.cost_usd,
+            ));
+        }
+    }
+
     let failing_cases: Vec<_> = report.results.iter().filter(|r| !r.passed).collect();
     if !failing_cases.is_empty() {
         md.push_str("\n## Failing Cases\n\n");
@@ -138,6 +158,9 @@ mod tests {
                 cost_usd: 0.0,
                 input_tokens: 0,
                 output_tokens: 0,
+                served_models: vec!["tencent/hy4-flash".into()],
+                latency_ms: 1200,
+                ..Default::default()
             }],
         };
 
@@ -156,6 +179,7 @@ mod tests {
         assert!(md.contains("git-abc"));
         assert!(md.contains("course_preview"));
         assert!(md.contains("**Dataset Verified**: YES"));
+        assert!(md.contains("| case-1 | course_preview | PASS | tencent/hy4-flash | NO | 1200 |"));
         let unverified = EvalReport::default();
         assert!(generate_markdown_report(&unverified).contains("**Dataset Verified**: NO"));
     }
