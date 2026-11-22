@@ -309,6 +309,14 @@ func (a *Admin) create(w http.ResponseWriter, r *http.Request, actor string) {
 		adminError(w, 409, "pricing version already exists")
 		return
 	}
+	if c.QuotePolicySource != "" {
+		var known bool
+		if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pricing_quote_policies WHERE version=$1)", c.QuotePolicySource).Scan(&known); err != nil || !known {
+			a.auditFailure(ctx, actor, "validation_failed", c.Version, in.Reason, "{}", requestID(r))
+			adminError(w, 422, "quote policy source not found")
+			return
+		}
+	}
 	adverse, err := classifyAdverse(previous, in.Config)
 	if err != nil {
 		adminError(w, 422, "unable to classify pricing change")
@@ -681,7 +689,8 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 	}
 	if err == nil {
 		var parentPolicyBytes []byte
-		policyErr := tx.QueryRow(ctx, `SELECT p.policy FROM pricing_drafts d JOIN pricing_quote_policies p ON p.version=d.parent_version WHERE d.version=$1`, version).Scan(&parentPolicyBytes)
+		// A draft pins its named source policy; otherwise it inherits its parent's.
+		policyErr := tx.QueryRow(ctx, `SELECT p.policy FROM pricing_drafts d JOIN pricing_quote_policies p ON p.version=coalesce(nullif($2,''),d.parent_version) WHERE d.version=$1`, version, parsed.QuotePolicySource).Scan(&parentPolicyBytes)
 		if policyErr != nil {
 			err = errors.New("quote policy missing from pricing ancestry")
 		} else {
@@ -702,10 +711,13 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 						}
 					}
 				}
+				if parsed.QuotePolicySource != "" {
+					err = policyCoversActions(policy, parsed)
+				}
 				policyJSON, marshalErr := json.Marshal(policy)
-				if marshalErr != nil {
+				if err == nil && marshalErr != nil {
 					err = marshalErr
-				} else {
+				} else if err == nil {
 					_, err = tx.Exec(ctx, `INSERT INTO pricing_quote_policies(version, policy) VALUES($1, $2::jsonb)`, version, policyJSON)
 				}
 			}
@@ -1113,7 +1125,7 @@ func adverseObject(before, after map[string]any, path string, removed map[string
 	for key, oldValue := range before {
 		newValue, ok := after[key]
 		if !ok {
-			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision" || key == "design_chat_policy") {
+			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision" || key == "design_chat_policy" || key == "quote_policy_source") {
 				continue
 			}
 			if key == "stripe_price_id" || key == "store_product_ids" {
@@ -1128,7 +1140,7 @@ func adverseObject(before, after map[string]any, path string, removed map[string
 		if path != "" {
 			full = path + "." + key
 		}
-		if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision" || key == "design_chat_policy") {
+		if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision" || key == "design_chat_policy" || key == "quote_policy_source") {
 			continue
 		}
 		if key == "stripe_price_id" || key == "store_product_ids" {
@@ -1141,7 +1153,7 @@ func adverseObject(before, after map[string]any, path string, removed map[string
 	}
 	for key := range after {
 		if _, ok := before[key]; !ok {
-			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision" || key == "design_chat_policy") {
+			if path == "" && (key == "version" || key == "effective_from" || key == "development_mappings" || key == "design_chat_decision" || key == "character_create_decision" || key == "design_chat_policy" || key == "quote_policy_source") {
 				continue
 			}
 			if key == "stripe_price_id" || key == "store_product_ids" {
@@ -1344,6 +1356,28 @@ func validateEffectiveInstant(ctx context.Context, tx pgx.Tx, effective time.Tim
 	}
 	if !effective.After(now) {
 		return errors.New("effective_from must be in the future")
+	}
+	return nil
+}
+
+// policyCoversActions rejects a pinned quote policy that cannot quote one of the version's AI actions:
+// every such action needs a rated model, and its fallback chain may only name rated models.
+func policyCoversActions(p QuotePolicy, c Config) error {
+	for action := range c.Actions {
+		if action == "narration" || action == "cached_replay" {
+			continue
+		}
+		key := p.ActionModels[action]
+		if rate, ok := p.Models[key]; !ok || rate.Provider == "" || rate.Model == "" {
+			return fmt.Errorf("quote policy has no rated model for action %s", action)
+		}
+		seen := map[string]bool{key: true}
+		for next := p.FallbackModels[key]; next != "" && !seen[next]; next = p.FallbackModels[next] {
+			seen[next] = true
+			if _, ok := p.Models[next]; !ok {
+				return fmt.Errorf("quote policy fallback %s has no rate", next)
+			}
+		}
 	}
 	return nil
 }

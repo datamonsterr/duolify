@@ -90,10 +90,13 @@ type Config struct {
 	// DesignChatPolicy records the approved settlement rules without changing
 	// historical versions that predate the owner decision.
 	DesignChatPolicy map[string]string `json:"design_chat_policy,omitempty"`
+	// QuotePolicySource names the existing version whose quote policy approval pins. Empty inherits the parent's.
+	QuotePolicySource string `json:"quote_policy_source,omitempty"`
 }
 
 // Public strips provider mappings. No sales are activated by this read-only ticket.
 func (c Config) Public() PublicConfig {
+	c.QuotePolicySource = ""
 	c.DevelopmentMappings = nil
 	c.ProcessingFees = nil
 	c.StripeMappings = nil
