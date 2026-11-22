@@ -17,7 +17,7 @@ OpenRouter model metadata (`GET /api/v1/models`, 2026-11-22) lists `response_for
 ## Decision
 
 - Screens run Hy4 with reasoning `none`. GLM keeps `low` (it cannot disable reasoning); its screen answers used 10 to 60 reasoning tokens in probes, well inside the cap.
-- Every screen request carries a strict `json_schema` with the closed reason-code enum, `provider.require_parameters: true`, and a prompt that spells out the enum with examples, including block cases. Other JSON tasks carry strict `json_schema` (brief classification, note enrichment, preview) or `json_object` (lesson, outline, outline changes, replan, character mapping).
+- Every screen request carries a strict `json_schema` with the closed reason-code enum, `provider.require_parameters: true`, and a prompt that spells out the enum with examples, including block cases. Other JSON tasks carry strict `json_schema` (brief classification, note enrichment, preview, and plain lesson generation, passed per call because the `lesson` route also serves retry variants) or `json_object` (retry variants, Character lessons, outline, outline changes, replan, character mapping).
 - Safety judgment comes from the explicit policy, enum and examples, not from hidden reasoning. Screens stay fail closed.
 
 ## Consequences

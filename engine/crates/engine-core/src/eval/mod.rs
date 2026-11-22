@@ -192,21 +192,31 @@ pub async fn run_bounded_checked<F: Fn(&str) -> std::result::Result<(), String>>
         task,
         inputs,
         l,
-        None,
+        Shape::default(),
         validate,
         reserve_fallback_time,
     )
     .await
 }
 
-/// `run_bounded_checked` with an explicit `response_format` for this call, for a task route
-/// that serves several answer shapes (lesson generation versus retry variants on `lesson`).
+/// Per-call answer shape for a task route that serves several shapes (lesson generation versus
+/// retry variants on `lesson`).
+#[derive(Default, Clone)]
+pub struct Shape {
+    /// `response_format` for this call instead of the task default.
+    pub format: Option<serde_json::Value>,
+    /// Deterministic, validator-neutral fix-up applied after extraction and before validation
+    /// (for example `lessontest::prepare_lesson`); `None` from it keeps the text.
+    pub prepare: Option<fn(&str) -> Option<String>>,
+}
+
+/// `run_bounded_checked` with an explicit answer shape for this call.
 pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String>>(
     router: &ProviderRouter,
     task: &str,
     inputs: &[&str],
     l: &Limits,
-    format: Option<serde_json::Value>,
+    shape: Shape,
     validate: F,
     reserve_fallback_time: bool,
 ) -> Result<Outcome> {
@@ -267,8 +277,8 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
         } else {
             model.primary_route()
         };
-        if format.is_some() {
-            route_cfg.response_format = format.clone();
+        if shape.format.is_some() {
+            route_cfg.response_format = shape.format.clone();
         }
         let input = inputs[(index as usize).min(inputs.len() - 1)];
         // The repair turn only rides along while the whole request stays inside the envelope.
@@ -317,6 +327,9 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
                 let extracted = crate::structured::extract_json(&c.text);
                 if extracted.len() != c.text.len() {
                     c.text = extracted.to_owned();
+                }
+                if let Some(fixed) = shape.prepare.and_then(|prepare| prepare(&c.text)) {
+                    c.text = fixed;
                 }
                 let mut attempt = Attempt {
                     provider: provider.name().into(),

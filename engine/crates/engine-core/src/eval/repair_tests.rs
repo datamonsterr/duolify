@@ -216,7 +216,10 @@ async fn lesson_generation_overrides_the_task_format_with_the_lesson_schema() {
         "lesson",
         &["{}"],
         &limits(),
-        Some(crate::structured::lesson_format()),
+        Shape {
+            format: Some(crate::structured::lesson_format()),
+            prepare: None,
+        },
         |_| Ok(()),
         true,
     )
@@ -236,6 +239,42 @@ async fn lesson_generation_overrides_the_task_format_with_the_lesson_schema() {
         .unwrap();
     let f = p.routes.lock().unwrap()[0].response_format.clone().unwrap();
     assert_eq!(f["type"], "json_object");
+}
+
+#[test]
+fn same_order_variant_is_rotated_and_then_validates() {
+    let q = |id: &str, extra: serde_json::Value| {
+        let mut v = serde_json::json!({"question_id": id, "topic_id": "t",
+            "prompt": format!("Which colour {id}?"), "choices": ["Red", "Blue", "Green"],
+            "answer_index": 1, "explanation": "Blue is right."});
+        v.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        v
+    };
+    let lesson = serde_json::json!({
+        "slides": [{"html": "<div id=\"root\">Colours</div>", "narration": "Colours.",
+                    "duration_ms": 3000, "topic_ids": ["t"]}],
+        "test": [q("q1", serde_json::json!({}))],
+        "variant_pool": [{"topic_id": "t", "variants": [q("q1-v1", serde_json::json!({"variant_of": "q1"}))]}]
+    })
+    .to_string();
+    assert!(
+        crate::lessontest::check_generated(&lesson, &[], "")
+            .unwrap_err()
+            .contains("order must differ")
+    );
+    let fixed = crate::lessontest::prepare_lesson(&lesson).unwrap();
+    crate::lessontest::check_generated(&fixed, &[], "").unwrap();
+    let v: serde_json::Value = serde_json::from_str(&fixed).unwrap();
+    let variant = &v["variant_pool"][0]["variants"][0];
+    let choices = variant["choices"].as_array().unwrap();
+    assert_eq!(
+        choices[variant["answer_index"].as_u64().unwrap() as usize],
+        "Blue"
+    );
+    // A lesson that needs no fix is left alone.
+    assert!(crate::lessontest::prepare_lesson(&fixed).is_none());
 }
 
 #[test]

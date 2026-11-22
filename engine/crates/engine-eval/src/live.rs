@@ -178,7 +178,10 @@ pub async fn evaluate(task: &str, input: &Value, router: &ProviderRouter) -> Res
                 "lesson",
                 &[&prompt],
                 &limits(input, 16000, 12000, 180000),
-                Some(engine_core::structured::lesson_format()),
+                engine_core::eval::Shape {
+                    format: Some(engine_core::structured::lesson_format()),
+                    prepare: Some(engine_core::lessontest::prepare_lesson),
+                },
                 |text| {
                     rejected.check(
                         text,

@@ -10,7 +10,7 @@ The live golden eval (PR #277) passed 12 to 15 of 20 cases on the production Ope
 - Non-screen live cases sent the dataset text instead of the production prompts.
 
 ## What Changes
-- Every JSON task sends an OpenRouter `response_format` (strict `json_schema` for screens, brief classification, note enrichment and preview; `json_object` for large generation tasks) with `provider.require_parameters: true`. Both models list `response_format` and `structured_outputs` in their OpenRouter `supported_parameters`.
+- Every JSON task sends an OpenRouter `response_format` (strict `json_schema` for screens, brief classification, note enrichment, preview and plain lesson generation; `json_object` for the other generation tasks) with `provider.require_parameters: true`. Both models list `response_format` and `structured_outputs` in their OpenRouter `supported_parameters`.
 - One shared extraction rule (`engine_core::structured::extract_json`) for every JSON task: trim whitespace and strip one surrounding code fence, then strict validation. No prose parsing; unknown reason codes are rejected, not mapped.
 - The bounded second attempt becomes a corrective repair: it replays the rejected answer and a user turn quoting the validation error. Attempt, deadline and USD caps from `bound-model-routing-failures` are unchanged; the repair turn is dropped when it would exceed the input envelope.
 - Screens run Hy4 with reasoning `none` (ADR 0018), and every screen prompt spells out the closed enum with examples that include block cases.

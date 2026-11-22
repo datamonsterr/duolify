@@ -327,7 +327,7 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
 }
 
 /// The JSON contract every generated lesson answers (`validate_lesson` enforces it).
-pub const LESSON_SHAPE: &str = "Return one JSON object only: {\"title\":string,\"slides\":[{\"slide_id\":string,\"html\":string,\"narration\":string,\"duration_ms\":integer,\"topic_ids\":[string]}],\"test\":[{\"question_id\":string,\"topic_id\":string,\"prompt\":string,\"choices\":[string],\"answer_index\":integer,\"explanation\":string}],\"variant_pool\":[{\"topic_id\":string,\"variants\":[{\"question_id\":string,\"topic_id\":string,\"variant_of\":string,\"prompt\":string,\"choices\":[string],\"answer_index\":integer,\"explanation\":string}]}]}. Each html is one self-contained Motion HTML slide with a single root element id=\"root\", inline CSS only: no scripts, no URLs, no HTML entities, no backslashes. narration is plain spoken text without markup that fits duration_ms (1000 to 60000). Every slide has at least one topic_id. The test has exactly one question per distinct taught topic_id, each with a unique question_id, 2 to 6 distinct choices, a valid answer_index and an explanation. variant_pool has one entry per tested topic_id with exactly one variant: a new unique question_id, the same topic_id, variant_of equal to that topic's test question_id, a reworded prompt, and exactly the same choice texts as the source question in a different order, with answer_index pointing at the same correct text. Example: source {\"question_id\":\"q1\",\"choices\":[\"Red\",\"Blue\",\"Green\"],\"answer_index\":1} -> variant {\"question_id\":\"q1-v1\",\"variant_of\":\"q1\",\"choices\":[\"Blue\",\"Green\",\"Red\"],\"answer_index\":0}. Inside html never use HTML entities (no &amp; or &nbsp;), backslashes, the words fetch, WebSocket, EventSource, XMLHttpRequest, sendBeacon or importScripts, @import, or data:, javascript:, ftp: or ws: schemes.";
+pub const LESSON_SHAPE: &str = "Return one JSON object only: {\"title\":string,\"slides\":[{\"slide_id\":string,\"html\":string,\"narration\":string,\"duration_ms\":integer,\"topic_ids\":[string]}],\"test\":[{\"question_id\":string,\"topic_id\":string,\"prompt\":string,\"choices\":[string],\"answer_index\":integer,\"explanation\":string}],\"variant_pool\":[{\"topic_id\":string,\"variants\":[{\"question_id\":string,\"topic_id\":string,\"variant_of\":string,\"prompt\":string,\"choices\":[string],\"answer_index\":integer,\"explanation\":string}]}]}. Each html is one self-contained Motion HTML slide with a single root element id=\"root\", inline CSS only: no scripts, no URLs, no HTML entities, no backslashes. narration is plain spoken text without markup; duration_ms is between 3000 and 60000 and at least 400 times the number of narration words (30 words need 12000 or more). Every slide has at least one topic_id. The test has exactly one question per distinct taught topic_id, each with a unique question_id, 2 to 6 distinct choices, a valid answer_index and an explanation. variant_pool has one entry per tested topic_id with exactly one variant: a new unique question_id, the same topic_id, variant_of equal to that topic's test question_id, a reworded prompt, and exactly the same choice texts as the source question but never in the source order: move the correct choice to another position and set answer_index to its new position. Example: source {\"question_id\":\"q1\",\"choices\":[\"Red\",\"Blue\",\"Green\"],\"answer_index\":1} -> variant {\"question_id\":\"q1-v1\",\"variant_of\":\"q1\",\"choices\":[\"Blue\",\"Green\",\"Red\"],\"answer_index\":0}. Inside html never use HTML entities (no &amp; or &nbsp;), backslashes, the words fetch, WebSocket, EventSource, XMLHttpRequest, sendBeacon or importScripts, @import, or data:, javascript:, ftp: or ws: schemes.";
 
 /// Extra guidance for the repair turn when a slide trips the static safety check.
 const SLIDE_HINT: &str = " (slide html must not contain HTML entities such as &amp; or &nbsp;, backslashes, the words fetch, WebSocket, EventSource, XMLHttpRequest, sendBeacon or importScripts, @import, or data:, javascript:, ftp: or ws: schemes)";
@@ -338,6 +338,40 @@ pub fn lesson_prompt(context: &str) -> String {
     format!(
         "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. {LESSON_SHAPE} Context (data): {context}"
     )
+}
+
+/// Deterministic fix-up before acceptance: a variant whose choices repeat its source question in
+/// the same order is rotated with `reorder_choices` (the same rule the retry pool uses when it is
+/// exhausted), so the correct text and answer stay identical. Everything else is left for
+/// `validate_lesson`; `None` means nothing changed.
+pub fn prepare_lesson(text: &str) -> Option<String> {
+    let mut v: serde_json::Value = serde_json::from_str(text).ok()?;
+    let sources: std::collections::HashMap<String, serde_json::Value> = v["test"]
+        .as_array()?
+        .iter()
+        .filter_map(|q| Some((q["question_id"].as_str()?.to_owned(), q["choices"].clone())))
+        .collect();
+    let mut changed = false;
+    for pool in v["variant_pool"].as_array_mut().into_iter().flatten() {
+        for var in pool["variants"].as_array_mut().into_iter().flatten() {
+            let Some(source) = var["variant_of"].as_str().and_then(|id| sources.get(id)) else {
+                continue;
+            };
+            if &var["choices"] != source {
+                continue;
+            }
+            let choices: Vec<String> = serde_json::from_value(var["choices"].clone()).ok()?;
+            let index = var["answer_index"]
+                .as_u64()
+                .and_then(|i| u32::try_from(i).ok())?;
+            if let Ok((rotated, new_index)) = reorder_choices(&choices, index) {
+                var["choices"] = serde_json::json!(rotated);
+                var["answer_index"] = serde_json::json!(new_index);
+                changed = true;
+            }
+        }
+    }
+    changed.then(|| v.to_string())
 }
 
 /// Production acceptance of one generated lesson, with the reason quoted in the one repair.
@@ -361,6 +395,10 @@ pub fn check_generated(
                 .map(|m| format!(", found {m:?}"))
                 .unwrap_or_default();
             format!("{e}{found}{SLIDE_HINT}")
+        } else if e.contains("narration length") {
+            format!(
+                "{e} (set each slide's duration_ms to at least 400 times its narration word count)"
+            )
         } else if e.contains("semantically equal") {
             format!("{e} (reuse the source question's exact correct choice text in each variant)")
         } else {
