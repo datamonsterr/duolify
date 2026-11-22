@@ -76,7 +76,7 @@ func NewClerkUserEraser(pool *pgxpool.Pool, deleter ClerkUserDeleter) *ClerkUser
 // queued requests wait until Clerk is configured.
 func (e *ClerkUserEraser) Enabled() bool { return e != nil && e.deleter != nil }
 
-const clerkDeletionBatch = 50
+const clerkDeletionBatch = 4 // At most 40 seconds of remote calls, within River's one-minute deadline.
 
 // ProcessClerkUserDeletions deletes queued Clerk users. A request leaves the queue only after
 // Clerk accepted it or reported the user already gone; any other failure keeps it (with an
@@ -86,7 +86,9 @@ func (e *ClerkUserEraser) ProcessClerkUserDeletions(ctx context.Context) (int, e
 	if !e.Enabled() {
 		return 0, nil
 	}
-	rows, err := e.pool.Query(ctx, "SELECT clerk_user_id FROM clerk_user_deletion_requests ORDER BY requested_at LIMIT $1", clerkDeletionBatch)
+	rows, err := e.pool.Query(ctx, `SELECT clerk_user_id FROM clerk_user_deletion_requests
+ WHERE last_attempt_at IS NULL OR last_attempt_at <= now() - LEAST(interval '1 hour', interval '10 seconds' * power(2,LEAST(attempts,9)))
+ ORDER BY last_attempt_at NULLS FIRST,requested_at,clerk_user_id LIMIT $1`, clerkDeletionBatch)
 	if err != nil {
 		return 0, err
 	}
@@ -107,6 +109,29 @@ func (e *ClerkUserEraser) ProcessClerkUserDeletions(ctx context.Context) (int, e
 	done, failed := 0, 0
 	var firstErr error
 	for _, id := range ids {
+		tx, txErr := e.pool.Begin(ctx)
+		if txErr != nil {
+			return done, txErr
+		}
+		var locked bool
+		txErr = tx.QueryRow(ctx, "SELECT pg_try_advisory_xact_lock(hashtextextended('clerk-subject:' || $1,0))", id).Scan(&locked)
+		if txErr != nil || !locked {
+			_ = tx.Rollback(ctx)
+			if txErr != nil {
+				return done, txErr
+			}
+			continue
+		}
+		var pending bool
+		txErr = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM clerk_user_deletion_requests WHERE clerk_user_id=$1 AND
+ (last_attempt_at IS NULL OR last_attempt_at <= now() - LEAST(interval '1 hour', interval '10 seconds' * power(2,LEAST(attempts,9)))))`, id).Scan(&pending)
+		if txErr != nil || !pending {
+			_ = tx.Rollback(ctx)
+			if txErr != nil {
+				return done, txErr
+			}
+			continue
+		}
 		callCtx, cancel := context.WithTimeout(ctx, e.timeout)
 		err = e.deleter.DeleteUser(callCtx, id)
 		cancel()
@@ -115,12 +140,20 @@ func (e *ClerkUserEraser) ProcessClerkUserDeletions(ctx context.Context) (int, e
 			if firstErr == nil {
 				firstErr = err
 			}
-			if _, dbErr := e.pool.Exec(ctx, "UPDATE clerk_user_deletion_requests SET attempts=attempts+1,last_attempt_at=now() WHERE clerk_user_id=$1", id); dbErr != nil {
+			if _, dbErr := tx.Exec(ctx, "UPDATE clerk_user_deletion_requests SET attempts=attempts+1,last_attempt_at=now() WHERE clerk_user_id=$1", id); dbErr != nil {
+				_ = tx.Rollback(ctx)
 				return done, errors.Join(firstErr, dbErr)
+			}
+			if err = tx.Commit(ctx); err != nil {
+				return done, err
 			}
 			continue
 		}
-		if _, err = e.pool.Exec(ctx, "DELETE FROM clerk_user_deletion_requests WHERE clerk_user_id=$1", id); err != nil {
+		if _, err = tx.Exec(ctx, "DELETE FROM clerk_user_deletion_requests WHERE clerk_user_id=$1", id); err != nil {
+			_ = tx.Rollback(ctx)
+			return done, err
+		}
+		if err = tx.Commit(ctx); err != nil {
 			return done, err
 		}
 		done++
@@ -133,7 +166,41 @@ func (e *ClerkUserEraser) ProcessClerkUserDeletions(ctx context.Context) (int, e
 
 // queueClerkUserDeletion records every Clerk user bound to the Learner. It runs inside the
 // account-erasure transaction, before the learner row (and with it the binding) is deleted.
-func queueClerkUserDeletion(ctx context.Context, tx pgx.Tx, learnerID string) (bool, error) {
-	tag, err := tx.Exec(ctx, "INSERT INTO clerk_user_deletion_requests(clerk_user_id) SELECT subject FROM auth_provider_identities WHERE learner_id=$1::uuid AND provider='clerk' ON CONFLICT DO NOTHING", learnerID)
-	return tag.RowsAffected() > 0, err
+func queueClerkUserDeletion(ctx context.Context, tx pgx.Tx, learnerID string, ledgers ...DeletionLedger) (bool, error) {
+	rows, err := tx.Query(ctx, "SELECT subject FROM auth_provider_identities WHERE learner_id=$1::uuid AND provider='clerk'", learnerID)
+	if err != nil {
+		return false, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			rows.Close()
+			return false, err
+		}
+		ids = append(ids, id)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return false, err
+	}
+	for _, id := range ids {
+		if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended('clerk-subject:' || $1,0))", id); err != nil {
+			return false, err
+		}
+		if len(ledgers) > 0 {
+			ledger, ok := ledgers[0].(ClerkDeletionLedger)
+			if !ok {
+				return false, errors.New("recoverable Clerk erasure ledger required")
+			}
+			if err = ledger.AppendClerk(ctx, id); err != nil {
+				return false, err
+			}
+		}
+		if _, err = tx.Exec(ctx, "INSERT INTO clerk_user_deletion_requests(clerk_user_id) VALUES($1) ON CONFLICT DO NOTHING", id); err != nil {
+			return false, err
+		}
+	}
+	return len(ids) > 0, nil
 }

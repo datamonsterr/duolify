@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi, type Mock } from "vitest";
 import { server } from "../../test/setup";
 import { http, HttpResponse } from "msw";
 import { SignIn } from "./SignIn";
+import type { SSOCallback } from "./sso";
 import { credentialStore, session } from "./session";
 import { configureAnalytics } from "../../lib/analytics";
 
@@ -34,7 +35,7 @@ const start = () =>
 
 function bridge(extra: { cancel?: () => void } = {}) {
   const handle: {
-    callback?: (value: { state: string; code: string } | null) => void;
+    callback?: (value: SSOCallback) => void;
     openSystemBrowser: Mock<(url: string) => Promise<void>>;
   } = {
     openSystemBrowser: vi
@@ -118,6 +119,9 @@ it("completes Clerk sign-in through the deep-link bridge without exposing the ve
     "ui_control_activated",
     expect.objectContaining({ surface: "sign_in", control_id: "sign_in" }),
   );
+  // A retained callback from an earlier attempt must not cancel this attempt.
+  handle.callback?.({ state: "old".repeat(15), code: "c".repeat(43) });
+  handle.callback?.({ state: "old".repeat(15), cancelled: true });
   handle.callback?.({ state, code: "c".repeat(43) });
   await waitFor(() => expect(done).toHaveBeenCalledWith("/profile"));
   expect(JSON.stringify(posthog.capture.mock.calls)).not.toMatch(
@@ -143,7 +147,7 @@ it("rejects a deep link whose state does not match the started transaction", asy
   );
   await screen.findByRole("button", { name: "Cancel sign-in" });
   handle.callback?.({ state: "x".repeat(43), code: "c".repeat(43) });
-  await screen.findByText("Sign-in could not be verified. Please retry.");
+  expect(screen.getByRole("button", { name: "Cancel sign-in" })).toBeVisible();
   expect(completed).toBe(false);
 });
 
