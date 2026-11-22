@@ -1,4 +1,11 @@
 import { posthog } from "../../lib/posthog";
+import { appVersion, clientPlatform } from "../../lib/client-build";
+
+const platform = () =>
+  clientPlatform(
+    typeof window !== "undefined" && "__TAURI_INTERNALS__" in window,
+    import.meta.env.VITE_MOBILE_PLATFORM,
+  );
 
 const uuidRegex =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -33,8 +40,6 @@ export function trackCharacterRendered(params: CharacterRenderedParams): void {
     }
 
     let distinctId = "00000000-0000-0000-0000-000000000001";
-    const platform = "web";
-    const appVersion = "0.1.0";
 
     try {
       const stored = sessionStorage.getItem("duolify.auth");
@@ -51,7 +56,7 @@ export function trackCharacterRendered(params: CharacterRenderedParams): void {
     posthog.capture("character_rendered", {
       distinct_id: distinctId,
       source: "client",
-      platform,
+      platform: platform(),
       app_version: appVersion,
       speaker_key: params.speaker_key,
       character_version: params.character_version,
@@ -80,8 +85,6 @@ export function trackCharacterRenderFallback(
     }
 
     let distinctId = "00000000-0000-0000-0000-000000000001";
-    const platform = "web";
-    const appVersion = "0.1.0";
 
     try {
       const stored = sessionStorage.getItem("duolify.auth");
@@ -98,7 +101,7 @@ export function trackCharacterRenderFallback(
     posthog.capture("character_render_fallback", {
       distinct_id: distinctId,
       source: "client",
-      platform,
+      platform: platform(),
       app_version: appVersion,
       reason_code: params.reason_code,
       offline: params.offline,
@@ -142,8 +145,8 @@ export function trackCharacterReactionShown(
     posthog.capture("character_reaction_shown", {
       distinct_id: distinctId,
       source: "client",
-      platform: "web",
-      app_version: "0.1.0",
+      platform: platform(),
+      app_version: appVersion,
       reaction_trigger: params.reaction_trigger,
       speaker_key: params.speaker_key,
       expression: params.expression,
@@ -183,8 +186,8 @@ export function trackTutorCharacterSelected(
     posthog.capture("tutor_character_selected", {
       distinct_id: distinctId,
       source: "client",
-      platform: "web",
-      app_version: "0.1.0",
+      platform: platform(),
+      app_version: appVersion,
       speaker_key: params.speaker_key,
       character_version: params.character_version,
       cast_source: params.cast_source,

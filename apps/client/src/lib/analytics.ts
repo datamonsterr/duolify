@@ -1,4 +1,4 @@
-import { appVersion } from "./client-build";
+import { appVersion, clientPlatform } from "./client-build";
 import { posthog } from "./posthog";
 import {
   navigation,
@@ -174,9 +174,10 @@ function captureSSOUI(
       distinct_id: distinctID,
       platform:
         identity?.platform ??
-        (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
-          ? "desktop"
-          : "web"),
+        clientPlatform(
+          typeof window !== "undefined" && "__TAURI_INTERNALS__" in window,
+          import.meta.env.VITE_MOBILE_PLATFORM,
+        ),
       app_version: identity?.appVersion ?? appVersion,
       source: "client",
       ...properties,

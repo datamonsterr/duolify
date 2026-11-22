@@ -179,3 +179,22 @@ it("cancels SSO with focus recovery and respects analytics opt-out", async () =>
   analytics.trackSSOCancelled(id, true);
   expect(posthog.capture).not.toHaveBeenCalled();
 });
+
+it("reports the mobile platform for SSO events before learner identity loads", async () => {
+  vi.stubEnv("VITE_MOBILE_PLATFORM", "ios");
+  Object.defineProperty(window, "__TAURI_INTERNALS__", {
+    value: {},
+    configurable: true,
+  });
+  try {
+    const analytics = await import("../../lib/analytics");
+    analytics.trackSSOStarted(id, false);
+    expect(posthog.capture).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ platform: "ios" }),
+    );
+  } finally {
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+    vi.unstubAllEnvs();
+  }
+});

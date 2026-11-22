@@ -1,3 +1,4 @@
+import { appVersion } from "../../lib/client-build";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -195,7 +196,7 @@ it("retains the original action through checkout and Resume never reserves or se
         distinct_id: "8c940797-a555-421e-8dad-b4df96b02214",
         source: "client",
         platform: "web",
-        app_version: "0.1.0",
+        app_version: appVersion,
       }),
     );
 });
