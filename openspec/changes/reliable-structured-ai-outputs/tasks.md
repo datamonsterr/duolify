@@ -9,5 +9,5 @@
 - [x] Move the lesson prompt and acceptance check into `engine-core`; the server and the eval share them.
 - [x] Live eval drives production builders for non-screen tasks; rewrite those golden rows as production request data.
 - [x] `mise run engine:eval` stays green.
-- [ ] Publish the golden rows to `datamonsterr/duolify-golden` and re-pin revision and SHA-256.
+- [x] Publish the golden rows to `datamonsterr/duolify-golden` and re-pin revision and SHA-256.
 - [ ] Three consecutive full live runs at 20/20 within the $1 budget, recorded in the PR.

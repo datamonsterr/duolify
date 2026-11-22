@@ -138,7 +138,7 @@ E16-05 adds three `steer_lesson` golden rows to `fixtures/golden.sample.jsonl` (
 
 ## Live set (`datamonsterr/duolify-golden`)
 
-The private dataset `datamonsterr/duolify-golden` holds the 20-case live set (`evals/datasets/duolify-golden/golden.jsonl`, the exact published bytes). Revision `04c5418d1ee7365ff9bcfdc51f4392de1f483429` is pinned in `pinned-datasets.toml`. Cases cover preview, outline, three lessons, a lesson test, two tutor chats (one with a long history), note enrichment, setup and brief chat, and all four safety screens (`steer_screen`, `character_screen`, `course_screen`, `screen_review`) with benign and must-block rows.
+The private dataset `datamonsterr/duolify-golden` holds the 20-case live set (`evals/datasets/duolify-golden/golden.jsonl`, the exact published bytes). Revision `b7979d57f81401aaabb21aba2cb82c64cddafd96` is pinned in `pinned-datasets.toml`. Cases cover preview, outline, three lessons, a lesson test, two tutor chats (one with a long history), note enrichment, setup and brief chat, and all four safety screens (`steer_screen`, `character_screen`, `course_screen`, `screen_review`) with benign and must-block rows.
 
 In live mode the four screen tasks run the production `screen` functions against the live router (same prompt, schema validation, fail-closed rule and fallback). Their output has `blocked_as_expected` and `unavailable`; a must-block case that is allowed is a critical failure. The other live tasks run the production prompt builders, validators and bounded runner (`engine-eval/src/live.rs`): their `input` is the request data the API sends (brief and profile for preview; the confirmed outline for outline; outline, lesson and learner for lessons; a source question for lesson-test retry variants; a tutor `context`; a note; a setup or brief turn), never a prompt. Most score `delivered` (the production validator accepted the answer) plus task checks. Every JSON task requests structured output (`response_format`, ADR 0018), the answer passes the shared extraction rule (one surrounding code fence) and the second attempt is a corrective repair quoting the validation error. Reports list the served model, fallback flag and latency per case, and failing live cases keep an excerpt of the scored output and the rejection reasons.
 
@@ -147,7 +147,7 @@ In live mode the four screen tasks run the production `screen` functions against
 Run a small, budgeted sample (no `HF_TOKEN` secret is set on GitHub, so ready PRs skip live evals):
 
 ```bash
-HF_GOLDEN_DATASET=datamonsterr/duolify-golden HF_GOLDEN_REVISION=04c5418d1ee7365ff9bcfdc51f4392de1f483429 \
+HF_GOLDEN_DATASET=datamonsterr/duolify-golden HF_GOLDEN_REVISION=b7979d57f81401aaabb21aba2cb82c64cddafd96 \
 HF_TOKEN=... OPENROUTER_API_KEY=... EVAL_BUDGET_USD=0.5 EVAL_SAMPLE_LIMIT=20 mise run engine:eval-live
 ```
 
