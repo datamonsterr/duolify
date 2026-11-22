@@ -90,7 +90,7 @@ func (f *Fixture) AssertPreDeletionRestoreErased(t *testing.T, ciphertext []byte
 	t.Helper()
 	const learner = "a1111111-1111-4111-8111-111111111111"
 	ref := accounts.LearnerReference(learner)
-	ledger := backup.DeletionLedger{Objects: f.objects}
+	ledger := backup.DeletionLedger{Objects: f.objects, ClerkKey: strings.Repeat("synthetic-erasure-key", 2)}
 	if err := ledger.Append(t.Context(), ref); err != nil {
 		t.Fatal(err)
 	}

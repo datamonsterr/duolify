@@ -72,3 +72,11 @@ The product owner approved `usd-hy4-routing-2026-11-22-unapproved` ("Price appro
 - Learner credit prices, packs, plans and limits are unchanged; the change is non-adverse.
 - This approval covers the Hy4/GLM quote policy only. Any future learner-facing price change still goes through the owner approval flow and the 72-hour adverse-notice rule.
 - The owner review trail (approved draft, submit and approve audit rows) is written only where an owner-approved draft already exists; `PRICING_OWNER_ID` is not stored in the repo or migration, and no gate in code is weakened.
+
+## Further owner decisions (2026-11-22)
+
+- A published Course outlives its author's deleted account. Attribution is anonymized; existing enrolled copies and their retained assets remain available under the sharing retention rules.
+- Staging runs on Hetzner `cx23` in Falkenstein (`fsn1`): Helsinki had no suitable stock within the staging budget. Production location remains open. See [staging](../infra/staging.md).
+- Google and Apple sign-in use Clerk; email one-time codes remain first-party (ADR 0016).
+- Daily check-in credits are 150 per day, 250 on the first check-in, banked up to seven days and applied automatically on app open. The separate daily-check-in change and ADR 0020 define implementation details.
+- Example Courses (Product Management and JavaScript) and a first-run onboarding tour are being built in separate changes.

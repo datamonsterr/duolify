@@ -89,3 +89,21 @@ Clerk sign-in SHALL add no AI behavior and MUST preserve existing evaluation and
 
 - **WHEN** a Learner signs in through Clerk
 - **THEN** no Engine request or evaluation behavior is added
+
+### Requirement: Native callbacks belong to the pending attempt
+
+The native handler SHALL ignore success and cancellation callbacks whose state does not match the current pending attempt. A cancellation deep link SHALL carry state. Startup deep links SHALL be read once per process, and listener setup SHALL NOT reactivate a completed or cancelled attempt.
+
+#### Scenario: Retained callback from a previous attempt
+
+- **WHEN** native deep-link startup replay supplies state S1 during pending attempt S2
+- **THEN** S2 remains active and its later valid callback completes sign-in
+
+### Requirement: Erasing Clerk subjects cannot be bound
+
+Before linking or creating a learner, the API SHALL reject a Clerk subject with an accepted erasure intent, including pending SQL requests and durable external intents. Binding, erasure and deletion processing SHALL serialize the subject decision. A new provider sign-up after deletion has a new Clerk subject.
+
+#### Scenario: Sign-in before the erasure worker runs
+
+- **WHEN** the deleted learner's Clerk subject still exists at Clerk with deletion queued
+- **THEN** handoff returns a generic unauthorized response and creates no learner or binding

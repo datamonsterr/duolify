@@ -35,3 +35,26 @@ A Clerk user already deleted (404) SHALL count as success. Any other failure SHA
 
 - **WHEN** Clerk answers 404 for a queued user
 - **THEN** the request is removed as done
+
+### Requirement: External provider erasure survives database restore
+
+Before acknowledging account erasure, the API SHALL durably append a recoverable encrypted Clerk subject to an immutable external ledger independent of SQL snapshots. Production startup SHALL replay these intents independently of restored learner/provider rows before listening. Ciphertext SHALL authenticate its object key; storage, decryption or replay failures SHALL prevent startup. Recovery SHALL retain the encryption key with the recovery secrets. Nonproduction dumps SHALL continue purging the SQL queue; no new analytics event or AI behavior is introduced.
+
+#### Scenario: Restore predates linking or learner creation
+
+- **WHEN** an accepted erasure's database queue and provider binding are absent from a restored snapshot
+- **THEN** external replay recreates the Clerk deletion request even if the learner is also absent
+
+### Requirement: Retry fairness and downgrade preservation
+
+Failed requests SHALL remain durable with capped exponential backoff. Unattempted and least-recently attempted eligible requests SHALL run first in bounded batches that fit the worker deadline. Queue downgrade SHALL acquire an exclusive table lock and refuse to drop a nonempty queue.
+
+#### Scenario: Permanently failing prefix
+
+- **WHEN** 50 older deletions keep failing and a later deletion can succeed
+- **THEN** later deletion is attempted while failures remain queued with backoff
+
+#### Scenario: Rollback with pending erasures
+
+- **WHEN** a downgrade would drop a queue with pending requests
+- **THEN** the migration fails and preserves every identifier

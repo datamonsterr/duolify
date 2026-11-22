@@ -182,14 +182,9 @@ export function SignIn({
     }
     const current = oauthState.current;
     if (oauthCompleting.current) return;
-    if (!current || value.state !== current.state) {
-      setError("Sign-in could not be verified. Please retry.");
-      setOAuthActive(false);
-      setPending(false);
-      oauthCleanup.current?.();
-      oauthCleanup.current = null;
-      oauthState.current = null;
-      oauthCancel.current = null;
+    if (!current || value.state !== current.state) return;
+    if ("cancelled" in value) {
+      finishOAuthCancel();
       return;
     }
     oauthCompleting.current = true;
@@ -253,9 +248,15 @@ export function SignIn({
           returnTo: destination,
         });
       const bridge = await ssoBridge();
-      oauthCleanup.current = await bridge.listen(
-        (value) => void finishOAuth(value),
-      );
+      const unlisten = await bridge.listen((value) => void finishOAuth(value));
+      if (
+        oauthState.current?.state !== transaction.state ||
+        oauthCompleting.current
+      ) {
+        unlisten();
+        return;
+      }
+      oauthCleanup.current = unlisten;
       oauthCancel.current = bridge.cancel ? () => bridge.cancel?.() : null;
       setOAuthActive(true);
       await bridge.openSystemBrowser(ssoBridgeUrl(transaction.state, strategy));
