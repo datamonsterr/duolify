@@ -12,6 +12,7 @@ import {
   type MissingStatus,
 } from "./missing";
 import "./sharing.css";
+import { AppLink } from "../../lib/navigation";
 
 type Sheet =
   | null
@@ -357,9 +358,9 @@ function QuoteSheet({
             {!quote.sufficient && (
               <div>
                 <p role="alert">Needs {quote.total_credits} credits</p>
-                <a className="duo-button secondary" href="/credits">
+                <AppLink className="duo-button secondary" href="/credits">
                   See credit options
-                </a>
+                </AppLink>
               </div>
             )}
             <label className="missing-consent">

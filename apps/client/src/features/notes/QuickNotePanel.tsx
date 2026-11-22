@@ -3,6 +3,7 @@ import { ResponsivePanel } from "../shell/AdaptiveLayouts";
 import { trackGuidedUi, trackQuickNoteCreated } from "../../lib/analytics";
 import { noteQueue, type NoteSource, type QueuedNote } from "./note-queue";
 import { session } from "../accounts/session";
+import { AppLink } from "../../lib/navigation";
 
 export type QuickNoteContext = {
   source: NoteSource;
@@ -437,7 +438,7 @@ export function QuickNotePanel({
             </div>
 
             <div style={{ display: "flex", gap: "10px" }}>
-              <a
+              <AppLink
                 href="/notes"
                 className="duo-button secondary"
                 style={{
@@ -455,7 +456,7 @@ export function QuickNotePanel({
                 }}
               >
                 Open notes
-              </a>
+              </AppLink>
               <button
                 type="button"
                 className="duo-button primary"

@@ -128,7 +128,7 @@ var piiRules = []piiRule{
 
 // purgedTables hold credentials, one-time secrets or raw provider payloads.
 // They are emptied: nonproduction never needs a session, code or webhook body.
-var purgedTables = []string{"auth_refresh_tokens", "auth_sessions", "auth_codes", "auth_rate_limits", "auth_oauth_attempts", "credit_payment_payloads", "publication_preview_limits"}
+var purgedTables = []string{"auth_refresh_tokens", "auth_sessions", "auth_codes", "auth_rate_limits", "auth_oauth_attempts", "clerk_user_deletion_requests", "credit_payment_payloads", "publication_preview_limits"}
 
 // safeSuffix matches columns that hold identifiers, hashes or enumerations.
 var safeSuffix = regexp.MustCompile(`(^|_)(id|ids|hash|key|state|status|kind|role|source|provider|model|version|outcome|currency|locale|time_zone|code|type|reference|ref|sku|canonical|event_id)$`)
@@ -145,7 +145,7 @@ moderation_actions.target_type moderation_actions.action moderation_actions.reas
 character_create_jobs.operation character_screenings.verdict copy_generation_consents.pricing_version
 character_suppressions.snapshot_id character_suppressions.reason_code shared_character_assets.object_key
 course_invite_deliveries.channel course_invites.cancel_reason course_invites.method
-course_copies.content_hash course_copies.source course_enrollments.level_override shared_asset_retention.prefix
+course_copies.content_hash course_copies.source course_enrollments.level_override shared_asset_retention.prefix course_object_purges.prefix
 course_lesson_stubs.reused_from_snapshot courses.visibility marketplace_listings.category marketplace_listings.language
 credit_allocations.bucket credit_allocations.component credit_allocations.grant_date credit_artifacts.component
 credit_checkout_orders.billing_period credit_checkout_orders.platform credit_checkout_orders.return_to

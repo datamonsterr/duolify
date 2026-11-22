@@ -105,7 +105,7 @@ client:e2e-stack-up`, then run the suite with `E2E_LIVE=1` (longer timeouts); th
 passed through the environment only. Remote stack: `E2E_STACK_URL=https://staging.duolify.online
 E2E_STACK_CODE_COMMAND='<prints codes for $1>' mise run client:e2e-stack` (no local stack;
 `E2E_STACK_GRANT_COMMAND` funds learners, otherwise flows that need paid credits are
-`fixme`). `E2E_LESSON_TEST_TRACER_ENABLED=true` probes the lesson flows production keeps off.
+`fixme`). `E2E_LESSON_TEST_TRACER_ENABLED=false` runs with lesson generation off.
 
 | Secret | Use |
 | --- | --- |

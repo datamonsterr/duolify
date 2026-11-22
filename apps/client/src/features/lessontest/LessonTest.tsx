@@ -10,6 +10,7 @@ import { RouteUnavailable } from "../shell/RouteBoundary";
 import { useLessonTestTracerEnabled } from "../../lib/features";
 import { CharacterReaction } from "../characters/CharacterReaction";
 import type { LessonCastSnapshot } from "../characters/types";
+import { AppLink, navigateTo } from "../../lib/navigation";
 
 export interface QuestionItem {
   question_id: string;
@@ -570,7 +571,7 @@ export function LessonTest({
             className="btn sec"
             onClick={() => {
               if (onExit) onExit();
-              else window.location.href = `/course/${effectiveCourseId}`;
+              else navigateTo(`/course/${effectiveCourseId}`);
             }}
             style={{
               width: "100%",
@@ -683,7 +684,7 @@ export function LessonTest({
                 </p>
               </div>
             </div>
-            <a
+            <AppLink
               href="/credits"
               className="btn vio"
               style={{
@@ -707,7 +708,7 @@ export function LessonTest({
               }}
             >
               See credit options
-            </a>
+            </AppLink>
           </>
         )}
 
@@ -772,7 +773,7 @@ export function LessonTest({
         )}
 
         <div style={{ width: "100%", marginTop: "12px" }}>
-          <a
+          <AppLink
             href={`/course/${effectiveCourseId}`}
             className="btn sec"
             aria-label="Back to your path — Back to learn path"
@@ -796,7 +797,7 @@ export function LessonTest({
             }}
           >
             Back to your path
-          </a>
+          </AppLink>
         </div>
       </div>
     );
@@ -824,7 +825,7 @@ export function LessonTest({
           marginBottom: "16px",
         }}
       >
-        <a
+        <AppLink
           href={`/course/${effectiveCourseId}`}
           className="shell-link"
           onClick={(e) => {
@@ -836,7 +837,7 @@ export function LessonTest({
           style={{ textDecoration: "none", color: "#1667AB", fontWeight: 800 }}
         >
           Exit test
-        </a>
+        </AppLink>
         <h1
           style={{
             margin: 0,

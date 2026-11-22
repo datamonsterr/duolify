@@ -25,6 +25,11 @@ export default defineConfig({
     },
   ],
   server: { port: 1420, strictPort: true },
+  // Browser-session e2e (playwright.session.config.ts): serve the same-origin build with the API
+  // proxied under /v1, as Caddy does in production.
+  preview: process.env.E2E_PROXY_API
+    ? { proxy: { "/v1": { target: process.env.E2E_PROXY_API } } }
+    : {},
   build: {
     rollupOptions: {
       input: { app: "index.html", guidedChat: "guided-chat.html" },
@@ -33,7 +38,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
-    exclude: ["e2e/**", "node_modules/**"],
+    exclude: ["e2e/**", "e2e-session/**", "node_modules/**"],
     // CI: GitHub annotations plus JUnit for the job summary (scripts/ci/junit-summary.py).
     reporters: process.env.CI
       ? ["default", "github-actions", "junit"]

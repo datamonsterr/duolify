@@ -423,6 +423,7 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 	defer func() {
 		unlockCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 		defer cancel()
+		// Best effort: a failed unlock is harmless because closing/releasing the session drops the lock.
 		_, _ = conn.Exec(unlockCtx, `SELECT pg_advisory_unlock(hashtextextended($1, 401))`, id)
 	}()
 
@@ -489,7 +490,9 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 
 		// Build CourseOutline
 		var courseTitle, courseDesc string
-		_ = s.opts.Pool.QueryRow(ctx, `SELECT title, description FROM courses WHERE id::text=$1`, courseID).Scan(&courseTitle, &courseDesc)
+		if err = s.opts.Pool.QueryRow(ctx, `SELECT title, description FROM courses WHERE id::text=$1`, courseID).Scan(&courseTitle, &courseDesc); err != nil {
+			return fail("course_unavailable", fmt.Errorf("course lookup: %w", err))
+		}
 		outline := &enginev1.CourseOutline{
 			CourseId:    courseID,
 			Title:       courseTitle,
@@ -538,7 +541,7 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 		learner := &enginev1.LearnerProfile{LearnerId: owner}
 		var dailyM, dailyX int32
 		var remEn bool
-		_ = s.opts.Pool.QueryRow(ctx, `
+		profileErr := s.opts.Pool.QueryRow(ctx, `
 			SELECT locale, background, goal, level, topic, time_zone,
 			       COALESCE(daily_minutes,0), COALESCE(daily_xp,0), COALESCE(reminder_enabled,false), COALESCE(reminder_time,'')
 			FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(
@@ -553,6 +556,11 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 			&remEn,
 			&learner.ReminderTime,
 		)
+		// A missing profile row is a legitimate empty profile; any other failure must not
+		// silently generate a paid lesson for an empty one.
+		if profileErr != nil && !errors.Is(profileErr, pgx.ErrNoRows) {
+			return fail("profile_unavailable", fmt.Errorf("learner profile: %w", profileErr))
+		}
 		if dailyM > 0 {
 			learner.DailyMinutes = uint32(dailyM)
 		}
@@ -2127,7 +2135,10 @@ func (s *Service) handleRecap(w http.ResponseWriter, r *http.Request, owner, les
 
 	if s.opts.Events != nil {
 		var courseID string
-		_ = s.opts.Pool.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID)
+		// Analytics property only: the recap already succeeded, so a failed lookup is logged, not surfaced.
+		if err := s.opts.Pool.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID); err != nil {
+			slog.WarnContext(ctx, "recap analytics course lookup failed", "error", err)
+		}
 		_ = s.opts.Events.Capture(owner, "lesson_test_recap_shown", map[string]any{
 			"source":      "api",
 			"platform":    "web",

@@ -15,6 +15,7 @@ import type { ReportTarget } from "./reports";
 import type { EnrollResult } from "./links";
 import "./sharing.css";
 import "./market.css";
+import { AppLink } from "../../lib/navigation";
 
 type State =
   | { kind: "loading" }
@@ -91,9 +92,9 @@ export function MarketCoursePage({ id }: { id: string }) {
       <div className="market">
         <h1>This course isn't available</h1>
         <p>It may have been removed or is no longer listed.</p>
-        <a className="duo-button secondary" href="/marketplace">
+        <AppLink className="duo-button secondary" href="/marketplace">
           Back to Marketplace
-        </a>
+        </AppLink>
       </div>
     );
   if (state.kind === "failed")
@@ -116,9 +117,9 @@ export function MarketCoursePage({ id }: { id: string }) {
   const copy = c.viewer.course_id;
   return (
     <div className="market market-course">
-      <a className="market-back" href="/marketplace">
+      <AppLink className="market-back" href="/marketplace">
         ← Marketplace
-      </a>
+      </AppLink>
       <div className="market-title-row">
         <h1 dir="auto">{c.title}</h1>
         {!c.viewer.owner && (
@@ -231,9 +232,9 @@ export function MarketCoursePage({ id }: { id: string }) {
         {!c.viewer.owner && c.viewer.enrolled && enroll.kind !== "done" && (
           <div className="enroll-done">
             <p data-testid="enroll-status">Already enrolled</p>
-            <a className="duo-button" href={`/course/${copy}`}>
+            <AppLink className="duo-button" href={`/course/${copy}`}>
               Open course
-            </a>
+            </AppLink>
           </div>
         )}
         {enroll.kind === "done" && (
@@ -245,12 +246,12 @@ export function MarketCoursePage({ id }: { id: string }) {
               Version {enroll.result.version} · {enroll.result.ready_lessons} of{" "}
               {enroll.result.total_lessons} lessons ready
             </p>
-            <a
+            <AppLink
               className="duo-button"
               href={`/course/${enroll.result.course_id}`}
             >
               Open course
-            </a>
+            </AppLink>
           </div>
         )}
         {!c.viewer.owner && !c.viewer.enrolled && enroll.kind !== "done" && (

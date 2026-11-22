@@ -11,6 +11,7 @@ import (
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
+	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
@@ -43,7 +44,7 @@ func (s *Service) plan(ctx context.Context, owner string) (*credits.FundedPlan, 
 func (s *Service) preference(ctx context.Context, owner string) (on bool, voice string) {
 	on, voice = true, VoiceKey
 	var stored string
-	if err := s.opts.Pool.QueryRow(ctx, `SELECT narration, narration_voice FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(&on, &stored); err != nil {
+	if err := s.opts.Pool.QueryRow(ctx, `SELECT narration, narration_voice FROM learner_profiles WHERE learner_id=$1::uuid`, owner).Scan(&on, &stored); err != nil {
 		return true, VoiceKey
 	}
 	if v, ok := s.voices.Find(stored); ok {
@@ -63,7 +64,7 @@ func (s *Service) skipCode(ctx context.Context, owner, voice string) string {
 		return "narration_off"
 	}
 	var on bool
-	if err := s.opts.Pool.QueryRow(ctx, `SELECT narration FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(&on); err == nil && !on {
+	if err := s.opts.Pool.QueryRow(ctx, `SELECT narration FROM learner_profiles WHERE learner_id=$1::uuid`, owner).Scan(&on); err == nil && !on {
 		return "narration_off"
 	}
 	v, ok := s.voices.Find(voice)
@@ -82,7 +83,7 @@ func (s *Service) skipCode(ctx context.Context, owner, voice string) string {
 // skip parks a pending row without an event, a quote or a charge.
 func (s *Service) skip(ctx context.Context, owner, lessonID, voice, slideID, code string) error {
 	_, err := s.opts.Pool.Exec(ctx, `UPDATE slide_narrations SET status='disabled',failure_code=$5,updated_at=now()
-		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND voice_key=$4 AND status='pending'`, lessonID, owner, slideID, voice, code)
+		WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND slide_id=$3 AND voice_key=$4 AND status='pending'`, lessonID, owner, slideID, voice, code)
 	return err
 }
 
@@ -104,7 +105,7 @@ type slideText struct{ id, text string }
 // lessonTexts lists each slide's narration text once, whichever voice stored it.
 func (s *Service) lessonTexts(ctx context.Context, owner, lessonID string) ([]slideText, error) {
 	rows, err := s.opts.Pool.Query(ctx, `SELECT DISTINCT ON (slide_id) slide_id, narration_text FROM slide_narrations
-		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND narration_text<>'' AND speaker_key='' ORDER BY slide_id, updated_at DESC`, lessonID, owner)
+		WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND narration_text<>'' AND speaker_key='' ORDER BY slide_id, updated_at DESC`, lessonID, owner)
 	if err != nil {
 		return nil, err
 	}
@@ -242,11 +243,11 @@ func (s *Service) ApplyVoice(ctx context.Context, owner, lessonID, voice, quoteI
 			return "", err
 		}
 	}
-	if _, err = tx.Exec(ctx, `UPDATE learner_profiles SET narration_voice=$2 WHERE learner_id::text=$1`, owner, voice); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE learner_profiles SET narration_voice=$2 WHERE learner_id=$1::uuid`, owner, voice); err != nil {
 		return "", err
 	}
 	var pending int
-	if err = tx.QueryRow(ctx, `SELECT count(*) FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND voice_key=$3 AND speaker_key='' AND status='pending'`, lessonID, owner, voice).Scan(&pending); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM slide_narrations WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND voice_key=$3 AND speaker_key='' AND status='pending'`, lessonID, owner, voice).Scan(&pending); err != nil {
 		return "", err
 	}
 	if pending > 0 {
@@ -269,7 +270,10 @@ func (s *Service) ApplyVoice(ctx context.Context, owner, lessonID, voice, quoteI
 
 func (s *Service) modelFor(ctx context.Context, lessonID, owner, slideID, voice string) string {
 	var model string
-	_ = s.opts.Pool.QueryRow(ctx, `SELECT model_id FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND voice_key=$4`, lessonID, owner, slideID, voice).Scan(&model)
+	// Analytics property only (cache-hit event): a failed read leaves the model empty and is logged.
+	if err := s.opts.Pool.QueryRow(ctx, `SELECT model_id FROM slide_narrations WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND slide_id=$3 AND voice_key=$4`, lessonID, owner, slideID, voice).Scan(&model); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		s.opts.Logger.Warn("narration model lookup failed", "error", err)
+	}
 	return model
 }
 
@@ -284,7 +288,7 @@ type VoiceChange struct {
 // VoiceState reports the selected voice's rows for a Lesson, worst state first.
 func (s *Service) VoiceState(ctx context.Context, owner, lessonID, voice string) (VoiceChange, error) {
 	out := VoiceChange{VoiceKey: voice, State: "none"}
-	rows, err := s.opts.Pool.Query(ctx, `SELECT status, failure_code FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND voice_key=$3 AND speaker_key=''`, lessonID, owner, voice)
+	rows, err := s.opts.Pool.Query(ctx, `SELECT status, failure_code FROM slide_narrations WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND voice_key=$3 AND speaker_key=''`, lessonID, owner, voice)
 	if err != nil {
 		return out, err
 	}
@@ -368,6 +372,15 @@ func (s *Service) HTTP() http.Handler {
 			return
 		}
 		lesson := r.PathValue("lesson")
+		if lesson != "" {
+			// Reject malformed ids before they reach a typed uuid bind.
+			canonical, ok := player.CanonicalUUID(lesson)
+			if !ok {
+				reply(w, http.StatusNotFound, map[string]any{"code": "not_found"})
+				return
+			}
+			lesson = canonical
+		}
 		var in struct {
 			VoiceKey   string `json:"voice_key"`
 			QuoteID    string `json:"quote_id"`

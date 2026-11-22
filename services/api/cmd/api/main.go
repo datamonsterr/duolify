@@ -171,6 +171,8 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		defer func() { _ = backend.Close() }()
+		// Error-level signal for quoted actions the engine would refuse (route mismatch).
+		go pricing.CheckActiveRoutes(ctx, db.Pool, logger, backend.Providers)
 		outlineService := courses.New(courses.Options{Pool: db.Pool, OutlineEngine: backend, Financial: creditService, Events: events})
 		go outlineService.Maintain(ctx, logger)
 		outlineQueue, err := outlineService.CreationQueue(logger)
@@ -250,8 +252,17 @@ func run(ctx context.Context, args []string) (result error) {
 				_ = narrationQueue.Stop(stopCtx)
 			}()
 		}
-		courseService := courses.New(courses.Options{Pool: db.Pool})
-		return worker.RunWithAlerts(ctx, db.Pool, logger, workerServices{creditService, courseService}, eval.NewService(db.Pool, catalogue, monitor, events), service)
+		courseOptions := courses.Options{Pool: db.Pool}
+		if os.Getenv("S3_BUCKET") != "" {
+			courseOptions.Objects = player.NewS3(os.Getenv)
+		}
+		courseService := courses.New(courseOptions)
+		clerkDeleter, err := accounts.ClerkUserDeleterFromEnv(os.Getenv)
+		if err != nil {
+			return err
+		}
+		clerkEraser := accounts.NewClerkUserEraser(db.Pool, clerkDeleter)
+		return worker.RunWithAlerts(ctx, db.Pool, logger, workerServices{creditService, courseService, clerkEraser}, eval.NewService(db.Pool, catalogue, monitor, events), service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {
@@ -271,6 +282,8 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	defer func() { result = errors.Join(result, backend.Close()) }()
+	// Error-level signal for quoted actions the engine would refuse (route mismatch).
+	go pricing.CheckActiveRoutes(ctx, db.Pool, logger, backend.Providers)
 	analyticsKey := cfg.PostHogKey
 	if cfg.AnalyticsOptOut {
 		analyticsKey = ""
@@ -302,6 +315,7 @@ func run(ctx context.Context, args []string) (result error) {
 		return err
 	}
 	auth.ConfigureClerk(clerkVerifier, clerkPublishableKey)
+	auth.ConfigureWebOrigins(accounts.WebOriginsFromEnv(os.Getenv))
 	auth.ConfigureProfile(profileOptions)
 	auth.ConfigureDeletionLedger(deletionLedger)
 	if err := pricing.BootstrapAdmins(ctx, db.Pool, pricing.OperatorPricingAdminIDs()); err != nil {
@@ -755,15 +769,18 @@ func friendStreakSettler(svc *social.Service, logger *slog.Logger) func(context.
 }
 
 // workerServices lets the worker discover every maintenance capability by interface:
-// credit expiry, financial maintenance and the 30-day course purge.
+// credit expiry, financial maintenance, the 30-day course purge and deleting the Clerk users
+// of erased accounts (scheduled only when Clerk is configured).
 type workerServices struct {
 	creditsService
 	courseService
+	clerkEraserService
 }
 
 type (
-	creditsService = *credits.Service
-	courseService  = *courses.Service
+	creditsService     = *credits.Service
+	courseService      = *courses.Service
+	clerkEraserService = *accounts.ClerkUserEraser
 )
 
 var (
@@ -771,4 +788,5 @@ var (
 	_ worker.AnnualIssuer        = workerServices{}
 	_ worker.FinancialMaintainer = workerServices{}
 	_ worker.CoursePurger        = workerServices{}
+	_ worker.ClerkUserEraser     = workerServices{}
 )

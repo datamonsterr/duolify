@@ -9,6 +9,7 @@ import {
   type VoiceList,
   type VoiceQuote,
 } from "./voices";
+import { AppLink } from "../../lib/navigation";
 
 type Phase =
   | { kind: "idle" }
@@ -137,9 +138,9 @@ export function VoicePanel({
           Narration is off, so there is nothing to synthesize. Turn narration on
           in Settings to choose a voice.
         </p>
-        <a className="duo-button quiet voice-action" href="/settings">
+        <AppLink className="duo-button quiet voice-action" href="/settings">
           Open settings
-        </a>
+        </AppLink>
       </div>
     );
 
@@ -179,7 +180,7 @@ export function VoicePanel({
       {showUpsell && (
         <p className="voice-upsell" role="note">
           Curated voices come with Plus and Pro.{" "}
-          <a href="/credits">See plans</a>
+          <AppLink href="/credits">See plans</AppLink>
         </p>
       )}
       {phase.kind === "quoting" && (
@@ -250,9 +251,9 @@ function Failure({ code, onReview }: { code: string; onReview: () => void }) {
           Not enough audio credits for this voice. Your current narration, the
           lesson text and the test still work.
         </p>
-        <a className="duo-button quiet voice-action" href="/credits">
+        <AppLink className="duo-button quiet voice-action" href="/credits">
           Add credits
-        </a>
+        </AppLink>
         <button
           type="button"
           className="duo-button quiet voice-action"

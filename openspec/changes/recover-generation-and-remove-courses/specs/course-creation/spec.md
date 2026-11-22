@@ -40,3 +40,21 @@ The system SHALL preserve confirmed briefs, working manual outline edits, undo h
 #### Scenario: Expiry competes with a worker
 - **WHEN** an expired creation or proposal is read while its worker and the reaper compete
 - **THEN** reads leave state and Credits untouched, and only the expected-state winner can settle delivery or release failure
+
+### Requirement: Purged Course objects are deleted from storage
+When the purge job hard-deletes a Course it MUST record the Course's private generated-lesson object prefixes (`lessons/generated/<id>/`: slide HTML and manifest) in the same transaction, so a crash cannot lose them. A later run MUST delete those objects only after 15 days (longer than the 14-day nightly dumps, so a restorable dump never points at deleted objects), MUST skip a prefix any live lesson manifest still references, and MUST retry on a storage failure. Published snapshots (`lessons/published/…`) and deduplicated narration audio MUST NOT be deleted by this path: they keep their own reference-counted retention (`shared_asset_retention`, `narration_assets`).
+
+#### Scenario: Purged Course objects removed after retention
+- **WHEN** a Course is purged and the retention period passes
+- **THEN** its generated slide and manifest objects are deleted, objects of non-purged Courses and published snapshots remain, and a repeat run is a no-op
+
+#### Scenario: Storage fails during object deletion
+- **WHEN** object deletion fails
+- **THEN** the ledger row stays pending and the next daily run retries it
+
+### Requirement: Failed deletes and reads never look like success
+Soft deletion and the active-Course reset MUST commit in one transaction. A failed read of the active Course MUST return 503, not an empty selection.
+
+#### Scenario: Active-course reset fails
+- **WHEN** clearing `active_course_id` fails during Course deletion
+- **THEN** the request returns 503 and the Course stays undeleted

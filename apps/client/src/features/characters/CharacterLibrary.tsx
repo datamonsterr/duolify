@@ -6,6 +6,7 @@ import { compileRigSvg } from "./rig";
 import { validateCharacterSpec } from "./schema";
 import "./characters.css";
 import { CreateCharacter } from "./CreateCharacter";
+import { AppLink } from "../../lib/navigation";
 
 function failure(error: unknown) {
   return error instanceof Error ? error.message : "Connect and retry.";
@@ -98,9 +99,9 @@ export function CharacterLibrary() {
   }
   return (
     <section className="characters-page" aria-busy={pending}>
-      <a className="shell-link" href="/settings">
+      <AppLink className="shell-link" href="/settings">
         Back to Settings
-      </a>
+      </AppLink>
       <h1 ref={title} tabIndex={-1}>
         Private characters
       </h1>

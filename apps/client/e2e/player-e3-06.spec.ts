@@ -274,8 +274,12 @@ test("home offline fallback is owner scoped and never masks HTTP errors", async 
       )
         localStorage.removeItem(key);
     }
-    localStorage.removeItem("duolify:active-course");
+    // The learner has a real active course but no downloaded copy of it.
+    localStorage.setItem("duolify:active-course", "own-offline");
   });
+  await page.route("**/courses/own-offline", (route) =>
+    route.fulfill({ status: 500, json: { error: "boom" } }),
+  );
   await page.goto("/");
   await expect(page.getByText("Could not load this course.")).toBeVisible();
   expect(foreignReads).toBe(0);

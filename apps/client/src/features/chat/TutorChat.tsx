@@ -17,6 +17,7 @@ import {
   type SaveState,
 } from "./useTutor";
 import "./tutor.css";
+import { AppLink } from "../../lib/navigation";
 
 /** First question of the thread, clipped for the delete confirmation. */
 function threadTitle(messages: ChatMessage[]) {
@@ -192,9 +193,9 @@ function Bubble({
           <div>
             <p>{t(save.pending ? "tutor.saved_pending" : "tutor.saved")}</p>
             {save.truncated && <p>{t("tutor.saved_truncated")}</p>}
-            <a className="btn sec tutor-small" href="/notes">
+            <AppLink className="btn sec tutor-small" href="/notes">
               {t("tutor.saved_open")}
-            </a>
+            </AppLink>
           </div>
         </div>
       )}
@@ -684,13 +685,13 @@ export function TutorChat({
                     })}
                   </p>
                 )}
-                <a
+                <AppLink
                   className="btn tutor-small"
                   href="/credits"
                   onClick={() => recover("top_up")}
                 >
                   {t("tutor.credits_link")}
-                </a>
+                </AppLink>
               </div>
             </div>
           )}

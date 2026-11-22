@@ -175,7 +175,7 @@ func (s *Service) Enqueue(ctx context.Context, owner, lessonID string) (int, err
 		return 0, nil // narration is off: no rows, no work, no charge
 	}
 	var key string
-	if err := s.opts.Pool.QueryRow(ctx, `SELECT manifest_key FROM lesson_manifests WHERE lesson_id::text=$1 AND learner_id::text=$2`, lessonID, owner).Scan(&key); err != nil {
+	if err := s.opts.Pool.QueryRow(ctx, `SELECT manifest_key FROM lesson_manifests WHERE lesson_id=$1::uuid AND learner_id=$2::uuid`, lessonID, owner).Scan(&key); err != nil {
 		return 0, err
 	}
 	raw, err := s.opts.Objects.Get(ctx, key)
@@ -192,7 +192,7 @@ func (s *Service) Enqueue(ctx context.Context, owner, lessonID string) (int, err
 		// Owner audio that came with a shared copy (ADR 0013) is played as is, whatever voice the
 		// learner prefers: no row, no synthesis, no charge.
 		var reused bool
-		if err = s.opts.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND shared_draft_id IS NOT NULL AND status='ready')`, lessonID, owner, slide.ID).Scan(&reused); err != nil {
+		if err = s.opts.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM slide_narrations WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND slide_id=$3 AND shared_draft_id IS NOT NULL AND status='ready')`, lessonID, owner, slide.ID).Scan(&reused); err != nil {
 			return queued, err
 		}
 		if reused {
@@ -310,7 +310,7 @@ func (s *Service) SynthesizeVoice(ctx context.Context, owner, lessonID, voice, c
 func (s *Service) synthesize(ctx context.Context, owner, lessonID, voice string, only []string, consent string, final bool) error {
 	// Segment rows join runs without a voice-change consent; they keep their own Character voices.
 	rows, err := s.opts.Pool.Query(ctx, `SELECT slide_id,narration_text,voice_key,speaker_key FROM slide_narrations
-		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND status='pending' AND failure_code='' AND (COALESCE(cardinality($3::text[]),0)=0 OR slide_id=ANY($3))
+		WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND status='pending' AND failure_code='' AND (COALESCE(cardinality($3::text[]),0)=0 OR slide_id=ANY($3))
 		AND ((speaker_key='' AND voice_key=$4) OR ($5 AND speaker_key<>''))
 		ORDER BY created_at, segment_index, slide_id`, lessonID, owner, only, voice, consent == "")
 	if err != nil {
@@ -435,6 +435,7 @@ func (s *Service) synthesize(ctx context.Context, owner, lessonID, voice string,
 			return err
 		}
 		defer func() {
+			// Best effort: the lock is session-scoped and dropped when the connection is released.
 			_, _ = conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock(hashtextextended($1,0))`, "narration:"+hash)
 		}()
 	}
@@ -499,7 +500,7 @@ func (s *Service) offCode(ctx context.Context, owner string) string {
 		return "narration_off"
 	}
 	var on bool
-	if err := s.opts.Pool.QueryRow(ctx, `SELECT narration FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(&on); err == nil && !on {
+	if err := s.opts.Pool.QueryRow(ctx, `SELECT narration FROM learner_profiles WHERE learner_id=$1::uuid`, owner).Scan(&on); err == nil && !on {
 		return "narration_off"
 	}
 	return ""
@@ -516,7 +517,7 @@ func segmentOf(speaker, id string) string {
 // holdForRegeneration parks slides whose shared asset has no object until the operator queue restores it.
 func (s *Service) holdForRegeneration(ctx context.Context, hash, lessonID, owner string, slides []string) error {
 	for _, slide := range slides {
-		if _, err := s.opts.Pool.Exec(ctx, `UPDATE slide_narrations SET failure_code='object_missing',content_hash=$4,updated_at=now() WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND status='pending'`, lessonID, owner, slide, hash); err != nil {
+		if _, err := s.opts.Pool.Exec(ctx, `UPDATE slide_narrations SET failure_code='object_missing',content_hash=$4,updated_at=now() WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND slide_id=$3 AND status='pending'`, lessonID, owner, slide, hash); err != nil {
 			return err
 		}
 	}
@@ -865,7 +866,7 @@ func writeRow(ctx context.Context, tx pgx.Tx, owner, lessonID, voice, slideID, s
 	tag, err := tx.Exec(ctx, `UPDATE slide_narrations SET status=$4,failure_code=$5,content_hash=$6,voice_id=$7,model_id=$8,settings_fingerprint=$9,audio_key=$10,alignment_key=$11,
 		characters=$12,audio_bytes=$13,duration_ms=$14,reservation_id=$15,
 		actual_voice_key=COALESCE(NULLIF($17,''),actual_voice_key),voice_config_version=COALESCE(NULLIF($18,''),voice_config_version),voice_fallback_reason=$19,updated_at=now()
-		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND voice_key=$16 AND status='pending'`,
+		WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND slide_id=$3 AND voice_key=$16 AND status='pending'`,
 		lessonID, owner, slideID, st, code, m.hash, m.voiceID, m.modelID, m.fingerprint, m.audioKey, m.alignmentKey, m.characters, m.bytes, m.duration, reservationID, voice, ri.actualKey, ri.configVersion, ri.fallback)
 	if err != nil {
 		return err
@@ -880,8 +881,8 @@ func writeRow(ctx context.Context, tx pgx.Tx, owner, lessonID, voice, slideID, s
 // being deleted with their Course or account. Keys still referenced by any other Lesson stay.
 func UnsharedObjectKeys(ctx context.Context, pool *pgxpool.Pool, lessonIDs []string) ([]string, error) {
 	rows, err := pool.Query(ctx, `SELECT DISTINCT unnest(ARRAY[n.audio_key,n.alignment_key]) FROM slide_narrations n
-		WHERE n.lesson_id::text = ANY($1) AND n.audio_key<>'' AND NOT EXISTS(
-			SELECT 1 FROM slide_narrations o WHERE o.content_hash=n.content_hash AND NOT (o.lesson_id::text = ANY($1)))`, lessonIDs)
+		WHERE n.lesson_id = ANY($1::uuid[]) AND n.audio_key<>'' AND NOT EXISTS(
+			SELECT 1 FROM slide_narrations o WHERE o.content_hash=n.content_hash AND NOT (o.lesson_id = ANY($1::uuid[])))`, lessonIDs)
 	if err != nil {
 		return nil, err
 	}

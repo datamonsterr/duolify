@@ -30,7 +30,7 @@ var ErrNotFound = player.ErrNarrationNotFound
 // reservation, so only a delivered artifact is ever charged, and only once.
 func (s *Service) Retry(ctx context.Context, owner, lessonID, slideID string) (string, error) {
 	rows, err := s.opts.Pool.Query(ctx, `UPDATE slide_narrations SET status='pending',failure_code='',updated_at=now()
-		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND narration_text<>''
+		WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND slide_id=$3 AND narration_text<>''
 		AND ((status='failed' AND failure_code<>'missing_text') OR (status='disabled' AND failure_code='insufficient_credits')) RETURNING voice_key`, lessonID, owner, slideID)
 	if err != nil {
 		return "", err
@@ -50,7 +50,7 @@ func (s *Service) Retry(ctx context.Context, owner, lessonID, slideID string) (s
 	}
 	if len(voices) == 0 {
 		var st string
-		err = s.opts.Pool.QueryRow(ctx, `SELECT status FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 ORDER BY (status='ready') DESC, (voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id::text=$2),'default')) DESC, updated_at DESC LIMIT 1`, lessonID, owner, slideID).Scan(&st)
+		err = s.opts.Pool.QueryRow(ctx, `SELECT status FROM slide_narrations WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND slide_id=$3 ORDER BY (status='ready') DESC, (voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id=$2::uuid),'default')) DESC, updated_at DESC LIMIT 1`, lessonID, owner, slideID).Scan(&st)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			return "", ErrNotFound
@@ -85,7 +85,7 @@ func (s *Service) present(ctx context.Context, key string) bool {
 func (s *Service) Recover(ctx context.Context, owner, lessonID, slideID string) (string, error) {
 	var st, failure, hash, audioKey, alignmentKey, text, voiceID string
 	err := s.opts.Pool.QueryRow(ctx, `SELECT status,failure_code,content_hash,audio_key,alignment_key,narration_text,voice_id FROM slide_narrations
-		WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 ORDER BY (status='ready') DESC, (voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id::text=$2),'default')) DESC, updated_at DESC LIMIT 1`, lessonID, owner, slideID).Scan(&st, &failure, &hash, &audioKey, &alignmentKey, &text, &voiceID)
+		WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND slide_id=$3 ORDER BY (status='ready') DESC, (voice_key=COALESCE((SELECT narration_voice FROM learner_profiles WHERE learner_id=$2::uuid),'default')) DESC, updated_at DESC LIMIT 1`, lessonID, owner, slideID).Scan(&st, &failure, &hash, &audioKey, &alignmentKey, &text, &voiceID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrNotFound
 	}
@@ -188,7 +188,8 @@ func (s *Service) RegenerateMissing(ctx context.Context) (int, error) {
 			break // the requests stay queued until the next cycle or a larger plan
 		} else if err != nil {
 			s.opts.Logger.Warn("narration regeneration failed", "id", j.id, "code", failureCode(err))
-			_, _ = s.opts.Pool.Exec(ctx, `UPDATE narration_regenerations SET status='failed',failure_code=$2,completed_at=now() WHERE id::text=$1`, j.id, failureCode(err))
+			// Best effort: the request stays 'requested' if this fails and is retried next cycle.
+			_, _ = s.opts.Pool.Exec(ctx, `UPDATE narration_regenerations SET status='failed',failure_code=$2,completed_at=now() WHERE id=$1::uuid`, j.id, failureCode(err))
 			continue
 		}
 		done++
@@ -248,7 +249,7 @@ func (s *Service) regenerate(ctx context.Context, id, hash, voice, model, finger
 	if _, err = tx.Exec(ctx, `UPDATE slide_narrations SET status='ready',failure_code='',updated_at=now() WHERE content_hash=$1 AND status='pending' AND failure_code='object_missing'`, hash); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE narration_regenerations SET status='completed',characters=$2,completed_at=now() WHERE id::text=$1`, id, int(response.Characters)); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE narration_regenerations SET status='completed',characters=$2,completed_at=now() WHERE id=$1::uuid`, id, int(response.Characters)); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
