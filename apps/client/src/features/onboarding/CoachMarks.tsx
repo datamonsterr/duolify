@@ -50,14 +50,19 @@ export function CoachMarks({
   const heading = useRef<HTMLHeadingElement>(null);
   const step = steps[index];
   const finish = useRef(onFinish);
-  finish.current = onFinish;
+  useEffect(() => {
+    finish.current = onFinish;
+  });
+  const hasGeometry = geometry !== null;
   const announced = useRef("");
   useEffect(() => {
     trackOnboarding({ event: "onboarding_tour_started", source });
   }, [source]);
   useEffect(() => {
     if (!step) {
-      finish.current("completed");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (steps.length) setIndex(steps.length - 1);
+      else finish.current("skipped");
       return;
     }
     // StrictMode and position updates must not double-count a viewed step.
@@ -66,13 +71,14 @@ export function CoachMarks({
       announced.current = step;
     }
     heading.current?.focus({ preventScroll: true });
-  }, [step, geometry !== null]);
+  }, [step, hasGeometry, steps.length]);
   useLayoutEffect(() => {
     if (!step) return;
     const target = targetFor(step);
     if (!target) {
+      // The anchor only exists in the DOM, so absence is detected here.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSteps((current) => current.filter((id) => id !== step));
-      setIndex(0);
       return;
     }
     target.scrollIntoView({
@@ -92,7 +98,6 @@ export function CoachMarks({
       frame = requestAnimationFrame(() => {
         if (!targetFor(step)) {
           setSteps((current) => current.filter((id) => id !== step));
-          setIndex(0);
           return;
         }
         const rect = target.getBoundingClientRect(),
