@@ -161,7 +161,7 @@ func (s *Service) CheckInAt(ctx context.Context, owner string, at time.Time) (Ch
 	if err = tx.Commit(ctx); err != nil {
 		return result, err
 	}
-	if result.CheckedIn {
+	if result.Granted > 0 {
 		_ = s.InvalidateCache(ctx, owner)
 		s.NotifyCreditArrival(ctx, owner)
 	}

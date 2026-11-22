@@ -90,7 +90,12 @@ function mountPath() {
 }
 const openPanel = async () => {
   fireEvent.click(
-    await screen.findByRole("button", { name: "Prepare lesson" }),
+    // The first authenticated route also loads its chunks and background data.
+    await screen.findByRole(
+      "button",
+      { name: "Prepare lesson" },
+      { timeout: 5000 },
+    ),
   );
   return screen.findByRole("dialog");
 };
