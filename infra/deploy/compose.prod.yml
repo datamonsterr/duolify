@@ -55,10 +55,10 @@ services:
   redis:
     deploy: {resources: {reservations: {memory: 32M}}}
 
-  # stop_grace_period must exceed the 10 s drain in the API and worker (httpapi.Serve, worker.Shutdown):
-  # docker stop sends SIGTERM, the process stops accepting and finishes in-flight requests, and only then exits.
+  # stop_grace_period (120 s, set in compose.yml for api, worker and engine) must exceed the 90 s drain of the API
+  # (API_DRAIN_TIMEOUT), worker (WORKER_DRAIN_TIMEOUT) and engine (ENGINE_DRAIN_TIMEOUT_SECS): docker stop sends
+  # SIGTERM, the process stops accepting and finishes in-flight work, and only then exits. deploy-plan.sh enforces it.
   api:
-    stop_grace_period: 30s
     environment:
       <<: *s3-env
       DB_POOL_MAX_CONNS: ${API_DB_POOL_MAX_CONNS:-10}
@@ -70,7 +70,6 @@ services:
     deploy: {replicas: 2, resources: {limits: {cpus: "1", memory: 384M}, reservations: {memory: 128M}}}
 
   worker:
-    stop_grace_period: 30s
     environment:
       <<: *s3-env
       DB_POOL_MAX_CONNS: ${WORKER_DB_POOL_MAX_CONNS:-16}

@@ -92,6 +92,14 @@ func (c *Client) Chat(ctx context.Context, r *enginev1.ChatRequest) (enginev1.En
 	return c.rpc.Chat(metadata.NewOutgoingContext(ctx, md), r)
 }
 
+// retryServiceConfig retries UNAVAILABLE (engine restarting during a deploy, connection refused or reset
+// before an answer) up to 5 attempts with jittered backoff, about 13 s at most, so a rolled engine does not fail
+// calls the API made while it was down. Every call is bounded by the caller's deadline and reservation, and a retry
+// reuses that reservation (the engine reports usage only for the attempt that answered), so nothing is charged twice.
+// Only UNAVAILABLE retries: DEADLINE_EXCEEDED, CANCELED and engine-reported failures never do.
+const retryServiceConfig = `{"methodConfig":[{"name":[{"service":"duolify.engine.v1.EngineService"}],"retryPolicy":{
+  "maxAttempts":5,"initialBackoff":"1s","maxBackoff":"4s","backoffMultiplier":2,"retryableStatusCodes":["UNAVAILABLE"]}}]}`
+
 // New accepts the ENGINE_ADDR http(s) URL; http is for the private local network.
 func New(addr string, timeout time.Duration) (*Client, error) {
 	u, err := url.Parse(addr)
@@ -102,7 +110,7 @@ func New(addr string, timeout time.Duration) (*Client, error) {
 	if u.Scheme == "https" {
 		creds = credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12})
 	}
-	conn, err := grpc.NewClient("dns:///"+u.Host, grpc.WithTransportCredentials(creds), grpc.WithUnaryInterceptor(correlate), grpc.WithStreamInterceptor(watchStream))
+	conn, err := grpc.NewClient("dns:///"+u.Host, grpc.WithTransportCredentials(creds), grpc.WithUnaryInterceptor(correlate), grpc.WithStreamInterceptor(watchStream), grpc.WithDefaultServiceConfig(retryServiceConfig))
 	if err != nil {
 		return nil, fmt.Errorf("create engine client: %w", err)
 	}

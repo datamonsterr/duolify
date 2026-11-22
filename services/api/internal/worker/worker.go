@@ -4,6 +4,7 @@ package worker
 import (
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
@@ -169,7 +170,7 @@ func RunWithAlerts(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger,
 	}
 	<-ctx.Done()
 	// Stop must receive a fresh context because the signal context is canceled.
-	return stop(client)
+	return StopQueue(client, DrainTimeoutFrom(os.Getenv, "WORKER_DRAIN_TIMEOUT"))
 }
 
 // WatchQueue observes idle queue outages too, without depending on analytics delivery.
