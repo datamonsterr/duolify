@@ -437,10 +437,11 @@ impl LlmProvider for MockProvider {
                 })
                 .to_string()
             }
-        } else if input.contains("lesson_test_variant")
-            || input.contains("variants")
-            || input.contains("source_question")
-        {
+        } else if data.as_ref().is_some_and(|v| {
+            v["task"] == "lesson_test_variant" || v.get("source_question").is_some()
+        }) {
+            // Only the GenerateRetryVariants request (lessontest::retry) gets this fixture: the
+            // lesson prompt also names `variants` (LESSON_SHAPE) and must get the lesson fixture.
             serde_json::json!({
                 "variants": [
                     {

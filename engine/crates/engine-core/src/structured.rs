@@ -119,10 +119,45 @@ pub fn response_format(task: &str) -> Option<Value> {
         | "published_copy_lesson"
         | "outline"
         | "outline_chat_change"
-        | "outline_replan"
-        | "character_create" => json!({"type":"json_object"}),
+        | "outline_replan" => json!({"type":"json_object"}),
+        "character_create" => schema(
+            "character_spec",
+            portable(&serde_json::from_str(crate::characters::SCHEMA).ok()?),
+        ),
         _ => return None,
     })
+}
+
+/// The closed CharacterSpec schema with only the structured-output keywords every endpoint
+/// supports (type, properties, required, additionalProperties, items, enum). Length, count,
+/// uniqueness and pattern bounds stay with `characters::valid_spec`.
+fn portable(s: &Value) -> Value {
+    let Some(o) = s.as_object() else {
+        return s.clone();
+    };
+    let mut out = serde_json::Map::new();
+    for (k, v) in o {
+        match k.as_str() {
+            "type" | "required" | "additionalProperties" | "enum" => {
+                out.insert(k.clone(), v.clone());
+            }
+            "const" => {
+                out.insert("enum".into(), json!([v]));
+            }
+            "items" => {
+                out.insert(k.clone(), portable(v));
+            }
+            "properties" => {
+                let props = v
+                    .as_object()
+                    .map(|p| p.iter().map(|(n, c)| (n.clone(), portable(c))).collect())
+                    .unwrap_or_default();
+                out.insert(k.clone(), Value::Object(props));
+            }
+            _ => {}
+        }
+    }
+    Value::Object(out)
 }
 
 /// Strict schema for a generated lesson without Character segments (`lessontest::LESSON_SHAPE`).
@@ -255,6 +290,38 @@ mod tests {
         assert_eq!(response_format("preview").unwrap()["type"], "json_schema");
         assert!(response_format("chat").is_none());
         assert!(response_format("setup_chat").is_none());
+    }
+
+    #[test]
+    fn character_mapping_requests_the_closed_spec_schema() {
+        // Live: in JSON mode Hy4 often answered null and GLM nested `personality` inside `info`.
+        let f = response_format("character_create").unwrap();
+        assert_eq!(f["type"], "json_schema");
+        assert_eq!(f["json_schema"]["strict"], true);
+        let s = &f["json_schema"]["schema"];
+        assert_eq!(s["additionalProperties"], false);
+        assert!(
+            s["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("personality"))
+        );
+        assert_eq!(
+            s["properties"]["personality"]["additionalProperties"],
+            false
+        );
+        assert_eq!(s["properties"]["schema_version"]["enum"], json!([1]));
+        // Bounds stay with the validator; the request carries only portable keywords.
+        let text = s.to_string();
+        for k in [
+            "minLength",
+            "maxLength",
+            "uniqueItems",
+            "pattern",
+            "\"const\"",
+        ] {
+            assert!(!text.contains(k), "{k}");
+        }
     }
 
     #[test]
