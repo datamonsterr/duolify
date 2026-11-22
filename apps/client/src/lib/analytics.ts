@@ -785,6 +785,111 @@ export function trackPlayer(
   }
 }
 
+// immersive-mobile-lesson-player analytics catalogue. Ids and closed enums only:
+// no Slide text, captions, notes or timestamps finer than a bucket.
+export const immersiveTriggers = [
+  "control",
+  "rotation",
+  "back",
+  "escape",
+] as const;
+export const immersiveControls = [
+  "play",
+  "pause",
+  "previous",
+  "next",
+  "replay_slide",
+  "autoplay_on",
+  "autoplay_off",
+  "speed",
+  "captions",
+  "narration",
+  "slide_list",
+  "bookmark",
+  "lock",
+  "unlock",
+] as const;
+export const immersiveVias = [
+  "button",
+  "double_tap",
+  "swipe",
+  "keyboard",
+] as const;
+export function secondsInModeBucket(seconds: number) {
+  return seconds < 10
+    ? "lt_10"
+    : seconds < 30
+      ? "10_30"
+      : seconds < 120
+        ? "30_120"
+        : seconds < 600
+          ? "120_600"
+          : "gt_600";
+}
+export function trackImmersive(
+  value:
+    | {
+        event: "immersive_mode_entered";
+        course_id: string;
+        lesson_id: string;
+        slide_index: number;
+        trigger: (typeof immersiveTriggers)[number];
+      }
+    | {
+        event: "immersive_mode_exited";
+        course_id: string;
+        lesson_id: string;
+        slide_index: number;
+        trigger: (typeof immersiveTriggers)[number];
+        seconds_in_mode: number;
+      }
+    | {
+        event: "immersive_control_used";
+        control: (typeof immersiveControls)[number];
+        via: (typeof immersiveVias)[number];
+      },
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  const properties: Record<string, string | number> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? "0.1.0",
+    source: "client",
+  };
+  if (value.event === "immersive_control_used") {
+    if (
+      !immersiveControls.includes(value.control) ||
+      !immersiveVias.includes(value.via)
+    )
+      return;
+    properties.control = value.control;
+    properties.via = value.via;
+  } else {
+    const id = /^[A-Za-z0-9_-]{1,100}$/;
+    if (
+      !id.test(value.course_id) ||
+      !id.test(value.lesson_id) ||
+      !immersiveTriggers.includes(value.trigger) ||
+      !Number.isSafeInteger(value.slide_index) ||
+      value.slide_index < 0 ||
+      value.slide_index >= 100
+    )
+      return;
+    properties.course_id = value.course_id;
+    properties.lesson_id = value.lesson_id;
+    properties.slide_index = value.slide_index;
+    properties.trigger = value.trigger;
+    if (value.event === "immersive_mode_exited")
+      properties.seconds_in_mode = secondsInModeBucket(value.seconds_in_mode);
+  }
+  try {
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture(value.event, properties);
+  } catch {
+    /* Playback never depends on analytics. */
+  }
+}
+
 // E14-01 catalogue: narrate-one-slide-mock-speech/specs/analytics/spec.md. Ids and a
 // duration only; narration text, audio and URLs never leave the device.
 export function trackNarrationPlayed(value: {

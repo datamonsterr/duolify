@@ -6,9 +6,12 @@ import { VoicePanel } from "../narration/VoicePanel";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { triggerFeedbackCue } from "../design/feedback/feedbackBridge";
 import {
+  Suspense,
+  lazy,
   useCallback,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
   useSyncExternalStore,
@@ -60,6 +63,14 @@ import {
 import { PlaybackClock } from "../player/playback";
 import { isSlideMessage, nextSlide, sendCommand } from "./bridge";
 import { PanelLayout, ResponsivePanel } from "../shell/AdaptiveLayouts";
+import {
+  exitStageFullscreen,
+  requestStageFullscreen,
+  useEnterOnRotate,
+} from "./immersive/entry";
+import { entryReducer, type ExitReason } from "./immersive/presentation";
+import type { ImmersiveActions, ImmersiveView } from "./immersive/types";
+import { useLatest } from "./immersive/useLatest";
 import { useShellSession } from "../shell/ShellSession";
 import { QuickNotePanel } from "../notes/QuickNotePanel";
 import { TutorChat } from "../chat/TutorChat";
@@ -69,6 +80,14 @@ import { generateMotionSlideHtml } from "../characters/motion-slide";
 import { generatedCharacterDocument } from "../characters/playback";
 
 const speeds = [1, 1.25, 1.5, 0.75];
+// The immersive presentation is a lazy chunk: it never enters the first-load bundle.
+const immersiveChunk = () => import("./immersive/ImmersiveUi");
+const ImmersiveHost = lazy(() =>
+  immersiveChunk().then((m) => ({ default: m.ImmersiveHost })),
+);
+const ImmersiveLayer = lazy(() =>
+  immersiveChunk().then((m) => ({ default: m.ImmersiveLayer })),
+);
 // While playing, the server position is a heartbeat. Pause, seek, checkpoints, slide
 // changes, hidden/pagehide and unmount still save at once, and every save also writes
 // the local resume position, so a longer interval only widens the crash-loss window.
@@ -686,39 +705,112 @@ function ManifestPlayback({
   const [muted, setMuted] = useState(initialPrefs.muted);
   const [resuming, setResuming] = useState(!!initial);
   const started = useRef(false);
+  // Immersive mode is a second presentation of this player: the state above is
+  // not touched when it opens or closes, and SlidePlayback is never remounted by it.
+  const [entry, dispatchEntry] = useReducer(entryReducer, null);
+  const [immersiveReady, setImmersiveReady] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const [autoAdvance, setAutoAdvance] = useState(initialPrefs.autoplay);
+  const [fullscreenOnRotate] = useState(initialPrefs.fullscreenOnRotate);
+  const root = useRef<HTMLDivElement>(null);
+  const [keyboardEntry, setKeyboardEntry] = useState(false);
+  const indexRef = useLatest(index);
+  const exitReason = useRef<ExitReason>("control");
+  const entryRef = useLatest(entry);
+  const slideCount = manifest.slides.length;
+  const enter = useCallback(
+    (trigger: "control" | "rotation", viaKeyboard = false) => {
+      if (entryRef.current) return;
+      setKeyboardEntry(viaKeyboard);
+      if (trigger === "control") void requestStageFullscreen(root.current);
+      entryRef.current = { trigger };
+      dispatchEntry({ type: "enter", trigger });
+      setAnnouncement(
+        `Immersive mode on. Slide ${indexRef.current + 1} of ${slideCount}`,
+      );
+    },
+    [slideCount, entryRef, indexRef],
+  );
+  const exit = useCallback(
+    (reason: ExitReason) => {
+      if (!entryRef.current) return;
+      exitReason.current = reason;
+      entryRef.current = null;
+      dispatchEntry({ type: "exit", reason });
+      setImmersiveReady(false);
+      exitStageFullscreen();
+      setAnnouncement("Immersive mode off. Back to the lesson.");
+      queueMicrotask(() =>
+        document
+          .getElementById("immersive-enter")
+          ?.focus({ preventScroll: true }),
+      );
+    },
+    [entryRef],
+  );
+  useEnterOnRotate(fullscreenOnRotate, entry, (a) =>
+    a === "enter" ? enter("rotation") : exit("rotation"),
+  );
   return (
-    <SlidePlayback
-      key={manifest.slides[index].slide_id}
-      manifest={manifest}
-      index={index}
-      initialTime={resuming ? (initial?.time_ms ?? 0) : 0}
-      autoplay={!resuming}
-      rate={rate}
-      onRate={(newRate) => {
-        setRate(newRate);
-        savePlayerPreferences({ rate: newRate });
-      }}
-      muted={muted}
-      onMute={(newMuted) => {
-        setMuted(newMuted);
-        savePlayerPreferences({ muted: newMuted });
-      }}
-      restoreError={restoreError}
-      exit={playerReturnPath(returnTo, manifest.course_id)}
-      onNavigate={(next) => {
-        setResuming(false);
-        setIndex(next);
-      }}
-      onStart={() => {
-        if (!started.current) {
-          started.current = true;
-          trackPlayer("lesson_started", {
-            lesson_id: manifest.lesson_id,
-            course_id: manifest.course_id,
-          });
-        }
-      }}
-    />
+    <div ref={root} className="immersive-root" data-testid="immersive-root">
+      <SlidePlayback
+        key={manifest.slides[index].slide_id}
+        manifest={manifest}
+        index={index}
+        initialTime={resuming ? (initial?.time_ms ?? 0) : 0}
+        autoplay={!resuming}
+        rate={rate}
+        onRate={(newRate) => {
+          setRate(newRate);
+          savePlayerPreferences({ rate: newRate });
+        }}
+        muted={muted}
+        onMute={(newMuted) => {
+          setMuted(newMuted);
+          savePlayerPreferences({ muted: newMuted });
+        }}
+        restoreError={restoreError}
+        exit={playerReturnPath(returnTo, manifest.course_id)}
+        onNavigate={(next) => {
+          setResuming(false);
+          setIndex(next);
+        }}
+        onStart={() => {
+          if (!started.current) {
+            started.current = true;
+            trackPlayer("lesson_started", {
+              lesson_id: manifest.lesson_id,
+              course_id: manifest.course_id,
+            });
+          }
+        }}
+        immersive={entry !== null && immersiveReady}
+        onEnterImmersive={(viaKeyboard) => enter("control", viaKeyboard)}
+        onExitImmersive={() => exit("control")}
+        autoAdvance={autoAdvance}
+        onAutoAdvance={(on) => {
+          setAutoAdvance(on);
+          savePlayerPreferences({ autoplay: on });
+        }}
+      />
+      {entry && (
+        <Suspense fallback={null}>
+          <ImmersiveHost
+            trigger={entry.trigger}
+            courseId={manifest.course_id}
+            lessonId={manifest.lesson_id}
+            viaKeyboard={keyboardEntry}
+            getSlideIndex={() => indexRef.current}
+            getExitReason={() => exitReason.current}
+            onReady={() => setImmersiveReady(true)}
+            onExit={exit}
+          />
+        </Suspense>
+      )}
+      <p className="imm-sr" role="status">
+        {announcement}
+      </p>
+    </div>
   );
 }
 
@@ -735,9 +827,19 @@ function SlidePlayback({
   exit,
   muted,
   onMute,
+  immersive,
+  onEnterImmersive,
+  onExitImmersive,
+  autoAdvance,
+  onAutoAdvance,
 }: {
   manifest: Manifest;
   index: number;
+  immersive: boolean;
+  onEnterImmersive: (viaKeyboard: boolean) => void;
+  onExitImmersive: () => void;
+  autoAdvance: boolean;
+  onAutoAdvance: (on: boolean) => void;
   initialTime: number;
   autoplay: boolean;
   rate: number;
@@ -1042,6 +1144,50 @@ function SlidePlayback({
       command({ type: "play" });
     }
   }, [clock, pause, panel, command]);
+  const replay = () => {
+    viewed.current = false;
+    reached.current.clear();
+    setCheckpoint(false);
+    clock.replay(performance.now());
+    command({ type: "seek", time: 0 });
+    command({ type: "play" });
+    trackPlayer("slide_replayed", {
+      lesson_id: lessonId,
+      slide_id: slide.slide_id,
+      index,
+    });
+    persist();
+  };
+  const cycleSpeed = () => {
+    const next = speeds[(speeds.indexOf(rate) + 1) % speeds.length];
+    clock.rate(next, performance.now());
+    onRate(next);
+    command({ type: "rate", rate: next });
+    trackNarrationSpeedChanged({
+      lesson_id: lessonId,
+      slide_id: slide.slide_id,
+      speed: next,
+    });
+  };
+  const toggleMute = () => {
+    const next = !muted;
+    onMute(next);
+    trackNarrationMuted({
+      lesson_id: lessonId,
+      slide_id: slide.slide_id,
+      muted: next,
+    });
+  };
+  const toggleCaptions = () => {
+    const next = !captionsVisible;
+    setCaptionsVisible(next);
+    savePlayerPreferences({ captions: next });
+    trackCaptionsToggled({
+      lesson_id: lessonId,
+      slide_id: slide.slide_id,
+      captions: next,
+    });
+  };
   // Opening a panel pauses playback; closing it puts the slide and time back exactly once.
   const opened = useRef<{ index: number; time: number } | null>(null);
   const openPanel = (name: NonNullable<typeof panel>) => {
@@ -1201,9 +1347,72 @@ function SlidePlayback({
   ]);
   const slideFailed = !!slideDocument.error || assetError;
   const disabled = !ready || slideFailed || panel !== null;
+  const slideInfos = useMemo(
+    () =>
+      manifest.slides.map((s, i) => ({
+        id: s.slide_id,
+        label: (s.explanation || s.narration_text || `Slide ${i + 1}`).slice(
+          0,
+          90,
+        ),
+        durationMs: Math.max(
+          s.duration_ms,
+          s.narration?.duration_ms ?? 0,
+          narratedDuration(s),
+        ),
+      })),
+    [manifest.slides],
+  );
+  const lastSlide = index === manifest.slides.length - 1;
+  const immersiveView: ImmersiveView = {
+    title: manifest.title,
+    lessonId,
+    courseId: manifest.course_id,
+    index,
+    slides: slideInfos,
+    playing: playback.playing,
+    ended: playback.ended,
+    timeMs: playback.time,
+    durationMs: effectiveDuration,
+    rate,
+    captions: captionsVisible,
+    muted,
+    bookmarked: isBookmarked,
+    autoAdvance,
+    failed: slideFailed,
+    disabled,
+    offline: typeof navigator !== "undefined" && !navigator.onLine,
+    reducedMotion,
+    caption: slide.explanation || slide.narration_text || "",
+  };
+  const immersiveActions: ImmersiveActions = {
+    toggle,
+    pause,
+    previous: () => {
+      if (index === 0) return;
+      pause();
+      onNavigate(index - 1);
+    },
+    next: () => {
+      if (lastSlide) return;
+      pause();
+      onNavigate(index + 1);
+    },
+    goTo: (i) => {
+      pause();
+      if (i !== index) onNavigate(i);
+    },
+    replay,
+    cycleSpeed,
+    toggleCaptions,
+    toggleMute,
+    toggleBookmark: () => void handleToggleBookmark(),
+    setAutoAdvance: onAutoAdvance,
+    exit: onExitImmersive,
+  };
   return (
     <div
-      className="player"
+      className={immersive ? "player immersive" : "player"}
       role="region"
       aria-label="Lesson playback"
       tabIndex={0}
@@ -1403,6 +1612,7 @@ function SlidePlayback({
               ref={frame}
               title={`Slide ${index + 1}`}
               sandbox="allow-scripts"
+              tabIndex={immersive ? -1 : undefined}
               srcDoc={sandboxDocument(
                 (manifest.cast && slide.segments?.length
                   ? generatedCharacterDocument(
@@ -1551,20 +1761,7 @@ function SlidePlayback({
           <button
             aria-label="Replay slide"
             disabled={disabled}
-            onClick={() => {
-              viewed.current = false;
-              reached.current.clear();
-              setCheckpoint(false);
-              clock.replay(performance.now());
-              command({ type: "seek", time: 0 });
-              command({ type: "play" });
-              trackPlayer("slide_replayed", {
-                lesson_id: lessonId,
-                slide_id: slide.slide_id,
-                index,
-              });
-              persist();
-            }}
+            onClick={replay}
           >
             Replay
           </button>
@@ -1592,17 +1789,7 @@ function SlidePlayback({
           <button
             aria-label={`Speed ${rate}x`}
             disabled={disabled}
-            onClick={() => {
-              const next = speeds[(speeds.indexOf(rate) + 1) % speeds.length];
-              clock.rate(next, performance.now());
-              onRate(next);
-              command({ type: "rate", rate: next });
-              trackNarrationSpeedChanged({
-                lesson_id: lessonId,
-                slide_id: slide.slide_id,
-                speed: next,
-              });
-            }}
+            onClick={cycleSpeed}
           >
             {rate}×
           </button>
@@ -1610,15 +1797,7 @@ function SlidePlayback({
             aria-label={muted ? "Unmute narration" : "Mute narration"}
             aria-pressed={muted}
             disabled={slideFailed}
-            onClick={() => {
-              const next = !muted;
-              onMute(next);
-              trackNarrationMuted({
-                lesson_id: lessonId,
-                slide_id: slide.slide_id,
-                muted: next,
-              });
-            }}
+            onClick={toggleMute}
           >
             {muted ? "Unmute" : "Mute"}
           </button>
@@ -1650,6 +1829,17 @@ function SlidePlayback({
         </div>
         <div className="panel-tools" aria-label="Lesson tools">
           <button
+            id="immersive-enter"
+            data-testid="immersive-enter"
+            className="duo-button quiet"
+            type="button"
+            aria-label="Immersive mode"
+            disabled={panel !== null || slideFailed}
+            onClick={(e) => onEnterImmersive(e.detail === 0)}
+          >
+            Full screen
+          </button>
+          <button
             className={`duo-button quiet ${isBookmarked ? "on" : ""}`}
             type="button"
             aria-pressed={isBookmarked}
@@ -1661,16 +1851,7 @@ function SlidePlayback({
             className={`duo-button quiet tool-captions ${captionsVisible ? "on" : ""}`}
             type="button"
             aria-pressed={captionsVisible}
-            onClick={() => {
-              const next = !captionsVisible;
-              setCaptionsVisible(next);
-              savePlayerPreferences({ captions: next });
-              trackCaptionsToggled({
-                lesson_id: lessonId,
-                slide_id: slide.slide_id,
-                captions: next,
-              });
-            }}
+            onClick={toggleCaptions}
           >
             Captions
           </button>
@@ -1697,6 +1878,16 @@ function SlidePlayback({
           ))}
         </div>
       </PanelLayout>
+      {immersive && (
+        <Suspense fallback={null}>
+          <ImmersiveLayer
+            view={immersiveView}
+            actions={immersiveActions}
+            lastSlide={lastSlide}
+            lessonId={lessonId}
+          />
+        </Suspense>
+      )}
       {toastVisible && (
         <div
           className="toast"
