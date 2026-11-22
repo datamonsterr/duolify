@@ -29,13 +29,19 @@ for (const width of [1280, 390]) {
         .frameLocator('iframe[title="Slide 1"]')
         .getByRole("heading", { name: "Look up" }),
     ).toBeVisible();
-    expect(await frame.getAttribute("srcdoc")).toContain("default-src 'none'");
+    // The slide's own policy sits in its document (the frame host page adds the edge header on top).
+    const policy = await page
+      .frameLocator('iframe[title="Slide 1"]')
+      .locator('meta[http-equiv="Content-Security-Policy"]')
+      .first()
+      .getAttribute("content");
+    expect(policy).toContain("default-src 'none'");
     for (const directive of [
       "base-uri 'none'",
       "form-action 'none'",
       "navigate-to 'none'",
     ])
-      expect(await frame.getAttribute("srcdoc")).toContain(directive);
+      expect(policy).toContain(directive);
     const storageDenied = await page
       .frameLocator('iframe[title="Slide 1"]')
       .locator("body")

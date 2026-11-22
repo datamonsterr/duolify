@@ -21,4 +21,7 @@ RUN pnpm --filter @duolify/client build
 # Caddy is both the static file server and the reverse proxy (infra/deploy/Caddyfile).
 FROM caddy:2.11-alpine AS web
 COPY --from=build /src/apps/client/dist /srv
-COPY infra/deploy/Caddyfile /etc/caddy/Caddyfile
+COPY infra/deploy/Caddyfile infra/deploy/security-headers.caddy /etc/caddy/
+COPY infra/deploy/proxy-entrypoint.sh /usr/local/bin/proxy-entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/proxy-entrypoint.sh"]
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

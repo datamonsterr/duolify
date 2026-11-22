@@ -5,10 +5,12 @@ import {
   buildOfflineManifest,
   type BundleLike,
 } from "./build/offlineManifest.ts";
+import { securityHeaders } from "./build/securityHeaders.ts";
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    securityHeaders(),
     {
       name: "lesson-offline-shell",
       generateBundle(_options, bundle) {

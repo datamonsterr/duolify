@@ -2,3 +2,12 @@
 # /assets/<old-hash>.js is answered with index.html (200), and `_headers` matches the request URL,
 # so a rule on /assets/* would also mark that fallback HTML immutable. Hashed assets keep the
 # Workers default (public, max-age=0, must-revalidate + ETag): a cheap 304 on repeat visits.
+
+# Security headers that need no per-environment value. The Content-Security-Policy is not set here: this file
+# cannot give /lesson-frame.html and /sso-bridge their own policy (rules merge, and one cannot replace a header
+# set by an earlier rule). See docs/adr/0022-security-headers-and-csp.md, "Workers static assets".
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), payment=(), usb=()
