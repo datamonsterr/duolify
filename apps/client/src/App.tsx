@@ -237,7 +237,7 @@ function IndexRoute() {
 
   if (!resolvedCourseId) {
     if (coursesData && coursesData.length === 0) {
-      return <Courses />;
+      return <Courses surface="learn_empty" />;
     }
     // Course list failed with no offline copy: say so instead of loading forever.
     if (coursesFailed) return <p>{t("path.error")}</p>;

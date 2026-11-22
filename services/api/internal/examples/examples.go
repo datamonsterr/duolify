@@ -113,6 +113,14 @@ func (c Course) Summary() Summary {
 	return Summary{Slug: c.Slug, Title: c.Title, Description: c.Description, Level: c.Level, Units: len(c.Units), Lessons: c.LessonCount(), EstimatedMinutes: c.EstimatedMinutes()}
 }
 
+// Derive returns a copy at another version with another title and its own content hash. It lets
+// tests exercise a version bump without shipping a second authored file.
+func (c Course) Derive(version int, title string) Course {
+	c.Version, c.Title = version, title
+	c.hash = fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%s/%d/%s", c.Slug, version, title))))
+	return c
+}
+
 // ContentHash is the SHA-256 of the exact authored bytes of this version.
 func (c Course) ContentHash() string { return c.hash }
 

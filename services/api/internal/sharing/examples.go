@@ -78,6 +78,13 @@ func ExampleDocuments(origin string) (map[string][]byte, error) {
 	return out, nil
 }
 
+// WithExamples replaces the authored catalogue lookup (tests: simulate a newer authored version).
+func (s *Service) WithExamples(get func(slug string) (examples.Course, bool)) *Service {
+	c := *s
+	c.exampleGet = get
+	return &c
+}
+
 // InstallExampleObjects publishes every authored version's immutable objects. It is idempotent
 // (identical bytes under identical keys), so two replicas starting together or a rerun are safe.
 func (s *Service) InstallExampleObjects(ctx context.Context) error {
@@ -100,7 +107,11 @@ func (s *Service) InstallExampleObjects(ctx context.Context) error {
 // version current now. A repeat returns the same copy (and keeps its pinned version, even after a
 // newer version ships). Nothing here quotes, reserves or settles Credits or calls the engine.
 func (s *Service) EnrollExample(ctx context.Context, viewer, slug string) (Enrollment, error) {
-	course, ok := examples.Get(slug)
+	get := examples.Get
+	if s.exampleGet != nil {
+		get = s.exampleGet
+	}
+	course, ok := get(slug)
 	if !ok {
 		return Enrollment{}, ErrExampleNotFound
 	}
