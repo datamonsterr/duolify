@@ -5,7 +5,7 @@
 #   overlay-tests.sh pitr   PITR drill: base backup + archived WAL restored to a point in time
 #   overlay-tests.sh redis  Redis cold start: flush Redis, stack still serves, state rebuilds from Postgres
 #   overlay-tests.sh dr     nightly DR copy keeps every object version, even after a source delete
-#   overlay-tests.sh rolling    kill each API instance in turn under steady GET load: no failed request through the proxy
+#   overlay-tests.sh rolling    stop each API instance in turn (docker stop, as deploy.sh does) under GET and POST load plus slow in-flight requests: no failed request
 #   overlay-tests.sh sse       a stream silent for 10-15 s at a time lives >150 s through the proxy, unbuffered
 #   overlay-tests.sh lifecycle  backup-lifecycle.sh apply/verify against the RustFS backup bucket
 #   overlay-tests.sh retry     two replicas behind one name, one drops connections: every GET still answered (also runs after rolling)
@@ -171,28 +171,42 @@ test_lifecycle() {
 
 test_rolling() {
   start_stack
-  local url n=0 bad=0 ok=0 code id
-  url="http://127.0.0.1:$(sed -n 's/^HTTP_PORT=//p' "$SELFHOST_ENV_FILE" | tail -n 1)/v1/features"
+  local base url post n=0 bad=0 ok=0 pn=0 pbad=0 sn=0 sbad=0 code id i pids=()
+  base="http://127.0.0.1:$(sed -n 's/^HTTP_PORT=//p' "$SELFHOST_ENV_FILE" | tail -n 1)"
+  url=$base/v1/features
+  post=$base/v1/auth/logout # a real DB write, idempotent for an unknown token: 204 every time
   curl -fsS "$url" >/dev/null || die "baseline request failed"
+  [[ $(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{"refresh_token":"x"}' -H 'content-type: application/json' "$post") == 204 ]] || die "baseline POST is not 204"
   : >"$work/codes"
   touch "$work/load"
-  # Many parallel clients, no pause: requests are in flight on the instance at the moment it is killed.
-  # Every GET must succeed (Caddy replays a GET whose upstream died mid-request). A POST is never replayed, so
-  # one cut off mid-request legitimately fails: POST results are printed, not asserted.
-  local i pids=()
+  # Fast GET and POST clients in parallel, no pause. Every one must get a 2xx while instances are stopped the way
+  # deploy.sh stops them (docker stop: SIGTERM, drain, SIGKILL only after the grace period).
   for i in 1 2 3 4 5 6 7 8; do
     (while [[ -e $work/load ]]; do curl -s -o /dev/null -w '%{http_code}\n' --max-time 10 "$url" >>"$work/codes.$i" || echo 000 >>"$work/codes.$i"; done) &
     pids+=($!)
   done
   for i in 9 10 11 12; do
-    (while [[ -e $work/load ]]; do curl -s -o /dev/null -w '%{http_code}\n' --max-time 10 -X POST -d '{}' -H 'content-type: application/json' "$url" >>"$work/post.$i" || echo 000 >>"$work/post.$i"; done) &
+    (while [[ -e $work/load ]]; do curl -s -o /dev/null -w '%{http_code}\n' --max-time 10 -X POST -d '{"refresh_token":"x"}' -H 'content-type: application/json' "$post" >>"$work/post.$i" || echo 000 >>"$work/post.$i"; done) &
     pids+=($!)
   done
   sleep 2
+  slow_requests() { # six slow GETs (a 2 s stream) and six slow POSTs (body arrives over 3 s), all started now
+    local k=$1 s
+    for s in 1 2 3 4 5 6; do
+      (code=$(curl -sS -o "$work/stream.$k.$s" -w '%{http_code}' --max-time 20 "$base/v1/stream-check") || code=000
+        [[ $code == 200 && $(grep -c '^event: ping' "$work/stream.$k.$s") == 2 ]] && echo ok >>"$work/slow.$k" || echo "bad $code" >>"$work/slow.$k") &
+      (code=$( (printf '{"refresh_token":"'; sleep 3; printf 'x"}') | curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' -H 'Transfer-Encoding: chunked' --data-binary @- "$post") || code=000
+        [[ $code == 204 ]] && echo ok >>"$work/slow.$k" || echo "bad $code" >>"$work/slow.$k") &
+    done
+  }
+  k=0
   for id in $(compose ps --quiet api); do
-    # SIGKILL (worst case: no graceful drain): the proxy must retry onto the surviving instance.
-    docker kill "$id" >/dev/null
-    sleep 4
+    k=$((k + 1))
+    slow_requests "$k"
+    sleep 1 # the slow requests are now in flight on both instances
+    docker stop -t 30 "$id" >/dev/null
+    wait # the slow requests started above
+    sleep 1
     docker start "$id" >/dev/null
     wait_for 90 "api instance back" bash -c "[[ \$(docker inspect --format '{{.State.Health.Status}}' $id) == healthy ]]"
     sleep 2
@@ -201,13 +215,18 @@ test_rolling() {
   wait "${pids[@]}"
   cat "$work"/codes.* >"$work/codes"
   cat "$work"/post.* >"$work/posts"
-  while read -r code; do n=$((n + 1)); if [[ $code =~ ^[1-4][0-9][0-9]$ ]]; then ok=$((ok + 1)); else bad=$((bad + 1)); fi; done <"$work/codes"
-  printf 'rolling: %s requests, %s ok, %s failed\n' "$n" "$ok" "$bad"
+  cat "$work"/slow.* >"$work/slow"
+  while read -r code; do n=$((n + 1)); [[ $code =~ ^2[0-9][0-9]$ ]] && ok=$((ok + 1)) || bad=$((bad + 1)); done <"$work/codes"
+  while read -r code; do pn=$((pn + 1)); [[ $code =~ ^2[0-9][0-9]$ ]] || pbad=$((pbad + 1)); done <"$work/posts"
+  while read -r code; do sn=$((sn + 1)); [[ $code == ok ]] || sbad=$((sbad + 1)); done <"$work/slow"
+  printf 'rolling: GET %s requests, %s failed; POST %s requests, %s failed; slow in-flight (stream + slow POST) %s, %s failed\n' "$n" "$bad" "$pn" "$pbad" "$sn" "$sbad"
   sort "$work/codes" | uniq -c
-  printf 'rolling: POST statuses (informational):\n'
   sort "$work/posts" | uniq -c
-  ((n > 100)) || die "load generator produced too few requests"
-  ((bad == 0)) || die "$bad request(s) failed while API instances were stopped"
+  sort "$work/slow" | uniq -c
+  ((n > 100 && pn > 50)) || die "load generator produced too few requests"
+  ((bad == 0)) || die "$bad GET(s) failed while API instances were stopped"
+  ((pbad == 0)) || die "$pbad POST(s) failed while API instances were stopped"
+  ((sbad == 0)) || die "$sbad slow in-flight request(s) were cut while an instance was stopped"
   say "rolling passed"
   test_retry
 }

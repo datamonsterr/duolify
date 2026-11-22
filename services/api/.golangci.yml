@@ -13,6 +13,9 @@ linters:
     - noctx
   exclusions:
     generated: strict
+output:
+  # Repo-root relative paths so CI annotations attach to the right file.
+  path-prefix: services/api
 formatters:
   enable:
     - gofmt

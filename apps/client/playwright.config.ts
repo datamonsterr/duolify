@@ -3,6 +3,15 @@ import { apiBase, authRateLimits, webBase, webPort } from "./e2e/servers";
 export default defineConfig({
   testDir: "./e2e",
   workers: Number(process.env.E2E_WORKERS ?? 1),
+  // CI: GitHub annotations, HTML report artifact and JUnit for the job summary.
+  reporter: process.env.CI
+    ? [
+        ["github"],
+        ["list"],
+        ["html", { open: "never" }],
+        ["junit", { outputFile: "test-results/junit.xml" }],
+      ]
+    : "list",
   use: { baseURL: webBase },
   webServer: [
     {
