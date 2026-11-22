@@ -1,0 +1,47 @@
+# Self-hosted edge: static web client on /, API on /v1.
+# SITE_ADDRESS=":80" serves plain HTTP on any host name (localhost, LAN).
+# SITE_ADDRESS="learn.example.com" turns on automatic HTTPS (ports 80+443 must be public).
+{
+	admin off
+}
+
+# Container healthcheck only; this port is never published.
+http://:8081 {
+	respond /healthz "ok" 200
+}
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	handle /v1/* {
+		reverse_proxy {$API_UPSTREAM:api:8080} {
+			# Server-sent events: flush every write, never buffer, keep streams open.
+			flush_interval -1
+			transport http {
+				read_timeout 0
+				write_timeout 0
+				keepalive 2m
+			}
+		}
+	}
+
+	handle {
+		root * /srv
+		@immutable path /assets/*
+		header @immutable Cache-Control "public, max-age=31536000, immutable"
+		header ?Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

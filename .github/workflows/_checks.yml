@@ -677,6 +677,38 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
+  # Brings the production-shaped self-hosted stack (infra/deploy) up from freshly built
+  # images, then smoke tests it and runs a real backup and restore drill.
+  selfhost:
+    needs: changes
+    if: inputs.tier == 'full' && (needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.infra == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+      - run: mise run infra:selfhost-up
+        timeout-minutes: 40
+      - run: mise run infra:selfhost-smoke
+        timeout-minutes: 3
+      - run: mise run infra:selfhost-backup
+        timeout-minutes: 6
+      - run: mise run infra:selfhost-restore-drill
+        timeout-minutes: 5
+      - name: Stack logs
+        if: failure()
+        run: mise run infra:selfhost-logs
+      - name: Stop stack
+        if: always()
+        run: mise run infra:selfhost-down
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
   ci-ok:
     name: ci-ok
     if: always()
@@ -701,6 +733,7 @@ jobs:
       - images
       - engine-eval-live
       - infra-plan
+      - selfhost
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
