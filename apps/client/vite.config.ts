@@ -1,6 +1,10 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import {
+  buildOfflineManifest,
+  type BundleLike,
+} from "./build/offlineManifest.ts";
 export default defineConfig({
   plugins: [
     react(),
@@ -8,22 +12,18 @@ export default defineConfig({
     {
       name: "lesson-offline-shell",
       generateBundle(_options, bundle) {
-        const files = Array.from(
-          new Set([
-            "/index.html",
-            ...Object.keys(bundle)
-              .filter((name) => name.startsWith("assets/"))
-              .map((name) => `/${name}`),
-          ]),
-        );
         this.emitFile({
           type: "asset",
           fileName: "lesson-shell-assets.json",
-          source: JSON.stringify(files),
+          source: JSON.stringify(
+            buildOfflineManifest(bundle as unknown as BundleLike),
+          ),
         });
       },
     },
   ],
+  // A new service-worker URL per build makes the browser install it and rebuild the shell cache.
+  define: { __BUILD_ID__: JSON.stringify(Date.now().toString(36)) },
   server: { port: 1420, strictPort: true },
   // Browser-session e2e (playwright.session.config.ts): serve the same-origin build with the API
   // proxied under /v1, as Caddy does in production.
