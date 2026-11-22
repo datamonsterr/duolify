@@ -8,7 +8,12 @@ import {
 import { resolveLocale } from "./features/design/localization/messages";
 import { AuthError, session } from "./features/accounts/session";
 import { useQuery } from "@tanstack/react-query";
-import { api, type Course, type CoursesResponse } from "./lib/api";
+import {
+  api,
+  summarizeCourse,
+  type Course,
+  type CoursesResponse,
+} from "./lib/api";
 import { registerNavigator } from "./lib/navigation";
 import { useShellSession } from "./features/shell/ShellSession";
 import {
@@ -105,8 +110,8 @@ function IndexRoute() {
           (d) => d.courseData,
         );
         if (downloaded.length > 0 && downloaded[0].courseData) {
-          const list = downloaded.map(
-            (d) => d.courseData as Course,
+          const list = downloaded.map((d) =>
+            summarizeCourse(d.courseData as Course),
           ) as CoursesResponse;
           list.active_course_id = downloaded[0].courseId;
           return list;

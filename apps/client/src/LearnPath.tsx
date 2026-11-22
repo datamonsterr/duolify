@@ -86,6 +86,9 @@ export function LearnPath({ courseId }: { courseId: string }) {
         throw err;
       }
     },
+    // Nothing invalidates the path when a lesson ends, so revalidate on every visit; only the
+    // window-focus refetch is gone.
+    staleTime: 0,
     retry: false,
   });
 

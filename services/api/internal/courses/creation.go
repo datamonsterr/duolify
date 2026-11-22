@@ -225,6 +225,16 @@ func (s *Service) ServeCreationHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 202, c)
 }
+
+// Creation state changes seconds apart, so the stream reads it quickly right after it opens or
+// the state moves, then backs off to a few seconds while the engine works.
+const (
+	creationPollMin = 200 * time.Millisecond
+	creationPollMax = 3 * time.Second
+)
+
+func nextCreationPollDelay(d time.Duration) time.Duration { return min(d*2, creationPollMax) }
+
 func (s *Service) creationEvents(w http.ResponseWriter, r *http.Request, owner, id string) {
 	if _, err := s.creation(r.Context(), owner, id); err != nil {
 		outlineError(w, 404)
@@ -235,7 +245,8 @@ func (s *Service) creationEvents(w http.ResponseWriter, r *http.Request, owner, 
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
 	controller := http.NewResponseController(w)
-	timer := time.NewTicker(200 * time.Millisecond)
+	delay := creationPollMin
+	timer := time.NewTimer(delay)
 	defer timer.Stop()
 	beat := time.NewTicker(sse.Interval())
 	defer beat.Stop()
@@ -255,10 +266,13 @@ func (s *Service) creationEvents(w http.ResponseWriter, r *http.Request, owner, 
 				return
 			}
 			previous = c.State
+			delay = creationPollMin
 		}
 		if c.State == "enrolled" || c.State == "failed" {
 			return
 		}
+		timer.Reset(delay)
+		delay = nextCreationPollDelay(delay)
 		select {
 		case <-r.Context().Done():
 			return
