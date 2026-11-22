@@ -24,5 +24,5 @@
 
 ## 5. Independent security review
 
-- [ ] 5.1 Reproduce retained native callbacks; ignore unrelated states including cancellation.
-- [ ] 5.2 Reject Clerk subjects awaiting erasure under the same subject lock.
+- [x] 5.1 Reproduce retained native callbacks; ignore unrelated states including cancellation.
+- [x] 5.2 Reject Clerk subjects awaiting erasure under the same subject lock.

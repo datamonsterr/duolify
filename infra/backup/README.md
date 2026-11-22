@@ -230,3 +230,5 @@ After restoring a dump, start the API against the existing ledger bucket. Before
   them (`moderation blocks` step), so a dump older than the takedown cannot un-block copies.
 - `cmd/restore-drill` adds `copy pins resolve` when `S3_BUCKET` and the application credentials
   are configured.
+
+Clerk erasure intents additionally use `account-deletions/clerk-v1/<SHA-256>.bin` under the same immutable protected prefix. The body is AES-GCM encrypted with an HKDF-separated key from `JWT_SECRET`; recovery needs that escrowed secret as well as backup storage access. Never rotate away the old secret before migrating ledger encryption to a new version. Production startup enumerates/decrypts these intents independently of restored learners and requeues remote erasure; a bad key, corrupt record or storage failure blocks startup. Local restore drills do not decrypt these provider intents or call Clerk.

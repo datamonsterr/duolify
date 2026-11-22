@@ -26,7 +26,7 @@ async function signIn(page: Page, email: string, request: APIRequestContext) {
 }
 
 const refreshCookies = (cookies: { name: string }[]) =>
-  cookies.filter((c) => c.name === "duolify_refresh");
+  cookies.filter((c) => c.name === "__Host-duolify_refresh");
 
 test("session survives reload, typed URL and a new tab, and sign-out sticks", async ({
   page,
@@ -35,14 +35,14 @@ test("session survives reload, typed URL and a new tab, and sign-out sticks", as
 }) => {
   await signIn(page, `session-${crypto.randomUUID()}@example.test`, request);
 
-  // The refresh credential is an HttpOnly, Secure, SameSite=Strict cookie scoped to /v1/auth/.
+  // The refresh credential is an HttpOnly, Secure, SameSite=Strict host-bound cookie with Path=/.
   const cookies = refreshCookies(await context.cookies());
   expect(cookies).toHaveLength(1);
   expect(cookies[0]).toMatchObject({
     httpOnly: true,
     secure: true,
     sameSite: "Strict",
-    path: "/v1/auth/",
+    path: "/",
   });
   expect(await page.evaluate(() => document.cookie)).not.toContain(
     "duolify_refresh",
@@ -75,4 +75,95 @@ test("session survives reload, typed URL and a new tab, and sign-out sticks", as
   await expect(page).toHaveURL(/\/sign-in/);
   await page.reload();
   await expect(page).toHaveURL(/\/sign-in/);
+});
+
+test("cookie refresh responses are serialized across tabs", async ({
+  page,
+  context,
+  request,
+}) => {
+  await signIn(page, `race-${crypto.randomUUID()}@example.test`, request);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let entered!: () => void;
+  const firstEntered = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  let requests = 0;
+  await context.route("**/v1/auth/refresh", async (route) => {
+    requests++;
+    if (requests === 1) {
+      entered();
+      await held;
+    }
+    await route.continue();
+  });
+  const second = await context.newPage();
+  const third = await context.newPage();
+  const navSecond = second.goto("/profile");
+  await firstEntered;
+  const navThird = third.goto("/profile");
+  await third.waitForLoadState("domcontentloaded");
+  // The first fetch has not processed its response; no other tab may mutate the jar.
+  await expect
+    .poll(() =>
+      third.evaluate(
+        async () =>
+          (await navigator.locks.query()).pending?.filter(
+            (lock) => lock.name === "duolify-auth-cookie",
+          ).length,
+      ),
+    )
+    .toBe(1);
+  const whileHeld = requests;
+  release();
+  await Promise.all([navSecond, navThird]);
+  expect(whileHeld).toBe(1);
+  await expect(second.getByRole("button", { name: "Sign out" })).toBeVisible();
+  await expect(third.getByRole("button", { name: "Sign out" })).toBeVisible();
+  await third.reload();
+  await expect(third.getByRole("button", { name: "Sign out" })).toBeVisible();
+});
+
+test("a sibling domain cannot plant or shadow the host refresh cookie", async ({
+  page,
+  context,
+}) => {
+  await context.route("https://*.duolify.test/**", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: "<title>Cookie prefix protocol fixture</title>",
+      ...(new URL(route.request().url()).hostname === "app.duolify.test"
+        ? {
+            headers: {
+              "set-cookie":
+                "__Host-duolify_refresh=legitimate; Path=/; Secure; HttpOnly; SameSite=Strict",
+            },
+          }
+        : {}),
+    }),
+  );
+  await page.goto("https://app.duolify.test/");
+  await page.goto("https://sibling.duolify.test/");
+  await page.evaluate(() => {
+    document.cookie =
+      "duolify_refresh=attacker; Domain=duolify.test; Path=/v1/auth/; Secure";
+    document.cookie =
+      "__Host-duolify_refresh=attacker; Domain=duolify.test; Path=/; Secure";
+    document.cookie =
+      "__Host-duolify_refresh=attacker; Domain=duolify.test; Path=/v1/auth/; Secure";
+  });
+  const cookies = await context.cookies(
+    "https://app.duolify.test/v1/auth/refresh",
+  );
+  expect(cookies.filter((c) => c.name === "duolify_refresh")).toHaveLength(1);
+  expect(refreshCookies(cookies)).toEqual([
+    expect.objectContaining({
+      value: "legitimate",
+      domain: "app.duolify.test",
+      path: "/",
+    }),
+  ]);
 });

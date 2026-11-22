@@ -22,6 +22,6 @@
 
 ## 5. Independent security review
 
-- [ ] 5.1 Reproduce cookie tossing, account switching and delayed cookie responses.
-- [ ] 5.2 Require a host-prefixed cookie, reject duplicates and clear legacy cookies.
-- [ ] 5.3 Bind request retries to the learner and coordinate cookie changes across tabs.
+- [x] 5.1 Reproduce cookie tossing, account switching and delayed cookie responses.
+- [x] 5.2 Require a host-prefixed cookie, reject duplicates and clear legacy cookies.
+- [x] 5.3 Bind request retries to the learner and coordinate cookie changes across tabs.

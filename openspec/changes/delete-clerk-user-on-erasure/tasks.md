@@ -19,6 +19,6 @@
 
 ## 5. Independent security review
 
-- [ ] 5.1 Reproduce restore before linking, retry starvation and unsafe downgrade.
-- [ ] 5.2 Persist recoverable external deletion intents independently of database snapshots.
-- [ ] 5.3 Retry fairly with backoff and preserve pending identifiers on downgrade.
+- [x] 5.1 Reproduce restore before linking, retry starvation and unsafe downgrade.
+- [x] 5.2 Persist recoverable external deletion intents independently of database snapshots.
+- [x] 5.3 Retry fairly with backoff and preserve pending identifiers on downgrade.

@@ -123,7 +123,7 @@ func run(ctx context.Context, args []string) (result error) {
 	if err != nil {
 		return err
 	}
-	deletionLedger := backup.DeletionLedger{Objects: objects}
+	deletionLedger := backup.DeletionLedger{Objects: objects, ClerkKey: os.Getenv("JWT_SECRET")}
 	if err := accounts.ReplayDeletionLedger(ctx, db.Pool, deletionLedger); err != nil {
 		return fmt.Errorf("apply account deletion tombstones: %w", err)
 	}
