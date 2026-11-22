@@ -375,7 +375,12 @@ func (s *Service) Limits(ctx context.Context, owner, id, action string) (*engine
 	if json.Unmarshal(raw, &q) != nil || q.Action != action {
 		return nil, ErrReservation
 	}
-	fallback := q.WorstRate()
+	worst := q.WorstRate()
+	// The engine tries the nearest fallback next; its rates are bounded by the dearest model of the route.
+	var fallback pricing.ModelRate
+	if route := q.Policy.Fallbacks(q.Input.Model); len(route) > 0 {
+		fallback = route[0]
+	}
 	toUint32 := func(n int64) (uint32, error) {
 		if n < 0 || n > math.MaxUint32 {
 			return 0, ErrUsage
@@ -398,7 +403,7 @@ func (s *Service) Limits(ctx context.Context, owner, id, action string) (*engine
 	if err != nil {
 		return nil, err
 	}
-	return &enginev1.UsageLimits{InputTokens: input, OutputTokens: output, TimeoutMs: timeout, MaxAttempts: attempts, MaxCostNanos: nonnegativeUint64(min(reservationCost(q), q.Bounds["max_cost_nanos"])), InputNanos: nonnegativeUint64(max(q.Rate.Input, fallback.Input)), OutputNanos: nonnegativeUint64(max(q.Rate.Output, fallback.Output)), CacheWriteNanos: nonnegativeUint64(max(q.Rate.CacheWrite, fallback.CacheWrite)), CacheReadNanos: nonnegativeUint64(max(q.Rate.CacheRead, fallback.CacheRead)), Provider: q.Rate.Provider, Model: q.Rate.Model, FallbackProvider: fallback.Provider, FallbackModel: fallback.Model, DeadlineUnixMs: nonnegativeUint64(deadline.UnixMilli())}, nil
+	return &enginev1.UsageLimits{InputTokens: input, OutputTokens: output, TimeoutMs: timeout, MaxAttempts: attempts, MaxCostNanos: nonnegativeUint64(min(reservationCost(q), q.Bounds["max_cost_nanos"])), InputNanos: nonnegativeUint64(max(q.Rate.Input, worst.Input)), OutputNanos: nonnegativeUint64(max(q.Rate.Output, worst.Output)), CacheWriteNanos: nonnegativeUint64(max(q.Rate.CacheWrite, worst.CacheWrite)), CacheReadNanos: nonnegativeUint64(max(q.Rate.CacheRead, worst.CacheRead)), Provider: q.Rate.Provider, Model: q.Rate.Model, FallbackProvider: fallback.Provider, FallbackModel: fallback.Model, DeadlineUnixMs: nonnegativeUint64(deadline.UnixMilli())}, nil
 }
 
 // Release cancels only queued work; it cannot release another executor's running job.
