@@ -68,18 +68,6 @@ func TestOwnerApprovesAPolicyCarryingDraftThroughTheAdminPath(t *testing.T) {
 		c["version"], c["effective_from"] = version, effective.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
 		return c
 	}
-	// Baseline: the same prices on the Sonnet/Haiku policy, active as the approved parent.
-	baseline := config("usd-policy-carry-baseline", time.Now().Add(-time.Hour))
-	baselineRaw, _ := json.Marshal(baseline)
-	for _, statement := range []string{
-		"INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES('usd-policy-carry-baseline',($1::jsonb->>'effective_from')::timestamptz,true,$1::jsonb)",
-		"INSERT INTO pricing_quote_policies(version,policy) SELECT 'usd-policy-carry-baseline',policy FROM pricing_quote_policies WHERE version='usd-quotes-2026-11-09' AND $1::jsonb IS NOT NULL",
-		"INSERT INTO pricing_activation_events(version,activated_at) SELECT 'usd-policy-carry-baseline',now() WHERE $1::jsonb IS NOT NULL",
-	} {
-		if _, err = db.Pool.Exec(ctx, statement, baselineRaw); err != nil {
-			t.Fatal(err)
-		}
-	}
 	call := func(path string, payload any) (int, string) {
 		t.Helper()
 		body, _ := json.Marshal(payload)
@@ -99,7 +87,7 @@ func TestOwnerApprovesAPolicyCarryingDraftThroughTheAdminPath(t *testing.T) {
 	if status, out := draft("usd-policy-carry-bad", "usd-does-not-exist"); status == http.StatusCreated {
 		t.Fatalf("unknown policy source accepted: %s", out)
 	}
-	// Without a source the approval keeps inheriting the parent's Sonnet/Haiku policy.
+	// Without a source the draft inherits its parent's policy (the already approved Hy4 version).
 	if status, out := draft("usd-policy-carry-inherit", ""); status != http.StatusCreated {
 		t.Fatalf("inherit draft: %d %s", status, out)
 	}
@@ -121,11 +109,12 @@ func TestOwnerApprovesAPolicyCarryingDraftThroughTheAdminPath(t *testing.T) {
 		t.Fatalf("approved version must pin the source policy: %v %v", same, err)
 	}
 
-	// Not active before its effective instant; the unapproved source never is.
+	// Not active before its effective instant; the approved Hy4 version serves quotes meanwhile and the
+	// unapproved source never does.
 	runtime := pricing.NewRuntimeCatalogue(mustLoad(t, db), db.Queries, db.Pool, nil)
 	quotes := pricing.NewQuotes(db.Pool)
 	before, err := quotes.Create(ctx, learner, pricing.QuoteInput{Action: "quick_note"})
-	if err != nil || before.Rate.Model == "tencent/hy4-flash" || before.PricingVersion == hy4Source {
+	if err != nil || before.PricingVersion != approvedHy4 || before.PricingVersion == hy4Source {
 		t.Fatalf("quote before activation: %+v %v", before.Rate, err)
 	}
 	time.Sleep(3500 * time.Millisecond)
