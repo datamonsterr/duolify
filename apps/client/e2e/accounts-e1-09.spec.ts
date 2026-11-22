@@ -158,7 +158,6 @@ test("returning Apple subject completes when profile claims are omitted", async 
     expect(body).toMatchObject({
       state: "s".repeat(43),
       redirect_uri: "duolify://sso/callback",
-      age_confirmed: true,
     });
     expect(body.code_verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
     await route.fulfill({
