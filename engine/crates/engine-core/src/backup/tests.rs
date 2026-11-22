@@ -39,7 +39,7 @@ fn engine_startup_config_validates_environments_and_enforces_release_gates() {
     };
     assert!(dev_config.validate().is_ok());
 
-    // 2. Staging: mock mode, private bind, no public domain -> Ok
+    // 2. Staging: mock mode is refused (review F1); staging runs the live route
     let staging_config = EngineStartupConfig {
         duolify_env: "staging".to_string(),
         listen_addr: "[::]:50051".to_string(),
@@ -48,7 +48,10 @@ fn engine_startup_config_validates_environments_and_enforces_release_gates() {
         anthropic_api_key: None,
         openrouter_api_key: None,
     };
-    assert!(staging_config.validate().is_ok());
+    assert!(matches!(
+        staging_config.validate(),
+        Err(EngineConfigError::FixtureInProduction(_))
+    ));
 
     // 3. Production: live mode, with provider API key -> Ok
     let prod_config = EngineStartupConfig {
@@ -130,6 +133,31 @@ fn engine_startup_config_validates_environments_and_enforces_release_gates() {
             assert!(msg.contains("not-an-ip-or-port"));
         }
         other => panic!("expected InvalidAddress error, got {:?}", other),
+    }
+}
+
+#[test]
+fn production_engine_refuses_fixture_provider_modes() {
+    // Review F1: a mock router bypasses screening and the promotion gate while quoting the live
+    // route identity, so production may only start on the live provider.
+    for mode in ["mock", "", "fixture"] {
+        for env in ["staging", "production", "prod", "PRODUCTION"] {
+            let cfg = EngineStartupConfig {
+                duolify_env: env.to_string(),
+                listen_addr: "[::]:50051".to_string(),
+                provider_mode: mode.to_string(),
+                public_domain: None,
+                anthropic_api_key: None,
+                openrouter_api_key: Some("sk-or-test-key-12345".to_string()),
+            };
+            assert!(
+                matches!(
+                    cfg.validate(),
+                    Err(EngineConfigError::FixtureInProduction(_))
+                ),
+                "{env} {mode:?}"
+            );
+        }
     }
 }
 

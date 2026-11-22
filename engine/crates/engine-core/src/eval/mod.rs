@@ -272,11 +272,7 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
         } else {
             &router.primary
         };
-        let mut route_cfg = if fallback {
-            model.fallback_route()
-        } else {
-            model.primary_route()
-        };
+        let mut route_cfg = model.attempt_route(fallback);
         if shape.format.is_some() {
             route_cfg.response_format = shape.format.clone();
         }
@@ -532,7 +528,7 @@ pub async fn stream_bounded_routed(
 
     let primary_res = router
         .primary
-        .stream_route(&model.primary_route(), input)
+        .stream_route(&model.attempt_route(false), input)
         .await;
 
     let primary_route = StreamRoute {
@@ -553,7 +549,7 @@ pub async fn stream_bounded_routed(
                     // First token timed out or failed before any delta; fall back to secondary stream
                     let fallback_stream = router
                         .fallback
-                        .stream_route(&model.fallback_route(), input)
+                        .stream_route(&model.attempt_route(true), input)
                         .await?;
                     (fallback_stream, None, fallback_route)
                 }
@@ -562,7 +558,7 @@ pub async fn stream_bounded_routed(
         Err(_) => {
             let fallback_stream = router
                 .fallback
-                .stream_route(&model.fallback_route(), input)
+                .stream_route(&model.attempt_route(true), input)
                 .await?;
             (fallback_stream, None, fallback_route)
         }

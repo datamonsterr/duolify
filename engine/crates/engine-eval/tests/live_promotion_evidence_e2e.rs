@@ -43,7 +43,7 @@ fn live_report(fingerprint: &str) -> Value {
     json!({
         "timestamp_millis": 1, "dataset": "datamonsterr/duolify-golden", "dataset_revision": REV,
         "dataset_source": "repo", "dataset_verified": true, "dataset_sha256": SHA,
-        "fingerprint": fingerprint, "prompt_revision": "test", "provider": "live",
+        "fingerprint": fingerprint, "dataset_cases": 1, "prompt_revision": "test", "provider": "live",
         "budget_usd": 0.5, "total_cost_usd": 0.002, "budget_exceeded": false, "status": "passed",
         "live_promoted": true, "passed": true, "critical_failure": false,
         "task_reports": tasks, "results": []

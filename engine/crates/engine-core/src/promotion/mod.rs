@@ -63,6 +63,46 @@ pub const SOURCES: &[(&str, &str)] = &[
         "services/api/internal/characters/schema/v1.json",
         include_str!("../../../../../services/api/internal/characters/schema/v1.json"),
     ),
+    // The persona that replaces an invalid or suppressed Character (characters::publication_runtime).
+    (
+        "services/api/internal/characters/schema/original.fixture.json",
+        include_str!(
+            "../../../../../services/api/internal/characters/schema/original.fixture.json"
+        ),
+    ),
+    // The gRPC contract whose Debug-rendered requests shape lesson prompts.
+    (
+        "proto/duolify/engine/v1/engine.proto",
+        include_str!("../../../../../proto/duolify/engine/v1/engine.proto"),
+    ),
+    // Dependency versions (HTTP client, serde, prost) that shape requests and parsing.
+    ("engine/Cargo.lock", include_str!("../../../../Cargo.lock")),
+    // Server-side prompt and request construction (lesson context, Character segments).
+    (
+        "engine-server/src/lib.rs",
+        include_str!("../../../engine-server/src/lib.rs"),
+    ),
+    (
+        "engine-server/src/main.rs",
+        include_str!("../../../engine-server/src/main.rs"),
+    ),
+    // The eval semantics that decide what a passing live case means.
+    (
+        "engine-eval/src/live.rs",
+        include_str!("../../../engine-eval/src/live.rs"),
+    ),
+    (
+        "engine-eval/src/runner.rs",
+        include_str!("../../../engine-eval/src/runner.rs"),
+    ),
+    (
+        "engine-eval/src/scoring.rs",
+        include_str!("../../../engine-eval/src/scoring.rs"),
+    ),
+    (
+        "engine-core/src/narration/voices.json",
+        include_str!("../narration/voices.json"),
+    ),
     ("engine-core/src/lib.rs", include_str!("../lib.rs")),
     (
         "engine-core/src/structured.rs",
@@ -232,6 +272,9 @@ struct Report {
     budget_exceeded: bool,
     #[serde(default)]
     fingerprint: String,
+    /// Cases in the pinned revision before any `--limit` sampling (0 in legacy reports).
+    #[serde(default)]
+    dataset_cases: usize,
     task_reports: BTreeMap<String, TaskReport>,
 }
 
@@ -339,6 +382,11 @@ fn evaluate(raw: &str, current_fingerprint: &str, pins: &str) -> Result<Summary,
         Some(digest) if digest.eq_ignore_ascii_case(&report.dataset_sha256) => {}
         Some(_) => return reject("dataset digest differs from the repository pin"),
         None => return reject("dataset revision is not pinned in the repository"),
+    }
+    // A sample can skip every must-block row of a screen; only the whole pinned set promotes.
+    let evaluated: usize = report.task_reports.values().map(|t| t.total_cases).sum();
+    if report.dataset_cases == 0 || evaluated < report.dataset_cases {
+        return reject("report is a sample, not every case of the pinned revision");
     }
     if report.fingerprint != current_fingerprint {
         return Err(Denial::EvidenceStale);
