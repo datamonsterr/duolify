@@ -6,7 +6,7 @@ Describe the portable self-hosted stack that runs Duolify on a Linux host behind
 ## Requirements
 
 ### Requirement: Portable self-hosted stack
-The full stack SHALL start with one command on any Linux host with Docker from `infra/deploy/compose.yml`: Postgres, Redis, RustFS with versioned buckets, migrations, the engine, the API, the worker and a Caddy edge that serves the web client on `/` and proxies `/v1` to the API without buffering. Only the edge MUST publish host ports; the engine MUST stay on the private network. Configuration SHALL come only from `infra/deploy/.env`, whose secrets are generated locally and never committed. With no external credentials the stack MUST run with mock providers and analytics off. The worker SHALL write the encrypted nightly backup to the local backup bucket, and `infra:selfhost-restore-drill` SHALL restore the newest backup into a throwaway, network-less Postgres and verify it.
+The full stack SHALL start with one command on any Linux host with Docker from `infra/deploy/compose.yml`: Postgres, Redis, RustFS with versioned buckets where supported (R2 is unversioned; see `data-backup` object storage protection), migrations, the engine, the API, the worker and a Caddy edge that serves the web client on `/` and proxies `/v1` to the API without buffering. Only the edge MUST publish host ports; the engine MUST stay on the private network. Configuration SHALL come only from `infra/deploy/.env`, whose secrets are generated locally and never committed. With no external credentials the stack MUST run with mock providers and analytics off. The worker SHALL write the encrypted nightly backup to the local backup bucket, and `infra:selfhost-restore-drill` SHALL restore the newest backup into a throwaway, network-less Postgres and verify it.
 
 #### Scenario: Fresh machine
 - **WHEN** an operator runs `mise run infra:selfhost-up` and then `mise run infra:selfhost-smoke` on a host with only Docker and the repository
@@ -24,17 +24,11 @@ The API and worker SHALL connect to Postgres with direct connections. A transact
 - **THEN** session-level `pg_advisory_lock` and `pg_advisory_unlock` succeed on the same connection and River jobs complete
 
 ### Requirement: Object storage conformance before migration
-Any object store that replaces the current one MUST pass `mise run infra:s3-conformance` before data moves. This covers Hetzner Object Storage in Helsinki, the backup/DR store, and RustFS when used as the fallback. The suite SHALL cover:
-- a versioned put that returns a version ID;
-- listing versions;
-- reading by version;
-- delete-marker restore;
-- `If-None-Match: *` conditional create;
-- retention locks on the deletion-ledger prefix.
+Object storage SHALL support conditional create and the backup and recovery operations required by the deployment. Versioned stores MUST support versioned puts, listing and reading versions, and delete-marker restore. R2 does not provide those version operations: backup `wal/` and `base/` use bucket lock rules and expiry, while protected asset copies are encrypted and checksum-pinned. R2 cannot recover overwritten versions or provide version-aware asset recovery or deletion-ledger versioning; these limitations require a decision before those features depend on versions.
 
-#### Scenario: Unversioned store rejected
-- **WHEN** the conformance suite runs against a store without bucket versioning
-- **THEN** the suite fails and names the unsupported operation
+#### Scenario: Unversioned store
+- **WHEN** the deployment uses R2
+- **THEN** it records the absence of versioning and uses the documented compensating controls rather than claiming version recovery
 
 ### Requirement: Streaming through the edge proxy
 Every SSE route SHALL send data or a comment heartbeat at least every 25 seconds, so that streams of at least 10 minutes complete through Cloudflare's proxy (125-second Proxy Read Timeout).
@@ -44,15 +38,11 @@ Every SSE route SHALL send data or a comment heartbeat at least every 25 seconds
 - **THEN** the client receives heartbeats and the final event without a 524 error
 
 ### Requirement: Data backup and retention across the migration
-The migration SHALL preserve existing retention: general backups for 14 days, financial backups for 35 days, and the deletion ledger never expired. It SHALL add:
-- WAL archiving with 7-day point-in-time recovery to a backup bucket outside the Helsinki site;
-- a nightly versioned DR copy of `lesson-assets` in that backup location.
+The self-hosted deployment SHALL preserve general backups for 14 days, financial backups for 35 days, and the deletion ledger without expiry. WAL archiving SHALL provide seven-day point-in-time recovery and a nightly DR copy of lesson assets SHALL be stored outside the VM. Versioning applies where the store supports it; R2 uses the controls and has the limitations described in `data-backup` object storage protection.
 
-Railway buckets MUST stay read-only for 35 days after verification. A restore drill MUST pass on the Helsinki staging stack before production migration.
-
-#### Scenario: Restore drill gates migration
-- **WHEN** the restore drill fails on the Helsinki staging stack
-- **THEN** the production migration task stays blocked and Railway remains the serving origin
+#### Scenario: Restore drill fails
+- **WHEN** a restore drill fails
+- **THEN** the failure is reported and recovery must be repaired before relying on the backup
 
 ### Requirement: Analytics continuity
 The migration SHALL NOT add or rename PostHog events. For the 24 hours after each traffic-changing step, hourly PostHog product and LLM event counts MUST stay within ±20% of the same hours in the previous week. Otherwise that step is rolled back.
@@ -62,27 +52,22 @@ The migration SHALL NOT add or rename PostHog events. For the 24 hours after eac
 - **THEN** the runbook rolls that step back
 
 ### Requirement: Model testing and reliability on the new host
-Before the database switchover, the Engine on the Helsinki stack MUST:
-- pass `mise run engine:eval`;
-- pass the live sample eval at CI thresholds;
-- keep p95 time-to-first-token, measured at the origin, no more than 10% above the Railway baseline.
+The Engine on the self-hosted deployment MUST pass `mise run engine:eval` and meet the live promotion evidence gate in `ai-reliability`. Provider fallbacks, timeouts and cost limits SHALL remain enforced.
 
-Provider fallbacks, timeouts and cost limits SHALL be unchanged.
-
-#### Scenario: Eval regression blocks switchover
-- **WHEN** the live sample eval on the Helsinki stack falls below CI thresholds
-- **THEN** the switchover is blocked and the Engine keeps serving from Railway
+#### Scenario: Eval regression blocks promotion
+- **WHEN** live evaluation fails the promotion thresholds
+- **THEN** live AI features remain gated until passing evidence is available
 
 ### Requirement: Off-site backups from the primary region
-Backups, the WAL archive and the `lesson-assets` DR copy MUST be stored outside the Helsinki site, in a versioned store that passes `infra:s3-conformance`. The storage country MUST be listed in the privacy notice before production data is written there.
+Backups, the WAL archive and the `lesson-assets` DR copy MUST be stored outside the primary VM, with versioning where the store supports it and the R2 compensating controls and limitations specified in `data-backup`. The storage country MUST be listed in the privacy notice before production data is written there.
 
 #### Scenario: Backup target in the primary site rejected
 - **WHEN** `infra:deploy-plan` sees a backup endpoint in the same location as the primary stack
 - **THEN** the plan fails and names the backup variable
 
 ### Requirement: Latency from Southeast Asia is measured
-Immutable object responses SHALL be cacheable at the edge so that repeat reads in Southeast Asia are served without an origin round trip. Server-side API p95 MUST be no worse than the Railway baseline. Client-side p95 from a Southeast Asian vantage point SHALL be recorded before and after the move.
+Immutable object responses SHALL be cacheable at the edge so that repeat reads in Southeast Asia are served without an origin round trip. Client-side p95 from a Southeast Asian vantage point SHALL be measured for the current deployment.
 
 #### Scenario: Cached slide read from Southeast Asia
 - **WHEN** a learner in Southeast Asia requests an immutable Slide object that was fetched before through the same edge
-- **THEN** the response is a cache hit and no request reaches the Helsinki origin
+- **THEN** the response is a cache hit and no request reaches the origin
