@@ -321,6 +321,7 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		requestCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
 		if s.personDeleter.DeletePerson(requestCtx, learner) == nil {
 			posthogAccepted = true
+			// Best effort: a leftover pending row is retried later and deleting a person twice is harmless.
 			_, _ = s.pool.Exec(ctx, "DELETE FROM posthog_person_deletion_requests WHERE distinct_id=$1::uuid", learner)
 		}
 		cancel()
