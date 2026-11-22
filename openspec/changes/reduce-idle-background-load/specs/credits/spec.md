@@ -18,3 +18,7 @@ Background credit maintenance (abandoned-hold recovery, payment inbox work, outb
 #### Scenario: Idle system
 - **WHEN** no work is due
 - **THEN** an empty outbox costs one indexed probe and no transaction, and one worker plus one API replica send at most 150 statements a minute
+
+#### Scenario: A full expiry pass fails
+- **WHEN** the full-ledger query or any learner expiry transaction fails
+- **THEN** the worker does not record the full pass as complete and the next pass retries the full ledger
