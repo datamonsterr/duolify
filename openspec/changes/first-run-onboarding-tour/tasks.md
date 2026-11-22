@@ -16,4 +16,4 @@
 ## 4. Verify and deliver
 - [x] Focused checks, full mocked suite and bundle budget pass
 - [x] Save mobile/desktop step screenshots to owner scratchpad
-- [ ] Ready PR full CI head matches and succeeds; merge and remove worktree
+- [x] Ready PR full CI head matches and succeeds; merge and remove worktree
