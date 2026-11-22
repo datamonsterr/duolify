@@ -21,6 +21,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store/db"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -322,6 +323,22 @@ func (s *Service) LoadAlertConfig(ctx context.Context) (AlertConfig, error) {
 	}, nil
 }
 
+// RunScheduledAlerts is the periodic worker entry point: it evaluates every
+// alert rule and drops eval reports past their 90-day retention.
+func (s *Service) RunScheduledAlerts(ctx context.Context) error {
+	if _, err := s.pool.Exec(ctx, "DELETE FROM eval_reports WHERE expires_at < now()"); err != nil {
+		slog.ErrorContext(ctx, "purge expired eval reports failed", "error", err)
+	}
+	_, err := s.CheckAndTriggerAlerts(ctx)
+	return err
+}
+
+// RaiseOperationalAlert records a deduplicated hourly alert for a non-cost
+// operational failure such as a pricing config load error. USD values are zero.
+func (s *Service) RaiseOperationalAlert(ctx context.Context, scope string) {
+	s.fireOrDedupe(ctx, scope, DedupeKey(scope, time.Now(), 60), 0, 0)
+}
+
 // CheckAndTriggerAlerts evaluates all alert conditions, applies deduplication, and emits alerts when triggered.
 func (s *Service) CheckAndTriggerAlerts(ctx context.Context) ([]AlertResult, error) {
 	cfg, err := s.LoadAlertConfig(ctx)
@@ -440,31 +457,24 @@ func (s *Service) fireOrDedupe(ctx context.Context, scope, alertKey string, actu
 		}
 	}
 
-	// Check Postgres dedupe store
-	var exists bool
-	_ = s.pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM eval_alert_events WHERE alert_key = $1)", alertKey).Scan(&exists)
-	if exists {
-		s.dedupe[alertKey] = time.Now().Add(60 * time.Minute)
-		return AlertResult{
-			Scope:        scope,
-			AlertKey:     alertKey,
-			ActualUSD:    actual,
-			BudgetUSD:    budget,
-			Deduplicated: true,
-		}
-	}
-
-	// Insert into Postgres alert history
-	actNum := floatToNumeric(actual)
-	budNum := floatToNumeric(budget)
-	_, _ = s.queries.InsertAlertEvent(ctx, db.InsertAlertEventParams{
+	// Atomic Postgres dedupe: the unique alert_key makes the insert win exactly
+	// once across worker replicas; the loser gets no row back.
+	_, err := s.queries.InsertAlertEvent(ctx, db.InsertAlertEventParams{
 		Scope:      scope,
 		AlertKey:   alertKey,
-		ActualUsd:  actNum,
-		BudgetUsd:  budNum,
+		ActualUsd:  floatToNumeric(actual),
+		BudgetUsd:  floatToNumeric(budget),
 		Properties: []byte("{}"),
 		Status:     "firing",
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		s.dedupe[alertKey] = time.Now().Add(60 * time.Minute)
+		return AlertResult{Scope: scope, AlertKey: alertKey, ActualUSD: actual, BudgetUSD: budget, Deduplicated: true}
+	}
+	if err != nil {
+		// History is best effort: enforcement and counters must still fire.
+		slog.ErrorContext(ctx, "record alert history failed", "scope", scope, "error", err)
+	}
 
 	s.dedupe[alertKey] = time.Now().Add(60 * time.Minute)
 

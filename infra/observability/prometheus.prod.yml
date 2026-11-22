@@ -1,0 +1,19 @@
+# Production overlay scrape config (infra/deploy/compose.prod.yml); alert rules are shared.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+rule_files:
+  - /etc/prometheus/alerts.yml
+scrape_configs:
+  - job_name: api
+    dns_sd_configs:
+      - names: [api]
+        type: A
+        port: 9091
+  - job_name: worker
+    static_configs:
+      - targets: [worker:9092]
+  # Disk space plus the walship textfile metrics (WAL spool, base/DR/dump age, bucket usage).
+  - job_name: node
+    static_configs:
+      - targets: [node-exporter:9100]

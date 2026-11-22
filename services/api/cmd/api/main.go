@@ -250,7 +250,7 @@ func run(ctx context.Context, args []string) (result error) {
 				_ = narrationQueue.Stop(stopCtx)
 			}()
 		}
-		return worker.RunWithCredits(ctx, db.Pool, logger, creditService, service)
+		return worker.RunWithAlerts(ctx, db.Pool, logger, creditService, eval.NewService(db.Pool, catalogue, monitor, events), service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {
@@ -309,6 +309,8 @@ func run(ctx context.Context, args []string) (result error) {
 	runtimePricing := pricing.NewRuntimeCatalogue(catalogue, db.Queries, db.Pool, events)
 	runtimePricing.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
 	runtimePricing.SetOwnerID(os.Getenv("PRICING_OWNER_ID"))
+	evalService := eval.NewService(db.Pool, catalogue, monitor, events)
+	runtimePricing.SetAlertSink(evalService.RaiseOperationalAlert)
 	if err := runtimePricing.ActivateDue(ctx, pricingAdmin); err != nil {
 		return fmt.Errorf("pricing activation: %w", err)
 	}
@@ -425,7 +427,7 @@ func run(ctx context.Context, args []string) (result error) {
 		PricingAdmin:            pricingAdmin,
 		Quotes:                  quotesService,
 		Notes:                   notesService,
-		Eval:                    eval.NewService(db.Pool, catalogue, monitor, events),
+		Eval:                    evalService,
 		LessonTestTracerEnabled: cfg.LessonTestTracerEnabled,
 		LessonTest:              lessonHandler,
 		Postgres:                db.Ping,
