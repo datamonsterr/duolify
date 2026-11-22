@@ -108,6 +108,25 @@ Seed the env file with `SELFHOST_ENV_TEMPLATE=infra/deploy/.env.prod.example bas
 
 The secrets in `.env` must match the volumes they were created with. The RustFS identities are refreshed on every start, but the Postgres password is fixed when its volume is created.
 
+## Security headers
+
+The proxy sets the web client headers (HSTS, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, a Content-Security-Policy) from `infra/deploy/security-headers.caddy`; the API sets its own. Values and reasons: [ADR 0022](../adr/0022-security-headers-and-csp.md). `selfhost.sh smoke` checks them after every deploy. The CSP origins come from `.env`: `LESSON_ASSET_ORIGIN`, `POSTHOG_HOST`, `CLERK_PUBLISHABLE_KEY` (the proxy derives the Clerk origin) and optionally `API_ORIGIN`. Changing one means restarting the proxy.
+
+### Asset origin (owner setup, Cloudflare in front of R2)
+
+The lesson asset origin (`LESSON_ASSET_ORIGIN`, the custom domain of the application bucket) is not served by Caddy, so set these on it in Cloudflare. Slides run in an opaque-origin sandbox, so their requests to this host are cross-origin with `Origin: null`. This repository does not call the Cloudflare API; configure it by hand.
+
+| Header | Value | Why |
+|---|---|---|
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Zone setting SSL/TLS > Edge Certificates > HSTS, or the rule below. Use one of them, not both |
+| `X-Content-Type-Options` | `nosniff` | An object served with the wrong type is never run as script |
+| `Referrer-Policy` | `no-referrer` | Slides leak nothing about the app |
+| `Cross-Origin-Resource-Policy` | `cross-origin` | The embedding frame is cross-origin; `same-origin` or `same-site` would block every asset |
+| `Content-Security-Policy` | `default-src 'none'; frame-ancestors 'none'; sandbox` | If someone opens an object (an SVG, say) directly, it cannot run script. Does not affect use as image, font, audio or script |
+| `Access-Control-Allow-Origin` | `*` for GET and HEAD, no credentials | Slides `fetch` assets and load fonts; the request origin is `null`. In R2: bucket > Settings > CORS policy |
+
+How: Cloudflare dashboard > the zone > Rules > Transform Rules > Modify Response Header > Create rule, "Hostname equals the asset host" (the rule matches the host, not a path), then "Set static" for each header above except `Access-Control-Allow-Origin`, which is the bucket's CORS policy. Verify with `curl -sI https://<asset host>/<any object>`. If a header is missing a slide may still play, but a wrong `Cross-Origin-Resource-Policy` or CORS policy shows as a blocked request in the browser console.
+
 ## Troubleshooting
 
 - **`missing infra/deploy/.env`:** run `bash infra/deploy/selfhost.sh init`.

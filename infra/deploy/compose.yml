@@ -90,6 +90,13 @@ services:
     build: {context: ../.., dockerfile: apps/client/Dockerfile, target: web}
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      # Origins of the web Content-Security-Policy (security-headers.caddy). API_ORIGIN stays empty while the
+      # client calls the API on its own origin. proxy-entrypoint.sh derives the Clerk origin from the key.
+      LESSON_ASSET_ORIGIN: ${LESSON_ASSET_ORIGIN:-http://localhost:9000}
+      POSTHOG_HOST: ${POSTHOG_HOST:-https://us.i.posthog.com}
+      API_ORIGIN: ${API_ORIGIN:-}
+      CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY:-}
+      CLERK_FAPI_ORIGIN: ${CLERK_FAPI_ORIGIN:-}
     ports:
       - "${BIND_ADDRESS:-0.0.0.0}:${HTTP_PORT:-80}:80"
       - "${BIND_ADDRESS:-0.0.0.0}:${HTTPS_PORT:-443}:443"

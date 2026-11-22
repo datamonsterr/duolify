@@ -1,3 +1,4 @@
+import { OnboardingGate } from "../onboarding/OnboardingGate";
 import { DailyGoal } from "../gamification/DailyGoal";
 import { PreferenceControls } from "../design/localization/PreferenceControls";
 import { useUiPreferences } from "../design/localization/Preferences";
@@ -69,6 +70,7 @@ function DestinationLink({
   const path = useRouterState({ select: (state) => state.location.pathname });
   return (
     <Link
+      data-tour={item.id}
       to={item.to}
       activeOptions={{ exact: true }}
       aria-current={
@@ -193,6 +195,7 @@ export function AppShell() {
             <header className="mobile-header">
               <Brand to="/" />
               <Link
+                data-tour="credits"
                 className="credit-shortcut"
                 to="/credits"
                 onClick={() => trackNavigation("credits")}
@@ -210,6 +213,7 @@ export function AppShell() {
             </details>
           )}
           <Outlet />
+          <OnboardingGate path={path} />
         </main>
         {!focused && (
           <>

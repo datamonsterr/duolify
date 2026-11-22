@@ -188,6 +188,7 @@ test("Google callback completes sign-in with transaction state", async ({
     ).__DUOLIFY_SSO_BRIDGE__;
     bridge.complete();
   });
-  await expect(page).toHaveURL(/\/profile$/);
-  await expect(page.getByText("Signed in as Learner")).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  // Sign-in lands on Learn inside the signed-in shell.
+  await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
 });

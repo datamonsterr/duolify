@@ -1,3 +1,4 @@
+import { takeTopic } from "../onboarding/handoff";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   GuidedChat,
@@ -465,14 +466,16 @@ export function CourseBriefPage() {
   const [error, setError] = useState(false);
   useEffect(() => {
     let active = true;
+    const topic = takeTopic(session.current()?.id ?? "");
     void profileApi
       .read()
       .then((profile) => {
-        if (active) setSeed(seedBrief(profile));
+        if (active)
+          setSeed({ ...seedBrief(profile), ...(topic ? { topic } : {}) });
       })
       .catch(() => {
         if (active) {
-          setSeed(emptyBrief());
+          setSeed({ ...emptyBrief(), ...(topic ? { topic } : {}) });
           setError(true);
         }
       });

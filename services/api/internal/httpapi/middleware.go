@@ -45,7 +45,19 @@ func configuredOrigin(origin string) bool {
 	return false
 }
 
-// Middleware adds correlation, JSON access logs, panic recovery and a fixed Tauri allowlist.
+// setSecurityHeaders marks every API response as non-embeddable, non-sniffable data. The API serves only
+// JSON and event streams, so the CSP forbids everything. HSTS has no preload: that is a one-way commitment
+// for the whole domain. CORP same-site stops cross-site no-cors embeds; CORS fetches are not affected.
+// Set (not Add) so a handler that sets its own value replaces ours instead of duplicating it.
+func setSecurityHeaders(h http.Header) {
+	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Referrer-Policy", "no-referrer")
+	h.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+	h.Set("Cross-Origin-Resource-Policy", "same-site")
+}
+
+// Middleware adds correlation, security headers, JSON access logs, panic recovery and a fixed Tauri allowlist.
 func Middleware(logger *slog.Logger, next http.Handler, monitors ...*telemetry.Monitor) http.Handler {
 	monitor := telemetry.New(logger)
 	if len(monitors) > 0 && monitors[0] != nil {
@@ -73,6 +85,7 @@ func Middleware(logger *slog.Logger, next http.Handler, monitors ...*telemetry.M
 			end(code < 500)
 			logger.InfoContext(ctx, "http request", "request_id", id, "status", code)
 		}()
+		setSecurityHeaders(rw.Header())
 		origin := r.Header.Get("Origin")
 		rw.Header().Add("Vary", "Origin")
 		if origin != "" {

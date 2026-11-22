@@ -16,6 +16,7 @@ import {
 } from "./outline";
 import type { Outline } from "../design/chat/OutlineEditor";
 import { AppLink } from "../../lib/navigation";
+import { SandboxFrame } from "../lesson-player/SandboxFrame";
 
 type PreviewQuote = Pick<
   ActionQuote,
@@ -293,11 +294,10 @@ export function CoursePreview({
             <>
               {slide && (
                 <>
-                  <iframe
+                  <SandboxFrame
                     ref={frame}
                     title={`Preview sample ${index + 1}`}
-                    sandbox="allow-scripts"
-                    srcDoc={csp + slide.html}
+                    html={csp + slide.html}
                     onLoad={() => {
                       sendCommand(frame.current?.contentWindow ?? null, {
                         type: "pause",
