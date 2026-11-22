@@ -25,6 +25,28 @@ pub const CANONICAL_TASKS: [&str; 6] = [
     "note_enrich",
 ];
 
+/// Every launch AI feature's task: the engine-server `GATED` tasks plus `lesson_narration`.
+/// The ready pipeline fails when committed evidence does not promote all of them
+/// (`duolify-eval evidence --require-launch`); engine-server tests keep the lists in step.
+pub const LAUNCH_TASKS: [&str; 16] = [
+    "course_preview",
+    "course_outline",
+    "lesson_slides",
+    "lesson_test",
+    "tutor_chat",
+    "note_enrich",
+    "setup_chat",
+    "course_brief_chat",
+    "outline_chat_change",
+    "outline_replan",
+    "steer_screen",
+    "character_screen",
+    "course_screen",
+    "screen_review",
+    "character_create",
+    "lesson_narration",
+];
+
 /// Inputs that decide what a live run evaluated. Any byte change makes recorded evidence stale.
 /// `fingerprint_sources_cover_every_ai_module` keeps this list complete.
 pub const SOURCES: &[(&str, &str)] = &[
@@ -35,6 +57,11 @@ pub const SOURCES: &[(&str, &str)] = &[
     (
         "evals/thresholds.toml",
         include_str!("../../../../../evals/thresholds.toml"),
+    ),
+    // The closed CharacterSpec schema `character_create` maps into (characters::SCHEMA).
+    (
+        "services/api/internal/characters/schema/v1.json",
+        include_str!("../../../../../services/api/internal/characters/schema/v1.json"),
     ),
     ("engine-core/src/lib.rs", include_str!("../lib.rs")),
     (
@@ -114,6 +141,10 @@ pub const SOURCES: &[(&str, &str)] = &[
         "engine-providers/src/lib.rs",
         include_str!("../../../engine-providers/src/lib.rs"),
     ),
+    (
+        "engine-providers/src/elevenlabs.rs",
+        include_str!("../../../engine-providers/src/elevenlabs.rs"),
+    ),
 ];
 
 /// Source files that never shape a model call (backups, pricing tables, this gate itself).
@@ -121,7 +152,6 @@ pub const EXCLUDED_SOURCES: &[&str] = &[
     "engine-core/src/backup/mod.rs",
     "engine-core/src/pricing/mod.rs",
     "engine-core/src/promotion/mod.rs",
-    "engine-providers/src/elevenlabs.rs",
 ];
 
 /// SHA-256 over the evaluated inputs, each framed by its path and length.
@@ -255,6 +285,14 @@ impl Gate {
 
     pub fn summary(&self) -> Result<&Summary, &Denial> {
         self.run.as_ref()
+    }
+
+    /// Launch tasks this evidence leaves closed on a live engine, in `LAUNCH_TASKS` order.
+    pub fn missing_launch_tasks(&self) -> Vec<&'static str> {
+        LAUNCH_TASKS
+            .into_iter()
+            .filter(|t| self.check(t).is_err())
+            .collect()
     }
 }
 

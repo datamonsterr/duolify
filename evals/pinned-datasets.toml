@@ -12,3 +12,5 @@
 ["datamonsterr/duolify-golden"]
 # Live cases carry production request data (openspec change reliable-structured-ai-outputs).
 "b7979d57f81401aaabb21aba2cb82c64cddafd96" = "eecd8e63076797b780a1a5bb10ed83cc64ba249e788b8f149383dae4834cfb71"
+# Adds live outline_chat_change, outline_replan, character_create and lesson_narration cases; the first 20 rows are unchanged.
+"943decec056d4dbb407f3b984fa3c8512be5ed94" = "63c3b93fe07d3c6a635c109bbc26b7583e932b972d963f334c9b630dfa284a7c"

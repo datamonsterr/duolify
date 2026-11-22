@@ -118,6 +118,46 @@ fn fingerprint_is_stable_and_hex() {
     assert_eq!(a.len(), 64);
 }
 
+#[test]
+fn live_narration_evidence_binds_the_vendor_client() {
+    // lesson_narration evidence is a live ElevenLabs run, so the client that shapes it is fingerprinted.
+    assert!(
+        SOURCES
+            .iter()
+            .any(|(p, _)| *p == "engine-providers/src/elevenlabs.rs")
+    );
+    assert!(!EXCLUDED_SOURCES.contains(&"engine-providers/src/elevenlabs.rs"));
+}
+
+#[test]
+fn launch_tasks_include_every_canonical_task_once() {
+    for task in CANONICAL_TASKS {
+        assert!(LAUNCH_TASKS.contains(&task), "{task}");
+    }
+    let mut unique = LAUNCH_TASKS.to_vec();
+    unique.sort_unstable();
+    unique.dedup();
+    assert_eq!(unique.len(), LAUNCH_TASKS.len());
+    assert!(LAUNCH_TASKS.contains(&"lesson_narration"));
+}
+
+#[test]
+fn launch_coverage_names_each_closed_task() {
+    let gate = Gate::for_tasks(&CANONICAL_TASKS);
+    let missing = gate.missing_launch_tasks();
+    assert!(missing.contains(&"outline_replan"));
+    assert!(missing.contains(&"lesson_narration"));
+    assert!(!missing.contains(&"course_preview"));
+    assert!(
+        Gate::for_tasks(&LAUNCH_TASKS)
+            .missing_launch_tasks()
+            .is_empty()
+    );
+    // Invalid evidence closes every launch task.
+    let gate = Gate::from_report("{}", &fingerprint());
+    assert_eq!(gate.missing_launch_tasks(), LAUNCH_TASKS.to_vec());
+}
+
 /// Every non-test source under engine-core and engine-providers is either fingerprinted or
 /// explicitly excluded, so a new prompt module cannot escape the evidence.
 #[test]
