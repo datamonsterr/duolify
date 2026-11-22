@@ -19,5 +19,6 @@ t "wal/ expires strictly later than base/" "([.Rules[] | select(.Filter.Prefix==
 t "wal/ still later than base/ with a 14-day window" "([.Rules[] | select(.Filter.Prefix==\"wal/\") | .Expiration.Days][0]) > ([.Rules[] | select(.Filter.Prefix==\"base/\") | .Expiration.Days][0])" BACKUP_RETENTION_DAYS=14
 t "14-day window moves base/ to 16 days" "$(rule base/ '.Expiration.Days == 16')" BACKUP_RETENTION_DAYS=14
 t "noncurrent versions expire on both prefixes (versioned bucket)" '[.Rules[].NoncurrentVersionExpiration.NoncurrentDays] | all(. >= 1)' X=1
+t "R2 (no versioning): no noncurrent rule, expiry kept" '([.Rules[] | has("NoncurrentVersionExpiration")] | any | not) and ([.Rules[].Expiration.Days] | all(. >= 9))' BACKUP_S3_VERSIONING=none
 t "incomplete multipart uploads are aborted" '[.Rules[].AbortIncompleteMultipartUpload.DaysAfterInitiation] | all(. >= 1)' X=1
 ((failures == 0)) || { printf '%s failure(s)\n' "$failures" >&2; exit 1; }

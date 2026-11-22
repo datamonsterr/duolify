@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Ships Postgres backups off the primary site. Everything is gzip'd and age-encrypted
 # (public recipient only) before it leaves the host, into the backup bucket
-# (BACKUP_S3_*, which in production lives in Falkenstein/Nuremberg, not Helsinki):
+# (BACKUP_S3_*, which in production is a Cloudflare R2 bucket, not the Helsinki VM):
 #
 #   ship     move archived WAL segments from /wal-spool to wal/<segment>.gz.age
 #   base     pg_basebackup to base/<UTC timestamp>/base.tar.gz.age (the PITR starting point)
 #   dr-copy  copy new or changed objects of the app bucket (S3_*) to dr/lesson-assets/ in the
-#            backup bucket; never deletes, so the versioned bucket keeps every version
+#            backup bucket; never deletes (a versioned bucket also keeps every version; R2 has no versioning)
 #   restore  PITR drill in a throwaway Postgres: newest base before the target time plus archived WAL,
 #            recovered to TARGET (e.g. '2026-11-21 10:00:00+00'); needs the age identity at /identity
 #   metrics  write Prometheus textfile metrics to /metrics/walship.prom
@@ -15,14 +15,15 @@
 #            (WALSHIP_JOBS selects which of ship,base,dr-copy run)
 #
 # Env: PGHOST PGUSER PGPASSWORD, BACKUP_S3_{ENDPOINT,REGION,BUCKET,ACCESS_KEY_ID,SECRET_ACCESS_KEY},
-#      S3_{ENDPOINT,REGION,BUCKET,ACCESS_KEY_ID,SECRET_ACCESS_KEY}, BACKUP_AGE_RECIPIENT.
+#      S3_{ENDPOINT,REGION,BUCKET,ACCESS_KEY_ID,SECRET_ACCESS_KEY}, BACKUP_AGE_RECIPIENT,
+#      S3_ADDRESSING_STYLE (path|virtual, default path).
 set -euo pipefail
 
 spool=${WALSHIP_SPOOL:-/wal-spool}
 state=${WALSHIP_STATE:-/metrics}
 export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required AWS_PAGER=""
 export AWS_CONFIG_FILE=${AWS_CONFIG_FILE:-/tmp/aws-config}
-printf '[default]\ns3 =\n    addressing_style = path\n' >"$AWS_CONFIG_FILE"
+printf '[default]\ns3 =\n    addressing_style = %s\n' "${S3_ADDRESSING_STYLE:-path}" >"$AWS_CONFIG_FILE"
 
 dest() {
   AWS_ENDPOINT_URL=$BACKUP_S3_ENDPOINT AWS_DEFAULT_REGION=$BACKUP_S3_REGION \

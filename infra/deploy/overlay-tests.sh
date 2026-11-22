@@ -190,13 +190,16 @@ test_rolling() {
     pids+=($!)
   done
   sleep 2
+  local spids=()
   slow_requests() { # six slow GETs (a 2 s stream) and six slow POSTs (body arrives over 3 s), all started now
     local k=$1 s
     for s in 1 2 3 4 5 6; do
       (code=$(curl -sS -o "$work/stream.$k.$s" -w '%{http_code}' --max-time 20 "$base/v1/stream-check") || code=000
         [[ $code == 200 && $(grep -c '^event: ping' "$work/stream.$k.$s") == 2 ]] && echo ok >>"$work/slow.$k" || echo "bad $code" >>"$work/slow.$k") &
+      spids+=($!)
       (code=$( (printf '{"refresh_token":"'; sleep 3; printf 'x"}') | curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' -H 'Transfer-Encoding: chunked' --data-binary @- "$post") || code=000
         [[ $code == 204 ]] && echo ok >>"$work/slow.$k" || echo "bad $code" >>"$work/slow.$k") &
+      spids+=($!)
     done
   }
   k=0
@@ -204,8 +207,9 @@ test_rolling() {
     k=$((k + 1))
     slow_requests "$k"
     sleep 1 # the slow requests are now in flight on both instances
-    docker stop -t 30 "$id" >/dev/null
-    wait # the slow requests started above
+    if [[ -n ${ROLLING_NEGATIVE_CONTROL:-} ]]; then docker kill "$id" >/dev/null; else docker stop "$id" >/dev/null; fi # control: SIGKILL cuts in-flight requests, the test must then fail
+    wait "${spids[@]}" # the slow requests started above (not the load loops, which run until $work/load is removed)
+    spids=()
     sleep 1
     docker start "$id" >/dev/null
     wait_for 90 "api instance back" bash -c "[[ \$(docker inspect --format '{{.State.Health.Status}}' $id) == healthy ]]"

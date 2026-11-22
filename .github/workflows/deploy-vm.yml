@@ -2,7 +2,7 @@ name: deploy-vm
 
 # Deploys the tested main commit to the Hetzner VM over SSH after pr-ready (which runs ci-ok and
 # publishes the GHCR images) succeeds. Inert until the `staging` / `production` environment has
-# its secrets: the job is skipped cleanly (green) when they are absent. CI logic lives in mise.
+# its secrets and the VM (Hetzner server duolify-<environment>) exists: the job is skipped cleanly (green) otherwise. CI logic lives in mise.
 on:
   workflow_run:
     workflows: [pr-ready]
@@ -45,30 +45,37 @@ jobs:
       MISE_AUTO_INSTALL: 'false'
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       PUBLISH_RUN_ID: ${{ github.event.workflow_run.id || inputs.publish_run_id }}
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_ENV: ${{ inputs.environment || 'staging' }}
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
     steps:
-      - name: Check deploy secrets
-        id: gate
-        run: |
-          if [[ -z "$DEPLOY_HOST" || -z "$DEPLOY_USER" || -z "$DEPLOY_SSH_KEY" || -z "$DEPLOY_KNOWN_HOSTS" ]]; then
-            echo '::notice::Deploy secrets (DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS) are not set in this environment; skipping.'
-            echo 'run=false' >>"$GITHUB_OUTPUT"
-          else
-            echo 'run=true' >>"$GITHUB_OUTPUT"
-          fi
       - uses: actions/checkout@v7
-        if: steps.gate.outputs.run == 'true'
         with:
           # Deploy exactly the tested commit.
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
       - uses: ./.github/actions/setup-tools
-        if: steps.gate.outputs.run == 'true'
         with:
           area: infra
+      # Skip cleanly (green) until the secrets exist and the VM has been provisioned.
+      - name: mise run ci:require-secrets
+        id: secrets
+        run: mise run ci:require-secrets -- 'VM deploy'
+        env:
+          REQUIRED_SECRETS: HCLOUD_TOKEN DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS
+      - name: mise run infra:find-vm
+        id: vm
+        if: steps.secrets.outputs.enabled == 'true'
+        run: mise run infra:find-vm
+      - name: Decide
+        id: gate
+        env:
+          SECRETS_OK: ${{ steps.secrets.outputs.enabled }}
+          VM_EXISTS: ${{ steps.vm.outputs.exists }}
+        run: |
+          if [[ "$SECRETS_OK" == true && "$VM_EXISTS" == true ]]; then echo 'run=true' >>"$GITHUB_OUTPUT"; else echo 'run=false' >>"$GITHUB_OUTPUT"; fi
       # Deploy the digests the image build pushed for this exact commit, never a mutable tag.
       - name: Verify the publish run
         if: steps.gate.outputs.run == 'true'
@@ -91,6 +98,8 @@ jobs:
           github-token: ${{ github.token }}
       - name: Deploy over SSH
         if: steps.gate.outputs.run == 'true'
+        env:
+          DEPLOY_HOST: ${{ steps.vm.outputs.host }}
         run: mise run infra:deploy-vm
         timeout-minutes: 20
       - name: Summary

@@ -9,8 +9,8 @@
 #  - The pooler rule matches service name/image against known pooler products and requires the
 #    DATABASE_URL of api/worker/migrate to target postgres:5432; a pooler behind another name,
 #    or a different DSN key, is not detected.
-#  - Location rules compare PRIMARY_LOCATION/BACKUP_LOCATION and the *.your-objectstorage.com
-#    host prefix as strings; they cannot know where a custom endpoint really is.
+#  - Location rules compare PRIMARY_LOCATION/BACKUP_LOCATION and the endpoint host prefix as strings,
+#    and require different app and backup buckets; they cannot know where a custom endpoint really is.
 #  - Alert rules are checked by name and by the absent() expression text, not by behaviour;
 #    infra/observability/alerts.test.yml (promtool) covers behaviour.
 set -euo pipefail
@@ -56,7 +56,10 @@ backup=$(setting BACKUP_LOCATION)
 endpoint_host=$(setting BACKUP_S3_ENDPOINT | sed -e 's#^[a-z]*://##' -e 's#[/:].*##')
 if [[ -n $primary && $backup == "$primary" ]]; then bad "BACKUP_LOCATION ($backup) equals PRIMARY_LOCATION; backups must leave the primary site"; fi
 if [[ -n $primary && $endpoint_host == "$primary".* ]]; then bad "BACKUP_S3_ENDPOINT ($endpoint_host) is in the primary location $primary"; fi
-if [[ -n $backup && -n $endpoint_host && $endpoint_host == *.your-objectstorage.com && $endpoint_host != "$backup".* ]]; then bad "BACKUP_S3_ENDPOINT ($endpoint_host) is not in BACKUP_LOCATION ($backup)"; fi
+if [[ -n $(setting S3_BUCKET) && $(setting S3_BUCKET) == "$(setting BACKUP_S3_BUCKET)" && $(setting S3_ENDPOINT) == "$(setting BACKUP_S3_ENDPOINT)" ]]; then bad "BACKUP_S3_BUCKET is the application bucket (S3_BUCKET) on the same endpoint; backups need their own bucket"; fi
+for key in S3_REGION BACKUP_S3_REGION; do
+  if [[ -z $(setting "$key") ]]; then bad "missing $key (use auto for Cloudflare R2)"; fi
+done
 
 # 4. WAL archiving and the DR copy are wired.
 if ! jq -e '.services.postgres.command | join(" ") | test("archive_mode=on") and test("archive_command=")' <<<"$config" >/dev/null; then bad "postgres has no WAL archiving (archive_mode/archive_command)"; fi

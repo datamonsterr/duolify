@@ -41,7 +41,9 @@ expect_reject long-syntax-port-api "publish host ports" sed -i '/^  api:/a\    p
 expect_reject transaction-pooler pooler sed -i 's#@postgres:5432#@pgbouncer:6432#' compose.yml
 expect_reject missing-backup-env BACKUP_S3_ENDPOINT sed -i '/^BACKUP_S3_ENDPOINT=/d' env
 expect_reject missing-dr-job dr-copy sed -i 's#dr-copy#noop#g' compose.prod.yml
-expect_reject same-location BACKUP_S3_ENDPOINT sed -i 's#^BACKUP_S3_ENDPOINT=.*#BACKUP_S3_ENDPOINT=https://hel1.your-objectstorage.com#' env
+expect_reject same-location BACKUP_S3_ENDPOINT sed -i 's#^BACKUP_S3_ENDPOINT=.*#BACKUP_S3_ENDPOINT=https://hel1.example-storage.com#' env
+expect_reject same-bucket BACKUP_S3_BUCKET sed -i 's#^BACKUP_S3_BUCKET=.*#BACKUP_S3_BUCKET=duolify#' env
+expect_reject missing-region S3_REGION sed -i '/^S3_REGION=/d' env
 expect_reject missing-alert alert sed -i 's#DuolifyDRCopyStale#Renamed#' alerts.yml
 expect_reject no-absent-rule absent sed -i 's#absent(duolify_base_last_success_timestamp_seconds)#vector(0)#' alerts.yml
 expect_reject replication-lag-alert DuolifyReplicationLag sh -c "printf '      - alert: DuolifyReplicationLag\n        expr: duolify_pg_replication_lag_bytes > 1\n' >>alerts.yml"

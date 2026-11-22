@@ -1,10 +1,10 @@
-# Production overlay (ADR 0014, hel1) on top of compose.yml:
+# Production overlay (ADR 0014, Hetzner hel1) on top of compose.yml:
 #   docker compose -f compose.yml -f compose.prod.yml --env-file .env up -d
 # (selfhost.sh does this when SELFHOST_OVERLAY points at this file.)
 #
 # Adds: API x2, Postgres 18 WAL archiving (7-day PITR, encrypted, shipped to the backup bucket
-# outside Helsinki), the nightly DR copy, node-exporter + Prometheus alerts. Object storage comes
-# from env: S3_* (Hetzner Object Storage hel1 in production) and BACKUP_S3_* (Falkenstein/Nuremberg).
+# off the VM, in Cloudflare R2), the nightly DR copy, node-exporter + Prometheus alerts. Object storage comes
+# from env: S3_* and BACKUP_S3_* (Cloudflare R2 in production: endpoint https://<account>.r2.cloudflarestorage.com, region auto).
 # RustFS is local-only: set COMPOSE_PROFILES=local-s3 (CI does) to run it, its initializers and
 # the scoped identities; otherwise those services do not start.
 x-walship-env: &walship-env
@@ -22,6 +22,7 @@ x-walship-env: &walship-env
   S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-duolify-app}
   S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?run selfhost.sh init}
   BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?run selfhost.sh init}
+  S3_ADDRESSING_STYLE: ${S3_ADDRESSING_STYLE:-path}
 
 # Object-store endpoints from env instead of the local RustFS defaults.
 x-s3-env: &s3-env
@@ -43,13 +44,17 @@ services:
   engine:
     labels: {duolify.exposure: private}
 
+  # stop_grace_period must exceed the 10 s drain in the API and worker (httpapi.Serve, worker.Shutdown):
+  # docker stop sends SIGTERM, the process stops accepting and finishes in-flight requests, and only then exits.
   api:
+    stop_grace_period: 30s
     environment: *s3-env
     depends_on:
       backup-init: {condition: service_completed_successfully, required: false}
     deploy: {replicas: 2, resources: {limits: {cpus: "1", memory: 512M}}}
 
   worker:
+    stop_grace_period: 30s
     environment:
       <<: *s3-env
       S3_ACCESS_KEY_ID: ""

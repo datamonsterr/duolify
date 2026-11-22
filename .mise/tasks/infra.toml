@@ -128,7 +128,7 @@ description = "Production overlay: apply and verify the backup-bucket lifecycle 
 run = "bash infra/deploy/overlay-tests.sh lifecycle"
 
 ["infra:overlay-rolling"]
-description = "Production overlay: kill each API instance in turn under parallel GET+POST load (no failed GET), then a flaky-replica retry check"
+description = "Production overlay: stop each API instance in turn (docker stop, as deploy.sh does) under parallel GET+POST load plus slow in-flight requests (no failed request), then a flaky-replica retry check"
 run = "bash infra/deploy/overlay-tests.sh rolling"
 
 ["infra:overlay-sse"]
@@ -150,6 +150,25 @@ run = "bash infra/deploy/overlay-tests.sh redis"
 ["infra:overlay-dr"]
 description = "Production overlay: the nightly DR copy keeps every object version"
 run = "bash infra/deploy/overlay-tests.sh dr"
+
+["infra:find-vm"]
+description = "CI only: look up the Hetzner server named duolify-$DEPLOY_ENV (read-only Cloud API call) and write exists=true|false and host=<ipv4> to the step outputs; a missing VM is a notice, never a failure"
+run = '''
+set -eu
+: "${HCLOUD_TOKEN:?}" "${DEPLOY_ENV:?}"
+name="duolify-$DEPLOY_ENV"
+out=${GITHUB_OUTPUT:-/dev/null}
+body=$(curl -fsS --max-time 20 -H "Authorization: Bearer $HCLOUD_TOKEN" --get --data-urlencode "name=$name" https://api.hetzner.cloud/v1/servers)
+ip=$(jq -r '.servers[0].public_net.ipv4.ip // empty' <<<"$body")
+if [ -z "$ip" ]; then
+  echo "::notice title=Skipped::Skipped deploy: no Hetzner server named $name exists yet."
+  echo "- Skipped: deploy, no Hetzner server named $name." >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
+  echo 'exists=false' >>"$out"
+else
+  echo 'exists=true' >>"$out"
+  echo "host=$ip" >>"$out"
+fi
+'''
 
 ["infra:deploy-vm"]
 description = "Deploy the tested commit to the VM over SSH (CI only; needs DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS, DEPLOY_SHA and the digests/<image> files from the image build)"
