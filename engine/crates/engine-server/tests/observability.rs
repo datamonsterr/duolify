@@ -72,6 +72,7 @@ async fn grpc_spans_correlate_failures_and_stream_polling_without_text() {
     let service = EngineServiceServer::new(Service {
         router: Arc::new(ProviderRouter::new(provider.clone(), provider).unwrap()),
         speech: Arc::new(engine_core::narration::MockSpeechProvider),
+        promotion: Default::default(),
     });
     let task = tokio::spawn(async move {
         Server::builder()
