@@ -30,13 +30,19 @@ async function bridge(page: Page, request: APIRequestContext) {
     target.host = new URL(apiBase).host;
     const headers = original.headers();
     delete headers.origin;
-    await route.fulfill({
-      response: await request.fetch(target.href, {
-        method: original.method(),
-        headers,
-        data: original.postData() ?? undefined,
-      }),
-    });
+    try {
+      await route.fulfill({
+        response: await request.fetch(target.href, {
+          method: original.method(),
+          headers,
+          data: original.postData() ?? undefined,
+        }),
+      });
+    } catch (error) {
+      // The page navigates away while a background read (for example the SSO
+      // config probe on the sign-in page) is in flight; that is not a failure.
+      if (!/disposed|closed|aborted/i.test(String(error))) throw error;
+    }
   });
 }
 for (const width of [1280, 320]) {

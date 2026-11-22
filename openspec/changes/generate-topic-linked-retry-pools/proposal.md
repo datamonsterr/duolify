@@ -4,11 +4,11 @@
 E4-01 established the initial lesson generation, player delivery, and test completion tracer. However, questions were only mapped to synthetic API-owned topics, and wrong answers merely reordered choices of the exact same question. E4-02 implements explicit topic IDs, slide-to-topic coverage mapping, and pre-generated retry variant pools within the lesson pipeline. When learners make mistakes, retry variants with paraphrased prompts, reordered choices, and preserved semantics are served after other questions without incurring extra engine latency or charges.
 
 ## What Changes
-- Extend `Question` and `Slide` contract in proto with `topic_id`, slide `topic_ids`, `variant_of` provenance, and `variant_pool` on `Lesson`. Add `GenerateRetryVariants` RPC.
+- Extend `Question` and `Slide` contract in proto with `topic_id`, slide `topic_ids`, `variant_of` provenance, and `variant_pool` on `Lesson`. Add `GenerateRetryVariants` RPC (engine-side only: the API does not call it at launch; pools come from the lesson generation response and exhausted pools are reused for free, ADR 0011 E4-06).
 - Engine generates 2 pre-generated variants per topic alongside the lesson. Each variant features paraphrased prompts, reordered choices, and verified semantic equality with the source question.
 - API validates that every slide teaches at least one topic, every question belongs to exactly one topic, all question topics are covered by slides, choices contain no duplicates, and variant answers are privately stored in Postgres.
 - Test sessions serve retry variants with a minimum gap (`min_gap = 2` where possible). When pool variants are exhausted, ADR 0011 / E4-06 reuses the pool reordered for free.
-- Analytics emits allowlisted events (`lesson_test_answer_wrong`, `retry_variant_queued`, `retry_variant_served`, `retry_variant_answered`, `retry_variant_generation_failed`, `lesson_test_recap_shown`) without learner text.
+- Analytics emits allowlisted events (`lesson_test_answer_wrong`, `retry_variant_queued`, `retry_variant_served`, `retry_variant_answered`, `lesson_test_recap_shown`; `retry_variant_generation_failed` is allowlisted but not emitted because there is no runtime generation) without learner text.
 - Match canvas S10-Test desktop and mobile states: variant badge ("Retry variant · Same idea, fresh wording"), resolved topics and retry queue chips, instant corrections, and keyboard/touch navigation.
 - Data retention: store private retry pools in Postgres with data inventory updates, nightly backup fixtures, and account deletion erasure within 30 days.
 - AI reliability: add `lesson_test_variant` golden set cases with deterministic checks and judge evaluation, passing `mise run engine:eval`.

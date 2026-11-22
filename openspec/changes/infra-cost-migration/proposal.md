@@ -53,7 +53,7 @@ The owner accepts about +175 ms per uncached round trip for Southeast Asian lear
 - **proto:** none.
 - **infra:**
   - `infra/deploy` overlay, Postgres and WAL configuration;
-  - mise tasks: `infra:s3-conformance`, `infra:s3-copy-verify`, `infra:pg-replication-check`, `infra:deploy-plan`, `infra:load-baseline`;
+  - mise tasks: `infra:s3-conformance`, `infra:s3-copy-verify`, `infra:deploy-plan`, `infra:load-baseline`;
   - runbooks and alerts.
 - **ADRs:** 0014 (Accepted). 0003 and 0008 are amended at decommission. 0002 is kept.
 - **Owner gates (ready-for-human):**

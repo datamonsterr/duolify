@@ -23,6 +23,7 @@ on:
 permissions:
   contents: read
   actions: read # download the image digests published by the pr-ready run
+  packages: read # the VM pulls the private GHCR images with this job's GITHUB_TOKEN (expires with the job)
 
 concurrency:
   group: deploy-vm-${{ inputs.environment || 'staging' }}
@@ -100,6 +101,8 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         env:
           DEPLOY_HOST: ${{ steps.vm.outputs.host }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
         run: mise run infra:deploy-vm
         timeout-minutes: 20
       - name: Summary

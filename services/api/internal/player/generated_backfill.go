@@ -37,6 +37,9 @@ func (s *Service) GeneratedBackfillQueue(logger *slog.Logger) (*river.Client[pgx
 	return river.NewClient(riverpgxv5.New(s.opts.Pool), &river.Config{
 		Logger: logger, Workers: workers,
 		Queues: map[string]river.QueueConfig{"generated-publication": {MaxWorkers: 1}},
+		// Only the main worker client owns periodic jobs (daily backup, credits). A secondary client that
+		// wins leader election would starve them.
+		LeaderElectionDisabled: true,
 	})
 }
 

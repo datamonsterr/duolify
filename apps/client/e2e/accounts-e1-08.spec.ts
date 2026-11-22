@@ -12,14 +12,14 @@ for (const width of [1280, 390, 320]) {
       await page.emulateMedia({ colorScheme: mode, reducedMotion: "reduce" });
       await page.addInitScript(() => {
         const listeners = new Set<
-          (result: { code: string; state: string } | null) => void
+          (result: { state: string; code: string } | null) => void
         >();
         (
-          window as typeof window & { __DUOLIFY_OAUTH_BRIDGE__?: unknown }
-        ).__DUOLIFY_OAUTH_BRIDGE__ = {
+          window as typeof window & { __DUOLIFY_SSO_BRIDGE__?: unknown }
+        ).__DUOLIFY_SSO_BRIDGE__ = {
           openSystemBrowser: async () => undefined,
           listen: (
-            listener: (result: { code: string; state: string } | null) => void,
+            listener: (result: { state: string; code: string } | null) => void,
           ) => {
             listeners.add(listener);
             return () => listeners.delete(listener);
@@ -27,13 +27,15 @@ for (const width of [1280, 390, 320]) {
           cancel: () => listeners.forEach((listener) => listener(null)),
         };
       });
-      await page.route("**/v1/auth/google/start", (route) =>
+      await page.route("**/v1/auth/sso/config", (route) =>
+        route.fulfill({
+          json: { enabled: true, publishable_key: "pk_test_fixture" },
+        }),
+      );
+      await page.route("**/v1/auth/sso/start", (route) =>
         route.fulfill({
           json: {
-            state: "state-fixture",
-            nonce: "n".repeat(32),
-            authorization_url:
-              "https://accounts.google.test/authorize?state=state-fixture",
+            state: "s".repeat(43),
           },
         }),
       );
@@ -61,9 +63,9 @@ for (const width of [1280, 390, 320]) {
       await page.evaluate(() => {
         const bridge = (
           window as typeof window & {
-            __DUOLIFY_OAUTH_BRIDGE__: { cancel: () => void };
+            __DUOLIFY_SSO_BRIDGE__: { cancel: () => void };
           }
-        ).__DUOLIFY_OAUTH_BRIDGE__;
+        ).__DUOLIFY_SSO_BRIDGE__;
         bridge.cancel();
       });
       await expect(page.getByRole("status")).toContainText("cancelled");
@@ -84,7 +86,12 @@ test("Google sign-in error preserves destination and supports retry", async ({
   page,
 }) => {
   let starts = 0;
-  await page.route("**/v1/auth/google/start", (route) => {
+  await page.route("**/v1/auth/sso/config", (route) =>
+    route.fulfill({
+      json: { enabled: true, publishable_key: "pk_test_fixture" },
+    }),
+  );
+  await page.route("**/v1/auth/sso/start", (route) => {
     starts++;
     if (starts === 1)
       return route.fulfill({
@@ -93,17 +100,14 @@ test("Google sign-in error preserves destination and supports retry", async ({
       });
     return route.fulfill({
       json: {
-        state: "state-fixture",
-        nonce: "n".repeat(32),
-        authorization_url:
-          "https://accounts.google.test/authorize?state=state-fixture",
+        state: "s".repeat(43),
       },
     });
   });
   await page.addInitScript(() => {
     (
-      window as typeof window & { __DUOLIFY_OAUTH_BRIDGE__?: unknown }
-    ).__DUOLIFY_OAUTH_BRIDGE__ = {
+      window as typeof window & { __DUOLIFY_SSO_BRIDGE__?: unknown }
+    ).__DUOLIFY_SSO_BRIDGE__ = {
       openSystemBrowser: async () => undefined,
       listen: async () => () => undefined,
     };
@@ -120,17 +124,19 @@ test("Google sign-in error preserves destination and supports retry", async ({
 test("Google callback completes sign-in with transaction state", async ({
   page,
 }) => {
-  await page.route("**/v1/auth/google/start", (route) =>
+  await page.route("**/v1/auth/sso/config", (route) =>
+    route.fulfill({
+      json: { enabled: true, publishable_key: "pk_test_fixture" },
+    }),
+  );
+  await page.route("**/v1/auth/sso/start", (route) =>
     route.fulfill({
       json: {
-        state: "state-fixture",
-        nonce: "n".repeat(32),
-        authorization_url:
-          "https://accounts.google.test/authorize?state=state-fixture",
+        state: "s".repeat(43),
       },
     }),
   );
-  await page.route("**/v1/auth/google/complete", (route) =>
+  await page.route("**/v1/auth/sso/complete", (route) =>
     route.fulfill({
       json: {
         access_token: "access-fixture",
@@ -153,33 +159,33 @@ test("Google callback completes sign-in with transaction state", async ({
   );
   await page.addInitScript(() => {
     let listener:
-      ((result: { code: string; state: string } | null) => void) | undefined;
+      ((result: { state: string; code: string } | null) => void) | undefined;
     (
-      window as typeof window & { __DUOLIFY_OAUTH_BRIDGE__?: unknown }
-    ).__DUOLIFY_OAUTH_BRIDGE__ = {
+      window as typeof window & { __DUOLIFY_SSO_BRIDGE__?: unknown }
+    ).__DUOLIFY_SSO_BRIDGE__ = {
       openSystemBrowser: async () => undefined,
       listen: async (
-        callback: (result: { code: string; state: string } | null) => void,
+        callback: (result: { state: string; code: string } | null) => void,
       ) => {
         listener = callback;
         return () => undefined;
       },
       complete: () =>
-        listener?.({ code: "fixture-code", state: "state-fixture" }),
+        listener?.({ state: "s".repeat(43), code: "c".repeat(43) }),
     };
   });
   await page.goto("/sign-in");
   await page.getByLabel("I am 16 or older").check();
   await page.getByRole("button", { name: "Continue with Google" }).click();
   await expect(
-    page.getByRole("button", { name: "Cancel Google sign-in" }),
+    page.getByRole("button", { name: "Cancel sign-in" }),
   ).toBeVisible();
   await page.evaluate(() => {
     const bridge = (
       window as typeof window & {
-        __DUOLIFY_OAUTH_BRIDGE__: { complete: () => void };
+        __DUOLIFY_SSO_BRIDGE__: { complete: () => void };
       }
-    ).__DUOLIFY_OAUTH_BRIDGE__;
+    ).__DUOLIFY_SSO_BRIDGE__;
     bridge.complete();
   });
   await expect(page).toHaveURL(/\/profile$/);

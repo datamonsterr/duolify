@@ -28,3 +28,27 @@ func AuthFromEnv(getenv func(string) string, logger *slog.Logger) (string, Maile
 	}
 	return secret, ResendMailer{APIKey: getenv("RESEND_API_KEY"), From: getenv("AUTH_MAIL_FROM")}, nil
 }
+
+// ClerkFromEnv enables SSO only when Clerk is fully configured. With no Clerk keys it
+// returns a nil verifier (feature off, fail closed); a partial configuration is an
+// error so a typo cannot silently disable or half-enable sign-in.
+func ClerkFromEnv(getenv func(string) string) (ClerkVerifier, string, error) {
+	secret, publishable := getenv("CLERK_SECRET_KEY"), getenv("CLERK_PUBLISHABLE_KEY")
+	if secret == "" && publishable == "" {
+		return nil, "", nil
+	}
+	if secret == "" || publishable == "" {
+		return nil, "", errors.New("CLERK_SECRET_KEY and CLERK_PUBLISHABLE_KEY must be set together")
+	}
+	if !strings.HasPrefix(publishable, "pk_") {
+		return nil, "", errors.New("CLERK_PUBLISHABLE_KEY must be a Clerk publishable key (pk_...)")
+	}
+	var parties []string
+	for _, party := range strings.Split(getenv("CLERK_AUTHORIZED_PARTIES"), ",") {
+		if party = strings.TrimSpace(party); party != "" {
+			parties = append(parties, party)
+		}
+	}
+	verifier, err := NewClerkVerifier(ClerkConfig{SecretKey: secret, JWTKey: getenv("CLERK_JWT_KEY"), AuthorizedParties: parties})
+	return verifier, publishable, err
+}

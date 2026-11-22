@@ -15,7 +15,7 @@ Dependencies:
 - `Question`: gains `string topic_id = 6;` and `string variant_of = 7;`.
 - `TopicVariants`: `string topic_id = 1;` and `repeated Question variants = 2;`.
 - `Lesson`: gains `repeated TopicVariants variant_pool = 4;`.
-- `GenerateRetryVariants`: RPC added to `EngineService` with `GenerateRetryVariantsRequest` and `GenerateRetryVariantsResponse`.
+- `GenerateRetryVariants`: RPC added to `EngineService` with `GenerateRetryVariantsRequest` and `GenerateRetryVariantsResponse`. The API never calls it at launch (ADR 0011, E4-06: pools are generated up front with the Lesson; no on-demand paid variants). It is dead code kept for a possible future paid on-demand path.
 
 ### 2. Database Schema
 - `lesson_slides`: add `topic_ids text[] NOT NULL DEFAULT '{}'::text[]`.

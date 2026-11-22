@@ -2,7 +2,7 @@
 # ordered fallback chain, tried as sequential single-model requests. `reasoning_effort` is the
 # `reasoning.effort` for the primary; `[reasoning]` gives the effort for other models in a chain
 # (GLM cannot disable reasoning, so it is always low). The four screens run Hy4 at `none`
-# (ADR 0016): their 200-300 token cap covers reasoning plus the answer.
+# (ADR 0018): their 200-300 token cap covers reasoning plus the answer.
 
 [reasoning]
 "z-ai/glm-5.3-flash" = "low"

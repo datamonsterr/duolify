@@ -13,9 +13,10 @@ The live golden eval (PR #277) passed 12 to 15 of 20 cases on the production Ope
 - Every JSON task sends an OpenRouter `response_format` (strict `json_schema` for screens, brief classification, note enrichment and preview; `json_object` for large generation tasks) with `provider.require_parameters: true`. Both models list `response_format` and `structured_outputs` in their OpenRouter `supported_parameters`.
 - One shared extraction rule (`engine_core::structured::extract_json`) for every JSON task: trim whitespace and strip one surrounding code fence, then strict validation. No prose parsing; unknown reason codes are rejected, not mapped.
 - The bounded second attempt becomes a corrective repair: it replays the rejected answer and a user turn quoting the validation error. Attempt, deadline and USD caps from `bound-model-routing-failures` are unchanged; the repair turn is dropped when it would exceed the input envelope.
-- Screens run Hy4 with reasoning `none` (ADR 0016), and every screen prompt spells out the closed enum with examples that include block cases.
+- Screens run Hy4 with reasoning `none` (ADR 0018), and every screen prompt spells out the closed enum with examples that include block cases.
 - The lesson prompt moves into `engine-core` with its JSON shape spelled out, shared by the server and the eval.
 - Live eval cases for non-screen tasks run the production prompt builders and validators; the golden rows carry production request data and are re-pinned.
+- Mock provider mode serves the same route identity as live (provider `openrouter` and the `models.toml` model ids per task), so the API's live quote runs end to end without paid calls; the quote guard stays strict in both modes. Fixture-only features key on `LlmProvider::is_fixture` instead of the provider name. Health appends one `route:<task>=…` entry per task after the two provider names (no proto change).
 
 ## Impact
 Engine only (`engine-core`, `engine-providers`, `engine-server`, `engine-eval`), `engine/config/models.toml`, the golden dataset and its pin. No proto or API change.

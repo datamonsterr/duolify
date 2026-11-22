@@ -12,6 +12,9 @@ http://:8081 {
 
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
+	# Host-local site settings (for example `tls` with a Cloudflare origin certificate), mounted by
+	# compose.prod.yml from infra/deploy/site.d/ on the VM. No match is not an error.
+	import /etc/caddy/site.d/*.caddy
 
 	handle /v1/* {
 		reverse_proxy {$API_UPSTREAM:api:8080} {

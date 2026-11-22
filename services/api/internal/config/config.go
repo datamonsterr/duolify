@@ -44,6 +44,8 @@ func Load(getenv func(string) string) (Config, error) {
 		LessonTestMaxVariantsPerTopic: 3,
 		LessonTestMaxVariantsPerTest:  12,
 		LessonTestSessionTTL:          7 * 24 * time.Hour,
+		// ADR 0017: the lesson test is on by default; LESSON_TEST_TRACER_ENABLED=false is the kill switch.
+		LessonTestTracerEnabled: true,
 	}
 	if value := getenv("LESSON_TEST_MIN_GAP"); value != "" {
 		if val, err := strconv.Atoi(value); err == nil && val > 0 {

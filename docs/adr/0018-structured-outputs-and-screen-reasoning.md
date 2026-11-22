@@ -1,4 +1,4 @@
-# ADR 0016: Structured outputs and no reasoning for safety screens
+# ADR 0018: Structured outputs and no reasoning for safety screens
 
 - Status: Proposed (engine agent, 2026-11-22; amends ADR 0015 "AI model routing")
 - Date: 2026-11-22

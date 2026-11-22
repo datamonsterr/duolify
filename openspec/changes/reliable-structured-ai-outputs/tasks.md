@@ -5,7 +5,7 @@
 - [x] Add `engine_core::structured` (extraction, per-task `response_format`, repair message) and carry `response_format` and `repair` on `Route`.
 - [x] Send `response_format` with `provider.require_parameters` and replay the repair turn in the OpenRouter adapter.
 - [x] Extract and validate in the bounded runner and the brief classifier; quote the validation error on the second attempt.
-- [x] Screens: reasoning `none` on Hy4 (ADR 0016), closed enums and examples in every screen prompt.
+- [x] Screens: reasoning `none` on Hy4 (ADR 0018), closed enums and examples in every screen prompt.
 - [x] Move the lesson prompt and acceptance check into `engine-core`; the server and the eval share them.
 - [x] Live eval drives production builders for non-screen tasks; rewrite those golden rows as production request data.
 - [x] `mise run engine:eval` stays green.

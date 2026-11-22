@@ -18,7 +18,7 @@ fn config_has_all_tasks() {
         ("outline", "low"),
         ("outline_replan", "low"),
         ("character_create", "low"),
-        // ADR 0016: screens answer a two-field schema under a 200-300 token cap, and Hy4 reasoning
+        // ADR 0018: screens answer a two-field schema under a 200-300 token cap, and Hy4 reasoning
         // at `low` spent that cap before answering.
         ("character_screen", "none"),
         ("course_screen", "none"),

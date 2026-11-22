@@ -73,7 +73,12 @@ func TestExportDeleteCoverageRetentionAndRestoreTombstone(t *testing.T) {
 	if err = db.Pool.QueryRow(ctx, "SELECT learner_id::text FROM auth_identities WHERE email=$1", email).Scan(&learnerID); err != nil {
 		t.Fatal(err)
 	}
-	_, err = db.Pool.Exec(ctx, `INSERT INTO auth_provider_identities(provider,subject,learner_id,verified_email) VALUES('google','private-subject',$1::uuid,$2)`, learnerID, email)
+	_, err = db.Pool.Exec(ctx, `INSERT INTO auth_provider_identities(provider,subject,learner_id,verified_email) VALUES('clerk','private-subject',$1::uuid,$2)`, learnerID, email)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A handed-off SSO attempt is learner-linked and must go with the learner.
+	_, err = db.Pool.Exec(ctx, `INSERT INTO auth_oauth_attempts(state_hash,code_challenge,redirect_uri,learner_id,clerk_user_id,handed_off_at,expires_at) VALUES(repeat('a',64),repeat('b',43),'duolify://sso/callback',$1::uuid,'private-subject',now(),now()+interval '5 minutes')`, learnerID)
 	if err != nil {
 		t.Fatal(err)
 	}

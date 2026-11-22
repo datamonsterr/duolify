@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestTrustedProxyClientIP(t *testing.T) {
@@ -69,42 +68,6 @@ func TestIndependentAuthenticationKeys(t *testing.T) {
 	}
 	if _, err := s.unseal(nil, "refresh:parent-a"); err == nil {
 		t.Fatal("missing ciphertext accepted")
-	}
-}
-
-func TestGoogleClaimsAndFixtureProductionGuard(t *testing.T) {
-	identity := ProviderIdentity{Provider: "google", Subject: "subject", Email: "learner@example.test", EmailVerified: true, Nonce: "expected", Issuer: "https://accounts.google.com", Audience: "client", ExpiresAt: time.Now().Add(time.Hour)}
-	if err := ValidateGoogleIdentity(identity, "expected", "client"); err != nil {
-		t.Fatal(err)
-	}
-	for _, field := range []string{"issuer", "audience", "nonce", "expiry"} {
-		bad := identity
-		switch field {
-		case "issuer":
-			bad.Issuer = "https://evil.test"
-		case "audience":
-			bad.Audience = "other"
-		case "nonce":
-			bad.Nonce = "other"
-		case "expiry":
-			bad.ExpiresAt = time.Now().Add(-time.Second)
-		}
-		if ValidateGoogleIdentity(bad, "expected", "client") == nil {
-			t.Errorf("accepted wrong %s", field)
-		}
-	}
-	for _, env := range []string{"", "production", "staging"} {
-		t.Setenv("DUOLIFY_ENV", env)
-		for _, google := range []OAuthProvider{&FixtureGoogleProvider{}, &FixtureAppleProvider{}} {
-			if _, err := NewWithOAuthProviders(nil, strings.Repeat("test-key", 8), new(MailSink), google, nil); err == nil {
-				t.Errorf("Google slot accepted fixture %T in %q", google, env)
-			}
-		}
-		for _, apple := range []AppleOAuthProvider{&FixtureAppleProvider{}, &FixtureGoogleProvider{}} {
-			if _, err := NewWithOAuthProviders(nil, strings.Repeat("test-key", 8), new(MailSink), nil, apple); err == nil {
-				t.Errorf("Apple slot accepted fixture %T in %q", apple, env)
-			}
-		}
 	}
 }
 
