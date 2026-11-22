@@ -176,6 +176,23 @@ func TestReducedIdleBackgroundLoadKeepsCreditsExact_Integration(t *testing.T) {
 		}
 	})
 
+	t.Run("failed full pass is retried", func(t *testing.T) {
+		svc, _ := newService()
+		id := learner("Retry Old Grant", "UTC")
+		if _, err := db.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version,provenance) VALUES($1,40,'daily_grant',$2,$3,'{"bucket":"daily_free","date":"2026-09-01"}'::jsonb)`, id, "daily_grant:"+id+":2026-09-01", catalogue.Config().Version); err != nil {
+			t.Fatal(err)
+		}
+		asOf := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+		failed, cancel := context.WithCancel(ctx)
+		cancel()
+		if _, err := svc.ExpireDailyCredits(failed, asOf); err == nil {
+			t.Fatal("expected full pass query failure")
+		}
+		if _, err := svc.ExpireDailyCredits(ctx, asOf.Add(time.Minute)); err != nil || expired(id) != 1 {
+			t.Fatalf("retry failed to expire old grant: %v, rows %d", err, expired(id))
+		}
+	})
+
 	t.Run("expiring one learner leaves every other learner untouched", func(t *testing.T) {
 		svc, _ := newService()
 		a, b := learner("Solo A", "UTC"), learner("Solo B", "UTC")
