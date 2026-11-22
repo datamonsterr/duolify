@@ -290,6 +290,24 @@ type RuntimeCatalogue struct {
 	ownerID  string
 	// gateSkipped dedupes refusal logs for versions blocked by the design chat gate.
 	gateSkipped map[string]bool
+	alert       func(ctx context.Context, scope string)
+}
+
+// SetAlertSink routes pricing config-load and scheduled-flip failures to the
+// operational alert path. The sink must dedupe: failures repeat every tick.
+func (c *RuntimeCatalogue) SetAlertSink(sink func(ctx context.Context, scope string)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.alert = sink
+}
+
+func (c *RuntimeCatalogue) raise(ctx context.Context, scope string) {
+	c.mu.RLock()
+	sink := c.alert
+	c.mu.RUnlock()
+	if sink != nil {
+		sink(ctx, scope)
+	}
 }
 
 // NewRuntimeCatalogue creates the database-time pricing resolver with a validated startup fallback.
@@ -351,6 +369,7 @@ func (c *RuntimeCatalogue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	loaded, err := Load(r.Context(), c.queries)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "pricing runtime reload failed; serving last known good catalogue", "error", err)
+		c.raise(r.Context(), "pricing_config_load_failed")
 		c.mu.RLock()
 		last := c.last
 		c.mu.RUnlock()
@@ -384,6 +403,7 @@ func (c *RuntimeCatalogue) RunActivator(ctx context.Context, admin *Admin) {
 	for {
 		if err := c.ActivateDue(ctx, admin); err != nil && ctx.Err() == nil {
 			slog.ErrorContext(ctx, "pricing activation refused", "error", err)
+			c.raise(ctx, "pricing_scheduled_flip_failed")
 		}
 		select {
 		case <-ctx.Done():
