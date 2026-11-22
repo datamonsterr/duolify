@@ -25,4 +25,4 @@
 - [x] 5.2 F2-F8 un-fixme'd: preview and lesson generation failures are hard failures
 - [x] 5.3 F13 free example course for a new learner
 - [x] 5.4 Shell right rail reads the real wallet and streak; F8 and F9 assert it
-- [ ] 5.5 F1d daily check-in (PR #300) and F14 welcome and tour (PR #311) once merged
+- [x] 5.5 F1d daily check-in (PR #300) and F14 welcome and tour (PR #311); course flows funded by the real check-in
