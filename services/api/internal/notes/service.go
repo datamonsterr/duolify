@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
@@ -322,7 +323,7 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 		return nil, err
 	}
 	meta := s.AnalyticsMetadata(ctx)
-	_ = EmitQuickNoteCreated(s.events, learnerID, input.Source, len(input.RawText), meta.Platform, meta.AppVersion)
+	_ = EmitQuickNoteCreated(s.events, learnerID, input.Source, utf8.RuneCountInString(input.RawText), meta.Platform, meta.AppVersion)
 	if input.Anchor != nil {
 		_ = EmitAnchoredNoteCreated(s.events, learnerID, coursePgUUID, lessonPgUUID, slideID, input.Anchor, meta.Platform, meta.AppVersion)
 	}
