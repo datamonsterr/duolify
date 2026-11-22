@@ -267,3 +267,50 @@ fn test_validate_exhausted_fallback_mismatched_answer_rejected() {
     // Correct fallback answer is 1 ("A") -> ok
     assert!(validate_exhausted_fallback_variant(&source, 0, &fallback, 1).is_ok());
 }
+
+fn region_lesson(regions: serde_json::Value) -> String {
+    serde_json::json!({
+        "slides": [{"slide_id": "s1", "html": "<div id=\"root\"><h1 data-region=\"t\">Stars</h1></div>",
+                    "narration": "Stars shine.", "duration_ms": 3000, "topic_ids": ["t"],
+                    "regions": regions}],
+        "test": [{"question_id": "q", "topic_id": "t", "prompt": "Why?", "choices": ["Fusion", "Ice"],
+                  "answer_index": 0, "explanation": "Fusion."}]
+    })
+    .to_string()
+}
+
+#[test]
+fn generated_lesson_regions_are_part_of_acceptance_and_name_the_slide_for_the_repair() {
+    let ok = region_lesson(serde_json::json!([
+        {"id": "t", "slot": "top", "role": "title", "description": "Title: Stars", "start_ms": 0, "end_ms": 0}
+    ]));
+    check_generated(&ok, &[], "").unwrap();
+    let markup = region_lesson(serde_json::json!([
+        {"id": "t", "slot": "top", "role": "title", "description": "<b>Stars</b>", "start_ms": 0, "end_ms": 0}
+    ]));
+    let e = check_generated(&markup, &[], "").unwrap_err();
+    assert!(
+        e.starts_with("slide s1: region t") && e.contains("markup"),
+        "{e}"
+    );
+    let missing = region_lesson(serde_json::json!(null));
+    assert_eq!(
+        check_generated(&missing, &[], "").is_err(),
+        crate::regions::config().emit
+    );
+}
+
+#[test]
+fn lesson_prompt_carries_the_region_contract_while_emission_is_on() {
+    let emit = crate::regions::config().emit;
+    assert_eq!(lesson_prompt("{}").contains("data-region"), emit);
+    let f = crate::structured::lesson_format();
+    let slide = &f["json_schema"]["schema"]["properties"]["slides"]["items"];
+    assert_eq!(
+        slide["required"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("regions")),
+        emit
+    );
+}

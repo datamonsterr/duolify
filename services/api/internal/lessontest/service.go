@@ -68,6 +68,25 @@ func New(opts Options) *Service {
 	return &Service{opts: opts}
 }
 
+// GeneratedRegions projects a generated Slide's regions into the Slide manifest shape.
+func GeneratedRegions(slide *enginev1.Slide) []player.Region {
+	if len(slide.GetRegions()) == 0 {
+		return nil
+	}
+	out := make([]player.Region, 0, len(slide.Regions))
+	for _, r := range slide.Regions {
+		region := player.Region{ID: r.GetRegionId(), Role: strings.ToLower(strings.TrimPrefix(r.GetRole().String(), "REGION_ROLE_")), Description: r.GetDescription()}
+		if b := r.GetBox(); b != nil {
+			region.Box = player.RegionBox{X: b.X, Y: b.Y, W: b.W, H: b.H}
+		}
+		if w := r.GetWindow(); w != nil {
+			region.Window = &player.RegionWindow{StartMS: int(w.StartMs), EndMS: int(w.EndMs)}
+		}
+		out = append(out, region)
+	}
+	return out
+}
+
 // ValidateGeneratedLesson ensures slides and test questions conform to contract and Motion HTML constraints.
 func ValidateGeneratedLesson(lesson *enginev1.Lesson) error {
 	if lesson == nil {
@@ -98,6 +117,11 @@ func ValidateGeneratedLesson(lesson *enginev1.Lesson) error {
 		}
 		if len(slide.TopicIds) == 0 {
 			return fmt.Errorf("slide %d has no taught topic_ids", i)
+		}
+		// Regions are re-validated at the trust boundary: invalid ones fail the job before
+		// settlement, so the reservation is released and nothing is published.
+		if player.ValidateRegions(GeneratedRegions(slide), int(slide.DurationMs)) != nil {
+			return fmt.Errorf("slide %d has invalid regions", i)
 		}
 		for _, t := range slide.TopicIds {
 			if strings.TrimSpace(t) != "" {
@@ -690,7 +714,7 @@ func (s *Service) completeGeneration(ctx context.Context, owner, courseID, lesso
 	lesson, attempts, title := saved.Lesson, saved.Attempts, saved.Title
 	slides := make([]player.GeneratedSlide, 0, len(lesson.Slides))
 	for _, slide := range lesson.Slides {
-		slides = append(slides, player.GeneratedSlide{ID: slide.SlideId, HTML: slide.Html, DurationMS: int(slide.DurationMs), Narration: slide.Narration})
+		slides = append(slides, player.GeneratedSlide{ID: slide.SlideId, HTML: slide.Html, DurationMS: int(slide.DurationMs), Narration: slide.Narration, Regions: GeneratedRegions(slide)})
 	}
 	// A validated checkpoint survives storage/settlement failures. Never write
 	// objects in SettleWith's transaction or repeat the paid generation on retry.

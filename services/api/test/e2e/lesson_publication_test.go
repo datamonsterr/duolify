@@ -54,7 +54,11 @@ type publicationEngine struct{}
 
 func (publicationEngine) GenerateLesson(_ context.Context, req *enginev1.GenerateLessonRequest) (*enginev1.Lesson, []*enginev1.Usage, error) {
 	return &enginev1.Lesson{
-		Slides:      []*enginev1.Slide{{SlideId: "generated-sky", Html: `<div id="root">Generated sky</div>`, DurationMs: 1000, Narration: "Stars are distant suns.", TopicIds: []string{"stars"}}},
+		Slides: []*enginev1.Slide{{SlideId: "generated-sky", Html: `<div id="root">Generated sky</div>`, DurationMs: 1000, Narration: "Stars are distant suns.", TopicIds: []string{"stars"},
+			Regions: []*enginev1.SlideRegion{
+				{RegionId: "title", Box: &enginev1.RegionBox{X: 0.05, Y: 0.04, W: 0.9, H: 0.18}, Role: enginev1.RegionRole_REGION_ROLE_TITLE, Description: "Title: Generated sky"},
+				{RegionId: "sky", Box: &enginev1.RegionBox{X: 0.05, Y: 0.26, W: 0.9, H: 0.52}, Window: &enginev1.RegionWindow{StartMs: 200, EndMs: 1000}, Role: enginev1.RegionRole_REGION_ROLE_DIAGRAM, Description: "Diagram of distant suns"},
+			}}},
 		Test:        []*enginev1.Question{{QuestionId: "q1", TopicId: "stars", Prompt: "What are stars?", Choices: []string{"Suns", "Clouds"}, Explanation: "Stars are suns."}},
 		VariantPool: []*enginev1.TopicVariants{{TopicId: "stars", Variants: []*enginev1.Question{{QuestionId: "v1", TopicId: "stars", Prompt: "What shines at night?", Choices: []string{"Distant suns", "Clouds"}, Explanation: "Distant suns shine."}}}},
 	}, []*enginev1.Usage{{Provider: req.Limits.Provider, Model: req.Limits.Model, InputTokens: 100, OutputTokens: 20, Attempt: 1, Component: "content", Delivered: true}}, nil
@@ -157,13 +161,30 @@ func TestGeneratedLessonPublishedBeforePlayback(t *testing.T) {
 	if err = db.Pool.QueryRow(t.Context(), `SELECT manifest_key FROM lesson_manifests WHERE lesson_id=$1`, lesson).Scan(&key); err != nil {
 		t.Fatalf("settled lesson has no published manifest before playback: %v", err)
 	}
-	if _, err = objects.Get(t.Context(), key); err != nil {
+	stored, err := objects.Get(t.Context(), key)
+	if err != nil {
 		t.Fatal(err)
+	}
+	// The stored Slide manifest carries the validated regions for server-side grounding.
+	var object player.ObjectManifest
+	if err = json.Unmarshal(stored, &object); err != nil {
+		t.Fatal(err)
+	}
+	regions := object.Slides[0].Regions
+	if len(regions) != 2 || regions[0].Role != "title" || regions[1].Window == nil || regions[1].Window.StartMS != 200 || regions[1].Box.H != 0.52 {
+		t.Fatalf("published regions %+v", regions)
+	}
+	if got := player.RegionsAt(object.Slides[0], player.RegionBox{X: 0.1, Y: 0.3, W: 0.3, H: 0.3}, 500); len(got) != 1 || got[0].Region.ID != "sky" {
+		t.Fatalf("intersection %+v", got)
 	}
 	objects.mu.Lock()
 	objects.readOnly = true
 	objects.mu.Unlock()
 	manifest := call("GET", "/v1/lessons/"+lesson+"/manifest", "", 200)
+	// Nothing new reaches the client: the playback manifest has no regions.
+	if strings.Contains(manifest["raw_response"].(string), "region") {
+		t.Fatal("playback manifest exposes regions", manifest["raw_response"])
+	}
 	slide := manifest["slides"].([]any)[0].(map[string]any)
 	if slide["slide_id"] != "generated-sky" {
 		t.Fatal("player delivered a different deck", slide)

@@ -2102,6 +2102,23 @@ impl Runner {
                         );
                         actual == &spec["expected"]
                     }
+                    // {"path": "a.b", "min": 0.8}: a number at the path is at least `min`.
+                    "path_at_least" => {
+                        let spec: serde_json::Value = serde_json::from_str(
+                            check
+                                .value
+                                .as_deref()
+                                .context("missing path_at_least spec")?,
+                        )?;
+                        let value: serde_json::Value =
+                            serde_json::from_str(&response_text).unwrap_or_default();
+                        let actual = spec["path"]
+                            .as_str()
+                            .unwrap_or_default()
+                            .split('.')
+                            .fold(&value, |v, key| &v[key]);
+                        matches!((actual.as_f64(), spec["min"].as_f64()), (Some(a), Some(m)) if a >= m)
+                    }
                     "contains" => response_text.contains(check.value.as_deref().unwrap_or("")),
                     "regex" => regex::Regex::new(check.value.as_deref().context("missing regex")?)?
                         .is_match(&response_text),
@@ -2386,6 +2403,65 @@ mod tests {
         assert!(r.fallback_used);
         assert!(r.output.contains("units must be an array"), "{}", r.output);
         assert!(r.cost_usd > 0.0, "undelivered attempts are still billed");
+    }
+
+    #[tokio::test]
+    async fn live_lesson_case_scores_region_validity_and_faithfulness() {
+        let lesson = serde_json::json!({
+            "title": "Slices",
+            "slides": [{"slide_id": "s1", "duration_ms": 6000, "narration": "A slice is a view over an array.",
+                "topic_ids": ["t"],
+                "html": "<div id=\"root\"><h1 data-region=\"t\">Slices are views</h1><pre data-region=\"c\">s := a[1:3]</pre></div>",
+                "regions": [
+                    {"id": "t", "slot": "top", "role": "title", "description": "Title: slices are views over an array", "start_ms": 0, "end_ms": 0},
+                    {"id": "c", "slot": "body", "role": "code", "description": "Code s := a[1:3] slicing the array", "start_ms": 0, "end_ms": 0}]}],
+            "test": [{"question_id": "q", "topic_id": "t", "prompt": "What is a slice?", "choices": ["A view", "A copy"],
+                "answer_index": 0, "explanation": "A view."}],
+            "variant_pool": [{"topic_id": "t", "variants": [{"question_id": "q-v", "topic_id": "t", "variant_of": "q",
+                "prompt": "Which describes a slice?", "choices": ["A copy", "A view"], "answer_index": 1, "explanation": "A view."}]}]
+        })
+        .to_string();
+        let router = live_router(&[
+            ("tencent/hy4-flash", &lesson),
+            ("z-ai/glm-5.3-flash", &lesson),
+        ]);
+        let runner = Runner::with_router(router, "live", false);
+        let checks = [
+            ("path_equals", r#"{"path":"regions_valid","expected":true}"#),
+            (
+                "path_at_least",
+                r#"{"path":"region_faithfulness","min":0.8}"#,
+            ),
+            ("regex", r#""region_roles":\[[^\]]*"code""#),
+        ];
+        let input = serde_json::json!({"outline":{"title":"Go","description":"","units":[]},
+            "lesson":{"id":"l-1","title":"Slices","goal":"views"},"learner":{"locale":"en"}});
+        let report = runner
+            .run_cases(
+                vec![live_case("lesson_slides", input.clone(), &checks)],
+                &Thresholds::default(),
+            )
+            .await
+            .unwrap();
+        let r = &report.results[0];
+        assert!(r.passed, "{:?} {}", r.errors, r.output);
+        // A stricter faithfulness floor than the answer reaches fails the case.
+        let strict = [(
+            "path_at_least",
+            r#"{"path":"region_faithfulness","min":1.01}"#,
+        )];
+        let router = live_router(&[
+            ("tencent/hy4-flash", &lesson),
+            ("z-ai/glm-5.3-flash", &lesson),
+        ]);
+        let report = Runner::with_router(router, "live", false)
+            .run_cases(
+                vec![live_case("lesson_slides", input, &strict)],
+                &Thresholds::default(),
+            )
+            .await
+            .unwrap();
+        assert!(!report.results[0].passed);
     }
 
     #[tokio::test]

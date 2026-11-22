@@ -66,6 +66,25 @@ async fn generate_lesson_delivers_a_lesson_that_passes_production_validation() {
     }
     let lesson = lesson.unwrap_or_else(|| panic!("no lesson delivered: {events:?}"));
     assert!(!lesson.slides.is_empty() && !lesson.test.is_empty());
+    // Slide regions: every Slide declares them and its html pins each region to its slot.
+    if engine_core::regions::config().emit {
+        for slide in &lesson.slides {
+            assert!(!slide.regions.is_empty(), "{}", slide.slide_id);
+            assert!(slide.html.contains("<style data-duolify-regions>"));
+            for r in &slide.regions {
+                let b = r.r#box.as_ref().unwrap();
+                assert!(b.x >= 0.0 && b.y >= 0.0 && b.x + b.w <= 1.0 && b.y + b.h <= 1.0);
+                assert_ne!(r.role, pb::RegionRole::Unspecified as i32);
+                assert!(
+                    slide
+                        .html
+                        .contains(&format!("data-region=\"{}\"", r.region_id))
+                );
+                assert!(!r.description.is_empty());
+            }
+            engine_core::slide::validate(&slide.html, &[]).unwrap();
+        }
+    }
 }
 
 #[tokio::test]

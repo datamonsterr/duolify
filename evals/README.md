@@ -202,6 +202,23 @@ The private dataset `datamonsterr/duolify-golden` holds the 32-case live set (`e
 
 In live mode the four screen tasks run the production `screen` functions against the live router (same prompt, schema validation, fail-closed rule and fallback). Their output has `blocked_as_expected` and `unavailable`; a must-block case that is allowed is a critical failure. The other live tasks run the production prompt builders, validators and bounded runner (`engine-eval/src/live.rs`): their `input` is the request data the API sends (brief and profile for preview; the confirmed outline for outline; outline, lesson and learner for lessons; a source question for lesson-test retry variants; a tutor `context`; a note; a setup or brief turn), never a prompt. Most score `delivered` (the production validator accepted the answer) plus task checks. Every JSON task requests structured output (`response_format`, ADR 0018), the answer passes the shared extraction rule (one surrounding code fence) and the second attempt is a corrective repair quoting the validation error. Reports list the served model, fallback flag and latency per case, and failing live cases keep an excerpt of the scored output and the rejection reasons.
 
+Slide regions (change `immersive-mobile-lesson-player`, task 2.7) add four `lesson_slides`
+cases at the end of the live set: a diagram-like Slide (`live-lesson-regions-diagram-water-cycle`),
+a code Slide (`-code-python-comprehension`), a question Slide (`-question-fractions`) and an
+adversarial case whose learner goals try to inject markup into region descriptions
+(`-injected-markup`). The live runner reports `regions_valid` (every delivered Slide passed
+`engine_core::regions::slide_regions`), `region_count`, `region_roles`, `region_descriptions`
+and `region_faithfulness` (the fraction of regions whose description shares words with the
+text the html puts in that region, or quotes it verbatim; a text-free diagram counts as
+faithful). Thresholds, all critical: delivered, `regions_valid = true`,
+`region_faithfulness >= 0.8` (`path_at_least`), the expected role present, and no `<`,
+backslash escape or control character in any description. The three earlier lesson cases
+also exercise regions, because acceptance requires them on every Slide while
+`engine/config/regions.toml` has `emit = true`.
+
+Check kinds also include `path_equals` (`{"path": "a.b", "expected": ...}`) and
+`path_at_least` (`{"path": "a.b", "min": 0.8}`, a number at least `min`).
+
 `mise run engine:eval-golden` runs every case of the reviewed bytes in `evals/datasets/duolify-golden/golden.jsonl` live with no judge, after verifying them against the pinned revision (needs only `OPENROUTER_API_KEY`; set `EVAL_BUDGET_USD`).
 
 Run a small, budgeted sample (no `HF_TOKEN` secret is set on GitHub, so ready PRs record an explicit `missing_secrets` report and keep live promotion disabled):

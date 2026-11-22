@@ -2,8 +2,10 @@
 //!
 //! A generated Slide names a layout slot for each region instead of guessing coordinates. The
 //! Engine owns every slot's box (`engine/config/regions.toml`) and appends a stylesheet that pins
-//! each `data-region` element, a direct child of the root element, to its slot. The declared box is
-//! therefore the box the element occupies on the 16:9 stage, by construction.
+//! each `data-region` element inside the root element to its slot with fixed positioning relative
+//! to the stage, and removes the transforms, filters and containment that would make an ancestor
+//! its containing block. The declared box is therefore the box the element occupies on the 16:9
+//! stage, by construction.
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -91,8 +93,10 @@ fn windows_meet(a: Option<(u32, u32)>, b: Option<(u32, u32)>) -> bool {
 #[derive(Debug, Default, Clone)]
 pub struct Element {
     pub count: usize,
-    /// Every occurrence is a direct child of the root element.
-    pub direct: bool,
+    /// Every occurrence is inside the root element.
+    pub in_root: bool,
+    /// Some occurrence is inside another region element.
+    pub nested: bool,
     /// Visible text inside the element (whitespace collapsed).
     pub text: String,
 }
@@ -139,7 +143,7 @@ pub fn elements(html: &str) -> HashMap<String, Element> {
             e.text.push_str(&words);
         }
     }
-    let mut opened: Vec<(String, bool)> = Vec::new();
+    let mut opened: Vec<(String, bool, bool)> = Vec::new();
     for m in tag.captures_iter(&html) {
         let whole = m.get(0).unwrap();
         add_text(&mut found, &stack, &html[last..whole.start()]);
@@ -159,8 +163,9 @@ pub fn elements(html: &str) -> HashMap<String, Element> {
                 .map(|v| v.as_str().to_owned())
         });
         if let Some(id) = &id {
-            let direct = stack.last().is_some_and(|(_, _, r)| *r);
-            opened.push((id.clone(), direct));
+            let in_root = stack.iter().any(|(_, _, r)| *r);
+            let nested = stack.iter().any(|(_, r, _)| r.is_some());
+            opened.push((id.clone(), in_root, nested));
             found.entry(id.clone()).or_default();
         }
         let self_closing = attrs.trim_end().ends_with('/') || VOID.contains(&name.as_str());
@@ -169,13 +174,10 @@ pub fn elements(html: &str) -> HashMap<String, Element> {
         }
     }
     add_text(&mut found, &stack, &html[last..]);
-    for (id, direct) in opened {
+    for (id, in_root, nested) in opened {
         let e = found.get_mut(&id).expect("recorded");
-        e.direct = if e.count == 0 {
-            direct
-        } else {
-            e.direct && direct
-        };
+        e.in_root = in_root && (e.count == 0 || e.in_root);
+        e.nested |= nested;
         e.count += 1;
     }
     found
@@ -266,13 +268,17 @@ pub fn slide_regions_with(cfg: &Config, slide: &Value) -> Result<Vec<Region>, St
                 "region {id}: start_ms and end_ms must be 0 and 0 (whole slide) or 0 <= start_ms < end_ms <= duration_ms ({duration})"
             ));
         };
-        match found.get(id) {
-            Some(e) if e.count == 1 && e.direct => {}
-            _ => {
-                return Err(format!(
-                    "region {id}: the html needs exactly one element with data-region=\"{id}\" as a direct child of the root element"
-                ));
-            }
+        let problem = match found.get(id) {
+            None => Some("no element in the html has it"),
+            Some(e) if e.count > 1 => Some("more than one element has it"),
+            Some(e) if !e.in_root => Some("its element is outside the root element"),
+            Some(e) if e.nested => Some("its element is inside another region's element"),
+            Some(_) => None,
+        };
+        if let Some(problem) = problem {
+            return Err(format!(
+                "region {id}: the html needs exactly one element with data-region=\"{id}\" inside the root element and not inside another region's element, but {problem}"
+            ));
         }
         let region = Region {
             id: id.to_owned(),
@@ -320,12 +326,12 @@ pub fn layout(html: &str, regions: &[Region]) -> String {
         return html.to_owned();
     }
     let mut css = String::from(
-        "#root#root{position:fixed!important;left:0!important;top:0!important;width:100%!important;height:100%!important;margin:0!important;border:0!important;box-sizing:border-box!important}",
+        "#root#root,#root#root :has([data-region]){transform:none!important;filter:none!important;backdrop-filter:none!important;perspective:none!important;contain:none!important;will-change:auto!important;container-type:normal!important}",
     );
     for r in regions {
         let [x, y, w, h] = r.bbox;
         css.push_str(&format!(
-            "#root#root>[data-region=\"{}\"]{{position:absolute!important;left:{}!important;top:{}!important;width:{}!important;height:{}!important;margin:0!important;box-sizing:border-box!important;overflow:hidden!important}}",
+            "#root#root [data-region=\"{}\"]{{position:fixed!important;left:{}!important;top:{}!important;width:{}!important;height:{}!important;margin:0!important;box-sizing:border-box!important;overflow:hidden!important}}",
             r.id,
             pct(x),
             pct(y),
@@ -378,7 +384,7 @@ pub fn shape() -> String {
         return String::new();
     }
     format!(
-        " Lay out every slide on fixed slots of the 16:9 stage: top (title band), body (main area), left and right (its halves), left_top, left_bottom, right_top and right_bottom (its quarters) and bottom (caption band). Put each visible block in one element that is a direct child of the root element and has data-region set to its region id; the player sizes and places it in its slot, so do not position or size those elements, never use !important, and keep the text short enough to fit. Each slide lists regions (1 to {max}), one per block: id (unique in the slide: letters, digits, - or _), slot, role (one of {roles}), description (plain text, at most {chars} characters, no markup, in the slide's language, saying what the block shows and quoting its key words) and start_ms/end_ms on the slide clock when the block is visible only part of the slide, else 0 and 0. Blocks visible at the same time use slots that do not overlap (body overlaps left, right and the quarters; left overlaps left_top and left_bottom; right overlaps right_top and right_bottom).",
+        " Lay out every slide on fixed slots of the 16:9 stage: top (title band), body (main area), left and right (its halves), left_top, left_bottom, right_top and right_bottom (its quarters) and bottom (caption band). Put each visible block in one element inside the root element (not inside another block) with data-region set to its region id; the player sizes and places it in its slot, so do not position or size those elements, never use !important, and keep the text short enough to fit. Each slide lists regions (1 to {max}), one per block: id (unique in the slide: letters, digits, - or _), slot, role (one of {roles}), description (plain text, at most {chars} characters, no markup, in the slide's language, saying what the block shows and quoting its key words) and start_ms/end_ms on the slide clock when the block is visible only part of the slide, else 0 and 0. Blocks visible at the same time use slots that do not overlap (body overlaps left, right and the quarters; left overlaps left_top and left_bottom; right overlaps right_top and right_bottom).",
         max = cfg.max_per_slide,
         roles = ROLES.join(", "),
         chars = cfg.max_description_chars,

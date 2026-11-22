@@ -133,14 +133,37 @@ fn markup_entities_and_control_characters_are_rejected() {
 }
 
 #[test]
-fn every_region_needs_one_direct_child_element_of_the_root() {
-    let missing = r#"<div id="root"><p>A</p></div>"#;
-    let nested = r#"<div id="root"><div><p data-region="a">A</p></div></div>"#;
-    let twice = r#"<div id="root"><p data-region="a">A</p><p data-region="a">B</p></div>"#;
-    for html in [missing, nested, twice] {
-        let e = slide_regions(&slide(html, json!([region("a", "top", "title", "A")]))).unwrap_err();
-        assert!(e.contains("direct child"), "{html}: {e}");
+fn every_region_needs_one_element_inside_the_root_and_outside_other_regions() {
+    let r = |html: &str| slide_regions(&slide(html, json!([region("a", "top", "title", "A")])));
+    for (html, why) in [
+        (r#"<div id="root"><p>A</p></div>"#, "no element"),
+        (
+            r#"<div id="root"><p data-region="a">A</p><p data-region="a">B</p></div>"#,
+            "more than one",
+        ),
+        (
+            r#"<p data-region="a">A</p><div id="root"></div>"#,
+            "outside the root",
+        ),
+    ] {
+        let e = r(html).unwrap_err();
+        assert!(e.contains(why), "{html}: {e}");
     }
+    let nested = r#"<div id="root"><div data-region="b"><p data-region="a">A</p></div></div>"#;
+    let two = slide(
+        nested,
+        json!([
+            region("b", "bottom", "caption", "A"),
+            region("a", "top", "title", "A")
+        ]),
+    );
+    assert!(
+        slide_regions(&two)
+            .unwrap_err()
+            .contains("inside another region")
+    );
+    // Wrappers are fine: the slot stylesheet neutralizes their containing-block properties.
+    assert!(r(r#"<div id="root"><main class="card"><section><h1 data-region="a">A</h1></section></main></div>"#).is_ok());
     // Void and self-closing siblings do not change the depth.
     let ok = r##"<div id='root'><img src="#x"><br/><p data-region='a'>A</p></div>"##;
     assert!(slide_regions(&slide(ok, json!([region("a", "top", "title", "A")]))).is_ok());
@@ -220,7 +243,7 @@ fn layout_pins_each_region_element_to_its_slot_and_passes_the_static_check() {
     let regions = slide_regions(&valid()).unwrap();
     let html = layout(HTML, &regions);
     assert!(html.starts_with(HTML));
-    assert!(html.contains(r#"#root#root>[data-region="t"]{position:absolute!important;left:5%!important;top:4%!important;width:90%!important;height:18%!important"#), "{html}");
+    assert!(html.contains(r#"#root#root [data-region="t"]{position:fixed!important;left:5%!important;top:4%!important;width:90%!important;height:18%!important"#), "{html}");
     crate::slide::validate(&html, &[]).unwrap();
     assert_eq!(layout(HTML, &[]), HTML);
 }
