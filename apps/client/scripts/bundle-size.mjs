@@ -1,3 +1,4 @@
+/* global URL, process, console */
 // Bundle size report and budget check for the web build (dist/).
 // "Initial" = what index.html loads before first paint: its module script, modulepreloads and
 // stylesheets. Usage: node scripts/bundle-size.mjs [--check] [--json]

@@ -1,9 +1,6 @@
-import { SteerCourse } from "./features/steering/SteerCourse";
 import { CourseUpdate } from "./features/sharing/CourseUpdate";
-import { ShareCourse } from "./features/sharing/ShareCourse";
 import { MissingLessons } from "./features/sharing/MissingLessons";
-import { PreviewPublicationDraft } from "./features/sharing/PreviewPublicationDraft";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useUiPreferences } from "./features/design/localization/Preferences";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "@tanstack/react-router";
@@ -18,7 +15,6 @@ import {
   type CourseDownloadProgress,
 } from "./features/player/library";
 import { availableOffline } from "./features/player/cache";
-import { TutorChat } from "./features/chat/TutorChat";
 import { BlockedCourseNotice } from "./features/sharing/BlockedCopy";
 import { CopyOriginNotice } from "./features/sharing/CopyOriginNotice";
 import { QuotePanel } from "./features/pricing/QuotePanel";
@@ -50,6 +46,26 @@ export function courseTreeQuery(courseId: string, owner: string) {
     retry: false,
   };
 }
+
+// Below-the-fold panels load after the path itself, so the Learn home paints sooner.
+const SteerCourse = lazy(() =>
+  import("./features/steering/SteerCourse").then((m) => ({
+    default: m.SteerCourse,
+  })),
+);
+const ShareCourse = lazy(() =>
+  import("./features/sharing/ShareCourse").then((m) => ({
+    default: m.ShareCourse,
+  })),
+);
+const PreviewPublicationDraft = lazy(() =>
+  import("./features/sharing/PreviewPublicationDraft").then((m) => ({
+    default: m.PreviewPublicationDraft,
+  })),
+);
+const TutorChat = lazy(() =>
+  import("./features/chat/TutorChat").then((m) => ({ default: m.TutorChat })),
+);
 
 export function LearnPath({ courseId }: { courseId: string }) {
   const returnTo = useLocation({ select: (location) => location.pathname });
@@ -262,12 +278,18 @@ export function LearnPath({ courseId }: { courseId: string }) {
         Course Cast
       </AppLink>
       {(!course.visibility || course.visibility === "private") && (
-        <SteerCourse key={courseId} courseId={courseId} />
+        <Suspense fallback={null}>
+          <SteerCourse key={courseId} courseId={courseId} />
+        </Suspense>
       )}
-      <PreviewPublicationDraft courseId={courseId} />
-      <ShareCourse courseId={courseId} />
+      <Suspense fallback={null}>
+        <PreviewPublicationDraft courseId={courseId} />
+        <ShareCourse courseId={courseId} />
+      </Suspense>
       <div>
-        <TutorChat courseId={courseId} />
+        <Suspense fallback={null}>
+          <TutorChat courseId={courseId} />
+        </Suspense>
       </div>
 
       {/* Offline banner matching S08-Path canvas */}

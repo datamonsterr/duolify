@@ -217,6 +217,9 @@ jobs:
         timeout-minutes: 3
         env:
           VITEST_JUNIT_FILE: ./test-results/vitest-boundary-junit.xml
+      - name: mise run client:bundle-budget
+        run: mise run client:bundle-budget
+        timeout-minutes: 1
       - name: Summary
         if: always()
         env:
