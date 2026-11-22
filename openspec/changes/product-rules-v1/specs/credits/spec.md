@@ -54,7 +54,7 @@ The API MUST spend Daily free credits before any other Credits. When a charge ex
 - **THEN** the Daily free credits are spent first and purchased Credits only for the remainder
 
 ### Requirement: No credit rewards for effort
-The system MUST NOT grant Credits as a reward for effort, including Streak milestones, Friend streak milestones and perfect Lesson tests. Effort is rewarded with XP, badges and Streak freezes.
+The system MUST NOT grant Credits as a reward for effort, including Streak milestones, Friend streak milestones and perfect Lesson tests. Effort is rewarded with XP, badges and Streak freezes. Daily check-in is attendance, not Lesson effort: ADR 0020 explicitly permits separate `check_in_grant` and `check_in_bonus` Credits on authenticated app open. These sources fund all purchased-Credit actions after eligible Daily free credits and before existing oldest eligible paid sources.
 
 #### Scenario: Streak milestone
 - **WHEN** a Streak reaches a milestone

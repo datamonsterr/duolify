@@ -58,8 +58,10 @@ The daily free grant SHALL initially be 46 Credits, sufficient for three Quick n
 - **WHEN** a Learner spends the new daily grant on three standard notes and five long messages
 - **THEN** the total is 46 Credits and the free allowance covers all those actions
 
+Daily check-in Credits (ADR 0020) are a separate non-expiring attendance source and MAY fund Course preview, Course outline, Lesson generation and narration, and every other purchased-Credit action. The prohibition above applies only to the 46-Credit Daily free allowance. Spending MUST use eligible Daily free credits, then check-in Credits, then existing oldest eligible paid sources.
+
 #### Scenario: Generation with only free balance
-- **WHEN** a Learner with daily free Credits and no paid Credits requests a custom Course outline
+- **WHEN** a Learner with daily free Credits and no check-in or paid Credits requests a custom Course outline
 - **THEN** the API returns insufficient eligible Credits and offers the permitted purchase flow without starting generation
 
 #### Scenario: Expiry while reserved
