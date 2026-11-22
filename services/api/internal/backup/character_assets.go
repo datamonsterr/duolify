@@ -63,7 +63,7 @@ func (p CharacterAssetProtection) Protect(ctx context.Context, date string) erro
 	if err != nil {
 		return err
 	}
-	rows, err := p.Pool.Query(ctx, `SELECT object_key,content_hash FROM shared_character_assets WHERE purged_at IS NULL UNION SELECT audio_key,'' FROM narration_assets WHERE ref_count>0 UNION SELECT alignment_key,'' FROM narration_assets WHERE ref_count>0 UNION SELECT manifest_key,'' FROM lesson_manifests WHERE starts_with(manifest_key,'lessons/generated/') ORDER BY 1`)
+	rows, err := p.Pool.Query(ctx, `SELECT object_key,content_hash FROM shared_character_assets WHERE purged_at IS NULL UNION SELECT audio_key,'' FROM narration_assets WHERE ref_count>0 UNION SELECT alignment_key,'' FROM narration_assets WHERE ref_count>0 UNION SELECT manifest_key,'' FROM lesson_manifests WHERE starts_with(manifest_key,'lessons/generated/') OR starts_with(manifest_key,'lessons/examples/') ORDER BY 1`)
 	if err != nil {
 		return err
 	}

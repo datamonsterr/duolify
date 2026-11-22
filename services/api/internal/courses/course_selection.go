@@ -154,8 +154,9 @@ const courseSummariesSQL = `
 			'description', m.description,
 			'level_override', m.level_override,
 			'pinned_version', (SELECT cc.version FROM course_copies cc WHERE cc.copy_course_id=m.id),
+			'example_slug', (SELECT cc.example_slug FROM course_copies cc WHERE cc.copy_course_id=m.id),
 			'moderation_blocked', EXISTS(SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=m.id AND bc.blocked_at IS NOT NULL),
-			'copy_origin', (SELECT jsonb_build_object('creator_username', u.username, 'creator_deleted', cc.source_owner_id IS NULL, 'source_available', EXISTS(SELECT 1 FROM courses sc WHERE sc.id=cc.source_course_id AND sc.deleted_at IS NULL AND sc.visibility<>'private')) FROM course_copies cc LEFT JOIN learner_usernames u ON u.learner_id=cc.source_owner_id WHERE cc.copy_course_id=m.id),
+			'copy_origin', (SELECT jsonb_build_object('creator_username', u.username, 'creator_deleted', cc.source_owner_id IS NULL, 'source_available', EXISTS(SELECT 1 FROM courses sc WHERE sc.id=cc.source_course_id AND sc.deleted_at IS NULL AND sc.visibility<>'private')) FROM course_copies cc LEFT JOIN learner_usernames u ON u.learner_id=cc.source_owner_id WHERE cc.copy_course_id=m.id AND cc.example_slug IS NULL),
 			'progress', jsonb_build_object('lessons_total', COALESCE(p.total, 0), 'lessons_done', COALESCE(p.done, 0), 'current', p.cur)
 		) ORDER BY m.last_active_at DESC, m.created_at DESC
 	), '[]'::jsonb)

@@ -53,7 +53,7 @@ fn report(fingerprint: &str, failing: &[&str]) -> String {
         "dataset": "datamonsterr/duolify-golden", "dataset_revision": REV, "dataset_source": "repo",
         "dataset_verified": true, "dataset_sha256": SHA, "provider": "live", "status": "passed",
         "passed": failing.is_empty(), "critical_failure": !failing.is_empty(), "budget_exceeded": false,
-        "fingerprint": fingerprint, "task_reports": tasks
+        "fingerprint": fingerprint, "dataset_cases": 1, "task_reports": tasks
     })
     .to_string()
 }

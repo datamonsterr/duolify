@@ -278,6 +278,7 @@ type CourseCopy struct {
 	SourceOwnerID   pgtype.UUID        `json:"source_owner_id"`
 	ForkedAtLesson  pgtype.UUID        `json:"forked_at_lesson"`
 	CharacterCast   []byte             `json:"character_cast"`
+	ExampleSlug     pgtype.Text        `json:"example_slug"`
 }
 
 type CourseCreation struct {

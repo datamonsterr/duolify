@@ -214,12 +214,16 @@ export function LearnPath({ courseId }: { courseId: string }) {
       <p dir="auto">{course.description}</p>
       <CopyOriginNotice origin={course.copy_origin} />
       <CourseModerationBanner courseId={courseId} />
-      {course.pinned_version ? (
+      {course.example_slug ? (
+        <p className="muted" data-testid="example-label">
+          Example course · Free
+        </p>
+      ) : course.pinned_version ? (
         <p className="muted" data-testid="pinned-version">
           Published course · version {course.pinned_version}
         </p>
       ) : null}
-      {course.pinned_version ? (
+      {course.pinned_version && !course.example_slug ? (
         <CourseUpdate
           courseId={courseId}
           onUpdated={() => {
@@ -228,7 +232,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
           }}
         />
       ) : null}
-      {course.pinned_version ? (
+      {course.pinned_version && !course.example_slug ? (
         <MissingLessons
           courseId={courseId}
           onChanged={() => {
@@ -236,6 +240,20 @@ export function LearnPath({ courseId }: { courseId: string }) {
             queryClient.invalidateQueries({ queryKey: ["course", courseId] });
           }}
         />
+      ) : null}
+      {course.example_slug &&
+      course.units.length > 0 &&
+      course.units.every((u) => u.lessons.every((l) => l.state === "done")) ? (
+        <div className="card example-complete" data-testid="example-complete">
+          <h2>You finished this example</h2>
+          <p>
+            Ready for a course about something you want to learn? Creating one
+            starts with a free preview; nothing is generated until you confirm.
+          </p>
+          <AppLink className="duo-button primary" href="/courses/create">
+            Create your own course
+          </AppLink>
+        </div>
       ) : null}
       {prepareError && <p role="alert">{prepareError}</p>}
       {quotingId && (

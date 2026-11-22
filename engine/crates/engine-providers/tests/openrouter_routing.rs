@@ -240,6 +240,30 @@ async fn whole_chain_failure_returns_an_error() {
 }
 
 #[tokio::test]
+async fn null_content_keeps_its_measured_usage() {
+    // Review F3/F8: a 200 with null content still consumed tokens. The attempt is returned as an
+    // empty answer with its usage, so the bounded runner rejects and prices it, instead of an
+    // error whose usage is unknown.
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "model": HY4,
+            "choices": [{"message": {"content": null}, "finish_reason": "length"}],
+            "usage": {"prompt_tokens": 120, "completion_tokens": 2500}
+        })))
+        .mount(&server)
+        .await;
+    let provider = HttpProvider::openrouter("key".into(), server.uri());
+    let c = provider
+        .complete_route(&route(HY4, &[], &[]), "hello", 2500)
+        .await
+        .unwrap();
+    assert_eq!(c.text, "");
+    assert_eq!((c.input_tokens, c.output_tokens), (120, 2500));
+    assert!(!c.usage_unavailable);
+}
+
+#[tokio::test]
 async fn response_without_model_reports_the_requested_id() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))

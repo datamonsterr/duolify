@@ -1,0 +1,960 @@
+{
+ "slug": "product-management-foundations",
+ "version": 1,
+ "order": 1,
+ "title": "Product Management Foundations",
+ "description": "Learn what a product manager does and how an idea becomes a shipped product that solves a real user problem.",
+ "level": "beginner",
+ "units": [
+  {
+   "title": "What a product manager does",
+   "lessons": [
+    {
+     "key": "u1-l1",
+     "title": "The product manager's job",
+     "goal": "Explain what a product manager owns and how they work with design and engineering.",
+     "slides": [
+      {
+       "slide_id": "s1",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 1 · THE ROLE</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h1 style=\"margin:0;font-size:30px;line-height:1.2\">The product manager's job</h1></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #58cc02;\">A team can build almost anything. Someone has to decide <b>what is worth building</b>, and <b>why</b>.</div></div></div></div>",
+       "narration": "A team of designers and engineers can build almost anything. So who decides what is actually worth building, and for whom? In this lesson you meet the product manager, often shortened to PM, the person who owns that question.",
+       "duration_ms": 17600,
+       "topic_ids": [
+        "owns-why-and-what"
+       ]
+      },
+      {
+       "slide_id": "s2",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#1cb0f6;font-weight:700;font-size:14px;letter-spacing:.06em\">THE IDEA</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">A PM owns the why and the what</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"display:flex;flex-wrap:wrap;gap:12px\"><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #58cc02\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">Product manager</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\"><b>Why</b> build it? <b>What</b> should we build?</div></div><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #1cb0f6\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">Design</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">How should it look and feel?</div></div><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #ff9600\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">Engineering</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">How do we build it?</div></div></div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;\">The PM leads by being clear and persuasive. A PM is <b>not</b> the boss of the team.</div></div></div></div>",
+       "narration": "A product manager owns the why and the what. Why means the problem we solve and the goal. What means which solution we choose to build. Designers shape how it looks and feels, and engineers decide how it is built. The PM is a teammate, not their boss.",
+       "duration_ms": 21600,
+       "topic_ids": [
+        "owns-why-and-what",
+        "works-with-team"
+       ]
+      },
+      {
+       "slide_id": "s3",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#ff9600;font-weight:700;font-size:14px;letter-spacing:.06em\">EXAMPLE</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">A meal-planning app</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;border-left:6px solid #58cc02;\"><b>PM:</b> People give up planning their week. Let's build a weekly meal plan.</div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;border-left:6px solid #ff9600;\"><b>Engineer:</b> A shopping list is quick. Importing photos takes weeks.</div></div><div class=\"a\" style=\"animation-delay:5.2s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;border-left:6px solid #58cc02;\"><b>PM:</b> Then we ship the plan and the list first.</div></div></div></div>",
+       "narration": "Say the app helps people plan meals. The PM sees that people give up planning their week, and proposes a weekly meal plan. An engineer explains that a shopping list is quick, but importing photos takes weeks. Together they agree to ship the plan and the list first.",
+       "duration_ms": 21600,
+       "topic_ids": [
+        "works-with-team"
+       ]
+      },
+      {
+       "slide_id": "s4",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">REMEMBER</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">Two things to keep</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #58cc02;\"><b>1.</b> The PM owns the <b>why</b> and the <b>what</b>.</div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #1cb0f6;\"><b>2.</b> Design and engineering own the <b>how</b>. The PM works with them, and is not their boss.</div></div></div></div>",
+       "narration": "To remember: first, a product manager owns the why and the what of a product. Second, designers and engineers own the how, and the PM works with them as a partner who explains the goal and listens, rather than giving orders.",
+       "duration_ms": 18500,
+       "topic_ids": [
+        "owns-why-and-what",
+        "works-with-team"
+       ]
+      }
+     ],
+     "test": [
+      {
+       "question_id": "u1-l1-q1",
+       "topic_id": "owns-why-and-what",
+       "prompt": "Which pair of questions does a product manager mainly own?",
+       "choices": [
+        "How is the code organised, and which tools do we use?",
+        "How should it look, and which colours do we pick?",
+        "Why are we building this, and what should we build?",
+        "Who works on what, and who gets promoted?"
+       ],
+       "answer_index": 2,
+       "explanation": "The PM owns the why (the problem and goal) and the what (the solution to build). How the code is organised and how it looks belong to engineering and design."
+      },
+      {
+       "question_id": "u1-l1-q2",
+       "topic_id": "works-with-team",
+       "prompt": "An engineer says a feature will take six weeks. What should a good PM do?",
+       "choices": [
+        "Talk through the trade-offs together and adjust the scope or plan",
+        "Order the engineer to finish it in two weeks",
+        "Overrule the estimate, since the PM decides how it is built",
+        "Accept it silently and stop asking questions"
+       ],
+       "answer_index": 0,
+       "explanation": "A PM works with engineering, not above them. Discussing trade-offs and trimming scope keeps the goal. Ordering or overruling treats the PM as the boss, which the role is not."
+      }
+     ],
+     "variant_pool": [
+      {
+       "topic_id": "owns-why-and-what",
+       "variants": [
+        {
+         "question_id": "u1-l1-q1-v1",
+         "variant_of": "u1-l1-q1",
+         "prompt": "A team is debating a new feature. Which decision belongs mainly to the product manager?",
+         "choices": [
+          "Who works on what, and who gets promoted?",
+          "Why are we building this, and what should we build?",
+          "How should it look, and which colours do we pick?",
+          "How is the code organised, and which tools do we use?"
+         ],
+         "answer_index": 1,
+         "explanation": "The PM owns what to build and why, so deciding which problem to solve first is the PM's call. The code structure and the visual style are decided by engineering and design.",
+         "topic_id": "owns-why-and-what"
+        },
+        {
+         "question_id": "u1-l1-q1-v2",
+         "variant_of": "u1-l1-q1",
+         "prompt": "Imagine you are the PM. Which two questions should you be able to answer about your product?",
+         "choices": [
+          "How should it look, and which colours do we pick?",
+          "Why are we building this, and what should we build?",
+          "Who works on what, and who gets promoted?",
+          "How is the code organised, and which tools do we use?"
+         ],
+         "answer_index": 1,
+         "explanation": "A PM should be able to explain why the product exists and what it should do. Code structure, colours and staffing are not the core of the role.",
+         "topic_id": "owns-why-and-what"
+        }
+       ]
+      },
+      {
+       "topic_id": "works-with-team",
+       "variants": [
+        {
+         "question_id": "u1-l1-q2-v1",
+         "variant_of": "u1-l1-q2",
+         "prompt": "The design is ready, but engineers warn it needs far more time than planned. What is the best PM response?",
+         "choices": [
+          "Accept it silently and stop asking questions",
+          "Overrule the estimate, since the PM decides how it is built",
+          "Order the engineer to finish it in two weeks",
+          "Talk through the trade-offs together and adjust the scope or plan"
+         ],
+         "answer_index": 3,
+         "explanation": "The PM should work with the team on trade-offs and scope. Pushing for a deadline or overruling the estimate treats the PM as the boss.",
+         "topic_id": "works-with-team"
+        },
+        {
+         "question_id": "u1-l1-q2-v2",
+         "variant_of": "u1-l1-q2",
+         "prompt": "Your team tells you one part of the plan is very costly to build. How do you respond as PM?",
+         "choices": [
+          "Order the engineer to finish it in two weeks",
+          "Overrule the estimate, since the PM decides how it is built",
+          "Accept it silently and stop asking questions",
+          "Talk through the trade-offs together and adjust the scope or plan"
+         ],
+         "answer_index": 3,
+         "explanation": "A good PM discusses options with the team and adapts the scope. The PM owns the what and why, not how it is built.",
+         "topic_id": "works-with-team"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "u1-l2",
+     "title": "Users and problems",
+     "goal": "Describe a user problem in one clear sentence before thinking about any solution.",
+     "slides": [
+      {
+       "slide_id": "s1",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 2 · THE START</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h1 style=\"margin:0;font-size:30px;line-height:1.2\">Users and problems</h1></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #1cb0f6;\">People do not want a new button. They want something to stop being <b>hard</b>.</div></div></div></div>",
+       "narration": "People rarely want a new button or a new screen. What they want is for something in their life to stop being slow, confusing or frustrating. Good product work starts from that frustration, which we call the user problem.",
+       "duration_ms": 17600,
+       "topic_ids": [
+        "problem-before-solution"
+       ]
+      },
+      {
+       "slide_id": "s2",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#1cb0f6;font-weight:700;font-size:14px;letter-spacing:.06em\">THE IDEA</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">Problem first, solution second</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"display:flex;flex-wrap:wrap;gap:12px\"><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #ff4b4b\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">Solution</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">An idea for what to build. Example: add a chat button.</div></div><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #58cc02\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">Problem</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">Something hard for a specific person.</div></div></div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;border-left:6px solid #1cb0f6;\">Frame it: <b>[User]</b> struggles to <b>[do something]</b> because <b>[reason]</b>.</div></div></div></div>",
+       "narration": "A solution is an idea for what to build, like a chat button. A problem is something that is hard for a specific person. Start with the problem. Then frame it in one sentence: this user struggles to do something because of this reason.",
+       "duration_ms": 19800,
+       "topic_ids": [
+        "problem-before-solution",
+        "problem-framing"
+       ]
+      },
+      {
+       "slide_id": "s3",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#ff9600;font-weight:700;font-size:14px;letter-spacing:.06em\">EXAMPLE</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">From idea to problem</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;border-left:6px solid #ff9600;\">Idea: <b>add dark mode.</b> Ask: who needs it, and why?</div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;border-left:6px solid #58cc02;\">Night readers struggle to read comfortably in bed because the screen is too bright.</div></div><div class=\"a\" style=\"animation-delay:5.2s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;\">Now dark mode, a warmer tint or a dimmer screen are all possible solutions.</div></div></div></div>",
+       "narration": "Suppose someone suggests adding dark mode. Ask who needs it and why. You might find that night readers struggle to read comfortably in bed because the screen is too bright. Now dark mode is only one of several solutions, so the team can pick the best one.",
+       "duration_ms": 21200,
+       "topic_ids": [
+        "problem-before-solution",
+        "problem-framing"
+       ]
+      },
+      {
+       "slide_id": "s4",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">REMEMBER</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">Two things to keep</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #58cc02;\"><b>1.</b> Start with a user problem, not a solution.</div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #1cb0f6;\"><b>2.</b> Frame it: a user struggles to do something because of a reason.</div></div></div></div>",
+       "narration": "To remember: start with a user problem, not a solution. A problem is something hard for a specific person. Then write it in one sentence: this user struggles to do something because of this reason. Only after that should you compare solutions.",
+       "duration_ms": 18900,
+       "topic_ids": [
+        "problem-before-solution",
+        "problem-framing"
+       ]
+      }
+     ],
+     "test": [
+      {
+       "question_id": "u1-l2-q1",
+       "topic_id": "problem-before-solution",
+       "prompt": "Which of these is a user problem rather than a solution?",
+       "choices": [
+        "Add a voice-note button to the app",
+        "New parents struggle to find a quiet moment to log their baby's feeds",
+        "Send a weekly email digest to every user",
+        "Redesign the home screen with four tabs"
+       ],
+       "answer_index": 1,
+       "explanation": "A problem describes something hard for a person. The other three are ideas for what to build, so they are solutions, not problems."
+      },
+      {
+       "question_id": "u1-l2-q2",
+       "topic_id": "problem-framing",
+       "prompt": "Which sentence frames a problem with a user, a struggle and a reason?",
+       "choices": [
+        "Commuters struggle to buy tickets because the queue at the machine is long",
+        "Commuters need a ticket app with a QR code",
+        "The ticket machines are old and should be replaced",
+        "We want to sell more tickets this year"
+       ],
+       "answer_index": 0,
+       "explanation": "The first sentence names who, what is hard, and why. The others state a solution, an internal opinion or a business wish, not the user's struggle."
+      }
+     ],
+     "variant_pool": [
+      {
+       "topic_id": "problem-before-solution",
+       "variants": [
+        {
+         "question_id": "u1-l2-q1-v1",
+         "variant_of": "u1-l2-q1",
+         "prompt": "A teammate brings the team four statements. Which one describes a problem and not a solution?",
+         "choices": [
+          "Redesign the home screen with four tabs",
+          "Send a weekly email digest to every user",
+          "New parents struggle to find a quiet moment to log their baby's feeds",
+          "Add a voice-note button to the app"
+         ],
+         "answer_index": 2,
+         "explanation": "Only one statement describes a difficulty a person has. Buttons, emails and redesigns are things we could build in response.",
+         "topic_id": "problem-before-solution"
+        },
+        {
+         "question_id": "u1-l2-q1-v2",
+         "variant_of": "u1-l2-q1",
+         "prompt": "Which statement describes what is hard for a user, without proposing what to build?",
+         "choices": [
+          "New parents struggle to find a quiet moment to log their baby's feeds",
+          "Send a weekly email digest to every user",
+          "Redesign the home screen with four tabs",
+          "Add a voice-note button to the app"
+         ],
+         "answer_index": 0,
+         "explanation": "A problem names the struggle. A new button, a digest and a redesign are all solutions to something not yet named.",
+         "topic_id": "problem-before-solution"
+        }
+       ]
+      },
+      {
+       "topic_id": "problem-framing",
+       "variants": [
+        {
+         "question_id": "u1-l2-q2-v1",
+         "variant_of": "u1-l2-q2",
+         "prompt": "You want to write a problem in the form user, struggle, reason. Which sentence does that?",
+         "choices": [
+          "We want to sell more tickets this year",
+          "The ticket machines are old and should be replaced",
+          "Commuters need a ticket app with a QR code",
+          "Commuters struggle to buy tickets because the queue at the machine is long"
+         ],
+         "answer_index": 3,
+         "explanation": "Only one sentence has a user, something they struggle to do, and a reason. The rest are solutions or business goals.",
+         "topic_id": "problem-framing"
+        },
+        {
+         "question_id": "u1-l2-q2-v2",
+         "variant_of": "u1-l2-q2",
+         "prompt": "Pick the best one-sentence problem frame for a team working on a library app.",
+         "choices": [
+          "Commuters need a ticket app with a QR code",
+          "The ticket machines are old and should be replaced",
+          "We want to sell more tickets this year",
+          "Commuters struggle to buy tickets because the queue at the machine is long"
+         ],
+         "answer_index": 3,
+         "explanation": "A good frame names who struggles, with what, and why. Solutions and company wishes do not name the user's difficulty.",
+         "topic_id": "problem-framing"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "u1-l3",
+     "title": "Outcomes, not outputs",
+     "goal": "Tell an output from an outcome and judge a release by the change it causes.",
+     "slides": [
+      {
+       "slide_id": "s1",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 3 · THE GOAL</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h1 style=\"margin:0;font-size:30px;line-height:1.2\">Outcomes, not outputs</h1></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #ff9600;\">You shipped it. <b>Did anything change?</b></div></div></div></div>",
+       "narration": "Your team worked hard and shipped the feature on time. Great. But did anything change for your users, or for the business? That question is the difference between an output and an outcome, and good product managers care most about the second.",
+       "duration_ms": 18900,
+       "topic_ids": [
+        "output-vs-outcome"
+       ]
+      },
+      {
+       "slide_id": "s2",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#1cb0f6;font-weight:700;font-size:14px;letter-spacing:.06em\">THE IDEA</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">Output versus outcome</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"display:flex;flex-wrap:wrap;gap:12px\"><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #ff9600\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">Output</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">What the team makes and ships: a feature, a page, a release.</div></div><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #58cc02\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">Outcome</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">A change in what users do, or in the business result.</div></div></div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;\">The output is the <b>means</b>. The outcome is the <b>point</b>.</div></div></div></div>",
+       "narration": "An output is what the team makes and ships, like a feature, a page or a release. An outcome is the change that results, either in what users do or in a business result. The output is only the means. The outcome is the point.",
+       "duration_ms": 20300,
+       "topic_ids": [
+        "output-vs-outcome"
+       ]
+      },
+      {
+       "slide_id": "s3",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#ff9600;font-weight:700;font-size:14px;letter-spacing:.06em\">EXAMPLE</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">A save-for-later button</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;border-left:6px solid #ff9600;\"><b>Output:</b> the button ships on time.</div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;border-left:6px solid #58cc02;\"><b>Outcome we wanted:</b> more readers come back to finish articles.</div></div><div class=\"a\" style=\"animation-delay:5.2s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;border-left:6px solid #ff4b4b;\">Result: many taps, few returns. Output delivered, outcome <b>not yet</b>. Time to learn why.</div></div></div></div>",
+       "narration": "A team ships a save for later button. That is the output. The outcome they wanted was more readers coming back to finish articles. After launch the button is tapped a lot, but few readers return. The output was delivered, the outcome was not, so the team investigates why.",
+       "duration_ms": 22100,
+       "topic_ids": [
+        "output-vs-outcome",
+        "judging-success"
+       ]
+      },
+      {
+       "slide_id": "s4",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">REMEMBER</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">Two things to keep</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #58cc02;\"><b>1.</b> Output = what we ship. Outcome = the change it causes.</div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #1cb0f6;\"><b>2.</b> Judge a release by its outcome, not by shipping on time.</div></div></div></div>",
+       "narration": "To remember: an output is what you ship, and an outcome is the change it causes in user behaviour or business results. Judge a release by its outcome. Shipping on time is good, but it only counts as success if something changed.",
+       "duration_ms": 18900,
+       "topic_ids": [
+        "output-vs-outcome",
+        "judging-success"
+       ]
+      }
+     ],
+     "test": [
+      {
+       "question_id": "u1-l3-q1",
+       "topic_id": "output-vs-outcome",
+       "prompt": "Which of these is an outcome rather than an output?",
+       "choices": [
+        "We launched the new onboarding screens",
+        "The team closed twelve tickets this sprint",
+        "Search now supports filters",
+        "More new users finish their first lesson"
+       ],
+       "answer_index": 3,
+       "explanation": "An outcome is a change in what users do. Screens, closed tickets and a new filter are things the team made, so they are outputs."
+      },
+      {
+       "question_id": "u1-l3-q2",
+       "topic_id": "judging-success",
+       "prompt": "A feature ships on schedule, but user behaviour does not change. What is the fairest conclusion?",
+       "choices": [
+        "It was a success because it shipped on time",
+        "The output was delivered, but the outcome is not achieved yet, so learn why",
+        "The users are wrong, so no changes are needed",
+        "The engineers failed because they missed the output"
+       ],
+       "answer_index": 1,
+       "explanation": "Shipping on time delivers the output, not the outcome. Blaming users or engineers skips the useful step: find out why behaviour did not change."
+      }
+     ],
+     "variant_pool": [
+      {
+       "topic_id": "output-vs-outcome",
+       "variants": [
+        {
+         "question_id": "u1-l3-q1-v1",
+         "variant_of": "u1-l3-q1",
+         "prompt": "A manager lists results from last month. Which one is an outcome?",
+         "choices": [
+          "More new users finish their first lesson",
+          "Search now supports filters",
+          "The team closed twelve tickets this sprint",
+          "We launched the new onboarding screens"
+         ],
+         "answer_index": 0,
+         "explanation": "Only one item describes a change in user behaviour. The rest describe work the team delivered.",
+         "topic_id": "output-vs-outcome"
+        },
+        {
+         "question_id": "u1-l3-q1-v2",
+         "variant_of": "u1-l3-q1",
+         "prompt": "Which statement reports a change for users instead of work the team finished?",
+         "choices": [
+          "The team closed twelve tickets this sprint",
+          "Search now supports filters",
+          "More new users finish their first lesson",
+          "We launched the new onboarding screens"
+         ],
+         "answer_index": 2,
+         "explanation": "An outcome is what changes because of the work. Launches, closed tickets and filters are the work itself.",
+         "topic_id": "output-vs-outcome"
+        }
+       ]
+      },
+      {
+       "topic_id": "judging-success",
+       "variants": [
+        {
+         "question_id": "u1-l3-q2-v1",
+         "variant_of": "u1-l3-q2",
+         "prompt": "Your team launched a release on the planned date, yet people use the product exactly as before. How should you judge it?",
+         "choices": [
+          "The engineers failed because they missed the output",
+          "The users are wrong, so no changes are needed",
+          "The output was delivered, but the outcome is not achieved yet, so learn why",
+          "It was a success because it shipped on time"
+         ],
+         "answer_index": 2,
+         "explanation": "The output is done, but the intended change did not happen. The right move is to learn why, not to call it a success or blame someone.",
+         "topic_id": "judging-success"
+        },
+        {
+         "question_id": "u1-l3-q2-v2",
+         "variant_of": "u1-l3-q2",
+         "prompt": "After launch, nothing changes in how people behave. What should the PM conclude?",
+         "choices": [
+          "The output was delivered, but the outcome is not achieved yet, so learn why",
+          "The users are wrong, so no changes are needed",
+          "The engineers failed because they missed the output",
+          "It was a success because it shipped on time"
+         ],
+         "answer_index": 0,
+         "explanation": "On-time delivery is only the output. Without a behaviour change the outcome has not been reached, so investigate.",
+         "topic_id": "judging-success"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "From idea to shipped",
+   "lessons": [
+    {
+     "key": "u2-l1",
+     "title": "Choosing what to build first",
+     "goal": "Rank a short list of ideas by impact and effort and pick the first one.",
+     "slides": [
+      {
+       "slide_id": "s1",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 4 · PRIORITISING</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h1 style=\"margin:0;font-size:30px;line-height:1.2\">Choosing what to build first</h1></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #1cb0f6;\">You have ten good ideas and time for <b>one</b>. Which goes first?</div></div></div></div>",
+       "narration": "Every team has more ideas than time. Choosing which one to build first is called prioritising. A simple way to start is to compare each idea on two things: how much good it does, and how much work it takes.",
+       "duration_ms": 18000,
+       "topic_ids": [
+        "impact-and-effort"
+       ]
+      },
+      {
+       "slide_id": "s2",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#1cb0f6;font-weight:700;font-size:14px;letter-spacing:.06em\">THE IDEA</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">Impact versus effort</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"display:flex;flex-wrap:wrap;gap:12px\"><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #58cc02\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">Impact</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">How much it helps users or the goal.</div></div><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #ff9600\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">Effort</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">How much time and work it costs.</div></div></div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;border-left:6px solid #58cc02;\">Start with <b>high impact, low effort</b>. Put low impact, high effort last.</div></div></div></div>",
+       "narration": "Impact is how much an idea helps your users or your goal. Effort is how much time and work it costs to build. Start with ideas that have high impact and low effort, since they give the most value for the least cost. Low impact and high effort goes last.",
+       "duration_ms": 22500,
+       "topic_ids": [
+        "impact-and-effort",
+        "rank-and-choose"
+       ]
+      },
+      {
+       "slide_id": "s3",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#ff9600;font-weight:700;font-size:14px;letter-spacing:.06em\">EXAMPLE</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">A class-booking app</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"display:flex;flex-direction:column;gap:8px\"><div style=\"display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#f3f6f9;border-radius:12px;padding:10px 14px;border-left:6px solid #58cc02;font-size:17px\"><b>Class reminder</b><span>Impact High, effort Low</span></div><div style=\"display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#f3f6f9;border-radius:12px;padding:10px 14px;border-left:6px solid #1cb0f6;font-size:17px\"><b>Fix slow payment page</b><span>Impact High, effort Medium</span></div><div style=\"display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#f3f6f9;border-radius:12px;padding:10px 14px;border-left:6px solid #ff9600;font-size:17px\"><b>Dark mode</b><span>Impact Low, effort Low</span></div><div style=\"display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#f3f6f9;border-radius:12px;padding:10px 14px;border-left:6px solid #ff4b4b;font-size:17px\"><b>Redesign whole app</b><span>Impact Medium, effort High</span></div></div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:16px;line-height:1.45;\">Order: reminder, payment fix, dark mode, redesign.</div></div></div></div>",
+       "narration": "Here are four ideas for a class booking app. A class reminder is high impact and low effort, so it goes first. Fixing the slow payment page is high impact with medium effort, so it comes second. Dark mode is cheap but small, and the full redesign comes last.",
+       "duration_ms": 22100,
+       "topic_ids": [
+        "impact-and-effort",
+        "rank-and-choose"
+       ]
+      },
+      {
+       "slide_id": "s4",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">REMEMBER</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">Two things to keep</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #58cc02;\"><b>1.</b> Rank ideas by impact and effort, and start with high impact, low effort.</div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #1cb0f6;\"><b>2.</b> The scores are rough estimates. Set them with engineers and update them as you learn.</div></div></div></div>",
+       "narration": "To remember: rank ideas by impact and effort, and start with high impact and low effort. The high, medium and low scores are rough estimates, not facts. Agree them with your engineers and update them as the team learns more.",
+       "duration_ms": 18000,
+       "topic_ids": [
+        "impact-and-effort",
+        "scores-are-estimates"
+       ]
+      }
+     ],
+     "test": [
+      {
+       "question_id": "u2-l1-q1",
+       "topic_id": "impact-and-effort",
+       "prompt": "When comparing ideas by impact and effort, which kind is usually the best to start with?",
+       "choices": [
+        "High impact and low effort, since it gives the most value for the least cost",
+        "High impact and high effort, since big ideas matter most",
+        "Low impact and low effort, since it is the safest choice",
+        "Low impact and high effort, since the team learns the most"
+       ],
+       "answer_index": 0,
+       "explanation": "High impact with low effort gives the most value per unit of work. Big costly ideas may still be worth it later, but they are not the natural first pick."
+      },
+      {
+       "question_id": "u2-l1-q2",
+       "topic_id": "rank-and-choose",
+       "prompt": "Idea X has high impact and low effort. Idea Y has low impact and high effort. Idea Z has medium impact and medium effort. Which order is best?",
+       "choices": [
+        "Y, then Z, then X",
+        "Z, then X, then Y",
+        "X, then Z, then Y",
+        "X, then Y, then Z"
+       ],
+       "answer_index": 2,
+       "explanation": "X gives the most value for the least work, Y gives the least value for the most work, and Z sits in between. Putting Y second or first wastes the team's time."
+      },
+      {
+       "question_id": "u2-l1-q3",
+       "topic_id": "scores-are-estimates",
+       "prompt": "Where should the high, medium and low scores come from?",
+       "choices": [
+        "Exact measurements taken from the finished feature",
+        "Rough team estimates, agreed with engineering and updated as you learn",
+        "The PM's own gut feeling, without asking engineers",
+        "A formula that gives the one right answer"
+       ],
+       "answer_index": 1,
+       "explanation": "Scores are estimates made before building, so they are rough and can change. Engineers help judge effort, and no formula gives a certain answer."
+      }
+     ],
+     "variant_pool": [
+      {
+       "topic_id": "impact-and-effort",
+       "variants": [
+        {
+         "question_id": "u2-l1-q1-v1",
+         "variant_of": "u2-l1-q1",
+         "prompt": "You must pick one idea from a list scored on impact and effort. Which kind is the usual first choice?",
+         "choices": [
+          "Low impact and high effort, since the team learns the most",
+          "Low impact and low effort, since it is the safest choice",
+          "High impact and high effort, since big ideas matter most",
+          "High impact and low effort, since it gives the most value for the least cost"
+         ],
+         "answer_index": 3,
+         "explanation": "Value for cost is the point of this method, so high impact and low effort comes first.",
+         "topic_id": "impact-and-effort"
+        },
+        {
+         "question_id": "u2-l1-q1-v2",
+         "variant_of": "u2-l1-q1",
+         "prompt": "Which combination should the team normally build first when using impact and effort?",
+         "choices": [
+          "High impact and high effort, since big ideas matter most",
+          "Low impact and low effort, since it is the safest choice",
+          "Low impact and high effort, since the team learns the most",
+          "High impact and low effort, since it gives the most value for the least cost"
+         ],
+         "answer_index": 3,
+         "explanation": "High impact for low effort gives the best return. High effort ideas and low impact ideas wait.",
+         "topic_id": "impact-and-effort"
+        }
+       ]
+      },
+      {
+       "topic_id": "rank-and-choose",
+       "variants": [
+        {
+         "question_id": "u2-l1-q2-v1",
+         "variant_of": "u2-l1-q2",
+         "prompt": "Three ideas: A is high impact and low effort, B is medium on both, C is low impact and high effort. How should you order them?",
+         "choices": [
+          "X, then Y, then Z",
+          "X, then Z, then Y",
+          "Z, then X, then Y",
+          "Y, then Z, then X"
+         ],
+         "answer_index": 1,
+         "explanation": "Rank from best value for cost to worst. The order is A, then B, then C.",
+         "topic_id": "rank-and-choose"
+        },
+        {
+         "question_id": "u2-l1-q2-v2",
+         "variant_of": "u2-l1-q2",
+         "prompt": "A list has one cheap, valuable idea, one middle idea and one costly, small idea. Which order do you build in?",
+         "choices": [
+          "Z, then X, then Y",
+          "X, then Z, then Y",
+          "X, then Y, then Z",
+          "Y, then Z, then X"
+         ],
+         "answer_index": 1,
+         "explanation": "Start with the cheap and valuable one, then the middle one, and leave the costly and small one last.",
+         "topic_id": "rank-and-choose"
+        }
+       ]
+      },
+      {
+       "topic_id": "scores-are-estimates",
+       "variants": [
+        {
+         "question_id": "u2-l1-q3-v1",
+         "variant_of": "u2-l1-q3",
+         "prompt": "A teammate says the impact and effort scores are exact facts. What is the best response?",
+         "choices": [
+          "A formula that gives the one right answer",
+          "The PM's own gut feeling, without asking engineers",
+          "Rough team estimates, agreed with engineering and updated as you learn",
+          "Exact measurements taken from the finished feature"
+         ],
+         "answer_index": 2,
+         "explanation": "The scores are rough estimates made with the team, and they should be updated when you learn more.",
+         "topic_id": "scores-are-estimates"
+        },
+        {
+         "question_id": "u2-l1-q3-v2",
+         "variant_of": "u2-l1-q3",
+         "prompt": "How should a PM set effort scores for the ideas on a list?",
+         "choices": [
+          "Rough team estimates, agreed with engineering and updated as you learn",
+          "The PM's own gut feeling, without asking engineers",
+          "A formula that gives the one right answer",
+          "Exact measurements taken from the finished feature"
+         ],
+         "answer_index": 0,
+         "explanation": "Ask engineers and agree on rough estimates. Gut feeling alone, exact measures and a perfect formula are not available before building.",
+         "topic_id": "scores-are-estimates"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "u2-l2",
+     "title": "Writing a clear problem statement",
+     "goal": "Write a short problem statement with who, the problem, why it matters and how we will know.",
+     "slides": [
+      {
+       "slide_id": "s1",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 5 · WRITING</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h1 style=\"margin:0;font-size:30px;line-height:1.2\">Writing a clear problem statement</h1></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #ff9600;\">If the team reads your idea and pictures <b>different things</b>, the idea is not clear yet.</div></div></div></div>",
+       "narration": "Once you have chosen an idea, the team needs to read the same thing and picture the same thing. A short problem statement does that. It is a few sentences that say what problem we are solving, for whom, and how we will know it worked.",
+       "duration_ms": 20700,
+       "topic_ids": [
+        "four-parts"
+       ]
+      },
+      {
+       "slide_id": "s2",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#1cb0f6;font-weight:700;font-size:14px;letter-spacing:.06em\">THE IDEA</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">Four parts</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"display:flex;flex-wrap:wrap;gap:12px\"><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #58cc02\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">1. Who</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">The user</div></div><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #1cb0f6\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">2. Problem</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">What is hard</div></div><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #ff9600\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">3. Why it matters</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">The cost of leaving it</div></div><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #46a302\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">4. How we will know</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">The change we expect to see</div></div></div></div></div></div>",
+       "narration": "A clear problem statement has four parts. First, who has the problem. Second, what the problem is. Third, why it matters, meaning what it costs the user or the business. Fourth, how we will know it is solved, meaning what change we expect to see.",
+       "duration_ms": 20300,
+       "topic_ids": [
+        "four-parts"
+       ]
+      },
+      {
+       "slide_id": "s3",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#ff9600;font-weight:700;font-size:14px;letter-spacing:.06em\">EXAMPLE</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">A library app</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:16px;line-height:1.45;border-left:6px solid #58cc02;\"><b>Who:</b> Parents of young children.</div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:16px;line-height:1.45;border-left:6px solid #1cb0f6;\"><b>Problem:</b> They forget to return books before the due date.</div></div><div class=\"a\" style=\"animation-delay:5.2s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:16px;line-height:1.45;border-left:6px solid #ff9600;\"><b>Why:</b> Fines build up and they stop borrowing.</div></div><div class=\"a\" style=\"animation-delay:6.4s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:16px;line-height:1.45;border-left:6px solid #46a302;\"><b>Know:</b> Fewer late returns, and more parents keep borrowing.</div></div></div></div>",
+       "narration": "Here is an example for a library app. Who: parents of young children. Problem: they forget to return books before the due date. Why it matters: fines build up and they stop borrowing. How we will know: fewer late returns, and more parents keep borrowing.",
+       "duration_ms": 20300,
+       "topic_ids": [
+        "four-parts"
+       ]
+      },
+      {
+       "slide_id": "s4",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">REMEMBER</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">Two things to keep</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #58cc02;\"><b>1.</b> Four parts: who, problem, why it matters, how we will know.</div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #1cb0f6;\"><b>2.</b> Describe the problem, not the solution.</div></div></div></div>",
+       "narration": "To remember: a problem statement has four parts, which are who, the problem, why it matters, and how we will know. And keep it about the problem. If your statement says build an app, it has jumped to a solution too early.",
+       "duration_ms": 18900,
+       "topic_ids": [
+        "four-parts",
+        "spot-solution-statement"
+       ]
+      }
+     ],
+     "test": [
+      {
+       "question_id": "u2-l2-q1",
+       "topic_id": "four-parts",
+       "prompt": "Which list names the four parts of a clear problem statement?",
+       "choices": [
+        "Who, the solution, the deadline, the budget",
+        "The problem, the feature, the design, the launch date",
+        "Who, the problem, the team, the tools",
+        "Who, the problem, why it matters, how we will know"
+       ],
+       "answer_index": 3,
+       "explanation": "A problem statement names the user, the problem, its cost, and the sign of success. Solutions, dates, budgets and tools belong to later planning."
+      },
+      {
+       "question_id": "u2-l2-q2",
+       "topic_id": "spot-solution-statement",
+       "prompt": "Which statement names a solution instead of a problem?",
+       "choices": [
+        "Build a reminder app so people remember to water plants",
+        "Home gardeners forget to water plants, so many plants die",
+        "Beginner gardeners lose plants they paid for and give up the hobby",
+        "Plant owners struggle to know when each plant needs water"
+       ],
+       "answer_index": 0,
+       "explanation": "The first sentence says what to build. The others describe who struggles and why, which is what a problem statement should do."
+      }
+     ],
+     "variant_pool": [
+      {
+       "topic_id": "four-parts",
+       "variants": [
+        {
+         "question_id": "u2-l2-q1-v1",
+         "variant_of": "u2-l2-q1",
+         "prompt": "You are asked to write a problem statement. Which four things should it contain?",
+         "choices": [
+          "Who, the problem, why it matters, how we will know",
+          "Who, the problem, the team, the tools",
+          "The problem, the feature, the design, the launch date",
+          "Who, the solution, the deadline, the budget"
+         ],
+         "answer_index": 0,
+         "explanation": "The four parts are who, the problem, why it matters and how we will know. Deadlines, features and tools come later.",
+         "topic_id": "four-parts"
+        },
+        {
+         "question_id": "u2-l2-q1-v2",
+         "variant_of": "u2-l2-q1",
+         "prompt": "A teammate lists what a problem statement needs. Which list is correct?",
+         "choices": [
+          "The problem, the feature, the design, the launch date",
+          "Who, the problem, the team, the tools",
+          "Who, the problem, why it matters, how we will know",
+          "Who, the solution, the deadline, the budget"
+         ],
+         "answer_index": 2,
+         "explanation": "A statement needs the user, the problem, why it matters and a sign of success. The other lists mix in solutions, plans or resources.",
+         "topic_id": "four-parts"
+        }
+       ]
+      },
+      {
+       "topic_id": "spot-solution-statement",
+       "variants": [
+        {
+         "question_id": "u2-l2-q2-v1",
+         "variant_of": "u2-l2-q2",
+         "prompt": "Which of these sentences jumps straight to something to build?",
+         "choices": [
+          "Plant owners struggle to know when each plant needs water",
+          "Beginner gardeners lose plants they paid for and give up the hobby",
+          "Home gardeners forget to water plants, so many plants die",
+          "Build a reminder app so people remember to water plants"
+         ],
+         "answer_index": 3,
+         "explanation": "A sentence that says build or add something is a solution. The others describe a user's difficulty.",
+         "topic_id": "spot-solution-statement"
+        },
+        {
+         "question_id": "u2-l2-q2-v2",
+         "variant_of": "u2-l2-q2",
+         "prompt": "A teammate wrote four lines for a plant-care project. Which one is a solution, not a problem?",
+         "choices": [
+          "Home gardeners forget to water plants, so many plants die",
+          "Beginner gardeners lose plants they paid for and give up the hobby",
+          "Plant owners struggle to know when each plant needs water",
+          "Build a reminder app so people remember to water plants"
+         ],
+         "answer_index": 3,
+         "explanation": "Only one line proposes something to build. The remaining three describe the people and what is hard for them.",
+         "topic_id": "spot-solution-statement"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "key": "u2-l3",
+     "title": "Measuring success",
+     "goal": "Define one success metric with a guardrail, a target and a time window.",
+     "slides": [
+      {
+       "slide_id": "s1",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">LESSON 6 · MEASURING</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h1 style=\"margin:0;font-size:30px;line-height:1.2\">Measuring success</h1></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #58cc02;\">How will you know it <b>worked</b>? Decide before you build.</div></div></div></div>",
+       "narration": "Before the team builds anything, decide how you will know it worked. Otherwise every result can be argued as a win. A good plan uses a small number of clear measures, with a target and a deadline for each.",
+       "duration_ms": 17600,
+       "topic_ids": [
+        "metric-and-guardrail"
+       ]
+      },
+      {
+       "slide_id": "s2",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#1cb0f6;font-weight:700;font-size:14px;letter-spacing:.06em\">THE IDEA</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">Metric, guardrail, target, window</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"display:flex;flex-wrap:wrap;gap:12px\"><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #58cc02\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">Success metric</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">One number showing the outcome you want.</div></div><div style=\"flex:1 1 150px;background:#f3f6f9;border-radius:16px;padding:14px;border-top:6px solid #ff9600\"><div style=\"font-weight:700;font-size:17px;color:#1f2937\">Guardrail</div><div style=\"font-size:16px;line-height:1.4;margin-top:4px\">A number that must not get worse.</div></div></div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:17px;line-height:1.45;border-left:6px solid #1cb0f6;\">Add a <b>target</b> and a <b>time window</b>: from this level to that level, by this date.</div></div></div></div>",
+       "narration": "Pick one success metric, the number that shows the outcome you want. Add one guardrail metric, a number that must not get worse while you chase the first. Then set a target and a time window, meaning from what level to what level, and by when.",
+       "duration_ms": 20700,
+       "topic_ids": [
+        "metric-and-guardrail",
+        "target-and-window"
+       ]
+      },
+      {
+       "slide_id": "s3",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#ff9600;font-weight:700;font-size:14px;letter-spacing:.06em\">EXAMPLE</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">A faster checkout</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:16px;line-height:1.45;border-left:6px solid #58cc02;\"><b>Success:</b> share who finish checkout, 60% to 70% in eight weeks (example numbers).</div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:16px;line-height:1.45;border-left:6px solid #ff9600;\"><b>Guardrail:</b> refund requests do not rise.</div></div><div class=\"a\" style=\"animation-delay:5.2s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:16px;line-height:1.45;border-left:6px solid #1cb0f6;\"><b>Leading</b> (early signal): people reaching the payment step this week. <b>Lagging</b> (final result): orders completed over the quarter.</div></div></div></div>",
+       "narration": "Take an online shop that wants a faster checkout. The success metric is the share of people who finish checkout. An example target is sixty to seventy percent within eight weeks. The guardrail is that refund requests must not rise. A leading metric moves early, like reaching the payment step. A lagging one, like completed orders, shows the result later.",
+       "duration_ms": 27000,
+       "topic_ids": [
+        "target-and-window",
+        "leading-vs-lagging"
+       ]
+      },
+      {
+       "slide_id": "s4",
+       "html": "<div id=\"root\"><div style=\"box-sizing:border-box;min-height:100%;padding:24px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;background:#ffffff\"><style>@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.a{animation:up .6s ease both}@media (prefers-reduced-motion:reduce){.a{animation:none}}</style><div class=\"a\" style=\"animation-delay:0.4s;margin-top:0\"><p style=\"margin:0;color:#46a302;font-weight:700;font-size:14px;letter-spacing:.06em\">REMEMBER</p></div><div class=\"a\" style=\"animation-delay:1.6s;margin-top:14px\"><h2 style=\"margin:0;font-size:26px;line-height:1.25\">Two things to keep</h2></div><div class=\"a\" style=\"animation-delay:2.8s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #58cc02;\"><b>1.</b> One success metric, one guardrail, with a target and a time window.</div></div><div class=\"a\" style=\"animation-delay:4.0s;margin-top:14px\"><div style=\"background:#f3f6f9;border-radius:16px;padding:16px;font-size:18px;line-height:1.45;border-left:6px solid #1cb0f6;\"><b>2.</b> Leading metrics move early. Lagging metrics show the final result later.</div></div></div></div>",
+       "narration": "To remember: choose one success metric and one guardrail, then set a target and a time window. And use both kinds of signals. Leading metrics move early so you can react quickly, while lagging metrics show whether the real result arrived.",
+       "duration_ms": 18500,
+       "topic_ids": [
+        "metric-and-guardrail",
+        "leading-vs-lagging"
+       ]
+      }
+     ],
+     "test": [
+      {
+       "question_id": "u2-l3-q1",
+       "topic_id": "metric-and-guardrail",
+       "prompt": "What is a guardrail metric for?",
+       "choices": [
+        "Measuring the same success a second time to be sure",
+        "Checking that chasing the success metric does not harm something important",
+        "Setting the deadline for the project",
+        "Counting how many features the team shipped"
+       ],
+       "answer_index": 1,
+       "explanation": "A guardrail protects something else you care about, such as refunds or complaints, while you push the success metric. It is not a second copy of success or a deadline."
+      },
+      {
+       "question_id": "u2-l3-q2",
+       "topic_id": "target-and-window",
+       "prompt": "Which goal has both a clear target and a time window?",
+       "choices": [
+        "Raise checkout completion from 60% to 70% within eight weeks of launch",
+        "Make checkout much better soon",
+        "Raise checkout completion as high as possible",
+        "Keep improving checkout completion over time"
+       ],
+       "answer_index": 0,
+       "explanation": "A target says from what level to what level, and the window says by when. The other goals are vague, so no one can tell whether they were met."
+      },
+      {
+       "question_id": "u2-l3-q3",
+       "topic_id": "leading-vs-lagging",
+       "prompt": "A team launches a new onboarding. Which measure is the leading one?",
+       "choices": [
+        "Share of new users still active three months later",
+        "Total revenue earned this year",
+        "Share of new users who finish the first lesson on day one",
+        "Number of onboarding screens the team built"
+       ],
+       "answer_index": 2,
+       "explanation": "A leading metric moves early and hints at the final result. Still active in three months and yearly revenue are lagging, and screens built is an output, not a measure of user behaviour."
+      }
+     ],
+     "variant_pool": [
+      {
+       "topic_id": "metric-and-guardrail",
+       "variants": [
+        {
+         "question_id": "u2-l3-q1-v1",
+         "variant_of": "u2-l3-q1",
+         "prompt": "A team pushes hard to raise sign-ups. Why would they also track a guardrail metric?",
+         "choices": [
+          "Counting how many features the team shipped",
+          "Setting the deadline for the project",
+          "Checking that chasing the success metric does not harm something important",
+          "Measuring the same success a second time to be sure"
+         ],
+         "answer_index": 2,
+         "explanation": "To make sure the push does not damage something else, such as quality or complaints.",
+         "topic_id": "metric-and-guardrail"
+        },
+        {
+         "question_id": "u2-l3-q1-v2",
+         "variant_of": "u2-l3-q1",
+         "prompt": "Which describes the job of a guardrail metric?",
+         "choices": [
+          "Checking that chasing the success metric does not harm something important",
+          "Setting the deadline for the project",
+          "Counting how many features the team shipped",
+          "Measuring the same success a second time to be sure"
+         ],
+         "answer_index": 0,
+         "explanation": "A guardrail watches for harm elsewhere while you improve the main number. It does not repeat success, set dates or count features.",
+         "topic_id": "metric-and-guardrail"
+        }
+       ]
+      },
+      {
+       "topic_id": "target-and-window",
+       "variants": [
+        {
+         "question_id": "u2-l3-q2-v1",
+         "variant_of": "u2-l3-q2",
+         "prompt": "Which goal could you check clearly at the end of a quarter?",
+         "choices": [
+          "Keep improving checkout completion over time",
+          "Raise checkout completion as high as possible",
+          "Make checkout much better soon",
+          "Raise checkout completion from 60% to 70% within eight weeks of launch"
+         ],
+         "answer_index": 3,
+         "explanation": "Only a goal with a starting level, a target level and a deadline can be checked. Vague goals like soon, as high as possible or over time cannot.",
+         "topic_id": "target-and-window"
+        },
+        {
+         "question_id": "u2-l3-q2-v2",
+         "variant_of": "u2-l3-q2",
+         "prompt": "A teammate proposes four goals for a new feature. Which one is measurable with a deadline?",
+         "choices": [
+          "Make checkout much better soon",
+          "Raise checkout completion as high as possible",
+          "Keep improving checkout completion over time",
+          "Raise checkout completion from 60% to 70% within eight weeks of launch"
+         ],
+         "answer_index": 3,
+         "explanation": "The measurable goal names a target and a time window. The others leave both open.",
+         "topic_id": "target-and-window"
+        }
+       ]
+      },
+      {
+       "topic_id": "leading-vs-lagging",
+       "variants": [
+        {
+         "question_id": "u2-l3-q3-v1",
+         "variant_of": "u2-l3-q3",
+         "prompt": "You want an early sign that a new sign-up flow works. Which measure moves first?",
+         "choices": [
+          "Number of onboarding screens the team built",
+          "Share of new users who finish the first lesson on day one",
+          "Total revenue earned this year",
+          "Share of new users still active three months later"
+         ],
+         "answer_index": 1,
+         "explanation": "An early measure moves soon after launch and hints at the final result. Later retention and yearly revenue are lagging, and screens built is an output.",
+         "topic_id": "leading-vs-lagging"
+        },
+        {
+         "question_id": "u2-l3-q3-v2",
+         "variant_of": "u2-l3-q3",
+         "prompt": "Which of these would you check in the first days after launch to predict success?",
+         "choices": [
+          "Total revenue earned this year",
+          "Share of new users who finish the first lesson on day one",
+          "Number of onboarding screens the team built",
+          "Share of new users still active three months later"
+         ],
+         "answer_index": 1,
+         "explanation": "A leading metric appears quickly. The others either take months to show or measure the team's work, not user behaviour.",
+         "topic_id": "leading-vs-lagging"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
