@@ -28,7 +28,7 @@ test(
     await expect(
       page.getByRole("status").filter({ hasText: "Lesson paused" }),
     ).toBeVisible();
-    const tutor = page.getByRole("complementary", { name: "Tutor chat" });
+    const tutor = page.getByRole("region", { name: "Tutor chat" });
     await expect(tutor.getByRole("log", { name: "Tutor" })).toBeVisible();
     await flow.step("tutor open, lesson paused");
 
@@ -61,7 +61,10 @@ test(
     await flow.step("daily free credits spent");
 
     await page.getByRole("button", { name: "Close Ask tutor" }).click();
-    await expect(page.getByRole("button", { name: "Next" })).toBeVisible();
+    // Back on the last slide, where "Take lesson test" replaces "Next".
+    await expect(
+      page.getByRole("link", { name: "Take lesson test" }),
+    ).toBeVisible();
     await flow.step("back to the lesson");
   },
 );

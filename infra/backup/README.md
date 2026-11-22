@@ -29,7 +29,9 @@ The worker:
   E17-09 additionally gives the backup writer read-only `GetObject` access to the
   application bucket's `lessons/*` prefix for encrypted nightly rig/audio/alignment
   copies and key/version/checksum manifests. It cannot write or delete application
-  objects or read unrelated prefixes; the worker receives no application keys.
+  objects or read unrelated prefixes. The worker also holds the application key,
+  because its lessons queue publishes generated lessons, narration and example decks;
+  the backup job itself uses only the backup writer identity.
   Existing local policies must be refreshed by the normal `backup-init` task;
   cloud IAM must carry the same reviewed prefix grant before rollout.
 - Emits `backup_completed` / `backup_failed` with size, duration and outcome via

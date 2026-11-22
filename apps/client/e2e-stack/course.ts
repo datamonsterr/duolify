@@ -74,12 +74,11 @@ export async function previewToCourse(page: Page, flow?: Flow): Promise<void> {
   await expect(preview.or(failed)).toBeVisible({ timeout: 120_000 });
   if (await failed.isVisible()) {
     await flow?.step("preview failed");
-    // The suite never approves pricing; the target's active version must quote the engine route.
-    test.fixme(
-      true,
-      "pricing not approved on target: course preview failed. The active approved pricing " +
-        "version must quote the route the engine serves (the owner-approved Hy4/GLM version " +
-        "lands with PR #304, migration 20261123110000_hy4_routing_pricing_approved.sql).",
+    // The owner-approved Hy4/GLM routing version (migration 20261123110000) is active on
+    // every target, so a failed preview is a product or engine defect, never a skip.
+    throw new Error(
+      `course preview failed: ${await failed.innerText()}. The active approved pricing ` +
+        "version must quote the route the engine serves; see the api and engine logs.",
     );
   }
   await flow?.step("course preview");
