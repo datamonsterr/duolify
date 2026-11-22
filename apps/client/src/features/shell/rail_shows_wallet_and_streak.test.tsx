@@ -60,6 +60,14 @@ describe("shell right rail", () => {
     expect(screen.getByText("Balance unavailable")).toBeVisible();
   });
 
+  it("treats a malformed wallet response as unavailable", async () => {
+    vi.mocked(authRequest).mockResolvedValue({ available: 5 });
+    render(<Credits />);
+    await waitFor(() => expect(authRequest).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByText("Balance unavailable")).toBeVisible();
+  });
+
   it("re-reads the wallet after navigation", async () => {
     vi.mocked(authRequest).mockResolvedValue(wallet);
     const { rerender } = render(<Credits revision="/courses" />);
