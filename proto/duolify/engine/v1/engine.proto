@@ -241,6 +241,47 @@ message Slide {
   string narration = 4;
   repeated string topic_ids = 5;
   repeated CharacterSegment segments = 6;
+  // Declared regions of the Slide (empty for Lessons generated before regions and for
+  // authored Slides). Each box is the layout slot the Engine pinned the region element to.
+  repeated SlideRegion regions = 7;
+}
+
+// SlideRegion describes one block of a Slide in plain text, so the API can ground a question
+// about part of the stage without reading pixels or trusting client-supplied Slide text.
+message SlideRegion {
+  // Stable within the Slide: letters, digits, '-' or '_'.
+  string region_id = 1;
+  RegionBox box = 2;
+  // Unset: visible for the whole Slide.
+  RegionWindow window = 3;
+  RegionRole role = 4;
+  // Plain text, no markup or control characters.
+  string description = 5;
+}
+
+// RegionBox is a rectangle in normalized coordinates (0..1) of the 16:9 stage, origin top left.
+message RegionBox {
+  double x = 1;
+  double y = 2;
+  double w = 3;
+  double h = 4;
+}
+
+// RegionWindow is a time window on the Slide clock: start_ms <= t < end_ms.
+message RegionWindow {
+  uint32 start_ms = 1;
+  uint32 end_ms = 2;
+}
+
+enum RegionRole {
+  REGION_ROLE_UNSPECIFIED = 0;
+  REGION_ROLE_TITLE = 1;
+  REGION_ROLE_EXPLANATION = 2;
+  REGION_ROLE_EXAMPLE = 3;
+  REGION_ROLE_DIAGRAM = 4;
+  REGION_ROLE_CODE = 5;
+  REGION_ROLE_QUESTION = 6;
+  REGION_ROLE_CAPTION = 7;
 }
 
 // Plain text dialogue; keys resolve exclusively through the API-pinned Cast.

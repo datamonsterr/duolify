@@ -466,10 +466,14 @@ impl LlmProvider for MockProvider {
                 "slides": [
                     {
                         "slide_id": "s1",
-                        "html": "<div id=\"root\">Sample</div>",
+                        "html": "<div id=\"root\"><h1 data-region=\"title\">Sample</h1><p data-region=\"body\">Sample explanation</p></div>",
                         "duration_ms": 3000,
                         "narration": "Sample explanation",
-                        "topic_ids": ["top-1"]
+                        "topic_ids": ["top-1"],
+                        "regions": [
+                            {"id": "title", "slot": "top", "role": "title", "description": "Title: Sample", "start_ms": 0, "end_ms": 0},
+                            {"id": "body", "slot": "body", "role": "explanation", "description": "Sample explanation of the topic", "start_ms": 0, "end_ms": 0}
+                        ]
                     }
                 ],
                 "units": [
@@ -548,6 +552,7 @@ pub mod narration;
 pub mod notes;
 pub mod pricing;
 pub mod promotion;
+pub mod regions;
 pub mod sharing;
 pub mod slide;
 #[cfg(test)]
