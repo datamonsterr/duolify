@@ -1759,6 +1759,8 @@ pub struct Runner {
     pub prompt_revision: String,
     pub judge_fixtures: HashMap<String, String>,
     pub budget_usd: Option<f64>,
+    /// Cases in the dataset before sampling (defaults to the cases passed to `run_cases`).
+    pub dataset_cases: Option<usize>,
     pub total_cost_usd: f64,
     pub budget_exceeded: bool,
     pub custom_router: Option<engine_core::ProviderRouter>,
@@ -1777,6 +1779,7 @@ impl Runner {
             prompt_revision: "head".to_string(),
             judge_fixtures: HashMap::new(),
             budget_usd: None,
+            dataset_cases: None,
             total_cost_usd: 0.0,
             budget_exceeded: false,
             custom_router: None,
@@ -1799,6 +1802,7 @@ impl Runner {
             prompt_revision: "head".to_string(),
             judge_fixtures: HashMap::new(),
             budget_usd: None,
+            dataset_cases: None,
             total_cost_usd: 0.0,
             budget_exceeded: false,
             custom_router: Some(router),
@@ -2273,6 +2277,7 @@ impl Runner {
             live_promoted: false,
             passed: final_passed,
             critical_failure: final_critical,
+            dataset_cases: self.dataset_cases.unwrap_or(cases.len()),
             task_reports,
             results,
         };

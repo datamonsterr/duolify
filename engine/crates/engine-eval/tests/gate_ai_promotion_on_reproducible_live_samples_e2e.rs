@@ -378,7 +378,7 @@ fn promotion_gate_cli_subcommand_verifies_report() {
         "passed": true,
         "critical_failure": false,
         "budget_exceeded": false,
-        "task_reports": {
+        "dataset_cases": 1, "task_reports": {
             "course_preview": { "task": "course_preview", "model": "m", "score": 1.0, "threshold": 1.0, "passed": true, "critical_failure": false, "total_cases": 1, "passed_cases": 1, "deterministic_score": 1.0 },
             "course_outline": { "task": "course_outline", "model": "m", "score": 1.0, "threshold": 1.0, "passed": true, "critical_failure": false, "total_cases": 1, "passed_cases": 1, "deterministic_score": 1.0 },
             "lesson_slides": { "task": "lesson_slides", "model": "m", "score": 1.0, "threshold": 1.0, "passed": true, "critical_failure": false, "total_cases": 1, "passed_cases": 1, "deterministic_score": 1.0 },

@@ -101,6 +101,17 @@ impl Model {
             repair: None,
         }
     }
+    /// One bounded attempt: exactly one model request, no provider-side chain, so the bounded
+    /// runner counts, times, prices and labels every call it makes.
+    pub fn attempt_route(&self, fallback: bool) -> Route {
+        let mut route = if fallback {
+            self.fallback_route()
+        } else {
+            self.primary_route()
+        };
+        route.fallbacks.clear();
+        route
+    }
     pub fn fallback_route(&self) -> Route {
         Route {
             model: self.fallback_model.clone(),

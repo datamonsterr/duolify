@@ -150,6 +150,7 @@ async fn main() -> Result<()> {
                 live_promoted: false,
                 passed: false,
                 critical_failure: false,
+                dataset_cases: 0,
                 task_reports: std::collections::BTreeMap::new(),
                 results: Vec::new(),
             };
@@ -215,6 +216,7 @@ async fn main() -> Result<()> {
                 live_promoted: false,
                 passed: false,
                 critical_failure: false,
+                dataset_cases: 0,
                 task_reports: std::collections::BTreeMap::new(),
                 results: Vec::new(),
             };
@@ -388,6 +390,7 @@ async fn main() -> Result<()> {
     runner.dataset_sha256 = dataset_sha256;
     runner.prompt_revision = prompt_rev;
     runner.budget_usd = budget;
+    runner.dataset_cases = Some(total);
 
     let report = runner.run_cases(cases, &thresholds).await?;
 

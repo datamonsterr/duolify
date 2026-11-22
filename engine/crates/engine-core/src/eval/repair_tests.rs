@@ -76,6 +76,22 @@ async fn review(replies: &[&'static str]) -> (crate::credits::Outcome, Arc<Scrip
 }
 
 #[tokio::test]
+async fn each_bounded_attempt_is_one_single_model_request() {
+    // Review F3: a route that still carries fallback models lets the HTTP provider run its own
+    // chain inside one attempt, so the runner under-counts calls and mislabels the fallback.
+    let (o, p) = review(&["not json", r#"{"verdict":"pass","reason_codes":[]}"#]).await;
+    assert!(o.completion.is_some());
+    let routes = p.routes.lock().unwrap();
+    assert_eq!(routes.len(), 2);
+    assert!(
+        routes.iter().all(|r| r.fallbacks.is_empty()),
+        "{:?}",
+        routes.iter().map(|r| &r.fallbacks).collect::<Vec<_>>()
+    );
+    assert!(!o.attempts[0].fallback_used && o.attempts[1].fallback_used);
+}
+
+#[tokio::test]
 async fn fenced_answer_is_delivered_as_the_extracted_json() {
     let (o, p) = review(&["```json\n{\"verdict\":\"pass\",\"reason_codes\":[]}\n```"]).await;
     let c = o.completion.unwrap();
