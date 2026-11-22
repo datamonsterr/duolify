@@ -25,7 +25,7 @@ git ls-files --cached --others --exclude-standard -z -- '*Dockerfile' | xargs -0
 shellcheck infra/backup/restore-drill.sh infra/backup/scheduled-restore-drill.sh infra/hooks/*.sh infra/s3/*.sh infra/load/*.sh infra/deploy/*.sh infra/deploy/walship/*.sh
 docker compose --file infra/deploy/compose.yml --env-file infra/deploy/.env.example config -q
 docker compose --file infra/deploy/compose.yml --file infra/deploy/compose.prod.yml --env-file infra/deploy/.env.prod.example --profile '*' config -q
-docker run --rm --network none -v "$PWD/infra/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker run --rm --network none -v "$PWD/infra/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" -v "$PWD/infra/deploy/security-headers.caddy:/etc/caddy/security-headers.caddy:ro" caddy:2.11-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 docker compose --profile observability run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
 docker run --rm --network none --entrypoint promtool -v "$PWD/infra/observability/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro" -v "$PWD/infra/observability/alerts.yml:/etc/prometheus/alerts.yml:ro" prom/prometheus:v3.8.0 check config /etc/prometheus/prometheus.yml
 docker run --rm --network none --entrypoint promtool -v "$PWD/infra/observability:/t:ro" -w /t prom/prometheus:v3.8.0 test rules alerts.test.yml
@@ -121,7 +121,7 @@ run = "bash infra/deploy/selfhost.sh restore-drill"
 
 ["infra:deploy-plan"]
 description = "Production overlay: static plan check (private Engine, direct Postgres, WAL archiving, backup env, DR job, off-site backup location, alerts) plus its unit tests"
-run = ["bash infra/deploy/test-deploy-plan.sh", "bash infra/deploy/test-deploy.sh", "bash infra/deploy/test-smoke.sh", "bash infra/deploy/walship/test-walship.sh", "bash infra/deploy/walship/test-archive-wal.sh", "bash infra/deploy/test-backup-lifecycle.sh", "bash infra/deploy/deploy-plan.sh"]
+run = ["bash infra/deploy/test-deploy-plan.sh", "bash infra/deploy/test-deploy.sh", "bash infra/deploy/test-smoke.sh", "bash infra/deploy/test-security-headers.sh", "bash infra/deploy/walship/test-walship.sh", "bash infra/deploy/walship/test-archive-wal.sh", "bash infra/deploy/test-backup-lifecycle.sh", "bash infra/deploy/deploy-plan.sh"]
 
 ["infra:backup-lifecycle"]
 description = "Apply the wal/ + base/ retention lifecycle to the backup bucket (admin key from env: BACKUP_ADMIN_S3_ACCESS_KEY_ID/SECRET_ACCESS_KEY plus BACKUP_S3_ENDPOINT/REGION/BUCKET; needs the aws CLI; run from an admin machine, not the VM)"

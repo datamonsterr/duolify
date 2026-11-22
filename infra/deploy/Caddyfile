@@ -5,6 +5,10 @@
 	admin off
 }
 
+# Security headers (snippets web_headers, sso_bridge_headers, lesson_frame_headers). Same file feeds the
+# client test server, so the policy tested is the policy shipped.
+import /etc/caddy/security-headers.caddy
+
 # Container healthcheck only; this port is never published.
 http://:8081 {
 	respond /healthz "ok" 200
@@ -32,7 +36,26 @@ http://:8081 {
 		}
 	}
 
+	# Sandboxed lesson slide host: its own policy (inline code, no network but the asset origin).
+	handle /lesson-frame.html {
+		import lesson_frame_headers
+		root * /srv
+		file_server
+	}
+
+	# The Clerk SSO page: the web policy plus the Clerk origins, on this one path only.
+	@sso path /sso-bridge /sso-bridge/*
+	handle @sso {
+		import web_headers
+		import sso_bridge_headers
+		header Cache-Control "no-cache"
+		root * /srv
+		rewrite * /index.html
+		file_server
+	}
+
 	handle {
+		import web_headers
 		root * /srv
 		@immutable path /assets/*
 		header @immutable Cache-Control "public, max-age=31536000, immutable"
@@ -42,8 +65,6 @@ http://:8081 {
 	}
 
 	header {
-		X-Content-Type-Options nosniff
-		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
 

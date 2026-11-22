@@ -41,9 +41,15 @@ async function wasWarmed() {
   return Boolean(await cache.match(warmedKey));
 }
 
+// The sandboxed slide host is an iframe with an opaque origin, which this worker never sees. It is served
+// immutable under a per-build URL, so fetching it here puts it in the HTTP cache for offline playback.
+const primeLessonFrame = () =>
+  fetch(`/lesson-frame.html?v=${encodeURIComponent(version)}`).catch(() => {});
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
+      await primeLessonFrame();
       const files = await manifest();
       const cache = await caches.open(shell);
       await addMissing(
@@ -71,6 +77,7 @@ self.addEventListener("message", (event) => {
   event.waitUntil(
     (async () => {
       try {
+        await primeLessonFrame();
         const files = await manifest();
         await addMissing(await caches.open(shell), files.offline);
         await (await caches.open(meta)).put(warmedKey, new Response("1"));

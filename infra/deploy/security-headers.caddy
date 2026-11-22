@@ -1,0 +1,43 @@
+# Security headers for the web client, one source for every place the client is served.
+# - Caddyfile imports this file; Caddy fills {$VAR:default} from the proxy container's environment.
+# - apps/client/build/securityHeaders.ts reads the same file (same {$VAR:default} rule) for `vite preview`
+#   in the Playwright suite (so tests run the real policy) and for the optional Workers `_headers` file.
+# Rules: one `Name "value"` per line inside `header { }`; values on one line; no other directives here.
+# Origins come from env, never from literals: LESSON_ASSET_ORIGIN (slide assets), API_ORIGIN (only when the
+# API is on another origin than the page), POSTHOG_HOST (analytics ingestion), CLERK_FAPI_ORIGIN (derived from
+# CLERK_PUBLISHABLE_KEY by proxy-entrypoint.sh). See docs/adr/0022-security-headers-and-csp.md.
+
+# Every web response (HTML, JS, CSS, images).
+(web_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), payment=(), usb=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; media-src 'self' blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; font-src 'self'; connect-src 'self' {$API_ORIGIN:} {$LESSON_ASSET_ORIGIN:http://localhost:9000} {$POSTHOG_HOST:https://us.i.posthog.com}; frame-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+	}
+}
+
+# /sso-bridge only: the one page that loads Clerk (apps/client/src/features/accounts/SsoBridge.tsx).
+# Replaces the Content-Security-Policy of web_headers; the other headers stay.
+(sso_bridge_headers) {
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self' {$CLERK_FAPI_ORIGIN:} https://challenges.cloudflare.com https://*.protect.clerk.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://img.clerk.com {$LESSON_ASSET_ORIGIN:http://localhost:9000}; media-src 'self' blob: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; font-src 'self'; connect-src 'self' {$API_ORIGIN:} {$CLERK_FAPI_ORIGIN:} https://*.protect.clerk.com:* {$POSTHOG_HOST:https://us.i.posthog.com}; frame-src 'self' https://challenges.cloudflare.com https://*.protect.clerk.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+	}
+}
+
+# /lesson-frame.html only: the sandboxed lesson slide host (apps/client/public/lesson-frame.html). Slides are
+# generated, untrusted HTML with inline script and style, so this policy allows inline code but nothing else:
+# no network except the asset origin, no frames, no forms, no workers. The app itself never gets 'unsafe-inline'.
+# Embeddable by the app only (frame-ancestors 'self'); the frame is sandboxed without allow-same-origin.
+# Immutable: the app requests it as /lesson-frame.html?v=<build id> and replays it from the HTTP cache offline.
+(lesson_frame_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+		Cache-Control "public, max-age=31536000, immutable"
+		Content-Security-Policy "default-src 'none'; script-src 'unsafe-inline' data: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; style-src 'unsafe-inline' {$LESSON_ASSET_ORIGIN:http://localhost:9000}; img-src data: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; media-src data: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; font-src data: {$LESSON_ASSET_ORIGIN:http://localhost:9000}; connect-src {$LESSON_ASSET_ORIGIN:http://localhost:9000}; frame-src 'none'; object-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"
+	}
+}

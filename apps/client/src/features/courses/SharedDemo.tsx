@@ -7,6 +7,7 @@ import { sendCommand } from "../lesson-player/bridge";
 import { trackSharedDemo } from "../../lib/analytics";
 import type { Preview } from "./CoursePreview";
 import "./course-brief.css";
+import { SandboxFrame } from "../lesson-player/SandboxFrame";
 
 type Demo = { kind: "shared_demo"; version: "sky-v1"; preview: Preview };
 const base = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
@@ -238,12 +239,11 @@ function DemoSlide({
   };
   return (
     <>
-      <iframe
+      <SandboxFrame
         ref={frame}
         title={`Shared example slide ${index + 1}`}
-        sandbox="allow-scripts"
         referrerPolicy="no-referrer"
-        srcDoc={sandboxDocument(
+        html={sandboxDocument(
           `<style>svg{max-inline-size:100%;block-size:auto}</style>${slide.html}`,
           "https://assets.example.test",
           reduced,
