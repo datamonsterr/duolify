@@ -75,8 +75,8 @@ func GeneratedObjects(prefix string, slides []GeneratedSlide, origin string) (st
 
 const generatedAccessSQL = `SELECT g.id::text FROM generated_lessons g JOIN course_lesson_stubs l ON l.id=g.lesson_stub_id
  JOIN course_units u ON u.id=l.unit_id JOIN courses c ON c.id=u.course_id
- JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id::text=$2
- WHERE g.lesson_stub_id::text=$1 AND g.learner_id::text=$2 AND l.learner_id=g.learner_id AND c.learner_id=g.learner_id
+ JOIN course_enrollments e ON e.course_id=c.id AND e.learner_id=$2::uuid
+ WHERE g.lesson_stub_id=$1::uuid AND g.learner_id=$2::uuid AND l.learner_id=g.learner_id AND c.learner_id=g.learner_id
  AND l.status<>'locked' AND c.deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM course_copies cc WHERE cc.copy_course_id=c.id AND cc.blocked_at IS NOT NULL)`
 
 // MaterializeGenerated bridges DB-only generated Lessons into the existing versioned player store.
@@ -89,7 +89,7 @@ func (s *Service) MaterializeGenerated(ctx context.Context, owner, lesson string
 		return err
 	}
 	var exists bool
-	if err = s.opts.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM lesson_manifests WHERE lesson_id::text=$1 AND learner_id::text=$2)`, lesson, owner).Scan(&exists); err != nil {
+	if err = s.opts.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM lesson_manifests WHERE lesson_id=$1::uuid AND learner_id=$2::uuid)`, lesson, owner).Scan(&exists); err != nil {
 		return err
 	}
 	if exists {
@@ -99,7 +99,7 @@ func (s *Service) MaterializeGenerated(ctx context.Context, owner, lesson string
 	if !ok {
 		return errors.New("generated object writer unavailable")
 	}
-	rows, err := s.opts.Pool.Query(ctx, `SELECT slide_id,html,duration_ms,narration FROM lesson_slides WHERE lesson_stub_id::text=$1 AND learner_id::text=$2 ORDER BY position`, lesson, owner)
+	rows, err := s.opts.Pool.Query(ctx, `SELECT slide_id,html,duration_ms,narration FROM lesson_slides WHERE lesson_stub_id=$1::uuid AND learner_id=$2::uuid ORDER BY position`, lesson, owner)
 	if err != nil {
 		return err
 	}
