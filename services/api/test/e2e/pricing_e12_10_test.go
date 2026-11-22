@@ -18,6 +18,7 @@ import (
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/backuptest"
 	"github.com/datamonsterr/duolify/services/api/internal/httpapi"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
@@ -154,9 +155,10 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 		return w
 	}
 
-	// 1. Prepare base interim pricing config
+	// 1. Prepare base interim pricing config on the pre-Hy4 catalogue these scenarios were written for
+	backuptest.ActivateLegacyPricingBaseline(t, db.Pool)
 	var baseConfig map[string]any
-	if err = db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version='usd-quotes-2026-11-09'").Scan(&baseConfig); err != nil {
+	if err = db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version='usd-pre-hy4-baseline'").Scan(&baseConfig); err != nil {
 		t.Fatal(err)
 	}
 
@@ -362,14 +364,14 @@ func TestPricingE1210ActivateAndRollbackThroughHTTP(t *testing.T) {
 	})
 
 	t.Run("Forward rollback disables design chat actions while preserving catalogue", func(t *testing.T) {
-		// Roll back to usd-quotes-2026-11-09 (which lacks design chat actions)
+		// Roll back to usd-pre-hy4-baseline (which lacks design chat actions)
 		rollbackEffective := time.Now().UTC().Add(800 * time.Millisecond)
 		rollbackPayload, _ := json.Marshal(map[string]any{
 			"version":        "usd-rollback-e12-10",
 			"effective_from": rollbackEffective.Truncate(time.Microsecond).Format(time.RFC3339Nano),
 			"reason":         "reverting design chat prices to base catalogue",
 		})
-		w := request(http.MethodPost, "/admin/v1/pricing/drafts/usd-quotes-2026-11-09/rollback", authorToken, rollbackPayload)
+		w := request(http.MethodPost, "/admin/v1/pricing/drafts/usd-pre-hy4-baseline/rollback", authorToken, rollbackPayload)
 		if w.Code != http.StatusCreated {
 			t.Fatalf("rollback draft failed: status=%d body=%s", w.Code, w.Body)
 		}

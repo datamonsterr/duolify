@@ -1,0 +1,27 @@
+package backuptest
+
+import (
+	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// LegacyPricingBaseline is the Sonnet/Haiku catalogue active before the Hy4 approval.
+const LegacyPricingBaseline = "usd-pre-hy4-baseline"
+
+// ActivateLegacyPricingBaseline re-creates the pre-Hy4 catalogue as the newest active version, for tests
+// that exercise drafts, approvals and rollbacks on top of that state.
+func ActivateLegacyPricingBaseline(t testing.TB, pool *pgxpool.Pool) {
+	t.Helper()
+	for _, statement := range []string{
+		`INSERT INTO pricing_versions(version,effective_from,approved,config)
+ SELECT '` + LegacyPricingBaseline + `','2026-11-22T12:00:02Z',true,jsonb_set(jsonb_set(config,'{version}','"` + LegacyPricingBaseline + `"'),'{effective_from}','"2026-11-22T12:00:02Z"')
+ FROM pricing_versions WHERE version='usd-quotes-2026-11-09'`,
+		`INSERT INTO pricing_quote_policies(version,policy) SELECT '` + LegacyPricingBaseline + `',policy FROM pricing_quote_policies WHERE version='usd-quotes-2026-11-09'`,
+		`INSERT INTO pricing_activation_events(version,activated_at) VALUES('` + LegacyPricingBaseline + `','2026-11-22T12:00:02Z')`,
+	} {
+		if _, err := pool.Exec(t.Context(), statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
