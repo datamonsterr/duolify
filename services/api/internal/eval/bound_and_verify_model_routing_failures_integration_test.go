@@ -4,6 +4,7 @@ package eval_test
 
 import (
 	"context"
+	"github.com/datamonsterr/duolify/services/api/internal/backuptest"
 	"strings"
 	"testing"
 	"time"
@@ -48,6 +49,7 @@ func TestBoundAndVerifyModelRoutingFailuresIntegration(t *testing.T) {
 	}
 	owner := uuid.UUID(learner.ID.Bytes).String()
 
+	backuptest.ActivateLegacyPricingBaseline(t, database.Pool)
 	catalogue, err := pricing.Load(ctx, database.Queries)
 	if err != nil {
 		t.Fatal(err)
