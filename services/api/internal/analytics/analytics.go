@@ -87,6 +87,8 @@ func allowlisted(event string) bool {
 		return true
 	case "slide_viewed", "slide_replayed", "slide_paused":
 		return true
+	case "lesson_region_selected", "lesson_region_question_sent", "lesson_answer_panel_closed":
+		return true
 	case "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "retry_variant_pool_exhausted", "lesson_test_recap_shown", "ui_test_retry_presented",
@@ -468,6 +470,25 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		boolean("fallback_used")
 		if source := input["cast_source"]; source == "default" || source == "custom" || source == "mixed" {
 			out["cast_source"] = source
+		}
+	case "lesson_region_selected", "lesson_region_question_sent", "lesson_answer_panel_closed":
+		// Identifiers, counts and closed enums only: never question text, Slide text, region
+		// descriptions or rectangle coordinates (the area is a bucket).
+		ids("course_id", "lesson_id")
+		numeric("slide_index")
+		boolean("has_region", "saved_note")
+		for key, allowed := range map[string][]string{
+			"method":          {"two_finger", "select_area", "keyboard"},
+			"area_bucket":     {"small", "medium", "large"},
+			"regions_matched": {"0", "1", "2_plus"},
+			"input":           {"voice", "text"},
+			"grounding":       {"regions", "whole_slide"},
+			"outcome":         {"completed", "stopped", "failed"},
+			"follow_ups":      {"0", "1", "2_plus"},
+		} {
+			if value, ok := input[key].(string); ok && slices.Contains(allowed, value) {
+				out[key] = value
+			}
 		}
 	case "slide_viewed", "slide_replayed", "slide_paused":
 		ids("lesson_id", "slide_id")

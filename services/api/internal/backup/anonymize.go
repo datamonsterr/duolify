@@ -166,7 +166,7 @@ pricing_quotes.snapshot pricing_verification_evidence.evidence pricing_version_c
 pricing_versions.config publication_drafts.content_hash publication_drafts.findings
 publication_drafts.reason_codes publication_drafts.verdict publication_links.token_hash publication_links.revoked_by_action_id
 publication_screenings.policy_version publication_screenings.reason_codes publication_screenings.verdict
-social_rate_limits.bucket tutor_turns.end_reason tutor_turns.persona_fallback
+social_rate_limits.bucket tutor_messages.anchor_grounding tutor_turns.end_reason tutor_turns.persona_fallback
 username_config.profanity username_config.reserved`) {
 		reviewedSafe[column] = true
 	}

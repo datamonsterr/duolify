@@ -11,6 +11,8 @@ import {
   type Page,
 } from "@playwright/test";
 
+import { waitForCode } from "./codes";
+
 const run = promisify(execFile);
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(here, "../../..");
@@ -36,13 +38,21 @@ const codesSeen = new Map<string, number>();
  * For a remote stack set E2E_STACK_CODE_COMMAND to a shell command that prints every code
  * sent to $1, one per line, oldest first.
  */
-export async function signInCode(email: string): Promise<string> {
+export async function signInCode(
+  email: string,
+  { reuse = false }: { reuse?: boolean } = {},
+): Promise<string> {
   const custom = process.env.E2E_STACK_CODE_COMMAND;
   const seen = codesSeen.get(email) ?? 0;
-  const deadline = Date.now() + 20_000;
-  let last = "";
-  while (Date.now() < deadline) {
-    try {
+  const { code, reused, count } = await waitForCode({
+    seen,
+    reuse,
+    // A local log mailer is instant; real mail needs the resend cooldown plus delivery.
+    timeoutMs:
+      Number(process.env.E2E_STACK_CODE_TIMEOUT_MS) ||
+      (custom ? 90_000 : 20_000),
+    intervalMs: custom ? 1_000 : 500,
+    list: async () => {
       const { stdout } = custom
         ? await run("sh", ["-c", custom, "sh", email])
         : await run("bash", [
@@ -50,18 +60,13 @@ export async function signInCode(email: string): Promise<string> {
             "code",
             email,
           ]);
-      const codes = stdout.split("\n").filter((line) => /^\d{6}$/.test(line));
-      if (codes.length > seen) {
-        codesSeen.set(email, codes.length);
-        return codes[codes.length - 1];
-      }
-      last = `${codes.length} code(s), waiting for code ${seen + 1}`;
-    } catch (error) {
-      last = String(error).split("\n")[0];
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  throw new Error(`no sign-in code for ${email}: ${last}`);
+      return stdout.split("\n").filter((line) => /^\d{6}$/.test(line));
+    },
+  }).catch((error) => {
+    throw new Error(`${String(error.message)} (${email})`);
+  });
+  if (!reused) codesSeen.set(email, count);
+  return code;
 }
 
 export type Features = { lesson_test_tracer_enabled?: boolean } & Record<

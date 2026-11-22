@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 )
 
@@ -48,7 +50,7 @@ func (s *S3) Put(ctx context.Context, key string, raw []byte) error {
 	if !validKey(key) || len(raw) > maxObjectBytes {
 		return errInvalid
 	}
-	_, err := s.Client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key), Body: bytes.NewReader(raw), IfNoneMatch: aws.String("*")})
+	_, err := s.Client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key), Body: bytes.NewReader(raw), IfNoneMatch: aws.String("*"), ContentType: aws.String(ContentTypeForKey(key)), CacheControl: aws.String(ImmutableCacheControl)})
 	if err != nil {
 		var response interface{ HTTPStatusCode() int }
 		if errors.As(err, &response) && response.HTTPStatusCode() == 412 {
@@ -108,13 +110,39 @@ func (s *S3) List(ctx context.Context, prefix string) ([]string, error) {
 	for pages.HasMorePages() {
 		page, err := pages.NextPage(ctx)
 		if err != nil {
-			return nil, errors.New("lesson object listing failed")
+			return nil, fmt.Errorf("lesson object listing failed: %w", err) // SDK errors name the cause, never credentials
 		}
 		for _, o := range page.Contents {
 			keys = append(keys, aws.ToString(o.Key))
 		}
 	}
 	return keys, nil
+}
+
+// RewriteMetadata repairs the Content-Type and Cache-Control of an existing key with a
+// self-CopyObject (MetadataDirective=REPLACE). It reports whether the key needed a rewrite;
+// with dryRun it only reports. Objects written before explicit types existed carry
+// application/octet-stream.
+func (s *S3) RewriteMetadata(ctx context.Context, key string, dryRun bool) (bool, error) {
+	if !validKey(key) {
+		return false, errInvalid
+	}
+	want := ContentTypeForKey(key)
+	head, err := s.Client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key)})
+	if err != nil {
+		return false, errors.New("lesson object unavailable")
+	}
+	if aws.ToString(head.ContentType) == want && aws.ToString(head.CacheControl) == ImmutableCacheControl {
+		return false, nil
+	}
+	if dryRun {
+		return true, nil
+	}
+	_, err = s.Client.CopyObject(ctx, &s3.CopyObjectInput{Bucket: aws.String(s.Bucket), Key: aws.String(key), CopySource: aws.String(s.Bucket + "/" + key), MetadataDirective: types.MetadataDirectiveReplace, ContentType: aws.String(want), CacheControl: aws.String(ImmutableCacheControl), Metadata: head.Metadata})
+	if err != nil {
+		return false, errors.New("lesson object metadata rewrite failed")
+	}
+	return true, nil
 }
 
 // Exists treats only an explicit NotFound as an absent object, for restore checks.

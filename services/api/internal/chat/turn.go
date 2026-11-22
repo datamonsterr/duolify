@@ -27,6 +27,8 @@ type sendInput struct {
 	Message        string       `json:"message"`
 	ThreadID       string       `json:"thread_id"`
 	Lesson         *lessonInput `json:"lesson"`
+	// Region optionally selects part of the Slide named by Lesson; see regionInput.
+	Region *regionInput `json:"region"`
 	// SpeakerKey picks a supporting tutor from the effective Cast; empty means the main guide.
 	SpeakerKey string `json:"speaker_key"`
 }
@@ -182,6 +184,11 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		lessonFailure(w, err)
 		return
 	}
+	ground, err := s.resolveRegion(ctx, owner, in.Lesson, in.Region)
+	if err != nil {
+		regionFailure(w, err)
+		return
+	}
 	thread, newThread := in.ThreadID, false
 	if thread != "" {
 		var ok bool
@@ -239,6 +246,9 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 		s.opts.Logger.Error("tutor context failed", "error", err)
 		fail(w, http.StatusServiceUnavailable, "unavailable")
 		return
+	}
+	if ground != nil {
+		req.RegionQuestion = ground.Question
 	}
 	pin, err := s.pinPersona(ctx, owner, course, turn, in)
 	if err != nil {
@@ -313,6 +323,11 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 	}
 	claimed = true
 	s.emitPersona(ctx, owner, pin)
+	if ground != nil {
+		props := ground.emitted()
+		props["course_id"] = course
+		s.emit(ctx, owner, "lesson_region_question_sent", props)
+	}
 	s.emit(ctx, owner, "tutor_message_sent", map[string]any{"course_id": course, "class": in.Class, "message_length": len([]rune(in.Message)), "has_lesson_context": current != nil})
 	if errors.Is(context.Cause(streamCtx), errStopped) {
 		// Stopped before the Engine was called: nothing was produced.
@@ -472,10 +487,10 @@ func (s *Service) send(w http.ResponseWriter, r *http.Request, owner, course str
 				return e
 			}
 		}
-		if _, e := tx.Exec(fctx, `INSERT INTO tutor_messages(id,thread_id,learner_id,role,content) VALUES($1::uuid,$2::uuid,$3::uuid,'user',$4)`, userID, thread, owner, in.Message); e != nil {
+		if _, e := tx.Exec(fctx, `INSERT INTO tutor_messages(id,thread_id,learner_id,role,content,`+anchorColumns+`) VALUES($1::uuid,$2::uuid,$3::uuid,'user',$4,`+anchorValues+`)`, append([]any{userID, thread, owner, in.Message}, ground.anchorArgs()...)...); e != nil {
 			return e
 		}
-		if _, e := tx.Exec(fctx, `INSERT INTO tutor_messages(id,thread_id,learner_id,role,content,status) VALUES($1::uuid,$2::uuid,$3::uuid,'assistant',$4,$5)`, assistantID, thread, owner, text, msgStatus); e != nil {
+		if _, e := tx.Exec(fctx, `INSERT INTO tutor_messages(id,thread_id,learner_id,role,content,status,`+anchorColumns+`) VALUES($1::uuid,$2::uuid,$3::uuid,'assistant',$4,$5,`+anchorValues6+`)`, append([]any{assistantID, thread, owner, text, msgStatus}, ground.anchorArgs()...)...); e != nil {
 			return e
 		}
 		tag, e := tx.Exec(fctx, `UPDATE tutor_turns SET state=$2,thread_id=$3::uuid,user_message_id=$4::uuid,assistant_message_id=$5::uuid,end_reason=NULLIF($6,''),job_id=$7::uuid,usage_estimated=$8 WHERE id=$1::uuid AND state='pending'`, turn, finished.State, thread, userID, assistantID, finished.Reason, job.ID, usage[0].Estimated)

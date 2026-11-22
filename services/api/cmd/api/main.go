@@ -442,6 +442,7 @@ func run(ctx context.Context, args []string) (result error) {
 	}
 	logger.Info("course invite push adapter", "adapter", pushName)
 	socialService.OnBlock(sharingService.CancelInvitesOnBlock)
+	playerService := player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService, Narration: narrationRecovery, CastSafety: characterService.SafetyProjection})
 	handler := httpapi.New(httpapi.Dependencies{
 		Steering:                steeringService,
 		Sharing:                 sharingService,
@@ -450,12 +451,12 @@ func run(ctx context.Context, args []string) (result error) {
 		Social:                  socialService,
 		Monitor:                 monitor,
 		NarrationVoices:         narrationVoices,
-		Player:                  player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN"), Credits: creditService, Narration: narrationRecovery, CastSafety: characterService.SafetyProjection}),
+		Player:                  playerService,
 		ObjectStorage:           telemetry.StorageProbe(os.Getenv),
 		Accounts:                auth,
 		Credits:                 creditService,
 		CourseBrief:             courseService,
-		Tutor:                   chat.New(chat.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Profiles: courseService, Personas: characterService, Events: events, Notes: notesService, Logger: logger}),
+		Tutor:                   chat.New(chat.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Profiles: courseService, Personas: characterService, Slides: playerService, Events: events, Notes: notesService, Logger: logger}),
 		Pricing:                 runtimePricing,
 		PricingAdmin:            pricingAdmin,
 		Quotes:                  quotesService,

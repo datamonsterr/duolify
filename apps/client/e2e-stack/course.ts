@@ -40,15 +40,29 @@ export async function briefToPreviewQuote(
   ).toBeVisible();
   await flow?.step("create course start");
 
-  await page.getByRole("textbox", { name: "Your answer" }).fill(topic);
-  await page.getByRole("button", { name: "Send answer", exact: true }).click();
-  // The mock engine asks for the goal next; a live model may ask a follow-up instead.
-  await expect(
-    page.getByRole("log", { name: "New assistant messages" }).locator("p"),
-  ).toHaveCount(2);
-  await flow?.step("topic answered in guided chat");
+  // The guided chat is only on where the owner approved it (development, test, or production with
+  // COURSE_BRIEF_CHAT_LIVE_APPROVED); elsewhere, staging included, the brief is the form.
+  const answer = page.getByRole("textbox", { name: "Your answer" });
+  // The config request decides which one renders; give the chat a few seconds to appear.
+  const chat = await answer.waitFor({ timeout: 8_000 }).then(
+    () => true,
+    () => false,
+  );
+  if (chat) {
+    await answer.fill(topic);
+    await page
+      .getByRole("button", { name: "Send answer", exact: true })
+      .click();
+    // The mock engine asks for the goal next; a live model may ask a follow-up instead.
+    await expect(
+      page.getByRole("log", { name: "New assistant messages" }).locator("p"),
+    ).toHaveCount(2);
+    await flow?.step("topic answered in guided chat");
+  } else {
+    await flow?.step("brief form (assistant disabled)");
+  }
   // Every brief line is editable; make sure the topic is set whatever the chat did.
-  const brief = page.getByRole("complementary", { name: "Course brief" });
+  const brief = page; // the brief panel is a labelled aside beside the chat, a plain form without it
   if (
     !(await brief
       .getByRole("textbox", { name: "Topic", exact: true })

@@ -71,6 +71,12 @@ description = "Send labelled test events through the API PostHog wrapper (event 
 dir = "{{config_root}}/services/api"
 run = "go run ./cmd/posthog-setup verify --ai"
 
+["api:rewrite-asset-metadata"]
+description = "One-off: set Content-Type/Cache-Control on existing lessons/ objects via CopyObject REPLACE. Dry run unless called with -apply; uses S3_* env (see docs/ci.md)"
+usage = 'arg "[flag]..." var=#true help="Flags, e.g. -apply or -prefix lessons/examples/"'
+dir = "{{config_root}}/services/api"
+run = 'go run ./cmd/rewrite-asset-metadata ${usage_flag:-}'
+
 ["api:posthog-setup"]
 description = "Create or update the PostHog AI reliability and cost dashboard (idempotent; needs POSTHOG_* env)"
 dir = "{{config_root}}/services/api"

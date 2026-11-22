@@ -206,8 +206,40 @@ fn tutor_context(req: &pb::ChatRequest) -> engine_core::chat::Context {
         }
         parsed
     };
+    let region = req.region_question.as_ref().map(|r| {
+        let rect = r.rect.unwrap_or_default();
+        c::RegionQuestion {
+            slide_index: r.slide_index,
+            rect: c::Rect {
+                x: rect.x,
+                y: rect.y,
+                w: rect.w,
+                h: rect.h,
+            },
+            at_ms: r.at_ms,
+            whole_slide: r.whole_slide,
+            regions: r
+                .regions
+                .iter()
+                .map(|q| c::QuestionRegion {
+                    region_id: q.region_id.clone(),
+                    role: pb::RegionRole::try_from(q.role)
+                        .map(|v| {
+                            v.as_str_name()
+                                .trim_start_matches("REGION_ROLE_")
+                                .to_lowercase()
+                        })
+                        .unwrap_or_default(),
+                    description: q.description.clone(),
+                    overlap: q.overlap,
+                })
+                .collect(),
+            slide_explanation: r.slide_explanation.clone(),
+        }
+    });
     c::Context {
         persona,
+        region,
         course_title: outline.title,
         course_description: outline.description,
         units: outline

@@ -2122,6 +2122,14 @@ impl Runner {
                     "contains" => response_text.contains(check.value.as_deref().unwrap_or("")),
                     "regex" => regex::Regex::new(check.value.as_deref().context("missing regex")?)?
                         .is_match(&response_text),
+                    // The pattern must not occur anywhere in the output (for example an injected token).
+                    "not_regex" => !regex::Regex::new(
+                        check
+                            .value
+                            .as_deref()
+                            .context("missing not_regex pattern")?,
+                    )?
+                    .is_match(&response_text),
                     "json" => serde_json::from_str::<serde_json::Value>(&response_text).is_ok(),
                     "field" => serde_json::from_str::<serde_json::Value>(&response_text)
                         .ok()
@@ -2356,6 +2364,29 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[tokio::test]
+    async fn not_regex_fails_a_case_whose_output_matches() {
+        let input = serde_json::json!({"brief":{"topic":"Sourdough"},"step":"goal","answer":"bake sourdough at home"});
+        let run = |pattern: &'static str| {
+            let router = live_router(&[("tencent/hy4-flash", "{\"is_vague\":false}")]);
+            let case = live_case(
+                "course_brief_chat",
+                input.clone(),
+                &[("not_regex", pattern)],
+            );
+            async move {
+                Runner::with_router(router, "live", false)
+                    .run_cases(vec![case], &Thresholds::default())
+                    .await
+                    .unwrap()
+                    .results[0]
+                    .passed
+            }
+        };
+        assert!(run("PWNED").await, "absent pattern passes");
+        assert!(!run("next_step").await, "present pattern fails");
     }
 
     #[tokio::test]
