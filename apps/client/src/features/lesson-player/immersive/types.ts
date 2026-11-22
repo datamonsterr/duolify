@@ -23,6 +23,7 @@ export type ImmersiveView = {
   muted: boolean;
   bookmarked: boolean;
   autoAdvance: boolean;
+  fullscreenOnRotate: boolean;
   failed: boolean;
   /** Playback controls are inert until the Slide has loaded. */
   disabled: boolean;
@@ -43,5 +44,6 @@ export type ImmersiveActions = {
   toggleMute: () => void;
   toggleBookmark: () => void;
   setAutoAdvance: (on: boolean) => void;
+  setFullscreenOnRotate: (on: boolean) => void;
   exit: () => void;
 };

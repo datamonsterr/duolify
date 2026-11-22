@@ -481,6 +481,19 @@ export default function ImmersiveLayer({
                     ☰
                   </Btn>
                   <Btn
+                    id="rotate"
+                    label="Go full screen when I turn my phone"
+                    pressed={view.fullscreenOnRotate}
+                    onFocus={remember("rotate")}
+                    onClick={(e) => {
+                      viaOf(e);
+                      bump();
+                      actions.setFullscreenOnRotate(!view.fullscreenOnRotate);
+                    }}
+                  >
+                    ⟳
+                  </Btn>
+                  <Btn
                     id="lock"
                     label="Lock controls"
                     onFocus={remember("lock")}

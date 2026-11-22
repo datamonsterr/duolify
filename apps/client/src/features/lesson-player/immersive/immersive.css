@@ -28,12 +28,15 @@ html[data-imm-rotated] body {
   margin: 0;
   inline-size: auto;
 }
-.player.immersive .panel-main > :not(iframe):not(.stage-recovery) {
+.player.immersive .stage-frame {
+  display: contents;
+}
+.player.immersive .panel-main > :not(.stage-frame):not(.stage-recovery) {
   display: none;
 }
 /* The Slide keeps its 16:9 coordinate space: laid out at 1280×720, then scaled
    uniformly (and rotated 90° where the platform cannot lock orientation). */
-.player.immersive iframe {
+.player.immersive .stage-frame iframe {
   position: fixed;
   left: 50%;
   top: 50%;

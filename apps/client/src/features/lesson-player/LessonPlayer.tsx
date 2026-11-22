@@ -71,6 +71,10 @@ import {
 import { entryReducer, type ExitReason } from "./immersive/presentation";
 import type { ImmersiveActions, ImmersiveView } from "./immersive/types";
 import { useLatest } from "./immersive/useLatest";
+import {
+  pushPlaybackSettings,
+  refreshPlaybackSettings,
+} from "./immersive/settings";
 import { useShellSession } from "../shell/ShellSession";
 import { QuickNotePanel } from "../notes/QuickNotePanel";
 import { TutorChat } from "../chat/TutorChat";
@@ -711,7 +715,21 @@ function ManifestPlayback({
   const [immersiveReady, setImmersiveReady] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [autoAdvance, setAutoAdvance] = useState(initialPrefs.autoplay);
-  const [fullscreenOnRotate] = useState(initialPrefs.fullscreenOnRotate);
+  const [fullscreenOnRotate, setFullscreenOnRotate] = useState(
+    initialPrefs.fullscreenOnRotate,
+  );
+  // Stored per Learner: pick up what the Learner chose on another device, offline-safe.
+  useEffect(() => {
+    let active = true;
+    void refreshPlaybackSettings().then((value) => {
+      if (!active || !value) return;
+      setAutoAdvance(value.autoplay);
+      setFullscreenOnRotate(value.fullscreen_on_rotate);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   const root = useRef<HTMLDivElement>(null);
   const [keyboardEntry, setKeyboardEntry] = useState(false);
   const indexRef = useLatest(index);
@@ -794,6 +812,13 @@ function ManifestPlayback({
         onAutoAdvance={(on) => {
           setAutoAdvance(on);
           savePlayerPreferences({ autoplay: on });
+          void pushPlaybackSettings({ autoplay: on });
+        }}
+        fullscreenOnRotate={fullscreenOnRotate}
+        onFullscreenOnRotate={(on) => {
+          setFullscreenOnRotate(on);
+          savePlayerPreferences({ fullscreenOnRotate: on });
+          void pushPlaybackSettings({ fullscreen_on_rotate: on });
         }}
       />
       {entry && (
@@ -835,6 +860,8 @@ function SlidePlayback({
   onExitImmersive,
   autoAdvance,
   onAutoAdvance,
+  fullscreenOnRotate,
+  onFullscreenOnRotate,
 }: {
   manifest: Manifest;
   index: number;
@@ -843,6 +870,8 @@ function SlidePlayback({
   onExitImmersive: () => void;
   autoAdvance: boolean;
   onAutoAdvance: (on: boolean) => void;
+  fullscreenOnRotate: boolean;
+  onFullscreenOnRotate: (on: boolean) => void;
   initialTime: number;
   autoplay: boolean;
   rate: number;
@@ -861,6 +890,7 @@ function SlidePlayback({
   const shell = useShellSession();
   const { reducedMotion } = useUiPreferences();
   const frame = useRef<HTMLIFrameElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const effectiveDuration = Math.max(
     slide.duration_ms,
     slide.narration?.duration_ms ?? 0,
@@ -1348,6 +1378,19 @@ function SlidePlayback({
     toggle,
     effectiveDuration,
   ]);
+  // Stage contract: the Slide is laid out at 1280×720 and scaled uniformly to the frame,
+  // so a narrow screen letterboxes the Slide instead of clipping or reflowing it.
+  const hasStage = !!slideDocument.data;
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = entry.contentRect.width;
+      if (w > 0) el.style.setProperty("--frame-scale", String(w / 1280));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hasStage]);
   const slideFailed = !!slideDocument.error || assetError;
   const disabled = !ready || slideFailed || panel !== null;
   const slideInfos = useMemo(
@@ -1382,6 +1425,7 @@ function SlidePlayback({
     muted,
     bookmarked: isBookmarked,
     autoAdvance,
+    fullscreenOnRotate,
     failed: slideFailed,
     disabled,
     offline: typeof navigator !== "undefined" && !navigator.onLine,
@@ -1411,6 +1455,7 @@ function SlidePlayback({
     toggleMute,
     toggleBookmark: () => void handleToggleBookmark(),
     setAutoAdvance: onAutoAdvance,
+    setFullscreenOnRotate: onFullscreenOnRotate,
     exit: onExitImmersive,
   };
   return (
@@ -1611,45 +1656,47 @@ function SlidePlayback({
           </div>
         ) : (
           slideDocument.data && (
-            <iframe
-              ref={frame}
-              title={`Slide ${index + 1}`}
-              sandbox="allow-scripts"
-              tabIndex={immersive ? -1 : undefined}
-              srcDoc={sandboxDocument(
-                (manifest.cast && slide.segments?.length
-                  ? generatedCharacterDocument(
-                      {
-                        slide_id: slide.slide_id,
-                        duration_ms: slide.duration_ms,
-                        segments: slide.segments,
-                      },
-                      manifest.cast,
-                      reducedMotion,
-                      typeof navigator !== "undefined" && !navigator.onLine,
-                    )
-                  : "") + slideDocument.data,
-                manifest.asset_origin,
-                reducedMotion,
-                slide,
-                availableOffline(manifest.lesson_id),
-              )}
-              referrerPolicy="no-referrer"
-              onLoad={() => {
-                setReady(true);
-                onStart();
-                command({ type: "set_motion", reduced: reducedMotion });
-                command({ type: "rate", rate });
-                command({ type: "seek", time: clock.snapshot().time });
-                if (autoplay && !document.hidden && !panel) {
-                  clock.play(performance.now());
-                  command({ type: "play" });
-                } else command({ type: "pause" });
-                if (typeof navigator !== "undefined" && !navigator.onLine) {
-                  persist();
-                }
-              }}
-            />
+            <div className="stage-frame" ref={stageRef}>
+              <iframe
+                ref={frame}
+                title={`Slide ${index + 1}`}
+                sandbox="allow-scripts"
+                tabIndex={immersive ? -1 : undefined}
+                srcDoc={sandboxDocument(
+                  (manifest.cast && slide.segments?.length
+                    ? generatedCharacterDocument(
+                        {
+                          slide_id: slide.slide_id,
+                          duration_ms: slide.duration_ms,
+                          segments: slide.segments,
+                        },
+                        manifest.cast,
+                        reducedMotion,
+                        typeof navigator !== "undefined" && !navigator.onLine,
+                      )
+                    : "") + slideDocument.data,
+                  manifest.asset_origin,
+                  reducedMotion,
+                  slide,
+                  availableOffline(manifest.lesson_id),
+                )}
+                referrerPolicy="no-referrer"
+                onLoad={() => {
+                  setReady(true);
+                  onStart();
+                  command({ type: "set_motion", reduced: reducedMotion });
+                  command({ type: "rate", rate });
+                  command({ type: "seek", time: clock.snapshot().time });
+                  if (autoplay && !document.hidden && !panel) {
+                    clock.play(performance.now());
+                    command({ type: "play" });
+                  } else command({ type: "pause" });
+                  if (typeof navigator !== "undefined" && !navigator.onLine) {
+                    persist();
+                  }
+                }}
+              />
+            </div>
           )
         )}
         {hasSegmentNarration(slide) ? (

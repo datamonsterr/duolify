@@ -68,6 +68,15 @@ export default function ImmersiveHost({
     window.addEventListener("resize", relayout);
     window.visualViewport?.addEventListener("resize", relayout);
 
+    // Safe-area insets (notch, home indicator) only exist with viewport-fit=cover; the
+    // rest of the app is laid out without it, so it applies while immersive only.
+    const meta = document.querySelector<HTMLMetaElement>(
+      'meta[name="viewport"]',
+    );
+    const viewportBefore = meta?.content;
+    if (meta && viewportBefore && !viewportBefore.includes("viewport-fit"))
+      meta.content = `${viewportBefore}, viewport-fit=cover`;
+
     // 2. Orientation lock where the platform allows it (needs full screen on web).
     const lockOrientation = () => {
       const o = screen.orientation as
@@ -119,6 +128,7 @@ export default function ImmersiveHost({
       document.removeEventListener("fullscreenchange", onFullscreen);
       document.removeEventListener("keydown", onKey);
       window.removeEventListener("popstate", onPop);
+      if (meta && viewportBefore !== undefined) meta.content = viewportBefore;
       root.style.removeProperty("--imm-scale");
       root.style.removeProperty("--imm-rot");
       delete root.dataset.immRotated;

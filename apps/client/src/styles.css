@@ -993,3 +993,21 @@ progress::-moz-progress-bar {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Framed Slide: 16:9 stage, uniformly scaled (see LessonPlayer), never clipped. */
+.stage-frame {
+  position: relative;
+  inline-size: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+.player .stage-frame iframe {
+  position: absolute;
+  inset: 0 auto auto 0;
+  inline-size: 1280px;
+  block-size: 720px;
+  border-radius: 0;
+  transform-origin: 0 0;
+  transform: scale(var(--frame-scale, 1));
+}

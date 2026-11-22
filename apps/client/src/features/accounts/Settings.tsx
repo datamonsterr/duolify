@@ -20,6 +20,7 @@ import {
 } from "./learner-context";
 import { setFeedbackSettings } from "../design/feedback/feedbackBridge";
 import { analyticsOptOut, setAnalyticsOptOut } from "./session";
+import { applyPlaybackSettings } from "../lesson-player/immersive/settings";
 import "./settings.css";
 
 const settingNames: (keyof SettingsFields)[] = [
@@ -38,6 +39,9 @@ const settingNames: (keyof SettingsFields)[] = [
   "daily_xp",
   "reminder_enabled",
   "reminder_time",
+  "fullscreen_on_rotate",
+  "autoplay",
+  "auto_send_after_dictation",
 ];
 
 function applyVisualPreferences(settings: LearnerSettings) {
@@ -75,6 +79,7 @@ export function Settings() {
             haptics: value.haptics,
           });
           applyVisualPreferences(value);
+          applyPlaybackSettings(value);
         }
       })
       .catch(() => {
@@ -124,6 +129,7 @@ export function Settings() {
       if (!optedOut && saved.haptics !== result.haptics)
         trackPreference("haptics");
       applyVisualPreferences(result);
+      applyPlaybackSettings(result);
       setNotice("Settings saved");
     } catch (cause) {
       setError(
@@ -218,6 +224,24 @@ export function Settings() {
                 onChange={(event) => update("captions", event.target.checked)}
               />
               Captions
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={draft.autoplay}
+                onChange={(event) => update("autoplay", event.target.checked)}
+              />
+              Autoplay the next slide in full-screen lessons
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={draft.fullscreen_on_rotate}
+                onChange={(event) =>
+                  update("fullscreen_on_rotate", event.target.checked)
+                }
+              />
+              Go full screen when I turn my phone to landscape
             </label>
             <label>
               Text size
