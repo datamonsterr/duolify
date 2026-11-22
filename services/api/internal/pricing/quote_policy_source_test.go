@@ -20,14 +20,46 @@ func TestPolicyCoversActionsRejectsUnratedRoutes(t *testing.T) {
 	}
 }
 
-func TestQuotePolicySourceIsNotAPriceTerm(t *testing.T) {
+func TestQuotePolicySourceDoesNotByItselfDescribeTerms(t *testing.T) {
 	before := []byte(`{"version":"a","actions":{"preview":{"credits":1}}}`)
 	after := []byte(`{"version":"b","quote_policy_source":"usd-hy4","actions":{"preview":{"credits":1}}}`)
 	adverse, err := classifyAdverse(before, after)
 	if err != nil || adverse {
-		t.Fatalf("adding a policy source must not be adverse: %v %v", adverse, err)
+		t.Fatalf("source name alone does not describe its terms: %v %v", adverse, err)
 	}
 	if got := (Config{QuotePolicySource: "usd-hy4"}).Public().QuotePolicySource; got != "" {
 		t.Fatalf("public catalogue exposes the policy source: %q", got)
+	}
+}
+
+func TestEffectiveQuotePolicyAdverseTerms(t *testing.T) {
+	rate := ModelRate{Provider: "a", Model: "a", ContextMax: 100, Input: 10, Output: 10, CacheWrite: 10, CacheRead: 10}
+	base := QuotePolicy{FreeConcurrency: 2, MaxAttempts: 2, TTLSeconds: 300, USDNanosPerCredit: 100, AudioUSDNanosPerCharacter: 10, Voices: []string{"default"}, ActionModels: map[string]string{"preview": "a"}, Models: map[string]ModelRate{"a": rate}}
+	cases := []struct {
+		name   string
+		mutate func(*QuotePolicy)
+		want   bool
+	}{
+		{"higher provider rate", func(p *QuotePolicy) { r := p.Models["a"]; r.Input++; p.Models["a"] = r }, true},
+		{"less credit value", func(p *QuotePolicy) { p.USDNanosPerCredit-- }, true},
+		{"fewer attempts", func(p *QuotePolicy) { p.MaxAttempts-- }, true},
+		{"less context", func(p *QuotePolicy) { r := p.Models["a"]; r.ContextMax--; p.Models["a"] = r }, true},
+		{"route only", func(p *QuotePolicy) {
+			r := p.Models["a"]
+			r.Provider = "b"
+			r.Model = "b"
+			p.Models = map[string]ModelRate{"b": r}
+			p.ActionModels = map[string]string{"preview": "b"}
+		}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := base
+			p.Models = map[string]ModelRate{"a": rate}
+			tc.mutate(&p)
+			if got := adverseQuotePolicy(base, p); got != tc.want {
+				t.Fatalf("adverse=%v want %v", got, tc.want)
+			}
+		})
 	}
 }

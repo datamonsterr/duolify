@@ -259,8 +259,7 @@ Approval inserts the immutable version and its quote policy, so this flow
 needs no separate registry or seed. The policy is inherited from the parent unless the
 draft config sets `quote_policy_source` to an existing version (for example the
 unapproved `usd-hy4-routing-2026-11-22-unapproved`): approval then pins that
-version's models, fallbacks and provider rates. The key is not a price term, so it
-does not make a draft adverse; it must name an existing policy that rates every AI
+version's models, fallbacks and provider rates. The source policy is compared with the active policy for adverse learner terms, including higher provider rates, lower Credit value, and reduced limits or attempts. It must name an existing policy that rates every AI
 action's model and fallback chain. Ordinary cost, margin and adverse-notice
 checks still apply. A submitted draft can be edited before approval; once approved,
 use a new version ID for any change.

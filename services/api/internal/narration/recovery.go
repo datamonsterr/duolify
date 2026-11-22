@@ -214,13 +214,17 @@ func (s *Service) regenerate(ctx context.Context, id, hash, voice, model, finger
 	if resolved.VoiceId != voice || resolved.ModelId != model || resolved.SettingsFingerprint != fingerprint || ContentHash(text, voice, model, fingerprint) != hash {
 		return ErrOutput
 	}
+	budgetID := ""
 	if s.opts.Budget.Enabled() {
-		room, used, budgetErr := s.budgetRoom(ctx)
-		if budgetErr != nil {
-			return budgetErr
+		amount := int64(len([]rune(text))) * 2
+		var used int64
+		var err error
+		budgetID, used, err = s.reserveBudget(ctx, amount, time.Now())
+		if err != nil {
+			return err
 		}
-		if int64(len([]rune(text))) > room {
-			s.alertBudgetExhausted("00000000-0000-0000-0000-000000000000", used, int64(len([]rune(text))), 1)
+		if budgetID == "" {
+			s.alertBudgetExhausted("00000000-0000-0000-0000-000000000000", used, amount, 1)
 			return errBudgetExhausted
 		}
 	}
@@ -228,6 +232,9 @@ func (s *Service) regenerate(ctx context.Context, id, hash, voice, model, finger
 	defer cancel()
 	response, err := s.opts.Speech.SynthesizeNarration(callCtx, &enginev1.SynthesizeNarrationRequest{SlideId: "regenerate", Text: text, VoiceKey: VoiceKey,
 		Limits: &enginev1.UsageLimits{Provider: "elevenlabs", Model: model}})
+	if budgetID != "" && err == nil && response != nil && response.Usage != nil && response.Usage.Attempt >= 1 && response.Usage.Attempt <= 2 {
+		_ = s.settleBudget(context.WithoutCancel(ctx), budgetID, int64(len([]rune(text)))*int64(response.Usage.Attempt))
+	}
 	if err == nil {
 		err = ValidateOutput(text, response)
 	}

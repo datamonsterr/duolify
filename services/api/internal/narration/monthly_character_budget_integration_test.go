@@ -151,21 +151,13 @@ func TestMonthlyBudgetCountsGeneratedAssetsOnceAndNeverReusedAudio(t *testing.T)
 		return n
 	}
 	base := used()
-	if _, err := r.f.DB.Pool.Exec(ctx, `INSERT INTO narration_assets(content_hash,text_hash,voice_id,model_id,settings_fingerprint,audio_key,alignment_key,characters,audio_bytes,duration_ms,created_at)
-		VALUES (repeat('a',64),repeat('b',64),'v','m','f','lessons/narration/a','lessons/narration/b',500,1,1,now()),
-		       (repeat('c',64),repeat('d',64),'v','m','f','lessons/narration/c','lessons/narration/d',700,1,1,$1::timestamptz - interval '1 day')`, start); err != nil {
+	if _, err := r.f.DB.Pool.Exec(ctx, `INSERT INTO narration_budget_ledger(occurred_at,characters) VALUES (now(),500),($1::timestamptz - interval '1 day',700)`, start); err != nil {
 		t.Fatal(err)
 	}
 	if got := used(); got != base+500 {
-		t.Fatalf("only this cycle's asset counts: %d, base %d", got, base)
+		t.Fatalf("only this cycle counts: %d, base %d", got, base)
 	}
-	// A learner reusing the asset adds a reference, not characters.
-	if _, err := r.f.DB.Pool.Exec(ctx, `INSERT INTO narration_regenerations(content_hash,status,characters,completed_at) VALUES (repeat('a',64),'completed',120,now())`); err != nil {
-		t.Fatal(err)
-	}
-	if got := used(); got != base+500+120 {
-		t.Fatalf("a completed regeneration is provider usage too: %d", got)
-	}
+
 }
 
 func TestMonthlyBudgetStillGeneratesWhileUnderTheStopLine(t *testing.T) {
@@ -259,5 +251,52 @@ func TestBudgetUsageSurvivesAssetDeletion(t *testing.T) {
 	}
 	if after != before {
 		t.Fatalf("asset deletion changed usage: before %d after %d", before, after)
+	}
+}
+
+func TestBudgetDatabaseFailureNeverDispatches(t *testing.T) {
+	r := newBudgetRig(t)
+	ctx := t.Context()
+	svc := r.build(narration.Budget{Limit: 40000, StopPercent: 95, CycleDay: 1})
+	if _, err := svc.Enqueue(ctx, owner, lesson); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.f.DB.Pool.Exec(ctx, `DROP TABLE narration_budget_ledger CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	_ = svc.SynthesizeLesson(ctx, owner, lesson, true)
+	if n := r.engine.Calls(); n != 0 {
+		t.Fatalf("database failure dispatched %d calls", n)
+	}
+}
+
+func TestBudgetKeepsUnknownProviderOutcome(t *testing.T) {
+	r := newBudgetRig(t)
+	ctx := t.Context()
+	svc := r.build(narration.Budget{Limit: 40000, StopPercent: 95, CycleDay: 1})
+	if _, err := svc.Enqueue(ctx, owner, lesson); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := r.f.DB.Pool.Query(ctx, `SELECT narration_text FROM slide_narrations WHERE lesson_id=$1 AND status='pending'`, lesson)
+	if err != nil {
+		t.Fatal(err)
+	}
+	faults := map[string]string{}
+	for rows.Next() {
+		var text string
+		if err := rows.Scan(&text); err != nil {
+			t.Fatal(err)
+		}
+		faults[narration.NormalizeText(text)] = "engine"
+	}
+	rows.Close()
+	r.engine.SetFaults(faults)
+	_ = svc.SynthesizeLesson(ctx, owner, lesson, true)
+	if r.engine.Calls() == 0 {
+		t.Fatal("expected provider calls")
+	}
+	used, err := svc.CharactersUsed(ctx, narration.Budget{CycleDay: 1}.CycleStart(time.Now()))
+	if err != nil || used == 0 {
+		t.Fatalf("unknown outcome not counted: %d %v", used, err)
 	}
 }

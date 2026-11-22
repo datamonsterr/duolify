@@ -436,7 +436,7 @@ PostHog or logs: `narration_generated`, `narration_cache_hit`, `narration_failed
 (fixed error code), `narration_played` (ids and duration) and `$ai_generation`
 (`feature=narration`, character count) carry ids and counts only. Device copies of audio
 are in-memory object URLs and disposable. The deterministic mock is the default;
-`NARRATION_ENABLED` defaults off. With live synthesis on, the monthly ElevenLabs character budget (`NARRATION_MONTHLY_CHAR_LIMIT`, ADR 0015) is counted from `narration_assets` and completed `narration_regenerations` rows, adds no stored data, and emits `narration_budget_exhausted` (counts only) when live calls stop. E14-04 adds the ElevenLabs adapter with no new persisted data:
+`NARRATION_ENABLED` defaults off. With live synthesis on, the monthly ElevenLabs character budget (`NARRATION_MONTHLY_CHAR_LIMIT`, ADR 0015) uses the append-only `narration_budget_ledger` (timestamp, signed character count, UUID and optional adjustment UUID; no learner ID, text or asset reference). Historical assets and completed regenerations are backfilled at migration; uncertain calls stay conservatively counted. The ledger is included in encrypted database backups, has no learner-specific export or erasure, and is independent of asset retention, and emits `narration_budget_exhausted` (counts only) when live calls stop. E14-04 adds the ElevenLabs adapter with no new persisted data:
 it runs only when `ELEVENLABS_API_KEY` (secret store/env only) AND `NARRATION_LIVE_ENABLED=true`
 are set, sends the normalized narration text to the vendor for synthesis only, and stores nothing
 extra. Vendor errors, logs and events carry fixed codes (`rate_limited`, `engine_unavailable`,

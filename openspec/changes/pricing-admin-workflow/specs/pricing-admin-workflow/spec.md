@@ -12,7 +12,7 @@ Pricing administrators SHALL create, edit, validate, diff, submit, approve, reje
 - **THEN** the operation is refused, no approved version changes, and the failure is auditable
 
 ### Requirement: Adverse classification and approval
-The API SHALL compute adverse status against the currently approved pricing content. An adverse change SHALL require at least 72 hours between approval and `effective_from`, and shall be rejected if any SKU is below 70% margin. The sole launch owner MAY approve an adverse draft after the notice window under ADR 0011; otherwise the author SHALL NOT approve their own adverse draft. Non-adverse drafts MAY be approved by their author.
+The API SHALL compute adverse status against the currently approved pricing content and effective quote policy. A source policy with higher provider rates, lower Credit value, fewer attempts, or tighter limits is adverse; a route change with unchanged learner terms is not. An adverse change SHALL require at least 72 hours between approval and `effective_from`, and shall be rejected if any SKU is below 70% margin. The sole launch owner MAY approve an adverse draft after the notice window under ADR 0011; otherwise the author SHALL NOT approve their own adverse draft. Non-adverse drafts MAY be approved by their author.
 
 #### Scenario: Margin floor
 - **WHEN** any submitted SKU has margin below 70%
@@ -31,3 +31,7 @@ Pricing drafts, approved versions and audit entries SHALL be included in nightly
 #### Scenario: Restore and actor deletion
 - **WHEN** a financial backup is restored or an admin account is deleted
 - **THEN** pricing history remains intact and deleted actor references are pseudonymized
+
+#### Scenario: A draft pins dearer quote terms
+- **WHEN** a draft pins a policy that raises provider rates or reduces Credit value, attempts, or limits
+- **THEN** the draft is adverse and approval requires the normal notice window
