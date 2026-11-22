@@ -60,8 +60,16 @@ type Plan struct {
 	Benefits             []string `json:"benefits"`
 }
 
+// CheckInConfig defines the approved attendance grant and bank cap.
+type CheckInConfig struct {
+	DailyCredits   int64 `json:"daily_credits"`
+	FirstTimeBonus int64 `json:"first_time_bonus"`
+	BankDays       int64 `json:"bank_days"`
+}
+
 // Config is the validated immutable pricing document. Public excludes mappings.
 type Config struct {
+	CheckIn       *CheckInConfig    `json:"check_in,omitempty"`
 	Version       string            `json:"version"`
 	EffectiveFrom time.Time         `json:"effective_from"`
 	Currency      string            `json:"currency"`

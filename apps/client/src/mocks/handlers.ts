@@ -35,6 +35,18 @@ export const courses: Course[] = [
   },
 ];
 export const handlers = [
+  // General UI fixtures have already attended; check-in scenarios override this.
+  http.post("*/v1/me/check-in", () =>
+    HttpResponse.json({
+      granted: 0,
+      first_time: false,
+      checked_in: false,
+      balance: 0,
+      banked_checkin: 0,
+      cap: 0,
+      next_check_in_at: new Date(Date.now() + 86_400_000).toISOString(),
+    }),
+  ),
   // SSO is off unless a test or the API turns it on.
   http.get("*/v1/auth/sso/config", () => HttpResponse.json({ enabled: false })),
   http.get("*/v1/lessons/:lesson/position", () => HttpResponse.json(null)),

@@ -94,7 +94,9 @@ it("quotes, accepts then streams; Enter sends and Shift+Enter adds a line", asyn
   open(svc);
   const input = await typeAndWaitForQuote("Why?");
   expect(svc.wallet).toHaveBeenCalled();
-  expect(screen.getByText(/Daily free 28 · Purchased 124/)).toBeTruthy();
+  expect(
+    screen.getByText(/Daily free 28 · Check-in and paid 124/),
+  ).toBeTruthy();
   fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
   fireEvent.change(input, { target: { value: "Why?\nmore" } });
   expect(svc.send).not.toHaveBeenCalled();
