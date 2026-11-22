@@ -212,7 +212,10 @@ pub async fn process(
                     && c.output_tokens <= limits.output_tokens
                     && c.text.len() <= limits.output_tokens as usize * 16
             })
-            .and_then(|c| serde_json::from_str::<Classification>(&c.text).ok());
+            .and_then(|c| {
+                serde_json::from_str::<Classification>(crate::structured::extract_json(&c.text))
+                    .ok()
+            });
         let success = classification.is_some();
         attempts.push(Attempt {
             provider: provider.name().into(),

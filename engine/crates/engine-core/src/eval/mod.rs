@@ -8,6 +8,8 @@ use futures::StreamExt;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(test)]
+mod repair_tests;
+#[cfg(test)]
 mod tests;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
