@@ -90,7 +90,7 @@ func (f *Fixture) AssertPreDeletionRestoreErased(t *testing.T, ciphertext []byte
 	t.Helper()
 	const learner = "a1111111-1111-4111-8111-111111111111"
 	ref := accounts.LearnerReference(learner)
-	ledger := backup.DeletionLedger{Objects: f.objects}
+	ledger := backup.DeletionLedger{Objects: f.objects, ClerkKey: strings.Repeat("synthetic-erasure-key", 2)}
 	if err := ledger.Append(t.Context(), ref); err != nil {
 		t.Fatal(err)
 	}
@@ -499,7 +499,9 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		t.Fatal(err)
 	}
 
-	proposalQuote, err := pricing.NewQuotes(f.DB.Pool).CreateDevelopmentOutline(t.Context(), "a1111111-1111-4111-8111-111111111111", pricing.QuoteInput{Action: "outline_chat_change", OutlineDraftID: "c7222222-2222-4222-8222-222222222222", OutlineRevision: 3, RequestHash: strings.Repeat("a", 64)})
+	proposalQuotes := pricing.NewQuotes(f.DB.Pool)
+	proposalQuotes.SetEnvironment("development") // the active version carries the design chat keys, whose owner gate is development-only here
+	proposalQuote, err := proposalQuotes.CreateDevelopmentOutline(t.Context(), "a1111111-1111-4111-8111-111111111111", pricing.QuoteInput{Action: "outline_chat_change", OutlineDraftID: "c7222222-2222-4222-8222-222222222222", OutlineRevision: 3, RequestHash: strings.Repeat("a", 64)})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -121,7 +121,7 @@ run = "bash infra/deploy/selfhost.sh restore-drill"
 
 ["infra:deploy-plan"]
 description = "Production overlay: static plan check (private Engine, direct Postgres, WAL archiving, backup env, DR job, off-site backup location, alerts) plus its unit tests"
-run = ["bash infra/deploy/test-deploy-plan.sh", "bash infra/deploy/test-deploy.sh", "bash infra/deploy/walship/test-walship.sh", "bash infra/deploy/walship/test-archive-wal.sh", "bash infra/deploy/test-backup-lifecycle.sh", "bash infra/deploy/deploy-plan.sh"]
+run = ["bash infra/deploy/test-deploy-plan.sh", "bash infra/deploy/test-deploy.sh", "bash infra/deploy/test-smoke.sh", "bash infra/deploy/walship/test-walship.sh", "bash infra/deploy/walship/test-archive-wal.sh", "bash infra/deploy/test-backup-lifecycle.sh", "bash infra/deploy/deploy-plan.sh"]
 
 ["infra:backup-lifecycle"]
 description = "Apply the wal/ + base/ retention lifecycle to the backup bucket (admin key from env: BACKUP_ADMIN_S3_ACCESS_KEY_ID/SECRET_ACCESS_KEY plus BACKUP_S3_ENDPOINT/REGION/BUCKET; needs the aws CLI; run from an admin machine, not the VM)"
@@ -146,6 +146,10 @@ run = "bash infra/deploy/overlay-tests.sh sse"
 ["infra:overlay-e2e"]
 description = "Production overlay: bring up API x2, Engine, Redis, Postgres with WAL archiving on local RustFS; smoke and WAL shipping"
 run = "bash infra/deploy/overlay-tests.sh e2e"
+
+["infra:overlay-ca"]
+description = "Production overlay: the api, worker, engine and walship images carry a TLS root certificate bundle (a missing bundle breaks every outbound HTTPS call, e.g. Cloudflare R2; CI otherwise only uses plain-HTTP local storage)"
+run = "bash infra/deploy/overlay-tests.sh ca"
 
 ["infra:overlay-pitr"]
 description = "Production overlay: PITR drill from base backup plus archived WAL on a throwaway Postgres"

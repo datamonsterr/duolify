@@ -7,9 +7,14 @@ it("accepts only the registered deep link with state and code", () => {
   expect(
     parseSSOCallback(`duolify://sso/callback?state=${state}&code=${code}`),
   ).toEqual({ state, code });
-  expect(parseSSOCallback("duolify://sso/callback?error=access_denied")).toBe(
-    null,
-  );
+  expect(
+    parseSSOCallback("duolify://sso/callback?error=access_denied"),
+  ).toBeUndefined();
+  expect(
+    parseSSOCallback(
+      `duolify://sso/callback?state=${state}&error=access_denied`,
+    ),
+  ).toEqual({ state, cancelled: true });
   for (const bad of [
     "https://evil.test/callback?state=x",
     "duolify://oauth/callback?state=x",

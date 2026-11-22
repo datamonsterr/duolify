@@ -419,6 +419,9 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		// Queueing and quote resolution consume the same budget as provider work.
 		providerCtx, cancel := context.WithDeadline(r.Context(), job.DeadlineAt)
 		defer cancel()
+		// The quote allows minutes; the server's 20 s WriteTimeout would drop the paid preview.
+		// The slack covers settlement, which runs after the provider call.
+		_ = http.NewResponseController(w).SetWriteDeadline(job.DeadlineAt.Add(3 * time.Minute))
 		// API resolves bounds from the pinned quote.
 		request.Limits, err = financial.Limits(providerCtx, owner, job.ID, "preview")
 		if err != nil {

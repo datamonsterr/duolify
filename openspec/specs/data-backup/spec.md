@@ -20,8 +20,7 @@ The API `worker` SHALL run `pg_dump` nightly and upload the result to object sto
 General dumps MUST be kept for 14 days and financial dumps for 35 days. Expiry
 MUST run as a job under an identity separate from the append-only backup writer,
 and MUST NOT delete the newest dump of either class or the account-deletion ledger or shorten live seven-year
-financial history. Railway volume snapshots and PITR remain a second, owner-provided
-layer. Backups MUST live in a different encrypted bucket from application data, with no application delete rights.
+financial history. WAL archiving for point-in-time recovery and an off-site disaster recovery copy SHALL provide a second layer. Backups MUST live in a different encrypted bucket from application data, with no application delete rights.
 
 #### Scenario: Old dumps
 - **WHEN** a general dump is older than 14 days or a financial dump older than 35 days
@@ -63,11 +62,15 @@ A restore drill MUST restore the newest dump through the restorer identity into 
 - **THEN** it runs after the other checks; without it the report states `not-configured`
 
 ### Requirement: Object storage protection
-Object storage buckets for Slides, assets and mirrored Golden set revisions MUST have versioning enabled. The application identity MUST NOT delete versions or change versioning. Pinned golden set dataset revisions mirrored to S3 MUST be verified with SHA-256 checksums. Slides MUST be regenerable only through a tracked job, never silently. Recovery and regeneration SHALL append a new version under the same key tagged with an operator job id.
+Object storage for Slides, assets and mirrored Golden set revisions MUST use versioning where supported. Protected assets MUST have encrypted backup copies pinned by SHA-256 checksums; golden set revisions mirrored to S3 MUST be verified with SHA-256. On R2, backup `wal/` and `base/` prefixes use bucket lock rules and expiry; the store cannot recover overwritten object versions, and version-aware asset recovery and deletion-ledger versioning are not guaranteed. These limitations MUST be revisited before real assets or the deletion ledger rely on object versions. Slides MUST be regenerated only by a tracked operator job, never silently. Where versioning is available the application identity MUST NOT change versioning, and recovery and regeneration SHALL append a version tagged with the operator job id.
 
-#### Scenario: Object overwritten
-- **WHEN** a Slide object is overwritten by mistake
+#### Scenario: Object overwritten on a versioned store
+- **WHEN** a Slide object is overwritten by mistake on a versioned store
 - **THEN** an operator job restores the previous version under the same key and the same reference serves it
+
+#### Scenario: Protected asset copy on R2
+- **WHEN** a protected asset is backed up on R2
+- **THEN** its encrypted copy is pinned by checksum and records `unversioned`; overwritten versions cannot be recovered from R2 version history
 
 #### Scenario: Untracked regeneration
 - **WHEN** regeneration is requested without a job id
@@ -170,7 +173,7 @@ behavior changes; existing evaluation and fallback requirements SHALL remain.
 - **THEN** safe River metadata survives and no new learner data store is required
 
 ### Requirement: Publication draft data
-`publication_drafts` (snapshots and version refs) SHALL be in nightly dumps and the versioned bucket, and `publication_screenings` rows (verdict, cost, codes only) SHALL be retained one year. Neither holds private learner payload. Account deletion MUST remove the owner's drafts and screenings and the export MUST list drafts by number, date and verdict. The restore check MUST cover both tables.
+`publication_drafts` (snapshots and version refs) SHALL be in nightly dumps and the protected asset copy under `Object storage protection`, and `publication_screenings` rows (verdict, cost, codes only) SHALL be retained one year. Neither holds private learner payload. Account deletion MUST remove the owner's drafts and screenings and the export MUST list drafts by number, date and verdict. The restore check MUST cover both tables.
 
 #### Scenario: Account deleted
 - **WHEN** a Learner deletes their account
@@ -195,40 +198,25 @@ behavior changes; existing evaluation and fallback requirements SHALL remain.
 - **THEN** every copy resolves its pinned version and lessons without the source Course
 
 ### Requirement: Copy-local generated Lessons are backed up
-Lessons generated in a Course copy and their consent records SHALL be included in the nightly encrypted Postgres dump and the versioned asset copy. Restore MUST return them with the copy and the immutable published hash; account deletion MUST erase them.
+Lessons generated in a Course copy and their consent records SHALL be included in the nightly encrypted Postgres dump and the protected asset copy under `Object storage protection`. Restore MUST return them with the copy and the immutable published hash; account deletion MUST erase them.
 
 #### Scenario: Restore keeps copy-local content
 - **WHEN** a dump with a generated copy Lesson is restored
 - **THEN** the Lesson and its consent record exist and the pin hash is unchanged
 
 ### Requirement: Railway environment separation and private engine isolation
-The system SHALL provide git-backed definitions for dev, staging, and prod Railway
-environments. Environment definitions MUST configure variables by NAME only, with
-secret values preserved rather than committed. The AI Engine service MUST NOT define
-public domains or routes and MUST be isolated to private internal networking.
-Services SHALL specify Postgres, Redis, and separate S3 asset and backup roles.
-
-#### Scenario: Validate environment separation
-- **WHEN** the plan-only validator runs against dev, staging, and prod configurations
-- **THEN** all environments declare required roles and the engine has no public domains
+The system SHALL provide separate dev, staging and production configurations for the self-hosted stack. Secret values MUST NOT be committed. The AI Engine MUST remain on private internal networking, without a public route. Postgres, Redis, and separate asset and backup storage roles SHALL be configured.
 
 #### Scenario: Reject public engine
-- **WHEN** an environment configuration exposes the engine on a public domain or route
-- **THEN** the validator rejects the configuration
+- **WHEN** an environment configuration exposes the engine on a public route
+- **THEN** validation rejects the configuration
 
 ### Requirement: Release gates and plan-only CI evidence
-CI SHALL enforce plan-only environment validation preserving `ci-ok` and draft/ready
-tiers. Any live apply operation MUST be gated on owner HITL ticket E11-07 and remain
-disabled. Config outputs and error reports MUST redact secret values. API readiness
-`/readyz` and migration rollback SHALL guard service activation.
+CI SHALL preserve `ci-ok` and draft/ready tiers. The `deploy-vm` workflow SHALL deploy tested images by digest to the VM, with readiness and migration safeguards. Configuration outputs and errors MUST redact secret values.
 
 #### Scenario: Missing dependency or plaintext secret
 - **WHEN** an environment lacks a required dependency or contains a plaintext secret value
-- **THEN** the plan validator rejects the configuration and redacts secrets in error output
-
-#### Scenario: Live apply disabled without E11-07
-- **WHEN** a release gate evaluates an apply operation
-- **THEN** the live apply step is rejected as disabled pending E11-07 approval
+- **THEN** validation rejects the configuration and redacts secrets in error output
 
 ### Requirement: Marketplace listing metadata is backed up
 `marketplace_listings` and `marketplace_listing_stats` SHALL be included in the nightly encrypted Postgres dump. Restore MUST return listings with their search vector inputs, and account deletion MUST erase the owner's listings. Redis holds only derived pages and is not backed up.

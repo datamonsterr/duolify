@@ -9,6 +9,14 @@
 # time (a new instance is healthy before an old one stops), the worker and the proxy.
 # Before anything is pulled it runs deploy-plan.sh against the env file (fail fast on bad settings).
 # See docs/infra/hardening.md "Deploys" for the migration and restart-order rules and failure states.
+# Convergence: a failed deploy never leaves a crash loop behind. Before the data services are judged, containers
+# of api, worker, engine and proxy that are restarting, dead, exited with an error or unhealthy (leftovers of an
+# earlier failed deploy) are removed; if the rolling restart fails, the new API containers that never became
+# healthy are removed (the old generation, which is only stopped after its replacement is healthy, keeps serving),
+# the env file gets its previous image references back, and any broken container is removed again. Data services
+# (postgres, redis, walship, prometheus, node-exporter) and volumes are never touched.
+# If the smoke test fails after the rollout, the whole stack is rolled back too: the env file gets its previous
+# image references and engine, API, worker and proxy are restarted on them, so what runs matches .env.
 # Private images: DEPLOY_REGISTRY_USER=<login> logs Docker in to ghcr.io with a token read from stdin
 # (deploy-vm passes the job's short-lived GITHUB_TOKEN, `packages: read`). The login lives in a throwaway
 # DOCKER_CONFIG and is logged out and deleted right after the pull and on any exit; the token never
@@ -56,6 +64,8 @@ command -v jq >/dev/null || { echo "deploy: jq is required for the pre-deploy ch
 DEPLOY_PLAN_ENV=$env_file bash "${DEPLOY_PLAN:-$here/deploy-plan.sh}" "$here" ||
   { echo "deploy: $env_file failed deploy-plan; nothing was pulled or migrated. Fix it and redeploy." >&2; exit 1; }
 
+env_backup=$(mktemp)
+cp -p "$env_file" "$env_backup"
 setenv() { if grep -q "^$1=" "$env_file"; then sed -i "s|^$1=.*|$1=$2|" "$env_file"; else echo "$1=$2" >>"$env_file"; fi; }
 setenv IMAGE_TAG "$tag" # only the locally built walship image uses the tag
 setenv API_IMAGE "${pinned[api]}"
@@ -64,6 +74,35 @@ setenv ENGINE_IMAGE "${pinned[engine]}"
 setenv WEB_IMAGE "${pinned[web]}"
 setenv BACKUP_INIT_IMAGE "${pinned[backup-init]}"
 
+# Containers of the stack as "<id>|<service>|<state>|<exit code>|<health>" (ids are short).
+stack_containers() { compose ps --all --format '{{.ID}}|{{.Service}}|{{.State}}|{{.ExitCode}}|{{.Health}}' 2>/dev/null || true; }
+# Only these services may be removed here; never a data service.
+removable=' api worker engine proxy '
+remove_broken() {
+  local id svc state code health
+  while IFS='|' read -r id svc state code health; do
+    [[ $removable == *" $svc "* ]] || continue
+    if [[ $state == restarting || $state == dead || ($state == exited && $code != 0) || $health == unhealthy ]]; then
+      say "removing broken $svc container $id (state $state, exit $code, health ${health:-none})"
+      docker rm --force "$id" >/dev/null 2>&1 || true # no -v: volumes stay
+    fi
+  done < <(stack_containers)
+}
+# Remove API containers that are not part of the previous generation and are not healthy.
+rollback_api() {
+  local id svc state code health o known
+  while IFS='|' read -r id svc state code health; do
+    [[ $svc == api ]] || continue
+    known=0
+    for o in "${old[@]}"; do [[ $o == "$id"* || $id == "$o"* ]] && known=1; done
+    ((known)) && continue
+    [[ $health == healthy ]] && continue
+    say "rolling back: removing new api container $id (state $state, health ${health:-none})"
+    docker rm --force "$id" >/dev/null 2>&1 || true
+  done < <(stack_containers)
+}
+phase=start
+old=()
 registry_logout() {
   [[ -n ${DOCKER_CONFIG:-} && -d $DOCKER_CONFIG ]] || return 0
   docker logout ghcr.io >/dev/null 2>&1 || true
@@ -73,11 +112,38 @@ registry_logout() {
 if [[ -n $registry_user ]]; then
   DOCKER_CONFIG=$(mktemp -d)
   export DOCKER_CONFIG
-  trap registry_logout EXIT
   say "registry login ghcr.io as $registry_user (temporary)"
   printf '%s\n' "$registry_token" | docker login ghcr.io --username "$registry_user" --password-stdin >/dev/null
   registry_token=''
 fi
+
+on_exit() {
+  local rc=$?
+  registry_logout
+  if ((rc != 0)) && [[ $phase == converge || $phase == verify ]]; then
+    local failed_phase=rollout
+    [[ $phase == verify ]] && failed_phase=verify
+    say "deploy failed (rc=$rc): rolling back"
+    [[ $failed_phase == rollout ]] && rollback_api
+    remove_broken
+    cp -p "$env_backup" "$env_file"
+    if [[ $failed_phase == rollout ]]; then
+      echo "deploy: rolled back; the previous healthy containers keep serving, $env_file has its previous image references" >&2
+    elif [[ -n $(setting_of API_IMAGE) ]]; then
+      # The new generation was already running (it failed the smoke test): bring the containers back to the
+      # previous image references so what runs matches .env. Never touches data services or volumes.
+      say "smoke failed after the rollout: restarting the previous generation"
+      phase=rollback
+      if (roll_all); then echo "deploy: rolled back to the previous image references; $env_file matches the running containers" >&2
+      else echo "deploy: ROLLBACK FAILED; containers may run a mix of generations, check 'docker ps' against $env_file" >&2; fi
+    else
+      echo "deploy: smoke failed and $env_file has no previous image references to return to; the new generation keeps running" >&2
+    fi
+  fi
+  rm -f "$env_backup"
+  return "$rc"
+}
+trap on_exit EXIT
 
 say "pulling digest-pinned images for $tag"
 compose pull --ignore-buildable api worker engine proxy backup-init
@@ -85,26 +151,38 @@ registry_logout
 for name in api worker engine web backup-init; do echo "  $name ${pinned[$name]}"; done
 compose build walship
 
+phase=converge
+say "removing leftovers of earlier failed deploys"
+remove_broken
+
 say "data services (created if missing, never recreated here)"
 compose up --detach --wait --no-recreate postgres redis walship node-exporter prometheus
 
 say "/api migrate"
 compose run --rm --no-deps migrate
 
-say "engine"
-compose up --detach --wait --no-deps engine
+roll_api() { # one new API instance is healthy before an old one stops
+  mapfile -t old < <(compose ps --quiet api)
+  local count=${#old[@]} id
+  ((count > 0)) || count=2
+  for id in "${old[@]}"; do
+    compose up --detach --wait --no-deps --no-recreate --scale "api=$((count + 1))" api
+    docker stop "$id" >/dev/null && docker rm "$id" >/dev/null
+  done
+  compose up --detach --wait --no-deps --no-recreate --scale "api=$count" api
+}
+roll_all() {
+  say "engine"
+  compose up --detach --wait --no-deps engine
+  say "rolling restart: API"
+  roll_api
+  say "worker and proxy"
+  compose up --detach --wait --no-deps worker proxy
+}
+setting_of() { sed -n "s/^$1=//p" "$env_file" | tail -n 1; }
 
-say "rolling restart: API"
-mapfile -t old < <(compose ps --quiet api)
-count=${#old[@]}
-((count > 0)) || count=2
-for id in "${old[@]}"; do
-  compose up --detach --wait --no-deps --no-recreate --scale "api=$((count + 1))" api
-  docker stop "$id" >/dev/null && docker rm "$id" >/dev/null
-done
-compose up --detach --wait --no-deps --no-recreate --scale "api=$count" api
-
-say "worker and proxy"
-compose up --detach --wait --no-deps worker proxy
+roll_all
+phase=verify
 bash "$here/selfhost.sh" smoke
+phase=finished
 say "deployed $tag"

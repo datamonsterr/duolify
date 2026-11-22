@@ -13,6 +13,7 @@ import (
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
+	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/jackc/pgx/v5"
@@ -839,7 +840,8 @@ func retryable(err error) bool {
 }
 
 func (s *Service) retryOrFail(ctx context.Context, owner, lessonID, voice, slideID, code string, final bool, cause error) error {
-	if !final {
+	// The engine's typed not-promoted refusal will not clear on retry: go captions-only now.
+	if _, _, refused := engine.NotPromoted(cause); !final && !refused {
 		return fmt.Errorf("narration %s: %w", code, cause)
 	}
 	return s.finish(ctx, owner, lessonID, voice, slideID, StatusFailed, code, nil)

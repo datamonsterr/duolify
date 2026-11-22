@@ -14,6 +14,13 @@ type DeletionLedger interface {
 	Contains(context.Context, string) (bool, error)
 }
 
+// ClerkDeletionLedger preserves recoverable provider intents outside SQL snapshots.
+type ClerkDeletionLedger interface {
+	AppendClerk(context.Context, string) error
+	ContainsClerk(context.Context, string) (bool, error)
+	ClerkDeletions(context.Context) ([]string, error)
+}
+
 // ConfigureDeletionLedger must be called before serving deletion requests.
 func (s *Service) ConfigureDeletionLedger(ledger DeletionLedger) { s.deletionLedger = ledger }
 
@@ -114,6 +121,42 @@ func ReplayDeletionLedger(ctx context.Context, pool *pgxpool.Pool, ledger Deleti
 		}
 		if deleted {
 			if _, err := pool.Exec(ctx, "INSERT INTO account_deletion_tombstones(learner_reference) VALUES($1) ON CONFLICT DO NOTHING", ref); err != nil {
+				return err
+			}
+		}
+	}
+	if clerkLedger, ok := ledger.(ClerkDeletionLedger); ok {
+		// Promote pending rows from the previous release into the independent
+		// ledger before any worker can remove them from SQL.
+		pending, err := pool.Query(ctx, "SELECT clerk_user_id FROM clerk_user_deletion_requests")
+		if err != nil {
+			return err
+		}
+		var oldIDs []string
+		for pending.Next() {
+			var id string
+			if err = pending.Scan(&id); err != nil {
+				pending.Close()
+				return err
+			}
+			oldIDs = append(oldIDs, id)
+		}
+		err = pending.Err()
+		pending.Close()
+		if err != nil {
+			return err
+		}
+		for _, id := range oldIDs {
+			if err = clerkLedger.AppendClerk(ctx, id); err != nil {
+				return err
+			}
+		}
+		ids, err := clerkLedger.ClerkDeletions(ctx)
+		if err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if _, err = pool.Exec(ctx, "INSERT INTO clerk_user_deletion_requests(clerk_user_id) VALUES($1) ON CONFLICT DO NOTHING", id); err != nil {
 				return err
 			}
 		}
