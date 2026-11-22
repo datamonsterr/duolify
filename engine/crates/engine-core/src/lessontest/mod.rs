@@ -301,7 +301,19 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
                         v_ans_idx,
                         v_exp,
                         &prev_prompts,
-                    )?;
+                    )
+                    .map_err(|e| {
+                        // Name the variant and the source answer so a repair can fix exactly it.
+                        anyhow::anyhow!(
+                            "variant {id} of {}: {e}; the source choices are {:?} with correct choice {:?}",
+                            source_q["question_id"].as_str().unwrap_or_default(),
+                            source_choices,
+                            source_choices
+                                .get(source_answer_index as usize)
+                                .map(String::as_str)
+                                .unwrap_or_default()
+                        )
+                    })?;
                     prev_prompts.push(v_prompt.to_string());
                 }
             }
@@ -312,7 +324,7 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
 }
 
 /// The JSON contract every generated lesson answers (`validate_lesson` enforces it).
-pub const LESSON_SHAPE: &str = "Return one JSON object only: {\"title\":string,\"slides\":[{\"slide_id\":string,\"html\":string,\"narration\":string,\"duration_ms\":integer,\"topic_ids\":[string]}],\"test\":[{\"question_id\":string,\"topic_id\":string,\"prompt\":string,\"choices\":[string],\"answer_index\":integer,\"explanation\":string}],\"variant_pool\":[{\"topic_id\":string,\"variants\":[{\"question_id\":string,\"topic_id\":string,\"variant_of\":string,\"prompt\":string,\"choices\":[string],\"answer_index\":integer,\"explanation\":string}]}]}. Each html is one self-contained Motion HTML slide with a single root element id=\"root\", inline CSS only: no scripts, no URLs, no HTML entities, no backslashes. narration is plain spoken text without markup that fits duration_ms (1000 to 60000). Every slide has at least one topic_id. The test has exactly one question per distinct taught topic_id, each with a unique question_id, 2 to 6 distinct choices, a valid answer_index and an explanation. Each variant_pool entry belongs to a tested topic_id; its variants have new unique question_ids, the same topic_id, variant_of equal to that topic's test question_id, a reworded prompt, and the same choice texts as the source question in a different order, so the correct choice keeps its exact wording. Inside html never use HTML entities (no &amp; or &nbsp;), backslashes, the words fetch, WebSocket, EventSource, XMLHttpRequest, sendBeacon or importScripts, @import, or data:, javascript:, ftp: or ws: schemes.";
+pub const LESSON_SHAPE: &str = "Return one JSON object only: {\"title\":string,\"slides\":[{\"slide_id\":string,\"html\":string,\"narration\":string,\"duration_ms\":integer,\"topic_ids\":[string]}],\"test\":[{\"question_id\":string,\"topic_id\":string,\"prompt\":string,\"choices\":[string],\"answer_index\":integer,\"explanation\":string}],\"variant_pool\":[{\"topic_id\":string,\"variants\":[{\"question_id\":string,\"topic_id\":string,\"variant_of\":string,\"prompt\":string,\"choices\":[string],\"answer_index\":integer,\"explanation\":string}]}]}. Each html is one self-contained Motion HTML slide with a single root element id=\"root\", inline CSS only: no scripts, no URLs, no HTML entities, no backslashes. narration is plain spoken text without markup that fits duration_ms (1000 to 60000). Every slide has at least one topic_id. The test has exactly one question per distinct taught topic_id, each with a unique question_id, 2 to 6 distinct choices, a valid answer_index and an explanation. variant_pool has one entry per tested topic_id with exactly one variant: a new unique question_id, the same topic_id, variant_of equal to that topic's test question_id, a reworded prompt, and exactly the same choice texts as the source question in a different order, with answer_index pointing at the same correct text. Example: source {\"question_id\":\"q1\",\"choices\":[\"Red\",\"Blue\",\"Green\"],\"answer_index\":1} -> variant {\"question_id\":\"q1-v1\",\"variant_of\":\"q1\",\"choices\":[\"Blue\",\"Green\",\"Red\"],\"answer_index\":0}. Inside html never use HTML entities (no &amp; or &nbsp;), backslashes, the words fetch, WebSocket, EventSource, XMLHttpRequest, sendBeacon or importScripts, @import, or data:, javascript:, ftp: or ws: schemes.";
 
 /// Extra guidance for the repair turn when a slide trips the static safety check.
 const SLIDE_HINT: &str = " (slide html must not contain HTML entities such as &amp; or &nbsp;, backslashes, the words fetch, WebSocket, EventSource, XMLHttpRequest, sendBeacon or importScripts, @import, or data:, javascript:, ftp: or ws: schemes)";
