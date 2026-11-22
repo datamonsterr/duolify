@@ -139,6 +139,9 @@ func TestEnrichNotesWithGroundedSummariesAndTagsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err = db.Pool.Exec(ctx, `INSERT INTO learner_profiles(learner_id,analytics_opt_out) VALUES($1::uuid,false)`, learnerID); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create course, unit, lessons
 	var quoteID string
@@ -237,6 +240,18 @@ func TestEnrichNotesWithGroundedSummariesAndTagsIntegration(t *testing.T) {
 		}
 	}
 
+	// The financial outbox owns attempt telemetry; the note service must not
+	// emit a second, incomplete generation for the same provider attempt.
+	events.mu.Lock()
+	for _, ev := range events.events {
+		if ev.Event == "$ai_generation" {
+			t.Fatal("duplicate direct generation event before outbox dispatch")
+		}
+	}
+	events.mu.Unlock()
+	if err := creditsSvc.DispatchOutbox(ctx); err != nil {
+		t.Fatal(err)
+	}
 	// 5. Verify analytics events: quick_note_enriched and $ai_generation
 	var foundEnriched, foundAiGen bool
 	events.mu.Lock()

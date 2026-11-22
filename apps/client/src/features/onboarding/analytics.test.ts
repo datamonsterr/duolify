@@ -1,5 +1,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { configureAnalytics, trackOnboarding } from "../../lib/analytics";
+import {
+  configureAnalytics,
+  trackExampleCoursesViewed,
+  trackOnboarding,
+} from "../../lib/analytics";
 import { posthog } from "../../lib/posthog";
 vi.mock("../../lib/posthog", () => ({
   posthog: {
@@ -76,4 +80,38 @@ it("does not let event properties replace common identity", () => {
       entry_point: "first_run",
     }),
   );
+});
+
+it("captures each welcome and tour transition with its registered properties", () => {
+  trackOnboarding({ event: "onboarding_welcome_shown" });
+  trackOnboarding({ event: "onboarding_tour_step_viewed", step: "credits" });
+  trackOnboarding({ event: "onboarding_tour_completed" });
+  trackOnboarding({ event: "onboarding_tour_skipped", at_step: "courses" });
+  expect(posthog.capture).toHaveBeenCalledWith(
+    "onboarding_welcome_shown",
+    expect.objectContaining({ source: "client" }),
+  );
+  expect(posthog.capture).toHaveBeenCalledWith(
+    "onboarding_tour_step_viewed",
+    expect.objectContaining({ step: "credits", source: "client" }),
+  );
+  expect(posthog.capture).toHaveBeenCalledWith(
+    "onboarding_tour_completed",
+    expect.objectContaining({ source: "client" }),
+  );
+  expect(posthog.capture).toHaveBeenCalledWith(
+    "onboarding_tour_skipped",
+    expect.objectContaining({ at_step: "courses", source: "client" }),
+  );
+});
+
+it("rejects unregistered example-course surfaces", () => {
+  trackExampleCoursesViewed("onboarding");
+  expect(posthog.capture).toHaveBeenCalledWith(
+    "example_courses_viewed",
+    expect.objectContaining({ surface: "onboarding", source: "client" }),
+  );
+  vi.mocked(posthog.capture).mockClear();
+  trackExampleCoursesViewed("private text" as never);
+  expect(posthog.capture).not.toHaveBeenCalled();
 });

@@ -603,7 +603,7 @@ func (c *RuntimeCatalogue) recordActivation(ctx context.Context, version string)
 		return err
 	}
 	if c.events != nil {
-		properties := map[string]any{"pricing_version": version, "change_class": class, "actor_id": systemActor, "platform": "web", "app_version": "development", "source": "api"}
+		properties := map[string]any{"pricing_version": version, "change_class": class, "platform": "web", "app_version": "development", "source": "api"}
 		_ = c.events.Capture(systemActor, "pricing_version_activated", properties)
 		_ = c.events.Capture(systemActor, "price_table_activated", properties)
 	}

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QuickNotePanel, clearQuickNoteDrafts } from "./QuickNotePanel";
-import { configureAnalytics, trackQuickNoteCreated } from "../../lib/analytics";
+import { configureAnalytics } from "../../lib/analytics";
 import { noteQueue } from "./note-queue";
 
 const posthog = vi.hoisted(() => ({
@@ -74,6 +74,11 @@ describe("save_raw_quick_notes_before_enrichment", () => {
     const saveButton = screen.getByRole("button", { name: /Save quick note/i });
     fireEvent.click(saveButton);
 
+    expect(posthog.capture).not.toHaveBeenCalledWith(
+      "quick_note_created",
+      expect.anything(),
+    );
+
     // Assert offline banner
     expect(
       screen.getByText(/Offline variant · saved on this device/i),
@@ -143,42 +148,5 @@ describe("save_raw_quick_notes_before_enrichment", () => {
 
     // Max length is 2000
     expect(textarea).toHaveAttribute("maxLength", "2000");
-  });
-
-  it("emits quick_note_created and ui_sheet_opened without leaking private note text", () => {
-    const secretText = "Super secret notes text";
-    trackQuickNoteCreated({
-      entry_point: "slide",
-      length: secretText.length,
-    });
-
-    expect(posthog.capture).toHaveBeenCalledWith("quick_note_created", {
-      distinct_id: "11111111-1111-4111-8111-111111111111",
-      platform: "web",
-      app_version: "0.1.0",
-      source: "client",
-      entry_point: "slide",
-      length: secretText.length,
-    });
-
-    const calls = JSON.stringify(posthog.capture.mock.calls);
-    expect(calls).not.toContain(secretText);
-    expect(calls).not.toContain("Super secret");
-  });
-
-  it("suppresses analytics when learner is opted out", () => {
-    configureAnalytics({
-      learnerId: "11111111-1111-4111-8111-111111111111",
-      optedOut: true,
-      platform: "web",
-    });
-    posthog.has_opted_out_capturing.mockReturnValue(true);
-
-    trackQuickNoteCreated({
-      entry_point: "chat",
-      length: 42,
-    });
-
-    expect(posthog.capture).not.toHaveBeenCalled();
   });
 });

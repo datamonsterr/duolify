@@ -13,6 +13,7 @@ import {
 } from "./missing";
 import "./sharing.css";
 import { AppLink } from "../../lib/navigation";
+import { trackQuoteShown } from "../../lib/analytics";
 
 type Sheet =
   | null
@@ -41,6 +42,14 @@ export function MissingLessons({
   const [status, setStatus] = useState<MissingStatus | null>(null);
   const [loadError, setLoadError] = useState<MissingFailure | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
+  useEffect(() => {
+    if (sheet?.kind === "quote")
+      trackQuoteShown({
+        quote_id: sheet.quote.quote_id,
+        feature: "lesson_content",
+        pricing_version: sheet.quote.pricing_version,
+      });
+  }, [sheet]);
   const [run, setRun] = useState<Run>({ kind: "idle" });
   const trigger = useRef<HTMLButtonElement>(null);
   const alive = useRef(true);

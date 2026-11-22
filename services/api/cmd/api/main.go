@@ -402,7 +402,7 @@ func run(ctx context.Context, args []string) (result error) {
 		narrationRecovery = recovery
 		narrationVoices = recovery.HTTP()
 	}
-	quotesService := pricing.NewQuotes(db.Pool)
+	quotesService := pricing.NewQuotes(db.Pool).WithEvents(events)
 	quotesService.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
 	quotesService.SetOwnerID(os.Getenv("PRICING_OWNER_ID"))
 

@@ -89,7 +89,7 @@ func allowlisted(event string) bool {
 		return true
 	case "lesson_region_selected", "lesson_region_question_sent", "lesson_answer_panel_closed":
 		return true
-	case "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
+	case "action_quote_accepted", "learner_signed_up", "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "retry_variant_pool_exhausted", "lesson_test_recap_shown", "ui_test_retry_presented",
 		"checkout_started", "credits_purchased", "credits_purchase_failed", "credits_refunded", "payment_reconciliation_failed",
@@ -215,6 +215,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "action_quote_accepted":
+		ids("quote_id", "feature", "pricing_version")
+	case "learner_signed_up":
+		if v, ok := input["method"].(string); ok && (v == "email" || v == "clerk") {
+			out["method"] = v
+		}
 	case "course_replan_quoted", "course_replan_proposed", "course_replan_confirmed", "course_replan_discarded", "course_replan_failed":
 		ids("course_id", "proposal_id", "pricing_version")
 		numeric("credits", "lessons_added", "lessons_removed", "lessons_changed", "outline_version")
@@ -729,11 +735,6 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		ids("pricing_version")
 		if class := input["change_class"]; class == "adverse" || class == "non_adverse" {
 			out["change_class"] = class
-		}
-		if v, ok := input["actor_id"].(string); ok {
-			if id, err := uuid.Parse(v); err == nil {
-				out["actor_id"] = id.String()
-			}
 		}
 	case "username_set", "username_changed":
 		numeric("username_length")

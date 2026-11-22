@@ -369,8 +369,10 @@ func (s *Service) verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var learnerID string
+	created := false
 	err = tx.QueryRow(ctx, "SELECT learner_id::text FROM auth_identities WHERE email=$1", in.Email).Scan(&learnerID)
 	if errors.Is(err, pgx.ErrNoRows) {
+		created = true
 		err = tx.QueryRow(ctx, "INSERT INTO learners(display_name) VALUES('Learner') RETURNING id::text").Scan(&learnerID)
 		if err == nil {
 			_, err = tx.Exec(ctx, "INSERT INTO auth_identities(email,learner_id) VALUES($1,$2::uuid)", in.Email, learnerID)
@@ -404,7 +406,16 @@ func (s *Service) verify(w http.ResponseWriter, r *http.Request) {
 		failure(w, err)
 		return
 	}
+	if created {
+		s.captureSignup(learnerID, "email")
+	}
 	respondTokens(w, web, tokens, expiry)
+}
+
+func (s *Service) captureSignup(learnerID, method string) {
+	if s.profile.Events != nil {
+		_ = s.profile.Events.Capture(learnerID, "learner_signed_up", map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "method": method})
+	}
 }
 func (s *Service) issue(ctx context.Context, tx pgx.Tx, learnerID, sessionID string, expiry time.Time) (Tokens, error) {
 	var bytes [32]byte

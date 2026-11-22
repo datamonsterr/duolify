@@ -88,7 +88,7 @@ Events MUST NOT contain note text, chat content, profile text, Slide HTML or ans
 - **THEN** the API request still succeeds and events are dropped or retried in the background
 
 ### Requirement: Course and lesson events
-The catalog MUST include: `course_preview_requested` (topic_length, has_profile), `course_preview_viewed` (preview_id: opaque financial job UUID, duration_ms; ephemeral preview only), `course_outline_generated` (course_id, unit_count, lesson_count, provider, model, latency_ms), `course_enrolled` (course_id), `course_generation_failed` (stage: preview|outline, error_code, preview_id when preview, duration_ms), `lesson_generation_requested` (course_id, lesson_id), `lesson_generated` (lesson_id, slide_count, provider, model, latency_ms), `lesson_started`, `slide_viewed` (index, watch_ms, offline), `slide_replayed`, `slide_paused`, `lesson_completed` (xp, duration_ms), `lesson_player_error` (error_code, slide_id), `lesson_test_started`, `lesson_test_submitted`, `lesson_test_passed`, `lesson_test_failed` (score, attempt, duration_ms), `character_rendered` (speaker_key, character_version, rig_version, expression, offline; deduplicated per Slide speaker visit) and `character_render_fallback` (reason_code, offline). Character events MUST exclude character text, bio, persona, dialogue and SVG content.
+The catalog MUST include: `course_preview_requested` (topic_length, has_profile), `course_preview_viewed` (preview_id: opaque financial job UUID, duration_ms; ephemeral preview only), `course_outline_generated` (course_id, unit_count, lesson_count, provider, model, latency_ms), `course_enrolled` (course_id), `course_generation_failed` (stage: preview|outline, error_code, preview_id when preview, duration_ms), `lesson_generation_requested` (course_id, lesson_id), `lesson_generated` (lesson_id, slide_count, provider, model, latency_ms), `lesson_started`, `slide_viewed` (index, watch_ms, offline), `slide_replayed`, `slide_paused`, `lesson_completed` (xp, duration_ms), `lesson_player_error` (error_code, slide_id), `lesson_test_started`, `lesson_test_submitted`, `lesson_test_passed` (score, duration_ms), `character_rendered` (speaker_key, character_version, rig_version, expression, offline; deduplicated per Slide speaker visit) and `character_render_fallback` (reason_code, offline). Character events MUST exclude character text, bio, persona, dialogue and SVG content.
 
 #### Scenario: Catalog check
 - **WHEN** a feature emits an event
@@ -130,7 +130,7 @@ The catalogue SHALL include client-owned `paywall_viewed` (placement, feature, b
 - **THEN** only the UI request is captured, with configured identifiers and no payment success event
 
 ### Requirement: Pricing lifecycle events
-The catalogue SHALL include `pricing_version_created`, `pricing_version_approved`, `pricing_version_rejected`, `pricing_version_activated`, `pricing_version_rolled_back` and `price_table_activated` with `pricing_version`, `change_class` (`adverse` or `non_adverse`), and `actor_id`. The API SHALL emit them through the existing UUID/common-properties wrapper. Events MUST NOT include reasons, full pricing content, credentials or provider mappings. Server opt-out SHALL suppress delivery. Activation events SHALL be recorded once per version in Postgres before delivery.
+The catalogue SHALL include `pricing_version_created`, `pricing_version_approved`, `pricing_version_rejected`, `pricing_version_activated`, `pricing_version_rolled_back` and `price_table_activated` with `pricing_version`, `change_class` (`adverse` or `non_adverse`). Actor identity SHALL appear only as the distinct ID. The API SHALL emit them through the existing UUID/common-properties wrapper. Events MUST NOT include reasons, full pricing content, credentials or provider mappings. Server opt-out SHALL suppress delivery. Activation events SHALL be recorded once per version in Postgres before delivery.
 
 #### Scenario: Pricing lifecycle
 - **WHEN** a pricing administrator creates, approves or rejects a version
@@ -766,3 +766,45 @@ The API MUST enqueue `check_in_credits_granted` atomically with each new attenda
 #### Scenario: Consent and replay
 - **WHEN** an opted-out Learner checks in or a committed request is retried
 - **THEN** Credits are correct and no opted-out or duplicate event is delivered
+
+### Requirement: Learner sign-up analytics
+The API SHALL emit `learner_signed_up` once after the transaction creating a Learner commits, with `method` (`email` or `clerk`) and the common properties. Existing Learner sign-ins and failed transactions SHALL NOT emit it. The event SHALL respect current analytics consent and SHALL NOT contain email, name, credentials or other learner text.
+
+#### Scenario: Repeated sign-in
+- **WHEN** an existing Learner signs in again
+- **THEN** no additional `learner_signed_up` event is emitted
+
+### Requirement: Action quote acceptance analytics
+The API SHALL emit `action_quote_accepted` once when acceptance of an Action quote first commits, with `quote_id`, `feature` and `pricing_version` and common properties. Replays and rejected or expired quotes SHALL NOT emit acceptance. Delivery SHALL honor consent and exclude quote inputs, model mappings and learner text.
+
+#### Scenario: Replayed acceptance
+- **WHEN** an accepted Action quote is accepted again
+- **THEN** no second acceptance event is emitted
+
+### Requirement: Action quote exposure analytics
+The client SHALL emit `action_quote_shown` when it displays an Action quote, with `quote_id`, `feature` and `pricing_version`, once per authenticated Learner session and quote. It SHALL honor consent and exclude action input, learner text and model mappings. Quote exposure and acceptance SHALL be joinable by quote ID.
+
+#### Scenario: Repeated display
+- **WHEN** a Learner sees the same Action quote again in the session
+- **THEN** no second exposure event is emitted
+
+### Requirement: Example course events
+The catalogue SHALL include `example_courses_viewed` (surface: courses|learn_empty|onboarding) and `example_course_enrolled` (slug from the closed list of authored example slugs, surface: courses|learn_empty|onboarding, and the copy's course_id). Events SHALL use UUID/common properties, honor opt-out and consent, and carry no free text, titles or Lesson content. Lesson events keep their existing properties; no content-source field is added because the enrollment event carries the copy's course_id for joining.
+
+#### Scenario: Learner starts an example
+- **WHEN** a Learner opens the examples section and enrolls
+- **THEN** one viewed event and one enrolled event with closed-enum properties are emitted, and none for an opted-out Learner
+
+### Requirement: Immersive and region analytics catalogue
+The catalogue SHALL include:
+- `immersive_mode_entered` and `immersive_mode_exited`: `course_id`, `lesson_id`, `slide_index`, `trigger` (`control`, `rotation`, `back`, `escape`), and on exit a `seconds_in_mode` bucket.
+- `immersive_control_used`: `control` (`play`, `pause`, `previous`, `next`, `replay_slide`, `autoplay_on`, `autoplay_off`, `speed`, `captions`, `narration`, `slide_list`, `bookmark`, `lock`, `unlock`) and `via` (`button`, `double_tap`, `swipe`, `keyboard`).
+- `lesson_region_selected`: `course_id`, `lesson_id`, `slide_index`, `method` (`two_finger`, `select_area`, `keyboard`), `area_bucket` and `regions_matched` bucket.
+- `lesson_region_question_sent`: `course_id`, `lesson_id`, `slide_index`, `input` (`voice`, `text`), `has_region` and `grounding` (`regions`, `whole_slide`).
+- `lesson_answer_panel_closed`: `course_id`, `lesson_id`, `outcome` (`completed`, `stopped`, `failed`), `saved_note` and `follow_ups` bucket.
+
+Properties SHALL be opaque identifiers or closed enums. Events SHALL honor opt-out and exclude question text, note text, Slide text and region descriptions.
+
+#### Scenario: Opted-out Learner
+- **WHEN** a Learner who opted out uses immersive playback or asks a region question
+- **THEN** no immersive or region event is delivered

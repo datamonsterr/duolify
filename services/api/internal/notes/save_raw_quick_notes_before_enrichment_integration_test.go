@@ -167,7 +167,7 @@ func TestSaveRawQuickNotesBeforeEnrichmentIntegration(t *testing.T) {
 		"slide_id":    1,
 		"slide_title": "Slide 1 · Why the sky changes",
 		"source":      "slide",
-		"raw_text":    "Stars move because Earth spins west to east.",
+		"raw_text":    "Đêm sao ⭐",
 	}
 	body, _ := json.Marshal(rawNoteA)
 
@@ -208,6 +208,17 @@ func TestSaveRawQuickNotesBeforeEnrichmentIntegration(t *testing.T) {
 	_ = json.NewDecoder(resp2.Body).Decode(&note2)
 	if note2["id"] != noteID {
 		t.Fatalf("expected same note id %q, got %q", noteID, note2["id"])
+	}
+	events.mu.Lock()
+	var createdEvents []capturedEvent
+	for _, event := range events.events {
+		if event.Event == "quick_note_created" {
+			createdEvents = append(createdEvents, event)
+		}
+	}
+	events.mu.Unlock()
+	if len(createdEvents) != 1 || createdEvents[0].Properties["length"] != 9 || createdEvents[0].Properties["entry_point"] != "slide" || createdEvents[0].Properties["source"] != "api" {
+		t.Fatalf("created event count or properties: %#v", createdEvents)
 	}
 
 	// Verify only 1 row exists in Postgres for action-key-1

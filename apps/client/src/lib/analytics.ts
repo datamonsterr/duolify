@@ -14,12 +14,16 @@ type Identity = {
 };
 let identity: Identity | undefined;
 const exposed = new Set<string>();
+const shownQuotes = new Set<string>();
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // Auth supplies the internal Learner UUID; public browsing has no identity.
 export function configureAnalytics(value: Identity | null) {
-  if (identity?.learnerId !== value?.learnerId) exposed.clear();
+  if (identity?.learnerId !== value?.learnerId) {
+    exposed.clear();
+    shownQuotes.clear();
+  }
   identity = value ?? undefined;
   try {
     if (value?.optedOut) posthog.opt_out_capturing();
@@ -33,6 +37,64 @@ export function configureAnalytics(value: Identity | null) {
     } catch {
       /* Identity setup must not block the app. */
     }
+  }
+}
+
+const quoteFeatures = new Set([
+  "preview",
+  "outline",
+  "lesson_content",
+  "narration",
+  "tutor_short",
+  "tutor_long",
+  "quick_note",
+  "cached_replay",
+  "setup_chat",
+  "course_brief_chat",
+  "outline_chat_change",
+  "outline_replan",
+  "character_create",
+]);
+export function trackQuoteShown(value: {
+  quote_id: string;
+  feature: string;
+  pricing_version: string;
+}) {
+  if (
+    !identity ||
+    identity.optedOut ||
+    !uuid.test(identity.learnerId) ||
+    !uuid.test(value.quote_id) ||
+    !quoteFeatures.has(value.feature) ||
+    !/^[A-Za-z0-9_.:-]{1,100}$/.test(value.pricing_version) ||
+    shownQuotes.has(value.quote_id)
+  )
+    return;
+  const storageKey = `quote-shown:${identity.learnerId}:${value.quote_id}`;
+  try {
+    if (sessionStorage.getItem(storageKey)) return;
+  } catch {
+    /* In-memory deduplication still applies without storage. */
+  }
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("action_quote_shown", {
+      quote_id: value.quote_id,
+      feature: value.feature,
+      pricing_version: value.pricing_version,
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? "0.1.0",
+      source: "client",
+    });
+    shownQuotes.add(value.quote_id);
+    try {
+      sessionStorage.setItem(storageKey, "1");
+    } catch {
+      /* In-memory deduplication still applies without storage. */
+    }
+  } catch {
+    /* Analytics must not interrupt a quote. */
   }
 }
 // Apply consent before any network request. PostHog's opt-out disables capture
@@ -295,6 +357,7 @@ export function trackControl(controlId: CourseControl, courseId?: string) {
 export function trackExampleCoursesViewed(
   surface: "courses" | "learn_empty" | "onboarding",
 ) {
+  if (!["courses", "learn_empty", "onboarding"].includes(surface)) return;
   if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
   try {
     if (posthog.has_opted_out_capturing()) return;
@@ -571,26 +634,6 @@ export function trackTutorControl(controlId: "delete_thread") {
     });
   } catch {
     /* Telemetry failure never blocks deleting. */
-  }
-}
-
-export function trackQuickNoteCreated(value: {
-  entry_point: "slide" | "lesson" | "chat";
-  length: number;
-}) {
-  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
-  try {
-    if (posthog.has_opted_out_capturing()) return;
-    posthog.capture("quick_note_created", {
-      distinct_id: identity.learnerId,
-      platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
-      source: "client",
-      entry_point: value.entry_point,
-      length: value.length,
-    });
-  } catch {
-    /* Analytics failure never blocks note creation. */
   }
 }
 
