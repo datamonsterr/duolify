@@ -201,8 +201,6 @@ test("returning Apple subject completes when profile claims are omitted", async 
     ).__DUOLIFY_SSO_BRIDGE__;
     bridge.complete();
   });
-  await expect(page).toHaveURL(/\/profile$/);
-  await expect(
-    page.getByText("Signed in as First Login Learner"),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
 });

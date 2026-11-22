@@ -5,9 +5,10 @@ let tokens: Tokens | undefined;
 export function resetTokens() {
   tokens = undefined;
 }
-export const test = base.extend<{ authenticated: void }>({
+export const test = base.extend<{ authenticated: void; onboarding: boolean }>({
+  onboarding: [false, { option: true }],
   authenticated: [
-    async ({ context, request, page }, use) => {
+    async ({ context, request, page, onboarding }, use) => {
       await resetAuthRateLimits(request);
       if (!tokens) {
         const email = `browser-${crypto.randomUUID()}@example.test`;
@@ -27,12 +28,38 @@ export const test = base.extend<{ authenticated: void }>({
         expect(response.status()).toBe(200);
         tokens = (await response.json()) as Tokens;
       }
+      if (!onboarding) {
+        expect(
+          (
+            await request.patch(apiBase + "/v1/me/onboarding", {
+              headers: { Authorization: `Bearer ${tokens.access_token}` },
+              data: { welcome_state: "completed", tour_state: "completed" },
+            })
+          ).status(),
+        ).toBe(200);
+      }
       await context.addInitScript((value) => {
         sessionStorage.setItem(
           "duolify.native-store-fixture",
           JSON.stringify(value),
         );
       }, tokens);
+      // Playwright turns the browser's HTTP cache off while any route is active, but the app replays the
+      // sandboxed slide host page (/lesson-frame.html?v=<build>, served `immutable`) from that cache offline:
+      // a sandboxed frame never reaches the service worker. This keeps the first copy and replays it. The
+      // real cache path runs in e2e-session/csp.spec.ts, which uses no routes.
+      let frameCopy:
+        { body: Buffer; headers: Record<string, string> } | undefined;
+      await page.route("**/lesson-frame.html*", async (route) => {
+        if (!frameCopy) {
+          const response = await route.fetch();
+          frameCopy = {
+            body: await response.body(),
+            headers: response.headers(),
+          };
+        }
+        await route.fulfill({ status: 200, ...frameCopy });
+      });
       await page.route(/\/v1\/(auth\/|me(?:\/|$|\?))/, async (route) => {
         const original = route.request();
         const target = new URL(original.url());

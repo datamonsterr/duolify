@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Lesson slide</title>
+    <!--
+      Host page of the sandboxed lesson player (src/features/lesson-player/SandboxFrame.tsx). It is a real URL so
+      the edge can give it its own Content-Security-Policy header (infra/deploy/security-headers.caddy:
+      lesson_frame_headers). A srcdoc iframe would inherit the app's strict policy and lose its inline scripts.
+      The app, which embeds this page with sandbox="allow-scripts" (never allow-same-origin), posts the slide
+      document; the page writes it, so the slide's scripts run under this page's policy in an opaque origin.
+    -->
+    <script>
+      (function () {
+        function onMessage(event) {
+          var data = event.data;
+          if (
+            event.source !== parent ||
+            !data ||
+            data.type !== "load_document" ||
+            typeof data.html !== "string"
+          )
+            return;
+          removeEventListener("message", onMessage);
+          document.open();
+          document.write(data.html);
+          document.close();
+          parent.postMessage({ type: "document_loaded" }, "*");
+        }
+        addEventListener("message", onMessage);
+        parent.postMessage({ type: "frame_ready" }, "*");
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>

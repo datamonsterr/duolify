@@ -82,6 +82,7 @@ import { bookmarkQueue } from "../notes/bookmark-queue";
 import { createDefaultTracerManifest } from "../characters/fixtures";
 import { generateMotionSlideHtml } from "../characters/motion-slide";
 import { generatedCharacterDocument } from "../characters/playback";
+import { SandboxFrame } from "./SandboxFrame";
 
 const speeds = [1, 1.25, 1.5, 0.75];
 // The immersive presentation is a lazy chunk: it never enters the first-load bundle.
@@ -431,11 +432,10 @@ function TracerLessonPlayer({
           </ResponsivePanel>
         }
       >
-        <iframe
+        <SandboxFrame
           ref={frame}
           title={`Slide ${index + 1}`}
-          sandbox="allow-scripts"
-          srcDoc={slides[index]}
+          html={slides[index]!}
           onLoad={() => {
             sendCommand(frame.current?.contentWindow ?? null, {
               type: "set_motion",
@@ -558,11 +558,10 @@ function TracerLessonPlayer({
         </div>
       </PanelLayout>
       {index + 1 < slides.length && (
-        <iframe
+        <SandboxFrame
           title="Preloaded slide"
           hidden
-          sandbox="allow-scripts"
-          srcDoc={slides[index + 1]}
+          html={slides[index + 1]!}
         />
       )}
     </div>
@@ -1657,12 +1656,11 @@ function SlidePlayback({
         ) : (
           slideDocument.data && (
             <div className="stage-frame" ref={stageRef}>
-              <iframe
+              <SandboxFrame
+                tabIndex={immersive ? -1 : undefined}
                 ref={frame}
                 title={`Slide ${index + 1}`}
-                sandbox="allow-scripts"
-                tabIndex={immersive ? -1 : undefined}
-                srcDoc={sandboxDocument(
+                html={sandboxDocument(
                   (manifest.cast && slide.segments?.length
                     ? generatedCharacterDocument(
                         {

@@ -176,6 +176,9 @@ cmd_smoke() {
   check "SPA fallback for deep links"
   if curl -fsS "${curl_opts[@]}" "$base/courses/smoke-check" | grep -q 'id="root"'; then ok; else fail "deep link did not return index.html"; fi
 
+  check "security headers on the web client, the lesson frame and the API"
+  if err=$(bash "$deploy_dir/check-security-headers.sh" "$base" "$(setting LESSON_ASSET_ORIGIN)" -- "${curl_opts[@]}" 2>&1); then ok; else fail "$err"; fi
+
   check "web bundle calls the API on its own origin"
   script=$(printf '%s' "$body" | grep -o '/assets/[^"]*\.js' | head -n 1 || true)
   if [[ -n $script ]] && curl -fsS "${curl_opts[@]}" "$base$script" | grep -q 'localhost:8080'; then
