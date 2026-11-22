@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: First-run learning welcome
-The Learn home SHALL offer new learners a skippable welcome with topic entry into the existing course brief, Help me decide into existing setup chat, and contract-backed example enrollment when available. The welcome SHALL NOT duplicate learner context questions or interrupt deep links, lessons, invites or the SSO bridge. Returning learners existing at migration SHALL be exempt.
+The Learn home SHALL offer new learners a skippable welcome with topic entry into the existing course brief, Help me decide into existing setup chat, and contract-backed example enrollment when available. The welcome SHALL NOT duplicate learner context questions or interrupt deep links, lessons, invites or the SSO bridge. Returning learners existing at migration SHALL be exempt. Sign-in without a return target SHALL land on Learn so the welcome can appear after the first sign-in.
 
 #### Scenario: Topic handoff
 - **WHEN** a new learner enters a topic
