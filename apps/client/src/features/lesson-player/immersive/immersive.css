@@ -1,0 +1,352 @@
+/* Immersive presentation of the lesson player. Loaded with the lazy chunk, so it is
+   not part of the first-load CSS budget. Only design tokens and system keywords. */
+html[data-imm-rotated] body {
+  overflow: hidden;
+}
+.player.immersive {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  margin: 0;
+  padding: 0;
+  max-inline-size: none;
+  inline-size: auto;
+  background: var(--canvas);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+/* Everything the framed player shows around the Slide is hidden but stays mounted:
+   hiding never reparents or reloads the Slide iframe, and Narration keeps playing. */
+.player.immersive > :not(.panel-layout):not(.imm-layer):not(.toast) {
+  display: none;
+}
+.player.immersive .panel-layout,
+.player.immersive .panel-main {
+  display: block;
+  position: static;
+  padding: 0;
+  margin: 0;
+  inline-size: auto;
+}
+.player.immersive .stage-frame {
+  display: contents;
+}
+.player.immersive .panel-main > :not(.stage-frame):not(.stage-recovery) {
+  display: none;
+}
+/* The Slide keeps its 16:9 coordinate space: laid out at 1280×720, then scaled
+   uniformly (and rotated 90° where the platform cannot lock orientation). */
+.player.immersive .stage-frame iframe {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  inline-size: 1280px;
+  block-size: 720px;
+  margin: -360px 0 0 -640px;
+  border-radius: 0;
+  transform: rotate(var(--imm-rot, 0deg)) scale(var(--imm-scale, 1));
+  transform-origin: center;
+  z-index: 1;
+  background: var(--surface);
+}
+.player.immersive .stage-recovery {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  background: var(--surface);
+  color: var(--text);
+  padding: var(--space-4);
+  text-align: center;
+}
+.imm-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.imm-gestures {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  background: transparent;
+}
+.imm-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  color: var(--text);
+  /* Safe-area insets apply to controls only, never to the Slide. A test can set
+     --imm-inset-* to simulate a notch. */
+  --sa-t: var(--imm-inset-top, env(safe-area-inset-top, 0px));
+  --sa-r: var(--imm-inset-right, env(safe-area-inset-right, 0px));
+  --sa-b: var(--imm-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --sa-l: var(--imm-inset-left, env(safe-area-inset-left, 0px));
+}
+.imm-ui[data-rotated] {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  transform: rotate(90deg);
+  --pt: var(--sa-r);
+  --pr: var(--sa-b);
+  --pb: var(--sa-l);
+  --pl: var(--sa-t);
+}
+.imm-ui:not([data-rotated]) {
+  --pt: var(--sa-t);
+  --pr: var(--sa-r);
+  --pb: var(--sa-b);
+  --pl: var(--sa-l);
+}
+.imm-ui > * {
+  pointer-events: auto;
+}
+.imm-controls {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: calc(var(--pt) + var(--space-3)) calc(var(--pr) + var(--space-3))
+    calc(var(--pb) + var(--space-3)) calc(var(--pl) + var(--space-3));
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+.imm-controls[data-visible="false"] {
+  opacity: 0;
+  visibility: hidden;
+}
+.imm-controls * {
+  pointer-events: none;
+}
+.imm-controls .imm-btn,
+.imm-controls .imm-bottom,
+.imm-controls .imm-list,
+.imm-controls .imm-title {
+  pointer-events: auto;
+}
+.imm-top,
+.imm-row,
+.imm-centre {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.imm-top {
+  justify-content: space-between;
+}
+.imm-title {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-weight: var(--weight-strong);
+  text-align: center;
+}
+.imm-centre {
+  justify-content: center;
+  align-self: center;
+  gap: var(--space-8);
+}
+.imm-bottom {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.imm-row {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.imm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--size-target);
+  min-block-size: var(--size-target);
+  padding: 0 var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: var(--weight-strong);
+  text-decoration: none;
+  cursor: pointer;
+}
+.imm-btn[aria-pressed="true"],
+.imm-btn[aria-expanded="true"],
+.imm-btn[aria-current="true"] {
+  border-color: var(--primary);
+}
+.imm-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.imm-btn:focus-visible {
+  outline: var(--size-focus-width) solid var(--focus);
+  outline-offset: var(--size-focus-offset);
+}
+.imm-btn-big {
+  min-inline-size: 64px;
+  min-block-size: 64px;
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary-edge);
+}
+.imm-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.imm-seg {
+  display: block;
+  block-size: var(--space-2);
+  min-inline-size: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--raised);
+  overflow: hidden;
+}
+.imm-seg > span {
+  display: block;
+  block-size: 100%;
+  background: var(--primary);
+}
+.imm-time {
+  margin-inline-start: var(--space-2);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.imm-caption {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--sa-b, 0px) + var(--space-4));
+  translate: -50% 0;
+  max-inline-size: min(80vw, 720px);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+  pointer-events: none;
+  z-index: 6;
+}
+.imm-caption[data-raised] {
+  bottom: calc(var(--sa-b, 0px) + 112px);
+}
+.imm-list {
+  position: absolute;
+  inset-block: 72px 112px;
+  inset-inline-start: calc(var(--pl) + var(--space-3));
+  inline-size: min(60%, 320px);
+  overflow: auto;
+  padding: var(--space-2);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.imm-list ol {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.imm-list-item {
+  inline-size: 100%;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  text-align: start;
+}
+.imm-countdown {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: calc(var(--pb) + 140px);
+  margin-inline: auto;
+  inline-size: max-content;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 2px solid var(--primary);
+  font-weight: var(--weight-strong);
+}
+.imm-ring {
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+  border-radius: 50%;
+  border: 3px solid var(--raised);
+  border-top-color: var(--primary);
+  animation: imm-spin linear forwards;
+}
+@keyframes imm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* The side rail handle stays reachable while every other control is hidden. */
+.imm-rail {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--pr);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.imm-rail > * {
+  pointer-events: auto;
+}
+.imm-rail-handle {
+  min-inline-size: var(--size-target);
+  padding: 0;
+  opacity: 0.7;
+}
+.imm-rail-slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: var(--size-target);
+  padding: var(--space-2);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 2px solid var(--line);
+}
+.imm-unlock {
+  position: absolute;
+  inset-block-start: calc(var(--pt) + var(--space-3));
+  inset-inline-end: calc(var(--pr) + var(--space-3));
+  gap: var(--space-2);
+  min-inline-size: 120px;
+  opacity: 0.85;
+}
+.imm-unlock[data-holding] {
+  border-color: var(--primary);
+  background: var(--raised);
+}
+@media (prefers-reduced-motion: reduce) {
+  .imm-controls {
+    transition: none;
+  }
+  .imm-ring {
+    animation: none;
+  }
+}

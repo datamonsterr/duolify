@@ -1,5 +1,5 @@
 -- name: GetLearnerContext :one
-SELECT (to_jsonb(p) - 'age_confirmed_at' - 'analytics_opt_out' - 'appearance' - 'motion' - 'narration' - 'narration_voice' - 'narration_speed' - 'captions' - 'text_size' - 'ui_sounds' - 'haptics')::jsonb AS context
+SELECT (to_jsonb(p) - 'age_confirmed_at' - 'analytics_opt_out' - 'appearance' - 'motion' - 'narration' - 'narration_voice' - 'narration_speed' - 'captions' - 'text_size' - 'ui_sounds' - 'haptics' - 'fullscreen_on_rotate' - 'autoplay' - 'auto_send_after_dictation')::jsonb AS context
 FROM learner_profiles p WHERE learner_id=sqlc.arg(learner_id)::uuid FOR UPDATE;
 
 -- name: GetLearnerSettings :one
@@ -37,5 +37,8 @@ UPDATE learner_profiles SET
  captions=(sqlc.arg(context)::jsonb->>'captions')::boolean,
  text_size=(sqlc.arg(context)::jsonb->>'text_size')::numeric,
  ui_sounds=(sqlc.arg(context)::jsonb->>'ui_sounds')::boolean,
- haptics=sqlc.arg(context)::jsonb->>'haptics'
+ haptics=sqlc.arg(context)::jsonb->>'haptics',
+ fullscreen_on_rotate=(sqlc.arg(context)::jsonb->>'fullscreen_on_rotate')::boolean,
+ autoplay=(sqlc.arg(context)::jsonb->>'autoplay')::boolean,
+ auto_send_after_dictation=(sqlc.arg(context)::jsonb->>'auto_send_after_dictation')::boolean
 WHERE learner_id=sqlc.arg(learner_id)::uuid;

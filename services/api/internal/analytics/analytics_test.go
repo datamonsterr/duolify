@@ -100,6 +100,7 @@ func TestEventAllowlist(t *testing.T) {
 		"quick_note_created", "ui_sheet_opened", "username_set", "username_rejected", "username_changed", "username_searched", "privacy_setting_changed",
 		"friend_request_sent", "friend_request_accepted", "friend_request_declined", "friend_removed", "learner_blocked",
 		"bookmark_added", "bookmark_removed", "bookmark_opened",
+		"immersive_mode_entered", "immersive_mode_exited", "immersive_control_used",
 	} {
 		if !allowlisted(name) {
 			t.Errorf("catalogue event %q rejected", name)

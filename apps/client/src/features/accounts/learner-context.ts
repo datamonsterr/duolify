@@ -41,6 +41,10 @@ export type SettingsFields = {
   daily_xp: number | null;
   reminder_enabled: boolean | null;
   reminder_time: string;
+  /** Immersive lesson mode (immersive-mobile-lesson-player). */
+  fullscreen_on_rotate: boolean;
+  autoplay: boolean;
+  auto_send_after_dictation: boolean;
 };
 export type LearnerContext = ContextFields & {
   learner_id: string;
@@ -81,6 +85,9 @@ export const emptySettings = (): LearnerSettings => {
     daily_xp: null,
     reminder_enabled: null,
     reminder_time: "",
+    fullscreen_on_rotate: true,
+    autoplay: true,
+    auto_send_after_dictation: true,
   };
 };
 export function contextValues(profile: ContextFields): ContextFields {

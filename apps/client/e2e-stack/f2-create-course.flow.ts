@@ -1,4 +1,4 @@
-import { createCourse, fundLearner, topic } from "./course";
+import { awaitFirstCheckIn, createCourse, topic } from "./course";
 import { expect, signUp, test, uniqueEmail } from "./stack";
 
 test.use({ flowId: "F2" });
@@ -14,13 +14,8 @@ test(
   async ({ page, flow }) => {
     // Enters through the sign-in deep link: the in-app "Create a course" button drops the
     // web session (see F1b), which would otherwise hide every later step.
-    const learner = await signUp(
-      page,
-      uniqueEmail("f2"),
-      undefined,
-      "/courses/create",
-    );
-    await fundLearner(learner);
+    await signUp(page, uniqueEmail("f2"), undefined, "/courses/create");
+    await awaitFirstCheckIn(page, flow);
     await createCourse(page, flow);
     await expect(page.getByRole("heading", { name: topic })).toBeVisible();
     await flow.step("course path");

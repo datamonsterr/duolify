@@ -4,12 +4,21 @@ export type StoredPlayerPreferences = {
   rate: number;
   muted: boolean;
   captions: boolean;
+  /** Immersive mode: advance to the next Slide after a cancellable countdown. */
+  autoplay: boolean;
+  /** Enter immersive mode when a touch device is turned to landscape. */
+  fullscreenOnRotate: boolean;
+  /** Stored now; the voice task uses it. */
+  autoSendAfterDictation: boolean;
 };
 
 const DEFAULT_PREFERENCES: StoredPlayerPreferences = {
   rate: 1,
   muted: false,
   captions: true,
+  autoplay: true,
+  fullscreenOnRotate: true,
+  autoSendAfterDictation: true,
 };
 
 export function loadPlayerPreferences(): StoredPlayerPreferences {
@@ -23,7 +32,14 @@ export function loadPlayerPreferences(): StoredPlayerPreferences {
       : 1;
     const muted = Boolean(parsed.muted);
     const captions = parsed.captions !== false;
-    return { rate, muted, captions };
+    return {
+      rate,
+      muted,
+      captions,
+      autoplay: parsed.autoplay !== false,
+      fullscreenOnRotate: parsed.fullscreenOnRotate !== false,
+      autoSendAfterDictation: parsed.autoSendAfterDictation !== false,
+    };
   } catch {
     return { ...DEFAULT_PREFERENCES };
   }

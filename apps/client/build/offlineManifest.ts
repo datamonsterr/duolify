@@ -20,6 +20,7 @@ export type BundleLike = Record<string, Chunk | Asset>;
 
 export const OFFLINE_ROUTE_MODULES = [
   "/features/lesson-player/LessonPlayer",
+  "/features/lesson-player/immersive/ImmersiveUi",
   "/features/lessontest/LessonTest",
   "/features/design/Courses",
 ];

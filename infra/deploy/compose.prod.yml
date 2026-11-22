@@ -73,7 +73,6 @@ services:
     stop_grace_period: 30s
     environment:
       <<: *s3-env
-      S3_ACCESS_KEY_ID: ""
       DB_POOL_MAX_CONNS: ${WORKER_DB_POOL_MAX_CONNS:-16}
       DB_POOL_MIN_CONNS: ${WORKER_DB_POOL_MIN_CONNS:-4}
     depends_on:
