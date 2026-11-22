@@ -16,3 +16,9 @@
 ## 4. Owner steps
 
 - [ ] 4.1 Live check on staging: erase a test account that signed in with Google and confirm the Clerk user disappears within 10 minutes.
+
+## 5. Independent security review
+
+- [ ] 5.1 Reproduce restore before linking, retry starvation and unsafe downgrade.
+- [ ] 5.2 Persist recoverable external deletion intents independently of database snapshots.
+- [ ] 5.3 Retry fairly with backoff and preserve pending identifiers on downgrade.

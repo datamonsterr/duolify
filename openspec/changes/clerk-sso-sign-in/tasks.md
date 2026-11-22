@@ -21,3 +21,8 @@
 - [ ] 4.1 Configure the Clerk dashboard and set the four CLERK variables per environment (see design).
 - [ ] 4.2 Live check: sign in with Google and Apple on dev, staging and a packaged desktop build (deep links work only in packaged apps on macOS and Linux).
 - [x] 4.3 Follow-up: delete the Clerk user when a Duolify account is deleted (`openspec/changes/delete-clerk-user-on-erasure`).
+
+## 5. Independent security review
+
+- [ ] 5.1 Reproduce retained native callbacks; ignore unrelated states including cancellation.
+- [ ] 5.2 Reject Clerk subjects awaiting erasure under the same subject lock.
