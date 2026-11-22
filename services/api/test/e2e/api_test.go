@@ -36,8 +36,9 @@ func (*fakeEngine) PreviewCourse(ctx context.Context, req *enginev1.PreviewCours
 		return nil, status.Error(codes.Unavailable, "private diagnostic")
 	}
 	if req.GetTopic() == "slow" {
-		<-ctx.Done()
-		return nil, status.FromContextError(ctx.Err()).Err()
+		// The engine enforces the quote's deadline itself (limits.deadline_unix_ms); the API waits
+		// for the quote deadline (minutes), not a short client cap, so the engine reports it.
+		return nil, status.Error(codes.DeadlineExceeded, "quote deadline exceeded")
 	}
 	if req.Limits == nil {
 		return nil, status.Error(codes.InvalidArgument, "bounds required")
