@@ -161,6 +161,8 @@ run = "bash infra/deploy/overlay-tests.sh dr"
 
 ["infra:find-vm"]
 description = "CI only: look up the Hetzner server named duolify-$DEPLOY_ENV (read-only Cloud API call) and write exists=true|false and host=<ipv4> to the step outputs; a missing VM is a notice, never a failure"
+# bash: the script uses [[ ]] and <<< (mise runs inline scripts with sh otherwise)
+shell = "bash -c"
 run = '''
 set -eu
 : "${HCLOUD_TOKEN:?}" "${DEPLOY_ENV:?}"
@@ -180,6 +182,8 @@ fi
 
 ["infra:deploy-vm"]
 description = "Deploy the tested commit to the VM over SSH (CI only; needs DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS, DEPLOY_SHA and the digests/<image> files from the image build; GHCR_USER + GHCR_TOKEN log the VM in to ghcr.io for the pull)"
+# bash: the script uses [[ ]] and <<< (mise runs inline scripts with sh otherwise)
+shell = "bash -c"
 run = '''
 set -eu
 : "${DEPLOY_HOST:?}" "${DEPLOY_USER:?}" "${DEPLOY_SSH_KEY:?}" "${DEPLOY_KNOWN_HOSTS:?}" "${DEPLOY_SHA:?}"
