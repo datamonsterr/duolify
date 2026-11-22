@@ -35,6 +35,7 @@ export type Preview = {
 };
 interface PreviewService {
   wallet?(): Promise<{
+    check_in?: number;
     purchased: number;
     subscription: number;
     unverified?: boolean;
@@ -186,7 +187,7 @@ export function CoursePreview({
       if (current === operation.current)
         setPaidBalance(
           wallet && !wallet.unverified
-            ? wallet.purchased + wallet.subscription
+            ? (wallet.check_in ?? 0) + wallet.purchased + wallet.subscription
             : undefined,
         );
       if (current === operation.current)
@@ -386,7 +387,7 @@ export function CoursePreview({
                 </p>
                 {paidBalance !== undefined && (
                   <p>
-                    Eligible paid balance {number(paidBalance)} →{" "}
+                    Eligible balance {number(paidBalance)} →{" "}
                     {number(Math.max(0, paidBalance - quote.content_ceiling))}{" "}
                     credits
                   </p>
@@ -394,7 +395,7 @@ export function CoursePreview({
                 {paidBalance !== undefined &&
                   paidBalance < quote.content_ceiling && (
                     <p role="alert">
-                      Not enough eligible paid credits. Your brief is kept.
+                      Not enough eligible credits. Your brief is kept.
                     </p>
                   )}
                 <p>

@@ -66,7 +66,7 @@ func outboxTx(ctx context.Context, tx pgx.Tx, owner, key, event string, q pricin
 func (s *Service) refusal(ctx context.Context, owner, id string, q pricing.Quote) error {
 	balance := int64(0)
 	if wallet, e := s.GetWallet(ctx, owner); e == nil {
-		balance = wallet.Purchased + wallet.Subscription
+		balance = wallet.Purchased + wallet.Subscription + wallet.CheckIn
 		if q.DailyFreeEligible {
 			balance += wallet.DailyFree.Available
 		}

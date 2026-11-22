@@ -19,6 +19,8 @@ import (
 
 const (
 	approvedHy4 = "usd-hy4-routing-2026-11-22"
+	// activeVersion is the owner-approved check-in successor of approvedHy4 (ADR 0020) and is what quotes resolve to.
+	activeVersion = "usd-hy4-check-in-2026-11-22"
 	// hy4Source is declared in approve_policy_carrying_draft_integration_test.go.
 )
 
@@ -56,8 +58,8 @@ func TestApprovedHy4RoutingVersionIsActiveAndQuotesTheEngineRoute(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Version != approvedHy4 {
-		t.Fatalf("active quote version %q, want %q", cfg.Version, approvedHy4)
+	if cfg.Version != activeVersion {
+		t.Fatalf("active quote version %q, want %q", cfg.Version, activeVersion)
 	}
 	var policy pricing.QuotePolicy
 	if err = json.Unmarshal(active.Policy, &policy); err != nil {
@@ -90,7 +92,7 @@ func TestApprovedHy4RoutingVersionIsActiveAndQuotesTheEngineRoute(t *testing.T) 
 	// Learner prices equal the previous approved snapshot (the newest approved version before this one). A
 	// fresh database's previous snapshot predates the design-chat and character actions, so only its actions are compared.
 	var previousRaw []byte
-	if err = db.Pool.QueryRow(ctx, `SELECT config FROM pricing_versions WHERE approved AND version<>$1 ORDER BY effective_from DESC LIMIT 1`, approvedHy4).Scan(&previousRaw); err != nil {
+	if err = db.Pool.QueryRow(ctx, `SELECT config FROM pricing_versions WHERE approved AND version<>$1 ORDER BY effective_from DESC LIMIT 1`, activeVersion).Scan(&previousRaw); err != nil {
 		t.Fatal(err)
 	}
 	previous, err := pricing.Parse(previousRaw)
@@ -146,7 +148,7 @@ func TestApprovedHy4RoutingVersionIsActiveAndQuotesTheEngineRoute(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if q.PricingVersion != approvedHy4 || q.Rate.Provider != "openrouter" || q.Rate.Model != "tencent/hy4-flash" {
+	if q.PricingVersion != activeVersion || q.Rate.Provider != "openrouter" || q.Rate.Model != "tencent/hy4-flash" {
 		t.Fatalf("preview quote %s %+v", q.PricingVersion, q.Rate)
 	}
 	usage := func(model string, fallback bool) []*enginev1.Usage {
@@ -174,10 +176,10 @@ func activateLegacyBaseline(t *testing.T, db *store.Store) {
 	ctx := t.Context()
 	for _, statement := range []string{
 		`INSERT INTO pricing_versions(version,effective_from,approved,config)
- SELECT '` + legacyBaseline + `','2026-11-22T12:00:02Z',true,jsonb_set(jsonb_set(config,'{version}','"` + legacyBaseline + `"'),'{effective_from}','"2026-11-22T12:00:02Z"')
+ SELECT '` + legacyBaseline + `','2026-11-22T12:00:03Z',true,jsonb_set(jsonb_set(config,'{version}','"` + legacyBaseline + `"'),'{effective_from}','"2026-11-22T12:00:03Z"')
  FROM pricing_versions WHERE version='usd-quotes-2026-11-09'`,
 		`INSERT INTO pricing_quote_policies(version,policy) SELECT '` + legacyBaseline + `',policy FROM pricing_quote_policies WHERE version='usd-quotes-2026-11-09'`,
-		`INSERT INTO pricing_activation_events(version,activated_at) VALUES('` + legacyBaseline + `','2026-11-22T12:00:02Z')`,
+		`INSERT INTO pricing_activation_events(version,activated_at) VALUES('` + legacyBaseline + `','2026-11-22T12:00:03Z')`,
 	} {
 		if _, err := db.Pool.Exec(ctx, statement); err != nil {
 			t.Fatal(err)

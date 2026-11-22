@@ -65,6 +65,8 @@ func TestOwnerApprovesAPolicyCarryingDraftThroughTheAdminPath(t *testing.T) {
 		if err := json.Unmarshal(raw, &c); err != nil {
 			t.Fatal(err)
 		}
+		// The active parent carries the owner-approved check-in block (ADR 0020); dropping it would be adverse.
+		c["check_in"] = map[string]any{"daily_credits": 150, "first_time_bonus": 250, "bank_days": 7}
 		c["version"], c["effective_from"] = version, effective.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
 		return c
 	}
@@ -138,7 +140,7 @@ func TestOwnerApprovesAPolicyCarryingDraftThroughTheAdminPath(t *testing.T) {
 	runtime := pricing.NewRuntimeCatalogue(mustLoad(t, db), db.Queries, db.Pool, nil)
 	quotes := pricing.NewQuotes(db.Pool)
 	before, err := quotes.Create(ctx, learner, pricing.QuoteInput{Action: "quick_note"})
-	if err != nil || before.PricingVersion != approvedHy4 || before.PricingVersion == hy4Source {
+	if err != nil || before.PricingVersion != activeVersion || before.PricingVersion == hy4Source {
 		t.Fatalf("quote before activation: %+v %v", before.Rate, err)
 	}
 	time.Sleep(3500 * time.Millisecond)

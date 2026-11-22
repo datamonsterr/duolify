@@ -518,7 +518,9 @@ export function TutorChat({
   }
   const daily = tutor.wallet?.daily_free.available;
   const paid = tutor.wallet
-    ? tutor.wallet.purchased + tutor.wallet.subscription
+    ? (tutor.wallet.check_in ?? 0) +
+      tutor.wallet.purchased +
+      tutor.wallet.subscription
     : undefined;
 
   return (

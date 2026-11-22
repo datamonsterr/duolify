@@ -69,6 +69,7 @@ type DailyFreeSummary struct {
 
 // WalletResponse carries the complete bucketed wallet balances and recent activity overview.
 type WalletResponse struct {
+	CheckIn        int64             `json:"check_in"`
 	Plan           *FundedPlan       `json:"plan,omitempty"`
 	Available      int64             `json:"available"`
 	DailyFree      DailyFreeSummary  `json:"daily_free"`
@@ -359,6 +360,7 @@ func (s *Service) registerRoutes() {
 	s.mux.HandleFunc("GET /v1/credits/checkouts/{id}", s.handleCheckout)
 	s.mux.HandleFunc("POST /v1/quotes/{id}/reserve", s.handleReserve)
 	s.mux.HandleFunc("POST /v1/credits/reservations/{id}/release", s.handleRelease)
+	s.mux.HandleFunc("POST /v1/me/check-in", s.handleCheckIn)
 	s.mux.HandleFunc("GET /v1/me/credits", s.handleGetWallet)
 	s.mux.HandleFunc("GET /v1/me/credits/activity", s.handleGetActivity)
 	s.mux.HandleFunc("GET /v1/credits/wallet", s.handleGetWallet)
@@ -824,6 +826,7 @@ func CalculateWallet(entries []Entry, tz string) *WalletResponse {
 // CalculateWalletAt derives bucket totals and recent activity as of a specific point in time.
 func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse {
 	var (
+		checkInAvailable   int64
 		dailyFreeGranted   int64
 		dailyFreeAvailable int64
 		purchasedAvailable int64
@@ -882,6 +885,8 @@ func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse
 				dailyFreeAvailable += e.Amount
 			}
 
+		case "check_in_grant", "check_in_bonus":
+			checkInAvailable += e.Amount
 		case "purchase":
 			purchasedAvailable += e.Amount
 
@@ -889,9 +894,12 @@ func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse
 			subscriptionTotal += e.Amount
 
 		case "refund":
-			if bucket == "subscription" {
+			switch bucket {
+			case "check_in":
+				checkInAvailable += e.Amount
+			case "subscription":
 				subscriptionTotal += e.Amount
-			} else {
+			default:
 				purchasedAvailable += e.Amount
 			}
 
@@ -901,6 +909,8 @@ func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse
 			reservedTotal += held
 
 			switch bucket {
+			case "check_in":
+				checkInAvailable += e.Amount
 			case "daily_free":
 				if currentDaily {
 					dailyFreeAvailable += e.Amount
@@ -917,6 +927,8 @@ func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse
 				delete(reservations, e.Reference)
 			}
 			switch bucket {
+			case "check_in":
+				checkInAvailable += e.Amount
 			case "daily_free":
 				// Released expired allocation never becomes spendable tomorrow
 				if date == "" || date == currentLocalDate {
@@ -930,6 +942,8 @@ func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse
 
 		case "spend":
 			switch bucket {
+			case "check_in":
+				checkInAvailable += e.Amount
 			case "daily_free":
 				if currentDaily {
 					dailyFreeAvailable += e.Amount
@@ -961,7 +975,8 @@ func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse
 		reservedTotal = 0
 	}
 
-	available := dailyFreeAvailable + purchasedAvailable + subscriptionTotal
+	checkInAvailable = max(0, checkInAvailable)
+	available := dailyFreeAvailable + checkInAvailable + purchasedAvailable + subscriptionTotal
 
 	// Next local day reset (midnight in tz)
 	nextReset := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, loc)
@@ -979,6 +994,7 @@ func CalculateWalletAt(entries []Entry, tz string, at time.Time) *WalletResponse
 
 	return &WalletResponse{
 		Available: available,
+		CheckIn:   checkInAvailable,
 		DailyFree: DailyFreeSummary{
 			Available: dailyFreeAvailable,
 			Granted:   dailyFreeGranted,
@@ -1036,6 +1052,12 @@ func formatActivityItem(e Entry) ActivityItemDTO {
 			if detail == "" {
 				detail = "Source attribution refund"
 			}
+		case "check_in_grant":
+			activity = "Daily check-in Credits"
+			source = "Check-in Credits"
+		case "check_in_bonus":
+			activity = "First check-in bonus"
+			source = "Check-in Credits"
 		case "daily_grant":
 			activity = "Daily free credits granted"
 			source = "Daily free"

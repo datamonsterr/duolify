@@ -101,7 +101,7 @@ func allowlisted(event string) bool {
 		"character_rendered", "character_render_fallback", "character_reaction_shown", "tutor_character_selected", "tutor_character_fallback",
 		"character_create_quoted", "character_created", "character_regenerated", "character_create_failed",
 		"character_updated", "character_deleted", "character_rejected", "course_cast_selected", "lesson_cast_applied", "character_voice_fallback", "character_snapshot_published",
-		"daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
+		"check_in_credits_granted", "daily_credits_granted", "daily_credits_expired", "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted",
 		"quick_note_created", "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted", "ui_sheet_opened",
 		"bookmark_added", "bookmark_removed", "bookmark_opened", "course_screening_completed",
 		"course_visibility_changed", "course_published", "share_link_created", "share_link_revoked", "share_link_opened", "course_enrolled_published", "published_lesson_reused", "published_lesson_generated_on_demand",
@@ -557,6 +557,9 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "credits_reserved", "credits_settled", "credits_released", "credits_insufficient", "credits_exhausted":
 		numeric("amount", "input_tokens", "output_tokens", "balance", "estimate")
 		ids("feature", "model", "pricing_version", "bucket")
+	case "check_in_credits_granted":
+		numeric("amount", "banked_after")
+		boolean("first_time", "capped")
 	case "daily_credits_granted", "daily_credits_expired":
 		numeric("amount")
 	case "backup_completed", "backup_failed", "restore_drill_completed":

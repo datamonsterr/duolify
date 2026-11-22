@@ -227,8 +227,8 @@ type allocation struct {
 
 func allocateTx(ctx context.Context, tx pgx.Tx, owner, job string, q pricing.Quote, day string) error {
 	rows, err := tx.Query(ctx, `SELECT e.id,e.kind,COALESCE(e.provenance->>'date',''), e.amount+COALESCE((SELECT sum(x.amount) FROM credit_entries x WHERE x.learner_id=e.learner_id AND x.provenance->>'source_id'=e.id::text),0) AS remaining
- FROM credit_entries e WHERE e.learner_id=$1 AND e.kind IN ('daily_grant','subscription_grant','purchase')
- ORDER BY CASE e.kind WHEN 'daily_grant' THEN 0 ELSE 1 END,e.created_at,e.id`, owner)
+ FROM credit_entries e WHERE e.learner_id=$1 AND e.kind IN ('daily_grant','check_in_grant','check_in_bonus','subscription_grant','purchase')
+ ORDER BY CASE e.kind WHEN 'daily_grant' THEN 0 WHEN 'check_in_grant' THEN 1 WHEN 'check_in_bonus' THEN 1 ELSE 2 END,e.created_at,e.id`, owner)
 	if err != nil {
 		return err
 	}
@@ -240,7 +240,7 @@ func allocateTx(ctx context.Context, tx pgx.Tx, owner, job string, q pricing.Quo
 			rows.Close()
 			return err
 		}
-		a.Bucket = map[string]string{"daily_grant": "daily_free", "subscription_grant": "subscription", "purchase": "purchase"}[kind]
+		a.Bucket = map[string]string{"daily_grant": "daily_free", "check_in_grant": "check_in", "check_in_bonus": "check_in", "subscription_grant": "subscription", "purchase": "purchase"}[kind]
 		if a.Amount > 0 && (a.Bucket != "daily_free" || (q.DailyFreeEligible && a.Date == day)) {
 			sources = append(sources, a)
 		}
@@ -252,10 +252,10 @@ func allocateTx(ctx context.Context, tx pgx.Tx, owner, job string, q pricing.Quo
 	}
 	// Honor pre-E7-03 ledger debits lacking per-source links, too.
 	bucketAvailable := map[string]int64{}
-	for _, bucket := range []string{"daily_free", "subscription", "purchase"} {
+	for _, bucket := range []string{"daily_free", "check_in", "subscription", "purchase"} {
 		var available int64
 		err = tx.QueryRow(ctx, `SELECT COALESCE(sum(amount),0) FROM credit_entries WHERE learner_id=$1 AND kind!='reward' AND
-  (CASE WHEN kind='daily_grant' THEN 'daily_free' WHEN kind='subscription_grant' THEN 'subscription' WHEN kind='purchase' THEN 'purchase' ELSE COALESCE(provenance->>'bucket','purchase') END)=$2 AND ($2!='daily_free' OR provenance->>'date'=$3)`, owner, bucket, day).Scan(&available)
+  (CASE WHEN kind='daily_grant' THEN 'daily_free' WHEN kind IN ('check_in_grant','check_in_bonus') THEN 'check_in' WHEN kind='subscription_grant' THEN 'subscription' WHEN kind='purchase' THEN 'purchase' ELSE COALESCE(provenance->>'bucket','purchase') END)=$2 AND ($2!='daily_free' OR provenance->>'date'=$3)`, owner, bucket, day).Scan(&available)
 		if err != nil {
 			return err
 		}
