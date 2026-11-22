@@ -63,3 +63,12 @@ func TestEffectiveQuotePolicyAdverseTerms(t *testing.T) {
 		})
 	}
 }
+
+func TestEffectivePolicyIncludesImplicitDesignChatRoute(t *testing.T) {
+	c := Config{Actions: map[string]Action{"setup_chat": {}}}
+	p := QuotePolicy{Models: map[string]ModelRate{"haiku": {Provider: "p", Model: "m", Input: 1, Output: 1, CacheRead: 1, CacheWrite: 1, ContextMax: 1}}}
+	got := effectivePolicyActions(p, c)
+	if got.ActionModels["setup_chat"] != "haiku" {
+		t.Fatalf("implicit route omitted: %+v", got.ActionModels)
+	}
+}

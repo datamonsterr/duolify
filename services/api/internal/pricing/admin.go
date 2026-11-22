@@ -1453,5 +1453,20 @@ func classifyEffective(ctx context.Context, tx pgx.Tx, active, next []byte, pare
 	if err = json.Unmarshal(newBytes, &newPolicy); err != nil {
 		return false, err
 	}
-	return adverse || adverseQuotePolicy(oldPolicy, newPolicy), nil
+	return adverse || adverseQuotePolicy(effectivePolicyActions(oldPolicy, activeConfig), effectivePolicyActions(newPolicy, nextConfig)), nil
+}
+
+// effectivePolicyActions mirrors the legacy default used by quote creation.
+func effectivePolicyActions(p QuotePolicy, c Config) QuotePolicy {
+	routes := make(map[string]string, len(p.ActionModels)+3)
+	for action, key := range p.ActionModels {
+		routes[action] = key
+	}
+	for _, action := range []string{"setup_chat", "course_brief_chat", "outline_chat_change"} {
+		if _, exists := c.Actions[action]; exists && routes[action] == "" {
+			routes[action] = "haiku"
+		}
+	}
+	p.ActionModels = routes
+	return p
 }
