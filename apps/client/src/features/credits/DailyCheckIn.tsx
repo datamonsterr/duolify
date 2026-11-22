@@ -39,6 +39,7 @@ export function DailyCheckIn() {
   const [notice, setNotice] = useState<CheckInResult | null>(null);
   useEffect(() => {
     if (!signedIn || !owner) return;
+    const learnerID = owner;
     let active = true;
     let pending = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -55,7 +56,7 @@ export function DailyCheckIn() {
       if (!active || pending || !navigator.onLine || session.expired()) return;
       pending = true;
       try {
-        const result = await checkIn(owner);
+        const result = await checkIn(learnerID);
         if (!active) return;
         nextAt = Date.parse(result.next_check_in_at);
         schedule(Number.isFinite(nextAt) ? nextAt : Date.now() + 60_000);

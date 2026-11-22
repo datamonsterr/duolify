@@ -478,7 +478,7 @@ func (s *Service) ProposeReplan(ctx context.Context, owner, course, quoteID stri
 	// Daily free Credits are not eligible for this action; Reserve below stays authoritative.
 	var job credits.Reservation
 	wallet, err := s.opts.Financial.GetWallet(ctx, owner)
-	if err == nil && wallet.Purchased+wallet.Subscription < q.ContentCeiling {
+	if err == nil && wallet.CheckIn+wallet.Purchased+wallet.Subscription < q.ContentCeiling {
 		err = credits.ErrInsufficient
 	} else {
 		job, err = s.opts.Financial.ReserveAction(ctx, owner, quoteID, "outline_replan")

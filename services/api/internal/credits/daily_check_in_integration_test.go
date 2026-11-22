@@ -3,6 +3,7 @@
 package credits_test
 
 import (
+	"fmt"
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -125,8 +126,28 @@ func TestDailyCheckInTransactions(t *testing.T) {
 		if v := check(id, day.AddDate(0, 0, 5)); v.Granted != 1 || v.BankedCheckIn != 1050 {
 			t.Fatalf("partial: %+v", v)
 		}
-		if v := check(id, day.AddDate(0, 0, 6)); v.Granted != 0 || !v.CheckedIn || v.FirstTime {
+		cat, e := pricing.Load(ctx, db.Queries)
+		if e != nil {
+			t.Fatal(e)
+		}
+		service := credits.NewServiceWithCatalogue(db.Pool, nil, cat, nil)
+		quotes := pricing.NewQuotes(db.Pool)
+		q, e := quotes.Create(ctx, id, pricing.QuoteInput{Action: "preview"})
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = quotes.Accept(ctx, id, q.ID); e != nil {
+			t.Fatal(e)
+		}
+		job, e := service.Reserve(ctx, id, q.ID)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if v := check(id, day.AddDate(0, 0, 6)); v.Granted != 0 || !v.CheckedIn || v.FirstTime || v.BankedCheckIn != 1050 {
 			t.Fatalf("cap: %+v", v)
+		}
+		if _, e = service.Release(ctx, id, job.ID); e != nil {
+			t.Fatal(e)
 		}
 	})
 	t.Run("preview uses check-in and release restores source", func(t *testing.T) {
@@ -178,7 +199,7 @@ func TestDailyCheckInTransactions(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		if _, e = db.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id,amount,kind,reference,provenance) VALUES($1,-45,'spend','daily-fixture',jsonb_build_object('bucket','daily_free','date',$2::text,'source_id',$3::text)),($1,400,'purchase','mixed-purchase','{"bucket":"purchase"}')`, id, time.Now().UTC().Format(time.DateOnly), grant.ID); e != nil {
+		if _, e = db.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id,amount,kind,reference,provenance) VALUES($1,-45,'spend','daily-fixture',jsonb_build_object('bucket','daily_free','date',$2::text,'source_id',$3::text)),($1,400,'purchase','mixed-purchase','{"bucket":"purchase"}')`, id, time.Now().UTC().Format(time.DateOnly), fmt.Sprint(grant.ID)); e != nil {
 			t.Fatal(e)
 		}
 		quotes := pricing.NewQuotes(db.Pool)

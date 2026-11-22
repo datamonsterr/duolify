@@ -101,7 +101,7 @@ func TestReplanQuoteProposalFinancialImmutabilityIntegration(t *testing.T) {
 	if rpc.calls.Load() != 0 {
 		t.Fatal("engine called before balance check")
 	}
-	_, err = f.db.Pool.Exec(f.ctx, `INSERT INTO credit_entries(learner_id,amount,kind,reference,provenance) VALUES($1::uuid,500,'purchase','replan-fixture','{"bucket":"purchased"}')`, f.owner)
+	_, err = f.db.Pool.Exec(f.ctx, `INSERT INTO credit_entries(learner_id,amount,kind,reference,provenance) VALUES($1::uuid,500,'check_in_grant','replan-fixture','{"bucket":"check_in"}')`, f.owner)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -19,6 +19,7 @@ type Creation = { id: string; state: string; course_id: string };
 interface CreationService {
   quote(snapshot: ConfirmedOutline): Promise<Terms>;
   wallet(): Promise<{
+    check_in?: number;
     purchased: number;
     subscription: number;
     unverified?: boolean;
@@ -147,7 +148,11 @@ export function CourseCreate({
         service.wallet(),
       ]);
       setTerms(q);
-      setBalance(w.unverified ? undefined : w.purchased + w.subscription);
+      setBalance(
+        w.unverified
+          ? undefined
+          : (w.check_in ?? 0) + w.purchased + w.subscription,
+      );
     } catch {
       setError("Cost unavailable. Your edits are kept; connect and retry.");
     } finally {
@@ -255,11 +260,11 @@ export function CourseCreate({
             lesson estimates.
           </p>
           <p>
-            Daily free 0 → purchased/subscription {terms.content_ceiling}; held
-            only after Create. Original terms {terms.pricing_version}.
+            Check-in Credits → purchased/subscription {terms.content_ceiling};
+            held only after Create. Original terms {terms.pricing_version}.
           </p>
           <p>
-            Eligible paid balance {balance ?? "unavailable"}
+            Eligible balance {balance ?? "unavailable"}
             {balance !== undefined &&
               ` → ${Math.max(0, balance - terms.content_ceiling)}`}
             . Unused reserved credits return after settlement.
