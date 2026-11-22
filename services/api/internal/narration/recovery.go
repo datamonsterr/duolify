@@ -184,7 +184,9 @@ func (s *Service) RegenerateMissing(ctx context.Context) (int, error) {
 	rows.Close()
 	done := 0
 	for _, j := range jobs {
-		if err = s.regenerate(ctx, j.id, j.hash, j.voice, j.model, j.fingerprint, j.audioKey, j.alignmentKey); err != nil {
+		if err = s.regenerate(ctx, j.id, j.hash, j.voice, j.model, j.fingerprint, j.audioKey, j.alignmentKey); errors.Is(err, errBudgetExhausted) {
+			break // the requests stay queued until the next cycle or a larger plan
+		} else if err != nil {
 			s.opts.Logger.Warn("narration regeneration failed", "id", j.id, "code", failureCode(err))
 			_, _ = s.opts.Pool.Exec(ctx, `UPDATE narration_regenerations SET status='failed',failure_code=$2,completed_at=now() WHERE id::text=$1`, j.id, failureCode(err))
 			continue
@@ -210,6 +212,16 @@ func (s *Service) regenerate(ctx context.Context, id, hash, voice, model, finger
 	// Only the identical hash may be regenerated: changed settings would need a new, charged version.
 	if resolved.VoiceId != voice || resolved.ModelId != model || resolved.SettingsFingerprint != fingerprint || ContentHash(text, voice, model, fingerprint) != hash {
 		return ErrOutput
+	}
+	if s.opts.Budget.Enabled() {
+		room, used, budgetErr := s.budgetRoom(ctx)
+		if budgetErr != nil {
+			return budgetErr
+		}
+		if int64(len([]rune(text))) > room {
+			s.alertBudgetExhausted("00000000-0000-0000-0000-000000000000", used, int64(len([]rune(text))), 1)
+			return errBudgetExhausted
+		}
 	}
 	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()

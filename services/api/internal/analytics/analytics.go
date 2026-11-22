@@ -108,7 +108,7 @@ func allowlisted(event string) bool {
 		"course_invite_sent", "course_invite_accepted", "course_invite_declined",
 		"course_republished", "course_update_applied", "review_submitted", "review_deleted", "course_reported", "course_hidden_by_reports",
 		"moderation_action", "moderation_appeal",
-		"narration_generated", "narration_failed", "narration_cache_hit", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled":
+		"narration_generated", "narration_failed", "narration_cache_hit", "narration_budget_exhausted", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled":
 		return true
 	default:
 		return false
@@ -571,6 +571,8 @@ func safeProperties(event string, input map[string]any) map[string]any {
 				out["reason_code"] = reason
 			}
 		}
+	case "narration_budget_exhausted":
+		numeric("characters_used", "characters_limit", "characters_requested", "stop_percent", "items_denied")
 	case "narration_failed":
 		ids("lesson_id", "slide_id", "error_code")
 	case "narration_played":
