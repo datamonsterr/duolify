@@ -33,8 +33,9 @@ for run in $runs; do
     gh api "repos/$repo/check-runs/$id/annotations" \
       --jq '.[] | select(.annotation_level != "notice") | "  \(.annotation_level) \(.path):\(.start_line) \(.title // "") \(.message)"' || true
     echo "  -- log around the first errors (also: gh run view $run --job $id --log-failed once the run is done):"
-    gh api "repos/$repo/actions/jobs/$id/logs" 2>&1 | sed 's/^[0-9TZ:.-]* //' \
-      | grep -m3 -B25 '##\[error\]' | tail -n 60 | sed 's/^/  | /' || true
+    gh api --allow-escape-sequences "repos/$repo/actions/jobs/$id/logs" 2>&1 \
+      | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/^[0-9TZ:.-]* //' \
+      | grep -m1 -B30 -A2 '##\[error\]' | tail -n 40 | sed 's/^/  | /' || true
   done <<< "$jobs"
 done
 [[ $found == 1 ]] || echo "No failing jobs."
