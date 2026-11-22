@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/datamonsterr/duolify/services/api/internal/ids"
 	"github.com/datamonsterr/duolify/services/api/internal/narration"
 	"github.com/jackc/pgx/v5"
 )
@@ -33,7 +34,7 @@ func (s *Service) NarrationSegments(ctx context.Context, owner, lessonID string)
 	}
 	var raw []byte
 	err := s.pool.QueryRow(ctx, `SELECT c.snapshot FROM generated_lessons g JOIN lesson_cast_snapshots c ON c.course_id=g.course_id AND c.learner_id=g.learner_id AND c.lesson_key=g.manifest->>'cast_key'
-		WHERE g.lesson_stub_id::text=$1 AND g.learner_id::text=$2`, lessonID, owner).Scan(&raw)
+		WHERE g.lesson_stub_id=$1::uuid AND g.learner_id=$2::uuid`, ids.Arg(lessonID), owner).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil // a plain Lesson keeps slide-level narration
 	}
@@ -45,7 +46,7 @@ func (s *Service) NarrationSegments(ctx context.Context, owner, lessonID string)
 		return nil, err
 	}
 	cast = s.SafeCast(ctx, cast)
-	rows, err := s.pool.Query(ctx, `SELECT slide_id,segments FROM lesson_slides WHERE lesson_stub_id::text=$1 AND learner_id::text=$2 ORDER BY position`, lessonID, owner)
+	rows, err := s.pool.Query(ctx, `SELECT slide_id,segments FROM lesson_slides WHERE lesson_stub_id=$1::uuid AND learner_id=$2::uuid ORDER BY position`, ids.Arg(lessonID), owner)
 	if err != nil {
 		return nil, err
 	}

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/ids"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -158,7 +160,7 @@ func (s *Service) reconcileFinancialObject(ctx context.Context, p FinancialProvi
 	// The canonical inventory may contain historical objects belonging to an
 	// erased account. Retained terms remain, but a replay never resurrects it.
 	var deleted bool
-	if err = s.pool().QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM credit_checkout_orders WHERE id::text=$1 AND learner_id IS NULL)", order).Scan(&deleted); err != nil {
+	if err = s.pool().QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM credit_checkout_orders WHERE id=$1::uuid AND learner_id IS NULL)", ids.Arg(order)).Scan(&deleted); err != nil {
 		s.reconciliationFailure(ctx, "mismatch")
 		return err
 	}
@@ -212,7 +214,7 @@ func (s *Service) verifyCanonicalOutcome(ctx context.Context, canonical any) err
 		currency = v.Currency
 		if paid {
 			if err := s.pool().QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_payment_results r JOIN credit_entries e ON e.id=r.ledger_id JOIN credit_checkout_orders o ON o.id=r.order_id
- WHERE r.order_id::text=$1 AND r.payment_key=$2 AND r.state='paid' AND e.kind='purchase' AND e.amount=o.credits AND e.reference=r.payment_key)`, order, "stripe:test:"+v.PaymentID).Scan(&good); err != nil {
+ WHERE r.order_id=$1::uuid AND r.payment_key=$2 AND r.state='paid' AND e.kind='purchase' AND e.amount=o.credits AND e.reference=r.payment_key)`, ids.Arg(order), "stripe:test:"+v.PaymentID).Scan(&good); err != nil {
 				return err
 			}
 		}
@@ -225,7 +227,7 @@ func (s *Service) verifyCanonicalOutcome(ctx context.Context, canonical any) err
 		period = fmt.Sprintf("stripe:test:%s:%d:%d:0", v.SubscriptionID, v.PeriodStart.Unix(), v.PeriodEnd.Unix())
 		if paid {
 			if err := s.pool().QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_subscription_terms t JOIN credit_subscriptions b USING(subscription_id) JOIN credit_entries e ON e.id=t.ledger_id
- WHERE t.period_key=$1 AND t.invoice_id=$2 AND b.order_id::text=$3 AND e.amount=t.monthly_credits AND e.reference=t.period_key AND t.amount_minor=$4)`, period, v.ID, order, v.AmountMinor).Scan(&good); err != nil {
+ WHERE t.period_key=$1 AND t.invoice_id=$2 AND b.order_id=$3::uuid AND e.amount=t.monthly_credits AND e.reference=t.period_key AND t.amount_minor=$4)`, period, v.ID, ids.Arg(order), v.AmountMinor).Scan(&good); err != nil {
 				return err
 			}
 		}
@@ -240,7 +242,7 @@ func (s *Service) verifyCanonicalOutcome(ctx context.Context, canonical any) err
 		return err
 	}
 	for _, item := range items {
-		if err = s.pool().QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_reversals WHERE reversal_key=$1 AND order_id::text=$2 AND COALESCE(period_key,'')=$3 AND amount_minor=$4 AND upper(currency)=upper($5) AND kind=$6)`, "stripe:test:"+item.id, order, period, item.amountMinor, item.currency, item.kind).Scan(&good); err != nil {
+		if err = s.pool().QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_reversals WHERE reversal_key=$1 AND order_id=$2::uuid AND COALESCE(period_key,'')=$3 AND amount_minor=$4 AND upper(currency)=upper($5) AND kind=$6)`, "stripe:test:"+item.id, ids.Arg(order), period, item.amountMinor, item.currency, item.kind).Scan(&good); err != nil {
 			return err
 		}
 		if !good {

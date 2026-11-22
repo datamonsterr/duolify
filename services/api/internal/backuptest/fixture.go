@@ -1536,14 +1536,14 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	}
 	var outlineSurvived bool
 	var positions int
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM lesson_playback_positions WHERE learner_id::text=$1", paymentOwner).Scan(&positions); err != nil || positions != 0 {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM lesson_playback_positions WHERE learner_id=$1::uuid", paymentOwner).Scan(&positions); err != nil || positions != 0 {
 		t.Fatal("playback position survived restore tombstone", positions, err)
 	}
 	var syncEvents int
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM lesson_playback_sync_events WHERE learner_id::text=$1", paymentOwner).Scan(&syncEvents); err != nil || syncEvents != 0 {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT count(*) FROM lesson_playback_sync_events WHERE learner_id=$1::uuid", paymentOwner).Scan(&syncEvents); err != nil || syncEvents != 0 {
 		t.Fatal("playback sync event survived restore tombstone", syncEvents, err)
 	}
-	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM course_replan_proposals WHERE learner_id::text=$1) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id::text=$1) OR EXISTS(SELECT 1 FROM outline_proposals WHERE learner_id::text=$1) OR EXISTS(SELECT 1 FROM lesson_manifests WHERE learner_id::text=$1)", paymentOwner).Scan(&outlineSurvived); err != nil || outlineSurvived {
+	if err := restored.Pool.QueryRow(t.Context(), "SELECT EXISTS(SELECT 1 FROM course_replan_proposals WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_drafts WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM outline_proposals WHERE learner_id=$1::uuid) OR EXISTS(SELECT 1 FROM lesson_manifests WHERE learner_id=$1::uuid)", paymentOwner).Scan(&outlineSurvived); err != nil || outlineSurvived {
 		t.Fatal("outline survived restore tombstone", err)
 	}
 	var anonymous bool

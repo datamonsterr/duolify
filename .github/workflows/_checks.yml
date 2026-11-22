@@ -128,6 +128,9 @@ jobs:
       - name: mise run ci:api-integration-shards
         run: mise run ci:api-integration-shards
         timeout-minutes: 1
+      - name: mise run ci:sql-casts
+        run: mise run ci:sql-casts
+        timeout-minutes: 1
       - name: mise run ci:openspec
         run: mise run ci:openspec
         timeout-minutes: 2

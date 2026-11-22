@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/ids"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store/db"
 	"github.com/google/uuid"
@@ -127,7 +128,7 @@ func (s *Service) ChangeSubscription(ctx context.Context, owner string, in Chang
 		return result, errCheckoutInput
 	}
 	var bound bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_subscriptions b JOIN credit_checkout_orders o ON o.id=b.order_id WHERE b.subscription_id=$1 AND b.customer_id=$2 AND o.id::text=$3 AND o.owner_reference=$4)`, sub.ID, sub.CustomerID, sub.OrderID, sub.OwnerReference).Scan(&bound); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM credit_subscriptions b JOIN credit_checkout_orders o ON o.id=b.order_id WHERE b.subscription_id=$1 AND b.customer_id=$2 AND o.id=$3::uuid AND o.owner_reference=$4)`, sub.ID, sub.CustomerID, ids.Arg(sub.OrderID), sub.OwnerReference).Scan(&bound); err != nil {
 		return result, err
 	}
 	if !bound {

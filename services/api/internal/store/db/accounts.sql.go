@@ -12,7 +12,7 @@ import (
 const getAuthenticatedLearner = `-- name: GetAuthenticatedLearner :one
 SELECT l.id::text AS id, l.display_name, p.locale, p.time_zone, p.background, p.analytics_opt_out
 FROM learners l JOIN learner_profiles p ON p.learner_id=l.id
-WHERE l.id::text=$1::text
+WHERE l.id=$1::text::uuid
 `
 
 type GetAuthenticatedLearnerRow struct {
