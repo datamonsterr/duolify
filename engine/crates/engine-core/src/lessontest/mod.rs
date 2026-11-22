@@ -277,7 +277,10 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
                         || var["topic_id"].as_str() != Some(pool_topic)
                         || var["variant_of"].as_str() != source_q["question_id"].as_str()
                     {
-                        bail!("variant identity or topic linkage mismatch");
+                        bail!(
+                            "variant identity or topic linkage mismatch: variant {id:?} needs a new question_id not used by any test question or other variant, topic_id {pool_topic:?} and variant_of {:?}",
+                            source_q["question_id"].as_str().unwrap_or_default()
+                        );
                     }
 
                     let v_prompt = var["prompt"].as_str().unwrap_or_default();
