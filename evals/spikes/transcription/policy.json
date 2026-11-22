@@ -1,0 +1,50 @@
+{
+ "openai/gpt-4o-mini-transcribe": {
+  "data_collection_deny": "ok",
+  "data_collection_deny_cost": 0.000195,
+  "zdr": "404 {\"error\":{\"message\":\"No endpoints found matching your data policy (Zero data retention). Configure: https://op",
+  "zdr_cost": null
+ },
+ "openai/whisper-large-v3-turbo": {
+  "data_collection_deny": "ok",
+  "data_collection_deny_cost": 7.57222222221465e-05,
+  "zdr": "ok",
+  "zdr_cost": 7.57222222221465e-05
+ },
+ "google/gemini-3.5-transcribe": {
+  "data_collection_deny": "ok",
+  "data_collection_deny_cost": 0.000584,
+  "zdr": "404 {\"error\":{\"message\":\"No endpoints found matching your data policy (Zero data retention). Configure: https://op",
+  "zdr_cost": null
+ },
+ "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b": {
+  "data_collection_deny": "ok",
+  "data_collection_deny_cost": 2.269395e-05,
+  "zdr": "ok",
+  "zdr_cost": 2.269395e-05
+ },
+ "qwen/qwen3-asr-0.6b": {
+  "data_collection_deny": "ok",
+  "data_collection_deny_cost": 2.269395e-05,
+  "zdr": "ok",
+  "zdr_cost": 2.269395e-05
+ },
+ "openai/gpt-4o-transcribe": {
+  "data_collection_deny": "ok",
+  "data_collection_deny_cost": 0.0004,
+  "zdr": "404 {\"error\":{\"message\":\"No endpoints found matching your data policy (Zero data retention). Configure: https://op",
+  "zdr_cost": null
+ },
+ "mistralai/voxtral-mini-transcribe-3-0": {
+  "data_collection_deny": "ok",
+  "data_collection_deny_cost": 0.0003499998,
+  "zdr": "ok",
+  "zdr_cost": 0.0003499998
+ },
+ "nvidia/parakeet-tdt-0.6b-v3": {
+  "data_collection_deny": "ok",
+  "data_collection_deny_cost": 0.0001135835605,
+  "zdr": "ok",
+  "zdr_cost": 0.0001135835605
+ }
+}
