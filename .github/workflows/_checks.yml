@@ -25,6 +25,8 @@ env:
   MISE_AUTO_INSTALL: 'false'
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: '0'
+  # gotestsum: grouped log output; each test step also writes JUnit (see ci:summary).
+  GOTESTSUM_FORMAT: github-actions
 
 defaults:
   run:
@@ -32,7 +34,7 @@ defaults:
 
 jobs:
   changes:
-    runs-on: namespace-profile-datamonster01
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -105,8 +107,11 @@ jobs:
               - *github
               - *scripts
 
-  workflow-lint:
-    runs-on: namespace-profile-datamonster01
+  # Jobs run in parallel. Cheap checks (lint, typecheck, unit tests) live in their
+  # own jobs and are listed first, so they start first and fail first; slower jobs
+  # (integration shards, Playwright, Tauri, Docker) never gate them.
+  repo-lint:
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
@@ -114,29 +119,16 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-tools
         with:
-          tools: actionlint shellcheck
-      - run: mise run ci:lint
+          tools: actionlint shellcheck node npm:@fission-ai/openspec@1.3.1
+          area: repo-lint
+      - name: mise run ci:lint
+        run: mise run ci:lint
         timeout-minutes: 2
-      - run: mise run ci:api-integration-shards
+      - name: mise run ci:api-integration-shards
+        run: mise run ci:api-integration-shards
         timeout-minutes: 1
-      - name: Summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-        run: mise run ci:summary
-
-  openspec:
-    runs-on: namespace-profile-datamonster01
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-tools
-        with:
-          tools: node npm:@fission-ai/openspec@1.3.1
-          area: openspec
-      - run: mise run ci:openspec
+      - name: mise run ci:openspec
+        run: mise run ci:openspec
         timeout-minutes: 2
       - name: Summary
         if: always()
@@ -147,7 +139,7 @@ jobs:
   proto:
     needs: changes
     if: needs.changes.outputs.proto == 'true'
-    runs-on: namespace-profile-datamonster01
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -156,13 +148,18 @@ jobs:
           # proto:breaking fetches main using the read-only checkout credential.
           persist-credentials: true
       - uses: ./.github/actions/setup-proto
-      - run: mise run proto:lint
-      - run: mise run proto:gen
+      - name: mise run proto:lint
+        run: mise run proto:lint
+      - name: mise run proto:gen
+        run: mise run proto:gen
         timeout-minutes: 4
-      - run: mise run ci:proto-drift
-      - if: inputs.tier == 'full'
+      - name: mise run ci:proto-drift
+        run: mise run ci:proto-drift
+      - name: mise run ci:proto-main
+        if: inputs.tier == 'full'
         run: mise run ci:proto-main
-      - if: inputs.tier == 'full'
+      - name: mise run proto:breaking
+        if: inputs.tier == 'full'
         run: mise run proto:breaking
         timeout-minutes: 2
       - name: Summary
@@ -174,18 +171,23 @@ jobs:
   api:
     needs: changes
     if: needs.changes.outputs.api == 'true'
-    runs-on: namespace-profile-datamonster01
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-api
-      - run: mise run api:lint
+      - name: mise run api:lint
+        run: mise run api:lint
         timeout-minutes: 5
-      - run: mise run api:test
+      - name: mise run api:test
+        run: mise run api:test
         timeout-minutes: 5
-      - run: mise run api:build
+        env:
+          GOTESTSUM_JUNITFILE: ${{ runner.temp }}/junit/api-test.xml
+      - name: mise run api:build
+        run: mise run api:build
         timeout-minutes: 2
       - name: Summary
         if: always()
@@ -193,82 +195,49 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
-  api-integration-a:
+  client-web:
     needs: changes
-    if: inputs.tier == 'full' && needs.changes.outputs.api == 'true'
-    runs-on: namespace-profile-datamonster01
-    timeout-minutes: 20
-    # The task starts and removes Postgres 18 via testcontainers; Docker must be available.
-    env:
-      API_TEST_PACKAGES: ./internal/backup/... ./internal/social/... ./internal/sharing/...
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-api
-      - run: mise run api:test-integration
-        timeout-minutes: 12
-      - name: Summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-        run: mise run ci:summary
-
-  api-integration-b:
-    needs: changes
-    if: inputs.tier == 'full' && needs.changes.outputs.api == 'true'
-    runs-on: namespace-profile-datamonster01
-    timeout-minutes: 20
-    env:
-      API_TEST_PACKAGES: ./internal/notes/... ./internal/narration/... ./internal/lessontest/... ./internal/characters/... ./internal/credits/...
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-api
-      - run: mise run api:test-integration
-        timeout-minutes: 12
-      - name: Summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-        run: mise run ci:summary
-
-  api-integration-c:
-    needs: changes
-    if: inputs.tier == 'full' && needs.changes.outputs.api == 'true'
-    runs-on: namespace-profile-datamonster01
-    timeout-minutes: 20
-    env:
-      API_TEST_PACKAGES: ./internal/store/... ./internal/pricing/... ./internal/accounts/... ./internal/courses/... ./internal/player/... ./internal/eval/... ./internal/gamification/... ./internal/chat/... ./internal/steering/...
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-api
-      - run: mise run api:test-e2e
-        timeout-minutes: 8
-      - run: mise run api:test-integration
-        timeout-minutes: 12
-      - name: Summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-        run: mise run ci:summary
-
-  restore-drill:
-    needs: changes
-    if: inputs.tier == 'full' && (needs.changes.outputs.api == 'true' || needs.changes.outputs.infra == 'true')
-    runs-on: namespace-profile-datamonster01
+    if: needs.changes.outputs.client == 'true'
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
-    # Starts disposable Postgres 18, RustFS and Redis via testcontainers; Docker must be available.
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-api
-      - run: mise run api:restore-drill-ci
-        timeout-minutes: 10
+      - uses: ./.github/actions/setup-client
+      - name: mise run client:lint-web
+        run: mise run client:lint-web
+        timeout-minutes: 6
+      - name: mise run client:test-web
+        run: mise run client:test-web
+        timeout-minutes: 5
+      - name: mise run client:build
+        run: mise run client:build
+        timeout-minutes: 3
+        env:
+          VITEST_JUNIT_FILE: ./test-results/vitest-boundary-junit.xml
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  infra:
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: hadolint
+          area: infra-lint
+      - name: mise run infra:lint
+        run: mise run infra:lint
+        timeout-minutes: 6
       - name: Summary
         if: always()
         env:
@@ -278,15 +247,43 @@ jobs:
   engine-lint:
     needs: changes
     if: needs.changes.outputs.engine == 'true'
-    runs-on: namespace-profile-linux-xl
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-engine
-      - run: mise run engine:lint
+        with:
+          cache-key: lint
+      - name: mise run engine:lint
+        run: mise run engine:lint
         timeout-minutes: 12
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  client-native:
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-client
+        with:
+          tauri: 'true'
+          cache-key: native
+      - name: mise run client:lint-native
+        run: mise run client:lint-native
+        timeout-minutes: 8
+      - name: mise run client:test-native
+        run: mise run client:test-native
+        timeout-minutes: 6
       - name: Summary
         if: always()
         env:
@@ -296,16 +293,20 @@ jobs:
   engine-build:
     needs: changes
     if: needs.changes.outputs.engine == 'true'
-    runs-on: namespace-profile-linux-xl
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-engine
-      - run: mise run engine:build
+        with:
+          cache-key: build
+      - name: mise run engine:build
+        run: mise run engine:build
         timeout-minutes: 6
-      - run: mise run ci:engine-archive
+      - name: mise run ci:engine-archive
+        run: mise run ci:engine-archive
         timeout-minutes: 6
       - uses: actions/upload-artifact@v7
         with:
@@ -322,8 +323,10 @@ jobs:
 
   engine-test:
     needs: engine-build
-    runs-on: namespace-profile-linux-xl
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      NEXTEST_PROFILE: ci
     steps:
       - uses: actions/checkout@v7
         with:
@@ -337,7 +340,8 @@ jobs:
           name: engine-nextest
           path: engine
       # Same workspace suite as engine:test, without compiling it again.
-      - run: mise run ci:engine-test-archive
+      - name: mise run ci:engine-test-archive
+        run: mise run ci:engine-test-archive
         timeout-minutes: 6
       - name: Summary
         if: always()
@@ -348,14 +352,18 @@ jobs:
   engine-eval:
     needs: changes
     if: needs.changes.outputs.engine == 'true'
-    runs-on: namespace-profile-linux-xl
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      # Same dev profile as engine-build, so they share one Rust cache.
       - uses: ./.github/actions/setup-engine
-      - run: mise run engine:eval
+        with:
+          cache-key: build
+      - name: mise run engine:eval
+        run: mise run engine:eval
         timeout-minutes: 12
       - uses: actions/upload-artifact@v7
         if: always()
@@ -363,211 +371,152 @@ jobs:
           name: eval-reports
           path: evals/reports
           retention-days: 90
+          if-no-files-found: ignore
       - name: Summary
         if: always()
         env:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
-  engine-eval-live:
+  api-integration-a:
     needs: changes
-    if: inputs.tier == 'full' && needs.changes.outputs.engine == 'true'
-    runs-on: namespace-profile-linux-xl
+    if: inputs.tier == 'full' && needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # The task starts and removes Postgres 18 via testcontainers; Docker is preinstalled.
+    env:
+      API_TEST_PACKAGES: ./internal/backup/... ./internal/social/... ./internal/sharing/...
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-engine
-      - run: mise run engine:eval-live
-        timeout-minutes: 15
+      - uses: ./.github/actions/setup-api
+      - name: mise run api:test-integration
+        run: mise run api:test-integration
+        timeout-minutes: 12
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_GOLDEN_DATASET: ${{ vars.HF_GOLDEN_DATASET || 'datamonsterr/duolify-golden' }}
-          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION }}
-          EVAL_SAMPLE_LIMIT: '10'
-          EVAL_BUDGET_USD: '5.00'
-      - name: Verify promotion gate
-        if: always()
-        run: mise run engine:gate evals/reports/latest.json
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: eval-live-reports
-          path: evals/reports
-          retention-days: 90
+          GOTESTSUM_JUNITFILE: ${{ runner.temp }}/junit/api-integration.xml
       - name: Summary
         if: always()
         env:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
-  client:
+  api-integration-b:
     needs: changes
-    if: needs.changes.outputs.client == 'true'
-    runs-on: namespace-profile-linux-xl
+    if: inputs.tier == 'full' && needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      API_TEST_PACKAGES: ./internal/notes/... ./internal/narration/... ./internal/lessontest/... ./internal/characters/... ./internal/credits/...
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-client
-      - run: mise run client:lint
+      - uses: ./.github/actions/setup-api
+      - name: mise run api:test-integration
+        run: mise run api:test-integration
+        timeout-minutes: 12
+        env:
+          GOTESTSUM_JUNITFILE: ${{ runner.temp }}/junit/api-integration.xml
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  api-integration-c:
+    needs: changes
+    if: inputs.tier == 'full' && needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      API_TEST_PACKAGES: ./internal/store/... ./internal/pricing/... ./internal/accounts/... ./internal/courses/... ./internal/player/... ./internal/eval/... ./internal/gamification/... ./internal/chat/... ./internal/steering/...
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-api
+      - name: mise run api:test-e2e
+        run: mise run api:test-e2e
         timeout-minutes: 8
-      - run: mise run client:test
-        timeout-minutes: 5
-      - run: mise run client:build
-        timeout-minutes: 2
-      - uses: actions/upload-artifact@v7
-        with:
-          name: client-web
-          path: apps/client/dist
-          retention-days: 1
-          if-no-files-found: error
+        env:
+          GOTESTSUM_JUNITFILE: ${{ runner.temp }}/junit/api-e2e.xml
+      - name: mise run api:test-integration
+        run: mise run api:test-integration
+        timeout-minutes: 12
+        env:
+          GOTESTSUM_JUNITFILE: ${{ runner.temp }}/junit/api-integration.xml
       - name: Summary
         if: always()
         env:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
-  playwright-1:
-    needs: [changes, client]
-    if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
-    runs-on: namespace-profile-linux-xl
-    timeout-minutes: 20
+  restore-drill:
+    needs: changes
+    if: inputs.tier == 'full' && (needs.changes.outputs.api == 'true' || needs.changes.outputs.infra == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Starts disposable Postgres 18, RustFS and Redis via testcontainers; Docker is preinstalled.
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-client
-        with:
-          tauri: 'false'
-      - uses: ./.github/actions/setup-tools
-        with:
-          tools: go
-          area: pricing-e2e
-      - uses: actions/download-artifact@v8
-        with:
-          name: client-web
-          path: apps/client/dist
-      - uses: actions/cache@v6
-        id: browsers
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-      - run: mise run ci:playwright-deps
-        timeout-minutes: 3
-      - if: steps.browsers.outputs.cache-hit != 'true'
-        run: mise run client:e2e-setup
-        timeout-minutes: 3
-      - run: mise run client:e2e
-        env:
-          E2E_SHARD: 1/3
+      - uses: ./.github/actions/setup-api
+      - name: mise run api:restore-drill-ci
+        run: mise run api:restore-drill-ci
         timeout-minutes: 10
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: playwright-report-1
-          path: |
-            apps/client/playwright-report
-            apps/client/test-results
-          if-no-files-found: ignore
-          retention-days: 7
+        env:
+          GOTESTSUM_JUNITFILE: ${{ runner.temp }}/junit/restore-drill.xml
       - name: Summary
         if: always()
         env:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
-  playwright-2:
-    needs: [changes, client]
+  playwright:
+    name: playwright-${{ matrix.shard }}
+    needs: changes
     if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
-    runs-on: namespace-profile-linux-xl
-    timeout-minutes: 20
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-client
-        with:
-          tauri: 'false'
-      - uses: ./.github/actions/setup-tools
+      # api:pricing-e2e-server runs through `go run`.
+      - uses: ./.github/actions/setup-api
         with:
           tools: go
           area: pricing-e2e
-      - uses: actions/download-artifact@v8
-        with:
-          name: client-web
-          path: apps/client/dist
       - uses: actions/cache@v6
         id: browsers
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-      - run: mise run ci:playwright-deps
+      - name: mise run ci:playwright-deps
+        run: mise run ci:playwright-deps
         timeout-minutes: 3
-      - if: steps.browsers.outputs.cache-hit != 'true'
+      - name: mise run client:e2e-setup
+        if: steps.browsers.outputs.cache-hit != 'true'
         run: mise run client:e2e-setup
         timeout-minutes: 3
-      - run: mise run client:e2e
+      # client:e2e depends on client:build (with the tracer env the tests need).
+      - name: mise run client:e2e (shard ${{ matrix.shard }}/3)
+        run: mise run client:e2e
         env:
-          E2E_SHARD: 2/3
-        timeout-minutes: 10
+          E2E_SHARD: ${{ matrix.shard }}/3
+        timeout-minutes: 15
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: playwright-report-2
-          path: |
-            apps/client/playwright-report
-            apps/client/test-results
-          if-no-files-found: ignore
-          retention-days: 7
-      - name: Summary
-        if: always()
-        env:
-          JOB_STATUS: ${{ job.status }}
-        run: mise run ci:summary
-
-  playwright-3:
-    needs: [changes, client]
-    if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
-    runs-on: namespace-profile-linux-xl
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-client
-        with:
-          tauri: 'false'
-      - uses: ./.github/actions/setup-tools
-        with:
-          tools: go
-          area: pricing-e2e
-      - uses: actions/download-artifact@v8
-        with:
-          name: client-web
-          path: apps/client/dist
-      - uses: actions/cache@v6
-        id: browsers
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-      - run: mise run ci:playwright-deps
-        timeout-minutes: 3
-      - if: steps.browsers.outputs.cache-hit != 'true'
-        run: mise run client:e2e-setup
-        timeout-minutes: 3
-      - run: mise run client:e2e
-        env:
-          E2E_SHARD: 3/3
-        timeout-minutes: 10
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: playwright-report-3
+          name: playwright-report-${{ matrix.shard }}
           path: |
             apps/client/playwright-report
             apps/client/test-results
@@ -582,15 +531,19 @@ jobs:
   tauri:
     needs: changes
     if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
-    runs-on: namespace-profile-linux-xl
-    timeout-minutes: 20
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-client
-      - run: mise run client:tauri-build
-        timeout-minutes: 15
+        with:
+          tauri: 'true'
+          cache-key: build
+      - name: mise run client:tauri-build
+        run: mise run client:tauri-build
+        timeout-minutes: 18
       - name: Summary
         if: always()
         env:
@@ -600,7 +553,7 @@ jobs:
   images:
     needs: changes
     if: inputs.tier == 'full'
-    runs-on: namespace-profile-linux-xl
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
       fail-fast: false
@@ -619,9 +572,13 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-tools
         if: needs.changes.outputs[matrix.image] == 'true'
+      - name: mise run ci:free-disk
+        if: needs.changes.outputs[matrix.image] == 'true'
+        run: mise run ci:free-disk
       - uses: docker/setup-buildx-action@v4
         if: needs.changes.outputs[matrix.image] == 'true'
-      - uses: docker/build-push-action@v7
+      - name: Build ${{ matrix.image }} image (BuildKit gha cache)
+        uses: docker/build-push-action@v7
         if: needs.changes.outputs[matrix.image] == 'true'
         timeout-minutes: 20
         with:
@@ -636,21 +593,51 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
 
-  infra:
+  # Live eval needs provider and dataset secrets; without them it skips with a notice.
+  engine-eval-live:
     needs: changes
-    if: needs.changes.outputs.infra == 'true'
-    runs-on: namespace-profile-datamonster01
-    timeout-minutes: 10
+    if: inputs.tier == 'full' && needs.changes.outputs.engine == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-tools
+      - name: mise run ci:require-secrets
+        id: credentials
+        run: mise run ci:require-secrets -- 'live eval'
+        env:
+          REQUIRED_SECRETS: ANTHROPIC_API_KEY OPENROUTER_API_KEY HF_TOKEN
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      - if: steps.credentials.outputs.enabled == 'true'
+        uses: ./.github/actions/setup-engine
         with:
-          tools: hadolint
-          area: infra-lint
-      - run: mise run infra:lint
-        timeout-minutes: 6
+          cache-key: build
+      - name: mise run engine:eval-live
+        if: steps.credentials.outputs.enabled == 'true'
+        run: mise run engine:eval-live
+        timeout-minutes: 15
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_GOLDEN_DATASET: ${{ vars.HF_GOLDEN_DATASET || 'datamonsterr/duolify-golden' }}
+          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION }}
+          EVAL_SAMPLE_LIMIT: '10'
+          EVAL_BUDGET_USD: '5.00'
+      - name: mise run engine:gate
+        if: always() && steps.credentials.outputs.enabled == 'true'
+        run: mise run engine:gate evals/reports/latest.json
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.credentials.outputs.enabled == 'true'
+        with:
+          name: eval-live-reports
+          path: evals/reports
+          retention-days: 90
+          if-no-files-found: ignore
       - name: Summary
         if: always()
         env:
@@ -660,7 +647,7 @@ jobs:
   infra-plan:
     needs: changes
     if: inputs.tier == 'full' && needs.changes.outputs.infra == 'true'
-    runs-on: namespace-profile-datamonster01
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -670,20 +657,16 @@ jobs:
         with:
           tools: go node pnpm railway
           area: infra-plan
-      - name: Validate Railway environment definitions (plan-only evidence)
+      - name: mise run infra:validate-plan
         run: mise run infra:validate-plan
-      - name: Check Railway credentials
+      - name: mise run ci:require-secrets
         id: credentials
+        run: mise run ci:require-secrets -- 'Railway plan'
         env:
-          HAVE_TOKEN: ${{ secrets.RAILWAY_TOKEN != '' }}
-          FORK: ${{ github.event.pull_request.head.repo.fork || false }}
-        run: |
-          if [[ "$HAVE_TOKEN" == true && "$FORK" != true ]]; then
-            echo 'enabled=true' >> "$GITHUB_OUTPUT"
-          else
-            echo '::notice::Railway plan skipped: RAILWAY_TOKEN unavailable or fork PR.'
-          fi
-      - if: steps.credentials.outputs.enabled == 'true'
+          REQUIRED_SECRETS: RAILWAY_TOKEN
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - name: mise run infra:plan
+        if: steps.credentials.outputs.enabled == 'true'
         run: mise run infra:plan
         timeout-minutes: 6
         env:
@@ -699,7 +682,7 @@ jobs:
   selfhost:
     needs: changes
     if: inputs.tier == 'full' && (needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.infra == 'true')
-    runs-on: namespace-profile-linux-xl
+    runs-on: ubuntu-24.04
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v7
@@ -731,36 +714,34 @@ jobs:
     if: always()
     needs:
       - changes
-      - workflow-lint
-      - openspec
+      - repo-lint
       - proto
       - api
+      - client-web
+      - infra
+      - engine-lint
+      - client-native
+      - engine-build
+      - engine-test
+      - engine-eval
       - api-integration-a
       - api-integration-b
       - api-integration-c
       - restore-drill
-      - engine-lint
-      - engine-build
-      - engine-test
-      - engine-eval
-      - engine-eval-live
-      - client
-      - playwright-1
-      - playwright-2
-      - playwright-3
+      - playwright
       - tauri
       - images
-      - infra
+      - engine-eval-live
       - infra-plan
       - selfhost
-    runs-on: namespace-profile-datamonster01
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-tools
-      - name: Require all selected checks to pass
+      - name: mise run ci:aggregate
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
           CHANGES_RESULT: ${{ needs.changes.result }}

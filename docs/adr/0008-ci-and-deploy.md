@@ -5,7 +5,7 @@
 
 ## Decision
 
-- **Runners**: `namespace-profile-datamonster01` for every job; `namespace-profile-linux-xl` for heavy jobs (Rust builds, Tauri builds, Docker images). Never `ubuntu-latest`.
+- **Runners**: GitHub-hosted `ubuntu-24.04` for every job (free for this public repo). Never the floating `ubuntu-latest`. This replaces the earlier Namespace profiles (`namespace-profile-datamonster01`, `namespace-profile-linux-xl`), which stopped picking up jobs on 2026-11-21.
 - **Draft PR pipeline** (fast): path-filtered lint, unit tests, mock evals, workflow lint. Target under 5 minutes warm.
 - **Ready PR / main pipeline** (full): adds integration tests with Postgres and Redis services, Playwright e2e, Docker image builds, Tauri debug build, live sample evals when secrets exist.
 - One aggregate `ci-ok` job is the only required status check.

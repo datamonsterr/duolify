@@ -1,5 +1,9 @@
 name: Set up engine
-description: mise Rust, protoc and nextest with the engine workspace cache.
+description: mise Rust, protoc and nextest with the engine workspace cache and extra disk space.
+inputs:
+  cache-key:
+    description: Rust cache namespace; jobs that compile the same profile share one.
+    default: build
 runs:
   using: composite
   steps:
@@ -7,7 +11,10 @@ runs:
       with:
         tools: rust protoc cargo:cargo-nextest
         area: engine
+    - name: mise run ci:free-disk
+      shell: bash
+      run: mise run ci:free-disk
     - uses: Swatinem/rust-cache@v2
       with:
         workspaces: engine -> target
-        shared-key: engine
+        shared-key: engine-${{ inputs.cache-key }}

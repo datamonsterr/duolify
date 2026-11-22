@@ -1,0 +1,8 @@
+# CI profile: run every test (no fail-fast) and write JUnit for the job summary.
+# Output: engine/target/nextest/ci/junit.xml. Select with NEXTEST_PROFILE=ci.
+[profile.ci]
+fail-fast = false
+failure-output = "immediate-final"
+
+[profile.ci.junit]
+path = "junit.xml"
