@@ -58,13 +58,46 @@ esac
 STUB
 chmod +x "$tmp/bin/docker"
 rc=0
-PATH="$tmp/bin:$PATH" DEPLOY_REGISTRY_USER=octocat bash "$tmp/deploy/deploy.sh" sha-abcdef1 "${good[@]}" <"$tmp/token" >/dev/null 2>&1 || rc=$?
+printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/plan-ok.sh"
+PATH="$tmp/bin:$PATH" DEPLOY_PLAN="$tmp/plan-ok.sh" DEPLOY_REGISTRY_USER=octocat bash "$tmp/deploy/deploy.sh" sha-abcdef1 "${good[@]}" <"$tmp/token" >/dev/null 2>&1 || rc=$?
 calls=$(cat "$tmp/calls" 2>/dev/null || true)
 config_dir=$(sed -n 's/^argv login .* config=//p' <<<"$calls")
 if ((rc != 0)) && grep -q '^stdin ghs_faketoken$' <<<"$calls" && grep -q '^logout$' <<<"$calls" \
   && ! grep '^argv' <<<"$calls" | grep -q ghs_faketoken && [[ -n $config_dir && $config_dir != none && ! -e $config_dir ]]; then
   printf 'ok   registry login via stdin in a temporary config, logged out after a failed pull\n'
 else printf 'FAIL registry login/logout (rc=%s):\n%s\n' "$rc" "$calls"; failures=$((failures + 1)); fi
+
+# The plan runs against the real env file before anything is pulled or migrated: a bad .env stops the
+# deploy with the plan's message, with no docker login, pull, build or migrate.
+mkdir -p "$tmp/vm/deploy" "$tmp/vm/observability" "$tmp/vm/bin"
+cp "$here/deploy.sh" "$here/selfhost.sh" "$here/deploy-plan.sh" "$here/compose.yml" "$here/compose.prod.yml" "$here/Caddyfile" "$tmp/vm/deploy/"
+cp "$here/../observability/alerts.yml" "$tmp/vm/observability/"
+cp "$here/.env.prod.example" "$tmp/vm/deploy/.env"
+sed -i -e 's#^BACKUP_AGE_RECIPIENT=.*#BACKUP_AGE_RECIPIENT=age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p#' \
+  -e 's#^S3_ACCESS_KEY_ID=.*#S3_ACCESS_KEY_ID=app-key-id#' -e 's#^BACKUP_S3_ACCESS_KEY_ID=.*#BACKUP_S3_ACCESS_KEY_ID=app-key-id#' \
+  -e 's#=GENERATED$#=0123456789abcdef#' -e 's#ACCOUNT_ID#abc123#g' "$tmp/vm/deploy/.env"
+real_docker=$(command -v docker)
+cat >"$tmp/vm/bin/docker" <<STUB
+#!/usr/bin/env bash
+case "\$*" in
+  *" config "*|*" config") exec "$real_docker" "\$@" ;;
+  *) echo "argv \$*" >>"$tmp/vm/calls" ;;
+esac
+exit 1
+STUB
+chmod +x "$tmp/vm/bin/docker"
+rc=0
+out=$(PATH="$tmp/vm/bin:$PATH" bash "$tmp/vm/deploy/deploy.sh" sha-abcdef1 "${good[@]}" 2>&1 </dev/null) || rc=$?
+if ((rc == 1)) && grep -q 'separate credentials' <<<"$out" && grep -q 'nothing was pulled' <<<"$out" && [[ ! -s $tmp/vm/calls ]]; then
+  printf 'ok   a bad .env stops the deploy before any pull or migrate\n'
+else printf 'FAIL bad .env did not stop the deploy early (rc=%s):\n%s\n%s\n' "$rc" "$out" "$(cat "$tmp/vm/calls" 2>/dev/null)"; failures=$((failures + 1)); fi
+# With a valid .env the plan passes and the deploy goes on to the pull (which this stub fails).
+sed -i 's#^BACKUP_S3_ACCESS_KEY_ID=.*#BACKUP_S3_ACCESS_KEY_ID=backup-key-id#' "$tmp/vm/deploy/.env"
+rc=0
+out=$(PATH="$tmp/vm/bin:$PATH" bash "$tmp/vm/deploy/deploy.sh" sha-abcdef1 "${good[@]}" 2>&1 </dev/null) || rc=$?
+if ((rc != 0)) && grep -q 'deploy-plan: ok' <<<"$out" && grep -q ' pull ' "$tmp/vm/calls" 2>/dev/null; then
+  printf 'ok   a valid .env passes the plan and the deploy proceeds to the pull\n'
+else printf 'FAIL valid .env (rc=%s):\n%s\n%s\n' "$rc" "$out" "$(cat "$tmp/vm/calls" 2>/dev/null)"; failures=$((failures + 1)); fi
 
 # The Compose files must honour the pinned references.
 out=$(API_IMAGE=ghcr.io/o/r/api@sha256:$d1 WORKER_IMAGE=ghcr.io/o/r/worker@sha256:$d1 ENGINE_IMAGE=ghcr.io/o/r/engine@sha256:$d1 \

@@ -27,7 +27,31 @@ x-app-env: &app-env
   RESEND_API_KEY: ${RESEND_API_KEY:-}
   AUTH_MAIL_FROM: ${AUTH_MAIL_FROM:-}
   AUTH_TRUSTED_PROXY_HOPS: "1"
-  API_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN}
+  # Comma-separated browser origins for CORS and cookie-mode web sign-in; defaults to the web origin.
+  API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN}}
+  # Clerk web sign-in: all empty = off; the secret and publishable key are set together, and
+  # CLERK_AUTHORIZED_PARTIES lists the web origin(s) allowed to mint tokens.
+  CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+  CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY:-}
+  CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES:-}
+  CLERK_JWT_KEY: ${CLERK_JWT_KEY:-}
+  # Sign-in code limits per hour; empty keeps the code defaults (20 / 3 / 10 / 60).
+  AUTH_CODE_REQUESTS_PER_IP_PER_HOUR: ${AUTH_CODE_REQUESTS_PER_IP_PER_HOUR:-}
+  AUTH_CODE_REQUESTS_PER_EMAIL_PER_HOUR: ${AUTH_CODE_REQUESTS_PER_EMAIL_PER_HOUR:-}
+  AUTH_CODE_DELIVERIES_PER_EMAIL_PER_HOUR: ${AUTH_CODE_DELIVERIES_PER_EMAIL_PER_HOUR:-}
+  AUTH_CODE_VERIFICATIONS_PER_IP_PER_HOUR: ${AUTH_CODE_VERIFICATIONS_PER_IP_PER_HOUR:-}
+  # Lesson test tuning (code defaults) and the SSE heartbeat (empty = 15 s).
+  LESSON_TEST_MIN_GAP: ${LESSON_TEST_MIN_GAP:-2}
+  LESSON_TEST_MAX_VARIANTS_PER_TOPIC: ${LESSON_TEST_MAX_VARIANTS_PER_TOPIC:-3}
+  LESSON_TEST_MAX_VARIANTS_PER_TEST: ${LESSON_TEST_MAX_VARIANTS_PER_TEST:-12}
+  LESSON_TEST_SESSION_TTL: ${LESSON_TEST_SESSION_TTL:-7d}
+  SSE_HEARTBEAT_INTERVAL: ${SSE_HEARTBEAT_INTERVAL:-}
+  # Database pool (store.PoolConfigFromEnv); api and worker override the sizes in compose.prod.yml.
+  DB_POOL_MAX_CONNS: ${DB_POOL_MAX_CONNS:-10}
+  DB_POOL_MIN_CONNS: ${DB_POOL_MIN_CONNS:-2}
+  DB_POOL_MAX_CONN_LIFETIME: ${DB_POOL_MAX_CONN_LIFETIME:-30m}
+  DB_POOL_MAX_CONN_IDLE_TIME: ${DB_POOL_MAX_CONN_IDLE_TIME:-5m}
+  DB_POOL_HEALTH_CHECK_PERIOD: ${DB_POOL_HEALTH_CHECK_PERIOD:-1m}
   S3_ENDPOINT: http://objectstore:9000
   S3_BUCKET: duolify
   S3_REGION: us-east-1
@@ -37,6 +61,11 @@ x-app-env: &app-env
   SHARING_PUBLIC_DOMAIN: ${SHARING_PUBLIC_DOMAIN:-localhost}
   PUSH_ADAPTER: disabled
   NARRATION_ENABLED: ${NARRATION_ENABLED:-false}
+  # The live-synthesis budget is read only when NARRATION_LIVE_ENABLED=true (ADR 0015: Starter plan).
+  NARRATION_LIVE_ENABLED: ${NARRATION_LIVE_ENABLED:-false}
+  NARRATION_MONTHLY_CHAR_LIMIT: ${NARRATION_MONTHLY_CHAR_LIMIT:-40000}
+  NARRATION_BUDGET_STOP_PERCENT: ${NARRATION_BUDGET_STOP_PERCENT:-95}
+  NARRATION_CYCLE_START_DAY: ${NARRATION_CYCLE_START_DAY:-1}
   NARRATION_RETENTION_DAYS: ${NARRATION_RETENTION_DAYS:-30}
   POSTHOG_API_KEY: ${POSTHOG_API_KEY:-}
   LESSON_TEST_TRACER_ENABLED: ${LESSON_TEST_TRACER_ENABLED:-true}
@@ -73,7 +102,7 @@ services:
       test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8081/healthz]
     restart: unless-stopped
     logging: *logs
-    deploy: {resources: {limits: {cpus: "0.5", memory: 128M}}}
+    deploy: {resources: {limits: {cpus: "0.5", memory: 96M}}}
 
   postgres:
     image: postgres:18.6
@@ -92,14 +121,17 @@ services:
 
   redis:
     image: redis:8.4
-    # Disposable (rebuilt from Postgres); the snapshot volume only smooths restarts.
+    # A pure cache: the wallet (5 min) and league ranking keys all carry a TTL and rebuild from
+    # Postgres, and nothing else lives here. So: no RDB or AOF (a flush loses nothing), a hard memory
+    # cap, and LRU eviction over every key (allkeys-lru) instead of write errors when it fills.
+    command: [redis-server, --save, "", --appendonly, "no", --maxmemory, 64mb, --maxmemory-policy, allkeys-lru]
     volumes: [redis-data:/data]
     healthcheck:
       <<: *health
       test: [CMD, redis-cli, ping]
     restart: unless-stopped
     logging: *logs
-    deploy: {resources: {limits: {cpus: "0.5", memory: 512M}}}
+    deploy: {resources: {limits: {cpus: "0.5", memory: 96M}}}
 
   objectstore:
     image: rustfs/rustfs:1.0.4
@@ -165,7 +197,11 @@ services:
   migrate:
     <<: *api-image
     command: [migrate]
-    environment: *app-env
+    environment:
+      <<: *app-env
+      # One migration at a time: a small pool leaves the connection budget to the running instances.
+      DB_POOL_MAX_CONNS: "2"
+      DB_POOL_MIN_CONNS: "0"
     depends_on:
       postgres: {condition: service_healthy}
     restart: "no"
@@ -193,7 +229,7 @@ services:
       test: [CMD, /grpc_health_probe, -addr=127.0.0.1:50051]
     restart: unless-stopped
     logging: *logs
-    deploy: {resources: {limits: {cpus: "1", memory: 512M}}}
+    deploy: {resources: {limits: {cpus: "1", memory: 384M}}}
 
   api:
     <<: *api-image
@@ -202,6 +238,8 @@ services:
       <<: [*app-env, *backup-writer]
       API_ADDR: :8080
       OPERATIONS_ADDR: :9091
+      # Soft heap target: about 80% of the 384M container limit, so the GC works before the OOM killer.
+      GOMEMLIMIT: 300MiB
     networks: [default, edge]
     depends_on:
       postgres: {condition: service_healthy}
@@ -214,7 +252,7 @@ services:
       test: [CMD, /api, healthcheck]
     restart: unless-stopped
     logging: *logs
-    deploy: {resources: {limits: {cpus: "1", memory: 512M}}}
+    deploy: {resources: {limits: {cpus: "1", memory: 384M}}}
 
   # River jobs, including the encrypted nightly backup at 02:00 UTC (and on start).
   worker:
@@ -224,6 +262,7 @@ services:
     environment:
       <<: [*app-env, *backup-writer]
       OPERATIONS_ADDR: :9092
+      GOMEMLIMIT: 300MiB
       # Scoped backup identity only; no application object-store keys.
       S3_ACCESS_KEY_ID: ""
       S3_SECRET_ACCESS_KEY: ""
@@ -239,7 +278,7 @@ services:
       test: [CMD, /api, healthcheck, --database]
     restart: unless-stopped
     logging: *logs
-    deploy: {resources: {limits: {cpus: "1", memory: 768M}}}
+    deploy: {resources: {limits: {cpus: "1", memory: 384M}}}
 
   # Read-only backup access for the restore drill (`selfhost.sh restore-drill`).
   backup-reader:

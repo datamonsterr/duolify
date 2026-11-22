@@ -41,29 +41,42 @@ services:
   # Host-local Caddy site settings and certificates (git-ignored *.caddy, *.pem, *.key); see Caddyfile.
   proxy:
     volumes: [./site.d:/etc/caddy/site.d:ro]
+    deploy: {resources: {reservations: {memory: 32M}}}
   s3-init: {profiles: [local-s3]}
   backup-init: {profiles: [local-s3]}
 
   # The engine is reachable only on the private network: never add `ports` here.
   engine:
     labels: {duolify.exposure: private}
+    deploy: {resources: {reservations: {memory: 96M}}}
+
+  redis:
+    deploy: {resources: {reservations: {memory: 32M}}}
 
   # stop_grace_period must exceed the 10 s drain in the API and worker (httpapi.Serve, worker.Shutdown):
   # docker stop sends SIGTERM, the process stops accepting and finishes in-flight requests, and only then exits.
   api:
     stop_grace_period: 30s
-    environment: *s3-env
+    environment:
+      <<: *s3-env
+      DB_POOL_MAX_CONNS: ${API_DB_POOL_MAX_CONNS:-10}
+      DB_POOL_MIN_CONNS: ${API_DB_POOL_MIN_CONNS:-2}
     depends_on:
       backup-init: {condition: service_completed_successfully, required: false}
-    deploy: {replicas: 2, resources: {limits: {cpus: "1", memory: 512M}}}
+    # Two replicas: one can crash or be OOM-killed while the other serves (the rolling restart in
+    # deploy.sh is zero-downtime with one too). 2 x 384 M, 3 x 384 M for a moment during a roll.
+    deploy: {replicas: 2, resources: {limits: {cpus: "1", memory: 384M}, reservations: {memory: 128M}}}
 
   worker:
     stop_grace_period: 30s
     environment:
       <<: *s3-env
       S3_ACCESS_KEY_ID: ""
+      DB_POOL_MAX_CONNS: ${WORKER_DB_POOL_MAX_CONNS:-16}
+      DB_POOL_MIN_CONNS: ${WORKER_DB_POOL_MIN_CONNS:-4}
     depends_on:
       backup-init: {condition: service_completed_successfully, required: false}
+    deploy: {resources: {reservations: {memory: 128M}}}
 
   # Direct connections only (session advisory locks, River): no pooler in front of Postgres.
   postgres:
@@ -79,6 +92,57 @@ services:
       # Durable, overwrite-safe copy into the spool (fsync file + directory); walship encrypts,
       # uploads and then removes the file.
       - archive_command=sh /usr/local/bin/archive-wal.sh %p %f
+      # Sized for the 4 GB VM (docs/infra/hardening.md, 'Sizing'); the container limit is POSTGRES_MEMORY.
+      - -c
+      - max_connections=60
+      - -c
+      - superuser_reserved_connections=3
+      - -c
+      - shared_buffers=384MB
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - huge_pages=off
+      - -c
+      - wal_compression=lz4
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - min_wal_size=256MB
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - max_parallel_workers_per_gather=1
+      - -c
+      - jit=off
+      - -c
+      - autovacuum_naptime=30s
+      - -c
+      - autovacuum_vacuum_scale_factor=0.1
+      - -c
+      - autovacuum_analyze_scale_factor=0.05
+      - -c
+      - autovacuum_vacuum_cost_limit=1000
+      - -c
+      - idle_in_transaction_session_timeout=300s
+      - -c
+      - log_min_duration_statement=500ms
+      - -c
+      - track_io_timing=on
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.max=5000
     configs:
       - source: pg_hba
         target: /etc/postgresql/pg_hba.conf
@@ -87,6 +151,7 @@ services:
     volumes: [wal-spool:/wal-spool]
     depends_on:
       spool-init: {condition: service_completed_successfully}
+    deploy: {resources: {limits: {memory: "${POSTGRES_MEMORY:-1280M}"}, reservations: {memory: 768M}}}
 
   # One-shot: let the postgres user (uid 999) write into the spool volume.
   spool-init:
@@ -110,7 +175,7 @@ services:
       backup-init: {condition: service_completed_successfully, required: false}
     restart: unless-stopped
     logging: {driver: json-file, options: {max-size: "10m", max-file: "5"}}
-    deploy: {resources: {limits: {cpus: "1", memory: 256M}}}
+    deploy: {resources: {limits: {cpus: "1", memory: 256M}, reservations: {memory: 64M}}}
 
   node-exporter:
     image: prom/node-exporter:v1.9.1
@@ -119,7 +184,7 @@ services:
       - --collector.textfile.directory=/metrics
     volumes: ["/:/host:ro,rslave", "walship-metrics:/metrics:ro"]
     restart: unless-stopped
-    deploy: {resources: {limits: {cpus: "0.25", memory: 64M}}}
+    deploy: {resources: {limits: {cpus: "0.25", memory: 48M}, reservations: {memory: 16M}}}
 
   prometheus:
     image: prom/prometheus:v3.8.0
@@ -131,7 +196,7 @@ services:
     depends_on:
       node-exporter: {condition: service_started}
     restart: unless-stopped
-    deploy: {resources: {limits: {cpus: "0.5", memory: 256M}}}
+    deploy: {resources: {limits: {cpus: "0.5", memory: 192M}, reservations: {memory: 96M}}}
 
 configs:
   archive_wal:

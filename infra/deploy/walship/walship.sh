@@ -11,7 +11,7 @@
 #            recovered to TARGET (e.g. '2026-11-21 10:00:00+00'); needs the age identity at /identity
 #   metrics  write Prometheus textfile metrics to /metrics/walship.prom
 #   daily    base, then dr-copy (as WALSHIP_JOBS allows); non-zero if either failed
-#   loop     ship every 10s, metrics every minute, base + dr-copy daily at 02:30 UTC
+#   loop     ship every 10s, metrics every minute, base + dr-copy daily at 03:00 UTC
 #            (WALSHIP_JOBS selects which of ship,base,dr-copy run)
 #
 # Env: PGHOST PGUSER PGPASSWORD, BACKUP_S3_{ENDPOINT,REGION,BUCKET,ACCESS_KEY_ID,SECRET_ACCESS_KEY},
@@ -189,7 +189,7 @@ cmd_loop() {
     if ((tick % 360 == 0)); then cmd_slow_metrics || true; fi
     day=$(date -u +%F)
     # Daily jobs run in the background: pg_basebackup waits for its last WAL segment to be shipped.
-    if (( 10#$(date -u +%H%M) >= 230 )) && [[ $last_day != "$day" ]] || { has_job base && [[ ! -f $state/base.ts && -z $last_day ]]; }; then
+    if (( 10#$(date -u +%H%M) >= 300 )) && [[ $last_day != "$day" ]] || { has_job base && [[ ! -f $state/base.ts && -z $last_day ]]; }; then
       last_day=$day
       if ! kill -0 "$job" 2>/dev/null; then
         cmd_daily &

@@ -11,9 +11,12 @@ permissions:
   contents: read
   pull-requests: read
 
+# A newer push to a pull request supersedes the older run. A push to main is never cancelled: it builds
+# and publishes the images the automatic deploy needs, and with frequent merges a shared group would
+# cancel (or replace while pending) each run before it published. So each commit on main gets its own group.
 concurrency:
-  group: pr-checks-${{ github.event.pull_request.number || github.ref }}-${{ github.event.pull_request.draft && 'ready-inactive' || 'active' }}
-  cancel-in-progress: true
+  group: pr-checks-${{ github.event_name == 'push' && format('main-{0}', github.sha) || github.event.pull_request.number || github.ref }}-${{ github.event.pull_request.draft && 'ready-inactive' || 'active' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Only the active caller instantiates ci-ok, keeping its check name unambiguous.
