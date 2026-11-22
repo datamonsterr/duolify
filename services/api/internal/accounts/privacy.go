@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -325,6 +326,7 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		respond(w, 503, map[string]string{"error": "Could not request account removal. Retry."})
 		return
 	}
+	slog.InfoContext(ctx, "posthog person deletion queued; worker credentials required", "count", 1)
 	posthogAccepted := false
 	if s.personDeleter != nil {
 		requestCtx, cancel := context.WithTimeout(ctx, 6*time.Second)

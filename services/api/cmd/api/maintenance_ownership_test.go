@@ -12,7 +12,7 @@ import (
 // activator refreshes the replica's own in-memory copy; the shared-asset sweep deletes
 // objects with application object-store keys the worker does not hold, and so does the purge of
 // orphaned narration audio.
-var apiProcessSweeps = map[string]bool{"RunActivator": true, "MaintainAssets": true, "MaintainOrphanedAudio": true}
+var apiProcessSweeps = map[string]bool{"RunActivator": true, "MaintainAssets": true, "MaintainOrphanedAudio": true, "MaintainPurgedObjects": true}
 
 // TestAPIProcessStartsNoMaintenanceLoop keeps every Maintain loop in the worker, so a sweep
 // runs once however many API replicas serve HTTP.

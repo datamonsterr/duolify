@@ -258,11 +258,7 @@ func run(ctx context.Context, args []string) (result error) {
 				_ = narrationQueue.Stop(stopCtx)
 			}()
 		}
-		courseOptions := courses.Options{Pool: db.Pool}
-		if os.Getenv("S3_BUCKET") != "" {
-			courseOptions.Objects = player.NewS3(os.Getenv)
-		}
-		courseService := courses.New(courseOptions)
+		courseService := courses.New(courses.Options{Pool: db.Pool})
 		clerkDeleter, err := accounts.ClerkUserDeleterFromEnv(os.Getenv)
 		if err != nil {
 			return err
@@ -406,7 +402,7 @@ func run(ctx context.Context, args []string) (result error) {
 	quotesService.SetEnvironment(os.Getenv("DUOLIFY_ENV"))
 	quotesService.SetOwnerID(os.Getenv("PRICING_OWNER_ID"))
 
-	courseService := courses.New(courses.Options{Pool: db.Pool, Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: runtimePricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"})
+	courseService := courses.New(courses.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Engine: backend, ProposalEngine: backend, OutlineEngine: backend, Financial: creditService, Pricing: runtimePricing, Events: events, Environment: os.Getenv("DUOLIFY_ENV"), LiveApproved: os.Getenv("COURSE_BRIEF_CHAT_LIVE_APPROVED") == "true"})
 	// Publishing needs an 18+ account (ADR 0012); no age data exists yet, so it fails closed.
 	lessonObjects := player.NewS3(os.Getenv)
 	sharingService := sharing.NewService(db.Pool, events, sharing.ConfigFromEnv(os.Getenv)).WithObjects(lessonObjects, os.Getenv("LESSON_ASSET_ORIGIN")).
@@ -422,6 +418,8 @@ func run(ctx context.Context, args []string) (result error) {
 	// Stays in the API: it deletes shared-asset objects with the application object-store
 	// keys, which the worker deliberately does not hold. It wakes every six hours.
 	go sharingService.MaintainAssets(ctx)
+	// Private generated lessons use the same application identity; the worker has no app credentials.
+	go courseService.MaintainPurgedObjects(ctx)
 	// Same reason for narration audio of erased learners: it is purged here, with the object-store
 	// keys, and regardless of NARRATION_ENABLED (the worker only regenerates).
 	go narration.New(narration.Options{Pool: db.Pool, Objects: lessonObjects, Logger: logger, Retention: narrationRetention()}).MaintainOrphanedAudio(ctx, time.Hour)

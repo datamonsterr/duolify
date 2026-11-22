@@ -1,8 +1,11 @@
 package worker
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/riverqueue/river"
@@ -44,5 +47,15 @@ func TestPersonDeletionWorkerRunsTheEraserAndReportsFailure(t *testing.T) {
 	}
 	if opts := (PersonDeletionArgs{}).InsertOpts(); opts.MaxAttempts != 1 {
 		t.Fatal("a failed run must wait for the next scheduled one")
+	}
+}
+
+func TestPersonDeletionWorkerDoesNotLogSensitiveErrors(t *testing.T) {
+	var buf bytes.Buffer
+	eraser := &fakePersonEraser{enabled: true, err: errors.New("sensitive-distinct-id")}
+	w := &PersonDeletionWorker{Service: eraser, Logger: slog.New(slog.NewTextHandler(&buf, nil))}
+	_ = w.Work(t.Context(), nil)
+	if strings.Contains(buf.String(), "sensitive-distinct-id") || !strings.Contains(buf.String(), "level=ERROR") {
+		t.Fatalf("unsafe failure log: %s", buf.String())
 	}
 }

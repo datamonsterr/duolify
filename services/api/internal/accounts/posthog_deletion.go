@@ -124,7 +124,7 @@ func (e *PostHogPersonEraser) ProcessPersonDeletions(ctx context.Context) (int, 
 	if !e.PersonDeletionEnabled() {
 		return 0, nil
 	}
-	rows, err := e.pool.Query(ctx, "SELECT distinct_id::text FROM posthog_person_deletion_requests ORDER BY requested_at LIMIT $1", personDeletionBatch)
+	rows, err := e.pool.Query(ctx, "SELECT distinct_id::text FROM posthog_person_deletion_requests WHERE last_attempt_at IS NULL OR last_attempt_at <= now() - make_interval(secs => LEAST(86400, 600 * power(2, LEAST(attempts-1, 8)))) ORDER BY attempts, last_attempt_at NULLS FIRST, requested_at LIMIT $1", personDeletionBatch)
 	if err != nil {
 		return 0, err
 	}
