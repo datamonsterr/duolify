@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -317,7 +318,7 @@ func (a *Admin) create(w http.ResponseWriter, r *http.Request, actor string) {
 			return
 		}
 	}
-	adverse, err := classifyAdverse(previous, in.Config)
+	adverse, err := classifyEffective(ctx, tx, previous, in.Config, parent)
 	if err != nil {
 		adminError(w, 422, "unable to classify pricing change")
 		return
@@ -381,7 +382,8 @@ func (a *Admin) edit(w http.ResponseWriter, r *http.Request, actor, version stri
 	var previous []byte
 	var author string
 	var status string
-	err = tx.QueryRow(ctx, `SELECT d.config,d.created_by,d.status FROM pricing_drafts d WHERE d.version=$1 FOR UPDATE`, version).Scan(&previous, &author, &status)
+	var parent string
+	err = tx.QueryRow(ctx, `SELECT d.config,d.created_by,d.status,d.parent_version FROM pricing_drafts d WHERE d.version=$1 FOR UPDATE`, version).Scan(&previous, &author, &status, &parent)
 	if err != nil {
 		a.auditFailure(r.Context(), actor, "edit_denied", version, in.Reason, "{}", requestID(r))
 		var approved bool
@@ -407,7 +409,7 @@ func (a *Admin) edit(w http.ResponseWriter, r *http.Request, actor, version stri
 		adminError(w, 503, "active pricing unavailable")
 		return
 	}
-	adverse, err := classifyAdverse(active, in.Config)
+	adverse, err := classifyEffective(ctx, tx, active, in.Config, parent)
 	if err != nil {
 		adminError(w, 422, "unable to classify pricing change")
 		return
@@ -499,7 +501,7 @@ func (a *Admin) action(w http.ResponseWriter, r *http.Request, actor, version, a
 		adminError(w, 503, "active pricing unavailable")
 		return
 	}
-	adverse, err := classifyAdverse(activeConfig, cfg)
+	adverse, err := classifyEffective(ctx, tx, activeConfig, cfg, parent)
 	if err != nil {
 		adminError(w, 422, "unable to classify pricing change")
 		return
@@ -855,7 +857,7 @@ func (a *Admin) rollback(w http.ResponseWriter, r *http.Request, actor, source s
 		adminError(w, 422, err.Error())
 		return
 	}
-	adverse, err := classifyAdverse(active, content)
+	adverse, err := classifyEffective(ctx, tx, active, content, parent)
 	if err != nil {
 		adminError(w, 422, "unable to classify rollback")
 		return
@@ -1380,4 +1382,91 @@ func policyCoversActions(p QuotePolicy, c Config) error {
 		}
 	}
 	return nil
+}
+
+// adverseQuotePolicy compares the terms actually used to quote and settle each route.
+func adverseQuotePolicy(before, after QuotePolicy) bool {
+	if after.USDNanosPerCredit < before.USDNanosPerCredit || after.MaxAttempts < before.MaxAttempts || after.FreeConcurrency < before.FreeConcurrency || after.TTLSeconds < before.TTLSeconds || after.AudioUSDNanosPerCharacter > before.AudioUSDNanosPerCharacter {
+		return true
+	}
+	for _, v := range before.Voices {
+		if !slices.Contains(after.Voices, v) {
+			return true
+		}
+	}
+	for action, key := range before.ActionModels {
+		next, ok := after.ActionModels[action]
+		if !ok {
+			return true
+		}
+		oldRate, ok := before.Models[key]
+		if !ok {
+			return true
+		}
+		newRate, ok := after.Models[next]
+		if !ok {
+			return true
+		}
+		oldRoute := append([]ModelRate{oldRate}, before.Fallbacks(key)...)
+		newRoute := append([]ModelRate{newRate}, after.Fallbacks(next)...)
+		if len(newRoute) < len(oldRoute) {
+			return true
+		}
+		for i, r := range newRoute {
+			old := oldRoute[min(i, len(oldRoute)-1)]
+			if r.Provider == "" || r.Model == "" || r.Input <= 0 || r.Output <= 0 || r.CacheWrite <= 0 || r.CacheRead <= 0 || r.ContextMax <= 0 || r.Input > old.Input || r.Output > old.Output || r.CacheWrite > old.CacheWrite || r.CacheRead > old.CacheRead || r.ContextMax < old.ContextMax {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// classifyEffective compares both visible config and the policy that approval will pin.
+func classifyEffective(ctx context.Context, tx pgx.Tx, active, next []byte, parent string) (bool, error) {
+	adverse, err := classifyAdverse(active, next)
+	if err != nil {
+		return false, err
+	}
+	var activeConfig, nextConfig Config
+	if err = json.Unmarshal(active, &activeConfig); err != nil {
+		return false, err
+	}
+	if err = json.Unmarshal(next, &nextConfig); err != nil {
+		return false, err
+	}
+	source := nextConfig.QuotePolicySource
+	if source == "" {
+		source = parent
+	}
+	var oldBytes, newBytes []byte
+	if err = tx.QueryRow(ctx, `SELECT policy FROM pricing_quote_policies WHERE version=$1`, activeConfig.Version).Scan(&oldBytes); err != nil {
+		return false, err
+	}
+	if err = tx.QueryRow(ctx, `SELECT policy FROM pricing_quote_policies WHERE version=$1`, source).Scan(&newBytes); err != nil {
+		return false, err
+	}
+	var oldPolicy, newPolicy QuotePolicy
+	if err = json.Unmarshal(oldBytes, &oldPolicy); err != nil {
+		return false, err
+	}
+	if err = json.Unmarshal(newBytes, &newPolicy); err != nil {
+		return false, err
+	}
+	return adverse || adverseQuotePolicy(effectivePolicyActions(oldPolicy, activeConfig), effectivePolicyActions(newPolicy, nextConfig)), nil
+}
+
+// effectivePolicyActions mirrors the legacy default used by quote creation.
+func effectivePolicyActions(p QuotePolicy, c Config) QuotePolicy {
+	routes := make(map[string]string, len(p.ActionModels)+3)
+	for action, key := range p.ActionModels {
+		routes[action] = key
+	}
+	for _, action := range []string{"setup_chat", "course_brief_chat", "outline_chat_change"} {
+		if _, exists := c.Actions[action]; exists && routes[action] == "" {
+			routes[action] = "haiku"
+		}
+	}
+	p.ActionModels = routes
+	return p
 }

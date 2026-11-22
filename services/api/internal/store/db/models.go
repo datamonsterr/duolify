@@ -1226,6 +1226,13 @@ type NarrationAsset struct {
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
+type NarrationBudgetLedger struct {
+	ID         pgtype.UUID        `json:"id"`
+	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
+	Characters int64              `json:"characters"`
+	Adjusts    pgtype.UUID        `json:"adjusts"`
+}
+
 type NarrationRegeneration struct {
 	ID          pgtype.UUID        `json:"id"`
 	ContentHash string             `json:"content_hash"`

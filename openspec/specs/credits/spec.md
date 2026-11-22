@@ -445,3 +445,7 @@ Attendance and eligibility state MUST be in Postgres backups, export and erasure
 #### Scenario: Restore and deletion
 - **WHEN** an account is exported, deleted or restored
 - **THEN** attendance is exported, removed on deletion and dedupe/bonus financial history is consistent after restore with deletion tombstones applied
+
+#### Scenario: A full expiry pass fails
+- **WHEN** the full-ledger query or any learner expiry transaction fails
+- **THEN** the worker does not record the full pass as complete and the next pass retries the full ledger

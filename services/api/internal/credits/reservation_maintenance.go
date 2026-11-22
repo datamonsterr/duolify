@@ -209,12 +209,9 @@ const (
 	expiryFullEvery  = 24 * time.Hour
 )
 
-// fullExpiryDue reports whether this pass must look at every grant, and records it.
+// fullExpiryDue reports whether this pass must look at every grant. The caller holds expiryMu.
 func (s *Service) fullExpiryDue(asOf time.Time) bool {
-	s.expiryMu.Lock()
-	defer s.expiryMu.Unlock()
 	if s.lastFullExpiry.IsZero() || asOf.Sub(s.lastFullExpiry) >= expiryFullEvery || asOf.Before(s.lastFullExpiry) {
-		s.lastFullExpiry = asOf
 		return true
 	}
 	return false
@@ -225,8 +222,11 @@ func (s *Service) fullExpiryDue(asOf time.Time) bool {
 // each learner is then expired in its own short transaction that holds the lock only
 // for its own rows, so a sweep never blocks reservations for long.
 func (s *Service) expirePostgres(ctx context.Context, asOf time.Time) (int, error) {
+	s.expiryMu.Lock()
+	defer s.expiryMu.Unlock()
+	full := s.fullExpiryDue(asOf)
 	since := ""
-	if !s.fullExpiryDue(asOf) {
+	if !full {
 		since = asOf.UTC().AddDate(0, 0, -expiryWindowDays).Format(time.DateOnly)
 	}
 	rows, err := s.pool().Query(ctx, `SELECT DISTINCT learner_id::text FROM credit_entries WHERE kind='daily_grant' AND learner_id IS NOT NULL AND provenance->>'date'>=$1`, since)
@@ -256,7 +256,11 @@ func (s *Service) expirePostgres(ctx context.Context, asOf time.Time) (int, erro
 			failures = append(failures, e)
 		}
 	}
-	return total, errors.Join(failures...)
+	err = errors.Join(failures...)
+	if full && err == nil {
+		s.lastFullExpiry = asOf
+	}
+	return total, err
 }
 
 // ExpireLearnerDailyCredits expires one learner's past-day grants. Wallet reads call it
