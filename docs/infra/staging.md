@@ -103,6 +103,17 @@ ssh admin@<ip> 'sudo docker logs --since 1h duolify-selfhost-worker-1 2>&1 | gre
 ssh admin@<ip> 'sudo docker exec duolify-selfhost-postgres-1 psql -U postgres -c "select archived_count, last_archived_time, failed_count from pg_stat_archiver"'
 ```
 
+## After you change `.env` settings of a data service
+
+`deploy.sh` never recreates Postgres, Redis, walship, Prometheus or node-exporter, so a changed bucket name, memory limit or Postgres setting in `.env` does not reach a running container. On staging walship kept shipping WAL to the old shared `duolify-backups` bucket (and `pg_stat_archiver` looked healthy) until the documented recreate in [hardening.md](hardening.md#8-sizing-cx23-2-vcpu-4-gb-40-gb) was run (Postgres was down for about 4 s; the API served throughout). After any such change, check what runs:
+
+```sh
+sudo docker inspect duolify-selfhost-postgres-1 --format '{{.HostConfig.Memory}}'      # POSTGRES_MEMORY
+sudo docker exec duolify-selfhost-walship-1 sh -c 'echo $BACKUP_S3_BUCKET $S3_BUCKET'  # staging buckets
+```
+
+Then force a segment and a base backup and list the bucket (`pg_switch_wal()`, `/walship.sh base` in the walship container; `aws s3 ls s3://duolify-staging-backups/wal/` with the backup key in a throwaway `amazon/aws-cli` container). The newest base decrypts with the owner age identity (`age -d -i staging-backup-age-identity.txt | tar -tz`).
+
 ## Known gaps
 
 - Staging and future production share the R2 buckets `duolify-assets` and `duolify-backups`, and one R2 key serves both roles. Before production writes to these buckets, give staging its own buckets (or production its own) and split the keys by role. Otherwise both stacks write `wal/` and `base/` into the same prefixes.

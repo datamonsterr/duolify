@@ -94,6 +94,7 @@ services:
       # client calls the API on its own origin. proxy-entrypoint.sh derives the Clerk origin from the key.
       LESSON_ASSET_ORIGIN: ${LESSON_ASSET_ORIGIN:-http://localhost:9000}
       POSTHOG_HOST: ${POSTHOG_HOST:-https://us.i.posthog.com}
+      POSTHOG_ASSETS_HOST: ${POSTHOG_ASSETS_HOST:-https://us-assets.i.posthog.com}
       API_ORIGIN: ${API_ORIGIN:-}
       CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY:-}
       CLERK_FAPI_ORIGIN: ${CLERK_FAPI_ORIGIN:-}

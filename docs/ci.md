@@ -128,7 +128,7 @@ welcome and tour as a learner would (`skipOnboarding` in `e2e-stack/stack.ts`).
 Staging (`E2E_STACK_URL=https://staging.duolify.online`): run only the flows without paid
 AI (`E2E_FLOW="F1 |F1b|F1c|F1d|F9|F10|F11|F12|F13|F14"`). Staging mails real codes through Resend
 and has no grant mechanism, so `E2E_STACK_CODE_COMMAND` and `E2E_STACK_GRANT_COMMAND` must
-be supplied by the operator; without a grant command F9's purchase step is `fixme`.
+be supplied by the operator (codes: the test inbox in [infra/e2e-mailbox.md](infra/e2e-mailbox.md), `E2E_STACK_EMAIL_DOMAIN=test.duolify.online`); without a grant command F9's purchase step is `fixme`.
 
 | Secret | Use |
 | --- | --- |
