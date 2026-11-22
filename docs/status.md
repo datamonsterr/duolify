@@ -27,6 +27,8 @@ Updated 2026-11-14 14:30 UTC by the master orchestrator session. Ticket data: `d
 
 All AI tickets closed with one known gap: golden rows live in `evals/fixtures` until the Hugging Face dataset exists (E10-01 #25).
 
+Pricing: the owner approved the Hy4/GLM quote policy on 2026-11-22 (`usd-hy4-routing-2026-11-22`, ADR 0015 amendment); learner credit prices are unchanged.
+
 ## Defaults in force until the owner answers
 
 ADR 0011 "Defaults chosen during implementation" and ADR 0012 (interim defaults for human gates). Nothing goes live, charges real money or publishes publicly: live providers, Stripe live mode, marketplace (`MARKETPLACE_ENABLED`), public character export, live voices and push notifications all default off.
