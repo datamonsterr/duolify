@@ -309,6 +309,10 @@ func (s *Service) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		clerkQueued, err = queueClerkUserDeletion(ctx, tx, learner)
 	}
 	if err == nil {
+		// The cascade below removes the rows naming the learner's private objects: ledger them first.
+		err = QueuePrivateObjectPurges(ctx, tx, learner, ObjectPurgeRetention)
+	}
+	if err == nil {
 		err = s.clearEmailAuthentication(ctx, tx, learner)
 	}
 	if err == nil {
@@ -402,6 +406,9 @@ func ApplyDeletionTombstones(ctx context.Context, pool *pgxpool.Pool) error {
 			return err
 		}
 		if _, err = queueClerkUserDeletion(ctx, tx, id); err != nil {
+			return err
+		}
+		if err = QueuePrivateObjectPurges(ctx, tx, id, ObjectPurgeRetention); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "DELETE FROM learners WHERE id=$1::uuid", id); err != nil {

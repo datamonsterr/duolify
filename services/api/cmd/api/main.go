@@ -268,7 +268,7 @@ func run(ctx context.Context, args []string) (result error) {
 			return err
 		}
 		clerkEraser := accounts.NewClerkUserEraser(db.Pool, clerkDeleter)
-		return worker.RunWithAlerts(ctx, db.Pool, logger, workerServices{creditService, courseService, clerkEraser}, eval.NewService(db.Pool, catalogue, monitor, events), service)
+		return worker.RunWithAlerts(ctx, db.Pool, logger, workerServices{creditService, courseService, clerkEraser, accounts.NewPostHogPersonEraser(db.Pool, accounts.PostHogPersonDeleterFromEnv(os.Getenv))}, eval.NewService(db.Pool, catalogue, monitor, events), service)
 	}
 	catalogue, err := pricing.Load(ctx, db.Queries)
 	if err != nil {
@@ -777,12 +777,14 @@ type workerServices struct {
 	creditsService
 	courseService
 	clerkEraserService
+	personEraserService
 }
 
 type (
-	creditsService     = *credits.Service
-	courseService      = *courses.Service
-	clerkEraserService = *accounts.ClerkUserEraser
+	creditsService      = *credits.Service
+	courseService       = *courses.Service
+	clerkEraserService  = *accounts.ClerkUserEraser
+	personEraserService = *accounts.PostHogPersonEraser
 )
 
 var (
@@ -791,4 +793,5 @@ var (
 	_ worker.FinancialMaintainer = workerServices{}
 	_ worker.CoursePurger        = workerServices{}
 	_ worker.ClerkUserEraser     = workerServices{}
+	_ worker.PersonEraser        = workerServices{}
 )

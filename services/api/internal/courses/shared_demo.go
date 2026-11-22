@@ -3,6 +3,7 @@ package courses
 import (
 	_ "embed"
 	"encoding/json"
+	"github.com/datamonsterr/duolify/services/api/internal/httpcache"
 	"net/http"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
@@ -28,7 +29,7 @@ func SharedDemoDocuments() map[string][]byte {
 
 // ServeSharedDemoHTTP has no engine, learner, database, pricing or wallet dependency.
 // E12-08 still gates launch pricing/catalogue activation; this never activates it.
-func ServeSharedDemoHTTP(w http.ResponseWriter, _ *http.Request) {
+func ServeSharedDemoHTTP(w http.ResponseWriter, r *http.Request) {
 	var demo SharedDemo
 	if json.Unmarshal(sharedDemoBytes, &demo) != nil || demo.Kind != "shared_demo" || demo.Version != "sky-v1" || ValidatePreview(demo.Preview) != nil {
 		http.Error(w, "Shared example unavailable", http.StatusServiceUnavailable)
@@ -38,5 +39,9 @@ func ServeSharedDemoHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	w.Header().Set("ETag", `"shared-demo-sky-v1"`)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if httpcache.Matches(r, `"shared-demo-sky-v1"`) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
 	_, _ = w.Write(sharedDemoBytes)
 }

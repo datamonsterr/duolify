@@ -1,6 +1,10 @@
 import { useUiPreferences } from "./localization/Preferences";
 import { useEffect, useId, useState } from "react";
-import type { Course } from "../../lib/api";
+import {
+  summarizeCourse,
+  type Course,
+  type CourseSummary,
+} from "../../lib/api";
 import { trackControl } from "../../lib/analytics";
 import { Badge } from "./Badge";
 import { AppLink } from "../../lib/navigation";
@@ -10,7 +14,7 @@ export function CourseCard({
   current = false,
   onRemove,
 }: {
-  course: Course;
+  course: Course | CourseSummary;
   current?: boolean;
   onRemove?: (id: string) => Promise<unknown>;
 }) {
@@ -28,16 +32,12 @@ export function CourseCard({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [showConfirm]);
 
-  const lessons = course.units.flatMap((unit) => unit.lessons);
-  const completed = lessons.filter((lesson) => lesson.state === "done").length;
-  const currentUnitIndex = course.units.findIndex((unit) =>
-    unit.lessons.some((lesson) => lesson.state === "current"),
-  );
-  const currentUnit =
-    course.units[currentUnitIndex >= 0 ? currentUnitIndex : 0];
-  const currentLessonIndex =
-    currentUnit?.lessons.findIndex((lesson) => lesson.state === "current") ??
-    -1;
+  const { progress } = summarizeCourse(course);
+  const lessonCount = progress.lessons_total;
+  const completed = progress.lessons_done;
+  const where = progress.current;
+  const currentUnitIndex = where?.unit_index ?? -1;
+  const currentLessonIndex = where?.lesson_index ?? -1;
   const lessonIndex = currentLessonIndex >= 0 ? currentLessonIndex : completed;
   const unavailable = course.availability === "unavailable";
   return (
@@ -73,21 +73,21 @@ export function CourseCard({
       {unavailable ? (
         <p className="unavailable-copy">{t("course.unavailable")}</p>
       ) : (
-        lessons.length > 0 && (
+        lessonCount > 0 && (
           <>
             <progress
               aria-label={t("course.progress", { name: course.title })}
               value={completed}
-              max={lessons.length}
+              max={lessonCount}
             />
             <span className="muted course-progress-copy">
-              {currentLessonIndex >= 0 && currentUnit
+              {where
                 ? t("course.position", {
                     unit: currentUnitIndex >= 0 ? currentUnitIndex + 1 : 1,
                     lesson: lessonIndex + 1,
-                    count: currentUnit.lessons.length,
+                    count: where.unit_lessons,
                   })
-                : t("course.completed", { completed, count: lessons.length })}
+                : t("course.completed", { completed, count: lessonCount })}
             </span>
           </>
         )
