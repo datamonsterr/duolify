@@ -14,7 +14,7 @@ anyhow = "=1.0.104"
 async-trait = "=0.1.92"
 futures = "=0.3.34"
 prost = "=0.14.6"
-regex = "=1.13.1"
+regex = "=1.13.2"
 reqwest = { version = "=0.13.5", default-features = false, features = ["json", "stream", "rustls"] }
 ring = "=0.17.14"
 serde = { version = "=1.0.229", features = ["derive"] }
