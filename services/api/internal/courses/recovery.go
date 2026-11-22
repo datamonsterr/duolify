@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/maintenance"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 )
@@ -86,17 +87,12 @@ func (s *Service) ReapExpired(ctx context.Context) error {
 
 // Maintain follows the credit maintenance worker's scheduling pattern. Only the
 // stored quote/reservation deadline decides expiry; the ticker sets retry cadence.
+// It runs only in the worker, every ten seconds: a job past its deadline waits at most
+// that long for recovery, which the quote/reservation deadline already bounds.
 func (s *Service) Maintain(ctx context.Context, logger *slog.Logger) {
-	tick := time.NewTicker(time.Second)
-	defer tick.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-tick.C:
-			if err := s.ReapExpired(ctx); err != nil {
-				logger.ErrorContext(ctx, "course job recovery remains for retry")
-			}
+	maintenance.Every(ctx, 10*time.Second, func(ctx context.Context) {
+		if err := s.ReapExpired(ctx); err != nil {
+			logger.ErrorContext(ctx, "course job recovery remains for retry")
 		}
-	}
+	})
 }

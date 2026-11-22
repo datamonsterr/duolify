@@ -111,7 +111,7 @@ func (s *Service) Reserve(ctx context.Context, owner, quoteID string) (Reservati
 	localDay := now.In(loc).Format(time.DateOnly)
 	platformDay := now.UTC().Format(time.DateOnly)
 	ref := accounts.LearnerReference(owner)
-	if err = expireDailyTx(ctx, tx, owner, localDay, q.PricingVersion); err != nil {
+	if _, err = expireDailyTx(ctx, tx, owner, localDay, q.PricingVersion, ""); err != nil {
 		return Reservation{}, err
 	}
 	hasDebt, err := hasActiveDebt(ctx, tx, owner)
@@ -314,8 +314,9 @@ func (s *Service) Claim(ctx context.Context, owner, id string) error {
 	// Resolve priority from funded config every time, including while waiting.
 	// Reservation already acquired concurrency and USD capacity; this ordering
 	// cannot increase either bound. Equal-priority jobs can run concurrently.
-	ticker := time.NewTicker(20 * time.Millisecond)
-	defer ticker.Stop()
+	// The first retry is fast (a slot usually frees within a few ms); a long wait backs
+	// off to 250 ms so a queued job does not take the global lock fifty times a second.
+	wait := 20 * time.Millisecond
 	for {
 		tx, err := s.pool().Begin(ctx)
 		if err != nil {
@@ -353,11 +354,14 @@ func (s *Service) Claim(ctx context.Context, owner, id string) error {
 		if !eligible {
 			return ErrReservation
 		}
+		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return ctx.Err()
-		case <-ticker.C:
+		case <-timer.C:
 		}
+		wait = min(wait*2, 250*time.Millisecond)
 	}
 }
 

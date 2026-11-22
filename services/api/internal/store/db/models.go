@@ -77,13 +77,22 @@ type AuthIdentity struct {
 }
 
 type AuthOauthAttempt struct {
-	StateHash     string             `json:"state_hash"`
-	NonceHash     string             `json:"nonce_hash"`
-	CodeChallenge string             `json:"code_challenge"`
-	RedirectUri   string             `json:"redirect_uri"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
-	ConsumedAt    pgtype.Timestamptz `json:"consumed_at"`
+	StateHash       string             `json:"state_hash"`
+	NonceHash       pgtype.Text        `json:"nonce_hash"`
+	CodeChallenge   string             `json:"code_challenge"`
+	RedirectUri     string             `json:"redirect_uri"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt      pgtype.Timestamptz `json:"consumed_at"`
+	LearnerID       pgtype.UUID        `json:"learner_id"`
+	ClerkUserID     pgtype.Text        `json:"clerk_user_id"`
+	Locale          string             `json:"locale"`
+	TimeZone        string             `json:"time_zone"`
+	AnalyticsOptOut bool               `json:"analytics_opt_out"`
+	HandedOffAt     pgtype.Timestamptz `json:"handed_off_at"`
+	CodeHash        pgtype.Text        `json:"code_hash"`
+	CodeExpiresAt   pgtype.Timestamptz `json:"code_expires_at"`
+	CodeAttempts    int32              `json:"code_attempts"`
 }
 
 type AuthProviderIdentity struct {
@@ -342,6 +351,13 @@ type CourseLessonStub struct {
 	LessonKey           pgtype.Text        `json:"lesson_key"`
 	ArchivedAt          pgtype.Timestamptz `json:"archived_at"`
 	ArchivedFromVersion pgtype.Int4        `json:"archived_from_version"`
+}
+
+type CourseObjectPurge struct {
+	Prefix     string             `json:"prefix"`
+	EnqueuedAt pgtype.Timestamptz `json:"enqueued_at"`
+	PurgeAfter pgtype.Timestamptz `json:"purge_after"`
+	PurgedAt   pgtype.Timestamptz `json:"purged_at"`
 }
 
 type CourseReplanProposal struct {
@@ -1363,6 +1379,13 @@ type PublicationScreening struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
+type PublishedNarrationPin struct {
+	DraftID     pgtype.UUID        `json:"draft_id"`
+	ContentHash string             `json:"content_hash"`
+	UnpinnedAt  pgtype.Timestamptz `json:"unpinned_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type PublishingBan struct {
 	LearnerID pgtype.UUID        `json:"learner_id"`
 	ActionID  pgtype.UUID        `json:"action_id"`
@@ -1461,6 +1484,7 @@ type SlideNarration struct {
 	ActualVoiceKey      string             `json:"actual_voice_key"`
 	VoiceConfigVersion  string             `json:"voice_config_version"`
 	VoiceFallbackReason string             `json:"voice_fallback_reason"`
+	SharedDraftID       pgtype.UUID        `json:"shared_draft_id"`
 }
 
 type SocialRateLimit struct {
@@ -1528,6 +1552,7 @@ type StreakState struct {
 	LastActiveDate pgtype.Date        `json:"last_active_date"`
 	DecidedThrough pgtype.Date        `json:"decided_through"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	NextRolloverAt pgtype.Timestamptz `json:"next_rollover_at"`
 }
 
 type TutorMessage struct {
