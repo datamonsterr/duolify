@@ -1,0 +1,26 @@
+# Full-stack flow suite (openspec/changes/fullstack-flow-e2e). Kept apart from client.toml
+# so parallel work on the mocked suite does not conflict.
+
+["client:e2e-stack-up"]
+description = "Start the disposable full-stack e2e stack (infra/e2e, mock engine; E2E_LIVE=1 for OpenRouter)"
+run = "bash infra/e2e/stack.sh up"
+
+["client:e2e-stack-down"]
+description = "Stop the full-stack e2e stack and delete its volumes"
+run = "bash infra/e2e/stack.sh down"
+
+["client:e2e-stack-logs"]
+description = "Print recent logs of the full-stack e2e stack (optionally for given services)"
+usage = 'arg "[service]..." var=#true help="Services; default all"'
+run = 'bash infra/e2e/stack.sh logs ${usage_service:-}'
+
+["client:e2e-stack"]
+description = "Run the full-stack flow suite against E2E_STACK_URL (default: the local e2e stack); writes screenshots and flows.json"
+dir = "{{config_root}}/apps/client"
+run = '''
+set -eu
+if [ -n "${E2E_FLOW:-}" ]; then
+  exec pnpm exec playwright test --config playwright.stack.config.ts --grep "$E2E_FLOW"
+fi
+exec pnpm exec playwright test --config playwright.stack.config.ts
+'''

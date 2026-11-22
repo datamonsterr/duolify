@@ -89,6 +89,7 @@ jobs:
               - 'pnpm-workspace.yaml'
               - '.npmrc'
               - '.mise/tasks/client.toml'
+              - '.mise/tasks/client-stack.toml'
               - *tooling
               - *tasks
               - *github
@@ -703,6 +704,60 @@ jobs:
       - name: Stop stack
         if: always()
         run: mise run infra:selfhost-down
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: mise run ci:summary
+
+  # Full-stack flow suite (openspec/changes/fullstack-flow-e2e): the real web client on the
+  # disposable infra/e2e stack, mock engine provider (no paid calls). Uploads per-flow
+  # screenshots and flows.json. Not yet required by ci-ok: it stays advisory until it has
+  # proven stable on hosted runners.
+  playwright-stack:
+    needs: changes
+    if: inputs.tier == 'full' && (needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.infra == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-client
+      - uses: actions/cache@v6
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: mise run ci:playwright-deps
+        run: mise run ci:playwright-deps
+        timeout-minutes: 3
+      - name: mise run client:e2e-setup
+        if: steps.browsers.outputs.cache-hit != 'true'
+        run: mise run client:e2e-setup
+        timeout-minutes: 3
+      - name: mise run client:e2e-stack-up
+        run: mise run client:e2e-stack-up
+        timeout-minutes: 40
+      - name: mise run client:e2e-stack
+        run: mise run client:e2e-stack
+        timeout-minutes: 10
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: stack-flows
+          path: |
+            apps/client/test-results/stack-flows
+            apps/client/test-results/stack
+            apps/client/playwright-report-stack
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: mise run client:e2e-stack-logs
+        if: failure()
+        run: mise run client:e2e-stack-logs
+      - name: mise run client:e2e-stack-down
+        if: always()
+        run: mise run client:e2e-stack-down
       - name: Summary
         if: always()
         env:
