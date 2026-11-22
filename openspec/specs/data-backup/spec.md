@@ -39,7 +39,7 @@ A restore drill MUST restore the newest dump through the restorer identity into 
 
 #### Scenario: Drill passes
 - **WHEN** the drill runs on a synthetic dump
-- **THEN** the restore completes, every check passes and `restore_drill_completed` is emitted with `ok` true and `source` ci
+- **THEN** the restore completes, every check passes and `restore_drill_completed` is emitted with `ok` true and `source` api
 
 #### Scenario: Drill fails
 - **WHEN** the restore fails, a migration is missing or any check fails

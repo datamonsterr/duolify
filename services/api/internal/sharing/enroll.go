@@ -267,7 +267,7 @@ WHERE cc.learner_id=$1 AND cc.source_course_id=$2`, viewer, courseID).Scan(&exis
 		return Enrollment{}, err
 	}
 	s.refreshListingStats(ctx, courseID)
-	s.emit(viewer, "course_enrolled_published", map[string]any{"source": source, "course_id": copyID, "source_course_id": courseID, "version": number})
+	s.emit(viewer, "course_enrolled_published", map[string]any{"entry_point": source, "course_id": copyID, "source_course_id": courseID, "version": number})
 	if firstReady != "" {
 		s.emit(viewer, "published_lesson_reused", map[string]any{"course_id": copyID, "lesson_id": firstReady, "version": number})
 	}

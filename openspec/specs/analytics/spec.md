@@ -74,7 +74,7 @@ Annual keys SHALL include the funded term and service-month index 0–11; a term
 - **THEN** one occurrence of each financial event is created and delivered
 
 ### Requirement: Identity and common properties
-Events SHALL use the internal Learner id (UUID) as `distinct_id`, never email. Every event MUST include `platform` (`desktop`, `ios`, `android`, `web`), `app_version` and `source` (`client` or `api`). Events about a Course or Lesson MUST include `course_id` and `lesson_id` when known.
+Events SHALL use the internal Learner id (UUID) as `distinct_id`, never email. Every event MUST include `platform` (`desktop`, `ios`, `android`, `web`), `app_version` and `source` (`client`, `api` or `engine`). Events about a Course or Lesson MUST include `course_id` and `lesson_id` when known.
 
 #### Scenario: Event without email
 - **WHEN** any event is sent
@@ -109,7 +109,7 @@ price, sku_id, channel, amount_minor, price_table_version), `credits_refunded` (
 These API events SHALL use transactionally unique outbox keys, UUID/common properties
 and opt-out. No raw payment payloads, URLs, learner text or provider errors are allowed.
 
-The catalog MUST include: `credits_reserved`, `credits_settled`, `credits_released` (feature, amount), `credits_insufficient` (feature, balance, estimate), `credits_purchased` (amount, currency, price), `credits_purchase_failed` (reason), `credits_refunded` (amount, payment_reference, reason_code), `daily_credits_granted` (amount), `daily_credits_expired` (amount), `tutor_message_sent` (has_lesson_context), `tutor_reply_completed`, `tutor_reply_stopped`, `tutor_reply_failed` (error_code), `quick_note_created` (source, length), `quick_note_enriched`, `quick_note_enrichment_failed`, `quick_note_reviewed`, `quick_note_deleted`, `bookmark_added`, `bookmark_removed`, `bookmark_opened` (target_type), `learner_profile_updated` (fields_changed) and `onboarding_completed` (no domain properties). The catalog MUST NOT contain `reward_credits_granted`.
+The catalog MUST include: `credits_reserved`, `credits_settled`, `credits_released` (feature, amount), `credits_insufficient` (feature, balance, estimate), `credits_purchased` (amount, currency, price), `credits_purchase_failed` (reason), `credits_refunded` (amount, payment_reference, reason_code), `daily_credits_granted` (amount), `daily_credits_expired` (amount), `tutor_message_sent` (has_lesson_context), `tutor_reply_completed`, `tutor_reply_stopped`, `tutor_reply_failed` (error_code), `quick_note_created` (entry_point, length), `quick_note_enriched`, `quick_note_enrichment_failed`, `quick_note_reviewed`, `quick_note_deleted`, `bookmark_added`, `bookmark_removed`, `bookmark_opened` (target_type), `learner_profile_updated` (fields_changed) and `onboarding_completed` (no domain properties). The catalog MUST NOT contain `reward_credits_granted`.
 
 #### Scenario: Purchase event
 - **WHEN** a webhook confirms a purchase
@@ -156,7 +156,7 @@ representation permits prompt, completion or learner text.
 - **THEN** `$ai_generation` records `$ai_is_error` true and the sanitized `error_code` without free text
 
 ### Requirement: Operations events
-The API SHALL emit `backup_completed` and `backup_failed` (size_bytes, duration_ms, ok), `restore_drill_completed` (duration_ms, ok) and `eval_run_completed` (task, score, threshold, passed, dataset_revision, dataset_source, provider, status, budget), and `ai_cost_budget_alert` (scope, actual_usd, budget_usd) from workers, API, and CI, with `source` set to `api` or `ci`. Operational jobs without a Learner SHALL use the reserved system UUID `00000000-0000-4000-8000-000000000011`, platform `web`, and app_version from build information (`development` for local builds). This UUID never identifies a Learner. `ANALYTICS_OPT_OUT=true` SHALL suppress server analytics globally, including operations events. No database contents, object keys, credentials, provider errors, prompts, or free text SHALL be sent by operations emitters.
+The API SHALL emit `backup_completed` and `backup_failed` (size_bytes, duration_ms, ok), `restore_drill_completed` (duration_ms, ok) and `eval_run_completed` (task, score, threshold, passed, dataset_revision, dataset_source, provider, status, budget), and `ai_cost_budget_alert` (scope, actual_usd, budget_usd) from workers, API, and CI, with `source` set to `api` or `engine` according to the emitting tier. Operational jobs without a Learner SHALL use the reserved system UUID `00000000-0000-4000-8000-000000000011`, platform `web`, and app_version from build information (`development` for local builds). This UUID never identifies a Learner. `ANALYTICS_OPT_OUT=true` SHALL suppress server analytics globally, including operations events. No database contents, object keys, credentials, provider errors, prompts, or free text SHALL be sent by operations emitters.
 
 #### Scenario: Backup job done
 - **WHEN** the nightly dump completes
@@ -233,7 +233,7 @@ Preview requested/viewed/failed events SHALL be API-owned and allowlisted, inclu
 - **THEN** the API-owned viewed event remains derived analytics and no Course or enrollment is created
 
 ### Requirement: Quick notes and sheets event catalogue
-The analytics catalogue SHALL include `quick_note_created` (carrying `source` restricted to `slide|lesson|chat`, and integer `length`), `ui_sheet_opened` (carrying `sheet_id`), `quick_note_reviewed` (carrying `note_id`), `quick_note_deleted` (carrying `note_id`), and `ui_control_activated` with `control_id=export_notes`. All events SHALL use Learner UUID distinct IDs and common properties (`platform`, `app_version`, `source`), and respect analytics opt-out. Note text, search queries, draft content, slide HTML, and private learner data MUST NOT enter PostHog analytics under any circumstance.
+The analytics catalogue SHALL include `quick_note_created` (carrying `entry_point` restricted to `slide|lesson|chat`, and integer `length`), `ui_sheet_opened` (carrying `sheet_id`), `quick_note_reviewed` (carrying `note_id`), `quick_note_deleted` (carrying `note_id`), and `ui_control_activated` with `control_id=export_notes`. All events SHALL use Learner UUID distinct IDs and common properties (`platform`, `app_version`, `source`), and respect analytics opt-out. Note text, search queries, draft content, slide HTML, and private learner data MUST NOT enter PostHog analytics under any circumstance.
 
 #### Scenario: Quick note created event
 - **WHEN** a learner captures a quick note from a slide, lesson, or chat
@@ -600,7 +600,7 @@ The analytics catalogue SHALL include `username_changed` (integer `username_leng
 - **THEN** `username_searched` has the query length and result count and no text
 
 ### Requirement: Save and delete thread events
-`quick_note_created` SHALL carry `source=chat` and `length` for a note saved from a reply, once per note (not on a replayed save). The client SHALL emit `ui_control_activated` with `surface=tutor_chat` and `control_id=delete_thread` when the Learner confirms deletion. Events MUST carry the common properties and Learner UUID, honour opt-out and never include message, note or thread text.
+`quick_note_created` SHALL carry `entry_point=chat` and `length` for a note saved from a reply, once per note (not on a replayed save). The client SHALL emit `ui_control_activated` with `surface=tutor_chat` and `control_id=delete_thread` when the Learner confirms deletion. Events MUST carry the common properties and Learner UUID, honour opt-out and never include message, note or thread text.
 
 #### Scenario: Opted out
 - **WHEN** the Learner has opted out
@@ -675,11 +675,11 @@ Events MUST NOT contain Share link tokens, plaintext token, Usernames of other L
 - **THEN** `share_link_opened` is emitted with course_id, has_account and surface="web"; no token or IP is recorded
 
 ### Requirement: Enrollment analytics events
-The API SHALL emit `course_enrolled_published` (course_id: UUID of the copy, source_course_id: UUID, source: `link`, version: int) once when a copy is created, and `published_lesson_reused` (course_id: UUID, lesson_id: UUID, version: int) when a reused Lesson becomes available. Events MUST NOT contain tokens, usernames, titles, Slide content or answers, and MUST respect analytics opt-out.
+The API SHALL emit `course_enrolled_published` (course_id: UUID of the copy, source_course_id: UUID, entry_point: `link`, version: int) once when a copy is created, and `published_lesson_reused` (course_id: UUID, lesson_id: UUID, version: int) when a reused Lesson becomes available. Events MUST NOT contain tokens, usernames, titles, Slide content or answers, and MUST respect analytics opt-out.
 
 #### Scenario: Enroll event once
 - **WHEN** a Learner enrolls twice through a link
-- **THEN** `course_enrolled_published` is emitted once with source `link`
+- **THEN** `course_enrolled_published` is emitted once with entry_point `link`
 
 ### Requirement: On-demand generation analytics event
 The API SHALL emit `published_lesson_generated_on_demand` (course_id: UUID of the copy, lesson_id: UUID, version: int) once after a committed settlement of a Lesson generated in a Course copy. `lesson_generated` and `$ai_generation` are emitted by the reused pipeline. Events MUST contain UUIDs, enums and amounts only, never titles, Slide content or answers, and MUST respect analytics opt-out.
@@ -725,11 +725,11 @@ The analytics catalogue SHALL define `credits_refunded` with properties `amount`
 - **THEN** the outbox event carries the reason code only and the notes remain in the database audit table
 
 ### Requirement: Course invite analytics events
-The API SHALL emit `course_invite_sent` (method `username` or `friend`, course_id, invite_id), `course_invite_accepted` and `course_invite_declined` (course_id, invite_id), and `course_enrolled_published` with source `invite`. Properties MUST be UUIDs and enums, never Usernames or titles, and opt-out MUST be honored. The catalogue MUST list the events before an emitter exists.
+The API SHALL emit `course_invite_sent` (method `username` or `friend`, course_id, invite_id), `course_invite_accepted` and `course_invite_declined` (course_id, invite_id), and `course_enrolled_published` with entry_point `invite`. Properties MUST be UUIDs and enums, never Usernames or titles, and opt-out MUST be honored. The catalogue MUST list the events before an emitter exists.
 
 #### Scenario: Accept emits enrollment
 - **WHEN** a Learner accepts an invite
-- **THEN** `course_invite_accepted` and `course_enrolled_published` with source `invite` are captured and nothing is sent for an opted-out Learner
+- **THEN** `course_invite_accepted` and `course_enrolled_published` with entry_point `invite` are captured and nothing is sent for an opted-out Learner
 
 ### Requirement: Republish and update analytics events
 The API SHALL emit `course_republished` (course_id, version, lesson_count, verdict) and `course_update_applied` (course_id, source_course_id, from_version, to_version, kept, added, archived). Properties MUST be UUIDs, enums and counts, never titles, changelog text or Usernames; opt-out MUST be honored and the catalogue MUST list both events before an emitter exists.
@@ -754,14 +754,14 @@ The client SHALL import and initialise the analytics SDK only after first paint 
 - **THEN** the SDK is not initialised and nothing is sent
 
 ### Requirement: Welcome and tour funnel catalogue
-The client SHALL emit onboarding_welcome_shown, onboarding_path_chosen with path topic/setup_chat/example/skip, onboarding_tour_started with source first_run/settings, onboarding_tour_step_viewed with step path/next_lesson/credits/progress/notes/courses/settings, onboarding_tour_completed and onboarding_tour_skipped with at_step from the same step enum. The existing consent-aware wrapper SHALL enforce learner UUID and common platform/app_version/source properties, and reject unknown enums. No free text SHALL be captured. Existing sign-up and lesson events SHALL remain joinable by learner UUID.
+The client SHALL emit onboarding_welcome_shown, onboarding_path_chosen with path topic/setup_chat/example/skip, onboarding_tour_started with entry_point first_run/settings, onboarding_tour_step_viewed with step path/next_lesson/credits/progress/notes/courses/settings, onboarding_tour_completed and onboarding_tour_skipped with at_step from the same step enum. The existing consent-aware wrapper SHALL enforce learner UUID and common platform/app_version/source properties, and reject unknown enums. No free text SHALL be captured. Existing sign-up and lesson events SHALL remain joinable by learner UUID.
 
 #### Scenario: Consent disabled
 - **WHEN** an opted-out learner uses welcome or tour
 - **THEN** no onboarding events are captured
 
 ### Requirement: Check-in grant analytics
-The API MUST enqueue `check_in_credits_granted` atomically with each positive attendance grant, idempotently, with only closed non-PII `amount`, `first_time`, `banked_after` and `capped` properties plus canonical common properties. Delivery MUST respect existing analytics opt-out and MUST NOT affect grant correctness. No toast event is required. Event properties MUST follow existing outbox retention and backup rules.
+The API MUST enqueue `check_in_credits_granted` atomically with each new attendance check-in, including a zero amount at the bank cap, idempotently, with only closed non-PII `amount`, `first_time`, `banked_after` and `capped` properties plus canonical common properties. Delivery MUST respect existing analytics opt-out and MUST NOT affect grant correctness. No toast event is required. Event properties MUST follow existing outbox retention and backup rules.
 
 #### Scenario: Consent and replay
 - **WHEN** an opted-out Learner checks in or a committed request is retried

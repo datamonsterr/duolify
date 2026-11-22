@@ -119,9 +119,9 @@ export function QuickNotePanel({
     });
     setActiveNote(queued);
 
-    // Track analytics (source and length only, no private text)
+    // Track analytics (entry point and length only, no private text)
     trackQuickNoteCreated({
-      source: context.source,
+      entry_point: context.source,
       length: noteText.length,
     });
 

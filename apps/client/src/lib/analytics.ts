@@ -170,6 +170,7 @@ function captureSSOUI(
   try {
     if (posthog.has_opted_out_capturing()) return;
     posthog.capture(event, {
+      ...properties,
       distinct_id: distinctID,
       platform:
         identity?.platform ??
@@ -178,7 +179,6 @@ function captureSSOUI(
           : "web"),
       app_version: identity?.appVersion ?? "0.1.0",
       source: "client",
-      ...properties,
     });
   } catch {
     /* Sign-in continues if analytics is unavailable. */
@@ -205,11 +205,11 @@ function captureAuth(event: string, properties: Record<string, string>) {
   try {
     if (posthog.has_opted_out_capturing()) return;
     posthog.capture(event, {
+      ...properties,
       distinct_id: identity.learnerId,
       platform: identity.platform,
       app_version: identity.appVersion ?? "0.1.0",
       source: "client",
-      ...properties,
     });
   } catch {
     /* Analytics delivery cannot block sign-in. */
@@ -358,11 +358,11 @@ function trackShell(
   try {
     if (posthog.has_opted_out_capturing()) return;
     posthog.capture(event, {
+      ...properties,
       distinct_id: identity.learnerId,
       platform: identity.platform,
       app_version: identity.appVersion ?? "0.1.0",
       source: "client",
-      ...properties,
     });
   } catch {
     /* Analytics never blocks navigation. */
@@ -489,11 +489,11 @@ function trackSettings(
   try {
     if (!posthog.has_opted_out_capturing())
       posthog.capture(event, {
+        ...properties,
         distinct_id: identity.learnerId,
         platform: identity.platform,
         app_version: identity.appVersion ?? "0.1.0",
         source: "client",
-        ...properties,
       });
   } catch {
     /* Preference changes never depend on telemetry. */
@@ -575,7 +575,7 @@ export function trackTutorControl(controlId: "delete_thread") {
 }
 
 export function trackQuickNoteCreated(value: {
-  source: "slide" | "lesson" | "chat";
+  entry_point: "slide" | "lesson" | "chat";
   length: number;
 }) {
   if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
@@ -585,7 +585,8 @@ export function trackQuickNoteCreated(value: {
       distinct_id: identity.learnerId,
       platform: identity.platform,
       app_version: identity.appVersion ?? "0.1.0",
-      source: value.source,
+      source: "client",
+      entry_point: value.entry_point,
       length: value.length,
     });
   } catch {
@@ -1034,7 +1035,7 @@ type OnboardingEvent =
       event: "onboarding_path_chosen";
       path: "topic" | "setup_chat" | "example" | "skip";
     }
-  | { event: "onboarding_tour_started"; source: "first_run" | "settings" }
+  | { event: "onboarding_tour_started"; entry_point: "first_run" | "settings" }
   | { event: "onboarding_tour_step_viewed"; step: string }
   | { event: "onboarding_tour_skipped"; at_step: string };
 export function trackOnboarding(value: OnboardingEvent) {
@@ -1057,8 +1058,8 @@ export function trackOnboarding(value: OnboardingEvent) {
         captureAuth(value.event, { path: value.path });
       break;
     case "onboarding_tour_started":
-      if (["first_run", "settings"].includes(value.source))
-        captureAuth(value.event, { source: value.source });
+      if (["first_run", "settings"].includes(value.entry_point))
+        captureAuth(value.event, { entry_point: value.entry_point });
       break;
     case "onboarding_tour_step_viewed":
       if (steps.includes(value.step))

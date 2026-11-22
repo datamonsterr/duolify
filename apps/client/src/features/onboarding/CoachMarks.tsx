@@ -56,7 +56,7 @@ export function CoachMarks({
   const hasGeometry = geometry !== null;
   const announced = useRef("");
   useEffect(() => {
-    trackOnboarding({ event: "onboarding_tour_started", source });
+    trackOnboarding({ event: "onboarding_tour_started", entry_point: source });
   }, [source]);
   useEffect(() => {
     if (!step) {

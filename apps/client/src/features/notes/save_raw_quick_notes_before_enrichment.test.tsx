@@ -148,7 +148,7 @@ describe("save_raw_quick_notes_before_enrichment", () => {
   it("emits quick_note_created and ui_sheet_opened without leaking private note text", () => {
     const secretText = "Super secret notes text";
     trackQuickNoteCreated({
-      source: "slide",
+      entry_point: "slide",
       length: secretText.length,
     });
 
@@ -156,7 +156,8 @@ describe("save_raw_quick_notes_before_enrichment", () => {
       distinct_id: "11111111-1111-4111-8111-111111111111",
       platform: "web",
       app_version: "0.1.0",
-      source: "slide",
+      source: "client",
+      entry_point: "slide",
       length: secretText.length,
     });
 
@@ -174,7 +175,7 @@ describe("save_raw_quick_notes_before_enrichment", () => {
     posthog.has_opted_out_capturing.mockReturnValue(true);
 
     trackQuickNoteCreated({
-      source: "chat",
+      entry_point: "chat",
       length: 42,
     });
 

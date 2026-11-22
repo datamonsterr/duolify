@@ -768,7 +768,8 @@ func EmitQuickNoteCreated(events analytics.Events, learnerID, source string, len
 		appVersion = "0.1.0"
 	}
 	return events.Capture(learnerID, "quick_note_created", map[string]any{
-		"source":      source,
+		"source":      "api",
+		"entry_point": source,
 		"length":      length,
 		"platform":    platform,
 		"app_version": appVersion,

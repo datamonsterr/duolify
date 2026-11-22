@@ -166,19 +166,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 		switch key {
 		case "source":
-			if event == "quick_note_created" {
-				if v == "slide" || v == "lesson" || v == "chat" {
-					out[key] = v
-				}
-				continue
-			}
-			if event == "course_enrolled_published" {
-				if v == "link" || v == "invite" || v == "marketplace" {
-					out[key] = v
-				}
-				continue
-			}
-			if v != "api" && v != "ci" {
+			if v != "api" && v != "engine" {
 				continue
 			}
 		case "platform":
@@ -337,6 +325,9 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "course_enrolled_published":
 		ids("course_id", "source_course_id")
 		numeric("version")
+		if v, ok := input["entry_point"].(string); ok && (v == "link" || v == "invite" || v == "marketplace") {
+			out["entry_point"] = v
+		}
 	case "published_lesson_reused", "published_lesson_generated_on_demand":
 		ids("course_id", "lesson_id")
 		numeric("version")
@@ -770,8 +761,8 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "quick_note_created":
 		numeric("length")
-		if src, ok := input["source"].(string); ok && (src == "slide" || src == "lesson" || src == "chat") {
-			out["source"] = src
+		if src, ok := input["entry_point"].(string); ok && (src == "slide" || src == "lesson" || src == "chat") {
+			out["entry_point"] = src
 		}
 	case "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted":
 		ids("note_id", "reason", "error_code")

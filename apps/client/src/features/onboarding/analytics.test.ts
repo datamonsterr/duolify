@@ -49,3 +49,31 @@ it("honors account consent and SDK opt-out", () => {
   trackOnboarding({ event: "onboarding_welcome_shown" });
   expect(posthog.capture).not.toHaveBeenCalled();
 });
+
+it("keeps the emitting tier separate from the tour entry point", () => {
+  trackOnboarding({
+    event: "onboarding_tour_started",
+    entry_point: "settings",
+  });
+  expect(posthog.capture).toHaveBeenCalledWith(
+    "onboarding_tour_started",
+    expect.objectContaining({ source: "client", entry_point: "settings" }),
+  );
+});
+
+it("does not let event properties replace common identity", () => {
+  trackOnboarding({
+    event: "onboarding_tour_started",
+    entry_point: "first_run",
+    source: "api",
+    distinct_id: "other",
+  } as never);
+  expect(posthog.capture).toHaveBeenCalledWith(
+    "onboarding_tour_started",
+    expect.objectContaining({
+      source: "client",
+      distinct_id: "11111111-1111-4111-8111-111111111111",
+      entry_point: "first_run",
+    }),
+  );
+});
