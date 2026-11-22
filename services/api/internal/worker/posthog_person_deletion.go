@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -45,10 +46,13 @@ func (w *PersonDeletionWorker) Work(ctx context.Context, _ *river.Job[PersonDele
 			w.Logger.InfoContext(ctx, "posthog persons deleted after account erasure", "count", n)
 		}
 		if err != nil {
-			w.Logger.ErrorContext(ctx, "posthog person deletion failed", "deleted", n, "error", err)
+			w.Logger.ErrorContext(ctx, "posthog person deletion failed", "deleted", n, "failed_batches", 1)
 		}
 	}
-	return err
+	if err != nil {
+		return errors.New("posthog person deletion batch failed")
+	}
+	return nil
 }
 
 func registerPersonDeletionWorker(workers *river.Workers, service any, logger *slog.Logger) []*river.PeriodicJob {

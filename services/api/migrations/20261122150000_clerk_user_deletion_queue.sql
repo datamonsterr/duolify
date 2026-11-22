@@ -13,4 +13,12 @@ CREATE TABLE clerk_user_deletion_requests (
 );
 
 -- +goose Down
+-- +goose StatementBegin
+LOCK TABLE clerk_user_deletion_requests IN ACCESS EXCLUSIVE MODE;
+DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM clerk_user_deletion_requests) THEN
+  RAISE EXCEPTION 'cannot discard pending Clerk erasures';
+ END IF;
+END $$;
+-- +goose StatementEnd
 DROP TABLE clerk_user_deletion_requests;

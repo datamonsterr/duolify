@@ -34,6 +34,8 @@ x-s3-env: &s3-env
   BACKUP_S3_REGION: ${BACKUP_S3_REGION:-us-east-1}
   BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-duolify-backups}
   BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-duolify-backup-writer}
+  # none on Cloudflare R2 (no object versioning): protected asset copies are then pinned by checksum alone.
+  BACKUP_S3_VERSIONING: ${BACKUP_S3_VERSIONING:-enabled}
 
 services:
   objectstore: {profiles: [local-s3]}

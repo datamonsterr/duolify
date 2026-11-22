@@ -32,6 +32,23 @@ type CharacterAssetProtection struct {
 	Application *S3
 	Protected   Objects
 	Recipient   string
+	// Unversioned is true when the application bucket has no object versioning (BACKUP_S3_VERSIONING=none).
+	Unversioned bool
+}
+
+// UnversionedAsset is the manifest version of an object copied from a bucket without versioning: the
+// encrypted copy and its SHA-256 are the only pin.
+const UnversionedAsset = "unversioned"
+
+// assetVersion returns the version id to record for a protected object. A versioned bucket must report one.
+func assetVersion(id string, versioned bool) (string, error) {
+	if id != "" && id != "null" {
+		return id, nil
+	}
+	if versioned {
+		return "", errors.New("asset must be bounded and versioned")
+	}
+	return UnversionedAsset, nil
 }
 
 // Protect writes encrypted protected copies and a key/version/checksum manifest for one nightly dump.
@@ -89,7 +106,8 @@ func (p CharacterAssetProtection) Protect(ctx context.Context, date string) erro
 		}
 		raw, e := io.ReadAll(io.LimitReader(object.Body, maxObjectBytes+1))
 		_ = object.Body.Close()
-		if e != nil || len(raw) > maxObjectBytes || aws.ToString(object.VersionId) == "" || aws.ToString(object.VersionId) == "null" {
+		version, verr := assetVersion(aws.ToString(object.VersionId), !p.Unversioned)
+		if e != nil || len(raw) > maxObjectBytes || verr != nil {
 			return errors.New("asset must be bounded and versioned")
 		}
 		sum := sha256.Sum256(raw)
@@ -118,7 +136,7 @@ func (p CharacterAssetProtection) Protect(ctx context.Context, date string) erro
 		if e = putEncrypted(key, raw); e != nil {
 			return e
 		}
-		manifest = append(manifest, ProtectedCharacterAsset{Key: r.key, Version: aws.ToString(object.VersionId), SHA256: hash, BackupKey: key})
+		manifest = append(manifest, ProtectedCharacterAsset{Key: r.key, Version: version, SHA256: hash, BackupKey: key})
 	}
 	raw, _ := json.Marshal(manifest)
 	return putEncrypted(CharacterAssetManifestKey(date), raw)

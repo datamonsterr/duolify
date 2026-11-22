@@ -15,7 +15,11 @@ var deletionReference = regexp.MustCompile(`^[0-9a-f]{64}$`)
 // delete, expiry or database restore operation on this prefix. A successful Put
 // MUST be durable before committing account erasure; an ambiguous failure is
 // retried with the same key. A committed intent is replayed even if SQL failed.
-type DeletionLedger struct{ Objects Objects }
+type DeletionLedger struct {
+	Objects Objects
+	// ClerkKey is the existing JWT_SECRET, escrowed with recovery secrets.
+	ClerkKey string
+}
 
 // Append writes only the SHA-256 learner reference, never identity or timestamps.
 func (l DeletionLedger) Append(ctx context.Context, reference string) error {

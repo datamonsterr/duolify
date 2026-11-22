@@ -22,8 +22,10 @@ type Stage = "confirm" | "working" | "done" | "error";
 
 function deepLink(state: string | null, denied = false, code?: string) {
   const url = new URL(SSO_REDIRECT_URI);
-  if (denied) url.searchParams.set("error", "access_denied");
-  else if (state && code) {
+  if (denied && state) {
+    url.searchParams.set("state", state);
+    url.searchParams.set("error", "access_denied");
+  } else if (state && code) {
     url.searchParams.set("state", state);
     url.searchParams.set("code", code);
   }

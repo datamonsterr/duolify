@@ -162,6 +162,19 @@ func (f *fakeObjectStore) Delete(_ context.Context, key string) error {
 	return nil
 }
 
+func (f *fakeObjectStore) PurgePrefix(ctx context.Context, prefix string) error {
+	keys, err := f.List(ctx, prefix)
+	if err != nil {
+		return err
+	}
+	for _, key := range keys {
+		if err := f.Delete(ctx, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func TestErasedAccountPrivateObjectsAreDeletedAfterRetentionIntegration(t *testing.T) {
 	h := newErasureHarness(t)
 	ctx := h.ctx
@@ -292,7 +305,10 @@ func TestPostHogPersonDeletionIsQueuedThenDrainedIntegration(t *testing.T) {
 		t.Fatal("attempt not counted", attempts, err)
 	}
 
-	// PostHog back: the job drains it; a second run is a no-op that makes no call.
+	// PostHog back after the retry delay: the job drains it; a second run is a no-op.
+	if _, err = h.pool.Exec(ctx, "UPDATE posthog_person_deletion_requests SET last_attempt_at=now()-interval '11 minutes'"); err != nil {
+		t.Fatal(err)
+	}
 	fake.mu.Lock()
 	fake.down = false
 	fake.mu.Unlock()
@@ -310,5 +326,22 @@ func TestPostHogPersonDeletionIsQueuedThenDrainedIntegration(t *testing.T) {
 	fake.notFound = true
 	if n, err = eraser.ProcessPersonDeletions(ctx); n != 1 || err != nil || queued() != 0 {
 		t.Fatal("person not found must count as done", n, err)
+	}
+}
+
+func TestPostHogRetryBackoffDoesNotStarveNewRequestsIntegration(t *testing.T) {
+	h := newErasureHarness(t)
+	ctx := h.ctx
+	if _, err := h.pool.Exec(ctx, `INSERT INTO posthog_person_deletion_requests(distinct_id,requested_at,attempts,last_attempt_at) SELECT gen_random_uuid(),now()-interval '2 days',5,now() FROM generate_series(1,50)`); err != nil {
+		t.Fatal(err)
+	}
+	var id string
+	if err := h.pool.QueryRow(ctx, `INSERT INTO posthog_person_deletion_requests(distinct_id) VALUES(gen_random_uuid()) RETURNING distinct_id::text`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	fake := &scriptedPerson{}
+	n, err := accounts.NewPostHogPersonEraser(h.pool, fake).ProcessPersonDeletions(ctx)
+	if err != nil || n != 1 || len(fake.calls) != 1 || fake.calls[0] != id {
+		t.Fatalf("new request starved or backoff ignored: n=%d calls=%d err=%v", n, len(fake.calls), err)
 	}
 }
