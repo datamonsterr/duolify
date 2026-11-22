@@ -1,0 +1,466 @@
+[
+ {
+  "id": "u1-l1-s2",
+  "code": "console.log(42)\nconsole.log(\"hello\")\nconsole.log(true)",
+  "stdout": "42, hello, true",
+  "refs": [
+   "u1-l1:s2"
+  ]
+ },
+ {
+  "id": "u1-l1-s3",
+  "code": "console.log(typeof 42)\nconsole.log(typeof \"42\")\nconsole.log(typeof false)",
+  "stdout": "number, string, boolean",
+  "refs": [
+   "u1-l1:s3"
+  ]
+ },
+ {
+  "id": "u1-l1-q2",
+  "code": "console.log(typeof \"true\")",
+  "stdout": "string",
+  "refs": [
+   "u1-l1:u1-l1-q2"
+  ]
+ },
+ {
+  "id": "u1-l1-q2-v1",
+  "code": "console.log(typeof \"false\")",
+  "stdout": "string",
+  "refs": [
+   "u1-l1:u1-l1-q2-v1"
+  ]
+ },
+ {
+  "id": "u1-l1-q2-v2",
+  "code": "console.log(typeof \"100\")",
+  "stdout": "string",
+  "refs": [
+   "u1-l1:u1-l1-q2-v2"
+  ]
+ },
+ {
+  "id": "u1-l1-q3",
+  "code": "console.log(\"Hi\")",
+  "stdout": "Hi",
+  "refs": [
+   "u1-l1:u1-l1-q3"
+  ]
+ },
+ {
+  "id": "u1-l1-q3-v1",
+  "code": "console.log('Hi')",
+  "stdout": "Hi",
+  "refs": [
+   "u1-l1:u1-l1-q3-v1"
+  ]
+ },
+ {
+  "id": "u1-l1-q3-v2",
+  "code": "console.log(\"Hi\");",
+  "stdout": "Hi",
+  "refs": [
+   "u1-l1:u1-l1-q3-v2"
+  ]
+ },
+ {
+  "id": "u1-l2-s2",
+  "code": "let score = 10\nconsole.log(score)",
+  "stdout": "10",
+  "refs": [
+   "u1-l2:s2"
+  ]
+ },
+ {
+  "id": "u1-l2-s3",
+  "code": "let lives = 3\nlives = 2\nconst planet = \"Earth\"\nconsole.log(lives)\nconsole.log(planet)",
+  "stdout": "2, Earth",
+  "refs": [
+   "u1-l2:s3"
+  ]
+ },
+ {
+  "id": "u1-l2-q1",
+  "code": "let coins = 5\nconsole.log(coins)",
+  "stdout": "5",
+  "refs": [
+   "u1-l2:u1-l2-q1"
+  ]
+ },
+ {
+  "id": "u1-l2-q1-v1",
+  "code": "let points = 5\nconsole.log(points)",
+  "stdout": "5",
+  "refs": [
+   "u1-l2:u1-l2-q1-v1"
+  ]
+ },
+ {
+  "id": "u1-l2-q1-v2",
+  "code": "let level = 5\nconsole.log(level)",
+  "stdout": "5",
+  "refs": [
+   "u1-l2:u1-l2-q1-v2"
+  ]
+ },
+ {
+  "id": "u1-l3-s1",
+  "code": "console.log(\"5\" + 3)\nconsole.log(\"5\" - 3)",
+  "stdout": "53, 2",
+  "refs": [
+   "u1-l3:s1"
+  ]
+ },
+ {
+  "id": "u1-l3-s2",
+  "code": "const name = \"Mia\"\nconst stars = 2 * 3\nconsole.log(\"Hello, \" + name + \"!\")\nconsole.log(`Hello, ${name}!`)\nconsole.log(`${name} has ${stars} stars`)",
+  "stdout": "Hello, Mia!, Hello, Mia!, Mia has 6 stars",
+  "refs": [
+   "u1-l3:s2"
+  ]
+ },
+ {
+  "id": "u1-l3-s3",
+  "code": "console.log(5 === 5)\nconsole.log(5 === \"5\")\nconsole.log(7 > 3)\nconsole.log(7 >= 7)",
+  "stdout": "true, false, true, true",
+  "refs": [
+   "u1-l3:s3"
+  ]
+ },
+ {
+  "id": "u1-l3-q1",
+  "code": "const pet = \"cat\"\nconsole.log(`I have a ${pet}`)",
+  "stdout": "I have a cat",
+  "refs": [
+   "u1-l3:u1-l3-q1"
+  ]
+ },
+ {
+  "id": "u1-l3-q1-v1",
+  "code": "const animal = \"cat\"\nconsole.log(`I have a ${animal}`)",
+  "stdout": "I have a cat",
+  "refs": [
+   "u1-l3:u1-l3-q1-v1"
+  ]
+ },
+ {
+  "id": "u1-l3-q1-v2",
+  "code": "const word = \"cat\"\nconsole.log(\"I have a \" + word)",
+  "stdout": "I have a cat",
+  "refs": [
+   "u1-l3:u1-l3-q1-v2"
+  ]
+ },
+ {
+  "id": "u1-l3-q2",
+  "code": "console.log(\"4\" + 2)",
+  "stdout": "42",
+  "refs": [
+   "u1-l3:u1-l3-q2"
+  ]
+ },
+ {
+  "id": "u1-l3-q2-v1",
+  "code": "console.log(\"4\" + \"2\")",
+  "stdout": "42",
+  "refs": [
+   "u1-l3:u1-l3-q2-v1"
+  ]
+ },
+ {
+  "id": "u1-l3-q2-v2",
+  "code": "console.log('4' + 2)",
+  "stdout": "42",
+  "refs": [
+   "u1-l3:u1-l3-q2-v2"
+  ]
+ },
+ {
+  "id": "u1-l3-q3",
+  "code": "console.log(10 === \"10\")",
+  "stdout": "false",
+  "refs": [
+   "u1-l3:u1-l3-q3"
+  ]
+ },
+ {
+  "id": "u1-l3-q3-v1",
+  "code": "console.log(3 === \"3\")",
+  "stdout": "false",
+  "refs": [
+   "u1-l3:u1-l3-q3-v1"
+  ]
+ },
+ {
+  "id": "u1-l3-q3-v2",
+  "code": "console.log(\"7\" === 7)",
+  "stdout": "false",
+  "refs": [
+   "u1-l3:u1-l3-q3-v2"
+  ]
+ },
+ {
+  "id": "u2-l1-s2",
+  "code": "function double(n) {\n  return n * 2\n}\nconsole.log(double(4))",
+  "stdout": "8",
+  "refs": [
+   "u2-l1:s2"
+  ]
+ },
+ {
+  "id": "u2-l1-s3",
+  "code": "function square(n) {\n  return n * n\n}\nconst a = square(3)\nconst b = square(a)\nconsole.log(a)\nconsole.log(b)",
+  "stdout": "9, 81",
+  "refs": [
+   "u2-l1:s3"
+  ]
+ },
+ {
+  "id": "u2-l1-s4",
+  "code": "const double = (n) => n * 2\nconsole.log(double(4))",
+  "stdout": "8",
+  "refs": [
+   "u2-l1:s4"
+  ]
+ },
+ {
+  "id": "u2-l1-q1",
+  "code": "function double(n) {\n  return n * 2\n}\nconsole.log(double(6))",
+  "stdout": "12",
+  "refs": [
+   "u2-l1:u2-l1-q1"
+  ]
+ },
+ {
+  "id": "u2-l1-q1-v1",
+  "code": "function twice(x) {\n  return x * 2\n}\nconsole.log(twice(6))",
+  "stdout": "12",
+  "refs": [
+   "u2-l1:u2-l1-q1-v1"
+  ]
+ },
+ {
+  "id": "u2-l1-q1-v2",
+  "code": "function addTwo(n) {\n  return n + 2\n}\nconsole.log(addTwo(10))",
+  "stdout": "12",
+  "refs": [
+   "u2-l1:u2-l1-q1-v2"
+  ]
+ },
+ {
+  "id": "u2-l1-q3",
+  "code": "const triple = (n) => n * 3\nconsole.log(triple(5))",
+  "stdout": "15",
+  "refs": [
+   "u2-l1:u2-l1-q3"
+  ]
+ },
+ {
+  "id": "u2-l1-q3-v1",
+  "code": "const times3 = (x) => x * 3\nconsole.log(times3(5))",
+  "stdout": "15",
+  "refs": [
+   "u2-l1:u2-l1-q3-v1"
+  ]
+ },
+ {
+  "id": "u2-l1-q3-v2",
+  "code": "const plus10 = (n) => n + 10\nconsole.log(plus10(5))",
+  "stdout": "15",
+  "refs": [
+   "u2-l1:u2-l1-q3-v2"
+  ]
+ },
+ {
+  "id": "u2-l2-s2",
+  "code": "const age = 16\nif (age >= 18) {\n  console.log(\"adult\")\n} else {\n  console.log(\"minor\")\n}",
+  "stdout": "minor",
+  "refs": [
+   "u2-l2:s2"
+  ]
+ },
+ {
+  "id": "u2-l2-s3",
+  "code": "const age = 20\nconst hasTicket = true\nif (age >= 18 && hasTicket) {\n  console.log(\"enter\")\n} else if (age >= 18) {\n  console.log(\"buy a ticket\")\n} else {\n  console.log(\"too young\")\n}",
+  "stdout": "enter",
+  "refs": [
+   "u2-l2:s3"
+  ]
+ },
+ {
+  "id": "u2-l2-s4",
+  "code": "console.log(true && false)\nconsole.log(true || false)",
+  "stdout": "false, true",
+  "refs": [
+   "u2-l2:s4"
+  ]
+ },
+ {
+  "id": "u2-l2-q1",
+  "code": "const temp = 30\nif (temp > 25) {\n  console.log(\"hot\")\n} else {\n  console.log(\"cool\")\n}",
+  "stdout": "hot",
+  "refs": [
+   "u2-l2:u2-l2-q1"
+  ]
+ },
+ {
+  "id": "u2-l2-q1-v1",
+  "code": "const heat = 35\nif (heat > 25) {\n  console.log(\"hot\")\n} else {\n  console.log(\"cool\")\n}",
+  "stdout": "hot",
+  "refs": [
+   "u2-l2:u2-l2-q1-v1"
+  ]
+ },
+ {
+  "id": "u2-l2-q1-v2",
+  "code": "const temp = 25\nif (temp >= 25) {\n  console.log(\"hot\")\n} else {\n  console.log(\"cool\")\n}",
+  "stdout": "hot",
+  "refs": [
+   "u2-l2:u2-l2-q1-v2"
+  ]
+ },
+ {
+  "id": "u2-l2-q2",
+  "code": "const score = 85\nif (score >= 90) {\n  console.log(\"A\")\n} else if (score >= 80) {\n  console.log(\"B\")\n} else {\n  console.log(\"C\")\n}",
+  "stdout": "B",
+  "refs": [
+   "u2-l2:u2-l2-q2"
+  ]
+ },
+ {
+  "id": "u2-l2-q2-v1",
+  "code": "const score = 80\nif (score >= 90) {\n  console.log(\"A\")\n} else if (score >= 80) {\n  console.log(\"B\")\n} else {\n  console.log(\"C\")\n}",
+  "stdout": "B",
+  "refs": [
+   "u2-l2:u2-l2-q2-v1"
+  ]
+ },
+ {
+  "id": "u2-l2-q2-v2",
+  "code": "const score = 89\nif (score >= 90) {\n  console.log(\"A\")\n} else if (score >= 80) {\n  console.log(\"B\")\n} else {\n  console.log(\"C\")\n}",
+  "stdout": "B",
+  "refs": [
+   "u2-l2:u2-l2-q2-v2"
+  ]
+ },
+ {
+  "id": "u2-l2-q3",
+  "code": "const raining = true\nconst hasUmbrella = false\nconsole.log(raining && hasUmbrella)",
+  "stdout": "false",
+  "refs": [
+   "u2-l2:u2-l2-q3"
+  ]
+ },
+ {
+  "id": "u2-l2-q3-v1",
+  "code": "const sunny = false\nconst warm = true\nconsole.log(sunny && warm)",
+  "stdout": "false",
+  "refs": [
+   "u2-l2:u2-l2-q3-v1"
+  ]
+ },
+ {
+  "id": "u2-l2-q3-v2",
+  "code": "console.log(false || false)",
+  "stdout": "false",
+  "refs": [
+   "u2-l2:u2-l2-q3-v2"
+  ]
+ },
+ {
+  "id": "u2-l3-s2",
+  "code": "const scores = [4, 8, 6]\nconsole.log(scores[0])\nconsole.log(scores.length)\nscores.push(10)\nconsole.log(scores.length)",
+  "stdout": "4, 3, 4",
+  "refs": [
+   "u2-l3:s2"
+  ]
+ },
+ {
+  "id": "u2-l3-s3",
+  "code": "const names = [\"Ana\", \"Ben\", \"Cy\"]\nfor (const name of names) {\n  console.log(name)\n}",
+  "stdout": "Ana, Ben, Cy",
+  "refs": [
+   "u2-l3:s3"
+  ]
+ },
+ {
+  "id": "u2-l3-s4",
+  "code": "const scores = [4, 8, 6]\nlet total = 0\nfor (const score of scores) {\n  total = total + score\n}\nconsole.log(total)",
+  "stdout": "18",
+  "refs": [
+   "u2-l3:s4"
+  ]
+ },
+ {
+  "id": "u2-l3-q1",
+  "code": "const colors = [\"red\", \"green\", \"blue\"]\nconsole.log(colors[1])",
+  "stdout": "green",
+  "refs": [
+   "u2-l3:u2-l3-q1"
+  ]
+ },
+ {
+  "id": "u2-l3-q1-v1",
+  "code": "const lights = [\"red\", \"green\", \"amber\"]\nconsole.log(lights[1])",
+  "stdout": "green",
+  "refs": [
+   "u2-l3:u2-l3-q1-v1"
+  ]
+ },
+ {
+  "id": "u2-l3-q1-v2",
+  "code": "const tray = [\"blue\", \"red\", \"green\"]\nconsole.log(tray[2])",
+  "stdout": "green",
+  "refs": [
+   "u2-l3:u2-l3-q1-v2"
+  ]
+ },
+ {
+  "id": "u2-l3-q2",
+  "code": "const nums = [1, 2, 3]\nfor (const n of nums) {\n  console.log(n * 2)\n}",
+  "stdout": "2, 4, 6",
+  "refs": [
+   "u2-l3:u2-l3-q2"
+  ]
+ },
+ {
+  "id": "u2-l3-q2-v1",
+  "code": "const small = [1, 2, 3]\nfor (const item of small) {\n  console.log(item + item)\n}",
+  "stdout": "2, 4, 6",
+  "refs": [
+   "u2-l3:u2-l3-q2-v1"
+  ]
+ },
+ {
+  "id": "u2-l3-q2-v2",
+  "code": "const steps = [1, 2, 3]\nfor (const s of steps) {\n  console.log(s * 2)\n}",
+  "stdout": "2, 4, 6",
+  "refs": [
+   "u2-l3:u2-l3-q2-v2"
+  ]
+ },
+ {
+  "id": "u2-l3-q3",
+  "code": "const prices = [3, 5, 2]\nlet total = 0\nfor (const price of prices) {\n  total = total + price\n}\nconsole.log(total)",
+  "stdout": "10",
+  "refs": [
+   "u2-l3:u2-l3-q3"
+  ]
+ },
+ {
+  "id": "u2-l3-q3-v1",
+  "code": "const bag = [4, 4, 2]\nlet total = 0\nfor (const item of bag) {\n  total = total + item\n}\nconsole.log(total)",
+  "stdout": "10",
+  "refs": [
+   "u2-l3:u2-l3-q3-v1"
+  ]
+ },
+ {
+  "id": "u2-l3-q3-v2",
+  "code": "const costs = [1, 2, 3, 4]\nlet sum = 0\nfor (const cost of costs) {\n  sum = sum + cost\n}\nconsole.log(sum)",
+  "stdout": "10",
+  "refs": [
+   "u2-l3:u2-l3-q3-v2"
+  ]
+ }
+]

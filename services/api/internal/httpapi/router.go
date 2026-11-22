@@ -271,7 +271,8 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		}
 		mux.Handle("/v1/characters/", deps.Characters)
 		if deps.Accounts != nil {
-			mux.Handle("/v1/courses/{courseId}/lessons/", deps.Accounts.Protect(deps.Characters))
+			// GET only (lesson manifests): a method-less subtree would overlap POST /v1/courses/examples/{slug}/enroll.
+			mux.Handle("GET /v1/courses/{courseId}/lessons/", deps.Accounts.Protect(deps.Characters))
 		}
 	}
 	lessonMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

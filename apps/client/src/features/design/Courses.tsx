@@ -7,6 +7,7 @@ import { Badge } from "./Badge";
 import { Button } from "./Button";
 import { CourseCard } from "./CourseCard";
 import { AppLink, navigateTo } from "../../lib/navigation";
+import { ExampleCourses } from "./ExampleCourses";
 
 function subscribeOnline(notify: () => void) {
   window.addEventListener("online", notify);
@@ -17,7 +18,11 @@ function subscribeOnline(notify: () => void) {
   };
 }
 
-export function Courses() {
+export function Courses({
+  surface = "courses",
+}: {
+  surface?: "courses" | "learn_empty";
+}) {
   const online = useSyncExternalStore(
     subscribeOnline,
     () => window.navigator.onLine,
@@ -186,6 +191,14 @@ export function Courses() {
             Create a course
           </Button>
         </div>
+      )}
+      {data && (
+        <ExampleCourses
+          surface={surface}
+          enrolledSlugs={data.flatMap((c) =>
+            c.example_slug ? [c.example_slug] : [],
+          )}
+        />
       )}
       {data && data.length > 0 && (
         <>
