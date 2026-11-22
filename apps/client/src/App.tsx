@@ -1,7 +1,10 @@
 import { ProgressPage } from "./features/gamification/DailyGoal";
 import { LearningAnalyticsPage } from "./features/gamification/LearningAnalytics";
 import { LeaguePage } from "./features/gamification/League";
-import { UiPreferencesProvider } from "./features/design/localization/Preferences";
+import {
+  UiPreferencesProvider,
+  useUiPreferences,
+} from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
 import { AuthError, session } from "./features/accounts/session";
 import { useQuery } from "@tanstack/react-query";
@@ -81,7 +84,8 @@ const root = createRootRoute({
 function IndexRoute() {
   const shell = useShellSession();
   const owner = session.current()?.id ?? "";
-  const { data: coursesData } = useQuery({
+  const { t } = useUiPreferences();
+  const { data: coursesData, isError: coursesFailed } = useQuery({
     queryKey: ["courses", owner],
     queryFn: async () => {
       try {
@@ -106,6 +110,11 @@ function IndexRoute() {
       }
     },
     staleTime: 60000,
+    // Offline with no downloaded course, or signed out: retrying cannot help.
+    retry: (failures, err) =>
+      failures < 3 &&
+      !(err instanceof TypeError) &&
+      !(err instanceof AuthError),
   });
 
   const activeId = shell.courseId();
@@ -128,6 +137,8 @@ function IndexRoute() {
     if (coursesData && coursesData.length === 0) {
       return <Courses />;
     }
+    // Course list failed with no offline copy: say so instead of loading forever.
+    if (coursesFailed) return <p>{t("path.error")}</p>;
     return <p role="status">Loading course…</p>;
   }
 
