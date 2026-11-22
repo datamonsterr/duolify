@@ -152,3 +152,35 @@ func TestObjectPurgeKeepsPrefixStillReferencedByALiveManifestIntegration(t *test
 		t.Fatalf("referenced prefix was deleted: n=%d err=%v deleted=%v", n, err, objects.deleted)
 	}
 }
+
+func TestReferencedPrefixesDoNotStarveEligiblePurgeIntegration(t *testing.T) {
+	ctx := t.Context()
+	pool, learner := objectPurgeDB(t)
+	_, stub, _ := seedGeneratedLesson(t, pool, learner, 0)
+	_, err := pool.Exec(ctx, `WITH new_stubs AS (
+ INSERT INTO course_lesson_stubs(unit_id,learner_id,authored_id,position,title,goal,status)
+ SELECT unit_id,learner_id,'extra-'||i, i,'l','g','locked' FROM course_lesson_stubs CROSS JOIN generate_series(1,200) i WHERE id=$1::uuid RETURNING id
+ ), manifests AS (
+ INSERT INTO lesson_manifests(lesson_id,learner_id,version,manifest_key)
+ SELECT id,$2::uuid,1,'lessons/generated/'||gen_random_uuid()::text||'/manifest.json' FROM new_stubs RETURNING manifest_key
+ ) INSERT INTO course_object_purges(prefix,purge_after)
+ SELECT replace(manifest_key,'manifest.json',''),now()-interval '2 hours' FROM manifests`, stub, learner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eligible := "lessons/generated/11111111-1111-4111-8111-111111111111/"
+	if _, err = pool.Exec(ctx, `INSERT INTO course_object_purges(prefix,purge_after) VALUES($1,now()-interval '1 hour')`, eligible); err != nil {
+		t.Fatal(err)
+	}
+	objects := &fakeObjects{keys: []string{eligible + "manifest.json"}}
+	svc := courses.New(courses.Options{Pool: pool, Objects: objects})
+	if n, err := svc.SweepPurgedObjects(ctx, time.Now()); err != nil || n != 1 {
+		t.Fatalf("eligible prefix starved: n=%d err=%v", n, err)
+	}
+	if _, err = pool.Exec(ctx, `DELETE FROM lesson_manifests WHERE lesson_id <> $1::uuid`, stub); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := svc.SweepPurgedObjects(ctx, time.Now()); err != nil || n != 200 {
+		t.Fatalf("released prefixes not reconsidered: n=%d err=%v", n, err)
+	}
+}

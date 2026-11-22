@@ -146,7 +146,7 @@ func (s *Service) SweepPurgedObjects(ctx context.Context, now time.Time) (int, e
 	if s.opts.Pool == nil || s.opts.Objects == nil {
 		return 0, nil
 	}
-	rows, err := s.opts.Pool.Query(ctx, `SELECT prefix FROM course_object_purges WHERE purged_at IS NULL AND purge_after <= $1 ORDER BY purge_after LIMIT 200`, now)
+	rows, err := s.opts.Pool.Query(ctx, `SELECT p.prefix FROM course_object_purges p WHERE p.purged_at IS NULL AND p.purge_after <= $1 AND NOT EXISTS (SELECT 1 FROM lesson_manifests m WHERE starts_with(m.manifest_key, p.prefix)) ORDER BY p.purge_after LIMIT 200`, now)
 	if err != nil {
 		return 0, err
 	}
