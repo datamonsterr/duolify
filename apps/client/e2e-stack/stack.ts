@@ -77,7 +77,7 @@ export async function features(request: APIRequestContext): Promise<Features> {
 
 export function uniqueEmail(flow: string): string {
   const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  return `e2e-${flow.toLowerCase()}-${id}@example.test`;
+  return `e2e-${flow.toLowerCase()}-${id}@${process.env.E2E_STACK_EMAIL_DOMAIN ?? "example.test"}`;
 }
 
 const slug = (text: string) =>
@@ -121,6 +121,8 @@ export const test = base.extend<FlowOptions & { flow: Flow }>({
         /Content Security Policy|Refused to (execute|load|connect|apply|frame|create)/i.test(
           text,
         ) &&
+        // Cloudflare injects its analytics beacon at the edge on a proxied zone; the policy blocks it by design.
+        !/static\.cloudflareinsights\.com/.test(text) &&
         // A slide that nests its own <meta> CSP in <body>: ignored by the browser, not a violation.
         !/delivered via a <meta> element outside the document's <head>/.test(
           text,

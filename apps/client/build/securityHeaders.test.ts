@@ -4,6 +4,7 @@ import { headersFor, parseSnippets, surfaceOf } from "./securityHeaders.ts";
 const env = {
   LESSON_ASSET_ORIGIN: "https://assets.example.test",
   POSTHOG_HOST: "https://eu.i.posthog.com",
+  POSTHOG_ASSETS_HOST: "https://eu-assets.i.posthog.com",
   CLERK_FAPI_ORIGIN: "https://clerk.example.test",
 };
 const directives = (csp: string) =>
@@ -23,6 +24,7 @@ describe("security headers (infra/deploy/security-headers.caddy)", () => {
       "'self'",
       "https://assets.example.test",
       "https://eu.i.posthog.com",
+      "https://eu-assets.i.posthog.com",
     ]);
     expect(web["Content-Security-Policy"]).not.toContain("{$");
     expect(web["Content-Security-Policy"]).not.toMatch(/\s{2}|\s;/);
@@ -34,6 +36,7 @@ describe("security headers (infra/deploy/security-headers.caddy)", () => {
       "'self'",
       "http://localhost:9000",
       "https://us.i.posthog.com",
+      "https://us-assets.i.posthog.com",
     ]);
     expect(csp).not.toMatch(/duolify\.online/);
   });

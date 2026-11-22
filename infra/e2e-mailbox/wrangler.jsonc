@@ -1,0 +1,10 @@
+{
+  // Staging test inbox (see docs/infra/e2e-mailbox.md). Deploy: mise run infra:e2e-mailbox-deploy
+  "name": "duolify-e2e-mailbox",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "e2e-mailbox.duolify.online", "custom_domain": true }],
+  "kv_namespaces": [{ "binding": "MAILBOX", "id": "b8484c1408c749489a685e3b03c262bd" }]
+}

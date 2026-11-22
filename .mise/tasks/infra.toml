@@ -214,3 +214,7 @@ fi
 # shellcheck disable=SC2086 # references are validated above and again by deploy.sh
 printf '%s\n' "${GHCR_TOKEN:-}" | $ssh_cmd "cd '$path' && ${login}bash infra/deploy/deploy.sh 'sha-$DEPLOY_SHA'$images"
 '''
+
+["infra:e2e-mailbox-test"]
+description = "Unit tests of the staging test inbox Worker (sign-in code extraction, per-address storage, bearer token)"
+run = "node --test infra/e2e-mailbox/worker.test.mjs"
