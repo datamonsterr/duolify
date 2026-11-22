@@ -34,18 +34,6 @@ pnpm tauri ios build --ci --debug --no-sign --target aarch64-sim
 app=$(find src-tauri/gen/apple/build -name 'Duolify.app' -type d -print -quit)
 test -n "$app"
 /usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes' "$app/Info.plist" | grep -q duolify
-# An unsigned simulator app has no keychain entitlement, so the credential store
-# fails closed. Ad-hoc sign it with a keychain group; no Apple account is needed.
-ent="$(mktemp)"
-cat > "$ent" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>application-identifier</key><string>app.duolify.client</string>
-<key>keychain-access-groups</key><array><string>app.duolify.client</string></array>
-</dict></plist>
-PLIST
-codesign --force --sign - --entitlements "$ent" "$app"
 '''
 
 ["client:mobile-test"]
@@ -114,7 +102,7 @@ xcrun simctl bootstatus "$udid" -b
 app=$(find src-tauri/gen/apple/build -name 'Duolify.app' -type d -print -quit)
 test -n "$app"
 xcrun simctl install "$udid" "$app"
-exec mise run client:mobile-test -- maestro/launch.yaml
+exec mise run client:mobile-test -- maestro/ios-launch.yaml
 '''
 
 ["client:android-free-disk"]

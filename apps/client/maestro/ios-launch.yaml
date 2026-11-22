@@ -1,0 +1,10 @@
+appId: app.duolify.client
+---
+# The unsigned simulator build cannot open a session yet (the account check shows
+# "Could not open your account"), so this flow records the launch screen only.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: ".+"
+    timeout: 30000
+- takeScreenshot: ios-launch

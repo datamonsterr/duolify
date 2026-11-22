@@ -4,8 +4,12 @@ androidWebViewHierarchy: devtools
 - takeScreenshot: onboarding-dismissed
 - tapOn: Courses
 - takeScreenshot: courses
+- scrollUntilVisible:
+    element: Start Product Management Foundations
 - tapOn: Start Product Management Foundations
 - takeScreenshot: example-course
+- scrollUntilVisible:
+    element: Start lesson.*
 - tapOn: Start lesson.*
 - assertVisible: Slide 1 of.*
 - takeScreenshot: lesson-portrait
