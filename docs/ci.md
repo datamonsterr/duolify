@@ -113,6 +113,28 @@ E2E_STACK_CODE_COMMAND='<prints codes for $1>' mise run client:e2e-stack` (no lo
 `E2E_STACK_GRANT_COMMAND` funds learners, otherwise flows that need paid credits are
 `fixme`). `E2E_LESSON_TEST_TRACER_ENABLED=false` runs with lesson generation off.
 
+Environment precedence: mise loads the gitignored `.env` and, by default, `.env` values
+replace the caller's environment. `mise.toml` therefore re-applies `OPENROUTER_API_KEY`,
+`ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` and `HF_TOKEN` so a non-empty value exported in
+your shell wins over `.env`, and an empty value never overrides a non-empty one (an empty
+`OPENROUTER_API_KEY=` copied from `.env.example` no longer blanks a key you export). Add a
+new secret to that list in `mise.toml` if it must be overridable from the shell. Tests and
+mock evals are hermetic: `engine:test` and `engine:eval` pin `ENGINE_PROVIDER_MODE=mock` and
+`EVAL_SAMPLE_LIMIT=0` so a developer's `.env` cannot change their result.
+
+Sign-in codes on a remote stack: the API mails no new code while an unused one was sent in
+the last 60 s (cooldown, unchanged), and the 202 response is identical either way. A
+consumed code (signing in) never blocks the next request. The harness waits up to 90 s for
+real mail (`E2E_STACK_CODE_TIMEOUT_MS` overrides), can accept the still-valid code with
+`signInCode(email, { reuse: true })`, and otherwise fails with an error naming the cooldown.
+
+Lesson object metadata: `lessons/` objects are written with an explicit `Content-Type`
+(from the key extension) and `Cache-Control: public, max-age=31536000, immutable`.
+Objects written earlier keep `application/octet-stream` until rewritten. With the API's
+`S3_*` variables set for the target bucket, `mise run api:rewrite-asset-metadata` lists the
+objects that need it (dry run) and `mise run api:rewrite-asset-metadata -- -apply`
+rewrites them with a self-CopyObject (`MetadataDirective=REPLACE`); it is idempotent.
+
 Pricing: the suite never approves pricing. Flows that need a quote use the target's
 active approved version; a failed course preview or lesson generation fails the flow.
 
