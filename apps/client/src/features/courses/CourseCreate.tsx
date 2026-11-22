@@ -1,3 +1,4 @@
+import { invalidateCourseList } from "../../lib/courseQueries";
 import { useEffect, useState } from "react";
 import { Button } from "../design/Button";
 import { session } from "../accounts/session";
@@ -84,6 +85,7 @@ export function CourseCreate({
   onBack,
   service = creationAPI,
   onEnrolled = (id) => {
+    invalidateCourseList();
     navigateTo(`/course/${encodeURIComponent(id)}`);
   },
 }: {

@@ -1,7 +1,10 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { buildOfflineManifest, type BundleLike } from "./build/offlineManifest";
+import {
+  buildOfflineManifest,
+  type BundleLike,
+} from "./build/offlineManifest.ts";
 export default defineConfig({
   plugins: [
     react(),

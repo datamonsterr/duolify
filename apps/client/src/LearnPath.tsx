@@ -27,6 +27,30 @@ import "./features/sharing/sharing.css";
 import { CourseModerationBanner } from "./features/sharing/CourseModerationBanner";
 import { AppLink } from "./lib/navigation";
 
+/** The course tree. Shared with the Learn home so it can start this fetch as soon as the list names the course. */
+export function courseTreeQuery(courseId: string, owner: string) {
+  return {
+    queryKey: ["course", courseId, owner],
+    queryFn: async () => {
+      try {
+        return await api.course(courseId);
+      } catch (err) {
+        if (
+          err instanceof AuthError ||
+          !(err instanceof TypeError || !navigator.onLine)
+        )
+          throw err;
+        const downloaded = getDownloadedCourses(owner)[courseId];
+        if (downloaded?.courseData) {
+          return downloaded.courseData;
+        }
+        throw err;
+      }
+    },
+    retry: false,
+  };
+}
+
 export function LearnPath({ courseId }: { courseId: string }) {
   const returnTo = useLocation({ select: (location) => location.pathname });
   const { t } = useUiPreferences();
@@ -67,30 +91,7 @@ export function LearnPath({ courseId }: { courseId: string }) {
     isError,
     error,
     refetch,
-  } = useQuery({
-    queryKey: ["course", courseId, owner],
-    queryFn: async () => {
-      try {
-        const c = await api.course(courseId);
-        return c;
-      } catch (err) {
-        if (
-          err instanceof AuthError ||
-          !(err instanceof TypeError || !navigator.onLine)
-        )
-          throw err;
-        const downloaded = getDownloadedCourses(owner)[courseId];
-        if (downloaded?.courseData) {
-          return downloaded.courseData;
-        }
-        throw err;
-      }
-    },
-    // Nothing invalidates the path when a lesson ends, so revalidate on every visit; only the
-    // window-focus refetch is gone.
-    staleTime: 0,
-    retry: false,
-  });
+  } = useQuery(courseTreeQuery(courseId, owner));
 
   const handlePrepareLesson = (lessonId: string) => {
     setPrepareError(null);

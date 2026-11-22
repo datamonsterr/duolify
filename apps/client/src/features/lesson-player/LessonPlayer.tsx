@@ -1,3 +1,4 @@
+import { invalidateCourseProgress } from "../../lib/courseQueries";
 import { NarrationControl } from "../narration/NarrationControl";
 import { SegmentNarration } from "../narration/SegmentNarration";
 import { hasSegmentNarration, narratedDuration } from "../characters/narration";
@@ -509,6 +510,7 @@ function TracerLessonPlayer({
             onClick={() => {
               if (index === slides.length - 1) {
                 setFinished(true);
+                invalidateCourseProgress();
                 triggerFeedbackCue("completion");
               } else goToSlide(nextSlide(index, slides.length));
             }}

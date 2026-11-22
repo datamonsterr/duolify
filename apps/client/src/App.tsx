@@ -4,7 +4,7 @@ import {
 } from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
 import { AuthError, session } from "./features/accounts/session";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   api,
   summarizeCourse,
@@ -28,7 +28,7 @@ import {
 } from "@tanstack/react-router";
 import { SignIn } from "./features/accounts/SignIn";
 import { RouteGuard } from "./features/accounts/RouteGuard";
-import { LearnPath } from "./LearnPath";
+import { courseTreeQuery, LearnPath } from "./LearnPath";
 import { AppShell, MorePage } from "./features/shell/AppShell";
 import { getDownloadedCourses } from "./features/player/library";
 import {
@@ -179,11 +179,19 @@ function IndexRoute() {
   const shell = useShellSession();
   const owner = session.current()?.id ?? "";
   const { t } = useUiPreferences();
+  const queryClient = useQueryClient();
   const { data: coursesData, isError: coursesFailed } = useQuery({
     queryKey: ["courses", owner],
     queryFn: async () => {
       try {
-        return await api.courses({ authenticatedOnly: true });
+        const list = await api.courses({ authenticatedOnly: true });
+        // Start the tree fetch now, not after this component re-renders with the list.
+        const target = list.some((c) => c.id === shell.courseId())
+          ? shell.courseId()
+          : list.active_course_id || list[0]?.id;
+        if (target)
+          void queryClient.prefetchQuery(courseTreeQuery(target, owner));
+        return list;
       } catch (err) {
         if (
           err instanceof AuthError ||

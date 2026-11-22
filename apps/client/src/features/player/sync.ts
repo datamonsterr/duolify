@@ -1,3 +1,4 @@
+import { invalidateCourseProgress } from "../../lib/courseQueries";
 import { session } from "../accounts/session";
 import type { Position } from "./position";
 
@@ -192,6 +193,8 @@ export function synchronizeProgress(
 
         position = response?.position ?? position;
         if (!response?.synced) return position;
+        // Offline progress reached the server: the path and course cards may have moved.
+        invalidateCourseProgress();
         const terminal = new Set([
           ...(response.acked_keys ?? response.action_keys ?? []),
           ...(response.rejected_keys ?? []),

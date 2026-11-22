@@ -1,3 +1,4 @@
+import { invalidateCourseProgress } from "../../lib/courseQueries";
 import { CompletionXP } from "../gamification/DailyGoal";
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
@@ -248,6 +249,7 @@ export function LessonTest({
         if (result.passed) {
           setFeedback(result);
           setFinished(true);
+          invalidateCourseProgress();
           onPass();
           break;
         }
@@ -378,6 +380,7 @@ export function LessonTest({
     if (feedback.passed) {
       setFinished(true);
       triggerFeedbackCue("completion");
+      invalidateCourseProgress();
       onPass();
       return;
     }
