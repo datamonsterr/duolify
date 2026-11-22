@@ -10,4 +10,5 @@
 
 # Private production dataset (E10-01). Source bytes are reviewed in evals/datasets/duolify-golden/golden.jsonl.
 ["datamonsterr/duolify-golden"]
-"04c5418d1ee7365ff9bcfdc51f4392de1f483429" = "efb56b475f5f7af0ecd1d03e22080ff06ea949716d6e0bfc89c2824495584563"
+# Live cases carry production request data (openspec change reliable-structured-ai-outputs).
+"b7979d57f81401aaabb21aba2cb82c64cddafd96" = "eecd8e63076797b780a1a5bb10ed83cc64ba249e788b8f149383dae4834cfb71"

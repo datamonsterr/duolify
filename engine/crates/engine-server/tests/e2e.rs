@@ -105,9 +105,9 @@ async fn all_rpcs() {
                 output_nanos: 500,
                 cache_write_nanos: 125,
                 cache_read_nanos: 10,
-                provider: "mock".into(),
+                provider: "openrouter".into(),
                 model: "tencent/hy4-flash".into(),
-                fallback_provider: "mock".into(),
+                fallback_provider: "openrouter".into(),
                 fallback_model: "z-ai/glm-5.3-flash".into(),
                 ..Default::default()
             }),
@@ -117,7 +117,7 @@ async fn all_rpcs() {
         .into_inner();
     assert!(engine_core::characters::valid_spec(&mapped.spec_json));
     assert_eq!(mapped.attempts.len(), 1);
-    assert_eq!(mapped.attempts[0].provider, "mock");
+    assert_eq!(mapped.attempts[0].provider, "openrouter");
     assert!(
         c.map_character(pb::MapCharacterRequest {
             prompt: "original".into(),
@@ -148,9 +148,9 @@ async fn all_rpcs() {
                 output_nanos: 10000,
                 cache_write_nanos: 2500,
                 cache_read_nanos: 100,
-                provider: "mock".into(),
+                provider: "openrouter".into(),
                 model: "tencent/hy4-flash".into(),
-                fallback_provider: "mock".into(),
+                fallback_provider: "openrouter".into(),
                 fallback_model: "z-ai/glm-5.3-flash".into(),
                 deadline_unix_ms: 0,
                 ..Default::default()
@@ -191,9 +191,9 @@ async fn all_rpcs() {
                 output_nanos: 500,
                 cache_write_nanos: 200,
                 cache_read_nanos: 50,
-                provider: "mock".into(),
+                provider: "openrouter".into(),
                 model: "tencent/hy4-flash".into(),
-                fallback_provider: "mock".into(),
+                fallback_provider: "openrouter".into(),
                 fallback_model: "z-ai/glm-5.3-flash".into(),
                 deadline_unix_ms: 0,
                 ..Default::default()
@@ -218,8 +218,8 @@ async fn all_rpcs() {
                 output_nanos: 10000,
                 cache_write_nanos: 2500,
                 cache_read_nanos: 100,
-                provider: "mock".into(),
-                fallback_provider: "mock".into(),
+                provider: "openrouter".into(),
+                fallback_provider: "openrouter".into(),
                 model: "tencent/hy4-flash".into(),
                 fallback_model: "z-ai/glm-5.3-flash".into(),
                 ..Default::default()
@@ -322,9 +322,9 @@ async fn all_rpcs() {
                 output_nanos: 500,
                 cache_write_nanos: 125,
                 cache_read_nanos: 10,
-                provider: "mock".into(),
+                provider: "openrouter".into(),
                 model: "tencent/hy4-flash".into(),
-                fallback_provider: "mock".into(),
+                fallback_provider: "openrouter".into(),
                 fallback_model: "z-ai/glm-5.3-flash".into(),
                 deadline_unix_ms: 0,
                 ..Default::default()

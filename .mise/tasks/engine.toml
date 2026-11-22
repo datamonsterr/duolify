@@ -26,3 +26,8 @@ run = "cargo run -p engine-eval --bin duolify-eval -- gate"
 description = "Format engine workspace"
 dir = "engine"
 run = "cargo fmt --all"
+
+["engine:eval-golden"]
+description = "Live eval of the reviewed golden bytes (evals/datasets/duolify-golden) on the production route, no judge; needs OPENROUTER_API_KEY"
+dir = "engine"
+run = "cargo run -p engine-eval --bin duolify-eval -- --provider live --data ../evals/datasets/duolify-golden/golden.jsonl"

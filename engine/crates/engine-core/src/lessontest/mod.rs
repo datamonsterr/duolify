@@ -277,7 +277,10 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
                         || var["topic_id"].as_str() != Some(pool_topic)
                         || var["variant_of"].as_str() != source_q["question_id"].as_str()
                     {
-                        bail!("variant identity or topic linkage mismatch");
+                        bail!(
+                            "variant identity or topic linkage mismatch: variant {id:?} needs a new question_id not used by any test question or other variant, topic_id {pool_topic:?} and variant_of {:?}",
+                            source_q["question_id"].as_str().unwrap_or_default()
+                        );
                     }
 
                     let v_prompt = var["prompt"].as_str().unwrap_or_default();
@@ -301,13 +304,140 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
                         v_ans_idx,
                         v_exp,
                         &prev_prompts,
-                    )?;
+                    )
+                    .map_err(|e| {
+                        // Name the variant and the source answer so a repair can fix exactly it.
+                        anyhow::anyhow!(
+                            "variant {id} of {}: {e}; the source choices are {:?} with correct choice {:?}",
+                            source_q["question_id"].as_str().unwrap_or_default(),
+                            source_choices,
+                            source_choices
+                                .get(source_answer_index as usize)
+                                .map(String::as_str)
+                                .unwrap_or_default()
+                        )
+                    })?;
                     prev_prompts.push(v_prompt.to_string());
                 }
             }
         }
     }
 
+    Ok(())
+}
+
+/// The JSON contract every generated lesson answers (`validate_lesson` enforces it).
+pub const LESSON_SHAPE: &str = "Return one JSON object with title, slides (slide_id, html, narration, duration_ms, topic_ids), test and variant_pool (topic_id, variants). Keep it short: 2 to 4 slides teaching 1 or 2 topic_ids. Slide html has one root element id=\"root\" and inline CSS only: no scripts, URLs, HTML entities or backslashes. narration is plain text; duration_ms is 3000 to 60000 and at least 400 per narration word. Test: one question per taught topic_id, unique question_ids, 2 to 6 different choices. variant_pool: one variant per tested topic with a new question_id, variant_of set to the test question_id, a reworded prompt, the same choice texts in a different order and answer_index on the same correct text.";
+
+/// Extra guidance for the repair turn when a slide trips the static safety check.
+const SLIDE_HINT: &str = " (slide html must not contain HTML entities such as &amp; or &nbsp;, backslashes, the words fetch, WebSocket, EventSource, XMLHttpRequest, sendBeacon or importScripts, @import, or data:, javascript:, ftp: or ws: schemes)";
+
+/// The trusted lesson prompt. `context` is the request data (outline, lesson, learner, history),
+/// rendered by the caller; it stays data, below the rules.
+pub fn lesson_prompt(context: &str) -> String {
+    format!(
+        "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. {LESSON_SHAPE} Context (data): {context}"
+    )
+}
+
+/// Deterministic fix-up before acceptance: a variant whose choices repeat its source question in
+/// the same order is rotated with `reorder_choices` (the same rule the retry pool uses when it is
+/// exhausted), so the correct text and answer stay identical; a variant whose choices are a
+/// reordering of the source choices gets `answer_index` pointing at the source's correct text.
+/// Everything else is left for `validate_lesson`; `None` means nothing changed.
+pub fn prepare_lesson(text: &str) -> Option<String> {
+    let mut v: serde_json::Value = serde_json::from_str(text).ok()?;
+    let sources: std::collections::HashMap<String, (serde_json::Value, serde_json::Value)> =
+        v["test"]
+            .as_array()?
+            .iter()
+            .filter_map(|q| {
+                let correct = q["choices"]
+                    .get(q["answer_index"].as_u64()? as usize)?
+                    .clone();
+                Some((
+                    q["question_id"].as_str()?.to_owned(),
+                    (q["choices"].clone(), correct),
+                ))
+            })
+            .collect();
+    let mut changed = false;
+    for pool in v["variant_pool"].as_array_mut().into_iter().flatten() {
+        for var in pool["variants"].as_array_mut().into_iter().flatten() {
+            let Some((source, correct)) = var["variant_of"].as_str().and_then(|id| sources.get(id))
+            else {
+                continue;
+            };
+            // A reordered copy of the source choices must mark the source's correct text.
+            let sorted = |c: &serde_json::Value| {
+                let mut c: Vec<String> = serde_json::from_value(c.clone()).unwrap_or_default();
+                c.sort();
+                c
+            };
+            if &var["choices"] != source && sorted(&var["choices"]) == sorted(source) {
+                let Some(at) = var["choices"]
+                    .as_array()
+                    .and_then(|c| c.iter().position(|c| c == correct))
+                else {
+                    continue;
+                };
+                if var["answer_index"] != serde_json::json!(at) {
+                    var["answer_index"] = serde_json::json!(at);
+                    changed = true;
+                }
+                continue;
+            }
+            if &var["choices"] != source {
+                continue;
+            }
+            let choices: Vec<String> = serde_json::from_value(var["choices"].clone()).ok()?;
+            let index = var["answer_index"]
+                .as_u64()
+                .and_then(|i| u32::try_from(i).ok())?;
+            if let Ok((rotated, new_index)) = reorder_choices(&choices, index) {
+                var["choices"] = serde_json::json!(rotated);
+                var["answer_index"] = serde_json::json!(new_index);
+                changed = true;
+            }
+        }
+    }
+    changed.then(|| v.to_string())
+}
+
+/// Production acceptance of one generated lesson, with the reason quoted in the one repair.
+pub fn check_generated(
+    text: &str,
+    instructions: &[crate::steering::Instruction],
+    cast: &str,
+) -> std::result::Result<(), String> {
+    if let Some(code) = crate::steering::lesson_output_violation(text, instructions) {
+        return Err(format!("the lesson was rejected as {code}"));
+    }
+    let v: serde_json::Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    validate_lesson(&v).map_err(|e| {
+        let e = e.to_string();
+        if e.contains("obfuscation") {
+            let found = v["slides"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find_map(|s| crate::slide::dangerous_match(s["html"].as_str().unwrap_or_default()))
+                .map(|m| format!(", found {m:?}"))
+                .unwrap_or_default();
+            format!("{e}{found}{SLIDE_HINT}")
+        } else if e.contains("narration length") {
+            format!(
+                "{e} (set each slide's duration_ms to at least 400 times its narration word count)"
+            )
+        } else if e.contains("semantically equal") {
+            format!("{e} (reuse the source question's exact correct choice text in each variant)")
+        } else {
+            e
+        }
+    })?;
+    if !cast.is_empty() {
+        crate::characters::validate_lesson_segments(&v, cast).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 

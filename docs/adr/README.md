@@ -19,5 +19,6 @@
 | [0015](0015-owner-decisions-2026-11-22.md) | Owner decisions of 2026-11-22: routing, Hetzner, R2, domain, narration, CI | Accepted |
 | [0016](0016-clerk-for-sso.md) | Clerk for SSO (Google, Apple, future social providers) | Accepted |
 | [0017](0017-lesson-test-on-by-default.md) | The lesson test is on by default; the flag is a kill switch | Accepted |
+| [0018](0018-structured-outputs-and-screen-reasoning.md) | Structured outputs for JSON tasks, reasoning none for safety screens | Proposed |
 
 New ADR: copy the newest file, increase the number, keep it under one page.

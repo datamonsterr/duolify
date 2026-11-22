@@ -27,7 +27,7 @@ Every task runs on OpenRouter with one primary model and one fallback. No Claude
 | All tasks | `tencent/hy4-flash` | `z-ai/glm-5.3-flash` | see below |
 
 - `none`: lesson, published_copy_lesson, note, setup_chat, course_brief_chat, outline_chat_change, chat (tutor).
-- `low`: preview, outline, outline_replan, character_create, character_screen, course_screen, steer_screen, screen_review. Planning and safety judgment need some reasoning.
+- `low`: preview, outline, outline_replan, character_create. Planning needs some reasoning. (The four screens moved to `none` in ADR 0018.)
 - GLM 5.3 Flash always runs with `low`, because its reasoning is mandatory and it cannot be switched off.
 
 Live comparison by the controller (same 4-slide JSON lesson prompt, one sample each):
