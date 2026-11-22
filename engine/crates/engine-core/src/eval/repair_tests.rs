@@ -299,3 +299,29 @@ fn lesson_rejection_names_the_offending_slide_text() {
     let e = crate::lessontest::check_generated(&lesson.to_string(), &[], "").unwrap_err();
     assert!(e.contains("found \"&nbsp;\""), "{e}");
 }
+
+/// The longer contracts must still fit the approved quote envelopes (input bytes), with room
+/// left for learner data: preview 2000, lesson 8000 (pricing fixture `usd_design_chat_owner_approved`).
+#[test]
+fn trusted_prompt_text_leaves_room_in_the_approved_envelopes() {
+    let brief = crate::courses::Brief {
+        topic: "Go programming".into(),
+        goal: "build small command line tools".into(),
+        level: "beginner".into(),
+        ..Default::default()
+    };
+    let profile = serde_json::json!({"locale":"en","background":"","goals":"","level":"beginner",
+        "topic":"","daily_minutes":10,"daily_xp":20,"time_zone":"UTC","reminder_enabled":false,
+        "reminder_time":""});
+    let preview = crate::courses::preview_prompt(&brief, profile);
+    assert!(
+        preview.len() <= 1500,
+        "preview prompt {} bytes",
+        preview.len()
+    );
+    // A 12-lesson course outline as context, wrapped in the steering envelope as production does.
+    let context = "x".repeat(2500);
+    let lesson =
+        crate::steering::hardened_prompt(&crate::lessontest::lesson_prompt(&context), &[]).unwrap();
+    assert!(lesson.len() <= 5500, "lesson prompt {} bytes", lesson.len());
+}
