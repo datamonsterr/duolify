@@ -18,17 +18,34 @@ output_nanos = 10000
 cache_write_nanos = 2500
 cache_read_nanos = 100
 
+# Haiku 5.5: $0.10 in / $0.50 out / $0.125 cache write / $0.01 cache read per 1M tokens (prompts up
+# to 100k; above that the tier is 5x). This was 10x too high before ADR 0015.
 [models."claude-haiku-5-5"]
-input_nanos = 1000
-output_nanos = 5000
-cache_write_nanos = 1250
-cache_read_nanos = 100
+input_nanos = 100
+output_nanos = 500
+cache_write_nanos = 125
+cache_read_nanos = 10
 
 [models."anthropic/claude-haiku-5.5"]
-input_nanos = 1000
-output_nanos = 5000
-cache_write_nanos = 1250
-cache_read_nanos = 100
+input_nanos = 100
+output_nanos = 500
+cache_write_nanos = 125
+cache_read_nanos = 10
+
+# ADR 0015 routing models (OpenRouter list rates, 2026-11-22). Nanos round up to whole nanos.
+# GLM 5.3 Flash: $0.0399 in / $0.0784 out / $0.03 cache read; no cache-write price (billed as input).
+[models."z-ai/glm-5.3-flash"]
+input_nanos = 40
+output_nanos = 79
+cache_write_nanos = 40
+cache_read_nanos = 30
+
+# Hy4 Flash (Tencent): $0.035 in / $0.1405 out / $0.0015 cache read; no cache-write price (billed as input).
+[models."tencent/hy4-flash"]
+input_nanos = 35
+output_nanos = 141
+cache_write_nanos = 35
+cache_read_nanos = 2
 
 [models."recorded"]
 input_nanos = 2000
