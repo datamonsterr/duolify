@@ -1,55 +1,82 @@
-[tasks.preview]
-model = "claude-sonnet-5-5"
-fallback_model = "anthropic/claude-sonnet-5.5"
-[tasks.outline]
-model = "claude-sonnet-5-5"
-fallback_model = "anthropic/claude-sonnet-5.5"
+# Per-task routing via OpenRouter (ADR 0015). `model` is the primary id and `fallback_models` the
+# ordered fallback chain, tried as sequential single-model requests. `reasoning_effort` is the
+# `reasoning.effort` for the primary; `[reasoning]` gives the effort for other models in a chain
+# (GLM cannot disable reasoning, so it is always low).
 
-[tasks.outline_replan]
-model = "claude-sonnet-5-5"
-fallback_model = "anthropic/claude-sonnet-5.5"
+[reasoning]
+"z-ai/glm-5.3-flash" = "low"
+
 [tasks.lesson]
-model = "claude-sonnet-5-5"
-fallback_model = "anthropic/claude-sonnet-5.5"
-[tasks.chat]
-model = "claude-haiku-5-5"
-fallback_model = "anthropic/claude-haiku-5.5"
-[tasks.note]
-model = "claude-haiku-5-5"
-fallback_model = "anthropic/claude-haiku-5.5"
-[tasks.setup_chat]
-model = "claude-haiku-5-5"
-fallback_model = "anthropic/claude-haiku-5.5"
-
-
-[tasks.course_brief_chat]
-model = "claude-haiku-5-5"
-fallback_model = "anthropic/claude-haiku-5.5"
-
-[tasks.outline_chat_change]
-model = "claude-haiku-5-5"
-fallback_model = "anthropic/claude-haiku-5.5"
-
-[tasks.character_screen]
-model = "claude-haiku-5-5"
-fallback_model = "anthropic/claude-haiku-5.5"
-
-[tasks.character_create]
-model = "claude-haiku-5-5"
-fallback_model = "anthropic/claude-haiku-5.5"
-
-[tasks.course_screen]
-model = "claude-haiku-5-5"
-fallback_model = "anthropic/claude-haiku-5.5"
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "none"
 
 [tasks.published_copy_lesson]
-model = "claude-sonnet-5-5"
-fallback_model = "anthropic/claude-sonnet-5.5"
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "none"
+
+[tasks.note]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "none"
+
+[tasks.setup_chat]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "none"
+
+[tasks.course_brief_chat]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "none"
+
+[tasks.outline_chat_change]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "none"
+
+[tasks.chat]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "none"
+
+[tasks.preview]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "low"
+
+[tasks.outline]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "low"
+
+[tasks.outline_replan]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "low"
+
+[tasks.character_create]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "low"
+
+[tasks.character_screen]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "low"
+
+[tasks.course_screen]
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "low"
 
 [tasks.steer_screen]
-model = "claude-haiku-5-5"
-fallback_model = "anthropic/claude-haiku-5.5"
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "low"
 
 [tasks.screen_review]
-model = "claude-haiku-5-5"
-fallback_model = "anthropic/claude-haiku-5.5"
+model = "tencent/hy4-flash"
+fallback_models = ["z-ai/glm-5.3-flash"]
+reasoning_effort = "low"

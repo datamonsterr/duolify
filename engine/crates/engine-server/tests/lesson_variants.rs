@@ -60,8 +60,8 @@ fn limits() -> pb::UsageLimits {
         cache_read_nanos: 100,
         provider: "mock".into(),
         fallback_provider: "mock".into(),
-        model: "claude-sonnet-5-5".into(),
-        fallback_model: "anthropic/claude-sonnet-5.5".into(),
+        model: "tencent/hy4-flash".into(),
+        fallback_model: "z-ai/glm-5.3-flash".into(),
         ..Default::default()
     }
 }

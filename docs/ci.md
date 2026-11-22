@@ -85,8 +85,8 @@ settings change.
 | Secret | Use |
 | --- | --- |
 | `RAILWAY_TOKEN` | Repository secret for full-tier plans; dev environment secret for deploys. Scope to development. |
-| `ANTHROPIC_API_KEY` | Live sample eval primary provider. |
-| `OPENROUTER_API_KEY` | Live sample eval fallback provider. |
+| `ANTHROPIC_API_KEY` | Unused by the engine since ADR 0015. |
+| `OPENROUTER_API_KEY` | Live sample eval primary provider (ADR 0015). |
 | `HF_TOKEN` | Live golden-set access. |
 | `POSTHOG_API_KEY` | Optional dev deployment analytics; no analytics key is passed to PR tests. |
 

@@ -608,7 +608,7 @@ jobs:
         id: credentials
         run: mise run ci:require-secrets -- 'live eval'
         env:
-          REQUIRED_SECRETS: ANTHROPIC_API_KEY OPENROUTER_API_KEY HF_TOKEN
+          REQUIRED_SECRETS: OPENROUTER_API_KEY HF_TOKEN
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}

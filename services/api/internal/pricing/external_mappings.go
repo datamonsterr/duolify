@@ -140,6 +140,23 @@ func OfficialModelCatalogueEvidence() map[string]OfficialModel {
 			CacheWriteUSDPerMillion: 0.125,
 			CacheReadUSDPerMillion:  0.01,
 		},
+		// ADR 0015 per-task routing, OpenRouter catalogue 2026-11-22 (list rates, USD per million tokens).
+		"z-ai/glm-5.3-flash": {
+			Provider:                "openrouter",
+			ModelID:                 "z-ai/glm-5.3-flash",
+			InputUSDPerMillion:      0.0399,
+			OutputUSDPerMillion:     0.0784,
+			CacheWriteUSDPerMillion: 0.0399,
+			CacheReadUSDPerMillion:  0.03,
+		},
+		"tencent/hy4-flash": {
+			Provider:                "openrouter",
+			ModelID:                 "tencent/hy4-flash",
+			InputUSDPerMillion:      0.035,
+			OutputUSDPerMillion:     0.1405,
+			CacheWriteUSDPerMillion: 0.035,
+			CacheReadUSDPerMillion:  0.0015,
+		},
 		"eleven_flash_v2_5": {
 			Provider:                    "elevenlabs",
 			ModelID:                     "eleven_flash_v2_5",

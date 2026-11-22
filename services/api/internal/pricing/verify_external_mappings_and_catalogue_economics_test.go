@@ -201,6 +201,13 @@ func TestOfficialModelCatalogueEvidence(t *testing.T) {
 	if evidence["anthropic/claude-haiku-5.5"].Provider != "openrouter" {
 		t.Fatalf("expected openrouter provider for anthropic/claude-haiku-5.5: %+v", evidence["anthropic/claude-haiku-5.5"])
 	}
+	// ADR 0015 routing models are priced through OpenRouter.
+	for _, id := range []string{"z-ai/glm-5.3-flash", "tencent/hy4-flash"} {
+		m := evidence[id]
+		if m.Provider != "openrouter" || m.ModelID != id || m.InputUSDPerMillion <= 0 || m.OutputUSDPerMillion <= 0 {
+			t.Fatalf("missing or incomplete OpenRouter evidence for %s: %+v", id, m)
+		}
+	}
 }
 
 func TestConfigurableProcessingFees(t *testing.T) {
