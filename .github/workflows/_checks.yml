@@ -96,6 +96,7 @@ jobs:
               - '.npmrc'
               - '.mise/tasks/client.toml'
               - '.mise/tasks/client-stack.toml'
+              - '.mise/tasks/mobile.toml'
               - *tooling
               - *tasks
               - *github
@@ -823,6 +824,83 @@ jobs:
         env:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
+
+  mobile-android:
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    # Advisory until Android has three consecutive green runs; do not gate ci-ok.
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: node pnpm rust
+          area: mobile-android
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            /usr/local/lib/android/sdk/ndk/27.2.12479018
+          key: mobile-gradle-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/client/src-tauri/Cargo.lock') }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/client/src-tauri -> target
+          shared-key: mobile-android
+      - run: mise run client:install
+      - run: mise run client:android-prerequisites
+      - run: mise run client:mobile-driver-install
+      - run: mise run client:android-build
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          disable-animations: true
+          script: mise run client:android-device-test
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mobile-screens-android
+          path: apps/client/mobile-screens
+          if-no-files-found: warn
+
+  mobile-ios:
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    # Advisory until device coverage is stable; do not gate ci-ok.
+    continue-on-error: true
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: node pnpm rust
+          area: mobile-ios
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/client/src-tauri -> target
+          shared-key: mobile-ios
+      - run: mise run client:install
+      - run: mise run client:mobile-driver-install
+      - run: mise run client:ios-build
+      - run: mise run client:ios-device-test
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mobile-screens-ios
+          path: apps/client/mobile-screens
+          if-no-files-found: warn
 
   ci-ok:
     name: ci-ok

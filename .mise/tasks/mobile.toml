@@ -1,0 +1,86 @@
+["client:android-init"]
+description = "Generate the Android project and declare microphone permissions"
+dir = "{{config_root}}/apps/client"
+run = ["pnpm tauri android init --ci", "node scripts/prepare-android-manifest.mjs"]
+
+["client:android-build"]
+description = "Build an Android debug APK against staging"
+dir = "{{config_root}}/apps/client"
+run = '''
+set -eu
+export VITE_API_URL="${VITE_API_URL:-https://staging-api.duolify.online}"
+export VITE_SSO_BRIDGE_URL="${VITE_SSO_BRIDGE_URL:-https://staging.duolify.online}"
+export VITE_MOBILE_PLATFORM=android
+mise run client:android-init
+pnpm tauri android build --ci --debug --apk --target x86_64
+'''
+
+["client:ios-build"]
+description = "Build an unsigned iOS simulator app against staging"
+dir = "{{config_root}}/apps/client"
+run = '''
+set -eu
+export VITE_API_URL="${VITE_API_URL:-https://staging-api.duolify.online}"
+export VITE_SSO_BRIDGE_URL="${VITE_SSO_BRIDGE_URL:-https://staging.duolify.online}"
+export VITE_MOBILE_PLATFORM=ios
+pnpm tauri ios init --ci
+# Regeneration with a warm Cargo cache can otherwise omit CFBundleURLTypes.
+cargo clean --manifest-path src-tauri/Cargo.toml -p tauri-plugin-deep-link
+pnpm tauri ios build --ci --debug --no-sign --target aarch64-sim
+app=$(find src-tauri/gen/apple/build -name 'Duolify.app' -type d -print -quit)
+test -n "$app"
+/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes' "$app/Info.plist" | grep -q duolify
+'''
+
+["client:mobile-test"]
+description = "Run a Maestro device flow and save its screenshots"
+dir = "{{config_root}}/apps/client"
+usage = 'arg "<flow>" help="Maestro flow file"'
+run = 'maestro test --test-output-dir "${MOBILE_SCREEN_DIR:-mobile-screens}" "${usage_flow}"'
+
+["client:mobile-driver-install"]
+description = "Install the pinned Maestro CLI on a CI runner"
+run = '''
+set -eu
+work_dir="${RUNNER_TEMP:?}/maestro-install"
+mkdir -p "$work_dir"
+curl -fsSL https://github.com/mobile-dev-inc/maestro/releases/download/cli-2.12.1/maestro.zip -o "$work_dir/maestro.zip"
+unzip -q "$work_dir/maestro.zip" -d "$work_dir"
+echo "$work_dir/maestro/bin" >> "$GITHUB_PATH"
+'''
+
+["client:android-prerequisites"]
+description = "Prepare Android NDK and KVM on a GitHub runner"
+run = '''
+set -eu
+sdkmanager 'ndk;27.2.12479018'
+echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
+sudo udevadm control --reload-rules
+sudo udevadm trigger --name-match=kvm
+'''
+
+["client:android-device-test"]
+description = "Install the debug APK and run the Android Maestro flow"
+dir = "{{config_root}}/apps/client"
+run = '''
+set -eu
+apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*debug*.apk' -print -quit)
+test -n "$apk"
+adb install -r "$apk"
+exec mise run client:mobile-test -- maestro/launch.yaml
+'''
+
+["client:ios-device-test"]
+description = "Boot an iPhone simulator, install the app and run Maestro"
+dir = "{{config_root}}/apps/client"
+run = '''
+set -eu
+udid=$(xcrun simctl list devices available -j | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const d=Object.values(JSON.parse(s).devices).flat().find(x=>x.name.startsWith("iPhone"));if(!d)process.exit(1);console.log(d.udid)})')
+xcrun simctl boot "$udid" || true
+xcrun simctl bootstatus "$udid" -b
+app=$(find src-tauri/gen/apple/build -name 'Duolify.app' -type d -print -quit)
+test -n "$app"
+xcrun simctl install "$udid" "$app"
+exec mise run client:mobile-test -- maestro/launch.yaml
+'''
