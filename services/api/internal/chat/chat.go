@@ -68,9 +68,11 @@ type Options struct {
 	Financial Financial
 	Profiles  Profiles
 	Personas  Personas
-	Events    analytics.Events
-	Notes     NoteSaver
-	Logger    *slog.Logger
+	// Slides grounds region questions; without it a request that names a region is refused as unavailable.
+	Slides Slides
+	Events analytics.Events
+	Notes  NoteSaver
+	Logger *slog.Logger
 }
 
 // Service owns tutor threads, messages and turns.
@@ -190,6 +192,7 @@ func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course st
 		Message             string       `json:"message"`
 		ApproveLargeContext bool         `json:"approve_large_context"`
 		Lesson              *lessonInput `json:"lesson"`
+		Region              *regionInput `json:"region"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -211,6 +214,11 @@ func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course st
 		lessonFailure(w, err)
 		return
 	}
+	ground, err := s.resolveRegion(r.Context(), owner, in.Lesson, in.Region)
+	if err != nil {
+		regionFailure(w, err)
+		return
+	}
 	thread, err := s.latestThread(r.Context(), owner, course)
 	if err != nil {
 		fail(w, http.StatusServiceUnavailable, "unavailable")
@@ -220,6 +228,9 @@ func (s *Service) quote(w http.ResponseWriter, r *http.Request, owner, course st
 	if err != nil {
 		fail(w, http.StatusServiceUnavailable, "unavailable")
 		return
+	}
+	if ground != nil {
+		req.RegionQuestion = ground.Question
 	}
 	quotes := pricing.NewQuotes(s.opts.Pool)
 	action, messageTokens := classAction(in.Class), estimateTokens(len(in.Message))
@@ -274,6 +285,8 @@ type messageDTO struct {
 	CreatedAt time.Time `json:"created_at"`
 	// Tutor is the persona the reply was pinned to; it is read from the turn, so later selections never rewrite it.
 	Tutor *tutorDTO `json:"tutor,omitempty"`
+	// Anchor is the Slide area a region question was about; absent for other messages.
+	Anchor *anchorDTO `json:"anchor,omitempty"`
 }
 
 type tutorDTO struct {
@@ -304,7 +317,7 @@ func (s *Service) readThread(ctx context.Context, owner, threadID string) (*thre
 	if err := s.opts.Pool.QueryRow(ctx, `SELECT id::text,course_id::text,created_at FROM tutor_threads WHERE id=$1::uuid AND learner_id=$2::uuid`, threadID, owner).Scan(&t.ID, &t.CourseID, &t.CreatedAt); err != nil {
 		return nil, nil, err
 	}
-	rows, err := s.opts.Pool.Query(ctx, `SELECT m.id::text,m.role,m.content,m.status,m.created_at,COALESCE(t.speaker_key,''),COALESCE(t.character_id,''),COALESCE(t.character_version,0),COALESCE(t.cast_source,''),COALESCE(t.persona_fallback,'')
+	rows, err := s.opts.Pool.Query(ctx, `SELECT m.id::text,m.role,m.content,m.status,m.created_at,COALESCE(t.speaker_key,''),COALESCE(t.character_id,''),COALESCE(t.character_version,0),COALESCE(t.cast_source,''),COALESCE(t.persona_fallback,''),m.anchor_lesson_id::text,m.anchor_slide_index,m.anchor_slide_id,m.anchor_at_ms,m.anchor_x,m.anchor_y,m.anchor_w,m.anchor_h,m.anchor_region_ids,m.anchor_grounding
 FROM tutor_messages m LEFT JOIN tutor_turns t ON t.assistant_message_id=m.id AND t.learner_id=m.learner_id
 WHERE m.thread_id=$1::uuid AND m.learner_id=$2::uuid ORDER BY m.seq`, threadID, owner)
 	if err != nil {
@@ -316,8 +329,18 @@ WHERE m.thread_id=$1::uuid AND m.learner_id=$2::uuid ORDER BY m.seq`, threadID, 
 		var m messageDTO
 		var pin tutorDTO
 		var characterID string
-		if err = rows.Scan(&m.ID, &m.Role, &m.Content, &m.Status, &m.CreatedAt, &pin.SpeakerKey, &characterID, &pin.CharacterVersion, &pin.CastSource, &pin.Fallback); err != nil {
+		var lessonID, slideID, kind *string
+		var index, atMS *int
+		var x, y, w, h *float64
+		var regionIDs []string
+		if err = rows.Scan(&m.ID, &m.Role, &m.Content, &m.Status, &m.CreatedAt, &pin.SpeakerKey, &characterID, &pin.CharacterVersion, &pin.CastSource, &pin.Fallback, &lessonID, &index, &slideID, &atMS, &x, &y, &w, &h, &regionIDs, &kind); err != nil {
 			return nil, nil, err
+		}
+		if kind != nil && index != nil && atMS != nil && x != nil && y != nil && w != nil && h != nil && slideID != nil {
+			m.Anchor = &anchorDTO{SlideIndex: *index, SlideID: *slideID, AtMS: *atMS, Rect: rectDTO{*x, *y, *w, *h}, RegionIDs: regionIDs, Grounding: *kind}
+			if lessonID != nil {
+				m.Anchor.LessonID = *lessonID
+			}
 		}
 		if pin.SpeakerKey != "" && s.opts.Personas != nil {
 			pin.Name = s.opts.Personas.TutorLabel(ctx, owner, characterID, pin.CharacterVersion)

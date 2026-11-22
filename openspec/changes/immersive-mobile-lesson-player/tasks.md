@@ -32,13 +32,13 @@
 
 - [ ] 4.1 e2e: two-finger spread selects a region and pauses; handles adjust it; "Select area" and keyboard paths give the same result; accidental touch is discarded
 - [ ] 4.2 e2e: ask by text about a region; reply streams in the opaque right-hand panel; region stays visible and the stage shifts when it would be covered; stop, follow-up, save as Quick note, collapse, close resumes playback; portrait falls back to the lesson tutor sheet
-- [ ] 4.3 integration: lesson tutor turn with a region assembles context from manifest regions; whole-Slide fallback; out-of-range Slide or rectangle and foreign Lesson are rejected with no Credits, message or Engine call; message stores the anchor
+- [x] 4.3 integration: lesson tutor turn with a region assembles context from manifest regions; whole-Slide fallback; out-of-range Slide or rectangle and foreign Lesson are rejected with no Credits, message or Engine call; message stores the anchor
 - [ ] 4.4 unit: normalized coordinates from touch points under scale and rotation; stage shift maths; panel sizing
-- [ ] 4.5 Proto and Engine: region context on the tutor chat request; prompt builder treats region text as untrusted Slide content
-- [ ] 4.6 API: region and playback time on the lesson tutor endpoint; anchor columns on tutor messages with migration, export, erasure and anonymizer classification
+- [x] 4.5 Proto and Engine: region context on the tutor chat request; prompt builder treats region text as untrusted Slide content
+- [x] 4.6 API: region and playback time on the lesson tutor endpoint; anchor columns on tutor messages with migration, export, erasure and anonymizer classification
 - [ ] 4.7 Client: region selector, side rail, composer, answer panel sharing the lesson tutor thread
-- [ ] 4.8 Golden set: region-grounded question cases (clear answer, unrelated question, several regions, no regions, injection in region text) and thresholds; pin the dataset revision
-- [ ] 4.9 Analytics: `lesson_region_selected`, `lesson_region_question_sent`, `lesson_answer_panel_closed`
+- [x] 4.8 Golden set: region-grounded question cases (clear answer, unrelated question, several regions, no regions, injection in region text) and thresholds; pin the dataset revision
+- [ ] 4.9 Analytics: `lesson_region_selected`, `lesson_region_question_sent`, `lesson_answer_panel_closed` (API half done: `lesson_region_question_sent` is emitted on every region question and all three events are allowlisted; the client still emits `lesson_region_selected` and `lesson_answer_panel_closed`)
 
 ## 5. Anchored Quick notes
 
