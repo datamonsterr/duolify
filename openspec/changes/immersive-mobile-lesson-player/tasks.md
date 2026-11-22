@@ -8,12 +8,12 @@
 
 ## 2. Slide regions in the Slide manifest
 
-- [ ] 2.1 e2e: a generated Lesson is published with regions and plays unchanged; a Lesson without regions still plays
-- [ ] 2.2 integration: publication rejects regions outside the stage, over the limits, with markup or an unknown role; restore drill and backup fixtures include a manifest with regions
-- [ ] 2.3 unit: region schema, box maths, rectangle-to-region intersection ranked by overlap, time-window filtering
-- [ ] 2.4 Proto: regions on the generated Slide message; API and Engine updated together
-- [ ] 2.5 Engine: Lesson prompt and strict schema emit regions; validators; corrective retry message for invalid regions
-- [ ] 2.6 API: store regions in the manifest, validate at publication, expose nothing new to the client
+- [x] 2.1 e2e: a generated Lesson is published with regions and plays unchanged; a Lesson without regions still plays
+- [x] 2.2 integration: publication rejects regions outside the stage, over the limits, with markup or an unknown role; restore drill and backup fixtures include a manifest with regions
+- [x] 2.3 unit: region schema, box maths, rectangle-to-region intersection ranked by overlap, time-window filtering
+- [x] 2.4 Proto: regions on the generated Slide message; API and Engine updated together
+- [x] 2.5 Engine: Lesson prompt and strict schema emit regions; validators; corrective retry message for invalid regions (regions name a layout slot from `engine/config/regions.toml`; the Engine pins each `data-slot` element to its slot with an appended stylesheet, so boxes are true by construction: 0 of 72 rendered regions off by more than 1% of the stage in headless Chromium at 1280x720)
+- [x] 2.6 API: store regions in the manifest, validate at publication, expose nothing new to the client
 - [ ] 2.7 Golden set: region generation cases and thresholds; cost and latency compared with Lesson generation before regions; pin the new dataset revision
 
 ## 3. Immersive presentation and controls (no AI)

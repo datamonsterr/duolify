@@ -2,7 +2,7 @@
 #
 # A generated Slide declares its regions by naming a layout slot, never by guessing
 # coordinates: the Engine owns the box of every slot below and appends a stylesheet that
-# places each `data-region` element (a direct child of the root element) exactly in its slot.
+# places each `data-slot` element (inside the root element) exactly in its slot.
 # Boxes are normalized stage coordinates [x, y, w, h] of the 16:9 stage.
 #
 # The API validates published regions with the same limits

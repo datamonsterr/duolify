@@ -58,8 +58,8 @@ func authoredObjects() map[string][]byte {
 	}
 	// A generated Lesson whose Slide manifest declares regions (derived content, no learner data).
 	_, regionObjects, err := player.GeneratedObjects(RegionsManifestPrefix, []player.GeneratedSlide{{
-		ID: "regions-s1", HTML: `<div id="root"><h1 data-region="title">Moon phases</h1></div>`, DurationMS: 3000, Narration: "The Moon has phases.",
-		Regions: []player.Region{{ID: "title", Box: player.RegionBox{X: 0.05, Y: 0.04, W: 0.9, H: 0.18}, Window: &player.RegionWindow{StartMS: 0, EndMS: 3000}, Role: "title", Description: "Title: Moon phases"}},
+		ID: "regions-s1", HTML: `<div id="root"><h1 data-slot="top">Moon phases</h1></div>`, DurationMS: 3000, Narration: "The Moon has phases.",
+		Regions: []player.Region{{ID: "top", Box: player.RegionBox{X: 0.05, Y: 0.04, W: 0.9, H: 0.18}, Window: &player.RegionWindow{StartMS: 0, EndMS: 3000}, Role: "title", Description: "Title: Moon phases"}},
 	}}, playerfixture.AssetOrigin)
 	if err != nil {
 		panic("invalid slide regions fixture")

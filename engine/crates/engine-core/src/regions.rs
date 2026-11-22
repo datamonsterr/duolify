@@ -2,7 +2,7 @@
 //!
 //! A generated Slide names a layout slot for each region instead of guessing coordinates. The
 //! Engine owns every slot's box (`engine/config/regions.toml`) and appends a stylesheet that pins
-//! each `data-region` element inside the root element to its slot with fixed positioning relative
+//! each `data-slot` element inside the root element to its slot with fixed positioning relative
 //! to the stage, and removes the transforms, filters and containment that would make an ancestor
 //! its containing block. The declared box is therefore the box the element occupies on the 16:9
 //! stage, by construction.
@@ -22,8 +22,6 @@ pub const ROLES: [&str; 7] = [
     "question",
     "caption",
 ];
-/// Longest region id; ids use letters, digits, `-` and `_`.
-pub const MAX_ID_CHARS: usize = 40;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
@@ -43,7 +41,8 @@ pub fn config() -> &'static Config {
     })
 }
 
-/// One validated region with the box of its slot.
+/// One validated region with the box of its slot. Its id is the slot name: a Slide uses each
+/// slot at most once, so the element carrying `data-slot` is the region's only anchor.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Region {
     pub id: String,
@@ -89,7 +88,7 @@ fn windows_meet(a: Option<(u32, u32)>, b: Option<(u32, u32)>) -> bool {
     }
 }
 
-/// What the html places under one `data-region` value.
+/// What the html places under one `data-slot` value.
 #[derive(Debug, Default, Clone)]
 pub struct Element {
     pub count: usize,
@@ -101,7 +100,7 @@ pub struct Element {
     pub text: String,
 }
 
-/// Scans tags (comments, scripts and styles removed) and returns each `data-region` element.
+/// Scans tags (comments, scripts and styles removed) and returns each `data-slot` element.
 pub fn elements(html: &str) -> HashMap<String, Element> {
     static RE: OnceLock<[Regex; 6]> = OnceLock::new();
     let [comment, script, style, tag, region, root] = RE.get_or_init(|| {
@@ -110,7 +109,7 @@ pub fn elements(html: &str) -> HashMap<String, Element> {
             Regex::new(r"(?is)<script\b[^>]*>.*?</script\s*>").unwrap(),
             Regex::new(r"(?is)<style\b[^>]*>.*?</style\s*>").unwrap(),
             Regex::new(r#"<(/?)([A-Za-z][A-Za-z0-9:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>"#).unwrap(),
-            Regex::new(r#"(?i)(?:^|\s)data-region\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>/]+))"#)
+            Regex::new(r#"(?i)(?:^|\s)data-slot\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>/]+))"#)
                 .unwrap(),
             Regex::new(r#"(?i)(?:^|\s)id\s*=\s*(?:"root"|'root'|root(?:\s|/|$))"#).unwrap(),
         ]
@@ -217,26 +216,20 @@ pub fn slide_regions_with(cfg: &Config, slide: &Value) -> Result<Vec<Region>, St
     let mut seen = HashSet::new();
     let mut out: Vec<Region> = Vec::with_capacity(items.len());
     for item in items {
-        let id = item["id"].as_str().unwrap_or_default();
-        if id.is_empty()
-            || id.chars().count() > MAX_ID_CHARS
-            || !id
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-            || !seen.insert(id)
-        {
-            return Err(format!(
-                "region id {id:?} must be 1 to {MAX_ID_CHARS} letters, digits, - or _ and unique in the slide"
-            ));
-        }
         let slot = item["slot"].as_str().unwrap_or_default();
+        let id = slot;
         let Some(bbox) = cfg.slots.get(slot) else {
             let names: Vec<&str> = cfg.slots.keys().map(String::as_str).collect();
             return Err(format!(
-                "region {id}: unknown slot {slot:?}; use one of {}",
+                "region slot {slot:?} is unknown; use one of {}",
                 names.join(", ")
             ));
         };
+        if !seen.insert(slot) {
+            return Err(format!(
+                "slot {slot} is used by more than one region; a slide uses each slot at most once"
+            ));
+        }
         let role = item["role"].as_str().unwrap_or_default();
         if !ROLES.contains(&role) {
             return Err(format!(
@@ -272,12 +265,12 @@ pub fn slide_regions_with(cfg: &Config, slide: &Value) -> Result<Vec<Region>, St
             None => Some("no element in the html has it"),
             Some(e) if e.count > 1 => Some("more than one element has it"),
             Some(e) if !e.in_root => Some("its element is outside the root element"),
-            Some(e) if e.nested => Some("its element is inside another region's element"),
+            Some(e) if e.nested => Some("its element is inside another slot's element"),
             Some(_) => None,
         };
         if let Some(problem) = problem {
             return Err(format!(
-                "region {id}: the html needs exactly one element with data-region=\"{id}\" inside the root element and not inside another region's element, but {problem}"
+                "region {id}: the html needs exactly one element with data-slot=\"{id}\" inside the root element and not inside another slot's element, but {problem}"
             ));
         }
         let region = Region {
@@ -292,8 +285,8 @@ pub fn slide_regions_with(cfg: &Config, slide: &Value) -> Result<Vec<Region>, St
             windows_meet(o.window, region.window) && overlap(o.bbox, region.bbox) > cfg.max_overlap
         }) {
             return Err(format!(
-                "regions {} ({}) and {id} ({slot}) overlap while both are visible; use slots that do not overlap or disjoint start_ms/end_ms",
-                other.id, other.slot
+                "slots {} and {slot} overlap while both are visible; use slots that do not overlap or disjoint start_ms/end_ms",
+                other.slot
             ));
         }
         out.push(region);
@@ -326,12 +319,12 @@ pub fn layout(html: &str, regions: &[Region]) -> String {
         return html.to_owned();
     }
     let mut css = String::from(
-        "#root#root,#root#root :has([data-region]){transform:none!important;filter:none!important;backdrop-filter:none!important;perspective:none!important;contain:none!important;will-change:auto!important;container-type:normal!important}",
+        "#root#root,#root#root :has([data-slot]){transform:none!important;filter:none!important;backdrop-filter:none!important;perspective:none!important;contain:none!important;will-change:auto!important;container-type:normal!important}",
     );
     for r in regions {
         let [x, y, w, h] = r.bbox;
         css.push_str(&format!(
-            "#root#root [data-region=\"{}\"]{{position:fixed!important;left:{}!important;top:{}!important;width:{}!important;height:{}!important;margin:0!important;box-sizing:border-box!important;overflow:hidden!important}}",
+            "#root#root [data-slot=\"{}\"]{{position:fixed!important;left:{}!important;top:{}!important;width:{}!important;height:{}!important;margin:0!important;box-sizing:border-box!important;overflow:hidden!important}}",
             r.id,
             pct(x),
             pct(y),
@@ -384,7 +377,7 @@ pub fn shape() -> String {
         return String::new();
     }
     format!(
-        " Lay out every slide on fixed slots of the 16:9 stage: top (title band), body (main area), left and right (its halves), left_top, left_bottom, right_top and right_bottom (its quarters) and bottom (caption band). Put each visible block in one element inside the root element (not inside another block) with data-region set to its region id; the player sizes and places it in its slot, so do not position or size those elements, never use !important, and keep the text short enough to fit. Each slide lists regions (1 to {max}), one per block: id (unique in the slide: letters, digits, - or _), slot, role (one of {roles}), description (plain text, at most {chars} characters, no markup, in the slide's language, saying what the block shows and quoting its key words) and start_ms/end_ms on the slide clock when the block is visible only part of the slide, else 0 and 0. Blocks visible at the same time use slots that do not overlap (body overlaps left, right and the quarters; left overlaps left_top and left_bottom; right overlaps right_top and right_bottom).",
+        " Lay out every slide on fixed slots of the 16:9 stage: top (title band), body (main area), left and right (its halves), left_top, left_bottom, right_top and right_bottom (its quarters) and bottom (caption band). Put each visible block in one element inside the root element (not inside another block) whose data-slot attribute is the slot name, for example <h1 data-slot=\"top\">; use each slot at most once per slide. The player sizes and places that element in its slot, so do not position or size it, never use !important, and keep the text short enough to fit. Each slide lists regions (1 to {max}), one per block: slot (the same name as its element's data-slot), role (one of {roles}; diagram for any figure, chart or labelled drawing, code for code, question for a question to the learner), description (plain text, at most {chars} characters, no markup, in the slide's language, saying what the block shows and quoting its key words) and start_ms/end_ms on the slide clock when the block is visible only part of the slide, else 0 and 0. Blocks visible at the same time use slots that do not overlap (body overlaps left, right and the quarters; left overlaps left_top and left_bottom; right overlaps right_top and right_bottom).",
         max = cfg.max_per_slide,
         roles = ROLES.join(", "),
         chars = cfg.max_description_chars,
@@ -395,12 +388,11 @@ pub fn shape() -> String {
 pub fn schema() -> Value {
     let slots: Vec<&str> = config().slots.keys().map(String::as_str).collect();
     json!({"type":"array","items":{"type":"object","properties":{
-        "id":{"type":"string"},
         "slot":{"type":"string","enum":slots},
         "role":{"type":"string","enum":ROLES},
         "description":{"type":"string"},
         "start_ms":{"type":"integer"},"end_ms":{"type":"integer"}},
-        "required":["id","slot","role","description","start_ms","end_ms"],
+        "required":["slot","role","description","start_ms","end_ms"],
         "additionalProperties":false}})
 }
 

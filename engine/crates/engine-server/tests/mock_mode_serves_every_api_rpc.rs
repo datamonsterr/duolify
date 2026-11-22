@@ -78,7 +78,7 @@ async fn generate_lesson_delivers_a_lesson_that_passes_production_validation() {
                 assert!(
                     slide
                         .html
-                        .contains(&format!("data-region=\"{}\"", r.region_id))
+                        .contains(&format!("data-slot=\"{}\"", r.region_id))
                 );
                 assert!(!r.description.is_empty());
             }

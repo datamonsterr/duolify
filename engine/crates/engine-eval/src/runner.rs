@@ -2411,10 +2411,10 @@ mod tests {
             "title": "Slices",
             "slides": [{"slide_id": "s1", "duration_ms": 6000, "narration": "A slice is a view over an array.",
                 "topic_ids": ["t"],
-                "html": "<div id=\"root\"><h1 data-region=\"t\">Slices are views</h1><pre data-region=\"c\">s := a[1:3]</pre></div>",
+                "html": "<div id=\"root\"><h1 data-slot=\"top\">Slices are views</h1><pre data-slot=\"body\">s := a[1:3]</pre></div>",
                 "regions": [
-                    {"id": "t", "slot": "top", "role": "title", "description": "Title: slices are views over an array", "start_ms": 0, "end_ms": 0},
-                    {"id": "c", "slot": "body", "role": "code", "description": "Code s := a[1:3] slicing the array", "start_ms": 0, "end_ms": 0}]}],
+                    {"slot": "top", "role": "title", "description": "Title: slices are views over an array", "start_ms": 0, "end_ms": 0},
+                    {"slot": "body", "role": "code", "description": "Code s := a[1:3] slicing the array", "start_ms": 0, "end_ms": 0}]}],
             "test": [{"question_id": "q", "topic_id": "t", "prompt": "What is a slice?", "choices": ["A view", "A copy"],
                 "answer_index": 0, "explanation": "A view."}],
             "variant_pool": [{"topic_id": "t", "variants": [{"question_id": "q-v", "topic_id": "t", "variant_of": "q",
