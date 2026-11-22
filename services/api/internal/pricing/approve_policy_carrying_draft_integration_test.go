@@ -83,6 +83,30 @@ func TestOwnerApprovesAPolicyCarryingDraftThroughTheAdminPath(t *testing.T) {
 		return call("/admin/v1/pricing/drafts", map[string]any{"config": json.RawMessage(encoded), "reason": "route AI through Hy4 and GLM"})
 	}
 
+	// A source with dearer terms must be adverse even when the catalogue prices are unchanged.
+	const expensive = "usd-policy-carry-expensive"
+	if _, err = db.Pool.Exec(ctx, `INSERT INTO pricing_versions(version,effective_from,approved,config)
+ SELECT $1,now()+interval '200 hours',false,jsonb_set(jsonb_set(config,'{version}',to_jsonb($1::text)),'{effective_from}',to_jsonb(now()+interval '200 hours')) FROM pricing_versions WHERE version=$2`, expensive, hy4Source); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Pool.Exec(ctx, `INSERT INTO pricing_quote_policies(version,policy)
+ SELECT $1,jsonb_set(policy,'{usd_nanos_per_credit}','1'::jsonb) FROM pricing_quote_policies WHERE version=$2`, expensive, hy4Source); err != nil {
+		t.Fatal(err)
+	}
+	if status, out := draft("usd-policy-carry-adverse", expensive); status != http.StatusCreated {
+		t.Fatalf("adverse draft: %d %s", status, out)
+	}
+	var adverseClass string
+	if err = db.Pool.QueryRow(ctx, `SELECT change_class FROM pricing_drafts WHERE version='usd-policy-carry-adverse'`).Scan(&adverseClass); err != nil || adverseClass != "adverse" {
+		t.Fatalf("adverse policy classified %q: %v", adverseClass, err)
+	}
+	if status, out := call("/admin/v1/pricing/drafts/usd-policy-carry-adverse/submit", map[string]string{"reason": "test"}); status != http.StatusOK {
+		t.Fatalf("submit: %d %s", status, out)
+	}
+	if status, out := call("/admin/v1/pricing/drafts/usd-policy-carry-adverse/approve", map[string]string{"reason": "test"}); status == http.StatusOK {
+		t.Fatalf("adverse policy bypassed notice: %s", out)
+	}
+
 	// A draft naming an unknown policy source is refused before approval.
 	if status, out := draft("usd-policy-carry-bad", "usd-does-not-exist"); status == http.StatusCreated {
 		t.Fatalf("unknown policy source accepted: %s", out)

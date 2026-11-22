@@ -6,3 +6,7 @@
 - [x] 2.2 Environment parsing, `.env.example`, analytics catalogue, data inventory.
 ## 3. Verification
 - [x] 3.1 Run focused mise tasks and report results.
+
+- [x] Reserve worst-case attempts atomically in a durable ledger and retain uncertain usage
+- [x] Cover concurrent admissions, failed output, and asset deletion with Postgres tests
+- [x] Release the reservation when the engine refuses a call as not promoted
