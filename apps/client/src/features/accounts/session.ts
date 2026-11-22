@@ -240,6 +240,8 @@ async function rotate(tokens: Tokens, expected: number): Promise<Tokens> {
           throw new AuthError("Session changed.", 401);
         if (refreshedLearner.id !== boundLearner) {
           await writeCredentials(null, expected);
+          if (expected !== generation)
+            throw new AuthError("Session changed.", 401);
           session.clear();
           expired = true;
           publish();
