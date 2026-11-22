@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/datamonsterr/duolify/services/api/internal/httpcache"
 	"io"
 	"log/slog"
 	"net/http"
@@ -136,11 +137,10 @@ func (h *Handler) library(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(result)
 }
 
-func (h *Handler) handleDefaultCast(w http.ResponseWriter, _ *http.Request) {
+// handleDefaultCast serves the built-in cast, a compiled-in fixture identical for every caller.
+func (h *Handler) handleDefaultCast(w http.ResponseWriter, r *http.Request) {
 	cast := GetDefaultCast()
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	httpcache.WriteJSON(w, r, http.StatusOK, httpcache.Public, map[string]any{
 		"default_cast": cast,
 		"count":        len(cast),
 		"cast":         defaultCastSnapshot(),

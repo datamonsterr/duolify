@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/datamonsterr/duolify/services/api/internal/httpcache"
 	"io"
 	"log/slog"
 	"math"
@@ -227,12 +228,13 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 			mux.Handle("/v1/bookmarks/", deps.Accounts.Protect(http.HandlerFunc(bmHandler.ServeBookmarksHTTP)))
 		}
 	}
-	mux.HandleFunc("GET /v1/features", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /v1/features", func(w http.ResponseWriter, r *http.Request) {
 		marketplace := false
 		if m, ok := deps.Sharing.(interface{ MarketplaceEnabled() bool }); ok {
 			marketplace = m.MarketplaceEnabled()
 		}
-		writeJSON(w, http.StatusOK, map[string]any{
+		// Process-wide flags, identical for every caller: public and revalidated by ETag.
+		httpcache.WriteJSON(w, r, http.StatusOK, httpcache.Public, map[string]any{
 			"lesson_test_tracer_enabled": deps.LessonTestTracerEnabled,
 			// E15-07 release flag: the Marketplace stays hidden until moderation, takedown and legal approval.
 			"marketplace_enabled": marketplace,
