@@ -740,10 +740,13 @@ function ManifestPlayback({
       setImmersiveReady(false);
       exitStageFullscreen();
       setAnnouncement("Immersive mode off. Back to the lesson.");
-      queueMicrotask(() =>
-        document
-          .getElementById("immersive-enter")
-          ?.focus({ preventScroll: true }),
+      // After the framed controls are back in the DOM and visible.
+      setTimeout(
+        () =>
+          document
+            .getElementById("immersive-enter")
+            ?.focus({ preventScroll: true }),
+        60,
       );
     },
     [entryRef],

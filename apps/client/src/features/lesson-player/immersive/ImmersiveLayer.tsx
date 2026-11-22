@@ -50,7 +50,6 @@ export default function ImmersiveLayer({
   const [focusInside, setFocusInside] = useState(false);
   const [tick, bump] = useReducer((n: number) => n + 1, 0);
   const [railOpen, setRailOpen] = useState(false);
-  const [cancelledFor, setCancelledFor] = useState<number | null>(null);
   const [announce, setAnnounce] = useState("");
   const [assistive, setAssistive] = useState(focusMemory.keyboard);
 
@@ -101,12 +100,6 @@ export default function ImmersiveLayer({
   }, [view.ended]);
 
   // Auto-hide.
-  const countdownActive =
-    view.ended &&
-    view.autoAdvance &&
-    !lastSlide &&
-    !view.failed &&
-    cancelledFor !== view.index;
   const hider = useMemo(
     () => createAutoHide(() => dispatchControls({ type: "hide" })),
     [],
@@ -119,19 +112,11 @@ export default function ImmersiveLayer({
           assistive,
           stoppedAtEnd: view.ended,
           locked: controls.locked,
-          pinned: controls.list || countdownActive,
+          pinned: controls.list,
         }),
     );
     return hider.dispose;
-  }, [
-    hider,
-    controls,
-    focusInside,
-    assistive,
-    view.ended,
-    countdownActive,
-    tick,
-  ]);
+  }, [hider, controls, focusInside, assistive, view.ended, tick]);
 
   // Gestures. Everything below the layer is the Slide, which never gets touches.
   const rec = useMemo(
@@ -274,6 +259,15 @@ export default function ImmersiveLayer({
         <p className="imm-sr" role="status" data-testid="immersive-announcer">
           {announce}
         </p>
+        <p className="imm-sr" role="status" data-testid="immersive-state">
+          {view.failed
+            ? "Slide paused"
+            : view.ended
+              ? "Slide ended. Continue when you’re ready."
+              : view.playing
+                ? "Playing"
+                : "Paused"}
+        </p>
         {controls.locked ? (
           <UnlockTarget
             onUnlock={() => {
@@ -290,7 +284,13 @@ export default function ImmersiveLayer({
               role="group"
               aria-label="Immersive lesson controls"
               inert={!controls.visible}
-              onFocus={() => setFocusInside(true)}
+              onFocus={(e) =>
+                // Only keyboard / switch focus keeps the layer up: a tap or click
+                // leaves focus on the button without :focus-visible.
+                setFocusInside(
+                  (e.target as HTMLElement).matches(":focus-visible"),
+                )
+              }
               onBlur={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node | null))
                   setFocusInside(false);
@@ -520,14 +520,11 @@ export default function ImmersiveLayer({
                 </div>
               )}
             </div>
-            {countdownActive && (
-              <Countdown
+            {view.ended && view.autoAdvance && !lastSlide && !view.failed && (
+              <EndCountdown
                 reducedMotion={view.reducedMotion}
                 onDone={actions.next}
-                onCancel={() => {
-                  setCancelledFor(view.index);
-                  bump();
-                }}
+                onCancel={bump}
               />
             )}
             <SideRail open={railOpen} onToggle={() => setRailOpen((o) => !o)}>
@@ -667,6 +664,25 @@ function UnlockTarget({ onUnlock }: { onUnlock: () => void }) {
 }
 
 export { AUTO_HIDE_MS };
+
+/** Mounted only while a Slide is stopped at its end, so a cancel lasts exactly until the next replay or Slide. */
+function EndCountdown(props: {
+  reducedMotion: boolean;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [cancelled, setCancelled] = useState(false);
+  if (cancelled) return null;
+  return (
+    <Countdown
+      {...props}
+      onCancel={() => {
+        setCancelled(true);
+        props.onCancel();
+      }}
+    />
+  );
+}
 
 function Countdown({
   reducedMotion,
