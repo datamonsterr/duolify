@@ -1,15 +1,15 @@
 {
-  "timestamp_millis": 1795375629722,
+  "timestamp_millis": 1795377569945,
   "dataset": "datamonsterr/duolify-golden",
   "dataset_revision": "ef44a169c654d8e01d7719a5b632522824292b40",
   "dataset_source": "repo",
   "dataset_verified": true,
   "dataset_sha256": "fe1b8fdd99802a661c96855edf7839668d65d72f115b41d1b47b9f43644ca59f",
-  "fingerprint": "e9df835ceca972896bfde6f31912a496c1ab60b6a3fbc027e83602879bd7fabf",
+  "fingerprint": "1d56877313d4cd03f6cea036e8896e5982332bde85f97cfb2486c528f909ed18",
   "prompt_revision": "git-head",
   "provider": "live",
   "budget_usd": 0.5,
-  "total_cost_usd": 0.004717289000000001,
+  "total_cost_usd": 0.004351968000000001,
   "budget_exceeded": false,
   "status": "passed",
   "live_promoted": true,
@@ -225,7 +225,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2057,
+      "latency_ms": 2615,
       "fallback_used": false
     },
     {
@@ -236,14 +236,16 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000296577,
-      "input_tokens": 771,
-      "output_tokens": 1912,
+      "cost_usd": 0.00037445100000000004,
+      "input_tokens": 740,
+      "output_tokens": 454,
       "served_models": [
-        "tencent/hy4-flash"
+        "tencent/hy4-flash",
+        "z-ai/glm-5.3-flash"
       ],
-      "latency_ms": 11754,
-      "fallback_used": false
+      "latency_ms": 22390,
+      "fallback_used": true,
+      "output": "{\"attempt_count\":2,\"delivered\":true,\"fallback_used\":true,\"leaked\":false,\"name\":\"Pip Pages\",\"unsafe_output\":false,\"valid_spec\":true}"
     },
     {
       "id": "live-character-create-injection",
@@ -253,16 +255,14 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000326296,
-      "input_tokens": 0,
-      "output_tokens": 0,
+      "cost_usd": 0.00024997,
+      "input_tokens": 84,
+      "output_tokens": 1742,
       "served_models": [
-        "tencent/hy4-flash",
-        "z-ai/glm-5.3-flash"
+        "tencent/hy4-flash"
       ],
-      "latency_ms": 15992,
-      "fallback_used": true,
-      "output": "{\"attempt_count\":2,\"delivered\":false,\"fallback_used\":true,\"leaked\":false,\"name\":null,\"unsafe_output\":false,\"valid_spec\":false}"
+      "latency_ms": 10701,
+      "fallback_used": false
     },
     {
       "id": "live-character-create-oversize-refused",
@@ -293,7 +293,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1117,
+      "latency_ms": 1609,
       "fallback_used": false
     },
     {
@@ -304,13 +304,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 5.214e-6,
-      "input_tokens": 86,
+      "cost_usd": 0.000013662,
+      "input_tokens": 342,
       "output_tokens": 12,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1511,
+      "latency_ms": 1586,
       "fallback_used": false
     },
     {
@@ -327,7 +327,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1754,
+      "latency_ms": 1888,
       "fallback_used": false
     },
     {
@@ -338,13 +338,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 6.915e-6,
+      "cost_usd": 7.338e-6,
       "input_tokens": 87,
-      "output_tokens": 22,
+      "output_tokens": 25,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1526,
+      "latency_ms": 1842,
       "fallback_used": false
     },
     {
@@ -355,13 +355,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000222994,
+      "cost_usd": 0.00025063,
       "input_tokens": 123,
-      "output_tokens": 1541,
+      "output_tokens": 1737,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 7925,
+      "latency_ms": 8459,
       "fallback_used": false
     },
     {
@@ -372,16 +372,16 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000512257,
-      "input_tokens": 478,
-      "output_tokens": 1515,
+      "cost_usd": 0.00044944200000000004,
+      "input_tokens": 1091,
+      "output_tokens": 1501,
       "served_models": [
         "tencent/hy4-flash",
         "z-ai/glm-5.3-flash"
       ],
-      "latency_ms": 21169,
+      "latency_ms": 19883,
       "fallback_used": true,
-      "output": "{\"attempt_count\":2,\"delivered\":true,\"fallback_used\":true,\"region_count\":7,\"region_descriptions\":[\"Title band with the heading 'Exposure Triangle'.\",\"Left card explains 'Aperture': opening size, light, and focus depth.\",\"Right card explains 'Shutter speed': slow blur versus fast frozen action.\",\"Caption band saying 'Exposure' equals light gathered and settings trade off.\",\"Title band with heading 'ISO and the Trade-off'.\",\"Body card defines 'ISO' sensitivity, noise, and the trade-off with other settings.\",\"Caption band with tip 'Trade one corner of the triangle to fix another.'\"],\"region_faithfulness\":1.0,\"region_roles\":[\"title\",\"explanation\",\"explanation\",\"caption\",\"title\",\"explanation\",\"caption\"],\"regions_valid\":true,\"rejected\":[\"narration length exceeds slide duration bounds (set each slide's duration_ms to at least 400 times its narration word count) | {\\n  \\\"slides\\\": [\\n    {\\n      \\\"duration_ms\\\": 6000,\\n      \\\"html\\\": \\\"<div id=\\\\\\\"root\\\\\\\" style=\\\\\\\"width:100%;height:100%;font-family:Arial,sans-serif;color:#12202b;backg\"],\"slide_count\":2,\"test_count\":2,\"title\":\"The Exposure Triangle in Photography\"}"
+      "output": "{\"attempt_count\":2,\"delivered\":true,\"fallback_used\":true,\"region_count\":7,\"region_descriptions\":[\"Title band reading The exposure triangle.\",\"Explanation block defining exposure as light reaching the sensor.\",\"Caption block stating the goal: trade off aperture, shutter speed and ISO.\",\"Card explaining aperture with the example f/2.8.\",\"Card explaining shutter speed with the example 1/1000s.\",\"Card explaining ISO with the example 400.\",\"Example of trading off aperture for shutter speed.\"],\"region_faithfulness\":0.8571428571428571,\"region_roles\":[\"title\",\"explanation\",\"caption\",\"example\",\"example\",\"example\",\"explanation\"],\"regions_valid\":true,\"rejected\":[\"variant qv-controls of q-controls: variant correct answer must be semantically equal to source answer; the source choices are [\\\"Shutter speed\\\", \\\"Focal length\\\", \\\"ISO\\\", \\\"White balance\\\"] with correct choice \\\"ISO\\\" (reuse the source question's exact correct choice text in each variant) | {\\n  \\\"slides\\\": [\\n    {\\n      \\\"duration_ms\\\": 12000,\\n      \\\"html\\\": \\\"<div id=\\\\\\\"root\\\\\\\" style=\\\\\\\"width:100%;height:100%;font-family:Arial,sans-serif;color:#172033;back\"],\"slide_count\":2,\"test_count\":2,\"title\":\"The exposure triangle in "
     },
     {
       "id": "live-lesson-regions-code-python-comprehension",
@@ -391,13 +391,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000340834,
+      "cost_usd": 0.000262297,
       "input_tokens": 126,
-      "output_tokens": 2376,
+      "output_tokens": 1819,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 9795,
+      "latency_ms": 8259,
       "fallback_used": false
     },
     {
@@ -408,13 +408,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.00019469,
+      "cost_usd": 0.000308618,
       "input_tokens": 64,
-      "output_tokens": 1354,
+      "output_tokens": 2162,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 6527,
+      "latency_ms": 8688,
       "fallback_used": false
     },
     {
@@ -425,16 +425,14 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.00038240699999999997,
-      "input_tokens": 1077,
-      "output_tokens": 1329,
+      "cost_usd": 0.000163977,
+      "input_tokens": 105,
+      "output_tokens": 1126,
       "served_models": [
-        "tencent/hy4-flash",
-        "z-ai/glm-5.3-flash"
+        "tencent/hy4-flash"
       ],
-      "latency_ms": 17173,
-      "fallback_used": true,
-      "output": "{\"attempt_count\":2,\"delivered\":true,\"fallback_used\":true,\"region_count\":6,\"region_descriptions\":[\"Title reading Arrays hold the data.\",\"Explanation with the words An array has a fixed length, the line var a [5]int, and the note Elements sit in one continuous block of memory.\",\"Caption with the key words The length is part of the array type.\",\"Title reading Slices are a view.\",\"Explanation with the words A slice holds a pointer into an array, the line s := a[1:4] shares memory with a, and the note Change the slice, and the array changes too.\",\"Caption with the key words A slice is a window over array memory.\"],\"region_faithfulness\":1.0,\"region_roles\":[\"title\",\"explanation\",\"caption\",\"title\",\"explanation\",\"caption\"],\"regions_valid\":true,\"rejected\":[\"slide s2: slots left_top and body overlap while both are visible; use slots that do not overlap or disjoint start_ms/end_ms | {\\n  \\\"slides\\\": [\\n    {\\n      \\\"duration_ms\\\": 12000,\\n      \\\"html\\\": \\\"<div id=\\\\\\\"root\\\\\\\"><h1 data-slot=\\\\\\\"top\\\\\\\">Arrays hold the data</h1><div data-slot=\\\\\\\"left\\\\\\\"><p>An a\"],\"slide_count\":2,\"test_count\":2,\"title\":\"Go slices and arrays\"}"
+      "latency_ms": 6360,
+      "fallback_used": false
     },
     {
       "id": "live-lesson-regions-question-fractions",
@@ -444,13 +442,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000282742,
+      "cost_usd": 0.000208717,
       "input_tokens": 126,
-      "output_tokens": 1964,
+      "output_tokens": 1439,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 7553,
+      "latency_ms": 7105,
       "fallback_used": false
     },
     {
@@ -461,16 +459,14 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000506444,
-      "input_tokens": 462,
-      "output_tokens": 1537,
+      "cost_usd": 0.000260854,
+      "input_tokens": 117,
+      "output_tokens": 1811,
       "served_models": [
-        "tencent/hy4-flash",
-        "z-ai/glm-5.3-flash"
+        "tencent/hy4-flash"
       ],
-      "latency_ms": 19732,
-      "fallback_used": true,
-      "output": "{\"attempt_count\":2,\"delivered\":true,\"fallback_used\":true,\"region_count\":13,\"region_descriptions\":[\"Title band asking the question \\\"Ser or estar?\\\"\",\"Body rule: \\\"Ser shows identity. Estar shows state or location.\\\"\",\"Caption band stating the goal \\\"choose the right verb\\\".\",\"Title band \\\"Ser: identity\\\".\",\"Example \\\"Soy Ana.\\\" with caption \\\"Description that does not change.\\\"\",\"Caption \\\"Description that does not change.\\\"\",\"Example \\\"Ella es doctora.\\\"\",\"Caption \\\"Profession: es.\\\"\",\"Title band \\\"Estar: state\\\".\",\"Example \\\"Estoy feliz.\\\"\",\"Caption \\\"Feeling right now.\\\"\",\"Example \\\"El libro está aquí.\\\"\",\"Caption \\\"Location: está.\\\"\"],\"region_faithfulness\":1.0,\"region_roles\":[\"title\",\"explanation\",\"caption\",\"title\",\"example\",\"caption\",\"example\",\"caption\",\"title\",\"example\",\"caption\",\"example\",\"caption\"],\"regions_valid\":true,\"rejected\":[\"slide slide-2: slots left_top and body overlap while both are visible; use slots that do not overlap or disjoint start_ms/end_ms | {\\n  \\\"slides\\\": [\\n    {\\n      \\\"duration_ms\\\": 6000,\\n      \\\"html\\\": \\\"<div id=\\\\\\\"root\\\\\\\"><h1 data-slot=\\\\\\\"top\\\\\\\" style=\\\\\\\"font:700 34px Arial,sans-serif;color:#17365d;marg\"],\"slide_count\":3,\"test_count\":2,\"t"
+      "latency_ms": 10274,
+      "fallback_used": false
     },
     {
       "id": "live-lesson-test-go-slices",
@@ -480,13 +476,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000031146,
+      "cost_usd": 0.000043272,
       "input_tokens": 97,
-      "output_tokens": 195,
+      "output_tokens": 281,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 3031,
+      "latency_ms": 2056,
       "fallback_used": false
     },
     {
@@ -548,7 +544,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1612,
+      "latency_ms": 1360,
       "fallback_used": false
     },
     {
@@ -559,13 +555,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000019441,
-      "input_tokens": 350,
-      "output_tokens": 51,
+      "cost_usd": 0.000010711,
+      "input_tokens": 94,
+      "output_tokens": 49,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1708,
+      "latency_ms": 1961,
       "fallback_used": false
     },
     {
@@ -597,7 +593,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1151,
+      "latency_ms": 1234,
       "fallback_used": false
     },
     {
@@ -608,13 +604,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000111662,
+      "cost_usd": 0.000085859,
       "input_tokens": 322,
-      "output_tokens": 712,
+      "output_tokens": 529,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 4532,
+      "latency_ms": 3800,
       "fallback_used": false
     },
     {
@@ -625,13 +621,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000677985,
-      "input_tokens": 91,
-      "output_tokens": 4784,
+      "cost_usd": 0.000575472,
+      "input_tokens": 219,
+      "output_tokens": 4027,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 25504,
+      "latency_ms": 26892,
       "fallback_used": false
     },
     {
@@ -642,13 +638,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.0003137,
-      "input_tokens": 70,
-      "output_tokens": 2202,
+      "cost_usd": 0.000453977,
+      "input_tokens": 454,
+      "output_tokens": 3107,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 11455,
+      "latency_ms": 18481,
       "fallback_used": false
     },
     {
@@ -659,13 +655,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000240341,
-      "input_tokens": 85,
-      "output_tokens": 1678,
+      "cost_usd": 0.000303209,
+      "input_tokens": 469,
+      "output_tokens": 2034,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 10438,
+      "latency_ms": 13632,
       "fallback_used": false
     },
     {
@@ -697,7 +693,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1564,
+      "latency_ms": 1870,
       "fallback_used": false
     },
     {
@@ -714,7 +710,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1732,
+      "latency_ms": 1881,
       "fallback_used": false
     },
     {
@@ -725,9 +721,9 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.00008088,
+      "cost_usd": 0.000139818,
       "input_tokens": 38,
-      "output_tokens": 17,
+      "output_tokens": 18,
       "served_models": [
         "tencent/hy4-flash",
         "tencent/hy4-flash"
@@ -750,7 +746,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1838,
+      "latency_ms": 1723,
       "fallback_used": false
     },
     {
@@ -767,7 +763,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1544,
+      "latency_ms": 1443,
       "fallback_used": false
     },
     {
@@ -784,7 +780,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1866,
+      "latency_ms": 1542,
       "fallback_used": false
     },
     {
@@ -795,13 +791,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000016947,
+      "cost_usd": 0.000016806,
       "input_tokens": 127,
-      "output_tokens": 46,
+      "output_tokens": 45,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1639,
+      "latency_ms": 2110,
       "fallback_used": false
     },
     {
@@ -812,13 +808,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 8.707e-6,
+      "cost_usd": 9.271e-6,
       "input_tokens": 95,
-      "output_tokens": 30,
+      "output_tokens": 34,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2119,
+      "latency_ms": 1738,
       "fallback_used": false
     },
     {
@@ -829,13 +825,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000015753,
+      "cost_usd": 0.000012933,
       "input_tokens": 163,
-      "output_tokens": 64,
+      "output_tokens": 44,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1977,
+      "latency_ms": 1823,
       "fallback_used": false
     },
     {
@@ -846,13 +842,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000014515,
+      "cost_usd": 0.000014092,
       "input_tokens": 128,
-      "output_tokens": 63,
+      "output_tokens": 60,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1604,
+      "latency_ms": 2155,
       "fallback_used": false
     },
     {
@@ -863,13 +859,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000010966,
-      "input_tokens": 83,
-      "output_tokens": 49,
+      "cost_usd": 0.00002941,
+      "input_tokens": 659,
+      "output_tokens": 45,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1745,
+      "latency_ms": 2268,
       "fallback_used": false
     },
     {
@@ -886,7 +882,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1740,
+      "latency_ms": 1306,
       "fallback_used": false
     },
     {
@@ -897,13 +893,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000013632,
+      "cost_usd": 0.000022938,
       "input_tokens": 46,
-      "output_tokens": 78,
+      "output_tokens": 144,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2235,
+      "latency_ms": 1881,
       "fallback_used": false
     }
   ]
