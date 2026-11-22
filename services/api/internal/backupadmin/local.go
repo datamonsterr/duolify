@@ -64,7 +64,7 @@ func Provision(ctx context.Context, root backup.S3Options, writerKey, writerSecr
 }
 
 // ProvisionApplication confines the public API to the versioned application
-// bucket: read, write and delete-marker only. It cannot delete versions, change
+// bucket: read, write and delete-marker, plus generated-lesson version erasure. It cannot change
 // versioning or policy, or touch the backup bucket. Root credentials belong only
 // to local initialization and retention administration.
 func ProvisionApplication(ctx context.Context, root backup.S3Options, key, secret string) error {
@@ -85,9 +85,10 @@ func ProvisionApplication(ctx context.Context, root backup.S3Options, key, secre
 	}
 	app, objects := arn(root.ApplicationBucket), arn(root.ApplicationBucket+"/*")
 	return attach(ctx, root, "duolify-application-storage", key, secret, []any{
-		allow([]string{"s3:ListBucket"}, app),
+		allow([]string{"s3:ListBucket", "s3:ListBucketVersions"}, app),
 		allow([]string{"s3:GetObject", "s3:PutObject", "s3:DeleteObject"}, objects),
-		deny([]string{"s3:DeleteObjectVersion", "s3:PutBucketVersioning", "s3:DeleteBucket", "s3:PutBucketPolicy", "s3:PutBucketLifecycle"}, app, objects),
+		allow([]string{"s3:DeleteObjectVersion"}, arn(root.ApplicationBucket+"/lessons/generated/*")),
+		deny([]string{"s3:PutBucketVersioning", "s3:DeleteBucket", "s3:PutBucketPolicy", "s3:PutBucketLifecycle"}, app, objects),
 	})
 }
 

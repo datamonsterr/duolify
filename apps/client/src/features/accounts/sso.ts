@@ -9,7 +9,8 @@ import { authRequest } from "./session";
 // intercepts the deep link lacks the verifier.
 
 export type SSOStrategy = "oauth_google" | "oauth_apple";
-export type SSOCallback = { state: string; code: string } | null;
+export type SSOCallback =
+  { state: string; code: string } | { state: string; cancelled: true } | null;
 export interface SSOBridge {
   openSystemBrowser(url: string): Promise<void>;
   listen(callback: (value: SSOCallback) => void): Promise<() => void>;
@@ -68,8 +69,9 @@ export function parseSSOCallback(raw: string): SSOCallback | undefined {
     url.pathname !== "/callback"
   )
     return undefined;
-  if (url.searchParams.get("error") === "access_denied") return null;
   const state = url.searchParams.get("state");
+  if (url.searchParams.get("error") === "access_denied")
+    return state ? { state, cancelled: true } : undefined;
   const code = url.searchParams.get("code");
   return state && code ? { state, code } : undefined;
 }
@@ -87,6 +89,7 @@ function assertBridgeUrl(raw: string) {
     throw new Error("Sign-in returned an unsafe browser URL.");
 }
 
+let startupCallbacksRead = false;
 async function nativeBridge(): Promise<SSOBridge> {
   const [{ openUrl }, { getCurrent, onOpenUrl }] = await Promise.all([
     import("@tauri-apps/plugin-opener"),
@@ -98,16 +101,19 @@ async function nativeBridge(): Promise<SSOBridge> {
       await openUrl(raw);
     },
     async listen(callback) {
-      for (const raw of (await getCurrent()) ?? []) {
-        const result = parseSSOCallback(raw);
-        if (result !== undefined) callback(result);
-      }
-      return onOpenUrl((urls) => {
+      const unlisten = await onOpenUrl((urls) => {
         for (const raw of urls) {
           const result = parseSSOCallback(raw);
           if (result !== undefined) callback(result);
         }
       });
+      const startup = startupCallbacksRead ? [] : ((await getCurrent()) ?? []);
+      startupCallbacksRead = true;
+      for (const raw of startup) {
+        const result = parseSSOCallback(raw);
+        if (result !== undefined) callback(result);
+      }
+      return unlisten;
     },
   };
 }

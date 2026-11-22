@@ -4,6 +4,7 @@ package accountstest
 import (
 	"context"
 	"io"
+	"strings"
 	"sync"
 
 	"github.com/datamonsterr/duolify/services/api/internal/backup"
@@ -35,5 +36,22 @@ func (o *objects) Put(_ context.Context, key string, body io.ReadSeeker, _ int64
 
 // NewDeletionLedger models independent, immutable object storage, never SQL.
 func NewDeletionLedger() backup.DeletionLedger {
-	return backup.DeletionLedger{Objects: &objects{records: map[string][]byte{}}}
+	return backup.DeletionLedger{Objects: &objects{records: map[string][]byte{}}, ClerkKey: strings.Repeat("test-ledger-key", 3)}
+}
+
+func (o *objects) List(_ context.Context, prefix string) ([]backup.Object, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	var out []backup.Object
+	for key := range o.records {
+		if strings.HasPrefix(key, prefix) {
+			out = append(out, backup.Object{Key: key})
+		}
+	}
+	return out, nil
+}
+func (o *objects) GetCurrent(_ context.Context, key string) ([]byte, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]byte(nil), o.records[key]...), nil
 }
