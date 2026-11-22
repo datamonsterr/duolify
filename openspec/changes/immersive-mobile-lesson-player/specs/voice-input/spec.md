@@ -16,7 +16,7 @@ The client SHALL let the Learner dictate a Tutor chat question or a Quick note b
 - **THEN** recording stops at 30 seconds and the captured audio is transcribed
 
 ### Requirement: Transcript review before use
-A transcript for a question SHALL be shown in the composer and sent automatically only after a 2-second window in which the Learner can edit or cancel; a Learner setting MUST allow requiring an explicit send. A transcript for a Quick note SHALL be saved immediately as a raw Quick note with an undo action. An empty or failed transcription MUST NOT create a message or a note and MUST offer retry or typing.
+A transcript for a question SHALL be shown in the composer and sent automatically only after a 2-second window in which the Learner can edit or cancel; a Learner setting MUST allow requiring an explicit send. The setting is on by default, except that it MUST default to off when the transcript language is Vietnamese. A transcript for a Quick note SHALL be saved immediately as a raw Quick note with an undo action. An empty or failed transcription MUST NOT create a message or a note and MUST offer retry or typing.
 
 #### Scenario: Edit before sending
 - **WHEN** the transcript appears and the Learner changes a word within 2 seconds
@@ -27,7 +27,7 @@ A transcript for a question SHALL be shown in the composer and sent automaticall
 - **THEN** no message or note is created and the Learner is offered retry or typing
 
 ### Requirement: Transcription service
-The API SHALL expose an authenticated transcription endpoint that accepts one audio recording, a purpose of `tutor` or `note`, and a Lesson id, and returns the text, detected language and duration. The API MUST reject audio longer than 30 seconds or larger than 1 MB, unsupported containers, a Lesson the Learner is not entitled to, and requests over the per-Learner rate limit or daily cap, before any Engine call. The Engine MUST transcribe through the configured primary model and fallback on the single AI provider route with provider data collection denied. The endpoint MUST accept the containers produced by supported clients (WebM/Opus and MP4/AAC).
+The API SHALL expose an authenticated transcription endpoint that accepts one audio recording, a purpose of `tutor` or `note`, and a Lesson id, and returns the text, detected language and duration. The API MUST reject audio longer than 30 seconds or larger than 1 MB, unsupported containers, a Lesson the Learner is not entitled to, and requests over the per-Learner rate limit or daily cap, before any Engine call. The Engine MUST transcribe through the configured primary model and fallback on the single AI provider route with provider data collection denied. The endpoint MUST identify the container itself and accept what supported clients produce (WebM/Opus and MP4/AAC), whatever MIME type the client reports. The primary model is `qwen/qwen3-asr-0.6b` and the fallback `openai/whisper-large-v3-turbo`; both MUST be called with zero data retention required and data collection denied, and a request MUST NOT cost more than 0.0005 USD. The daily cap is 60 transcriptions per Learner.
 
 #### Scenario: Transcribe a question
 - **WHEN** an entitled Learner uploads a 6-second recording with purpose `tutor`
@@ -42,7 +42,7 @@ The API SHALL expose an authenticated transcription endpoint that accepts one au
 - **THEN** the API answers with a typed limit error naming when it resets, and typing remains available
 
 ### Requirement: Audio is processed and discarded
-Recorded audio MUST be held in memory only for the duration of the request. The client, API and Engine MUST NOT write audio to disk, object storage, logs, analytics or backups, and MUST NOT retain it after the response. Only the transcript MAY persist, and only as the Tutor chat message or Quick note it becomes.
+Recorded audio MUST be held in memory only for the duration of the request. Learner-facing text MUST say the audio is processed by a speech provider that does not keep it (zero data retention), not that it is never stored anywhere. The client, API and Engine MUST NOT write audio to disk, object storage, logs, analytics or backups, and MUST NOT retain it after the response. Only the transcript MAY persist, and only as the Tutor chat message or Quick note it becomes.
 
 #### Scenario: Nothing retained
 - **WHEN** a transcription request completes or fails
@@ -90,6 +90,10 @@ The Golden set SHALL contain transcription cases: short recordings with referenc
 #### Scenario: Primary fails
 - **WHEN** the primary transcription model times out
 - **THEN** the fallback model is tried once and, if it also fails, the Learner sees a retryable error and no message or note is created
+
+#### Scenario: Near-silent recording
+- **WHEN** the recording's level never rises above the silence threshold
+- **THEN** it is not uploaded and the Learner is offered retry or typing
 
 #### Scenario: Silence
 - **WHEN** a recording contains only background noise

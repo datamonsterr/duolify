@@ -91,6 +91,7 @@ const CourseCast = lazyRouteComponent(
   () => import("./features/characters/CourseCast"),
   "CourseCast",
 );
+import { parseArrival } from "./features/lesson-player/arrival";
 const LessonPlayer = lazyRouteComponent(
   () => import("./features/lesson-player/LessonPlayer"),
   "LessonPlayer",
@@ -333,18 +334,21 @@ const course = createRoute({
 });
 function LessonRoute() {
   const { lessonId } = useParams({ from: "/lesson/$lessonId" });
-  const { returnTo, slide } = useSearch({ from: "/lesson/$lessonId" });
+  const { returnTo, slide, t, region } = useSearch({
+    from: "/lesson/$lessonId",
+  });
   const initialSlide =
     slide !== undefined && !isNaN(parseInt(slide, 10))
       ? parseInt(slide, 10)
       : undefined;
   return (
     <LessonPlayer
-      key={`${lessonId}:${slide ?? ""}`}
+      key={`${lessonId}:${slide ?? ""}:${t ?? ""}:${region ?? ""}`}
       lessonId={lessonId}
       returnTo={returnTo}
       targetSlideId={slide}
       initialSlide={initialSlide}
+      noteArrival={parseArrival(t, region)}
     />
   );
 }
@@ -353,7 +357,14 @@ const lesson = createRoute({
   path: "/lesson/$lessonId",
   validateSearch: (
     search: Record<string, unknown>,
-  ): { returnTo?: string; slide?: string } => ({
+  ): { returnTo?: string; slide?: string; t?: string; region?: string } => ({
+    t:
+      typeof search.t === "string"
+        ? search.t
+        : typeof search.t === "number"
+          ? String(search.t)
+          : undefined,
+    region: typeof search.region === "string" ? search.region : undefined,
     returnTo: typeof search.returnTo === "string" ? search.returnTo : undefined,
     slide:
       typeof search.slide === "string"

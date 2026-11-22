@@ -766,3 +766,11 @@ The API MUST enqueue `check_in_credits_granted` atomically with each positive at
 #### Scenario: Consent and replay
 - **WHEN** an opted-out Learner checks in or a committed request is retried
 - **THEN** Credits are correct and no opted-out or duplicate event is delivered
+
+### Requirement: Anchored note analytics event
+The API SHALL emit `lesson_anchored_note_created` once when a Quick note with a Lesson-moment anchor is first saved, with only `course_id`, `lesson_id`, `slide_index`, `source` (`typed` or `voice`) and `has_region`. It MUST NOT contain note text, transcript text, region coordinates or Slide text, MUST NOT be repeated when an offline queue replays the same note, and MUST be dropped for a Learner who has opted out.
+
+#### Scenario: Anchored note created
+- **WHEN** a Learner saves a typed note on a region
+- **THEN** one `lesson_anchored_note_created` event with `source` `typed` and `has_region` true is captured and no property holds note text
+

@@ -8,6 +8,7 @@ import {
   trackQuickNoteReviewed,
 } from "../../lib/analytics";
 import { AppLink } from "../../lib/navigation";
+import { NoteAnchorLine, type NoteAnchorView } from "./NoteAnchorLine";
 
 export type QuickNoteItem = {
   id: string;
@@ -31,6 +32,8 @@ export type QuickNoteItem = {
   links?: string[] | null;
   /** Set for notes saved from tutor chat; `unavailable` once that thread was deleted. */
   chat_source?: { state: "available" | "unavailable" } | null;
+  /** The Lesson moment (and region) the note was taken at. */
+  anchor?: NoteAnchorView | null;
   reviewed?: boolean;
   reviewed_at?: string | null;
   version?: number;
@@ -132,6 +135,14 @@ export function NotesPage() {
           slide_id: item.slideId,
           slide_title: item.slideTitle,
           source: item.source,
+          anchor: item.anchor
+            ? {
+                playback_ms: item.anchor.playbackMs,
+                rect: item.anchor.rect,
+                input: item.anchor.input,
+                source_state: "available" as const,
+              }
+            : undefined,
           raw_text: item.rawText,
           status: item.serverNoteId ? "enrichment_pending" : "waiting_to_sync",
           version: 1,
@@ -1203,6 +1214,13 @@ export function NotesPage() {
                             : "Tutor chat"
                           : "Lesson"}
                     </span>
+                    {selectedNote.anchor && (
+                      <NoteAnchorLine
+                        anchor={selectedNote.anchor}
+                        lessonId={selectedNote.lesson_id}
+                        slideId={selectedNote.slide_id}
+                      />
+                    )}
                   </>
                 )}
               </div>
