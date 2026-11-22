@@ -110,7 +110,7 @@ func allowlisted(event string) bool {
 		"course_republished", "course_update_applied", "review_submitted", "review_deleted", "course_reported", "course_hidden_by_reports",
 		"moderation_action", "moderation_appeal",
 		"narration_generated", "narration_failed", "narration_cache_hit", "narration_budget_exhausted", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled",
-		"immersive_mode_entered", "immersive_mode_exited", "immersive_control_used":
+		"immersive_mode_entered", "immersive_mode_exited", "immersive_control_used", "lesson_anchored_note_created":
 		return true
 	default:
 		return false
@@ -166,6 +166,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		case "source":
 			if event == "quick_note_created" {
 				if v == "slide" || v == "lesson" || v == "chat" {
+					out[key] = v
+				}
+				continue
+			}
+			if event == "lesson_anchored_note_created" {
+				if v == "typed" || v == "voice" {
 					out[key] = v
 				}
 				continue
@@ -620,6 +626,11 @@ func safeProperties(event string, input map[string]any) map[string]any {
 				enum("seconds_in_mode", "lt_10", "10_30", "30_120", "120_600", "gt_600")
 			}
 		}
+	case "lesson_anchored_note_created":
+		// Identifiers, a closed enum and a flag; never the note text or the region contents.
+		ids("course_id", "lesson_id")
+		numeric("slide_index")
+		boolean("has_region")
 	case "$ai_generation":
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
 		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available", "usage_estimated")
