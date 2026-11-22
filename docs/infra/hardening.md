@@ -31,7 +31,7 @@ sudo apt install unattended-upgrades
 sudo dpkg-reconfigure -plow unattended-upgrades
 ```
 
-Keep security updates on, set `Unattended-Upgrade::Automatic-Reboot "true"` with `Automatic-Reboot-Time "04:00"` (UTC+0; the backup jobs run at 02:30), and make sure Docker restarts services (`restart: unless-stopped` is set).
+Keep security updates on, set `Unattended-Upgrade::Automatic-Reboot "true"` with `Automatic-Reboot-Time "04:00"` (UTC+0; the worker dump runs at 02:00 and the walship base backup and DR copy start at 03:00, so the heavy jobs are an hour apart and finish before the reboot), and make sure Docker restarts services (`restart: unless-stopped` is set).
 
 ## 4. Docker daemon
 
@@ -87,3 +87,60 @@ Rollback is always "run `deploy.sh` with the previous commit's digests"; a Postg
 **No 502s while an instance stops.** The `/v1` `reverse_proxy` sets `lb_try_duration 5s` and `lb_try_interval 250ms` (Caddy's retries are off by default). `api` is one static upstream; Docker DNS answers with every live replica and Caddy resolves it on each dial (no `dynamic a` upstream, so no 1 m refresh cache), and a stopped replica drops out of DNS. Per the Caddy docs, a failed connection is always retried inside the 5 s window, whatever the method. A request that connected but failed mid-round-trip is retried only if it matches `lb_retry_match`, which defaults to GET alone: a POST cut off mid-request is not replayed and the client sees a 502. **A POST is only safe if the instance drains instead of dying:** `deploy.sh` stops an instance with `docker stop` (SIGTERM). The API (`httpapi.Serve`) and worker (`worker.Shutdown`) stop accepting, finish in-flight requests and jobs for up to 10 s, then exit; `stop_grace_period: 30s` in `compose.prod.yml` keeps Docker from SIGKILLing them first (the default 10 s equals the drain time). A SIGKILL (crash, OOM) still cuts requests in flight on that instance; only GETs are replayed. `mise run infra:overlay-rolling` stops each API instance in turn the way `deploy.sh` does, under 8 GET and 4 POST clients plus 6 slow GETs (2 s stream) and 6 slow POSTs (body arrives over 3 s) in flight on each instance, and requires zero failed GETs, POSTs and slow requests (`ROLLING_NEGATIVE_CONTROL=1` SIGKILLs instead, to show the test detects cut requests). It then points the proxy at two stub replicas, one of which drops connections, and requires every GET to be answered (0 of 40 fail with the `lb_try_duration` setting, 20 of 40 without). The retry window never touches an open stream: it only applies while a request is picking an upstream, and `infra:overlay-sse` still holds a 165 s stream.
 
 **Long SSE streams.** The `/v1` route never buffers (`flush_interval -1`, and Caddy flushes `text/event-stream` anyway) and sets no upstream `read_timeout`/`write_timeout`, no server `write` timeout and no `stream_timeout`, so the proxy only closes a stream when either side does; the API must keep its own write deadline alive and send a `: keepalive` comment every `SSE_HEARTBEAT_INTERVAL` (15 s) so that the 20 s server `WriteTimeout` and any client or carrier idle timeout never fire. `mise run infra:overlay-sse` holds a stream open for ~177 s with 10-15 s silences and fails if an event arrives more than 2 s after it was sent or the stream is cut.
+
+## 8. Sizing (cx23: 2 vCPU, 4 GB, 40 GB)
+
+`infra:deploy-plan` enforces the memory budget (limits of the services that run on the VM, replicas included, at most 3584 MiB; `DEPLOY_MEMORY_BUDGET_MB` overrides it for a bigger VM) and the connection budget below. `deploy.sh` runs it against `.env` before it pulls anything.
+
+| Service | Limit | Reservation | Notes |
+|---|---|---|---|
+| postgres | 1280 MiB | 768 MiB | `POSTGRES_MEMORY`; shared_buffers 384 MB leaves about 900 MB for backends, autovacuum and WAL buffers |
+| api x 2 | 384 MiB each (768) | 128 MiB each | `GOMEMLIMIT=300MiB`; a roll briefly runs 3 |
+| worker | 384 MiB | 128 MiB | `GOMEMLIMIT=300MiB` |
+| engine | 384 MiB | 96 MiB | Rust, stateless |
+| walship | 256 MiB | 64 MiB | `pg_basebackup`, gzip, age and the `aws` CLI |
+| prometheus | 192 MiB | 96 MiB | 15 days of a handful of series |
+| proxy (Caddy) | 96 MiB | 32 MiB | |
+| redis | 96 MiB | 32 MiB | `maxmemory 64mb` |
+| node-exporter | 48 MiB | 16 MiB | |
+| **Total** | **3504 MiB** | **1488 MiB** | about 590 MiB of the 4096 MiB stays for the kernel, dockerd, sshd and page cache |
+
+The limits are caps, not a forecast: the real use of the API, worker and engine is far below them. Measure with `docker stats --no-stream` after a day of traffic and tighten or raise from there. A 1-2 GB swap file on the VM (with `vm.swappiness=10`) is a cheap safety net: the kernel pages out idle memory instead of picking an OOM victim during the nightly jobs.
+
+**Two API replicas.** Kept, but not for the rolling restart: `deploy.sh` starts a new instance, waits for it to be healthy and then stops an old one, which is zero-downtime from a single replica as well. The second replica keeps the API serving when one instance is killed (OOM, crash) and is what `infra:overlay-rolling` and the Caddy retry rule exercise. It costs about 100-150 MiB of real memory and doubles the background loops that every API process runs (the loops are guarded by advisory locks; making them cheaper belongs to the API work, not to this runbook). With no load numbers for this box, drop to one replica (`replicas: 1` in `compose.prod.yml`) only if memory is short or CPU stays saturated; the plan accepts either.
+
+**Postgres** (`compose.prod.yml`), chosen for a small SSD-backed OLTP database that also archives WAL:
+
+| Setting | Value | Why |
+|---|---|---|
+| `shared_buffers` | 384MB | about 30% of the container limit; the working set is small, the OS cache does the rest |
+| `effective_cache_size` | 1GB | planner hint only: this buffer plus the share of the OS cache the data can expect |
+| `work_mem` | 8MB | per sort or hash node; 60 connections would not reach the limit in practice |
+| `maintenance_work_mem` | 64MB | explicit; autovacuum workers use it, 3 workers at most |
+| `max_connections` | 60 | pools below plus 8 spare; each backend costs memory |
+| `wal_compression` | lz4 | smaller WAL means less to ship to R2, cheap in CPU |
+| `checkpoint_timeout` / `max_wal_size` / `min_wal_size` | 15min / 2GB / 256MB | fewer, smoother checkpoints (`checkpoint_completion_target=0.9`) |
+| `random_page_cost` / `effective_io_concurrency` | 1.1 / 200 | SSD |
+| `jit` | off | compile cost outweighs the gain for short OLTP queries |
+| `max_parallel_workers_per_gather` | 1 | 2 vCPU |
+| autovacuum | naptime 30s, scale factors 0.1 / 0.05, cost limit 1000 | keeps small hot tables tidy without long sleeps |
+| `idle_in_transaction_session_timeout` | 300s | a leaked transaction cannot pin vacuum for long |
+| `log_min_duration_statement`, `track_io_timing` | 500ms, on | find slow statements |
+| `shared_preload_libraries` | `pg_stat_statements` | does not touch WAL or archiving; run `CREATE EXTENSION pg_stat_statements;` once to read it |
+
+No global `statement_timeout`: migrations and `pg_basebackup` must not be cut. Change one setting at a time and compare with `mise run infra:load-baseline`. Settings that need a restart (`shared_buffers`, `max_connections`, `shared_preload_libraries`) only apply when the container is recreated, which `deploy.sh` never does for data services (`--no-recreate`). After a change to the Postgres, Redis, walship, Prometheus or node-exporter definition, recreate them once in a quiet moment, ideally right after the 03:00 job has finished:
+
+```sh
+cd /opt/duolify/infra/deploy
+SELFHOST_OVERLAY=$PWD/compose.prod.yml bash selfhost.sh compose up --detach --wait postgres redis walship node-exporter prometheus
+```
+
+Postgres restarts for a few seconds (the API retries; WAL archiving resumes from the spool).
+
+**Connection budget.** Every process has its own pgx pool (`DB_POOL_*`, `internal/store/pool.go`): API 10 (min 2) per replica, worker 16 (min 4; its River clients each hold a LISTEN connection), the one-shot `migrate` 2. With 2 replicas plus one more during a roll: 3 x 10 + 16 + 8 spare (3 reserved superuser slots, walship, an operator) = 54, under `max_connections=60`. Override with `API_DB_POOL_MAX_CONNS`, `WORKER_DB_POOL_MAX_CONNS` and the `_MIN_` pair in `.env`; `deploy-plan` rejects a total over `max_connections`.
+
+**Redis** (`compose.yml`) is a pure cache: the wallet cache (5 min TTL) and the league ranking (TTL, rebuilt from Postgres when missing) are its only users, and `infra:overlay-redis` proves a flush loses nothing. So `maxmemory 64mb` with `allkeys-lru` (evict instead of failing writes), and no RDB or AOF (`--save "" --appendonly no`): a restart starts empty and the keys refill.
+
+**Backup schedule.** The worker's encrypted database dump runs at 02:00 UTC (and once at every worker start). The walship base backup and the DR copy start at 03:00 UTC, an hour later, so a `pg_dump | age` and a `pg_basebackup | gzip | age` plus a bucket scan never compete for the two CPUs, and both still finish before the 04:00 reboot. The staleness alerts use 36 h windows, so the move changes no alert.
+
+**Caddy.** `encode zstd gzip` is on for the whole site with Caddy's default response matcher, which compresses text, JSON, JavaScript, SVG, fonts and wasm and leaves images and archives alone. Event streams (`text/event-stream`) are never held back by the minimum length and are flushed per write (`flush_interval -1`); `infra:overlay-sse` runs with `--compressed` and requires every event within 2 s.

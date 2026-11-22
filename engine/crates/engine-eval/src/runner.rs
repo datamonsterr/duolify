@@ -1836,6 +1836,12 @@ impl Runner {
                 _attempts = outcome.attempts;
                 primary_completion = outcome.completion;
                 text
+            } else if live && crate::live::TASKS.contains(&case.task.as_str()) {
+                // Production prompt builders and validators, not the dataset text verbatim.
+                let run = crate::live::evaluate(&case.task, &case.input, &router).await?;
+                _attempts = run.attempts;
+                primary_completion = run.completion;
+                run.text
             } else if matches!(
                 case.task.as_str(),
                 "steer_screen" | "steer_lesson" | "steer_injection" | "steer_replan"
@@ -1993,7 +1999,12 @@ impl Runner {
                         };
                         (c.input_tokens, c.output_tokens, cost)
                     } else {
-                        (0, 0, 0.0)
+                        // Undelivered attempts are billed too.
+                        let cost = _attempts
+                            .iter()
+                            .map(|a| price_table.attempt_cost_usd(a))
+                            .sum();
+                        (0, 0, cost)
                     };
                     (in_tok, out_tok, cost)
                 } else if self.budget_usd.is_none()
@@ -2181,6 +2192,12 @@ impl Runner {
                     .collect(),
                 latency_ms: _attempts.iter().map(|a| u64::from(a.latency_ms)).sum(),
                 fallback_used: _attempts.iter().any(|a| a.fallback_used),
+                // A failing or retried live case keeps a short excerpt of what was scored, for diagnosis.
+                output: if live && (!passed || _attempts.len() > 1) {
+                    response_text.chars().take(1200).collect()
+                } else {
+                    String::new()
+                },
             });
 
             if budget_exceeded {
@@ -2287,6 +2304,53 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[tokio::test]
+    async fn live_brief_case_runs_the_production_classifier_on_fenced_json() {
+        let router = live_router(&[("tencent/hy4-flash", "```json\n{\"is_vague\":false}\n```")]);
+        let runner = Runner::with_router(router, "live", false);
+        let case = live_case(
+            "course_brief_chat",
+            serde_json::json!({"brief":{"topic":"Sourdough"},"step":"goal","answer":"bake sourdough at home"}),
+            &[
+                ("path_equals", r#"{"path":"is_follow_up","expected":false}"#),
+                (
+                    "path_equals",
+                    r#"{"path":"next_step","expected":"include_topics"}"#,
+                ),
+                ("regex", "(?i)sourdough"),
+            ],
+        );
+        let report = runner
+            .run_cases(vec![case], &Thresholds::default())
+            .await
+            .unwrap();
+        let r = &report.results[0];
+        assert!(r.passed, "{:?} {}", r.errors, r.output);
+        assert_eq!(r.served_models, ["tencent/hy4-flash"]);
+    }
+
+    #[tokio::test]
+    async fn live_preview_case_uses_the_production_validator_and_records_rejections() {
+        // An answer the production validator rejects twice is never delivered.
+        let bad = r#"{"title":"Go","units":[],"slides":[]}"#;
+        let router = live_router(&[("tencent/hy4-flash", bad), ("z-ai/glm-5.3-flash", bad)]);
+        let runner = Runner::with_router(router, "live", false);
+        let case = live_case(
+            "course_preview",
+            serde_json::json!({"brief":{"topic":"Go"},"profile":{"locale":"en"}}),
+            &[("path_equals", r#"{"path":"delivered","expected":true}"#)],
+        );
+        let report = runner
+            .run_cases(vec![case], &Thresholds::default())
+            .await
+            .unwrap();
+        let r = &report.results[0];
+        assert!(!r.passed);
+        assert!(r.fallback_used);
+        assert!(r.output.contains("units must be an array"), "{}", r.output);
+        assert!(r.cost_usd > 0.0, "undelivered attempts are still billed");
     }
 
     #[tokio::test]

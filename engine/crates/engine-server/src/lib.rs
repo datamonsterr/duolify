@@ -334,7 +334,7 @@ impl EngineService for Service {
             }));
         }
         // E10-06: fixture-backed work never enables a live screening provider.
-        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+        if !self.router.fixture_only() {
             return Err(Status::unavailable("screening_unavailable"));
         }
         let outcome = engine_core::steering::screen(&self.router, &req.text, &req.course_topic)
@@ -375,7 +375,7 @@ impl EngineService for Service {
             }));
         }
         // ADR 0011 / E10-06: missing live feature evidence keeps writes closed.
-        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+        if !self.router.fixture_only() {
             return Err(Status::unavailable("screening_unavailable"));
         }
         let outcome = if let Some(b) = req.limits {
@@ -440,7 +440,7 @@ impl EngineService for Service {
             deadline_unix_ms: b.deadline_unix_ms,
         };
         // ADR 0011 / E10-06: no live feature evidence, so only the mock provider runs.
-        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+        if !self.router.fixture_only() {
             return Err(Status::unavailable("screening_unavailable"));
         }
         engine_core::sharing::check_request(&req.sample_json, req.sampled_lessons, &limits)
@@ -486,7 +486,7 @@ impl EngineService for Service {
             deadline_unix_ms: b.deadline_unix_ms,
         };
         // ADR 0011 / E10-06: no live feature evidence, so only the mock provider runs.
-        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+        if !self.router.fixture_only() {
             return Err(Status::unavailable("screening_unavailable"));
         }
         let outcome = engine_core::sharing::screen_review(&self.router, &req.text, &limits)
@@ -511,7 +511,7 @@ impl EngineService for Service {
         let req = request.into_inner();
         // E10-06 has no feature-specific live evidence. No env switch can
         // silently promote this feature or use a live provider.
-        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+        if !self.router.fixture_only() {
             return Err(Status::unavailable("creation_disabled"));
         }
         let b = req
@@ -523,8 +523,8 @@ impl EngineService for Service {
             .tasks
             .get("character_create")
             .ok_or_else(|| Status::failed_precondition("route unavailable"))?;
-        if b.provider != "mock"
-            || b.fallback_provider != "mock"
+        if b.provider != self.router.primary.name()
+            || b.fallback_provider != self.router.fallback.name()
             || b.model != route.model
             || b.fallback_model != route.fallback_model
         {
@@ -870,12 +870,25 @@ impl EngineService for Service {
         &self,
         _request: Request<pb::HealthRequest>,
     ) -> Result<Response<pb::HealthResponse>, Status> {
+        // The first two entries stay the primary and fallback provider names; one
+        // `route:<task>=<provider>/<model>,<provider>/<fallback model>` entry per configured
+        // task follows, the identity a quote must name (same in mock and live mode).
+        let mut providers = vec![
+            self.router.primary.name().to_string(),
+            self.router.fallback.name().to_string(),
+        ];
+        providers.extend(self.router.models.tasks.iter().map(|(task, m)| {
+            format!(
+                "route:{task}={}/{},{}/{}",
+                self.router.primary.name(),
+                m.model,
+                self.router.fallback.name(),
+                m.fallback_model
+            )
+        }));
         Ok(Response::new(pb::HealthResponse {
             version: env!("CARGO_PKG_VERSION").into(),
-            providers: vec![
-                self.router.primary.name().into(),
-                self.router.fallback.name().into(),
-            ],
+            providers,
         }))
     }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]
@@ -935,12 +948,12 @@ impl EngineService for Service {
             &brief,
             serde_json::json!({"locale":p.locale,"background":p.background,"goals":p.goals,"level":p.level,"topic":p.topic,"daily_minutes":p.daily_minutes,"daily_xp":p.daily_xp,"time_zone":p.time_zone,"reminder_enabled":p.reminder_enabled,"reminder_time":p.reminder_time}),
         );
-        let mut outcome = engine_core::credits::run_validated(
+        let mut outcome = engine_core::credits::run_validated_checked(
             &self.router,
             "preview",
             &prompt,
             &limits,
-            engine_core::courses::validate_preview,
+            engine_core::courses::check_preview,
         )
         .await
         .map_err(|_| Status::invalid_argument("invalid API envelope"))?;
@@ -1090,9 +1103,7 @@ impl EngineService for Service {
         // Validate bounds early; the boundary itself is rebuilt per prompt by hardened_prompt.
         engine_core::steering::prompt_section(&instructions)
             .map_err(|_| Status::invalid_argument("instruction bounds exceeded"))?;
-        let base = format!(
-            "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. Context (data): {context:?}"
-        );
+        let base = engine_core::lessontest::lesson_prompt(&format!("{context:?}"));
         let prompts = if cast.is_empty() {
             vec![base]
         } else {
@@ -1113,20 +1124,19 @@ impl EngineService for Service {
             .collect::<anyhow::Result<_>>()
             .map_err(|_| Status::invalid_argument("instruction bounds exceeded"))?;
         let inputs: Vec<&str> = prompts.iter().map(String::as_str).collect();
-        let outcome = engine_core::credits::run_validated_inputs(
+        // Character lessons add per-slide segments, so only plain lessons take the strict schema.
+        let shape = engine_core::eval::Shape {
+            format: cast.is_empty().then(engine_core::structured::lesson_format),
+            prepare: Some(engine_core::lessontest::prepare_lesson),
+        };
+        let outcome = engine_core::eval::run_bounded_formatted(
             &self.router,
             "lesson",
             &inputs,
             &limits,
-            |text| {
-                engine_core::steering::lesson_output_violation(text, &instructions).is_none()
-                    && serde_json::from_str::<serde_json::Value>(text).is_ok_and(|v| {
-                        engine_core::lessontest::validate_lesson(&v).is_ok()
-                            && (cast.is_empty()
-                                || engine_core::characters::validate_lesson_segments(&v, &cast)
-                                    .is_ok())
-                    })
-            },
+            shape,
+            |text| engine_core::lessontest::check_generated(text, &instructions, &cast),
+            true,
         )
         .await
         .map_err(internal)?;

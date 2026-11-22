@@ -80,6 +80,9 @@ pub struct CaseResult {
     /// True when a fallback attempt ran.
     #[serde(default)]
     pub fallback_used: bool,
+    /// Excerpt of the scored output of a failing live case (empty otherwise).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub output: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

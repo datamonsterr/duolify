@@ -7,6 +7,7 @@
 # repository's infra/ directory next to this script. Steps: record the refs in .env (API_IMAGE ...),
 # pull them, apply migrations with `/api migrate`, then restart the engine, the API instances one at a
 # time (a new instance is healthy before an old one stops), the worker and the proxy.
+# Before anything is pulled it runs deploy-plan.sh against the env file (fail fast on bad settings).
 # See docs/infra/hardening.md "Deploys" for the migration and restart-order rules and failure states.
 # Private images: DEPLOY_REGISTRY_USER=<login> logs Docker in to ghcr.io with a token read from stdin
 # (deploy-vm passes the job's short-lived GITHUB_TOKEN, `packages: read`). The login lives in a throwaway
@@ -46,6 +47,15 @@ compose() { bash "$here/selfhost.sh" compose "$@"; }
 say() { printf '==> %s\n' "$*"; }
 
 [[ -f $env_file ]] || { echo "deploy: missing $env_file; run selfhost.sh init first" >&2; exit 1; }
+
+# Fail before pulling or migrating on settings the stack would only reject at start (a backup key equal
+# to the app key, a missing or malformed age recipient, a localhost asset origin, oversized limits ...).
+# Needs jq and `docker compose` on the VM. DEPLOY_PLAN is a test seam.
+say "checking $env_file (deploy-plan)"
+command -v jq >/dev/null || { echo "deploy: jq is required for the pre-deploy check (apt install jq)" >&2; exit 1; }
+DEPLOY_PLAN_ENV=$env_file bash "${DEPLOY_PLAN:-$here/deploy-plan.sh}" "$here" ||
+  { echo "deploy: $env_file failed deploy-plan; nothing was pulled or migrated. Fix it and redeploy." >&2; exit 1; }
+
 setenv() { if grep -q "^$1=" "$env_file"; then sed -i "s|^$1=.*|$1=$2|" "$env_file"; else echo "$1=$2" >>"$env_file"; fi; }
 setenv IMAGE_TAG "$tag" # only the locally built walship image uses the tag
 setenv API_IMAGE "${pinned[api]}"

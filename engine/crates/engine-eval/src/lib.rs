@@ -1,5 +1,6 @@
 pub mod analytics;
 pub mod judge;
+pub mod live;
 pub mod report;
 pub mod runner;
 pub mod scoring;
