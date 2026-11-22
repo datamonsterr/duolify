@@ -9,8 +9,6 @@ export default defineConfig({
   testDir: "./e2e-stack",
   // *.flow.ts so Vitest's default *.spec/*.test glob never picks these up.
   testMatch: /.*\.flow\.ts$/,
-  // Local stack only: approve engine-routed pricing as the stack's own test owner.
-  globalSetup: "./e2e-stack/global-setup.ts",
   outputDir: "./test-results/stack",
   workers: 1,
   retries: 0,
