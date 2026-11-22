@@ -1,0 +1,7 @@
+appId: app.duolify.client
+---
+- launchApp:
+    clearState: true
+- takeScreenshot: launch
+- assertVisible: "Get started"
+- takeScreenshot: landing
