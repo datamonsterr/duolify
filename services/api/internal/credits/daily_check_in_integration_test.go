@@ -263,6 +263,42 @@ func TestDailyCheckInTransactions(t *testing.T) {
 			t.Fatal(e)
 		}
 	})
+	t.Run("day-one learner affords preview, outline and first lesson from check-in alone", func(t *testing.T) {
+		id := learner(t, "UTC")
+		check(t, id, time.Now())
+		cat, e := pricing.Load(ctx, db.Queries)
+		if e != nil {
+			t.Fatal(e)
+		}
+		service := credits.NewServiceWithCatalogue(db.Pool, nil, cat, nil)
+		quotes := pricing.NewQuotes(db.Pool)
+		// Outline quotes need a stored brief and draft; its price is asserted from the active config instead.
+		actions := cat.Config().Actions
+		if total := actions["preview"].Credits + actions["outline"].Credits + actions["lesson_content"].Credits; total != 220 || total > 400 {
+			t.Fatalf("preview+outline+lesson price %d, want 220 within the 400 day-one Credits", total)
+		}
+		for _, action := range []string{"preview", "lesson_content"} {
+			q, e := quotes.Create(ctx, id, pricing.QuoteInput{Action: action})
+			if e != nil {
+				t.Fatal(action, e)
+			}
+			if e = quotes.Accept(ctx, id, q.ID); e != nil {
+				t.Fatal(action, e)
+			}
+			job, e := service.Reserve(ctx, id, q.ID)
+			if e != nil {
+				t.Fatalf("%s must be funded by the 400 day-one Credits: %v", action, e)
+			}
+			// Free learners run one generation at a time; the hold is released between actions.
+			w, e := service.GetWallet(ctx, id)
+			if e != nil || w.Purchased != 0 || w.CheckIn != int64(400-actions[action].Credits) {
+				t.Fatalf("%s held from check-in only: %+v %v", action, w, e)
+			}
+			if _, e = service.Release(ctx, id, job.ID); e != nil {
+				t.Fatal(e)
+			}
+		}
+	})
 	t.Run("full first-time bonus counts toward subsequent cap", func(t *testing.T) {
 		id := learner(t, "UTC")
 		if _, e := db.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id,amount,kind,reference,provenance) VALUES($1,1049,'check_in_grant','bonus-cap-fixture','{"bucket":"check_in","date":"2026-11-23"}')`, id); e != nil {
