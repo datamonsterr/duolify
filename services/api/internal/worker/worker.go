@@ -107,6 +107,7 @@ func NewWithAlerts(pool *pgxpool.Pool, logger *slog.Logger, monitor *telemetry.M
 	periodic = append(periodic, registerReliabilityAlertWorkers(workers, alerts)...)
 	periodic = append(periodic, registerCoursePurgeWorker(workers, expirer)...)
 	periodic = append(periodic, registerClerkUserDeletionWorker(workers, expirer, logger)...)
+	periodic = append(periodic, registerPersonDeletionWorker(workers, expirer, logger)...)
 	if expirer != nil {
 		river.AddWorker(workers, &CreditsWorker{Expirer: expirer, Logger: logger})
 		periodic = append(periodic, PeriodicCreditsJob())

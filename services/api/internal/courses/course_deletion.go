@@ -126,7 +126,7 @@ func (s *Service) PurgeDeletedCourses(ctx context.Context, cutoff time.Time) (in
 
 // ObjectPurgeRetention keeps a purged Course's objects longer than the 14-day nightly dumps, so a
 // restorable dump never points at deleted objects (same rule as shared snapshot retention).
-const ObjectPurgeRetention = 15 * 24 * time.Hour
+const ObjectPurgeRetention = accounts.ObjectPurgeRetention
 
 // ObjectStore lists and deletes stored lesson objects.
 type ObjectStore interface {
