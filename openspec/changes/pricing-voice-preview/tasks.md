@@ -6,5 +6,5 @@
 - [x] 2.2 Account for daily free and check-in allocations separately.
 - [x] 2.3 Configure private transcription routing and explicit truncation reporting.
 ## 3. Validation and delivery
-- [ ] 3.1 Run focused API, Engine, OpenSpec and SQL checks and promotion evidence.
+- [x] 3.1 Run focused API, Engine, OpenSpec and SQL checks and promotion evidence.
 - [ ] 3.2 Run ready CI and merge the approved change.
