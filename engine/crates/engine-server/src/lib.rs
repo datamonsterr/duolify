@@ -316,7 +316,9 @@ fn outline(c: &Completion) -> Result<pb::CourseOutline, Status> {
             .collect(),
     })
 }
-fn slides(c: &Completion) -> Result<Vec<pb::Slide>, Status> {
+/// `require_topics`: lesson Slides must teach a Topic; Course preview samples are standalone
+/// examples (the `course_preview` schema has no `topic_ids`).
+fn slides(c: &Completion, require_topics: bool) -> Result<Vec<pb::Slide>, Status> {
     let v = content(c)?;
     let values = v["slides"]
         .as_array()
@@ -339,7 +341,9 @@ fn slides(c: &Completion) -> Result<Vec<pb::Slide>, Status> {
                 .flatten()
                 .filter_map(|t| t.as_str().map(str::to_owned))
                 .collect();
-            engine_core::lessontest::validate_slide_topics(&topic_ids).map_err(internal)?;
+            if require_topics {
+                engine_core::lessontest::validate_slide_topics(&topic_ids).map_err(internal)?;
+            }
             // Regions were validated with the Lesson; their elements are pinned to their slots.
             let regions = if item["regions"].is_array() {
                 engine_core::regions::slide_regions(item)
@@ -1146,7 +1150,7 @@ impl EngineService for Service {
         let parsed = outcome
             .completion
             .as_ref()
-            .and_then(|c| Some((outline(c).ok()?, slides(c).ok()?)));
+            .and_then(|c| Some((outline(c).ok()?, slides(c, false).ok()?)));
         if parsed.is_none() {
             for attempt in &mut outcome.attempts {
                 attempt.delivered = false
@@ -1332,7 +1336,7 @@ impl EngineService for Service {
         let Some(c) = outcome.completion else {
             return Ok(lesson_events(None, attempts));
         };
-        let generated_slides = slides(&c)?;
+        let generated_slides = slides(&c, true)?;
         let value = content(&c)?;
         let test_questions: Vec<pb::Question> = serde_json::from_value::<
             Vec<engine_core::lessontest::retry::Question>,

@@ -3,8 +3,10 @@
 package credits_test
 
 import (
+	"encoding/json"
 	"fmt"
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
@@ -12,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -88,6 +91,30 @@ func TestDailyCheckInTransactions(t *testing.T) {
 		v := check(t, id, day.AddDate(0, 0, 1))
 		if v.Granted != 150 || v.FirstTime || v.BankedCheckIn != 550 {
 			t.Fatalf("next: %+v", v)
+		}
+	})
+	t.Run("HTTP check-in balance matches the wallet total including Daily free", func(t *testing.T) {
+		id := learner(t, "UTC")
+		cat, err := pricing.Load(ctx, db.Queries)
+		if err != nil {
+			t.Fatal(err)
+		}
+		svc := credits.NewServiceWithCatalogue(db.Pool, nil, cat, nil)
+		r := httptest.NewRequestWithContext(accounts.WithLearnerID(ctx, id), "POST", "/v1/me/check-in", nil)
+		w := httptest.NewRecorder()
+		svc.ServeHTTP(w, r)
+		var got credits.CheckInResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil || w.Code != 200 {
+			t.Fatalf("status=%d body=%s err=%v", w.Code, w.Body.String(), err)
+		}
+		w = httptest.NewRecorder()
+		svc.ServeHTTP(w, httptest.NewRequestWithContext(accounts.WithLearnerID(ctx, id), "GET", "/v1/me/credits", nil))
+		var wallet credits.WalletResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &wallet); err != nil {
+			t.Fatal(err)
+		}
+		if got.Granted != 400 || got.Balance != wallet.Available || got.Balance <= 400 {
+			t.Fatalf("check-in balance=%d wallet available=%d granted=%d", got.Balance, wallet.Available, got.Granted)
 		}
 	})
 	t.Run("date line and DST midnights", func(t *testing.T) {

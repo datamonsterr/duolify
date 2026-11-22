@@ -181,6 +181,11 @@ func (s *Service) handleCheckIn(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusOK, CheckInResponse{NextCheckInAt: time.Now().Add(24 * time.Hour)})
 		return
 	}
+	// The returned balance is the spendable total, which includes today's Daily free credits.
+	// They are granted lazily, so materialise them first, as a wallet read does.
+	if s.store != nil {
+		_, _ = s.EnsureDailyGrant(r.Context(), owner, time.Now())
+	}
 	result, err := s.CheckInAt(r.Context(), owner, time.Time{})
 	if err != nil {
 		respondJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "unable to check in; retry"})
