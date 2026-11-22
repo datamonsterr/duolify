@@ -155,13 +155,18 @@ cmd_approve_pricing() {
   # The owner's account in this stack's own database (pricing_admin_grants references learners).
   psql_e2e -c "INSERT INTO learners(id, display_name) VALUES ('$owner', 'e2e pricing owner') ON CONFLICT (id) DO NOTHING"
   version=e2e-hy4-routing-$(date -u +%Y%m%d%H%M%S)
-  # Same prices as the source (non-adverse); effective shortly after approval.
+  # The active version's own terms (same prices: non-adverse), pinned to the source's quote
+  # policy, effective shortly after approval. Only the quoted route changes.
   config=$(psql_e2e -c "SELECT (config || jsonb_build_object('version','$version',
     'effective_from', to_char((now() + interval '20 seconds') AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'),
-    'quote_policy_source','$source'))::text FROM pricing_versions WHERE version='$source'")
-  [[ -n $config ]] || die "pricing source $source not found"
-  admin() { # the real `api admin pricing` CLI, as the owner
-    compose exec -T -e PRICING_OWNER_ID="$owner" -e PRICING_ADMIN_IDS="$owner" api /api admin pricing "$@" --actor "$owner"
+    'quote_policy_source','$source'))::text FROM pricing_versions WHERE approved AND effective_from<=now()
+    AND NOT EXISTS(SELECT 1 FROM pricing_version_cancellations c WHERE c.version=pricing_versions.version)
+    AND EXISTS(SELECT 1 FROM pricing_quote_policies WHERE version='$source')
+    ORDER BY effective_from DESC LIMIT 1")
+  [[ -n $config ]] || die "no active pricing version, or quote policy $source not found"
+  admin() { # the real `api admin pricing` CLI, as the owner; the dev-only fake mapping verifier
+    compose exec -T -e PRICING_OWNER_ID="$owner" -e PRICING_ADMIN_IDS="$owner" -e ALLOW_FAKE_PRICING_VERIFIER=true \
+      api /api admin pricing "$@" --actor "$owner"
   }
   say "pricing: owner drafts, submits and approves $version (quote policy of $source)"
   admin draft --reason "e2e stack: route quotes through the engine-served Hy4 route" --config /dev/stdin <<<"$config" >&2

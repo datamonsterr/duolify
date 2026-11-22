@@ -13,6 +13,9 @@ services:
     environment:
       LESSON_TEST_TRACER_ENABLED: ${E2E_LESSON_TEST_TRACER_ENABLED:-true}
       PRICING_OWNER_ID: ${E2E_PRICING_OWNER_ID:-}
+      # The pricing activator needs a mapping verifier; this is the development-only fake
+      # (refused outside DUOLIFY_ENV development/test by pricing.VerifierFromEnvironment).
+      ALLOW_FAKE_PRICING_VERIFIER: "true"
       AUTH_CODE_REQUESTS_PER_IP_PER_HOUR: "100000"
       AUTH_CODE_REQUESTS_PER_EMAIL_PER_HOUR: "100000"
       AUTH_CODE_DELIVERIES_PER_EMAIL_PER_HOUR: "100000"

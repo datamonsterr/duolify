@@ -59,3 +59,68 @@ export async function playFirstLesson(page: Page, flow: Flow): Promise<void> {
   await expect(page.getByText(/Slide (\d+) of \1/)).toBeVisible();
   await flow.step("last slide");
 }
+
+/** From the player's last slide, open the lesson test. */
+export async function openLessonTest(page: Page, flow: Flow): Promise<void> {
+  await page
+    .getByRole("button", { name: /Take lesson test/i })
+    .or(page.getByRole("link", { name: /Take lesson test/i }))
+    .click();
+  await expect(page).toHaveURL(/\/lesson\/[^/]+\/test$/);
+  await expect(
+    page.getByRole("group", { name: "Question choices" }),
+  ).toBeVisible();
+  await flow.step("lesson test start");
+}
+
+/**
+ * Answer the lesson test until "Lesson complete!". Choices already tried for a question (keyed by
+ * its choice texts) are not repeated. With `missFirst`, choices are tried last-first until one
+ * answer is wrong, so the retry-variant path is exercised.
+ */
+export async function answerLessonTest(
+  page: Page,
+  flow: Flow,
+  { missFirst = false } = {},
+): Promise<{ missed: boolean; sawVariant: boolean }> {
+  const done = page.getByRole("heading", { name: "Lesson complete!" });
+  const choices = page
+    .getByRole("group", { name: "Question choices" })
+    .getByRole("radio");
+  const right = page.getByText("Correct!", { exact: true });
+  const wrong = page.getByText("Not quite — here's why", { exact: true });
+  const variantBadge = page.getByText(
+    /Retry variant · Same idea, fresh wording/,
+  );
+  const tried = new Map<string, Set<number>>();
+  let missed = false;
+  let sawVariant = false;
+  for (let turn = 0; turn < 40; turn++) {
+    await expect(done.or(choices.first())).toBeVisible();
+    if (await done.isVisible()) break;
+    const names = await choices.evaluateAll((els) =>
+      els.map((el) => el.getAttribute("aria-label") ?? ""),
+    );
+    const key = names.join("|");
+    if (!sawVariant && (await variantBadge.isVisible())) {
+      sawVariant = true;
+      await flow.step("retry variant question");
+    }
+    const used = tried.get(key) ?? new Set<number>();
+    tried.set(key, used);
+    const order = names.map((_, i) => i);
+    if (missFirst && !missed) order.reverse();
+    const pick = order.find((i) => !used.has(i)) ?? 0;
+    used.add(pick);
+    await choices.nth(pick).check();
+    await page.getByRole("button", { name: "Check", exact: true }).click();
+    await expect(right.or(wrong)).toBeVisible();
+    if (await wrong.isVisible()) {
+      if (!missed) await flow.step("wrong answer explained");
+      missed = true;
+    } else if (turn === 0) await flow.step("first answer checked");
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+  }
+  await expect(done).toBeVisible();
+  return { missed, sawVariant };
+}
