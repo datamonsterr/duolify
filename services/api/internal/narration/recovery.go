@@ -3,6 +3,7 @@ package narration
 import (
 	"context"
 	"errors"
+	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"time"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
@@ -234,6 +235,9 @@ func (s *Service) regenerate(ctx context.Context, id, hash, voice, model, finger
 		Limits: &enginev1.UsageLimits{Provider: "elevenlabs", Model: model}})
 	if budgetID != "" && err == nil && response != nil && response.Usage != nil && response.Usage.Attempt >= 1 && response.Usage.Attempt <= 2 {
 		_ = s.settleBudget(context.WithoutCancel(ctx), budgetID, int64(len([]rune(text)))*int64(response.Usage.Attempt))
+	}
+	if _, _, refused := engine.NotPromoted(err); refused && budgetID != "" {
+		_ = s.settleBudget(context.WithoutCancel(ctx), budgetID, 0)
 	}
 	if err == nil {
 		err = ValidateOutput(text, response)

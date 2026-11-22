@@ -29,6 +29,7 @@ type budgetRig struct {
 	events *recorder
 	logs   *bytes.Buffer
 	build  func(narration.Budget) *narration.Service
+	wrap   func(narration.Speech) narration.Speech
 }
 
 func newBudgetRig(t *testing.T) *budgetRig {
@@ -78,7 +79,11 @@ func newBudgetRig(t *testing.T) *budgetRig {
 	logs := &bytes.Buffer{}
 	r := &budgetRig{f: f, engine: mock, events: events, logs: logs}
 	r.build = func(b narration.Budget) *narration.Service {
-		svc := narration.New(narration.Options{Pool: pool, Objects: f.ApplicationObjects(), Speech: enginev1.NewEngineServiceClient(conn), Financial: financial, Events: events, JobAttempts: 1, Budget: b, Logger: slog.New(slog.NewTextHandler(logs, nil))})
+		var speech narration.Speech = enginev1.NewEngineServiceClient(conn)
+		if r.wrap != nil {
+			speech = r.wrap(speech)
+		}
+		svc := narration.New(narration.Options{Pool: pool, Objects: f.ApplicationObjects(), Speech: speech, Financial: financial, Events: events, JobAttempts: 1, Budget: b, Logger: slog.New(slog.NewTextHandler(logs, nil))})
 		if _, err := svc.Queue(); err != nil {
 			t.Fatal(err)
 		}
@@ -298,5 +303,28 @@ func TestBudgetKeepsUnknownProviderOutcome(t *testing.T) {
 	used, err := svc.CharactersUsed(ctx, narration.Budget{CycleDay: 1}.CycleStart(time.Now()))
 	if err != nil || used == 0 {
 		t.Fatalf("unknown outcome not counted: %d %v", used, err)
+	}
+}
+
+// An engine "not promoted" refusal reaches no provider, so its reservation is released.
+func TestBudgetReleasesReservationWhenEngineRefusesNotPromoted(t *testing.T) {
+	r := newBudgetRig(t)
+	ctx := t.Context()
+	r.wrap = func(c narration.Speech) narration.Speech {
+		return refusingSpeech{Speech: c, err: notPromoted(t)}
+	}
+	svc := r.build(narration.Budget{Limit: 40000, StopPercent: 95, CycleDay: 1})
+	if _, err := svc.Enqueue(ctx, owner, lesson); err != nil {
+		t.Fatal(err)
+	}
+	start := narration.Budget{CycleDay: 1}.CycleStart(time.Now())
+	before, err := svc.CharactersUsed(ctx, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = svc.SynthesizeLesson(ctx, owner, lesson, true)
+	after, err := svc.CharactersUsed(ctx, start)
+	if err != nil || after != before {
+		t.Fatalf("refused call left usage %d -> %d (%v)", before, after, err)
 	}
 }

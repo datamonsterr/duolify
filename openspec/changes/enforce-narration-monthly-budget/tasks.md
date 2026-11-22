@@ -9,3 +9,4 @@
 
 - [x] Reserve worst-case attempts atomically in a durable ledger and retain uncertain usage
 - [x] Cover concurrent admissions, failed output, and asset deletion with Postgres tests
+- [x] Release the reservation when the engine refuses a call as not promoted

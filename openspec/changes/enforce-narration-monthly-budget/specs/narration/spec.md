@@ -22,3 +22,11 @@ When live synthesis is enabled the API SHALL reserve the worst-case characters f
 #### Scenario: Unknown outcome or asset purge
 - **WHEN** a provider call has an unknown outcome or its asset is purged
 - **THEN** its admitted characters remain counted conservatively in the cycle
+
+#### Scenario: Refusal before any provider request
+- **WHEN** the engine refuses a call as not promoted
+- **THEN** the reservation is released and the slide falls back to captions only
+
+#### Scenario: Abandoned reservation
+- **WHEN** a process dies after reserving and never settles
+- **THEN** the full reservation stays counted for its cycle (conservative) and is never reopened, so a stale reservation cannot allow overspend

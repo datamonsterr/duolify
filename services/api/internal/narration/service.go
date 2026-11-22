@@ -669,6 +669,10 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 		if budgetID != "" && err == nil && response != nil && response.Usage != nil && response.Usage.Attempt >= 1 && response.Usage.Attempt <= 2 {
 			_ = s.settleBudget(context.WithoutCancel(ctx), budgetID, int64(it.characters)*int64(response.Usage.Attempt))
 		}
+		if _, _, refused := engine.NotPromoted(err); refused && budgetID != "" {
+			// The engine refused before any provider request: nothing was spent.
+			_ = s.settleBudget(context.WithoutCancel(ctx), budgetID, 0)
+		}
 		it.latency = latencyMS(time.Since(callStarted))
 		if err == nil {
 			err = ValidateOutput(it.text, response)
