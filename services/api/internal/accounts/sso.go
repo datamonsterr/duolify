@@ -339,6 +339,10 @@ func (s *Service) ssoComplete(w http.ResponseWriter, r *http.Request) {
 		ssoUnavailable(w)
 		return
 	}
+	web, ok := s.webGate(w, r)
+	if !ok {
+		return
+	}
 	var in ssoCompleteInput
 	if !decode(w, r, &in) {
 		return
@@ -400,5 +404,5 @@ func (s *Service) ssoComplete(w http.ResponseWriter, r *http.Request) {
 		failure(w, err)
 		return
 	}
-	respond(w, http.StatusOK, tokens)
+	respondTokens(w, web, tokens, expiry)
 }

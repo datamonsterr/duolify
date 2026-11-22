@@ -25,6 +25,7 @@ target/
 # Node / client
 node_modules/
 dist/
+dist-session/
 coverage/
 playwright-report/
 test-results/

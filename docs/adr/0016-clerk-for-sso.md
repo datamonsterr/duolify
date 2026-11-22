@@ -29,5 +29,5 @@ Cross-device phishing fails: an attacker who sends a victim the bridge link for 
 ## Consequences
 
 - New vendor dependency and cost per monthly active user above the free tier; the first-party fallback limits the blast radius of a Clerk outage to social sign-in.
-- Clerk user id and verified email are personal data: stored in `auth_provider_identities`, exported, erased with the learner, anonymized in nonproduction backups. Clerk keeps its own copy; deleting a Duolify account should also delete the Clerk user (follow-up, not in this change).
+- Clerk user id and verified email are personal data: stored in `auth_provider_identities`, exported, erased with the learner, anonymized in nonproduction backups. Clerk keeps its own copy; erasing a Duolify account also deletes the Clerk user, through a durable queue drained by a worker (`openspec/changes/delete-clerk-user-on-erasure`). Erasure never waits on Clerk.
 - Clerk dashboard settings the owner must configure are listed in `openspec/changes/clerk-sso-sign-in/design.md`.
