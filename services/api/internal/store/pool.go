@@ -45,8 +45,8 @@ func PoolConfigFromEnv(getenv func(string) string) (PoolConfig, error) {
 		if raw == "" {
 			continue
 		}
-		n, err := strconv.Atoi(raw)
-		if err != nil || n < item.min || n > 1000 {
+		n, err := strconv.ParseInt(raw, 10, 32)
+		if err != nil || n < int64(item.min) || n > 1000 {
 			return PoolConfig{}, fmt.Errorf("%s must be an integer from %d to 1000", item.name, item.min)
 		}
 		*item.dst = int32(n)

@@ -54,7 +54,7 @@ func TestPoolConfigRejectsInvalidValues(t *testing.T) {
 }
 
 func TestPoolConfigApplyKeepsURLParametersUnlessEnvSet(t *testing.T) {
-	const base = "postgres://u:p@postgres:5432/duolify?sslmode=disable"
+	const base = "postgres://u@postgres:5432/duolify?sslmode=disable"
 	parse := func(url string) *pgxpool.Config {
 		cfg, err := pgxpool.ParseConfig(url)
 		if err != nil {
