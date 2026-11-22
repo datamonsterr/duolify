@@ -47,24 +47,47 @@ func (b Budget) CycleStart(now time.Time) time.Time {
 	return start
 }
 
-// CharactersUsed sums the provider characters stored since the cycle began: every audio asset
-// generated in it (one row per content hash, so shared and reused audio adds nothing) and every
-// completed regeneration of a lost asset.
+// CharactersUsed includes durable admissions and their adjustments, regardless of asset retention.
 func (s *Service) CharactersUsed(ctx context.Context, since time.Time) (int64, error) {
 	var used int64
-	err := s.opts.Pool.QueryRow(ctx, `SELECT
-		(SELECT COALESCE(sum(characters),0) FROM narration_assets WHERE created_at >= $1) +
-		(SELECT COALESCE(sum(characters),0) FROM narration_regenerations WHERE status='completed' AND completed_at >= $1)`, since).Scan(&used)
+	err := s.opts.Pool.QueryRow(ctx, `SELECT COALESCE(sum(characters),0) FROM narration_budget_ledger WHERE occurred_at >= $1`, since).Scan(&used)
 	return used, err
 }
 
-// budgetRoom returns how many more characters may be sent live now, and the characters used.
-func (s *Service) budgetRoom(ctx context.Context) (room, used int64, err error) {
-	b := s.opts.Budget
-	if used, err = s.CharactersUsed(ctx, b.CycleStart(time.Now())); err != nil {
-		return 0, 0, err
+// reserveBudget serializes the cycle check and insert across all API and worker processes.
+// An empty id means the requested allowance does not fit. A committed reservation counts
+// even if the process dies before it can report the outcome.
+func (s *Service) reserveBudget(ctx context.Context, characters int64, now time.Time) (string, int64, error) {
+	tx, err := s.opts.Pool.Begin(ctx)
+	if err != nil {
+		return "", 0, err
 	}
-	return max(b.Allowed()-used, 0), used, nil
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('narration-budget',0))`); err != nil {
+		return "", 0, err
+	}
+	var used int64
+	if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(characters),0) FROM narration_budget_ledger WHERE occurred_at >= $1`, s.opts.Budget.CycleStart(now)).Scan(&used); err != nil {
+		return "", 0, err
+	}
+	if characters > s.opts.Budget.Allowed()-used {
+		return "", used, nil
+	}
+	var id string
+	if err = tx.QueryRow(ctx, `INSERT INTO narration_budget_ledger(occurred_at,characters) VALUES($1,$2) RETURNING id::text`, now, characters).Scan(&id); err != nil {
+		return "", 0, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return "", 0, err
+	}
+	return id, used, nil
+}
+
+// settleBudget appends a single adjustment; failure leaves the conservative reservation counted.
+func (s *Service) settleBudget(ctx context.Context, id string, actual int64) error {
+	_, err := s.opts.Pool.Exec(ctx, `INSERT INTO narration_budget_ledger(occurred_at,characters,adjusts)
+ SELECT occurred_at,$2-characters,id FROM narration_budget_ledger WHERE id=$1::uuid AND adjusts IS NULL AND $2 BETWEEN 0 AND characters ON CONFLICT (adjusts) DO NOTHING`, id, actual)
+	return err
 }
 
 // alertBudgetExhausted records one refusal run: a PostHog event and an error log line for alerting.

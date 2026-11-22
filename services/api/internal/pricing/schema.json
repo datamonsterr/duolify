@@ -42,7 +42,7 @@
       "enum": ["pending", "interim_adr_0012", "owner_approved"]
     },
     "quote_policy_source": {
-      "description": "Existing version whose quote policy (models, fallbacks, provider rates) this version pins on approval, instead of inheriting its parent's. Not a price term.",
+      "description": "Existing version whose quote policy (models, fallbacks, provider rates) this version pins on approval, instead of inheriting its parent's. Its effective terms participate in adverse classification.",
       "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,99}$"
     },
     "design_chat_policy": {
