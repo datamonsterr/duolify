@@ -10,7 +10,7 @@ Keep a signed-in web Learner signed in across full page loads without putting a 
 
 ### Requirement: Web refresh credential travels only in a restricted cookie
 
-For a client that declares `X-Duolify-Client: web`, the API SHALL deliver the refresh credential only as a cookie named `duolify_refresh` with `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/v1/auth/`, no `Domain` attribute and a `Max-Age` equal to the remaining life of the session. The API MUST NOT return the refresh credential in a response body to such a client. The client MUST NOT store a refresh credential in `localStorage`, `sessionStorage` or any script-readable location, and MUST keep the access token in memory only.
+For a client that declares `X-Duolify-Client: web`, the API SHALL deliver the refresh credential only as a cookie named `__Host-duolify_refresh` with `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`, no `Domain` attribute and a `Max-Age` equal to the remaining life of the session. The API MUST NOT return the refresh credential in a response body to such a client. The client MUST NOT store a refresh credential in `localStorage`, `sessionStorage` or any script-readable location, and MUST keep the access token in memory only.
 
 #### Scenario: Web sign-in
 
@@ -66,3 +66,26 @@ The access token of a browser session SHALL exist only in memory and SHALL ignor
 
 - **WHEN** `sessionStorage` or `localStorage` contains token-shaped values
 - **THEN** no credentials are restored from them
+
+### Requirement: Cookie ambiguity and legacy credentials fail closed
+
+After the origin gate, cookie-relevant auth endpoints SHALL reject multiple host-prefixed refresh cookies with 400 before changing authentication state. The unreleased legacy `duolify_refresh` cookie SHALL be ignored and cleared at its original `/v1/auth/` path. Only refresh/logout read the refresh credential; verify/SSO completion may replace it. Other endpoints MUST NOT accept cookies as access authentication.
+
+#### Scenario: Sibling plants a legacy credential
+
+- **WHEN** a signed-out browser sends only a valid legacy refresh cookie planted by a sibling domain
+- **THEN** refresh returns 401 and expires that cookie without accepting the attacker's learner
+
+### Requirement: Cross-tab refresh preserves the learner and cookie order
+
+The web client SHALL serialize all cookie-mutating authentication requests across tabs using an origin-wide Web Lock held through response processing. A browser without Web Locks SHALL fail cookie mutation with a recoverable error. Per-tab refresh SHALL remain single-flight. A refresh of an established in-memory learner SHALL verify the refreshed learner before storing its token or replaying any request; mismatch SHALL clear local credentials, drafts, caches and analytics identity and show sign-in without logging out the other tab's shared cookie. A plain HTTP host other than loopback SHALL retain the in-memory body flow.
+
+#### Scenario: Another tab switches accounts
+
+- **WHEN** learner A's pending mutation returns 401 after another tab signs in as learner B
+- **THEN** A's tab resets and the mutation is never sent with B's bearer token
+
+#### Scenario: A refresh response is delayed
+
+- **WHEN** one tab has not processed its refresh response
+- **THEN** another tab's refresh, sign-in or sign-out waits so an older response cannot overwrite a newer cookie

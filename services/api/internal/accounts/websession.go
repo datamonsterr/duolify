@@ -19,11 +19,10 @@ const (
 	// ClientWeb is the only value that enables cookie mode.
 	ClientWeb = "web"
 	// RefreshCookieName is the web refresh credential cookie.
-	RefreshCookieName = "duolify_refresh"
-	// refreshCookiePath covers /v1/auth/refresh and /v1/auth/logout, the two endpoints that
-	// read it. A cookie has one Path and the two endpoints are siblings, so this is the
-	// narrowest prefix that reaches both.
-	refreshCookiePath = "/v1/auth/"
+	RefreshCookieName = "__Host-duolify_refresh"
+	// __Host- requires Secure, Path=/ and no Domain. Only the gated auth handlers
+	// read this credential; sending it on other paths does not authenticate them.
+	refreshCookiePath = "/"
 )
 
 // WebTokens is the body returned to cookie-mode clients: no refresh credential.
@@ -67,6 +66,17 @@ func (s *Service) webGate(w http.ResponseWriter, r *http.Request) (web bool, ok 
 	origin := r.Header.Get("Origin")
 	for _, allowed := range s.webOrigins {
 		if origin != "" && origin == allowed {
+			clearLegacyRefreshCookie(w, r)
+			count := 0
+			for _, cookie := range r.Cookies() {
+				if cookie.Name == RefreshCookieName {
+					count++
+				}
+			}
+			if count > 1 {
+				respond(w, http.StatusBadRequest, map[string]string{"error": "Ambiguous refresh cookie."})
+				return true, false
+			}
 			return true, true
 		}
 	}
@@ -111,8 +121,26 @@ func respondTokens(w http.ResponseWriter, web bool, tokens Tokens, expiry time.T
 
 // cookieRefreshToken returns the cookie value, if any.
 func cookieRefreshToken(r *http.Request) string {
-	if c, err := r.Cookie(RefreshCookieName); err == nil {
-		return c.Value
+	value := ""
+	count := 0
+	for _, c := range r.Cookies() {
+		if c.Name == RefreshCookieName {
+			value = c.Value
+			count++
+		}
 	}
-	return ""
+	if count != 1 {
+		return ""
+	}
+	return value
+}
+
+// The unreleased unprefixed credential is never accepted, even if it is valid.
+func clearLegacyRefreshCookie(w http.ResponseWriter, r *http.Request) {
+	for _, c := range r.Cookies() {
+		if c.Name == "duolify_refresh" {
+			http.SetCookie(w, &http.Cookie{Name: "duolify_refresh", Path: "/v1/auth/", MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
+			return
+		}
+	}
 }

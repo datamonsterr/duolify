@@ -85,10 +85,10 @@ it("saves the localized preferences through account settings", async () => {
       expect.objectContaining({ locale: "ar", motion: "reduce" }),
     ),
   );
-  expect(screen.getByRole("link", { name: "Manage sessions" })).toHaveAttribute(
-    "href",
-    "/settings/sessions",
-  );
+  // The saved language now drives the app.
+  expect(
+    await screen.findByRole("link", { name: "إدارة الجلسات" }),
+  ).toHaveAttribute("href", "/settings/sessions");
 });
 
 it("translates the settings heading and sessions link for Arabic accounts", async () => {
@@ -103,4 +103,21 @@ it("translates the settings heading and sessions link for Arabic accounts", asyn
     "/settings/sessions",
   );
   expect(screen.getByLabelText("المظهر")).toBeVisible();
+});
+
+it("applies a saved language to the app, right to left for Arabic", async () => {
+  render(
+    <UiPreferencesProvider>
+      <Settings />
+    </UiPreferencesProvider>,
+  );
+  await screen.findByRole("heading", { name: "Settings" });
+  fireEvent.change(screen.getByLabelText("Language"), {
+    target: { value: "ar" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+  expect(
+    await screen.findByRole("heading", { name: "الإعدادات" }),
+  ).toBeVisible();
+  expect(document.documentElement.dir).toBe("rtl");
 });

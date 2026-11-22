@@ -20,6 +20,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	// Embedded zone database: browsers report legacy aliases (Asia/Saigon) that the images'
+	// system tzdata may lack, and credits.Reserve fails closed on an unknown zone.
+	_ "time/tzdata"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
@@ -124,7 +127,7 @@ func run(ctx context.Context, args []string) (result error) {
 	if err != nil {
 		return err
 	}
-	deletionLedger := backup.DeletionLedger{Objects: objects}
+	deletionLedger := backup.DeletionLedger{Objects: objects, ClerkKey: os.Getenv("JWT_SECRET")}
 	if err := accounts.ReplayDeletionLedger(ctx, db.Pool, deletionLedger); err != nil {
 		return fmt.Errorf("apply account deletion tombstones: %w", err)
 	}

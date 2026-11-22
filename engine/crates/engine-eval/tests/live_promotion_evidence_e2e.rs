@@ -7,8 +7,8 @@ use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const REV: &str = "b7979d57f81401aaabb21aba2cb82c64cddafd96";
-const SHA: &str = "eecd8e63076797b780a1a5bb10ed83cc64ba249e788b8f149383dae4834cfb71";
+const REV: &str = "943decec056d4dbb407f3b984fa3c8512be5ed94";
+const SHA: &str = "63c3b93fe07d3c6a635c109bbc26b7583e932b972d963f334c9b630dfa284a7c";
 
 fn temp(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
@@ -190,4 +190,46 @@ fn evidence_subcommand_reports_the_embedded_state() {
         .unwrap();
     assert!(output.status.success());
     assert!(String::from_utf8_lossy(&output.stdout).contains("promotion evidence"));
+}
+
+#[test]
+fn require_launch_fails_exactly_when_committed_evidence_leaves_a_launch_task_closed() {
+    let output = Command::new(common::eval_bin())
+        .args(["evidence", "--require-launch"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let covered = engine_core::promotion::Gate::embedded()
+        .missing_launch_tasks()
+        .is_empty();
+    assert_eq!(output.status.success(), covered, "{stdout}");
+    if !covered {
+        assert!(stdout.contains("::error::"), "{stdout}");
+        assert!(stdout.contains("mise run engine:eval-golden"), "{stdout}");
+        assert!(stdout.contains("mise run engine:promote"), "{stdout}");
+    }
+}
+
+#[test]
+fn launch_evidence_rejects_stale_and_partial_evidence_with_the_refresh_commands() {
+    use engine_core::promotion::{Gate, LAUNCH_TASKS};
+    // Stale: a valid report of another build.
+    let stale = Gate::from_report(
+        &live_report("0".repeat(64).as_str()).to_string(),
+        &engine_core::promotion::fingerprint(),
+    );
+    let err = engine_eval::launch_evidence(&stale).unwrap_err();
+    assert!(err.contains("promotion_evidence_stale"), "{err}");
+    assert!(err.contains("mise run engine:eval-golden"), "{err}");
+    assert!(err.contains("mise run engine:promote"), "{err}");
+    // Partial: valid for this build, but launch tasks without live cases stay closed.
+    let fp = engine_core::promotion::fingerprint();
+    let partial = Gate::from_report(&live_report(&fp).to_string(), &fp);
+    let err = engine_eval::launch_evidence(&partial).unwrap_err();
+    assert!(
+        err.contains("lesson_narration") && err.contains("outline_replan"),
+        "{err}"
+    );
+    // Complete.
+    assert!(engine_eval::launch_evidence(&Gate::for_tasks(&LAUNCH_TASKS)).is_ok());
 }

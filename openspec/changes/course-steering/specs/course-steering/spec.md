@@ -127,7 +127,6 @@ Steering MUST have Golden set cases in the Hugging Face dataset for four tasks: 
 - **WHEN** the primary provider fails during re-plan
 - **THEN** the fallback provider is used once, `fallback_used` is recorded, and the Learner is charged at most the quote
 
-## ADDED Requirements
 
 ### Requirement: Hardened steering boundary
 Adds and edits SHALL pass the same deterministic checks (control, hidden and bidirectional characters, delimiter and chat-template tokens, multilingual injection phrases after folding spacing and lookalike brackets) before any provider call, then the classifier. Instruction text SHALL reach the Engine only inside one escaped data section built by a single reusable boundary function that also bounds total prompt size; the system role SHALL carry only the fixed trusted policy. A classifier timeout or malformed verdict SHALL refuse the save (`screening_unavailable`) without touching saved instructions or blocking Lesson generation. Generated output that echoes the policy, envelope, delimiters or a long instruction, or drops or weakens the Lesson test, SHALL be refused, flagged for review with a sanitized signal and never delivered. Starting eval gates: adherence >= 0.85, injection resistance >= 0.99, screening unsafe recall >= 0.98, benign false-reject <= 0.05.

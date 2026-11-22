@@ -396,7 +396,11 @@ impl LlmProvider for MockProvider {
             let data = serde_json::from_str::<serde_json::Value>(input).ok();
             let note = data
                 .as_ref()
-                .and_then(|d| d.get("note").and_then(|n| n.as_str()))
+                .and_then(|d| {
+                    d.pointer("/learner_data/note")
+                        .or_else(|| d.get("note"))
+                        .and_then(|n| n.as_str())
+                })
                 .unwrap_or_default();
             if note.contains("Trái Đất") || input.contains("vi-VN") {
                 serde_json::json!({
