@@ -455,13 +455,44 @@ fn billed_output(completion: u32, reasoning: u32) -> u32 {
         completion
     }
 }
+/// Name every routed provider answers to; the API quotes it (with the models.toml model ids).
+pub const ROUTE_PROVIDER: &str = "openrouter";
+
+/// Deterministic mock backend behind the production route identity: same provider name and the
+/// same per-task model ids as live, so a quote the API builds for live is the quote mock mode
+/// accepts. Only the transport differs.
+pub struct RouteMock;
+#[async_trait]
+impl LlmProvider for RouteMock {
+    fn name(&self) -> &'static str {
+        ROUTE_PROVIDER
+    }
+    fn is_fixture(&self) -> bool {
+        true
+    }
+    async fn complete(&self, model: &str, input: &str) -> Result<Completion> {
+        let mut c = engine_core::MockProvider.complete(model, input).await?;
+        c.provider = ROUTE_PROVIDER.into();
+        Ok(c)
+    }
+    async fn stream(&self, model: &str, input: &str) -> Result<CompletionStream> {
+        let inner = engine_core::MockProvider.stream(model, input).await?;
+        Ok(Box::pin(inner.map(|event| {
+            event.map(|e| match e {
+                StreamEvent::Usage(mut u) => {
+                    u.provider = ROUTE_PROVIDER.into();
+                    StreamEvent::Usage(u)
+                }
+                other => other,
+            })
+        })))
+    }
+}
+
 pub fn router(mode: &str) -> Result<engine_core::ProviderRouter> {
     use std::sync::Arc;
     if mode == "mock" {
-        return engine_core::ProviderRouter::new(
-            Arc::new(engine_core::MockProvider),
-            Arc::new(engine_core::MockProvider),
-        );
+        return engine_core::ProviderRouter::new(Arc::new(RouteMock), Arc::new(RouteMock));
     }
     if mode != "live" {
         bail!("unknown provider mode: '{mode}'");

@@ -1,6 +1,17 @@
 //! Conservative static checks; a sandbox and restrictive CSP are still required at playback.
 use regex::Regex;
 pub const MAX_BYTES: usize = 256 * 1024;
+const DANGEROUS: &str = r"(?i)(?:&(?:#|[a-z]+;)|\\|\b(?:fetch|websocket|eventsource|xmlhttprequest|sendbeacon|importscripts)\b|@import|\b(?:ftp|wss?|data|javascript):|<\s*(?:iframe|object|embed|base)\b)";
+
+/// The first text that trips the obfuscation and network check, for a repair message.
+pub fn dangerous_match(html: &str) -> Option<String> {
+    let stripped = Regex::new(r"(?s)<!--.*?-->").unwrap().replace_all(html, "");
+    Regex::new(DANGEROUS)
+        .unwrap()
+        .find(&stripped)
+        .map(|m| m.as_str().to_owned())
+}
+
 pub fn validate(html: &str, allow_hosts: &[&str]) -> Result<(), &'static str> {
     if html.len() > MAX_BYTES {
         return Err("slide exceeds size limit");
@@ -16,7 +27,7 @@ pub fn validate(html: &str, allow_hosts: &[&str]) -> Result<(), &'static str> {
         return Err("slide must contain a root element");
     }
     // Reject obfuscation and dynamic network primitives rather than trying to interpret JS.
-    let dangerous = Regex::new(r"(?i)(?:&(?:#|[a-z]+;)|\\|\b(?:fetch|websocket|eventsource|xmlhttprequest|sendbeacon|importscripts)\b|@import|\b(?:ftp|wss?|data|javascript):|<\s*(?:iframe|object|embed|base)\b)").unwrap();
+    let dangerous = Regex::new(DANGEROUS).unwrap();
     if dangerous.is_match(&stripped) {
         return Err("dynamic network or obfuscation is not allowed");
     }

@@ -334,7 +334,7 @@ impl EngineService for Service {
             }));
         }
         // E10-06: fixture-backed work never enables a live screening provider.
-        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+        if !self.router.fixture_only() {
             return Err(Status::unavailable("screening_unavailable"));
         }
         let outcome = engine_core::steering::screen(&self.router, &req.text, &req.course_topic)
@@ -375,7 +375,7 @@ impl EngineService for Service {
             }));
         }
         // ADR 0011 / E10-06: missing live feature evidence keeps writes closed.
-        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+        if !self.router.fixture_only() {
             return Err(Status::unavailable("screening_unavailable"));
         }
         let outcome = if let Some(b) = req.limits {
@@ -440,7 +440,7 @@ impl EngineService for Service {
             deadline_unix_ms: b.deadline_unix_ms,
         };
         // ADR 0011 / E10-06: no live feature evidence, so only the mock provider runs.
-        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+        if !self.router.fixture_only() {
             return Err(Status::unavailable("screening_unavailable"));
         }
         engine_core::sharing::check_request(&req.sample_json, req.sampled_lessons, &limits)
@@ -486,7 +486,7 @@ impl EngineService for Service {
             deadline_unix_ms: b.deadline_unix_ms,
         };
         // ADR 0011 / E10-06: no live feature evidence, so only the mock provider runs.
-        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+        if !self.router.fixture_only() {
             return Err(Status::unavailable("screening_unavailable"));
         }
         let outcome = engine_core::sharing::screen_review(&self.router, &req.text, &limits)
@@ -511,7 +511,7 @@ impl EngineService for Service {
         let req = request.into_inner();
         // E10-06 has no feature-specific live evidence. No env switch can
         // silently promote this feature or use a live provider.
-        if self.router.primary.name() != "mock" || self.router.fallback.name() != "mock" {
+        if !self.router.fixture_only() {
             return Err(Status::unavailable("creation_disabled"));
         }
         let b = req
@@ -523,8 +523,8 @@ impl EngineService for Service {
             .tasks
             .get("character_create")
             .ok_or_else(|| Status::failed_precondition("route unavailable"))?;
-        if b.provider != "mock"
-            || b.fallback_provider != "mock"
+        if b.provider != self.router.primary.name()
+            || b.fallback_provider != self.router.fallback.name()
             || b.model != route.model
             || b.fallback_model != route.fallback_model
         {
@@ -870,12 +870,25 @@ impl EngineService for Service {
         &self,
         _request: Request<pb::HealthRequest>,
     ) -> Result<Response<pb::HealthResponse>, Status> {
+        // The first two entries stay the primary and fallback provider names; one
+        // `route:<task>=<provider>/<model>,<provider>/<fallback model>` entry per configured
+        // task follows, the identity a quote must name (same in mock and live mode).
+        let mut providers = vec![
+            self.router.primary.name().to_string(),
+            self.router.fallback.name().to_string(),
+        ];
+        providers.extend(self.router.models.tasks.iter().map(|(task, m)| {
+            format!(
+                "route:{task}={}/{},{}/{}",
+                self.router.primary.name(),
+                m.model,
+                self.router.fallback.name(),
+                m.fallback_model
+            )
+        }));
         Ok(Response::new(pb::HealthResponse {
             version: env!("CARGO_PKG_VERSION").into(),
-            providers: vec![
-                self.router.primary.name().into(),
-                self.router.fallback.name().into(),
-            ],
+            providers,
         }))
     }
     #[tracing::instrument(name = "engine.rpc", skip_all, fields(request_id = %correlation(&request).request_id, trace_id = %correlation(&request).trace_id, parent_span_id = %correlation(&request).parent_span_id, span_id = %span_id()))]

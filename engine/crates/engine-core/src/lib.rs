@@ -135,6 +135,11 @@ pub type CompletionStream = Pin<Box<dyn Stream<Item = Result<StreamEvent>> + Sen
 #[async_trait]
 pub trait LlmProvider: Send + Sync {
     fn name(&self) -> &'static str;
+    /// True for deterministic fixture backends, whatever route name they serve under. Features
+    /// without live evidence (E10-06) run only when both router members are fixtures.
+    fn is_fixture(&self) -> bool {
+        self.name() == "mock"
+    }
     async fn complete(&self, model: &str, input: &str) -> Result<Completion>;
     async fn complete_bounded(
         &self,
@@ -172,6 +177,10 @@ impl ProviderRouter {
             primary,
             fallback,
         })
+    }
+    /// Both members are deterministic fixtures (mock mode), so no live provider can be reached.
+    pub fn fixture_only(&self) -> bool {
+        self.primary.is_fixture() && self.fallback.is_fixture()
     }
     pub async fn complete(&self, task: &str, input: &str) -> Result<Completion> {
         let model = self.models.tasks.get(task).context("unknown task")?;

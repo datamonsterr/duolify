@@ -111,7 +111,12 @@ pub async fn evaluate(task: &str, input: &Value, router: &ProviderRouter) -> Res
             let rejected = rejected.into_value();
             Ok(bounded(
                 outcome,
-                json!({"rejected": rejected, "preview": preview}),
+                json!({
+                    "rejected": rejected,
+                    "title": preview["title"],
+                    "unit_count": preview["units"].as_array().map_or(0, Vec::len),
+                    "slide_count": preview["slides"].as_array().map_or(0, Vec::len),
+                }),
             ))
         }
         "course_outline" => {

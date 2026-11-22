@@ -207,3 +207,15 @@ fn screen_validators_explain_each_rejection() {
         ["harmful_content", "personal_data"]
     );
 }
+
+#[test]
+fn lesson_rejection_names_the_offending_slide_text() {
+    let lesson = serde_json::json!({
+        "slides": [{"html": "<div id=\"root\">a&nbsp;b</div>", "narration": "A view.",
+                    "duration_ms": 3000, "topic_ids": ["t"]}],
+        "test": [{"question_id": "q", "topic_id": "t", "prompt": "?", "choices": ["a", "b"],
+                  "answer_index": 0, "explanation": "e"}]
+    });
+    let e = crate::lessontest::check_generated(&lesson.to_string(), &[], "").unwrap_err();
+    assert!(e.contains("found \"&nbsp;\""), "{e}");
+}

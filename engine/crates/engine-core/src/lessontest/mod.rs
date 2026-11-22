@@ -312,7 +312,10 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
 }
 
 /// The JSON contract every generated lesson answers (`validate_lesson` enforces it).
-pub const LESSON_SHAPE: &str = "Return one JSON object only: {\"title\":string,\"slides\":[{\"slide_id\":string,\"html\":string,\"narration\":string,\"duration_ms\":integer,\"topic_ids\":[string]}],\"test\":[{\"question_id\":string,\"topic_id\":string,\"prompt\":string,\"choices\":[string],\"answer_index\":integer,\"explanation\":string}],\"variant_pool\":[{\"topic_id\":string,\"variants\":[{\"question_id\":string,\"topic_id\":string,\"variant_of\":string,\"prompt\":string,\"choices\":[string],\"answer_index\":integer,\"explanation\":string}]}]}. Each html is one self-contained Motion HTML slide with a single root element id=\"root\", inline CSS only: no scripts, no URLs, no HTML entities, no backslashes. narration is plain spoken text without markup that fits duration_ms (1000 to 60000). Every slide has at least one topic_id. The test has exactly one question per distinct taught topic_id, each with a unique question_id, 2 to 6 distinct choices, a valid answer_index and an explanation. Each variant_pool entry belongs to a tested topic_id; its variants have new unique question_ids, the same topic_id, variant_of equal to that topic's test question_id, a reworded prompt, the choices in a different order and the same correct answer.";
+pub const LESSON_SHAPE: &str = "Return one JSON object only: {\"title\":string,\"slides\":[{\"slide_id\":string,\"html\":string,\"narration\":string,\"duration_ms\":integer,\"topic_ids\":[string]}],\"test\":[{\"question_id\":string,\"topic_id\":string,\"prompt\":string,\"choices\":[string],\"answer_index\":integer,\"explanation\":string}],\"variant_pool\":[{\"topic_id\":string,\"variants\":[{\"question_id\":string,\"topic_id\":string,\"variant_of\":string,\"prompt\":string,\"choices\":[string],\"answer_index\":integer,\"explanation\":string}]}]}. Each html is one self-contained Motion HTML slide with a single root element id=\"root\", inline CSS only: no scripts, no URLs, no HTML entities, no backslashes. narration is plain spoken text without markup that fits duration_ms (1000 to 60000). Every slide has at least one topic_id. The test has exactly one question per distinct taught topic_id, each with a unique question_id, 2 to 6 distinct choices, a valid answer_index and an explanation. Each variant_pool entry belongs to a tested topic_id; its variants have new unique question_ids, the same topic_id, variant_of equal to that topic's test question_id, a reworded prompt, and the same choice texts as the source question in a different order, so the correct choice keeps its exact wording. Inside html never use HTML entities (no &amp; or &nbsp;), backslashes, the words fetch, WebSocket, EventSource, XMLHttpRequest, sendBeacon or importScripts, @import, or data:, javascript:, ftp: or ws: schemes.";
+
+/// Extra guidance for the repair turn when a slide trips the static safety check.
+const SLIDE_HINT: &str = " (slide html must not contain HTML entities such as &amp; or &nbsp;, backslashes, the words fetch, WebSocket, EventSource, XMLHttpRequest, sendBeacon or importScripts, @import, or data:, javascript:, ftp: or ws: schemes)";
 
 /// The trusted lesson prompt. `context` is the request data (outline, lesson, learner, history),
 /// rendered by the caller; it stays data, below the rules.
@@ -332,7 +335,23 @@ pub fn check_generated(
         return Err(format!("the lesson was rejected as {code}"));
     }
     let v: serde_json::Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
-    validate_lesson(&v).map_err(|e| e.to_string())?;
+    validate_lesson(&v).map_err(|e| {
+        let e = e.to_string();
+        if e.contains("obfuscation") {
+            let found = v["slides"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find_map(|s| crate::slide::dangerous_match(s["html"].as_str().unwrap_or_default()))
+                .map(|m| format!(", found {m:?}"))
+                .unwrap_or_default();
+            format!("{e}{found}{SLIDE_HINT}")
+        } else if e.contains("semantically equal") {
+            format!("{e} (reuse the source question's exact correct choice text in each variant)")
+        } else {
+            e
+        }
+    })?;
     if !cast.is_empty() {
         crate::characters::validate_lesson_segments(&v, cast).map_err(|e| e.to_string())?;
     }
