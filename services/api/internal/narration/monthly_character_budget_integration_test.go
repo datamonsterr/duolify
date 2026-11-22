@@ -189,3 +189,75 @@ func TestMonthlyBudgetStillGeneratesWhileUnderTheStopLine(t *testing.T) {
 		t.Fatalf("generated audio must be counted: %d %v", n, err)
 	}
 }
+
+func TestBudgetCountsProviderCallsWhenAlignmentFails(t *testing.T) {
+	r := newBudgetRig(t)
+	ctx := t.Context()
+	svc := r.build(narration.Budget{Limit: 40000, StopPercent: 95, CycleDay: 1})
+	if _, err := svc.Enqueue(ctx, owner, lesson); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := r.f.DB.Pool.Query(ctx, `SELECT narration_text FROM slide_narrations WHERE lesson_id=$1 AND status='pending'`, lesson)
+	if err != nil {
+		t.Fatal(err)
+	}
+	faults := map[string]string{}
+	for rows.Next() {
+		var text string
+		if err := rows.Scan(&text); err != nil {
+			t.Fatal(err)
+		}
+		faults[narration.NormalizeText(text)] = "alignment"
+	}
+	rows.Close()
+	r.engine.SetFaults(faults)
+	start := narration.Budget{CycleDay: 1}.CycleStart(time.Now())
+	before, err := svc.CharactersUsed(ctx, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = svc.SynthesizeLesson(ctx, owner, lesson, true)
+	if r.engine.Calls() == 0 {
+		t.Fatal("expected provider calls")
+	}
+	after, err := svc.CharactersUsed(ctx, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after <= before {
+		t.Fatalf("failed alignment lost provider usage: before %d after %d", before, after)
+	}
+}
+
+func TestBudgetUsageSurvivesAssetDeletion(t *testing.T) {
+	r := newBudgetRig(t)
+	ctx := t.Context()
+	svc := r.build(narration.Budget{Limit: 40000, StopPercent: 95, CycleDay: 1})
+	if _, err := svc.Enqueue(ctx, owner, lesson); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.SynthesizeLesson(ctx, owner, lesson, true); err != nil {
+		t.Fatal(err)
+	}
+	start := narration.Budget{CycleDay: 1}.CycleStart(time.Now())
+	before, err := svc.CharactersUsed(ctx, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.engine.Calls() == 0 {
+		t.Fatal("expected provider calls")
+	}
+	if _, err := r.f.DB.Pool.Exec(ctx, `DELETE FROM slide_narrations WHERE lesson_id=$1 AND slide_id<>'seed-ready'`, lesson); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.f.DB.Pool.Exec(ctx, `DELETE FROM narration_assets WHERE ref_count=0`); err != nil {
+		t.Fatal(err)
+	}
+	after, err := svc.CharactersUsed(ctx, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before {
+		t.Fatalf("asset deletion changed usage: before %d after %d", before, after)
+	}
+}
