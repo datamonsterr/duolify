@@ -34,6 +34,19 @@ test "${CHANGES_RESULT:?changes result required}" = success
 description = "Expose the configured pnpm store to actions/cache"
 run = 'echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"'
 
+["ci:tauri-deps"]
+description = "Install Tauri 2 Linux prerequisites (WebKitGTK 4.1); downloads are kept in ~/.cache/apt-archives for actions/cache"
+run = '''
+set -eu
+archives="$HOME/.cache/apt-archives"
+mkdir -p "$archives/partial"
+sudo apt-get update -qq -o Acquire::Retries=3
+sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 -o Dir::Cache::archives="$archives" \
+  libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev \
+  build-essential curl wget file libxdo-dev libssl-dev \
+  libayatana-appindicator3-dev librsvg2-dev
+'''
+
 ["ci:playwright-deps"]
 description = "Install Chromium system dependencies, including on browser cache hits"
 dir = "{{config_root}}/apps/client"

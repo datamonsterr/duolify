@@ -32,8 +32,9 @@ for run in $runs; do
       --jq '.steps[] | select(.conclusion == "failure") | "  step \(.number): \(.name)"'
     gh api "repos/$repo/check-runs/$id/annotations" \
       --jq '.[] | select(.annotation_level != "notice") | "  \(.annotation_level) \(.path):\(.start_line) \(.title // "") \(.message)"' || true
-    echo "  -- log tail (gh run view $run --job $id --log-failed):"
-    gh run view "$run" --job "$id" --log-failed 2>&1 | tail -n 40 | sed 's/^/  | /' || true
+    echo "  -- log around the first errors (also: gh run view $run --job $id --log-failed once the run is done):"
+    gh api "repos/$repo/actions/jobs/$id/logs" 2>&1 | sed 's/^[0-9TZ:.-]* //' \
+      | grep -m3 -B25 '##\[error\]' | tail -n 60 | sed 's/^/  | /' || true
   done <<< "$jobs"
 done
 [[ $found == 1 ]] || echo "No failing jobs."

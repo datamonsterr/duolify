@@ -27,17 +27,19 @@ runs:
       if: inputs.tauri == 'true'
       shell: bash
       run: mise run ci:free-disk
-    # Tauri 2 prerequisites: https://tauri.app/start/prerequisites/ (WebKitGTK 4.1).
-    - name: Tauri system dependencies (cached apt)
+    # Tauri 2 prerequisites (WebKitGTK 4.1): https://tauri.app/start/prerequisites/
+    # The .deb downloads are cached per runner image; installation runs every time,
+    # which keeps maintainer scripts and ldconfig correct.
+    - name: Cache apt downloads
       if: inputs.tauri == 'true'
-      uses: awalsh128/cache-apt-pkgs-action@v1.6.3
+      uses: actions/cache@v6
       with:
-        packages: >-
-          libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev
-          build-essential curl wget file libxdo-dev libssl-dev
-          libayatana-appindicator3-dev librsvg2-dev
-        version: '1'
-        execute_install_scripts: true
+        path: ~/.cache/apt-archives
+        key: apt-tauri-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('.mise/tasks/ci.toml') }}
+    - name: mise run ci:tauri-deps
+      if: inputs.tauri == 'true'
+      shell: bash
+      run: mise run ci:tauri-deps
     - uses: Swatinem/rust-cache@v2
       if: inputs.tauri == 'true'
       with:

@@ -41,10 +41,13 @@ filter cannot turn all skipped jobs into a green check. Enable merge queue only
 after the `merge_group` run has passed. Publishing happens after the aggregate
 on main; either a failed check or failed publication prevents automatic deploy.
 
-Hosted-runner setup: the client native jobs (`client-native`, `tauri`) install the
+Hosted-runner setup: the client native jobs (`client-native`, `tauri`) run
+`mise run ci:tauri-deps`, which installs the
 [Tauri 2 prerequisites](https://tauri.app/start/prerequisites/) (WebKitGTK 4.1,
-JavaScriptCoreGTK, libsoup 3) with `awalsh128/cache-apt-pkgs-action`, which caches
-the downloaded packages. Docker and buildx are preinstalled. Rust, Tauri and Docker
+JavaScriptCoreGTK, libsoup 3); the downloaded `.deb` files are cached with
+`actions/cache` per runner image version. (`awalsh128/cache-apt-pkgs-action` was
+tried and dropped: it saved an empty cache after a 404 from the Ubuntu mirror and
+reported success.) Docker and buildx are preinstalled. Rust, Tauri and Docker
 jobs run `mise run ci:free-disk` first (hosted runners start with about 14 GB free;
 the task removes unused .NET, Android and Haskell toolchains for about 25 GB more).
 Playwright system libraries come from `mise run ci:playwright-deps`.
