@@ -171,6 +171,19 @@ fn preview_requires_outline_and_safe_samples() {
     }
 }
 
+#[test]
+fn preview_slides_follow_the_structured_output_schema_without_topic_ids() {
+    // Contract: preview samples are standalone examples; the strict `course_preview` schema has
+    // no `topic_ids`, so `check_preview` (the gate the server and the live eval share) must not
+    // require them.
+    let schema = &crate::structured::response_format("preview").unwrap()["json_schema"]["schema"];
+    let slide = &schema["properties"]["slides"]["items"];
+    assert!(slide["properties"].get("topic_ids").is_none());
+    let sample = serde_json::json!({"title":"Sample","description":"d","units":[{"title":"Unit","lessons":[{"title":"Lesson","goal":"Learn"}]}],
+        "slides":[{"html":"<div id=\"root\">Example</div>","narration":"Example","duration_ms":5000}]});
+    assert_eq!(super::check_preview(&sample.to_string()), Ok(()));
+}
+
 struct PreviewFixture(bool);
 #[async_trait::async_trait]
 impl crate::LlmProvider for PreviewFixture {

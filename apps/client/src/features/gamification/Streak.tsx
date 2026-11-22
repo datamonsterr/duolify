@@ -121,7 +121,7 @@ export function StreakPanel() {
             <strong className="streak-count">{data.current_days}</strong>
             <span>day streak</span>
           </div>
-          <p>Longest streak: {data.longest_days} days</p>
+          <p>Longest streak: {plural(data.longest_days, "day")}</p>
           <p>Time zone: {data.time_zone}</p>
           {data.rollover_pending && (
             <div className="streak-note" role="status">
@@ -141,7 +141,7 @@ export function StreakPanel() {
               <strong>Welcome back</strong>
               <p>
                 Start with one small lesson. Your longest streak (
-                {data.longest_days} days) is still on record.
+                {plural(data.longest_days, "day")}) is still on record.
               </p>
               <AppLink href="/">Start a lesson</AppLink>
             </div>
@@ -177,7 +177,10 @@ export function StreakPanel() {
                   Streak freezes: {data.freezes.held} of {data.freezes.cap}
                 </strong>
               </p>
-              <p>Earned every {data.freezes.milestone_days} days of streak</p>
+              <p>
+                Earned every {plural(data.freezes.milestone_days, "day")} of
+                streak
+              </p>
               {data.freezes.held >= data.freezes.cap ? (
                 <p>Freezes are full. Extra milestones earn nothing.</p>
               ) : (
