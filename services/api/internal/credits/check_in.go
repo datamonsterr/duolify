@@ -37,7 +37,23 @@ func checkInDay(at time.Time, zone string) (string, time.Time, error) {
 		return "", time.Time{}, err
 	}
 	local := at.In(loc)
-	return local.Format(time.DateOnly), time.Date(local.Year(), local.Month(), local.Day()+1, 0, 0, 0, 0, loc), nil
+	day := local.Format(time.DateOnly)
+	next := time.Date(local.Year(), local.Month(), local.Day()+1, 0, 0, 0, 0, loc)
+	if !next.After(at) || next.In(loc).Format(time.DateOnly) <= day {
+		// Some zones advance at midnight. time.Date may resolve a nonexistent
+		// midnight into the previous date; locate the actual date transition.
+		low, high := at, at.Add(48*time.Hour)
+		for high.Sub(low) > time.Nanosecond {
+			mid := low.Add(high.Sub(low) / 2)
+			if mid.In(loc).Format(time.DateOnly) > day {
+				high = mid
+			} else {
+				low = mid
+			}
+		}
+		next = high
+	}
+	return day, next, nil
 }
 
 // CheckInAt records attendance atomically across API replicas. The clock is

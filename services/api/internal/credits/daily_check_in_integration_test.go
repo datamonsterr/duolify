@@ -37,7 +37,7 @@ func TestDailyCheckInTransactions(t *testing.T) {
 	}
 	defer db.Close()
 	svc := credits.NewService(db.Pool, nil)
-	learner := func(zone string) string {
+	learner := func(t *testing.T, zone string) string {
 		t.Helper()
 		l, e := db.Queries.CreateLearner(ctx, "Attendance learner")
 		if e != nil {
@@ -49,7 +49,7 @@ func TestDailyCheckInTransactions(t *testing.T) {
 		}
 		return id
 	}
-	check := func(id string, at time.Time) credits.CheckInResponse {
+	check := func(t *testing.T, id string, at time.Time) credits.CheckInResponse {
 		t.Helper()
 		v, e := svc.CheckInAt(ctx, id, at)
 		if e != nil {
@@ -59,7 +59,7 @@ func TestDailyCheckInTransactions(t *testing.T) {
 	}
 	day := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
 	t.Run("20 concurrent replicas grant once", func(t *testing.T) {
-		id := learner("UTC")
+		id := learner(t, "UTC")
 		var wg sync.WaitGroup
 		results := make(chan credits.CheckInResponse, 20)
 		errs := make(chan error, 20)
@@ -85,45 +85,45 @@ func TestDailyCheckInTransactions(t *testing.T) {
 		if sum != 400 || first != 1 {
 			t.Fatalf("granted=%d bonuses=%d", sum, first)
 		}
-		v := check(id, day.AddDate(0, 0, 1))
+		v := check(t, id, day.AddDate(0, 0, 1))
 		if v.Granted != 150 || v.FirstTime || v.BankedCheckIn != 550 {
 			t.Fatalf("next: %+v", v)
 		}
 	})
 	t.Run("date line and DST midnights", func(t *testing.T) {
 		for _, zone := range []string{"Pacific/Kiritimati", "Pacific/Pago_Pago", "America/New_York"} {
-			id := learner(zone)
+			id := learner(t, zone)
 			at := time.Date(2026, 3, 8, 6, 30, 0, 0, time.UTC)
-			v := check(id, at)
-			if got := check(id, v.NextCheckInAt.Add(-time.Nanosecond)); got.CheckedIn {
+			v := check(t, id, at)
+			if got := check(t, id, v.NextCheckInAt.Add(-time.Nanosecond)); got.CheckedIn {
 				t.Fatalf("early %s: %+v", zone, got)
 			}
-			if got := check(id, v.NextCheckInAt); got.Granted != 150 {
+			if got := check(t, id, v.NextCheckInAt); got.Granted != 150 {
 				t.Fatalf("midnight %s: %+v", zone, got)
 			}
 		}
 	})
 	t.Run("zone change cannot advance frozen window", func(t *testing.T) {
-		id := learner("Pacific/Pago_Pago")
-		v := check(id, day)
+		id := learner(t, "Pacific/Pago_Pago")
+		v := check(t, id, day)
 		if _, e := db.Pool.Exec(ctx, "UPDATE learner_profiles SET time_zone='Pacific/Kiritimati' WHERE learner_id=$1", id); e != nil {
 			t.Fatal(e)
 		}
-		if got := check(id, day.Add(time.Hour)); got.CheckedIn || !got.NextCheckInAt.Equal(v.NextCheckInAt) {
+		if got := check(t, id, day.Add(time.Hour)); got.CheckedIn || !got.NextCheckInAt.Equal(v.NextCheckInAt) {
 			t.Fatalf("zone farm: %+v", got)
 		}
 	})
 	t.Run("cap includes reservations and bonus once", func(t *testing.T) {
-		id := learner("UTC")
-		check(id, day)
+		id := learner(t, "UTC")
+		check(t, id, day)
 		for i := 1; i <= 4; i++ {
-			check(id, day.AddDate(0, 0, i))
+			check(t, id, day.AddDate(0, 0, i))
 		}
 		// 1000 +49 through an attributable source correction is 1049.
 		if _, e := db.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id,amount,kind,reference,provenance) VALUES($1,49,'refund','cap-fixture','{"bucket":"check_in"}')`, id); e != nil {
 			t.Fatal(e)
 		}
-		if v := check(id, day.AddDate(0, 0, 5)); v.Granted != 1 || v.BankedCheckIn != 1050 {
+		if v := check(t, id, day.AddDate(0, 0, 5)); v.Granted != 1 || v.BankedCheckIn != 1050 {
 			t.Fatalf("partial: %+v", v)
 		}
 		cat, e := pricing.Load(ctx, db.Queries)
@@ -143,7 +143,7 @@ func TestDailyCheckInTransactions(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		if v := check(id, day.AddDate(0, 0, 6)); v.Granted != 0 || !v.CheckedIn || v.FirstTime || v.BankedCheckIn != 1050 {
+		if v := check(t, id, day.AddDate(0, 0, 6)); v.Granted != 0 || !v.CheckedIn || v.FirstTime || v.BankedCheckIn != 1050 {
 			t.Fatalf("cap: %+v", v)
 		}
 		if _, e = service.Release(ctx, id, job.ID); e != nil {
@@ -151,8 +151,8 @@ func TestDailyCheckInTransactions(t *testing.T) {
 		}
 	})
 	t.Run("preview uses check-in and release restores source", func(t *testing.T) {
-		id := learner("UTC")
-		check(id, time.Now())
+		id := learner(t, "UTC")
+		check(t, id, time.Now())
 		cat, e := pricing.Load(ctx, db.Queries)
 		if e != nil {
 			t.Fatal(e)
@@ -188,8 +188,8 @@ func TestDailyCheckInTransactions(t *testing.T) {
 		}
 	})
 	t.Run("eligible daily allowance precedes check-in and settlement preserves sources", func(t *testing.T) {
-		id := learner("UTC")
-		check(id, time.Now())
+		id := learner(t, "UTC")
+		check(t, id, time.Now())
 		cat, e := pricing.Load(ctx, db.Queries)
 		if e != nil {
 			t.Fatal(e)
@@ -236,8 +236,8 @@ func TestDailyCheckInTransactions(t *testing.T) {
 		}
 	})
 	t.Run("lesson generation can spend check-in without purchased Credits", func(t *testing.T) {
-		id := learner("UTC")
-		check(id, time.Now())
+		id := learner(t, "UTC")
+		check(t, id, time.Now())
 		cat, e := pricing.Load(ctx, db.Queries)
 		if e != nil {
 			t.Fatal(e)
@@ -261,6 +261,53 @@ func TestDailyCheckInTransactions(t *testing.T) {
 		}
 		if _, e = service.Release(ctx, id, job.ID); e != nil {
 			t.Fatal(e)
+		}
+	})
+	t.Run("full first-time bonus counts toward subsequent cap", func(t *testing.T) {
+		id := learner(t, "UTC")
+		if _, e := db.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id,amount,kind,reference,provenance) VALUES($1,1049,'check_in_grant','bonus-cap-fixture','{"bucket":"check_in","date":"2026-11-23"}')`, id); e != nil {
+			t.Fatal(e)
+		}
+		if v := check(t, id, day); v.Granted != 251 || !v.FirstTime || v.BankedCheckIn != 1300 {
+			t.Fatalf("full bonus: %+v", v)
+		}
+		if v := check(t, id, day.AddDate(0, 0, 1)); v.Granted != 0 || v.FirstTime || v.BankedCheckIn != 1300 {
+			t.Fatalf("subsequent cap: %+v", v)
+		}
+	})
+	t.Run("outbox grants are idempotent and delivery respects opt-out", func(t *testing.T) {
+		events := &testAnalyticsEvents{}
+		cat, e := pricing.Load(ctx, db.Queries)
+		if e != nil {
+			t.Fatal(e)
+		}
+		service := credits.NewServiceWithCatalogue(db.Pool, nil, cat, events)
+		allowed, denied := learner(t, "UTC"), learner(t, "UTC")
+		if _, e = db.Pool.Exec(ctx, "UPDATE learner_profiles SET analytics_opt_out=true WHERE learner_id=$1", denied); e != nil {
+			t.Fatal(e)
+		}
+		for _, id := range []string{allowed, allowed, denied} {
+			if _, e = service.CheckInAt(ctx, id, day); e != nil {
+				t.Fatal(e)
+			}
+		}
+		if e = service.DispatchOutbox(ctx); e != nil {
+			t.Fatal(e)
+		}
+		seen := 0
+		for _, event := range events.GetEvents("check_in_credits_granted") {
+			if event.LearnerID == denied {
+				t.Fatal("opted-out event delivered")
+			}
+			if event.LearnerID == allowed {
+				seen++
+				if event.Properties["amount"] != float64(400) || event.Properties["first_time"] != true {
+					t.Fatalf("event: %+v", event)
+				}
+			}
+		}
+		if seen != 1 {
+			t.Fatalf("event replay: %d", seen)
 		}
 	})
 }

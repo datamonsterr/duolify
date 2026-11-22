@@ -27,3 +27,11 @@ func TestCheckInCalendarMidnightDST(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckInMidnightDSTGap(t *testing.T) {
+	at, _ := time.Parse(time.RFC3339, "2018-11-03T12:00:00Z")
+	day, next, err := checkInDay(at, "America/Sao_Paulo")
+	if err != nil || day != "2018-11-03" || next.UTC().Format(time.RFC3339) != "2018-11-04T03:00:00Z" {
+		t.Fatalf("day=%s next=%s err=%v", day, next, err)
+	}
+}
