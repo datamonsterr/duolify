@@ -2,7 +2,7 @@
 
 Owner approval on 2026-11-22 authorizes only daily=150, first_time_bonus=250 and bank_days=7. An approved successor of the merged Hy4 routing catalogue adds `check_in` without changing other commercial terms or quote policy. Historical catalogues remain valid with check-in disabled when absent.
 
-An explicit `POST /v1/me/check-in` performs one indexed Postgres transaction. A durable per-Learner state row serializes replicas; a `(learner_id, local_date)` unique key records attendance even for zero grants. Distinct `check_in_grant` and `check_in_bonus` ledger kinds share `check_in` provenance. A unique bonus key survives sessions/devices for the account lifetime.
+An explicit `POST /v1/me/check-in` performs one indexed Postgres transaction. The existing Learner row and shared financial transaction lock serialize replicas; a `(learner_id, local_date)` unique key records attendance even for zero grants. Distinct `check_in_grant` and `check_in_bonus` ledger kinds share `check_in` provenance. A unique bonus key survives sessions/devices for the account lifetime.
 
 Regular grant = min(150, max(0, 1050 - banked_before)); then add 250 in full exactly once. Banked counts unspent Credits INCLUDING active reservations, so reserving before checking in cannot circumvent the cap. The bonus counts toward subsequent cap calculations; its full grant and later refunds may leave the bank above 1050, in which case further regular grants are zero until spending makes room. A returning Learner at 1049 receives 1; at 1050 receives 0. No Credits expire, get clipped or are retroactively granted.
 
