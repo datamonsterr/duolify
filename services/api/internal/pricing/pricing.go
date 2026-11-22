@@ -294,7 +294,21 @@ type RuntimeCatalogue struct {
 	// gateSkipped dedupes refusal logs for versions blocked by the design chat gate.
 	gateSkipped map[string]bool
 	alert       func(ctx context.Context, scope string)
+	// loadedAt is when last was last confirmed against Postgres (or a failed attempt, to throttle
+	// retries); ttl bounds how stale a public read may be. refreshing single-flights reloads.
+	loadedAt   time.Time
+	ttl        time.Duration
+	refreshing sync.Mutex
 }
+
+// DefaultSnapshotTTL bounds how long GET /v1/pricing may serve a catalogue without asking
+// Postgres. A replica that did not activate a version sees it within this bound; the process that
+// activates a version publishes it immediately. CatalogueMaxAge must stay at or above it.
+const DefaultSnapshotTTL = 5 * time.Second
+
+// catalogueCacheControl lets browsers and the edge reuse the catalogue for at most 10 s, so a
+// scheduled flip reaches a client within TTL plus max-age. Revalidation is a 304 on the ETag.
+const catalogueCacheControl = "public, max-age=10"
 
 // SetAlertSink routes pricing config-load and scheduled-flip failures to the
 // operational alert path. The sink must dedupe: failures repeat every tick.
@@ -323,7 +337,15 @@ func NewRuntimeCatalogue(initial *Catalogue, q Queries, pool *pgxpool.Pool, even
 		baseline: initial.config.EffectiveFrom,
 		env:      os.Getenv("DUOLIFY_ENV"),
 		ownerID:  os.Getenv("PRICING_OWNER_ID"),
+		ttl:      DefaultSnapshotTTL,
 	}
+}
+
+// SetSnapshotTTL sets the snapshot freshness bound; zero or less reloads on every request.
+func (c *RuntimeCatalogue) SetSnapshotTTL(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ttl = d
 }
 
 // SetEnvironment configures the deployment environment for runtime activation checks.
@@ -368,34 +390,68 @@ func (c *RuntimeCatalogue) HasAction(name string) bool {
 	return true
 }
 
+// ServeHTTP serves the in-memory snapshot. A warm request runs no SQL; once the snapshot is older
+// than the TTL one request reloads it while concurrent requests keep serving the previous one.
 func (c *RuntimeCatalogue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	loaded, err := Load(r.Context(), c.queries)
-	if err != nil {
-		slog.ErrorContext(r.Context(), "pricing runtime reload failed; serving last known good catalogue", "error", err)
-		c.raise(r.Context(), "pricing_config_load_failed")
+	c.mu.RLock()
+	last, fresh := c.last, c.fresh()
+	c.mu.RUnlock()
+	if !fresh && c.refreshing.TryLock() {
+		c.refresh(r.Context())
+		c.refreshing.Unlock()
 		c.mu.RLock()
-		last := c.last
+		last = c.last
 		c.mu.RUnlock()
-		if last == nil {
-			http.Error(w, "pricing unavailable", http.StatusServiceUnavailable)
-			return
-		}
-		last.ServeHTTP(w, r)
+	}
+	if last == nil {
+		http.Error(w, "pricing unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	last.ServeHTTP(w, r)
+}
+
+// fresh reports whether the snapshot is within the TTL. The caller holds mu.
+func (c *RuntimeCatalogue) fresh() bool {
+	return c.last != nil && !c.loadedAt.IsZero() && time.Since(c.loadedAt) < c.ttl
+}
+
+// refresh reloads the catalogue. Failure keeps the last good one and raises the alert; either way
+// loadedAt moves so a broken database is retried once per TTL, not once per request.
+func (c *RuntimeCatalogue) refresh(ctx context.Context) {
+	// A caller hanging up must not turn into a false reload failure for everyone else.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	loaded, err := Load(ctx, c.queries)
+	if err != nil {
+		slog.ErrorContext(ctx, "pricing runtime reload failed; serving last known good catalogue", "error", err)
+		c.raise(ctx, "pricing_config_load_failed")
+		c.mu.Lock()
+		c.loadedAt = time.Now()
+		c.mu.Unlock()
 		return
 	}
 	c.mu.Lock()
 	previous := c.last
+	c.mu.Unlock()
 	if previous != nil && previous.config.Version != loaded.config.Version && c.pool != nil {
 		var activated bool
-		if err := c.pool.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM pricing_activation_events WHERE version=$1)", loaded.config.Version).Scan(&activated); err != nil || !activated {
+		if err := c.pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pricing_activation_events WHERE version=$1)", loaded.config.Version).Scan(&activated); err != nil || !activated {
+			// Not yet verified and recorded: keep serving the previous version.
+			c.mu.Lock()
+			c.loadedAt = time.Now()
 			c.mu.Unlock()
-			previous.ServeHTTP(w, r)
 			return
 		}
 	}
+	c.publish(loaded)
+}
+
+// publish makes loaded the served snapshot now, restarting its TTL.
+func (c *RuntimeCatalogue) publish(loaded *Catalogue) {
+	c.mu.Lock()
 	c.last = loaded
+	c.loadedAt = time.Now()
 	c.mu.Unlock()
-	loaded.ServeHTTP(w, r)
 }
 
 // RunActivator reconciles due versions on startup and every 200ms using the
@@ -634,7 +690,7 @@ func (c *Catalogue) Config() Config {
 // ServeHTTP returns a read-only catalogue with bounded freshness and conditional GET.
 func (c *Catalogue) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("ETag", c.etag)
-	w.Header().Set("Cache-Control", "public, max-age=60")
+	w.Header().Set("Cache-Control", catalogueCacheControl)
 	w.Header().Set("Content-Type", "application/json")
 	for _, tag := range strings.Split(r.Header.Get("If-None-Match"), ",") {
 		tag = strings.TrimSpace(tag)

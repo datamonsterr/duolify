@@ -59,6 +59,7 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	}
 	events := &pricingActivationCapture{}
 	runtime := pricing.NewRuntimeCatalogue(initial, db.Queries, db.Pool, events)
+	runtime.SetSnapshotTTL(20 * time.Millisecond)
 	activatorCtx, stopActivator := context.WithCancel(ctx)
 	defer stopActivator()
 	activatorAdmin := pricing.NewAdmin(db.Pool, nil, "")
