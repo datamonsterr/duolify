@@ -1,6 +1,6 @@
 // Course creation through the real UI, shared by F2-F4.
 import type { Page } from "@playwright/test";
-import { expect, grantCredits, test, type Flow } from "./stack";
+import { expect, grantCredits, localStack, test, type Flow } from "./stack";
 
 export const topic = "Astronomy basics";
 
@@ -62,16 +62,16 @@ export async function createCourse(page: Page, flow?: Flow): Promise<void> {
   await expect(preview.or(failed)).toBeVisible({ timeout: 120_000 });
   if (await failed.isVisible()) {
     await flow?.step("preview failed");
+    // Locally global-setup.ts approved engine-routed pricing, so a failure is a real defect.
+    // A remote target's pricing is the owner's to approve; never attempted from here.
     test.fixme(
-      true,
-      "Course preview fails: the active approved pricing version (usd-quotes-2026-11-09) quotes " +
-        "anthropic/claude-sonnet-5-5, but the engine only accepts its own route from " +
-        "engine/config/models.toml (openrouter tencent/hy4-flash -> z-ai/glm-5.3-flash; provider " +
-        "'mock' in mock mode), so PreviewCourse returns FailedPrecondition 'quote route differs " +
-        "from evaluated route' (engine/crates/engine-server/src/lib.rs:897) and POST " +
-        "/v1/courses/preview is 502. Needs the owner to approve usd-hy4-routing-2026-11-22-unapproved " +
-        "through the pricing admin flow (PR #281); the API logs this at startup " +
-        "('active pricing quote route is not served by the engine').",
+      !localStack,
+      "pricing not approved on target: course preview failed. The target's active pricing " +
+        "version must quote the route the engine serves (owner approval through the pricing " +
+        "admin flow); the suite never approves pricing outside the local e2e stack.",
+    );
+    throw new Error(
+      "Course preview failed on the local stack (see the api and engine logs)",
     );
   }
   await flow?.step("course preview");
