@@ -68,6 +68,8 @@ type Options struct {
 	Off bool
 	// Segments supplies pinned-speaker dialogue (E17-08); nil keeps slide-level narration only.
 	Segments SegmentSource
+	// Budget caps live provider characters per subscription cycle; the zero value enforces nothing.
+	Budget Budget
 }
 
 // Service queues and performs per-slide synthesis.
@@ -551,6 +553,37 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 			}
 		}
 		return first
+	}
+	// The monthly provider budget is checked before any quote, reservation or live request. Items that
+	// do not fit stay captions-only; reused and shared audio never reaches this point.
+	if s.opts.Budget.Enabled() {
+		room, used, err := s.budgetRoom(ctx)
+		if err != nil {
+			return retryAll("budget_unavailable", err)
+		}
+		var admitted []*item
+		var denied int
+		var requested int64
+		for _, it := range fresh {
+			if int64(it.characters) <= room {
+				room -= int64(it.characters)
+				admitted = append(admitted, it)
+				continue
+			}
+			denied++
+			requested += int64(it.characters)
+			for _, slide := range it.slides {
+				if err := s.finish(ctx, owner, lessonID, it.rows[slide].voice, slide, StatusDisabled, CodeBudgetExhausted, nil); err != nil {
+					return err
+				}
+			}
+		}
+		if denied > 0 {
+			s.alertBudgetExhausted(owner, used, requested, denied)
+		}
+		if fresh = admitted; len(fresh) == 0 {
+			return nil
+		}
 	}
 	characters := int64(0)
 	for _, it := range fresh {

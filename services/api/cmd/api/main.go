@@ -234,7 +234,7 @@ func run(ctx context.Context, args []string) (result error) {
 		}
 		// E14-01: narration synthesis stays off until explicitly enabled; only the engine mock exists.
 		if os.Getenv("NARRATION_ENABLED") == "true" {
-			narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention(), Segments: characters.NewService(db.Pool, nil, events)})
+			narrationService := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention(), Segments: characters.NewService(db.Pool, nil, events), Budget: narrationBudget(os.Getenv)})
 			narrationQueue, err := narrationService.Queue()
 			if err != nil {
 				return err
@@ -373,7 +373,7 @@ func run(ctx context.Context, args []string) (result error) {
 	var narrationVoices http.Handler
 	if os.Getenv("NARRATION_ENABLED") == "true" {
 		// Insert-only queue client: the worker process runs the jobs.
-		recovery := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention(), Segments: characters.NewService(db.Pool, nil, events)})
+		recovery := narration.New(narration.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), Speech: backend.RPC(), Financial: creditService, Entitlements: creditService, Events: events, Logger: logger, Retention: narrationRetention(), Segments: characters.NewService(db.Pool, nil, events), Budget: narrationBudget(os.Getenv)})
 		if _, err = recovery.Queue(); err != nil {
 			return err
 		}
@@ -707,6 +707,27 @@ func healthcheck(ctx context.Context, args []string) error {
 		return fmt.Errorf("healthcheck returned HTTP %d", response.StatusCode)
 	}
 	return nil
+}
+
+// narrationBudget reads the live ElevenLabs character budget. It applies only when live synthesis is
+// on: the deterministic mock spends no provider characters. Invalid values fall back to the Starter
+// plan defaults (40,000 characters, stop at 95%, cycle resetting on the 1st).
+func narrationBudget(getenv func(string) string) narration.Budget {
+	if getenv("NARRATION_LIVE_ENABLED") != "true" {
+		return narration.Budget{}
+	}
+	read := func(name string, fallback, lo, hi int) int {
+		n, err := strconv.Atoi(getenv(name))
+		if err != nil || n < lo || n > hi {
+			return fallback
+		}
+		return n
+	}
+	return narration.Budget{
+		Limit:       int64(read("NARRATION_MONTHLY_CHAR_LIMIT", narration.DefaultMonthlyCharLimit, 1, 1<<30)),
+		StopPercent: read("NARRATION_BUDGET_STOP_PERCENT", narration.DefaultBudgetStopPercent, 1, 100),
+		CycleDay:    read("NARRATION_CYCLE_START_DAY", 1, 1, 28),
+	}
 }
 
 // narrationRetention reads how many days an unreferenced narration asset is kept (default 30).
