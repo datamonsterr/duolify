@@ -4,7 +4,7 @@
 - [x] 1.2 Prove microphone capture with `MediaRecorder` in the Tauri mobile webviews and mobile browsers; record containers, permission strings and limits (`docs/design/voice-input-platforms.md`; run only in desktop Chromium 158 with a fake device; iOS, Android, WebKit and permission denial or revocation are documentation-only and the iOS secure-context question for the Tauri scheme is open)
 - [x] 1.3 Compare transcription models on the OpenRouter audio transcription endpoint (accuracy, latency, cost for recordings up to 30 seconds) and pick primary and fallback (`evals/spikes/transcription/RESULTS.md`; 16 clips and 248 reference words, one run, synthetic technical clips; real Safari AAC not tested; recommendation needs a larger Golden set)
 - [x] 1.4 Write the ADR for voice data handling (audio processed and discarded, never stored; provider data collection denied) (`docs/adr/0021-voice-input-data-handling.md`, Proposed; Mistral's own retention text could not be retrieved, so primary ZDR rests on OpenRouter's flag)
-- [ ] 1.5 Owner decisions: enter on rotation by default, auto-send after dictation, daily transcription cap, and approval of a pricing version that adds the transcription rate with no new Learner price
+- [x] 1.5 Owner decisions (owner: "You decide all", 2026-11-23): enter on rotation by default = yes on touch devices; auto-send after dictation = yes after a 2-second edit window, default off for Vietnamese; daily cap = 60 per Learner; pricing version with a transcription rate and no new Learner price approved (models: primary `qwen/qwen3-asr-0.6b`, fallback `openai/whisper-large-v3-turbo`, ZDR and data collection denied, 0.0005 USD per request). Spike corrections applied to design.md and the voice-input spec.
 
 ## 2. Slide regions in the Slide manifest
 
@@ -42,11 +42,11 @@
 
 ## 5. Anchored Quick notes
 
-- [ ] 5.1 e2e: typed note on a region saves with its anchor; "show in Lesson" opens the Slide at that time with the region outlined; offline note queues and syncs once
-- [ ] 5.2 integration: note creation accepts and validates the anchor; a removed Lesson leaves a source-unavailable note; export and erasure
-- [ ] 5.3 unit: anchor serialisation in the offline queue
-- [ ] 5.4 API and client: anchor and source on Quick notes with migration and anonymizer classification
-- [ ] 5.5 Analytics: `lesson_anchored_note_created`
+- [x] 5.1 e2e: typed note on a region saves with its anchor; "show in Lesson" opens the Slide at that time with the region outlined; offline note queues and syncs once (`apps/client/e2e/anchored-notes.spec.ts`, mocked suite at 390, 844×390 and 1280: typed note on a region by the keyboard path, anchor in the POST, Show in Lesson with the region outlined framed and immersive, offline queue syncs once, spread and handle adjustment; screenshots in the scratchpad)
+- [x] 5.2 integration: note creation accepts and validates the anchor; a removed Lesson leaves a source-unavailable note; export and erasure (`anchored_quick_notes_integration_test.go`: validation, replay keeps one anchor, foreign Lesson 403, removed Lesson reads source unavailable, note erasure cascades; backup fixture and drill include an anchor row)
+- [x] 5.3 unit: anchor serialisation in the offline queue (`anchored_note_queue.test.ts`)
+- [x] 5.4 API and client: anchor and source on Quick notes with migration and anonymizer classification (`quick_note_anchors` side table, migration `20261124300000`, anonymizer needs no new rule: all columns are ids, numbers or an `_kind` enum; export and erasure list the table)
+- [x] 5.5 Analytics: `lesson_anchored_note_created` (emitted by the API on first save, no text)
 
 ## 6. Voice input
 
