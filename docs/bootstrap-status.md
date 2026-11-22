@@ -13,7 +13,7 @@ Legend: **Done**, **Partial** (works, with a gap listed), **Blocked** (needs the
 | 3 | Find and configure agentic skills (OtherSkill) | Partial | 51 project skills in `.otherskill/bank` (Go, Tauri, PostHog, tickets, reverse engineering), global bank, list in `docs/agents/skills.md`. Gap: routing hook gets HTTP 401 because a stale `OPENROUTER_API_KEY` in `~/.config/environment.d/60-opencode-providers.conf` overrides the new key (works when that variable is unset) |
 | 4 | OpenSpec, OtherSkill config, AGENTS.md + CLAUDE.md, mise.toml | Done | `openspec/` (17 capability specs, 8 changes, strict validation passes), `otherskill.config.json`, `AGENTS.md`, `CLAUDE.md` → `@AGENTS.md`, `mise.toml` + `.mise/tasks/*.toml` |
 | 5 | Scaffold Go service, Rust engine, Tauri app, infra | Done | `services/api`, `engine` (5 crates), `apps/client` (Tauri 2 + React), `proto`, `infra`, `.railway/railway.ts` |
-| 6 | Dummy tests per part, full CI/CD, Docker images, compose, Railway deploy config | Done | Draft and ready pipelines green on PR #1 (integration, Playwright, both Docker images, Tauri build, all on Namespace). Live evals and `infra:plan` skip until secrets exist |
+| 6 | Dummy tests per part, full CI/CD, Docker images, compose, Railway deploy config | Done | Draft and ready pipelines green on PR #1 (integration, Playwright, both Docker images, Tauri build, all on GitHub-hosted runners). Live evals and `infra:plan` skip until secrets exist |
 | 7 | Install CLI tools via mise | Done | `mise install` installs all 16 pinned tools; `cargo:tauri-cli` dropped in favour of `@tauri-apps/cli` from pnpm |
 
 ## Principles
@@ -22,7 +22,7 @@ Legend: **Done**, **Partial** (works, with a gap listed), **Blocked** (needs the
 |---|---|---|
 | Investigate, break into epics, subagent-driven development via superorchestrator | Done | `docs/epics/README.md` (E0–E16); all scaffolds built by superorchestrator runs with review gates |
 | TDD order e2e → integration → unit | Done (rule) | `AGENTS.md`, ticket template in `docs/agents/issue-tracker.md`, each OpenSpec `tasks.md` |
-| CI on Namespace runners, draft vs ready pipelines, parallel, cached | Done | `pr-draft.yml`, `pr-ready.yml`, `_checks.yml`, `deploy-dev.yml`; only `namespace-profile-datamonster01` / `namespace-profile-linux-xl`; `ci-ok` aggregate |
+| CI on GitHub-hosted `ubuntu-24.04` runners, draft vs ready pipelines, parallel, cached | Done | `pr-draft.yml`, `pr-ready.yml`, `_checks.yml`, `deploy-dev.yml`; `ci-ok` aggregate |
 | Golden set on Hugging Face with automatic evals in CI | Partial | `duolify-eval` runner, offline fixtures, thresholds, `EVAL_SAMPLE_LIMIT`; draft CI runs offline evals. Gap: dataset `datamonsterr/duolify-golden` not created; live evals need `HF_TOKEN` + API secrets |
 | PostHog analytics; every spec covers backup and model reliability | Done | Client and API wrappers; every OpenSpec spec has analytics, backup and reliability requirements; `docs/data-inventory.md` |
 | Architecture for multi-user speed, easy to extend | Done (design) | ADR 0002 (Go API + stateless Rust engine over gRPC), ADR 0003 (Postgres, Redis, S3, River) |

@@ -361,18 +361,16 @@ func LogEnvironmentPlanValidation(logger *slog.Logger, plan EnvironmentPlanReque
 }
 
 // ValidateDeployWorkflowPolicy enforces deployment policies:
-// - Runners must be Namespace runners, never ubuntu-latest.
+// - Runners must be the pinned GitHub-hosted ubuntu-24.04, never the floating ubuntu-latest.
 // - Deploy targets in AFK ticket are limited to dev only.
 // - Any live apply to staging or prod must be gated on E11-07 and stays disabled.
 func ValidateDeployWorkflowPolicy(workflowText string) error {
 	if strings.Contains(workflowText, "ubuntu-latest") {
-		return errors.New("deployment workflow policy violation: ubuntu-latest is forbidden; use namespace-profile runner")
+		return errors.New("deployment workflow policy violation: ubuntu-latest is forbidden; use ubuntu-24.04")
 	}
 
-	hasNamespaceRunner := strings.Contains(workflowText, "namespace-profile-datamonster01") ||
-		strings.Contains(workflowText, "namespace-profile-linux-xl")
-	if !hasNamespaceRunner {
-		return errors.New("deployment workflow policy violation: runner must be namespace-profile")
+	if !strings.Contains(workflowText, "runs-on: ubuntu-24.04") {
+		return errors.New("deployment workflow policy violation: runner must be ubuntu-24.04")
 	}
 
 	// If environment mentions prod or staging, it MUST require E11-07

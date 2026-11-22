@@ -1,12 +1,19 @@
 name: Set up API
 description: Cached Go tools, modules and compiled packages.
+inputs:
+  tools:
+    description: mise tools to install; Playwright jobs only need go.
+    default: go golangci-lint gotestsum
+  area:
+    description: mise cache namespace.
+    default: api
 runs:
   using: composite
   steps:
     - uses: ./.github/actions/setup-tools
       with:
-        tools: go golangci-lint gotestsum
-        area: api
+        tools: ${{ inputs.tools }}
+        area: ${{ inputs.area }}
     - uses: actions/cache@v6
       with:
         path: |

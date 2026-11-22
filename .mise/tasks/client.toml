@@ -4,15 +4,21 @@ dir = "{{config_root}}"
 run = "pnpm install --frozen-lockfile"
 
 ["client:lint"]
-description = "Check client formatting, types and lint"
+description = "Check client formatting, types and lint (web and native)"
+depends = ["client:lint-web", "client:lint-native"]
+
+["client:lint-native"]
+description = "Check Tauri Rust formatting and clippy (needs native prerequisites)"
 dir = "{{config_root}}/apps/client"
-depends = ["client:lint-web"]
 run = ["cargo fmt --manifest-path src-tauri/Cargo.toml -- --check", "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings"]
 
 ["client:test"]
-description = "Run client tests"
+description = "Run client tests (web and native)"
+depends = ["client:test-web", "client:test-native"]
+
+["client:test-native"]
+description = "Run Tauri Rust tests (needs native prerequisites)"
 dir = "{{config_root}}/apps/client"
-depends = ["client:test-web"]
 run = "cargo test --manifest-path src-tauri/Cargo.toml"
 
 ["client:build"]

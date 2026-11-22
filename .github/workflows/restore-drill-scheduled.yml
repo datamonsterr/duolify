@@ -27,14 +27,28 @@ env:
 
 jobs:
   drill:
-    runs-on: namespace-profile-datamonster01
+    runs-on: ubuntu-24.04
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+      # Without owner credentials the drill skips with a notice instead of installing Go.
+      - name: mise run ci:require-secrets
+        id: credentials
+        run: mise run ci:require-secrets -- 'restore drill'
+        env:
+          REQUIRED_SECRETS: BACKUP_S3_ENDPOINT BACKUP_S3_BUCKET BACKUP_RESTORE_S3_ACCESS_KEY_ID BACKUP_RESTORE_S3_SECRET_ACCESS_KEY BACKUP_AGE_IDENTITY
+          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          BACKUP_RESTORE_S3_ACCESS_KEY_ID: ${{ secrets.BACKUP_RESTORE_S3_ACCESS_KEY_ID }}
+          BACKUP_RESTORE_S3_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_RESTORE_S3_SECRET_ACCESS_KEY }}
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
       - uses: ./.github/actions/setup-api
-      - name: Anonymized restore drill
+        if: steps.credentials.outputs.enabled == 'true'
+      - name: mise run infra:restore-drill-scheduled
+        if: steps.credentials.outputs.enabled == 'true'
         env:
           BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
           BACKUP_S3_REGION: ${{ secrets.BACKUP_S3_REGION }}
