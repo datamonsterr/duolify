@@ -16,6 +16,9 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 # Pin pg_dump/pg_restore 18.6 and their runtime libraries together by digest.
 FROM postgres:18@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42 AS worker
+# The postgres image ships no CA bundle, so every outbound HTTPS call (R2, Clerk, PostHog) fails TLS
+# verification without this. Guarded by `infra/deploy/test-image-ca.sh` (CI: overlay job).
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /out/api /api
 COPY --from=build /out/age /out/age-keygen /usr/local/bin/
 USER 65532:65532

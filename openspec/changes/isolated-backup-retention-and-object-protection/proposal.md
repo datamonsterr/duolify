@@ -10,8 +10,7 @@ production key custody stay owner-provided.
 - A separate expiry job and identity deletes general dumps after 14 days and
   `financial/` dump copies after 35 days. The append-only writer keeps no delete API.
   Live seven-year financial history in Postgres is untouched.
-- Scoped identities: writer, expirer, read-only restorer, application (no version
-  delete or versioning change) and asset-recovery operator.
+- Scoped identities: writer, expirer, read-only restorer, application (no versioning change; version deletion restricted to eligible generated-lesson erasure) and asset-recovery operator.
 - Tracked restore or regeneration of overwritten application objects as a new
   version under the same key, so references keep working.
 - Analytics: existing `backup_failed` reports retention and recovery failures.

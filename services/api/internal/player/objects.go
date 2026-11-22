@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"regexp"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -14,13 +15,14 @@ import (
 
 // S3 uses the application's existing credentials, not backup-writer privileges.
 type S3 struct {
-	Client *s3.Client
-	Bucket string
+	Client    *s3.Client
+	Bucket    string
+	Versioned bool
 }
 
 // NewS3 uses explicit application credentials and bounded S3 retries.
 func NewS3(getenv func(string) string) *S3 {
-	return &S3{Bucket: getenv("S3_BUCKET"), Client: s3.New(s3.Options{Region: getenv("S3_REGION"), BaseEndpoint: aws.String(getenv("S3_ENDPOINT")), UsePathStyle: true, Credentials: credentials.NewStaticCredentialsProvider(getenv("S3_ACCESS_KEY_ID"), getenv("S3_SECRET_ACCESS_KEY"), ""), RetryMaxAttempts: 1, RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired})}
+	return &S3{Bucket: getenv("S3_BUCKET"), Versioned: getenv("S3_VERSIONING") != "none", Client: s3.New(s3.Options{Region: getenv("S3_REGION"), BaseEndpoint: aws.String(getenv("S3_ENDPOINT")), UsePathStyle: true, Credentials: credentials.NewStaticCredentialsProvider(getenv("S3_ACCESS_KEY_ID"), getenv("S3_SECRET_ACCESS_KEY"), ""), RetryMaxAttempts: 1, RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired})}
 }
 
 // Get reads a bounded immutable lesson object.
@@ -129,4 +131,49 @@ func (s *S3) Exists(ctx context.Context, key string) (bool, error) {
 		return false, nil
 	}
 	return false, errors.New("lesson object head failed")
+}
+
+var generatedPurgePrefix = regexp.MustCompile(`^lessons/generated/[0-9a-f-]{36}/$`)
+
+// PurgePrefix removes every generated object version, including hidden delete markers.
+// R2 does not implement bucket versioning; its configured unversioned path uses ordinary deletes.
+func (s *S3) PurgePrefix(ctx context.Context, prefix string) error {
+	if !generatedPurgePrefix.MatchString(prefix) {
+		return errInvalid
+	}
+	if !s.Versioned {
+		keys, err := s.List(ctx, prefix)
+		if err != nil {
+			return err
+		}
+		for _, key := range keys {
+			if err := s.Delete(ctx, key); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	pages := s3.NewListObjectVersionsPaginator(s.Client, &s3.ListObjectVersionsInput{Bucket: aws.String(s.Bucket), Prefix: aws.String(prefix)})
+	type objectVersion struct{ key, version *string }
+	var versions []objectVersion
+	for pages.HasMorePages() {
+		page, err := pages.NextPage(ctx)
+		if err != nil {
+			return err
+		}
+		for _, v := range page.Versions {
+			versions = append(versions, objectVersion{v.Key, v.VersionId})
+		}
+		for _, m := range page.DeleteMarkers {
+			versions = append(versions, objectVersion{m.Key, m.VersionId})
+		}
+	}
+	// Complete pagination before deleting: continuation markers must still exist while listing.
+	for _, v := range versions {
+		if _, err := s.Client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.Bucket), Key: v.key, VersionId: v.version}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

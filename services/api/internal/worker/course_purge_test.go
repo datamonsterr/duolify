@@ -56,3 +56,22 @@ func TestCoursePurgeWorkerUsesThirtyDayCutoff(t *testing.T) {
 		t.Fatal("grace must be 30 days")
 	}
 }
+
+type objectPurgerDouble struct {
+	purgerDouble
+	swept bool
+}
+
+func (p *objectPurgerDouble) SweepPurgedObjects(context.Context, time.Time) (int, error) {
+	p.swept = true
+	return 0, nil
+}
+func TestCourseWorkerDoesNotUseApplicationObjectStore(t *testing.T) {
+	p := &objectPurgerDouble{}
+	if err := (&CoursePurgeWorker{Service: p}).Work(t.Context(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if p.swept {
+		t.Fatal("worker has no application credentials; API must own object sweep")
+	}
+}

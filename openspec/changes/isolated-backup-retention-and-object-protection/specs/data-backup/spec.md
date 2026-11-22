@@ -20,7 +20,7 @@ layer. Backups MUST live in a different encrypted bucket from application data, 
 - **THEN** storage denies the request
 
 ### Requirement: Object storage protection
-Object storage buckets for Slides, assets and mirrored Golden set revisions MUST have versioning enabled. The application identity MUST NOT delete versions or change versioning. Pinned golden set dataset revisions mirrored to S3 MUST be verified with SHA-256 checksums. Slides MUST be regenerable only through a tracked job, never silently. Recovery and regeneration SHALL append a new version under the same key tagged with an operator job id.
+Object storage buckets for Slides, assets and mirrored Golden set revisions MUST have versioning enabled. The application identity MUST NOT change versioning or delete versions, except that the API MAY erase all versions under `lessons/generated/` after the private-object retention period and live-reference check. Pinned golden set dataset revisions mirrored to S3 MUST be verified with SHA-256 checksums. Slides MUST be regenerable only through a tracked job, never silently. Recovery and regeneration SHALL append a new version under the same key tagged with an operator job id.
 
 #### Scenario: Object overwritten
 - **WHEN** a Slide object is overwritten by mistake
@@ -29,6 +29,10 @@ Object storage buckets for Slides, assets and mirrored Golden set revisions MUST
 #### Scenario: Untracked regeneration
 - **WHEN** regeneration is requested without a job id
 - **THEN** it is refused and nothing is written
+
+#### Scenario: Erasure of private generated lesson versions
+- **WHEN** a generated lesson prefix is eligible for erasure and no live manifest references it
+- **THEN** the API removes all versions and delete markers for that prefix, while other object classes remain protected
 
 ### Requirement: Retention and recovery reporting
 Failed retention or recovery jobs SHALL emit `backup_failed` with the reserved operations UUID and common properties, honor global opt-out, and never include keys, errors or content.

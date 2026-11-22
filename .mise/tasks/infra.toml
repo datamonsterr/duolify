@@ -147,6 +147,10 @@ run = "bash infra/deploy/overlay-tests.sh sse"
 description = "Production overlay: bring up API x2, Engine, Redis, Postgres with WAL archiving on local RustFS; smoke and WAL shipping"
 run = "bash infra/deploy/overlay-tests.sh e2e"
 
+["infra:overlay-ca"]
+description = "Production overlay: the api, worker, engine and walship images carry a TLS root certificate bundle (a missing bundle breaks every outbound HTTPS call, e.g. Cloudflare R2; CI otherwise only uses plain-HTTP local storage)"
+run = "bash infra/deploy/overlay-tests.sh ca"
+
 ["infra:overlay-pitr"]
 description = "Production overlay: PITR drill from base backup plus archived WAL on a throwaway Postgres"
 run = "bash infra/deploy/overlay-tests.sh pitr"

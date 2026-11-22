@@ -5,6 +5,7 @@
 #   overlay-tests.sh pitr   PITR drill: base backup + archived WAL restored to a point in time
 #   overlay-tests.sh redis  Redis cold start: flush Redis, stack still serves, state rebuilds from Postgres
 #   overlay-tests.sh dr     nightly DR copy keeps every object version, even after a source delete
+#   overlay-tests.sh ca     api, worker, engine and walship images carry a CA bundle (outbound HTTPS verifies)
 #   overlay-tests.sh rolling    stop each API instance in turn (docker stop, as deploy.sh does) under GET and POST load plus slow in-flight requests: no failed request
 #   overlay-tests.sh sse       a stream silent for 10-15 s at a time lives >150 s through the proxy, unbuffered
 #   overlay-tests.sh lifecycle  backup-lifecycle.sh apply/verify against the RustFS backup bucket
@@ -48,13 +49,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-start_stack() {
+prepare_env() {
   (umask 077 && cp "$here/.env.example" "$SELFHOST_ENV_FILE")
   {
     printf 'BIND_ADDRESS=127.0.0.1\nHTTP_PORT=%s\nHTTPS_PORT=%s\n' "$(port)" "$(port)"
     printf 'COMPOSE_PROFILES=local-s3\n'
   } >>"$SELFHOST_ENV_FILE"
   sed -i "s|^PUBLIC_ORIGIN=.*|PUBLIC_ORIGIN=http://127.0.0.1|" "$SELFHOST_ENV_FILE"
+}
+
+start_stack() {
+  prepare_env
   bash "$sh" up
 }
 
@@ -89,6 +94,19 @@ test_e2e() {
   wait_for 90 "WAL segment in the backup bucket" wal_in_bucket
   [[ $(compose exec -T postgres psql -U duolify -d duolify -Atc 'select failed_count from pg_stat_archiver') == 0 ]] || die "archiver reports failures"
   say "e2e passed"
+}
+
+# Every image that makes outbound HTTPS calls carries a CA bundle. CI and this stack talk plain HTTP to a local
+# object store, so a missing bundle (the worker image on staging, Cloudflare R2 over HTTPS) is invisible to the
+# other tests. Builds the images (cached after e2e) and inspects them without starting anything.
+test_ca() {
+  prepare_env
+  local images
+  compose --profile '*' build api worker engine walship
+  mapfile -t images < <(compose --profile '*' config --format json | jq -r '[.services.api, .services.worker, .services.engine, .services.walship] | map(.image) | .[]')
+  ((${#images[@]} == 4)) || die "expected 4 images, got ${#images[@]}"
+  bash "$here/test-image-ca.sh" "${images[@]}" || die "an image has no usable CA bundle"
+  say "ca passed"
 }
 
 test_pitr() {
@@ -329,6 +347,7 @@ case ${1:-} in
   rolling) test_rolling ;;
   lifecycle) test_lifecycle ;;
   e2e) test_e2e ;;
+  ca) test_ca ;;
   pitr) test_pitr ;;
   redis) test_redis ;;
   dr) test_dr ;;
