@@ -58,8 +58,10 @@ The daily free grant SHALL initially be 46 Credits, sufficient for three Quick n
 - **WHEN** a Learner spends the new daily grant on three standard notes and five long messages
 - **THEN** the total is 46 Credits and the free allowance covers all those actions
 
+Daily check-in Credits (ADR 0020) are a separate non-expiring attendance source and MAY fund Course preview, Course outline, Lesson generation and narration, and every other purchased-Credit action. The prohibition above applies only to the 46-Credit Daily free allowance. Spending MUST use eligible Daily free credits, then check-in Credits, then existing oldest eligible paid sources.
+
 #### Scenario: Generation with only free balance
-- **WHEN** a Learner with daily free Credits and no paid Credits requests a custom Course outline
+- **WHEN** a Learner with daily free Credits and no check-in or paid Credits requests a custom Course outline
 - **THEN** the API returns insufficient eligible Credits and offers the permitted purchase flow without starting generation
 
 #### Scenario: Expiry while reserved
@@ -67,7 +69,7 @@ The daily free grant SHALL initially be 46 Credits, sufficient for three Quick n
 - **THEN** the expired allocation cannot become spendable on the next day and the new daily grant remains independent
 
 ### Requirement: Paid credit provenance and rollover
-Paid purchase and subscription-grant Credits MUST retain source payment, provider, SKU, price version and service-period provenance. Paid Credits SHALL have unlimited rollover without expiry or a balance cap, including after cancellation or downgrade. Spending MUST use eligible daily Credits first and then oldest eligible paid Credits atomically. The API MUST maintain an outstanding-paid-credit liability view and cost reserve at the configured protected cost per Credit; analytics or cache loss MUST NOT erase that obligation.
+Paid purchase and subscription-grant Credits MUST retain source payment, provider, SKU, price version and service-period provenance. Paid Credits SHALL have unlimited rollover without expiry or a balance cap, including after cancellation or downgrade. Spending MUST use eligible expiring Daily free credits first, then non-expiring check-in Credits, then oldest eligible paid Credits atomically (ADR 0020). The API MUST maintain an outstanding-paid-credit liability view and cost reserve at the configured protected cost per Credit; analytics or cache loss MUST NOT erase that obligation.
 
 #### Scenario: Cancel with unused paid Credits
 - **WHEN** a subscription ends with unused issued subscription or pack Credits

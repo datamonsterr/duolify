@@ -126,3 +126,41 @@ it("preserves the accepted quote header through access token refresh", async () 
     await credentialStore.write(null);
   }
 });
+
+it("accepts check-in Credits for Course preview without purchased funds", async () => {
+  const service = {
+    quote: vi.fn().mockResolvedValue({
+      id: "attendance-quote",
+      content_ceiling: 25,
+      pricing_version: "fixture",
+      expires_at: new Date(Date.now() + 300000).toISOString(),
+    }),
+    wallet: vi
+      .fn()
+      .mockResolvedValue({ purchased: 0, subscription: 0, check_in: 400 }),
+    accept: vi.fn().mockResolvedValue({}),
+    preview: vi.fn().mockRejectedValue(new Error("fixture failure")),
+  };
+  render(
+    <CoursePreview
+      revision={{
+        id: "attendance-brief",
+        content_hash: "h",
+        brief: { ...emptyBrief(), topic: "Sky" },
+      }}
+      service={service}
+      onBack={() => {}}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Review preview cost" }));
+  const confirm = await screen.findByRole("button", {
+    name: /Confirm & preview/,
+  });
+  expect(confirm).toBeEnabled();
+  fireEvent.click(confirm);
+  await screen.findByRole("alert");
+  expect(service.preview).toHaveBeenCalledWith(
+    "attendance-brief",
+    "attendance-quote",
+  );
+});

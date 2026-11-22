@@ -22,6 +22,7 @@ One term, one meaning. Use these words in code, specs and UI copy.
 | **Friend streak** | Shared streak between two learners; it grows when both complete a lesson on the same day. |
 | **Credits** | Balance that pays for AI features (generation, chat, notes, narration). Stored in an append-only ledger. Effort is never rewarded with credits. |
 | **Daily free credits** | Credits granted every day to every learner, sized to cover 3 quick notes and 5 to 8 tutor chat messages. They expire at the end of the day and are spent before purchased credits. |
+| **Check-in Credits** | Non-expiring attendance Credits from the first authenticated app open of a local day: 150 daily plus 250 once on the first check-in (400 on day one), banked with a 1,050 regular-grant cap. Fund all AI actions after eligible Daily free credits and before paid Credits. Attendance is not Lesson effort. |
 | **Subscription** | Paid monthly or yearly plan that grants a monthly credit allowance and extra benefits (see the monetization epic). |
 | **Narration** | Spoken audio for a slide, generated from the slide's narration text with the ElevenLabs API and played in sync with the slide. |
 | **Curated voice** | A narration voice from the approved no-surcharge set (the default voice plus test fixtures for now). Plus and Pro entitle choosing a non-default one; synthesis still consumes the disclosed narration credits. Changing voice is a new optional synthesis that needs the Learner's explicit consent to a quote; the old voice stays and replays free. |
