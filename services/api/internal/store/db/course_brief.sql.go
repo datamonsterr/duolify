@@ -13,7 +13,7 @@ import (
 
 const getCourseBrief = `-- name: GetCourseBrief :one
 SELECT id::text,brief,content_hash,created_at,expires_at FROM course_brief_revisions
-WHERE id::text=$1::text AND learner_id::text=$2::text AND expires_at>now()
+WHERE id=$1::text::uuid AND learner_id=$2::text::uuid AND expires_at>now()
 `
 
 type GetCourseBriefParams struct {

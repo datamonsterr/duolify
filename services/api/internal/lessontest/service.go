@@ -431,7 +431,7 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 	var checkpoint []byte
 	err = s.opts.Pool.QueryRow(ctx, `
 		SELECT learner_id::text, course_id::text, lesson_id::text, quote_id::text, state, COALESCE(reservation_id::text, ''), COALESCE(error_code, ''), result_checkpoint
-		FROM lesson_generations WHERE id::text=$1`, id).Scan(&owner, &courseID, &lessonID, &quoteID, &state, &reservation, &failureCode, &checkpoint)
+		FROM lesson_generations WHERE id=$1::uuid`, id).Scan(&owner, &courseID, &lessonID, &quoteID, &state, &reservation, &failureCode, &checkpoint)
 	if errors.Is(err, pgx.ErrNoRows) || state == "completed" || state == "failed" {
 		return nil
 	}
@@ -469,7 +469,7 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 			return fail("insufficient_credits", fmt.Errorf("reserve credits failed: %w", e))
 		}
 		reservation = job.ID
-		if _, err = s.opts.Pool.Exec(ctx, `UPDATE lesson_generations SET reservation_id=$2::uuid, state='generating' WHERE id::text=$1`, id, reservation); err != nil {
+		if _, err = s.opts.Pool.Exec(ctx, `UPDATE lesson_generations SET reservation_id=$2::uuid, state='generating' WHERE id=$1::uuid`, id, reservation); err != nil {
 			return err
 		}
 
@@ -483,14 +483,14 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 
 		var authoredID, title, goal string
 		var pos int
-		err = s.opts.Pool.QueryRow(ctx, `SELECT authored_id, title, goal, position FROM course_lesson_stubs WHERE id::text=$1`, lessonID).Scan(&authoredID, &title, &goal, &pos)
+		err = s.opts.Pool.QueryRow(ctx, `SELECT authored_id, title, goal, position FROM course_lesson_stubs WHERE id=$1::uuid`, lessonID).Scan(&authoredID, &title, &goal, &pos)
 		if err != nil {
 			return fail("lesson_not_found", fmt.Errorf("lesson not found: %w", err))
 		}
 
 		// Build CourseOutline
 		var courseTitle, courseDesc string
-		if err = s.opts.Pool.QueryRow(ctx, `SELECT title, description FROM courses WHERE id::text=$1`, courseID).Scan(&courseTitle, &courseDesc); err != nil {
+		if err = s.opts.Pool.QueryRow(ctx, `SELECT title, description FROM courses WHERE id=$1::uuid`, courseID).Scan(&courseTitle, &courseDesc); err != nil {
 			return fail("course_unavailable", fmt.Errorf("course lookup: %w", err))
 		}
 		outline := &enginev1.CourseOutline{
@@ -504,7 +504,7 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 			title string
 		}
 		var unitsList []unitInfo
-		uRows, uErr := s.opts.Pool.Query(ctx, `SELECT id::text, title FROM course_units WHERE course_id::text=$1 AND archived_at IS NULL ORDER BY position ASC`, courseID)
+		uRows, uErr := s.opts.Pool.Query(ctx, `SELECT id::text, title FROM course_units WHERE course_id=$1::uuid AND archived_at IS NULL ORDER BY position ASC`, courseID)
 		if uErr == nil {
 			for uRows.Next() {
 				var ui unitInfo
@@ -520,7 +520,7 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 				UnitId: ui.id,
 				Title:  ui.title,
 			}
-			lRows, lErr := s.opts.Pool.Query(ctx, `SELECT authored_id, title, goal FROM course_lesson_stubs WHERE unit_id::text=$1 ORDER BY position ASC`, ui.id)
+			lRows, lErr := s.opts.Pool.Query(ctx, `SELECT authored_id, title, goal FROM course_lesson_stubs WHERE unit_id=$1::uuid ORDER BY position ASC`, ui.id)
 			if lErr == nil {
 				for lRows.Next() {
 					var lAuthID, lTitle, lGoal string
@@ -544,7 +544,7 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 		profileErr := s.opts.Pool.QueryRow(ctx, `
 			SELECT locale, background, goal, level, topic, time_zone,
 			       COALESCE(daily_minutes,0), COALESCE(daily_xp,0), COALESCE(reminder_enabled,false), COALESCE(reminder_time,'')
-			FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(
+			FROM learner_profiles WHERE learner_id=$1::uuid`, owner).Scan(
 			&learner.Locale,
 			&learner.Background,
 			&learner.Goals,
@@ -583,7 +583,7 @@ func (s *Service) RunLessonGeneration(ctx context.Context, id string) error {
 		var history []string
 		hRows, hErr := s.opts.Pool.Query(ctx, `
 			SELECT summary FROM lesson_completion_summaries
-			WHERE learner_id::text=$1 AND course_id::text=$2
+			WHERE learner_id=$1::uuid AND course_id=$2::uuid
 			ORDER BY completed_at ASC`, owner, courseID)
 		if hErr == nil {
 			for hRows.Next() {
@@ -929,6 +929,10 @@ func (s *Service) handleGeneration(w http.ResponseWriter, r *http.Request) {
 	sub := strings.TrimPrefix(pathClean(r.URL.Path), "/v1/lesson-generations/")
 	parts := strings.Split(sub, "/")
 	id := parts[0]
+	if !validIDs(id, owner) {
+		http.Error(w, `{"error":"generation not found"}`, http.StatusNotFound)
+		return
+	}
 
 	if len(parts) == 2 && parts[1] == "events" {
 		s.streamGenerationEvents(w, r, owner, id)
@@ -939,7 +943,7 @@ func (s *Service) handleGeneration(w http.ResponseWriter, r *http.Request) {
 		var state, courseID, lessonID string
 		err := s.opts.Pool.QueryRow(r.Context(), `
 			SELECT state, course_id::text, lesson_id::text FROM lesson_generations
-			WHERE id::text=$1 AND learner_id::text=$2`, id, owner).Scan(&state, &courseID, &lessonID)
+			WHERE id=$1::uuid AND learner_id=$2::uuid`, id, owner).Scan(&state, &courseID, &lessonID)
 		if err != nil {
 			http.Error(w, `{"error":"generation not found"}`, http.StatusNotFound)
 			return
@@ -957,13 +961,24 @@ func (s *Service) handleGeneration(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) streamGenerationEvents(w http.ResponseWriter, r *http.Request, owner, id string) {
+	// An unknown generation is a plain 404, like the creation stream, not an empty event stream.
+	var known bool
+	if err := s.opts.Pool.QueryRow(r.Context(), `SELECT true FROM lesson_generations WHERE id=$1::uuid AND learner_id=$2::uuid`, id, owner).Scan(&known); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, `{"error":"generation not found"}`, http.StatusNotFound)
+		} else {
+			http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
+		}
+		return
+	}
 	sse.Extend(w)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
 	controller := http.NewResponseController(w)
-	ticker := time.NewTicker(200 * time.Millisecond)
-	defer ticker.Stop()
+	delay := sse.PollMin
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
 	beat := time.NewTicker(sse.Interval())
 	defer beat.Stop()
 
@@ -972,7 +987,7 @@ func (s *Service) streamGenerationEvents(w http.ResponseWriter, r *http.Request,
 		var state string
 		err := s.opts.Pool.QueryRow(r.Context(), `
 			SELECT state FROM lesson_generations
-			WHERE id::text=$1 AND learner_id::text=$2`, id, owner).Scan(&state)
+			WHERE id=$1::uuid AND learner_id=$2::uuid`, id, owner).Scan(&state)
 		if err != nil {
 			return
 		}
@@ -987,12 +1002,15 @@ func (s *Service) streamGenerationEvents(w http.ResponseWriter, r *http.Request,
 				return
 			}
 			previous = state
+			delay = sse.PollMin
 		}
 
 		if state == "completed" || state == "failed" {
 			return
 		}
 
+		timer.Reset(delay)
+		delay = sse.NextPollDelay(delay)
 		select {
 		case <-r.Context().Done():
 			return
@@ -1000,7 +1018,7 @@ func (s *Service) streamGenerationEvents(w http.ResponseWriter, r *http.Request,
 			if sse.Heartbeat(w) != nil {
 				return
 			}
-		case <-ticker.C:
+		case <-timer.C:
 		}
 	}
 }
@@ -1015,6 +1033,10 @@ func (s *Service) handleLessons(w http.ResponseWriter, r *http.Request) {
 	sub := strings.TrimPrefix(pathClean(r.URL.Path), "/v1/lessons/")
 	parts := strings.Split(sub, "/")
 	lessonID := parts[0]
+	if !validIDs(lessonID, owner) {
+		http.Error(w, `{"error":"lesson not found"}`, http.StatusNotFound)
+		return
+	}
 
 	// POST /v1/lessons/{id}/prepare
 	if len(parts) == 2 && parts[1] == "prepare" && r.Method == http.MethodPost {
@@ -1082,7 +1104,7 @@ func (s *Service) handleGetLesson(w http.ResponseWriter, r *http.Request, owner,
 	var title string
 	err := s.opts.Pool.QueryRow(ctx, `
 		SELECT g.title FROM generated_lessons g JOIN course_lesson_stubs cls ON cls.id=g.lesson_stub_id
-		WHERE g.lesson_stub_id::text=$1 AND g.learner_id::text=$2 AND cls.status<>'locked'`, lessonID, owner).Scan(&title)
+		WHERE g.lesson_stub_id=$1::uuid AND g.learner_id=$2::uuid AND cls.status<>'locked'`, lessonID, owner).Scan(&title)
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, `{"error":"lesson not yet generated"}`, http.StatusNotFound)
 		return
@@ -1095,7 +1117,7 @@ func (s *Service) handleGetLesson(w http.ResponseWriter, r *http.Request, owner,
 	rows, err := s.opts.Pool.Query(ctx, `
 		SELECT slide_id, html, duration_ms, narration
 		FROM lesson_slides
-		WHERE lesson_stub_id::text=$1 AND learner_id::text=$2
+		WHERE lesson_stub_id=$1::uuid AND learner_id=$2::uuid
 		ORDER BY position ASC`, lessonID, owner)
 	if err != nil {
 		http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
@@ -1139,7 +1161,7 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 	}
 	var courseID string
 	// A Lesson that arrived with a published copy stays closed until its predecessor is passed.
-	if err = tx.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id=cls.unit_id WHERE cls.id::text=$1 AND cls.learner_id::text=$2 AND cls.status<>'locked'`, lessonID, owner).Scan(&courseID); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id=cls.unit_id WHERE cls.id=$1::uuid AND cls.learner_id=$2::uuid AND cls.status<>'locked'`, lessonID, owner).Scan(&courseID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, `{"error":"lesson not found"}`, 404)
 			return
@@ -1148,7 +1170,7 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 		return
 	}
 	var totalTopics int
-	if err = tx.QueryRow(ctx, `SELECT count(*) FROM lesson_questions WHERE lesson_stub_id::text=$1 AND learner_id::text=$2`, lessonID, owner).Scan(&totalTopics); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM lesson_questions WHERE lesson_stub_id=$1::uuid AND learner_id=$2::uuid`, lessonID, owner).Scan(&totalTopics); err != nil {
 		http.Error(w, `{"error":"database error"}`, 500)
 		return
 	}
@@ -1159,7 +1181,7 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 	var sessionID, state string
 	var queueRaw, resolvedRaw []byte
 	var createdAt, updatedAt time.Time
-	err = tx.QueryRow(ctx, `SELECT id::text, state, question_queue, resolved_topics, created_at, updated_at FROM lesson_test_sessions WHERE lesson_stub_id::text=$1 AND learner_id::text=$2 ORDER BY (state='passed') DESC, created_at DESC, id DESC LIMIT 1`, lessonID, owner).Scan(&sessionID, &state, &queueRaw, &resolvedRaw, &createdAt, &updatedAt)
+	err = tx.QueryRow(ctx, `SELECT id::text, state, question_queue, resolved_topics, created_at, updated_at FROM lesson_test_sessions WHERE lesson_stub_id=$1::uuid AND learner_id=$2::uuid ORDER BY (state='passed') DESC, created_at DESC, id DESC LIMIT 1`, lessonID, owner).Scan(&sessionID, &state, &queueRaw, &resolvedRaw, &createdAt, &updatedAt)
 	var queue []queuedQuestion
 	var resolved []string
 	fresh := errors.Is(err, pgx.ErrNoRows)
@@ -1174,7 +1196,7 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 		}
 		fresh = state == "abandoned" || (state == "in_progress" && (time.Since(createdAt) > ttl || time.Since(updatedAt) > ttl))
 		if fresh && state == "in_progress" {
-			if _, err = tx.Exec(ctx, `UPDATE lesson_test_sessions SET state='abandoned', updated_at=now() WHERE id::text=$1`, sessionID); err != nil {
+			if _, err = tx.Exec(ctx, `UPDATE lesson_test_sessions SET state='abandoned', updated_at=now() WHERE id=$1::uuid`, sessionID); err != nil {
 				http.Error(w, `{"error":"database error"}`, 500)
 				return
 			}
@@ -1183,7 +1205,7 @@ func (s *Service) handleGetTest(w http.ResponseWriter, r *http.Request, owner, l
 	if fresh {
 		queue = nil
 		resolved = nil
-		rows, qErr := tx.Query(ctx, `SELECT id::text, topic_id, prompt, choices FROM lesson_questions WHERE lesson_stub_id::text=$1 AND learner_id::text=$2 ORDER BY position`, lessonID, owner)
+		rows, qErr := tx.Query(ctx, `SELECT id::text, topic_id, prompt, choices FROM lesson_questions WHERE lesson_stub_id=$1::uuid AND learner_id=$2::uuid ORDER BY position`, lessonID, owner)
 		if qErr != nil {
 			http.Error(w, `{"error":"database error"}`, 500)
 			return
@@ -1329,7 +1351,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	err = tx.QueryRow(ctx, `
 		SELECT id::text, state, question_queue, resolved_topics, first_try_correct, variants_served, created_at, updated_at
 		FROM lesson_test_sessions
-		WHERE lesson_stub_id::text=$1 AND learner_id::text=$2
+		WHERE lesson_stub_id=$1::uuid AND learner_id=$2::uuid
 		ORDER BY (state='passed') DESC, created_at DESC, id DESC LIMIT 1
 		FOR UPDATE`, lessonID, owner).Scan(&sessionID, &sessionState, &queueRaw, &resolvedRaw, &firstTryCorrect, &variantsServed, &createdAt, &updatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1363,7 +1385,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	}
 
 	if sessionState == "in_progress" && (time.Since(updatedAt) > sessionTTL || time.Since(createdAt) > sessionTTL) {
-		if _, err = tx.Exec(ctx, `UPDATE lesson_test_sessions SET state='abandoned', updated_at=now() WHERE id::text=$1`, sessionID); err != nil {
+		if _, err = tx.Exec(ctx, `UPDATE lesson_test_sessions SET state='abandoned', updated_at=now() WHERE id=$1::uuid`, sessionID); err != nil {
 			http.Error(w, `{"error":"database error"}`, 500)
 			return
 		}
@@ -1380,7 +1402,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	}
 
 	var totalTopics int
-	if err = tx.QueryRow(ctx, `SELECT count(*) FROM lesson_questions WHERE lesson_stub_id::text=$1`, lessonID).Scan(&totalTopics); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM lesson_questions WHERE lesson_stub_id=$1::uuid`, lessonID).Scan(&totalTopics); err != nil {
 		http.Error(w, `{"error":"database error"}`, 500)
 		return
 	}
@@ -1390,7 +1412,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		return
 	}
 	var courseID string
-	if err = tx.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id=$1::uuid`, lessonID).Scan(&courseID); err != nil {
 		http.Error(w, `{"error":"database error"}`, 500)
 		return
 	}
@@ -1429,9 +1451,9 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	var choicesRaw []byte
 	var answerIndex int
 	if isVariant {
-		err = tx.QueryRow(ctx, `SELECT prompt, choices, answer_index, explanation FROM lesson_test_variant_snapshots WHERE session_id=$1::uuid AND question_id=$2 AND lesson_stub_id::text=$3 AND learner_id::text=$4`, sessionID, qID, lessonID, owner).Scan(&prompt, &choicesRaw, &answerIndex, &explanation)
+		err = tx.QueryRow(ctx, `SELECT prompt, choices, answer_index, explanation FROM lesson_test_variant_snapshots WHERE session_id=$1::uuid AND question_id=$2 AND lesson_stub_id=$3::uuid AND learner_id=$4::uuid`, sessionID, qID, lessonID, owner).Scan(&prompt, &choicesRaw, &answerIndex, &explanation)
 	} else {
-		err = tx.QueryRow(ctx, `SELECT prompt, choices, answer_index, explanation FROM lesson_questions WHERE id::text=$1 AND lesson_stub_id::text=$2 AND learner_id::text=$3`, served.SourceID, lessonID, owner).Scan(&prompt, &choicesRaw, &answerIndex, &explanation)
+		err = tx.QueryRow(ctx, `SELECT prompt, choices, answer_index, explanation FROM lesson_questions WHERE id=$1::uuid AND lesson_stub_id=$2::uuid AND learner_id=$3::uuid`, served.SourceID, lessonID, owner).Scan(&prompt, &choicesRaw, &answerIndex, &explanation)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, `{"error":"unserved question key rejected"}`, 400)
@@ -1515,7 +1537,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 
 		// Look up private pool for this topic
 		var poolVariantsRaw []byte
-		if err = tx.QueryRow(ctx, `SELECT variants FROM lesson_retry_pools WHERE lesson_stub_id::text=$1 AND topic_id=$2`, lessonID, topicID).Scan(&poolVariantsRaw); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		if err = tx.QueryRow(ctx, `SELECT variants FROM lesson_retry_pools WHERE lesson_stub_id=$1::uuid AND topic_id=$2`, lessonID, topicID).Scan(&poolVariantsRaw); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, `{"error":"database error"}`, 500)
 			return
 		}
@@ -1685,7 +1707,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		if _, err = tx.Exec(ctx, `
 			UPDATE lesson_test_sessions
 			SET question_queue = $2, variants_served = variants_served + 1, updated_at = now()
-			WHERE id::text=$1`, sessionID, updatedQueueJSON); err != nil {
+			WHERE id=$1::uuid`, sessionID, updatedQueueJSON); err != nil {
 			http.Error(w, `{"error":"database error"}`, 500)
 			return
 		}
@@ -1734,7 +1756,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 			sRows, err := tx.Query(ctx, `
 				SELECT slide_id, html, duration_ms, narration, topic_ids
 				FROM lesson_slides
-				WHERE lesson_stub_id::text=$1 AND $2 = ANY(topic_ids)
+				WHERE lesson_stub_id=$1::uuid AND $2 = ANY(topic_ids)
 				ORDER BY position ASC`, lessonID, topicID)
 			if err != nil {
 				http.Error(w, `{"error":"database error"}`, 500)
@@ -1867,7 +1889,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		if _, err = tx.Exec(ctx, `
 			UPDATE lesson_test_sessions
 			SET question_queue = $2, resolved_topics = $3, first_try_correct = first_try_correct + $4, updated_at = now()
-			WHERE id::text=$1`, sessionID, remainingQueueJSON, newResolvedRaw, firstTryInc); err != nil {
+			WHERE id=$1::uuid`, sessionID, remainingQueueJSON, newResolvedRaw, firstTryInc); err != nil {
 			http.Error(w, `{"error":"database error"}`, 500)
 			return
 		}
@@ -1908,13 +1930,13 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	if _, err = tx.Exec(ctx, `
 		UPDATE lesson_test_sessions
 		SET state = 'passed', question_queue = '[]'::jsonb, resolved_topics = $2, first_try_correct = first_try_correct + $3, updated_at = now()
-		WHERE id::text=$1`, sessionID, newResolvedRaw, firstTryInc); err != nil {
+		WHERE id=$1::uuid`, sessionID, newResolvedRaw, firstTryInc); err != nil {
 		http.Error(w, `{"error":"database error"}`, 500)
 		return
 	}
 
 	// Mark current lesson stub as 'done'
-	if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs SET status = 'done' WHERE id::text=$1`, lessonID); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE course_lesson_stubs SET status = 'done' WHERE id=$1::uuid`, lessonID); err != nil {
 		http.Error(w, `{"error":"database error"}`, 500)
 		return
 	}
@@ -1930,8 +1952,8 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	var nextLessonID string
 	if err = tx.QueryRow(ctx, `
 		SELECT cls.id::text FROM course_lesson_stubs cls
-		WHERE cls.unit_id = (SELECT unit_id FROM course_lesson_stubs WHERE id::text=$1)
-		  AND cls.position = (SELECT position + 1 FROM course_lesson_stubs WHERE id::text=$1)
+		WHERE cls.unit_id = (SELECT unit_id FROM course_lesson_stubs WHERE id=$1::uuid)
+		  AND cls.position = (SELECT position + 1 FROM course_lesson_stubs WHERE id=$1::uuid)
 	`, lessonID).Scan(&nextLessonID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, `{"error":"database error"}`, 500)
 		return
@@ -1941,8 +1963,8 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 		if err = tx.QueryRow(ctx, `
 			SELECT cls.id::text FROM course_lesson_stubs cls
 			JOIN course_units cu ON cu.id = cls.unit_id
-			WHERE cu.course_id = (SELECT cu2.course_id FROM course_lesson_stubs cs JOIN course_units cu2 ON cu2.id = cs.unit_id WHERE cs.id::text=$1)
-			  AND cu.position = (SELECT cu3.position + 1 FROM course_lesson_stubs cs2 JOIN course_units cu3 ON cu3.id = cs2.unit_id WHERE cs2.id::text=$1)
+			WHERE cu.course_id = (SELECT cu2.course_id FROM course_lesson_stubs cs JOIN course_units cu2 ON cu2.id = cs.unit_id WHERE cs.id=$1::uuid)
+			  AND cu.position = (SELECT cu3.position + 1 FROM course_lesson_stubs cs2 JOIN course_units cu3 ON cu3.id = cs2.unit_id WHERE cs2.id=$1::uuid)
 			  AND cls.position = 0
 		`, lessonID).Scan(&nextLessonID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, `{"error":"database error"}`, 500)
@@ -1962,7 +1984,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 				UPDATE course_lesson_stubs
 				SET status = CASE WHEN EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id = course_lesson_stubs.id)
 					THEN 'current' ELSE 'ready_to_generate' END
-				WHERE id::text=$1 AND status = 'locked'
+				WHERE id=$1::uuid AND status = 'locked'
 				RETURNING id, status, reused_from_snapshot)
 			SELECT n.status, n.status = 'current' AND n.reused_from_snapshot,
 				(SELECT cc.version FROM course_copies cc JOIN course_units cu ON cu.course_id = cc.copy_course_id
@@ -2023,7 +2045,7 @@ func (s *Service) handleAnswerTest(w http.ResponseWriter, r *http.Request, owner
 	weakTopics := ExtractWeakTopics(sessionAnswers)
 
 	var lessonTitle string
-	if err = tx.QueryRow(ctx, `SELECT title FROM course_lesson_stubs WHERE id::text=$1`, lessonID).Scan(&lessonTitle); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT title FROM course_lesson_stubs WHERE id=$1::uuid`, lessonID).Scan(&lessonTitle); err != nil {
 		http.Error(w, `{"error":"database error"}`, 500)
 		return
 	}
@@ -2110,7 +2132,7 @@ func (s *Service) handleRecap(w http.ResponseWriter, r *http.Request, owner, les
 	rows, err := s.opts.Pool.Query(ctx, `
 		SELECT slide_id, html, duration_ms, narration, topic_ids
 		FROM lesson_slides
-		WHERE lesson_stub_id::text=$1 AND $2 = ANY(topic_ids) AND learner_id::text=$3
+		WHERE lesson_stub_id=$1::uuid AND $2 = ANY(topic_ids) AND learner_id=$3::uuid
 		ORDER BY position ASC`, lessonID, topicID, owner)
 	if err != nil {
 		http.Error(w, `{"error":"database error"}`, http.StatusInternalServerError)
@@ -2136,7 +2158,7 @@ func (s *Service) handleRecap(w http.ResponseWriter, r *http.Request, owner, les
 	if s.opts.Events != nil {
 		var courseID string
 		// Analytics property only: the recap already succeeded, so a failed lookup is logged, not surfaced.
-		if err := s.opts.Pool.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id::text=$1`, lessonID).Scan(&courseID); err != nil {
+		if err := s.opts.Pool.QueryRow(ctx, `SELECT cu.course_id::text FROM course_lesson_stubs cls JOIN course_units cu ON cu.id = cls.unit_id WHERE cls.id=$1::uuid`, lessonID).Scan(&courseID); err != nil {
 			slog.WarnContext(ctx, "recap analytics course lookup failed", "error", err)
 		}
 		_ = s.opts.Events.Capture(owner, "lesson_test_recap_shown", map[string]any{

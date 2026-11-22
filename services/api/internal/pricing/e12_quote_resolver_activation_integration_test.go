@@ -48,8 +48,12 @@ func TestQuoteResolverActivation(t *testing.T) {
 	runtime := pricing.NewRuntimeCatalogue(initial, db.Queries, db.Pool, nil)
 	quotes := pricing.NewQuotes(db.Pool)
 
+	// The marker below is written behind this process's back, like another replica activating;
+	// the snapshot shows it once its TTL lapses.
+	runtime.SetSnapshotTTL(10 * time.Millisecond)
 	readCatalogue := func() map[string]any {
 		t.Helper()
+		time.Sleep(15 * time.Millisecond)
 		w := httptest.NewRecorder()
 		runtime.ServeHTTP(w, httptest.NewRequestWithContext(ctx, http.MethodGet, "/v1/pricing", nil))
 		if w.Code != http.StatusOK {

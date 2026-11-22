@@ -102,7 +102,7 @@ func New(addr string, timeout time.Duration) (*Client, error) {
 	if u.Scheme == "https" {
 		creds = credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12})
 	}
-	conn, err := grpc.NewClient("dns:///"+u.Host, grpc.WithTransportCredentials(creds), grpc.WithUnaryInterceptor(correlate))
+	conn, err := grpc.NewClient("dns:///"+u.Host, grpc.WithTransportCredentials(creds), grpc.WithUnaryInterceptor(correlate), grpc.WithStreamInterceptor(watchStream))
 	if err != nil {
 		return nil, fmt.Errorf("create engine client: %w", err)
 	}
@@ -118,6 +118,7 @@ func correlate(ctx context.Context, method string, req, reply any, conn *grpc.Cl
 	md.Set("x-request-id", c.RequestID)
 	md.Set("traceparent", c.Traceparent())
 	err := invoke(metadata.NewOutgoingContext(ctx, md), method, req, reply, conn, opts...)
+	logNotPromoted(ctx, method, err)
 	end(err == nil)
 	return err
 }

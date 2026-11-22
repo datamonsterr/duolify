@@ -64,7 +64,10 @@ type Creation struct {
 
 func (s *Service) creation(ctx context.Context, owner, id string) (Creation, error) {
 	var c Creation
-	err := s.opts.Pool.QueryRow(ctx, `SELECT id::text,state,COALESCE(course_id::text,'') FROM course_creations WHERE learner_id::text=$1 AND id::text=$2`, owner, id).Scan(&c.ID, &c.State, &c.CourseID)
+	if !validIDs(owner, id) {
+		return c, pgx.ErrNoRows
+	}
+	err := s.opts.Pool.QueryRow(ctx, `SELECT id::text,state,COALESCE(course_id::text,'') FROM course_creations WHERE learner_id=$1::uuid AND id=$2::uuid`, owner, id).Scan(&c.ID, &c.State, &c.CourseID)
 	if err != nil {
 		return c, err
 	}
@@ -105,6 +108,10 @@ func (s *Service) ServeCreationHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	if tail == "quote" {
+		if !validIDs(in.DraftID) {
+			outlineError(w, 409)
+			return
+		}
 		snapshot, err := s.ResolveConfirmed(ctx, owner, in.DraftID, in.ExpectedRevision)
 		if err != nil || in.QuoteID != "" {
 			outlineError(w, 409)
@@ -122,6 +129,14 @@ func (s *Service) ServeCreationHTTP(w http.ResponseWriter, r *http.Request) {
 		outlineError(w, 400)
 		return
 	}
+	if !validIDs(in.DraftID) {
+		outlineError(w, 404)
+		return
+	}
+	if !validIDs(in.QuoteID) {
+		outlineError(w, 409)
+		return
+	}
 	tx, err := s.opts.Pool.Begin(ctx)
 	if err != nil {
 		outlineError(w, 503)
@@ -130,14 +145,14 @@ func (s *Service) ServeCreationHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = tx.Rollback(ctx) }()
 	// Lock the same head as manual edits and Apply so a submitted snapshot is atomic.
 	var locked string
-	if tx.QueryRow(ctx, `SELECT id::text FROM outline_drafts WHERE id::text=$1 AND learner_id::text=$2 FOR UPDATE`, in.DraftID, owner).Scan(&locked) != nil {
+	if tx.QueryRow(ctx, `SELECT id::text FROM outline_drafts WHERE id=$1::uuid AND learner_id=$2::uuid FOR UPDATE`, in.DraftID, owner).Scan(&locked) != nil {
 		outlineError(w, 404)
 		return
 	}
 	var old Creation
 	var revision int64
 	var oldQuoteID string
-	err = tx.QueryRow(ctx, `SELECT id::text,state,COALESCE(course_id::text,''),revision,quote_id::text FROM course_creations WHERE draft_id::text=$1 AND learner_id::text=$2`, in.DraftID, owner).Scan(&old.ID, &old.State, &old.CourseID, &revision, &oldQuoteID)
+	err = tx.QueryRow(ctx, `SELECT id::text,state,COALESCE(course_id::text,''),revision,quote_id::text FROM course_creations WHERE draft_id=$1::uuid AND learner_id=$2::uuid`, in.DraftID, owner).Scan(&old.ID, &old.State, &old.CourseID, &revision, &oldQuoteID)
 	if err == nil {
 		if revision != in.ExpectedRevision {
 			outlineError(w, 409)
@@ -162,7 +177,7 @@ func (s *Service) ServeCreationHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var briefRaw []byte
-	if tx.QueryRow(ctx, `SELECT b.brief FROM course_brief_revisions b JOIN outline_drafts d ON d.brief_revision=b.id WHERE d.id::text=$1`, in.DraftID).Scan(&briefRaw) != nil {
+	if tx.QueryRow(ctx, `SELECT b.brief FROM course_brief_revisions b JOIN outline_drafts d ON d.brief_revision=b.id WHERE d.id=$1::uuid`, in.DraftID).Scan(&briefRaw) != nil {
 		outlineError(w, 409)
 		return
 	}
@@ -172,7 +187,7 @@ func (s *Service) ServeCreationHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var profileRaw []byte
-	if tx.QueryRow(ctx, `SELECT jsonb_build_object('learnerId',learner_id,'locale',locale,'background',background,'goals',goal,'level',level,'topic',topic) FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(&profileRaw) != nil {
+	if tx.QueryRow(ctx, `SELECT jsonb_build_object('learnerId',learner_id,'locale',locale,'background',background,'goals',goal,'level',level,'topic',topic) FROM learner_profiles WHERE learner_id=$1::uuid`, owner).Scan(&profileRaw) != nil {
 		outlineError(w, 503)
 		return
 	}
@@ -200,7 +215,7 @@ func (s *Service) ServeCreationHTTP(w http.ResponseWriter, r *http.Request) {
 	if old.ID != "" {
 		c = old
 		c.State = "queued"
-		if err = tx.QueryRow(ctx, `UPDATE course_creations SET state='queued',quote_id=$2::uuid,revision=$3,request=$4,response=NULL,reservation_id=NULL WHERE id::text=$1 AND state='failed' RETURNING id::text`, old.ID, in.QuoteID, in.ExpectedRevision, raw).Scan(&c.ID); err != nil {
+		if err = tx.QueryRow(ctx, `UPDATE course_creations SET state='queued',quote_id=$2::uuid,revision=$3,request=$4,response=NULL,reservation_id=NULL WHERE id=$1::uuid AND state='failed' RETURNING id::text`, old.ID, in.QuoteID, in.ExpectedRevision, raw).Scan(&c.ID); err != nil {
 			outlineError(w, 409)
 			return
 		}
@@ -225,6 +240,7 @@ func (s *Service) ServeCreationHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 202, c)
 }
+
 func (s *Service) creationEvents(w http.ResponseWriter, r *http.Request, owner, id string) {
 	if _, err := s.creation(r.Context(), owner, id); err != nil {
 		outlineError(w, 404)
@@ -235,7 +251,8 @@ func (s *Service) creationEvents(w http.ResponseWriter, r *http.Request, owner, 
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
 	controller := http.NewResponseController(w)
-	timer := time.NewTicker(200 * time.Millisecond)
+	delay := sse.PollMin
+	timer := time.NewTimer(delay)
 	defer timer.Stop()
 	beat := time.NewTicker(sse.Interval())
 	defer beat.Stop()
@@ -255,10 +272,13 @@ func (s *Service) creationEvents(w http.ResponseWriter, r *http.Request, owner, 
 				return
 			}
 			previous = c.State
+			delay = sse.PollMin
 		}
 		if c.State == "enrolled" || c.State == "failed" {
 			return
 		}
+		timer.Reset(delay)
+		delay = sse.NextPollDelay(delay)
 		select {
 		case <-r.Context().Done():
 			return
@@ -336,7 +356,7 @@ func (s *Service) RunCreation(ctx context.Context, id string) error {
 	}()
 	var owner, quoteID, state, reservation string
 	var raw, responseRaw []byte
-	if err = s.opts.Pool.QueryRow(ctx, `SELECT learner_id::text,quote_id::text,state,COALESCE(reservation_id::text,''),request,response FROM course_creations WHERE id::text=$1`, id).Scan(&owner, &quoteID, &state, &reservation, &raw, &responseRaw); errors.Is(err, pgx.ErrNoRows) {
+	if err = s.opts.Pool.QueryRow(ctx, `SELECT learner_id::text,quote_id::text,state,COALESCE(reservation_id::text,''),request,response FROM course_creations WHERE id=$1::uuid`, id).Scan(&owner, &quoteID, &state, &reservation, &raw, &responseRaw); errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
@@ -365,7 +385,7 @@ func (s *Service) RunCreation(ctx context.Context, id string) error {
 		}
 		reservation = job.ID
 		// Crash before this transition leaves a reserved job safely discoverable by quote.
-		tag, err := s.opts.Pool.Exec(ctx, `UPDATE course_creations SET reservation_id=$2::uuid,state='generating' WHERE id::text=$1 AND state='queued' AND quote_id::text=$3`, id, reservation, quoteID)
+		tag, err := s.opts.Pool.Exec(ctx, `UPDATE course_creations SET reservation_id=$2::uuid,state='generating' WHERE id=$1::uuid AND state='queued' AND quote_id=$3::uuid`, id, reservation, quoteID)
 		if err != nil {
 			return err
 		}
@@ -398,7 +418,7 @@ func (s *Service) RunCreation(ctx context.Context, id string) error {
 		if err != nil {
 			return err
 		}
-		tag, err = s.opts.Pool.Exec(finishCtx, `UPDATE course_creations SET state='validated',response=$2 WHERE id::text=$1 AND state='generating' AND reservation_id::text=$3`, id, responseRaw, reservation)
+		tag, err = s.opts.Pool.Exec(finishCtx, `UPDATE course_creations SET state='validated',response=$2 WHERE id=$1::uuid AND state='generating' AND reservation_id=$3::uuid`, id, responseRaw, reservation)
 		if err != nil {
 			return err
 		}
@@ -415,7 +435,7 @@ func (s *Service) RunCreation(ctx context.Context, id string) error {
 	o := response.Outline
 	persist := func(tx pgx.Tx) error {
 		var locked string
-		if err := tx.QueryRow(ctx, `SELECT id::text FROM course_creations WHERE id::text=$1 AND state='validated' AND reservation_id::text=$2 FOR UPDATE`, id, reservation).Scan(&locked); errors.Is(err, pgx.ErrNoRows) {
+		if err := tx.QueryRow(ctx, `SELECT id::text FROM course_creations WHERE id=$1::uuid AND state='validated' AND reservation_id=$2::uuid FOR UPDATE`, id, reservation).Scan(&locked); errors.Is(err, pgx.ErrNoRows) {
 			return errStateLost
 		} else if err != nil {
 			return err
@@ -441,7 +461,7 @@ func (s *Service) RunCreation(ctx context.Context, id string) error {
 		if _, err = tx.Exec(ctx, `INSERT INTO course_enrollments(learner_id,course_id) VALUES($1::uuid,$2::uuid)`, owner, courseID); err != nil {
 			return err
 		}
-		if err = tx.QueryRow(ctx, `UPDATE course_creations SET state='enrolled',course_id=$2::uuid WHERE id::text=$1 AND state='validated' AND reservation_id::text=$3 RETURNING id::text`, id, courseID, reservation).Scan(&locked); err != nil {
+		if err = tx.QueryRow(ctx, `UPDATE course_creations SET state='enrolled',course_id=$2::uuid WHERE id=$1::uuid AND state='validated' AND reservation_id=$3::uuid RETURNING id::text`, id, courseID, reservation).Scan(&locked); err != nil {
 			return err
 		}
 		return nil
@@ -494,7 +514,7 @@ var errStateLost = errors.New("course job state changed")
 func (s *Service) failCreation(ctx context.Context, owner, id, quoteID, expected, reservation string, attempts []*enginev1.Usage) error {
 	if reservation == "" {
 		// Find the hold after a crash between reserve and recording its ID.
-		err := s.opts.Pool.QueryRow(ctx, `SELECT j.id::text FROM course_creations c JOIN credit_jobs j ON j.quote_id=c.quote_id WHERE c.id::text=$1 AND c.state=$2 AND c.quote_id::text=$3`, id, expected, quoteID).Scan(&reservation)
+		err := s.opts.Pool.QueryRow(ctx, `SELECT j.id::text FROM course_creations c JOIN credit_jobs j ON j.quote_id=c.quote_id WHERE c.id=$1::uuid AND c.state=$2 AND c.quote_id=$3::uuid`, id, expected, quoteID).Scan(&reservation)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
@@ -506,7 +526,7 @@ func (s *Service) failCreation(ctx context.Context, owner, id, quoteID, expected
 	}
 	changed := false
 	transition := func(tx pgx.Tx, _ credits.Reservation) error {
-		tag, err := tx.Exec(ctx, `UPDATE course_creations SET state='failed' WHERE id::text=$1 AND state=$2 AND ($3='' OR reservation_id IS NULL OR reservation_id::text=$3) AND quote_id::text=$4`, id, expected, reservation, quoteID)
+		tag, err := tx.Exec(ctx, `UPDATE course_creations SET state='failed' WHERE id=$1::uuid AND state=$2 AND ($3::text='' OR reservation_id IS NULL OR reservation_id=NULLIF($3::text,'')::uuid) AND quote_id=$4::uuid`, id, expected, reservation, quoteID)
 		if err != nil {
 			return err
 		}
@@ -558,7 +578,7 @@ func (s *Service) creationEvent(ctx context.Context, owner, event, courseID stri
 		return
 	}
 	var optout bool
-	if s.opts.Pool.QueryRow(ctx, `SELECT analytics_opt_out FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(&optout) != nil || optout {
+	if s.opts.Pool.QueryRow(ctx, `SELECT analytics_opt_out FROM learner_profiles WHERE learner_id=$1::uuid`, owner).Scan(&optout) != nil || optout {
 		return
 	}
 	props := map[string]any{"source": "api", "platform": "web", "app_version": "0.1.0", "course_id": courseID, "stage": "outline"}
@@ -595,8 +615,12 @@ func (s *Service) ServeCourseHTTP(w http.ResponseWriter, r *http.Request) {
 	if id == "" {
 		id = strings.TrimPrefix(r.URL.Path, "/v1/courses/")
 	}
+	if !validIDs(id) {
+		outlineError(w, 404)
+		return
+	}
 	var raw []byte
-	err := s.opts.Pool.QueryRow(r.Context(), `SELECT jsonb_build_object('id',c.id,'title',c.title,'description',c.description,'visibility',c.visibility,'level_override',COALESCE(e.level_override,''),'pinned_version',(SELECT cc.version FROM course_copies cc WHERE cc.copy_course_id=c.id),'moderation_blocked',EXISTS(SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL),'copy_origin', (SELECT jsonb_build_object('creator_username', u.username, 'creator_deleted', cc.source_owner_id IS NULL, 'source_available', EXISTS(SELECT 1 FROM courses sc WHERE sc.id=cc.source_course_id AND sc.deleted_at IS NULL AND sc.visibility<>'private')) FROM course_copies cc LEFT JOIN learner_usernames u ON u.learner_id=cc.source_owner_id WHERE cc.copy_course_id=c.id),'units',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',u.id,'title',u.title,'lessons',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',l.id,'title',l.title,'goal',l.goal,'state',l.status,'content',CASE WHEN EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=l.id) THEN 'ready' ELSE 'needs_generation' END,'reused',l.reused_from_snapshot) ORDER BY l.position) FROM course_lesson_stubs l WHERE l.unit_id=u.id),'[]'::jsonb)) ORDER BY u.position) FROM course_units u WHERE u.course_id=c.id AND u.archived_at IS NULL),'[]'::jsonb)) FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE c.id::text=$1 AND e.learner_id::text=$2 AND c.deleted_at IS NULL`, id, owner).Scan(&raw)
+	err := s.opts.Pool.QueryRow(r.Context(), `SELECT jsonb_build_object('id',c.id,'title',c.title,'description',c.description,'visibility',c.visibility,'level_override',COALESCE(e.level_override,''),'pinned_version',(SELECT cc.version FROM course_copies cc WHERE cc.copy_course_id=c.id),'moderation_blocked',EXISTS(SELECT 1 FROM course_copies bc WHERE bc.copy_course_id=c.id AND bc.blocked_at IS NOT NULL),'copy_origin', (SELECT jsonb_build_object('creator_username', u.username, 'creator_deleted', cc.source_owner_id IS NULL, 'source_available', EXISTS(SELECT 1 FROM courses sc WHERE sc.id=cc.source_course_id AND sc.deleted_at IS NULL AND sc.visibility<>'private')) FROM course_copies cc LEFT JOIN learner_usernames u ON u.learner_id=cc.source_owner_id WHERE cc.copy_course_id=c.id),'units',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',u.id,'title',u.title,'lessons',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',l.id,'title',l.title,'goal',l.goal,'state',l.status,'content',CASE WHEN EXISTS(SELECT 1 FROM generated_lessons g WHERE g.lesson_stub_id=l.id) THEN 'ready' ELSE 'needs_generation' END,'reused',l.reused_from_snapshot) ORDER BY l.position) FROM course_lesson_stubs l WHERE l.unit_id=u.id),'[]'::jsonb)) ORDER BY u.position) FROM course_units u WHERE u.course_id=c.id AND u.archived_at IS NULL),'[]'::jsonb)) FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE c.id=$1::uuid AND e.learner_id=$2::uuid AND c.deleted_at IS NULL`, id, owner).Scan(&raw)
 	if err != nil {
 		outlineError(w, 404)
 		return

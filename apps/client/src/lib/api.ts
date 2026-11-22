@@ -1,3 +1,7 @@
+import {
+  invalidateCourseList,
+  invalidateCourseProgress,
+} from "./courseQueries";
 import { session } from "../features/accounts/session";
 import type { CopyOrigin } from "../features/sharing/retention";
 import { isValidPricing, type Pricing } from "../features/pricing/types";
@@ -26,7 +30,57 @@ export type Course = {
   copy_origin?: CopyOrigin | null;
   units: { id?: string; title: string; lessons: Lesson[] }[];
 };
-export type CoursesResponse = Course[] & { active_course_id?: string };
+/** Where the learner is in a course; computed by the API so the list needs no lesson tree. */
+export type CourseProgress = {
+  lessons_total: number;
+  lessons_done: number;
+  /** Position of the current lesson among the non-archived units; null when none is current. */
+  current: {
+    unit_index: number;
+    lesson_index: number;
+    unit_lessons: number;
+  } | null;
+};
+/** What GET /v1/courses returns per course: the card fields, no units or lessons. */
+export type CourseSummary = Omit<Course, "units"> & {
+  progress: CourseProgress;
+};
+export type CoursesResponse = CourseSummary[] & { active_course_id?: string };
+
+/** Reduces a full course (offline copy, older mock) to the summary the list works with. */
+export function summarizeCourse(course: Course | CourseSummary): CourseSummary {
+  if ("progress" in course && course.progress) {
+    const { units: _tree, ...summary } = course as CourseSummary & {
+      units?: unknown;
+    };
+    void _tree;
+    return summary;
+  }
+  const { units, ...rest } = course as Course;
+  const lessons = units.flatMap((unit) => unit.lessons);
+  const unitIndex = units.findIndex((unit) =>
+    unit.lessons.some((lesson) => lesson.state === "current"),
+  );
+  const lessonIndex =
+    unitIndex >= 0
+      ? units[unitIndex].lessons.findIndex((l) => l.state === "current")
+      : -1;
+  return {
+    ...rest,
+    progress: {
+      lessons_total: lessons.length,
+      lessons_done: lessons.filter((lesson) => lesson.state === "done").length,
+      current:
+        unitIndex >= 0
+          ? {
+              unit_index: unitIndex,
+              lesson_index: lessonIndex,
+              unit_lessons: units[unitIndex].lessons.length,
+            }
+          : null,
+    },
+  };
+}
 const base = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 const pricingCacheKey = "pricing:last-known";
 type PricingCache = { pricing: Pricing; etag: string | null };
@@ -84,32 +138,33 @@ export const api = {
   courses: async (options?: {
     authenticatedOnly?: boolean;
   }): Promise<CoursesResponse> => {
-    let list: Course[] = [];
+    let list: CourseSummary[] = [];
     let activeCourseId: string | undefined;
 
     try {
       const data = await session.request<
-        | Course[]
+        | (Course | CourseSummary)[]
         | {
-            courses?: Course[];
+            courses?: (Course | CourseSummary)[];
             active_course_id?: string;
           }
       >("/v1/courses");
       if (Array.isArray(data)) {
-        list = data;
+        list = data.map(summarizeCourse);
       } else if (Array.isArray(data?.courses)) {
-        list = data.courses;
+        list = data.courses.map(summarizeCourse);
         activeCourseId = data.active_course_id;
       }
     } catch (error) {
       if (options?.authenticatedOnly) throw error;
       const fallback = await get<
-        Course[] | { courses?: Course[]; active_course_id?: string }
+        | (Course | CourseSummary)[]
+        | { courses?: (Course | CourseSummary)[]; active_course_id?: string }
       >("/courses");
       if (Array.isArray(fallback)) {
-        list = fallback;
+        list = fallback.map(summarizeCourse);
       } else if (Array.isArray(fallback?.courses)) {
-        list = fallback.courses;
+        list = fallback.courses.map(summarizeCourse);
         activeCourseId = fallback.active_course_id;
       }
     }
@@ -127,26 +182,32 @@ export const api = {
     return Object.assign(list, { active_course_id: activeCourseId });
   },
   selectCourse: async (id: string): Promise<{ active_course_id: string }> => {
-    return session.request<{ active_course_id: string }>(
+    const result = await session.request<{ active_course_id: string }>(
       `/v1/courses/${encodeURIComponent(id)}/select`,
       "POST",
     );
+    invalidateCourseList();
+    return result;
   },
   setCourseLevel: async (
     id: string,
     level: string,
   ): Promise<{ level_override: string }> => {
-    return session.request<{ level_override: string }>(
+    const result = await session.request<{ level_override: string }>(
       `/v1/courses/${encodeURIComponent(id)}/level`,
       "POST",
       { level },
     );
+    invalidateCourseProgress();
+    return result;
   },
   deleteCourse: async (id: string): Promise<{ deleted: boolean }> => {
-    return session.request<{ deleted: boolean }>(
+    const result = await session.request<{ deleted: boolean }>(
       `/v1/courses/${encodeURIComponent(id)}`,
       "DELETE",
     );
+    invalidateCourseProgress();
+    return result;
   },
   course: (id: string) =>
     /^[0-9a-f-]{36}$/.test(id)

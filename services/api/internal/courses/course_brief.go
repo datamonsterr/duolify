@@ -247,7 +247,7 @@ func (s *Service) attemptEvents(ctx context.Context, owner, version string, atte
 		return
 	}
 	var optOut bool
-	if s.opts.Pool.QueryRow(ctx, "SELECT analytics_opt_out FROM learner_profiles WHERE learner_id::text=$1", owner).Scan(&optOut) != nil || optOut {
+	if s.opts.Pool.QueryRow(ctx, "SELECT analytics_opt_out FROM learner_profiles WHERE learner_id=$1::uuid", owner).Scan(&optOut) != nil || optOut {
 		return
 	}
 	for i, a := range attempts {

@@ -1,0 +1,6 @@
+- [x] Pricing: tests for zero statements on a warm request, TTL-bounded staleness, single-flight reload and last-good on failure; implement the snapshot and the shorter `max-age`.
+- [x] Cache policy: `internal/httpcache`, explicit policies for features, default cast, SSO config and shared demo, router-level policy tests including "authenticated is never public".
+- [x] Course list: integration test (summary shape, constant statements and bytes, 304); summary SQL; client summary type, `summarizeCourse` and `CourseCard` on progress.
+- [x] Client: configured query client with unit tests; `/courses` revalidates on visit.
+- [x] Creation stream: backoff with a unit test; existing heartbeat integration test unchanged.
+- [x] Run the focused API, web and OpenSpec gates; merge once CI is green.

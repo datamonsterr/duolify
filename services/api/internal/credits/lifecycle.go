@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/ids"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -50,7 +52,7 @@ func (s *Service) recordLifecycle(ctx context.Context, tx pgx.Tx, event string, 
 	}
 	var owner *string
 	var platform, plan, version, interval string
-	err := tx.QueryRow(ctx, `SELECT o.learner_id::text,o.platform,t.plan_id,t.entitlement_version,o.billing_period FROM credit_subscriptions b JOIN credit_checkout_orders o ON o.id=b.order_id JOIN credit_subscription_terms t USING(subscription_id) WHERE b.subscription_id=$1 AND b.customer_id=$2 AND o.id::text=$3 AND o.owner_reference=$4 ORDER BY t.paid_through DESC LIMIT 1`, sub.ID, sub.CustomerID, sub.OrderID, sub.OwnerReference).Scan(&owner, &platform, &plan, &version, &interval)
+	err := tx.QueryRow(ctx, `SELECT o.learner_id::text,o.platform,t.plan_id,t.entitlement_version,o.billing_period FROM credit_subscriptions b JOIN credit_checkout_orders o ON o.id=b.order_id JOIN credit_subscription_terms t USING(subscription_id) WHERE b.subscription_id=$1 AND b.customer_id=$2 AND o.id=$3::uuid AND o.owner_reference=$4 ORDER BY t.paid_through DESC LIMIT 1`, sub.ID, sub.CustomerID, ids.Arg(sub.OrderID), sub.OwnerReference).Scan(&owner, &platform, &plan, &version, &interval)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}

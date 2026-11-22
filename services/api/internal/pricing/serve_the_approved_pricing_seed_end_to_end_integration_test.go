@@ -51,7 +51,7 @@ func TestSeedResolveRestoreAndDeletion(t *testing.T) {
 	assertApproved(t, catalog.Config())
 	recorder := httptest.NewRecorder()
 	catalog.ServeHTTP(recorder, httptest.NewRequestWithContext(ctx, "GET", "/v1/pricing", nil))
-	if recorder.Code != 200 || recorder.Header().Get("ETag") == "" || recorder.Header().Get("Cache-Control") != "public, max-age=60" {
+	if recorder.Code != 200 || recorder.Header().Get("ETag") == "" || recorder.Header().Get("Cache-Control") != "public, max-age=10" {
 		t.Fatalf("invalid response %v", recorder.Result())
 	}
 	if strings.Contains(recorder.Body.String(), "synthetic:") || !strings.Contains(recorder.Body.String(), `"sales_enabled":false`) {

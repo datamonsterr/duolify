@@ -59,6 +59,7 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	}
 	events := &pricingActivationCapture{}
 	runtime := pricing.NewRuntimeCatalogue(initial, db.Queries, db.Pool, events)
+	runtime.SetSnapshotTTL(20 * time.Millisecond)
 	activatorCtx, stopActivator := context.WithCancel(ctx)
 	defer stopActivator()
 	activatorAdmin := pricing.NewAdmin(db.Pool, nil, "")
@@ -142,6 +143,11 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	if beforeReads != 1 {
 		t.Fatalf("activation required public GET: rows=%d", beforeReads)
 	}
+	// Readers that arrive while an expired snapshot reloads keep the previous one (single flight),
+	// so converge first, then hold the snapshot fresh while the readers race.
+	time.Sleep(40 * time.Millisecond)
+	_ = read()
+	runtime.SetSnapshotTTL(time.Minute)
 	const readers = 12
 	var wg sync.WaitGroup
 	errCh := make(chan any, readers)
@@ -157,6 +163,7 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	}
 	wg.Wait()
 	close(errCh)
+	runtime.SetSnapshotTTL(20 * time.Millisecond)
 	for got := range errCh {
 		t.Errorf("concurrent resolver returned %v", got)
 	}

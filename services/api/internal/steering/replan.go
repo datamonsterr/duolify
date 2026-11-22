@@ -10,6 +10,7 @@ import (
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
+	"github.com/datamonsterr/duolify/services/api/internal/ids"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -133,7 +134,7 @@ func (s *Service) readReplan(ctx context.Context, owner, course, quote string) (
 	p := ReplanProposal{}
 	var raw []byte
 	var dec *string
-	err := s.opts.Pool.QueryRow(ctx, `SELECT id::text,outline_version,state,expires_at,diff,reason,decision,decided_at FROM course_replan_proposals WHERE learner_id::text=$1 AND course_id::text=$2 AND quote_id::text=$3`, owner, course, quote).Scan(&p.ID, &p.OutlineVersion, &p.State, &p.ExpiresAt, &raw, &p.Reason, &dec, &p.DecidedAt)
+	err := s.opts.Pool.QueryRow(ctx, `SELECT id::text,outline_version,state,expires_at,diff,reason,decision,decided_at FROM course_replan_proposals WHERE learner_id=$1::uuid AND course_id=$2::uuid AND quote_id=$3::uuid`, owner, ids.Arg(course), ids.Arg(quote)).Scan(&p.ID, &p.OutlineVersion, &p.State, &p.ExpiresAt, &raw, &p.Reason, &dec, &p.DecidedAt)
 	if dec != nil {
 		p.Decision = *dec
 	}

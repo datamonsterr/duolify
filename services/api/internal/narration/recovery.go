@@ -303,7 +303,8 @@ func (s *Service) PurgeUnreferenced(ctx context.Context) (int, error) {
 	return purged, nil
 }
 
-// RunMaintenance drains the operator regeneration queue and purges expired assets until ctx ends.
+// RunMaintenance drains the operator regeneration queue until ctx ends. Purging expired assets
+// is MaintainOrphanedAudio, which the API process runs because it holds the object-store keys.
 func (s *Service) RunMaintenance(ctx context.Context, every time.Duration) {
 	ticker := time.NewTicker(every)
 	defer ticker.Stop()
@@ -311,6 +312,22 @@ func (s *Service) RunMaintenance(ctx context.Context, every time.Duration) {
 		if _, err := s.RegenerateMissing(ctx); err != nil {
 			s.opts.Logger.Warn("narration regeneration run failed", "error", err)
 		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+// MaintainOrphanedAudio purges unreferenced narration audio until ctx ends. It needs only the
+// database and an object store that can delete, never the speech provider, so it runs whether or
+// not narration synthesis is enabled: audio of erased learners must leave storage either way. The
+// reference count is re-checked inside every delete, so concurrent replicas are safe.
+func (s *Service) MaintainOrphanedAudio(ctx context.Context, every time.Duration) {
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
 		if _, err := s.PurgeUnreferenced(ctx); err != nil {
 			s.opts.Logger.Warn("narration purge failed", "error", err)
 		}

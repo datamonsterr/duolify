@@ -1,18 +1,21 @@
-import { ProgressPage } from "./features/gamification/DailyGoal";
-import { LearningAnalyticsPage } from "./features/gamification/LearningAnalytics";
-import { LeaguePage } from "./features/gamification/League";
 import {
   UiPreferencesProvider,
   useUiPreferences,
 } from "./features/design/localization/Preferences";
 import { resolveLocale } from "./features/design/localization/messages";
 import { AuthError, session } from "./features/accounts/session";
-import { useQuery } from "@tanstack/react-query";
-import { api, type Course, type CoursesResponse } from "./lib/api";
-import { registerNavigator } from "./lib/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  api,
+  summarizeCourse,
+  type Course,
+  type CoursesResponse,
+} from "./lib/api";
+import { registerNavigator, registerPreloader } from "./lib/navigation";
 import { useShellSession } from "./features/shell/ShellSession";
 import {
   createRootRoute,
+  lazyRouteComponent,
   createRoute,
   createRouter,
   RouterProvider,
@@ -23,31 +26,9 @@ import {
   useSearch,
   type RouterHistory,
 } from "@tanstack/react-router";
-import { CourseBriefPage } from "./features/courses/CourseBrief";
-import { Sessions } from "./features/accounts/Sessions";
 import { SignIn } from "./features/accounts/SignIn";
-import { SsoBridge } from "./features/accounts/SsoBridge";
 import { RouteGuard } from "./features/accounts/RouteGuard";
-import { SetupProfile } from "./features/accounts/LearnerProfile";
-import { AccountProfile } from "./features/accounts/AccountProfile";
-import { Settings } from "./features/accounts/Settings";
-import { FriendInvite } from "./features/social/FriendInvite";
-import { FriendsPage } from "./features/social/FriendsPage";
-import { CharacterLibrary } from "./features/characters/CharacterLibrary";
-import { CourseCast } from "./features/characters/CourseCast";
-import { LearnPath } from "./LearnPath";
-import { LessonPlayer } from "./features/lesson-player/LessonPlayer";
-import { LessonTestRoute } from "./features/lessontest/LessonTest";
-import { Courses } from "./features/design/Courses";
-import { PricingView } from "./features/pricing/PricingView";
-import { NotesPage } from "./features/notes/NotesPage";
-import { BookmarksPage } from "./features/notes/BookmarksPage";
-import { PublicPreviewPage } from "./features/sharing/PublicPreviewPage";
-import { MarketplacePage } from "./features/sharing/MarketplacePage";
-import { MarketCoursePage } from "./features/sharing/MarketCoursePage";
-import { ModeratorQueue } from "./features/sharing/ModeratorQueue";
-import { ModerationNotices } from "./features/sharing/ModerationNotices";
-import { BlockedCopy } from "./features/sharing/BlockedCopy";
+import { courseTreeQuery, LearnPath } from "./LearnPath";
 import { AppShell, MorePage } from "./features/shell/AppShell";
 import { getDownloadedCourses } from "./features/player/library";
 import {
@@ -56,6 +37,114 @@ import {
   RouteUnavailable,
 } from "./features/shell/RouteBoundary";
 import { AppLink } from "./lib/navigation";
+// Route chunks load on navigation (or link hover); only sign-in and the Learn home are eager.
+const ProgressPage = lazyRouteComponent(
+  () => import("./features/gamification/DailyGoal"),
+  "ProgressPage",
+);
+const LearningAnalyticsPage = lazyRouteComponent(
+  () => import("./features/gamification/LearningAnalytics"),
+  "LearningAnalyticsPage",
+);
+const LeaguePage = lazyRouteComponent(
+  () => import("./features/gamification/League"),
+  "LeaguePage",
+);
+const CourseBriefPage = lazyRouteComponent(
+  () => import("./features/courses/CourseBrief"),
+  "CourseBriefPage",
+);
+const Sessions = lazyRouteComponent(
+  () => import("./features/accounts/Sessions"),
+  "Sessions",
+);
+const SsoBridge = lazyRouteComponent(
+  () => import("./features/accounts/SsoBridge"),
+  "SsoBridge",
+);
+const SetupProfile = lazyRouteComponent(
+  () => import("./features/accounts/LearnerProfile"),
+  "SetupProfile",
+);
+const AccountProfile = lazyRouteComponent(
+  () => import("./features/accounts/AccountProfile"),
+  "AccountProfile",
+);
+const Settings = lazyRouteComponent(
+  () => import("./features/accounts/Settings"),
+  "Settings",
+);
+const FriendInvite = lazyRouteComponent(
+  () => import("./features/social/FriendInvite"),
+  "FriendInvite",
+);
+const FriendsPage = lazyRouteComponent(
+  () => import("./features/social/FriendsPage"),
+  "FriendsPage",
+);
+const CharacterLibrary = lazyRouteComponent(
+  () => import("./features/characters/CharacterLibrary"),
+  "CharacterLibrary",
+);
+const CourseCast = lazyRouteComponent(
+  () => import("./features/characters/CourseCast"),
+  "CourseCast",
+);
+const LessonPlayer = lazyRouteComponent(
+  () => import("./features/lesson-player/LessonPlayer"),
+  "LessonPlayer",
+);
+const LessonTestRoute = lazyRouteComponent(
+  () => import("./features/lessontest/LessonTest"),
+  "LessonTestRoute",
+);
+const Courses = lazyRouteComponent(
+  () => import("./features/design/Courses"),
+  "Courses",
+);
+const PricingView = lazyRouteComponent(
+  () => import("./features/pricing/PricingView"),
+  "PricingView",
+);
+const NotesPage = lazyRouteComponent(
+  () => import("./features/notes/NotesPage"),
+  "NotesPage",
+);
+const BookmarksPage = lazyRouteComponent(
+  () => import("./features/notes/BookmarksPage"),
+  "BookmarksPage",
+);
+const PublicPreviewPage = lazyRouteComponent(
+  () => import("./features/sharing/PublicPreviewPage"),
+  "PublicPreviewPage",
+);
+const MarketplacePage = lazyRouteComponent(
+  () => import("./features/sharing/MarketplacePage"),
+  "MarketplacePage",
+);
+const MarketCoursePage = lazyRouteComponent(
+  () => import("./features/sharing/MarketCoursePage"),
+  "MarketCoursePage",
+);
+const ModeratorQueue = lazyRouteComponent(
+  () => import("./features/sharing/ModeratorQueue"),
+  "ModeratorQueue",
+);
+const ModerationNotices = lazyRouteComponent(
+  () => import("./features/sharing/ModerationNotices"),
+  "ModerationNotices",
+);
+const BlockedCopy = lazyRouteComponent(
+  () => import("./features/sharing/BlockedCopy"),
+  "BlockedCopy",
+);
+// Wrapper routes borrow their page chunk's preload so the router waits for it, not Suspense.
+function withPreload<T extends object>(
+  wrapper: T,
+  page: { preload?: () => Promise<void> | undefined },
+): T {
+  return Object.assign(wrapper, { preload: () => page.preload?.() });
+}
 function AccountShell() {
   return (
     <UiPreferencesProvider
@@ -90,11 +179,19 @@ function IndexRoute() {
   const shell = useShellSession();
   const owner = session.current()?.id ?? "";
   const { t } = useUiPreferences();
+  const queryClient = useQueryClient();
   const { data: coursesData, isError: coursesFailed } = useQuery({
     queryKey: ["courses", owner],
     queryFn: async () => {
       try {
-        return await api.courses({ authenticatedOnly: true });
+        const list = await api.courses({ authenticatedOnly: true });
+        // Start the tree fetch now, not after this component re-renders with the list.
+        const target = list.some((c) => c.id === shell.courseId())
+          ? shell.courseId()
+          : list.active_course_id || list[0]?.id;
+        if (target)
+          void queryClient.prefetchQuery(courseTreeQuery(target, owner));
+        return list;
       } catch (err) {
         if (
           err instanceof AuthError ||
@@ -105,8 +202,8 @@ function IndexRoute() {
           (d) => d.courseData,
         );
         if (downloaded.length > 0 && downloaded[0].courseData) {
-          const list = downloaded.map(
-            (d) => d.courseData as Course,
+          const list = downloaded.map((d) =>
+            summarizeCourse(d.courseData as Course),
           ) as CoursesResponse;
           list.active_course_id = downloaded[0].courseId;
           return list;
@@ -175,7 +272,7 @@ function MarketCourseRoute() {
 const marketplaceCourse = createRoute({
   getParentRoute: () => root,
   path: "/marketplace/$courseId",
-  component: MarketCourseRoute,
+  component: withPreload(MarketCourseRoute, MarketCoursePage),
 });
 const moderation = createRoute({
   getParentRoute: () => root,
@@ -194,7 +291,7 @@ function BlockedCopyRoute() {
 const moderationBlocked = createRoute({
   getParentRoute: () => root,
   path: "/moderation/blocked/$courseId",
-  component: BlockedCopyRoute,
+  component: withPreload(BlockedCopyRoute, BlockedCopy),
 });
 const createCourse = createRoute({
   getParentRoute: () => root,
@@ -241,7 +338,7 @@ const lesson = createRoute({
           ? String(search.slide)
           : undefined,
   }),
-  component: LessonRoute,
+  component: withPreload(LessonRoute, LessonPlayer),
 });
 const profile = createRoute({
   getParentRoute: () => root,
@@ -290,10 +387,10 @@ const friends = createRoute({
 const friendInvite = createRoute({
   getParentRoute: () => root,
   path: "/friends/invite/$token",
-  component: function FriendInviteRoute() {
+  component: withPreload(function FriendInviteRoute() {
     const { token } = useParams({ from: "/friends/invite/$token" });
     return <FriendInvite token={token} />;
-  },
+  }, FriendInvite),
 });
 const leagues = createRoute({
   getParentRoute: () => root,
@@ -328,7 +425,7 @@ const characterSettings = createRoute({
 const courseCast = createRoute({
   getParentRoute: () => root,
   path: "/courses/$courseId/cast",
-  component: CourseCastRoute,
+  component: withPreload(CourseCastRoute, CourseCast),
 });
 function CourseCastRoute() {
   const { courseId } = useParams({ from: "/courses/$courseId/cast" });
@@ -362,7 +459,7 @@ const ssoBridge = createRoute({
 const publicPreview = createRoute({
   getParentRoute: () => root,
   path: "/c/$token",
-  component: PublicPreviewRoute,
+  component: withPreload(PublicPreviewRoute, PublicPreviewPage),
 });
 function PublicPreviewRoute() {
   const { token } = useParams({ from: "/c/$token" });
@@ -376,6 +473,10 @@ export const createAppRouter = (history?: RouterHistory) => {
   const router = buildRouter(history);
   // Same-app links and redirects navigate through the router (see lib/navigation).
   registerNavigator((to) => router.history.push(to));
+  registerPreloader((to) => {
+    // A failed warm-up is retried by the navigation itself.
+    router.preloadRoute({ to } as never).catch(() => {});
+  });
   return router;
 };
 const buildRouter = (history?: RouterHistory) =>

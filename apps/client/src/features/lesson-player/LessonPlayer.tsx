@@ -1,3 +1,4 @@
+import { invalidateCourseProgress } from "../../lib/courseQueries";
 import { NarrationControl } from "../narration/NarrationControl";
 import { SegmentNarration } from "../narration/SegmentNarration";
 import { hasSegmentNarration, narratedDuration } from "../characters/narration";
@@ -27,6 +28,7 @@ import {
   trackCaptionsToggled,
 } from "../../lib/analytics";
 import { availableOffline, preparedDocument } from "../player/cache";
+import { warmOfflineRoutes } from "../../lib/offlineRoutes";
 import { preloadNarration } from "../narration/cache";
 import {
   loadPlayerPreferences,
@@ -117,6 +119,10 @@ function StandardLessonPlayer({
     networkMode: "always",
     staleTime: 0,
   });
+  // An opened lesson must replay offline: cache the lesson-test and course-list chunks too.
+  useEffect(() => {
+    if (manifest.isSuccess) void warmOfflineRoutes();
+  }, [manifest.isSuccess]);
   useEffect(() => {
     if (manifest.error)
       trackPlayer("lesson_player_error", {
@@ -504,6 +510,7 @@ function TracerLessonPlayer({
             onClick={() => {
               if (index === slides.length - 1) {
                 setFinished(true);
+                invalidateCourseProgress();
                 triggerFeedbackCue("completion");
               } else goToSlide(nextSlide(index, slides.length));
             }}

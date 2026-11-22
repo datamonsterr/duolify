@@ -529,6 +529,7 @@ pub mod lessontest;
 pub mod narration;
 pub mod notes;
 pub mod pricing;
+pub mod promotion;
 pub mod sharing;
 pub mod slide;
 #[cfg(test)]

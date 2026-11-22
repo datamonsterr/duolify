@@ -30,6 +30,16 @@ func Extend(w http.ResponseWriter) {
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(3 * Interval()))
 }
 
+// A stream that watches a database row reads it quickly right after it opens or the row
+// changes, then backs off to a few seconds while the slow job works.
+const (
+	PollMin = 200 * time.Millisecond
+	PollMax = 3 * time.Second
+)
+
+// NextPollDelay doubles d up to PollMax. Reset to PollMin when the watched state changes.
+func NextPollDelay(d time.Duration) time.Duration { return min(d*2, PollMax) }
+
 // Heartbeat writes a comment line, which clients ignore, and flushes it to the proxy. Each beat
 // also extends the write deadline (see Extend).
 func Heartbeat(w http.ResponseWriter) error {

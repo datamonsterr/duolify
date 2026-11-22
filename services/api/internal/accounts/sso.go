@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"github.com/datamonsterr/duolify/services/api/internal/httpcache"
 	"net/http"
 	"strings"
 	"time"
@@ -81,12 +82,14 @@ func (s *Service) ConfigureClerk(verifier ClerkVerifier, publishableKey string) 
 
 func (s *Service) ssoEnabled() bool { return s.clerk != nil && s.clerkKey != "" }
 
-func (s *Service) ssoConfig(w http.ResponseWriter, _ *http.Request) {
+// ssoConfig is deployment configuration (a Clerk publishable key is public by design), the same
+// for every caller, so it is publicly cacheable.
+func (s *Service) ssoConfig(w http.ResponseWriter, r *http.Request) {
 	if !s.ssoEnabled() {
-		respond(w, http.StatusOK, map[string]any{"enabled": false})
+		httpcache.WriteJSON(w, r, http.StatusOK, httpcache.Public, map[string]any{"enabled": false})
 		return
 	}
-	respond(w, http.StatusOK, map[string]any{"enabled": true, "publishable_key": s.clerkKey})
+	httpcache.WriteJSON(w, r, http.StatusOK, httpcache.Public, map[string]any{"enabled": true, "publishable_key": s.clerkKey})
 }
 
 func ssoUnavailable(w http.ResponseWriter) {

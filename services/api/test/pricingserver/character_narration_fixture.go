@@ -125,7 +125,7 @@ func registerCharacterNarrationRoutes(mux *http.ServeMux, auth *accounts.Service
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		if _, err := pool.Exec(r.Context(), `DELETE FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND speaker_key<>'' AND segment_slide_id=$3`, in.LessonID, accounts.LearnerID(r.Context()), in.Slide); err != nil {
+		if _, err := pool.Exec(r.Context(), `DELETE FROM slide_narrations WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND speaker_key<>'' AND segment_slide_id=$3`, in.LessonID, accounts.LearnerID(r.Context()), in.Slide); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
@@ -134,7 +134,7 @@ func registerCharacterNarrationRoutes(mux *http.ServeMux, auth *accounts.Service
 	mux.Handle("GET /test/characters/segments", auth.Protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		owner := accounts.LearnerID(r.Context())
 		rows, err := pool.Query(r.Context(), `SELECT segment_slide_id,segment_index,speaker_key,voice_key,actual_voice_key,voice_config_version,voice_fallback_reason,status,failure_code,left(content_hash,12)
-			FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND speaker_key<>'' ORDER BY segment_slide_id,segment_index`, r.URL.Query().Get("lesson_id"), owner)
+			FROM slide_narrations WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND speaker_key<>'' ORDER BY segment_slide_id,segment_index`, r.URL.Query().Get("lesson_id"), owner)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -151,7 +151,7 @@ func registerCharacterNarrationRoutes(mux *http.ServeMux, auth *accounts.Service
 			out = append(out, map[string]any{"slide_id": slide, "index": index, "speaker_key": speaker, "requested_voice": requested, "actual_voice": actual, "voice_config_version": version, "fallback_reason": fallback, "status": status, "failure_code": code, "hash": hash})
 		}
 		var created int
-		_ = pool.QueryRow(r.Context(), `SELECT count(*) FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.learner_id::text=$1 AND q.snapshot->>'action'='character_create'`, owner).Scan(&created)
+		_ = pool.QueryRow(r.Context(), `SELECT count(*) FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.learner_id=$1::uuid AND q.snapshot->>'action'='character_create'`, owner).Scan(&created)
 		reply(w, http.StatusOK, map[string]any{"segments": out, "character_create_jobs": created, "voices_used": twin.VoicesUsed(), "timeouts_ms": twin.SegmentTimeouts(), "note": fmt.Sprint(len(out))})
 	})))
 }

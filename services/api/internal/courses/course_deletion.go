@@ -27,6 +27,10 @@ func (s *Service) ServeCourseDeleteHTTP(w http.ResponseWriter, r *http.Request) 
 	if id == "" {
 		id = strings.TrimPrefix(r.URL.Path, "/v1/courses/")
 	}
+	if !validIDs(id) {
+		outlineError(w, 404)
+		return
+	}
 
 	// Soft delete and active-course reset share one transaction: a failed reset must not leave
 	// a hidden course as the learner's active course.
@@ -39,7 +43,7 @@ func (s *Service) ServeCourseDeleteHTTP(w http.ResponseWriter, r *http.Request) 
 	tag, err := tx.Exec(r.Context(), `
 		UPDATE courses
 		SET deleted_at = now()
-		WHERE id::text = $1 AND learner_id::text = $2 AND deleted_at IS NULL
+		WHERE id = $1::uuid AND learner_id = $2::uuid AND deleted_at IS NULL
 	`, id, owner)
 	if err != nil {
 		outlineError(w, 503)
@@ -52,7 +56,7 @@ func (s *Service) ServeCourseDeleteHTTP(w http.ResponseWriter, r *http.Request) 
 	if _, err = tx.Exec(r.Context(), `
 		UPDATE learner_profiles
 		SET active_course_id = NULL
-		WHERE learner_id::text = $1 AND active_course_id::text = $2
+		WHERE learner_id = $1::uuid AND active_course_id = $2::uuid
 	`, owner, id); err != nil {
 		outlineError(w, 503)
 		return
@@ -126,7 +130,7 @@ func (s *Service) PurgeDeletedCourses(ctx context.Context, cutoff time.Time) (in
 
 // ObjectPurgeRetention keeps a purged Course's objects longer than the 14-day nightly dumps, so a
 // restorable dump never points at deleted objects (same rule as shared snapshot retention).
-const ObjectPurgeRetention = 15 * 24 * time.Hour
+const ObjectPurgeRetention = accounts.ObjectPurgeRetention
 
 // ObjectStore lists and deletes stored lesson objects.
 type ObjectStore interface {
