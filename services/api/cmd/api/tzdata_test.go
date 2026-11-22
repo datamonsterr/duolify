@@ -11,7 +11,7 @@ import (
 // tzdata-legacy), and credits.Reserve fails closed on an unknown zone, so every paid action
 // failed for those learners. The binary must embed the time zone database.
 func TestBinaryEmbedsTheTimeZoneDatabase(t *testing.T) {
-	out, err := exec.Command("go", "list", "-deps", ".").Output()
+	out, err := exec.CommandContext(t.Context(), "go", "list", "-deps", ".").Output()
 	if err != nil {
 		t.Skipf("go list unavailable: %v", err)
 	}
