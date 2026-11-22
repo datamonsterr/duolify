@@ -8,12 +8,12 @@ The access token stays in memory only. The web refresh credential is delivered a
 
 | Attribute | Value | Why |
 |---|---|---|
-| Name | `duolify_refresh` | Plain name. `__Host-` needs `Path=/`, which is wider than wanted; `__Secure-` adds nothing here. |
+| Name | `__Host-duolify_refresh` | Browser-enforced host binding prevents sibling subdomains from planting or shadowing a credential. |
 | `HttpOnly` | yes | Script, including injected script, cannot read the credential. |
 | `Secure` | yes | Never sent over plain HTTP. Browsers accept it on `localhost`, so dev and the e2e stack work. On a non-local plain-HTTP host the cookie is not stored and the web app keeps the in-memory session until reload. |
 | `SameSite` | `Strict` | No documented flow needs `Lax`: the SSO bridge is a same-origin page, and the return to the app is a same-origin navigation followed by a same-origin fetch. |
-| `Path` | `/v1/auth/` | The refresh and logout endpoints are siblings, so this is the narrowest prefix that reaches both. Other `/v1/auth/*` endpoints receive but ignore it. |
-| `Domain` | none | Host-only. Web and API share one origin through Caddy (`/` web, `/v1` API), so no `Domain` is needed and subdomains cannot read or overwrite it. |
+| `Path` | `/` | Required by `__Host-`. Only gated auth endpoints read it; other endpoints ignore it. |
+| `Domain` | none | Host-only. Web and API share one origin through Caddy (`/` web, `/v1` API), so no `Domain` is needed. The host prefix prevents parent-domain shadow cookies from sibling origins. |
 | `Max-Age` | remaining life of the session family (30 days from sign-in; rotation does not extend it) | Matches the refresh lifetime stored in `auth_sessions.expires_at`. |
 
 ## Mode selection
@@ -51,3 +51,9 @@ No schema change, new data or events. Existing evidence covers it: refresh hashe
 ## Checked against
 
 MDN `Set-Cookie` (attributes, `Max-Age`, `SameSite`), MDN Fetch Metadata (`Sec-Fetch-Site`), and Go `net/http` `Cookie` and `SetCookie` (negative `MaxAge` emits `Max-Age=0`).
+
+## Security review amendment
+
+Cookie prefix rules checked against [MDN Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie) and [RFC 6265bis section 4.1.3.2](https://httpwg.org/http-extensions/draft-ietf-httpbis-rfc6265bis.html#name-the-__host-prefix). A host-only unprefixed cookie did not prevent sibling origins from planting a parent-domain cookie. The host prefix supplies that missing browser enforcement. Legacy credentials are ignored/expired and duplicate host cookies fail before auth work. Broad Path delivery confers no bearer authentication.
+
+[Web Locks](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API) coordinate refresh, verify, SSO completion, logout and cookie-clearing revocations/erasure across tabs, through fetch and body processing. Unsupported browsers fail closed with an update message. The server's 5-second native/concurrent redemption grace is unchanged. Refresh checks `/v1/me` against the current learner before installing credentials or retrying requests; an account mismatch resets only the stale tab. BroadcastChannel was considered; the learner check is required even with broadcasts because a delayed 401 can outlive a notification. No cross-tab identity or credential is persisted in Web Storage.

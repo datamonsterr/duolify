@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-11-08
 
+> Status note (2026-11-22): Railway hosting and migration details below are historical; ADRs 0014 and 0015 record the current fresh Hetzner deployment, Cloudflare R2 and GitHub-hosted CI.
+
 ## Decision
 
 - **Runners**: GitHub-hosted `ubuntu-24.04` for every job (free for this public repo). Never the floating `ubuntu-latest`. This replaces the earlier Namespace profiles (`namespace-profile-datamonster01`, `namespace-profile-linux-xl`), which stopped picking up jobs on 2026-11-21.

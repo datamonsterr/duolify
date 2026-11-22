@@ -28,7 +28,14 @@ const base = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
  */
 export function cookieMode(): boolean {
   if (isTauri()) return false;
-  return base === "" || base === location.origin;
+  const local =
+    location.hostname === "localhost" ||
+    location.hostname === "127.0.0.1" ||
+    location.hostname === "[::1]";
+  return (
+    (location.protocol === "https:" || local) &&
+    (base === "" || base === location.origin)
+  );
 }
 export const clientHeader = "X-Duolify-Client";
 export function safeReturnTo(raw: string | null | undefined): string {
@@ -45,6 +52,35 @@ export async function authRequest<T>(
   access?: string,
   method = body === undefined ? "GET" : "POST",
   requestHeaders: Record<string, string> = {},
+): Promise<T> {
+  const cookieMutation =
+    cookieMode() &&
+    ([
+      "/v1/auth/refresh",
+      "/v1/auth/verify",
+      "/v1/auth/logout",
+      "/v1/auth/sso/complete",
+      "/v1/me/deletion-request",
+    ].includes(path) ||
+      (path.startsWith("/v1/auth/sessions") && method === "DELETE"));
+  if (cookieMutation) {
+    if (!navigator.locks)
+      throw new AuthError(
+        "This browser cannot safely restore sessions. Please update your browser.",
+        503,
+      );
+    return navigator.locks.request("duolify-auth-cookie", () =>
+      performAuthRequest<T>(path, body, access, method, requestHeaders),
+    );
+  }
+  return performAuthRequest<T>(path, body, access, method, requestHeaders);
+}
+async function performAuthRequest<T>(
+  path: string,
+  body: unknown,
+  access: string | undefined,
+  method: string,
+  requestHeaders: Record<string, string>,
 ): Promise<T> {
   const response = await fetch(`${base}${path}`, {
     method,
@@ -192,7 +228,26 @@ async function rotate(tokens: Tokens, expected: number): Promise<Tokens> {
           : latest.refresh_token !== tokens.refresh_token)
       )
         return latest;
+      const boundLearner = learner?.id;
       const rotated = await refreshRequest(tokens);
+      if (boundLearner) {
+        const refreshedLearner = await authRequest<Learner>(
+          "/v1/me",
+          undefined,
+          rotated.access_token,
+        );
+        if (expected !== generation)
+          throw new AuthError("Session changed.", 401);
+        if (refreshedLearner.id !== boundLearner) {
+          await writeCredentials(null, expected);
+          if (expected !== generation)
+            throw new AuthError("Session changed.", 401);
+          session.clear();
+          expired = true;
+          publish();
+          throw new AuthError("Session changed. Sign in again.", 401);
+        }
+      }
       await writeCredentials(rotated, expected);
       return rotated;
     })();
@@ -257,12 +312,13 @@ export const session = {
       await writeCredentials(tokens, expected);
       if (expected !== generation) throw new AuthError("Session changed.", 401);
     } catch (error) {
-      await authRequest(
-        "/v1/auth/logout",
-        cookieMode() ? undefined : { refresh_token: tokens.refresh_token },
-        undefined,
-        "POST",
-      ).catch(() => {});
+      if (!cookieMode())
+        await authRequest(
+          "/v1/auth/logout",
+          { refresh_token: tokens.refresh_token },
+          undefined,
+          "POST",
+        ).catch(() => {});
       throw error;
     }
     if (learner?.id !== value.id) {
@@ -303,13 +359,16 @@ export const session = {
         const rotated = await rotate(tokens, expected);
         if (expected !== generation)
           throw new AuthError("Session changed.", 401);
-        return await authRequest<T>(
+        const value = await authRequest<T>(
           path,
           body,
           rotated.access_token,
           method,
           requestHeaders,
         );
+        if (expected !== generation)
+          throw new AuthError("Session changed.", 401);
+        return value;
       } catch (refreshError) {
         if (refreshError instanceof AuthError && refreshError.status === 401)
           await expire(expected);
