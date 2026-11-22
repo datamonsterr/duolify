@@ -194,6 +194,13 @@ type CharacterVersion struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type ClerkUserDeletionRequest struct {
+	ClerkUserID   string             `json:"clerk_user_id"`
+	RequestedAt   pgtype.Timestamptz `json:"requested_at"`
+	Attempts      int32              `json:"attempts"`
+	LastAttemptAt pgtype.Timestamptz `json:"last_attempt_at"`
+}
+
 type ContentReport struct {
 	ID         pgtype.UUID        `json:"id"`
 	TargetType string             `json:"target_type"`
@@ -1250,8 +1257,10 @@ type OutlineProposal struct {
 }
 
 type PosthogPersonDeletionRequest struct {
-	DistinctID  pgtype.UUID        `json:"distinct_id"`
-	RequestedAt pgtype.Timestamptz `json:"requested_at"`
+	DistinctID    pgtype.UUID        `json:"distinct_id"`
+	RequestedAt   pgtype.Timestamptz `json:"requested_at"`
+	Attempts      int32              `json:"attempts"`
+	LastAttemptAt pgtype.Timestamptz `json:"last_attempt_at"`
 }
 
 type PricingActivationEvent struct {

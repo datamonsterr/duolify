@@ -10,8 +10,9 @@ import (
 
 // apiProcessSweeps are the only background loops an API replica may start. The pricing
 // activator refreshes the replica's own in-memory copy; the shared-asset sweep deletes
-// objects with application object-store keys the worker does not hold.
-var apiProcessSweeps = map[string]bool{"RunActivator": true, "MaintainAssets": true}
+// objects with application object-store keys the worker does not hold, and so does the purge of
+// orphaned narration audio.
+var apiProcessSweeps = map[string]bool{"RunActivator": true, "MaintainAssets": true, "MaintainOrphanedAudio": true}
 
 // TestAPIProcessStartsNoMaintenanceLoop keeps every Maintain loop in the worker, so a sweep
 // runs once however many API replicas serve HTTP.

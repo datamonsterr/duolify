@@ -72,6 +72,12 @@ workflow `API_TEST_PACKAGES` assignment on one line for the guard. `ci-ok` needs
 all three jobs directly; `join(needs.*.result, ' ')` passes their results to
 `ci:aggregate`, which rejects any failed or cancelled shard.
 
+The same job runs `mise run ci:sql-casts`, which rejects a cast column compared to a
+parameter (`col::text = $1`, `= ANY(`, `IN (`) in non-test Go and sqlc sources under
+`services/api`: the cast defeats the primary-key and foreign-key indexes. Bind the
+parameter instead (`col = $1::uuid`) and validate the id at the handler. A genuinely
+text column goes in `scripts/ci/sql-casts.allow` with a reason.
+
 Full-tier Playwright runs as one matrix job with three shards, named
 `playwright-1`, `playwright-2` and `playwright-3`. Each sets `E2E_SHARD=N/3`, which
 `client:e2e` validates (`N/M`, single digits, N <= M) and passes as

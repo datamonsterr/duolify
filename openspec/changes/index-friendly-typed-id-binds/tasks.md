@@ -4,7 +4,7 @@
 - [x] 1.3 EXPLAIN test on the hot-path statements.
 ## 2. Implementation
 - [x] 2.1 Courses and lessontest typed binds, boundary validation, shared backoff (PR 1).
-- [ ] 2.2 Remaining packages and sqlc sources, CI guard, anonymizer and narration purge gaps (PR 2).
+- [x] 2.2 Remaining packages and sqlc sources, CI guard, anonymizer and narration purge gaps (PR 2).
 ## 3. Verification
 - [x] 3.1 Courses and lessontest integration suites.
 - [ ] 3.2 CI green on both pull requests.

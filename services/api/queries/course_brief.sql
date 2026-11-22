@@ -5,7 +5,7 @@ RETURNING id::text,brief,content_hash,created_at,expires_at;
 
 -- name: GetCourseBrief :one
 SELECT id::text,brief,content_hash,created_at,expires_at FROM course_brief_revisions
-WHERE id::text=sqlc.arg(id)::text AND learner_id::text=sqlc.arg(learner_id)::text AND expires_at>now();
+WHERE id=sqlc.arg(id)::text::uuid AND learner_id=sqlc.arg(learner_id)::text::uuid AND expires_at>now();
 
 -- name: PurgeExpiredCourseBriefs :exec
 DELETE FROM course_brief_revisions WHERE expires_at<=now();

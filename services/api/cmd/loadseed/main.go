@@ -70,7 +70,7 @@ func main() {
 			log.Fatalf("fixtures seed: %v", err)
 		}
 		var course string
-		if err := db.Pool.QueryRow(ctx, `SELECT u.course_id::text FROM course_lesson_stubs l JOIN course_units u ON u.id=l.unit_id WHERE l.id::text=$1`, lesson).Scan(&course); err != nil {
+		if err := db.Pool.QueryRow(ctx, `SELECT u.course_id::text FROM course_lesson_stubs l JOIN course_units u ON u.id=l.unit_id WHERE l.id=$1::uuid`, lesson).Scan(&course); err != nil {
 			log.Fatalf("fixtures seed: %v", err)
 		}
 		if _, err := db.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version) VALUES($1,100000,'purchase','load-baseline-fund',$2) ON CONFLICT DO NOTHING`, owner, cat.Config().Version); err != nil {

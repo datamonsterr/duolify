@@ -1022,7 +1022,7 @@ func registerNarrationTestRoutes(mux *http.ServeMux, auth *accounts.Service, poo
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		if _, err = pool.Exec(r.Context(), `UPDATE lesson_manifests SET manifest_key=$3 WHERE lesson_id::text=$1 AND learner_id::text=$2`, in.LessonID, accounts.LearnerID(r.Context()), key); err != nil {
+		if _, err = pool.Exec(r.Context(), `UPDATE lesson_manifests SET manifest_key=$3 WHERE lesson_id=$1::uuid AND learner_id=$2::uuid`, in.LessonID, accounts.LearnerID(r.Context()), key); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
@@ -1061,7 +1061,7 @@ func registerNarrationTestRoutes(mux *http.ServeMux, auth *accounts.Service, poo
 			return
 		}
 		var audio, alignment string
-		if err := pool.QueryRow(r.Context(), `SELECT audio_key,alignment_key FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND slide_id=$3 AND status='ready'`,
+		if err := pool.QueryRow(r.Context(), `SELECT audio_key,alignment_key FROM slide_narrations WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND slide_id=$3 AND status='ready'`,
 			in.LessonID, accounts.LearnerID(r.Context()), in.SlideID).Scan(&audio, &alignment); err != nil {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
@@ -1082,10 +1082,10 @@ func registerNarrationTestRoutes(mux *http.ServeMux, auth *accounts.Service, poo
 		owner := accounts.LearnerID(r.Context())
 		out := map[string]any{"synth_calls": twin.CallsContaining(r.URL.Query().Get("salt"))}
 		var spent, characters int
-		_ = pool.QueryRow(r.Context(), `SELECT COALESCE(sum((j.result->>'audio_spent')::int),0) FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.learner_id::text=$1 AND q.snapshot->>'action'='narration'`, owner).Scan(&spent)
-		_ = pool.QueryRow(r.Context(), `SELECT COALESCE(sum(characters),0) FROM narration_assets WHERE state='ready' AND content_hash IN (SELECT content_hash FROM slide_narrations WHERE learner_id::text=$1)`, owner).Scan(&characters)
+		_ = pool.QueryRow(r.Context(), `SELECT COALESCE(sum((j.result->>'audio_spent')::int),0) FROM credit_jobs j JOIN pricing_quotes q ON q.id=j.quote_id WHERE j.learner_id=$1::uuid AND q.snapshot->>'action'='narration'`, owner).Scan(&spent)
+		_ = pool.QueryRow(r.Context(), `SELECT COALESCE(sum(characters),0) FROM narration_assets WHERE state='ready' AND content_hash IN (SELECT content_hash FROM slide_narrations WHERE learner_id=$1::uuid)`, owner).Scan(&characters)
 		refs, regenerations := []int{}, []map[string]string{}
-		rows, err := pool.Query(r.Context(), `SELECT ref_count FROM narration_assets WHERE content_hash IN (SELECT content_hash FROM slide_narrations WHERE learner_id::text=$1) ORDER BY content_hash`, owner)
+		rows, err := pool.Query(r.Context(), `SELECT ref_count FROM narration_assets WHERE content_hash IN (SELECT content_hash FROM slide_narrations WHERE learner_id=$1::uuid) ORDER BY content_hash`, owner)
 		if err == nil {
 			for rows.Next() {
 				var n int
@@ -1094,7 +1094,7 @@ func registerNarrationTestRoutes(mux *http.ServeMux, auth *accounts.Service, poo
 			}
 			rows.Close()
 		}
-		rows, err = pool.Query(r.Context(), `SELECT status FROM narration_regenerations WHERE content_hash IN (SELECT content_hash FROM slide_narrations WHERE learner_id::text=$1) ORDER BY requested_at`, owner)
+		rows, err = pool.Query(r.Context(), `SELECT status FROM narration_regenerations WHERE content_hash IN (SELECT content_hash FROM slide_narrations WHERE learner_id=$1::uuid) ORDER BY requested_at`, owner)
 		if err == nil {
 			for rows.Next() {
 				var st string

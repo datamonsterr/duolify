@@ -9,6 +9,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/datamonsterr/duolify/services/api/internal/ids"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -192,7 +194,7 @@ func (s *Service) tutorCast(ctx context.Context, owner, course, lessonID string)
 	}
 	if lessonID != "" {
 		var raw []byte
-		err := s.pool.QueryRow(ctx, `SELECT c.snapshot FROM generated_lessons g JOIN lesson_cast_snapshots c ON c.course_id=g.course_id AND c.learner_id=g.learner_id AND c.lesson_key=g.manifest->>'cast_key' WHERE g.lesson_stub_id::text=$1 AND g.learner_id=$2 AND g.course_id=$3`, lessonID, owner, course).Scan(&raw)
+		err := s.pool.QueryRow(ctx, `SELECT c.snapshot FROM generated_lessons g JOIN lesson_cast_snapshots c ON c.course_id=g.course_id AND c.learner_id=g.learner_id AND c.lesson_key=g.manifest->>'cast_key' WHERE g.lesson_stub_id=$1::uuid AND g.learner_id=$2 AND g.course_id=$3`, ids.Arg(lessonID), owner, course).Scan(&raw)
 		if err == nil {
 			var cast LessonCastSnapshot
 			if json.Unmarshal(raw, &cast) != nil {

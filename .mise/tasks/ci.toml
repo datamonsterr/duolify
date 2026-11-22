@@ -6,6 +6,10 @@ run = ["actionlint", "shellcheck scripts/ci/*.sh"]
 description = "Verify API integration shards cover the default package list exactly once and all integration test directories"
 run = "bash scripts/ci/api-integration-shards.sh"
 
+["ci:sql-casts"]
+description = "Reject a cast column compared to a parameter (col::text = $1) in API Go and sqlc sources: it defeats the indexes"
+run = "bash scripts/ci/sql-casts.sh"
+
 ["ci:openspec"]
 description = "Validate all OpenSpec changes and specifications with the bootstrap CLI"
 tools = { "npm:@fission-ai/openspec" = "1.3.1" }

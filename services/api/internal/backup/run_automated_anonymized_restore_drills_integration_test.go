@@ -70,8 +70,15 @@ func TestAnonymizerRemovesSeededPIIAndRegistryClassifiesEveryTextColumn(t *testi
 	fixture.Seed(t)
 	fixture.RunJob(t, "2026-11-12")
 	options := fixture.DrillOptions(t, drillNow("2026-11-12"))
-	var before, after, birthDatesBefore, birthDatesAfter int
+	var before, after, birthDatesBefore, birthDatesAfter, erasureQueueBefore, erasureQueueAfter int
 	options.BeforeAnonymize = func(ctx context.Context, p *pgxpool.Pool) error {
+		// Both erasure queues hold identifiers of erased people and must not reach a restore.
+		if _, err := p.Exec(ctx, "INSERT INTO posthog_person_deletion_requests(distinct_id) VALUES(gen_random_uuid()) ON CONFLICT DO NOTHING"); err != nil {
+			return err
+		}
+		if err := p.QueryRow(ctx, "SELECT count(*) FROM posthog_person_deletion_requests").Scan(&erasureQueueBefore); err != nil {
+			return err
+		}
 		if err := p.QueryRow(ctx, "SELECT count(*) FROM learners WHERE birth_date IS NOT NULL").Scan(&birthDatesBefore); err != nil {
 			return err
 		}
@@ -81,10 +88,16 @@ func TestAnonymizerRemovesSeededPIIAndRegistryClassifiesEveryTextColumn(t *testi
 		if err := p.QueryRow(ctx, "SELECT count(*) FROM learners WHERE birth_date IS NOT NULL").Scan(&birthDatesAfter); err != nil {
 			return err
 		}
+		if err := p.QueryRow(ctx, "SELECT count(*) FROM posthog_person_deletion_requests").Scan(&erasureQueueAfter); err != nil {
+			return err
+		}
 		return p.QueryRow(ctx, "SELECT count(*) FROM learners WHERE display_name LIKE 'Synthetic Learner%'").Scan(&after)
 	}
 	if report, err := backup.RunDrill(t.Context(), options); err != nil || !report.OK {
 		t.Fatalf("drill: %v %+v", err, report)
+	}
+	if erasureQueueBefore == 0 || erasureQueueAfter != 0 {
+		t.Fatalf("posthog erasure queue before=%d after=%d, want it purged", erasureQueueBefore, erasureQueueAfter)
 	}
 	if before == 0 || after != 0 {
 		t.Fatalf("seeded display names before=%d after=%d", before, after)
