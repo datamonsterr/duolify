@@ -2,6 +2,7 @@
 dir = "engine"
 run = ["cargo fmt --all -- --check", "cargo clippy --workspace --all-targets -- -D warnings"]
 ["engine:test"]
+env = { ENGINE_PROVIDER_MODE = "mock", EVAL_SAMPLE_LIMIT = "0" }
 dir = "engine"
 run = "cargo nextest run --workspace"
 ["engine:build"]
@@ -11,6 +12,7 @@ run = "cargo build --workspace"
 dir = "engine"
 run = "cargo run -p engine-server --bin duolify-engine"
 ["engine:eval"]
+env = { ENGINE_PROVIDER_MODE = "mock", EVAL_SAMPLE_LIMIT = "0" }
 dir = "engine"
 run = "cargo run -p engine-eval --bin duolify-eval -- --offline --provider mock"
 ["engine:eval-live"]
