@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/gamification"
+	"github.com/datamonsterr/duolify/services/api/internal/maintenance"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -520,9 +521,24 @@ func endFriendStreakTx(ctx context.Context, tx pgx.Tx, lo, hi string) ([]streakE
 // SweepFriendStreaks re-settles live pairs whose last check is stale, so a day-end is
 // decided even when neither friend opens the app. Bounded and idempotent.
 func (s *Service) SweepFriendStreaks(ctx context.Context) error {
-	rows, err := s.pool.Query(ctx, `SELECT learner_low::text,learner_high::text FROM friend_streaks WHERE current_days>0 AND updated_at<now()-interval '1 minute' ORDER BY updated_at LIMIT 100`)
+	_, err := s.sweepFriendStreaks(ctx)
+	return err
+}
+
+// friendSweepBatch is how many stale pairs one pass settles; a full batch means more wait.
+const friendSweepBatch = 100
+
+// friendSweepStale is how long a live pair may go unchecked before the sweep settles it.
+// The normal path is the settle hook that runs after every learner rollover and every
+// XP award; this sweep only repairs a missed hook, so a quarter of an hour is soon enough
+// and keeps it from re-settling every live pair every minute. Served by
+// friend_streaks_live_updated.
+const friendSweepStaleMinutes = 15
+
+func (s *Service) sweepFriendStreaks(ctx context.Context) (int, error) {
+	rows, err := s.pool.Query(ctx, `SELECT learner_low::text,learner_high::text FROM friend_streaks WHERE current_days>0 AND updated_at<now()-make_interval(mins=>$1) ORDER BY updated_at LIMIT $2`, friendSweepStaleMinutes, friendSweepBatch)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	type pairIDs struct{ lo, hi string }
 	pairs := []pairIDs{}
@@ -530,34 +546,30 @@ func (s *Service) SweepFriendStreaks(ctx context.Context) error {
 		var p pairIDs
 		if err = rows.Scan(&p.lo, &p.hi); err != nil {
 			rows.Close()
-			return err
+			return 0, err
 		}
 		pairs = append(pairs, p)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	var result error
 	for _, p := range pairs {
 		result = errors.Join(result, s.settlePair(ctx, p.lo, p.hi))
 	}
-	return result
+	return len(pairs), result
 }
 
-// Maintain runs the sweep until the context ends.
+// Maintain runs the sweep until the context ends. It runs only in the worker: every five
+// minutes when idle, straight away again while a full batch of stale pairs remains.
 func (s *Service) Maintain(ctx context.Context, logger *slog.Logger) {
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-	for {
-		if err := s.SweepFriendStreaks(ctx); err != nil && ctx.Err() == nil {
+	maintenance.Loop(ctx, time.Second, 5*time.Minute, func(ctx context.Context) bool {
+		n, err := s.sweepFriendStreaks(ctx)
+		if err != nil && ctx.Err() == nil {
 			logger.ErrorContext(ctx, "friend streak sweep failed", "error", fmt.Sprint(err))
 		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
+		return n >= friendSweepBatch
+	})
 }

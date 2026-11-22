@@ -14,6 +14,7 @@ import (
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
 	"github.com/datamonsterr/duolify/services/api/internal/analytics"
+	"github.com/datamonsterr/duolify/services/api/internal/maintenance"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -379,25 +380,36 @@ func write(w http.ResponseWriter, status int, value any) {
 }
 
 // Maintain resumes committed E4 outbox work without requiring a client read.
+//
+// It runs only in the worker. Every minute it judges the learners whose local day just
+// ended (an indexed read of streak_state.next_rollover_at); the outbox sweep and league
+// finalization run every fifth minute, and the lost-projection repair every tenth,
+// because those two read whole tables and their work is rare and not time-critical.
 func (s *Service) Maintain(ctx context.Context, logger *slog.Logger) {
-	tick := time.NewTicker(time.Minute)
-	defer tick.Stop()
-	for {
-		if err := s.Sweep(ctx); err != nil && ctx.Err() == nil {
-			logger.ErrorContext(ctx, "completion XP sweep failed", "error", err)
+	pass := 0
+	maintenance.Loop(ctx, time.Minute, time.Minute, func(ctx context.Context) bool {
+		if pass%5 == 0 {
+			if err := s.Sweep(ctx); err != nil && ctx.Err() == nil {
+				logger.ErrorContext(ctx, "completion XP sweep failed", "error", err)
+			}
 		}
-		if err := s.Rollover(ctx); err != nil && ctx.Err() == nil {
+		n, err := s.rolloverDue(ctx)
+		if err != nil && ctx.Err() == nil {
 			logger.ErrorContext(ctx, "streak rollover failed", "error", err)
 		}
-		if err := s.FinalizeLeagues(ctx); err != nil && ctx.Err() == nil {
-			logger.ErrorContext(ctx, "league finalization failed", "error", err)
+		if pass%10 == 0 {
+			if err := s.RepairMissingStreakState(ctx); err != nil && ctx.Err() == nil {
+				logger.ErrorContext(ctx, "streak projection repair failed", "error", err)
+			}
 		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-tick.C:
+		if pass%5 == 0 {
+			if err := s.FinalizeLeagues(ctx); err != nil && ctx.Err() == nil {
+				logger.ErrorContext(ctx, "league finalization failed", "error", err)
+			}
 		}
-	}
+		pass++
+		return n > 0
+	})
 }
 
 // Sweep resumes a bounded batch of learners with unconsumed completions.

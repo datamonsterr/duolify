@@ -290,6 +290,9 @@ type Service struct {
 	mu          sync.Mutex
 	arrivalMu   sync.RWMutex
 	arrivalHook func(ctx context.Context, learnerID string)
+	// lastFullExpiry is when this process last expired every daily grant, not only recent ones.
+	expiryMu       sync.Mutex
+	lastFullExpiry time.Time
 }
 
 // NewService builds a Service from a Postgres pool and Redis client.
@@ -1105,7 +1108,8 @@ func (s *Service) handleGetWallet(w http.ResponseWriter, r *http.Request) {
 
 	if s.store != nil {
 		_, _ = s.EnsureDailyGrant(r.Context(), learnerID, time.Now())
-		_, _ = s.ExpireDailyCredits(r.Context(), time.Now())
+		// Only this learner's past days: a wallet read must not sweep every learner under the financial lock.
+		_, _ = s.ExpireLearnerDailyCredits(r.Context(), learnerID, time.Now())
 	}
 
 	wallet, err := s.GetWallet(r.Context(), learnerID)
