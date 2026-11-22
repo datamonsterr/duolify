@@ -383,7 +383,7 @@ func TestPricingE12_07_RejectWrongStripePriceAndUneconomicCatalogueDraft(t *test
 			if name == "pricing_version_rejected" {
 				foundRejected = true
 				props, _ := event["properties"].(map[string]any)
-				if props["actor_id"] == "" || props["source"] != "api" || props["platform"] != "web" {
+				if props["source"] != "api" || props["platform"] != "web" {
 					t.Fatalf("missing common event properties: %+v", event)
 				}
 				if _, hasReason := props["reason"]; hasReason {

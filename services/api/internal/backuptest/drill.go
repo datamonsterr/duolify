@@ -117,7 +117,7 @@ func (f *Fixture) AssertDrillEvents(t *testing.T, outcomes []bool) {
 		default:
 			continue
 		}
-		if event.Properties["source"] == "api" && event.Event == "backup_failed" {
+		if _, backupRun := event.Properties["size_bytes"]; backupRun && event.Event == "backup_failed" {
 			continue
 		}
 		if event.DistinctID != "00000000-0000-4000-8000-000000000011" || event.Properties["source"] != "api" || event.Properties["platform"] != "web" || event.Properties["app_version"] == "" {
