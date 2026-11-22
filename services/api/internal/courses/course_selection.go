@@ -43,10 +43,10 @@ func ProjectEffectiveProfile(base *enginev1.LearnerProfile, courseLevelOverride 
 // EffectiveProfile loads global learner context and applies course level override without overwriting global profile.
 func (s *Service) EffectiveProfile(ctx context.Context, learnerID, courseID string) (*enginev1.LearnerProfile, error) {
 	learner := &enginev1.LearnerProfile{LearnerId: learnerID}
-	if s.opts.Pool == nil {
+	if s.opts.Pool == nil || !validIDs(learnerID) {
 		return learner, nil
 	}
-	err := s.opts.Pool.QueryRow(ctx, `SELECT locale, background, goal, level, topic, time_zone, COALESCE(daily_minutes,0), COALESCE(daily_xp,0), COALESCE(reminder_enabled,false), reminder_time FROM learner_profiles WHERE learner_id::text=$1`, learnerID).Scan(
+	err := s.opts.Pool.QueryRow(ctx, `SELECT locale, background, goal, level, topic, time_zone, COALESCE(daily_minutes,0), COALESCE(daily_xp,0), COALESCE(reminder_enabled,false), reminder_time FROM learner_profiles WHERE learner_id=$1::uuid`, learnerID).Scan(
 		&learner.Locale,
 		&learner.Background,
 		&learner.Goals,
@@ -61,9 +61,9 @@ func (s *Service) EffectiveProfile(ctx context.Context, learnerID, courseID stri
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
-	if courseID != "" {
+	if courseID != "" && validIDs(courseID) {
 		var override string
-		err = s.opts.Pool.QueryRow(ctx, `SELECT COALESCE(level_override, '') FROM course_enrollments WHERE learner_id::text=$1 AND course_id::text=$2`, learnerID, courseID).Scan(&override)
+		err = s.opts.Pool.QueryRow(ctx, `SELECT COALESCE(level_override, '') FROM course_enrollments WHERE learner_id=$1::uuid AND course_id=$2::uuid`, learnerID, courseID).Scan(&override)
 		if err == nil && override != "" {
 			return ProjectEffectiveProfile(learner, override), nil
 		}
@@ -179,6 +179,11 @@ func (s *Service) ServeCourseSelectHTTP(w http.ResponseWriter, r *http.Request) 
 		courseID = strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/courses/"), "/select")
 	}
 
+	if !validIDs(courseID) {
+		outlineError(w, 404)
+		return
+	}
+
 	ctx := r.Context()
 	tx, err := s.opts.Pool.Begin(ctx)
 	if err != nil {
@@ -188,7 +193,7 @@ func (s *Service) ServeCourseSelectHTTP(w http.ResponseWriter, r *http.Request) 
 	defer func() { _ = tx.Rollback(ctx) }()
 	// Lock the course against concurrent soft deletion through commit.
 	var locked string
-	err = tx.QueryRow(ctx, `SELECT c.id::text FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE e.learner_id::text=$1 AND c.id::text=$2 AND c.deleted_at IS NULL FOR UPDATE OF c`, owner, courseID).Scan(&locked)
+	err = tx.QueryRow(ctx, `SELECT c.id::text FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE e.learner_id=$1::uuid AND c.id=$2::uuid AND c.deleted_at IS NULL FOR UPDATE OF c`, owner, courseID).Scan(&locked)
 	if errors.Is(err, pgx.ErrNoRows) {
 		outlineError(w, 404)
 		return
@@ -197,7 +202,7 @@ func (s *Service) ServeCourseSelectHTTP(w http.ResponseWriter, r *http.Request) 
 		outlineError(w, 503)
 		return
 	}
-	tag, err := tx.Exec(ctx, `UPDATE course_enrollments SET last_active_at=now() WHERE learner_id::text=$1 AND course_id::text=$2`, owner, courseID)
+	tag, err := tx.Exec(ctx, `UPDATE course_enrollments SET last_active_at=now() WHERE learner_id=$1::uuid AND course_id=$2::uuid`, owner, courseID)
 	if err != nil {
 		outlineError(w, 503)
 		return
@@ -206,7 +211,7 @@ func (s *Service) ServeCourseSelectHTTP(w http.ResponseWriter, r *http.Request) 
 		outlineError(w, 404)
 		return
 	}
-	tag, err = tx.Exec(ctx, `UPDATE learner_profiles SET active_course_id=$2::uuid WHERE learner_id::text=$1`, owner, courseID)
+	tag, err = tx.Exec(ctx, `UPDATE learner_profiles SET active_course_id=$2::uuid WHERE learner_id=$1::uuid`, owner, courseID)
 	if err != nil || tag.RowsAffected() != 1 {
 		outlineError(w, 503)
 		return
@@ -259,6 +264,10 @@ func (s *Service) ServeCourseLevelHTTP(w http.ResponseWriter, r *http.Request) {
 		outlineError(w, 400)
 		return
 	}
+	if !validIDs(courseID) {
+		outlineError(w, 404)
+		return
+	}
 	ctx := r.Context()
 	tx, err := s.opts.Pool.Begin(ctx)
 	if err != nil {
@@ -267,7 +276,7 @@ func (s *Service) ServeCourseLevelHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var locked string
-	err = tx.QueryRow(ctx, `SELECT c.id::text FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE e.learner_id::text=$1 AND c.id::text=$2 AND c.deleted_at IS NULL FOR UPDATE OF c`, owner, courseID).Scan(&locked)
+	err = tx.QueryRow(ctx, `SELECT c.id::text FROM courses c JOIN course_enrollments e ON e.course_id=c.id WHERE e.learner_id=$1::uuid AND c.id=$2::uuid AND c.deleted_at IS NULL FOR UPDATE OF c`, owner, courseID).Scan(&locked)
 	if errors.Is(err, pgx.ErrNoRows) {
 		outlineError(w, 404)
 		return
@@ -276,7 +285,7 @@ func (s *Service) ServeCourseLevelHTTP(w http.ResponseWriter, r *http.Request) {
 		outlineError(w, 503)
 		return
 	}
-	tag, err := tx.Exec(ctx, `UPDATE course_enrollments SET level_override=$3 WHERE learner_id::text=$1 AND course_id::text=$2`, owner, courseID, level)
+	tag, err := tx.Exec(ctx, `UPDATE course_enrollments SET level_override=$3 WHERE learner_id=$1::uuid AND course_id=$2::uuid`, owner, courseID, level)
 	if err != nil {
 		outlineError(w, 503)
 		return
@@ -291,7 +300,7 @@ func (s *Service) ServeCourseLevelHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var optOut bool
-	if s.opts.Pool.QueryRow(r.Context(), `SELECT analytics_opt_out FROM learner_profiles WHERE learner_id::text=$1`, owner).Scan(&optOut) == nil && !optOut && s.opts.Events != nil {
+	if s.opts.Pool.QueryRow(r.Context(), `SELECT analytics_opt_out FROM learner_profiles WHERE learner_id=$1::uuid`, owner).Scan(&optOut) == nil && !optOut && s.opts.Events != nil {
 		props := map[string]any{
 			"source":         "api",
 			"platform":       "web",
