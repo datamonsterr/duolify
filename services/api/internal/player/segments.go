@@ -22,7 +22,7 @@ type segmentNarration struct {
 func (s *Service) segmentNarrations(ctx context.Context, owner, lesson string) map[string]map[int]segmentNarration {
 	out := map[string]map[int]segmentNarration{}
 	rows, err := s.opts.Pool.Query(ctx, `SELECT segment_slide_id,segment_index,slide_id,status,failure_code,duration_ms,characters,actual_voice_key,voice_fallback_reason
-		FROM slide_narrations WHERE lesson_id::text=$1 AND learner_id::text=$2 AND speaker_key<>''`, lesson, owner)
+		FROM slide_narrations WHERE lesson_id=$1::uuid AND learner_id=$2::uuid AND speaker_key<>''`, lesson, owner)
 	if err != nil {
 		return out // captions stay usable without audio
 	}
