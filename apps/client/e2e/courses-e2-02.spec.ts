@@ -31,6 +31,10 @@ for (const mobile of [false, true]) {
       history: [],
       confirmed: null,
     };
+    // This spec covers outline creation only; keep the lesson test surface out of it.
+    await page.route("**/v1/features", (r) =>
+      r.fulfill({ json: { lesson_test_tracer_enabled: false } }),
+    );
     await page.route("**/v1/course-brief/config", (r) =>
       r.fulfill({
         json: { enabled: true, credits: 0, pricing_version: "fixture" },
