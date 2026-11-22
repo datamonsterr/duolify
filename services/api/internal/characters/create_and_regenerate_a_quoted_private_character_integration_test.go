@@ -7,8 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 	"net"
 	"net/http"
@@ -24,6 +27,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/backuptest"
 	"github.com/datamonsterr/duolify/services/api/internal/characters"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
+	"github.com/datamonsterr/duolify/services/api/internal/engine"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 )
 
@@ -561,6 +565,130 @@ func TestCharacterCreateGuardsAndCancellation(t *testing.T) {
 		var n int
 		if e := f.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM (SELECT event_key,count(*) n FROM credit_outbox GROUP BY event_key HAVING count(*)>1) duplicates`).Scan(&n); e != nil || n != 0 {
 			t.Fatal("duplicate events", e)
+		}
+	})
+}
+
+// outageScreener fails screening of the raw prompt and/or the mapped spec.
+type outageScreener struct {
+	prompt, spec error
+	block        bool
+}
+
+func (o outageScreener) ScreenCharacter(ctx context.Context, r *pb.ScreenCharacterRequest) (*pb.ScreenCharacterResponse, error) {
+	if r.RawPrompt != "" && o.prompt != nil {
+		return nil, o.prompt
+	}
+	if r.SpecJson != "" && o.spec != nil {
+		return nil, o.spec
+	}
+	if o.block {
+		return &pb.ScreenCharacterResponse{Approved: false, ReasonCode: "real_person", PolicyVersion: "character-v1", Attempts: []*pb.Usage{{Provider: "mock", Model: "mock-screen", InputTokens: 10, OutputTokens: 3, Attempt: 1, Delivered: true}}}, nil
+	}
+	return screeningDouble{}.ScreenCharacter(ctx, r)
+}
+
+func notPromotedRefusal(t *testing.T) error {
+	t.Helper()
+	st, err := status.New(codes.Unavailable, "promotion_evidence_missing").WithDetails(&errdetails.ErrorInfo{Reason: "promotion_evidence_missing", Domain: engine.PromotionDomain, Metadata: map[string]string{"task": "character_screen"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st.Err()
+}
+
+func TestCharacterCreateScreeningOutageIsUnavailableNotRejected(t *testing.T) {
+	f := backuptest.New(t)
+	ctx := t.Context()
+	catalogue, err := pricing.Load(ctx, f.DB.Queries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wallet := credits.NewServiceWithCatalogue(f.DB.Pool, nil, catalogue, f.Events())
+	setup := func(t *testing.T, screen characters.Screener) (string, *characters.Service, *createMapper) {
+		t.Helper()
+		owner := uuid.NewString()
+		if _, e := f.DB.Pool.Exec(ctx, `INSERT INTO learners(id,display_name) VALUES($1,'Screening outage')`, owner); e != nil {
+			t.Fatal(e)
+		}
+		if _, e := f.DB.Pool.Exec(ctx, `INSERT INTO learner_profiles(learner_id,analytics_opt_out) VALUES($1,false)`, owner); e != nil {
+			t.Fatal(e)
+		}
+		if _, e := f.DB.Pool.Exec(ctx, `INSERT INTO credit_entries(learner_id,amount,kind,reference,pricing_version) SELECT $1,(config->'actions'->'character_create'->>'credits')::bigint*3,'purchase',$2,'usd-dev-character-create-unapproved' FROM pricing_versions WHERE version='usd-dev-character-create-unapproved'`, owner, uuid.NewString()); e != nil {
+			t.Fatal(e)
+		}
+		mapper := new(createMapper)
+		s := characters.NewService(f.DB.Pool, nil, f.Events())
+		s.ConfigureScreening(screen)
+		s.ConfigureCreation(wallet, newMappingRPC(t, mapper), "test", true)
+		return owner, s, mapper
+	}
+	unavailable := func(t *testing.T, owner string, j characters.CreateJob) {
+		t.Helper()
+		if j.State != "failed" || j.Reason != "screening_unavailable" {
+			t.Fatalf("outage result=%+v, want failed/screening_unavailable", j)
+		}
+		var verdicts, rejectedEvents int
+		if e := f.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM character_screenings WHERE operation_id=$1 AND verdict='rejected'`, j.ID).Scan(&verdicts); e != nil || verdicts != 0 {
+			t.Fatal("outage recorded as a rejected verdict", verdicts, e)
+		}
+		if e := f.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM credit_outbox WHERE learner_id=$1 AND event='character_rejected'`, owner).Scan(&rejectedEvents); e != nil || rejectedEvents != 0 {
+			t.Fatal("outage emitted character_rejected", rejectedEvents, e)
+		}
+	}
+	for name, cause := range map[string]error{
+		"typed not-promoted refusal": notPromotedRefusal(t),
+		"transient unavailable":      status.Error(codes.Unavailable, "provider_outage"),
+		"deadline exceeded":          status.Error(codes.DeadlineExceeded, "timeout"),
+	} {
+		t.Run("prompt screening "+name, func(t *testing.T) {
+			owner, s, m := setup(t, outageScreener{prompt: cause})
+			j, e := s.QuoteCreate(ctx, owner, characters.CreateRequest{RequestKey: "outage", Prompt: "original gardener"})
+			if e != nil {
+				t.Fatal(e)
+			}
+			unavailable(t, owner, j)
+			if j.Quote != nil || m.calls.Load() != 0 {
+				t.Fatal("outage quoted or mapped", j.Quote, m.calls.Load())
+			}
+		})
+	}
+	t.Run("spec screening outage releases the reservation", func(t *testing.T) {
+		owner, s, m := setup(t, outageScreener{spec: notPromotedRefusal(t)})
+		j, e := s.QuoteCreate(ctx, owner, characters.CreateRequest{RequestKey: "spec-outage", Prompt: "original gardener"})
+		if e != nil {
+			t.Fatal(e)
+		}
+		queued, e := s.ConfirmCreate(ctx, owner, j.ID, j.Quote.ID)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = s.ExecuteCreate(ctx, owner, j.ID); e != nil {
+			t.Fatal(e)
+		}
+		done, e := s.GetCreate(ctx, owner, j.ID)
+		if e != nil || m.calls.Load() != 1 {
+			t.Fatal(e, m.calls.Load())
+		}
+		unavailable(t, owner, done)
+		var state string
+		var spends int
+		if e = f.DB.Pool.QueryRow(ctx, `SELECT state FROM credit_jobs WHERE id=$1`, queued.ReservationID).Scan(&state); e != nil || state != "released" {
+			t.Fatal("outage kept the hold", state, e)
+		}
+		if e = f.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM credit_entries WHERE learner_id=$1 AND kind='spend'`, owner).Scan(&spends); e != nil || spends != 0 {
+			t.Fatal("outage charged", spends, e)
+		}
+	})
+	t.Run("a block verdict is still rejected", func(t *testing.T) {
+		owner, s, _ := setup(t, outageScreener{block: true})
+		j, e := s.QuoteCreate(ctx, owner, characters.CreateRequest{RequestKey: "blocked", Prompt: "original gardener"})
+		if e != nil {
+			t.Fatal(e)
+		}
+		var verdict string
+		if e = f.DB.Pool.QueryRow(ctx, `SELECT verdict FROM character_screenings WHERE operation_id=$1`, j.ID).Scan(&verdict); e != nil || j.State != "rejected" || j.Reason != "real_person" || verdict != "rejected" {
+			t.Fatalf("block result=%+v verdict=%q %v", j, verdict, e)
 		}
 	})
 }
