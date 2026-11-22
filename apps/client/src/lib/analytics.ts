@@ -6,6 +6,19 @@ import {
   type ScreenId,
 } from "../features/shell/navigation";
 const key = import.meta.env.VITE_POSTHOG_KEY;
+const host = import.meta.env.VITE_POSTHOG_HOST;
+
+if (!key && import.meta.env.DEV) {
+  throw new Error(
+    "VITE_POSTHOG_KEY variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once VITE_POSTHOG_KEY is configured",
+  );
+}
+
+if (!host && import.meta.env.DEV) {
+  throw new Error(
+    "VITE_POSTHOG_HOST variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once VITE_POSTHOG_HOST is configured",
+  );
+}
 type Identity = {
   learnerId: string;
   optedOut: boolean;
@@ -19,7 +32,16 @@ const uuid =
 
 // Auth supplies the internal Learner UUID; public browsing has no identity.
 export function configureAnalytics(value: Identity | null) {
-  if (identity?.learnerId !== value?.learnerId) exposed.clear();
+  const changedLearner = identity?.learnerId !== value?.learnerId;
+  if (changedLearner) exposed.clear();
+  if (key && identity && (!value || changedLearner)) {
+    try {
+      // Clear the prior learner before explicit logout or a direct account switch.
+      posthog.reset();
+    } catch {
+      /* Identity cleanup must not block the app. */
+    }
+  }
   identity = value ?? undefined;
   try {
     if (value?.optedOut) posthog.opt_out_capturing();
@@ -41,8 +63,11 @@ export function setAnalyticsConsent(enabled: boolean) {
   if (!identity) return;
   identity = { ...identity, optedOut: !enabled };
   try {
-    if (enabled) posthog.opt_in_capturing();
-    else posthog.opt_out_capturing();
+    if (enabled) {
+      posthog.opt_in_capturing();
+      if (key && uuid.test(identity.learnerId))
+        posthog.identify(identity.learnerId);
+    } else posthog.opt_out_capturing();
   } catch {
     /* The local boundary still suppresses events if the SDK is unavailable. */
   }
@@ -98,13 +123,41 @@ export function exposePricing(
     /* Analytics must never interrupt a price view. */
   }
 }
-if (key)
+if (key && host)
   posthog.init(key, {
-    api_host: import.meta.env.VITE_POSTHOG_HOST || "https://us.i.posthog.com",
+    api_host: host,
     defaults: "2026-08-30",
-    autocapture: false,
-    capture_pageview: false,
+    capture_exceptions: true,
+    logs: {
+      serviceName: "duolify-client",
+      environment: import.meta.env.MODE,
+      serviceVersion: "0.1.0",
+    },
   });
+
+// This dedicated native logger exports only the explicit records below, never console output.
+export function logCourseCreation(
+  outcome: "requested" | "started" | "failed",
+  details: { draftId: string; revision: number; unitCount?: number },
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    const attributes = {
+      operation: "course_creation",
+      outcome,
+      draft_id: details.draftId,
+      revision: details.revision,
+      ...(details.unitCount === undefined ? {} : { unit_count: details.unitCount }),
+    };
+    if (outcome === "failed")
+      posthog.logger.error("course creation request completed", attributes);
+    else posthog.logger.info("course creation request completed", attributes);
+  } catch {
+    /* Log delivery must not interrupt course creation. */
+  }
+}
+
 export function track(
   event:
     | "lesson_started"
@@ -112,6 +165,9 @@ export function track(
     | "lesson_generation_requested"
     | "lesson_generated"
     | "course_generation_failed"
+    | "course_creation_requested"
+    | "course_creation_started"
+    | "course_creation_failed"
     | "lesson_test_started"
     | "lesson_test_submitted"
     | "lesson_test_passed"

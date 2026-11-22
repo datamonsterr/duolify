@@ -3,7 +3,11 @@ import { Button } from "../design/Button";
 import { session } from "../accounts/session";
 import { secureStore } from "../accounts/secure-store";
 import { quoteAPI } from "../pricing/quotes";
-import { trackCourseRecovery } from "../../lib/analytics";
+import {
+  logCourseCreation,
+  track,
+  trackCourseRecovery,
+} from "../../lib/analytics";
 import type { ConfirmedOutline } from "./outline";
 
 type Terms = {
@@ -162,16 +166,44 @@ export function CourseCreate({
       return;
     setBusy(true);
     setError("");
+    track("course_creation_requested", {
+      draft_id: snapshot.draft_id,
+      revision: snapshot.revision,
+      unit_count: snapshot.outline.length,
+    });
+    logCourseCreation("requested", {
+      draftId: snapshot.draft_id,
+      revision: snapshot.revision,
+      unitCount: snapshot.outline.length,
+    });
     try {
       await service.accept(terms.id);
       // Keep the quote on ambiguous network failure; resubmit only the same immutable intent.
       sessionStorage.setItem(key, `quote:${terms.id}`);
       setRecovery(`quote:${terms.id}`);
       const next = await service.create(snapshot, terms.id);
+      track("course_creation_started", {
+        draft_id: snapshot.draft_id,
+        revision: snapshot.revision,
+        unit_count: snapshot.outline.length,
+      });
+      logCourseCreation("started", {
+        draftId: snapshot.draft_id,
+        revision: snapshot.revision,
+        unitCount: snapshot.outline.length,
+      });
       sessionStorage.setItem(key, `job:${next.id}`);
       setRecovery(`job:${next.id}`);
       setJob(next);
     } catch {
+      track("course_creation_failed", {
+        draft_id: snapshot.draft_id,
+        revision: snapshot.revision,
+      });
+      logCourseCreation("failed", {
+        draftId: snapshot.draft_id,
+        revision: snapshot.revision,
+      });
       setError(
         "Creation unavailable. Your edits are kept. Resume status before trying again.",
       );

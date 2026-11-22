@@ -308,6 +308,13 @@ export function LessonTest({
     setIsSubmitting(true);
     setSubmissionError(null);
     const opKey = generateOperationKey();
+    const properties = {
+      course_id: effectiveCourseId,
+      lesson_id: effectiveLessonId,
+      question_id: currentQuestion.question_id,
+      topic_id: currentQuestion.topic_id,
+    };
+    track("lesson_test_submitted", properties);
     try {
       if (onAnswer) {
         try {
@@ -321,8 +328,14 @@ export function LessonTest({
               : await onAnswer(currentQuestion.question_id, selectedChoice);
           setFeedback(result);
           if (!result.correct) {
+            track("lesson_test_answer_wrong", properties);
+            if (result.retry_variant)
+              track("retry_variant_queued", properties);
             triggerFeedbackCue("correction");
           }
+          if (currentQuestion.is_variant || currentQuestion.variant_of)
+            track("retry_variant_answered", properties);
+          if (result.passed) track("lesson_test_passed", properties);
           applyResult(result, currentQuestion.question_id);
         } catch (err) {
           if (!isNetworkError(err)) throw err;
@@ -360,6 +373,7 @@ export function LessonTest({
     queueIndex,
     queue.length,
     totalTopics,
+    effectiveCourseId,
     effectiveLessonId,
     applyResult,
     pendingOffline,
