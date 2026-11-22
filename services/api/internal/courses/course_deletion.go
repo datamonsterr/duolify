@@ -2,6 +2,7 @@ package courses
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -134,8 +135,7 @@ const ObjectPurgeRetention = accounts.ObjectPurgeRetention
 
 // ObjectStore lists and deletes stored lesson objects.
 type ObjectStore interface {
-	List(ctx context.Context, prefix string) ([]string, error)
-	Delete(ctx context.Context, key string) error
+	PurgePrefix(ctx context.Context, prefix string) error
 }
 
 // SweepPurgedObjects deletes the stored objects (slide HTML, manifests) of purged Courses once their
@@ -163,14 +163,8 @@ func (s *Service) SweepPurgedObjects(ctx context.Context, now time.Time) (int, e
 		if referenced {
 			continue
 		}
-		keys, err := s.opts.Objects.List(ctx, prefix)
-		if err != nil {
+		if err = s.opts.Objects.PurgePrefix(ctx, prefix); err != nil {
 			return done, err
-		}
-		for _, key := range keys {
-			if err = s.opts.Objects.Delete(ctx, key); err != nil {
-				return done, err
-			}
 		}
 		if _, err = s.opts.Pool.Exec(ctx, `UPDATE course_object_purges SET purged_at = now() WHERE prefix = $1`, prefix); err != nil {
 			return done, err
@@ -178,4 +172,37 @@ func (s *Service) SweepPurgedObjects(ctx context.Context, now time.Time) (int, e
 		done++
 	}
 	return done, nil
+}
+
+// MaintainPurgedObjects runs in API replicas, which hold the application storage identity.
+// An advisory lock prevents replicas from deleting the same prefix concurrently.
+func (s *Service) MaintainPurgedObjects(ctx context.Context) {
+	ticker := time.NewTicker(6 * time.Hour)
+	defer ticker.Stop()
+	for {
+		conn, err := s.opts.Pool.Acquire(ctx)
+		if err == nil {
+			var locked bool
+			err = conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", int64(714553001)).Scan(&locked)
+			if err == nil && locked {
+				_, err = s.SweepPurgedObjects(ctx, time.Now())
+				_, unlockErr := conn.Exec(context.WithoutCancel(ctx), "SELECT pg_advisory_unlock($1)", int64(714553001))
+				if unlockErr != nil {
+					_ = conn.Hijack().Close(context.Background())
+				} else {
+					conn.Release()
+				}
+			} else {
+				conn.Release()
+			}
+		}
+		if err != nil && ctx.Err() == nil {
+			slog.ErrorContext(ctx, "generated object purge failed", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }

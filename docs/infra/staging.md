@@ -30,10 +30,10 @@ Staging runs the [production overlay](selfhost.md#production-overlay-hel1) on on
 
 - `DUOLIFY_ENV=staging`. Every check outside `development` and `test` is fail-closed.
 - `PRIMARY_LOCATION=fsn1`, `BACKUP_LOCATION=cloudflare-r2`.
-- `S3_*` and `BACKUP_S3_*` point at R2 (`BACKUP_S3_VERSIONING=none`).
+- `S3_*` and `BACKUP_S3_*` point at R2 (`S3_VERSIONING=none`, `BACKUP_S3_VERSIONING=none`). The API deletes private generated objects using the application identity; the worker holds only backup credentials.
 - `ENGINE_PROVIDER_MODE=live` with `OPENROUTER_API_KEY`. The route is set by `engine/config/models.toml`.
 - `RESEND_API_KEY` and `AUTH_MAIL_FROM` for sign-in mail.
-- `POSTHOG_API_KEY`, `POSTHOG_HOST` and `ANALYTICS_OPT_OUT=false` for server analytics. The web image gets `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST` at build time in `pr-ready`.
+- `POSTHOG_API_KEY`, `POSTHOG_HOST`, `POSTHOG_PROJECT_ID`, `POSTHOG_PERSONAL_API_KEY` and `ANALYTICS_OPT_OUT=false` for server analytics. The web image gets `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST` at build time in `pr-ready`.
 - Narration: `NARRATION_ENABLED=true` and `NARRATION_LIVE_ENABLED=true`, with `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID`. The character budget is `NARRATION_MONTHLY_CHAR_LIMIT` (40000), `NARRATION_BUDGET_STOP_PERCENT` (95) and `NARRATION_CYCLE_START_DAY` (1); the compose file forwards them with those defaults. `NARRATION_LIVE_ENABLED` is forwarded to the API and worker too, because the budget is only read when it is `true`.
 - The lesson test is on through the API default. The client reads it from `/v1/features`.
 - Stripe, the marketplace and public character export stay off, because their variables are not set.

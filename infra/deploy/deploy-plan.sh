@@ -33,7 +33,7 @@ bad() { problems+=("$*"); }
 setting() { sed -n "s/^$1=//p" "$env_file" | tail -n 1; }
 
 # 3. Backup environment is complete, and the backup endpoint is outside the primary location.
-for key in PRIMARY_LOCATION BACKUP_LOCATION S3_ENDPOINT BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_BUCKET BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY BACKUP_AGE_RECIPIENT; do
+for key in PRIMARY_LOCATION BACKUP_LOCATION S3_ENDPOINT S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY BACKUP_S3_ENDPOINT BACKUP_S3_REGION BACKUP_S3_BUCKET BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY BACKUP_AGE_RECIPIENT; do
   if [[ -z $(setting "$key") ]]; then bad "missing $key in $(basename "$env_file")"; fi
 done
 primary=$(setting PRIMARY_LOCATION)
@@ -45,6 +45,10 @@ if [[ -n $(setting S3_BUCKET) && $(setting S3_BUCKET) == "$(setting BACKUP_S3_BU
 for key in S3_REGION BACKUP_S3_REGION; do
   if [[ -z $(setting "$key") ]]; then bad "missing $key (use auto for Cloudflare R2)"; fi
 done
+
+# Explicitly declare application bucket versioning so erasure cannot silently leave versions.
+app_versioning=$(setting S3_VERSIONING)
+if [[ $app_versioning != enabled && $app_versioning != none ]]; then bad "S3_VERSIONING must be enabled for a versioned bucket or none for R2"; fi
 
 # 3b. Settings the API or Caddy would only reject after images were pulled and the database migrated.
 # The API refuses to start when the backup writer reuses the application key (backup.Load).
@@ -84,6 +88,11 @@ if [[ -z $config ]]; then # nothing below can be checked without the rendered co
   printf 'deploy-plan: %s\n' "${problems[@]}" >&2
   exit 1
 fi
+
+# The API owns generated-object deletion and must actually receive both application credentials.
+for key in S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY; do
+  if [[ -z $(jq -r --arg key "$key" '.services.api.environment[$key] // ""' <<<"$config") ]]; then bad "API missing $key required for object erasure"; fi
+done
 
 # 0. No service may share the host network namespace (it would bypass every port rule below).
 hostnet=$(jq -r '.services | to_entries[] | select(.value.network_mode == "host") | .key' <<<"$config")

@@ -55,6 +55,7 @@ x-app-env: &app-env
   S3_ENDPOINT: http://objectstore:9000
   S3_BUCKET: duolify
   S3_REGION: us-east-1
+  S3_VERSIONING: ${S3_VERSIONING:-enabled}
   S3_ACCESS_KEY_ID: duolify-app
   S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?run selfhost.sh init}
   LESSON_ASSET_ORIGIN: ${LESSON_ASSET_ORIGIN:-http://localhost:9000}
@@ -261,6 +262,8 @@ services:
     command: [worker]
     environment:
       <<: [*app-env, *backup-writer]
+      POSTHOG_PROJECT_ID: ${POSTHOG_PROJECT_ID:-}
+      POSTHOG_PERSONAL_API_KEY: ${POSTHOG_PERSONAL_API_KEY:-}
       OPERATIONS_ADDR: :9092
       GOMEMLIMIT: 300MiB
       # Scoped backup identity only; no application object-store keys.

@@ -52,6 +52,16 @@ expect_reject() { # NAME WORD-IN-MESSAGE MUTATION-COMMAND...
 }
 
 expect_pass
+# Private PostHog credentials must reach the worker, never the web image.
+d=$(fixture posthog-forwarding)
+printf 'POSTHOG_PROJECT_ID=project-test\nPOSTHOG_PERSONAL_API_KEY=private-test\n' >> "$d/env"
+rendered=$(env -u BACKUP_AGE_RECIPIENT docker compose --project-directory "$d" -f "$d/compose.yml" -f "$d/compose.prod.yml" --env-file "$d/env" --profile '*' config --format json)
+if jq -e '.services.worker.environment.POSTHOG_PROJECT_ID == "project-test" and .services.worker.environment.POSTHOG_PERSONAL_API_KEY == "private-test" and ((.services.web.environment // {}) | has("POSTHOG_PERSONAL_API_KEY") | not)' <<<"$rendered" >/dev/null; then printf 'ok   PostHog private credentials reach worker only\n'; else printf 'FAIL PostHog private credentials are not isolated to worker\n'; failures=$((failures+1)); fi
+expect_reject missing-app-versioning S3_VERSIONING sed -i "/^S3_VERSIONING=/d" env
+expect_reject invalid-app-versioning S3_VERSIONING sed -i "s/^S3_VERSIONING=.*/S3_VERSIONING=unknown/" env
+expect_reject missing-app-key S3_ACCESS_KEY_ID sed -i '/^S3_ACCESS_KEY_ID=/d' env
+expect_reject missing-app-secret S3_SECRET_ACCESS_KEY sed -i '/^S3_SECRET_ACCESS_KEY=/d' env
+expect_reject api-denied-app-key S3_ACCESS_KEY_ID sed -i '0,/<<: \*s3-env/s//<<: *s3-env\n      S3_ACCESS_KEY_ID: ""/' compose.prod.yml
 # The checked-in template (no env file next to the compose files) keeps its placeholders and still passes.
 mkdir "$work/template" && cp "$here/compose.yml" "$here/compose.prod.yml" "$here/Caddyfile" "$here/.env.prod.example" "$work/template/"
 if bash "$plan" "$work/template" >"$work/out" 2>&1; then printf 'ok   accepts the template with its placeholders\n'
