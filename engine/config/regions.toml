@@ -1,0 +1,30 @@
+# Slide regions (openspec change immersive-mobile-lesson-player, design decision 6).
+#
+# A generated Slide declares its regions by naming a layout slot, never by guessing
+# coordinates: the Engine owns the box of every slot below and appends a stylesheet that
+# places each `data-slot` element (inside the root element) exactly in its slot.
+# Boxes are normalized stage coordinates [x, y, w, h] of the 16:9 stage.
+#
+# The API validates published regions with the same limits
+# (services/api/internal/player/regions.go; a unit test keeps the two in step).
+
+# Lesson generation asks for, and requires, regions on every Slide. Off: the prompt and
+# strict schema omit regions and Lessons are published without them (whole-Slide grounding).
+emit = true
+# Regions per generated Slide (at least one when `emit` is on).
+max_per_slide = 6
+# Unicode characters of one region description (plain text).
+max_description_chars = 300
+# Two regions whose time windows overlap may share at most this fraction of the smaller box.
+max_overlap = 0.2
+
+[slots]
+top = [0.05, 0.04, 0.90, 0.18]
+body = [0.05, 0.26, 0.90, 0.52]
+left = [0.05, 0.26, 0.44, 0.52]
+right = [0.51, 0.26, 0.44, 0.52]
+left_top = [0.05, 0.26, 0.44, 0.25]
+left_bottom = [0.05, 0.53, 0.44, 0.25]
+right_top = [0.51, 0.26, 0.44, 0.25]
+right_bottom = [0.51, 0.53, 0.44, 0.25]
+bottom = [0.05, 0.82, 0.90, 0.14]

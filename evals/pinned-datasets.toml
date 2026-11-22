@@ -14,3 +14,5 @@
 "b7979d57f81401aaabb21aba2cb82c64cddafd96" = "eecd8e63076797b780a1a5bb10ed83cc64ba249e788b8f149383dae4834cfb71"
 # Adds live outline_chat_change, outline_replan, character_create and lesson_narration cases; the first 20 rows are unchanged.
 "943decec056d4dbb407f3b984fa3c8512be5ed94" = "63c3b93fe07d3c6a635c109bbc26b7583e932b972d963f334c9b630dfa284a7c"
+# Adds four Slide region lesson cases (immersive-mobile-lesson-player 2.7); the first 32 rows are unchanged.
+"1bf626ff100d45aa4ce83fd2eee7dc8cceb37ec8" = "bec26438482b5c975e1e28a83663755f19d6243fa425206faf5beecf4e9c1176"

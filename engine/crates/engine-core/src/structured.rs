@@ -184,16 +184,25 @@ pub fn lesson_format() -> Value {
         }
         json!({"type":"object","properties":props,"required":required,"additionalProperties":false})
     };
+    let mut slide = json!({"type":"object","properties":{
+        "slide_id":{"type":"string"},"html":{"type":"string"},
+        "narration":{"type":"string"},"duration_ms":{"type":"integer"},
+        "topic_ids":{"type":"array","items":{"type":"string"},"minItems":1}},
+        "required":["slide_id","html","narration","duration_ms","topic_ids"],
+        "additionalProperties":false});
+    // Slide regions (`regions::shape`): required on every Slide while emission is on.
+    if crate::regions::config().emit {
+        slide["properties"]["regions"] = crate::regions::schema();
+        slide["required"]
+            .as_array_mut()
+            .expect("required list")
+            .push(json!("regions"));
+    }
     schema(
         "lesson",
         json!({"type":"object","properties":{
             "title":{"type":"string"},
-            "slides":{"type":"array","minItems":1,"items":{"type":"object","properties":{
-                "slide_id":{"type":"string"},"html":{"type":"string"},
-                "narration":{"type":"string"},"duration_ms":{"type":"integer"},
-                "topic_ids":{"type":"array","items":{"type":"string"},"minItems":1}},
-                "required":["slide_id","html","narration","duration_ms","topic_ids"],
-                "additionalProperties":false}},
+            "slides":{"type":"array","minItems":1,"items":slide},
             "test":{"type":"array","minItems":1,"items":question(false)},
             "variant_pool":{"type":"array","items":{"type":"object","properties":{
                 "topic_id":{"type":"string"},

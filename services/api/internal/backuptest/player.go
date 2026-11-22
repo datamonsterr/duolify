@@ -16,6 +16,7 @@ import (
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/courses"
 	"github.com/datamonsterr/duolify/services/api/internal/narration/narrationtest"
+	"github.com/datamonsterr/duolify/services/api/internal/player"
 	"github.com/datamonsterr/duolify/services/api/internal/player/playerfixture"
 	"github.com/datamonsterr/duolify/services/api/internal/sharing"
 	"github.com/jackc/pgx/v5"
@@ -55,8 +56,22 @@ func authoredObjects() map[string][]byte {
 	for key, raw := range exampleObjects {
 		objects[key] = raw
 	}
+	// A generated Lesson whose Slide manifest declares regions (derived content, no learner data).
+	_, regionObjects, err := player.GeneratedObjects(RegionsManifestPrefix, []player.GeneratedSlide{{
+		ID: "regions-s1", HTML: `<div id="root"><h1 data-slot="top">Moon phases</h1></div>`, DurationMS: 3000, Narration: "The Moon has phases.",
+		Regions: []player.Region{{ID: "top", Box: player.RegionBox{X: 0.05, Y: 0.04, W: 0.9, H: 0.18}, Window: &player.RegionWindow{StartMS: 0, EndMS: 3000}, Role: "title", Description: "Title: Moon phases"}},
+	}}, playerfixture.AssetOrigin)
+	if err != nil {
+		panic("invalid slide regions fixture")
+	}
+	for key, raw := range regionObjects {
+		objects[key] = raw
+	}
 	return objects
 }
+
+// RegionsManifestPrefix holds the protected Slide manifest with regions.
+const RegionsManifestPrefix = "lessons/generated/backup-regions"
 
 // AssertPlaybackPositionRestored compares the complete learner cursor, including
 // its UTC timestamp, from the encrypted dump rather than reconstructing it.
@@ -218,6 +233,15 @@ func (f *Fixture) AssertPlayerObjectsRestored(t *testing.T) {
 		if err != nil || !bytes.Equal(restored, authoredObjects()[entry.Key]) {
 			t.Fatal("asset restore mismatch", err)
 		}
+	}
+	// The restored Slide manifest still carries its regions and passes publication validation.
+	raw, err := f.ApplicationObjects().Get(t.Context(), RegionsManifestPrefix+"/manifest.json")
+	if err != nil {
+		t.Fatal("regions manifest not restored", err)
+	}
+	var m player.ObjectManifest
+	if err = json.Unmarshal(raw, &m); err != nil || player.ValidateManifest(m, playerfixture.AssetOrigin) != nil || len(m.Slides[0].Regions) != 1 || m.Slides[0].Regions[0].Description != "Title: Moon phases" {
+		t.Fatal("restored regions", err, m)
 	}
 }
 

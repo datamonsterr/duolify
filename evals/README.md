@@ -85,7 +85,7 @@ after every other engine change:
 # Credentials go in the process environment only: OpenRouter (the local CI key), and the
 # ElevenLabs key and voice for the lesson_narration cases.
 OPENROUTER_API_KEY=... ELEVENLABS_API_KEY=... ELEVENLABS_VOICE_ID=... EVAL_BUDGET_USD=0.5 \
-  mise run engine:eval-golden                             # all 32 cases, about $0.003 and ~70 ElevenLabs characters
+  mise run engine:eval-golden                             # all 36 cases, about $0.005 and ~70 ElevenLabs characters
 mise run engine:promote ../evals/reports/latest.json      # refuses any non-promotable or foreign-build report
 mise run engine:evidence -- --require-launch              # must list every launch task
 ```
@@ -193,7 +193,7 @@ E16-05 adds three `steer_lesson` golden rows to `fixtures/golden.sample.jsonl` (
 
 ## Live set (`datamonsterr/duolify-golden`)
 
-The private dataset `datamonsterr/duolify-golden` holds the 32-case live set (`evals/datasets/duolify-golden/golden.jsonl`, the exact published bytes). Revision `943decec056d4dbb407f3b984fa3c8512be5ed94` is pinned in `pinned-datasets.toml` (the earlier 20-case revision `b7979d57…` stays pinned; its rows are the first 20 lines, unchanged). Cases cover preview, outline, three lessons, a lesson test, two tutor chats (one with a long history), note enrichment, setup and brief chat, all four safety screens (`steer_screen`, `character_screen`, `course_screen`, `screen_review`) with benign and must-block rows, and three cases each for:
+The private dataset `datamonsterr/duolify-golden` holds the 36-case live set (`evals/datasets/duolify-golden/golden.jsonl`, the exact published bytes). Revision `1bf626ff100d45aa4ce83fd2eee7dc8cceb37ec8` is pinned in `pinned-datasets.toml` (it adds the four Slide region cases after 32 unchanged rows; the earlier 32-case revision `943decec…` and 20-case revision `b7979d57…` stay pinned; their rows are the first 32 and 20 lines, unchanged). Cases cover preview, outline, three lessons, a lesson test, two tutor chats (one with a long history), note enrichment, setup and brief chat, all four safety screens (`steer_screen`, `character_screen`, `course_screen`, `screen_review`) with benign and must-block rows, and three cases each for:
 
 - `outline_chat_change`: an added lesson lands in the named unit with every lesson's text kept; a hostile lesson title in the learner's draft stays data while the requested unit is retitled and nothing leaks; a request with a NUL control character is refused before any provider call.
 - `outline_replan`: a focus instruction changes the remaining lessons while both protected lessons and their unit stay in place; an instruction that tries to rewrite finished lessons and leak the policy cannot change a protected lesson or leak, delivered or not; an unknown protected lesson is refused before any provider call.
@@ -202,13 +202,30 @@ The private dataset `datamonsterr/duolify-golden` holds the 32-case live set (`e
 
 In live mode the four screen tasks run the production `screen` functions against the live router (same prompt, schema validation, fail-closed rule and fallback). Their output has `blocked_as_expected` and `unavailable`; a must-block case that is allowed is a critical failure. The other live tasks run the production prompt builders, validators and bounded runner (`engine-eval/src/live.rs`): their `input` is the request data the API sends (brief and profile for preview; the confirmed outline for outline; outline, lesson and learner for lessons; a source question for lesson-test retry variants; a tutor `context`; a note; a setup or brief turn), never a prompt. Most score `delivered` (the production validator accepted the answer) plus task checks. Every JSON task requests structured output (`response_format`, ADR 0018), the answer passes the shared extraction rule (one surrounding code fence) and the second attempt is a corrective repair quoting the validation error. Reports list the served model, fallback flag and latency per case, and failing live cases keep an excerpt of the scored output and the rejection reasons.
 
+Slide regions (change `immersive-mobile-lesson-player`, task 2.7) add four `lesson_slides`
+cases at the end of the live set: a diagram-like Slide (`live-lesson-regions-diagram-water-cycle`),
+a code Slide (`-code-python-comprehension`), a question Slide (`-question-fractions`) and an
+adversarial case whose learner goals try to inject markup into region descriptions
+(`-injected-markup`). The live runner reports `regions_valid` (every delivered Slide passed
+`engine_core::regions::slide_regions`), `region_count`, `region_roles`, `region_descriptions`
+and `region_faithfulness` (the fraction of regions whose description shares words with the
+text the html puts in that region, or quotes it verbatim; a text-free diagram counts as
+faithful). Thresholds, all critical: delivered, `regions_valid = true`,
+`region_faithfulness >= 0.8` (`path_at_least`), the expected role present, and no `<`,
+backslash escape or control character in any description. The three earlier lesson cases
+also exercise regions, because acceptance requires them on every Slide while
+`engine/config/regions.toml` has `emit = true`.
+
+Check kinds also include `path_equals` (`{"path": "a.b", "expected": ...}`) and
+`path_at_least` (`{"path": "a.b", "min": 0.8}`, a number at least `min`).
+
 `mise run engine:eval-golden` runs every case of the reviewed bytes in `evals/datasets/duolify-golden/golden.jsonl` live with no judge, after verifying them against the pinned revision (needs only `OPENROUTER_API_KEY`; set `EVAL_BUDGET_USD`).
 
 Run a small, budgeted sample (no `HF_TOKEN` secret is set on GitHub, so ready PRs record an explicit `missing_secrets` report and keep live promotion disabled):
 
 ```bash
-HF_GOLDEN_DATASET=datamonsterr/duolify-golden HF_GOLDEN_REVISION=943decec056d4dbb407f3b984fa3c8512be5ed94 \
-HF_TOKEN=... OPENROUTER_API_KEY=... ELEVENLABS_API_KEY=... ELEVENLABS_VOICE_ID=... EVAL_BUDGET_USD=0.5 EVAL_SAMPLE_LIMIT=32 mise run engine:eval-live
+HF_GOLDEN_DATASET=datamonsterr/duolify-golden HF_GOLDEN_REVISION=1bf626ff100d45aa4ce83fd2eee7dc8cceb37ec8 \
+HF_TOKEN=... OPENROUTER_API_KEY=... ELEVENLABS_API_KEY=... ELEVENLABS_VOICE_ID=... EVAL_BUDGET_USD=0.5 EVAL_SAMPLE_LIMIT=36 mise run engine:eval-live
 ```
 
 To enable live evals on ready PRs, add the `HF_TOKEN` (read access to the private dataset), `OPENROUTER_API_KEY`, `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` repository secrets and set `HF_GOLDEN_REVISION`/`HF_GOLDEN_DATASET` in the workflow environment.

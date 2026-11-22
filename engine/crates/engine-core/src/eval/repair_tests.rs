@@ -305,8 +305,10 @@ fn same_order_variant_is_rotated_and_then_validates() {
         v
     };
     let lesson = serde_json::json!({
-        "slides": [{"html": "<div id=\"root\">Colours</div>", "narration": "Colours.",
-                    "duration_ms": 3000, "topic_ids": ["t"]}],
+        "slides": [{"html": "<div id=\"root\"><p data-slot=\"body\">Colours</p></div>", "narration": "Colours.",
+                    "duration_ms": 3000, "topic_ids": ["t"],
+                    "regions": [{"slot": "body", "role": "explanation",
+                                 "description": "Colours", "start_ms": 0, "end_ms": 0}]}],
         "test": [q("q1", serde_json::json!({}))],
         "variant_pool": [{"topic_id": "t", "variants": [q("q1-v1", serde_json::json!({"variant_of": "q1"}))]}]
     })

@@ -37,6 +37,9 @@ type ObjectSlide struct {
 	Checkpoints   []Checkpoint      `json:"checkpoints"`
 	NarrationText string            `json:"narration_text"`
 	Explanation   string            `json:"explanation,omitempty"`
+	// Regions are declared by Lesson generation for region-grounded tutoring; they stay
+	// server-side (the public Slide projection has no regions). Absent on older Lessons.
+	Regions []Region `json:"regions,omitempty"`
 }
 
 // ObjectManifest contains ordered immutable document references.
@@ -106,6 +109,9 @@ func ValidateManifest(m ObjectManifest, origin string) error {
 	seen := map[string]bool{}
 	for _, s := range m.Slides {
 		if !identifier.MatchString(s.ID) || seen[s.ID] || s.DurationMS < 1 || s.DurationMS > 120000 || !validKey(s.HTMLKey) || s.Assets == nil || len(s.Assets) > 100 || s.Checkpoints == nil || len(s.Checkpoints) > 100 || len(s.NarrationText) > 20000 || len(s.Explanation) > 20000 {
+			return errInvalid
+		}
+		if ValidateRegions(s.Regions, s.DurationMS) != nil {
 			return errInvalid
 		}
 		seen[s.ID] = true

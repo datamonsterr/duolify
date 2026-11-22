@@ -109,6 +109,12 @@ pub const SOURCES: &[(&str, &str)] = &[
         include_str!("../structured.rs"),
     ),
     ("engine-core/src/slide.rs", include_str!("../slide.rs")),
+    // Slide region contract: slots, limits, prompt text, schema and validators.
+    (
+        "engine/config/regions.toml",
+        include_str!("../../../../config/regions.toml"),
+    ),
+    ("engine-core/src/regions.rs", include_str!("../regions.rs")),
     (
         "engine-core/src/accounts/mod.rs",
         include_str!("../accounts/mod.rs"),

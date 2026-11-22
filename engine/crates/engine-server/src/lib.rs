@@ -308,9 +308,17 @@ fn slides(c: &Completion) -> Result<Vec<pb::Slide>, Status> {
                 .filter_map(|t| t.as_str().map(str::to_owned))
                 .collect();
             engine_core::lessontest::validate_slide_topics(&topic_ids).map_err(internal)?;
+            // Regions were validated with the Lesson; their elements are pinned to their slots.
+            let regions = if item["regions"].is_array() {
+                engine_core::regions::slide_regions(item)
+                    .map_err(|_| Status::internal("invalid slide regions"))?
+            } else {
+                Vec::new()
+            };
             Ok(pb::Slide {
                 slide_id: item["slide_id"].as_str().unwrap_or_default().into(),
-                html: html.into(),
+                html: engine_core::regions::layout(html, &regions),
+                regions: regions.into_iter().map(region_proto).collect(),
                 duration_ms: item["duration_ms"]
                     .as_u64()
                     .and_then(|n| u32::try_from(n).ok())
@@ -332,6 +340,19 @@ fn slides(c: &Completion) -> Result<Vec<pb::Slide>, Status> {
             })
         })
         .collect()
+}
+fn region_proto(r: engine_core::regions::Region) -> pb::SlideRegion {
+    let [x, y, w, h] = r.bbox;
+    pb::SlideRegion {
+        region_id: r.id,
+        r#box: Some(pb::RegionBox { x, y, w, h }),
+        window: r
+            .window
+            .map(|(start_ms, end_ms)| pb::RegionWindow { start_ms, end_ms }),
+        role: pb::RegionRole::from_str_name(&format!("REGION_ROLE_{}", r.role.to_uppercase()))
+            .unwrap_or_default() as i32,
+        description: r.description,
+    }
 }
 fn retry_question(q: &pb::Question) -> engine_core::lessontest::retry::Question {
     engine_core::lessontest::retry::Question {

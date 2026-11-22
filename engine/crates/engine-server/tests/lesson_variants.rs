@@ -128,7 +128,7 @@ async fn paraphrase_rejects_identical_prompt_wrong_answer_and_topic_drift() {
 }
 #[tokio::test]
 async fn missing_topic_is_never_defaulted_in_lesson_live_path() {
-    let lesson = serde_json::json!({"slides":[{"slide_id":"s1","html":"<div id=\"root\">Stars</div>","narration":"Stars shine.","topic_ids":["top-1"],"duration_ms":3000}],"test":[{"question_id":"q1","prompt":"Why?","choices":["Fusion","Reflection"],"answer_index":0,"explanation":"Fusion"}]});
+    let lesson = serde_json::json!({"slides":[{"slide_id":"s1","html":"<div id=\"root\"><p data-slot=\"body\">Stars</p></div>","regions":[{"slot":"body","role":"explanation","description":"Stars","start_ms":0,"end_ms":0}],"narration":"Stars shine.","topic_ids":["top-1"],"duration_ms":3000}],"test":[{"question_id":"q1","prompt":"Why?","choices":["Fusion","Reflection"],"answer_index":0,"explanation":"Fusion"}]});
     let (s, _) = service(vec![lesson.to_string(), lesson.to_string()]);
     match s
         .generate_lesson(Request::new(pb::GenerateLessonRequest {
@@ -155,7 +155,7 @@ async fn missing_topic_is_never_defaulted_in_lesson_live_path() {
 #[tokio::test]
 async fn lesson_without_pool_calls_real_retry_path() {
     use futures::StreamExt;
-    let lesson = serde_json::json!({"slides":[{"slide_id":"s1","html":"<div id=\"root\">Stars</div>","narration":"Stars shine.","topic_ids":["stars"],"duration_ms":3000}],"test":[{"question_id":"q1","topic_id":"stars","prompt":source().prompt,"choices":source().choices,"answer_index":0,"explanation":"Fusion produces light."}]});
+    let lesson = serde_json::json!({"slides":[{"slide_id":"s1","html":"<div id=\"root\"><p data-slot=\"body\">Stars</p></div>","regions":[{"slot":"body","role":"explanation","description":"Stars","start_ms":0,"end_ms":0}],"narration":"Stars shine.","topic_ids":["stars"],"duration_ms":3000}],"test":[{"question_id":"q1","topic_id":"stars","prompt":source().prompt,"choices":source().choices,"answer_index":0,"explanation":"Fusion produces light."}]});
     let (s, p) = service(vec![lesson.to_string(), variant()]);
     let mut stream = s
         .generate_lesson(Request::new(pb::GenerateLessonRequest {
@@ -185,7 +185,7 @@ async fn steering_grpc_screening_and_escaped_prompt_preserve_mastery() {
         engine_service_client::EngineServiceClient, engine_service_server::EngineServiceServer,
     };
     use tokio_stream::wrappers::TcpListenerStream;
-    let lesson = serde_json::json!({"slides":[{"slide_id":"s1","html":"<div id=\"root\">Stars</div>","narration":"Go example: a star catalogue function.","topic_ids":["stars"],"duration_ms":3000}],"test":[{"question_id":"q1","topic_id":"stars","prompt":source().prompt,"choices":source().choices,"answer_index":0,"explanation":"Fusion produces light."}],"variant_pool":[{"topic_id":"stars","variants":serde_json::from_str::<serde_json::Value>(&variant()).unwrap()["variants"]}]});
+    let lesson = serde_json::json!({"slides":[{"slide_id":"s1","html":"<div id=\"root\"><p data-slot=\"body\">Stars</p></div>","regions":[{"slot":"body","role":"explanation","description":"Stars","start_ms":0,"end_ms":0}],"narration":"Go example: a star catalogue function.","topic_ids":["stars"],"duration_ms":3000}],"test":[{"question_id":"q1","topic_id":"stars","prompt":source().prompt,"choices":source().choices,"answer_index":0,"explanation":"Fusion produces light."}],"variant_pool":[{"topic_id":"stars","variants":serde_json::from_str::<serde_json::Value>(&variant()).unwrap()["variants"]}]});
     let (s, p) = service(vec![
         r#"{"allowed":true,"reason_code":""}"#.into(),
         lesson.to_string(),
@@ -297,7 +297,7 @@ async fn steering_screen_malformed_output_fails_closed_after_two_attempts() {
 #[tokio::test]
 async fn retry_repair_uses_the_same_pinned_instruction_data() {
     use futures::StreamExt;
-    let lesson = serde_json::json!({"slides":[{"slide_id":"s1","html":"<div id=\"root\">Stars</div>","narration":"Go example","topic_ids":["stars"],"duration_ms":3000}],"test":[{"question_id":"q1","topic_id":"stars","prompt":source().prompt,"choices":source().choices,"answer_index":0,"explanation":"Fusion produces light."}]});
+    let lesson = serde_json::json!({"slides":[{"slide_id":"s1","html":"<div id=\"root\"><p data-slot=\"body\">Stars</p></div>","regions":[{"slot":"body","role":"explanation","description":"Stars","start_ms":0,"end_ms":0}],"narration":"Go example","topic_ids":["stars"],"duration_ms":3000}],"test":[{"question_id":"q1","topic_id":"stars","prompt":source().prompt,"choices":source().choices,"answer_index":0,"explanation":"Fusion produces light."}]});
     let (s, p) = service(vec![lesson.to_string(), variant()]);
     let mut stream = s
         .generate_lesson(Request::new(pb::GenerateLessonRequest {

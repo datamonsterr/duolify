@@ -400,6 +400,28 @@ The built client SHALL keep the JavaScript and CSS loaded by `index.html` within
 - **WHEN** a change grows first-load gzip JavaScript past the budget
 - **THEN** `mise run client:bundle-budget` fails and names the exceeded limit
 
+### Requirement: Slide regions in the Slide manifest
+The Slide manifest SHALL be able to declare, for each Slide, a list of regions. Each region MUST have a stable id within the Slide, a box in normalized stage coordinates, an optional time window on the Slide clock, a role from a closed set (title, explanation, example, diagram, code, question, caption) and a plain-text description of what the region shows. Publication MUST reject a manifest whose regions lie outside the stage, exceed the configured count per Slide or text length per region, contain markup or control characters, or use an unknown role. A manifest without regions MUST remain valid, and Lessons published before this requirement MUST keep playing unchanged.
+
+#### Scenario: Valid regions are published
+- **WHEN** a generated Lesson declares five regions on a Slide, all inside the stage and within the limits
+- **THEN** the manifest is published with those regions
+
+#### Scenario: Region outside the stage
+- **WHEN** a region's box extends beyond the stage
+- **THEN** publication rejects the Lesson and no manifest is written
+
+#### Scenario: Older Lesson
+- **WHEN** a Lesson whose manifest has no regions is opened
+- **THEN** it plays as before and region questions fall back to whole-Slide grounding
+
+### Requirement: Regions are generated with the Lesson
+Lesson generation SHALL emit regions for every Slide it generates, describing the content the Motion HTML places in each box. Regions MUST be validated together with the Slide, and a Lesson MUST NOT be published when its Slides are valid but its regions are not, after the allowed attempts. Authored Lessons MAY omit regions.
+
+#### Scenario: Regions fail validation
+- **WHEN** generation returns a Slide whose regions are invalid on every allowed attempt
+- **THEN** the generation job fails, the reservation is released, and no Lesson is published
+
 ### Requirement: Sandbox host page with its own policy
 The client SHALL play each Slide in `<iframe sandbox="allow-scripts">` (never `allow-same-origin`) whose `src` is the sandbox host page `/lesson-frame.html`, not a `srcdoc`, so that the edge can give that page a Content-Security-Policy of its own. The page MUST accept the Slide document only from its parent by `postMessage` and write it. Its policy MUST allow inline script and style but no network except the asset origin, no frames, forms or workers, and `frame-ancestors 'self'`. The application's own policy MUST NOT allow `unsafe-inline` scripts to make Slides run. The page SHALL be served `immutable` under a per-build URL so a Lesson replays offline from the HTTP cache.
 

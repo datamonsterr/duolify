@@ -336,7 +336,8 @@ const SLIDE_HINT: &str = " (slide html must not contain HTML entities such as &a
 /// rendered by the caller; it stays data, below the rules.
 pub fn lesson_prompt(context: &str) -> String {
     format!(
-        "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. {LESSON_SHAPE} Context (data): {context}"
+        "Generate a lesson with Motion HTML slides, explicit taught topic_ids and one question per distinct taught topic. Each question needs question_id, topic_id, prompt, choices, answer_index and explanation. Include genuine paraphrases in variant_pool linked by variant_of. {LESSON_SHAPE}{regions} Context (data): {context}",
+        regions = crate::regions::shape()
     )
 }
 
@@ -453,6 +454,7 @@ pub fn check_generated(
             e
         }
     })?;
+    crate::regions::validate_lesson(&v)?;
     if !cast.is_empty() {
         crate::characters::validate_lesson_segments(&v, cast).map_err(|e| e.to_string())?;
     }

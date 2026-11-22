@@ -11,6 +11,7 @@ import (
 type GeneratedSlide struct {
 	ID, HTML, Narration string
 	DurationMS          int
+	Regions             []Region `json:",omitempty"`
 }
 
 // GeneratedWriter accepts immutable, idempotent object publication.
@@ -59,7 +60,7 @@ func GeneratedObjects(prefix string, slides []GeneratedSlide, origin string) (st
 		}
 		key := fmt.Sprintf("%s/slide-%d.html", prefix, i)
 		docs[key] = []byte(slide.HTML)
-		manifest.Slides = append(manifest.Slides, ObjectSlide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLKey: key, HTMLSHA256: checksum([]byte(slide.HTML)), Assets: []string{}, Checkpoints: []Checkpoint{}, NarrationText: slide.Narration})
+		manifest.Slides = append(manifest.Slides, ObjectSlide{ID: slide.ID, DurationMS: slide.DurationMS, HTMLKey: key, HTMLSHA256: checksum([]byte(slide.HTML)), Assets: []string{}, Checkpoints: []Checkpoint{}, NarrationText: slide.Narration, Regions: slide.Regions})
 	}
 	if err := ValidateManifest(manifest, origin); err != nil {
 		return "", nil, err

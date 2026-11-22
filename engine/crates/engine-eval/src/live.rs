@@ -235,10 +235,32 @@ pub async fn evaluate(task: &str, input: &Value, router: &ProviderRouter) -> Res
             )
             .await?;
             let lesson = parsed(&outcome.completion);
+            // Slide regions: every delivered Slide passed `regions::slide_regions`; faithfulness
+            // compares each description with the text its element shows.
+            let (mut regions, mut faithful, mut valid) = (0usize, 0.0f64, true);
+            let (mut descriptions, mut roles) = (Vec::new(), Vec::new());
+            for slide in lesson["slides"].as_array().into_iter().flatten() {
+                match engine_core::regions::slide_regions(slide) {
+                    Ok(r) if !r.is_empty() => {
+                        let html = slide["html"].as_str().unwrap_or_default();
+                        faithful += engine_core::regions::faithfulness(html, &r) * r.len() as f64;
+                        regions += r.len();
+                        roles.extend(r.iter().map(|r| r.role.clone()));
+                        descriptions.extend(r.into_iter().map(|r| r.description));
+                    }
+                    Ok(_) => {}
+                    Err(_) => valid = false,
+                }
+            }
             Ok(bounded(
                 outcome,
                 json!({
                     "rejected": rejected.into_value(),
+                    "regions_valid": valid && regions > 0,
+                    "region_count": regions,
+                    "region_faithfulness": if regions == 0 { 0.0 } else { faithful / regions as f64 },
+                    "region_descriptions": descriptions,
+                    "region_roles": roles,
                     "slide_count": lesson["slides"].as_array().map_or(0, Vec::len),
                     "test_count": lesson["test"].as_array().map_or(0, Vec::len),
                     "title": lesson["title"],

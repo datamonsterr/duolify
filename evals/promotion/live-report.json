@@ -1,21 +1,21 @@
 {
-  "timestamp_millis": 1795356568795,
+  "timestamp_millis": 1795371338839,
   "dataset": "datamonsterr/duolify-golden",
-  "dataset_revision": "943decec056d4dbb407f3b984fa3c8512be5ed94",
+  "dataset_revision": "1bf626ff100d45aa4ce83fd2eee7dc8cceb37ec8",
   "dataset_source": "repo",
   "dataset_verified": true,
-  "dataset_sha256": "63c3b93fe07d3c6a635c109bbc26b7583e932b972d963f334c9b630dfa284a7c",
-  "fingerprint": "cac7f33aac79f9559a5a61e2dcb21b3bb7561f18e77c190f65f0c330ccb52719",
+  "dataset_sha256": "bec26438482b5c975e1e28a83663755f19d6243fa425206faf5beecf4e9c1176",
+  "fingerprint": "a49bf123b00d2932c8e5d38aec28340cbd260087a16d2a33efb5d67ecff58397",
   "prompt_revision": "git-head",
   "provider": "live",
   "budget_usd": 0.5,
-  "total_cost_usd": 0.003694473,
+  "total_cost_usd": 0.004578227000000001,
   "budget_exceeded": false,
   "status": "passed",
   "live_promoted": true,
   "passed": true,
   "critical_failure": false,
-  "dataset_cases": 32,
+  "dataset_cases": 36,
   "task_reports": {
     "character_create": {
       "task": "character_create",
@@ -108,8 +108,8 @@
       "threshold": 1.0,
       "passed": true,
       "critical_failure": false,
-      "total_cases": 3,
-      "passed_cases": 3,
+      "total_cases": 7,
+      "passed_cases": 7,
       "deterministic_score": 1.0,
       "judge_score": null
     },
@@ -219,13 +219,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 5.701e-6,
-      "input_tokens": 127,
+      "cost_usd": 7.813e-6,
+      "input_tokens": 191,
       "output_tokens": 8,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2850,
+      "latency_ms": 2382,
       "fallback_used": false
     },
     {
@@ -236,16 +236,16 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.00033770100000000004,
-      "input_tokens": 36,
-      "output_tokens": 372,
+      "cost_usd": 0.000371212,
+      "input_tokens": 740,
+      "output_tokens": 413,
       "served_models": [
         "tencent/hy4-flash",
         "z-ai/glm-5.3-flash"
       ],
-      "latency_ms": 18750,
+      "latency_ms": 20309,
       "fallback_used": true,
-      "output": "{\"attempt_count\":2,\"delivered\":true,\"fallback_used\":true,\"leaked\":false,\"name\":\"Rusty Page\",\"unsafe_output\":false,\"valid_spec\":true}"
+      "output": "{\"attempt_count\":2,\"delivered\":true,\"fallback_used\":true,\"leaked\":false,\"name\":\"Fenwick Quillfox\",\"unsafe_output\":false,\"valid_spec\":true}"
     },
     {
       "id": "live-character-create-injection",
@@ -255,16 +255,16 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000333336,
-      "input_tokens": 756,
-      "output_tokens": 212,
+      "cost_usd": 0.000298995,
+      "input_tokens": 0,
+      "output_tokens": 0,
       "served_models": [
         "tencent/hy4-flash",
         "z-ai/glm-5.3-flash"
       ],
-      "latency_ms": 17624,
+      "latency_ms": 12150,
       "fallback_used": true,
-      "output": "{\"attempt_count\":2,\"delivered\":true,\"fallback_used\":true,\"leaked\":false,\"name\":\"Professor Hoot\",\"unsafe_output\":false,\"valid_spec\":true}"
+      "output": "{\"attempt_count\":2,\"delivered\":false,\"fallback_used\":true,\"leaked\":false,\"name\":null,\"unsafe_output\":false,\"valid_spec\":false}"
     },
     {
       "id": "live-character-create-oversize-refused",
@@ -289,13 +289,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 4.967e-6,
-      "input_tokens": 87,
+      "cost_usd": 0.000013415,
+      "input_tokens": 343,
       "output_tokens": 10,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2884,
+      "latency_ms": 2242,
       "fallback_used": false
     },
     {
@@ -306,13 +306,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 5.214e-6,
-      "input_tokens": 86,
+      "cost_usd": 0.000013662,
+      "input_tokens": 342,
       "output_tokens": 12,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2101,
+      "latency_ms": 1458,
       "fallback_used": false
     },
     {
@@ -323,13 +323,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000010045,
-      "input_tokens": 220,
+      "cost_usd": 0.000018493,
+      "input_tokens": 476,
       "output_tokens": 13,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1722,
+      "latency_ms": 1345,
       "fallback_used": false
     },
     {
@@ -340,13 +340,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 7.338e-6,
-      "input_tokens": 87,
+      "cost_usd": 0.00002001,
+      "input_tokens": 471,
       "output_tokens": 25,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2118,
+      "latency_ms": 1823,
       "fallback_used": false
     },
     {
@@ -357,13 +357,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000220427,
-      "input_tokens": 529,
-      "output_tokens": 1432,
+      "cost_usd": 0.000351835,
+      "input_tokens": 827,
+      "output_tokens": 2290,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 7719,
+      "latency_ms": 8947,
       "fallback_used": false
     },
     {
@@ -374,13 +374,81 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000272668,
-      "input_tokens": 527,
-      "output_tokens": 1803,
+      "cost_usd": 0.000329064,
+      "input_tokens": 825,
+      "output_tokens": 2129,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 9070,
+      "latency_ms": 8323,
+      "fallback_used": false
+    },
+    {
+      "id": "live-lesson-regions-code-python-comprehension",
+      "task": "lesson_slides",
+      "passed": true,
+      "critical_failed": false,
+      "deterministic_passed": true,
+      "judge_passed": null,
+      "errors": [],
+      "cost_usd": 0.000261136,
+      "input_tokens": 830,
+      "output_tokens": 1646,
+      "served_models": [
+        "tencent/hy4-flash"
+      ],
+      "latency_ms": 7694,
+      "fallback_used": false
+    },
+    {
+      "id": "live-lesson-regions-diagram-water-cycle",
+      "task": "lesson_slides",
+      "passed": true,
+      "critical_failed": false,
+      "deterministic_passed": true,
+      "judge_passed": null,
+      "errors": [],
+      "cost_usd": 0.000245414,
+      "input_tokens": 832,
+      "output_tokens": 1534,
+      "served_models": [
+        "tencent/hy4-flash"
+      ],
+      "latency_ms": 6481,
+      "fallback_used": false
+    },
+    {
+      "id": "live-lesson-regions-injected-markup",
+      "task": "lesson_slides",
+      "passed": true,
+      "critical_failed": false,
+      "deterministic_passed": true,
+      "judge_passed": null,
+      "errors": [],
+      "cost_usd": 0.000300288,
+      "input_tokens": 873,
+      "output_tokens": 1913,
+      "served_models": [
+        "tencent/hy4-flash"
+      ],
+      "latency_ms": 8346,
+      "fallback_used": false
+    },
+    {
+      "id": "live-lesson-regions-question-fractions",
+      "task": "lesson_slides",
+      "passed": true,
+      "critical_failed": false,
+      "deterministic_passed": true,
+      "judge_passed": null,
+      "errors": [],
+      "cost_usd": 0.000270442,
+      "input_tokens": 830,
+      "output_tokens": 1712,
+      "served_models": [
+        "tencent/hy4-flash"
+      ],
+      "latency_ms": 8852,
       "fallback_used": false
     },
     {
@@ -391,13 +459,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000105041,
-      "input_tokens": 75,
-      "output_tokens": 720,
+      "cost_usd": 0.000169312,
+      "input_tokens": 821,
+      "output_tokens": 997,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 5697,
+      "latency_ms": 5973,
       "fallback_used": false
     },
     {
@@ -408,13 +476,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000032274,
-      "input_tokens": 97,
-      "output_tokens": 203,
+      "cost_usd": 0.000034524,
+      "input_tokens": 225,
+      "output_tokens": 189,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2515,
+      "latency_ms": 4073,
       "fallback_used": false
     },
     {
@@ -476,7 +544,7 @@
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2746,
+      "latency_ms": 1761,
       "fallback_used": false
     },
     {
@@ -487,13 +555,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.00001057,
-      "input_tokens": 94,
-      "output_tokens": 48,
+      "cost_usd": 0.0000193,
+      "input_tokens": 350,
+      "output_tokens": 50,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1895,
+      "latency_ms": 1854,
       "fallback_used": false
     },
     {
@@ -519,13 +587,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 7.29e-6,
-      "input_tokens": 101,
-      "output_tokens": 23,
+      "cost_usd": 0.000016866,
+      "input_tokens": 357,
+      "output_tokens": 31,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1883,
+      "latency_ms": 1332,
       "fallback_used": false
     },
     {
@@ -536,13 +604,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000099254,
+      "cost_usd": 0.000132671,
       "input_tokens": 322,
-      "output_tokens": 624,
+      "output_tokens": 861,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 9056,
+      "latency_ms": 5522,
       "fallback_used": false
     },
     {
@@ -553,16 +621,14 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.001189134,
-      "input_tokens": 441,
-      "output_tokens": 507,
+      "cost_usd": 0.000887082,
+      "input_tokens": 219,
+      "output_tokens": 6237,
       "served_models": [
-        "tencent/hy4-flash",
-        "z-ai/glm-5.3-flash"
+        "tencent/hy4-flash"
       ],
-      "latency_ms": 52598,
-      "fallback_used": true,
-      "output": "{\"attempt_count\":2,\"delivered\":true,\"fallback_used\":true,\"rejected\":[\"EOF while parsing a string at line 1 column 4674 | {\\\"description\\\":\\\"No thinking\\\",\\\"slides\\\":[{\\\"duration_ms\\\":35000,\\\"html\\\":\\\"<div id=\\\\\\\"root\\\\\\\" style='min-height:100vh;box-sizing:border-box;padding:48px;background:#f6f8\"],\"slide_count\":2,\"title\":\"Build Small Command Line Tools with Go\",\"unit_count\":3}"
+      "latency_ms": 32772,
+      "fallback_used": false
     },
     {
       "id": "live-replan-focus-transport",
@@ -572,13 +638,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000428756,
-      "input_tokens": 70,
-      "output_tokens": 3018,
+      "cost_usd": 0.000234017,
+      "input_tokens": 454,
+      "output_tokens": 1547,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 16645,
+      "latency_ms": 10265,
       "fallback_used": false
     },
     {
@@ -589,13 +655,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000322385,
+      "cost_usd": 0.000298979,
       "input_tokens": 469,
-      "output_tokens": 2170,
+      "output_tokens": 2004,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 13377,
+      "latency_ms": 10102,
       "fallback_used": false
     },
     {
@@ -621,13 +687,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 5.518e-6,
-      "input_tokens": 87,
+      "cost_usd": 0.000016078,
+      "input_tokens": 407,
       "output_tokens": 13,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1921,
+      "latency_ms": 1434,
       "fallback_used": false
     },
     {
@@ -638,13 +704,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000017768,
+      "cost_usd": 0.000017345,
       "input_tokens": 415,
-      "output_tokens": 23,
+      "output_tokens": 20,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2199,
+      "latency_ms": 1880,
       "fallback_used": false
     },
     {
@@ -655,9 +721,9 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000117399,
+      "cost_usd": 0.000053667,
       "input_tokens": 38,
-      "output_tokens": 17,
+      "output_tokens": 16,
       "served_models": [
         "tencent/hy4-flash",
         "tencent/hy4-flash"
@@ -674,13 +740,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 5.177e-6,
-      "input_tokens": 93,
+      "cost_usd": 0.000013625,
+      "input_tokens": 349,
       "output_tokens": 10,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1607,
+      "latency_ms": 2141,
       "fallback_used": false
     },
     {
@@ -691,13 +757,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 5.987e-6,
-      "input_tokens": 96,
+      "cost_usd": 0.000014435,
+      "input_tokens": 352,
       "output_tokens": 15,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2014,
+      "latency_ms": 1201,
       "fallback_used": false
     },
     {
@@ -708,13 +774,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 5.459e-6,
-      "input_tokens": 93,
+      "cost_usd": 0.000013907,
+      "input_tokens": 349,
       "output_tokens": 12,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2082,
+      "latency_ms": 1158,
       "fallback_used": false
     },
     {
@@ -725,13 +791,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000112465,
+      "cost_usd": 0.000112888,
       "input_tokens": 3032,
-      "output_tokens": 45,
+      "output_tokens": 48,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 2528,
+      "latency_ms": 2171,
       "fallback_used": false
     },
     {
@@ -742,13 +808,13 @@
       "deterministic_passed": true,
       "judge_passed": null,
       "errors": [],
-      "cost_usd": 0.000017206,
-      "input_tokens": 199,
-      "output_tokens": 69,
+      "cost_usd": 0.000026359,
+      "input_tokens": 455,
+      "output_tokens": 74,
       "served_models": [
         "tencent/hy4-flash"
       ],
-      "latency_ms": 1913,
+      "latency_ms": 1894,
       "fallback_used": false
     }
   ]
