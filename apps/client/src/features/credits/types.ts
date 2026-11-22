@@ -49,6 +49,7 @@ export type WalletResponse = {
     management_url: string;
   };
   available: number;
+  check_in?: number;
   daily_free: DailyFreeSummary;
   purchased: number;
   subscription: number;

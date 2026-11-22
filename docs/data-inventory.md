@@ -895,3 +895,9 @@ Account erasure and the 30-day Course purge use one mechanism for private object
 | Notes (`quick_notes`) | Postgres only | Private | Rows erased by cascade; no notes export object is written |
 | Shared demo bundle | `lessons/shared-demo/` | Shared, not learner data | Not touched |
 | Backup bucket dumps and protected asset copies | separate backup bucket | Operator | 14-day (general) and 35-day (financial) classes; `account-deletions/` and `moderation-blocks/` ledgers are never expired. Unchanged |
+
+## Daily check-in Credits (ADR 0020)
+
+`credit_check_ins`: Learner UUID, local date, IANA time zone, attendance time, frozen next-midnight time, granted amount and first-time flag. Indexed unique Learner/date; exported with the account and erased by account cascade/tombstone replay. Included in encrypted backups and restore registry; no content or email.
+
+`credit_entries` kinds `check_in_grant` and `check_in_bonus` and `check_in` allocation provenance follow existing seven-year pseudonymous financial retention, export, erasure and backup rules. `credit_outbox` event `check_in_credits_granted` carries only amount, first_time, banked_after and capped plus common properties; existing consent and 90-day analytics-property retention apply.

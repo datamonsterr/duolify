@@ -43,6 +43,12 @@ const reviewMessages = {
 } satisfies Record<string, Message>;
 export const en = {
   ...reviewMessages,
+  "checkin.granted": "+{amount} Credits · daily check-in",
+  "checkin.full": "Your check-in bank is full",
+  "checkin.balance": "Current balance: {balance} Credits.",
+  "checkin.capped":
+    "Bank cap reached ({cap}). Current balance: {balance} Credits.",
+  "checkin.source": "Check-in Credits",
   "outline.default_goal": "Describe what you learned.",
   "outline.goal_for": "Goal for {name}",
   "outline.goal_error": "Enter a lesson goal.",
@@ -404,6 +410,11 @@ export const en = {
 export type MessageId = keyof typeof en;
 export const ar: Record<MessageId, Message> = {
   ...reviewMessages,
+  "checkin.granted": "+{amount} رصيد · تسجيل الحضور اليومي",
+  "checkin.full": "رصيد تسجيل الحضور ممتلئ",
+  "checkin.balance": "الرصيد الحالي: {balance}.",
+  "checkin.capped": "تم بلوغ الحد ({cap}). الرصيد الحالي: {balance}.",
+  "checkin.source": "رصيد تسجيل الحضور",
   "outline.default_goal": "صِف ما تعلمته.",
   "outline.goal_for": "هدف {name}",
   "outline.goal_error": "أدخل هدف الدرس.",

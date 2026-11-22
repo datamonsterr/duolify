@@ -4,6 +4,7 @@
   "additionalProperties": false,
   "required": ["version", "effective_from", "currency", "actions", "narration", "daily_free", "packs", "plans", "paid_credits", "limits", "development_mappings"],
   "properties": {
+    "check_in": {"type":"object","additionalProperties":false,"required":["daily_credits","first_time_bonus","bank_days"],"properties":{"daily_credits":{"type":"integer","minimum":1,"maximum":1000000},"first_time_bonus":{"type":"integer","minimum":0,"maximum":1000000},"bank_days":{"type":"integer","minimum":1,"maximum":366}}},
     "version": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,99}$"},
     "effective_from": {"type": "string", "format": "date-time"},
     "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},

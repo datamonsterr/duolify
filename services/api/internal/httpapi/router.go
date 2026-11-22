@@ -173,6 +173,7 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("GET /v1/credits/checkouts/{id}", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("POST /v1/quotes/{id}/reserve", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("POST /v1/credits/reservations/{id}/release", deps.Accounts.Protect(deps.Credits))
+		mux.Handle("POST /v1/me/check-in", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("GET /v1/me/credits", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("GET /v1/me/credits/activity", deps.Accounts.Protect(deps.Credits))
 		mux.Handle("GET /v1/credits/wallet", deps.Accounts.Protect(deps.Credits))

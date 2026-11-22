@@ -69,7 +69,7 @@ Daily check-in Credits (ADR 0020) are a separate non-expiring attendance source 
 - **THEN** the expired allocation cannot become spendable on the next day and the new daily grant remains independent
 
 ### Requirement: Paid credit provenance and rollover
-Paid purchase and subscription-grant Credits MUST retain source payment, provider, SKU, price version and service-period provenance. Paid Credits SHALL have unlimited rollover without expiry or a balance cap, including after cancellation or downgrade. Spending MUST use eligible daily Credits first and then oldest eligible paid Credits atomically. The API MUST maintain an outstanding-paid-credit liability view and cost reserve at the configured protected cost per Credit; analytics or cache loss MUST NOT erase that obligation.
+Paid purchase and subscription-grant Credits MUST retain source payment, provider, SKU, price version and service-period provenance. Paid Credits SHALL have unlimited rollover without expiry or a balance cap, including after cancellation or downgrade. Spending MUST use eligible expiring Daily free credits first, then non-expiring check-in Credits, then oldest eligible paid Credits atomically (ADR 0020). The API MUST maintain an outstanding-paid-credit liability view and cost reserve at the configured protected cost per Credit; analytics or cache loss MUST NOT erase that obligation.
 
 #### Scenario: Cancel with unused paid Credits
 - **WHEN** a subscription ends with unused issued subscription or pack Credits
