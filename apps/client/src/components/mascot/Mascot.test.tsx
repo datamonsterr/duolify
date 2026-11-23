@@ -177,3 +177,21 @@ describe("PlayerCompanion", () => {
     expect(container.querySelector(".m-companion")).toBeNull();
   });
 });
+
+describe("Mascot art chunk failure", () => {
+  it("leaves a blank slot and does not throw", async () => {
+    vi.resetModules();
+    vi.doMock("./MascotArt", () => {
+      throw new Error("chunk load failed");
+    });
+    const { Mascot: Fresh } = await import("./Mascot");
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { container } = rtlRender(<Fresh state="idle" size={48} />);
+    await waitFor(() =>
+      expect(container.querySelector("span[aria-hidden]")).not.toBeNull(),
+    );
+    expect(container.querySelector("svg")).toBeNull();
+    err.mockRestore();
+    vi.doUnmock("./MascotArt");
+  });
+});

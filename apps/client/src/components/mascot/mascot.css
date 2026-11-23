@@ -64,10 +64,6 @@ path.m-trim,
   stroke-width: 5;
   stroke-linecap: round;
 }
-.m-reflect {
-  fill: #fff;
-  opacity: 0.07;
-}
 .m-fill,
 .m-fill * {
   fill: var(--m-eye);
@@ -102,9 +98,6 @@ path.m-trim,
 .m-halo {
   fill: var(--m-accent);
   opacity: 0.28;
-}
-.m-core {
-  filter: none;
 }
 .m-shadow {
   fill: #000;
@@ -595,9 +588,6 @@ path.m-trim,
   overflow: hidden;
   background: var(--success-bg, #e3f8d3);
   pointer-events: none;
-}
-.m-avatar .m {
-  overflow: hidden;
 }
 .m-companion {
   display: inline-flex;

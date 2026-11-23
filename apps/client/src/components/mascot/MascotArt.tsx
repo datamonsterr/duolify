@@ -352,7 +352,7 @@ export function MascotArt({
             rx="28"
           />
           <circle className="m-trim" cx="100" cy="162" r="9" />
-          <circle className="m-acc m-core" cx="100" cy="162" r="5" />
+          <circle className="m-acc" cx="100" cy="162" r="5" />
           {acc.includes("scarf") && (
             <g className="m-scarf">
               <rect x="70" y="138" width="60" height="12" rx="6" />
@@ -411,7 +411,6 @@ export function MascotArt({
             height="66"
             rx="30"
           />
-          <path className="m-reflect" d="M118 58 h14 l-22 62 h-14z" />
           <g className="m-gaze">
             <g ref={eyes} className="m-eyes m-stroke-eye">
               <Eyes s={state} />
