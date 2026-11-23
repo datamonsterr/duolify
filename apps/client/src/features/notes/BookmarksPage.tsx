@@ -267,7 +267,12 @@ export function BookmarksPage() {
         }}
       >
         <h1
-          style={{ margin: 0, fontSize: 28, fontWeight: 900, color: "#2B2B2B" }}
+          style={{
+            margin: 0,
+            fontSize: 28,
+            fontWeight: 900,
+            color: "var(--text)",
+          }}
         >
           Bookmarks
         </h1>
@@ -340,7 +345,7 @@ export function BookmarksPage() {
           style={{
             textAlign: "center",
             padding: "48px 16px",
-            color: "#666",
+            color: "var(--muted)",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -348,14 +353,18 @@ export function BookmarksPage() {
           }}
         >
           <span style={{ fontSize: 36 }}>🔖</span>
-          <b style={{ color: "#2B2B2B", fontSize: 18 }}>Empty variant</b>
+          <b style={{ color: "var(--text)", fontSize: 18 }}>Empty variant</b>
           <p style={{ margin: 0 }}>Save a slide to return to an idea.</p>
         </div>
       )}
 
       {!loading && bookmarks.length > 0 && filteredBookmarks.length === 0 && (
         <div
-          style={{ textAlign: "center", padding: "32px 16px", color: "#666" }}
+          style={{
+            textAlign: "center",
+            padding: "32px 16px",
+            color: "var(--muted)",
+          }}
         >
           <p>
             0 bookmarks match “{selectedCourse}” ·{" "}
@@ -436,7 +445,7 @@ export function BookmarksPage() {
                 </b>
 
                 {isUnavailable ? (
-                  <span style={{ fontSize: 13, color: "#777777" }}>
+                  <span style={{ fontSize: 13, color: "#666" }}>
                     This saved{" "}
                     {bm.target_type === "lesson" ? "lesson" : "slide"} is
                     unavailable

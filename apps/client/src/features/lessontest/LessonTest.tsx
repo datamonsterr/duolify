@@ -801,7 +801,11 @@ export function LessonTest({
               onExit();
             }
           }}
-          style={{ textDecoration: "none", color: "#1667AB", fontWeight: 800 }}
+          style={{
+            textDecoration: "none",
+            color: "var(--info)",
+            fontWeight: 800,
+          }}
         >
           Exit test
         </AppLink>
@@ -810,7 +814,7 @@ export function LessonTest({
             margin: 0,
             fontSize: "14px",
             fontWeight: 700,
-            color: "#666",
+            color: "var(--muted)",
           }}
         >
           {title}
@@ -930,7 +934,7 @@ export function LessonTest({
               fontSize: "22px",
               fontWeight: 900,
               marginBottom: "16px",
-              color: "#2B2B2B",
+              color: "var(--text)",
             }}
           >
             Topic recap
@@ -1000,7 +1004,7 @@ export function LessonTest({
               fontSize: "22px",
               fontWeight: 900,
               marginBottom: "20px",
-              color: "#2B2B2B",
+              color: "var(--text)",
             }}
           >
             {currentQuestion.prompt}
@@ -1241,8 +1245,8 @@ export function LessonTest({
                   display: "flex",
                   flexDirection: "column",
                   gap: "12px",
-                  backgroundColor: "#FDECEC",
-                  color: "#B3261E",
+                  backgroundColor: "var(--danger-bg)",
+                  color: "var(--danger)",
                 }}
               >
                 <div>
@@ -1261,11 +1265,12 @@ export function LessonTest({
                       margin: 0,
                       fontSize: "13px",
                       lineHeight: "1.45",
+                      color: "inherit",
                     }}
                   >
                     {submissionError}
                   </p>
-                  <p>
+                  <p style={{ color: "inherit" }}>
                     Your progress and queue are saved. No credits are charged
                     for retries.
                   </p>
