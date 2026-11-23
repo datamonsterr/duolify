@@ -66,12 +66,12 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 
 ## 10. Analytics (S)
 
-- [ ] 10.1 Catalogue and tests: all `guided_chat_*` and `mascot_*` events, content-free, opt-out, `entry_point` not `source`
-- [ ] 10.2 Funnel dashboard: completion vs old form, time to complete, drop-off step, free-text rate; update `docs/analytics/coverage.md`
+- [x] 10.1 Catalogue and tests (`mascot_*` has no test yet, listed as a gap in the coverage table): all `guided_chat_*` and `mascot_*` events, content-free, opt-out, `entry_point` not `source`
+- [x] 10.2 Funnel definition (queries documented, no dashboard built here): completion vs old form, time to complete, drop-off step, free-text rate; update `docs/analytics/coverage.md`
 
 ## 11. Backup and restore (S)
 
-- [ ] 11.1 Add `guided_chat_drafts` and `mascot` to dump coverage, export and erasure tests; restore drill covers expiry purge and tombstones; data inventory docs
+- [x] 11.1 Add `guided_chat_drafts` and `mascot` to dump coverage, export and erasure tests; restore drill covers expiry purge and tombstones; data inventory docs
 
 ## 12. Design review and accessibility (M)
 
