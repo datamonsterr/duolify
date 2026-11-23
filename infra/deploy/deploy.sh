@@ -5,7 +5,7 @@
 # build for that commit; a tag (even sha-<commit>) is refused, so a re-pushed tag cannot change what runs.
 # Needs infra/deploy/.env (from `SELFHOST_ENV_TEMPLATE=.env.prod.example selfhost.sh init`) and the
 # repository's infra/ directory next to this script. Steps: record the refs in .env (API_IMAGE ...),
-# pull them, apply migrations with `/api migrate`, then restart the engine, the API instances one at a
+# pull them, apply migrations with `/api migrate`, then roll the engine and the API instances one at a
 # time (a new instance is healthy before an old one stops), the worker and the proxy.
 # Before anything is pulled it runs deploy-plan.sh against the env file (fail fast on bad settings).
 # See docs/infra/hardening.md "Deploys" for the migration and restart-order rules and failure states.
@@ -161,19 +161,34 @@ compose up --detach --wait --no-recreate postgres redis walship node-exporter pr
 say "/api migrate"
 compose run --rm --no-deps migrate
 
+# Old containers get this long (seconds) to drain in-flight work after SIGTERM before Docker kills them. It must
+# exceed the drain timeouts (API_DRAIN_TIMEOUT, WORKER_DRAIN_TIMEOUT 90 s, ENGINE_DRAIN_TIMEOUT_SECS 90 s) and is passed
+# explicitly because an old container keeps the stop_grace_period it was created with.
+drain_stop=${DEPLOY_DRAIN_STOP_TIMEOUT:-120}
+retire() { docker stop --timeout "$drain_stop" "$1" >/dev/null && docker rm "$1" >/dev/null; }
 roll_api() { # one new API instance is healthy before an old one stops
   mapfile -t old < <(compose ps --quiet api)
   local count=${#old[@]} id
   ((count > 0)) || count=2
   for id in "${old[@]}"; do
     compose up --detach --wait --no-deps --no-recreate --scale "api=$((count + 1))" api
-    docker stop "$id" >/dev/null && docker rm "$id" >/dev/null
+    retire "$id"
   done
   compose up --detach --wait --no-deps --no-recreate --scale "api=$count" api
 }
+roll_engine() { # the new engine is healthy before the old one drains; the API retries calls that hit the gap
+  mapfile -t old_engine < <(compose ps --quiet engine)
+  if ((${#old_engine[@]} == 0)); then compose up --detach --wait --no-deps engine; return; fi
+  local count=${#old_engine[@]} id
+  for id in "${old_engine[@]}"; do
+    compose up --detach --wait --no-deps --no-recreate --scale "engine=$((count + 1))" engine
+    retire "$id"
+  done
+  compose up --detach --wait --no-deps --no-recreate --scale "engine=$count" engine
+}
 roll_all() {
-  say "engine"
-  compose up --detach --wait --no-deps engine
+  say "rolling restart: engine"
+  roll_engine
   say "rolling restart: API"
   roll_api
   say "worker and proxy"

@@ -51,6 +51,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/voice"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
+	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 )
 
@@ -187,6 +188,12 @@ func run(ctx context.Context, args []string) (result error) {
 		}
 		defer func() { result = errors.Join(result, redis.Close()) }()
 		workerSweeps{Pool: db.Pool, Events: events, Credits: creditService, Engine: backend, Redis: redis}.start(ctx)
+		// Queues stop together on exit: all stop fetching at once and share one drain window
+		// (running jobs finish, or are cancelled and retried after it).
+		var queues []*river.Client[pgx.Tx]
+		defer func() {
+			_ = worker.StopQueues(queues, worker.DrainTimeoutFrom(os.Getenv, "API_DRAIN_TIMEOUT"))
+		}()
 		outlineQueue, err := outlineService.CreationQueue(logger)
 		if err != nil {
 			return err
@@ -194,11 +201,7 @@ func run(ctx context.Context, args []string) (result error) {
 		if err = outlineQueue.Start(context.WithoutCancel(ctx)); err != nil {
 			return err
 		}
-		defer func() {
-			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-			defer cancel()
-			_ = outlineQueue.Stop(stopCtx)
-		}()
+		queues = append(queues, outlineQueue)
 		notesService := notes.NewServiceWithEnrichment(db.Pool, events, creditService, backend.RPC())
 		creditService.SetCreditArrivalHook(func(ctx context.Context, learnerID string) {
 			_, _ = notesService.ResumePendingEnrichments(ctx, learnerID)
@@ -210,11 +213,7 @@ func run(ctx context.Context, args []string) (result error) {
 		if err = notesQueue.Start(context.WithoutCancel(ctx)); err != nil {
 			return err
 		}
-		defer func() {
-			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-			defer cancel()
-			_ = notesQueue.Stop(stopCtx)
-		}()
+		queues = append(queues, notesQueue)
 		if cfg.LessonTestTracerEnabled {
 			lessonService := lessontest.New(lessontest.Options{Pool: db.Pool, Engine: backend, Financial: creditService, Events: events, Casts: characters.NewService(db.Pool, nil, events), Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN")})
 			lessonQueue, err := lessonService.LessonQueue(logger)
@@ -224,11 +223,7 @@ func run(ctx context.Context, args []string) (result error) {
 			if err = lessonQueue.Start(context.WithoutCancel(ctx)); err != nil {
 				return err
 			}
-			defer func() {
-				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-				defer cancel()
-				_ = lessonQueue.Stop(stopCtx)
-			}()
+			queues = append(queues, lessonQueue)
 			legacyPlayer := player.New(player.Options{Pool: db.Pool, Objects: player.NewS3(os.Getenv), AssetOrigin: os.Getenv("LESSON_ASSET_ORIGIN")})
 			backfillQueue, err := legacyPlayer.GeneratedBackfillQueue(logger)
 			if err != nil {
@@ -237,11 +232,7 @@ func run(ctx context.Context, args []string) (result error) {
 			if err = backfillQueue.Start(context.WithoutCancel(ctx)); err != nil {
 				return err
 			}
-			defer func() {
-				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-				defer cancel()
-				_ = backfillQueue.Stop(stopCtx)
-			}()
+			queues = append(queues, backfillQueue)
 			if _, err = backfillQueue.Insert(ctx, player.GeneratedBackfillArgs{}, &river.InsertOpts{Queue: "generated-publication", MaxAttempts: 10, UniqueOpts: river.UniqueOpts{ByArgs: true}}); err != nil {
 				return err
 			}
@@ -258,11 +249,7 @@ func run(ctx context.Context, args []string) (result error) {
 			}
 			// Operator queue and retention: regenerate missing objects and delete expired assets.
 			go narrationService.RunMaintenance(ctx, time.Hour)
-			defer func() {
-				stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-				defer cancel()
-				_ = narrationQueue.Stop(stopCtx)
-			}()
+			queues = append(queues, narrationQueue)
 		}
 		courseService := courses.New(courses.Options{Pool: db.Pool})
 		clerkDeleter, err := accounts.ClerkUserDeleterFromEnv(os.Getenv)

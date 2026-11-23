@@ -149,6 +149,25 @@ else
   if ((peak > max_conn)); then bad "database pools need up to $peak connections ((${replicas}+1) API x $api_pool + worker $worker_pool + 8) but postgres max_connections is $max_conn"; fi
 fi
 
+# 8. Graceful drain: a container's stop_grace_period must outlast its drain timeout (plus a margin for the
+# post-drain cleanup), or `docker stop` SIGKILLs in-flight previews, lesson generations and tutor streams.
+# secs: Go duration ("2m0s", "90s", "1h2m3s") or bare seconds -> whole seconds.
+secs() {
+  local v=$1 total=0
+  [[ $v =~ ^[0-9]+$ ]] && { echo "$v"; return; }
+  [[ $v =~ ^([0-9]+h)?([0-9]+m)?([0-9]+(\.[0-9]+)?s)?$ && -n $v ]] || { echo 0; return; }
+  [[ $v =~ ([0-9]+)h ]] && total=$((total + BASH_REMATCH[1] * 3600))
+  [[ $v =~ ([0-9]+)m ]] && total=$((total + BASH_REMATCH[1] * 60))
+  [[ $v =~ ([0-9]+)(\.[0-9]+)?s ]] && total=$((total + BASH_REMATCH[1]))
+  echo "$total"
+}
+for pair in api:API_DRAIN_TIMEOUT:90s worker:WORKER_DRAIN_TIMEOUT:90s engine:ENGINE_DRAIN_TIMEOUT_SECS:90; do
+  IFS=: read -r svc key default <<<"$pair"
+  grace=$(secs "$(jq -r --arg s "$svc" '.services[$s].stop_grace_period // "10s"' <<<"$config")")
+  drain=$(secs "$(jq -r --arg s "$svc" --arg k "$key" --arg d "$default" '.services[$s].environment[$k] // $d' <<<"$config")")
+  if ((grace < drain + 15)); then bad "$svc stop_grace_period is ${grace}s but its drain timeout ($key) is ${drain}s; the grace period must be at least 15 s longer or in-flight work is killed on deploy"; fi
+done
+
 if ((${#problems[@]} > 0)); then
   printf 'deploy-plan: %s\n' "${problems[@]}" >&2
   exit 1

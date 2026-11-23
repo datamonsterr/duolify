@@ -131,7 +131,7 @@ st=$FAKE_STATE
 echo "$*" >>"$st/calls"
 . "$(dirname "$0")/../lib.sh"
 case $1 in
-  stop) echo "stop $2" >>"$st/events" ;;
+  stop) echo "stop ${*: -1}" >>"$st/events" ;;
   rm) for a in "${@:2}"; do [[ $a == -* ]] || { echo "rm $a" >>"$st/events"; rm -f "$st/c/$a"; }; done ;;
   compose)
     shift; sub=$1; shift
@@ -156,11 +156,12 @@ case $1 in
             [[ $(f "$n" service) == "$s" ]] || continue
             if [[ $(f "$n" state) == restarting || $(f "$n" health) == unhealthy ]]; then echo "container $n is unhealthy" >&2; exit 1; fi
           done
-          if [[ $s == api ]]; then
-            have=$(ls "$st/c" | grep -c '^api-' || true)
+          if [[ $s == api || ($s == engine && -n $scale) ]]; then
+            have=$(ls "$st/c" | grep -c "^$s-" || true)
             for ((i = have; i < ${scale:-2}; i++)); do
-              if [[ -n ${NEW_API_BAD:-} ]]; then mk api restarting 1 '' new; echo "container api is unhealthy" >&2; exit 1; fi
-              mk api running 0 healthy new
+              if [[ $s == api && -n ${NEW_API_BAD:-} ]]; then mk api restarting 1 '' new; echo "container api is unhealthy" >&2; exit 1; fi
+              if [[ $s == engine && -n ${NEW_ENGINE_BAD:-} ]]; then mk engine restarting 1 '' new; echo "container engine is unhealthy" >&2; exit 1; fi
+              mk "$s" running 0 healthy new
             done
           elif [[ $s == "${FAIL_SERVICE:-}" ]]; then mk "$s" restarting 1 '' new; echo "container $s is unhealthy" >&2; exit 1
           elif ! ls "$st/c" | grep -q "^$s-"; then mk "$s" running 0 healthy new
@@ -214,6 +215,23 @@ check "a failed rollout restores the previous image references in .env" "$(grep 
 rc=0
 out=$(FAKE_STATE=$fake/state PATH="$fake/bin:$PATH" DEPLOY_PLAN="$fake/plan-ok.sh" SELFHOST_ENV_FILE="$fake/env" bash "$fake/deploy/deploy.sh" sha-abcdef1 "${good[@]}" 2>&1 </dev/null) || rc=$?
 check "the deploy after a failed rollout converges" "$((rc == 0 && $(healthy_api) == 2))"
+
+# Zero-downtime ordering: with a running engine, the new engine is healthy before the old one drains (docker stop
+# with the drain timeout, not the 10 s Docker default), then each API instance likewise, then worker and proxy.
+fake_deploy "engine:running:0:healthy api:running:0:healthy api:running:0:healthy postgres:running:0:healthy"
+ev=$(events)
+line() { grep -n -m1 -- "$1" <<<"$ev" | cut -d: -f1; }
+check "a rolling deploy with a running engine succeeds" "$((rc == 0))"
+check "the new engine starts before the old engine is stopped" "$(( $(grep -c '^engine-' <(ls "$fake/state/c")) == 1 && $(line '^up engine$') < $(line '^stop engine-1$') ))"
+check "the old engine is stopped and removed" "$([[ ! -f $fake/state/c/engine-1 && -f $fake/state/c/engine-2 ]] && echo 1 || echo 0)"
+check "the engine rolls before the API instances" "$(( $(line '^stop engine-1$') < $(line '^stop api-1$') ))"
+check "every old container gets the drain timeout, not Docker's 10 s default" "$([[ $(grep -c '^stop --timeout 120 ' "$fake/state/calls") == 3 ]] && echo 1 || echo 0)"
+check "worker and proxy start after the API rolled" "$(( $(line '^stop api-2$') < $(line '^up worker$') ))"
+
+# A new engine that never becomes healthy fails the deploy and leaves the old engine serving, never stopped.
+NEW_ENGINE_BAD=1 fake_deploy "engine:running:0:healthy api:running:0:healthy api:running:0:healthy postgres:running:0:healthy"
+check "an unhealthy new engine fails the deploy" "$((rc != 0))"
+check "an unhealthy new engine leaves the old engine running and unstopped" "$([[ -f $fake/state/c/engine-1 ]] && ! grep -q '^stop engine' <(events) && echo 1 || echo 0)"
 
 # The worker crash-looping (the staging TLS failure) fails the deploy but leaves no crash loop behind.
 FAIL_SERVICE=worker fake_deploy "api:running:0:healthy api:running:0:healthy postgres:running:0:healthy"
