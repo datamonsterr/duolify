@@ -1,4 +1,5 @@
 import schemaV2 from "../../../../../services/api/internal/characters/schema/v2.json";
+import speciesRules from "../../../../../services/api/internal/characters/schema/species.v2.json";
 import type { CharacterSpecV2 } from "./types-v2";
 
 export const CATALOG_VERSION = 1;
@@ -184,6 +185,21 @@ function cross(spec: CharacterSpecV2): SpecIssue | null {
       contrastBetween(b.primary_color, b.eyes.color) < 2.5)
   )
     return issue("low_contrast", "body.eyes.color");
+  const rules = speciesRules as Record<
+    string,
+    Record<string, Record<string, string[]>>
+  >;
+  if (b.kind === "animal" || b.kind === "fantasy") {
+    const rec = b as unknown as Record<string, string>;
+    const attrs =
+      b.kind === "animal"
+        ? ["ears", "tail", "markings"]
+        : ["wings", "horns", "tail"];
+    for (const a of attrs) {
+      if (!rules[b.kind]?.[rec.species]?.[a]?.includes(rec[a]!))
+        return issue("species_attribute_mismatch", `body.${a}`);
+    }
+  }
   if (b.kind === "human") {
     const c = spec.clothes;
     const minor = b.age_band === "child" || b.age_band === "teen";
