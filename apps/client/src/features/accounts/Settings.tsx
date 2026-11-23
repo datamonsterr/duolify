@@ -1,13 +1,20 @@
 import { requestReplay } from "../onboarding/handoff";
 import { navigateTo } from "../../lib/navigation";
 import { session } from "./session";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ChangeEvent,
+} from "react";
 import {
   setAnalyticsConsent,
   trackAppearanceChanged,
   trackPreference,
 } from "../../lib/analytics";
 import { Button } from "../design/Button";
+import { Icon, type IconName } from "../design/Icon";
+import { useMobileLayout } from "../shell/AdaptiveLayouts";
 import { Feedback } from "../design/chat/Feedback";
 import { PreferenceControls } from "../design/localization/PreferenceControls";
 import { resolveLocale } from "../design/localization/messages";
@@ -170,23 +177,37 @@ export function Settings() {
     }
   }
 
+  const mobile = useMobileLayout();
+  const section = useSettingsSection();
+  const shown = (id: SectionId) => !mobile || section === id;
+  const inForm =
+    section === "look" ||
+    section === "audio" ||
+    section === "goals" ||
+    section === "privacy";
+  const sectionTitle = (id: SectionId) => t(`settings.sec_${id}`);
+  const bool =
+    (key: keyof SettingsFields) => (event: ChangeEvent<HTMLInputElement>) =>
+      update(key, event.target.checked);
+
   return (
     <section className="settings-page" aria-busy={pending}>
-      <h1>{t("settings.title")}</h1>
-      <section className="card">
-        <p>{t("onboarding.replay_help")}</p>
-        <Button
-          variant="secondary"
-          onClick={() => {
-            requestReplay(session.current()?.id ?? "");
-            navigateTo("/");
-          }}
-        >
-          {t("onboarding.replay")}
-        </Button>
-      </section>
-      <p>Appearance, lessons, accessibility and privacy.</p>
-      {!saved && !error && <p role="status">Loading settings…</p>}
+      <header className="settings-head">
+        {mobile && section && (
+          <button
+            type="button"
+            className="settings-back"
+            aria-label={t("settings.back")}
+            onClick={() => history.back()}
+          >
+            <Icon name="back" />
+          </button>
+        )}
+        <h1>
+          {mobile && section ? sectionTitle(section) : t("settings.title")}
+        </h1>
+      </header>
+      {!saved && !error && <p role="status">{t("settings.loading")}</p>}
       {error && (
         <>
           <Feedback tone="danger" title={error} blocking />
@@ -197,10 +218,34 @@ export function Settings() {
                 setAttempt((value) => value + 1);
               }}
             >
-              Retry settings
+              {t("settings.retry_load")}
             </Button>
           )}
         </>
+      )}
+      {mobile && !section && (
+        <nav className="settings-hub" aria-label={t("settings.title")}>
+          <ul>
+            {sections.map(({ id, icon }) => (
+              <li key={id}>
+                <a href={`#${id}`} className="settings-row">
+                  <Icon name={icon} accent="secondary" />
+                  <span>{sectionTitle(id)}</span>
+                  <Icon name="chevron" className="settings-chevron" />
+                </a>
+              </li>
+            ))}
+          </ul>
+          <Button
+            variant="quiet"
+            onClick={() => {
+              requestReplay(session.current()?.id ?? "");
+              navigateTo("/");
+            }}
+          >
+            {t("onboarding.replay")}
+          </Button>
+        </nav>
       )}
       {saved && (
         <form
@@ -209,31 +254,48 @@ export function Settings() {
             void commit();
           }}
         >
-          <PreferenceControls
-            value={{
-              locale: resolveLocale(draft.locale),
-              appearance: draft.appearance,
-              reduceMotion: draft.motion === "reduce",
-            }}
-            onChange={(patch) => {
-              if (patch.locale) update("locale", patch.locale);
-              if (patch.appearance) update("appearance", patch.appearance);
-              if (patch.reduceMotion !== undefined)
-                update("motion", patch.reduceMotion ? "reduce" : "system");
-            }}
-          />
-          <fieldset>
-            <legend>Lessons &amp; audio</legend>
+          <div hidden={!shown("look")} data-section="look">
+            <PreferenceControls
+              value={{
+                locale: resolveLocale(draft.locale),
+                appearance: draft.appearance,
+                reduceMotion: draft.motion === "reduce",
+              }}
+              onChange={(patch) => {
+                if (patch.locale) update("locale", patch.locale);
+                if (patch.appearance) update("appearance", patch.appearance);
+                if (patch.reduceMotion !== undefined)
+                  update("motion", patch.reduceMotion ? "reduce" : "system");
+              }}
+            />
+            <label>
+              {t("settings.text_size")}
+              <select
+                value={draft.text_size}
+                onChange={(event) =>
+                  update("text_size", Number(event.target.value))
+                }
+              >
+                {[0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5].map((size) => (
+                  <option key={size} value={size}>
+                    {Math.round(size * 100)}%
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <fieldset hidden={!shown("audio")} data-section="audio">
+            <legend>{sectionTitle("audio")}</legend>
             <label>
               <input
                 type="checkbox"
                 checked={draft.narration}
-                onChange={(event) => update("narration", event.target.checked)}
+                onChange={bool("narration")}
               />
-              Narration
+              {t("settings.narration")}
             </label>
             <label>
-              Narration speed
+              {t("settings.narration_speed")}
               <select
                 value={draft.narration_speed}
                 onChange={(event) =>
@@ -251,58 +313,41 @@ export function Settings() {
               <input
                 type="checkbox"
                 checked={draft.captions}
-                onChange={(event) => update("captions", event.target.checked)}
+                onChange={bool("captions")}
               />
-              Captions
+              {t("settings.captions")}
             </label>
             <label>
               <input
                 type="checkbox"
                 checked={draft.autoplay}
-                onChange={(event) => update("autoplay", event.target.checked)}
+                onChange={bool("autoplay")}
               />
-              Autoplay the next slide in full-screen lessons
+              {t("settings.autoplay")}
             </label>
             <label>
               <input
                 type="checkbox"
                 checked={draft.fullscreen_on_rotate}
-                onChange={(event) =>
-                  update("fullscreen_on_rotate", event.target.checked)
-                }
+                onChange={bool("fullscreen_on_rotate")}
               />
-              Go full screen when I turn my phone to landscape
-            </label>
-            <label>
-              Text size
-              <select
-                value={draft.text_size}
-                onChange={(event) =>
-                  update("text_size", Number(event.target.value))
-                }
-              >
-                {[0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5].map((size) => (
-                  <option key={size} value={size}>
-                    {Math.round(size * 100)}%
-                  </option>
-                ))}
-              </select>
+              {t("settings.rotate")}
             </label>
             <label htmlFor="settings-ui-sounds">
               <input
                 id="settings-ui-sounds"
-                aria-label="UI sounds"
+                aria-label={t("settings.ui_sounds")}
                 type="checkbox"
                 checked={draft.ui_sounds}
-                onChange={(event) => update("ui_sounds", event.target.checked)}
+                onChange={bool("ui_sounds")}
               />
-              UI sounds
+              {t("settings.ui_sounds")}
             </label>
             <label htmlFor="settings-haptics">
-              Haptics
+              {t("settings.haptics")}
               <select
                 id="settings-haptics"
-                aria-label="Haptics"
+                aria-label={t("settings.haptics")}
                 value={draft.haptics}
                 onChange={(event) =>
                   update(
@@ -311,46 +356,34 @@ export function Settings() {
                   )
                 }
               >
-                <option value="system">System default</option>
-                <option value="on">On</option>
-                <option value="off">Off</option>
+                <option value="system">{t("settings.system")}</option>
+                <option value="on">{t("settings.on")}</option>
+                <option value="off">{t("settings.off")}</option>
               </select>
             </label>
           </fieldset>
-          <fieldset>
-            <legend>Privacy</legend>
+          <fieldset hidden={!shown("goals")} data-section="goals">
+            <legend>{sectionTitle("goals")}</legend>
             <label>
+              {t("settings.locale")}
               <input
-                type="checkbox"
-                checked={!draft.analytics_opt_out}
-                onChange={(event) => changeAnalytics(event.target.checked)}
-              />
-              Analytics
-            </label>
-            <p>Turning analytics off stops future usage events.</p>
-          </fieldset>
-          <fieldset>
-            <legend>Learning defaults</legend>
-            <label>
-              Locale
-              <input
-                aria-label="Locale"
+                aria-label={t("settings.locale")}
                 value={draft.locale}
                 onChange={(event) => update("locale", event.target.value)}
               />
             </label>
             <label>
-              Time zone
+              {t("settings.time_zone")}
               <input
-                aria-label="Time zone"
+                aria-label={t("settings.time_zone")}
                 value={draft.time_zone}
                 onChange={(event) => update("time_zone", event.target.value)}
               />
             </label>
             <label>
-              Daily XP goal
+              {t("settings.daily_xp")}
               <input
-                aria-label="Daily XP goal"
+                aria-label={t("settings.daily_xp")}
                 type="number"
                 min="1"
                 max="10000"
@@ -366,9 +399,9 @@ export function Settings() {
               />
             </label>
             <label>
-              Daily minutes
+              {t("settings.daily_minutes")}
               <input
-                aria-label="Daily minutes"
+                aria-label={t("settings.daily_minutes")}
                 type="number"
                 min="1"
                 max="1440"
@@ -387,16 +420,14 @@ export function Settings() {
               <input
                 type="checkbox"
                 checked={draft.reminder_enabled ?? false}
-                onChange={(event) =>
-                  update("reminder_enabled", event.target.checked)
-                }
+                onChange={bool("reminder_enabled")}
               />
-              Reminders
+              {t("settings.reminders")}
             </label>
             <label>
-              Reminder time
+              {t("settings.reminder_time")}
               <input
-                aria-label="Reminder time"
+                aria-label={t("settings.reminder_time")}
                 type="time"
                 value={draft.reminder_time}
                 onChange={(event) =>
@@ -405,26 +436,77 @@ export function Settings() {
               />
             </label>
           </fieldset>
-          <div className="settings-actions">
+          <fieldset hidden={!shown("privacy")} data-section="privacy">
+            <legend>{t("settings.privacy")}</legend>
+            <label>
+              <input
+                type="checkbox"
+                checked={!draft.analytics_opt_out}
+                onChange={(event) => changeAnalytics(event.target.checked)}
+              />
+              {t("settings.analytics")}
+            </label>
+          </fieldset>
+          <div
+            className="settings-actions action-dock"
+            hidden={mobile && !inForm}
+          >
             <Button type="submit" pending={pending}>
-              Save settings
+              {t("settings.save")}
             </Button>
             <span role="status">{notice}</span>
           </div>
         </form>
       )}
-      <SocialIdentity compact />
-      <PrivacySettings />
-      <AccountPrivacy />
-      <a className="shell-link" href="/profile">
-        Profile
-      </a>
-      <a className="shell-link" href="/settings/sessions">
-        {t("settings.sessions")}
-      </a>
-      <a className="shell-link" href="/settings/characters">
-        Private characters
-      </a>
+      <div hidden={!shown("privacy")} data-section="privacy">
+        <PrivacySettings />
+        <AccountPrivacy />
+      </div>
+      <div hidden={!shown("account")} data-section="account">
+        <SocialIdentity compact />
+        <a className="shell-link" href="/profile">
+          {t("settings.profile")}
+        </a>
+        <a className="shell-link" href="/settings/sessions">
+          {t("settings.sessions")}
+        </a>
+        <a className="shell-link" href="/settings/characters">
+          {t("settings.characters")}
+        </a>
+        {!mobile && (
+          <Button
+            variant="quiet"
+            onClick={() => {
+              requestReplay(session.current()?.id ?? "");
+              navigateTo("/");
+            }}
+          >
+            {t("onboarding.replay")}
+          </Button>
+        )}
+      </div>
     </section>
   );
+}
+
+type SectionId = "look" | "audio" | "goals" | "privacy" | "account";
+const sections: { id: SectionId; icon: IconName }[] = [
+  { id: "look", icon: "look" },
+  { id: "audio", icon: "audio" },
+  { id: "goals", icon: "goal" },
+  { id: "privacy", icon: "lock" },
+  { id: "account", icon: "profile" },
+];
+const ids = sections.map((s) => s.id) as string[];
+const readSection = () => {
+  const id = window.location.hash.slice(1);
+  return ids.includes(id) ? (id as SectionId) : null;
+};
+function subscribeHash(callback: () => void) {
+  window.addEventListener("hashchange", callback);
+  return () => window.removeEventListener("hashchange", callback);
+}
+// The open section lives in the URL hash so the system back gesture closes it.
+function useSettingsSection() {
+  return useSyncExternalStore(subscribeHash, readSection, () => null);
 }

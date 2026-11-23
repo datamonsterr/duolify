@@ -114,6 +114,7 @@ export function AccountPrivacy() {
         <div className="settings-actions">
           <Button
             type="button"
+            variant="secondary"
             onClick={() => {
               setPrivacyError("");
               setExportOpen(true);
@@ -123,6 +124,7 @@ export function AccountPrivacy() {
           </Button>
           <Button
             type="button"
+            variant="secondary"
             onClick={() => {
               setPrivacyError("");
               setDeletionOpen(true);

@@ -66,7 +66,6 @@ export function PreferenceControls({
         />
         {t("settings.motion")}
       </label>
-      <p>{t("settings.motion_hint")}</p>
       {!persisted && (
         <>
           <Button data-control="reset" variant="quiet" onClick={reset}>

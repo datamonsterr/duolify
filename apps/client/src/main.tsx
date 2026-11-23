@@ -5,6 +5,7 @@ import { createQueryClient } from "./lib/queryClient";
 import { registerCourseQueryClient } from "./lib/courseQueries";
 import App from "./App";
 import "./styles.css";
+import "./features/design/sheet/phone-sheet.css";
 const queryClient = createQueryClient();
 registerCourseQueryClient(queryClient);
 async function start() {

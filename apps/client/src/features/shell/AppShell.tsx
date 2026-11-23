@@ -25,20 +25,8 @@ import { ShellSession } from "./ShellSession";
 import { useMarketplaceEnabled } from "../../lib/features";
 import { ModerationNoticesLink } from "../sharing/ModerationNoticesLink";
 import { Brand } from "../design/brand/Brand";
+import { Icon, type IconName } from "../design/Icon";
 
-const icons: Record<string, string> = {
-  home: "M3 11 12 4l9 7v9h-6v-6H9v6H3z",
-  courses: "m2 8 10-5 10 5-10 5z M2 13l10 5 10-5 M2 18l10 5 10-5",
-  friends:
-    "M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M2 21c0-8 12-8 12 0 M17 4a4 4 0 0 1 0 8 M17 15c4 0 5 3 5 6",
-  flag: "M5 21V3h13l-3 5 3 5H5",
-  note: "M6 3h9l4 4v14H6z M14 3v5h5 M9 13h7 M9 17h5",
-  bookmark: "M6 3h12v18l-6-4-6 4z",
-  gem: "M7 4h10l4 5-9 11L3 9z M3 9h18 M10 4 8 9l4 11 4-11-2-5",
-  profile: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M4 21c0-9 16-9 16 0",
-  settings: "M4 7h16 M4 17h16 M8 4v6 M16 14v6",
-  more: "M4 6h16 M4 12h16 M4 18h16",
-};
 const iconAccents: Record<string, string> = {
   home: "primary",
   courses: "secondary",
@@ -50,13 +38,7 @@ const iconAccents: Record<string, string> = {
 };
 function NavIcon({ name }: { name: string }) {
   return (
-    <svg
-      className={`nav-icon nav-icon-${iconAccents[name] ?? "secondary"}`}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path d={icons[name]} />
-    </svg>
+    <Icon name={name as IconName} accent={iconAccents[name] ?? "secondary"} />
   );
 }
 function DestinationLink({

@@ -1,6 +1,7 @@
 import { useUiPreferences } from "../localization/Preferences";
 import { useId, type InputHTMLAttributes, type ReactNode } from "react";
 import { Button } from "../Button";
+import { Icon, type IconName } from "../Icon";
 import "./guided-chat.css";
 
 export function Field({
@@ -36,6 +37,14 @@ export function Field({
   );
 }
 
+// Colour is never the only signal: every tone carries its own icon.
+const toneIcon: Record<"info" | "warning" | "danger" | "success", IconName> = {
+  info: "info",
+  warning: "warning",
+  danger: "error",
+  success: "check",
+};
+
 export function Feedback({
   tone = "info",
   title,
@@ -56,7 +65,10 @@ export function Feedback({
       className={`guided-feedback ${tone}`}
       role={blocking ? "alert" : "status"}
     >
-      <strong>{title}</strong>
+      <div className="guided-feedback-head">
+        <Icon name={toneIcon[tone]} />
+        <strong>{title}</strong>
+      </div>
       {children && <div>{children}</div>}
       {action && (
         <Button variant="quiet" onClick={onAction}>

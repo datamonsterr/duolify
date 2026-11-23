@@ -1,15 +1,15 @@
 {
   "learn.en": {
-    "strings": 23,
+    "strings": 18,
     "headings": 1,
     "labels": 0,
-    "captions": 1
+    "captions": 0
   },
   "courses.en": {
-    "strings": 22,
+    "strings": 17,
     "headings": 1,
     "labels": 0,
-    "captions": 1
+    "captions": 0
   },
   "marketplace.en": {
     "strings": 14,
@@ -36,10 +36,10 @@
     "captions": 0
   },
   "settings.en": {
-    "strings": 52,
+    "strings": 16,
     "headings": 0,
     "labels": 1,
-    "captions": 3
+    "captions": 0
   },
   "friends.en": {
     "strings": 17,
@@ -60,13 +60,13 @@
     "captions": 0
   },
   "learn.ar": {
-    "strings": 24,
+    "strings": 19,
     "headings": 1,
     "labels": 0,
     "captions": 0
   },
   "courses.ar": {
-    "strings": 23,
+    "strings": 18,
     "headings": 1,
     "labels": 0,
     "captions": 0
@@ -96,10 +96,10 @@
     "captions": 0
   },
   "settings.ar": {
-    "strings": 52,
+    "strings": 16,
     "headings": 0,
     "labels": 1,
-    "captions": 1
+    "captions": 0
   },
   "friends.ar": {
     "strings": 18,
