@@ -43,7 +43,7 @@ func testOwnerApprovedDesignChatHTTP(t *testing.T, db *store.Store, admin *prici
 	if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_versions(version,effective_from,approved,config) VALUES($1,$2,true,$3)", base["version"], base["effective_from"], baseRaw); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_quote_policies(version,policy) SELECT $1,policy FROM pricing_quote_policies WHERE version='usd-quotes-2026-11-09'", base["version"]); err != nil {
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_quote_policies(version,policy) SELECT $1,policy FROM pricing_quote_policies WHERE version='usd-voice-preview-2026-11-23'", base["version"]); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, "INSERT INTO pricing_activation_events(version,activated_at) VALUES($1,now())", base["version"]); err != nil {
