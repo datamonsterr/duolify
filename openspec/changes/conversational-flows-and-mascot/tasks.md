@@ -9,7 +9,7 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 ## 1. Script engine and widgets (L, two PRs: engine, then widgets)
 
 - [x] 1.1 Playwright e2e: a fixture script answers via every widget, edits a bubble, resumes after reload (fixture entry beside `guided-chat.html`)
-- [ ] 1.2 Integration tests: draft save/restore, branch re-evaluation after edit, local-copy sync, offline queue
+- [x] 1.2 Integration tests: draft save/restore, branch re-evaluation after edit, local-copy sync, offline queue
 - [x] 1.3 Unit tests: script schema and CI lint (locale keys EN+AR, branch targets, validators vs API limits, secure steps non-persistent), expression language, validators
 - [x] 1.4 Implement `features/guided-chat` engine (state machine, closed expression language, branching, edit semantics), reusing E13-03 thread/composer primitives
 - [x] 1.5 Implement widgets: single, multi-select, time, date, stepper/slider, toggle, short text, long text, file/image, rating, confirm card, secure email/code/password
