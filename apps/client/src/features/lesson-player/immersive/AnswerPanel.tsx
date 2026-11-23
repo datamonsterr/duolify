@@ -311,7 +311,7 @@ export default function AnswerPanel({
         }}
       >
         <label>
-          <span className="imm-sr">{t("imm.ask_ph")}</span>
+          <span className="imm-sr">{t("imm.question")}</span>
           <textarea
             ref={field}
             rows={2}
