@@ -5,6 +5,7 @@ import { secureStore, type Tokens } from "./secure-store";
 import { clearLessonCache } from "../player/cache";
 import { clearLeagueCache } from "../gamification/league-cache";
 import { clearSyncQueue } from "../player/sync";
+import { clearLocalDrafts } from "../guided-chat/drafts";
 import {
   clearOfflineIdentity,
   readOfflineIdentity,
@@ -309,6 +310,7 @@ export const session = {
     clearLeagueCache();
     void clearLessonCache().catch(() => {});
     clearSyncQueue();
+    clearLocalDrafts();
     try {
       for (const key of Object.keys(sessionStorage))
         if (
