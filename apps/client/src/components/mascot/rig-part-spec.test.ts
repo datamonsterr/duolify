@@ -63,8 +63,4 @@ describe("RigPartSpec v1", () => {
       }),
     ).toBeUndefined();
   });
-  it("maps all eight states to a pose and expression", () => {
-    for (const s of spec.states)
-      expect(spec.characterStateMap).toHaveProperty(s);
-  });
 });

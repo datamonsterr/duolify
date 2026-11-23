@@ -88,6 +88,7 @@ jobs:
               - 'evals/**'
               # Embedded by engine-core and fingerprinted by the promotion evidence.
               - 'services/api/internal/characters/schema/**'
+              - 'services/api/internal/characters/rig/**'
               - '.mise/tasks/engine.toml'
               - *tooling
               - *tasks
@@ -193,6 +194,9 @@ jobs:
         timeout-minutes: 2
       - name: mise run ci:api-integration-shards
         run: mise run ci:api-integration-shards
+        timeout-minutes: 1
+      - name: mise run ci:migration-versions
+        run: mise run ci:migration-versions
         timeout-minutes: 1
       - name: mise run ci:sql-casts
         run: mise run ci:sql-casts

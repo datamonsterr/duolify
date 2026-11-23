@@ -483,11 +483,14 @@
             "ears": {
               "type": "string",
               "enum": [
+                "none",
                 "pointy",
                 "round",
                 "floppy",
                 "long",
-                "small"
+                "small",
+                "big",
+                "tufted"
               ]
             },
             "tail": {
