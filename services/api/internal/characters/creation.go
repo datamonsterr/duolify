@@ -233,7 +233,16 @@ func (s *Service) QuoteCreate(ctx context.Context, owner string, in CreateReques
 		return CreateJob{}, err
 	}
 	if day >= envelope.Bounds["day_attempts"] || minute >= envelope.Bounds["minute_attempts"] {
-		return CreateJob{}, errors.New("limit_exceeded")
+		var wait time.Duration
+		if day >= envelope.Bounds["day_attempts"] {
+			wait = limitError(ctx, tx, `SELECT created_at FROM character_create_jobs WHERE learner_id=$1 AND created_at>now()-interval '24 hours' ORDER BY created_at OFFSET $2 LIMIT 1`, owner, day-envelope.Bounds["day_attempts"], 24*time.Hour).RetryAfter
+		}
+		if minute >= envelope.Bounds["minute_attempts"] {
+			if w := limitError(ctx, tx, `SELECT created_at FROM character_create_jobs WHERE learner_id=$1 AND created_at>now()-interval '1 minute' ORDER BY created_at OFFSET $2 LIMIT 1`, owner, minute-envelope.Bounds["minute_attempts"], time.Minute).RetryAfter; w > wait {
+				wait = w
+			}
+		}
+		return CreateJob{}, &LimitError{RetryAfter: wait}
 	}
 	// Pending creates hold a count slot; regeneration never consumes another slot.
 	if err = tx.QueryRow(ctx, `SELECT (SELECT count(*) FROM characters WHERE learner_id=$1 AND deleted_at IS NULL)+(SELECT count(*) FROM character_create_jobs WHERE learner_id=$1 AND operation='create' AND state IN ('screening','quoted','queued','running'))`, owner).Scan(&count); err != nil {

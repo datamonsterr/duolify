@@ -164,3 +164,77 @@ it("accepts check-in Credits for Course preview without purchased funds", async 
     "attendance-quote",
   );
 });
+
+const sample = {
+  sample_outline: {
+    title: "T",
+    units: [{ title: "U", lessons: [{ title: "L", goal: "G" }] }],
+  },
+  example_slides: [
+    { slide_id: "s", html: "<p>x</p>", narration: "n", duration_ms: 1000 },
+  ],
+};
+const transient = (status?: number) =>
+  Object.assign(new Error("API request failed"), { status });
+const quoteOf = (id: string, ceiling: number) => ({
+  id,
+  content_ceiling: ceiling,
+  pricing_version: "v1",
+  expires_at: new Date(Date.now() + 300000).toISOString(),
+});
+const rev = {
+  id: "r",
+  content_hash: "h",
+  brief: { ...emptyBrief(), topic: "Sky" },
+};
+
+it("retries a transient preview failure once with a fresh quote that costs no more", async () => {
+  const service = {
+    quote: vi
+      .fn()
+      .mockResolvedValueOnce(quoteOf("q1", 25))
+      .mockResolvedValueOnce(quoteOf("q2", 25)),
+    accept: vi.fn().mockResolvedValue({ accepted: true }),
+    preview: vi
+      .fn()
+      .mockRejectedValueOnce(transient(502))
+      .mockResolvedValueOnce(sample),
+  };
+  render(<CoursePreview revision={rev} service={service} onBack={() => {}} />);
+  fireEvent.click(screen.getByRole("button", { name: "Review preview cost" }));
+  await screen.findByText(/v1/);
+  fireEvent.click(screen.getByRole("button", { name: /Confirm & preview/ }));
+  await vi.waitFor(() => expect(service.preview).toHaveBeenCalledTimes(2), {
+    timeout: 5000,
+  });
+  expect(service.preview).toHaveBeenNthCalledWith(2, "r", "q2");
+  expect(service.accept).toHaveBeenNthCalledWith(2, "q2");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("does not retry when the fresh quote costs more, or when the failure is not transient", async () => {
+  for (const [first, second, error] of [
+    [25, 40, transient(502)],
+    [25, 25, transient(409)],
+  ] as const) {
+    const service = {
+      quote: vi
+        .fn()
+        .mockResolvedValueOnce(quoteOf("q1", first))
+        .mockResolvedValue(quoteOf("q2", second)),
+      accept: vi.fn().mockResolvedValue({ accepted: true }),
+      preview: vi.fn().mockRejectedValue(error),
+    };
+    const { unmount } = render(
+      <CoursePreview revision={rev} service={service} onBack={() => {}} />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review preview cost" }),
+    );
+    await screen.findByText(/v1/);
+    fireEvent.click(screen.getByRole("button", { name: /Confirm & preview/ }));
+    await screen.findByRole("alert", undefined, { timeout: 5000 });
+    expect(service.preview).toHaveBeenCalledTimes(1);
+    unmount();
+  }
+});

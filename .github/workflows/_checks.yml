@@ -431,7 +431,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      API_TEST_PACKAGES: ./internal/notes/... ./internal/voice/... ./internal/narration/... ./internal/lessontest/... ./internal/characters/... ./internal/credits/... ./internal/maintenance/...
+      API_TEST_PACKAGES: ./internal/notes/... ./internal/voice/... ./internal/narration/... ./internal/lessontest/... ./internal/characters/... ./internal/credits/... ./internal/maintenance/... ./internal/worker/...
     steps:
       - uses: actions/checkout@v7
         with:

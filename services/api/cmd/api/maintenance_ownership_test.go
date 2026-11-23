@@ -9,10 +9,9 @@ import (
 )
 
 // apiProcessSweeps are the only background loops an API replica may start. The pricing
-// activator refreshes the replica's own in-memory copy; the shared-asset sweep deletes
-// objects with application object-store keys the worker does not hold, and so does the purge of
-// orphaned narration audio.
-var apiProcessSweeps = map[string]bool{"RunActivator": true, "MaintainAssets": true, "MaintainOrphanedAudio": true, "MaintainPurgedObjects": true}
+// activator refreshes the replica's own in-memory copy; the purge of orphaned narration
+// audio and of deleted-Course objects still run here.
+var apiProcessSweeps = map[string]bool{"RunActivator": true, "MaintainOrphanedAudio": true, "MaintainPurgedObjects": true}
 
 // TestAPIProcessStartsNoMaintenanceLoop keeps every Maintain loop in the worker, so a sweep
 // runs once however many API replicas serve HTTP.
@@ -103,7 +102,7 @@ func TestWorkerSweepsOwnTheMovedLoops(t *testing.T) {
 		}
 		return true
 	})
-	if !got["Maintain"] || !got["MaintainInvites"] {
-		t.Fatalf("worker sweeps start %v, want Maintain and MaintainInvites", got)
+	if !got["Maintain"] || !got["MaintainInvites"] || !got["MaintainAssets"] {
+		t.Fatalf("worker sweeps start %v, want Maintain, MaintainInvites and MaintainAssets", got)
 	}
 }

@@ -1,0 +1,1202 @@
+[
+ {
+  "model": "baseten/joey-1",
+  "case": "c01",
+  "expected": [
+   "code_slide"
+  ],
+  "probs": {
+   "diagram_layout": 0.4025847245426014,
+   "code_slide": 0.8649558745250808,
+   "math_notation": 0.047479217890959574,
+   "comparison_table": 0.1378765209110804,
+   "timeline": 0.03458960008197385
+  },
+  "latency_s": 0.7,
+  "cost": 4.5e-06,
+  "err": null
+ },
+ {
+  "model": "baseten/joey-1",
+  "case": "c02",
+  "expected": [
+   "math_notation"
+  ],
+  "probs": {
+   "diagram_layout": 0.5239278745756399,
+   "code_slide": 0.06912734877907446,
+   "math_notation": 0.8991209447676793,
+   "comparison_table": 0.0696796226912549,
+   "timeline": 0.07010446989742468
+  },
+  "latency_s": 0.67,
+  "cost": 4.55e-06,
+  "err": null
+ },
+ {
+  "model": "baseten/joey-1",
+  "case": "c03",
+  "expected": [
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.7411100687896621,
+   "code_slide": 0.09341272546871321,
+   "math_notation": 0.03594404611588671,
+   "comparison_table": 0.05859578751896624,
+   "timeline": 0.7153615325083822
+  },
+  "latency_s": 0.68,
+  "cost": 4.51e-06,
+  "err": null
+ },
+ {
+  "model": "baseten/joey-1",
+  "case": "c04",
+  "expected": [
+   "comparison_table"
+  ],
+  "probs": {
+   "diagram_layout": 0.193269260726712,
+   "code_slide": 0.7944357127198922,
+   "math_notation": 0.023090847653406136,
+   "comparison_table": 0.972497280665947,
+   "timeline": 0.08035958755262684
+  },
+  "latency_s": 0.65,
+  "cost": 4.51e-06,
+  "err": null
+ },
+ {
+  "model": "baseten/joey-1",
+  "case": "c05",
+  "expected": [
+   "timeline"
+  ],
+  "probs": {
+   "diagram_layout": 0.2576871741724063,
+   "code_slide": 0.019894985640036177,
+   "math_notation": 0.13433006402066028,
+   "comparison_table": 0.1642517496017187,
+   "timeline": 0.9822533988375409
+  },
+  "latency_s": 0.67,
+  "cost": 4.6e-06,
+  "err": null
+ },
+ {
+  "model": "baseten/joey-1",
+  "case": "c06",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.33569180580362795,
+   "code_slide": 0.0320998252094142,
+   "math_notation": 0.007090660151256081,
+   "comparison_table": 0.10436540676241116,
+   "timeline": 0.13759338670621657
+  },
+  "latency_s": 0.66,
+  "cost": 4.48e-06,
+  "err": null
+ },
+ {
+  "model": "baseten/joey-1",
+  "case": "c07",
+  "expected": [
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.7094957231614379,
+   "code_slide": 0.018592666289454177,
+   "math_notation": 0.17438955672934747,
+   "comparison_table": 0.09108541555931204,
+   "timeline": 0.6013108062560718
+  },
+  "latency_s": 0.69,
+  "cost": 4.48e-06,
+  "err": null
+ },
+ {
+  "model": "baseten/joey-1",
+  "case": "c08",
+  "expected": [
+   "code_slide",
+   "comparison_table"
+  ],
+  "probs": {
+   "diagram_layout": 0.5442338750278451,
+   "code_slide": 0.8951769039880431,
+   "math_notation": 0.19074890302716663,
+   "comparison_table": 0.48569315907513316,
+   "timeline": 0.06621925415123692
+  },
+  "latency_s": 0.69,
+  "cost": 4.53e-06,
+  "err": null
+ },
+ {
+  "model": "baseten/joey-1",
+  "case": "c09",
+  "expected": [
+   "math_notation"
+  ],
+  "probs": {
+   "diagram_layout": 0.557548160553155,
+   "code_slide": 0.064853533435475,
+   "math_notation": 0.9903916708689572,
+   "comparison_table": 0.0593967843616471,
+   "timeline": 0.055680904230160116
+  },
+  "latency_s": 0.66,
+  "cost": 4.55e-06,
+  "err": null
+ },
+ {
+  "model": "baseten/joey-1",
+  "case": "c10",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.5806473977728275,
+   "code_slide": 0.023636034070838283,
+   "math_notation": 0.038128101000355595,
+   "comparison_table": 0.3285102102162245,
+   "timeline": 0.3390380741401253
+  },
+  "latency_s": 0.64,
+  "cost": 4.52e-06,
+  "err": null
+ },
+ {
+  "model": "baseten/joey-1",
+  "case": "c11",
+  "expected": [
+   "code_slide",
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.776741807283501,
+   "code_slide": 0.4591792060746384,
+   "math_notation": 0.055710641245872834,
+   "comparison_table": 0.3844956943112444,
+   "timeline": 0.7494325897447839
+  },
+  "latency_s": 0.68,
+  "cost": 4.51e-06,
+  "err": null
+ },
+ {
+  "model": "baseten/joey-1",
+  "case": "c12",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.2731624800736686,
+   "code_slide": 0.009799243740723235,
+   "math_notation": 0.028698460513841447,
+   "comparison_table": 0.28952564925028984,
+   "timeline": 0.07596789680845364
+  },
+  "latency_s": 0.68,
+  "cost": 4.51e-06,
+  "err": null
+ },
+ {
+  "model": "liquid/d1.2",
+  "case": "c01",
+  "expected": [
+   "code_slide"
+  ],
+  "probs": {
+   "diagram_layout": 0.47725376341457154,
+   "code_slide": 0.8039615579664788,
+   "math_notation": 0.08570496162072548,
+   "comparison_table": 0.09311378420917968,
+   "timeline": 0.13931921949296555
+  },
+  "latency_s": 0.73,
+  "cost": 4.72e-06,
+  "err": null
+ },
+ {
+  "model": "liquid/d1.2",
+  "case": "c02",
+  "expected": [
+   "math_notation"
+  ],
+  "probs": {
+   "diagram_layout": 0.2426698545928815,
+   "code_slide": 0.07247096573854184,
+   "math_notation": 0.7815409644850158,
+   "comparison_table": 0.07559122195399265,
+   "timeline": 0.14486811094776214
+  },
+  "latency_s": 0.71,
+  "cost": 4.78e-06,
+  "err": null
+ },
+ {
+  "model": "liquid/d1.2",
+  "case": "c03",
+  "expected": [
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.8762651293651731,
+   "code_slide": 0.15059933632922518,
+   "math_notation": 0.109671666744752,
+   "comparison_table": 0.097029843482452,
+   "timeline": 0.8811170865274641
+  },
+  "latency_s": 0.73,
+  "cost": 4.72e-06,
+  "err": null
+ },
+ {
+  "model": "liquid/d1.2",
+  "case": "c04",
+  "expected": [
+   "comparison_table"
+  ],
+  "probs": {
+   "diagram_layout": 0.15651581587174532,
+   "code_slide": 0.7130979564790234,
+   "math_notation": 0.04931037426498934,
+   "comparison_table": 0.9733093248361461,
+   "timeline": 0.049310375537017066
+  },
+  "latency_s": 0.8,
+  "cost": 4.72e-06,
+  "err": null
+ },
+ {
+  "model": "liquid/d1.2",
+  "case": "c05",
+  "expected": [
+   "timeline"
+  ],
+  "probs": {
+   "diagram_layout": 0.30588464354272515,
+   "code_slide": 0.029160678330542797,
+   "math_notation": 0.06380991846502192,
+   "comparison_table": 0.05375802159869646,
+   "timeline": 0.9786266884514043
+  },
+  "latency_s": 0.72,
+  "cost": 4.84e-06,
+  "err": null
+ },
+ {
+  "model": "liquid/d1.2",
+  "case": "c06",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.058582114220818486,
+   "code_slide": 0.019549641225483593,
+   "math_notation": 0.021373315237707274,
+   "comparison_table": 0.08570495906924006,
+   "timeline": 0.07247095661883113
+  },
+  "latency_s": 0.76,
+  "cost": 4.72e-06,
+  "err": null
+ },
+ {
+  "model": "liquid/d1.2",
+  "case": "c07",
+  "expected": [
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.9305301724112126,
+   "code_slide": 0.02916067886827065,
+   "math_notation": 0.18208443648740857,
+   "comparison_table": 0.08570496842468689,
+   "timeline": 0.7313584477611503
+  },
+  "latency_s": 0.73,
+  "cost": 4.66e-06,
+  "err": null
+ },
+ {
+  "model": "liquid/d1.2",
+  "case": "c08",
+  "expected": [
+   "code_slide",
+   "comparison_table"
+  ],
+  "probs": {
+   "diagram_layout": 0.4546014820182399,
+   "code_slide": 0.7130979520379052,
+   "math_notation": 0.08220435888827118,
+   "comparison_table": 0.6118841178032359,
+   "timeline": 0.07247095953713843
+  },
+  "latency_s": 0.76,
+  "cost": 4.76e-06,
+  "err": null
+ },
+ {
+  "model": "liquid/d1.2",
+  "case": "c09",
+  "expected": [
+   "math_notation"
+  ],
+  "probs": {
+   "diagram_layout": 0.19603842663785323,
+   "code_slide": 0.10967166515505113,
+   "math_notation": 0.9177956497099701,
+   "comparison_table": 0.047219519367959734,
+   "timeline": 0.13394958500028695
+  },
+  "latency_s": 0.94,
+  "cost": 4.8e-06,
+  "err": null
+ },
+ {
+  "model": "liquid/d1.2",
+  "case": "c10",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.21845902810254325,
+   "code_slide": 0.04521311542418187,
+   "math_notation": 0.15059934882484177,
+   "comparison_table": 0.18208445265185463,
+   "timeline": 0.2511339792253694
+  },
+  "latency_s": 0.79,
+  "cost": 4.78e-06,
+  "err": null
+ },
+ {
+  "model": "liquid/d1.2",
+  "case": "c11",
+  "expected": [
+   "code_slide",
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.6941153472394419,
+   "code_slide": 0.5566604458146516,
+   "math_notation": 0.04721952937827674,
+   "comparison_table": 0.22633107873044084,
+   "timeline": 0.4433395541853484
+  },
+  "latency_s": 0.75,
+  "cost": 4.72e-06,
+  "err": null
+ },
+ {
+  "model": "liquid/d1.2",
+  "case": "c12",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.056121335640203225,
+   "code_slide": 0.02553318439384584,
+   "math_notation": 0.043288089030113844,
+   "comparison_table": 0.18208444618607608,
+   "timeline": 0.0665840418319346
+  },
+  "latency_s": 0.77,
+  "cost": 4.72e-06,
+  "err": null
+ },
+ {
+  "model": "respan/span-02",
+  "case": "c01",
+  "expected": [
+   "code_slide"
+  ],
+  "probs": {
+   "diagram_layout": 0.5593413,
+   "code_slide": 0.91652906,
+   "math_notation": 0.00021158495,
+   "comparison_table": 0.51937705,
+   "timeline": 0.0038052679
+  },
+  "latency_s": 1.27,
+  "cost": 7.01e-06,
+  "err": null
+ },
+ {
+  "model": "respan/span-02",
+  "case": "c02",
+  "expected": [
+   "math_notation"
+  ],
+  "probs": {
+   "diagram_layout": 0.17809324,
+   "code_slide": 0.019057173,
+   "math_notation": 0.9648325,
+   "comparison_table": 0.042895705,
+   "timeline": 0.0002984859
+  },
+  "latency_s": 1.47,
+  "cost": 7.16e-06,
+  "err": null
+ },
+ {
+  "model": "respan/span-02",
+  "case": "c03",
+  "expected": [
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.9742206,
+   "code_slide": 0.0649304,
+   "math_notation": 0.0026205136,
+   "comparison_table": 0.1574506,
+   "timeline": 0.9683845
+  },
+  "latency_s": 0.98,
+  "cost": 7.11e-06,
+  "err": null
+ },
+ {
+  "model": "respan/span-02",
+  "case": "c04",
+  "expected": [
+   "comparison_table"
+  ],
+  "probs": {
+   "diagram_layout": 0.16890863,
+   "code_slide": 0.69634485,
+   "math_notation": 0.000104172796,
+   "comparison_table": 0.9887439,
+   "timeline": 0.0012335571
+  },
+  "latency_s": 0.99,
+  "cost": 7.06e-06,
+  "err": null
+ },
+ {
+  "model": "respan/span-02",
+  "case": "c05",
+  "expected": [
+   "timeline"
+  ],
+  "probs": {
+   "diagram_layout": 0.1896219,
+   "code_slide": 0.0005913098,
+   "math_notation": 0.00015051832,
+   "comparison_table": 0.67067146,
+   "timeline": 0.97587276
+  },
+  "latency_s": 1.33,
+  "cost": 7.51e-06,
+  "err": null
+ },
+ {
+  "model": "respan/span-02",
+  "case": "c06",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.020832485,
+   "code_slide": 0.0001654515,
+   "math_notation": 1.855649e-05,
+   "comparison_table": 0.5220413,
+   "timeline": 0.00064971583
+  },
+  "latency_s": 1.43,
+  "cost": 6.91e-06,
+  "err": null
+ },
+ {
+  "model": "respan/span-02",
+  "case": "c07",
+  "expected": [
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.95609397,
+   "code_slide": 0.0041082143,
+   "math_notation": 0.44659418,
+   "comparison_table": 0.46560532,
+   "timeline": 0.7231468
+  },
+  "latency_s": 0.79,
+  "cost": 6.91e-06,
+  "err": null
+ },
+ {
+  "model": "respan/span-02",
+  "case": "c08",
+  "expected": [
+   "code_slide",
+   "comparison_table"
+  ],
+  "probs": {
+   "diagram_layout": 0.56495845,
+   "code_slide": 0.9405811,
+   "math_notation": 0.005518556,
+   "comparison_table": 0.9771074,
+   "timeline": 0.0076932153
+  },
+  "latency_s": 0.89,
+  "cost": 7.16e-06,
+  "err": null
+ },
+ {
+  "model": "respan/span-02",
+  "case": "c09",
+  "expected": [
+   "math_notation"
+  ],
+  "probs": {
+   "diagram_layout": 0.4817724,
+   "code_slide": 0.020481743,
+   "math_notation": 0.98155737,
+   "comparison_table": 0.14906771,
+   "timeline": 0.000103147155
+  },
+  "latency_s": 0.92,
+  "cost": 7.21e-06,
+  "err": null
+ },
+ {
+  "model": "respan/span-02",
+  "case": "c10",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.6264974,
+   "code_slide": 5.4520082e-05,
+   "math_notation": 0.0056372876,
+   "comparison_table": 0.57208043,
+   "timeline": 0.011602173
+  },
+  "latency_s": 0.67,
+  "cost": 7.06e-06,
+  "err": null
+ },
+ {
+  "model": "respan/span-02",
+  "case": "c11",
+  "expected": [
+   "code_slide",
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.96564007,
+   "code_slide": 0.8609839,
+   "math_notation": 0.00011147776,
+   "comparison_table": 0.6510581,
+   "timeline": 0.8419739
+  },
+  "latency_s": 1.08,
+  "cost": 7.06e-06,
+  "err": null
+ },
+ {
+  "model": "respan/span-02",
+  "case": "c12",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.1198871,
+   "code_slide": 0.00049228274,
+   "math_notation": 0.0076407273,
+   "comparison_table": 0.83214957,
+   "timeline": 0.0022908475
+  },
+  "latency_s": 1.26,
+  "cost": 7.06e-06,
+  "err": null
+ },
+ {
+  "model": "baseten/bison-1",
+  "case": "c01",
+  "expected": [
+   "code_slide"
+  ],
+  "probs": {
+   "diagram_layout": 0.5312093733737563,
+   "code_slide": 0.9770226300899744,
+   "math_notation": 0.04208772791561884,
+   "comparison_table": 0.20181322226037882,
+   "timeline": 0.005911068856243796
+  },
+  "latency_s": 10.8,
+  "cost": 4.51e-05,
+  "err": null
+ },
+ {
+  "model": "baseten/bison-1",
+  "case": "c02",
+  "expected": [
+   "math_notation"
+  ],
+  "probs": {
+   "diagram_layout": 0.24508501313237172,
+   "code_slide": 0.0031726828424851893,
+   "math_notation": 0.9875683491468141,
+   "comparison_table": 0.04742587317756679,
+   "timeline": 0.0024726231566347748
+  },
+  "latency_s": 0.71,
+  "cost": 4.54e-05,
+  "err": null
+ },
+ {
+  "model": "baseten/bison-1",
+  "case": "c03",
+  "expected": [
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.9241418199787566,
+   "code_slide": 0.037326887344129464,
+   "math_notation": 0.34864513533394575,
+   "comparison_table": 0.04742587317756679,
+   "timeline": 0.8933094060543487
+  },
+  "latency_s": 0.72,
+  "cost": 4.53e-05,
+  "err": null
+ },
+ {
+  "model": "baseten/bison-1",
+  "case": "c04",
+  "expected": [
+   "comparison_table"
+  ],
+  "probs": {
+   "diagram_layout": 0.13296424019782924,
+   "code_slide": 0.8807970779778823,
+   "math_notation": 0.037326887344129464,
+   "comparison_table": 0.9988304897349445,
+   "timeline": 0.0024726231566347748
+  },
+  "latency_s": 1.06,
+  "cost": 4.52e-05,
+  "err": null
+ },
+ {
+  "model": "baseten/bison-1",
+  "case": "c05",
+  "expected": [
+   "timeline"
+  ],
+  "probs": {
+   "diagram_layout": 0.1480471980316895,
+   "code_slide": 0.0009110511944006454,
+   "math_notation": 0.0953494648991095,
+   "comparison_table": 0.06008665017400762,
+   "timeline": 0.9902915235185259
+  },
+  "latency_s": 0.75,
+  "cost": 4.61e-05,
+  "err": null
+ },
+ {
+  "model": "baseten/bison-1",
+  "case": "c06",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.053403329799824234,
+   "code_slide": 0.0010322310367548194,
+   "math_notation": 0.006692850924284856,
+   "comparison_table": 0.2689414213699951,
+   "timeline": 0.009708476481474066
+  },
+  "latency_s": 0.83,
+  "cost": 4.49e-05,
+  "err": null
+ },
+ {
+  "model": "baseten/bison-1",
+  "case": "c07",
+  "expected": [
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.9465966702001757,
+   "code_slide": 0.0008040859356292355,
+   "math_notation": 0.37754066879814546,
+   "comparison_table": 0.06008665017400762,
+   "timeline": 0.7057850278370112
+  },
+  "latency_s": 0.8,
+  "cost": 4.49e-05,
+  "err": null
+ },
+ {
+  "model": "baseten/bison-1",
+  "case": "c08",
+  "expected": [
+   "code_slide",
+   "comparison_table"
+  ],
+  "probs": {
+   "diagram_layout": 0.37754066879814546,
+   "code_slide": 0.9770226300899744,
+   "math_notation": 0.08509904500702024,
+   "comparison_table": 0.9046505351008906,
+   "timeline": 0.002800926967120973
+  },
+  "latency_s": 0.74,
+  "cost": 4.54e-05,
+  "err": null
+ },
+ {
+  "model": "baseten/bison-1",
+  "case": "c09",
+  "expected": [
+   "math_notation"
+  ],
+  "probs": {
+   "diagram_layout": 0.2689414213699951,
+   "code_slide": 0.0031726828424851893,
+   "math_notation": 0.9947798743064417,
+   "comparison_table": 0.0953494648991095,
+   "timeline": 0.004070137715896127
+  },
+  "latency_s": 0.76,
+  "cost": 4.55e-05,
+  "err": null
+ },
+ {
+  "model": "baseten/bison-1",
+  "case": "c10",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.34864513533394575,
+   "code_slide": 0.0009110511944006454,
+   "math_notation": 0.1480471980316895,
+   "comparison_table": 0.1645164628965632,
+   "timeline": 0.10669059394565118
+  },
+  "latency_s": 0.71,
+  "cost": 4.52e-05,
+  "err": null
+ },
+ {
+  "model": "baseten/bison-1",
+  "case": "c11",
+  "expected": [
+   "code_slide",
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.8807970779778823,
+   "code_slide": 0.8175744761936437,
+   "math_notation": 0.0675466911396291,
+   "comparison_table": 0.32082130082460697,
+   "timeline": 0.7549149868676283
+  },
+  "latency_s": 0.79,
+  "cost": 4.52e-05,
+  "err": null
+ },
+ {
+  "model": "baseten/bison-1",
+  "case": "c12",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.1645164628965632,
+   "code_slide": 0.00015843621910252594,
+   "math_notation": 0.006692850924284856,
+   "comparison_table": 0.5926665999540697,
+   "timeline": 0.0024726231566347748
+  },
+  "latency_s": 0.94,
+  "cost": 4.52e-05,
+  "err": null
+ },
+ {
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "case": "c01",
+  "expected": [
+   "code_slide"
+  ],
+  "probs": {
+   "diagram_layout": 0.6773077067036067,
+   "code_slide": 0.9510942027118563,
+   "math_notation": 0.057782994265019746,
+   "comparison_table": 0.4550217046735501,
+   "timeline": 0.14341249189979113
+  },
+  "latency_s": 0.67,
+  "cost": 3.13e-06,
+  "err": null
+ },
+ {
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "case": "c02",
+  "expected": [
+   "math_notation"
+  ],
+  "probs": {
+   "diagram_layout": 0.5259392826502809,
+   "code_slide": 0.09402407028521192,
+   "math_notation": 0.87704920909653,
+   "comparison_table": 0.17570223978343316,
+   "timeline": 0.085826420957985
+  },
+  "latency_s": 2.01,
+  "cost": 3.18e-06,
+  "err": null
+ },
+ {
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "case": "c03",
+  "expected": [
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.8855030348243087,
+   "code_slide": 0.22540346139716055,
+   "math_notation": 0.09583756966384759,
+   "comparison_table": 0.21283247876076442,
+   "timeline": 0.9511543408998363
+  },
+  "latency_s": 0.69,
+  "cost": 3.14e-06,
+  "err": null
+ },
+ {
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "case": "c04",
+  "expected": [
+   "comparison_table"
+  ],
+  "probs": {
+   "diagram_layout": 0.28185670730795676,
+   "code_slide": 0.924392083772134,
+   "math_notation": 0.028810699303753535,
+   "comparison_table": 0.9765501329374828,
+   "timeline": 0.061663309299773844
+  },
+  "latency_s": 1.62,
+  "cost": 3.14e-06,
+  "err": null
+ },
+ {
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "case": "c05",
+  "expected": [
+   "timeline"
+  ],
+  "probs": {
+   "diagram_layout": 0.6403670737305942,
+   "code_slide": 0.023514400794847488,
+   "math_notation": 0.03067743229808464,
+   "comparison_table": 0.15056531632514722,
+   "timeline": 0.9774155151003077
+  },
+  "latency_s": 3.28,
+  "cost": 3.23e-06,
+  "err": null
+ },
+ {
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "case": "c06",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.3262194461616907,
+   "code_slide": 0.03525256397638175,
+   "math_notation": 0.024347435293963788,
+   "comparison_table": 0.3921449514217571,
+   "timeline": 0.05976095355575095
+  },
+  "latency_s": 1.2,
+  "cost": 3.11e-06,
+  "err": null
+ },
+ {
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "case": "c07",
+  "expected": [
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.8355881148670463,
+   "code_slide": 0.04022453871365963,
+   "math_notation": 0.18755272404106463,
+   "comparison_table": 0.13309820922033902,
+   "timeline": 0.8830912319233954
+  },
+  "latency_s": 0.73,
+  "cost": 3.11e-06,
+  "err": null
+ },
+ {
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "case": "c08",
+  "expected": [
+   "code_slide",
+   "comparison_table"
+  ],
+  "probs": {
+   "diagram_layout": 0.6735862081823236,
+   "code_slide": 0.9407891648936324,
+   "math_notation": 0.07186398764117576,
+   "comparison_table": 0.9219921693763138,
+   "timeline": 0.10552545150774814
+  },
+  "latency_s": 0.74,
+  "cost": 3.16e-06,
+  "err": null
+ },
+ {
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "case": "c09",
+  "expected": [
+   "math_notation"
+  ],
+  "probs": {
+   "diagram_layout": 0.6576118675595356,
+   "code_slide": 0.049701870635357456,
+   "math_notation": 0.9319128794382413,
+   "comparison_table": 0.18848234362473568,
+   "timeline": 0.06806298030478977
+  },
+  "latency_s": 3.65,
+  "cost": 3.18e-06,
+  "err": null
+ },
+ {
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "case": "c10",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.6142909713094055,
+   "code_slide": 0.03197888110845777,
+   "math_notation": 0.061879528747347555,
+   "comparison_table": 0.35986312912403984,
+   "timeline": 0.5891273815057753
+  },
+  "latency_s": 0.78,
+  "cost": 3.15e-06,
+  "err": null
+ },
+ {
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "case": "c11",
+  "expected": [
+   "code_slide",
+   "diagram_layout"
+  ],
+  "probs": {
+   "diagram_layout": 0.7961720891621189,
+   "code_slide": 0.8096498716855423,
+   "math_notation": 0.041952558120140634,
+   "comparison_table": 0.5210979995947356,
+   "timeline": 0.47843007712600866
+  },
+  "latency_s": 0.73,
+  "cost": 3.14e-06,
+  "err": null
+ },
+ {
+  "model": "perplexity/pplx-decider-flash-v1.2",
+  "case": "c12",
+  "expected": [],
+  "probs": {
+   "diagram_layout": 0.5884478413514639,
+   "code_slide": 0.030733873932670575,
+   "math_notation": 0.023257214653794645,
+   "comparison_table": 0.30532299134851265,
+   "timeline": 0.06313157017654535
+  },
+  "latency_s": 0.68,
+  "cost": 3.14e-06,
+  "err": null
+ },
+ {
+  "model": "microsoft/microsoft-decision-1.1",
+  "case": "c01",
+  "expected": [
+   "code_slide"
+  ],
+  "probs": {
+   "code_slide": 0.9741706465497827,
+   "comparison_table": 0.3548426195828398,
+   "diagram_layout": 0.584425833508831,
+   "math_notation": 0.015218055590102727,
+   "timeline": 0.08283233765348638
+  },
+  "latency_s": 0.71,
+  "cost": 8.778e-06,
+  "err": null
+ },
+ {
+  "model": "microsoft/microsoft-decision-1.1",
+  "case": "c02",
+  "expected": [
+   "math_notation"
+  ],
+  "probs": {
+   "code_slide": 0.009402680101372032,
+   "comparison_table": 0.05670647257349392,
+   "diagram_layout": 0.3319317993064911,
+   "math_notation": 0.9964416901333152,
+   "timeline": 0.022113298506429898
+  },
+  "latency_s": 0.71,
+  "cost": 8.904e-06,
+  "err": null
+ },
+ {
+  "model": "microsoft/microsoft-decision-1.1",
+  "case": "c03",
+  "expected": [
+   "diagram_layout"
+  ],
+  "probs": {
+   "code_slide": 0.16643184062026048,
+   "comparison_table": 0.06722901694244296,
+   "diagram_layout": 0.9711989858437392,
+   "math_notation": 0.040792410692830905,
+   "timeline": 0.9753812368003222
+  },
+  "latency_s": 1.33,
+  "cost": 8.862e-06,
+  "err": null
+ },
+ {
+  "model": "microsoft/microsoft-decision-1.1",
+  "case": "c04",
+  "expected": [
+   "comparison_table"
+  ],
+  "probs": {
+   "code_slide": 0.7827252835385797,
+   "comparison_table": 0.9951140878596855,
+   "diagram_layout": 0.37865696494798595,
+   "math_notation": 0.021769265199929416,
+   "timeline": 0.023554557485047395
+  },
+  "latency_s": 0.69,
+  "cost": 8.82e-06,
+  "err": null
+ },
+ {
+  "model": "microsoft/microsoft-decision-1.1",
+  "case": "c05",
+  "expected": [
+   "timeline"
+  ],
+  "probs": {
+   "code_slide": 0.0006957776533273524,
+   "comparison_table": 0.156651219483609,
+   "diagram_layout": 0.160213616402762,
+   "math_notation": 0.003432631036885247,
+   "timeline": 0.9226893692307155
+  },
+  "latency_s": 0.68,
+  "cost": 9.198e-06,
+  "err": null
+ },
+ {
+  "model": "microsoft/microsoft-decision-1.1",
+  "case": "c06",
+  "expected": [],
+  "probs": {
+   "code_slide": 0.0014589394037286523,
+   "comparison_table": 0.36545968043271726,
+   "diagram_layout": 0.06297970002950191,
+   "math_notation": 0.0026232027496698672,
+   "timeline": 0.024898650922046017
+  },
+  "latency_s": 1.29,
+  "cost": 8.694e-06,
+  "err": null
+ },
+ {
+  "model": "microsoft/microsoft-decision-1.1",
+  "case": "c07",
+  "expected": [
+   "diagram_layout"
+  ],
+  "probs": {
+   "code_slide": 0.003087618777588205,
+   "comparison_table": 0.1825715767517111,
+   "diagram_layout": 0.9538447402192521,
+   "math_notation": 0.6800881424357944,
+   "timeline": 0.8966984707735598
+  },
+  "latency_s": 0.76,
+  "cost": 8.694e-06,
+  "err": null
+ },
+ {
+  "model": "microsoft/microsoft-decision-1.1",
+  "case": "c08",
+  "expected": [
+   "code_slide",
+   "comparison_table"
+  ],
+  "probs": {
+   "code_slide": 0.9501726724379658,
+   "comparison_table": 0.9478246374570428,
+   "diagram_layout": 0.5931068126505528,
+   "math_notation": 0.024279420240491043,
+   "timeline": 0.026424097887756806
+  },
+  "latency_s": 0.7,
+  "cost": 8.904e-06,
+  "err": null
+ },
+ {
+  "model": "microsoft/microsoft-decision-1.1",
+  "case": "c09",
+  "expected": [
+   "math_notation"
+  ],
+  "probs": {
+   "code_slide": 0.013982572329719913,
+   "comparison_table": 0.1925693317399916,
+   "diagram_layout": 0.419252676788346,
+   "math_notation": 0.9985897196654401,
+   "timeline": 0.04021935151977536
+  },
+  "latency_s": 1.38,
+  "cost": 8.946e-06,
+  "err": null
+ },
+ {
+  "model": "microsoft/microsoft-decision-1.1",
+  "case": "c10",
+  "expected": [],
+  "probs": {
+   "code_slide": 0.000815153659065402,
+   "comparison_table": 0.3604993385818897,
+   "diagram_layout": 0.43077347169081176,
+   "math_notation": 0.09096311452519758,
+   "timeline": 0.15065665810591322
+  },
+  "latency_s": 0.68,
+  "cost": 8.82e-06,
+  "err": null
+ },
+ {
+  "model": "microsoft/microsoft-decision-1.1",
+  "case": "c11",
+  "expected": [
+   "code_slide",
+   "diagram_layout"
+  ],
+  "probs": {
+   "code_slide": 0.9148775993983911,
+   "comparison_table": 0.45697864671369204,
+   "diagram_layout": 0.9195256447033727,
+   "math_notation": 0.005269799900698028,
+   "timeline": 0.8615570282274687
+  },
+  "latency_s": 0.73,
+  "cost": 8.82e-06,
+  "err": null
+ },
+ {
+  "model": "microsoft/microsoft-decision-1.1",
+  "case": "c12",
+  "expected": [],
+  "probs": {
+   "code_slide": 0.0016799515096902317,
+   "comparison_table": 0.5172713618988577,
+   "diagram_layout": 0.3522995495464048,
+   "math_notation": 0.021306635076214542,
+   "timeline": 0.005777206167978541
+  },
+  "latency_s": 1.36,
+  "cost": 8.82e-06,
+  "err": null
+ }
+]
