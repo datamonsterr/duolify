@@ -54,3 +54,6 @@ One term, one meaning. Use these words in code, specs and UI copy.
 | **Guided chat** | The chat presentation of a task flow: the guide asks fixed scripted questions as bubbles and the Learner answers with inline widgets or free text. Replaces form filling; costs no Credits. |
 | **Script** | A typed, versioned, client-bundled module that defines a guided chat: ordered steps, widgets, validation, branches and the existing endpoint it submits to. |
 | **Mascot** | The original green robot guide shown as the guided chat's avatar. Name is a working name kept in the message catalogue. |
+| **Skill** | A small, versioned prompt module (at most 150 tokens, one example) loaded on top of a task's always-on core when the request needs it. Stored in `engine/config/skills/<task>.toml`. |
+| **Router** | The component that selects which Skills a request loads: rules, then cache, then a decision model, then a safe default set. It sees structured fields only. |
+| **Input guard** | The single screening policy for learner-supplied text (core plus per-surface skills): blocks attacks and abuse, flags PII, and answers self-harm text with a safe response instead of a model call. |

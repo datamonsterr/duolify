@@ -137,7 +137,7 @@ func (s *Service) beginAttempt(ctx context.Context, owner, id string) (string, e
 		return "", err
 	}
 	if n >= 20 {
-		return "", errors.New("limit_exceeded")
+		return "", limitError(ctx, tx, `SELECT created_at FROM character_screenings WHERE learner_id=$1 AND operation_id IS NULL AND created_at>now()-interval '1 hour' ORDER BY created_at OFFSET $2 LIMIT 1`, owner, int64(n-20), time.Hour)
 	}
 	var op string
 	if err = tx.QueryRow(ctx, `INSERT INTO character_screenings(learner_id,character_id) VALUES($1,$2) RETURNING id::text`, owner, id).Scan(&op); err != nil {

@@ -1,0 +1,1057 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "duolify/character/v2",
+  "description": "Closed CharacterSpec v2. Validated identically by Go, TypeScript and (later) Rust: keywords type, const, enum, required, properties, additionalProperties=false, min/maxLength (code points), pattern, min/maxItems, uniqueItems, uniqueBy (item property), items, oneOf discriminated by const `kind`. Cross-field rules and reason codes live in spec_v2.go / schema-v2.ts and are pinned by v2.fixtures.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "rig_version",
+    "catalog_version",
+    "info",
+    "identity",
+    "body",
+    "clothes",
+    "personality",
+    "expressions",
+    "voice_key"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "rig_version": {
+      "type": "string",
+      "const": "original-v2"
+    },
+    "catalog_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "info": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backstory",
+        "bio",
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "bio": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 280
+        },
+        "backstory": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 800
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "pronouns"
+      ],
+      "properties": {
+        "pronouns": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 24
+        },
+        "label": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 24
+        }
+      }
+    },
+    "body": {
+      "type": "object",
+      "discriminator": "kind",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "age_band",
+            "build",
+            "eyebrows",
+            "eyes",
+            "face_shape",
+            "facial_hair",
+            "glasses",
+            "hair",
+            "head_covering",
+            "height",
+            "kind",
+            "mouth",
+            "nose",
+            "skin_features",
+            "skin_tone"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "human"
+            },
+            "age_band": {
+              "type": "string",
+              "enum": [
+                "child",
+                "teen",
+                "adult",
+                "elder"
+              ]
+            },
+            "build": {
+              "type": "string",
+              "enum": [
+                "slim",
+                "average",
+                "sturdy",
+                "round"
+              ]
+            },
+            "height": {
+              "type": "string",
+              "enum": [
+                "short",
+                "medium",
+                "tall"
+              ]
+            },
+            "glasses": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "color",
+                "style"
+              ],
+              "properties": {
+                "style": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "round",
+                    "square",
+                    "sunglasses",
+                    "goggles"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+              }
+            },
+            "skin_tone": {
+              "type": "string",
+              "enum": [
+                "t01",
+                "t02",
+                "t03",
+                "t04",
+                "t05",
+                "t06",
+                "t07",
+                "t08",
+                "t09",
+                "t10",
+                "t11",
+                "t12",
+                "t13",
+                "t14"
+              ]
+            },
+            "face_shape": {
+              "type": "string",
+              "enum": [
+                "round",
+                "oval",
+                "square",
+                "heart",
+                "long"
+              ]
+            },
+            "hair": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "color",
+                "length",
+                "style",
+                "texture"
+              ],
+              "properties": {
+                "texture": {
+                  "type": "string",
+                  "enum": [
+                    "straight",
+                    "wavy",
+                    "curly",
+                    "coily"
+                  ]
+                },
+                "length": {
+                  "type": "string",
+                  "enum": [
+                    "bald",
+                    "buzz",
+                    "short",
+                    "medium",
+                    "long"
+                  ]
+                },
+                "style": {
+                  "type": "string",
+                  "enum": [
+                    "loose",
+                    "ponytail",
+                    "bun",
+                    "braids",
+                    "locs",
+                    "pigtails",
+                    "mohawk"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+              }
+            },
+            "head_covering": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "color",
+                "style"
+              ],
+              "properties": {
+                "style": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "headscarf",
+                    "turban",
+                    "cap",
+                    "beanie",
+                    "hood",
+                    "helmet",
+                    "headband",
+                    "hat"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+              }
+            },
+            "eyes": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "color",
+                "shape"
+              ],
+              "properties": {
+                "shape": {
+                  "type": "string",
+                  "enum": [
+                    "round",
+                    "oval",
+                    "droopy",
+                    "upturned",
+                    "wide",
+                    "small"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+              }
+            },
+            "eyebrows": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "color",
+                "style"
+              ],
+              "properties": {
+                "style": {
+                  "type": "string",
+                  "enum": [
+                    "straight",
+                    "arched",
+                    "thick",
+                    "thin",
+                    "angled"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+              }
+            },
+            "nose": {
+              "type": "string",
+              "enum": [
+                "small",
+                "round",
+                "pointed",
+                "wide"
+              ]
+            },
+            "mouth": {
+              "type": "string",
+              "enum": [
+                "smile",
+                "line",
+                "open",
+                "smirk"
+              ]
+            },
+            "facial_hair": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "color",
+                "style"
+              ],
+              "properties": {
+                "style": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "stubble",
+                    "moustache",
+                    "goatee",
+                    "short_beard",
+                    "full_beard"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+              }
+            },
+            "skin_features": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "freckles",
+                  "rosy_cheeks",
+                  "vitiligo_patches",
+                  "birthmark"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "age_band",
+            "build",
+            "ears",
+            "eyes",
+            "glasses",
+            "height",
+            "kind",
+            "markings",
+            "mouth",
+            "primary_color",
+            "secondary_color",
+            "species",
+            "tail"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "animal"
+            },
+            "age_band": {
+              "type": "string",
+              "enum": [
+                "child",
+                "teen",
+                "adult",
+                "elder"
+              ]
+            },
+            "build": {
+              "type": "string",
+              "enum": [
+                "slim",
+                "average",
+                "sturdy",
+                "round"
+              ]
+            },
+            "height": {
+              "type": "string",
+              "enum": [
+                "short",
+                "medium",
+                "tall"
+              ]
+            },
+            "glasses": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "color",
+                "style"
+              ],
+              "properties": {
+                "style": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "round",
+                    "square",
+                    "sunglasses",
+                    "goggles"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+              }
+            },
+            "species": {
+              "type": "string",
+              "enum": [
+                "cat",
+                "dog",
+                "fox",
+                "rabbit",
+                "bear",
+                "panda",
+                "wolf",
+                "mouse",
+                "owl",
+                "penguin",
+                "frog",
+                "tiger",
+                "lion",
+                "elephant",
+                "monkey",
+                "raccoon"
+              ]
+            },
+            "primary_color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            },
+            "secondary_color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            },
+            "markings": {
+              "type": "string",
+              "enum": [
+                "none",
+                "stripes",
+                "spots",
+                "patches",
+                "mask",
+                "socks"
+              ]
+            },
+            "ears": {
+              "type": "string",
+              "enum": [
+                "pointy",
+                "round",
+                "floppy",
+                "long",
+                "small"
+              ]
+            },
+            "tail": {
+              "type": "string",
+              "enum": [
+                "none",
+                "short",
+                "long",
+                "fluffy"
+              ]
+            },
+            "eyes": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "color",
+                "shape"
+              ],
+              "properties": {
+                "shape": {
+                  "type": "string",
+                  "enum": [
+                    "round",
+                    "oval",
+                    "sleepy",
+                    "wide"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+              }
+            },
+            "mouth": {
+              "type": "string",
+              "enum": [
+                "smile",
+                "line",
+                "open"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "age_band",
+            "antenna",
+            "base",
+            "build",
+            "eyes",
+            "glasses",
+            "height",
+            "kind",
+            "locomotion",
+            "markings",
+            "mouth",
+            "primary_color",
+            "secondary_color"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "robot"
+            },
+            "age_band": {
+              "type": "string",
+              "enum": [
+                "child",
+                "teen",
+                "adult",
+                "elder"
+              ]
+            },
+            "build": {
+              "type": "string",
+              "enum": [
+                "slim",
+                "average",
+                "sturdy",
+                "round"
+              ]
+            },
+            "height": {
+              "type": "string",
+              "enum": [
+                "short",
+                "medium",
+                "tall"
+              ]
+            },
+            "glasses": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "color",
+                "style"
+              ],
+              "properties": {
+                "style": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "round",
+                    "square",
+                    "sunglasses",
+                    "goggles"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+              }
+            },
+            "base": {
+              "type": "string",
+              "enum": [
+                "boxy",
+                "round",
+                "tall",
+                "tiny"
+              ]
+            },
+            "primary_color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            },
+            "secondary_color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            },
+            "markings": {
+              "type": "string",
+              "enum": [
+                "none",
+                "stripes",
+                "panels",
+                "dots",
+                "bolts"
+              ]
+            },
+            "antenna": {
+              "type": "string",
+              "enum": [
+                "none",
+                "single",
+                "double",
+                "dish"
+              ]
+            },
+            "locomotion": {
+              "type": "string",
+              "enum": [
+                "legs",
+                "wheels",
+                "hover"
+              ]
+            },
+            "eyes": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "color",
+                "shape"
+              ],
+              "properties": {
+                "shape": {
+                  "type": "string",
+                  "enum": [
+                    "screen",
+                    "round",
+                    "visor",
+                    "single"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+              }
+            },
+            "mouth": {
+              "type": "string",
+              "enum": [
+                "smile",
+                "line",
+                "open"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "age_band",
+            "build",
+            "eyes",
+            "glasses",
+            "height",
+            "horns",
+            "kind",
+            "mouth",
+            "primary_color",
+            "secondary_color",
+            "species",
+            "tail",
+            "wings"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "fantasy"
+            },
+            "age_band": {
+              "type": "string",
+              "enum": [
+                "child",
+                "teen",
+                "adult",
+                "elder"
+              ]
+            },
+            "build": {
+              "type": "string",
+              "enum": [
+                "slim",
+                "average",
+                "sturdy",
+                "round"
+              ]
+            },
+            "height": {
+              "type": "string",
+              "enum": [
+                "short",
+                "medium",
+                "tall"
+              ]
+            },
+            "glasses": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "color",
+                "style"
+              ],
+              "properties": {
+                "style": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "round",
+                    "square",
+                    "sunglasses",
+                    "goggles"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+              }
+            },
+            "species": {
+              "type": "string",
+              "enum": [
+                "dragon",
+                "fairy",
+                "ghost",
+                "slime",
+                "alien",
+                "unicorn",
+                "mushroom_sprite",
+                "golem"
+              ]
+            },
+            "primary_color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            },
+            "secondary_color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            },
+            "wings": {
+              "type": "string",
+              "enum": [
+                "none",
+                "feathered",
+                "bat",
+                "insect"
+              ]
+            },
+            "horns": {
+              "type": "string",
+              "enum": [
+                "none",
+                "small",
+                "long",
+                "curled"
+              ]
+            },
+            "tail": {
+              "type": "string",
+              "enum": [
+                "none",
+                "short",
+                "long",
+                "fluffy"
+              ]
+            },
+            "eyes": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "color",
+                "shape"
+              ],
+              "properties": {
+                "shape": {
+                  "type": "string",
+                  "enum": [
+                    "round",
+                    "wide",
+                    "sleepy",
+                    "slit"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+              }
+            },
+            "mouth": {
+              "type": "string",
+              "enum": [
+                "smile",
+                "line",
+                "open"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "clothes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accessories",
+        "bottom",
+        "outerwear",
+        "pattern",
+        "shoes",
+        "top"
+      ],
+      "properties": {
+        "top": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "color",
+            "style"
+          ],
+          "properties": {
+            "style": {
+              "type": "string",
+              "enum": [
+                "none",
+                "tee",
+                "shirt",
+                "sweater",
+                "hoodie",
+                "dress",
+                "overalls"
+              ]
+            },
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            }
+          }
+        },
+        "bottom": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "color",
+            "style"
+          ],
+          "properties": {
+            "style": {
+              "type": "string",
+              "enum": [
+                "none",
+                "shorts",
+                "pants",
+                "skirt"
+              ]
+            },
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            }
+          }
+        },
+        "shoes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "color",
+            "style"
+          ],
+          "properties": {
+            "style": {
+              "type": "string",
+              "enum": [
+                "none",
+                "sneakers",
+                "boots",
+                "sandals"
+              ]
+            },
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            }
+          }
+        },
+        "outerwear": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "color",
+            "style"
+          ],
+          "properties": {
+            "style": {
+              "type": "string",
+              "enum": [
+                "none",
+                "jacket",
+                "coat",
+                "cape",
+                "apron",
+                "lab_coat",
+                "vest"
+              ]
+            },
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9A-Fa-f]{6}$"
+            }
+          }
+        },
+        "pattern": {
+          "type": "string",
+          "enum": [
+            "solid",
+            "stripes",
+            "dots",
+            "checks"
+          ]
+        },
+        "accessories": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "uniqueBy": "kind",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "color",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "scarf",
+                  "necklace",
+                  "badge",
+                  "backpack",
+                  "headphones",
+                  "bow_tie",
+                  "tie",
+                  "watch",
+                  "gloves",
+                  "hat"
+                ]
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9A-Fa-f]{6}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "personality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "persona_prompt",
+        "speaking_style",
+        "traits"
+      ],
+      "properties": {
+        "traits": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "speaking_style": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "persona_prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    },
+    "expressions": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "idle",
+          "happy",
+          "sad",
+          "thinking",
+          "celebrate",
+          "surprised",
+          "confused"
+        ]
+      }
+    },
+    "voice_key": {
+      "type": "string",
+      "enum": [
+        "voice-provisional-guide",
+        "voice-provisional-supporter",
+        "voice-provisional-companion"
+      ]
+    }
+  }
+}

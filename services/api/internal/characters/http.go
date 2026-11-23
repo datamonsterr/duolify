@@ -123,6 +123,7 @@ func (h *Handler) library(w http.ResponseWriter, r *http.Request) {
 			status = 503
 		case "limit_exceeded":
 			status = 429
+			setRetryAfter(w, err)
 		case "version_conflict", "published_cast_locked":
 			status = 409
 		case "invalid_spec", "invalid_cast", "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "prompt_injection":
@@ -253,6 +254,7 @@ func (h *Handler) creation(w http.ResponseWriter, r *http.Request, owner string)
 			code = "not_found"
 		case "limit_exceeded":
 			status = 429
+			setRetryAfter(w, err)
 		case "insufficient_credits":
 			status = 402
 			code = "insufficient_credits"
