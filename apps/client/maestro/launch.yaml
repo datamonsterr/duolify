@@ -3,6 +3,9 @@ androidWebViewHierarchy: devtools
 ---
 - launchApp:
     clearState: true
+- extendedWaitUntil:
+    visible: "Learn any topic.*"
+    timeout: 45000
 - takeScreenshot: launch
 - scrollUntilVisible:
     element: "Get started"
