@@ -4,6 +4,9 @@ import { tutorService, type RegionAsk } from "../../chat/tutor";
 import { useTutor } from "../../chat/useTutor";
 import type { NoteAnchor } from "../../notes/note-queue";
 import { anchorToWire } from "../../notes/note-queue";
+import { VoiceButton } from "../../voice/VoiceButton";
+import { DictationCountdown } from "../../voice/DictationCountdown";
+import { useDictationWindow } from "../../voice/useDictationWindow";
 import type { RegionRect } from "./gestures";
 
 export type PanelOutcome = {
@@ -44,8 +47,10 @@ export default function AnswerPanel({
   onRestore,
   onClose,
 }: Props) {
+  // "voice" from the moment a dictated question lands in the composer until the Learner types fresh.
+  const [asked, setAsked] = useState<"text" | "voice">("text");
   const ask: RegionAsk | undefined = region
-    ? { rect: region, at_ms: Math.round(atMs), input: "text" }
+    ? { rect: region, at_ms: Math.round(atMs), input: asked }
     : undefined;
   const tutor = useTutor(
     courseId,
@@ -54,6 +59,15 @@ export default function AnswerPanel({
     { lesson_id: lessonId, slide_index: slideIndex },
     ask,
   );
+  const dictation = useDictationWindow({
+    entryPoint: "answer_panel",
+    draft: tutor.draft,
+    send: () => sendNow(),
+  });
+  const sendNow = () => {
+    dictation.noteSent();
+    tutor.send();
+  };
   // Only what was asked in this panel is shown; earlier turns stay in the shared thread.
   const [baseline, setBaseline] = useState<Set<string> | null>(null);
   if (baseline === null && !tutor.loading)
@@ -244,7 +258,7 @@ export default function AnswerPanel({
         className="imm-answer-compose"
         onSubmit={(e) => {
           e.preventDefault();
-          tutor.send();
+          sendNow();
         }}
       >
         <label>
@@ -256,15 +270,33 @@ export default function AnswerPanel({
             maxLength={2000}
             placeholder={shown.length ? "Ask a follow-up" : "Ask about this"}
             disabled={busy}
-            onChange={(e) => tutor.setDraft(e.target.value)}
+            onChange={(e) => {
+              if (tutor.draft === "") setAsked("text");
+              tutor.setDraft(e.target.value);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                tutor.send();
+                sendNow();
               }
             }}
           />
         </label>
+        <DictationCountdown
+          counting={dictation.counting}
+          onCancel={dictation.cancelAuto}
+        />
+        <VoiceButton
+          purpose="tutor"
+          entryPoint="answer_panel"
+          lessonId={lessonId}
+          disabled={busy || !tutor.online}
+          onTranscript={({ text, language }) => {
+            setAsked("voice");
+            tutor.setDraft(text);
+            dictation.begin(text, language);
+          }}
+        />
         {streaming ? (
           <button
             type="button"
