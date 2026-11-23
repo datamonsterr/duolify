@@ -41,6 +41,12 @@ type Record struct {
 	ID      string        `json:"id"`
 	Version int           `json:"version"`
 	Spec    CharacterSpec `json:"spec"`
+	// Document is the v2 reading of the stored document (read-time upgrade for v1).
+	Document *SpecV2 `json:"document,omitempty"`
+	// ReadOnly documents come from a newer build and refuse writes.
+	ReadOnly bool `json:"read_only,omitempty"`
+	// Checksum is the SHA-256 of the compiled idle avatar (v2 versions only).
+	Checksum string `json:"checksum,omitempty"`
 }
 
 // EditRequest pins the version the learner inspected.
@@ -68,7 +74,7 @@ var ErrNotFound = errors.New("not_found")
 
 func boundedReason(reason string) string {
 	switch reason {
-	case "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "prompt_injection", "invalid_spec", "limit_exceeded", "screening_unavailable":
+	case "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "prompt_injection", "invalid_spec", "limit_exceeded", "screening_unavailable", "read_only":
 		return reason
 	}
 	return "screening_unavailable"
@@ -76,7 +82,7 @@ func boundedReason(reason string) string {
 
 // List returns current owned Characters only.
 func (s *Service) List(ctx context.Context, owner string) ([]Record, error) {
-	rows, err := s.pool.Query(ctx, `SELECT c.id::text,c.current_version,v.spec FROM characters c JOIN character_versions v ON v.character_id=c.id AND v.version=c.current_version WHERE c.learner_id=$1 AND c.deleted_at IS NULL ORDER BY c.created_at,c.id`, owner)
+	rows, err := s.pool.Query(ctx, `SELECT c.id::text,c.current_version,v.spec,v.compile_sha256 FROM characters c JOIN character_versions v ON v.character_id=c.id AND v.version=c.current_version WHERE c.learner_id=$1 AND c.deleted_at IS NULL ORDER BY c.created_at,c.id`, owner)
 	if err != nil {
 		return nil, err
 	}
@@ -85,14 +91,13 @@ func (s *Service) List(ctx context.Context, owner string) ([]Record, error) {
 	for rows.Next() {
 		var r Record
 		var raw []byte
-		if err := rows.Scan(&r.ID, &r.Version, &raw); err != nil {
+		var sum *string
+		if err := rows.Scan(&r.ID, &r.Version, &raw, &sum); err != nil {
 			return nil, err
 		}
-		spec, err := ValidateSpecJSON(raw)
-		if err != nil {
+		if fillRecord(&r, raw, sum) != nil {
 			continue
 		}
-		r.Spec = *spec
 		out = append(out, r)
 	}
 	return out, rows.Err()
@@ -102,21 +107,20 @@ func (s *Service) List(ctx context.Context, owner string) ([]Record, error) {
 func (s *Service) Get(ctx context.Context, owner, id string) (Record, error) {
 	var r Record
 	var raw []byte
+	var sum *string
 	if _, err := uuid.Parse(id); err != nil {
 		return r, ErrNotFound
 	}
-	err := s.pool.QueryRow(ctx, `SELECT c.id::text,c.current_version,v.spec FROM characters c JOIN character_versions v ON v.character_id=c.id AND v.version=c.current_version WHERE c.id=$1 AND c.learner_id=$2 AND c.deleted_at IS NULL`, id, owner).Scan(&r.ID, &r.Version, &raw)
+	err := s.pool.QueryRow(ctx, `SELECT c.id::text,c.current_version,v.spec,v.compile_sha256 FROM characters c JOIN character_versions v ON v.character_id=c.id AND v.version=c.current_version WHERE c.id=$1 AND c.learner_id=$2 AND c.deleted_at IS NULL`, id, owner).Scan(&r.ID, &r.Version, &raw, &sum)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return r, ErrNotFound
 	}
 	if err != nil {
 		return r, err
 	}
-	spec, err := ValidateSpecJSON(raw)
-	if err != nil {
+	if fillRecord(&r, raw, sum) != nil {
 		return r, errors.New("invalid_spec")
 	}
-	r.Spec = *spec
 	return r, nil
 }
 
@@ -140,7 +144,7 @@ func (s *Service) beginAttempt(ctx context.Context, owner, id string) (string, e
 		return "", limitError(ctx, tx, `SELECT created_at FROM character_screenings WHERE learner_id=$1 AND operation_id IS NULL AND created_at>now()-interval '1 hour' ORDER BY created_at OFFSET $2 LIMIT 1`, owner, int64(n-20), time.Hour)
 	}
 	var op string
-	if err = tx.QueryRow(ctx, `INSERT INTO character_screenings(learner_id,character_id) VALUES($1,$2) RETURNING id::text`, owner, id).Scan(&op); err != nil {
+	if err = tx.QueryRow(ctx, `INSERT INTO character_screenings(learner_id,character_id) VALUES($1,$2) RETURNING id::text`, owner, nullableID(id)).Scan(&op); err != nil {
 		return "", err
 	}
 	return op, tx.Commit(ctx)
@@ -163,7 +167,10 @@ func (s *Service) Edit(ctx context.Context, owner, id string, in EditRequest) (R
 		s.emit(ctx, owner, "character_rejected", map[string]any{"operation": "manual_edit", "reason_code": reason})
 		return Record{}, errors.New(reason)
 	}
-	spec, err := ValidateSpecJSON(in.Spec)
+	if old.ReadOnly {
+		return reject("read_only")
+	}
+	w, err := prepareWrite(in.Spec)
 	if err != nil {
 		return reject("invalid_spec")
 	}
@@ -173,10 +180,7 @@ func (s *Service) Edit(ctx context.Context, owner, id string, in EditRequest) (R
 	if s.screener == nil {
 		return reject("screening_unavailable")
 	}
-	compiled, err := CompileSVG(spec, "idle")
-	if err != nil {
-		return reject("invalid_spec")
-	}
+	compiled := w.compiled
 	screenCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	response, err := s.screener.ScreenCharacter(screenCtx, &pb.ScreenCharacterRequest{SpecJson: string(in.Spec), CompiledAppearance: compiled})
 	cancel()
@@ -214,7 +218,7 @@ func (s *Service) Edit(ctx context.Context, owner, id string, in EditRequest) (R
 		return Record{}, errors.New("version_conflict")
 	}
 	version := old.Version + 1
-	if _, err = tx.Exec(ctx, `INSERT INTO character_versions(character_id,version,spec) VALUES($1,$2,$3)`, id, version, in.Spec); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO character_versions(character_id,version,spec,compile_sha256) VALUES($1,$2,$3,$4)`, id, version, in.Spec, w.checksum); err != nil {
 		return Record{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE character_screenings SET verdict='approved',policy_version=$2 WHERE id=$1`, op, response.PolicyVersion); err != nil {
@@ -223,8 +227,8 @@ func (s *Service) Edit(ctx context.Context, owner, id string, in EditRequest) (R
 	if err = tx.Commit(ctx); err != nil {
 		return Record{}, err
 	}
-	s.emit(ctx, owner, "character_updated", map[string]any{"character_id": id, "character_version": version, "fields_changed": changedFields(old.Spec, *spec)})
-	return Record{ID: id, Version: version, Spec: *spec}, nil
+	s.emit(ctx, owner, "character_updated", map[string]any{"character_id": id, "character_version": version, "fields_changed": changedFields(old.Spec, w.projected), "schema_version": w.schema})
+	return Record{ID: id, Version: version, Spec: w.projected, Document: w.doc, Checksum: derefStr(w.checksum)}, nil
 }
 func changedFields(before, after CharacterSpec) []string {
 	a, _ := json.Marshal(before)
