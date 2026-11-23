@@ -1,7 +1,9 @@
 ## 1. Preflight
 
-- [ ] 1.1 Owner: create the Hetzner and Cloudflare accounts. Report Railway Postgres `wal_level`, the role's REPLICATION attribute, the service region and TCP-proxy reachability from Helsinki. Record the provisional plan A/plan B choice (human).
-- [x] 1.4 Owner: choose the backup/DR location and the privacy-notice wording. Decided 2026-11-17 (#251): Hetzner Object Storage in Falkenstein or Nuremberg; no Contabo copy; the notice states EU storage (app in Finland, backups in Germany, served through Cloudflare).
+- [~] 1.1 Obsolete in part (ADR 0015 D1: fresh deploy, nothing to migrate from Railway). The Hetzner and Cloudflare accounts exist (staging live since 2026-11-22). The Railway Postgres facts and the plan A/plan B choice are dropped.
+
+- [x] 1.4 Owner: choose the backup/DR location and the privacy-notice wording. Decided 2026-11-17 (#251) for Hetzner Object Storage; superseded by ADR 0015: Cloudflare R2 holds app assets and backups (EU jurisdiction wording to be confirmed with the notice).
+
 - [~] 1.2 Dropped (owner decision D1, 2026-11-22: nothing to migrate from Railway, Duolify deploys fresh on Hetzner). The logical-replication check was not merged.
 - [x] 1.3 Add `mise run infra:load-baseline` (k6 1k-DAU read mix, public and authenticated, plus a 10-minute Tutor chat SSE stream through the API with a mock Engine behind it; heartbeat gap must stay under 25 s). Record the Railway baseline in `docs/infra/baseline.md`: server-side p95, plus client-side p95 from a Southeast Asian vantage point.
 - [~] 1.5 Dropped with 1.2 (D1).
@@ -12,14 +14,17 @@
 - [x] 2.2 Integration: SSE routes in chat, courses and lessontest emit heartbeats while idle.
 - [x] 2.3 Unit: cache-header policy applies only to immutable, non-personal routes.
 - [x] 2.4 Implement the heartbeat and cache headers. Add Workers static-assets config for the web build.
-- [ ] 2.5 Owner: Cloudflare zone and a proxied API record pointing at Railway first. Web client on Workers static assets (human).
+- [~] 2.5 Obsolete (ADR 0015 D1: no Railway origin to proxy). Cloudflare zone `duolify.online`, proxied records and the web client are provisioned for staging (`docs/infra/staging.md`); production DNS is part of 7.1.
 
 ## 3. Objects
 
-- [ ] 3.1 Integration: `infra:s3-conformance` covers versioned put/list/get-by-version, delete-marker restore, `If-None-Match: *` 412 and retention lock. It runs against an env-provided endpoint: Hetzner Object Storage, RustFS as the fallback, and Contabo if the owner chooses it.
-- [ ] 3.2 Integration: `infra:s3-copy-verify` copies all versions and delete markers and checks count, bytes, checksum sample and versions.
-- [ ] 3.3 e2e/integration: the player and backup read-fallback reads the new store first and the old store second. It is config-gated and off by default.
-- [ ] 3.4 Implement 3.1–3.3. Update `docs/data-inventory.md` and `infra/backup/README.md` (assets on Hetzner Object Storage in Helsinki, backups and DR in the owner-chosen location, 35-day read-only source).
+- [ ] 3.1 Integration: `infra:s3-conformance` covers put/list/get, `If-None-Match: *` 412 and the delete behaviour that applies to Cloudflare R2 (R2 has no bucket versioning, so versioned put/list/get-by-version and retention lock are checked only on RustFS). It runs against an env-provided endpoint: R2 first, RustFS as the local fallback (draft PR #260). Hetzner Object Storage and Contabo are dropped (ADR 0015).
+
+- [~] 3.2 Obsolete (ADR 0015 D1): no copy from an old store, there is no old store to copy from.
+
+- [~] 3.3 Obsolete (ADR 0015 D1): no old-store read fallback.
+
+- [x] 3.4 Update `docs/data-inventory.md` and `infra/backup/README.md` for the real layout: assets and backups on Cloudflare R2 (`duolify-assets`, `duolify-backups`), compute on Hetzner `fsn1` (staging), no Railway storage or 35-day read-only source.
 
 ## 4. Prod stack and deploy
 
@@ -33,32 +38,35 @@
   - a hardening runbook;
   - a deploy job behind `ci-ok` on Namespace runners.
 
-## 5. Switchover gate
+## 5. Switchover gate (obsolete)
 
-- [ ] 5.1 Integration: the gate holds new transactions for at most 15 s, waits for session advisory lock holders and soft-stops River. It swaps the pgx pool to a second database, restarts River and releases with no request errors. On a failed check it releases back to the old pool.
-- [ ] 5.2 Unit: gate state machine and timeout handling. The operator-only trigger rejects non-operators.
-- [ ] 5.4 Integration: in read-only mode, reads succeed, writes return `503` with `Retry-After` and River is stopped. Leaving the mode resumes writes. e2e: the client retries a progress write after `503`.
-- [ ] 5.3 Implement the gate, the standby mode, the read-only mode and the sequence-sync step (`setval` from publisher values plus a margin).
+- [~] 5.1 Obsolete (ADR 0015 D1): no database switchover gate between two live databases.
 
-## 6. Staging rehearsal (Helsinki)
+- [~] 5.2 Obsolete (ADR 0015 D1): no switchover gate state machine.
 
-- [ ] 6.1 Owner: staging VMs in `hel1`, the private network, a firewall limited to Cloudflare ranges, Object Storage buckets (Helsinki assets, backup location from 1.4) and GitHub environment secrets (human).
-- [ ] 6.2 Run on staging:
-  - the restore drill;
+- [~] 5.4 Obsolete (ADR 0015 D1): no migration read-only mode.
+
+- [~] 5.3 Obsolete (ADR 0015 D1): no gate, standby mode or sequence sync.
+
+## 6. Staging
+
+- [x] 6.1 Owner: staging provisioned 2026-11-22 on one Hetzner cx23 in `fsn1` (not `hel1`: no affordable x86 type was in stock, see `docs/infra/staging.md`), firewall limited to Cloudflare ranges plus key-only SSH, R2 buckets, GitHub environment `staging` secrets. Live at staging.duolify.online.
+
+- [ ] 6.2 Run on staging (fresh deploy, no cutover rehearsal; ADR 0015 D1):
+  - the restore drill and the PITR drill;
   - `engine:eval` and the live sample eval;
   - the load baseline;
-  - a full rehearsal of the chosen cutover path against a Railway staging database: plan A steps 1–6 with rollback and reverse replication, or plan B with a production-sized copy in 12 minutes or less, with abort;
   - client-side latency from a Southeast Asian vantage point, recorded in `docs/infra/baseline.md`.
-- [ ] 6.3 Write `docs/infra/cutover-runbook.md`: preflight, the plan A/plan B decision record, plan A steps 1–6, plan B steps, PostHog parity check, rollback and slot cleanup.
 
-## 7. Production migration
+- [x] 6.3 Write `docs/infra/cutover-runbook.md` as the fresh-deploy and disaster-recovery runbook (preflight, deploy, verify, PostHog parity check, rollback, restore).
 
-- [ ] 7.1 Owner: provision prod VMs and secrets. Execute the runbook. Confirm PostHog parity and eval smoke at each step (human).
+## 7. Production deploy
+
+- [ ] 7.1 Owner: provision the production VM, R2 buckets and secrets (location open, see `docs/infra/staging.md`). Run the fresh-deploy runbook and confirm PostHog parity and eval smoke (human).
 
 ## 8. Decommission
 
-- [ ] 8.1 After 30 clean days:
-  - drop reverse replication;
+- [ ] 8.1 After production is live and 30 clean days (gated on #242; no reverse replication exists):
   - remove Railway services and CI jobs;
   - archive `.railway/`;
   - amend ADR 0003 and ADR 0008;
