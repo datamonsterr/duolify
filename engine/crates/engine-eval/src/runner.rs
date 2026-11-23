@@ -1861,11 +1861,29 @@ impl Runner {
             let mut primary_completion: Option<engine_core::Completion> = None;
 
             let live = self.provider_name != "mock" || self.custom_router.is_some();
-            let response_text = if live
+            // Provider-reported spend for tasks that are not token priced (voice transcription).
+            let mut extra_cost_usd = 0.0;
+            let response_text = if case.task == "transcribe" {
+                let scored = if live {
+                    crate::transcribe::live(
+                        &case.input,
+                        &router,
+                        &self.dataset_name,
+                        &self.dataset_revision,
+                    )
+                    .await?
+                } else {
+                    crate::transcribe::recorded(&case.input).await?
+                };
+                extra_cost_usd = scored.cost_usd;
+                _attempts = scored.attempts;
+                scored.text
+            } else if live
                 && matches!(
                     case.task.as_str(),
                     "steer_screen" | "character_screen" | "course_screen" | "screen_review"
-                ) {
+                )
+            {
                 let (text, outcome) = evaluate_live_screen(&case.task, &case.input, &router).await;
                 _attempts = outcome.attempts;
                 primary_completion = outcome.completion;
@@ -2101,6 +2119,7 @@ impl Runner {
                 (in_tok, out_tok, cost_nanos as f64 / 1_000_000_000.0)
             };
 
+            case_cost_usd += extra_cost_usd;
             for check in &case.checks {
                 let valid = match check.kind.as_str() {
                     "path_equals" => {
@@ -2268,7 +2287,7 @@ impl Runner {
                 latency_ms: _attempts.iter().map(|a| u64::from(a.latency_ms)).sum(),
                 fallback_used: _attempts.iter().any(|a| a.fallback_used),
                 // A failing or retried live case keeps a short excerpt of what was scored, for diagnosis.
-                output: if live && (!passed || _attempts.len() > 1) {
+                output: if live && (!passed || _attempts.len() > 1 || case.task == "transcribe") {
                     response_text.chars().take(1200).collect()
                 } else {
                     String::new()
