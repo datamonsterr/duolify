@@ -1,0 +1,152 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "guided-script.schema.json",
+  "type": "object",
+  "required": ["id", "version", "entryPoints", "flag", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z]+(\\.[a-z_]+)+$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "entryPoints": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "flag": { "type": "string", "pattern": "^FEATURE_GUIDED_[A-Z_]+$" },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": { "$ref": "#/definitions/step" }
+    }
+  },
+  "definitions": {
+    "expr": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["eq"],
+          "additionalProperties": false,
+          "properties": {
+            "eq": { "type": "array", "minItems": 2, "maxItems": 2 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["in"],
+          "additionalProperties": false,
+          "properties": {
+            "in": { "type": "array", "minItems": 2, "maxItems": 2 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["answered"],
+          "additionalProperties": false,
+          "properties": { "answered": { "type": "string" } }
+        },
+        {
+          "type": "object",
+          "required": ["not"],
+          "additionalProperties": false,
+          "properties": { "not": { "$ref": "#/definitions/expr" } }
+        }
+      ]
+    },
+    "step": {
+      "type": "object",
+      "required": ["id", "widget", "promptKey", "persist"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "widget": {
+          "enum": [
+            "single",
+            "multi",
+            "chips+text",
+            "time",
+            "date",
+            "number",
+            "toggle",
+            "text",
+            "longtext",
+            "file",
+            "rating",
+            "confirm",
+            "email",
+            "code",
+            "password"
+          ]
+        },
+        "promptKey": { "type": "string" },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "labelKey"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "labelKey": { "type": "string" }
+            }
+          }
+        },
+        "validate": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "enum": [
+                "string",
+                "hhmm",
+                "date",
+                "number",
+                "enum",
+                "multi",
+                "email",
+                "code",
+                "boolean",
+                "rating",
+                "file"
+              ]
+            }
+          }
+        },
+        "limit": { "type": "string" },
+        "skippable": { "type": "boolean" },
+        "persist": { "type": "boolean" },
+        "when": { "$ref": "#/definitions/expr" },
+        "next": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["when", "to"],
+            "additionalProperties": false,
+            "properties": {
+              "when": { "$ref": "#/definitions/expr" },
+              "to": { "type": "string" }
+            }
+          }
+        },
+        "analyticsId": { "type": "string" },
+        "summaryOf": { "type": "array", "items": { "type": "string" } },
+        "submit": {
+          "type": "string",
+          "pattern": "^(GET|POST|PUT|PATCH|DELETE) /v1/"
+        },
+        "destructive": { "type": "boolean" },
+        "input": {
+          "type": "object",
+          "required": ["name", "autocomplete"],
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "autocomplete": { "type": "string" },
+            "inputMode": { "type": "string" }
+          }
+        },
+        "errorKey": { "type": "string" }
+      }
+    }
+  }
+}
