@@ -90,6 +90,9 @@ for (const mobile of [false, true]) {
       hasTouch: mobile,
     });
     test.beforeEach(async ({ page }) => {
+      await page.addInitScript(() =>
+        localStorage.setItem("duolify.guided.course_steer", "off"),
+      );
       await page.emulateMedia({
         colorScheme: mobile ? "dark" : "light",
         reducedMotion: "reduce",

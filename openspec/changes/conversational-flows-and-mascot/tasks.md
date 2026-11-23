@@ -24,8 +24,8 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 
 ## 3. Migrate course creation (M)
 
-- [ ] 3.1 e2e: brief chat to confirmed revision, no preview/Credits side effects, mobile sheet
-- [ ] 3.2 Scripts `course.brief`, `course.level`, `course.steer`; outline proposals stay quoted; update brief draft rules
+- [x] 3.1 e2e: brief chat to confirmed revision, no preview/Credits side effects, mobile sheet
+- [x] 3.2 Scripts `course.brief`, `course.level`, `course.steer`; outline proposals stay quoted; update brief draft rules
 
 ## 4. Free-text routing (L, two PRs: prefilter/FAQ, classifier)
 

@@ -1,6 +1,18 @@
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./accounts-fixture";
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_steer", "off"),
+  );
+});
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_steer", "off"),
+  );
+});
+
 const course = "c1111111-1111-4111-8111-111111111111";
 type Rec = {
   id: string;
@@ -162,6 +174,9 @@ for (const mobile of [false, true]) {
       hasTouch: mobile,
     });
     test.beforeEach(async ({ page }) => {
+      await page.addInitScript(() =>
+        localStorage.setItem("duolify.guided.course_steer", "off"),
+      );
       await page.emulateMedia({
         colorScheme: mobile ? "dark" : "light",
         reducedMotion: "reduce",

@@ -24,9 +24,12 @@ import {
   type BriefService,
 } from "./brief";
 import "./course-brief.css";
+import { GuidedBrief } from "../guided-chat/GuidedBrief";
+import { guidedEnabled } from "../guided-chat/flags";
 import { CoursePreview } from "./CoursePreview";
 import { SharedDemo } from "./SharedDemo";
 import { AppLink } from "../../lib/navigation";
+import { useUiPreferences } from "../design/localization/Preferences";
 
 // Covers a stalled network as well as an assistant failure; API attempts finish sooner.
 async function withDeadline<T>(request: Promise<T>): Promise<T> {
@@ -105,6 +108,9 @@ export function CourseBrief({
   initialBrief?: Brief;
 }) {
   const [draft, setDraft] = useState(() => initial(learnerId, initialBrief));
+  const { t } = useUiPreferences();
+  const guided = guidedEnabled("course_brief", learnerId);
+  const [guidedEpoch, setGuidedEpoch] = useState(0);
   const [demo, setDemo] = useState(false);
   const [demoEpoch, setDemoEpoch] = useState(0);
   const demoTrigger = useRef<HTMLButtonElement>(null);
@@ -341,50 +347,107 @@ export function CourseBrief({
       </form>
     );
   }
+  const chatting = guided && previewStep === 1 && !draft.revision;
+  const icon = (d: string) => (
+    <svg
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={d} />
+    </svg>
+  );
+  const demoButton = (
+    <Button
+      ref={demoTrigger}
+      variant="secondary"
+      aria-label={t("g.brief.example")}
+      className="course-brief-icon"
+      onClick={() => {
+        setDemoEpoch((epoch) => epoch + 1);
+        setDemo(true);
+      }}
+    >
+      {icon("M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z")}
+    </Button>
+  );
   const content = (
     <section
-      className="course-brief guided-demo"
+      className={`course-brief guided-demo${chatting ? " course-brief--chat" : ""}`}
       aria-labelledby="create-course-title"
     >
-      <header className="guided-demo-top">
-        <AppLink href="/courses">Cancel and keep draft</AppLink>
-        <h1 id="create-course-title">Create a course</h1>
-        <ol className="brief-steps" aria-label="Creation steps">
-          <li aria-current={previewStep === 1 ? "step" : undefined}>1 Brief</li>
-          <li aria-current={previewStep === 2 ? "step" : undefined}>
-            2 Preview
-          </li>
-          <li aria-current={previewStep === 3 ? "step" : undefined}>
-            3 Outline
-          </li>
-          <li aria-current={previewStep === 4 ? "step" : undefined}>
-            4 Create
-          </li>
-        </ol>
-      </header>
-      <Button
-        ref={demoTrigger}
-        variant="secondary"
-        onClick={() => {
-          setDemoEpoch((epoch) => epoch + 1);
-          setDemo(true);
-        }}
-      >
-        Explore shared example
-      </Button>
-      <p>
-        AI uses your answers to shape your course. You can skip any question or
-        use the form.
-      </p>
-      <p>
-        {config?.enabled && config.credits !== null
-          ? `Clarifying: ${config.credits} credits · platform paid.`
-          : "Form entry is available while the assistant is disabled."}{" "}
-        Nothing is charged until you confirm and request a separately quoted
-        preview.
-      </p>
+      {chatting ? (
+        <header className="course-brief-bar">
+          <AppLink
+            href="/courses"
+            aria-label={t("g.brief.cancel")}
+            className="course-brief-icon"
+          >
+            {icon("M15 6l-6 6 6 6")}
+          </AppLink>
+          <h1 id="create-course-title">Create a course</h1>
+          {demoButton}
+        </header>
+      ) : (
+        <>
+          <header className="guided-demo-top">
+            <AppLink href="/courses">Cancel and keep draft</AppLink>
+            <h1 id="create-course-title">Create a course</h1>
+            <ol className="brief-steps" aria-label="Creation steps">
+              <li aria-current={previewStep === 1 ? "step" : undefined}>
+                1 Brief
+              </li>
+              <li aria-current={previewStep === 2 ? "step" : undefined}>
+                2 Preview
+              </li>
+              <li aria-current={previewStep === 3 ? "step" : undefined}>
+                3 Outline
+              </li>
+              <li aria-current={previewStep === 4 ? "step" : undefined}>
+                4 Create
+              </li>
+            </ol>
+          </header>
+          {demoButton}
+        </>
+      )}
+      {!guided && (
+        <>
+          <p>
+            AI uses your answers to shape your course. You can skip any question
+            or use the form.
+          </p>
+          <p>
+            {config?.enabled && config.credits !== null
+              ? `Clarifying: ${config.credits} credits · platform paid.`
+              : "Form entry is available while the assistant is disabled."}{" "}
+            Nothing is charged until you confirm and request a separately quoted
+            preview.
+          </p>
+        </>
+      )}
       {error && <p role="alert">{error}</p>}
+      {previewStep === 1 && guided && !draft.revision && (
+        <GuidedBrief
+          key={guidedEpoch}
+          learnerId={learnerId}
+          seed={draft.brief}
+          service={service}
+          onConfirmed={(revision) => setDraft((d) => ({ ...d, revision }))}
+        />
+      )}
+      {guided && draft.revision && (
+        <p role="status">{t("g.brief.confirmed")}</p>
+      )}
       {previewStep === 1 &&
+        !guided &&
         (draft.form ? (
           <div className="guided-fallback">
             <h2>Course brief</h2>
@@ -438,7 +501,10 @@ export function CourseBrief({
           onBack={() => {
             setPreviewStep(1);
             setPanelOpen(false);
-            setDraft((d) => ({ ...d, form: true }));
+            if (guided) {
+              setGuidedEpoch((n) => n + 1);
+              setDraft((d) => ({ ...d, revision: null }));
+            } else setDraft((d) => ({ ...d, form: true }));
           }}
         />
       )}

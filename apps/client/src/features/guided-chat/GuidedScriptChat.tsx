@@ -339,7 +339,7 @@ export function GuidedScriptChat({
   const summary =
     step?.widget === "confirm"
       ? (step.summaryOf ?? [])
-          .filter((id) => state.answers[id])
+          .filter((id) => state.answers[id] && !state.answers[id].skipped)
           .map((id) => ({
             label: label(stepById(script, id)!.promptKey),
             answer: display(stepById(script, id)!, state.answers[id]),

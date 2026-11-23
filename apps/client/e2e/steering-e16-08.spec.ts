@@ -1,5 +1,11 @@
 import { test, expect } from "./accounts-fixture";
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_steer", "off"),
+  );
+});
+
 const course = "c1111111-1111-4111-8111-111111111111";
 
 for (const mobile of [false, true]) {
@@ -14,6 +20,9 @@ for (const mobile of [false, true]) {
     test("confirm fresh diff applies outline changes with confirm dialog", async ({
       page,
     }) => {
+      await page.addInitScript(() =>
+        localStorage.setItem("duolify.guided.course_steer", "off"),
+      );
       await page.emulateMedia({
         colorScheme: mobile ? "dark" : "light",
         reducedMotion: "reduce",
@@ -143,6 +152,9 @@ for (const mobile of [false, true]) {
     test("rejects stale and expired proposals and shows recovery", async ({
       page,
     }) => {
+      await page.addInitScript(() =>
+        localStorage.setItem("duolify.guided.course_steer", "off"),
+      );
       await page.emulateMedia({
         colorScheme: mobile ? "light" : "dark",
         reducedMotion: "reduce",
