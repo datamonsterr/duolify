@@ -90,8 +90,8 @@ maestro test --test-output-dir mobile-screens -e "CODE=$code" maestro/android-si
 adb shell input keyevent 111
 maestro test --test-output-dir mobile-screens maestro/android-lesson.yaml
 adb logcat -d > mobile-screens/android-logcat.txt
-# Tauri re-injects its bridge into the sandboxed lesson frame and logs "Cannot redefine property"; that is expected there.
-if grep -Ei 'CONSOLE.*(Content Security Policy|Refused to (execute|load|connect|frame)|Uncaught (Error|TypeError|ReferenceError))' mobile-screens/android-logcat.txt | grep -v 'Cannot redefine property'; then
+# Tauri re-injects its bridge into the sandboxed lesson frame and logs "Cannot redefine property" or a CSP refusal of its inline script; the frame CSP is working as intended.
+if grep -Ei 'CONSOLE.*(Content Security Policy|Refused to (execute|load|connect|frame)|Uncaught (Error|TypeError|ReferenceError))' mobile-screens/android-logcat.txt | grep -v -e 'Cannot redefine property' -e 'lesson-frame.html.*Refused to execute inline script'; then
   echo "WebView reported a CSP or JavaScript error" >&2
   exit 1
 fi
