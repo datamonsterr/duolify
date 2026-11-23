@@ -125,6 +125,22 @@ impl HttpProvider {
         req.json(&body)
     }
 }
+/// OpenRouter answers audio on its own path under the same API root as chat completions.
+fn audio_url(chat_url: &str, endpoint: &str) -> String {
+    let root = chat_url.find("/api/").map_or(chat_url, |i| &chat_url[..i]);
+    format!("{}{endpoint}", root.trim_end_matches('/'))
+}
+
+/// A two or three letter lowercase code, else unknown: the value is logged and counted, so
+/// provider free text never passes through.
+fn language_code(value: &Value) -> String {
+    value
+        .as_str()
+        .map(|l| l.trim().to_lowercase())
+        .filter(|l| (2..=3).contains(&l.len()) && l.bytes().all(|b| b.is_ascii_lowercase()))
+        .unwrap_or_default()
+}
+
 #[async_trait]
 impl LlmProvider for HttpProvider {
     fn name(&self) -> &'static str {
@@ -468,6 +484,71 @@ impl LlmProvider for HttpProvider {
         );
         Ok(Box::pin(output))
     }
+    /// OpenRouter `POST /api/v1/audio/transcriptions`: base64 audio, data collection denied and
+    /// zero data retention required (ADR 0021). One model per request; the caller owns fallback.
+    async fn transcribe(
+        &self,
+        route: &Route,
+        model: &str,
+        audio: &[u8],
+        container: &str,
+        language: Option<&str>,
+    ) -> Result<engine_core::transcribe::Transcription> {
+        use base64::Engine as _;
+        if self.anthropic {
+            bail!("the direct Anthropic route has no transcription endpoint");
+        }
+        let endpoint = route
+            .endpoint
+            .as_deref()
+            .context("transcription route has no endpoint")?;
+        let mut body = json!({
+            "model": model,
+            "input_audio": {
+                "data": base64::engine::general_purpose::STANDARD.encode(audio),
+                "format": container,
+            },
+            "response_format": "verbose_json",
+            "temperature": 0,
+            "provider": {"data_collection": "deny"},
+        });
+        if route.zdr {
+            body["provider"]["zdr"] = json!(true);
+        }
+        if let Some(language) = language {
+            body["language"] = json!(language);
+        }
+        let response = self
+            .client
+            .post(audio_url(&self.url, endpoint))
+            .bearer_auth(&self.key)
+            .header("HTTP-Referer", "https://duolify.online")
+            .header("X-Title", "Duolify")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("transcription request failed: {}", e.without_url()))?;
+        let status = response.status();
+        if !status.is_success() {
+            bail!("transcription provider answered {status}");
+        }
+        let value: Value = response.json().await.context("transcription response")?;
+        let text = value["text"]
+            .as_str()
+            .context("transcription response has no text")?
+            .to_string();
+        let usage = &value["usage"];
+        Ok(engine_core::transcribe::Transcription {
+            text,
+            language: language_code(&value["language"]),
+            seconds: usage["seconds"].as_f64().unwrap_or_default(),
+            cost_nanos: usage["cost"]
+                .as_f64()
+                .filter(|c| c.is_finite() && *c >= 0.0)
+                .map_or(0, |c| (c * 1e9).round() as u64),
+            model: model.into(),
+        })
+    }
 }
 /// Reasoning tokens bill as output. OpenAI-style `completion_tokens` already includes them;
 /// if a provider reports more reasoning than completion tokens they must be reported separately.
@@ -492,6 +573,18 @@ impl LlmProvider for RouteMock {
     }
     fn is_fixture(&self) -> bool {
         true
+    }
+    async fn transcribe(
+        &self,
+        route: &Route,
+        model: &str,
+        audio: &[u8],
+        container: &str,
+        language: Option<&str>,
+    ) -> Result<engine_core::transcribe::Transcription> {
+        engine_core::MockProvider
+            .transcribe(route, model, audio, container, language)
+            .await
     }
     async fn complete(&self, model: &str, input: &str) -> Result<Completion> {
         let mut c = engine_core::MockProvider.complete(model, input).await?;

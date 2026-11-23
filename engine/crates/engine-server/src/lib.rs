@@ -72,6 +72,27 @@ fn not_promoted(rpc: &str, task: &str, denial: &engine_core::promotion::Denial) 
         ),
     )
 }
+/// `ErrorInfo` domain of transcription failures. It differs from `ERROR_DOMAIN` so the API does not read
+/// a failed or refused transcription as a missing promotion.
+pub const TRANSCRIBE_ERROR_DOMAIN: &str = "engine.duolify.transcribe";
+/// gRPC status with a typed `ErrorInfo` reason for a transcription refusal.
+fn transcribe_status(error: engine_core::transcribe::TranscribeError) -> Status {
+    use engine_core::transcribe::TranscribeError as E;
+    use tonic_types::{ErrorDetails, StatusExt};
+    let code = match error {
+        E::InvalidAudio(_) => tonic::Code::InvalidArgument,
+        E::CostCeiling | E::Timeout | E::Failed => tonic::Code::Unavailable,
+    };
+    Status::with_error_details(
+        code,
+        error.reason(),
+        ErrorDetails::with_error_info(
+            error.reason(),
+            TRANSCRIBE_ERROR_DOMAIN,
+            [("rpc".to_string(), "Transcribe".to_string())],
+        ),
+    )
+}
 /// Logs the promotion state per gated task once at startup (alertable on error).
 pub fn log_promotion_status(service: &Service) {
     let live = !service.router.fixture_only();
@@ -124,7 +145,7 @@ pub fn log_promotion_status(service: &Service) {
     }
 }
 /// Every model-backed RPC and the Golden set task whose live pass enables it.
-pub const GATED: [(&str, &str); 15] = [
+pub const GATED: [(&str, &str); 16] = [
     ("PreviewCourse", "course_preview"),
     ("GenerateCourseOutline", "course_outline"),
     ("GenerateLesson", "lesson_slides"),
@@ -140,6 +161,7 @@ pub const GATED: [(&str, &str); 15] = [
     ("ScreenCourse", "course_screen"),
     ("ScreenReview", "screen_review"),
     ("MapCharacter", "character_create"),
+    ("Transcribe", "transcribe"),
 ];
 type RpcStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send>>;
 fn usage(c: &Completion) -> Option<pb::Usage> {
@@ -682,6 +704,67 @@ impl EngineService for Service {
             reason_codes,
             policy_version: "review-v1".into(),
             attempts: outcome.attempts.iter().map(attempt_usage).collect(),
+        }))
+    }
+    async fn transcribe(
+        &self,
+        request: Request<pb::TranscribeRequest>,
+    ) -> Result<Response<pb::TranscribeResponse>, Status> {
+        use engine_core::transcribe as t;
+        let req = request.into_inner();
+        let recording = t::Recording {
+            audio: &req.audio,
+            container: &req.container,
+            duration_ms: req.duration_ms,
+            language_hint: &req.language_hint,
+        };
+        // Refuse a bad recording before the promotion check or any provider call.
+        t::validate(&recording).map_err(transcribe_status)?;
+        // Task `transcribe`: a live route transcribes only with passing live evidence.
+        self.live_model("Transcribe", "transcribe")?;
+        let purpose = match req.purpose.as_str() {
+            "tutor" | "note" => req.purpose.as_str(),
+            _ => "other",
+        };
+        let outcome = t::transcribe(&self.router, &recording).await;
+        // Only sizes, ids, latency and cost are logged: never audio, never the transcript.
+        match &outcome {
+            Ok(o) => tracing::info!(
+                event = "transcribe",
+                purpose,
+                audio_bytes = req.audio.len(),
+                duration_ms = req.duration_ms,
+                model = %o.transcription.model,
+                fallback_used = o.fallback_used,
+                attempts = o.attempts,
+                latency_ms = o.latency_ms,
+                cost_nanos = o.transcription.cost_nanos,
+                empty = o.transcription.text.is_empty(),
+                "transcription finished"
+            ),
+            Err(e) => tracing::warn!(
+                event = "transcribe",
+                purpose,
+                audio_bytes = req.audio.len(),
+                duration_ms = req.duration_ms,
+                reason = e.reason(),
+                "transcription failed"
+            ),
+        }
+        let o = outcome.map_err(transcribe_status)?;
+        let billed_ms = (o.transcription.seconds * 1000.0).round();
+        Ok(Response::new(pb::TranscribeResponse {
+            text: o.transcription.text,
+            language: o.transcription.language,
+            duration_ms: if billed_ms.is_finite() && billed_ms > 0.0 {
+                billed_ms.min(f64::from(u32::MAX)) as u32
+            } else {
+                req.duration_ms
+            },
+            model: o.transcription.model,
+            fallback_used: o.fallback_used,
+            latency_ms: o.latency_ms,
+            cost_nanos: o.transcription.cost_nanos,
         }))
     }
     async fn map_character(

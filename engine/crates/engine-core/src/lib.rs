@@ -194,6 +194,17 @@ pub trait LlmProvider: Send + Sync {
     async fn stream_route(&self, route: &Route, input: &str) -> Result<CompletionStream> {
         self.stream(&route.model, input).await
     }
+    /// Speech to text on the route's audio endpoint. The audio is borrowed for the call only.
+    async fn transcribe(
+        &self,
+        _route: &Route,
+        _model: &str,
+        _audio: &[u8],
+        _container: &str,
+        _language: Option<&str>,
+    ) -> Result<transcribe::Transcription> {
+        anyhow::bail!("this provider has no transcription endpoint")
+    }
 }
 #[derive(Clone)]
 pub struct ProviderRouter {
@@ -248,6 +259,24 @@ pub struct MockProvider;
 impl LlmProvider for MockProvider {
     fn name(&self) -> &'static str {
         "mock"
+    }
+    /// Deterministic fixture: an all-zero recording is silence, anything else says one phrase.
+    async fn transcribe(
+        &self,
+        _route: &Route,
+        model: &str,
+        audio: &[u8],
+        _container: &str,
+        language: Option<&str>,
+    ) -> Result<transcribe::Transcription> {
+        let silent = audio.iter().all(|b| *b == 0);
+        Ok(transcribe::Transcription {
+            text: if silent { "" } else { "mock transcript" }.into(),
+            language: language.unwrap_or("en").into(),
+            seconds: audio.len() as f64 * 8.0 / 32_000.0,
+            cost_nanos: 0,
+            model: model.into(),
+        })
     }
     async fn complete(&self, model: &str, input: &str) -> Result<Completion> {
         let steering_data = steering::provider_data(input);
@@ -581,3 +610,4 @@ mod tests;
 
 pub mod steering;
 pub mod structured;
+pub mod transcribe;
