@@ -146,6 +146,8 @@ export interface SelectorProps {
   onReplace: (next: CharacterSpecV2) => void;
   tab?: Tab;
   onTab?: (tab: Tab) => void;
+  /** The host renders <CharacterTabs/> itself (for example in a sticky header). */
+  hideTabs?: boolean;
 }
 
 export function CharacterSelector({
@@ -154,6 +156,7 @@ export function CharacterSelector({
   onReplace,
   tab: controlled,
   onTab,
+  hideTabs,
 }: SelectorProps) {
   const {
     t: raw,
@@ -166,48 +169,13 @@ export function CharacterSelector({
   const [inner, setInner] = useState<Tab>("kind");
   const tab = controlled ?? inner;
   const setTab = (next: Tab) => (onTab ? onTab(next) : setInner(next));
-  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const uid = useId();
-  const onTabKey = (e: KeyboardEvent) => {
-    const i = TABS.indexOf(tab);
-    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-    const flip = document.documentElement.dir === "rtl" ? -1 : 1;
-    if (!step) return;
-    e.preventDefault();
-    const next = TABS[(i + step * flip + TABS.length) % TABS.length]!;
-    setTab(next);
-    tabRefs.current[next]?.focus();
-  };
   return (
     <div className="cv2-selector">
-      <div
-        role="tablist"
-        aria-label={t("characters.v2.tabs")}
-        className="cv2-tabs"
-        onKeyDown={onTabKey}
-      >
-        {TABS.map((id) => (
-          <button
-            key={id}
-            ref={(el) => {
-              tabRefs.current[id] = el;
-            }}
-            type="button"
-            role="tab"
-            id={`${uid}-tab-${id}`}
-            aria-selected={tab === id}
-            aria-controls={`${uid}-panel`}
-            tabIndex={tab === id ? 0 : -1}
-            onClick={() => setTab(id)}
-          >
-            {t(`characters.v2.tab.${id}` as CharactersV2Id)}
-          </button>
-        ))}
-      </div>
+      {!hideTabs && <CharacterTabs tab={tab} onTab={setTab} />}
       <div
         role="tabpanel"
-        id={`${uid}-panel`}
-        aria-labelledby={`${uid}-tab-${tab}`}
+        aria-labelledby={`cv2-tab-${tab}`}
         className="cv2-panel"
       >
         {tab === "kind" && (
@@ -315,7 +283,7 @@ function Tiles({
               <CharacterPreview
                 spec={o.spec}
                 view={view}
-                size={64}
+                size={56}
                 label={false}
               />
               <span>{text}</span>
@@ -558,7 +526,7 @@ function Accessories({
                   )
                 }
               />
-              <CharacterPreview spec={candidate} size={64} label={false} />
+              <CharacterPreview spec={candidate} size={56} label={false} />
               <span>{text}</span>
             </label>
           );
@@ -581,5 +549,73 @@ function Accessories({
         />
       ))}
     </fieldset>
+  );
+}
+
+const TAB_ICONS: Record<Tab, string> = {
+  kind: "M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z",
+  look: "M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
+  outfit: "M8 4l-5 4 3 3 2-1v10h8V10l2 1 3-3-5-4a4 4 0 0 1-8 0z",
+  about: "M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM4 20c0-4 3.6-6 8-6s8 2 8 6",
+};
+
+/** Icon tab bar (Kind, Look, Outfit, About) with arrow-key roving focus. */
+export function CharacterTabs({
+  tab,
+  onTab,
+}: {
+  tab: Tab;
+  onTab: (tab: Tab) => void;
+}) {
+  const { t: raw } = useUiPreferences();
+  const t = raw as (id: CharactersV2Id) => string;
+  const refs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const onKey = (e: KeyboardEvent) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const flip = document.documentElement.dir === "rtl" ? -1 : 1;
+    const next =
+      TABS[(TABS.indexOf(tab) + step * flip + TABS.length) % TABS.length]!;
+    onTab(next);
+    refs.current[next]?.focus();
+  };
+  return (
+    <div
+      role="tablist"
+      aria-label={t("characters.v2.tabs")}
+      className="cv2-tabs"
+      onKeyDown={onKey}
+    >
+      {TABS.map((id) => (
+        <button
+          key={id}
+          ref={(el) => {
+            refs.current[id] = el;
+          }}
+          type="button"
+          role="tab"
+          id={`cv2-tab-${id}`}
+          aria-selected={tab === id}
+          tabIndex={tab === id ? 0 : -1}
+          onClick={() => onTab(id)}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d={TAB_ICONS[id]} />
+          </svg>
+          <span>{t(`characters.v2.tab.${id}` as CharactersV2Id)}</span>
+        </button>
+      ))}
+    </div>
   );
 }

@@ -71,6 +71,7 @@ export const charactersV2En = {
   "characters.v2.invalid":
     "That combination is not allowed. Change a choice to continue.",
   "characters.v2.use": "Create",
+  "characters.v2.short": "Characters",
   "characters.v2.save": "Save",
   "characters.v2.new": "New",
   "characters.v2.customize": "Customize",
@@ -149,6 +150,7 @@ export const charactersV2Ar: Record<CharactersV2Id, string> = {
   "characters.v2.f.personality_persona_prompt": "الشخصية",
   "characters.v2.invalid": "هذا الاختيار غير مسموح. غيّر أحد الخيارات للمتابعة.",
   "characters.v2.use": "إنشاء",
+  "characters.v2.short": "الشخصيات",
   "characters.v2.save": "حفظ",
   "characters.v2.new": "جديد",
   "characters.v2.customize": "تخصيص",

@@ -2,7 +2,11 @@ import { useState } from "react";
 import { Button } from "../design/Button";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { CharacterPreview } from "./CharacterPreview";
-import { CharacterSelector, type Tab } from "./CharacterSelector";
+import {
+  CharacterSelector,
+  CharacterTabs,
+  type Tab,
+} from "./CharacterSelector";
 import { applyDraftPatch, defaultDraft } from "./draft";
 import { characterLibrary, type CharacterRecord } from "./library";
 import type { CharactersV2Id } from "./messages";
@@ -54,57 +58,61 @@ export function CharacterCreator({
       setPending(false);
     }
   };
+  const nextPose = () => {
+    const i = (POSES.indexOf(pose) + 1) % POSES.length;
+    setPose(POSES[i]!);
+    setExpression(EXPRESSIONS_V2[i % EXPRESSIONS_V2.length]!);
+  };
   return (
     <section className="cv2-creator" aria-label={t("characters.v2.title")}>
-      <div className="cv2-stage">
-        <CharacterPreview
-          spec={spec}
-          view={view}
-          pose={pose}
-          expression={expression}
-        />
-        <div className="cv2-controls">
-          <div role="group" aria-label={t("characters.v2.preview")}>
-            {(["avatar", "body"] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                aria-pressed={view === v}
-                onClick={() => setView(v)}
-              >
-                {t(`characters.v2.view.${v}` as CharactersV2Id)}
-              </button>
-            ))}
-          </div>
-          <label>
-            <span>{t("characters.v2.pose")}</span>
-            <select
-              value={pose}
-              onChange={(e) => setPose(e.target.value as Pose)}
-            >
-              {POSES.map((p) => (
-                <option key={p}>{p}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>{t("characters.v2.expression")}</span>
-            <select
-              value={expression}
-              onChange={(e) => setExpression(e.target.value as ExpressionV2)}
-            >
-              {EXPRESSIONS_V2.map((x) => (
-                <option key={x}>{x}</option>
-              ))}
-            </select>
-          </label>
+      <header className="cv2-head">
+        <div className="cv2-bar">
+          <button
+            type="button"
+            className="cv2-icon"
+            aria-label={t("characters.v2.close")}
+            onClick={onClose}
+          >
+            <Icon d="M15 5l-7 7 7 7" />
+          </button>
+          <h1>{t("characters.v2.short")}</h1>
         </div>
-      </div>
+        <div className="cv2-stage">
+          <button
+            type="button"
+            className="cv2-avatar"
+            aria-pressed={view === "body"}
+            aria-label={t(
+              view === "avatar"
+                ? "characters.v2.view.body"
+                : "characters.v2.view.avatar",
+            )}
+            onClick={() => setView(view === "avatar" ? "body" : "avatar")}
+          >
+            <CharacterPreview
+              spec={spec}
+              view={view}
+              pose={pose}
+              expression={expression}
+            />
+          </button>
+          <button
+            type="button"
+            className="cv2-icon"
+            aria-label={t("characters.v2.pose")}
+            onClick={nextPose}
+          >
+            <Icon d="M4 12a8 8 0 0 1 14-5l2-2v6h-6l2.5-2.5A5 5 0 1 0 17 14" />
+          </button>
+        </div>
+        <CharacterTabs tab={tab} onTab={setTab} />
+      </header>
       <div className="cv2-side">
         <CharacterSelector
           spec={spec}
           tab={tab}
           onTab={setTab}
+          hideTabs
           onReplace={(next) => {
             setSpec(next);
             setRejected(false);
@@ -126,11 +134,26 @@ export function CharacterCreator({
           >
             {t(record ? "characters.v2.save" : "characters.v2.use")}
           </Button>
-          <Button variant="secondary" onClick={onClose}>
-            {t("characters.v2.close")}
-          </Button>
         </div>
       </div>
     </section>
+  );
+}
+
+function Icon({ d }: { d: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={d} />
+    </svg>
   );
 }

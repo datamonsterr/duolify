@@ -105,12 +105,16 @@ export function CharacterLibrary() {
   }
   return (
     <section className="characters-page" aria-busy={pending}>
-      <AppLink className="shell-link" href="/settings">
-        Back to Settings
-      </AppLink>
-      <h1 ref={title} tabIndex={-1}>
-        Private characters
-      </h1>
+      {!creator && (
+        <>
+          <AppLink className="shell-link" href="/settings">
+            Back to Settings
+          </AppLink>
+          <h1 ref={title} tabIndex={-1}>
+            Private characters
+          </h1>
+        </>
+      )}
       {!creator && (
         <>
           <p>
