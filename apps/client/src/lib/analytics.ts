@@ -1008,11 +1008,10 @@ export function trackRegion(
   try {
     if (!posthog.has_opted_out_capturing()) {
       posthog.capture(value.event, properties);
-      // Test builds only: lets the mocked Playwright suite assert what was captured.
-      if (import.meta.env.VITE_LESSON_TEST_TRACER_ENABLED === "true")
-        ((
-          window as unknown as { __analyticsLog?: unknown[] }
-        ).__analyticsLog ??= []).push({ event: value.event, properties });
+      // A test can opt in by defining `window.__analyticsLog = []` before the page loads.
+      (
+        window as unknown as { __analyticsLog?: unknown[] }
+      ).__analyticsLog?.push({ event: value.event, properties });
     }
   } catch {
     /* Playback never depends on analytics. */

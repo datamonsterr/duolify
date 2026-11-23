@@ -126,6 +126,10 @@ for (const vp of VIEWPORTS.filter((v) => v.name !== "portrait-390x844")) {
     }, info) => {
       const { posted, state } = await setup(page, request, vp, "ask");
       const seen = await mockTutor(page, state.lesson);
+      await page.context().addInitScript(() => {
+        (window as unknown as { __analyticsLog: unknown[] }).__analyticsLog =
+          [];
+      });
       await openLesson(page, state.lesson);
       await page.waitForTimeout(700);
       await enterImmersive(page);
