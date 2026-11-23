@@ -141,7 +141,8 @@ func registerCharacterPricingFixture(mux *http.ServeMux, auth *accounts.Service,
 		baselineRaw, _ = json.Marshal(baseline)
 		for _, statement := range []string{
 			`INSERT INTO pricing_versions(version,effective_from,approved,config) SELECT $1::jsonb->>'version',($1::jsonb->>'effective_from')::timestamptz,true,$1::jsonb`,
-			`INSERT INTO pricing_quote_policies(version,policy) SELECT $1::jsonb->>'version',policy FROM pricing_quote_policies WHERE version='usd-quotes-2026-11-09'`,
+			// Current route policy: the historical Sonnet preview route exceeds the enforced preview budget.
+			`INSERT INTO pricing_quote_policies(version,policy) SELECT $1::jsonb->>'version',policy FROM pricing_quote_policies WHERE version='usd-voice-preview-2026-11-23'`,
 			`INSERT INTO pricing_activation_events(version) SELECT $1::jsonb->>'version'`,
 		} {
 			if _, err := pool.Exec(ctx, statement, baselineRaw); err != nil {
