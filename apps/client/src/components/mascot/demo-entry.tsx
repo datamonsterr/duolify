@@ -2,7 +2,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "../../styles.css";
-import { UiPreferencesProvider } from "../../features/design/localization/Preferences";
+import {
+  UiPreferencesProvider,
+  useUiPreferences,
+} from "../../features/design/localization/Preferences";
 import {
   Mascot,
   MascotAvatar,
@@ -42,8 +45,9 @@ const Shell = ({ children }: { children: React.ReactNode }) => (
   </main>
 );
 // Stand-ins for placements that need the full app: framed player chrome and empty/error/offline cards.
-const Scenes = () =>
-  scene === "player" ? (
+const Scenes = () => {
+  const { t } = useUiPreferences();
+  return scene === "player" ? (
     <Shell>
       <header
         className="focused-context"
@@ -53,8 +57,8 @@ const Scenes = () =>
           alignItems: "center",
         }}
       >
-        <a href="#exit">Exit lesson</a>
-        <span>Course · Lesson</span>
+        <a href="#exit">{t("mascot.name")}</a>
+        <span>{t("mascot.state.idle")}</span>
         <PlayerCompanion immersive={q.get("immersive") === "1"} />
       </header>
       <div
@@ -67,8 +71,12 @@ const Scenes = () =>
           borderRadius: 16,
         }}
       />
-      <button onClick={() => emitMascotCue("celebrate")}>Pass</button>
-      <button onClick={() => emitMascotTalk(true)}>Hint</button>
+      <button onClick={() => emitMascotCue("celebrate")}>
+        {t("mascot.state.celebrate")}
+      </button>
+      <button onClick={() => emitMascotTalk(true)}>
+        {t("mascot.state.talking")}
+      </button>
     </Shell>
   ) : (
     <Shell>
@@ -92,17 +100,20 @@ const Scenes = () =>
               labelled={s !== "idle"}
             />
             <p>
-              {s === "idle"
-                ? "Nothing here yet"
-                : s === "confused"
-                  ? "Something went wrong"
-                  : "You're offline"}
+              {t(
+                s === "idle"
+                  ? "mascot.empty"
+                  : s === "confused"
+                    ? "mascot.error"
+                    : "mascot.offline",
+              )}
             </p>
           </section>
         ))}
       </div>
     </Shell>
   );
+};
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
