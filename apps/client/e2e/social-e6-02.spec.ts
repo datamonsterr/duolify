@@ -161,6 +161,7 @@ for (const mobile of [false, true]) {
     expect((await heldRename.json()).code).toBe("username_taken");
 
     // Privacy: failed save keeps the previous value; success hides from prefix search.
+    await page.goto("/settings#privacy");
     const findable = page.getByRole("checkbox", {
       name: "Findable by username",
     });
