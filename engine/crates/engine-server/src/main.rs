@@ -29,12 +29,28 @@ async fn main() -> anyhow::Result<()> {
         .register_encoded_file_descriptor_set(engine_proto::FILE_DESCRIPTOR_SET)
         .build_v1()?;
     tracing::info!(%addr, "engine listening");
-    Server::builder()
-        .add_service(health)
-        .add_service(reflection)
-        .add_service(service)
-        .serve_with_shutdown(addr, shutdown())
-        .await?;
+    // SIGTERM: report NOT_SERVING (health watchers and probes see the drain), stop accepting, let in-flight
+    // RPCs finish for up to the drain timeout (a deploy replaces this container; stop_grace_period is longer).
+    let drain = engine_server::drain_timeout_from(
+        std::env::var("ENGINE_DRAIN_TIMEOUT_SECS").ok().as_deref(),
+    );
+    engine_server::serve_with_drain(
+        |stop| {
+            Server::builder()
+                .add_service(health)
+                .add_service(reflection)
+                .add_service(service)
+                .serve_with_shutdown(addr, stop)
+        },
+        async {
+            shutdown().await;
+            reporter
+                .set_not_serving::<EngineServiceServer<Service>>()
+                .await;
+        },
+        drain,
+    )
+    .await?;
     Ok(())
 }
 async fn shutdown() {

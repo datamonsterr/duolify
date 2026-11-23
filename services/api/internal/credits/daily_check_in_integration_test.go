@@ -122,6 +122,9 @@ func TestDailyCheckInTransactions(t *testing.T) {
 					t.Fatalf("learner=%d platform=%d", learnerHeld, totalHeld)
 				}
 				if tc.name == "mixed" {
+					if _, err = credits.VerifyFinancialState(ctx, db.Pool, time.Now()); err != nil {
+						t.Fatalf("in-flight check-in funded job must satisfy financial invariants: %v", err)
+					}
 					if err = financial.Claim(ctx, id, job.ID); err != nil {
 						t.Fatal(err)
 					}

@@ -57,6 +57,15 @@ func checkInDay(at time.Time, zone string) (string, time.Time, error) {
 	return day, next, nil
 }
 
+// LocalDay returns the Learner's local date at the instant and the instant that date ends.
+func LocalDay(ctx context.Context, conn dbsql.DBTX, learner string, at time.Time) (string, time.Time, error) {
+	zone, err := effectiveTimezone(ctx, conn, learner, at)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	return checkInDay(at, zone)
+}
+
 // CheckInAt records attendance atomically across API replicas. The clock is
 // supplied explicitly for deterministic calendar tests; HTTP always uses DB time.
 func (s *Service) CheckInAt(ctx context.Context, owner string, at time.Time) (CheckInResponse, error) {
