@@ -173,6 +173,8 @@ it("keeps edited outline content mounted across the demo boundary", async () => 
 });
 
 it("keeps unfinished guided answers and composer when returning from demo", async () => {
+  // The old brief chat stays one release for rollback; this case covers it.
+  localStorage.setItem("duolify.guided.course_brief", "off");
   server.use(
     http.get("*/v1/courses/shared-demo", () => HttpResponse.json(fixture)),
   );

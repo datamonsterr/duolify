@@ -21,6 +21,8 @@ vi.mock("posthog-js/dist/module.no-external", () => ({
 }));
 const learnerId = "11111111-1111-4111-8111-111111111111";
 beforeEach(() => {
+  // The old brief form stays one release for rollback; this suite covers it.
+  localStorage.setItem("duolify.guided.course_brief", "off");
   sessionStorage.clear();
   vi.clearAllMocks();
   configureAnalytics({ learnerId, optedOut: false, platform: "web" });

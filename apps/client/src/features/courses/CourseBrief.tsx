@@ -24,9 +24,12 @@ import {
   type BriefService,
 } from "./brief";
 import "./course-brief.css";
+import { GuidedBrief } from "../guided-chat/GuidedBrief";
+import { guidedEnabled } from "../guided-chat/flags";
 import { CoursePreview } from "./CoursePreview";
 import { SharedDemo } from "./SharedDemo";
 import { AppLink } from "../../lib/navigation";
+import { useUiPreferences } from "../design/localization/Preferences";
 
 // Covers a stalled network as well as an assistant failure; API attempts finish sooner.
 async function withDeadline<T>(request: Promise<T>): Promise<T> {
@@ -105,6 +108,9 @@ export function CourseBrief({
   initialBrief?: Brief;
 }) {
   const [draft, setDraft] = useState(() => initial(learnerId, initialBrief));
+  const { t } = useUiPreferences();
+  const guided = guidedEnabled("course_brief", learnerId);
+  const [guidedEpoch, setGuidedEpoch] = useState(0);
   const [demo, setDemo] = useState(false);
   const [demoEpoch, setDemoEpoch] = useState(0);
   const demoTrigger = useRef<HTMLButtonElement>(null);
@@ -372,19 +378,36 @@ export function CourseBrief({
       >
         Explore shared example
       </Button>
-      <p>
-        AI uses your answers to shape your course. You can skip any question or
-        use the form.
-      </p>
-      <p>
-        {config?.enabled && config.credits !== null
-          ? `Clarifying: ${config.credits} credits · platform paid.`
-          : "Form entry is available while the assistant is disabled."}{" "}
-        Nothing is charged until you confirm and request a separately quoted
-        preview.
-      </p>
+      {!guided && (
+        <>
+          <p>
+            AI uses your answers to shape your course. You can skip any question
+            or use the form.
+          </p>
+          <p>
+            {config?.enabled && config.credits !== null
+              ? `Clarifying: ${config.credits} credits · platform paid.`
+              : "Form entry is available while the assistant is disabled."}{" "}
+            Nothing is charged until you confirm and request a separately quoted
+            preview.
+          </p>
+        </>
+      )}
       {error && <p role="alert">{error}</p>}
+      {previewStep === 1 && guided && !draft.revision && (
+        <GuidedBrief
+          key={guidedEpoch}
+          learnerId={learnerId}
+          seed={draft.brief}
+          service={service}
+          onConfirmed={(revision) => setDraft((d) => ({ ...d, revision }))}
+        />
+      )}
+      {guided && draft.revision && (
+        <p role="status">{t("g.brief.confirmed")}</p>
+      )}
       {previewStep === 1 &&
+        !guided &&
         (draft.form ? (
           <div className="guided-fallback">
             <h2>Course brief</h2>
@@ -438,7 +461,10 @@ export function CourseBrief({
           onBack={() => {
             setPreviewStep(1);
             setPanelOpen(false);
-            setDraft((d) => ({ ...d, form: true }));
+            if (guided) {
+              setGuidedEpoch((n) => n + 1);
+              setDraft((d) => ({ ...d, revision: null }));
+            } else setDraft((d) => ({ ...d, form: true }));
           }}
         />
       )}

@@ -1,6 +1,12 @@
 import { test, expect } from "./accounts-fixture";
 import { apiBase } from "./servers";
 import type { OutlineDraft } from "../src/features/courses/outline";
+test.beforeEach(({ page }) =>
+  // The old brief form stays one release for rollback; these tests cover it.
+  page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_brief", "off"),
+  ),
+);
 
 for (const mobile of [false, true]) {
   test(`outline editor persists edits and undo ${mobile ? "mobile" : "desktop"}`, async ({

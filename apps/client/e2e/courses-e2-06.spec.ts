@@ -1,5 +1,11 @@
 import { test, expect } from "./native-store-fixture";
 import { apiBase, resetAuthRateLimits } from "./servers";
+test.beforeEach(({ page }) =>
+  // The old brief form stays one release for rollback; these tests cover it.
+  page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_brief", "off"),
+  ),
+);
 
 test.use({ hasTouch: true });
 for (const mobile of [false, true]) {

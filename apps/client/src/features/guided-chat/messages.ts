@@ -2,10 +2,12 @@
 // The guide's display name is a working name and lives only in this catalogue.
 import type { Message } from "../design/localization/messages";
 
+import { briefAr, briefEn } from "./messages.brief";
 import { setupAr, setupEn } from "./messages.setup";
 
 export const guidedEn = {
   ...setupEn,
+  ...briefEn,
   "guided.guide": "Guide",
   "guided.you": "You",
   "guided.title": "Guided chat",
@@ -75,6 +77,7 @@ export const guidedEn = {
 
 export const guidedAr: Record<keyof typeof guidedEn, Message> = {
   ...setupAr,
+  ...briefAr,
   "guided.guide": "المرشد",
   "guided.you": "أنت",
   "guided.title": "محادثة موجّهة",
