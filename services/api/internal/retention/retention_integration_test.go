@@ -149,3 +149,25 @@ func TestPurgeUsesCreatedAtIndexes(t *testing.T) {
 		}
 	}
 }
+
+func TestPurgeRemovesIdleGuidedChatDrafts(t *testing.T) {
+	ctx, db := t.Context(), newDB(t)
+	pool := db.Pool
+	var learner string
+	if err := pool.QueryRow(ctx, `INSERT INTO learners(display_name) VALUES('Draft retention') RETURNING id::text`).Scan(&learner); err != nil {
+		t.Fatal(err)
+	}
+	for script, expiry := range map[string]string{"onboarding.setup": "now() + interval '5 days'", "course.brief": "now() - interval '1 day'"} {
+		if _, err := pool.Exec(ctx, `INSERT INTO guided_chat_drafts(learner_id, script_id, script_version, step_id, answers, expires_at) VALUES($1::uuid,$2,1,'goal','{}'::jsonb,`+expiry+`)`, learner, script); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, err := New(pool, Config{}, nil).PurgeExpiredRows(ctx)
+	if err != nil || res.GuidedChatDrafts != 1 {
+		t.Fatalf("purge: %+v %v", res, err)
+	}
+	var left int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM guided_chat_drafts WHERE script_id='onboarding.setup'`).Scan(&left); err != nil || left != 1 {
+		t.Fatalf("live draft purged: %d %v", left, err)
+	}
+}
