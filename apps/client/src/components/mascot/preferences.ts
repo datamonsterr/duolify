@@ -73,5 +73,9 @@ export function useMascotPreference() {
 }
 export function useMascotAppearance(): MascotAppearance {
   const p = useMascotPreference();
-  return { swatch: p.swatch, accessories: p.accessories };
+  return {
+    swatch: p.swatch,
+    accessories: p.accessories,
+    characterId: p.mode === "character" ? p.characterId : undefined,
+  };
 }

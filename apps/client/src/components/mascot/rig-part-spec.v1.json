@@ -54,15 +54,5 @@
   "accessories": ["headphones", "bowtie", "sprout", "scarf", "badge"],
   "maxAccessories": 2,
   "canvases": ["#F7F9F4", "#131F24"],
-  "minContrast": 3,
-  "characterStateMap": {
-    "idle": { "pose": "idle", "expression": "idle" },
-    "listening": { "pose": "idle", "expression": "idle" },
-    "thinking": { "pose": "think", "expression": "thinking" },
-    "talking": { "pose": "talk", "expression": "idle" },
-    "happy": { "pose": "wave", "expression": "happy" },
-    "celebrate": { "pose": "celebrate", "expression": "celebrate" },
-    "confused": { "pose": "shrug", "expression": "confused" },
-    "sleepy": { "pose": "idle", "expression": "idle" }
-  }
+  "minContrast": 3
 }
