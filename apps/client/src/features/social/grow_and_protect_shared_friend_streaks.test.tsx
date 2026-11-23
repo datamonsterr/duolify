@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { FriendStreakDetail, FriendStreakRow } from "./FriendStreak";
-import { describeStreak, type FriendStreak } from "./friendStreak";
+import { describeStreak, type FriendStreak } from "./friendStreakModel";
 
 const you = {
   local_date: "2026-11-14",

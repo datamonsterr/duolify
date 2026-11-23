@@ -2,9 +2,7 @@
 
 ## Purpose
 Play a Lesson as a deck of small Motion HTML Slides inside the client. Slides animate live in a sandbox, never as MP4. The player supports playback controls, preloading and offline use.
-
 ## Requirements
-
 ### Requirement: Slide format and manifest
 Each Slide MUST be one self-contained Motion HTML document (HTML, CSS, JS) that plays a few seconds. A Lesson MUST have a Slide manifest listing Slides in order with `slide_id`, `duration_ms`, asset URLs, checkpoints and narration fields (`narration_text`, `narration_status`, `audio_url` and `alignment_url` when status is `ready`). The Engine and API MUST validate Slide HTML before it is stored.
 
@@ -447,3 +445,11 @@ The worker SHALL delete `lesson_playback_sync_events` rows more than 30 days old
 #### Scenario: Two workers sweep together
 - **WHEN** two workers sweep at the same moment
 - **THEN** every expired row is deleted once and neither sweep fails
+
+### Requirement: Stage contract for full-screen presentation
+The player SHALL present a Slide at any size by scaling its 16:9 stage uniformly, without changing the Slide document, its clock or its sandbox. Presenting a Slide framed, full-screen or rotated MUST NOT alter the sandbox attributes or the content security policy, and the host MUST be able to place its own layers above the Slide iframe.
+
+#### Scenario: Same Slide, two presentations
+- **WHEN** a Slide is shown framed and then full-screen
+- **THEN** the same Slide document keeps running on the same clock and its layout is identical apart from uniform scale
+

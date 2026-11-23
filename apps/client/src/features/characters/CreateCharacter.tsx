@@ -4,6 +4,7 @@ import { characterCreation, type CreateJob } from "./creation";
 import type { CharacterRecord } from "./library";
 import { session } from "../accounts/session";
 import { AppLink } from "../../lib/navigation";
+import { trackQuoteShown } from "../../lib/analytics";
 
 const terminal = (j: CreateJob) =>
   ["succeeded", "failed", "rejected", "cancelled"].includes(j.state);
@@ -19,6 +20,14 @@ export function CreateCharacter({
   const [available, setAvailable] = useState<boolean | null>(null);
   const [prompt, setPrompt] = useState("");
   const [job, setJob] = useState<CreateJob | null>(null);
+  useEffect(() => {
+    if (job?.quote && !terminal(job))
+      trackQuoteShown({
+        quote_id: job.quote.id,
+        feature: "character_create",
+        pricing_version: job.quote.pricing_version,
+      });
+  }, [job]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [retry, setRetry] = useState(0);

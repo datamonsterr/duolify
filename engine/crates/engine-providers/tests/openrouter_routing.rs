@@ -332,3 +332,126 @@ async fn stream_reports_served_model_and_reasoning_output() {
     assert_eq!(usage.model, HY4);
     assert_eq!(usage.output_tokens, 35);
 }
+
+#[tokio::test]
+async fn route_privacy_preferences_are_sent_to_openrouter() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "model": HY4,
+            "choices": [{"message": {"content": "answer"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1}
+        })))
+        .mount(&server)
+        .await;
+    let provider = HttpProvider::openrouter("key".into(), server.uri());
+    let mut route = route(HY4, &[], &[]);
+    route.zdr = true;
+    route.data_collection = Some("deny".into());
+    provider.complete_route(&route, "hello", 10).await.unwrap();
+    let requests = server.received_requests().await.unwrap();
+    let body: Value = requests[0].body_json().unwrap();
+    assert_eq!(body["provider"]["zdr"], true);
+    assert_eq!(body["provider"]["data_collection"], "deny");
+}
+
+fn audio_route(router: &engine_core::ProviderRouter, fallback: bool) -> Route {
+    router.models.tasks["transcribe"].attempt_route(fallback)
+}
+
+#[tokio::test]
+async fn transcription_posts_base64_audio_with_private_routing() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(wiremock::matchers::path("/api/v1/audio/transcriptions"))
+        .and(header("authorization", "Bearer key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "text": "  hello world ",
+            "language": "en",
+            "usage": {"seconds": 4.2, "cost": 0.0000139, "total_tokens": 1}
+        })))
+        .mount(&server)
+        .await;
+    let router = engine_core::ProviderRouter::new(
+        std::sync::Arc::new(engine_core::MockProvider),
+        std::sync::Arc::new(engine_core::MockProvider),
+    )
+    .unwrap();
+    let provider = HttpProvider::openrouter(
+        "key".into(),
+        format!("{}/api/v1/chat/completions", server.uri()),
+    );
+    let route = audio_route(&router, false);
+    let t = provider
+        .transcribe(&route, &route.model, &[1, 2, 3, 4], "webm", Some("en"))
+        .await
+        .unwrap();
+    assert_eq!(t.text, "  hello world ");
+    assert_eq!(t.language, "en");
+    assert_eq!(t.seconds, 4.2);
+    assert_eq!(t.cost_nanos, 13_900);
+    assert_eq!(t.model, "qwen/qwen3-asr-0.6b");
+
+    let requests = server.received_requests().await.unwrap();
+    let body: Value = requests[0].body_json().unwrap();
+    assert_eq!(body["model"], "qwen/qwen3-asr-0.6b");
+    assert_eq!(body["input_audio"]["format"], "webm");
+    assert_eq!(body["input_audio"]["data"], "AQIDBA==");
+    assert_eq!(body["language"], "en");
+    assert_eq!(body["provider"]["data_collection"], "deny");
+    assert_eq!(body["provider"]["zdr"], true);
+}
+
+#[tokio::test]
+async fn transcription_failures_carry_no_response_body() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(404).set_body_string("no zdr endpoints for SECRET-TEXT"),
+        )
+        .mount(&server)
+        .await;
+    let router = engine_core::ProviderRouter::new(
+        std::sync::Arc::new(engine_core::MockProvider),
+        std::sync::Arc::new(engine_core::MockProvider),
+    )
+    .unwrap();
+    let provider = HttpProvider::openrouter("key".into(), server.uri());
+    let route = audio_route(&router, true);
+    let err = provider
+        .transcribe(&route, &route.model, &[9], "m4a", None)
+        .await
+        .unwrap_err();
+    let message = format!("{err:#}");
+    assert!(message.contains("404"), "{message}");
+    assert!(!message.contains("SECRET-TEXT"));
+    let sent: Value = server.received_requests().await.unwrap()[0]
+        .body_json()
+        .unwrap();
+    assert!(sent.get("language").is_none());
+    assert_eq!(sent["model"], "openai/whisper-large-v3-turbo");
+}
+
+#[tokio::test]
+async fn unknown_language_values_are_dropped() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "text": "x", "language": "english (us)", "usage": {}
+        })))
+        .mount(&server)
+        .await;
+    let router = engine_core::ProviderRouter::new(
+        std::sync::Arc::new(engine_core::MockProvider),
+        std::sync::Arc::new(engine_core::MockProvider),
+    )
+    .unwrap();
+    let provider = HttpProvider::openrouter("key".into(), server.uri());
+    let route = audio_route(&router, false);
+    let t = provider
+        .transcribe(&route, &route.model, &[1], "webm", None)
+        .await
+        .unwrap();
+    assert_eq!(t.language, "");
+    assert_eq!(t.cost_nanos, 0);
+}

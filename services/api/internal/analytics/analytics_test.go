@@ -335,7 +335,7 @@ func TestEvalRunCompletedDeliveryAndMetadata(t *testing.T) {
 
 	systemUUID := "00000000-0000-4000-8000-000000000011"
 	props := map[string]any{
-		"source":           "ci",
+		"source":           "engine",
 		"platform":         "web",
 		"app_version":      "development",
 		"task":             "course_preview",
@@ -391,7 +391,7 @@ func TestEvalRunCompletedDeliveryAndMetadata(t *testing.T) {
 	if p["budget_usd"] != 5.0 {
 		t.Fatalf("budget_usd mismatch: %v", p["budget_usd"])
 	}
-	if p["source"] != "ci" || p["platform"] != "web" || p["app_version"] != "development" {
+	if p["source"] != "engine" || p["platform"] != "web" || p["app_version"] != "development" {
 		t.Fatalf("common properties mismatch: %v", p)
 	}
 
@@ -506,7 +506,8 @@ func TestQuickNoteAndSheetEventsReachPostHogWithoutPrivateData(t *testing.T) {
 	// 1. Verify valid sources for quick_note_created: slide, lesson, chat
 	for _, src := range []string{"slide", "lesson", "chat"} {
 		props := map[string]any{
-			"source":      src,
+			"source":      "api",
+			"entry_point": src,
 			"length":      42,
 			"platform":    "web",
 			"app_version": "0.1.0",
@@ -522,14 +523,15 @@ func TestQuickNoteAndSheetEventsReachPostHogWithoutPrivateData(t *testing.T) {
 	// 2. Verify invalid sources are not accepted (must only be slide|lesson|chat)
 	for _, invalidSrc := range []string{"api", "ci", "client", "desktop", "unknown"} {
 		props := map[string]any{
-			"source":      invalidSrc,
+			"source":      "api",
+			"entry_point": invalidSrc,
 			"length":      10,
 			"platform":    "desktop",
 			"app_version": "0.1.0",
 			"note_text":   "more private text",
 		}
-		if err := events.Capture(learnerID, "quick_note_created", props); err != nil {
-			t.Fatal(err)
+		if safeProperties("quick_note_created", props)["entry_point"] != nil {
+			t.Fatalf("invalid entry point accepted: %s", invalidSrc)
 		}
 	}
 
@@ -553,7 +555,6 @@ func TestQuickNoteAndSheetEventsReachPostHogWithoutPrivateData(t *testing.T) {
 	defer mu.Unlock()
 
 	// 3 valid quick_note_created + 1 valid ui_sheet_opened = 4 events delivered
-	// The 5 invalid-source quick_note_created events are dropped because their source is not slide|lesson|chat
 	if len(received) != 4 {
 		t.Fatalf("expected 4 events, got %d", len(received))
 	}
@@ -577,8 +578,8 @@ func TestQuickNoteAndSheetEventsReachPostHogWithoutPrivateData(t *testing.T) {
 		switch ev["event"] {
 		case "quick_note_created":
 			expectedSrc := []string{"slide", "lesson", "chat"}[i]
-			if p["source"] != expectedSrc {
-				t.Fatalf("expected source %q, got %v", expectedSrc, p["source"])
+			if p["source"] != "api" || p["entry_point"] != expectedSrc {
+				t.Fatalf("expected API source and entry point %q, got %v", expectedSrc, p)
 			}
 			if p["length"] != float64(42) && p["length"] != 42 {
 				t.Fatalf("expected length 42, got %v", p["length"])

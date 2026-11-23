@@ -8,8 +8,16 @@ import {
 import { useUiPreferences } from "../design/localization/Preferences";
 import type { LessonRef, ReplyClass, TutorService } from "./tutor";
 import { trackTutorCharacterSelected } from "../characters/analytics";
-import { trackTutorControl, trackTutorRecovery } from "../../lib/analytics";
-import { tutorService } from "./tutor";
+import {
+  trackQuoteShown,
+  trackTutorControl,
+  trackTutorRecovery,
+} from "../../lib/analytics";
+import { tutorService, type RegionAsk } from "./tutor";
+import { RegionThumb } from "./RegionThumb";
+import { VoiceButton } from "../voice/VoiceButton";
+import { DictationCountdown } from "../voice/DictationCountdown";
+import { useDictationWindow } from "../voice/useDictationWindow";
 import {
   lastIndex,
   useTutor,
@@ -387,6 +395,7 @@ export function TutorChat({
   courseId,
   service = tutorService,
   lesson,
+  region,
   embedded = false,
   onClose,
   onReadTranscript,
@@ -395,6 +404,8 @@ export function TutorChat({
   service?: TutorService;
   /** Reference to the lesson the Learner paused; the API verifies it and builds the context. */
   lesson?: LessonRef;
+  /** A region of the lesson's Slide the question is about (needs `lesson`); shown as a thumbnail. */
+  region?: RegionAsk;
   /** Rendered inside the lesson sheet: always open, no launcher, the sheet owns the close control. */
   embedded?: boolean;
   onClose?: () => void;
@@ -412,7 +423,15 @@ export function TutorChat({
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
-  const tutor = useTutor(courseId, service, open, lesson);
+  const tutor = useTutor(courseId, service, open, lesson, region);
+  useEffect(() => {
+    if (open && tutor.quote)
+      trackQuoteShown({
+        quote_id: tutor.quote.quote.id,
+        feature: `tutor_${tutor.quote.cls}`,
+        pricing_version: tutor.quote.quote.pricing_version,
+      });
+  }, [open, tutor.quote]);
   const entry = useRef<HTMLButtonElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
   const log = useRef<HTMLDivElement>(null);
@@ -466,6 +485,15 @@ export function TutorChat({
   );
   const text = tutor.draft.trim();
   const canSend = !!text && !busy && tutor.online && !tutor.block;
+  const dictation = useDictationWindow({
+    entryPoint: "tutor_sheet",
+    draft: tutor.draft,
+    send: () => sendNow(),
+  });
+  const sendNow = () => {
+    dictation.noteSent();
+    tutor.send();
+  };
   const notice = tutor.notice;
   const transcript = onReadTranscript ? (
     <button
@@ -487,7 +515,7 @@ export function TutorChat({
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault();
-      if (canSend) tutor.send();
+      if (canSend) sendNow();
     }
   }
   // Focus can only move once the nested modal is gone (everything behind it is inert): back to
@@ -591,6 +619,7 @@ export function TutorChat({
               <span>{t("tutor.context_not")}</span>
             </div>
           )}
+          {region && lesson && <RegionThumb rect={region.rect} />}
           <div className="tutor-sr" role="status">
             {announce === "answering"
               ? t("tutor.answering")
@@ -766,7 +795,7 @@ export function TutorChat({
             className="tutor-composer"
             onSubmit={(event) => {
               event.preventDefault();
-              if (canSend) tutor.send();
+              if (canSend) sendNow();
             }}
           >
             <fieldset className="tutor-class" disabled={busy}>
@@ -824,6 +853,22 @@ export function TutorChat({
                 </button>
               )}
             </div>
+            <DictationCountdown
+              counting={dictation.counting}
+              onCancel={dictation.cancelAuto}
+            />
+            {lesson && (
+              <VoiceButton
+                purpose="tutor"
+                entryPoint="tutor_sheet"
+                lessonId={lesson.lesson_id}
+                disabled={busy || !tutor.online}
+                onTranscript={({ text, language }) => {
+                  tutor.setDraft(text);
+                  dictation.begin(text, language);
+                }}
+              />
+            )}
             <div className="tutor-help" aria-live="polite">
               <span>
                 {tutor.quote

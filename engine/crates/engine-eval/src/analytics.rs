@@ -84,7 +84,7 @@ pub async fn emit_eval_run_completed(
         "dataset_source": dataset_source,
         "provider": provider,
         "status": status,
-        "source": "ci",
+        "source": "engine",
         "platform": "web",
         "app_version": app_version
     });
@@ -139,7 +139,7 @@ mod tests {
             "provider": "live",
             "status": "passed",
             "budget_usd": 5.0,
-            "source": "ci",
+            "source": "engine",
             "platform": "web",
             "app_version": "development"
         });
@@ -212,7 +212,7 @@ mod tests {
         assert_eq!(event["properties"]["provider"], "live");
         assert_eq!(event["properties"]["status"], "passed");
         assert_eq!(event["properties"]["budget_usd"], 5.0);
-        assert_eq!(event["properties"]["source"], "ci");
+        assert_eq!(event["properties"]["source"], "engine");
         assert_eq!(event["properties"]["platform"], "web");
         assert_eq!(event["properties"]["app_version"], "development");
 

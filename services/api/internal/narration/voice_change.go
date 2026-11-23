@@ -222,7 +222,7 @@ func (s *Service) ApplyVoice(ctx context.Context, owner, lessonID, voice, quoteI
 		return "", err
 	}
 	if characters > 0 {
-		quotes := pricing.NewQuotes(s.opts.Pool).WithApprovedVoices(s.voices.Keys())
+		quotes := pricing.NewQuotes(s.opts.Pool).WithEvents(s.opts.Events).WithApprovedVoices(s.voices.Keys())
 		quote, e := quotes.Get(ctx, owner, quoteID)
 		if quoteID == "" || e != nil || quote.Action != "narration" || quote.Input.Voice != voice || quote.Expired || quote.Input.NarrationCharacters < characters {
 			return "", ErrQuoteChanged

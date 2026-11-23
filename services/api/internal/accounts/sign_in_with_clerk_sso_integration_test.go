@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/testcontainers/testcontainers-go"
@@ -56,6 +57,8 @@ func TestClerkSSOLinkingReplayAndTakeover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	signups := &signupEventRecorder{}
+	auth.ConfigureProfile(accounts.ProfileOptions{TextLimit: 2000, Events: analytics.WithConsent(signups, analytics.DatabaseConsent(db.Pool))})
 	call := func(method, path string, body any) *httptest.ResponseRecorder {
 		raw, _ := json.Marshal(body)
 		w := httptest.NewRecorder()
@@ -162,6 +165,11 @@ func TestClerkSSOLinkingReplayAndTakeover(t *testing.T) {
 		t.Fatalf("wrong verifier accepted: %d", w.Code)
 	}
 	newLearner := learnerOf(complete(state, verifier))
+	signups.mu.Lock()
+	if len(signups.events) != 1 || signups.events[0]["id"] != newLearner || signups.events[0]["properties"].(map[string]any)["method"] != "clerk" {
+		t.Errorf("expected one Clerk signup event, got %#v", signups.events)
+	}
+	signups.mu.Unlock()
 	if w := complete(state, verifier); w.Code != 401 {
 		t.Fatalf("completion replay accepted: %d", w.Code)
 	}
@@ -244,6 +252,17 @@ func TestClerkSSOLinkingReplayAndTakeover(t *testing.T) {
 	if handoff(again, "new-user") != 200 || learnerOf(complete(again, verifier)) != newLearner {
 		t.Fatal("returning Clerk user did not resolve to the same learner")
 	}
+	signups.mu.Lock()
+	var newLearnerEvents int
+	for _, event := range signups.events {
+		if event["id"] == newLearner {
+			newLearnerEvents++
+		}
+	}
+	if newLearnerEvents != 1 {
+		t.Errorf("returning sign-in emitted signup: %#v", signups.events)
+	}
+	signups.mu.Unlock()
 
 	// An email-code account is linked by Clerk-verified email, then keyed by Clerk id.
 	if r := call("POST", "/v1/auth/code", map[string]any{"email": "existing@example.test", "age_confirmed": true}); r.Code != 202 {

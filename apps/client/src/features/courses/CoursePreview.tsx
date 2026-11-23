@@ -17,6 +17,7 @@ import {
 import type { Outline } from "../design/chat/OutlineEditor";
 import { AppLink } from "../../lib/navigation";
 import { SandboxFrame } from "../lesson-player/SandboxFrame";
+import { trackQuoteShown } from "../../lib/analytics";
 
 type PreviewQuote = Pick<
   ActionQuote,
@@ -152,6 +153,14 @@ export function CoursePreview({
   }, [demoEpoch]);
   const frame = useRef<HTMLIFrameElement>(null);
   const quote = quoted?.revision === revision.id ? quoted.quote : undefined;
+  useEffect(() => {
+    if (quote && !preview && !outline && !creation)
+      trackQuoteShown({
+        quote_id: quote.id,
+        feature: "preview",
+        pricing_version: quote.pricing_version,
+      });
+  }, [quote, preview, outline, creation]);
   const expired = !!quote && Date.parse(quote.expires_at) <= now;
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);

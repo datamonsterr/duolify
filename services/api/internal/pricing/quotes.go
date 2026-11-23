@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/store/db"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -289,8 +290,16 @@ type Quotes struct {
 	pool    *pgxpool.Pool
 	env     string
 	ownerID string
+	events  analytics.Events
 	// approvedVoices extends the version's voice allowlist with the approved voice config (E14-06).
 	approvedVoices []string
+}
+
+// WithEvents adds the consent-aware analytics boundary to quote acceptance.
+func (s *Quotes) WithEvents(events analytics.Events) *Quotes {
+	c := *s
+	c.events = events
+	return &c
 }
 
 // WithApprovedVoices returns a quote service that also accepts the approved narration voices.
@@ -509,6 +518,10 @@ func (s *Quotes) Accept(ctx context.Context, owner, id string) error {
 		q, err := s.Get(ctx, owner, id)
 		if err != nil || !q.Accepted || q.Expired {
 			return errQuote
+		}
+	} else if s.events != nil {
+		if q, lookupErr := s.Get(ctx, owner, id); lookupErr == nil {
+			_ = s.events.Capture(owner, "action_quote_accepted", map[string]any{"source": "api", "platform": "web", "app_version": "development", "quote_id": id, "feature": q.Action, "pricing_version": q.PricingVersion})
 		}
 	}
 	return nil

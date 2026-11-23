@@ -103,7 +103,7 @@ async fn health_reports_the_configured_route_per_task() {
     );
     // Review F1: the quote identity looks live, so Health also states the transport.
     assert_eq!(providers[2], "mode:fixture");
-    assert_eq!(providers.len(), 3 + 15);
+    assert_eq!(providers.len(), 3 + 16);
 }
 
 #[tokio::test]

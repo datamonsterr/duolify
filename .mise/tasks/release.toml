@@ -1,0 +1,36 @@
+["release:lint"]
+description = "Syntax-check the release scripts"
+run = "for f in scripts/release/*.mjs apps/client/scripts/prepare-android-signing.mjs; do node --check \"$f\"; done"
+
+["release:test"]
+description = "Unit tests for changelog, APK certificate, notes, version and signing-patch scripts"
+run = "node --test scripts/release/release.test.mjs"
+
+["release:build"]
+description = "Render the changelog for a tag into dist/release/CHANGELOG.md (usage: mise run release:build -- v0.2.0)"
+usage = 'arg "<tag>" help="Release tag"'
+run = "mkdir -p dist/release && node scripts/release/changelog.mjs \"${usage_tag}\" dist/release/CHANGELOG.md"
+
+["release:android-build"]
+description = "Build the signed universal release APK (needs ANDROID_* signing env and a keystore path argument)"
+dir = "{{config_root}}/apps/client"
+usage = 'arg "<keystore>" help="Path to the decoded release keystore"'
+run = '''
+set -eu
+export VITE_API_URL="${VITE_API_URL:-https://staging-api.duolify.online}"
+export VITE_SSO_BRIDGE_URL="${VITE_SSO_BRIDGE_URL:-https://staging.duolify.online}"
+export VITE_MOBILE_PLATFORM=android
+mise run client:android-init
+node scripts/prepare-android-signing.mjs "${usage_keystore}"
+pnpm tauri android build --ci --apk --target aarch64 --target x86_64
+'''
+
+["release:ios-package"]
+description = "Zip the simulator app produced by client:ios-build into dist/release/duolify-ios-simulator.zip"
+run = '''
+set -eu
+app=$(find apps/client/src-tauri/gen/apple/build -name 'Duolify.app' -type d -print -quit)
+test -n "$app"
+mkdir -p dist/release
+ditto -c -k --keepParent "$app" dist/release/duolify-ios-simulator.zip
+'''

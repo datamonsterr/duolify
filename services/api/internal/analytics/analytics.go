@@ -73,6 +73,9 @@ func (c *client) Close() error {
 	return c.closeErr
 }
 
+// voiceLanguage is a two or three letter lowercase language code, never free text.
+var voiceLanguage = regexp.MustCompile(`^[a-z]{2,3}$`)
+
 func allowlisted(event string) bool {
 	switch event {
 	case "course_replan_quoted", "course_replan_proposed", "course_replan_confirmed", "course_replan_discarded", "course_replan_failed":
@@ -89,7 +92,7 @@ func allowlisted(event string) bool {
 		return true
 	case "lesson_region_selected", "lesson_region_question_sent", "lesson_answer_panel_closed":
 		return true
-	case "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
+	case "action_quote_accepted", "learner_signed_up", "lesson_started", "lesson_player_error", "course_outline_generated", "course_enrolled", "outline_proposal_requested", "outline_proposal_delivered", "outline_proposal_failed", "outline_proposal_applied", "outline_proposal_discarded", "outline_proposal_undone", "course_preview_requested", "course_preview_viewed", "course_generation_failed", "ui_recovery_selected", "learner_profile_updated", "onboarding_completed", "analytics_opt_out_changed",
 		"lesson_generation_requested", "lesson_generated", "lesson_test_started", "lesson_test_submitted", "lesson_test_passed",
 		"lesson_test_answer_wrong", "retry_variant_queued", "retry_variant_served", "retry_variant_answered", "retry_variant_generation_failed", "retry_variant_pool_exhausted", "lesson_test_recap_shown", "ui_test_retry_presented",
 		"checkout_started", "credits_purchased", "credits_purchase_failed", "credits_refunded", "payment_reconciliation_failed",
@@ -112,7 +115,9 @@ func allowlisted(event string) bool {
 		"course_republished", "course_update_applied", "review_submitted", "review_deleted", "course_reported", "course_hidden_by_reports",
 		"moderation_action", "moderation_appeal",
 		"narration_generated", "narration_failed", "narration_cache_hit", "narration_budget_exhausted", "narration_played", "narration_muted", "narration_speed_changed", "captions_toggled",
-		"immersive_mode_entered", "immersive_mode_exited", "immersive_control_used", "lesson_anchored_note_created":
+		"immersive_mode_entered", "immersive_mode_exited", "immersive_control_used", "lesson_anchored_note_created",
+		"voice_transcription_succeeded", "voice_transcription_failed",
+		"transcription_requested", "transcription_succeeded", "transcription_failed", "transcription_fallback_used":
 		return true
 	default:
 		return false
@@ -166,25 +171,7 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 		switch key {
 		case "source":
-			if event == "quick_note_created" {
-				if v == "slide" || v == "lesson" || v == "chat" {
-					out[key] = v
-				}
-				continue
-			}
-			if event == "lesson_anchored_note_created" {
-				if v == "typed" || v == "voice" {
-					out[key] = v
-				}
-				continue
-			}
-			if event == "course_enrolled_published" {
-				if v == "link" || v == "invite" || v == "marketplace" {
-					out[key] = v
-				}
-				continue
-			}
-			if v != "api" && v != "ci" {
+			if v != "api" && v != "engine" {
 				continue
 			}
 		case "platform":
@@ -233,6 +220,12 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	}
 	switch event {
+	case "action_quote_accepted":
+		ids("quote_id", "feature", "pricing_version")
+	case "learner_signed_up":
+		if v, ok := input["method"].(string); ok && (v == "email" || v == "clerk") {
+			out["method"] = v
+		}
 	case "course_replan_quoted", "course_replan_proposed", "course_replan_confirmed", "course_replan_discarded", "course_replan_failed":
 		ids("course_id", "proposal_id", "pricing_version")
 		numeric("credits", "lessons_added", "lessons_removed", "lessons_changed", "outline_version")
@@ -343,6 +336,9 @@ func safeProperties(event string, input map[string]any) map[string]any {
 	case "course_enrolled_published":
 		ids("course_id", "source_course_id")
 		numeric("version")
+		if v, ok := input["entry_point"].(string); ok && (v == "link" || v == "invite" || v == "marketplace") {
+			out["entry_point"] = v
+		}
 	case "published_lesson_reused", "published_lesson_generated_on_demand":
 		ids("course_id", "lesson_id")
 		numeric("version")
@@ -647,11 +643,30 @@ func safeProperties(event string, input map[string]any) map[string]any {
 				enum("seconds_in_mode", "lt_10", "10_30", "30_120", "120_600", "gt_600")
 			}
 		}
+	case "voice_transcription_succeeded", "voice_transcription_failed",
+		"transcription_requested", "transcription_succeeded", "transcription_failed", "transcription_fallback_used":
+		// Closed enums, a model id and flags only: never audio, a transcript or any text the Learner said.
+		closed := func(key string, allowed ...string) {
+			if v, ok := input[key].(string); ok && slices.Contains(allowed, v) {
+				out[key] = v
+			}
+		}
+		closed("purpose", "tutor", "note")
+		closed("duration_bucket", "lt_2s", "2_5s", "5_15s", "15_30s")
+		closed("error_class", "voice_unavailable", "voice_failed", "voice_timeout", "voice_cost_ceiling", "voice_invalid", "voice_over_policy")
+		if v, ok := input["language"].(string); ok && (v == "" || voiceLanguage.MatchString(v)) {
+			out["language"] = v
+		}
+		boolean("fallback_used", "empty")
+		ids("served_model", "model")
 	case "lesson_anchored_note_created":
 		// Identifiers, a closed enum and a flag; never the note text or the region contents.
 		ids("course_id", "lesson_id")
 		numeric("slide_index")
 		boolean("has_region")
+		if v, ok := input["entry_point"].(string); ok && (v == "typed" || v == "voice") {
+			out["entry_point"] = v
+		}
 	case "$ai_generation":
 		numeric("$ai_input_tokens", "$ai_output_tokens", "$ai_latency")
 		boolean("fallback_used", "$ai_is_error", "succeeded", "usage_available", "usage_estimated")
@@ -750,11 +765,6 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		if class := input["change_class"]; class == "adverse" || class == "non_adverse" {
 			out["change_class"] = class
 		}
-		if v, ok := input["actor_id"].(string); ok {
-			if id, err := uuid.Parse(v); err == nil {
-				out["actor_id"] = id.String()
-			}
-		}
 	case "username_set", "username_changed":
 		numeric("username_length")
 	case "username_searched":
@@ -781,8 +791,8 @@ func safeProperties(event string, input map[string]any) map[string]any {
 		}
 	case "quick_note_created":
 		numeric("length")
-		if src, ok := input["source"].(string); ok && (src == "slide" || src == "lesson" || src == "chat") {
-			out["source"] = src
+		if src, ok := input["entry_point"].(string); ok && (src == "slide" || src == "lesson" || src == "chat") {
+			out["entry_point"] = src
 		}
 	case "quick_note_enriched", "quick_note_enrichment_failed", "quick_note_reviewed", "quick_note_deleted":
 		ids("note_id", "reason", "error_code")

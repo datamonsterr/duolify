@@ -1,4 +1,4 @@
-import type { FriendStreak } from "./friendStreak";
+import type { FriendStreak } from "./friendStreakModel";
 export interface FriendAvatar {
   initial: string;
 }

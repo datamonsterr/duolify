@@ -1,3 +1,4 @@
+import { appVersion, clientPlatform } from "./client-build";
 import { posthog } from "./posthog";
 import {
   navigation,
@@ -14,12 +15,16 @@ type Identity = {
 };
 let identity: Identity | undefined;
 const exposed = new Set<string>();
+const shownQuotes = new Set<string>();
 const uuid =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // Auth supplies the internal Learner UUID; public browsing has no identity.
 export function configureAnalytics(value: Identity | null) {
-  if (identity?.learnerId !== value?.learnerId) exposed.clear();
+  if (identity?.learnerId !== value?.learnerId) {
+    exposed.clear();
+    shownQuotes.clear();
+  }
   identity = value ?? undefined;
   try {
     if (value?.optedOut) posthog.opt_out_capturing();
@@ -33,6 +38,64 @@ export function configureAnalytics(value: Identity | null) {
     } catch {
       /* Identity setup must not block the app. */
     }
+  }
+}
+
+const quoteFeatures = new Set([
+  "preview",
+  "outline",
+  "lesson_content",
+  "narration",
+  "tutor_short",
+  "tutor_long",
+  "quick_note",
+  "cached_replay",
+  "setup_chat",
+  "course_brief_chat",
+  "outline_chat_change",
+  "outline_replan",
+  "character_create",
+]);
+export function trackQuoteShown(value: {
+  quote_id: string;
+  feature: string;
+  pricing_version: string;
+}) {
+  if (
+    !identity ||
+    identity.optedOut ||
+    !uuid.test(identity.learnerId) ||
+    !uuid.test(value.quote_id) ||
+    !quoteFeatures.has(value.feature) ||
+    !/^[A-Za-z0-9_.:-]{1,100}$/.test(value.pricing_version) ||
+    shownQuotes.has(value.quote_id)
+  )
+    return;
+  const storageKey = `quote-shown:${identity.learnerId}:${value.quote_id}`;
+  try {
+    if (sessionStorage.getItem(storageKey)) return;
+  } catch {
+    /* In-memory deduplication still applies without storage. */
+  }
+  try {
+    if (posthog.has_opted_out_capturing()) return;
+    posthog.capture("action_quote_shown", {
+      quote_id: value.quote_id,
+      feature: value.feature,
+      pricing_version: value.pricing_version,
+      distinct_id: identity.learnerId,
+      platform: identity.platform,
+      app_version: identity.appVersion ?? appVersion,
+      source: "client",
+    });
+    shownQuotes.add(value.quote_id);
+    try {
+      sessionStorage.setItem(storageKey, "1");
+    } catch {
+      /* In-memory deduplication still applies without storage. */
+    }
+  } catch {
+    /* Analytics must not interrupt a quote. */
   }
 }
 // Apply consent before any network request. PostHog's opt-out disables capture
@@ -54,7 +117,7 @@ export function trackAppearanceChanged(mode: "system" | "light" | "dark") {
     posthog.capture("ui_appearance_changed", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       mode,
     });
@@ -83,7 +146,7 @@ export function exposePricing(
     posthog.capture("pricing_version_exposed", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       pricing_version: version,
       surface,
@@ -124,7 +187,7 @@ export function track(
         ...properties,
         distinct_id: identity.learnerId,
         platform: identity.platform,
-        app_version: identity.appVersion ?? "0.1.0",
+        app_version: identity.appVersion ?? appVersion,
         source: "client",
       });
   } catch {
@@ -170,15 +233,16 @@ function captureSSOUI(
   try {
     if (posthog.has_opted_out_capturing()) return;
     posthog.capture(event, {
+      ...properties,
       distinct_id: distinctID,
       platform:
         identity?.platform ??
-        (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
-          ? "desktop"
-          : "web"),
-      app_version: identity?.appVersion ?? "0.1.0",
+        clientPlatform(
+          typeof window !== "undefined" && "__TAURI_INTERNALS__" in window,
+          import.meta.env.VITE_MOBILE_PLATFORM,
+        ),
+      app_version: identity?.appVersion ?? appVersion,
       source: "client",
-      ...properties,
     });
   } catch {
     /* Sign-in continues if analytics is unavailable. */
@@ -205,11 +269,11 @@ function captureAuth(event: string, properties: Record<string, string>) {
   try {
     if (posthog.has_opted_out_capturing()) return;
     posthog.capture(event, {
+      ...properties,
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
-      ...properties,
     });
   } catch {
     /* Analytics delivery cannot block sign-in. */
@@ -251,7 +315,7 @@ export function trackPurchase(value: {
     posthog.capture(value.event, {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       price_table_version: value.pricingVersion,
       ...(value.feature ? { feature: value.feature } : {}),
@@ -280,7 +344,7 @@ export function trackControl(controlId: CourseControl, courseId?: string) {
     posthog.capture("ui_control_activated", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface: "courses",
       control_id: controlId,
@@ -295,13 +359,14 @@ export function trackControl(controlId: CourseControl, courseId?: string) {
 export function trackExampleCoursesViewed(
   surface: "courses" | "learn_empty" | "onboarding",
 ) {
+  if (!["courses", "learn_empty", "onboarding"].includes(surface)) return;
   if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
   try {
     if (posthog.has_opted_out_capturing()) return;
     posthog.capture("example_courses_viewed", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface,
     });
@@ -320,7 +385,7 @@ export function trackPrivacyControl(
     posthog.capture("ui_control_activated", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface: "settings_privacy",
       control_id: controlId,
@@ -340,7 +405,7 @@ export function trackLearningAnalyticsControl(
     posthog.capture("ui_control_activated", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface: "learning_analytics",
       control_id: controlId,
@@ -358,11 +423,11 @@ function trackShell(
   try {
     if (posthog.has_opted_out_capturing()) return;
     posthog.capture(event, {
+      ...properties,
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
-      ...properties,
     });
   } catch {
     /* Analytics never blocks navigation. */
@@ -442,7 +507,7 @@ export function trackGuidedUi(value: GuidedUiEvent) {
   const properties: Record<string, string> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
   };
   if (
@@ -489,11 +554,11 @@ function trackSettings(
   try {
     if (!posthog.has_opted_out_capturing())
       posthog.capture(event, {
+        ...properties,
         distinct_id: identity.learnerId,
         platform: identity.platform,
-        app_version: identity.appVersion ?? "0.1.0",
+        app_version: identity.appVersion ?? appVersion,
         source: "client",
-        ...properties,
       });
   } catch {
     /* Preference changes never depend on telemetry. */
@@ -525,7 +590,7 @@ export function trackCourseRecovery(
     posthog.capture("ui_recovery_selected", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface,
       action,
@@ -546,7 +611,7 @@ export function trackTutorRecovery(
     posthog.capture("ui_recovery_selected", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface: "lesson_tutor",
       action,
@@ -564,32 +629,13 @@ export function trackTutorControl(controlId: "delete_thread") {
     posthog.capture("ui_control_activated", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface: "tutor_chat",
       control_id: controlId,
     });
   } catch {
     /* Telemetry failure never blocks deleting. */
-  }
-}
-
-export function trackQuickNoteCreated(value: {
-  source: "slide" | "lesson" | "chat";
-  length: number;
-}) {
-  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
-  try {
-    if (posthog.has_opted_out_capturing()) return;
-    posthog.capture("quick_note_created", {
-      distinct_id: identity.learnerId,
-      platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
-      source: value.source,
-      length: value.length,
-    });
-  } catch {
-    /* Analytics failure never blocks note creation. */
   }
 }
 
@@ -600,7 +646,7 @@ export function trackQuickNoteReviewed(noteId: string) {
     posthog.capture("quick_note_reviewed", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       note_id: noteId,
     });
@@ -616,7 +662,7 @@ export function trackQuickNoteDeleted(noteId: string) {
     posthog.capture("quick_note_deleted", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       note_id: noteId,
     });
@@ -632,7 +678,7 @@ export function trackExportNotes() {
     posthog.capture("ui_control_activated", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       surface: "quick_notes",
       control_id: "export_notes",
@@ -654,7 +700,7 @@ export function trackBookmarkAdded(value: {
     posthog.capture("bookmark_added", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       target_type: value.targetType,
       ...(value.courseId ? { course_id: value.courseId } : {}),
@@ -678,7 +724,7 @@ export function trackBookmarkRemoved(value: {
     posthog.capture("bookmark_removed", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       target_type: value.targetType,
       ...(value.courseId ? { course_id: value.courseId } : {}),
@@ -702,7 +748,7 @@ export function trackBookmarkOpened(value: {
     posthog.capture("bookmark_opened", {
       distinct_id: identity.learnerId,
       platform: identity.platform,
-      app_version: identity.appVersion ?? "0.1.0",
+      app_version: identity.appVersion ?? appVersion,
       source: "client",
       target_type: value.targetType,
       ...(value.courseId ? { course_id: value.courseId } : {}),
@@ -754,7 +800,7 @@ export function trackPlayer(
   const properties: Record<string, string | number | boolean> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
   };
   for (const name of (event === "lesson_started"
@@ -872,7 +918,7 @@ export function trackImmersive(
   const properties: Record<string, string | number> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
   };
   if (value.event === "immersive_control_used") {
@@ -909,6 +955,139 @@ export function trackImmersive(
   }
 }
 
+const areaBucket = (area: number) =>
+  area < 0.08 ? "small" : area < 0.3 ? "medium" : "large";
+const countBucket = (n: number) => (n <= 0 ? "0" : n === 1 ? "1" : "2_plus");
+
+/** Region question funnel (immersive-mobile-lesson-player analytics spec): ids, counts and closed enums only. */
+export function trackRegion(
+  value:
+    | {
+        event: "lesson_region_selected";
+        course_id: string;
+        lesson_id: string;
+        slide_index: number;
+        method: "two_finger" | "select_area" | "keyboard";
+        area: number;
+      }
+    | {
+        event: "lesson_answer_panel_closed";
+        course_id: string;
+        lesson_id: string;
+        slide_index: number;
+        outcome: "completed" | "stopped" | "failed";
+        saved_note: boolean;
+        follow_ups: number;
+      },
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  const id = /^[A-Za-z0-9_-]{1,100}$/;
+  if (
+    !id.test(value.course_id) ||
+    !id.test(value.lesson_id) ||
+    !Number.isSafeInteger(value.slide_index) ||
+    value.slide_index < 0 ||
+    value.slide_index >= 100
+  )
+    return;
+  const properties: Record<string, string | number | boolean> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? appVersion,
+    source: "client",
+    course_id: value.course_id,
+    lesson_id: value.lesson_id,
+    slide_index: value.slide_index,
+  };
+  if (value.event === "lesson_region_selected") {
+    properties.method = value.method;
+    properties.area_bucket = areaBucket(value.area);
+  } else {
+    properties.outcome = value.outcome;
+    properties.saved_note = value.saved_note;
+    properties.follow_ups = countBucket(value.follow_ups);
+  }
+  try {
+    if (!posthog.has_opted_out_capturing()) {
+      posthog.capture(value.event, properties);
+      // A test can opt in by defining `window.__analyticsLog = []` before the page loads.
+      (
+        window as unknown as { __analyticsLog?: unknown[] }
+      ).__analyticsLog?.push({ event: value.event, properties });
+    }
+  } catch {
+    /* Playback never depends on analytics. */
+  }
+}
+
+export type VoiceEntryPoint = "answer_panel" | "tutor_sheet" | "quick_note";
+export type VoiceErrorClass =
+  | "unavailable"
+  | "too_long"
+  | "too_large"
+  | "unsupported_container"
+  | "not_entitled"
+  | "rate_limited"
+  | "daily_cap"
+  | "failed"
+  | "empty"
+  | "offline";
+const voiceBuckets = ["lt_2s", "2_5s", "5_15s", "15_30s"];
+type VoiceCommon = {
+  purpose: "tutor" | "note";
+  entry_point: VoiceEntryPoint;
+};
+/**
+ * Voice input funnel, client tier (immersive-mobile-lesson-player analytics spec). Transcription
+ * outcomes are emitted by the API, which knows the served model. Closed enums only: no audio,
+ * no transcript text, no ids of either. `source` is the emitting tier (client), `entry_point` the UI place.
+ */
+export function trackVoice(
+  value: VoiceCommon &
+    (
+      | {
+          event: "voice_recording_finished" | "voice_recording_cancelled";
+          duration_bucket: string;
+        }
+      | {
+          event: "voice_transcript_used" | "voice_transcript_discarded";
+          edited: boolean;
+        }
+    ),
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  if (
+    ![
+      "voice_recording_finished",
+      "voice_recording_cancelled",
+      "voice_transcript_used",
+      "voice_transcript_discarded",
+    ].includes(value.event) ||
+    !["tutor", "note"].includes(value.purpose) ||
+    !["answer_panel", "tutor_sheet", "quick_note"].includes(value.entry_point)
+  )
+    return;
+  const properties: Record<string, string | number | boolean> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? "0.1.0",
+    source: "client",
+    purpose: value.purpose,
+    entry_point: value.entry_point,
+  };
+  if ("duration_bucket" in value) {
+    if (!voiceBuckets.includes(value.duration_bucket)) return;
+    properties.duration_bucket = value.duration_bucket;
+  }
+  if ("edited" in value) properties.edited = value.edited === true;
+  try {
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture(value.event, properties);
+  } catch {
+    /* Dictation never depends on analytics. */
+  }
+}
+
 // E14-01 catalogue: narrate-one-slide-mock-speech/specs/analytics/spec.md. Ids and a
 // duration only; narration text, audio and URLs never leave the device.
 export function trackNarrationPlayed(value: {
@@ -922,7 +1101,7 @@ export function trackNarrationPlayed(value: {
   const properties: Record<string, string | number> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
     lesson_id: value.lesson_id,
     slide_id: value.slide_id,
@@ -949,7 +1128,7 @@ export function trackNarrationMuted(value: {
   const properties: Record<string, string | boolean> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
     lesson_id: value.lesson_id,
     slide_id: value.slide_id,
@@ -975,7 +1154,7 @@ export function trackNarrationSpeedChanged(value: {
   const properties: Record<string, string | number> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
     lesson_id: value.lesson_id,
     slide_id: value.slide_id,
@@ -1000,7 +1179,7 @@ export function trackCaptionsToggled(value: {
   const properties: Record<string, string | boolean> = {
     distinct_id: identity.learnerId,
     platform: identity.platform,
-    app_version: identity.appVersion ?? "0.1.0",
+    app_version: identity.appVersion ?? appVersion,
     source: "client",
     lesson_id: value.lesson_id,
     slide_id: value.slide_id,
@@ -1034,7 +1213,7 @@ type OnboardingEvent =
       event: "onboarding_path_chosen";
       path: "topic" | "setup_chat" | "example" | "skip";
     }
-  | { event: "onboarding_tour_started"; source: "first_run" | "settings" }
+  | { event: "onboarding_tour_started"; entry_point: "first_run" | "settings" }
   | { event: "onboarding_tour_step_viewed"; step: string }
   | { event: "onboarding_tour_skipped"; at_step: string };
 export function trackOnboarding(value: OnboardingEvent) {
@@ -1057,8 +1236,8 @@ export function trackOnboarding(value: OnboardingEvent) {
         captureAuth(value.event, { path: value.path });
       break;
     case "onboarding_tour_started":
-      if (["first_run", "settings"].includes(value.source))
-        captureAuth(value.event, { source: value.source });
+      if (["first_run", "settings"].includes(value.entry_point))
+        captureAuth(value.event, { entry_point: value.entry_point });
       break;
     case "onboarding_tour_step_viewed":
       if (steps.includes(value.step))

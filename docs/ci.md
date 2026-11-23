@@ -145,7 +145,7 @@ Flows: F1 sign-up/sign-in, F1b new-learner home (check-in toast), F1c session pe
 F1d daily check-in once per day, F2 create a course, F3 play the first lesson, F4 lesson
 test pass, F5 fail then retry variant, F6 tutor, F7 notes and bookmarks, F8 streak/XP/daily
 goal, F9 credits, F10 settings, F11 export/delete, F12 friends, F13 free example course (no
-AI call, no paid credits), F14 first-run welcome and every tour step. Course flows are
+AI call, no paid credits), F14 first-run welcome and every tour step, F15 immersive lesson (select a region, ask by text, save the reply as a Quick note; paid AI, so not in the staging list unless the tester pays). Course flows are
 funded by the learner's real first daily check-in (keep check-in enabled on the target);
 only F9's purchase step uses `grant-credits`. Sign-ups without a deep link dismiss the
 welcome and tour as a learner would (`skipOnboarding` in `e2e-stack/stack.ts`).

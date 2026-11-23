@@ -127,8 +127,8 @@ func TestQuickNoteAnalyticsEmitterExcludesPrivateText(t *testing.T) {
 	if ev.LearnerID != learnerID {
 		t.Errorf("expected learner ID %s, got %s", learnerID, ev.LearnerID)
 	}
-	if ev.Properties["source"] != "slide" {
-		t.Errorf("expected source slide, got %v", ev.Properties["source"])
+	if ev.Properties["source"] != "api" || ev.Properties["entry_point"] != "slide" {
+		t.Errorf("expected API source and slide entry point, got %v", ev.Properties)
 	}
 	if ev.Properties["length"] != len(privateNoteText) {
 		t.Errorf("expected length %d, got %v", len(privateNoteText), ev.Properties["length"])

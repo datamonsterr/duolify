@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
@@ -322,7 +323,7 @@ func (s *Service) SaveNote(ctx context.Context, learnerID string, input SaveNote
 		return nil, err
 	}
 	meta := s.AnalyticsMetadata(ctx)
-	_ = EmitQuickNoteCreated(s.events, learnerID, input.Source, len(input.RawText), meta.Platform, meta.AppVersion)
+	_ = EmitQuickNoteCreated(s.events, learnerID, input.Source, utf8.RuneCountInString(input.RawText), meta.Platform, meta.AppVersion)
 	if input.Anchor != nil {
 		_ = EmitAnchoredNoteCreated(s.events, learnerID, coursePgUUID, lessonPgUUID, slideID, input.Anchor, meta.Platform, meta.AppVersion)
 	}
@@ -793,7 +794,8 @@ func EmitQuickNoteCreated(events analytics.Events, learnerID, source string, len
 		appVersion = "0.1.0"
 	}
 	return events.Capture(learnerID, "quick_note_created", map[string]any{
-		"source":      source,
+		"source":      "api",
+		"entry_point": source,
 		"length":      length,
 		"platform":    platform,
 		"app_version": appVersion,
@@ -816,7 +818,8 @@ func EmitAnchoredNoteCreated(events analytics.Events, learnerID string, course, 
 		"course_id":   formatUUID(course),
 		"lesson_id":   formatUUID(lesson),
 		"slide_index": int(slide.Int32),
-		"source":      a.Input,
+		"source":      "api",
+		"entry_point": a.Input,
 		"has_region":  a.Rect != nil,
 		"platform":    platform,
 		"app_version": appVersion,

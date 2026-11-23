@@ -21,6 +21,8 @@ export type Pricing = {
     concurrent_generation: number;
     benefits: string[];
   }[];
+  /** Present only when the active pricing version has a transcription rate: voice input is available. */
+  transcribe?: { daily_requests: number } | null;
   sales_enabled: boolean;
   next_scheduled: { version: string; effective_from: string } | null;
 };

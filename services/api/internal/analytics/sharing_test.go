@@ -44,24 +44,31 @@ func TestEnrollmentEventsAreUUIDsAndEnumsOnly(t *testing.T) {
 		}
 	}
 	const id = "11111111-1111-4111-8111-111111111111"
-	raw, _ := json.Marshal(safeProperties("course_enrolled_published", map[string]any{"source": "link", "platform": "web", "app_version": "0.1.0",
+	raw, _ := json.Marshal(safeProperties("course_enrolled_published", map[string]any{"source": "api", "entry_point": "link", "platform": "web", "app_version": "0.1.0",
 		"course_id": id, "source_course_id": id, "version": 3, "token": "SECRETTOKEN", "title": "private-text", "username": "mina"}))
 	for _, bad := range []string{"SECRET", "private-text", "mina"} {
 		if strings.Contains(string(raw), bad) {
 			t.Fatalf("leaked %s: %s", bad, raw)
 		}
 	}
-	for _, want := range []string{`"course_id":"` + id + `"`, `"source_course_id":"` + id + `"`, `"version":3`, `"source":"link"`} {
+	for _, want := range []string{`"course_id":"` + id + `"`, `"source_course_id":"` + id + `"`, `"version":3`, `"source":"api"`, `"entry_point":"link"`} {
 		if !strings.Contains(string(raw), want) {
 			t.Errorf("missing %s in %s", want, raw)
 		}
 	}
-	raw, _ = json.Marshal(safeProperties("course_enrolled_published", map[string]any{"source": "free text", "course_id": "has a space"}))
+	raw, _ = json.Marshal(safeProperties("course_enrolled_published", map[string]any{"entry_point": "free text", "course_id": "has a space"}))
 	if strings.Contains(string(raw), "free text") || strings.Contains(string(raw), "has a space") {
 		t.Errorf("open values accepted: %s", raw)
 	}
 	raw, _ = json.Marshal(safeProperties("published_lesson_reused", map[string]any{"course_id": id, "lesson_id": id, "version": 2, "html": "<h1>x</h1>"}))
 	if strings.Contains(string(raw), "<h1>") || !strings.Contains(string(raw), `"lesson_id"`) {
 		t.Errorf("reuse props wrong: %s", raw)
+	}
+}
+
+func TestEnrollmentEntryPointDoesNotOverwriteSource(t *testing.T) {
+	got := safeProperties("course_enrolled_published", map[string]any{"source": "api", "platform": "web", "app_version": "development", "entry_point": "invite"})
+	if got["source"] != "api" || got["entry_point"] != "invite" {
+		t.Fatalf("expected tier and entry point, got %#v", got)
 	}
 }

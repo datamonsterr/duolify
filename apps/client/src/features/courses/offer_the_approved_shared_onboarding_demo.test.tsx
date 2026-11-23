@@ -1,3 +1,4 @@
+import { appVersion } from "../../lib/client-build";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, it, expect, vi } from "vitest";
 import posthog from "posthog-js/dist/module.no-external";
@@ -60,7 +61,7 @@ it("delivers only content-free demo analytics with UUID/common properties and op
       distinct_id: id,
       source: "client",
       platform: "web",
-      app_version: "0.1.0",
+      app_version: appVersion,
       preview_kind: "shared_demo",
       demo_version: "sky-v1",
     }),

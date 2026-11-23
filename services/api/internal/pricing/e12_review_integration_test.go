@@ -52,6 +52,7 @@ func TestE12ReviewGuards(t *testing.T) {
 			t.Fatal(err)
 		}
 		config["version"] = version
+		config["quote_policy_source"] = "usd-hy4-check-in-2026-11-22"
 		config["effective_from"] = effective.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
 		if change != nil {
 			change(config)
@@ -109,7 +110,8 @@ func TestE12ReviewGuards(t *testing.T) {
 	})
 	t.Run("override requires second administrator and is audited", func(t *testing.T) {
 		draft(t, "usd-review-override", time.Now().Add(96*time.Hour), func(cfg map[string]any) {
-			cfg["actions"].(map[string]any)["lesson_content"].(map[string]any)["credits"] = 60
+			cfg["actions"].(map[string]any)["narration"].(map[string]any)["credits"] = 10
+			cfg["narration"].(map[string]any)["credits"] = 10
 		})
 		reason := []byte(`{"reason":"review promotion","override_reason":"bounded promotion reviewed"}`)
 		status, body := admin.ExecuteCLI(ctx, actor, http.MethodPost, "/admin/v1/pricing/drafts/usd-review-override/approve", reason)
@@ -147,6 +149,9 @@ func TestE12ReviewGuards(t *testing.T) {
 		effective := time.Now().Add(-time.Minute).UTC().Truncate(time.Microsecond)
 		draft(t, "usd-review-missed-activation", effective, nil)
 		if _, err := db.Pool.Exec(ctx, `INSERT INTO pricing_versions(version,effective_from,approved,config) SELECT version,$1,true,config FROM pricing_drafts WHERE version='usd-review-missed-activation'`, effective); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Pool.Exec(ctx, `INSERT INTO pricing_quote_policies(version,policy) SELECT 'usd-review-missed-activation',policy FROM pricing_quote_policies WHERE version='usd-hy4-check-in-2026-11-22'`); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := db.Pool.Exec(ctx, "UPDATE pricing_drafts SET status='approved' WHERE version='usd-review-missed-activation'"); err != nil {

@@ -1,3 +1,4 @@
+import { appVersion } from "../../lib/client-build";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
@@ -175,7 +176,7 @@ it("recovers in place without unmounting private drafts and emits only catalogue
   expect(posthog.capture).toHaveBeenCalledWith("ui_recovery_selected", {
     distinct_id: id,
     platform: "web",
-    app_version: "0.1.0",
+    app_version: appVersion,
     source: "client",
     surface: "sign_in",
     error_code: "session_expired",

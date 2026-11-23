@@ -681,7 +681,7 @@ lesson_test = 1.00
         assert_eq!(props["provider"], "live");
         assert_eq!(props["status"], "passed");
         assert_eq!(props["budget_usd"], 5.0);
-        assert_eq!(props["source"], "ci");
+        assert_eq!(props["source"], "engine");
         assert_eq!(props["platform"], "web");
         assert_eq!(props["app_version"], "development");
 

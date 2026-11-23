@@ -279,9 +279,10 @@ func (s *Service) bindClerkIdentity(ctx context.Context, identity ClerkIdentity,
 		return "", ErrClerkVerification
 	}
 	var learnerID string
+	created := false
 	err = tx.QueryRow(ctx, "SELECT learner_id::text FROM auth_provider_identities WHERE provider='clerk' AND subject=$1", identity.UserID).Scan(&learnerID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		learnerID, err = s.linkOrCreate(ctx, tx, identity, locale, zone, optOut)
+		learnerID, err = s.linkOrCreate(ctx, tx, identity, locale, zone, optOut, &created)
 	}
 	if err != nil {
 		return "", err
@@ -301,10 +302,16 @@ func (s *Service) bindClerkIdentity(ctx context.Context, identity ClerkIdentity,
 	if _, err = tx.Exec(ctx, "UPDATE auth_oauth_attempts SET code_hash=$2,code_expires_at=now()+interval '2 minutes',code_attempts=0 WHERE state_hash=$1", stateHash, ssoCodeHash(s.oauthKey, code)); err != nil {
 		return "", err
 	}
-	return code, tx.Commit(ctx)
+	if err = tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	if created {
+		s.captureSignup(learnerID, "clerk")
+	}
+	return code, nil
 }
 
-func (s *Service) linkOrCreate(ctx context.Context, tx pgx.Tx, identity ClerkIdentity, locale, zone string, optOut bool) (string, error) {
+func (s *Service) linkOrCreate(ctx context.Context, tx pgx.Tx, identity ClerkIdentity, locale, zone string, optOut bool, created *bool) (string, error) {
 	if identity.Email == "" || !identity.EmailVerified {
 		return "", ErrClerkVerification
 	}
@@ -324,6 +331,7 @@ func (s *Service) linkOrCreate(ctx context.Context, tx pgx.Tx, identity ClerkIde
 			return "", errSSOLinking
 		}
 	case errors.Is(err, pgx.ErrNoRows):
+		*created = true
 		name := strings.TrimSpace(identity.Name)
 		if name == "" || len(name) > 160 || strings.ContainsAny(name, "\x00\r\n") {
 			name = "Learner"

@@ -390,3 +390,9 @@ The course-creation event stream SHALL read creation state at 200 ms after it op
 #### Scenario: List courses
 - **WHEN** an authenticated Learner requests the Course list
 - **THEN** the response contains Course summaries and the active Course id without full unit or Lesson trees
+### Requirement: Preview evaluation matches the served envelope
+The golden evaluation SHALL use the same configured preview output limit as server generation.
+
+#### Scenario: Preview token cap changes
+- **WHEN** the active configured output limit changes
+- **THEN** golden evaluation applies that same limit

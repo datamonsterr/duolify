@@ -429,9 +429,7 @@ func (s *Service) emit(owner, event string, props map[string]any) {
 	if s.events == nil {
 		return
 	}
-	if _, own := props["source"]; !own {
-		props["source"] = "api"
-	}
+	props["source"] = "api"
 	props["platform"], props["app_version"] = "web", "0.1.0"
 	if err := s.events.Capture(owner, event, props); err != nil {
 		slog.Error("sharing analytics delivery failed", "error", err)

@@ -135,6 +135,12 @@ func transportDown(err error) bool {
 	return false
 }
 
+// Transcribe sends one in-memory recording to the Engine. The caller's context bounds it (two model
+// attempts of 8 s each); the audio is a request field only and is never logged by this wrapper.
+func (c *Client) Transcribe(ctx context.Context, r *enginev1.TranscribeRequest) (*enginev1.TranscribeResponse, error) {
+	return c.rpc.Transcribe(ctx, r)
+}
+
 // New accepts the ENGINE_ADDR http(s) URL; http is for the private local network.
 func New(addr string, timeout time.Duration) (*Client, error) {
 	u, err := url.Parse(addr)

@@ -3,7 +3,7 @@ import { session } from "../accounts/session";
 import { Button } from "../design/Button";
 import { ProposalDiff, type OutlineChange } from "../design/chat/ProposalDiff";
 import { quoteAPI, type ActionQuote } from "../pricing/quotes";
-import { trackGuidedUi } from "../../lib/analytics";
+import { trackGuidedUi, trackQuoteShown } from "../../lib/analytics";
 import type { OutlineDraft } from "./outline";
 
 type Operation = {
@@ -123,6 +123,14 @@ export function OutlineChat({
   const decisionStatus = useRef<HTMLParagraphElement>(null);
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (quote)
+      trackQuoteShown({
+        quote_id: quote.id,
+        feature: "outline_chat_change",
+        pricing_version: quote.pricing_version,
+      });
+  }, [quote]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);

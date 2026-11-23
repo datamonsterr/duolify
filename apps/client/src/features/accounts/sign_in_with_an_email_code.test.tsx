@@ -1,3 +1,4 @@
+import { appVersion } from "../../lib/client-build";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
@@ -109,7 +110,7 @@ it("keeps drafts and emits only stable sign-in properties after verified UUID id
   expect(posthog.capture).toHaveBeenCalledWith("ui_control_activated", {
     distinct_id: id,
     platform: "web",
-    app_version: "0.1.0",
+    app_version: appVersion,
     source: "client",
     surface: "sign_in",
     control_id: "sign_in",

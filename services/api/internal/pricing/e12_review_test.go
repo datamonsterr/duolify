@@ -36,7 +36,7 @@ func TestE12MappingGuards(t *testing.T) {
 	t.Run("nil verifier", func(t *testing.T) {
 		cfg := loadApprovedConfig(t)
 		raw, _ := json.Marshal(cfg)
-		err := pricing.ValidateEconomics(raw, nil, "")
+		err := pricing.ValidateEconomics(raw, nil, "", legacyRouteForTest())
 		if err == nil || !strings.Contains(err.Error(), "verifier") {
 			t.Fatalf("nil verifier error=%v", err)
 		}
@@ -45,7 +45,7 @@ func TestE12MappingGuards(t *testing.T) {
 		cfg := loadApprovedConfig(t)
 		cfg["stripe_mappings"] = map[string]any{}
 		raw, _ := json.Marshal(cfg)
-		err := pricing.ValidateEconomics(raw, &reviewVerifier{}, "")
+		err := pricing.ValidateEconomics(raw, &reviewVerifier{}, "", legacyRouteForTest())
 		if err == nil || !strings.Contains(err.Error(), "mapping") {
 			t.Fatalf("missing mappings error=%v", err)
 		}
@@ -55,7 +55,7 @@ func TestE12MappingGuards(t *testing.T) {
 		reviewMappings(cfg)
 		raw, _ := json.Marshal(cfg)
 		v := &reviewVerifier{rejectLive: true}
-		err := pricing.ValidateEconomics(raw, v, "")
+		err := pricing.ValidateEconomics(raw, v, "", legacyRouteForTest())
 		if err == nil || !strings.Contains(err.Error(), "live") {
 			t.Fatalf("live verification error=%v checked=%v", err, v.environments)
 		}
@@ -87,7 +87,7 @@ func TestE12PlatformEconomicsCannotBeLowered(t *testing.T) {
 			if field == "ceiling" {
 				override = "review action cost independently of SKU margin"
 			}
-			err := pricing.ValidateEconomics(raw, &reviewVerifier{}, override)
+			err := pricing.ValidateEconomics(raw, &reviewVerifier{}, override, legacyRouteForTest())
 			if err == nil {
 				t.Fatal("draft lowered platform economics protection")
 			}

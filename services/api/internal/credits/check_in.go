@@ -144,11 +144,9 @@ func (s *Service) CheckInAt(ctx context.Context, owner string, at time.Time) (Ch
 			}
 			result.CheckedIn = true
 			result.BankedCheckIn += result.Granted
-			if result.Granted > 0 {
-				err = insertOutbox(ctx, tx, owner, "check_in:"+owner+":"+day, "check_in_credits_granted", map[string]any{"source": "api", "platform": "web", "app_version": "development", "amount": result.Granted, "first_time": result.FirstTime, "banked_after": result.BankedCheckIn, "capped": regular < cfg.CheckIn.DailyCredits})
-				if err != nil {
-					return result, err
-				}
+			err = insertOutbox(ctx, tx, owner, "check_in:"+owner+":"+day, "check_in_credits_granted", map[string]any{"source": "api", "platform": "web", "app_version": "development", "amount": result.Granted, "first_time": result.FirstTime, "banked_after": result.BankedCheckIn, "capped": regular < cfg.CheckIn.DailyCredits})
+			if err != nil {
+				return result, err
 			}
 		}
 	}

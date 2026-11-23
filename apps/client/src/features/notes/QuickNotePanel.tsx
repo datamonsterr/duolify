@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ResponsivePanel } from "../shell/AdaptiveLayouts";
-import { trackGuidedUi, trackQuickNoteCreated } from "../../lib/analytics";
+import { trackGuidedUi, trackVoice } from "../../lib/analytics";
 import {
   anchorToWire,
   noteQueue,
@@ -10,6 +10,7 @@ import {
 } from "./note-queue";
 import { session } from "../accounts/session";
 import { AppLink } from "../../lib/navigation";
+import { VoiceButton } from "../voice/VoiceButton";
 
 export type QuickNoteContext = {
   source: NoteSource;
@@ -116,10 +117,21 @@ export function QuickNotePanel({
     }
   }, [open, status, activeNote]);
 
-  const handleSave = async () => {
-    const trimmed = noteText.trim();
+  // A dictated note is saved at once; Undo removes it again (device queue and, when synced, the server).
+  const [dictated, setDictated] = useState<{
+    actionKey: string;
+    id?: string;
+  } | null>(null);
+
+  const handleSave = async (dictation?: string) => {
+    const body = dictation ?? noteText;
+    const trimmed = body.trim();
     if (!trimmed) return;
     quickNoteDrafts.delete(draftKey);
+    const anchor: NoteAnchor | undefined =
+      dictation !== undefined && context.anchor
+        ? { ...context.anchor, input: "voice" }
+        : context.anchor;
 
     // Save to local device queue with stable action key
     const queued = noteQueue.enqueue({
@@ -128,17 +140,12 @@ export function QuickNotePanel({
       slideId: context.slideId,
       slideTitle: context.slideTitle,
       source: context.source,
-      anchor: context.anchor,
-      rawText: noteText,
+      anchor,
+      rawText: body,
       status: "device_saved",
     });
     setActiveNote(queued);
-
-    // Track analytics (source and length only, no private text)
-    trackQuickNoteCreated({
-      source: context.source,
-      length: noteText.length,
-    });
+    if (dictation !== undefined) setDictated({ actionKey: queued.actionKey });
 
     // If marked offline or browser navigator is offline, keep as offline_saved
     const online =
@@ -159,10 +166,12 @@ export function QuickNotePanel({
           slideId: context.slideId,
           slideTitle: context.slideTitle,
           source: context.source,
-          anchor: context.anchor,
-          rawText: noteText,
+          anchor,
+          rawText: body,
         });
         noteQueue.markSynced(queued.actionKey, res.id);
+        if (dictation !== undefined)
+          setDictated({ actionKey: queued.actionKey, id: res.id });
         setStatus("synced");
       } else {
         const res = await session.request<{ id: string; status: string }>(
@@ -175,17 +184,42 @@ export function QuickNotePanel({
             slide_id: context.slideId,
             slide_title: context.slideTitle,
             source: context.source,
-            anchor: anchorToWire(context.anchor),
-            raw_text: noteText,
+            anchor: anchorToWire(anchor),
+            raw_text: body,
           },
         );
         noteQueue.markSynced(queued.actionKey, res.id);
+        if (dictation !== undefined)
+          setDictated({ actionKey: queued.actionKey, id: res.id });
         setStatus("synced");
       }
     } catch {
       setStatus("offline_saved");
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const undoDictation = async () => {
+    if (!dictated) return;
+    const { actionKey, id } = dictated;
+    noteQueue.remove(actionKey);
+    setDictated(null);
+    setActiveNote(null);
+    setNoteTextState("");
+    setStatus("draft");
+    trackVoice({
+      event: "voice_transcript_discarded",
+      purpose: "note",
+      entry_point: "quick_note",
+      edited: false,
+    });
+    if (id) {
+      try {
+        await session.request(`/v1/notes/${id}`, "DELETE");
+      } catch {
+        /* The note stays in Notes and can be deleted there. */
+      }
     }
   };
 
@@ -260,6 +294,38 @@ export function QuickNotePanel({
           </span>
         )}
 
+        {context.lessonId && (status === "draft" || dictated) && (
+          <VoiceButton
+            purpose="note"
+            entryPoint="quick_note"
+            lessonId={context.lessonId}
+            disabled={isSyncing}
+            onTranscript={({ text }) => {
+              trackVoice({
+                event: "voice_transcript_used",
+                purpose: "note",
+                entry_point: "quick_note",
+                edited: false,
+              });
+              void handleSave(text.slice(0, 2000));
+            }}
+          />
+        )}
+        {dictated && (
+          <p role="status" data-testid="voice-note-saved" style={{ margin: 0 }}>
+            Saved your dictated note.{" "}
+            <button
+              type="button"
+              data-testid="voice-note-undo"
+              disabled={isSyncing}
+              onClick={() => void undoDictation()}
+              style={{ fontWeight: 800 }}
+            >
+              Undo
+            </button>
+          </p>
+        )}
+
         {status === "draft" && (
           <>
             <label
@@ -322,7 +388,7 @@ export function QuickNotePanel({
             <button
               type="button"
               className="duo-button primary"
-              onClick={handleSave}
+              onClick={() => void handleSave()}
               disabled={!noteText.trim()}
               style={{
                 display: "flex",
