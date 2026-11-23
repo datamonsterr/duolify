@@ -50,6 +50,20 @@ test("cert check accepts the expected single signer", () => {
   );
 });
 
+test("cert check accepts apksigner verbose output", () => {
+  const hex = SHA.replaceAll(":", "").toLowerCase();
+  const verbose = `Verifies\nNumber of signers: 1\nV2 Signer: certificate DN: CN=x\nV2 Signer: certificate SHA-256 digest: ${hex}\n`;
+  assert.equal(verifyCertOutput(verbose, SHA), hex);
+  assert.throws(
+    () => verifyCertOutput(verbose.replace("1\n", "2\n"), SHA),
+    /exactly one signer/,
+  );
+  assert.throws(
+    () => verifyCertOutput("Number of signers: 1\n", SHA),
+    /no signer certificate/,
+  );
+});
+
 test("cert check fails closed", () => {
   assert.throws(
     () => verifyCertOutput(out(1, "00".repeat(32)), SHA),

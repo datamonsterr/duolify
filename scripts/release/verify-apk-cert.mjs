@@ -14,19 +14,25 @@ export function verifyCertOutput(output, expected) {
     throw new Error("expected certificate digest is not SHA-256");
   if (/DOES NOT VERIFY/i.test(output))
     throw new Error("APK signature does not verify");
-  const signers = [
+  // Verbose output lists "Number of signers" and one digest per scheme
+  // ("V2 Signer: ..."); the terse form lists "Signer #N certificate ...".
+  const digests = [
     ...output.matchAll(
-      /Signer #(\d+) certificate SHA-256 digest: ([0-9a-fA-F:]+)/g,
+      /Signer[^\n]*?certificate SHA-256 digest: ([0-9a-fA-F:]+)/g,
     ),
-  ];
-  if (signers.length !== 1)
-    throw new Error(`expected exactly one signer, found ${signers.length}`);
-  const got = normalizeDigest(signers[0][2]);
-  if (got !== want)
+  ].map((m) => normalizeDigest(m[1]));
+  const declared = /Number of signers: (\d+)/.exec(output);
+  const count = declared ? Number(declared[1]) : digests.length;
+  if (count !== 1)
+    throw new Error(`expected exactly one signer, found ${count}`);
+  if (digests.length === 0)
+    throw new Error("no signer certificate in apksigner output");
+  const bad = digests.find((d) => d !== want);
+  if (bad)
     throw new Error(
-      `signing certificate ${got} does not match the release certificate`,
+      `signing certificate ${bad} does not match the release certificate`,
     );
-  return got;
+  return want;
 }
 
 export function findApksigner(env = process.env) {
