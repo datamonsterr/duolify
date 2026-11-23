@@ -207,6 +207,7 @@
   border: 2px solid var(--line);
   border-radius: var(--radius-md, 0.75rem);
   padding: var(--space-2, 8px) var(--space-3, 12px);
+  padding-inline-end: 2.5rem;
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -344,7 +345,7 @@
 .social-danger {
   background: var(--danger, #b3261e);
   border-color: var(--danger, #b3261e);
-  color: #fff;
+  color: var(--danger-bg);
 }
 @media (max-width: 47.99rem) {
   .friends-layout {
