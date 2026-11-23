@@ -19,5 +19,5 @@
 
 ## 3. Follow-ups (need an owner decision)
 - [x] 3.1 Retention windows for `lesson_playback_sync_events`, `lesson_test_answer_operations` (done in `row-retention-windows`)
-- [ ] 3.2 Move the shared-asset sweep to the worker once it holds object-store keys
-- [ ] 3.3 Per-learner wallet balance projection (replaces whole-ledger recompute)
+- [x] 3.2 Shared-asset sweep (`sharing.MaintainAssets`) runs only in the worker, which holds the application object-store key (`cmd/api/maintenance_ownership_test.go`; idempotence and concurrency in `sharing/retain_shared_assets_through_deletion_and_recovery_integration_test.go`)
+- [x] 3.3 Per-learner wallet balance projection (replaces whole-ledger recompute): ticketed as owner-decision follow-up datamonsterr/duolify#348 (credits money path), not part of this change

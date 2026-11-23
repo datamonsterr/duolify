@@ -421,9 +421,7 @@ func run(ctx context.Context, args []string) (result error) {
 		sharingService = sharingService.WithGeneration(sharing.GenerationDeps{Quotes: quotesService, Wallet: creditService, Lessons: lessonPreparer})
 	}
 	steeringService := steering.New(steering.Options{Pool: db.Pool, Engine: backend, Replanner: backend, Quotes: quotesService, Financial: creditService, Events: events, Price: quotesService})
-	// Stays in the API: it deletes shared-asset objects with the application object-store
-	// keys, which the worker deliberately does not hold. It wakes every six hours.
-	go sharingService.MaintainAssets(ctx)
+	// The shared-asset retention sweep runs in the worker (worker_sweeps.go).
 	// Authored example Courses: publish their immutable objects (identical bytes, safe on every replica and rerun).
 	go func() {
 		if err := sharingService.InstallExampleObjects(ctx); err != nil {
