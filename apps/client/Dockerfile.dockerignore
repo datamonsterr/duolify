@@ -12,6 +12,7 @@ apps/client/playwright-report
 !docs/design/tokens.json
 !docs/design/theme.css
 !services/api/internal/characters/schema
+!services/api/internal/characters/rig
 !infra/deploy/Caddyfile
 !infra/deploy/security-headers.caddy
 !infra/deploy/proxy-entrypoint.sh

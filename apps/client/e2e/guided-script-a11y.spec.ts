@@ -29,21 +29,16 @@ test("every widget passes axe and a keyboard-only run completes the script", asy
   await audit(page, "single");
   await k.press("ArrowDown");
   await expect(page.getByRole("radio", { name: "Some" })).toBeFocused();
-  await k.press("Tab"); // leaves the radio group for Send
-  await k.press("Enter");
+  await k.press("Enter"); // Enter confirms through the hidden Send
   // multi
   await expect(page.getByRole("checkbox", { name: "Speaking" })).toBeFocused();
   await audit(page, "multi");
   await k.press("Space");
-  await k.press("Tab");
-  await k.press("Tab");
-  await k.press("Tab");
   await k.press("Enter");
   // toggle
   await audit(page, "toggle");
   await expect(page.getByRole("radio", { name: "Yes" })).toBeFocused();
   await k.press("Space");
-  await k.press("Tab");
   await k.press("Enter");
   // time
   await audit(page, "time");

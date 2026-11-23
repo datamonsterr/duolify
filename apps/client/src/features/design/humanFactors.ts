@@ -1,5 +1,26 @@
 // Testable human-factors rules (openspec simplify-ux-gestures-hotkeys, "Human-factors rules").
-import { iconOnlyAllowlist } from "./Icon";
+/** Icon-only controls may use only these (spec: universal set). */
+export const iconOnlyAllowlist: readonly string[] = [
+  "play",
+  "pause",
+  "previous",
+  "next",
+  "close",
+  "back",
+  "more",
+  "search",
+  "add",
+  "send",
+  "microphone",
+  "volume",
+  "mute",
+  "fullscreen",
+  "captions",
+  "settings",
+  "share",
+  "bookmark",
+  "home",
+];
 
 /** Hick's law: count controls marked with `data-action-level` in a view. */
 export function countActionLevels(root: ParentNode) {
@@ -42,7 +63,7 @@ export function iconOnlyViolations(root: ParentNode) {
     if (!icons.length || text) continue;
     const name = icons[0].getAttribute("data-icon") ?? "";
     const label = el.getAttribute("aria-label") || el.getAttribute("title");
-    if (!(iconOnlyAllowlist as readonly string[]).includes(name))
+    if (!iconOnlyAllowlist.includes(name))
       out.push(`icon-only "${name}" is not in the universal set`);
     if (!label) out.push(`icon-only "${name}" has no accessible name`);
   }
