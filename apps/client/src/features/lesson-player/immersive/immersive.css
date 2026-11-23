@@ -17,7 +17,8 @@ html[data-imm-rotated] body {
 }
 /* Everything the framed player shows around the Slide is hidden but stays mounted:
    hiding never reparents or reloads the Slide iframe, and Narration keeps playing. */
-.player.immersive > :not(.panel-layout):not(.imm-layer):not(.toast) {
+.player.immersive
+  > :not(.panel-layout):not(.imm-layer):not(.ui-toast-host):not(.toast) {
   display: none;
 }
 .player.immersive .panel-layout,
@@ -489,10 +490,24 @@ html[data-imm-rotated] body {
   align-items: center;
   gap: var(--space-2);
 }
-.imm-answer-head h2 {
+.imm-grow {
   flex: 1;
-  margin: 0;
-  font-size: var(--font-size-body);
+}
+.imm-icon-btn {
+  padding: 0;
+  inline-size: var(--size-target);
+}
+.imm-icon-btn .nav-icon {
+  inline-size: 22px;
+  block-size: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+:dir(rtl) .imm-icon-btn .nav-icon[data-icon="chevron"] {
+  transform: scaleX(-1);
 }
 .imm-answer-log {
   flex: 1;
@@ -536,8 +551,8 @@ html[data-imm-rotated] body {
 }
 @media (max-height: 500px) {
   .imm-answer-compose {
-    grid-template-columns: 1fr auto;
-    align-items: stretch;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
   }
   .imm-answer-compose > * {
     grid-column: 1 / -1;
@@ -546,24 +561,19 @@ html[data-imm-rotated] body {
     grid-column: 1;
     grid-row: 1;
   }
+  .imm-answer-compose > .voice-bubble-wrap {
+    grid-column: 2;
+    grid-row: 1;
+  }
   .imm-answer-compose > [data-testid="answer-send"],
   .imm-answer-compose > [data-testid="answer-stop"] {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 1;
   }
   .imm-answer-compose textarea {
     block-size: 3rem;
     min-block-size: 0;
     resize: none;
-  }
-  .imm-answer-compose .voice-ptt {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  .imm-answer-compose .voice-auto {
-    min-block-size: 0;
   }
 }
 .imm-answer-handle {
@@ -586,4 +596,35 @@ html[data-imm-rotated] body {
 /* Rotated stage: the panel docks along the screen's bottom edge, where the caption is. */
 html[data-imm-rotated="true"][data-imm-panel] .imm-caption {
   display: none;
+}
+
+/* Translucent surface over the Slide stage: the panel and the side rail (GLASS_ALPHA in contrast.ts). */
+.imm-answer,
+.imm-rail-slot {
+  --imm-glass: 0.78;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .imm-answer,
+  .imm-rail-slot {
+    background: color-mix(
+      in srgb,
+      var(--surface) calc(var(--imm-glass) * 100%),
+      transparent
+    );
+    -webkit-backdrop-filter: blur(12px) saturate(1.2);
+    backdrop-filter: blur(12px) saturate(1.2);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .imm-answer,
+  .imm-rail-slot {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+/* The Talk and Note bubbles float; they never cover captions or the outlined region. */
+.imm-answer-compose .voice-bubble-wrap {
+  justify-self: start;
 }
