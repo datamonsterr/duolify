@@ -23,6 +23,8 @@ export const OFFLINE_ROUTE_MODULES = [
   "/features/lesson-player/immersive/ImmersiveUi",
   "/features/lessontest/LessonTest",
   "/features/design/Courses",
+  // Lazy mascot art: the framed player companion and the pass screen render it offline.
+  "/components/mascot/MascotArt",
 ];
 const APP_ENTRY = /\/index\.html$/;
 

@@ -1,0 +1,158 @@
+/* Colours, spacing and radii come from theme.css tokens only. */
+.gc {
+  position: relative;
+  max-inline-size: var(--size-reading);
+  margin-inline: auto;
+  inline-size: 100%;
+  min-block-size: 0;
+}
+.gc-bar {
+  block-size: var(--space-1);
+  background: var(--primary);
+  border-radius: var(--radius-pill);
+  transition: inline-size var(--duration-normal) var(--ease-standard);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gc-bar {
+    transition: none;
+  }
+}
+.gc-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.gc-pair {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.guided-avatar {
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--lime);
+  border-block-end: var(--size-press-depth) solid var(--lime-edge);
+}
+.gc-answer {
+  font: inherit;
+  cursor: pointer;
+  min-block-size: var(--size-target);
+  text-align: start;
+}
+.gc-answer:focus-visible,
+.gc :is(button, input, textarea, select):focus-visible,
+.gc-chip:has(input:focus-visible) {
+  outline: var(--size-focus-width) solid var(--focus);
+  outline-offset: var(--size-focus-offset);
+}
+.gc-slot,
+.gc-widget,
+.gc-fallback,
+.gc-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.gc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.gc-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--size-target);
+  min-inline-size: var(--size-target);
+  padding-inline: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-weight: var(--weight-strong);
+  cursor: pointer;
+}
+.gc-chip input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.gc-chip:has(input:checked) {
+  color: var(--info);
+  background: var(--info-bg);
+  border-color: var(--info);
+}
+.gc-chip:has(input:checked)::before {
+  content: "✓ ";
+  margin-inline-end: var(--space-1);
+}
+.gc-widget
+  :is(
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="time"],
+    input[type="date"],
+    input[type="number"],
+    textarea
+  ),
+.gc-composer input {
+  font: inherit;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--size-target);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface);
+  padding: var(--space-3);
+}
+.gc-widget [aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.gc-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.gc-stepper input {
+  text-align: center;
+}
+.gc-actions,
+.gc-composer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.gc-composer-row input {
+  flex: 1;
+}
+.gc-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.gc-summary dt {
+  font-size: var(--font-size-caption);
+  color: var(--muted);
+}
+.gc-summary dd {
+  margin: 0;
+  font-weight: var(--weight-strong);
+}
+.gc-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-primary);
+}
+.gc-file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

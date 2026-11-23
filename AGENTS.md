@@ -49,7 +49,16 @@ To learn from an existing app, use the `reverse-to-spec` skill: evidence, produc
 
 ## Workflow
 
-- Branch from `main`, open a draft PR early. Draft PRs run the fast CI pipeline; ready PRs run the full pipeline.
+- Branch from `main`, open a draft PR early. Draft PRs and main pushes run the fast CI tier. Ready PRs run the full tier with path filters. The nightly workflow runs the full tier on main.
 - Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`, `ci:`).
 - Tests run in CI. Run only the focused task for the area you change locally.
 - A task is done when its PR is merged into `main`. Remove its worktree afterwards (`git worktree remove <path>`, never `--force`).
+
+## CI/CD Resource & Push Policy
+This account shares 40 concurrent GitHub Actions slots across all repos and a 3,000 min/month private-repo budget. Treat CI as a final verification gate, NOT a scratchpad.
+
+1. **Verify locally before pushing:** Run the repo's local check task (`mise run check`, `cargo clippy`, `pnpm lint && pnpm typecheck && pnpm test`) and confirm it passes before `git push`.
+2. **Batch commits:** Do not push after every small edit. Commit locally and push only when a logical milestone passes local checks.
+3. **Draft PRs first:** Always open new PRs as `--draft` (`gh pr create --draft`). Only mark ready (`gh pr ready`) once local checks pass and implementation is complete.
+4. **No unnecessary heavy triggers:** Do not add `e2e` or `bench` labels unless explicitly requested.
+5. **Workflow hygiene:** Every new GitHub Actions workflow MUST include `concurrency` (`cancel-in-progress: true`), `timeout-minutes` on every job, and path filters. Never add `macos-*` or `windows-*` jobs to private PR triggers.

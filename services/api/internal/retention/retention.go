@@ -63,7 +63,7 @@ func duration(value string, fallback time.Duration) time.Duration {
 }
 
 // Result counts what one sweep deleted.
-type Result = struct{ PlaybackSyncEvents, AnswerOperations int64 }
+type Result = struct{ PlaybackSyncEvents, AnswerOperations, GuidedChatDrafts int64 }
 
 // Service purges expired rows.
 type Service struct {
@@ -108,16 +108,25 @@ func (s *Service) purgeAt(ctx context.Context, now time.Time) (Result, error) {
 	if res.AnswerOperations, err = s.purgeTable(ctx, "lesson_test_answer_operations", now.Add(-s.cfg.AnswerOperationWindow)); err != nil {
 		return res, err
 	}
-	if s.logger != nil && (res.PlaybackSyncEvents > 0 || res.AnswerOperations > 0) {
-		s.logger.InfoContext(ctx, "row retention purge", "playback_sync_events", res.PlaybackSyncEvents, "lesson_test_answer_operations", res.AnswerOperations)
+	// Guided chat drafts expire 30 days after their last save; each row carries its own expiry.
+	if res.GuidedChatDrafts, err = s.purgeBy(ctx, "guided_chat_drafts", "expires_at", now); err != nil {
+		return res, err
+	}
+	if s.logger != nil && (res.PlaybackSyncEvents > 0 || res.AnswerOperations > 0 || res.GuidedChatDrafts > 0) {
+		s.logger.InfoContext(ctx, "row retention purge", "playback_sync_events", res.PlaybackSyncEvents, "lesson_test_answer_operations", res.AnswerOperations, "guided_chat_drafts", res.GuidedChatDrafts)
 	}
 	return res, nil
 }
 
 // purgeTable takes a fixed table name from this file, never from input.
 func (s *Service) purgeTable(ctx context.Context, table string, cutoff time.Time) (int64, error) {
+	return s.purgeBy(ctx, table, "created_at", cutoff)
+}
+
+// purgeBy deletes rows whose column (a fixed name from this file) is before the cutoff.
+func (s *Service) purgeBy(ctx context.Context, table, column string, cutoff time.Time) (int64, error) {
 	query := fmt.Sprintf(`DELETE FROM %[1]s WHERE ctid = ANY(ARRAY(
-  SELECT ctid FROM %[1]s WHERE created_at < $1 ORDER BY created_at LIMIT $2 FOR UPDATE SKIP LOCKED))`, table)
+  SELECT ctid FROM %[1]s WHERE %[2]s < $1 ORDER BY %[2]s LIMIT $2 FOR UPDATE SKIP LOCKED))`, table, column)
 	var total int64
 	for {
 		tag, err := s.pool.Exec(ctx, query, cutoff, s.cfg.BatchSize)

@@ -44,6 +44,10 @@ const (
 	// durationSlackMs is how far a measured length may exceed the declared one before it is a lie
 	// (encoder padding and the final partial cluster).
 	durationSlackMs = 750
+	// maxUnmeasuredBytesPerSecond is 512 kbps, far above any speech codec the client records with.
+	maxUnmeasuredBytesPerSecond = 64 << 10
+	// unmeasuredHeaderBytes covers the container headers and init segment.
+	unmeasuredHeaderBytes = 32 << 10
 	// DefaultRatePerMinute is the per-Learner burst limit.
 	DefaultRatePerMinute = 6
 	// engineTimeout bounds the Engine call: two 8 s model attempts plus margin.
@@ -212,6 +216,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			code, status = "voice_invalid", http.StatusBadRequest
 		}
 		fail(w, status, code, nil)
+		return
+	} else if !known && len(req.audio) > maxUnmeasuredBytes(req.durationMs) {
+		// A length that cannot be measured (fragmented MP4) is bounded by bytes instead: a
+		// recording that large for its declared length is not what the client says it is.
+		fail(w, http.StatusBadRequest, "voice_invalid", nil)
 		return
 	}
 	entitled, err := s.opts.Lessons.Entitled(r.Context(), learner, req.lessonID)
@@ -476,4 +485,10 @@ func clone(in map[string]any) map[string]any {
 		out[k] = v
 	}
 	return out
+}
+
+// maxUnmeasuredBytes is the most audio a recording of declared length may carry when its container
+// gives no length to check against.
+func maxUnmeasuredBytes(durationMs int) int {
+	return unmeasuredHeaderBytes + durationMs/1000*maxUnmeasuredBytesPerSecond + maxUnmeasuredBytesPerSecond
 }
