@@ -36,6 +36,7 @@ const (
 	EngineService_CourseBriefChat_FullMethodName       = "/duolify.engine.v1.EngineService/CourseBriefChat"
 	EngineService_OutlineChatChange_FullMethodName     = "/duolify.engine.v1.EngineService/OutlineChatChange"
 	EngineService_SynthesizeNarration_FullMethodName   = "/duolify.engine.v1.EngineService/SynthesizeNarration"
+	EngineService_Transcribe_FullMethodName            = "/duolify.engine.v1.EngineService/Transcribe"
 )
 
 // EngineServiceClient is the client API for EngineService service.
@@ -78,6 +79,11 @@ type EngineServiceClient interface {
 	OutlineChatChange(ctx context.Context, in *OutlineChatChangeRequest, opts ...grpc.CallOption) (*OutlineChatChangeResponse, error)
 	// SynthesizeNarration turns stored Slide narration text into audio with character alignment (E14).
 	SynthesizeNarration(ctx context.Context, in *SynthesizeNarrationRequest, opts ...grpc.CallOption) (*SynthesizeNarrationResponse, error)
+	// Transcribe turns one short voice recording into text (voice input). Audio lives in memory
+	// for the length of the call only. The Engine refuses with a typed ErrorInfo reason:
+	// `invalid_audio` (INVALID_ARGUMENT), `transcribe_cost_ceiling`, `transcribe_failed` and
+	// `transcribe_timeout` (UNAVAILABLE) and the promotion denial codes when no evidence exists.
+	Transcribe(ctx context.Context, in *TranscribeRequest, opts ...grpc.CallOption) (*TranscribeResponse, error)
 }
 
 type engineServiceClient struct {
@@ -276,6 +282,16 @@ func (c *engineServiceClient) SynthesizeNarration(ctx context.Context, in *Synth
 	return out, nil
 }
 
+func (c *engineServiceClient) Transcribe(ctx context.Context, in *TranscribeRequest, opts ...grpc.CallOption) (*TranscribeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TranscribeResponse)
+	err := c.cc.Invoke(ctx, EngineService_Transcribe_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EngineServiceServer is the server API for EngineService service.
 // All implementations must embed UnimplementedEngineServiceServer
 // for forward compatibility.
@@ -316,6 +332,11 @@ type EngineServiceServer interface {
 	OutlineChatChange(context.Context, *OutlineChatChangeRequest) (*OutlineChatChangeResponse, error)
 	// SynthesizeNarration turns stored Slide narration text into audio with character alignment (E14).
 	SynthesizeNarration(context.Context, *SynthesizeNarrationRequest) (*SynthesizeNarrationResponse, error)
+	// Transcribe turns one short voice recording into text (voice input). Audio lives in memory
+	// for the length of the call only. The Engine refuses with a typed ErrorInfo reason:
+	// `invalid_audio` (INVALID_ARGUMENT), `transcribe_cost_ceiling`, `transcribe_failed` and
+	// `transcribe_timeout` (UNAVAILABLE) and the promotion denial codes when no evidence exists.
+	Transcribe(context.Context, *TranscribeRequest) (*TranscribeResponse, error)
 	mustEmbedUnimplementedEngineServiceServer()
 }
 
@@ -376,6 +397,9 @@ func (UnimplementedEngineServiceServer) OutlineChatChange(context.Context, *Outl
 }
 func (UnimplementedEngineServiceServer) SynthesizeNarration(context.Context, *SynthesizeNarrationRequest) (*SynthesizeNarrationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SynthesizeNarration not implemented")
+}
+func (UnimplementedEngineServiceServer) Transcribe(context.Context, *TranscribeRequest) (*TranscribeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Transcribe not implemented")
 }
 func (UnimplementedEngineServiceServer) mustEmbedUnimplementedEngineServiceServer() {}
 func (UnimplementedEngineServiceServer) testEmbeddedByValue()                       {}
@@ -690,6 +714,24 @@ func _EngineService_SynthesizeNarration_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _EngineService_Transcribe_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TranscribeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).Transcribe(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_Transcribe_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).Transcribe(ctx, req.(*TranscribeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // EngineService_ServiceDesc is the grpc.ServiceDesc for EngineService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -756,6 +798,10 @@ var EngineService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SynthesizeNarration",
 			Handler:    _EngineService_SynthesizeNarration_Handler,
+		},
+		{
+			MethodName: "Transcribe",
+			Handler:    _EngineService_Transcribe_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -427,7 +427,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      API_TEST_PACKAGES: ./internal/notes/... ./internal/narration/... ./internal/lessontest/... ./internal/characters/... ./internal/credits/... ./internal/maintenance/...
+      API_TEST_PACKAGES: ./internal/notes/... ./internal/voice/... ./internal/narration/... ./internal/lessontest/... ./internal/characters/... ./internal/credits/... ./internal/maintenance/...
     steps:
       - uses: actions/checkout@v7
         with:
@@ -651,9 +651,9 @@ jobs:
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           HF_GOLDEN_DATASET: ${{ vars.HF_GOLDEN_DATASET || 'datamonsterr/duolify-golden' }}
           # Pinned revision (evals/pinned-datasets.toml); a repo variable may pin a newer reviewed one.
-          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || 'ef44a169c654d8e01d7719a5b632522824292b40' }}
-          # 32 = every case of the pinned revision; a smaller sample cannot cover all 16 tasks.
-          EVAL_SAMPLE_LIMIT: ${{ vars.EVAL_SAMPLE_LIMIT || '32' }}
+          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || 'd902ce8cfacc2abf8d585930e2a15d471515b07a' }}
+          # 90 = every case of the pinned revision; a smaller sample cannot cover all 17 tasks.
+          EVAL_SAMPLE_LIMIT: ${{ vars.EVAL_SAMPLE_LIMIT || '90' }}
           EVAL_BUDGET_USD: ${{ vars.EVAL_BUDGET_USD || '0.50' }}
       - name: mise run engine:gate
         if: always()

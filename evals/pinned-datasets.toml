@@ -18,3 +18,5 @@
 "1bf626ff100d45aa4ce83fd2eee7dc8cceb37ec8" = "bec26438482b5c975e1e28a83663755f19d6243fa425206faf5beecf4e9c1176"
 # Adds five region-grounded tutor_chat cases (immersive-mobile-lesson-player 4.8); the first 36 rows are unchanged.
 "ef44a169c654d8e01d7719a5b632522824292b40" = "fe1b8fdd99802a661c96855edf7839668d65d72f115b41d1b47b9f43644ca59f"
+# Adds 49 `transcribe` cases and their 40 recordings under audio/ (immersive-mobile-lesson-player 6.7); the first 41 rows are unchanged.
+"d902ce8cfacc2abf8d585930e2a15d471515b07a" = "202ac078afc07c9adf1f74eb289c458215088acb005a12538c6051abb7e79ed5"

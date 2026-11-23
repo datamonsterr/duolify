@@ -7,6 +7,9 @@ lesson_slides = 1.0
 lesson_test = 1.0
 lesson_test_variant = 1.0
 lesson_narration = 1.0
+# Voice input (immersive-mobile-lesson-player 6.7): every transcribe case passes its own word-error-rate,
+# silence, latency and cost thresholds; any failing case is a failing task. Live promotion needs the live set.
+transcribe = 1.0
 tutor_chat = 1.0
 note_enrich = 1.0
 setup_chat = 1.0
