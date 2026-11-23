@@ -5,8 +5,10 @@ import type {
   PinnedSpeaker,
 } from "./types";
 import { compileRigSvg, getBundledFallbackSvg } from "./rig";
-import { compileV2 } from "./rig-v2";
 import type { Pose } from "./types-v2";
+
+/** The v2 compiler is a lazy chunk; callers pass it once loaded. */
+export type CompileV2 = typeof import("./rig-v2").compileV2;
 
 /** v1 segments carry no pose; derive one from the expression. */
 export const POSE_FOR_EXPRESSION: Record<Expression, Pose> = {
@@ -17,8 +19,12 @@ export const POSE_FOR_EXPRESSION: Record<Expression, Pose> = {
   celebrate: "celebrate",
 };
 
-function speakerSvg(speaker: PinnedSpeaker, exp: Expression): string {
-  if (speaker.document) {
+function speakerSvg(
+  speaker: PinnedSpeaker,
+  exp: Expression,
+  compileV2?: CompileV2,
+): string {
+  if (speaker.document && compileV2) {
     try {
       return compileV2(
         speaker.document,
@@ -56,6 +62,7 @@ const SLIDE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 export interface MotionSlideOptions {
   reducedMotion?: boolean;
   offline?: boolean;
+  compileV2?: CompileV2;
 }
 
 export function generateMotionSlideHtml(
@@ -82,13 +89,13 @@ export function generateMotionSlideHtml(
 
   if (guideSpeaker) {
     for (const exp of expressions) {
-      guideSvgs[exp] = speakerSvg(guideSpeaker, exp);
+      guideSvgs[exp] = speakerSvg(guideSpeaker, exp, options.compileV2);
     }
   }
 
   if (supporterSpeaker) {
     for (const exp of expressions) {
-      supporterSvgs[exp] = speakerSvg(supporterSpeaker, exp);
+      supporterSvgs[exp] = speakerSvg(supporterSpeaker, exp, options.compileV2);
     }
   }
 

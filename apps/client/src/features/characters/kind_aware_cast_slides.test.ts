@@ -1,3 +1,4 @@
+import { compileV2 } from "./rig-v2";
 import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { defaultDraft, changeSpecies } from "./draft";
@@ -63,7 +64,7 @@ const slide = (): SlideManifest =>
 
 describe("kind-aware cast rendering", () => {
   it("renders pinned v2 documents with derived poses; v1 casts are unchanged", () => {
-    const html = generateMotionSlideHtml(slide(), cast(true));
+    const html = generateMotionSlideHtml(slide(), cast(true), { compileV2 });
     expect(html).toMatch(/data-pose=\\*"talk/);
     expect(html).toMatch(/data-pose=\\*"celebrate/);
     const v1 = generateMotionSlideHtml(slide(), cast(false));
