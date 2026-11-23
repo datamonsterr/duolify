@@ -1,6 +1,6 @@
 import { useUiPreferences } from "../design/localization/Preferences";
 
-/** Shown while a dictated question waits out the edit window; editing the text also stops it. */
+/** A small chip while a dictated question waits out the edit window; editing the text also stops it. */
 export function DictationCountdown({
   counting,
   onCancel,
@@ -11,15 +11,17 @@ export function DictationCountdown({
   const { t } = useUiPreferences();
   if (!counting) return null;
   return (
-    <p className="voice-note" role="status" data-testid="voice-countdown">
-      {t("voice.countdown")}
+    <p className="voice-chip" role="status" data-testid="voice-countdown">
+      <span>{t("voice.countdown")}</span>
       <button
         type="button"
-        className="voice-retry"
+        className="voice-chip-cancel"
         data-testid="voice-countdown-cancel"
+        aria-label={t("voice.cancel")}
+        title={t("voice.cancel")}
         onClick={onCancel}
       >
-        {t("voice.cancel")}
+        <span aria-hidden="true">×</span>
       </button>
     </p>
   );
