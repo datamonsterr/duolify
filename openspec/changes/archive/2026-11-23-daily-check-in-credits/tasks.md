@@ -7,8 +7,8 @@
 - [x] 2.3 Add date, cap and Pricing config unit tests.
 ## 3. Implementation
 - [x] 3.1 Implement endpoint, durable attendance, separate ledger sources, spend order and wallet.
-- [ ] 3.2 Wait for approved Hy4 routing merge; add forward schema and approved successor Pricing migrations.
+- [x] 3.2 Wait for approved Hy4 routing merge; add forward schema and approved successor Pricing migrations.
 - [x] 3.3 Add lifecycle confirmation, localisation, analytics, privacy and backup coverage.
 ## 4. Verification and delivery
-- [ ] 4.1 Run focused acceptance checks and full ready CI.
-- [ ] 4.2 Merge green PR, report API contract and remove worktree.
+- [x] 4.1 Run focused acceptance checks and full ready CI.
+- [x] 4.2 Merge green PR, report API contract and remove worktree.

@@ -1,7 +1,7 @@
 # credits Specification
 
 ## Purpose
-Charge for AI features with prepaid Credits kept in an append-only ledger. Credits are reserved before an AI call and settled with actual usage. Learners can top up and can earn Reward credits through effort.
+Charge for AI features with prepaid Credits kept in an append-only ledger. Credits are reserved before an AI call and settled with actual usage. Learners receive free Daily credits and can top up. Credits are never granted as a reward for effort.
 
 ## Requirements
 
