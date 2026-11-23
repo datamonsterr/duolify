@@ -332,3 +332,25 @@ async fn stream_reports_served_model_and_reasoning_output() {
     assert_eq!(usage.model, HY4);
     assert_eq!(usage.output_tokens, 35);
 }
+
+#[tokio::test]
+async fn route_privacy_preferences_are_sent_to_openrouter() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "model": HY4,
+            "choices": [{"message": {"content": "answer"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1}
+        })))
+        .mount(&server)
+        .await;
+    let provider = HttpProvider::openrouter("key".into(), server.uri());
+    let mut route = route(HY4, &[], &[]);
+    route.zdr = true;
+    route.data_collection = Some("deny".into());
+    provider.complete_route(&route, "hello", 10).await.unwrap();
+    let requests = server.received_requests().await.unwrap();
+    let body: Value = requests[0].body_json().unwrap();
+    assert_eq!(body["provider"]["zdr"], true);
+    assert_eq!(body["provider"]["data_collection"], "deny");
+}

@@ -45,6 +45,9 @@ pub struct Model {
     pub reasoning: BTreeMap<String, String>,
     /// OpenRouter `response_format` for this task (`structured::response_format`).
     pub response_format: Option<serde_json::Value>,
+    pub endpoint: Option<String>,
+    pub zdr: bool,
+    pub data_collection: Option<String>,
 }
 #[derive(Deserialize)]
 struct RawModel {
@@ -55,6 +58,12 @@ struct RawModel {
     fallback_models: Vec<String>,
     #[serde(default)]
     reasoning_effort: Option<String>,
+    #[serde(default)]
+    endpoint: Option<String>,
+    #[serde(default)]
+    zdr: bool,
+    #[serde(default)]
+    data_collection: Option<String>,
 }
 impl From<RawModel> for Model {
     fn from(raw: RawModel) -> Self {
@@ -69,6 +78,9 @@ impl From<RawModel> for Model {
             reasoning_effort: raw.reasoning_effort,
             reasoning: BTreeMap::new(),
             response_format: None,
+            endpoint: raw.endpoint,
+            zdr: raw.zdr,
+            data_collection: raw.data_collection,
         }
     }
 }
@@ -84,6 +96,9 @@ pub struct Route {
     pub response_format: Option<serde_json::Value>,
     /// The one bounded repair: the rejected answer and the corrective message after it.
     pub repair: Option<Repair>,
+    pub endpoint: Option<String>,
+    pub zdr: bool,
+    pub data_collection: Option<String>,
 }
 /// A rejected answer and the corrective user message sent after it on the repair attempt.
 #[derive(Debug, Clone, Default)]
@@ -99,6 +114,9 @@ impl Model {
             reasoning: self.reasoning.clone(),
             response_format: self.response_format.clone(),
             repair: None,
+            endpoint: self.endpoint.clone(),
+            zdr: self.zdr,
+            data_collection: self.data_collection.clone(),
         }
     }
     /// One bounded attempt: exactly one model request, no provider-side chain, so the bounded
@@ -119,6 +137,9 @@ impl Model {
             reasoning: self.reasoning.clone(),
             response_format: self.response_format.clone(),
             repair: None,
+            endpoint: self.endpoint.clone(),
+            zdr: self.zdr,
+            data_collection: self.data_collection.clone(),
         }
     }
 }

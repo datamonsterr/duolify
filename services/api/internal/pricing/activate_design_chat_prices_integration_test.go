@@ -65,6 +65,7 @@ func TestActivateDesignChatPricesIntegration(t *testing.T) {
 			cfg[k] = v
 		}
 		cfg["version"] = version
+		cfg["quote_policy_source"] = "usd-hy4-check-in-2026-11-22"
 		if effectiveFrom.IsZero() {
 			effectiveFrom = time.Now().UTC().Add(1 * time.Hour)
 		}
