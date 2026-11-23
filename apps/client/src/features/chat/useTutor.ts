@@ -12,6 +12,8 @@ import {
   type TutorQuote,
   type ThreadResponse,
   type TutorService,
+  type RegionAsk,
+  type TutorAnchor,
 } from "./tutor";
 
 export type ChatMessage = {
@@ -23,6 +25,8 @@ export type ChatMessage = {
   reason?: string;
   /** The tutor pinned for this reply; history never changes when the selection does. */
   tutor?: TutorPersona;
+  /** Set when the question was about a region of a Slide. */
+  anchor?: TutorAnchor;
 };
 /** Save-as-note progress for one reply, kept by message id. */
 export type SaveState =
@@ -109,6 +113,11 @@ function contextBlock(error: unknown, key: string): ContextBlock | undefined {
       limit: error.details.standard_limit_tokens,
     };
 }
+/** The optional trailing arguments of a quote: none outside a Lesson, the region only with one. */
+const quoteTail = (
+  ref?: LessonRef,
+  region?: RegionAsk,
+): [LessonRef?, RegionAsk?] => (ref ? (region ? [ref, region] : [ref]) : []);
 const fresh = (q?: QuoteState) =>
   !!q && Date.parse(q.quote.expires_at) > Date.now() + 5000;
 let localId = 0;
@@ -119,6 +128,7 @@ export function useTutor(
   service: TutorService,
   on: boolean,
   lesson?: LessonRef,
+  region?: RegionAsk,
 ) {
   // The slide may change while the sheet is closed, never while the quote is being built.
   const lessonId = lesson?.lesson_id,
@@ -130,6 +140,19 @@ export function useTutor(
         : { lesson_id: lessonId, slide_index: slideIndex },
     [lessonId, slideIndex],
   );
+  // A region is part of the quote: keep one stable object per rectangle.
+  const regionKey = region
+    ? [
+        region.rect.x,
+        region.rect.y,
+        region.rect.w,
+        region.rect.h,
+        region.at_ms,
+        region.input,
+      ].join(",")
+    : "";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const regionRef = useMemo(() => (ref ? region : undefined), [regionKey, ref]);
   const [draft, setDraftState] = useState(() => readDraft(courseId));
   const [cls, setCls] = useState<ReplyClass>("short");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -184,6 +207,7 @@ export function useTutor(
         content: m.content,
         status: m.status,
         ...(m.tutor ? { tutor: m.tutor } : {}),
+        ...(m.anchor ? { anchor: m.anchor } : {}),
       })),
     );
     setNotice((n) => (n?.kind === "load" ? undefined : n));
@@ -279,7 +303,13 @@ export function useTutor(
     const seq = ++quoteSeq.current;
     const timer = setTimeout(() => {
       service
-        .quote(courseId, cls, text, approved === key, ...(ref ? [ref] : []))
+        .quote(
+          courseId,
+          cls,
+          text,
+          approved === key,
+          ...quoteTail(ref, regionRef),
+        )
         .then((q) => {
           if (seq === quoteSeq.current) {
             setBlock(undefined);
@@ -309,6 +339,7 @@ export function useTutor(
     approved,
     key,
     ref,
+    regionRef,
   ]);
 
   const current =
@@ -355,7 +386,7 @@ export function useTutor(
                     reply,
                     message,
                     approved === `${reply}:${message}`,
-                    ...(ref ? [ref] : []),
+                    ...quoteTail(ref, regionRef),
                   ),
                   cls: reply,
                   message,
@@ -375,6 +406,7 @@ export function useTutor(
             message,
             ...(threadRef.current ? { thread_id: threadRef.current } : {}),
             ...(ref ? { lesson: ref } : {}),
+            ...(ref && regionRef ? { region: regionRef } : {}),
             // Read at send time: a choice made during an earlier reply applies from this turn on.
             ...(speakerRef.current !== "guide"
               ? { speaker_key: speakerRef.current }
@@ -488,7 +520,7 @@ export function useTutor(
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [courseId, service, current, refreshWallet, approved, ref],
+    [courseId, service, current, refreshWallet, approved, ref, regionRef],
   );
 
   const send = () => {

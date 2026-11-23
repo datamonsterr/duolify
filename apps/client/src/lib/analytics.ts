@@ -953,6 +953,66 @@ export function trackImmersive(
   }
 }
 
+const areaBucket = (area: number) =>
+  area < 0.08 ? "small" : area < 0.3 ? "medium" : "large";
+const countBucket = (n: number) => (n <= 0 ? "0" : n === 1 ? "1" : "2_plus");
+
+/** Region question funnel (immersive-mobile-lesson-player analytics spec): ids, counts and closed enums only. */
+export function trackRegion(
+  value:
+    | {
+        event: "lesson_region_selected";
+        course_id: string;
+        lesson_id: string;
+        slide_index: number;
+        method: "two_finger" | "select_area" | "keyboard";
+        area: number;
+      }
+    | {
+        event: "lesson_answer_panel_closed";
+        course_id: string;
+        lesson_id: string;
+        slide_index: number;
+        outcome: "completed" | "stopped" | "failed";
+        saved_note: boolean;
+        follow_ups: number;
+      },
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  const id = /^[A-Za-z0-9_-]{1,100}$/;
+  if (
+    !id.test(value.course_id) ||
+    !id.test(value.lesson_id) ||
+    !Number.isSafeInteger(value.slide_index) ||
+    value.slide_index < 0 ||
+    value.slide_index >= 100
+  )
+    return;
+  const properties: Record<string, string | number | boolean> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? "0.1.0",
+    source: "client",
+    course_id: value.course_id,
+    lesson_id: value.lesson_id,
+    slide_index: value.slide_index,
+  };
+  if (value.event === "lesson_region_selected") {
+    properties.method = value.method;
+    properties.area_bucket = areaBucket(value.area);
+  } else {
+    properties.outcome = value.outcome;
+    properties.saved_note = value.saved_note;
+    properties.follow_ups = countBucket(value.follow_ups);
+  }
+  try {
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture(value.event, properties);
+  } catch {
+    /* Playback never depends on analytics. */
+  }
+}
+
 // E14-01 catalogue: narrate-one-slide-mock-speech/specs/analytics/spec.md. Ids and a
 // duration only; narration text, audio and URLs never leave the device.
 export function trackNarrationPlayed(value: {

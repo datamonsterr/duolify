@@ -5,6 +5,22 @@ import type { ActionQuote } from "../pricing/quotes";
 
 /** A reference only: the API looks the lesson up itself and never trusts client-supplied lesson text. */
 export type LessonRef = { lesson_id: string; slide_index: number };
+/** The part of a Slide a question is about: a rectangle (0..1 of the 16:9 stage) and the playback time. */
+export type RegionAsk = {
+  rect: { x: number; y: number; w: number; h: number };
+  at_ms: number;
+  input: "text" | "voice";
+};
+/** Stored with a message the Learner asked about a region; used to restore the outline. */
+export type TutorAnchor = {
+  lesson_id?: string;
+  slide_index: number;
+  slide_id: string;
+  at_ms: number;
+  rect: RegionAsk["rect"];
+  region_ids: string[];
+  grounding: "regions" | "whole_slide";
+};
 export type ReplyClass = "short" | "long";
 export type TutorQuote = Pick<
   ActionQuote,
@@ -44,6 +60,7 @@ export type TutorMessage = {
   status: "complete" | "interrupted" | "stopped";
   created_at: string;
   tutor?: TutorPersona;
+  anchor?: TutorAnchor;
 };
 export type ThreadResponse = {
   thread: { id: string } | null;
@@ -57,6 +74,8 @@ export type SendInput = {
   message: string;
   thread_id?: string;
   lesson?: LessonRef;
+  /** Needs `lesson`; send the same region on the quote and the message. */
+  region?: RegionAsk;
   /** Omitted means the main guide; the API resolves ownership and pins the version. */
   speaker_key?: SpeakerKey;
 };
@@ -83,6 +102,7 @@ export interface TutorService {
     message: string,
     approveLargeContext?: boolean,
     lesson?: LessonRef,
+    region?: RegionAsk,
   ): Promise<TutorQuote>;
   accept(quoteId: string): Promise<unknown>;
   send(
@@ -223,12 +243,13 @@ async function call<T>(
 export const tutorService: TutorService = {
   wallet: () => call("/v1/me/credits"),
   thread: (id) => call(`${course(id)}/thread`),
-  quote: (id, cls, message, approveLargeContext, lesson) =>
+  quote: (id, cls, message, approveLargeContext, lesson, region) =>
     call(`${course(id)}/quote`, "POST", {
       class: cls,
       message,
       ...(approveLargeContext ? { approve_large_context: true } : {}),
       ...(lesson ? { lesson } : {}),
+      ...(lesson && region ? { region } : {}),
     }),
   accept: (quoteId) =>
     call(`/v1/quotes/${encodeURIComponent(quoteId)}/accept`, "POST", {}),

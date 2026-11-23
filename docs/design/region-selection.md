@@ -55,3 +55,7 @@ const sel = useRegionSelection({ onStart: pause, onDiscard: resume });
 ## Accessibility
 
 The region is a focusable group: arrows move by 1% (Alt: 5%), Shift+arrows resize the bottom-right corner, Enter confirms, Escape cancels. Each handle is a button (44 px, scaled against the stage) that resizes with the arrows. Playback pauses when selection begins.
+
+## Answer panel (group 4)
+
+`AnswerPanel.tsx` is the opaque panel docked to the right of the immersive stage (`panelLayout.ts`: about 40% of the width, 320 to 480 px). It runs `useTutor(courseId, tutorService, true, lesson, region)`: the same region goes on the quote and the message, and the reply is the existing SSE stream. While it is open the stage is moved left (`--imm-shift-x/y`, CSS `translate`) just enough to keep the whole region clear of the panel; captions stay left of it. Close resumes playback only if the panel paused it. Screens too narrow to dock (UI width under 600 px, unrotated) use the lesson tutor sheet (`TutorChat embedded`) with a thumbnail of the area instead. Thread reads return `anchor` per message, used to offer re-outlining an earlier area.

@@ -13,7 +13,8 @@ import {
   trackTutorControl,
   trackTutorRecovery,
 } from "../../lib/analytics";
-import { tutorService } from "./tutor";
+import { tutorService, type RegionAsk } from "./tutor";
+import { RegionThumb } from "./RegionThumb";
 import {
   lastIndex,
   useTutor,
@@ -391,6 +392,7 @@ export function TutorChat({
   courseId,
   service = tutorService,
   lesson,
+  region,
   embedded = false,
   onClose,
   onReadTranscript,
@@ -399,6 +401,8 @@ export function TutorChat({
   service?: TutorService;
   /** Reference to the lesson the Learner paused; the API verifies it and builds the context. */
   lesson?: LessonRef;
+  /** A region of the lesson's Slide the question is about (needs `lesson`); shown as a thumbnail. */
+  region?: RegionAsk;
   /** Rendered inside the lesson sheet: always open, no launcher, the sheet owns the close control. */
   embedded?: boolean;
   onClose?: () => void;
@@ -416,7 +420,7 @@ export function TutorChat({
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
-  const tutor = useTutor(courseId, service, open, lesson);
+  const tutor = useTutor(courseId, service, open, lesson, region);
   useEffect(() => {
     if (open && tutor.quote)
       trackQuoteShown({
@@ -603,6 +607,7 @@ export function TutorChat({
               <span>{t("tutor.context_not")}</span>
             </div>
           )}
+          {region && lesson && <RegionThumb rect={region.rect} />}
           <div className="tutor-sr" role="status">
             {announce === "answering"
               ? t("tutor.answering")
