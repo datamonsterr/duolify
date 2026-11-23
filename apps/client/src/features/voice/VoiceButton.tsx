@@ -1,5 +1,6 @@
 import { useRef, useState, type PointerEvent, type KeyboardEvent } from "react";
 import type { VoiceEntryPoint } from "../../lib/analytics";
+import { useUiPreferences } from "../design/localization/Preferences";
 import { autoSendEnabled, explicitAutoSend, setAutoSend } from "./autosend";
 import {
   useVoiceInput,
@@ -24,50 +25,55 @@ const clock = (ms: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
-function blockText(block: Exclude<VoiceBlock, undefined>, resets?: Date) {
+type T = ReturnType<typeof useUiPreferences>["t"];
+
+function blockText(t: T, block: Exclude<VoiceBlock, undefined>, resets?: Date) {
   switch (block) {
     case "offline":
-      return "Voice needs a connection. You can still type.";
+      return t("voice.offline");
     case "unavailable":
-      return "Voice is not available yet. You can still type.";
+      return t("voice.unavailable");
     case "unsupported":
-      return "This device cannot record audio. You can still type.";
+      return t("voice.unsupported");
     case "daily_cap":
-      return `You have used today's voice limit${
-        resets
-          ? `; it resets at ${resets.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-          : ""
-      }. You can still type.`;
+      return resets
+        ? t("voice.cap_resets", {
+            time: resets.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          })
+        : t("voice.cap");
     case "denied":
-      return "Microphone access is off. Turn it on for Duolify in your device or browser settings, then try again. You can still type.";
+      return t("voice.denied_block");
     case "no_lesson":
     case "loading":
       return "";
   }
 }
 
-function noticeText(n: VoiceNotice) {
+function noticeText(t: T, n: VoiceNotice) {
   switch (n.kind) {
     case "denied":
-      return "Microphone access is off. Turn it on for Duolify in your device or browser settings, then try again.";
+      return t("voice.denied");
     case "no_microphone":
-      return "No microphone was found. You can still type.";
+      return t("voice.no_microphone");
     case "silent":
-      return "I could not hear anything. Try again closer to the microphone.";
+      return t("voice.silent");
     case "too_short":
-      return "Hold a little longer to record.";
+      return t("voice.too_short");
     case "empty":
-      return "I could not make out any words.";
+      return t("voice.empty");
     case "error":
       return n.cls === "rate_limited"
-        ? "Too many recordings in a row. Wait a moment, then try again."
+        ? t("voice.rate_limited")
         : n.cls === "too_large" || n.cls === "too_long"
-          ? "That recording was too long to send. Keep it under 30 seconds."
+          ? t("voice.too_long")
           : n.cls === "unavailable"
-            ? "Voice is not available right now. You can still type."
+            ? t("voice.unavailable_now")
             : n.cls === "offline"
-              ? "Voice needs a connection. Try again when you are back online."
-              : "I could not turn that into text. You can retry or type.";
+              ? t("voice.offline_retry")
+              : t("voice.failed");
   }
 }
 
@@ -98,6 +104,7 @@ export function VoiceButton({
     platform,
   });
   const [explaining, setExplaining] = useState(false);
+  const { t } = useUiPreferences();
   const [auto, setAuto] = useState(() => autoSendEnabled("en"));
   const button = useRef<HTMLButtonElement>(null);
   const recording = voice.phase === "recording";
@@ -147,9 +154,9 @@ export function VoiceButton({
         aria-label={
           recording
             ? voice.toggled
-              ? "Stop recording"
-              : "Recording. Release to send, slide away to cancel"
-            : "Hold to talk"
+              ? t("voice.stop_label")
+              : t("voice.recording_label")
+            : t("voice.hold_label")
         }
         aria-pressed={recording}
         aria-disabled={inactive || transcribing}
@@ -163,7 +170,11 @@ export function VoiceButton({
       >
         <span aria-hidden="true">{recording ? "●" : "🎤"}</span>
         <span>
-          {transcribing ? "Transcribing…" : recording ? "Recording" : "Talk"}
+          {transcribing
+            ? t("voice.transcribing")
+            : recording
+              ? t("voice.recording")
+              : t("voice.talk")}
         </span>
       </button>
       {recording && (
@@ -173,7 +184,7 @@ export function VoiceButton({
           <span
             className="voice-meter"
             role="meter"
-            aria-label="Microphone level"
+            aria-label={t("voice.level")}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(voice.level * 100)}
@@ -184,14 +195,12 @@ export function VoiceButton({
       )}
       {recording && (
         <p className="voice-hint">
-          {voice.toggled
-            ? "Tap the microphone again to finish. Press Escape to cancel."
-            : "Release to send. Slide away or press Escape to cancel."}
+          {voice.toggled ? t("voice.hint_toggled") : t("voice.hint_hold")}
         </p>
       )}
       {transcribing && (
         <p className="voice-hint" role="status">
-          Turning your voice into text…
+          {t("voice.hint_transcribing")}
         </p>
       )}
       {!recording &&
@@ -199,29 +208,29 @@ export function VoiceButton({
         voice.block !== "denied" &&
         voice.block !== "loading" && (
           <p className="voice-note" role="status" data-testid="voice-blocked">
-            {blockText(voice.block, voice.capResets)}
+            {blockText(t, voice.block, voice.capResets)}
           </p>
         )}
       {!recording && !transcribing && voice.notice && (
         <p className="voice-note" role="alert" data-testid="voice-notice">
-          {noticeText(voice.notice)}
+          {noticeText(t, voice.notice)}
           {voice.notice.kind === "denied" && (
             <button
               type="button"
               className="voice-retry"
               onClick={() => void voice.requestPermission()}
             >
-              Try again
+              {t("voice.try_again")}
             </button>
           )}
           {((voice.notice.kind === "empty" && voice.notice.retry) ||
             (voice.notice.kind === "error" && voice.notice.retry)) && (
             <button type="button" className="voice-retry" onClick={voice.retry}>
-              Try again
+              {t("voice.try_again")}
             </button>
           )}
           <button type="button" className="voice-retry" onClick={voice.dismiss}>
-            Type instead
+            {t("voice.type_instead")}
           </button>
         </p>
       )}
@@ -236,22 +245,17 @@ export function VoiceButton({
               setAutoSend(event.target.checked);
             }}
           />{" "}
-          Send my question automatically after 2 seconds
+          {t("voice.auto_send")}
         </label>
       )}
       {explaining && (
         <div
           className="voice-explain"
           role="dialog"
-          aria-label="Use the microphone"
+          aria-label={t("voice.explain_title")}
           data-testid="voice-explain"
         >
-          <p>
-            Dictation uses your microphone only while you hold the button. The
-            recording is sent to a speech provider that does not keep it (zero
-            data retention) and is turned into text. Duolify does not save the
-            audio; only the text you send is kept.
-          </p>
+          <p>{t("voice.explain_body")}</p>
           <div className="voice-row">
             <button
               type="button"
@@ -267,7 +271,7 @@ export function VoiceButton({
                 await voice.requestPermission();
               }}
             >
-              Allow microphone
+              {t("voice.allow")}
             </button>
             <button
               type="button"
@@ -275,7 +279,7 @@ export function VoiceButton({
               data-testid="voice-explain-skip"
               onClick={() => setExplaining(false)}
             >
-              Not now
+              {t("voice.not_now")}
             </button>
           </div>
         </div>

@@ -408,6 +408,51 @@ export const en = {
   "la.history_failed": "Could not export learning history. Retry.",
   "la.custom_failed": "Could not export custom analytics. Retry.",
   "la.open": "Learning analytics and exports",
+  "voice.offline": "Voice needs a connection. You can still type.",
+  "voice.unavailable": "Voice is not available yet. You can still type.",
+  "voice.unsupported": "This device cannot record audio. You can still type.",
+  "voice.cap": "You have used today's voice limit. You can still type.",
+  "voice.cap_resets":
+    "You have used today's voice limit; it resets at {time}. You can still type.",
+  "voice.denied_block":
+    "Microphone access is off. Turn it on for Duolify in your device or browser settings, then try again. You can still type.",
+  "voice.denied":
+    "Microphone access is off. Turn it on for Duolify in your device or browser settings, then try again.",
+  "voice.no_microphone": "No microphone was found. You can still type.",
+  "voice.silent":
+    "I could not hear anything. Try again closer to the microphone.",
+  "voice.too_short": "Hold a little longer to record.",
+  "voice.empty": "I could not make out any words.",
+  "voice.rate_limited":
+    "Too many recordings in a row. Wait a moment, then try again.",
+  "voice.too_long":
+    "That recording was too long to send. Keep it under 30 seconds.",
+  "voice.unavailable_now":
+    "Voice is not available right now. You can still type.",
+  "voice.offline_retry":
+    "Voice needs a connection. Try again when you are back online.",
+  "voice.failed": "I could not turn that into text. You can retry or type.",
+  "voice.stop_label": "Stop recording",
+  "voice.recording_label": "Recording. Release to send, slide away to cancel",
+  "voice.hold_label": "Hold to talk",
+  "voice.transcribing": "Transcribing…",
+  "voice.recording": "Recording",
+  "voice.talk": "Talk",
+  "voice.level": "Microphone level",
+  "voice.hint_toggled":
+    "Tap the microphone again to finish. Press Escape to cancel.",
+  "voice.hint_hold": "Release to send. Slide away or press Escape to cancel.",
+  "voice.hint_transcribing": "Turning your voice into text…",
+  "voice.try_again": "Try again",
+  "voice.type_instead": "Type instead",
+  "voice.auto_send": "Send my question automatically after 2 seconds",
+  "voice.explain_title": "Use the microphone",
+  "voice.explain_body":
+    "Dictation uses your microphone only while you hold the button. The recording is sent to a speech provider that does not keep it (zero data retention) and is turned into text. Duolify does not save the audio; only the text you send is kept.",
+  "voice.allow": "Allow microphone",
+  "voice.not_now": "Not now",
+  "voice.countdown": "Sending in 2 seconds. Edit the text to keep it here.",
+  "voice.cancel": "Cancel",
 } satisfies Record<string, Message>;
 export type MessageId = keyof typeof en;
 export const ar: Record<MessageId, Message> = {
@@ -779,6 +824,46 @@ export const ar: Record<MessageId, Message> = {
   "la.history_failed": "تعذّر تصدير سجل التعلّم. حاول مجددًا.",
   "la.custom_failed": "تعذّر تصدير التحليلات المخصصة. حاول مجددًا.",
   "la.open": "التحليلات والتصدير",
+  "voice.offline": "الصوت يحتاج إلى اتصال. يمكنك الكتابة.",
+  "voice.unavailable": "الصوت غير متاح بعد. يمكنك الكتابة.",
+  "voice.unsupported": "لا يستطيع هذا الجهاز تسجيل الصوت. يمكنك الكتابة.",
+  "voice.cap": "استخدمت حد الصوت لليوم. يمكنك الكتابة.",
+  "voice.cap_resets":
+    "استخدمت حد الصوت لليوم؛ يُعاد ضبطه في {time}. يمكنك الكتابة.",
+  "voice.denied_block":
+    "الوصول إلى الميكروفون متوقف. فعّله لـ Duolify في إعدادات جهازك أو متصفحك ثم حاول مجددًا. يمكنك الكتابة.",
+  "voice.denied":
+    "الوصول إلى الميكروفون متوقف. فعّله لـ Duolify في إعدادات جهازك أو متصفحك ثم حاول مجددًا.",
+  "voice.no_microphone": "لم يُعثر على ميكروفون. يمكنك الكتابة.",
+  "voice.silent": "لم أسمع شيئًا. حاول مجددًا أقرب إلى الميكروفون.",
+  "voice.too_short": "اضغط مدة أطول قليلًا للتسجيل.",
+  "voice.empty": "لم أتمكن من تمييز أي كلمات.",
+  "voice.rate_limited": "تسجيلات كثيرة متتالية. انتظر قليلًا ثم حاول مجددًا.",
+  "voice.too_long": "التسجيل أطول من أن يُرسل. اجعله أقل من 30 ثانية.",
+  "voice.unavailable_now": "الصوت غير متاح الآن. يمكنك الكتابة.",
+  "voice.offline_retry": "الصوت يحتاج إلى اتصال. حاول مجددًا عند عودة الاتصال.",
+  "voice.failed": "تعذّر تحويل ذلك إلى نص. يمكنك المحاولة مجددًا أو الكتابة.",
+  "voice.stop_label": "إيقاف التسجيل",
+  "voice.recording_label": "جارٍ التسجيل. اترك للإرسال أو اسحب بعيدًا للإلغاء",
+  "voice.hold_label": "اضغط مطولًا للتحدث",
+  "voice.transcribing": "جارٍ التحويل إلى نص…",
+  "voice.recording": "تسجيل",
+  "voice.talk": "تحدّث",
+  "voice.level": "مستوى الميكروفون",
+  "voice.hint_toggled":
+    "اضغط على الميكروفون مجددًا للإنهاء. اضغط Escape للإلغاء.",
+  "voice.hint_hold": "اترك للإرسال. اسحب بعيدًا أو اضغط Escape للإلغاء.",
+  "voice.hint_transcribing": "جارٍ تحويل صوتك إلى نص…",
+  "voice.try_again": "حاول مجددًا",
+  "voice.type_instead": "اكتب بدلًا من ذلك",
+  "voice.auto_send": "أرسل سؤالي تلقائيًا بعد ثانيتين",
+  "voice.explain_title": "استخدم الميكروفون",
+  "voice.explain_body":
+    "يستخدم الإملاء الميكروفون فقط أثناء ضغطك على الزر. يُرسل التسجيل إلى مزوّد كلام لا يحتفظ به (عدم الاحتفاظ بالبيانات) ويُحوَّل إلى نص. لا يحفظ Duolify الصوت؛ يُحفظ فقط النص الذي ترسله.",
+  "voice.allow": "السماح بالميكروفون",
+  "voice.not_now": "ليس الآن",
+  "voice.countdown": "سيُرسل خلال ثانيتين. عدّل النص لإبقائه هنا.",
+  "voice.cancel": "إلغاء",
 };
 // Deliberately exposed only in the authored harness, never as a shipping language.
 function expand(text: string) {

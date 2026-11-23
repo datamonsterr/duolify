@@ -1,3 +1,5 @@
+import { useUiPreferences } from "../design/localization/Preferences";
+
 /** Shown while a dictated question waits out the edit window; editing the text also stops it. */
 export function DictationCountdown({
   counting,
@@ -6,17 +8,18 @@ export function DictationCountdown({
   counting: boolean;
   onCancel: () => void;
 }) {
+  const { t } = useUiPreferences();
   if (!counting) return null;
   return (
     <p className="voice-note" role="status" data-testid="voice-countdown">
-      Sending in 2 seconds. Edit the text to keep it here.
+      {t("voice.countdown")}
       <button
         type="button"
         className="voice-retry"
         data-testid="voice-countdown-cancel"
         onClick={onCancel}
       >
-        Cancel
+        {t("voice.cancel")}
       </button>
     </p>
   );
