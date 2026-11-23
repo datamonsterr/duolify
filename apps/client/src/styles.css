@@ -742,13 +742,9 @@ progress::-moz-progress-bar {
   .app-main:has(.player) > .appearance-menu {
     display: none;
   }
-  .player .focused-context {
-    gap: var(--space-2);
-  }
   .player h1 {
     margin-block: var(--space-2);
-    font-size: var(--font-size-body, 1.25rem);
-    line-height: 1.2;
+    font-size: 1.25rem;
   }
   .player .progress {
     margin-block: 0 var(--space-2);
@@ -756,7 +752,6 @@ progress::-moz-progress-bar {
   .player > p,
   .player > [role="status"] {
     margin-block: 0 var(--space-2);
-    font-size: 0.875rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1054,8 +1049,8 @@ progress::-moz-progress-bar {
 .stage-expand {
   position: absolute;
   inset: auto var(--space-2) var(--space-2) auto;
-  inline-size: var(--size-target, 44px);
-  block-size: var(--size-target, 44px);
+  inline-size: var(--size-target);
+  block-size: var(--size-target);
   display: grid;
   place-items: center;
   padding: 0;
@@ -1063,7 +1058,6 @@ progress::-moz-progress-bar {
   border-radius: var(--radius-pill);
   background: rgb(0 0 0 / 0.55);
   color: #fff;
-  cursor: pointer;
 }
 .stage-expand svg {
   inline-size: 24px;
@@ -1071,11 +1065,6 @@ progress::-moz-progress-bar {
   fill: none;
   stroke: currentColor;
   stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.stage-expand:disabled {
-  opacity: 0.5;
 }
 
 /* Outline of the region a note was taken on ("Show in Lesson"); also used inside the immersive stage. */
