@@ -6,6 +6,10 @@ run = ["actionlint", "shellcheck scripts/ci/*.sh"]
 description = "Verify API integration shards cover the default package list exactly once and all integration test directories"
 run = "bash scripts/ci/api-integration-shards.sh"
 
+["ci:migration-versions"]
+description = "Reject duplicate Goose migration versions in services/api/migrations (with its test)"
+run = ["bash scripts/ci/migration-versions.test.sh", "bash scripts/ci/migration-versions.sh"]
+
 ["ci:sql-casts"]
 description = "Reject a cast column compared to a parameter (col::text = $1) in API Go and sqlc sources: it defeats the indexes"
 run = "bash scripts/ci/sql-casts.sh"

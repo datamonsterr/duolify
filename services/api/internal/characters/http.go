@@ -75,6 +75,17 @@ func (h *Handler) library(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case len(parts) == 2 && r.Method == http.MethodGet:
 		result, err = h.service.List(r.Context(), owner)
+	case len(parts) == 2 && r.Method == http.MethodPost:
+		var in SelectorCreateRequest
+		if err = decode(&in); err == nil {
+			result, err = h.service.CreateBySelectors(r.Context(), owner, in)
+		} else {
+			// Malformed attempts consume the same durable quota.
+			result, err = h.service.CreateBySelectors(r.Context(), owner, SelectorCreateRequest{})
+		}
+		if err == nil {
+			w.WriteHeader(http.StatusCreated)
+		}
 	case len(parts) == 3 && parts[1] == "characters":
 		switch r.Method {
 		case http.MethodGet:
@@ -124,7 +135,7 @@ func (h *Handler) library(w http.ResponseWriter, r *http.Request) {
 		case "limit_exceeded":
 			status = 429
 			setRetryAfter(w, err)
-		case "version_conflict", "published_cast_locked":
+		case "version_conflict", "published_cast_locked", "read_only":
 			status = 409
 		case "invalid_spec", "invalid_cast", "real_person", "third_party_ip", "sexual_content", "age_inappropriate", "prompt_injection":
 		default:
