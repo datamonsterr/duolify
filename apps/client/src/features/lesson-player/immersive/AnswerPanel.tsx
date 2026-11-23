@@ -151,7 +151,7 @@ export default function AnswerPanel({
         message: t("imm.saved"),
         action: saved?.id
           ? {
-              label: t("imm.undo"),
+              label: t("common.undo"),
               onAction: () => {
                 void session
                   .request(`/v1/notes/${saved.id}`, "DELETE")
@@ -169,7 +169,7 @@ export default function AnswerPanel({
       setNoteState((s) => ({ ...s, [id]: "error" }));
       showToast({
         id: "note-saved",
-        message: t("imm.save_failed"),
+        message: t("imm.failed"),
         tone: "error",
       });
     }
@@ -180,15 +180,13 @@ export default function AnswerPanel({
     ? t("imm.offline")
     : notice?.kind === "credits"
       ? t("imm.credits")
-      : notice?.kind === "failed"
+      : notice?.kind === "failed" ||
+          notice?.kind === "stale" ||
+          notice?.kind === "load"
         ? t("imm.failed")
-        : notice?.kind === "stale"
-          ? t("imm.stale")
-          : notice?.kind === "load"
-            ? t("imm.load")
-            : tutor.block
-              ? t("imm.block")
-              : "";
+        : tutor.block
+          ? t("imm.block")
+          : "";
   useEffect(() => {
     if (refusal)
       showToast({ id: "answer-notice", message: refusal, tone: "error" });
@@ -206,8 +204,8 @@ export default function AnswerPanel({
         type="button"
         className="imm-btn imm-icon-btn imm-answer-handle"
         data-testid="answer-expand"
-        aria-label={t("imm.show")}
-        title={t("imm.show")}
+        aria-label={t("imm.panel_label")}
+        title={t("imm.panel_label")}
         onClick={() => onCollapse(false)}
       >
         <Icon name="ask" />
@@ -217,7 +215,7 @@ export default function AnswerPanel({
   const cannotSend =
     !tutor.draft.trim() || busy || !tutor.online || !!tutor.block;
   const sendReason =
-    cannotSend && tutor.draft.trim() ? refusal || t("imm.busy") : "";
+    cannotSend && tutor.draft.trim() ? refusal || t("imm.answering") : "";
 
   return (
     <aside
@@ -238,8 +236,8 @@ export default function AnswerPanel({
             type="button"
             className="imm-btn imm-icon-btn"
             data-testid="answer-restore"
-            aria-label={t("imm.outline_before")}
-            title={t("imm.outline_before")}
+            aria-label={t("imm.select_area")}
+            title={t("imm.select_area")}
             onClick={() => onRestore(earlier.rect)}
           >
             <Icon name="select" />
@@ -260,8 +258,8 @@ export default function AnswerPanel({
           type="button"
           className="imm-btn imm-icon-btn"
           data-testid="answer-close"
-          aria-label={t("imm.close")}
-          title={t("imm.close")}
+          aria-label={t("common.close")}
+          title={t("common.close")}
           onClick={close}
         >
           <Icon name="close" />
@@ -285,14 +283,10 @@ export default function AnswerPanel({
                   className="imm-btn imm-icon-btn"
                   data-testid="answer-save-note"
                   aria-label={
-                    noteState[m.id] === "saved"
-                      ? t("imm.saved")
-                      : t("imm.save_note")
+                    noteState[m.id] === "saved" ? t("imm.saved") : t("imm.note")
                   }
                   title={
-                    noteState[m.id] === "saved"
-                      ? t("imm.saved")
-                      : t("imm.save_note")
+                    noteState[m.id] === "saved" ? t("imm.saved") : t("imm.note")
                   }
                   aria-pressed={noteState[m.id] === "saved"}
                   disabled={
@@ -317,13 +311,13 @@ export default function AnswerPanel({
         }}
       >
         <label>
-          <span className="imm-sr">{t("imm.question")}</span>
+          <span className="imm-sr">{t("imm.ask_ph")}</span>
           <textarea
             ref={field}
             rows={2}
             value={tutor.draft}
             maxLength={2000}
-            placeholder={shown.length ? t("imm.followup") : t("imm.ask_ph")}
+            placeholder={shown.length ? t("imm.ask_ph") : t("imm.ask_ph")}
             disabled={busy}
             onChange={(e) => {
               if (tutor.draft === "") setAsked("text");
@@ -352,7 +346,11 @@ export default function AnswerPanel({
           variant="bubble"
           disabled={busy || !tutor.online}
           disabledReason={
-            !tutor.online ? t("imm.offline") : busy ? t("imm.busy") : undefined
+            !tutor.online
+              ? t("imm.offline")
+              : busy
+                ? t("imm.answering")
+                : undefined
           }
           onTranscript={({ text, language }) => {
             setAsked("voice");
@@ -376,8 +374,8 @@ export default function AnswerPanel({
             type="submit"
             className="imm-btn imm-icon-btn imm-btn-big"
             data-testid="answer-send"
-            aria-label={t("imm.send")}
-            title={sendReason || t("imm.send")}
+            aria-label={t("tutor.send")}
+            title={sendReason || t("tutor.send")}
             aria-describedby={sendReason ? "answer-send-reason" : undefined}
             disabled={cannotSend}
           >

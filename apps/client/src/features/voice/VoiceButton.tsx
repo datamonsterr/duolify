@@ -1,9 +1,15 @@
-import { useRef, useState, type PointerEvent, type KeyboardEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useRef,
+  useState,
+  type PointerEvent,
+  type KeyboardEvent,
+} from "react";
 import type { VoiceEntryPoint } from "../../lib/analytics";
 import { useUiPreferences } from "../design/localization/Preferences";
 import { useVoiceInput, type Transcript } from "./useVoiceInput";
 import type { VoicePlatform } from "./platform";
-import { VoiceBubble } from "./VoiceBubble";
 import {
   blockText,
   clock,
@@ -17,6 +23,11 @@ import "./voice.css";
  * Push-to-talk microphone control: hold to record, release to transcribe, slide off or press
  * Escape to cancel, tap to toggle. Typing stays available next to it, always.
  */
+// The bubble (and its toasts) load with the immersive presentation, not with the first screen.
+const VoiceBubble = lazy(() =>
+  import("./VoiceBubble").then((m) => ({ default: m.VoiceBubble })),
+);
+
 function VoiceTextButton({
   purpose,
   entryPoint,
@@ -219,11 +230,13 @@ export function VoiceButton(
 ) {
   const { variant, disabledReason, disabled = false, ...rest } = props;
   return variant === "bubble" ? (
-    <VoiceBubble
-      {...rest}
-      disabled={disabled}
-      disabledReason={disabledReason}
-    />
+    <Suspense fallback={null}>
+      <VoiceBubble
+        {...rest}
+        disabled={disabled}
+        disabledReason={disabledReason}
+      />
+    </Suspense>
   ) : (
     <VoiceTextButton {...rest} disabled={disabled} />
   );

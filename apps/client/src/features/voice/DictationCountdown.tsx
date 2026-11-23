@@ -1,4 +1,3 @@
-import { Icon } from "../design/Icon";
 import { useUiPreferences } from "../design/localization/Preferences";
 
 /** A small chip while a dictated question waits out the edit window; editing the text also stops it. */
@@ -22,7 +21,7 @@ export function DictationCountdown({
         title={t("voice.cancel")}
         onClick={onCancel}
       >
-        <Icon name="close" />
+        <span aria-hidden="true">×</span>
       </button>
     </p>
   );

@@ -11,7 +11,6 @@ import {
 import { session } from "../accounts/session";
 import { AppLink } from "../../lib/navigation";
 import { VoiceButton } from "../voice/VoiceButton";
-import { showToast } from "../../components/toast";
 import { useUiPreferences } from "../design/localization/Preferences";
 
 export type QuickNoteContext = {
@@ -237,11 +236,17 @@ export function QuickNotePanel({
   const dictatedKey = dictated?.actionKey;
   useEffect(() => {
     if (!bubble || !dictatedKey) return;
-    showToast({
-      id: "note-saved",
-      message: t("imm.saved"),
-      action: { label: t("imm.undo"), onAction: () => void undoRef.current() },
-    });
+    // Loaded on demand: toasts belong to the immersive presentation, not the first screen.
+    void import("../../components/toast").then(({ showToast }) =>
+      showToast({
+        id: "note-saved",
+        message: t("imm.saved"),
+        action: {
+          label: t("common.undo"),
+          onAction: () => void undoRef.current(),
+        },
+      }),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dictatedKey, bubble]);
 
