@@ -101,6 +101,12 @@ export function Courses({
         </div>
       </div>
       <div className="course-context">
+        <Badge role="streak">
+          <span aria-hidden="true" className="streak-icon">
+            ♨
+          </span>{" "}
+          Streaks grow with daily learning
+        </Badge>
         <Badge role="credit">
           <AppLink href="/credits">
             <span aria-hidden="true" className="credit-icon">
