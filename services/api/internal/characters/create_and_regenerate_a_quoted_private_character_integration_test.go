@@ -5,6 +5,7 @@ package characters_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -256,6 +257,8 @@ func TestCharacterCreateGuardsAndCancellation(t *testing.T) {
 		}
 		if _, e := s.QuoteCreate(ctx, owner, characters.CreateRequest{RequestKey: "third", Prompt: "original gardener"}); e == nil || e.Error() != "limit_exceeded" {
 			t.Fatal("rate limit absent", e)
+		} else if limit := new(characters.LimitError); !errors.As(e, &limit) || limit.RetryAfterSeconds() < 1 || limit.RetryAfter > time.Minute {
+			t.Fatalf("minute limit must carry Retry-After within a minute: %+v", e)
 		}
 		if m.calls.Load() != 0 {
 			t.Fatal("unsafe mapped")
