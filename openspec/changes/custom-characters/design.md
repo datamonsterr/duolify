@@ -222,3 +222,95 @@ evidence is invented while E10-01/E10-06 remain unprovisioned.
 - Speaker and rendering: the Lesson test page reads the Lesson's pinned Cast from the existing manifest (best effort) and renders the guide through the validated closed-schema rig. Missing Cast, unsupported rig, invalid spec or invalid reaction fall back to the bundled static neutral SVG (approved copy kept when the reaction itself is valid); correction and Continue stay available. No animation is added, so reduced motion needs no variant.
 - Analytics: client `character_reaction_shown` (speaker_key, expression, reaction_trigger, fallback_used) once per Lesson/question result; closed-enum properties only. Opt-out and PostHog failure never block the answer flow.
 - Evals: `character_reactions` task (and `character_injection` reaction cases) gated at 1.0 offline; no new proto fields, tables or migrations; no runtime model call or spend.
+
+## Revision v2: selector and prompt creation of richer Characters (2026-11-23)
+
+Owner request 5: Learners create new Characters with an avatar and body, from a prompt or a selector UI (kind, appearance, clothes, name, gender and so on), used in learning Slides. The owner delegated product decisions; rationale is recorded here. Sections above stay in force unless this section changes them (v1 limits, pricing, snapshots, privacy, analytics privacy).
+
+### Gap analysis
+
+| Request needs | Already provided | Gap |
+|---|---|---|
+| Create from a prompt | Prompt to `CharacterSpec` job, quote, reserve, settle, screening (`creation.go`, engine `character_create`/`character_screen`, `CreateCharacter.tsx`) | Mapping returns v1 spec only; output must become attribute proposals the Learner tweaks |
+| Selector UI | Structured editor for v1 fields (`CharacterLibrary.tsx`) | No selectors for kind, face, hair, clothes; no free selector creation; no live avatar and body preview |
+| Kind (human, animals) | None; v1 has 3 abstract blob bodies | Kinds, species lists, human features, robots, fantasy |
+| Race, hair, eye, clothes, gender | v1: palette, eyes, mouth, 4 accessories | Full attribute schema v2; inclusive "race" handling; pronouns |
+| Avatar and body | One 160 px blob SVG (`rig.ts`, `rig.go`), 5 expressions | Avatar crop, full body, poses, render budget, alt text |
+| Used in Slides | Speaker keys, expressions, pinned Cast, player stage, offline fallback, reactions | Pose in segments, kind-aware rendering, avatar surfaces |
+| Safety | Prompt, output and edit screening, reason codes, takedown overlay | Celebrity/brand likeness cases, name screening, minors rules, hateful caricature, report path |
+| Limits and pricing | ADR 0013 25 Credits; count, day, prompt, size limits tested | 20 edits/hour and 2 creates/minute not enforced yet (separate in-flight PR); selector-create rules |
+| Mascot | Not covered | Shared document contract with `conversational-flows-and-mascot` |
+| Data and evals | Stores, backup, restore drill, 7 golden tasks | v1 to v2 migration, export, render-checksum restore check, attribute fidelity and refusal cases |
+
+### Decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Creation paths | Prompt proposes attributes, selectors edit; one document | One renderer, one validator, free tweak step builds trust in a paid mapping |
+| Selector creation price | Free; counts toward 2 creates/min, 20 writes/hour, 10 Characters | No model spend; abuse bounded by count and rate |
+| Prompt price | Unchanged 25 Credits (ADR 0013) | No new owner decision unless measured cost exceeds the ceiling |
+| Kinds | human, animal, robot, fantasy | Covers the request and keeps one rig |
+| Animal species | cat, dog, fox, rabbit, bear, panda, wolf, mouse, owl, penguin, frog, tiger, lion, elephant, monkey, raccoon | Common, easy to draw as original art; catalog can grow without schema bump |
+| Fantasy species | dragon, fairy, ghost, slime, alien, unicorn, mushroom sprite, golem | The only "race-like" category; avoids real-world groups |
+| "Race" | Not a field. Humans choose skin tone, hair, features independently; no ethnicity/nationality/religion presets or labels | Inclusive, avoids labelling people and stereotyped bundles; prompts naming a group do not infer attributes |
+| Skin tone | 12+ neutral numbered tones plus any colour for non-human | Wide range without names |
+| Hair and coverings | Texture x length x style x colour, `bald`, head coverings (headscarf, turban, cap, beanie, hood, helmet, headband, hat) | Describes real appearance neutrally |
+| Gender | Free-text pronouns and label (24 chars, may be empty); never inferred; does not drive appearance or voice | Free choice including none |
+| Age bands | child, teen, adult, elder; stylised cartoon only | Needed for expression; minors rules below |
+| Poses | idle, talk, point, think, celebrate, wave, shrug | Cover lesson beats (explain, show, wonder, reward, greet) |
+| Expressions | v1 five plus surprised, confused | Quiz and explanation beats |
+| Model output | Catalog ids and colours only; one repair or one fallback | Same as v1 contract; no SVG |
+| Failure of prompt path | Release Credits, open free selector pre-filled | Learner keeps progress |
+| v1 documents | Immutable; read-time upgrader; v2 written on next edit | No data rewrite, safe rollback |
+| Avatar alt text | Generated from attributes, includes light/medium/deep tone band | Accessibility without model text |
+
+### Attribute schema v2 (summary)
+
+`schema_version: 2`, `rig_version: "original-v2"`, `catalog_version`. Closed objects; ids resolve through a versioned catalog; colours `#RRGGBB`; at most 8 KiB.
+
+| Group | Fields |
+|---|---|
+| `info` | name (1-40), bio (0-280), backstory (0-800) |
+| `identity` | pronouns (0-24), label (0-24); free, optional, never inferred |
+| `body.kind` | `human` or `animal` or `robot` or `fantasy`; plus `age_band`, `build` (slim, average, sturdy, round), `height` (short, medium, tall) |
+| human | skin colour, face shape (round, oval, square, heart, long), hair {texture straight, wavy, curly, coily; length bald, buzz, short, medium, long; style loose, ponytail, bun, braids, locs, pigtails, mohawk; colour}, head covering, eyes {shape round, oval, droopy, upturned, wide, small; colour}, eyebrows {style, colour}, nose, mouth, facial hair {none, stubble, moustache, goatee, short beard, full beard; colour}, glasses {none, round, square, sunglasses, goggles; colour}, skin features (freckles, rosy cheeks, vitiligo patches, birthmark) |
+| animal | species, primary and secondary colour, markings (none, stripes, spots, patches, mask, socks), ears, tail, eyes |
+| robot | base (boxy, round, tall, tiny), plating and accent colour, markings, antenna, eyes (screen, round, visor, single), locomotion (legs, wheels, hover) |
+| fantasy | species, colours, wings, horns, tail, eyes |
+| `clothes` | top, bottom, shoes, outerwear (none, jacket, coat, cape, apron, lab coat, vest), up to 4 accessories (scarf, necklace, badge, backpack, headphones, bow tie, tie, watch, gloves), colours, pattern (solid, stripes, dots, checks) |
+| `personality` | traits, speaking_style, persona_prompt (unchanged) |
+| `expressions` | the seven values |
+| `voice_key` | allowlist key (unchanged); the selector offers it; never defaulted from gender |
+
+Forward compatibility: unknown catalog ids render the neutral default and block writes; unknown `schema_version` renders the bundled default and blocks writes. Cross-field rules: parts must be valid for `kind`; `child` and `teen` require top and bottom; palette contrast; size caps; combined text at most 2,400 characters.
+
+### Rendering, poses and Slide references
+
+One compiler turns a document into SVG for `avatar` (head and bust) and `body` views at a pose and expression. Budget: avatar at most 8 KiB, body at most 24 KiB, no external refs, filters, fonts or SMIL, byte-identical output per input (a SHA-256 is stored per saved version for restore checks), offline part bundle shipped with the app, at most three Characters per Slide, compile cached. Alt text comes from attributes through localized templates. The Engine writes `{speaker_key, pose, expression, text}`; additive proto field `pose` ships in a paired API and Engine PR; v1 segments derive a pose from the expression (celebrate to celebrate, thinking to think, speaking to talk, else idle). Avatar surfaces: Tutor chat header, Cast list, library, mascot slot.
+
+### Safety additions
+
+Prompt text passes the cheap guardrail of `prompt-skill-routing-and-guardrails` before paid mapping (once that change is active), then `character_screen` runs on prompt, names, identity text, proposal and final document. Refusal cases: real people (including "looks like <celebrity>"), brand mascots and copyrighted characters, sexual content with any age band, hateful caricature (new reason code `hateful_content`), minors with romantic, suggestive, alcohol, tobacco or violent persona, injection. The catalog has no swimwear, revealing items or realistic-portrait parts, so minors rules hold by construction as well as by screening. The screen never rewrites a refusal into an accepted result. Reporting reuses `report-targets` and the takedown overlay of E17-09.
+
+### Mascot contract (with `conversational-flows-and-mascot`)
+
+1. The default mascot is a built-in Character document (schema v2) shipped as a release artifact; the Learner may set `mascot_character_id` to an owned active Character.
+2. Mascot rendering uses the shared compiler with `view` avatar or body and a closed `mascot_state` to `{pose, expression}` map: greet (wave, happy), explain (talk, idle), think (think, thinking), correct (celebrate, happy), incorrect (shrug, sad), idle (idle, idle), surprise (idle, surprised).
+3. Persona, backstory and bio never reach the mascot slot or its chat.
+4. Missing, deleted, suppressed or invalid mascot Character resolves to the built-in default.
+5. Guided creation chat owns dialogue; it produces JSON patches over the draft document, validated by the shared schema on every step; this change owns the selector components (`CharacterSelector`, `CharacterPreview`), schema, validators, compiler and screening.
+6. Neither change edits the other's requirements; if the mascot change lands first, it references this change's document requirement by name.
+
+### Limits
+
+Unchanged: 10 active Characters, 5 prompt attempts per day, 2 creates per minute, 20 manual edits per hour, prompt 1-1,500, 8 KiB, 2,400 text characters, Cast 1 + 0-2. Selector creates count toward 2 per minute, the 20-per-hour write bucket and the 10-Character cap. Rate limits are implemented by a separate in-flight PR; this change specifies behavior and tests only.
+
+### Data, migration, analytics, evals
+
+Storage reuses `character_versions` (spec JSON plus `schema_version`, `rig_version`, `catalog_version`, render checksum). Migration: additive; read-time v1 to v2 upgrader with golden pairs; no rewrite of v1 rows; rollback keeps v1 readers. Export: the account data export lists Character documents and versions, never prompts. Erasure, retention and backup as in the sections above; the restore drill additionally renders each restored document at its rig version and compares the checksum, without model calls. Analytics: see the `analytics` delta (creation path, kind, age band, draft proposed, reported; allowlisted attribute group paths; metrics for funnel, schema-valid rate, reject rate, tweak rate, render fallback). Golden set tasks: new `character_attributes` (at least 60 cases: stated attributes, unstated attributes, multilingual) and extended `character_screen` (at least 40 refusal cases for celebrity, brand, copyright, minors, hateful, injection). Gates: schema validity 1.00 after at most one repair; attribute fidelity at least 0.90; stereotype-inference violations 0 (critical); refusal recall at least 0.98 and benign false reject at most 0.05 (existing). Fallback model: one OpenRouter fallback, must pass the same gates on the pinned dataset revision before promotion; evidence per `gate-ai-promotion-on-reproducible-live-samples`.
+
+### Owner-only questions
+
+1. Approve the original v2 part-library art and the three default-cast Characters (design and rights; issue #40).
+2. Legal: may Learners under 13 use the prompt path, and are the minors rules enough for target markets.
+3. Money, only if measured: new `character_create` ceiling if the v2 mapping exceeds the approved cost envelope.

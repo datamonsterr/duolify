@@ -11,6 +11,10 @@ Learners want familiar Characters that reflect their interests and accompany the
 - Creation and prompt-based regeneration cost Credits through the proposed `character_create` Pricing config key; manual edits are free. Owner approval of the new key and price is required before enabling paid creation.
 - Published courses snapshot their attached Characters under E15; all other Characters remain private. Add PostHog event definitions, backup/retention and Golden set reliability requirements to each affected capability.
 
+## Revision v2 (2026-11-23)
+
+Owner request 5: Learners create new Characters, using a prompt or selectors for kind (human, animal, robot, fantasy creature), appearance, clothes, name and gender presentation, for use in learning Slides. The revision adds schema v2 and rig `original-v2` (avatar, full body, poses), two creation paths producing one document, extended safety (likeness, minors, no ethnicity labels), a shared contract with the app mascot, v1 compatibility and v2 evals. Selector creation is free; the prompt path keeps ADR 0013 pricing. See `design.md` section "Revision v2". Final original part art and default-cast art remain blocked on owner approval (issue #40).
+
 ## Capabilities
 
 ### New Capabilities
