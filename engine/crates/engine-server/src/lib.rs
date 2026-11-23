@@ -80,7 +80,7 @@ fn transcribe_status(error: engine_core::transcribe::TranscribeError) -> Status 
     use engine_core::transcribe::TranscribeError as E;
     use tonic_types::{ErrorDetails, StatusExt};
     let code = match error {
-        E::InvalidAudio(_) => tonic::Code::InvalidArgument,
+        E::InvalidAudio(_) | E::Rejected => tonic::Code::InvalidArgument,
         E::CostCeiling | E::Timeout | E::Failed => tonic::Code::Unavailable,
     };
     Status::with_error_details(

@@ -222,6 +222,8 @@ func TestRejectionsHappenBeforeAnyEngineCall(t *testing.T) {
 		{"declared 45 s", nil, good(webmStream(4000), 45000), 400, "voice_too_long"},
 		{"measured 45 s declared 4 s", nil, good(webmStream(45000), 4000), 400, "voice_too_long"},
 		{"measured longer than declared", nil, good(webmStream(12000), 4000), 400, "voice_invalid"},
+		{"1 MB of low-bitrate audio measuring minutes, declared 1 s", nil, good(append(webmStream(120000), ebml([]byte{0xEC}, make([]byte, 900_000))...), 1000), 400, "voice_too_long"},
+		{"1 MB fragmented mp4 declared 1 s (length not measurable)", nil, good(append(mp4("isom", 1000, 0), box("mdat", make([]byte, 900_000))...), 1000), 400, "voice_invalid"},
 		{"declared under 0.5 s", nil, good(webmStream(300), 300), 400, "voice_too_short"},
 		{"wav container", nil, good(append([]byte("RIFF\x00\x00\x00\x00WAVE"), make([]byte, 64)...), 4000), 415, "voice_unsupported_container"},
 		{"plain text", nil, good([]byte("not audio at all, just words"), 4000), 415, "voice_unsupported_container"},
