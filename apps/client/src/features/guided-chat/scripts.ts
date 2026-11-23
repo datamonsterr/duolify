@@ -1,3 +1,4 @@
+import { onboardingSetup } from "./onboarding.script";
 import type { GuidedScript } from "./types";
 
 const opts = (prefix: string, ids: string[]) =>
@@ -162,4 +163,8 @@ export const fixtureSecure: GuidedScript = {
   ],
 };
 
-export const allScripts: GuidedScript[] = [fixtureTour, fixtureSecure];
+export const allScripts: GuidedScript[] = [
+  fixtureTour,
+  fixtureSecure,
+  onboardingSetup,
+];

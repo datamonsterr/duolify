@@ -115,6 +115,7 @@
         "limit": { "type": "string" },
         "skippable": { "type": "boolean" },
         "persist": { "type": "boolean" },
+        "initial": {},
         "when": { "$ref": "#/definitions/expr" },
         "next": {
           "type": "array",

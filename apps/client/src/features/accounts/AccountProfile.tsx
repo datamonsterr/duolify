@@ -61,7 +61,7 @@ export function AccountProfile() {
               <Button variant="secondary" onClick={() => setChatOpen(false)}>
                 Close chat
               </Button>
-              <SetupProfile />
+              <SetupProfile entry="profile" />
             </section>
           )}
 
