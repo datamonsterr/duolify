@@ -82,6 +82,22 @@ they are backed up and restored with object versioning like slides and manifests
 restore drill fixture includes a manifest with regions); no Postgres column, export or
 erasure path changes. The playback manifest sent to clients does not include them.
 
+Immersive Lesson player (change `immersive-mobile-lesson-player`) adds three Postgres stores and one
+non-store, all in nightly encrypted general dumps (14-day retention), the account export and the
+account erasure cascade; the restore drill fixture holds a row of each and compares complete rows.
+
+| Data | Where | Content | Backup, export, erasure |
+|---|---|---|---|
+| Playback settings | `learner_profiles.fullscreen_on_rotate`, `autoplay`, `auto_send_after_dictation` (migration `20261124220000`) | Three booleans, default true. No history. | Dump with the profile; exported with the profile; erased with it. All are booleans, so the backup anonymizer needs no rule. The fixture sets all three to false so a restore that fell back to defaults fails. |
+| Region-question anchor | `tutor_messages.anchor_*` (migration `20261124270000`) | Where a Lesson tutor question was asked: Lesson id, Slide index and id, playback time, stage-normalised rectangle, ids of the declared regions used, grounding (`regions` or `whole_slide`). Every column is null for ordinary questions. Ids and numbers only; no Slide text, no region description. | Dump with the message; exported and erased with the thread. `anchor_lesson_id` is `ON DELETE SET NULL`, so a removed Lesson keeps the message. The fixture holds an anchored message. |
+| Quick note anchor | `quick_note_anchors` (migration `20261124340000`) | Playback time, optional normalised rectangle, `input_kind` (`typed` or `voice`) for a note taken in the player. The Slide is the note's own `slide_id`. | Cascades from the note; listed in export and erasure; dump with the note. The fixture's full-row comparison covers the table. |
+| Voice recordings | none | Audio is sent to the transcription route and discarded. It is not written to Postgres, object storage, logs or queues; there is nothing to back up, export or erase. Only the transcript text is returned to the client; it is stored only if the Learner sends it or saves it as a note, as ordinary text. Provider data collection is denied (ADR 0021). | Daily-cap and burst counters are Redis keys with an expiry (not backed up, expendable). Transcription usage settles as an ordinary usage row (counts and cost, no text). |
+
+Operational limits for voice (1 MB, 30 seconds, 6 per minute, daily cap from the pricing version's
+quote policy) live in code and the approved pricing config, not in environment variables, so a
+restore has no feature switch to re-apply. The Caddy body limit for the route is in
+`infra/deploy/Caddyfile`.
+
 E3-06 adds device-disposable course library download index:
 On the client, `localStorage` key `duolify:download-index:<learner ID>` retains the
 device-disposable index of downloaded course IDs, completion timestamps, and lesson IDs

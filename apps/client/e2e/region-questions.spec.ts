@@ -169,6 +169,11 @@ for (const vp of VIEWPORTS.filter((v) => v.name !== "portrait-390x844")) {
       await panel.getByTestId("answer-send").click();
       await expect(panel.getByText(REPLY)).toBeVisible();
       await expect(panel.getByText("Why is this orange?")).toBeVisible();
+      // Design review: the composer never squeezes the reply out of a short (landscape phone) panel.
+      await expect(panel.getByText(REPLY)).toBeInViewport({ ratio: 1 });
+      expect(
+        (await panel.locator(".imm-answer-log").boundingBox())!.height,
+      ).toBeGreaterThanOrEqual(80);
       await snap(page, info, vp, "3-reply");
 
       // Same region on the quote and the message, next to the lesson.
