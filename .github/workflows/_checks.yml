@@ -140,6 +140,9 @@ jobs:
       - name: mise run ci:openspec
         run: mise run ci:openspec
         timeout-minutes: 2
+      - name: mise run release:test
+        run: mise run release:lint && mise run release:test
+        timeout-minutes: 1
       - name: Summary
         if: always()
         env:

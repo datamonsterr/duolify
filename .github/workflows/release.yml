@@ -1,0 +1,208 @@
+name: release
+# Tag v* builds a signed Android APK and an unsigned iOS simulator app, then
+# publishes a GitHub Release. Dispatch with dry_run builds and verifies only.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and verify without creating a release
+        type: boolean
+        default: true
+      test_missing_signing:
+        description: Exercise the missing-signing-secrets failure path
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  MISE_AUTO_INSTALL: 'false'
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      publish: ${{ steps.tag.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: node
+          area: release
+      - run: mise run release:lint
+      - run: mise run release:test
+      - id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -eu
+          if [ "$EVENT" = push ]; then
+            tag="$REF_NAME"; publish=true
+          else
+            tag="v$(node -p "require('./apps/client/package.json').version")"
+            publish=false; [ "$DRY_RUN" = true ] || publish=true
+          fi
+          node scripts/release/check-version.mjs "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+
+  android:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: node pnpm rust
+          area: release-android
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            /usr/local/lib/android/sdk/ndk/27.2.12479018
+          key: mobile-gradle-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/client/src-tauri/Cargo.lock') }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/client/src-tauri -> target
+          shared-key: release-android
+      - run: mise run client:android-free-disk
+      - run: mise run client:install
+      - run: mise run client:android-prerequisites
+      - name: Decode the release keystore
+        env:
+          KEYSTORE_B64: ${{ inputs.test_missing_signing && '' || secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ inputs.test_missing_signing && '' || secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ inputs.test_missing_signing && '' || secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ inputs.test_missing_signing && '' || secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -eu
+          for v in KEYSTORE_B64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!v}" ]; then echo "::error::missing Android signing secret ($v); refusing to publish an unsigned or debug-signed APK"; exit 1; fi
+          done
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+      - name: Build the signed release APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: mise run release:android-build -- "$KEYSTORE_PATH"
+      - name: Verify the signing certificate
+        run: |
+          set -eu
+          apk=$(find apps/client/src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' -not -name '*unsigned*' | head -n 2)
+          [ "$(printf '%s\n' "$apk" | grep -c .)" = 1 ] || { echo "::error::expected exactly one signed release APK, got: $apk"; exit 1; }
+          mkdir -p dist/release
+          cp "$apk" dist/release/duolify.apk
+          node scripts/release/verify-apk-cert.mjs dist/release/duolify.apk
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks" apps/client/src-tauri/gen/android/keystore.properties
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-android
+          path: dist/release/duolify.apk
+          if-no-files-found: error
+
+  ios:
+    needs: validate
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: node pnpm rust
+          area: release-ios
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/client/src-tauri -> target
+          shared-key: release-ios
+      - run: mise run client:install
+      - run: mise run client:ios-build
+      - run: mise run release:ios-package
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-ios
+          path: dist/release/duolify-ios-simulator.zip
+          if-no-files-found: error
+
+  publish:
+    needs: [validate, android, ios]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.validate.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: node
+          area: release
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: release-*
+          path: dist/in
+          merge-multiple: true
+      - name: Assemble assets
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          sudo apt-get install -y --no-install-recommends qrencode
+          out=dist/release; mkdir -p "$out"
+          version="${TAG#v}"
+          cp dist/in/duolify.apk "$out/duolify.apk"
+          cp dist/in/duolify.apk "$out/duolify-$version.apk"
+          cp dist/in/duolify-ios-simulator.zip "$out/"
+          # Re-verify immediately before publishing; the release is fail-closed.
+          node scripts/release/verify-apk-cert.mjs "$out/duolify.apk"
+          qrencode -o "$out/duolify-android-qr.png" -s 12 -m 2 "https://github.com/$REPO/releases/download/$TAG/duolify.apk"
+          node scripts/release/changelog.mjs "$TAG" "$out/CHANGELOG.md"
+          node scripts/release/release-notes.mjs "$REPO" "$TAG" "$out/CHANGELOG.md" "$out/NOTES.md"
+          (cd "$out" && sha256sum duolify.apk "duolify-$version.apk" duolify-ios-simulator.zip duolify-android-qr.png > SHA256SUMS)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-assets
+          path: dist/release
+      - name: Create the GitHub Release
+        if: needs.validate.outputs.publish == 'true'
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -eu
+          out=dist/release; version="${TAG#v}"
+          gh release create "$TAG" --target "$SHA" --title "$TAG" --notes-file "$out/NOTES.md" \
+            "$out/duolify.apk" "$out/duolify-$version.apk" "$out/duolify-ios-simulator.zip" \
+            "$out/duolify-android-qr.png" "$out/SHA256SUMS"
