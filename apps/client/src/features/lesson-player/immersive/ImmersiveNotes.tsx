@@ -76,7 +76,8 @@ export default function ImmersiveNotes({
   const resume = () => {
     if (!pausedByUs.current) return;
     pausedByUs.current = false;
-    latest.current.actions.toggle();
+    // Only resume what is still paused: the Learner may have pressed Play meanwhile.
+    if (!latest.current.view.playing) latest.current.actions.toggle();
   };
   const discard = () => {
     setAnnounce("Selection too small, discarded.");
@@ -239,6 +240,7 @@ export default function ImmersiveNotes({
 
   const extensions: ImmersiveExtensions = {
     sideRail: rail,
+    busy: composer !== null || answer !== null || selection.phase !== "none",
     ...sel.gestureExtensions,
   };
 
