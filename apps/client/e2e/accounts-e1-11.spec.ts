@@ -4,6 +4,10 @@ import { apiBase, resetAuthRateLimits } from "./servers";
 test.use({ hasTouch: true });
 
 test.beforeEach(async ({ page, request }) => {
+  // The old setup chat stays one release for rollback; these tests cover it.
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.onboarding", "off"),
+  );
   await resetAuthRateLimits(request);
   await page.route(/\/v1\/(auth\/|me(?:\/|$|\?))/, async (route) => {
     const original = route.request();
@@ -32,6 +36,7 @@ test("desktop setup chat: vague follow-up, live summary edit, confirm only once"
   await page.getByRole("button", { name: "Get started" }).tap();
   const email = `setup-chat-desktop@example.test`;
   await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Email address").press("Enter");
   await page.getByLabel("I am 16 or older").check();
   await page.getByRole("button", { name: "Send code" }).tap();
   await expect(page.getByLabel("One-time code")).toBeVisible();
@@ -144,6 +149,7 @@ test("mobile setup chat: summary sheet, provider failure form recovery, skip", a
   await page.getByRole("button", { name: "Get started" }).tap();
   const email = `setup-chat-mobile@example.test`;
   await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Email address").press("Enter");
   await page.getByLabel("I am 16 or older").check();
   await page.getByRole("button", { name: "Send code" }).tap();
   await expect(page.getByLabel("One-time code")).toBeVisible();
@@ -206,6 +212,7 @@ test("profile update by chat opens setup workflow with existing values", async (
   await page.getByRole("button", { name: "Get started" }).tap();
   const email = `setup-chat-update@example.test`;
   await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Email address").press("Enter");
   await page.getByLabel("I am 16 or older").check();
   await page.getByRole("button", { name: "Send code" }).tap();
   await expect(page.getByLabel("One-time code")).toBeVisible();

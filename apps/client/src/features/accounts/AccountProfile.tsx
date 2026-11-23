@@ -6,6 +6,17 @@ import { session, type Learner } from "./session";
 import { api } from "../../lib/api";
 import { profileApi } from "./learner-context";
 import { CourseLevelOverride } from "../courses/CourseLevelOverride";
+import { GuidedCourseLevel } from "../guided-chat/GuidedCourseLevel";
+import { guidedEnabled } from "../guided-chat/flags";
+
+const LevelPicker = (
+  props: React.ComponentProps<typeof CourseLevelOverride>,
+) =>
+  guidedEnabled("course_level") ? (
+    <GuidedCourseLevel {...props} />
+  ) : (
+    <CourseLevelOverride {...props} />
+  );
 
 export function AccountProfile() {
   const [learner, setLearner] = useState<Learner | null>(session.current());
@@ -61,7 +72,7 @@ export function AccountProfile() {
               <Button variant="secondary" onClick={() => setChatOpen(false)}>
                 Close chat
               </Button>
-              <SetupProfile />
+              <SetupProfile entry="profile" />
             </section>
           )}
 
@@ -73,7 +84,7 @@ export function AccountProfile() {
             {coursesData && coursesData.length > 0 ? (
               <div className="course-levels-list">
                 {coursesData.map((course) => (
-                  <CourseLevelOverride
+                  <LevelPicker
                     key={course.id}
                     courseId={course.id}
                     courseTitle={course.title}

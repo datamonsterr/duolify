@@ -115,6 +115,7 @@
         "limit": { "type": "string" },
         "skippable": { "type": "boolean" },
         "persist": { "type": "boolean" },
+        "initial": {},
         "when": { "$ref": "#/definitions/expr" },
         "next": {
           "type": "array",
@@ -135,6 +136,8 @@
           "pattern": "^(GET|POST|PUT|PATCH|DELETE) /v1/"
         },
         "destructive": { "type": "boolean" },
+        "checks": { "type": "array", "items": { "type": "string" } },
+        "actionKey": { "type": "string" },
         "input": {
           "type": "object",
           "required": ["name", "autocomplete"],
@@ -142,6 +145,7 @@
           "properties": {
             "name": { "type": "string" },
             "autocomplete": { "type": "string" },
+            "labelKey": { "type": "string" },
             "inputMode": { "type": "string" }
           }
         },

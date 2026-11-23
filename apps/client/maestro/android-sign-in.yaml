@@ -4,11 +4,10 @@ androidWebViewHierarchy: devtools
 - scrollUntilVisible:
     element: One-time code
 - tapOn: One-time code
+- eraseText
 - inputText: ${CODE}
 - takeScreenshot: sign-in-code
-- scrollUntilVisible:
-    element: Sign in
-- tapOn: Sign in
+- pressKey: Enter
 - assertVisible: ".*400 Credits.*daily check-in.*"
 - takeScreenshot: first-check-in
 - scrollUntilVisible:

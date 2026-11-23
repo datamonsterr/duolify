@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import type { FormEvent, KeyboardEvent, ReactNode } from "react";
+import type { FormEvent, KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { Button } from "../../design/Button";
 import { useUiPreferences } from "../../design/localization/Preferences";
 import type { MessageId } from "../../design/localization/messages";
@@ -22,6 +22,49 @@ export type WidgetProps = {
 
 const t0 = (k: string) => k as MessageId;
 
+const Svg = ({ d }: { d: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="22"
+    height="22"
+    aria-hidden="true"
+    focusable="false"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d={d} />
+  </svg>
+);
+export const SEND_PATH = "M5 12h14M13 6l6 6-6 6";
+export const CHECK_PATH = "M5 13l4 4L19 7";
+
+/** One round icon button. `quiet` keeps it out of sight until a keyboard user focuses it. */
+export function IconSubmit({
+  label,
+  path = SEND_PATH,
+  quiet,
+  disabled,
+}: {
+  label: string;
+  path?: string;
+  quiet?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="submit"
+      className={quiet ? "gc-send gc-send-quiet" : "gc-send"}
+      aria-label={label}
+      disabled={disabled}
+    >
+      <Svg d={path} />
+    </button>
+  );
+}
+
 function Chips({
   step,
   name,
@@ -29,6 +72,8 @@ function Chips({
   multiple,
   value,
   onChange,
+  onTap,
+  children,
 }: {
   step: Step;
   name: string;
@@ -36,6 +81,8 @@ function Chips({
   multiple: boolean;
   value: string[];
   onChange: (next: string[]) => void;
+  onTap?: (event: MouseEvent, id: string) => void;
+  children?: ReactNode;
 }) {
   const { t } = useUiPreferences();
   return (
@@ -51,6 +98,7 @@ function Chips({
             name={name}
             value={o.id}
             checked={value.includes(o.id)}
+            onClick={(e) => onTap?.(e, o.id)}
             onChange={(e) =>
               onChange(
                 multiple
@@ -64,6 +112,7 @@ function Chips({
           <span>{t(t0(o.labelKey))}</span>
         </label>
       ))}
+      {children}
     </div>
   );
 }
@@ -76,6 +125,7 @@ export function StepWidget(props: WidgetProps) {
   const file = useRef<File | undefined>(undefined);
   const [value, setValue] = useState<Value>(
     initial ??
+      step.initial ??
       (step.widget === "multi"
         ? []
         : step.widget === "number"
@@ -84,21 +134,13 @@ export function StepWidget(props: WidgetProps) {
             ? null
             : ""),
   );
-  const [text, setText] = useState(
-    step.widget === "chips+text" &&
-      typeof initial === "string" &&
-      !step.options?.some((o) => o.id === initial)
-      ? initial
-      : "",
-  );
+  const [ticked, setTicked] = useState<string[]>([]);
   const text0 = typeof value === "string" ? value : "";
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (props.disabled) return;
     if (step.widget === "confirm") return props.onSubmit(true);
-    if (step.widget === "chips+text" && text.trim())
-      return props.onSubmit(text.trim());
     if (step.widget === "number") return props.onSubmit(Number(value));
     props.onSubmit(
       typeof value === "string" &&
@@ -116,6 +158,16 @@ export function StepWidget(props: WidgetProps) {
       props.onCancel();
     }
   }
+  /** A pointer tap answers at once; keyboard selection waits for Enter on the hidden Send. */
+  const tap = (event: MouseEvent, v: Value) => {
+    if (event.detail > 0 && !props.disabled) props.onSubmit(v);
+  };
+  const skipChip =
+    props.onSkip && step.skippable && !editing ? (
+      <button type="button" className="gc-chip gc-skip" onClick={props.onSkip}>
+        {t("guided.skip")}
+      </button>
+    ) : null;
   const describedBy = error ? errorId : undefined;
   const invalid = error ? true : undefined;
   let control: ReactNode;
@@ -137,26 +189,13 @@ export function StepWidget(props: WidgetProps) {
                   ? [value]
                   : []
             }
-            onChange={(next) => {
-              setValue(step.widget === "multi" ? next : next[0]);
-              setText("");
-            }}
-          />
-          {step.widget === "chips+text" && (
-            <input
-              type="text"
-              name={`${name}-text`}
-              aria-labelledby={promptId}
-              aria-describedby={describedBy}
-              aria-invalid={invalid}
-              dir="auto"
-              value={text}
-              onChange={(e) => {
-                setText(e.target.value);
-                if (e.target.value) setValue("");
-              }}
-            />
-          )}
+            onChange={(next) =>
+              setValue(step.widget === "multi" ? next : next[0])
+            }
+            onTap={step.widget === "multi" ? undefined : tap}
+          >
+            {skipChip}
+          </Chips>
         </>
       );
       break;
@@ -169,11 +208,13 @@ export function StepWidget(props: WidgetProps) {
                 type="radio"
                 name={name}
                 checked={value === on}
+                onClick={(e) => tap(e, on)}
                 onChange={() => setValue(on)}
               />
               <span>{t(on ? "guided.yes" : "guided.no")}</span>
             </label>
           ))}
+          {skipChip}
         </div>
       );
       break;
@@ -188,11 +229,13 @@ export function StepWidget(props: WidgetProps) {
                 name={name}
                 checked={value === n}
                 aria-label={t("guided.stars", { count: n })}
+                onClick={(e) => tap(e, n)}
                 onChange={() => setValue(n)}
               />
               <span aria-hidden="true">{`${n} ★`}</span>
             </label>
           ))}
+          {skipChip}
         </div>
       );
       break;
@@ -325,7 +368,9 @@ export function StepWidget(props: WidgetProps) {
           inputMode={step.input?.inputMode as "email" | "numeric" | undefined}
           autoCapitalize="none"
           spellCheck={false}
-          aria-labelledby={promptId}
+          {...(step.input?.labelKey
+            ? { "aria-label": t(t0(step.input.labelKey)) }
+            : { "aria-labelledby": promptId })}
           aria-describedby={describedBy}
           aria-invalid={invalid}
           value={text0}
@@ -335,18 +380,70 @@ export function StepWidget(props: WidgetProps) {
       break;
     case "confirm":
       control = (
-        <dl className="gc-summary">
-          {summary?.map((row) => (
-            <div key={row.label}>
-              <dt>{row.label}</dt>
-              <dd dir="auto">{row.answer}</dd>
-            </div>
-          ))}
-        </dl>
+        <>
+          {summary && summary.length > 0 && (
+            <dl className="gc-summary">
+              {summary?.map((row) => (
+                <div key={row.label}>
+                  <dt>{row.label}</dt>
+                  <dd dir="auto">{row.answer}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {step.checks && (
+            <fieldset className="gc-checks" aria-labelledby={promptId}>
+              {step.checks.map((id) => (
+                <label className="gc-check" key={id}>
+                  <input
+                    type="checkbox"
+                    name={id}
+                    checked={ticked.includes(id)}
+                    onChange={(e) =>
+                      setTicked((now) =>
+                        e.target.checked
+                          ? [...now, id]
+                          : now.filter((x) => x !== id),
+                      )
+                    }
+                  />
+                  <span>{t(t0(id))}</span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+        </>
       );
       break;
   }
+  const blocked = Boolean(
+    step.checks && step.checks.some((id) => !ticked.includes(id)),
+  );
   const destructive = step.widget === "confirm" && step.destructive;
+  const chipWidget = [
+    "single",
+    "chips+text",
+    "toggle",
+    "rating",
+    "multi",
+  ].includes(step.widget);
+  const hasValue = Array.isArray(value)
+    ? value.length > 0
+    : typeof value === "string"
+      ? value.trim() !== ""
+      : value !== null;
+  // Chip steps answer on tap, so their Send stays out of sight until keyboard focus.
+  const quiet = chipWidget && step.widget !== "multi";
+  const showSend = step.widget === "confirm" ? !destructive : quiet || hasValue;
+  const inline = [
+    "text",
+    "email",
+    "code",
+    "password",
+    "number",
+    "time",
+    "date",
+  ];
   return (
     <form
       className="gc-widget"
@@ -355,7 +452,17 @@ export function StepWidget(props: WidgetProps) {
       onKeyDown={keys}
       noValidate
     >
-      {control}
+      <div
+        className={inline.includes(step.widget) ? "gc-field-row" : undefined}
+      >
+        {control}
+        {inline.includes(step.widget) && showSend && (
+          <IconSubmit
+            label={t(step.actionKey ? t0(step.actionKey) : "guided.send")}
+            disabled={disabled}
+          />
+        )}
+      </div>
       {error && (
         <p id={errorId} role="alert" className="field-error">
           {error}
@@ -367,14 +474,30 @@ export function StepWidget(props: WidgetProps) {
             {t("guided.cancel")}
           </Button>
         )}
-        <Button
-          type="submit"
-          disabled={disabled}
-          className={destructive ? "gc-danger" : ""}
-        >
-          {t(step.widget === "confirm" ? "guided.confirm" : "guided.send")}
-        </Button>
-        {props.onSkip && step.skippable && !editing && (
+        {destructive && (
+          <Button
+            type="submit"
+            disabled={disabled || blocked}
+            className="gc-danger"
+          >
+            {t("guided.confirm")}
+          </Button>
+        )}
+        {!inline.includes(step.widget) && showSend && (
+          <IconSubmit
+            quiet={quiet}
+            path={step.widget === "confirm" ? CHECK_PATH : SEND_PATH}
+            label={t(
+              step.actionKey
+                ? t0(step.actionKey)
+                : step.widget === "confirm"
+                  ? "guided.confirm"
+                  : "guided.send",
+            )}
+            disabled={disabled || blocked}
+          />
+        )}
+        {!chipWidget && props.onSkip && step.skippable && !editing && (
           <Button variant="quiet" onClick={props.onSkip}>
             {t("guided.skip")}
           </Button>

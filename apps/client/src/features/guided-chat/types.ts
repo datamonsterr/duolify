@@ -59,6 +59,8 @@ export type Step = {
   skippable?: boolean;
   /** false for secrets: never saved to the draft or local copy. */
   persist: boolean;
+  /** Value a number or time widget starts at when nothing is answered. */
+  initial?: Value;
   when?: Expr;
   /** First matching rule wins. Targets must come later in the script. */
   next?: { when: Expr; to: string }[];
@@ -68,8 +70,18 @@ export type Step = {
   /** Confirm step: names the existing endpoint the script submits to. */
   submit?: string;
   destructive?: boolean;
+  /** Confirm card: consent checkboxes (message ids) that must all be ticked before Confirm. */
+  checks?: string[];
+  /** Message id for the primary button when the default label does not fit. */
+  actionKey?: string;
   /** Secure inputs: native attributes so autofill and password managers work. */
-  input?: { name: string; autocomplete: string; inputMode?: string };
+  input?: {
+    name: string;
+    autocomplete: string;
+    inputMode?: string;
+    /** Catalogue id of the field's accessible name; falls back to the prompt. */
+    labelKey?: string;
+  };
   /** Message ids shown for validator errors, by validator name. */
   errorKey?: string;
 };

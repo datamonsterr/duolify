@@ -2,6 +2,10 @@ import { test, expect } from "./native-store-fixture";
 import { apiBase, resetAuthRateLimits } from "./servers";
 test.use({ hasTouch: true });
 test.beforeEach(async ({ page, request }) => {
+  // The old setup form stays one release for rollback; this spec covers it.
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.onboarding", "off"),
+  );
   await resetAuthRateLimits(request);
   await page.route(/\/v1\/(auth\/|me(?:\/|$|\?))/, async (route) => {
     const original = route.request();
@@ -31,6 +35,7 @@ for (const width of [1280, 390, 320]) {
       await page.getByRole("button", { name: "Get started" }).tap();
       const email = `profile-${width}-${colorScheme}@example.test`;
       await page.getByLabel("Email address").fill(email);
+      await page.getByLabel("Email address").press("Enter");
       await page.getByLabel("I am 16 or older").check();
       await page.getByRole("button", { name: "Send code" }).tap();
       await expect(page.getByLabel("One-time code")).toBeVisible();

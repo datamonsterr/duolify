@@ -17,6 +17,29 @@ import (
 //go:embed schema/v2.json
 var SpecSchemaV2 []byte
 
+// speciesRulesV2 lists, per species, the attribute values that make sense for it.
+// The first value of each list is the species default. Shared with TypeScript.
+//
+//go:embed schema/species.v2.json
+var speciesRulesV2 []byte
+
+var speciesProfiles = func() map[string]map[string]map[string][]string {
+	m := map[string]map[string]map[string][]string{}
+	if err := json.Unmarshal(speciesRulesV2, &m); err != nil {
+		panic(err)
+	}
+	return m
+}()
+
+func speciesAllows(kind, species, attr, val string) bool {
+	for _, v := range speciesProfiles[kind][species][attr] {
+		if v == val {
+			return true
+		}
+	}
+	return false
+}
+
 // Version constants identify documents written by the character creator.
 const (
 	SchemaV2       = 2             // schema_version
@@ -475,8 +498,24 @@ func crossCheckV2(spec *SpecV2) *SpecError {
 		return specErr("text_too_long", "")
 	}
 	b := spec.Body
-	if b.Kind != "human" && contrastBetween(b.PrimaryColor, b.Eyes.Color) < 2.5 {
+	// Robot eyes glow on the dark visor; other non-human eyes sit on the body colour.
+	if b.Kind == "robot" && contrastBetween(robotVisor, b.Eyes.Color) < 2.5 ||
+		b.Kind != "human" && b.Kind != "robot" && contrastBetween(b.PrimaryColor, b.Eyes.Color) < 2.5 {
 		return specErr("low_contrast", "body.eyes.color")
+	}
+	switch b.Kind {
+	case "animal":
+		for _, a := range [][2]string{{"ears", b.Ears}, {"tail", b.Tail}, {"markings", b.Markings}} {
+			if !speciesAllows("animal", b.Species, a[0], a[1]) {
+				return specErr("species_attribute_mismatch", "body."+a[0])
+			}
+		}
+	case "fantasy":
+		for _, a := range [][2]string{{"wings", b.Wings}, {"horns", b.Horns}, {"tail", b.Tail}} {
+			if !speciesAllows("fantasy", b.Species, a[0], a[1]) {
+				return specErr("species_attribute_mismatch", "body."+a[0])
+			}
+		}
 	}
 	if b.Kind == "human" {
 		c := spec.Clothes
@@ -509,6 +548,8 @@ func crossCheckV2(spec *SpecV2) *SpecError {
 	}
 	return nil
 }
+
+const robotVisor = "#16242F"
 
 func contrastBetween(a, b string) float64 {
 	return contrastRatio(relativeLuminance(a), relativeLuminance(b))

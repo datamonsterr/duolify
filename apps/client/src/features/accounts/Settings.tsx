@@ -1,3 +1,4 @@
+import { setAutoSend } from "../voice/autosend";
 import { requestReplay } from "../onboarding/handoff";
 import { navigateTo } from "../../lib/navigation";
 import { session } from "./session";
@@ -5,15 +6,11 @@ import { useEffect, useState } from "react";
 import {
   setAnalyticsConsent,
   trackAppearanceChanged,
-  trackMascot,
   trackPreference,
 } from "../../lib/analytics";
 import { Button } from "../design/Button";
 import { Feedback } from "../design/chat/Feedback";
-import {
-  setMascotPreference,
-  useMascotPreference,
-} from "../../components/mascot";
+import { YourGuide } from "./YourGuide";
 import { PreferenceControls } from "../design/localization/PreferenceControls";
 import { resolveLocale } from "../design/localization/messages";
 import { useUiPreferences } from "../design/localization/Preferences";
@@ -63,7 +60,6 @@ function applyVisualPreferences(settings: LearnerSettings) {
 
 export function Settings() {
   const { t, preferences, update: updateUi } = useUiPreferences();
-  const mascotPref = useMascotPreference();
   // Saving the account's language and appearance applies them to the app, not only this form.
   const applyToApp = (settings: LearnerSettings) => {
     const next = {
@@ -228,6 +224,10 @@ export function Settings() {
                 update("motion", patch.reduceMotion ? "reduce" : "system");
             }}
           />
+          <details>
+            <summary>{t("mascot.guide")}</summary>
+            <YourGuide />
+          </details>
           <fieldset>
             <legend>Lessons &amp; audio</legend>
             <label>
@@ -237,23 +237,6 @@ export function Settings() {
                 onChange={(event) => update("narration", event.target.checked)}
               />
               Narration
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={mascotPref.companionVisible}
-                onChange={(event) => {
-                  setMascotPreference({
-                    ...mascotPref,
-                    companionVisible: event.target.checked,
-                  });
-                  trackMascot({
-                    event: "mascot_companion_toggled",
-                    visible: event.target.checked,
-                  });
-                }}
-              />
-              {t("mascot.companion")}
             </label>
             <label>
               Narration speed
@@ -285,6 +268,18 @@ export function Settings() {
                 onChange={(event) => update("autoplay", event.target.checked)}
               />
               Autoplay the next slide in full-screen lessons
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                data-testid="setting-auto-send"
+                checked={draft.auto_send_after_dictation}
+                onChange={(event) => {
+                  update("auto_send_after_dictation", event.target.checked);
+                  setAutoSend(event.target.checked);
+                }}
+              />
+              {t("voice.auto_send")}
             </label>
             <label>
               <input

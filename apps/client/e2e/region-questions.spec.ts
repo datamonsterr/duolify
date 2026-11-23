@@ -197,7 +197,9 @@ for (const vp of VIEWPORTS.filter((v) => v.name !== "portrait-390x844")) {
 
       // Save as an anchored Quick note.
       await panel.getByTestId("answer-save-note").click();
-      await expect(panel.getByText("Saved as Quick note")).toBeVisible();
+      await expect(page.getByTestId("toast")).toContainText(
+        "Saved as Quick note",
+      );
       const note = posted.find((p) =>
         String(p.body.action_key).startsWith("region-answer:"),
       )!;

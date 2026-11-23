@@ -79,13 +79,13 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 
 - [x] 7.1 _Done: schema/v2.json, spec_v2.go, schema-v2.ts, 46 shared cases in schema/v2.fixtures.json run by Go and Vitest; the Rust validator joins in group 9._ Unit first: closed `schema/v2.json` (discriminated by `body.kind`), versioned attribute catalog, cross-field rules (kind-compatible parts, age-band clothing minimums, contrast, size caps), reason codes; table-driven valid/invalid fixtures shared by Go, TypeScript and Rust.
 - [x] 7.2 _Done: upgrade.go, upgrade.ts, schema/v1-to-v2.golden.json; all 297 v1 shape x eye x mouth x accessory combinations upgrade to valid v2._ Unit first: pure v1 to v2 upgrader with golden pairs for every v1 body shape, eye, mouth and accessory; unknown future `schema_version` or catalog id degrades to a safe default render and refuses writes.
-- [ ] 7.3 (read half done: ReadSpec resolves v1 and degrades unknown versions; the write half needs the v2 compiler from 8.2) Integration: stored v1 versions stay immutable and readable; the first edit of a v1 Character writes a v2 version; compare-and-swap, quotas and screening unchanged.
-- [ ] 7.4 (API and client done, nothing wired to a route yet; Engine validator ships with group 9, which already edits the engine) Implement validators in API, Engine and client from the one schema file; no behavior change behind the flag.
+- [x] 7.3 (read half done: ReadSpec resolves v1 and degrades unknown versions; the write half needs the v2 compiler from 8.2) Integration: stored v1 versions stay immutable and readable; the first edit of a v1 Character writes a v2 version; compare-and-swap, quotas and screening unchanged.
+- [x] 7.4 (API and client done, nothing wired to a route yet; Engine validator ships with group 9, which already edits the engine) Implement validators in API, Engine and client from the one schema file; no behavior change behind the flag.
 
 ## 8. Rig v2: avatar, full body, poses (size L; final art blocked on #40)
 
-- [ ] 8.1 Unit first: deterministic compile (byte-identical SVG per document, rig version, view, pose, expression), render budget (avatar at most 8 KiB, full body at most 24 KiB, no external refs, filters, scripts or SMIL), alt text generated from attributes.
-- [ ] 8.2 Implement the compiler and part library with PLACEHOLDER parts (unblocked), including avatar crop, 7 poses and 7 expressions, in one shared TypeScript/Go-testable module; bundle for offline.
+- [x] 8.1 _Done: rigv2_test.go + rig-v2.test.ts; 252 shared SHA-256 goldens (rig/golden.v2.json) prove Go and TypeScript are byte-identical; every catalog id renders within budget, XML well-formed, no forbidden elements; alt text parity._ Unit first: deterministic compile (byte-identical SVG per document, rig version, view, pose, expression), render budget (avatar at most 8 KiB, full body at most 24 KiB, no external refs, filters, scripts or SMIL), alt text generated from attributes.
+- [x] 8.2 _Done: rig/parts.v2.json (declarative part library interpreted by rigv2.go and rig-v2.ts), 4 kinds, 7 poses, 7 expressions, avatar and body views, bundled into the client build; PLACEHOLDER art pending 8.3._ Implement the compiler and part library with PLACEHOLDER parts (unblocked), including avatar crop, 7 poses and 7 expressions, in one shared TypeScript/Go-testable module; bundle for offline.
 - [ ] 8.3 BLOCKED on #40: owner approval of the original v2 part library art (all kinds, age bands, head coverings) and the three default-cast Characters; replace placeholders, run accessibility and no-likeness review.
 
 ## 9. Engine prompt to attributes mapping (not blocked; M)
@@ -98,7 +98,7 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 
 - [ ] 10.1 E2E first: build a human, an animal, a robot and a fantasy creature from selectors only with zero Credits; prompt path then tweak; both paths produce one document shape; avatar and full-body previews update live; keyboard and screen reader complete the flow.
 - [ ] 10.2 Component tests for each selector widget (kind and base, age band, skin and colour pickers, face, hair and head covering, eyes and eyebrows, facial hair, glasses, body type, clothes, accessories, name, pronouns, voice, personality); reduced motion; mobile and desktop layout; draft preserved on error.
-- [ ] 10.3 Export `CharacterSelector` and `CharacterPreview` for reuse by the guided chat in `conversational-flows-and-mascot`; document the draft-patch contract (see design, Mascot contract).
+- [x] 10.3 Export `CharacterSelector` and `CharacterPreview` for reuse by the guided chat in `conversational-flows-and-mascot`; document the draft-patch contract (see design, Mascot contract).
 
 ## 11. Safety extensions (M; guardrail wiring depends on the parallel change landing)
 

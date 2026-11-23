@@ -9,6 +9,10 @@ const Art = lazy(() =>
   import("./MascotArt").then((m) => ({ default: m.MascotArt })),
 );
 
+const Character = lazy(
+  () => import("../../features/characters/CharacterGuide"),
+);
+
 const Blank = ({ size }: { size: number }) => (
   <span
     aria-hidden="true"
@@ -40,11 +44,27 @@ class ArtBoundary extends Component<
 /** The mascot. Sizes from 32 px up; below 56 px it shows the bust for crispness. */
 export function Mascot(props: MascotProps) {
   const size = props.size ?? 96;
+  const builtIn = (
+    <Suspense fallback={<Blank size={size} />}>
+      <Art {...props} />
+    </Suspense>
+  );
+  const id = props.appearance?.characterId;
   return (
     <ArtBoundary size={size}>
-      <Suspense fallback={<Blank size={size} />}>
-        <Art {...props} />
-      </Suspense>
+      {id ? (
+        <Suspense fallback={<Blank size={size} />}>
+          <Character
+            characterId={id}
+            state={props.state ?? "idle"}
+            size={size}
+            label={props.label}
+            fallback={builtIn}
+          />
+        </Suspense>
+      ) : (
+        builtIn
+      )}
     </ArtBoundary>
   );
 }
