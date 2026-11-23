@@ -33,6 +33,11 @@ cargo clean --manifest-path src-tauri/Cargo.toml -p tauri-plugin-deep-link
 pnpm tauri ios build --ci --debug --no-sign --target aarch64-sim
 app=$(find src-tauri/gen/apple/build -name 'Duolify.app' -type d -print -quit)
 test -n "$app"
+if ! /usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes' "$app/Info.plist" 2>/dev/null | grep -q duolify; then
+  # Intermittently omitted by the generated project; the simulator app is unsigned, so patch it.
+  /usr/libexec/PlistBuddy -c 'Delete :CFBundleURLTypes' "$app/Info.plist" 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c 'Add :CFBundleURLTypes array' -c 'Add :CFBundleURLTypes:0 dict' -c 'Add :CFBundleURLTypes:0:CFBundleURLSchemes array' -c 'Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string duolify' "$app/Info.plist"
+fi
 /usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes' "$app/Info.plist" | grep -q duolify
 '''
 
