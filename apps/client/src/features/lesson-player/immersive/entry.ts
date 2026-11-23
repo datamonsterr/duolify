@@ -46,6 +46,16 @@ export function exitStageFullscreen() {
   }
 }
 
+/**
+ * "Touch device" for rotation entry. Android WebViews (emulators, some devices) can report
+ * `(pointer: fine)` with a touchscreen, so a finger-primary pointer is not the only signal:
+ * a hover-less device and the native phone app itself count too. Desktop windows never do.
+ */
+export function isTouchDevice(coarse: boolean, hoverNone: boolean) {
+  const target = import.meta.env.VITE_MOBILE_PLATFORM;
+  return coarse || hoverNone || target === "android" || target === "ios";
+}
+
 /** Turning the device to landscape enters immersive mode; turning back leaves it if rotation entered. */
 export function useEnterOnRotate(
   setting: boolean,
@@ -57,11 +67,12 @@ export function useEnterOnRotate(
     if (typeof matchMedia !== "function") return;
     const landscape = matchMedia("(orientation: landscape)");
     const coarse = matchMedia("(pointer: coarse)");
+    const hoverNone = matchMedia("(hover: none)");
     const onChange = () => {
       const s = state.current;
       const a = rotationAction({
         setting: s.setting,
-        coarse: coarse.matches,
+        coarse: isTouchDevice(coarse.matches, hoverNone.matches),
         landscape: landscape.matches,
         immersive: s.immersive,
       });
