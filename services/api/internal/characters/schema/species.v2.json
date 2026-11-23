@@ -1,0 +1,324 @@
+{
+ "animal": {
+  "cat": {
+   "ears": [
+    "pointy",
+    "small"
+   ],
+   "tail": [
+    "long",
+    "short",
+    "fluffy"
+   ],
+   "markings": [
+    "none",
+    "stripes",
+    "spots",
+    "patches",
+    "socks"
+   ]
+  },
+  "dog": {
+   "ears": [
+    "floppy",
+    "pointy"
+   ],
+   "tail": [
+    "short",
+    "long",
+    "fluffy"
+   ],
+   "markings": [
+    "none",
+    "spots",
+    "patches",
+    "mask",
+    "socks"
+   ]
+  },
+  "fox": {
+   "ears": [
+    "pointy"
+   ],
+   "tail": [
+    "fluffy",
+    "long"
+   ],
+   "markings": [
+    "none",
+    "socks",
+    "patches"
+   ]
+  },
+  "rabbit": {
+   "ears": [
+    "long"
+   ],
+   "tail": [
+    "short"
+   ],
+   "markings": [
+    "none",
+    "spots",
+    "patches"
+   ]
+  },
+  "bear": {
+   "ears": [
+    "round",
+    "small"
+   ],
+   "tail": [
+    "short",
+    "none"
+   ],
+   "markings": [
+    "none",
+    "patches"
+   ]
+  },
+  "panda": {
+   "ears": [
+    "round"
+   ],
+   "tail": [
+    "short",
+    "none"
+   ],
+   "markings": [
+    "none"
+   ]
+  },
+  "wolf": {
+   "ears": [
+    "pointy"
+   ],
+   "tail": [
+    "fluffy",
+    "long"
+   ],
+   "markings": [
+    "none",
+    "patches",
+    "mask",
+    "socks"
+   ]
+  },
+  "mouse": {
+   "ears": [
+    "big",
+    "round"
+   ],
+   "tail": [
+    "long"
+   ],
+   "markings": [
+    "none",
+    "spots",
+    "patches"
+   ]
+  },
+  "owl": {
+   "ears": [
+    "tufted",
+    "none"
+   ],
+   "tail": [
+    "short",
+    "none"
+   ],
+   "markings": [
+    "none",
+    "spots",
+    "stripes"
+   ]
+  },
+  "penguin": {
+   "ears": [
+    "none"
+   ],
+   "tail": [
+    "none"
+   ],
+   "markings": [
+    "none"
+   ]
+  },
+  "frog": {
+   "ears": [
+    "none"
+   ],
+   "tail": [
+    "none"
+   ],
+   "markings": [
+    "none",
+    "spots",
+    "stripes"
+   ]
+  },
+  "tiger": {
+   "ears": [
+    "round",
+    "small"
+   ],
+   "tail": [
+    "long"
+   ],
+   "markings": [
+    "none"
+   ]
+  },
+  "lion": {
+   "ears": [
+    "round",
+    "small"
+   ],
+   "tail": [
+    "long",
+    "fluffy"
+   ],
+   "markings": [
+    "none"
+   ]
+  },
+  "elephant": {
+   "ears": [
+    "big"
+   ],
+   "tail": [
+    "short"
+   ],
+   "markings": [
+    "none"
+   ]
+  },
+  "monkey": {
+   "ears": [
+    "round",
+    "small"
+   ],
+   "tail": [
+    "long"
+   ],
+   "markings": [
+    "none",
+    "patches"
+   ]
+  },
+  "raccoon": {
+   "ears": [
+    "round",
+    "pointy"
+   ],
+   "tail": [
+    "fluffy"
+   ],
+   "markings": [
+    "none"
+   ]
+  }
+ },
+ "fantasy": {
+  "dragon": {
+   "wings": [
+    "bat",
+    "feathered",
+    "none"
+   ],
+   "horns": [
+    "small",
+    "long",
+    "curled",
+    "none"
+   ],
+   "tail": [
+    "long",
+    "short"
+   ]
+  },
+  "fairy": {
+   "wings": [
+    "insect",
+    "feathered"
+   ],
+   "horns": [
+    "none"
+   ],
+   "tail": [
+    "none"
+   ]
+  },
+  "ghost": {
+   "wings": [
+    "none"
+   ],
+   "horns": [
+    "none"
+   ],
+   "tail": [
+    "none"
+   ]
+  },
+  "slime": {
+   "wings": [
+    "none"
+   ],
+   "horns": [
+    "none"
+   ],
+   "tail": [
+    "none"
+   ]
+  },
+  "alien": {
+   "wings": [
+    "none"
+   ],
+   "horns": [
+    "none"
+   ],
+   "tail": [
+    "none",
+    "short"
+   ]
+  },
+  "unicorn": {
+   "wings": [
+    "none",
+    "feathered"
+   ],
+   "horns": [
+    "none"
+   ],
+   "tail": [
+    "fluffy",
+    "long"
+   ]
+  },
+  "mushroom_sprite": {
+   "wings": [
+    "none",
+    "insect"
+   ],
+   "horns": [
+    "none"
+   ],
+   "tail": [
+    "none",
+    "short"
+   ]
+  },
+  "golem": {
+   "wings": [
+    "none"
+   ],
+   "horns": [
+    "none"
+   ],
+   "tail": [
+    "none"
+   ]
+  }
+ }
+}
