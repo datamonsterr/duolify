@@ -39,6 +39,24 @@ export function patchGradle(source) {
     );
 }
 
+// Escape a value for java.util.Properties.load: backslash, line breaks, the
+// separator and comment characters, and leading whitespace.
+export function escapeProperty(v) {
+  return (
+    String(v)
+      .replace(/\\/g, "\\\\")
+      .replace(/\n/g, "\\n")
+      .replace(/\r/g, "\\r")
+      .replace(/^ /, "\\ ")
+      .replace(/[#!=:]/g, "\\$&")
+      // Properties.load(InputStream) reads ISO-8859-1; escape everything else.
+      .replace(
+        /[^\x20-\x7e]/g,
+        (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+      )
+  );
+}
+
 export function keystoreProperties(env, storeFile) {
   const need = [
     "ANDROID_KEY_ALIAS",
@@ -48,7 +66,13 @@ export function keystoreProperties(env, storeFile) {
   const missing = need.filter((k) => !env[k]);
   if (missing.length || !storeFile)
     throw new Error(`missing Android signing inputs: ${missing.join(", ")}`);
-  return `keyAlias=${env.ANDROID_KEY_ALIAS}\nkeyPassword=${env.ANDROID_KEY_PASSWORD}\nstorePassword=${env.ANDROID_KEYSTORE_PASSWORD}\nstoreFile=${storeFile}\n`;
+  const line = (k, v) => `${k}=${escapeProperty(v)}\n`;
+  return (
+    line("keyAlias", env.ANDROID_KEY_ALIAS) +
+    line("keyPassword", env.ANDROID_KEY_PASSWORD) +
+    line("storePassword", env.ANDROID_KEYSTORE_PASSWORD) +
+    line("storeFile", storeFile)
+  );
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
