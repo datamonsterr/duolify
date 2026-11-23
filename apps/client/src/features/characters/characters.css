@@ -112,3 +112,7 @@
 .character-quote strong {
   color: var(--text);
 }
+.cast-avatars {
+  display: flex;
+  gap: var(--space-2);
+}

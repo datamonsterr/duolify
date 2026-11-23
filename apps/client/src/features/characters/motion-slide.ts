@@ -1,5 +1,37 @@
-import type { LessonCastSnapshot, SlideManifest, Expression } from "./types";
+import type {
+  LessonCastSnapshot,
+  SlideManifest,
+  Expression,
+  PinnedSpeaker,
+} from "./types";
 import { compileRigSvg, getBundledFallbackSvg } from "./rig";
+import { compileV2 } from "./rig-v2";
+import type { Pose } from "./types-v2";
+
+/** v1 segments carry no pose; derive one from the expression. */
+export const POSE_FOR_EXPRESSION: Record<Expression, Pose> = {
+  idle: "idle",
+  happy: "talk",
+  sad: "shrug",
+  thinking: "think",
+  celebrate: "celebrate",
+};
+
+function speakerSvg(speaker: PinnedSpeaker, exp: Expression): string {
+  if (speaker.document) {
+    try {
+      return compileV2(
+        speaker.document,
+        "avatar",
+        POSE_FOR_EXPRESSION[exp],
+        exp,
+      );
+    } catch {
+      // Fall through to the v1 projection.
+    }
+  }
+  return compileRigSvg(speaker.spec, exp);
+}
 
 function escapeHtml(str: string): string {
   return str
@@ -50,13 +82,13 @@ export function generateMotionSlideHtml(
 
   if (guideSpeaker) {
     for (const exp of expressions) {
-      guideSvgs[exp] = compileRigSvg(guideSpeaker.spec, exp);
+      guideSvgs[exp] = speakerSvg(guideSpeaker, exp);
     }
   }
 
   if (supporterSpeaker) {
     for (const exp of expressions) {
-      supporterSvgs[exp] = compileRigSvg(supporterSpeaker.spec, exp);
+      supporterSvgs[exp] = speakerSvg(supporterSpeaker, exp);
     }
   }
 

@@ -7,6 +7,8 @@ import {
 } from "./library";
 import { getDefaultCastFixtures } from "./fixtures";
 import { CharacterPreview } from "./CharacterLibrary";
+import { CastAvatar } from "./CastAvatar";
+import type { CharacterSpecV2 } from "./types-v2";
 import { AppLink } from "../../lib/navigation";
 
 export function CourseCast({ courseId }: { courseId: string }) {
@@ -117,7 +119,23 @@ export function CourseCast({ courseId }: { courseId: string }) {
               .finally(() => setPending(false));
           }}
         >
-          <CharacterPreview spec={selected.spec} />
+          <CharacterPreview
+            spec={selected.spec}
+            document={(selected as { document?: CharacterSpecV2 }).document}
+          />
+          <div className="cast-avatars">
+            {keys
+              .filter(Boolean)
+              .map((id) => choices.find((r) => r.id === id))
+              .filter((r) => r !== undefined)
+              .map((r) => (
+                <CastAvatar
+                  key={r.id}
+                  spec={r.spec}
+                  document={(r as { document?: CharacterSpecV2 }).document}
+                />
+              ))}
+          </div>
           <label>
             Main guide
             <select

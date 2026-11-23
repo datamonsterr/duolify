@@ -12,8 +12,15 @@ function failure(error: unknown) {
   return error instanceof Error ? error.message : "Connect and retry.";
 }
 
-export function CharacterPreview({ spec }: { spec: CharacterSpec }) {
+export function CharacterPreview({
+  spec,
+  document,
+}: {
+  spec: CharacterSpec;
+  document?: CharacterSpecV2;
+}) {
   const [expression, setExpression] = useState<Expression>("idle");
+  if (document) return <CharacterPreviewV2 spec={document} />;
   const svg = compileRigSvg(spec, expression);
   return (
     <div className="character-preview">
@@ -160,7 +167,7 @@ export function CharacterLibrary() {
               <h2>{record.spec.info.name}</h2>
               <p>{record.spec.info.bio}</p>
               <small>Version {record.version} · Private</small>
-              <CharacterPreview spec={record.spec} />
+              <CharacterPreview spec={record.spec} document={record.document} />
               <Button
                 onClick={() => {
                   setSelected(record);
