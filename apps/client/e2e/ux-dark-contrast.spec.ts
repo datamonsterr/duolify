@@ -112,8 +112,15 @@ test("dark contrast: lesson test question and answer error", async ({
     }),
   );
   await page.goto("/lesson/review161/test");
+  const check = page.getByRole("button", { name: "Check", exact: true });
+  await expect(check).toBeDisabled();
+  await expect(check).toHaveCSS("border-style", "dashed");
+  expect(
+    (await new AxeBuilder({ page }).withRules(["color-contrast"]).analyze())
+      .violations,
+  ).toEqual([]);
   await page.getByLabel("First", { exact: true }).click();
-  await page.getByRole("button", { name: "Check", exact: true }).click();
+  await check.click();
   await expect(page.getByText("Answer could not be saved")).toBeVisible();
   expect(
     (await new AxeBuilder({ page }).withRules(["color-contrast"]).analyze())

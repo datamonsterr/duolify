@@ -55,4 +55,4 @@ Each pass: failing budget and layout test, move strings to the catalogue, cut co
 
 - [ ] Audit dark contrast on every route except Quick notes, including populated detail and interaction states; record measured findings and deferred fixes.
 - [ ] Verify circular checkboxes, associated 44px labels, keyboard and focus behavior, and RTL select padding across routes.
-- [x] Run initial-route dark axe and form-control browser checks, plus populated lesson transcript and course publication preview.
+- [x] Run initial-route dark axe and form-control browser checks, plus populated lesson, course, marketplace, social, cast, public preview and SSO states.

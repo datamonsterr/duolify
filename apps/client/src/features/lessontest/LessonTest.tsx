@@ -1364,9 +1364,12 @@ export function LessonTest({
                     minHeight: "50px",
                     borderRadius: "16px",
                     backgroundColor:
-                      selectedChoice === null ? "#E5E5E5" : "#1F7A0D",
-                    color: selectedChoice === null ? "#999" : "#fff",
-                    border: "none",
+                      selectedChoice === null ? "var(--surface)" : "#1F7A0D",
+                    color: selectedChoice === null ? "var(--muted)" : "#fff",
+                    border:
+                      selectedChoice === null
+                        ? "2px dashed var(--line)"
+                        : "none",
                     fontWeight: 900,
                     fontSize: "15px",
                     textTransform: "uppercase",
@@ -1382,7 +1385,7 @@ export function LessonTest({
                       textAlign: "center",
                       fontSize: "13px",
                       fontWeight: 600,
-                      color: "#5E5E5E",
+                      color: "var(--muted)",
                     }}
                   >
                     Select an answer to check it

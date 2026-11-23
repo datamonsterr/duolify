@@ -14,6 +14,8 @@ Ratios are WCAG relative-luminance calculations from the resolved dark theme tok
 | Lesson test header | 2.92:1 (#666 on #131f24) | 9.65:1 (#b8c7c9 on #131f24) | 4.5:1 |
 | Lesson test question | 1.18:1 (#2b2b2b on #131f24) | 15.47:1 (#f1f7f2 on #131f24) | 3:1 |
 | Lesson test error body | 1.52:1 (#b8c7c9 on #fdecec) | 6.94:1 (#ff9b95 on #4a1e1e) | 4.5:1 |
+| Lesson test disabled Check label | 2.26:1 (#999 on #e5e5e5) | 8.37:1 (#b8c7c9 on #1c2b31) | 4.5:1 |
+| Lesson test selection hint | 2.59:1 (#5e5e5e on #131f24) | 9.65:1 (#b8c7c9 on #131f24) | 4.5:1 |
 | Shared checkbox, disabled outline on surface | 2.57:1 (60% #7f9499 on #1c2b31) | 4.58:1 (#7f9499 on #1c2b31) | 3:1 |
 | Shared checkbox focus ring on surface | 7.78:1 (#7cc4ff on #1c2b31) | 7.78:1 | 3:1 |
 

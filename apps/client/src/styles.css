@@ -967,7 +967,10 @@ progress::-moz-progress-bar {
   box-shadow: 0 var(--size-press-depth) 0 var(--credit);
 }
 .btn:disabled {
-  opacity: 0.6;
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  box-shadow: none;
   cursor: not-allowed;
 }
 .saved-offline-tag {
