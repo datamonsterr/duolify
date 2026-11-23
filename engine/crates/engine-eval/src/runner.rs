@@ -1764,6 +1764,8 @@ pub struct Runner {
     pub total_cost_usd: f64,
     pub budget_exceeded: bool,
     pub custom_router: Option<engine_core::ProviderRouter>,
+    /// Fixed cap for an injected fixture router. Live runs read active pricing.
+    pub fixture_preview_limit: Option<u32>,
 }
 
 impl Runner {
@@ -1783,6 +1785,7 @@ impl Runner {
             total_cost_usd: 0.0,
             budget_exceeded: false,
             custom_router: None,
+            fixture_preview_limit: None,
         }
     }
 
@@ -1806,6 +1809,7 @@ impl Runner {
             total_cost_usd: 0.0,
             budget_exceeded: false,
             custom_router: Some(router),
+            fixture_preview_limit: Some(6000),
         }
     }
 
@@ -1823,6 +1827,19 @@ impl Runner {
             None => engine_providers::router(&self.provider_name)?,
         };
         let price_table = PriceTable::load();
+        let needs_preview = cases.iter().any(|case| case.task == "course_preview");
+        let preview_limit =
+            if needs_preview && (self.provider_name != "mock" || self.custom_router.is_some()) {
+                if let Some(fixture) = self.fixture_preview_limit {
+                    Some(fixture)
+                } else {
+                    let url = std::env::var("EVAL_PRICING_URL")
+                        .unwrap_or_else(|_| "http://127.0.0.1:8080/v1/pricing".into());
+                    Some(crate::live::preview_output_limit(&url).await?)
+                }
+            } else {
+                None
+            };
         let mut results = Vec::new();
         let mut steering = crate::scoring::SteeringTally::default();
         let mut models = HashMap::new();
@@ -1855,7 +1872,8 @@ impl Runner {
                 text
             } else if live && crate::live::TASKS.contains(&case.task.as_str()) {
                 // Production prompt builders and validators, not the dataset text verbatim.
-                let run = crate::live::evaluate(&case.task, &case.input, &router).await?;
+                let run =
+                    crate::live::evaluate(&case.task, &case.input, &router, preview_limit).await?;
                 _attempts = run.attempts;
                 primary_completion = run.completion;
                 run.text

@@ -49,7 +49,7 @@ func TestBoundAndVerifyModelRoutingFailuresIntegration(t *testing.T) {
 	}
 	owner := uuid.UUID(learner.ID.Bytes).String()
 
-	backuptest.ActivateLegacyPricingBaseline(t, database.Pool)
+	backuptest.ActivateLegacyPricingBaselineWithRoute(t, database.Pool, "usd-quotes-2026-11-09") // exercises the historical Sonnet/Haiku routes
 	catalogue, err := pricing.Load(ctx, database.Queries)
 	if err != nil {
 		t.Fatal(err)

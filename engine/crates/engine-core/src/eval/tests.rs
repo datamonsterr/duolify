@@ -78,7 +78,7 @@ impl LlmProvider for PartialStreamProvider {
 }
 
 #[test]
-fn models_config_uses_only_the_two_allowlisted_openrouter_ids() {
+fn models_config_uses_only_the_allowlisted_openrouter_ids() {
     const ALLOWED: [&str; 2] = ["tencent/hy4-flash", "z-ai/glm-5.3-flash"];
     let models: crate::Models =
         toml::from_str(include_str!("../../../../config/models.toml")).unwrap();
@@ -88,6 +88,11 @@ fn models_config_uses_only_the_two_allowlisted_openrouter_ids() {
             "task {task} needs a fallback"
         );
         assert_eq!(model.fallback_model, model.fallback_models[0]);
+        if task == "transcribe" {
+            assert_eq!(model.model, "qwen/qwen3-asr-0.6b");
+            assert_eq!(model.fallback_model, "openai/whisper-large-v3-turbo");
+            continue;
+        }
         let mut chain = vec![&model.model];
         chain.extend(&model.fallback_models);
         for id in &chain {

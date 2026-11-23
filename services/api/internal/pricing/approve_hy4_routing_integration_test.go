@@ -20,7 +20,7 @@ import (
 const (
 	approvedHy4 = "usd-hy4-routing-2026-11-22"
 	// activeVersion is the owner-approved check-in successor of approvedHy4 (ADR 0020) and is what quotes resolve to.
-	activeVersion = "usd-hy4-check-in-2026-11-22"
+	activeVersion = "usd-voice-preview-2026-11-23"
 	// hy4Source is declared in approve_policy_carrying_draft_integration_test.go.
 )
 
@@ -121,7 +121,11 @@ func TestApprovedHy4RoutingVersionIsActiveAndQuotesTheEngineRoute(t *testing.T) 
 	if events != 1 || activations != 1 || evidence != 1 || !activatedAt.Equal(effective) || effective.After(time.Now()) {
 		t.Fatalf("events %d activations %d evidence %d activated %v effective %v", events, activations, evidence, activatedAt, effective)
 	}
-	if err = pricing.ValidateEconomics(active.Config, &pricing.DevelopmentVerifier{}, ""); err != nil {
+	var activePolicy pricing.QuotePolicy
+	if err = db.Pool.QueryRow(ctx, "SELECT policy FROM pricing_quote_policies WHERE version=$1", activeVersion).Scan(&activePolicy); err != nil {
+		t.Fatal(err)
+	}
+	if err = pricing.ValidateEconomics(active.Config, &pricing.DevelopmentVerifier{}, "", activePolicy); err != nil {
 		t.Fatalf("economics and mappings: %v", err)
 	}
 	var owner string
@@ -176,10 +180,12 @@ func activateLegacyBaseline(t *testing.T, db *store.Store) {
 	ctx := t.Context()
 	for _, statement := range []string{
 		`INSERT INTO pricing_versions(version,effective_from,approved,config)
- SELECT '` + legacyBaseline + `','2026-11-22T12:00:03Z',true,jsonb_set(jsonb_set(config,'{version}','"` + legacyBaseline + `"'),'{effective_from}','"2026-11-22T12:00:03Z"')
+ SELECT '` + legacyBaseline + `','2026-11-22T12:00:05Z',true,jsonb_set(jsonb_set(config,'{version}','"` + legacyBaseline + `"'),'{effective_from}','"2026-11-22T12:00:05Z"')
  FROM pricing_versions WHERE version='usd-quotes-2026-11-09'`,
-		`INSERT INTO pricing_quote_policies(version,policy) SELECT '` + legacyBaseline + `',policy FROM pricing_quote_policies WHERE version='usd-quotes-2026-11-09'`,
-		`INSERT INTO pricing_activation_events(version,activated_at) VALUES('` + legacyBaseline + `','2026-11-22T12:00:03Z')`,
+		// The legacy catalogue is tested with the current affordable route: its old
+		// two-attempt Sonnet route no longer passes the protected-cost gate.
+		`INSERT INTO pricing_quote_policies(version,policy) SELECT '` + legacyBaseline + `',policy FROM pricing_quote_policies WHERE version='usd-hy4-check-in-2026-11-22'`,
+		`INSERT INTO pricing_activation_events(version,activated_at) VALUES('` + legacyBaseline + `','2026-11-22T12:00:05Z')`,
 	} {
 		if _, err := db.Pool.Exec(ctx, statement); err != nil {
 			t.Fatal(err)

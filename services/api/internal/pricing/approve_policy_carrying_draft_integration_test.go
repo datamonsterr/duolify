@@ -57,7 +57,7 @@ func TestOwnerApprovesAPolicyCarryingDraftThroughTheAdminPath(t *testing.T) {
 	defer admin.SetEnvironment("development")
 
 	var raw []byte
-	if err = db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version=$1", hy4Source).Scan(&raw); err != nil {
+	if err = db.Pool.QueryRow(ctx, "SELECT config FROM pricing_versions WHERE version=$1", activeVersion).Scan(&raw); err != nil {
 		t.Fatal(err)
 	}
 	config := func(version string, effective time.Time) map[string]any {

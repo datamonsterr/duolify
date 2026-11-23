@@ -295,7 +295,7 @@ func TestVerifyExternalMappingsAndCatalogueEconomicsIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Draft with standard action cost above ceiling blocked unless override reason is supplied", func(t *testing.T) {
+	t.Run("Draft with route cost above ceiling is blocked", func(t *testing.T) {
 		ceilingDraft := make(map[string]any)
 		for k, v := range current {
 			ceilingDraft[k] = v
@@ -303,11 +303,11 @@ func TestVerifyExternalMappingsAndCatalogueEconomicsIntegration(t *testing.T) {
 		ceilingDraft["version"] = "usd-e12-ceiling-int"
 		ceilingDraft["effective_from"] = time.Now().UTC().Add(74 * time.Hour).Format(time.RFC3339Nano)
 
-		// Set course_outline credits to 10 (cost is $0.0820, so 0.0820/10 = 0.0082 > 0.0015 ceiling)
+		// At current route rates one Credit cannot cover the protected outline envelope.
 		actionsRaw, _ := json.Marshal(ceilingDraft["actions"])
 		var actions map[string]map[string]any
 		_ = json.Unmarshal(actionsRaw, &actions)
-		actions["outline"]["credits"] = 10
+		actions["outline"]["credits"] = 1
 		ceilingDraft["actions"] = actions
 
 		configBytes, _ := json.Marshal(ceilingDraft)
@@ -320,15 +320,15 @@ func TestVerifyExternalMappingsAndCatalogueEconomicsIntegration(t *testing.T) {
 			t.Fatalf("expected 422 for ceiling check draft, got %d body=%s", status, resp)
 		}
 
-		// When explicit override reason is provided in payload, draft is created
+		// An override cannot approve a route whose protected cost exceeds its budget.
 		payloadWithOverride, _ := json.Marshal(map[string]any{
 			"config":          json.RawMessage(configBytes),
 			"reason":          "ceiling check draft",
 			"override_reason": "explicit operator promotional override for outline",
 		})
 		status, resp = admin.ExecuteCLI(ctx, actor, http.MethodPost, "/admin/v1/pricing/drafts", payloadWithOverride)
-		if status != http.StatusCreated {
-			t.Fatalf("expected 201 for ceiling check draft with override, got %d body=%s", status, resp)
+		if status != http.StatusUnprocessableEntity {
+			t.Fatalf("expected 422 for route cost even with override, got %d body=%s", status, resp)
 		}
 	})
 
