@@ -14,5 +14,14 @@ androidWebViewHierarchy: devtools
 - assertVisible: Slide 1 of.*
 - takeScreenshot: lesson-portrait
 - setOrientation: LANDSCAPE_LEFT
-- takeScreenshot: lesson-landscape
+# Turning to landscape enters immersive mode (default on mobile): the framed header is gone.
+- extendedWaitUntil:
+    notVisible: Exit lesson
+    timeout: 10000
+- assertNotVisible: Slide 1 of.*
+- takeScreenshot: lesson-immersive-landscape
+- setOrientation: PORTRAIT
+- extendedWaitUntil:
+    visible: Exit lesson
+    timeout: 10000
 - assertVisible: Slide 1 of.*
