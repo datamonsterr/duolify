@@ -1,0 +1,27 @@
+appId: app.duolify.client
+androidWebViewHierarchy: devtools
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Learn any topic.*"
+    timeout: 45000
+- takeScreenshot: sign-in-welcome
+- scrollUntilVisible:
+    element: Get started
+- tapOn: Get started
+- takeScreenshot: sign-in-form
+- scrollUntilVisible:
+    element: Email address
+- tapOn: Email address
+- inputText: ${EMAIL}
+- takeScreenshot: sign-in-email
+- scrollUntilVisible:
+    element: I am 16 or older
+- tapOn: I am 16 or older
+- takeScreenshot: sign-in-age
+- scrollUntilVisible:
+    element: Send code
+- tapOn: Send code
+- assertVisible: One-time code
+- takeScreenshot: sign-in-code-requested

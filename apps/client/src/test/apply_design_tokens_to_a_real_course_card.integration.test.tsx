@@ -1,3 +1,4 @@
+import { appVersion } from "../lib/client-build";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -239,7 +240,7 @@ it("shares configureAnalytics identity and opt-out between pricing and course co
     expect(properties).toMatchObject({
       distinct_id: "8c940797-a555-421e-8dad-b4df96b02213",
       platform: "desktop",
-      app_version: "0.1.0",
+      app_version: appVersion,
       source: "client",
     });
   posthog.capture.mockClear();

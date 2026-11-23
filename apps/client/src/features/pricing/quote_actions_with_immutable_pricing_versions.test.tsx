@@ -1,3 +1,4 @@
+import { appVersion } from "../../lib/client-build";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { it, expect, vi } from "vitest";
 import { QuotePanel } from "./QuotePanel";
@@ -53,7 +54,7 @@ it("delivers quoted version through PostHog with UUID common fields and opt-out,
   expect(posthog.capture).toHaveBeenCalledWith("pricing_version_exposed", {
     distinct_id: id,
     platform: "web",
-    app_version: "0.1.0",
+    app_version: appVersion,
     source: "client",
     pricing_version: "quoted-original",
     surface: "quote",

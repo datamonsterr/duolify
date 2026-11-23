@@ -1,3 +1,4 @@
+import { appVersion } from "../../../lib/client-build";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import posthog from "posthog-js/dist/module.no-external";
 import {
@@ -35,7 +36,7 @@ describe("immersive analytics", () => {
     expect(posthog.capture).toHaveBeenCalledWith("immersive_mode_entered", {
       distinct_id: learnerId,
       platform: "android",
-      app_version: "0.1.0",
+      app_version: appVersion,
       source: "client",
       course_id: "c1",
       lesson_id: "l1",
