@@ -120,6 +120,7 @@ var piiRules = []piiRule{
 	{"quick_note_enrichments", "links", `'{}'`},
 	{"quick_note_enrichments", "summary", redacted},
 	{"quick_note_enrichments", "tags", `'{}'`},
+	{"guided_chat_drafts", "answers", emptyObj},
 	{"quick_notes", "raw_text", redacted},
 	{"quick_notes", "slide_title", redacted},
 	{"slide_narrations", "narration_text", redacted},
@@ -156,7 +157,7 @@ credit_payment_inbox.environment credit_payment_sessions.environment credit_refu
 credit_subscription_terms.benefits credit_subscription_terms.plan_name credit_subscription_transitions.terms
 credit_subscriptions.environment credit_usage.usage eval_alert_configs.id eval_alert_events.properties eval_alert_events.scope
 eval_operational_aggregates.task eval_reports.dataset_revision eval_reports.prompt_revision eval_reports.report_json eval_reports.task
-friend_requests.method gamification_config.goal_options gamification_config.league_tiers
+friend_requests.method guided_chat_drafts.script_id guided_chat_drafts.step_id gamification_config.goal_options gamification_config.league_tiers
 learner_profiles.welcome_state learner_profiles.tour_state learner_profiles.appearance learner_profiles.haptics learner_profiles.level learner_profiles.motion learner_profiles.narration_voice narration_assets.settings_fingerprint slide_narrations.settings_fingerprint slide_narrations.speaker_key slide_narrations.segment_slide_id slide_narrations.actual_voice_key slide_narrations.voice_config_version slide_narrations.voice_fallback_reason learner_profiles.reminder_time
 learner_social_settings.course_invites_from learner_social_settings.request_policy
 lesson_test_variant_snapshots.reason lesson_test_variant_snapshots.variant_of lesson_questions.variant_of outline_proposals.decision

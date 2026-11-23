@@ -13,7 +13,7 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 - [x] 1.3 Unit tests: script schema and CI lint (locale keys EN+AR, branch targets, validators vs API limits, secure steps non-persistent), expression language, validators
 - [x] 1.4 Implement `features/guided-chat` engine (state machine, closed expression language, branching, edit semantics), reusing E13-03 thread/composer primitives
 - [x] 1.5 Implement widgets: single, multi-select, time, date, stepper/slider, toggle, short text, long text, file/image, rating, confirm card, secure email/code/password
-- [ ] 1.6 API: `guided_chat_drafts` goose migration, `GET|PUT|DELETE /v1/me/guided-drafts/{script_id}` with ownership, size cap, `If-Match`; sqlc, tests; purge worker (30 days idle)
+- [x] 1.6 API: `guided_chat_drafts` goose migration, `GET|PUT|DELETE /v1/me/guided-drafts/{script_id}` with ownership, size cap, `If-Match`; sqlc, tests; purge worker (30 days idle)
 - [x] 1.7 Axe and keyboard tests per widget; `role="log"` announcement test; reduced-motion test
 
 ## 2. Migrate onboarding (M)
@@ -25,7 +25,7 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 ## 3. Migrate course creation (M)
 
 - [x] 3.1 e2e: brief chat to confirmed revision, no preview/Credits side effects, mobile sheet
-- [ ] 3.2 Scripts `course.brief`, `course.level`, `course.steer`; outline proposals stay quoted; update brief draft rules
+- [x] 3.2 Scripts `course.brief`, `course.level`, `course.steer`; outline proposals stay quoted; update brief draft rules
 
 ## 4. Free-text routing (L, two PRs: prefilter/FAQ, classifier)
 
@@ -38,9 +38,9 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 ## 5. Mascot component and states (M)
 
 - [ ] 5.1 Visual regression: eight states at 32/64/160 px, light and dark, RTL; reduced-motion static poses
-- [ ] 5.2 Unit tests: state derivation from UI events, off-screen pause, size budget (`bundle-budget.json`, 30 KB)
-- [ ] 5.3 Implement `features/mascot` (parts, tokens, CSS/WAAPI animations) from `docs/design/mascot/`; chat avatar, empty states, celebrations, errors
-- [ ] 5.4 Player chrome slot for the corner companion; immersive hide rule; Settings toggle
+- [x] 5.2 Unit tests: state derivation from UI events, off-screen pause, size budget (`bundle-budget.json`, 30 KB)
+- [x] 5.3 Implement `features/mascot` (parts, tokens, CSS/WAAPI animations) from `docs/design/mascot/`; chat avatar, empty states, celebrations, errors
+- [x] 5.4 Player chrome slot for the corner companion; immersive hide rule; Settings toggle
 
 ## 6. Migrate sign-in (M)
 

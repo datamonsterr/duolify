@@ -85,6 +85,7 @@ func New(pool *pgxpool.Pool, secret string, mailer Mailer) (*Service, error) {
 	s.ConfigureProfile(ProfileOptions{TextLimit: 2000})
 	s.registerProfile()
 	s.registerOnboarding()
+	s.registerGuidedDrafts()
 	s.registerPrivacy()
 	return s, nil
 }

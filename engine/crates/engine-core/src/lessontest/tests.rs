@@ -314,3 +314,19 @@ fn lesson_prompt_carries_the_region_contract_while_emission_is_on() {
         emit
     );
 }
+
+#[test]
+fn a_duration_that_overflows_u32_is_rejected_not_truncated() {
+    // 2^32 + 3000 used to wrap to 3000 and pass the [1000, 60000] bound.
+    let lesson = serde_json::json!({
+        "slides": [{
+            "html": "<div id=\"root\"><h1>Sky</h1></div>",
+            "duration_ms": 4_294_970_296u64,
+            "narration": "Looking at the sky.",
+            "topic_ids": ["top-sky"]
+        }],
+        "test": []
+    });
+    let e = validate_lesson(&lesson).unwrap_err().to_string();
+    assert!(e.contains("duration_ms"), "{e}");
+}

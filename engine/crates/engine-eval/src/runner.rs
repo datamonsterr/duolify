@@ -1828,18 +1828,27 @@ impl Runner {
         };
         let price_table = PriceTable::load();
         let needs_preview = cases.iter().any(|case| case.task == "course_preview");
-        let preview_limit =
-            if needs_preview && (self.provider_name != "mock" || self.custom_router.is_some()) {
-                if let Some(fixture) = self.fixture_preview_limit {
-                    Some(fixture)
-                } else {
-                    let url = std::env::var("EVAL_PRICING_URL")
-                        .unwrap_or_else(|_| "http://127.0.0.1:8080/v1/pricing".into());
-                    Some(crate::live::preview_output_limit(&url).await?)
-                }
+        let preview_limit = if needs_preview
+            && (self.provider_name != "mock" || self.custom_router.is_some())
+        {
+            if let Some(fixture) = self.fixture_preview_limit {
+                Some(fixture)
             } else {
-                None
-            };
+                let url = std::env::var("EVAL_PRICING_URL")
+                    .unwrap_or_else(|_| "http://127.0.0.1:8080/v1/pricing".into());
+                let active = crate::live::preview_output_limit(&url).await?;
+                if let Some(expected) = thresholds.preview_output_limit
+                    && expected != active
+                {
+                    bail!(
+                        "active preview output cap {active} differs from evals/thresholds.toml preview_output_limit {expected}; update the file so the evidence is recorded for the cap in use"
+                    );
+                }
+                Some(active)
+            }
+        } else {
+            None
+        };
         let mut results = Vec::new();
         let mut steering = crate::scoring::SteeringTally::default();
         let mut models = HashMap::new();
@@ -2355,6 +2364,7 @@ impl Runner {
             passed: final_passed,
             critical_failure: final_critical,
             dataset_cases: self.dataset_cases.unwrap_or(cases.len()),
+            preview_output_limit: preview_limit,
             task_reports,
             results,
         };

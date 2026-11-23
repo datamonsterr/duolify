@@ -34,7 +34,11 @@ export default defineConfig({
     : {},
   build: {
     rollupOptions: {
-      input: { app: "index.html", guidedChat: "guided-chat.html" },
+      input: {
+        app: "index.html",
+        guidedChat: "guided-chat.html",
+        mascot: "mascot.html",
+      },
     },
   },
   test: {

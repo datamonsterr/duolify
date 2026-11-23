@@ -1,3 +1,4 @@
+import { GuidedSteerAdd } from "../guided-chat/GuidedSteerAdd";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "../design/Button";
 import { ForkWarning } from "./ForkWarning";
@@ -42,9 +43,12 @@ function recount(d: InstructionList, instructions: Instruction[]) {
 export function InstructionPanel({
   courseId,
   service = instructionApi,
+  guided = false,
 }: {
   courseId: string;
   service?: InstructionService;
+  /** Collect a new instruction as a guided chat instead of the form. */
+  guided?: boolean;
 }) {
   const mobile = useMobile();
   const root = useRef<HTMLElement>(null);
@@ -65,6 +69,8 @@ export function InstructionPanel({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [warnFork, setWarnFork] = useState(false);
+  const [chatKey, setChatKey] = useState(0);
+  const lastInput = useRef({ text: "", scope: "next_lesson" });
 
   const limits = data?.limits ?? DEFAULT_LIMITS;
   const max = limits.max_characters;
@@ -116,12 +122,19 @@ export function InstructionPanel({
       return null;
     }
   }
-  async function save(confirmed = false) {
-    if (busy || count === 0 || count > max) return;
+  /** Returns true when the instruction was stored; false when it needs the fork decision or failed. */
+  async function save(
+    confirmed = false,
+    input: { text: string; scope: string } = { text, scope },
+  ): Promise<"saved" | "fork" | "failed"> {
+    lastInput.current = input;
+    const { text: body, scope: where } = input;
+    const size = countChars(body);
+    if (busy || size === 0 || size > max) return "failed";
     // First instruction on a published copy: explain the fork and ask before anything is sent.
     if (!confirmed && data?.fork?.required) {
       setWarnFork(true);
-      return;
+      return "fork";
     }
     setWarnFork(false);
     setBusy(true);
@@ -129,7 +142,9 @@ export function InstructionPanel({
     try {
       const r = await service.add(
         courseId,
-        confirmed ? { text, scope, confirm_fork: true } : { text, scope },
+        confirmed
+          ? { text: body, scope: where, confirm_fork: true }
+          : { text: body, scope: where },
       );
       setData((d) =>
         d
@@ -142,21 +157,27 @@ export function InstructionPanel({
           : d,
       );
       setText("");
+      setChatKey((k) => k + 1);
       setNotice("Instruction saved.");
       if (mobile) {
         setScreen("list");
         focusLater("add-button");
       }
+      return "saved";
     } catch (e) {
-      if (e instanceof Error && e.message === "fork_confirmation_required")
+      if (e instanceof Error && e.message === "fork_confirmation_required") {
         setWarnFork(true);
-      else setError(message(e));
+        return "fork";
+      }
+      setError(message(e));
+      return "failed";
     } finally {
       setBusy(false);
     }
   }
   function declineFork() {
     setWarnFork(false);
+    setChatKey((k) => k + 1);
     focusLater("save");
   }
   function openEdit(i: Instruction) {
@@ -346,7 +367,17 @@ export function InstructionPanel({
       {limits.adds_per_hour} adds per course per hour.
     </p>
   );
-  const addForm = (
+  const addForm = guided ? (
+    <GuidedSteerAdd
+      key={chatKey}
+      onAdd={async (input) => {
+        // The fork warning and any error render in this panel; the chat only needs to retry
+        // when nothing was sent and nothing is waiting on the Learner.
+        if ((await save(false, input)) === "failed")
+          throw new Error("not saved");
+      }}
+    />
+  ) : (
     <form
       onSubmit={(e) => {
         e.preventDefault();
@@ -606,7 +637,7 @@ export function InstructionPanel({
           keptLessons={data?.fork?.kept_lessons ?? 0}
           lessonCredits={data?.fork?.lesson_credits}
           onCancel={declineFork}
-          onConfirm={() => void save(true)}
+          onConfirm={() => void save(true, lastInput.current)}
         />
       )}
     </section>

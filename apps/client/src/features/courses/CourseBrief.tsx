@@ -347,37 +347,77 @@ export function CourseBrief({
       </form>
     );
   }
+  const chatting = guided && previewStep === 1 && !draft.revision;
+  const icon = (d: string) => (
+    <svg
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={d} />
+    </svg>
+  );
+  const demoButton = (
+    <Button
+      ref={demoTrigger}
+      variant="secondary"
+      aria-label={t("g.brief.example")}
+      className="course-brief-icon"
+      onClick={() => {
+        setDemoEpoch((epoch) => epoch + 1);
+        setDemo(true);
+      }}
+    >
+      {icon("M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z")}
+    </Button>
+  );
   const content = (
     <section
-      className="course-brief guided-demo"
+      className={`course-brief guided-demo${chatting ? " course-brief--chat" : ""}`}
       aria-labelledby="create-course-title"
     >
-      <header className="guided-demo-top">
-        <AppLink href="/courses">Cancel and keep draft</AppLink>
-        <h1 id="create-course-title">Create a course</h1>
-        <ol className="brief-steps" aria-label="Creation steps">
-          <li aria-current={previewStep === 1 ? "step" : undefined}>1 Brief</li>
-          <li aria-current={previewStep === 2 ? "step" : undefined}>
-            2 Preview
-          </li>
-          <li aria-current={previewStep === 3 ? "step" : undefined}>
-            3 Outline
-          </li>
-          <li aria-current={previewStep === 4 ? "step" : undefined}>
-            4 Create
-          </li>
-        </ol>
-      </header>
-      <Button
-        ref={demoTrigger}
-        variant="secondary"
-        onClick={() => {
-          setDemoEpoch((epoch) => epoch + 1);
-          setDemo(true);
-        }}
-      >
-        Explore shared example
-      </Button>
+      {chatting ? (
+        <header className="course-brief-bar">
+          <AppLink
+            href="/courses"
+            aria-label={t("g.brief.cancel")}
+            className="course-brief-icon"
+          >
+            {icon("M15 6l-6 6 6 6")}
+          </AppLink>
+          <h1 id="create-course-title">Create a course</h1>
+          {demoButton}
+        </header>
+      ) : (
+        <>
+          <header className="guided-demo-top">
+            <AppLink href="/courses">Cancel and keep draft</AppLink>
+            <h1 id="create-course-title">Create a course</h1>
+            <ol className="brief-steps" aria-label="Creation steps">
+              <li aria-current={previewStep === 1 ? "step" : undefined}>
+                1 Brief
+              </li>
+              <li aria-current={previewStep === 2 ? "step" : undefined}>
+                2 Preview
+              </li>
+              <li aria-current={previewStep === 3 ? "step" : undefined}>
+                3 Outline
+              </li>
+              <li aria-current={previewStep === 4 ? "step" : undefined}>
+                4 Create
+              </li>
+            </ol>
+          </header>
+          {demoButton}
+        </>
+      )}
       {!guided && (
         <>
           <p>

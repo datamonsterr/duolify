@@ -1,3 +1,4 @@
+import { PlayerCompanion } from "../../components/mascot";
 import { invalidateCourseProgress } from "../../lib/courseQueries";
 import { NarrationControl } from "../narration/NarrationControl";
 import { SegmentNarration } from "../narration/SegmentNarration";
@@ -1513,6 +1514,7 @@ function SlidePlayback({
           Exit lesson
         </Link>
         <span>Course · Lesson</span>
+        <PlayerCompanion immersive={immersive} />
       </header>
       <h1>{manifest.title}</h1>
       <div
@@ -1723,6 +1725,22 @@ function SlidePlayback({
                   }
                 }}
               />
+              {!immersive && (
+                <button
+                  id="immersive-enter"
+                  data-testid="immersive-enter"
+                  className="stage-expand"
+                  type="button"
+                  aria-label="Immersive mode"
+                  title="Full screen"
+                  disabled={panel !== null || slideFailed}
+                  onClick={(e) => onEnterImmersive(e.detail === 0)}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+                  </svg>
+                </button>
+              )}
               {highlight && !immersive && <RegionOutline region={highlight} />}
             </div>
           )
@@ -1906,17 +1924,6 @@ function SlidePlayback({
           )}
         </div>
         <div className="panel-tools" aria-label="Lesson tools">
-          <button
-            id="immersive-enter"
-            data-testid="immersive-enter"
-            className="duo-button quiet"
-            type="button"
-            aria-label="Immersive mode"
-            disabled={panel !== null || slideFailed}
-            onClick={(e) => onEnterImmersive(e.detail === 0)}
-          >
-            Full screen
-          </button>
           <button
             className={`duo-button quiet ${isBookmarked ? "on" : ""}`}
             type="button"

@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       tier:
-        description: fast for drafts, full for ready PRs, main and merge queues
+        description: fast for drafts and main pushes, full for ready PRs, merge queues and nightly
         required: true
         type: string
     secrets:
@@ -49,12 +49,17 @@ jobs:
       engine: ${{ github.event_name != 'pull_request' || steps.paths.outputs.engine == 'true' }}
       client: ${{ github.event_name != 'pull_request' || steps.paths.outputs.client == 'true' }}
       infra: ${{ github.event_name != 'pull_request' || steps.paths.outputs.infra == 'true' }}
+      stack: ${{ steps.paths.outputs.stack }}
+      selfhost: ${{ steps.paths.outputs.selfhost }}
+      overlay: ${{ steps.paths.outputs.overlay }}
+      playwright-stack: ${{ steps.paths.outputs.playwright-stack }}
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
       - uses: dorny/paths-filter@v4
+        if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
         id: paths
         with:
           base: ${{ github.event.merge_group.base_sha || github.event.before || 'main' }}
@@ -83,6 +88,7 @@ jobs:
               - 'evals/**'
               # Embedded by engine-core and fingerprinted by the promotion evidence.
               - 'services/api/internal/characters/schema/**'
+              - 'services/api/internal/characters/rig/**'
               - '.mise/tasks/engine.toml'
               - *tooling
               - *tasks
@@ -114,6 +120,60 @@ jobs:
               - *tasks
               - *github
               - *scripts
+
+            stack:
+              - 'services/api/**'
+              - 'engine/**'
+              - 'proto/**'
+              - 'apps/client/src/**'
+              - 'apps/client/public/**'
+              - 'apps/client/*.html'
+              - 'apps/client/vite.config.ts'
+              - 'apps/client/tsconfig*.json'
+              - 'apps/client/package.json'
+              - 'apps/client/Dockerfile*'
+              - 'docs/design/tokens.json'
+              - 'docs/design/theme.css'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.dockerignore'
+              - 'infra/deploy/compose.yml'
+              - 'infra/deploy/Caddyfile'
+              - 'infra/deploy/*.caddy'
+              - 'infra/deploy/proxy-entrypoint.sh'
+              - 'infra/s3/**'
+              - '.github/workflows/_checks.yml'
+              - '.github/actions/setup-tools/**'
+              - *tooling
+              - *tasks
+            selfhost:
+              - 'infra/deploy/selfhost.sh'
+              - 'infra/deploy/test-smoke.sh'
+              - 'infra/deploy/.env.example'
+              - 'infra/backup/**'
+              - '.mise/tasks/infra.toml'
+            overlay:
+              - 'infra/deploy/compose.prod.yml'
+              - 'infra/deploy/.env.prod.example'
+              - 'infra/deploy/*plan*.sh'
+              - 'infra/deploy/overlay-tests.sh'
+              - 'infra/deploy/backup-lifecycle.sh'
+              - 'infra/deploy/selfhost.sh'
+              - 'infra/deploy/walship/**'
+              - 'infra/backup/**'
+              - 'infra/observability/**'
+              - '.mise/tasks/infra.toml'
+            playwright-stack:
+              - 'infra/e2e/**'
+              - '.github/actions/setup-client/**'
+              - 'infra/deploy/.env.example'
+              - 'apps/client/playwright.stack.config.ts'
+              - 'apps/client/e2e-stack/**'
+              - 'apps/client/tests/**'
+              - 'apps/client/e2e/**'
+              - '.mise/tasks/client-stack.toml'
+              - '.mise/tasks/client.toml'
 
   # Jobs run in parallel. Cheap checks (lint, typecheck, unit tests) live in their
   # own jobs and are listed first, so they start first and fail first; slower jobs
@@ -609,7 +669,7 @@ jobs:
           file: ${{ matrix.file }}
           push: false
           cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=min,scope=${{ matrix.image }}
       - name: Summary
         if: always() && needs.changes.outputs[matrix.image] == 'true'
         env:
@@ -716,7 +776,10 @@ jobs:
   # images, then smoke tests it and runs a real backup and restore drill.
   selfhost:
     needs: changes
-    if: inputs.tier == 'full' && (needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.infra == 'true')
+    if: >-
+      inputs.tier == 'full' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+       needs.changes.outputs.stack == 'true' || needs.changes.outputs.selfhost == 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     steps:
@@ -748,7 +811,10 @@ jobs:
   # local RustFS with the e2e smoke, PITR drill, Redis cold start and DR copy tests.
   overlay:
     needs: changes
-    if: inputs.tier == 'full' && (needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.infra == 'true')
+    if: >-
+      inputs.tier == 'full' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+       needs.changes.outputs.stack == 'true' || needs.changes.outputs.overlay == 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -780,7 +846,10 @@ jobs:
   # (PR #320).
   playwright-stack:
     needs: changes
-    if: inputs.tier == 'full' && (needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true' || needs.changes.outputs.client == 'true' || needs.changes.outputs.infra == 'true')
+    if: >-
+      inputs.tier == 'full' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+       needs.changes.outputs.stack == 'true' || needs.changes.outputs.playwright-stack == 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     steps:
@@ -830,7 +899,7 @@ jobs:
 
   mobile-android:
     needs: changes
-    if: needs.changes.outputs.client == 'true'
+    if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
     # Advisory until Android has three consecutive green runs; do not gate ci-ok.
     continue-on-error: true
     runs-on: ubuntu-24.04
@@ -887,7 +956,7 @@ jobs:
 
   mobile-ios:
     needs: changes
-    if: needs.changes.outputs.client == 'true'
+    if: inputs.tier == 'full' && needs.changes.outputs.client == 'true'
     # Advisory until device coverage is stable; do not gate ci-ok.
     continue-on-error: true
     runs-on: macos-15
@@ -917,7 +986,7 @@ jobs:
 
   ci-ok:
     name: ci-ok
-    if: always()
+    if: ${{ !cancelled() }}
     needs:
       - changes
       - repo-lint

@@ -27,6 +27,8 @@ export const briefEn = {
   "g.brief.title": "Create a course",
   "g.brief.confirmed": "Brief confirmed. Preview is next.",
   "g.brief.error": "We couldn't confirm that. Try again.",
+  "g.brief.cancel": "Cancel and keep draft",
+  "g.brief.example": "Explore shared example",
 } as const;
 
 export const briefAr: Record<keyof typeof briefEn, string> = {
@@ -57,4 +59,6 @@ export const briefAr: Record<keyof typeof briefEn, string> = {
   "g.brief.title": "أنشئ دورة",
   "g.brief.confirmed": "تم تأكيد الملخص. المعاينة تالية.",
   "g.brief.error": "تعذّر التأكيد. حاول مجددًا.",
+  "g.brief.cancel": "إلغاء مع حفظ المسودة",
+  "g.brief.example": "استكشف مثالًا مشتركًا",
 };

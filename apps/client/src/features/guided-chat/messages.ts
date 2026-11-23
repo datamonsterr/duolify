@@ -4,12 +4,14 @@ import type { Message } from "../design/localization/messages";
 
 import { briefAr, briefEn } from "./messages.brief";
 import { signinAr, signinEn } from "./messages.signin";
+import { courseAr, courseEn } from "./messages.course";
 import { setupAr, setupEn } from "./messages.setup";
 
 export const guidedEn = {
   ...setupEn,
   ...briefEn,
   ...signinEn,
+  ...courseEn,
   "guided.guide": "Guide",
   "guided.you": "You",
   "guided.title": "Guided chat",
@@ -81,6 +83,7 @@ export const guidedAr: Record<keyof typeof guidedEn, Message> = {
   ...setupAr,
   ...briefAr,
   ...signinAr,
+  ...courseAr,
   "guided.guide": "المرشد",
   "guided.you": "أنت",
   "guided.title": "محادثة موجّهة",

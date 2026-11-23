@@ -17,6 +17,7 @@ test.beforeEach(async ({ page }) => {
 
 for (const [width, height] of [
   [390, 844],
+  [844, 390],
   [1280, 800],
 ] as const) {
   test(`course brief as a chat at ${width}px: confirmed revision, no preview or Credits calls`, async ({
@@ -56,16 +57,11 @@ for (const [width, height] of [
     await send(page);
     await page.getByRole("button", { name: "Skip", exact: true }).click(); // include
     await page.getByRole("button", { name: "Skip", exact: true }).click(); // skip topics
-    await page.getByRole("radio", { name: "Beginner" }).check();
-    await send(page);
-    await page.getByRole("radio", { name: "Light" }).check();
-    await send(page);
-    await page.getByRole("radio", { name: "At home" }).check();
-    await send(page);
-    await page.getByRole("radio", { name: "10 minutes" }).check();
-    await send(page);
-    await page.getByRole("radio", { name: "English" }).check();
-    await send(page);
+    await page.getByRole("radio", { name: "Beginner" }).click();
+    await page.getByRole("radio", { name: "Light" }).click();
+    await page.getByRole("radio", { name: "At home" }).click();
+    await page.getByRole("radio", { name: "10 minutes" }).click();
+    await page.getByRole("radio", { name: "English" }).click();
     await expect(
       page.getByText("Ready to confirm your brief?").first(),
     ).toBeVisible();

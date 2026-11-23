@@ -1,5 +1,6 @@
 import { courseBrief } from "./brief.script";
 import { authSignin } from "./signin.script";
+import { courseLevel, courseSteer } from "./course.scripts";
 import { onboardingSetup } from "./onboarding.script";
 import type { GuidedScript } from "./types";
 
@@ -171,4 +172,6 @@ export const allScripts: GuidedScript[] = [
   onboardingSetup,
   courseBrief,
   authSignin,
+  courseLevel,
+  courseSteer,
 ];

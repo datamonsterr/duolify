@@ -21,13 +21,11 @@ test("a fixture script answers with every widget, edits a bubble and resumes aft
     .fill("Sam");
   await send(page);
   await expect(page.getByRole("radio", { name: "Beginner" })).toBeFocused();
-  await page.getByRole("radio", { name: "Some" }).check();
-  await send(page);
+  await page.getByRole("radio", { name: "Some" }).click();
   await page.getByRole("checkbox", { name: "Speaking" }).check();
   await page.getByRole("checkbox", { name: "Reading" }).check();
   await send(page);
-  await page.getByRole("radio", { name: "Yes" }).check();
-  await send(page);
+  await page.getByRole("radio", { name: "Yes" }).click();
   await page.getByLabel("What time suits you?").fill("07:30");
   await send(page);
   await page.getByLabel("When do you want to start?").fill("2026-12-01");
@@ -39,8 +37,7 @@ test("a fixture script answers with every widget, edits a bubble and resumes aft
     .fill("Short sessions");
   await send(page);
   await page.getByRole("button", { name: "Skip", exact: true }).first().click(); // photo
-  await page.getByRole("radio", { name: "4 stars" }).check();
-  await send(page);
+  await page.getByRole("radio", { name: "4 stars" }).click();
   await expect(page.getByText("Ready to save these?").first()).toBeVisible();
   await expect(page.locator(".gc-summary")).toContainText("Sam");
   // Edit an earlier bubble: later answers stay.
@@ -86,12 +83,10 @@ test("Esc cancels an edit and free text is an answer when it validates", async (
   await expect(
     page.getByRole("button", { name: "Change answer: Sam" }),
   ).toBeVisible();
-  await page.getByRole("radio", { name: "Beginner" }).check();
-  await send(page);
+  await page.getByRole("radio", { name: "Beginner" }).click();
   await page.getByRole("checkbox", { name: "Speaking" }).check();
   await send(page);
-  await page.getByRole("radio", { name: "Yes" }).check();
-  await send(page);
+  await page.getByRole("radio", { name: "Yes" }).click();
   await page.getByPlaceholder("Or type a message").fill("7:30");
   await page.keyboard.press("Enter");
   await expect(
