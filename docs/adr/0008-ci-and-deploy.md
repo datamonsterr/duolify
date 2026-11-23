@@ -7,11 +7,12 @@
 
 ## Decision
 
-- **Runners**: GitHub-hosted `ubuntu-24.04` for every job (free for this public repo). Never the floating `ubuntu-latest`. This replaces the earlier Namespace profiles (`namespace-profile-datamonster01`, `namespace-profile-linux-xl`), which stopped picking up jobs on 2026-11-21.
-- **Draft PR pipeline** (fast): path-filtered lint, unit tests, mock evals, workflow lint. Target under 5 minutes warm.
-- **Ready PR / main pipeline** (full): adds integration tests with Postgres and Redis services, Playwright e2e, Docker image builds, Tauri debug build, live sample evals when secrets exist.
+- **Runners**: GitHub-hosted `ubuntu-24.04` for every job (free for this public repo). Never the floating `ubuntu-latest`. The retired Namespace profiles stopped picking up jobs on 2026-11-21.
+- **Draft PR and main pipeline** (fast): path-filtered lint, unit tests, mock evals, workflow lint. Target under 5 minutes warm.
+- **Ready PR and nightly pipeline** (full): adds integration tests with Postgres and Redis services, Playwright e2e, Docker image builds, Tauri debug build, live sample evals when secrets exist.
+- Main publishes images after fast checks pass. Publish runs are keyed by commit, and the full tier runs nightly and on demand on main.
 - One aggregate `ci-ok` job is the only required status check.
-- Caching: mise tool cache, Go module and build cache, `Swatinem/rust-cache`, pnpm store, Docker BuildKit cache (`type=gha`).
+- Caching: mise tool cache, Go module and build cache, `Swatinem/rust-cache`, pnpm store, Docker BuildKit cache (`type=gha,mode=min`).
 - **Deploy**: Railway Infrastructure as Code in `.railway/railway.ts` (TypeScript authoring is GA; legacy `railway.json`/`railway.toml` config-as-code is deprecated and stops being read on 2026-12-01). One file describes services (api, worker, engine), Postgres, Redis, bucket and variables per environment. `railway config plan` runs in CI on PRs; `railway config apply` and deploys target the `dev` environment only, from `main`, after `ci-ok`. Production is manual and out of scope for bootstrap.
 
 ## Consequences
