@@ -18,7 +18,7 @@ androidWebViewHierarchy: devtools
 - extendedWaitUntil:
     notVisible: Exit lesson
     timeout: 10000
-- assertNotVisible: Slide \\d+ of.*
+- assertNotVisible: Slide \d+ of.*
 - takeScreenshot: lesson-immersive-landscape
 - setOrientation: PORTRAIT
 - extendedWaitUntil:
