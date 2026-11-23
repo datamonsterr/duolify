@@ -530,6 +530,42 @@ html[data-imm-rotated] body {
   color: var(--text);
   font: inherit;
 }
+/* Short screens (a phone in landscape): the composer shrinks so the reply keeps room to be read. */
+.imm-answer-log {
+  min-block-size: 5rem;
+}
+@media (max-height: 500px) {
+  .imm-answer-compose {
+    grid-template-columns: 1fr auto;
+    align-items: stretch;
+  }
+  .imm-answer-compose > * {
+    grid-column: 1 / -1;
+  }
+  .imm-answer-compose > label {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .imm-answer-compose > [data-testid="answer-send"],
+  .imm-answer-compose > [data-testid="answer-stop"] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .imm-answer-compose textarea {
+    block-size: 3rem;
+    min-block-size: 0;
+    resize: none;
+  }
+  .imm-answer-compose .voice-ptt {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .imm-answer-compose .voice-auto {
+    min-block-size: 0;
+  }
+}
 .imm-answer-handle {
   position: absolute;
   inset-inline-end: var(--pr);

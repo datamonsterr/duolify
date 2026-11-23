@@ -10,6 +10,7 @@ import {
   openLesson,
   openRail,
   setup,
+  shot,
 } from "./anchored-helpers";
 import { apiBase } from "./servers";
 
@@ -154,16 +155,33 @@ async function hold(page: Page, ms: number) {
   return box;
 }
 
-test("hold to talk, release: the transcript fills the composer and is sent after the 2 s window as a voice question", async ({
+test("the auto-send option is a normal checkbox beside its label (design review)", async ({
   page,
   request,
 }) => {
+  const { state } = await setup(page, request, vp, "voice-auto-layout");
+  await mock(page);
+  await openPanel(page, state.lesson);
+  const box = (await page.getByTestId("voice-auto-send").boundingBox())!;
+  expect(box.width).toBeLessThanOrEqual(32);
+  expect(box.height).toBeLessThanOrEqual(32);
+  const label = (await page.locator("label.voice-auto").boundingBox())!;
+  // Checkbox and text share a row: the label is one line tall, not a stacked column.
+  expect(label.height).toBeLessThan(box.height * 2.5);
+});
+
+test("hold to talk, release: the transcript fills the composer and is sent after the 2 s window as a voice question", async ({
+  page,
+  request,
+}, info) => {
   const { state } = await setup(page, request, vp, "voice-send");
   const seen = await mock(page);
   await openPanel(page, state.lesson);
+  await shot(page, info, vp, "voice-1-idle");
   await hold(page, 900);
   // Level meter and timer are visible while recording.
   await expect(page.getByTestId("voice-timer")).toBeVisible();
+  await shot(page, info, vp, "voice-2-recording");
   await expect(
     page.getByRole("meter", { name: "Microphone level" }),
   ).toBeVisible();
@@ -171,6 +189,7 @@ test("hold to talk, release: the transcript fills the composer and is sent after
   const field = page.getByRole("textbox", { name: "Your question" });
   await expect(field).toHaveValue(QUESTION);
   await expect(page.getByTestId("voice-countdown")).toBeVisible();
+  await shot(page, info, vp, "voice-3-transcript-countdown");
   await expect(page.getByText(REPLY)).toBeVisible({ timeout: 8000 });
   expect(seen.uploads).toHaveLength(1);
   expect(seen.uploads[0].type).toContain("multipart/form-data");
