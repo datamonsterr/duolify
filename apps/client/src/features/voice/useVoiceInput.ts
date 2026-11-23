@@ -100,6 +100,8 @@ export function useVoiceInput({
   const [toggled, setToggled] = useState(false);
   const [notice, setNotice] = useState<VoiceNotice | null>(null);
   const [denied, setDenied] = useState(false);
+  /** Counts recordings the Learner cancelled (slide-off, Escape). */
+  const [cancelled, setCancelled] = useState(0);
   const [capped, setCapped] = useState(() => !!capResetsAt());
   const machine = useRef<RecorderState>(idleState);
   const session = useRef<{
@@ -214,6 +216,7 @@ export function useVoiceInput({
       if (effect.type === "cancel") {
         handle.cancel();
         emit("voice_recording_cancelled", Math.max(0, now() - startedAt));
+        setCancelled((n) => n + 1);
         setPhase("idle");
         return;
       }
@@ -330,6 +333,7 @@ export function useVoiceInput({
     elapsedMs,
     level,
     notice,
+    cancelled,
     block,
     capResets: capped ? capResetsAt() : undefined,
     press: () => {

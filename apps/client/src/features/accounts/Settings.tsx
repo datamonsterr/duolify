@@ -1,3 +1,4 @@
+import { setAutoSend } from "../voice/autosend";
 import { requestReplay } from "../onboarding/handoff";
 import { navigateTo } from "../../lib/navigation";
 import { session } from "./session";
@@ -329,6 +330,18 @@ export function Settings() {
                 onChange={bool("autoplay")}
               />
               Autoplay
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                data-testid="setting-auto-send"
+                checked={draft.auto_send_after_dictation}
+                onChange={(event) => {
+                  update("auto_send_after_dictation", event.target.checked);
+                  setAutoSend(event.target.checked);
+                }}
+              />
+              {t("voice.auto_send")}
             </label>
             <label>
               <input

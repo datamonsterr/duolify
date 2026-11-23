@@ -11,6 +11,7 @@ import {
 import { session } from "../accounts/session";
 import { AppLink } from "../../lib/navigation";
 import { VoiceButton } from "../voice/VoiceButton";
+import { useUiPreferences } from "../design/localization/Preferences";
 
 export type QuickNoteContext = {
   source: NoteSource;
@@ -37,6 +38,8 @@ export type QuickNotePanelProps = {
     rawText: string;
   }) => Promise<{ id: string; status: string }>;
   isOffline?: boolean;
+  /** "bubble": a round mic icon; the dictated-note confirmation is a toast with Undo. */
+  voiceVariant?: "default" | "bubble";
 };
 
 const ENRICH_LABEL = "Enrich with AI · 2 credits (daily free)"; // @noncommercial-number
@@ -57,7 +60,9 @@ export function QuickNotePanel({
   context,
   onSync,
   isOffline = false,
+  voiceVariant = "default",
 }: QuickNotePanelProps) {
+  const { t } = useUiPreferences();
   const draftKey = getDraftKey(context);
   const [activeNote, setActiveNote] = useState<QueuedNote | null>(() => {
     // An anchored note is a new moment each time: only a still-unsynced one is reopened.
@@ -223,6 +228,28 @@ export function QuickNotePanel({
     }
   };
 
+  const undoRef = useRef(undoDictation);
+  useEffect(() => {
+    undoRef.current = undoDictation;
+  });
+  const bubble = voiceVariant === "bubble";
+  const dictatedKey = dictated?.actionKey;
+  useEffect(() => {
+    if (!bubble || !dictatedKey) return;
+    // Loaded on demand: toasts belong to the immersive presentation, not the first screen.
+    void import("../../components/toast").then(({ showToast }) =>
+      showToast({
+        id: "note-saved",
+        message: t("imm.saved"),
+        action: {
+          label: t("common.undo"),
+          onAction: () => void undoRef.current(),
+        },
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dictatedKey, bubble]);
+
   const handleManualSync = async () => {
     if (!activeNote) return;
     setIsSyncing(true);
@@ -300,6 +327,7 @@ export function QuickNotePanel({
             entryPoint="quick_note"
             lessonId={context.lessonId}
             disabled={isSyncing}
+            variant={voiceVariant}
             onTranscript={({ text }) => {
               trackVoice({
                 event: "voice_transcript_used",
@@ -311,7 +339,7 @@ export function QuickNotePanel({
             }}
           />
         )}
-        {dictated && (
+        {dictated && !bubble && (
           <p role="status" data-testid="voice-note-saved" style={{ margin: 0 }}>
             Saved your dictated note.{" "}
             <button
