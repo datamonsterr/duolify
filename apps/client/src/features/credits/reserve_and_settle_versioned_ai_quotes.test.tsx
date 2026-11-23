@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { it, expect, vi } from "vitest";
+import { afterEach, it, expect, vi } from "vitest";
 import { ReservationPanel } from "./ReservationPanel";
 import { reservationAPI } from "./reservations";
 
@@ -38,3 +38,21 @@ it("requires explicit reservation, shows next grant on insufficiency and permits
     expect(screen.getByRole("status")).toHaveTextContent("Credits released"),
   );
 });
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+it.each(["spend_cap", "concurrency_limit"])(
+  "explains %s refusals as an action limit",
+  async (error) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error }) }),
+    );
+    await expect(reservationAPI.reserve("quote")).rejects.toThrow(
+      "Action limit reached",
+    );
+  },
+);
