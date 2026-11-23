@@ -463,7 +463,7 @@ func run(ctx context.Context, args []string) (result error) {
 		PricingAdmin:            pricingAdmin,
 		Quotes:                  quotesService,
 		Notes:                   notesService,
-		Voice:                   voice.New(voice.Options{Engine: backend, Pricing: runtimePricing, Lessons: voice.PoolLessons{Pool: db.Pool}, Counters: voice.RedisCounters{Client: redis}, Events: events, Logger: logger}),
+		Voice:                   voice.New(voice.Options{Engine: backend, Pricing: runtimePricing, Lessons: voice.PoolLessons{Pool: db.Pool}, Counters: voice.RedisCounters{Client: redis}, Days: voice.PoolDays{Pool: db.Pool}, Events: events, Logger: logger}),
 		Eval:                    evalService,
 		LessonTestTracerEnabled: cfg.LessonTestTracerEnabled,
 		LessonTest:              lessonHandler,
