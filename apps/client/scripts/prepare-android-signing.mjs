@@ -1,6 +1,7 @@
 // Release-only Android signing. Patches the generated app/build.gradle.kts so
 // only the release build type reads the keystore; debug builds stay unsigned by
 // it. Credentials come from the environment and are written outside the repo.
+import process from "node:process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
