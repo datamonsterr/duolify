@@ -9,6 +9,7 @@ import (
 	"time"
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/datamonsterr/duolify/services/api/internal/ids"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
@@ -564,7 +565,7 @@ func (s *Service) replanUsage(owner, version string, attempts []*pb.Usage, succe
 	}
 	for _, a := range attempts {
 		if a != nil {
-			s.emit(owner, "$ai_generation", map[string]any{"feature": "steer_replan", "pricing_version": version, "provider": a.Provider, "model": a.Model, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens, "cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "latency_ms": a.LatencyMs, "fallback_used": a.FallbackUsed, "succeeded": success && a.Delivered, "usage_available": !a.UsageUnavailable})
+			s.emit(owner, "$ai_generation", analytics.WithOpenRouterTransport(map[string]any{"feature": "steer_replan", "pricing_version": version, "provider": a.Provider, "model": a.Model, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens, "cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "latency_ms": a.LatencyMs, "fallback_used": a.FallbackUsed, "succeeded": success && a.Delivered, "usage_available": !a.UsageUnavailable}, a.GetOpenrouterTransport()))
 		}
 	}
 }

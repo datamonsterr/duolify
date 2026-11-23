@@ -38,7 +38,7 @@ const MAX_LANGUAGE_HINT_BYTES: usize = 8;
 pub struct HttpStatus(pub u16);
 impl std::fmt::Display for HttpStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "transcription provider answered {}", self.0)
+        write!(f, "provider answered HTTP {}", self.0)
     }
 }
 impl std::error::Error for HttpStatus {}
@@ -64,6 +64,7 @@ pub struct Transcription {
     /// Provider confidence for the whole transcript, 0 to 1, when it scores one.
     pub confidence: Option<f64>,
     pub model: String,
+    pub transport: Option<crate::OpenRouterTransport>,
 }
 
 /// One recording to transcribe. `container` is `webm` or `m4a`.
@@ -271,7 +272,21 @@ pub async fn transcribe(
         .into_iter()
         .enumerate()
     {
-        let route = model.attempt_route(fallback);
+        let mut route = model.attempt_route(fallback);
+        let rate = if fallback {
+            WORST_NANOS_PER_SECOND
+        } else {
+            PRIMARY_NANOS_PER_SECOND
+        };
+        let worst = worst_nanos(claimed_seconds, rate);
+        if lost_nanos.saturating_add(worst) > MAX_COST_NANOS {
+            return Err(TranscribeError::CostCeiling);
+        }
+        route.gateway_budget = Some(crate::GatewayBudget {
+            timeout: ATTEMPT_TIMEOUT,
+            may_retry_billable: lost_nanos.saturating_add(worst.saturating_mul(2))
+                <= MAX_COST_NANOS,
+        });
         let attempt = tokio::time::timeout(
             ATTEMPT_TIMEOUT,
             LlmProvider::transcribe(
@@ -287,12 +302,12 @@ pub async fn transcribe(
         match attempt {
             Ok(Ok(mut t)) => {
                 if !t.cost_reported {
-                    let rate = if fallback {
-                        WORST_NANOS_PER_SECOND
-                    } else {
-                        PRIMARY_NANOS_PER_SECOND
-                    };
                     t.cost_nanos = worst_nanos(t.seconds.max(claimed_seconds), rate);
+                }
+                if t.transport
+                    .is_some_and(crate::OpenRouterTransport::gateway_may_bill)
+                {
+                    lost_nanos = lost_nanos.saturating_add(worst);
                 }
                 t.cost_nanos = t.cost_nanos.saturating_add(lost_nanos);
                 if t.cost_nanos > MAX_COST_NANOS {
@@ -319,7 +334,15 @@ pub async fn transcribe(
                 });
             }
             Ok(Err(e)) => {
-                let status = e.downcast_ref::<HttpStatus>().copied();
+                let status = e
+                    .chain()
+                    .find_map(|source| source.downcast_ref::<HttpStatus>())
+                    .copied();
+                if crate::OpenRouterTransportError::transport(&e)
+                    .is_some_and(crate::OpenRouterTransport::gateway_may_bill)
+                {
+                    lost_nanos = lost_nanos.saturating_add(worst.saturating_mul(2));
+                }
                 tracing::warn!(
                     event = "transcribe_attempt_failed",
                     model = %route.model,

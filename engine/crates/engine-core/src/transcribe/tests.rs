@@ -62,6 +62,7 @@ fn said(text: &str, cost_nanos: u64) -> Step {
         cost_nanos,
         cost_reported: true,
         confidence: None,
+        transport: None,
         model: String::new(),
     }))
 }

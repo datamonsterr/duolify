@@ -69,3 +69,27 @@ func TestSettlementAcceptsEveryModelOfALongerRouteAndIgnoresCycles(t *testing.T)
 		t.Fatalf("worst case: %+v %v", got, err)
 	}
 }
+
+func TestGatewayRetryReservesPossibleUpstreamCostWithoutChangingCredits(t *testing.T) {
+	q := routeQuote()
+	u := contentUsage("tencent/hy4-flash", false, 1000, 400)
+	usage := []*enginev1.Usage{u}
+	baseline, err := credits.CalculateSettlement(q, usage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.OpenrouterTransport = &enginev1.OpenRouterTransport{
+		Route: enginev1.OpenRouterTransport_ROUTE_DIRECT, GatewayFallback: true,
+		GatewayReason: enginev1.OpenRouterTransport_REASON_TIMEOUT, GatewayMayBill: true,
+	}
+	worst := q.WorstRate()
+	possibleCost := q.Bounds["input_tokens"]*max(worst.Input, worst.CacheWrite, worst.CacheRead) + q.Bounds["output_tokens"]*worst.Output
+	got, err := credits.CalculateSettlement(q, usage)
+	if err != nil || got.CostNanos != baseline.CostNanos+possibleCost || got.ContentSpent != baseline.ContentSpent {
+		t.Fatalf("transport fallback settlement: %+v, %v; baseline %+v", got, err, baseline)
+	}
+	q.Bounds["max_cost_nanos"] = got.CostNanos - 1
+	if _, err := credits.CalculateSettlement(q, usage); err == nil {
+		t.Fatal("expected the existing cost ceiling to include the possible Gateway charge")
+	}
+}

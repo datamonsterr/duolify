@@ -307,6 +307,10 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
         } else {
             timeout_duration
         };
+        route_cfg.gateway_budget = Some(crate::GatewayBudget {
+            timeout: timeout_duration,
+            may_retry_billable: worst <= l.max_cost_nanos.saturating_sub(spent) / 2,
+        });
         let response = tokio::time::timeout(
             timeout_duration,
             provider.complete_route(&route_cfg, input, l.output_tokens),
@@ -345,7 +349,13 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
                     delivered: false,
                     usage_unavailable: c.usage_unavailable,
                     error_code: None,
+                    transport: c.transport,
                 };
+                if c.transport
+                    .is_some_and(crate::OpenRouterTransport::gateway_may_bill)
+                {
+                    spent += worst;
+                }
 
                 let cost_res = check_usage(
                     l,
@@ -392,6 +402,10 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
             }
             Ok(Err(e)) => {
                 spent += worst;
+                let transport = crate::OpenRouterTransportError::transport(&e);
+                if transport.is_some_and(crate::OpenRouterTransport::gateway_may_bill) {
+                    spent += worst;
+                }
                 let code = sanitize_error_code(&e.to_string());
                 outcome.attempts.push(Attempt {
                     provider: provider.name().into(),
@@ -406,6 +420,7 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
                     delivered: false,
                     usage_unavailable: true,
                     error_code: Some(code.into()),
+                    transport,
                 });
             }
             Err(_) => {
@@ -424,6 +439,7 @@ pub async fn run_bounded_formatted<F: Fn(&str) -> std::result::Result<(), String
                     delivered: false,
                     usage_unavailable: true,
                     error_code: Some("timeout".into()),
+                    transport: None,
                 });
             }
         }
@@ -459,6 +475,7 @@ pub struct StreamRoute {
     pub provider: String,
     pub model: String,
     pub fallback_used: bool,
+    pub transport: Option<crate::OpenRouterTransport>,
 }
 
 /// Stream with first-token timeout, idle timeout, and no post-delta fallback.
@@ -491,6 +508,7 @@ pub async fn stream_bounded_routed(
     first_token_timeout: Duration,
     idle_timeout: Duration,
 ) -> Result<(CompletionStream, StreamRoute)> {
+    let mut covered_attempts = u64::MAX;
     if let Some(l) = limits {
         validate_limits(l)?;
         if input.len() > l.input_tokens as usize {
@@ -507,6 +525,7 @@ pub async fn stream_bounded_routed(
         if worst > l.max_cost_nanos {
             bail!("worst-case cost exceeds USD cap");
         }
+        covered_attempts = l.max_cost_nanos / worst;
         if l.deadline_unix_ms != 0 {
             let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
             if u128::from(l.deadline_unix_ms) <= now {
@@ -518,50 +537,82 @@ pub async fn stream_bounded_routed(
     let model = router.models.tasks.get(task).context("unknown task")?;
     let deadline_unix_ms = limits.map(|l| l.deadline_unix_ms).unwrap_or(0);
 
-    let effective_first_to = if deadline_unix_ms != 0 {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
-        let remaining = u128::from(deadline_unix_ms).saturating_sub(now);
-        first_token_timeout.min(Duration::from_millis(remaining as u64))
-    } else {
-        first_token_timeout
+    let first_token_timeout = limits.map_or(first_token_timeout, |l| {
+        first_token_timeout.min(Duration::from_millis(u64::from(l.timeout_ms)))
+    });
+    let time_to_first = || -> Result<Duration> {
+        Ok(if deadline_unix_ms != 0 {
+            let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
+            let remaining = u128::from(deadline_unix_ms).saturating_sub(now);
+            first_token_timeout.min(Duration::from_millis(remaining as u64))
+        } else {
+            first_token_timeout
+        })
     };
+    let max_output = limits.map_or(4096, |l| l.output_tokens);
+    let effective_first_to = time_to_first()?;
+    let mut primary_config = model.attempt_route(false);
+    primary_config.gateway_budget = Some(crate::GatewayBudget {
+        timeout: effective_first_to,
+        may_retry_billable: covered_attempts >= 2,
+    });
 
-    let primary_res = router
-        .primary
-        .stream_route(&model.attempt_route(false), input)
-        .await;
-
-    let primary_route = StreamRoute {
+    let mut primary_route = StreamRoute {
         provider: router.primary.name().into(),
         model: model.model.clone(),
         fallback_used: false,
+        transport: None,
     };
-    let fallback_route = StreamRoute {
+    let mut fallback_route = StreamRoute {
         provider: router.fallback.name().into(),
         model: model.fallback_model.clone(),
         fallback_used: true,
+        transport: None,
     };
-    let (underlying, first_event, route) = match primary_res {
-        Ok(mut primary_stream) => {
-            match tokio::time::timeout(effective_first_to, primary_stream.next()).await {
-                Ok(Some(Ok(event))) => (primary_stream, Some(Ok(event)), primary_route),
-                _ => {
-                    // First token timed out or failed before any delta; fall back to secondary stream
-                    let fallback_stream = router
-                        .fallback
-                        .stream_route(&model.attempt_route(true), input)
-                        .await?;
-                    (fallback_stream, None, fallback_route)
+    let primary = tokio::time::timeout(effective_first_to, async {
+        let (mut stream, transport) = router
+            .primary
+            .stream_route_with_transport(&primary_config, input, max_output)
+            .await?;
+        let first = stream.next().await.transpose()?;
+        Ok::<_, anyhow::Error>((stream, first, transport))
+    })
+    .await;
+    let (underlying, first_event, route) = if let Ok(Ok((stream, Some(first), transport))) = primary
+    {
+        primary_route.transport = transport;
+        (stream, Some(Ok(first)), primary_route)
+    } else {
+        let mut primary_attempts = 1;
+        if let Ok(Err(error)) = primary {
+            use crate::{OpenRouterTransport, OpenRouterTransportError};
+            if let Some(transport) = OpenRouterTransportError::transport(&error) {
+                primary_attempts += u64::from(transport.gateway_may_bill());
+                if transport != OpenRouterTransport::DIRECT && covered_attempts <= primary_attempts
+                {
+                    return Err(error);
                 }
             }
         }
-        Err(_) => {
-            let fallback_stream = router
-                .fallback
-                .stream_route(&model.attempt_route(true), input)
-                .await?;
-            (fallback_stream, None, fallback_route)
+        let timeout = time_to_first()?;
+        if timeout.is_zero() {
+            return Err(StreamFailure::DeadlineExceeded.into());
         }
+        let mut fallback_config = model.attempt_route(true);
+        fallback_config.gateway_budget = Some(crate::GatewayBudget {
+            timeout,
+            may_retry_billable: covered_attempts >= primary_attempts + 2,
+        });
+        let (stream, transport) = tokio::time::timeout(
+            timeout,
+            router
+                .fallback
+                .stream_route_with_transport(&fallback_config, input, max_output),
+        )
+        .await
+        .map_err(|_| StreamFailure::FirstTokenTimeout)??;
+        fallback_route.transport = transport;
+        (stream, None, fallback_route)
     };
 
     let stream = futures::stream::unfold(

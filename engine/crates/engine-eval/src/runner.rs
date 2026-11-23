@@ -481,6 +481,7 @@ impl engine_core::LlmProvider for RecordedBrief {
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            transport: None,
         })
     }
     async fn stream(&self, _model: &str, _input: &str) -> Result<engine_core::CompletionStream> {

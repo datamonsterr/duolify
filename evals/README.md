@@ -200,6 +200,14 @@ The rows come from `evals/spikes/transcription/golden_rows.py` over `manifest.js
 
 Ceilings per clip: WER 0.20 (English, Spanish), 0.40 (Vietnamese), 0.50 (the two-word clip); latency 6 s (9 s for the 27.8 s clip); cost 0.0005 USD. The targets those ceilings serve are a mean WER of 6 % for English and 12 % for Vietnamese. Measured on the pinned revision (primary model, both containers): clean English 2.7 % mean (11.1 % worst clip), accented 0 %, noisy 1.9 %, technical 1.4 %, 27.8 s clip 1.6 %, Spanish 0 %, Vietnamese 7.6 % mean with clip `vi-3` (a technical astronomy sentence) at 29 %; silence and noise-only text is empty on both models; latency p50 0.75 s, p95 1.1 s, worst 1.5 s; the dearest request cost 0.0001 USD (49 rows cost 0.0017 USD). The Vietnamese set has three clips, so the auto-send default stays off for Vietnamese until a larger set exists.
 
+## OpenRouter transport cases
+
+`fixtures/openrouter-gateway.json` records synthetic CF-01 cases for public cache eligibility,
+private cache bypass, transcription with ZDR, and recovery before the first stream delta. The
+provider HTTP and Engine gRPC tests replay the cases against local servers, including the
+mid-stream error that must end the reply without replay. The cases exercise transport policy
+independently of model quality. The pinned live cases continue to cover OpenRouter model output.
+
 ## Live set (`datamonsterr/duolify-golden`)
 
 The private dataset `datamonsterr/duolify-golden` holds the 90-case live set (`evals/datasets/duolify-golden/golden.jsonl`, the exact published bytes) and the recordings under `audio/`. Revision `d902ce8cfacc2abf8d585930e2a15d471515b07a` is pinned in `pinned-datasets.toml` (it adds 49 `transcribe` cases after 41 unchanged rows; the 41-case revision `ef44a169…` added five region-grounded `tutor_chat` cases after 36 unchanged rows; the earlier 36-case revision `1bf626ff…` (four Slide region lesson cases), 32-case revision `943decec…` and 20-case revision `b7979d57…` stay pinned; their rows are the first 32 and 20 lines, unchanged). Cases cover preview, outline, three lessons, a lesson test, two tutor chats (one with a long history), note enrichment, setup and brief chat, all four safety screens (`steer_screen`, `character_screen`, `course_screen`, `screen_review`) with benign and must-block rows, and three cases each for:

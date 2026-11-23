@@ -260,7 +260,7 @@ func (s *Service) attemptEvents(ctx context.Context, owner, version string, atte
 		if u != nil && u.GetErrorCode() != "" {
 			props["error_code"] = u.GetErrorCode()
 		}
-		_ = s.opts.Events.Capture(owner, "$ai_generation", props)
+		_ = s.opts.Events.Capture(owner, "$ai_generation", analytics.WithOpenRouterTransport(props, u.GetOpenrouterTransport()))
 	}
 }
 func (s *Service) confirm(w http.ResponseWriter, r *http.Request, owner string) {

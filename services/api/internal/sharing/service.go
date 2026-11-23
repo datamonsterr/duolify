@@ -418,9 +418,9 @@ func (s *Service) runScreen(ctx context.Context, owner, draftID string, snap Sna
 			if a == nil {
 				continue
 			}
-			s.emit(owner, "$ai_generation", map[string]any{"feature": "course_screen", "provider": a.Provider, "model": a.Model, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens,
+			s.emit(owner, "$ai_generation", analytics.WithOpenRouterTransport(map[string]any{"feature": "course_screen", "provider": a.Provider, "model": a.Model, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens,
 				"cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "attempt": a.Attempt, "latency_ms": a.LatencyMs, "succeeded": a.Delivered,
-				"usage_available": !a.UsageUnavailable, "fallback_used": a.FallbackUsed, "error_code": a.ErrorCode, "provider_cost_nanos": attemptCost(a, rates)})
+				"usage_available": !a.UsageUnavailable, "fallback_used": a.FallbackUsed, "error_code": a.ErrorCode, "provider_cost_nanos": attemptCost(a, rates)}, a.GetOpenrouterTransport()))
 		}
 	}
 }

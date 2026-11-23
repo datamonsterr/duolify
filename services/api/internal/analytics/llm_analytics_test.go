@@ -5,6 +5,28 @@ import (
 	"testing"
 )
 
+func TestAIGenerationAllowsOnlyBoundedGatewayProperties(t *testing.T) {
+	valid := map[string]any{
+		"transport_route": "direct", "gateway_cache_status": "bypass",
+		"gateway_fallback": true, "gateway_reason": "timeout",
+	}
+	got := safeProperties("$ai_generation", valid)
+	for key, value := range valid {
+		if got[key] != value {
+			t.Errorf("%s = %v, want %v", key, got[key], value)
+		}
+	}
+	for key := range valid {
+		valid[key] = "untrusted response text"
+	}
+	got = safeProperties("$ai_generation", valid)
+	for key := range valid {
+		if _, ok := got[key]; ok {
+			t.Errorf("unexpected property %s", key)
+		}
+	}
+}
+
 // PostHog LLM analytics expects $ai_latency in seconds, a trace id and a USD cost.
 func TestAIGenerationMapsToLLMAnalyticsSchema(t *testing.T) {
 	got := safeProperties("$ai_generation", map[string]any{

@@ -1,0 +1,24 @@
+{
+  "public": {
+    "input": "Summarize why the Moon changes shape in the sky.",
+    "expected_cache_ttl_seconds": "300"
+  },
+  "private": {
+    "input": "A synthetic learner's note about the Moon."
+  },
+  "transcription": {
+    "audio_bytes": [1, 2, 3],
+    "input_audio": {"data": "AQID", "format": "webm"},
+    "provider": {"zdr": true, "data_collection": "deny"},
+    "gateway_status": 400,
+    "gateway_body": {"success": false, "errors": [{"code": 2005}]}
+  },
+  "stream_before_delta": {
+    "gateway_status": 502,
+    "direct_delta": "The Moon reflects sunlight."
+  },
+  "stream_after_delta": {
+    "gateway_delta": "The Moon reflects",
+    "gateway_error": {"error": {"code": 2005}}
+  }
+}

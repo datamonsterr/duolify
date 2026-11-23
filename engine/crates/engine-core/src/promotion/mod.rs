@@ -205,6 +205,10 @@ pub const SOURCES: &[(&str, &str)] = &[
         include_str!("../../../engine-providers/src/lib.rs"),
     ),
     (
+        "engine-providers/src/openrouter_gateway/mod.rs",
+        include_str!("../../../engine-providers/src/openrouter_gateway/mod.rs"),
+    ),
+    (
         "engine-providers/src/elevenlabs.rs",
         include_str!("../../../engine-providers/src/elevenlabs.rs"),
     ),

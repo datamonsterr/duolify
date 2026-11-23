@@ -41,6 +41,7 @@ impl LlmProvider for DelayedProvider {
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            transport: None,
         })
     }
     async fn stream(&self, _model: &str, _input: &str) -> anyhow::Result<crate::CompletionStream> {
@@ -66,6 +67,7 @@ impl LlmProvider for PartialStreamProvider {
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            transport: None,
         })
     }
     async fn stream(&self, _model: &str, _input: &str) -> anyhow::Result<crate::CompletionStream> {
@@ -307,6 +309,7 @@ impl LlmProvider for SlowFirstTokenProvider {
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            transport: None,
         })
     }
     async fn stream(&self, _model: &str, _input: &str) -> anyhow::Result<crate::CompletionStream> {
@@ -340,6 +343,7 @@ impl LlmProvider for InstantFallbackProvider {
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            transport: None,
         })
     }
     async fn stream(&self, _model: &str, _input: &str) -> anyhow::Result<crate::CompletionStream> {

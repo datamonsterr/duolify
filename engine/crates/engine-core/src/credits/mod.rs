@@ -69,6 +69,8 @@ pub struct Attempt {
     pub usage_unavailable: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<crate::OpenRouterTransport>,
 }
 pub struct Outcome {
     pub completion: Option<Completion>,

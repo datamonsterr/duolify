@@ -155,6 +155,7 @@ mod stream {
 
     fn route(fallback: bool) -> StreamRoute {
         StreamRoute {
+            transport: None,
             provider: if fallback { "fb" } else { "primary" }.into(),
             model: if fallback { "fb-model" } else { "model" }.into(),
             fallback_used: fallback,

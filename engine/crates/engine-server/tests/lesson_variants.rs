@@ -30,6 +30,7 @@ impl LlmProvider for Recorded {
             cache_write_tokens: 0,
             cache_read_tokens: 0,
             usage_unavailable: false,
+            transport: None,
         })
     }
     async fn stream(&self, _: &str, _: &str) -> anyhow::Result<CompletionStream> {

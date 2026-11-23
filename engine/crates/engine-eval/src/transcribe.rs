@@ -104,6 +104,7 @@ fn score(
             cache_read_tokens: 0,
             usage_unavailable: false,
             error_code: None,
+            transport: o.transcription.transport,
         })
         .into_iter()
         .collect();
@@ -276,6 +277,7 @@ impl LlmProvider for Recorded {
             cost_reported: step["cost_nanos"].is_u64(),
             confidence: step["confidence"].as_f64(),
             model: model.into(),
+            transport: None,
         })
     }
 }

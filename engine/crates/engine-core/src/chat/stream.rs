@@ -84,6 +84,7 @@ impl State {
                 model: self.route.model.clone(),
                 input_tokens: input,
                 output_tokens: output,
+                transport: self.route.transport,
                 ..Completion::default()
             },
             estimated: true,

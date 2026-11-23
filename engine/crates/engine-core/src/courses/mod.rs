@@ -192,15 +192,28 @@ pub async fn process(
         } else {
             &model.model
         };
-        let route = model.attempt_route(fallback);
+        let mut route = model.attempt_route(fallback);
         let start = Instant::now();
+        let timeout = Duration::from_millis(u64::from(limits.attempt_timeout_ms));
+        route.gateway_budget = Some(crate::GatewayBudget {
+            timeout,
+            may_retry_billable: worst <= limits.max_cost_nanos.saturating_sub(reserved),
+        });
         let completion = tokio::time::timeout(
-            Duration::from_millis(u64::from(limits.attempt_timeout_ms)),
+            timeout,
             provider.complete_route(&route, &prompt, limits.output_tokens),
         )
         .await
-        .ok()
-        .and_then(Result::ok);
+        .ok();
+        let transport = match &completion {
+            Some(Ok(completion)) => completion.transport,
+            Some(Err(error)) => crate::OpenRouterTransportError::transport(error),
+            None => None,
+        };
+        if transport.is_some_and(crate::OpenRouterTransport::gateway_may_bill) {
+            reserved += worst;
+        }
+        let completion = completion.and_then(Result::ok);
         let classification = completion
             .as_ref()
             .filter(|c| {

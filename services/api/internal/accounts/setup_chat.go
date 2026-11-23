@@ -173,7 +173,7 @@ func (s *Service) handleSetupChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !optOut && s.setupChat.Events != nil && learnerID != "" {
-		_ = s.setupChat.Events.Capture(learnerID, "$ai_generation", map[string]any{
+		_ = s.setupChat.Events.Capture(learnerID, "$ai_generation", analytics.WithOpenRouterTransport(map[string]any{
 			"provider":      resp.GetUsage().GetProvider(),
 			"model":         resp.GetUsage().GetModel(),
 			"input_tokens":  resp.GetUsage().GetInputTokens(),
@@ -184,7 +184,7 @@ func (s *Service) handleSetupChat(w http.ResponseWriter, r *http.Request) {
 			"source":        "api",
 			"platform":      "web",
 			"app_version":   "0.1.0",
-		})
+		}, resp.GetUsage().GetOpenrouterTransport()))
 	}
 
 	quickReplies := make([]map[string]string, 0, len(resp.GetQuickReplies()))

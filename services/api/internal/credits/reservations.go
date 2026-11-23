@@ -13,6 +13,7 @@ import (
 
 	enginev1 "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -634,7 +635,7 @@ func (s *Service) finalize(ctx context.Context, owner, id string, usage []*engin
 		if priced, e := CalculateSettlement(q, []*enginev1.Usage{u}); e == nil {
 			properties["provider_cost_nanos"] = priced.CostNanos
 		}
-		if err = insertOutbox(ctx, tx, owner, fmt.Sprintf("%s:usage:%d", id, i), "$ai_generation", properties); err != nil {
+		if err = insertOutbox(ctx, tx, owner, fmt.Sprintf("%s:usage:%d", id, i), "$ai_generation", analytics.WithOpenRouterTransport(properties, u.GetOpenrouterTransport())); err != nil {
 			return result, err
 		}
 	}

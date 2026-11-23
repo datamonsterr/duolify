@@ -3,6 +3,8 @@
 # `reasoning.effort` for the primary; `[reasoning]` gives the effort for other models in a chain
 # (GLM cannot disable reasoning, so it is always low). The four screens run Hy4 at `none`
 # (ADR 0018): their 200-300 token cap covers reasoning plus the answer.
+# gateway_cache_public defaults to false. Enable it only for tasks whose entire input is
+# server-identified, identical public content. The authored demo makes no model requests.
 
 [reasoning]
 "z-ai/glm-5.3-flash" = "low"

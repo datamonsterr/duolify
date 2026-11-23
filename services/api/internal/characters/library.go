@@ -9,6 +9,7 @@ import (
 	"time"
 
 	pb "github.com/datamonsterr/duolify/services/api/gen/duolify/engine/v1"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/maintenance"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -189,7 +190,7 @@ func (s *Service) Edit(ctx context.Context, owner, id string, in EditRequest) (R
 			if a == nil {
 				continue
 			}
-			s.emit(ctx, owner, "$ai_generation", map[string]any{"feature": "character_screen", "provider": a.Provider, "model": a.Model, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens, "cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "latency_ms": a.LatencyMs, "attempt": a.Attempt, "fallback_used": a.FallbackUsed, "succeeded": a.Delivered, "usage_available": !a.UsageUnavailable, "error_code": a.ErrorCode})
+			s.emit(ctx, owner, "$ai_generation", analytics.WithOpenRouterTransport(map[string]any{"feature": "character_screen", "provider": a.Provider, "model": a.Model, "input_tokens": a.InputTokens, "output_tokens": a.OutputTokens, "cache_write_tokens": a.CacheWriteTokens, "cache_read_tokens": a.CacheReadTokens, "latency_ms": a.LatencyMs, "attempt": a.Attempt, "fallback_used": a.FallbackUsed, "succeeded": a.Delivered, "usage_available": !a.UsageUnavailable, "error_code": a.ErrorCode}, a.GetOpenrouterTransport()))
 		}
 	}
 	if err != nil || response == nil || response.PolicyVersion != "character-v1" || len(response.Attempts) == 0 || len(response.Attempts) > 2 {

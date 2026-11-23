@@ -714,6 +714,7 @@ fn attempt(
         delivered: c.is_some(),
         usage_unavailable: c.is_none_or(|c| c.usage_unavailable),
         error_code: None,
+        transport: c.and_then(|c| c.transport),
     }
 }
 
