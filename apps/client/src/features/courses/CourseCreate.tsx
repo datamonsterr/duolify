@@ -4,7 +4,7 @@ import { Button } from "../design/Button";
 import { session } from "../accounts/session";
 import { secureStore } from "../accounts/secure-store";
 import { quoteAPI } from "../pricing/quotes";
-import { trackCourseRecovery } from "../../lib/analytics";
+import { trackCourseRecovery, trackQuoteShown } from "../../lib/analytics";
 import type { ConfirmedOutline } from "./outline";
 import { AppLink, navigateTo } from "../../lib/navigation";
 
@@ -103,6 +103,14 @@ export function CourseCreate({
   const [job, setJob] = useState<Creation>();
   const [recovery, setRecovery] = useState(() => sessionStorage.getItem(key));
   const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (terms && !job)
+      trackQuoteShown({
+        quote_id: terms.id,
+        feature: "outline",
+        pricing_version: terms.pricing_version,
+      });
+  }, [terms, job]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);

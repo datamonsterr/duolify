@@ -14,11 +14,27 @@ import (
 	"time"
 
 	"github.com/datamonsterr/duolify/services/api/internal/accounts"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
+
+type signupEventRecorder struct {
+	mu     sync.Mutex
+	events []map[string]any
+}
+
+func (r *signupEventRecorder) Capture(id, name string, props map[string]any) error {
+	if name == "learner_signed_up" {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		r.events = append(r.events, map[string]any{"id": id, "properties": props})
+	}
+	return nil
+}
+func (*signupEventRecorder) Close() error { return nil }
 
 func TestSignInRacesRotationRestoreAndDeletion(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
@@ -45,6 +61,8 @@ func TestSignInRacesRotationRestoreAndDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	signups := &signupEventRecorder{}
+	auth.ConfigureProfile(accounts.ProfileOptions{TextLimit: 2000, Events: analytics.WithConsent(signups, analytics.DatabaseConsent(db.Pool))})
 	call := func(path string, body any, token string) *httptest.ResponseRecorder {
 		raw, _ := json.Marshal(body)
 		req := httptest.NewRequestWithContext(ctx, "POST", path, bytes.NewReader(raw))
@@ -117,6 +135,26 @@ func TestSignInRacesRotationRestoreAndDeletion(t *testing.T) {
 	wg.Wait()
 	if winners.Load() != 1 {
 		t.Fatalf("verification winners %d", winners.Load())
+	}
+	signups.mu.Lock()
+	if len(signups.events) != 1 || signups.events[0]["properties"].(map[string]any)["method"] != "email" {
+		t.Errorf("expected one email signup event, got %#v", signups.events)
+	}
+	signups.mu.Unlock()
+	privateEmail := "opted-out@example.test"
+	if w := call("/v1/auth/code", map[string]any{"email": privateEmail, "age_confirmed": true}, ""); w.Code != 202 {
+		t.Fatalf("opted-out signup request: %d", w.Code)
+	}
+	if w := call("/v1/auth/verify", map[string]any{"email": privateEmail, "code": sink.Code(privateEmail), "age_confirmed": true, "locale": "en", "time_zone": "UTC", "analytics_opt_out": true}, ""); w.Code != 200 {
+		t.Fatalf("opted-out signup: %d %s", w.Code, w.Body)
+	}
+	signups.mu.Lock()
+	if len(signups.events) != 1 {
+		t.Errorf("opted-out learner emitted signup: %#v", signups.events)
+	}
+	signups.mu.Unlock()
+	if _, err := db.Pool.Exec(ctx, "DELETE FROM learners WHERE id=(SELECT learner_id FROM auth_identities WHERE email=$1)", privateEmail); err != nil {
+		t.Fatal(err)
 	}
 	if session.ExpiresIn != 900 {
 		t.Fatalf("access duration %d", session.ExpiresIn)

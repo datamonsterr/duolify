@@ -62,7 +62,7 @@ The API SHALL persist a short summary of each completed Lesson and its test resu
 - **THEN** the request history contains summaries of completed Lessons, oldest first, including weak topics from missed Questions
 
 ### Requirement: Test analytics events
-The system SHALL emit `lesson_test_started`, `lesson_test_submitted`, `lesson_test_passed`, `lesson_test_answer_wrong`, `retry_variant_queued`, `retry_variant_served`, `retry_variant_answered`, `retry_variant_generation_failed` and `lesson_test_recap_shown` with the properties from the `analytics` spec. `lesson_test_passed` MUST carry `lesson_id`, `course_id`, `first_try_correct`, `question_count`, `variants_served` and `duration_ms`. Question text and answers MUST NOT be sent to PostHog.
+The system SHALL emit `lesson_test_started`, `lesson_test_submitted`, `lesson_test_passed`, `lesson_test_answer_wrong`, `retry_variant_queued`, `retry_variant_served`, `retry_variant_answered` and `lesson_test_recap_shown` with the properties from the `analytics` spec. `lesson_test_passed` MUST carry `lesson_id`, `course_id`, `first_try_correct`, `question_count`, `variants_served` and `duration_ms`. Question text and answers MUST NOT be sent to PostHog.
 
 #### Scenario: Test passed
 - **WHEN** the last topic receives a correct answer

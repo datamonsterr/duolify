@@ -63,7 +63,7 @@ func TestPricingLifecycleEmitterUsesUUIDAndHonorsOptOut(t *testing.T) {
 	}
 	for i, event := range sink.events {
 		want := []string{"pricing_version_created", "pricing_version_approved", "pricing_version_rejected"}[i]
-		if event.id != optedIn || event.name != want || event.props["actor_id"] != optedIn || event.props["pricing_version"] != "usd-events" || event.props["source"] != "api" || event.props["platform"] != "web" || event.props["app_version"] == "" {
+		if event.id != optedIn || event.name != want || event.props["actor_id"] != nil || event.props["pricing_version"] != "usd-events" || event.props["source"] != "api" || event.props["platform"] != "web" || event.props["app_version"] == "" {
 			t.Fatalf("invalid lifecycle event: %+v", event)
 		}
 		if _, ok := event.props["reason"]; ok {

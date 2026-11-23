@@ -101,7 +101,7 @@ func (f *Fixture) LoseApplicationObject(t *testing.T) {
 
 // AssertDrillEvents closes the PostHog double and asserts every drill outcome:
 // restore_drill_completed(ok) in order, one backup_failed per failed drill,
-// source=ci, the system UUID, and no properties beyond the catalogue.
+// source=api, the system UUID, and no properties beyond the catalogue.
 func (f *Fixture) AssertDrillEvents(t *testing.T, outcomes []bool) {
 	t.Helper()
 	if err := f.events.Close(); err != nil {
@@ -117,10 +117,10 @@ func (f *Fixture) AssertDrillEvents(t *testing.T, outcomes []bool) {
 		default:
 			continue
 		}
-		if event.Properties["source"] == "api" && event.Event == "backup_failed" {
+		if _, backupRun := event.Properties["size_bytes"]; backupRun && event.Event == "backup_failed" {
 			continue
 		}
-		if event.DistinctID != "00000000-0000-4000-8000-000000000011" || event.Properties["source"] != "ci" || event.Properties["platform"] != "web" || event.Properties["app_version"] == "" {
+		if event.DistinctID != "00000000-0000-4000-8000-000000000011" || event.Properties["source"] != "api" || event.Properties["platform"] != "web" || event.Properties["app_version"] == "" {
 			t.Fatalf("invalid drill common properties: %+v", event)
 		}
 		if _, ok := event.Properties["duration_ms"].(float64); !ok {

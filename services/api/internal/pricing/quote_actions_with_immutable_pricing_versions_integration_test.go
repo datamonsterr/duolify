@@ -3,6 +3,8 @@
 package pricing_test
 
 import (
+	"context"
+	"github.com/datamonsterr/duolify/services/api/internal/analytics"
 	"github.com/datamonsterr/duolify/services/api/internal/pricing"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/migrations"
@@ -34,7 +36,9 @@ func TestQuoteSnapshot(t *testing.T) {
 	if err = st.Pool.QueryRow(ctx, "INSERT INTO learners(display_name) VALUES('quote fixture') RETURNING id::text").Scan(&owner); err != nil {
 		t.Fatal(err)
 	}
-	service := pricing.NewQuotes(st.Pool)
+	events := &pricingActivationCapture{}
+	allowed := true
+	service := pricing.NewQuotes(st.Pool).WithEvents(analytics.WithConsent(events, func(context.Context, string) (bool, error) { return allowed, nil }))
 	q, err := service.Create(ctx, owner, pricing.QuoteInput{Action: "lesson_content", NarrationCharacters: 1440})
 	if err != nil {
 		t.Fatal(err)
@@ -44,6 +48,16 @@ func TestQuoteSnapshot(t *testing.T) {
 	}
 	if err = service.Accept(ctx, owner, q.ID); err != nil {
 		t.Fatal(err)
+	}
+	if err = service.Accept(ctx, owner, q.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(events.events) != 1 || events.events[0]["event"] != "action_quote_accepted" {
+		t.Fatalf("expected one accepted quote event, got %#v", events.events)
+	}
+	props := events.events[0]["properties"].(map[string]any)
+	if props["quote_id"] != q.ID || props["feature"] != "lesson_content" || props["pricing_version"] != q.PricingVersion || props["source"] != "api" {
+		t.Fatalf("accepted quote properties: %#v", props)
 	}
 	// An expired quote cannot acquire consent, and another learner cannot read terms.
 	if _, err = service.Get(ctx, "a1111111-1111-4111-8111-111111111111", q.ID); err == nil {
@@ -70,6 +84,10 @@ func TestQuoteSnapshot(t *testing.T) {
 	}
 	if next.ContentCeiling != 141 || next.AudioCeiling != 1 {
 		t.Fatalf("bad flipped quote %+v", next)
+	}
+	allowed = false
+	if err = service.Accept(ctx, owner, next.ID); err != nil || len(events.events) != 1 {
+		t.Fatalf("opted-out quote acceptance: err=%v events=%#v", err, events.events)
 	}
 	old, err := service.Get(ctx, owner, q.ID)
 	if err != nil || old.ContentCeiling != 140 || !old.Accepted {

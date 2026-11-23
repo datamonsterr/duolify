@@ -3,6 +3,7 @@ import { Button } from "../design/Button";
 import { AuthError, session } from "../accounts/session";
 import type { ActionQuote } from "../pricing/quotes";
 import { AppLink } from "../../lib/navigation";
+import { trackQuoteShown } from "../../lib/analytics";
 
 type Quote = Pick<
   ActionQuote,
@@ -100,6 +101,14 @@ export function ReplanPanel({
   const applyRef = useRef<HTMLButtonElement>(null);
   const dialogWasOpen = useRef(false);
   const dialogTitleId = useId();
+  useEffect(() => {
+    if (state.quote)
+      trackQuoteShown({
+        quote_id: state.quote.id,
+        feature: "outline_replan",
+        pricing_version: state.quote.pricing_version,
+      });
+  }, [state.quote]);
 
   const update = (next: ReplanState) => {
     setState(next);

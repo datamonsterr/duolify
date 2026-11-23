@@ -284,7 +284,7 @@ func (s *Service) QuoteCreate(ctx context.Context, owner string, in CreateReques
 		}
 		return s.failCreate(ctx, owner, id, state, reason, nil)
 	}
-	quotes := pricing.NewQuotes(s.pool)
+	quotes := pricing.NewQuotes(s.pool).WithEvents(s.events)
 	var q pricing.Quote
 	if strings.HasPrefix(c.Version, "usd-dev-") {
 		q, err = quotes.CreateDevelopmentCharacter(ctx, owner, pricing.QuoteInput{Action: "character_create"})
@@ -343,7 +343,7 @@ func (s *Service) ConfirmCreate(ctx context.Context, owner, id, quoteID string) 
 		_ = tx.Rollback(ctx)
 		return s.GetCreate(ctx, owner, id)
 	}
-	quotes := pricing.NewQuotes(s.pool)
+	quotes := pricing.NewQuotes(s.pool).WithEvents(s.events)
 	if err = quotes.Accept(ctx, owner, quoteID); err != nil {
 		return j, errors.New("quote_expired")
 	}

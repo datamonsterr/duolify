@@ -8,7 +8,11 @@ import {
 import { useUiPreferences } from "../design/localization/Preferences";
 import type { LessonRef, ReplyClass, TutorService } from "./tutor";
 import { trackTutorCharacterSelected } from "../characters/analytics";
-import { trackTutorControl, trackTutorRecovery } from "../../lib/analytics";
+import {
+  trackQuoteShown,
+  trackTutorControl,
+  trackTutorRecovery,
+} from "../../lib/analytics";
 import { tutorService, type RegionAsk } from "./tutor";
 import { RegionThumb } from "./RegionThumb";
 import {
@@ -417,6 +421,14 @@ export function TutorChat({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   const tutor = useTutor(courseId, service, open, lesson, region);
+  useEffect(() => {
+    if (open && tutor.quote)
+      trackQuoteShown({
+        quote_id: tutor.quote.quote.id,
+        feature: `tutor_${tutor.quote.cls}`,
+        pricing_version: tutor.quote.quote.pricing_version,
+      });
+  }, [open, tutor.quote]);
   const entry = useRef<HTMLButtonElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
   const log = useRef<HTMLDivElement>(null);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ResponsivePanel } from "../shell/AdaptiveLayouts";
-import { trackGuidedUi, trackQuickNoteCreated } from "../../lib/analytics";
+import { trackGuidedUi } from "../../lib/analytics";
 import {
   anchorToWire,
   noteQueue,
@@ -133,12 +133,6 @@ export function QuickNotePanel({
       status: "device_saved",
     });
     setActiveNote(queued);
-
-    // Track analytics (source and length only, no private text)
-    trackQuickNoteCreated({
-      source: context.source,
-      length: noteText.length,
-    });
 
     // If marked offline or browser navigator is offline, keep as offline_saved
     const online =

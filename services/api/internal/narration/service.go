@@ -598,7 +598,7 @@ func (s *Service) synthesizeFresh(ctx context.Context, owner, lessonID, voice, c
 	for _, it := range fresh {
 		characters += int64(it.characters)
 	}
-	quotes := pricing.NewQuotes(s.opts.Pool).WithApprovedVoices(s.voices.Keys())
+	quotes := pricing.NewQuotes(s.opts.Pool).WithEvents(s.opts.Events).WithApprovedVoices(s.voices.Keys())
 	var quote pricing.Quote
 	var err error
 	if consent != "" {

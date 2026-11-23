@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { trackPurchase } from "../../lib/analytics";
+import { trackPurchase, trackQuoteShown } from "../../lib/analytics";
 import { pricingQueryOptions } from "../pricing/query";
 import { formatCredits } from "../pricing/format";
 import {
@@ -34,6 +34,18 @@ export function VoicePanel({
   onChanged?: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+  useEffect(() => {
+    if (
+      phase.kind === "quote" &&
+      phase.quote.quote_id &&
+      phase.quote.pricing_version
+    )
+      trackQuoteShown({
+        quote_id: phase.quote.quote_id,
+        feature: "narration",
+        pricing_version: phase.quote.pricing_version,
+      });
+  }, [phase]);
   const pricing = useQuery(pricingQueryOptions());
   const voices = useQuery<VoiceList>({
     queryKey: ["narration-voices", lessonId],

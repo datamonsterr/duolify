@@ -207,7 +207,8 @@ func TestExampleCourseIsPlayableAtZeroCreditsWithoutTheEngine(t *testing.T) {
 		t.Fatal(err)
 	}
 	financial := credits.NewServiceWithCatalogue(f.DB.Pool, nil, cat, nil)
-	shared := sharing.NewService(f.DB.Pool, &capture{}, sharing.DefaultConfig()).WithObjects(objects, asset)
+	exampleEvents := &capture{}
+	shared := sharing.NewService(f.DB.Pool, exampleEvents, sharing.DefaultConfig()).WithObjects(objects, asset)
 	lessons := lessontest.New(lessontest.Options{Objects: objects, AssetOrigin: asset, Pool: f.DB.Pool, Engine: engine, Financial: financial})
 	deps := httpapi.Dependencies{Accounts: auth, LessonTestTracerEnabled: true, Sharing: shared,
 		Player: player.New(player.Options{Pool: f.DB.Pool, Objects: objects, AssetOrigin: asset, ManifestCacheTTL: -1}),
@@ -273,6 +274,9 @@ func TestExampleCourseIsPlayableAtZeroCreditsWithoutTheEngine(t *testing.T) {
 	}
 	if _, _, again := call("POST", "/v1/courses/examples/product-management-foundations/enroll", token, nil); again["course_id"] != courseID {
 		t.Fatalf("second enroll: %v", again)
+	}
+	if got := exampleEvents.named("example_course_enrolled"); len(got) != 1 || got[0]["course_id"] != courseID || got[0]["slug"] != "product-management-foundations" || got[0]["surface"] != "courses" || got[0]["source"] != "api" {
+		t.Fatalf("example enrollment analytics: %#v", got)
 	}
 
 	course, _ := examples.Get("product-management-foundations")

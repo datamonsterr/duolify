@@ -173,7 +173,7 @@ func TestScheduleCancelRuntimeFlipAndImmutableRollbackAncestry(t *testing.T) {
 	}
 	for _, event := range events.events {
 		properties := event["properties"].(map[string]any)
-		if event["distinct_id"] != "00000000-0000-4000-8000-000000000011" || properties["actor_id"] != event["distinct_id"] || properties["pricing_version"] != "usd-runtime-flip" {
+		if event["distinct_id"] != "00000000-0000-4000-8000-000000000011" || properties["actor_id"] != nil || properties["pricing_version"] != "usd-runtime-flip" {
 			t.Errorf("invalid activation common properties: %v", event)
 		}
 		if _, private := properties["reason"]; private {

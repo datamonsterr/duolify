@@ -337,6 +337,10 @@ func TestDailyCheckInTransactions(t *testing.T) {
 		if v := check(t, id, day.AddDate(0, 0, 1)); v.Granted != 0 || v.FirstTime || v.BankedCheckIn != 1300 {
 			t.Fatalf("subsequent cap: %+v", v)
 		}
+		var count int
+		if err := db.Pool.QueryRow(ctx, `SELECT count(*) FROM credit_outbox WHERE learner_id=$1::uuid AND event='check_in_credits_granted' AND (properties->>'amount')::integer=0 AND (properties->>'capped')::boolean`, id).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("capped check-in event count=%d err=%v", count, err)
+		}
 	})
 	t.Run("outbox grants are idempotent and delivery respects opt-out", func(t *testing.T) {
 		events := &testAnalyticsEvents{}

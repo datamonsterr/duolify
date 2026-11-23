@@ -1,7 +1,7 @@
 import { ReservationPanel } from "../credits/ReservationPanel";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../design/Button";
-import { exposePricing } from "../../lib/analytics";
+import { exposePricing, trackQuoteShown } from "../../lib/analytics";
 import { quoteAPI, type ActionQuote } from "./quotes";
 export function QuotePanel({
   narrationCharacters,
@@ -48,6 +48,14 @@ export function QuotePanel({
   }, []);
   const expired =
     !!quote && (quote.expired || Date.parse(quote.expires_at) <= now);
+  useEffect(() => {
+    if (quote && !quote.accepted && !expired)
+      trackQuoteShown({
+        quote_id: quote.id,
+        feature: quote.action,
+        pricing_version: quote.pricing_version,
+      });
+  }, [quote, expired]);
   const asked = useRef(false);
   async function create() {
     setBusy(true);

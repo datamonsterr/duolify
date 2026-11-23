@@ -1090,7 +1090,7 @@ func (a *Admin) emit(ctx context.Context, actor, version, event, class string) {
 	if err := a.pool.QueryRow(ctx, `SELECT analytics_opt_out FROM learner_profiles WHERE learner_id=$1::uuid`, actor).Scan(&optedOut); err != nil || optedOut {
 		return
 	}
-	_ = a.events.Capture(actor, event, map[string]any{"pricing_version": version, "change_class": class, "actor_id": actor, "platform": "web", "app_version": "development", "source": "api"})
+	_ = a.events.Capture(actor, event, map[string]any{"pricing_version": version, "change_class": class, "platform": "web", "app_version": "development", "source": "api"})
 }
 
 // BootstrapAdmins grants pricing_admin only to pre-existing operator-selected accounts.
