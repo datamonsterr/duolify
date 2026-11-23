@@ -7,4 +7,4 @@
 - [x] 2.3 Configure private transcription routing and explicit truncation reporting.
 ## 3. Validation and delivery
 - [x] 3.1 Run focused API, Engine, OpenSpec and SQL checks and promotion evidence.
-- [ ] 3.2 Run ready CI and merge the approved change.
+- [x] 3.2 Run ready CI and merge the approved change.
