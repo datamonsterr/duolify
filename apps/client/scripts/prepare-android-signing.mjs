@@ -23,7 +23,12 @@ export function patchGradle(source) {
     !/getByName\("release"\)\s*\{/.test(source)
   )
     throw new Error("build.gradle.kts has no buildTypes release block to sign");
-  const withImports = `import java.io.FileInputStream\nimport java.util.Properties\n${source}`;
+  // The generated file may already import Properties; a duplicate is an error.
+  const missing = ["java.io.FileInputStream", "java.util.Properties"]
+    .filter((name) => !source.includes(`import ${name}`))
+    .map((name) => `import ${name}\n`)
+    .join("");
+  const withImports = `${missing}${source}`;
   return withImports
     .replace(/(\n\s*)buildTypes\s*\{/, (m, ws) => `${ws}${SIGNING}buildTypes {`)
     .replace(

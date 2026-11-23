@@ -105,6 +105,12 @@ test("signing patch touches release only and is idempotent", () => {
     /^import java.io.FileInputStream\nimport java.util.Properties\n/,
   );
   assert.equal(patchGradle(p), p);
+  const withProps = patchGradle("import java.util.Properties\n" + GRADLE);
+  assert.equal(
+    (withProps.match(/import java.util.Properties/g) ?? []).length,
+    1,
+  );
+  assert.match(withProps, /import java.io.FileInputStream/);
   assert.throws(() => patchGradle("android {}"), /no buildTypes/);
 });
 
