@@ -182,7 +182,7 @@ export function GuidedScriptChat({
     const scroller = widgetBox.current?.closest<HTMLElement>(".app-main");
     if (scroller) scroller.scrollTop = scroller.scrollHeight;
     else dock.current?.scrollIntoView?.({ block: "end" });
-  }, [now, state.editing, reducedMotion]);
+  }, [now, state.editing, reducedMotion, focusOnMount]);
 
   // The guide talks briefly when a new question appears; reduced motion keeps it still.
   useEffect(() => {
@@ -254,7 +254,7 @@ export function GuidedScriptChat({
       for (const [id, a] of Object.entries(out.state.answers))
         if (!a.skipped) values[id] = a.value;
       setCommitting(true);
-      let failure: string | null = null;
+      let failure: string | null;
       try {
         failure = await onStepCommit(step.id, values);
       } catch {
