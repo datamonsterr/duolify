@@ -234,3 +234,12 @@ After restoring a dump, start the API against the existing ledger bucket. Before
   are configured.
 
 Clerk erasure intents additionally use `account-deletions/clerk-v1/<SHA-256>.bin` under the same immutable protected prefix. The body is AES-GCM encrypted with an HKDF-separated key from `JWT_SECRET`; recovery needs that escrowed secret as well as backup storage access. Never rotate away the old secret before migrating ledger encryption to a new version. Production startup enumerates/decrypts these intents independently of restored learners and requeues remote erasure; a bad key, corrupt record or storage failure blocks startup. Local restore drills do not decrypt these provider intents or call Clerk.
+
+## Immersive Lesson player data
+
+The restore drill fixture covers the immersive player (change `immersive-mobile-lesson-player`):
+`learner_profiles` playback settings (`fullscreen_on_rotate`, `autoplay`, `auto_send_after_dictation`,
+all set to false), an anchored `tutor_messages` row (`anchor_*`), a `quick_note_anchors` row and a
+manifest with Slide regions. The full-row comparison fails if a restore drops or defaults any of them.
+Voice recordings are never stored, so there is no audio to back up; the Redis voice counters
+(`voice:rate:*`, `voice:day:*`) expire on their own and are not restored.
