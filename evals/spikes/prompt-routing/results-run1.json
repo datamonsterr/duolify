@@ -1,0 +1,788 @@
+{
+ "model": "tencent/hy4-flash",
+ "router": "baseten/joey-1",
+ "spent_usd": 0.010493,
+ "rows": [
+  {
+   "case": "c01",
+   "arm": "A_prod",
+   "skills": [],
+   "expected": [
+    "code_slide"
+   ],
+   "prompt_chars": 2409,
+   "in_tok": 585,
+   "out_tok": 1974,
+   "cached_tok": 0,
+   "cost": 0.000297822,
+   "latency_s": 13.56,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c01",
+   "arm": "B_all_skills",
+   "skills": [
+    "code_slide",
+    "comparison_table",
+    "diagram_layout",
+    "math_notation",
+    "timeline"
+   ],
+   "expected": [
+    "code_slide"
+   ],
+   "prompt_chars": 3764,
+   "in_tok": 933,
+   "out_tok": 1351,
+   "cached_tok": 0,
+   "cost": 0.0002224705,
+   "latency_s": 9.64,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c01",
+   "arm": "C_routed",
+   "skills": [
+    "code_slide"
+   ],
+   "expected": [
+    "code_slide"
+   ],
+   "prompt_chars": 2692,
+   "in_tok": 651,
+   "out_tok": 2397,
+   "cached_tok": 0,
+   "cost": 0.0003595635,
+   "latency_s": 9.44,
+   "valid": true,
+   "fit": true,
+   "why": [],
+   "router_latency_s": 1.29,
+   "router_cost": 4.5e-06,
+   "router_err": null
+  },
+  {
+   "case": "c02",
+   "arm": "A_prod",
+   "skills": [],
+   "expected": [
+    "math_notation"
+   ],
+   "prompt_chars": 2409,
+   "in_tok": 588,
+   "out_tok": 1604,
+   "cached_tok": 0,
+   "cost": 0.000245942,
+   "latency_s": 6.68,
+   "valid": false,
+   "fit": false,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c02",
+   "arm": "B_all_skills",
+   "skills": [
+    "code_slide",
+    "comparison_table",
+    "diagram_layout",
+    "math_notation",
+    "timeline"
+   ],
+   "expected": [
+    "math_notation"
+   ],
+   "prompt_chars": 3764,
+   "in_tok": 936,
+   "out_tok": 1448,
+   "cached_tok": 0,
+   "cost": 0.000236204,
+   "latency_s": 6.52,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c02",
+   "arm": "C_routed",
+   "skills": [
+    "diagram_layout",
+    "math_notation"
+   ],
+   "expected": [
+    "math_notation"
+   ],
+   "prompt_chars": 3027,
+   "in_tok": 762,
+   "out_tok": 2123,
+   "cached_tok": 0,
+   "cost": 0.0003249515,
+   "latency_s": 8.81,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ],
+   "router_latency_s": 0.66,
+   "router_cost": 4.55e-06,
+   "router_err": null
+  },
+  {
+   "case": "c03",
+   "arm": "A_prod",
+   "skills": [],
+   "expected": [
+    "diagram_layout"
+   ],
+   "prompt_chars": 2399,
+   "in_tok": 586,
+   "out_tok": 1604,
+   "cached_tok": 0,
+   "cost": 0.000245872,
+   "latency_s": 11.76,
+   "valid": false,
+   "fit": false,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c03",
+   "arm": "B_all_skills",
+   "skills": [
+    "code_slide",
+    "comparison_table",
+    "diagram_layout",
+    "math_notation",
+    "timeline"
+   ],
+   "expected": [
+    "diagram_layout"
+   ],
+   "prompt_chars": 3754,
+   "in_tok": 934,
+   "out_tok": 1999,
+   "cached_tok": 0,
+   "cost": 0.0003135495,
+   "latency_s": 7.83,
+   "valid": true,
+   "fit": true,
+   "why": []
+  },
+  {
+   "case": "c03",
+   "arm": "C_routed",
+   "skills": [
+    "diagram_layout",
+    "timeline"
+   ],
+   "expected": [
+    "diagram_layout"
+   ],
+   "prompt_chars": 2992,
+   "in_tok": 754,
+   "out_tok": 2396,
+   "cached_tok": 0,
+   "cost": 0.000363028,
+   "latency_s": 9.96,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ],
+   "router_latency_s": 0.7,
+   "router_cost": 4.51e-06,
+   "router_err": null
+  },
+  {
+   "case": "c04",
+   "arm": "A_prod",
+   "skills": [],
+   "expected": [
+    "comparison_table"
+   ],
+   "prompt_chars": 2408,
+   "in_tok": 586,
+   "out_tok": 2488,
+   "cached_tok": 0,
+   "cost": 0.000370074,
+   "latency_s": 11.65,
+   "valid": true,
+   "fit": false,
+   "why": []
+  },
+  {
+   "case": "c04",
+   "arm": "B_all_skills",
+   "skills": [
+    "code_slide",
+    "comparison_table",
+    "diagram_layout",
+    "math_notation",
+    "timeline"
+   ],
+   "expected": [
+    "comparison_table"
+   ],
+   "prompt_chars": 3763,
+   "in_tok": 934,
+   "out_tok": 1517,
+   "cached_tok": 0,
+   "cost": 0.0002458285,
+   "latency_s": 7.07,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c04",
+   "arm": "C_routed",
+   "skills": [
+    "code_slide",
+    "comparison_table"
+   ],
+   "expected": [
+    "comparison_table"
+   ],
+   "prompt_chars": 2922,
+   "in_tok": 707,
+   "out_tok": 1380,
+   "cached_tok": 0,
+   "cost": 0.000218635,
+   "latency_s": 6.46,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ],
+   "router_latency_s": 0.73,
+   "router_cost": 4.51e-06,
+   "router_err": null
+  },
+  {
+   "case": "c05",
+   "arm": "A_prod",
+   "skills": [],
+   "expected": [
+    "timeline"
+   ],
+   "prompt_chars": 2411,
+   "in_tok": 592,
+   "out_tok": 2369,
+   "cached_tok": 0,
+   "cost": 0.0003535645,
+   "latency_s": 9.57,
+   "valid": true,
+   "fit": false,
+   "why": []
+  },
+  {
+   "case": "c05",
+   "arm": "B_all_skills",
+   "skills": [
+    "code_slide",
+    "comparison_table",
+    "diagram_layout",
+    "math_notation",
+    "timeline"
+   ],
+   "expected": [
+    "timeline"
+   ],
+   "prompt_chars": 3766,
+   "in_tok": 940,
+   "out_tok": 1913,
+   "cached_tok": 0,
+   "cost": 0.0003016765,
+   "latency_s": 7.66,
+   "valid": true,
+   "fit": true,
+   "why": []
+  },
+  {
+   "case": "c05",
+   "arm": "C_routed",
+   "skills": [
+    "timeline"
+   ],
+   "expected": [
+    "timeline"
+   ],
+   "prompt_chars": 2634,
+   "in_tok": 645,
+   "out_tok": 1402,
+   "cached_tok": 0,
+   "cost": 0.000219556,
+   "latency_s": 6.97,
+   "valid": false,
+   "fit": false,
+   "why": [
+    "duration"
+   ],
+   "router_latency_s": 0.76,
+   "router_cost": 4.6e-06,
+   "router_err": null
+  },
+  {
+   "case": "c06",
+   "arm": "A_prod",
+   "skills": [],
+   "expected": [],
+   "prompt_chars": 2393,
+   "in_tok": 585,
+   "out_tok": 1418,
+   "cached_tok": 0,
+   "cost": 0.000219704,
+   "latency_s": 6.89,
+   "valid": true,
+   "fit": null,
+   "why": []
+  },
+  {
+   "case": "c06",
+   "arm": "B_all_skills",
+   "skills": [
+    "code_slide",
+    "comparison_table",
+    "diagram_layout",
+    "math_notation",
+    "timeline"
+   ],
+   "expected": [],
+   "prompt_chars": 3748,
+   "in_tok": 933,
+   "out_tok": 1700,
+   "cached_tok": 0,
+   "cost": 0.000271505,
+   "latency_s": 6.73,
+   "valid": false,
+   "fit": null,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c06",
+   "arm": "C_routed",
+   "skills": [],
+   "expected": [],
+   "prompt_chars": 2393,
+   "in_tok": 585,
+   "out_tok": 1425,
+   "cached_tok": 512,
+   "cost": 0.0002035355,
+   "latency_s": 6.82,
+   "valid": true,
+   "fit": null,
+   "why": [],
+   "router_latency_s": 0.71,
+   "router_cost": 4.48e-06,
+   "router_err": null
+  },
+  {
+   "case": "c07",
+   "arm": "A_prod",
+   "skills": [],
+   "expected": [
+    "diagram_layout"
+   ],
+   "prompt_chars": 2390,
+   "in_tok": 583,
+   "out_tok": 2018,
+   "cached_tok": 0,
+   "cost": 0.000303934,
+   "latency_s": 9.36,
+   "valid": true,
+   "fit": false,
+   "why": []
+  },
+  {
+   "case": "c07",
+   "arm": "B_all_skills",
+   "skills": [
+    "code_slide",
+    "comparison_table",
+    "diagram_layout",
+    "math_notation",
+    "timeline"
+   ],
+   "expected": [
+    "diagram_layout"
+   ],
+   "prompt_chars": 3745,
+   "in_tok": 931,
+   "out_tok": 2213,
+   "cached_tok": 0,
+   "cost": 0.0003435115,
+   "latency_s": 10.6,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c07",
+   "arm": "C_routed",
+   "skills": [
+    "diagram_layout",
+    "timeline"
+   ],
+   "expected": [
+    "diagram_layout"
+   ],
+   "prompt_chars": 2983,
+   "in_tok": 751,
+   "out_tok": 1460,
+   "cached_tok": 0,
+   "cost": 0.000231415,
+   "latency_s": 6.89,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ],
+   "router_latency_s": 0.71,
+   "router_cost": 4.48e-06,
+   "router_err": null
+  },
+  {
+   "case": "c08",
+   "arm": "A_prod",
+   "skills": [],
+   "expected": [
+    "code_slide",
+    "comparison_table"
+   ],
+   "prompt_chars": 2408,
+   "in_tok": 588,
+   "out_tok": 2130,
+   "cached_tok": 0,
+   "cost": 0.000319845,
+   "latency_s": 9.9,
+   "valid": false,
+   "fit": false,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c08",
+   "arm": "B_all_skills",
+   "skills": [
+    "code_slide",
+    "comparison_table",
+    "diagram_layout",
+    "math_notation",
+    "timeline"
+   ],
+   "expected": [
+    "code_slide",
+    "comparison_table"
+   ],
+   "prompt_chars": 3763,
+   "in_tok": 936,
+   "out_tok": 1949,
+   "cached_tok": 0,
+   "cost": 0.0003065945,
+   "latency_s": 9.35,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c08",
+   "arm": "C_routed",
+   "skills": [
+    "diagram_layout",
+    "code_slide"
+   ],
+   "expected": [
+    "code_slide",
+    "comparison_table"
+   ],
+   "prompt_chars": 3061,
+   "in_tok": 769,
+   "out_tok": 1701,
+   "cached_tok": 0,
+   "cost": 0.0002659055,
+   "latency_s": 7.99,
+   "valid": true,
+   "fit": false,
+   "why": [],
+   "router_latency_s": 0.67,
+   "router_cost": 4.53e-06,
+   "router_err": null
+  },
+  {
+   "case": "c09",
+   "arm": "A_prod",
+   "skills": [],
+   "expected": [
+    "math_notation"
+   ],
+   "prompt_chars": 2405,
+   "in_tok": 593,
+   "out_tok": 3169,
+   "cached_tok": 0,
+   "cost": 0.0004659995,
+   "latency_s": 11.49,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c09",
+   "arm": "B_all_skills",
+   "skills": [
+    "code_slide",
+    "comparison_table",
+    "diagram_layout",
+    "math_notation",
+    "timeline"
+   ],
+   "expected": [
+    "math_notation"
+   ],
+   "prompt_chars": 3760,
+   "in_tok": 941,
+   "out_tok": 1707,
+   "cached_tok": 0,
+   "cost": 0.0002727685,
+   "latency_s": 7.31,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c09",
+   "arm": "C_routed",
+   "skills": [
+    "diagram_layout",
+    "math_notation"
+   ],
+   "expected": [
+    "math_notation"
+   ],
+   "prompt_chars": 3023,
+   "in_tok": 767,
+   "out_tok": 3272,
+   "cached_tok": 0,
+   "cost": 0.000486561,
+   "latency_s": 14.24,
+   "valid": false,
+   "fit": true,
+   "why": [
+    "duration"
+   ],
+   "router_latency_s": 0.69,
+   "router_cost": 4.55e-06,
+   "router_err": null
+  },
+  {
+   "case": "c10",
+   "arm": "A_prod",
+   "skills": [],
+   "expected": [],
+   "prompt_chars": 2400,
+   "in_tok": 588,
+   "out_tok": 2041,
+   "cached_tok": 0,
+   "cost": 0.0003073405,
+   "latency_s": 9.51,
+   "valid": true,
+   "fit": null,
+   "why": []
+  },
+  {
+   "case": "c10",
+   "arm": "B_all_skills",
+   "skills": [
+    "code_slide",
+    "comparison_table",
+    "diagram_layout",
+    "math_notation",
+    "timeline"
+   ],
+   "expected": [],
+   "prompt_chars": 3755,
+   "in_tok": 936,
+   "out_tok": 1471,
+   "cached_tok": 0,
+   "cost": 0.0002394355,
+   "latency_s": 7.31,
+   "valid": false,
+   "fit": null,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c10",
+   "arm": "C_routed",
+   "skills": [
+    "diagram_layout"
+   ],
+   "expected": [],
+   "prompt_chars": 2770,
+   "in_tok": 703,
+   "out_tok": 1926,
+   "cached_tok": 0,
+   "cost": 0.000295208,
+   "latency_s": 9.07,
+   "valid": false,
+   "fit": null,
+   "why": [
+    "duration"
+   ],
+   "router_latency_s": 0.69,
+   "router_cost": 4.52e-06,
+   "router_err": null
+  },
+  {
+   "case": "c11",
+   "arm": "A_prod",
+   "skills": [],
+   "expected": [
+    "code_slide",
+    "diagram_layout"
+   ],
+   "prompt_chars": 2402,
+   "in_tok": 586,
+   "out_tok": 1788,
+   "cached_tok": 0,
+   "cost": 0.000271724,
+   "latency_s": 7.41,
+   "valid": false,
+   "fit": false,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c11",
+   "arm": "B_all_skills",
+   "skills": [
+    "code_slide",
+    "comparison_table",
+    "diagram_layout",
+    "math_notation",
+    "timeline"
+   ],
+   "expected": [
+    "code_slide",
+    "diagram_layout"
+   ],
+   "prompt_chars": 3757,
+   "in_tok": 934,
+   "out_tok": 1624,
+   "cached_tok": 0,
+   "cost": 0.000260862,
+   "latency_s": 7.39,
+   "valid": false,
+   "fit": false,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c11",
+   "arm": "C_routed",
+   "skills": [
+    "diagram_layout",
+    "timeline"
+   ],
+   "expected": [
+    "code_slide",
+    "diagram_layout"
+   ],
+   "prompt_chars": 2995,
+   "in_tok": 754,
+   "out_tok": 1737,
+   "cached_tok": 0,
+   "cost": 0.0002704385,
+   "latency_s": 8.56,
+   "valid": true,
+   "fit": false,
+   "why": [],
+   "router_latency_s": 0.66,
+   "router_cost": 4.51e-06,
+   "router_err": null
+  },
+  {
+   "case": "c12",
+   "arm": "A_prod",
+   "skills": [],
+   "expected": [],
+   "prompt_chars": 2394,
+   "in_tok": 589,
+   "out_tok": 1954,
+   "cached_tok": 0,
+   "cost": 0.000295152,
+   "latency_s": 8.59,
+   "valid": false,
+   "fit": null,
+   "why": [
+    "duration"
+   ]
+  },
+  {
+   "case": "c12",
+   "arm": "B_all_skills",
+   "skills": [
+    "code_slide",
+    "comparison_table",
+    "diagram_layout",
+    "math_notation",
+    "timeline"
+   ],
+   "expected": [],
+   "prompt_chars": 3749,
+   "in_tok": 937,
+   "out_tok": 1235,
+   "cached_tok": 0,
+   "cost": 0.0002063125,
+   "latency_s": 6.37,
+   "valid": true,
+   "fit": null,
+   "why": []
+  },
+  {
+   "case": "c12",
+   "arm": "C_routed",
+   "skills": [],
+   "expected": [],
+   "prompt_chars": 2394,
+   "in_tok": 589,
+   "out_tok": 1984,
+   "cached_tok": 512,
+   "cost": 0.000282215,
+   "latency_s": 8.75,
+   "valid": true,
+   "fit": null,
+   "why": [],
+   "router_latency_s": 0.66,
+   "router_cost": 4.51e-06,
+   "router_err": null
+  }
+ ]
+}
