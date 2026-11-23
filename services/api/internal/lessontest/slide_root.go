@@ -7,8 +7,8 @@ import (
 	"golang.org/x/net/html/atom"
 )
 
-// validSlideRoot checks the body fragment the player receives. The engine may
-// append its region stylesheet after the slide root.
+// validSlideRoot checks the body fragment the player receives. The engine puts its
+// region stylesheet before the slide root (older slides carry it after).
 func validSlideRoot(document string) bool {
 	context := &html.Node{Type: html.ElementNode, Data: "body", DataAtom: atom.Body}
 	nodes, err := html.ParseFragment(strings.NewReader(document), context)
@@ -35,7 +35,7 @@ func validSlideRoot(document string) bool {
 				if !foundRoot {
 					return false
 				}
-			} else if foundRoot && !foundStyle && node.Data == "style" {
+			} else if !foundStyle && node.Data == "style" {
 				marked := false
 				for _, attr := range node.Attr {
 					if attr.Key == "data-duolify-regions" {

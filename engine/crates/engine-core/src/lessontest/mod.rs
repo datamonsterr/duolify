@@ -189,7 +189,11 @@ pub fn validate_lesson(v: &serde_json::Value) -> Result<()> {
 
     for s in slides {
         let html = s["html"].as_str().unwrap_or_default();
-        let duration_ms = s["duration_ms"].as_u64().unwrap_or(3000) as u32;
+        let duration_ms = match s["duration_ms"].as_u64() {
+            Some(n) => u32::try_from(n)
+                .map_err(|_| anyhow::anyhow!("duration_ms out of allowed bounds [1000, 60000]"))?,
+            None => 3000,
+        };
         let narration = s["narration"].as_str().unwrap_or_default();
         validate_slide(html, duration_ms, narration)?;
 

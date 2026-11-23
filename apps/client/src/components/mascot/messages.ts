@@ -1,0 +1,31 @@
+// "Tinko" is a display string only (owner trademark check pending); code uses `mascot`.
+export const mascotEn = {
+  "mascot.name": "Tinko",
+  "mascot.state.idle": "Tinko",
+  "mascot.state.listening": "Tinko is listening",
+  "mascot.state.thinking": "Tinko is thinking",
+  "mascot.state.talking": "Tinko is talking",
+  "mascot.state.happy": "Tinko is happy",
+  "mascot.state.celebrate": "Tinko is celebrating",
+  "mascot.state.confused": "Tinko is unsure",
+  "mascot.state.sleepy": "Tinko is asleep",
+  "mascot.offline": "You're offline",
+  "mascot.empty": "Nothing here yet",
+  "mascot.error": "Something went wrong",
+  "mascot.companion": "Show guide in lessons",
+} as const;
+export const mascotAr = {
+  "mascot.name": "تينكو",
+  "mascot.state.idle": "تينكو",
+  "mascot.state.listening": "تينكو يستمع",
+  "mascot.state.thinking": "تينكو يفكر",
+  "mascot.state.talking": "تينكو يتحدث",
+  "mascot.state.happy": "تينكو سعيد",
+  "mascot.state.celebrate": "تينكو يحتفل",
+  "mascot.state.confused": "تينكو غير متأكد",
+  "mascot.state.sleepy": "تينكو نائم",
+  "mascot.offline": "أنت غير متصل",
+  "mascot.empty": "لا شيء هنا بعد",
+  "mascot.error": "حدث خطأ ما",
+  "mascot.companion": "إظهار المرشد في الدروس",
+} as const;

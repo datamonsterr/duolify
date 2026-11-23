@@ -151,6 +151,7 @@ async fn main() -> Result<()> {
                 passed: false,
                 critical_failure: false,
                 dataset_cases: 0,
+                preview_output_limit: None,
                 task_reports: std::collections::BTreeMap::new(),
                 results: Vec::new(),
             };
@@ -217,6 +218,7 @@ async fn main() -> Result<()> {
                 passed: false,
                 critical_failure: false,
                 dataset_cases: 0,
+                preview_output_limit: None,
                 task_reports: std::collections::BTreeMap::new(),
                 results: Vec::new(),
             };

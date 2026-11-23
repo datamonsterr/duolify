@@ -101,6 +101,18 @@ pub const SOURCES: &[(&str, &str)] = &[
         include_str!("../../../engine-eval/src/scoring.rs"),
     ),
     (
+        "engine-eval/src/transcribe.rs",
+        include_str!("../../../engine-eval/src/transcribe.rs"),
+    ),
+    (
+        "engine-eval/src/tasks.rs",
+        include_str!("../../../engine-eval/src/tasks.rs"),
+    ),
+    (
+        "engine-eval/src/judge.rs",
+        include_str!("../../../engine-eval/src/judge.rs"),
+    ),
+    (
         "engine-core/src/narration/voices.json",
         include_str!("../narration/voices.json"),
     ),
@@ -203,6 +215,12 @@ pub const EXCLUDED_SOURCES: &[&str] = &[
     "engine-core/src/backup/mod.rs",
     "engine-core/src/pricing/mod.rs",
     "engine-core/src/promotion/mod.rs",
+    // engine-eval: command line, report writing and analytics rows decide nothing about whether a
+    // case passed.
+    "engine-eval/src/lib.rs",
+    "engine-eval/src/main.rs",
+    "engine-eval/src/report.rs",
+    "engine-eval/src/analytics.rs",
 ];
 
 /// SHA-256 over the evaluated inputs, each framed by its path and length.
