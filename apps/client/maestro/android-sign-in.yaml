@@ -4,6 +4,7 @@ androidWebViewHierarchy: devtools
 - scrollUntilVisible:
     element: One-time code
 - tapOn: One-time code
+- eraseText
 - inputText: ${CODE}
 - takeScreenshot: sign-in-code
 - pressKey: Enter
