@@ -26,12 +26,7 @@ function speakerSvg(
 ): string {
   if (speaker.document && compileV2) {
     try {
-      return compileV2(
-        speaker.document,
-        "avatar",
-        POSE_FOR_EXPRESSION[exp],
-        exp,
-      );
+      return compileV2(speaker.document, "body", POSE_FOR_EXPRESSION[exp], exp);
     } catch {
       // Fall through to the v1 projection.
     }
@@ -177,7 +172,9 @@ export function generateMotionSlideHtml(
         justify-content: center;
         align-items: center;
         gap: 24px;
-        height: 160px;
+        height: 34vh;
+        min-height: 150px;
+        max-height: 300px;
         width: 100%;
       }
       .speaker-avatar {
@@ -193,8 +190,11 @@ export function generateMotionSlideHtml(
         transform: scale(1.05);
       }
       .speaker-avatar svg {
-        width: 130px;
-        height: 130px;
+        height: 34vh;
+        min-height: 150px;
+        max-height: 300px;
+        width: auto;
+        max-width: 42vw;
       }
       .dialogue-card {
         background: var(--color-card);

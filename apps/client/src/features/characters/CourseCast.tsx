@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import "./characters.css";
 import { Button } from "../design/Button";
 import {
   characterLibrary,
@@ -6,7 +7,6 @@ import {
   type CastSelection,
 } from "./library";
 import { getDefaultCastFixtures } from "./fixtures";
-import { CharacterPreview } from "./CharacterLibrary";
 import { CastAvatar } from "./CastAvatar";
 import type { CharacterSpecV2 } from "./types-v2";
 import { AppLink } from "../../lib/navigation";
@@ -65,15 +65,7 @@ export function CourseCast({ courseId }: { courseId: string }) {
         Back to Course
       </AppLink>
       <h1>Course Cast</h1>
-      <p>
-        Choose one main guide and up to two distinct supporting characters.
-        Changes apply to future lessons and chat.
-      </p>
       <p>No character credits are spent.</p>
-      <p>
-        Provisional original art · published copies keep their published Cast
-        until forked.
-      </p>
       {error && (
         <div role="alert">
           <p>
@@ -119,23 +111,27 @@ export function CourseCast({ courseId }: { courseId: string }) {
               .finally(() => setPending(false));
           }}
         >
-          <CharacterPreview
-            spec={selected.spec}
-            document={(selected as { document?: CharacterSpecV2 }).document}
-          />
-          <div className="cast-avatars">
-            {keys
-              .filter(Boolean)
-              .map((id) => choices.find((r) => r.id === id))
-              .filter((r) => r !== undefined)
-              .map((r) => (
-                <CastAvatar
-                  key={r.id}
-                  spec={r.spec}
-                  document={(r as { document?: CharacterSpecV2 }).document}
-                />
-              ))}
-          </div>
+          <ul className="cast-cards">
+            {keys.map((id, i) => {
+              const r =
+                choices.find((c) => c.id === id) ??
+                (i === 0 ? selected : undefined);
+              if (!r) return null;
+              return (
+                <li key={`${i}-${r.id}`}>
+                  <CastAvatar
+                    spec={r.spec}
+                    document={(r as { document?: CharacterSpecV2 }).document}
+                    size={96}
+                  />
+                  <strong>{r.spec.info.name}</strong>
+                  <span className="cast-chip">
+                    {i === 0 ? "Guide" : "Support"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
           <label>
             Main guide
             <select
