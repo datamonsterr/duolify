@@ -29,8 +29,8 @@ test.use({
   permissions: ["microphone"],
 });
 
-async function hold(page: Page, ms: number) {
-  const mic = page.getByTestId("voice-mic");
+async function hold(page: Page, ms: number, id = "voice-mic") {
+  const mic = page.getByTestId(id);
   await expect(mic).toHaveAttribute("aria-disabled", "false");
   const box = (await mic.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -304,11 +304,10 @@ test("a dictated Quick note is saved at once with a voice anchor, and Undo remov
   await page.waitForTimeout(600);
   await enterImmersive(page);
   await openRail(page);
-  await page.getByTestId("immersive-quick-note").click();
-  await expect(page.getByTestId("immersive-note-composer")).toBeVisible();
-  await hold(page, 900);
+  await hold(page, 900, "voice-note-mic");
   await page.mouse.up();
   await expect(page.getByTestId("toast")).toBeVisible();
+  await expect(page.getByTestId("immersive-note-composer")).toHaveCount(0);
   await expect.poll(() => posted.length).toBe(1);
   const body = posted[0].body as {
     raw_text: string;

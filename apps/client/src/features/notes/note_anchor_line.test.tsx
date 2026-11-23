@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { api } from "../../lib/api";
 import { parseArrival } from "../lesson-player/arrival";
 import { NoteAnchorLine, showInLessonHref } from "./NoteAnchorLine";
 
@@ -25,6 +26,34 @@ describe("anchored note source line", () => {
       timeMs: 12_500,
       rect: { x: 0.1, y: 0.2, w: 0.4, h: 0.3 },
     });
+  });
+  it("shows Course › Lesson › Slide and a timestamp chip once the titles load", async () => {
+    vi.spyOn(api, "course").mockResolvedValue({
+      id: "c1",
+      title: "Physics",
+      description: "",
+      units: [
+        {
+          title: "U1",
+          lessons: [{ id: "l1", title: "Light", state: "done" }],
+        },
+      ],
+    });
+    render(
+      <NoteAnchorLine
+        anchor={{ ...anchor, input: "voice" }}
+        courseId="c1"
+        lessonId="l1"
+        slideId={2}
+        slideTitle="Why the sky is blue"
+      />,
+    );
+    expect(
+      await screen.findByText("Physics › Light › Why the sky is blue"),
+    ).toBeTruthy();
+    expect(screen.getByTestId("note-show-in-lesson").textContent).toBe(
+      "Show in Lesson · 0:12",
+    );
   });
   it("a removed Lesson reads as source unavailable with no link", () => {
     render(

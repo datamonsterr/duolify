@@ -501,7 +501,7 @@ for (const vp of VIEWPORTS) {
       await expect(handle).toHaveAttribute("aria-expanded", "true");
       await expect(page.getByTestId("immersive-side-rail-slot")).toBeVisible();
       await expect(page.getByTestId("immersive-select-area")).toBeVisible();
-      await expect(page.getByTestId("immersive-quick-note")).toBeVisible();
+      await expect(page.getByTestId("immersive-voice-note")).toBeVisible();
       await shot(page, info, vp, "side-rail-open");
     });
 

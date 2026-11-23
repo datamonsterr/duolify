@@ -42,6 +42,8 @@ const paths = {
   select: "M4 8V4h4 M16 4h4v4 M20 16v4h-4 M8 20H4v-4",
   ask: "M4 5h16v11H9l-5 4z M9 10h.01 M12 10h.01 M15 10h.01",
   autoplay: "m5 6 6 6-6 6 M12 6l6 6-6 6",
+  voicenote:
+    "M6 3h9l4 4v14H6z M14 3v5h5 M12 10a1.5 1.5 0 0 0-1.5 1.5v2a1.5 1.5 0 0 0 3 0v-2A1.5 1.5 0 0 0 12 10z M9.5 14a2.5 2.5 0 0 0 5 0 M12 16.5v2",
 } as const;
 export type IconName = keyof typeof paths;
 
@@ -58,6 +60,7 @@ export const iconOnlyAllowlist: readonly IconName[] = [
   "add",
   "send",
   "microphone",
+  "voicenote",
   "volume",
   "mute",
   "fullscreen",

@@ -1217,8 +1217,10 @@ export function NotesPage() {
                     {selectedNote.anchor && (
                       <NoteAnchorLine
                         anchor={selectedNote.anchor}
+                        courseId={selectedNote.course_id}
                         lessonId={selectedNote.lesson_id}
                         slideId={selectedNote.slide_id}
+                        slideTitle={selectedNote.slide_title}
                       />
                     )}
                   </>

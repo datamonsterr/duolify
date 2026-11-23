@@ -1122,6 +1122,55 @@ export function trackVoice(
   }
 }
 
+export type VoiceQuickNoteSurface = "immersive" | "player";
+export type VoiceQuickNoteFailure =
+  VoiceErrorClass | "denied" | "too_short" | "save_failed";
+/**
+ * Voice quick note funnel (voice-quick-note analytics): closed enums, a duration and flags.
+ * No transcript, title or body text, no audio, no ids.
+ */
+export function trackVoiceQuickNote(value: {
+  event:
+    | "voice_quick_note_started"
+    | "voice_quick_note_saved"
+    | "voice_quick_note_cancelled"
+    | "voice_quick_note_failed"
+    | "voice_quick_note_undone";
+  surface: VoiceQuickNoteSurface;
+  duration_ms?: number;
+  has_region?: boolean;
+  language?: string;
+  reason?: VoiceQuickNoteFailure;
+}) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  const properties: Record<string, string | number | boolean> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? "0.1.0",
+    source: "client",
+    surface: value.surface,
+  };
+  if (value.duration_ms !== undefined)
+    properties.duration_ms = Math.max(0, Math.round(value.duration_ms));
+  if (value.has_region !== undefined) properties.has_region = value.has_region;
+  if (value.language && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(value.language))
+    properties.language = value.language;
+  if (value.event === "voice_quick_note_failed") {
+    if (!value.reason || !/^[a-z_]{3,20}$/.test(value.reason)) return;
+    properties.reason = value.reason;
+  }
+  try {
+    if (!posthog.has_opted_out_capturing()) {
+      posthog.capture(value.event, properties);
+      (
+        window as unknown as { __analyticsLog?: unknown[] }
+      ).__analyticsLog?.push({ event: value.event, properties });
+    }
+  } catch {
+    /* Notes never depend on analytics. */
+  }
+}
+
 // E14-01 catalogue: narrate-one-slide-mock-speech/specs/analytics/spec.md. Ids and a
 // duration only; narration text, audio and URLs never leave the device.
 export function trackNarrationPlayed(value: {

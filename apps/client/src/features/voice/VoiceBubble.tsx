@@ -1,14 +1,16 @@
 import {
   useEffect,
   useId,
+  useImperativeHandle,
   useRef,
+  type Ref,
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
 import type { VoiceEntryPoint } from "../../lib/analytics";
 import { showToast } from "../../components/toast";
-import { Icon } from "../design/Icon";
+import { Icon, type IconName } from "../design/Icon";
 import { useUiPreferences } from "../design/localization/Preferences";
 import type { VoicePlatform } from "./platform";
 import {
@@ -32,6 +34,8 @@ const isError = (n: VoiceNotice) => n.kind === "error" || n.kind === "denied";
  * slide-off, tap-to-toggle and Escape behaviour as the text control; the recording state sits on
  * the bubble (level ring, timer badge) and every explanation is a toast.
  */
+export type VoiceBubbleControls = { press: () => void; release: () => void };
+
 export function VoiceBubble({
   purpose,
   entryPoint,
@@ -40,6 +44,12 @@ export function VoiceBubble({
   disabled,
   platform,
   disabledReason,
+  icon = "microphone",
+  testId = "voice-mic",
+  onRecording,
+  onNotice,
+  onCancelled,
+  controls,
 }: {
   purpose: "tutor" | "note";
   entryPoint: VoiceEntryPoint;
@@ -48,6 +58,16 @@ export function VoiceBubble({
   disabled: boolean;
   platform?: VoicePlatform;
   disabledReason?: string;
+  icon?: IconName;
+  /** Two bubbles can share a screen (rail Voice note and the answer panel Talk). */
+  testId?: string;
+  /** True while recording (hold, toggle); false on release, cancel or the length cap. */
+  onRecording?: (recording: boolean) => void;
+  onNotice?: (notice: VoiceNotice) => void;
+  /** The Learner slid off or pressed Escape; nothing was uploaded. */
+  onCancelled?: () => void;
+  /** Lets an outside action (a hotkey) press and release this bubble. */
+  controls?: Ref<VoiceBubbleControls>;
 }) {
   const voice = useVoiceInput({
     purpose,
@@ -59,6 +79,13 @@ export function VoiceBubble({
   const { t } = useUiPreferences();
   const reasonId = useId();
   const recording = voice.phase === "recording";
+  const outside = useRef({ onRecording, onNotice, onCancelled });
+  useEffect(() => {
+    outside.current = { onRecording, onNotice, onCancelled };
+  });
+  useEffect(() => {
+    outside.current.onRecording?.(recording);
+  }, [recording]);
   const transcribing = voice.phase === "transcribing";
   const blocked = voice.block !== undefined && voice.block !== "denied";
   const blockMessage =
@@ -81,6 +108,7 @@ export function VoiceBubble({
   useEffect(() => {
     const n = voice.notice;
     if (!n) return;
+    outside.current.onNotice?.(n);
     showToast({
       id: "voice-notice",
       message: noticeText(t, n),
@@ -101,6 +129,7 @@ export function VoiceBubble({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice.block]);
   useEffect(() => {
+    if (voice.cancelled) outside.current.onCancelled?.();
     if (voice.cancelled)
       showToast({ id: "voice-cancelled", message: t("voice.cancelled") });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,7 +153,8 @@ export function VoiceBubble({
       },
     });
   };
-  const down = (event: PointerEvent<HTMLButtonElement>) => {
+  /** The guarded start shared by the pointer, the keyboard and outside actions. */
+  const begin = (beforePress?: () => void) => {
     if (inactive) {
       if (reason) showToast({ id: "voice-reason", message: reason });
       return;
@@ -142,9 +172,15 @@ export function VoiceBubble({
       return;
     }
     if (!wasExplained()) return explainFirst();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    beforePress?.();
     voice.press();
   };
+  useImperativeHandle(controls, () => ({
+    press: () => begin(),
+    release: voice.release,
+  }));
+  const down = (event: PointerEvent<HTMLButtonElement>) =>
+    begin(() => event.currentTarget.setPointerCapture?.(event.pointerId));
   const move = (event: PointerEvent<HTMLButtonElement>) => {
     if (!recording || voice.toggled) return;
     const box = event.currentTarget.getBoundingClientRect();
@@ -180,7 +216,7 @@ export function VoiceBubble({
       <button
         type="button"
         className={`voice-bubble${recording ? " recording" : ""}`}
-        data-testid="voice-mic"
+        data-testid={testId}
         data-purpose={purpose}
         style={{ "--voice-level": voice.level } as CSSProperties}
         aria-label={label}
@@ -198,7 +234,7 @@ export function VoiceBubble({
         onKeyUp={(event) => key(event, false)}
         onBlur={() => recording && !voice.toggled && voice.slideOff()}
       >
-        <Icon name="microphone" />
+        <Icon name={icon} />
         {recording && (
           <span className="voice-badge" data-testid="voice-timer" role="timer">
             {clock(voice.elapsedMs)}
