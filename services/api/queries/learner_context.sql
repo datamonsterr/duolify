@@ -40,5 +40,6 @@ UPDATE learner_profiles SET
  haptics=sqlc.arg(context)::jsonb->>'haptics',
  fullscreen_on_rotate=(sqlc.arg(context)::jsonb->>'fullscreen_on_rotate')::boolean,
  autoplay=(sqlc.arg(context)::jsonb->>'autoplay')::boolean,
- auto_send_after_dictation=(sqlc.arg(context)::jsonb->>'auto_send_after_dictation')::boolean
+ auto_send_after_dictation=(sqlc.arg(context)::jsonb->>'auto_send_after_dictation')::boolean,
+ mascot=COALESCE(sqlc.arg(context)::jsonb->'mascot', mascot)
 WHERE learner_id=sqlc.arg(learner_id)::uuid;

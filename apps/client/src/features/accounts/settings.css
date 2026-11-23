@@ -107,3 +107,36 @@
     grid-template-columns: 1fr;
   }
 }
+.settings-page .your-guide {
+  display: grid;
+  gap: var(--space-3, 12px);
+  justify-items: start;
+}
+.settings-page .your-guide fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px) var(--space-3, 12px);
+  inline-size: 100%;
+}
+.settings-page .your-guide label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: auto;
+  white-space: nowrap;
+}
+.settings-page .your-guide input[type="radio"],
+.settings-page .your-guide input[type="checkbox"] {
+  inline-size: 20px;
+  block-size: 20px;
+  min-block-size: 0;
+  padding: 0;
+  flex: none;
+}
+.your-guide-swatch span {
+  inline-size: 18px;
+  block-size: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border, #ddd);
+  flex: none;
+}

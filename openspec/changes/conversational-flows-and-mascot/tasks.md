@@ -60,9 +60,9 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 
 ## 9. Customisation (M)
 
-- [ ] 9.1 e2e: recolour, accessory, pick a Character, delete the Character, fallback to default
-- [ ] 9.2 API: `mascot` field on settings (validation against `RigPartSpec v1`, partial update), export, erasure, backup tests
-- [ ] 9.3 "Your guide" picker UI; shared `RigPartSpec v1` package consumed by `custom-characters`
+- [x] 9.1 e2e: recolour, accessory, pick a Character, delete the Character, fallback to default
+- [x] 9.2 API: `mascot` field on settings (validation against `RigPartSpec v1`, partial update), export, erasure, backup tests
+- [x] 9.3 "Your guide" picker UI; shared `RigPartSpec v1` package consumed by `custom-characters`
 
 ## 10. Analytics (S)
 

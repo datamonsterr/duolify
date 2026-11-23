@@ -80,7 +80,8 @@ UPDATE learner_profiles SET
  haptics=$1::jsonb->>'haptics',
  fullscreen_on_rotate=($1::jsonb->>'fullscreen_on_rotate')::boolean,
  autoplay=($1::jsonb->>'autoplay')::boolean,
- auto_send_after_dictation=($1::jsonb->>'auto_send_after_dictation')::boolean
+ auto_send_after_dictation=($1::jsonb->>'auto_send_after_dictation')::boolean,
+ mascot=COALESCE($1::jsonb->'mascot', mascot)
 WHERE learner_id=$2::uuid
 `
 
