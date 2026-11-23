@@ -90,6 +90,12 @@ func TestGuidedDraftsAreOwnerOnlyConditionalBoundedAndExpire(t *testing.T) {
 	if tag == "" {
 		t.Fatal("PUT must return an ETag")
 	}
+	var created struct {
+		UpdatedAt string `json:"updated_at"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil || `"`+created.UpdatedAt+`"` != tag {
+		t.Fatalf("body updated_at %q must be the ETag %s", created.UpdatedAt, tag)
+	}
 	// Another Learner sees nothing and cannot overwrite or delete.
 	if w := call("GET", path, "", other); w.Code != 404 {
 		t.Fatalf("other learner read: %d", w.Code)

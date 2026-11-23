@@ -61,6 +61,7 @@ func (s *Service) loadGuidedDraft(ctx context.Context, learner any, script strin
 	err := s.pool.QueryRow(ctx, `SELECT script_version, step_id, answers, updated_at FROM guided_chat_drafts
  WHERE learner_id=$1 AND script_id=$2 AND expires_at > now()`, learner, script).Scan(&d.ScriptVersion, &d.StepID, &answers, &d.UpdatedAt)
 	d.Answers = answers
+	d.UpdatedAt = d.UpdatedAt.UTC()
 	return d, err
 }
 
@@ -170,6 +171,7 @@ func (s *Service) saveGuidedDraft(w http.ResponseWriter, r *http.Request) {
 		respond(w, http.StatusServiceUnavailable, map[string]string{"error": "Could not save the draft."})
 		return
 	}
+	current.UpdatedAt = current.UpdatedAt.UTC()
 	// Absent row: only an empty If-Match may create. Present row: If-Match must be its ETag.
 	if (exists && ifMatch != etag(current.UpdatedAt)) || (!exists && ifMatch != "") {
 		if exists {
@@ -201,6 +203,7 @@ func (s *Service) saveGuidedDraft(w http.ResponseWriter, r *http.Request) {
 		respond(w, http.StatusServiceUnavailable, map[string]string{"error": "Could not save the draft."})
 		return
 	}
+	saved.UpdatedAt = saved.UpdatedAt.UTC()
 	saved.ScriptVersion, saved.StepID, saved.Answers = in.ScriptVersion, in.StepID, compact.Bytes()
 	w.Header().Set("ETag", etag(saved.UpdatedAt))
 	respond(w, http.StatusOK, saved)
