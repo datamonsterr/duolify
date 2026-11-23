@@ -62,6 +62,8 @@ type Dependencies struct {
 		http.Handler
 		Protect(http.Handler) http.Handler
 	}
+	// Voice serves POST /v1/voice/transcriptions; nil leaves voice input off.
+	Voice http.Handler
 }
 
 // NewWithLessonTest attaches the lesson testing service.
@@ -218,6 +220,9 @@ func New(deps Dependencies, logger *slog.Logger) http.Handler {
 		mux.Handle("GET /v1/tutor/threads/{id}/messages", tutor)
 		mux.Handle("DELETE /v1/tutor/threads/{id}", tutor)
 		mux.Handle("POST /v1/tutor/messages/{id}/note", tutor)
+	}
+	if deps.Voice != nil && deps.Accounts != nil {
+		mux.Handle("POST /v1/voice/transcriptions", deps.Accounts.Protect(deps.Voice))
 	}
 	if deps.Notes != nil && deps.Accounts != nil {
 		mux.Handle("/v1/notes", deps.Accounts.Protect(deps.Notes))
