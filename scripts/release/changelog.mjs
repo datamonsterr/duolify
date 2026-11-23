@@ -26,7 +26,12 @@ export function renderChangelog({ version, previous, commits, repo }) {
   for (const { sha, subject } of commits) {
     if (/^Merge /.test(subject)) continue;
     const parsed = parseSubject(subject);
-    const entry = parsed ?? { type: "other", scope: "", breaking: false, text: subject };
+    const entry = parsed ?? {
+      type: "other",
+      scope: "",
+      breaking: false,
+      text: subject,
+    };
     const line = `- ${entry.scope ? `**${entry.scope}:** ` : ""}${entry.text} (${sha.slice(0, 7)})`;
     if (entry.breaking) breaking.push(line);
     const known = SECTIONS.some(([t]) => t === entry.type);
@@ -41,7 +46,10 @@ export function renderChangelog({ version, previous, commits, repo }) {
   }
   if (out.length === 2) out.push("No user-facing changes.", "");
   if (previous && repo)
-    out.push(`Full diff: https://github.com/${repo}/compare/${previous}...${version}`, "");
+    out.push(
+      `Full diff: https://github.com/${repo}/compare/${previous}...${version}`,
+      "",
+    );
   return out.join("\n");
 }
 
@@ -75,7 +83,12 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       const [sha, ...rest] = l.split("\t");
       return { sha, subject: rest.join("\t") };
     });
-  const md = renderChangelog({ version: tag, previous, commits, repo: process.env.GITHUB_REPOSITORY });
+  const md = renderChangelog({
+    version: tag,
+    previous,
+    commits,
+    repo: process.env.GITHUB_REPOSITORY,
+  });
   if (outFile) writeFileSync(outFile, md);
   else process.stdout.write(md);
 }

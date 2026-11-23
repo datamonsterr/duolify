@@ -6,8 +6,8 @@ import { pathToFileURL } from "node:url";
 
 const SIGNING = `signingConfigs {
         create("release") {
-            val props = java.util.Properties()
-            props.load(java.io.FileInputStream(rootProject.file("keystore.properties")))
+            val props = Properties()
+            props.load(FileInputStream(rootProject.file("keystore.properties")))
             keyAlias = props["keyAlias"] as String
             keyPassword = props["keyPassword"] as String
             storeFile = file(props["storeFile"] as String)
@@ -23,7 +23,8 @@ export function patchGradle(source) {
     !/getByName\("release"\)\s*\{/.test(source)
   )
     throw new Error("build.gradle.kts has no buildTypes release block to sign");
-  return source
+  const withImports = `import java.io.FileInputStream\nimport java.util.Properties\n${source}`;
+  return withImports
     .replace(/(\n\s*)buildTypes\s*\{/, (m, ws) => `${ws}${SIGNING}buildTypes {`)
     .replace(
       /getByName\("release"\)\s*\{/,

@@ -25,6 +25,12 @@ export function releaseNotes({ repo, tag, changelog }) {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const [repo, tag, changelogFile, out] = process.argv.slice(2);
-  if (!out) throw new Error("usage: release-notes.mjs <owner/repo> <tag> <changelog.md> <out.md>");
-  writeFileSync(out, releaseNotes({ repo, tag, changelog: readFileSync(changelogFile, "utf8") }));
+  if (!out)
+    throw new Error(
+      "usage: release-notes.mjs <owner/repo> <tag> <changelog.md> <out.md>",
+    );
+  writeFileSync(
+    out,
+    releaseNotes({ repo, tag, changelog: readFileSync(changelogFile, "utf8") }),
+  );
 }
