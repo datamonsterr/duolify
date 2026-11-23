@@ -1,3 +1,4 @@
+import { PlayerCompanion } from "../../components/mascot";
 import { invalidateCourseProgress } from "../../lib/courseQueries";
 import { NarrationControl } from "../narration/NarrationControl";
 import { SegmentNarration } from "../narration/SegmentNarration";
@@ -1513,6 +1514,7 @@ function SlidePlayback({
           Exit lesson
         </Link>
         <span>Course · Lesson</span>
+        <PlayerCompanion immersive={immersive} />
       </header>
       <h1>{manifest.title}</h1>
       <div

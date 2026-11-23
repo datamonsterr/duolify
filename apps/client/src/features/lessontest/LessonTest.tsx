@@ -12,6 +12,11 @@ import { useLessonTestTracerEnabled } from "../../lib/features";
 import { CharacterReaction } from "../characters/CharacterReaction";
 import type { LessonCastSnapshot } from "../characters/types";
 import { AppLink, navigateTo } from "../../lib/navigation";
+import {
+  Mascot,
+  emitMascotCue,
+  useMascotAppearance,
+} from "../../components/mascot";
 
 export interface QuestionItem {
   question_id: string;
@@ -169,6 +174,7 @@ export function LessonTest({
   const [pendingOffline, setPendingOffline] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const appearance = useMascotAppearance();
   const [finished, setFinished] = useState(passed);
   const [resolvedTopics, setResolvedTopics] = useState(
     initialResolvedTopics ?? 0,
@@ -250,6 +256,7 @@ export function LessonTest({
           setFeedback(result);
           setFinished(true);
           invalidateCourseProgress();
+          emitMascotCue("celebrate");
           onPass();
           break;
         }
@@ -381,6 +388,7 @@ export function LessonTest({
       setFinished(true);
       triggerFeedbackCue("completion");
       invalidateCourseProgress();
+      emitMascotCue("celebrate");
       onPass();
       return;
     }
@@ -455,32 +463,13 @@ export function LessonTest({
           gap: "16px",
         }}
       >
-        <div
-          aria-hidden="true"
-          style={{
-            width: "120px",
-            height: "120px",
-            borderRadius: "50%",
-            background: "#FFF1D1",
-            color: "#704400",
-            boxShadow: "0 8px 0 #F1CD99",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ width: "60px", height: "60px" }}
-          >
-            <path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01" />
-          </svg>
-        </div>
+        <Mascot
+          state="sleepy"
+          size={120}
+          appearance={appearance}
+          offline
+          labelled
+        />
 
         <h2
           style={{
@@ -614,32 +603,7 @@ export function LessonTest({
           gap: "16px",
         }}
       >
-        <div
-          aria-hidden="true"
-          style={{
-            width: "120px",
-            height: "120px",
-            borderRadius: "50%",
-            background: "#1F7A0D",
-            boxShadow: "0 8px 0 #145208",
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ width: "64px", height: "64px" }}
-          >
-            <path d="M5 12.5l4.5 4.5L19 7.5" />
-          </svg>
-        </div>
+        <Mascot state="celebrate" size={140} appearance={appearance} labelled />
 
         <h2
           style={{

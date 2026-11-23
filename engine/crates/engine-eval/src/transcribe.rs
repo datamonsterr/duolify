@@ -273,6 +273,8 @@ impl LlmProvider for Recorded {
             language: step["language"].as_str().unwrap_or_default().into(),
             seconds: step["seconds"].as_f64().unwrap_or_default(),
             cost_nanos: step["cost_nanos"].as_u64().unwrap_or_default(),
+            cost_reported: step["cost_nanos"].is_u64(),
+            confidence: step["confidence"].as_f64(),
             model: model.into(),
         })
     }
@@ -295,7 +297,21 @@ pub async fn recorded(input: &Value) -> Result<Scored> {
         })
     };
     let router = ProviderRouter::new(provider("primary"), provider("fallback"))?;
-    let audio = vec![1u8; input["audio_bytes"].as_u64().unwrap_or(2048) as usize];
+    let len = input["audio_bytes"].as_u64().unwrap_or(2048) as usize;
+    // Constant bytes stand in for quiet audio; `audio_kind: "speech"` for a recording with sound.
+    let audio = if input["audio_kind"] == "speech" {
+        let mut x = 0x9E37_79B9_7F4A_7C15u64;
+        (0..len)
+            .map(|_| {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                (x >> 24) as u8
+            })
+            .collect()
+    } else {
+        vec![1u8; len]
+    };
     let outcome = stt::transcribe(&router, &recording(input, &audio)).await;
     Ok(score(input, &outcome, calls.load(Ordering::SeqCst)))
 }

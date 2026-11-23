@@ -149,6 +149,7 @@ mod tests {
             passed: true,
             critical_failure: false,
             dataset_cases: 1,
+            preview_output_limit: None,
             task_reports,
             results: vec![CaseResult {
                 id: "case-1".into(),

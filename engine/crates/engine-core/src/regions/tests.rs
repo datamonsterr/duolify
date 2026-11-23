@@ -233,7 +233,8 @@ fn box_overlap_is_intersection_over_the_smaller_box() {
 fn layout_pins_each_region_element_to_its_slot_and_passes_the_static_check() {
     let regions = slide_regions(&valid()).unwrap();
     let html = layout(HTML, &regions);
-    assert!(html.starts_with(HTML));
+    assert!(html.ends_with(HTML));
+    assert!(html.starts_with("<style data-duolify-regions>"));
     assert!(
         html.contains(r#"#root#root [data-slot="top"]{position:fixed!important;left:5%!important;top:4%!important;width:90%!important;height:18%!important"#),
         "{html}"
@@ -285,4 +286,14 @@ fn prompt_and_schema_name_every_slot_and_role() {
     for role in ROLES {
         assert!(!config().emit || shape.contains(role));
     }
+}
+
+#[test]
+fn a_window_that_overflows_u32_is_rejected_not_truncated() {
+    let html = r#"<div id="root"><p data-slot="top">A</p></div>"#;
+    let big = (1u64 << 32) + 3000;
+    let mut s = slide(html, json!([timed("top", 2000, big)]));
+    s["duration_ms"] = json!(big);
+    let e = slide_regions(&s).unwrap_err();
+    assert!(e.contains("start_ms and end_ms"), "{e}");
 }

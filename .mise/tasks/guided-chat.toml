@@ -6,7 +6,7 @@ run = "pnpm exec prettier --write src/features/design/chat src/features/design/s
 ["client:test-guided"]
 description = "Run focused guided-chat unit and integration tests"
 dir = "{{config_root}}/apps/client"
-run = "pnpm exec vitest run share_accessible_forms_feedback_and_sheets"
+run = "pnpm exec vitest run share_accessible_forms_feedback_and_sheets src/features/guided-chat"
 
 ["client:e2e-guided"]
 description = "Run authored guided-chat fixtures without an API dependency"

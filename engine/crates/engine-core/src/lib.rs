@@ -275,6 +275,8 @@ impl LlmProvider for MockProvider {
             language: language.unwrap_or("en").into(),
             seconds: audio.len() as f64 * 8.0 / 32_000.0,
             cost_nanos: 0,
+            cost_reported: true,
+            confidence: None,
             model: model.into(),
         })
     }
