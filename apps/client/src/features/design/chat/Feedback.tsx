@@ -64,12 +64,12 @@ export function Feedback({
       className={`guided-feedback ${tone}`}
       role={blocking ? "alert" : "status"}
     >
-      <div className="guided-step-label">
+      <strong>
+        {title}{" "}
         <span aria-hidden="true" data-icon={tone}>
           {toneGlyph[tone]}
         </span>
-        <strong>{title}</strong>
-      </div>
+      </strong>
       {children && <div>{children}</div>}
       {action && (
         <Button variant="quiet" onClick={onAction}>
