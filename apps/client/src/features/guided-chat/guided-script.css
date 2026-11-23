@@ -41,9 +41,9 @@
 .gc-in {
   animation: gc-in var(--duration-normal) var(--ease-standard);
 }
+/* Motion only: fading would make the bubble fail contrast checks mid-animation. */
 @keyframes gc-in {
   from {
-    opacity: 0;
     transform: translateY(var(--space-2));
   }
 }
