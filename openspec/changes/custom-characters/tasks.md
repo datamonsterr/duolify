@@ -4,7 +4,7 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 
 - [x] 1.1 E2E first: allowed prompt produces a private previewable Character; regeneration changes only future uses; retries produce one Character and one charge. _Done: apps/client/e2e/characters-e17-01.spec.ts._
 - [x] 1.2 E2E: unapproved pricing key, insufficient Credits, unsafe/IP/real-person/sexual prompts, quota exhaustion and provider failure leave no new Character/spend and offer the Default cast appropriately. _Done: characters-e17-02-pricing.spec.ts, characters-e17-04.spec.ts._
-- [ ] 1.3 Integration (open: the 20 manual edits/hour and 2 creates/minute limits are being implemented by a separate in-flight PR; tick when it merges with tests): ownership, atomic count/rate limits, idempotent jobs, immutable versions, reservation/settlement/release, pricing flip during a job and failure preserving the prior version.
+- [x] 1.3 Integration (verified in code 2026-11-23: 20 edits/hour in `library.go` beginAttempt, 2 creates/minute and 5/day in `creation.go` QuoteCreate, both tested in `TestPrivateCharactersVersionsQuotasAndCast` and the quoted-create integration test; the windowed 429s now carry `Retry-After`, the count cap does not): ownership, atomic count/rate limits, idempotent jobs, immutable versions, reservation/settlement/release, pricing flip during a job and failure preserving the prior version.
 - [x] 1.4 Integration: input/output screening fails closed; raw job prompts expire within 24 hours; model retries/fallback stay within time, token and provider-cost ceilings. _Done: create_and_regenerate_a_quoted_private_character_integration_test.go._
 - [x] 1.5 Unit: closed CharacterSpec schema, required fields, bounds, enums, cross-field checks, version compatibility and deterministic rejection reason codes. _Done: schema/v1.json, create_and_regenerate_a_quoted_private_character_test.go._
 - [x] 1.6 Unit: persona serialization/delimiter escaping, instruction hierarchy and no provider IDs, markup or URLs in specs; success/failure analytics emitters contain no content. _Done: create_and_regenerate_a_quoted_private_character_test.go._
@@ -77,10 +77,10 @@ Sections 1-6 track E17-01..09 (v1 rig), largely delivered and verified against c
 
 ## 7. Attribute catalog and schema v2 (not blocked; M)
 
-- [ ] 7.1 Unit first: closed `schema/v2.json` (discriminated by `body.kind`), versioned attribute catalog, cross-field rules (kind-compatible parts, age-band clothing minimums, contrast, size caps), reason codes; table-driven valid/invalid fixtures shared by Go, TypeScript and Rust.
-- [ ] 7.2 Unit first: pure v1 to v2 upgrader with golden pairs for every v1 body shape, eye, mouth and accessory; unknown future `schema_version` or catalog id degrades to a safe default render and refuses writes.
-- [ ] 7.3 Integration: stored v1 versions stay immutable and readable; the first edit of a v1 Character writes a v2 version; compare-and-swap, quotas and screening unchanged.
-- [ ] 7.4 Implement validators in API, Engine and client from the one schema file; no behavior change behind the flag.
+- [x] 7.1 _Done: schema/v2.json, spec_v2.go, schema-v2.ts, 46 shared cases in schema/v2.fixtures.json run by Go and Vitest; the Rust validator joins in group 9._ Unit first: closed `schema/v2.json` (discriminated by `body.kind`), versioned attribute catalog, cross-field rules (kind-compatible parts, age-band clothing minimums, contrast, size caps), reason codes; table-driven valid/invalid fixtures shared by Go, TypeScript and Rust.
+- [x] 7.2 _Done: upgrade.go, upgrade.ts, schema/v1-to-v2.golden.json; all 297 v1 shape x eye x mouth x accessory combinations upgrade to valid v2._ Unit first: pure v1 to v2 upgrader with golden pairs for every v1 body shape, eye, mouth and accessory; unknown future `schema_version` or catalog id degrades to a safe default render and refuses writes.
+- [ ] 7.3 (read half done: ReadSpec resolves v1 and degrades unknown versions; the write half needs the v2 compiler from 8.2) Integration: stored v1 versions stay immutable and readable; the first edit of a v1 Character writes a v2 version; compare-and-swap, quotas and screening unchanged.
+- [ ] 7.4 (API and client done, nothing wired to a route yet; Engine validator ships with group 9, which already edits the engine) Implement validators in API, Engine and client from the one schema file; no behavior change behind the flag.
 
 ## 8. Rig v2: avatar, full body, poses (size L; final art blocked on #40)
 
