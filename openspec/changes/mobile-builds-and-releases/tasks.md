@@ -5,4 +5,4 @@
 - [x] Build and test both mobile platforms in advisory CI, including Android full-stack sign-in, landscape playback and screenshot artifacts.
 - [x] Validate OpenSpec and record the decision in an ADR.
 - [x] Add version preparation, changelog, verified Android signing and simulator release assets, checksums and QR codes.
-- [ ] Run a signed release dry run, merge the release pipeline and publish version 0.2.0.
+- [x] Run a signed release dry run, merge the release pipeline and publish version 0.2.0.
