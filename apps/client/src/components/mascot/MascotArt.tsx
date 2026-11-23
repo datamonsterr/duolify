@@ -37,7 +37,7 @@ const VIEW = { full: "-10 -4 220 222", bust: "20 0 160 152" } as const;
 const RATIO = { full: 222 / 220, bust: 152 / 160 } as const;
 
 const Eyes = ({ s }: { s: MascotState }) => {
-  const arcs = s === "happy" || s === "celebrate";
+  const arcs = s === "celebrate";
   if (arcs)
     return (
       <>
@@ -57,7 +57,9 @@ const Eyes = ({ s }: { s: MascotState }) => {
       ? [19, 30, 67, 19, 30, 67]
       : s === "confused"
         ? [17, 17, 76, 19, 30, 66]
-        : [17, 26, 70, 17, 26, 70];
+        : s === "happy"
+          ? [18, 20, 74, 18, 20, 74]
+          : [17, 26, 70, 17, 26, 70];
   const lx = 78.5 - lw / 2,
     rx = 121.5 - rw / 2;
   return (
@@ -82,7 +84,7 @@ const Mouth = ({
   if (s === "talking")
     return (
       <g ref={r} className={`m-mouth m-fill${loop ? " m-loop" : ""}`}>
-        <rect x="92" y="101" width="16" height="13" rx="6.5" />
+        <rect x="89" y="99" width="22" height="17" rx="8.5" />
       </g>
     );
   if (s === "celebrate")
@@ -126,6 +128,13 @@ const Glyph = ({ s }: { s: MascotState }) => {
         <path d="M148 34 q0 -12 11 -12 q11 0 11 9 q0 6 -11 10 v5" />
         <circle className="m-acc" cx="159" cy="55" r="3.2" />
       </g>
+    );
+  if (s === "happy")
+    return (
+      <path
+        className="m-acc m-spark"
+        d="M152 20 q2 12 12 14 q-10 2 -12 14 q-2 -12 -12 -14 q10 -2 12 -14z"
+      />
     );
   if (s === "sleepy")
     return (
@@ -171,11 +180,11 @@ const Confetti = () => (
 );
 
 const Offline = () => (
-  <g transform="translate(160 22)">
-    <circle r="15" className="m-badge" />
-    <path className="m-sig" d="M-8 -3 q8 -7 16 0 M-4 2 q4 -3.500 8 0" />
-    <circle className="m-sigdot" cy="7" r="1.8" />
-    <path className="m-slash" d="M-9 -9 L9 9" />
+  <g transform="translate(158 24)">
+    <circle r="21" className="m-badge" />
+    <path className="m-sig" d="M-11 -4 q11 -10 22 0 M-5.5 3 q5.5 -5 11 0" />
+    <circle className="m-sigdot" cy="10" r="2.6" />
+    <path className="m-slash" d="M-13 -13 L13 13" />
   </g>
 );
 
