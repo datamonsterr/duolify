@@ -1,3 +1,9 @@
+import {
+  MascotAvatar,
+  useActivity,
+  useMascotAppearance,
+  useMascotState,
+} from "../../../components/mascot";
 import { useUiPreferences } from "../localization/Preferences";
 import {
   useEffect,
@@ -54,6 +60,15 @@ export function GuidedChat({
 }: GuidedChatProps) {
   const { t } = useUiPreferences();
   const inputId = useId();
+  const mascotAppearance = useMascotAppearance();
+  const [typing, pingTyping] = useActivity();
+  const { state: mascotState } = useMascotState({
+    offline: state === "offline",
+    error: state === "error",
+    waiting: state === "loading",
+    streaming: messages.some((m) => m.status === "streaming"),
+    listening: typing || draft !== "",
+  });
   const composer = useRef<HTMLTextAreaElement>(null);
   const log = useRef<HTMLDivElement>(null);
   const announced = useRef(announcedMessageIds ?? new Set<string>());
@@ -96,6 +111,13 @@ export function GuidedChat({
   return (
     <section className="guided-chat" aria-label={t("chat.title")}>
       <div className="guided-chat-header">
+        <MascotAvatar
+          size={40}
+          state={mascotState}
+          chunk={messages[messages.length - 1]?.text.length}
+          offline={state === "offline"}
+          appearance={mascotAppearance}
+        />
         {step && (
           <>
             <Badge role="info">
@@ -231,7 +253,10 @@ export function GuidedChat({
           rows={2}
           dir="auto"
           value={draft}
-          onChange={(event) => onDraftChange(event.target.value)}
+          onChange={(event) => {
+            pingTyping();
+            onDraftChange(event.target.value);
+          }}
         />
         <Button
           type="submit"

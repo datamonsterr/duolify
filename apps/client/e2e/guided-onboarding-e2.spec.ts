@@ -9,6 +9,7 @@ const send = (page: Page) =>
 
 for (const [width, height] of [
   [390, 844],
+  [844, 390],
   [1280, 800],
 ] as const) {
   test(`onboarding as a chat at ${width}px: pointer path, resume, edit, no form`, async ({
@@ -21,11 +22,10 @@ for (const [width, height] of [
     ).toBeVisible();
     // No multi-field form: exactly one widget at a time.
     await expect(page.locator(".gc-widget")).toHaveCount(1);
+    await page.waitForTimeout(1500); // bubble animation and mascot chunk settle
     await page.screenshot({ path: info.outputPath(`${width}-goal.png`) });
-    await page.getByRole("radio", { name: "For fun" }).check();
-    await send(page);
-    await page.getByRole("radio", { name: "Some" }).check();
-    await send(page);
+    await page.getByRole("radio", { name: "For fun" }).click();
+    await page.getByRole("radio", { name: "Some" }).click();
     // Reload mid-chat resumes with the three answers' bubbles.
     await page.reload();
     await expect(
@@ -36,16 +36,14 @@ for (const [width, height] of [
     ).toBeVisible();
     await page.getByRole("button", { name: "More" }).click();
     await send(page);
-    await page.getByRole("radio", { name: "Yes" }).check();
-    await send(page);
+    await page.getByRole("radio", { name: "Yes" }).click();
     await page.getByLabel("What time?").fill("08:30");
     await send(page);
     await expect(page.getByText("Save these?").first()).toBeVisible();
     await page.screenshot({ path: info.outputPath(`${width}-confirm.png`) });
     // Edit a bubble, then confirm.
     await page.getByRole("button", { name: "Change answer: Some" }).click();
-    await page.getByRole("radio", { name: "Expert" }).check();
-    await send(page);
+    await page.getByRole("radio", { name: "Expert" }).click();
     await page.getByRole("button", { name: "Confirm" }).click();
     await expect(page.getByText("Setup complete")).toBeVisible();
     await page.goto("/profile");
@@ -75,9 +73,9 @@ test("offline: answers stay and the guide says so", async ({
   context,
 }) => {
   await page.goto("/profile/setup");
-  await page.getByRole("radio", { name: "For fun" }).check();
+  await expect(page.getByRole("radio", { name: "For fun" })).toBeVisible();
   await context.setOffline(true);
-  await send(page);
+  await page.getByRole("radio", { name: "For fun" }).click();
   await expect(
     page.getByRole("button", { name: "Change answer: For fun" }),
   ).toBeVisible();

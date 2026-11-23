@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Button } from "../design/Button";
+import { MascotAvatar, useMascotState } from "../../components/mascot";
 import { Feedback } from "../design/chat/Feedback";
 import { useUiPreferences } from "../design/localization/Preferences";
 import type { MessageId } from "../design/localization/messages";
@@ -19,11 +20,10 @@ import {
   walk,
 } from "./engine";
 import type { Draft, GuidedState } from "./engine";
-import { MascotAvatar } from "./MascotAvatar";
 import { createLimiter, noAiRouter, prefilter } from "./routing";
 import type { IntentRouter } from "./routing";
 import type { Answer, GuidedScript, Step, Value } from "./types";
-import { StepWidget } from "./widgets/StepWidget";
+import { IconSubmit, StepWidget } from "./widgets/StepWidget";
 import "../design/chat/guided-chat.css";
 import "./guided-script.css";
 
@@ -101,9 +101,18 @@ export function GuidedScriptChat({
   const log = useRef<HTMLDivElement>(null);
   const announced = useRef(new Set<string>());
   const widgetBox = useRef<HTMLDivElement>(null);
-  const end = useRef<HTMLDivElement>(null);
+  const dock = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
   const submitted = useRef(false);
+
+  const [focused, setFocused] = useState(false);
+  const [talking, setTalking] = useState(false);
+  const mascot = useMascotState({
+    listening: focused,
+    streaming: talking,
+    offline: !online && needsNetwork,
+    error: status === "failed",
+  });
 
   const now = current(script, state);
   const step = now ? stepById(script, now) : undefined;
@@ -156,8 +165,27 @@ export function GuidedScriptChat({
       box?.querySelector<HTMLElement>("[data-autofocus]") ??
       box?.querySelector<HTMLElement>("input, textarea, button");
     target?.focus({ preventScroll: reducedMotion });
-    if (!reducedMotion) end.current?.scrollIntoView?.({ block: "nearest" });
+    // Keep the newest bubble above the sticky dock: scroll the page container to its end.
+    const scroller = widgetBox.current?.closest<HTMLElement>(".app-main");
+    if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    else dock.current?.scrollIntoView?.({ block: "end" });
   }, [now, state.editing, reducedMotion]);
+
+  // The guide talks briefly when a new question appears; reduced motion keeps it still.
+  useEffect(() => {
+    if (!now || reducedMotion) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTalking(true);
+    const id = setTimeout(() => setTalking(false), 900);
+    return () => clearTimeout(id);
+  }, [now, reducedMotion]);
+  const cueRef = useRef(mascot.cue);
+  useEffect(() => {
+    cueRef.current = mascot.cue;
+  });
+  useEffect(() => {
+    if (status === "done") cueRef.current("celebrate");
+  }, [status]);
 
   // Final submit once, after the confirm card is answered.
   useEffect(() => {
@@ -296,10 +324,16 @@ export function GuidedScriptChat({
     step &&
     step.widget !== "confirm" &&
     step.widget !== "file" &&
-    // A text step is already a typing box; a second one would be a form in disguise.
-    step.widget !== "text" &&
-    step.widget !== "longtext" &&
-    !["email", "code", "password"].includes(step.widget) &&
+    [
+      "single",
+      "chips+text",
+      "multi",
+      "toggle",
+      "rating",
+      "time",
+      "date",
+      "number",
+    ].includes(step.widget) &&
     !limited &&
     status !== "done";
   const summary =
@@ -314,7 +348,7 @@ export function GuidedScriptChat({
 
   return (
     <section
-      className="guided-chat gc"
+      className="gc"
       aria-label={t("guided.title")}
       data-script={script.id}
     >
@@ -332,9 +366,9 @@ export function GuidedScriptChat({
         aria-live="off"
       >
         {notes.map((n) => (
-          <div className="guided-message assistant" key={n.id}>
+          <div className="guided-message assistant gc-in" key={n.id}>
             <div className="gc-row">
-              <MascotAvatar />
+              <span className="gc-avatar-gap" aria-hidden="true" />
               <div className="guided-bubble" dir="auto">
                 {n.text}
               </div>
@@ -351,7 +385,7 @@ export function GuidedScriptChat({
               <div key={id} className="gc-pair">
                 <div className="guided-message assistant">
                   <div className="gc-row">
-                    <MascotAvatar />
+                    <span className="gc-avatar-gap" aria-hidden="true" />
                     <div className="guided-bubble" dir="auto">
                       {label(s.promptKey)}
                     </div>
@@ -375,9 +409,9 @@ export function GuidedScriptChat({
             );
           })}
         {step && (
-          <div className="guided-message assistant">
+          <div className="guided-message assistant gc-in">
             <div className="gc-row">
-              <MascotAvatar />
+              <MascotAvatar size={32} state={mascot.state} />
               <div className="guided-bubble" dir="auto" id={promptId(step.id)}>
                 {label(step.promptKey)}
                 {isLast && step.widget !== "confirm"
@@ -391,16 +425,15 @@ export function GuidedScriptChat({
           <p className="field-hint">{label("guided.done")}</p>
         )}
         {status === "done" && (
-          <div className="guided-message assistant">
+          <div className="guided-message assistant gc-in">
             <div className="gc-row">
-              <MascotAvatar />
+              <MascotAvatar size={32} state={mascot.state} />
               <div className="guided-bubble" role="status">
                 {label("guided.submitted")}
               </div>
             </div>
           </div>
         )}
-        <div ref={end} />
       </div>
       <div
         ref={log}
@@ -410,102 +443,110 @@ export function GuidedScriptChat({
         aria-live="polite"
         aria-relevant="additions"
       />
-      {!online && needsNetwork && (
-        <Feedback tone="warning" title={t("guided.offline")}>
-          {t("guided.offline_keep")}
-        </Feedback>
-      )}
-      {status === "failed" && (
-        <Feedback
-          tone="danger"
-          title={t("guided.submit_failed")}
-          action={t("guided.retry")}
-          onAction={() => setStatus("idle")}
-        />
-      )}
-      {step && status !== "done" && (
-        <div ref={widgetBox} className="gc-slot">
-          <StepWidget
-            key={`${step.id}:${state.editing ?? ""}:${Object.keys(state.answers).length}`}
-            step={step}
-            promptId={promptId(step.id)}
-            initial={state.answers[step.id]?.value ?? undefined}
-            error={error}
-            editing={state.editing === step.id}
-            summary={summary}
-            disabled={status === "sending"}
-            onSubmit={submitValue}
-            onSkip={doSkip}
-            onCancel={
-              step.destructive
-                ? (onCancel ?? (() => setState(back(script, state))))
-                : state.editing === step.id
-                  ? () => setState(cancelEdit(state))
-                  : undefined
-            }
+      <div
+        ref={dock}
+        className="gc-dock"
+        onFocus={() => setFocused(true)}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+            setFocused(false);
+        }}
+      >
+        {!online && needsNetwork && (
+          <Feedback tone="warning" title={t("guided.offline")}>
+            {t("guided.offline_keep")}
+          </Feedback>
+        )}
+        {status === "failed" && (
+          <Feedback
+            tone="danger"
+            title={t("guided.submit_failed")}
+            action={t("guided.retry")}
+            onAction={() => setStatus("idle")}
           />
-        </div>
-      )}
-      {fallback && step && fallback.stepId === step.id && (
-        <div
-          className="gc-fallback"
-          role="group"
-          aria-label={t("guided.not_clear")}
-        >
-          <p>{t("guided.not_clear")}</p>
-          <div className="gc-actions">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                const parsed = prefilter(step, fallback.text, label);
-                if (parsed.kind === "answer") submitValue(parsed.value);
-                else submitValue(fallback.text);
-                setFallback(null);
-              }}
-            >
-              {t("guided.use_answer")}
-            </Button>
-            {router !== noAiRouter && (
-              <Button variant="secondary" onClick={() => setFallback(null)}>
-                {t("guided.ask_guide")}
-              </Button>
-            )}
-            {step.skippable && (
+        )}
+        {step && status !== "done" && (
+          <div ref={widgetBox} className="gc-slot">
+            <StepWidget
+              key={`${step.id}:${state.editing ?? ""}:${Object.keys(state.answers).length}`}
+              step={step}
+              promptId={promptId(step.id)}
+              initial={state.answers[step.id]?.value ?? undefined}
+              error={error}
+              editing={state.editing === step.id}
+              summary={summary}
+              disabled={status === "sending"}
+              onSubmit={submitValue}
+              onSkip={doSkip}
+              onCancel={
+                step.destructive
+                  ? (onCancel ?? (() => setState(back(script, state))))
+                  : state.editing === step.id
+                    ? () => setState(cancelEdit(state))
+                    : undefined
+              }
+            />
+          </div>
+        )}
+        {fallback && step && fallback.stepId === step.id && (
+          <div
+            className="gc-fallback"
+            role="group"
+            aria-label={t("guided.not_clear")}
+          >
+            <p>{t("guided.not_clear")}</p>
+            <div className="gc-actions">
               <Button
-                variant="quiet"
+                variant="secondary"
                 onClick={() => {
+                  const parsed = prefilter(step, fallback.text, label);
+                  if (parsed.kind === "answer") submitValue(parsed.value);
+                  else submitValue(fallback.text);
                   setFallback(null);
-                  doSkip();
                 }}
               >
-                {t("guided.skip")}
+                {t("guided.use_answer")}
               </Button>
-            )}
+              {router !== noAiRouter && (
+                <Button variant="secondary" onClick={() => setFallback(null)}>
+                  {t("guided.ask_guide")}
+                </Button>
+              )}
+              {step.skippable && (
+                <Button
+                  variant="quiet"
+                  onClick={() => {
+                    setFallback(null);
+                    doSkip();
+                  }}
+                >
+                  {t("guided.skip")}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-      {limited && <p className="field-hint">{t("guided.limit")}</p>}
-      {showComposer && (
-        <form className="guided-composer gc-composer" onSubmit={sendTyped}>
-          <label className="guided-sr-only" htmlFor={`${uid}-free`}>
-            {t("guided.type_instead")}
-          </label>
-          <div className="gc-composer-row">
-            <input
-              id={`${uid}-free`}
-              type="text"
-              dir="auto"
-              autoComplete="off"
-              placeholder={t("guided.type_instead")}
-              value={typed}
-              onChange={(e) => setTyped(e.target.value)}
-            />
-            <Button type="submit" variant="secondary" disabled={!typed.trim()}>
-              {t("guided.send")}
-            </Button>
-          </div>
-        </form>
-      )}
+        )}
+        {limited && <p className="field-hint">{t("guided.limit")}</p>}
+        {showComposer && (
+          <form className="guided-composer gc-composer" onSubmit={sendTyped}>
+            <label className="guided-sr-only" htmlFor={`${uid}-free`}>
+              {t("guided.type_instead")}
+            </label>
+            <div className="gc-composer-row">
+              <input
+                id={`${uid}-free`}
+                type="text"
+                dir="auto"
+                autoComplete="off"
+                placeholder={t("guided.type_instead")}
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+              />
+              {typed.trim() && <IconSubmit label={t("guided.send")} />}
+            </div>
+          </form>
+        )}
+      </div>
     </section>
   );
 }

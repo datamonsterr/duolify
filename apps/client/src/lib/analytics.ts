@@ -541,6 +541,40 @@ export function trackSessionRecovery() {
 }
 
 // E13-04 & E13-06 catalogue: design-system/spec.md.
+type MascotEvent =
+  | {
+      event: "mascot_customized";
+      mode: "default" | "character";
+      fields_changed: string;
+    }
+  | { event: "mascot_companion_toggled"; visible: boolean }
+  | {
+      event: "mascot_state_fallback";
+      reason: "art_failed" | "character_unavailable";
+    };
+const MASCOT_FIELDS = ["palette", "accessories", "character"];
+/** Content-free mascot events; `fields_changed` is a comma list of field names only. */
+export function trackMascot(e: MascotEvent) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  if (
+    e.event === "mascot_customized" &&
+    !e.fields_changed.split(",").every((f) => MASCOT_FIELDS.includes(f))
+  )
+    return;
+  try {
+    const { event, ...properties } = e;
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture(event, {
+        ...properties,
+        distinct_id: identity.learnerId,
+        platform: identity.platform,
+        app_version: identity.appVersion ?? appVersion,
+        source: "client",
+      });
+  } catch {
+    /* Preference changes never depend on telemetry. */
+  }
+}
 function trackSettings(
   event: "ui_appearance_changed" | "ui_control_activated",
   properties:

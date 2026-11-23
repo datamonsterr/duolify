@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "rigs": ["robot-v1"],
+  "states": [
+    "idle",
+    "listening",
+    "thinking",
+    "talking",
+    "happy",
+    "celebrate",
+    "confused",
+    "sleepy"
+  ],
+  "swatches": {
+    "teal": {
+      "body": "#1A9B82",
+      "bodyEdge": "#147A66",
+      "trim": "#0F5D4E",
+      "eye": "#DDF8F0"
+    },
+    "blue": {
+      "body": "#2F8FE8",
+      "bodyEdge": "#2271BD",
+      "trim": "#1A5490",
+      "eye": "#DDF1FF"
+    },
+    "violet": {
+      "body": "#8B5CF6",
+      "bodyEdge": "#6D41D1",
+      "trim": "#52309F",
+      "eye": "#F0E7FF"
+    },
+    "rose": {
+      "body": "#E5484D",
+      "bodyEdge": "#B93337",
+      "trim": "#8C2427",
+      "eye": "#FFE6E4"
+    },
+    "orange": {
+      "body": "#D96A08",
+      "bodyEdge": "#AE5506",
+      "trim": "#824004",
+      "eye": "#FFEBD6"
+    },
+    "pink": {
+      "body": "#D6409F",
+      "bodyEdge": "#AB3180",
+      "trim": "#7F2360",
+      "eye": "#FFE3F3"
+    }
+  },
+  "visor": ["#0E2606"],
+  "accent": ["#FFC233"],
+  "accessories": ["headphones", "bowtie", "sprout", "scarf", "badge"],
+  "maxAccessories": 2,
+  "canvases": ["#F7F9F4", "#131F24"],
+  "minContrast": 3,
+  "characterStateMap": {
+    "idle": { "pose": "idle", "expression": "idle" },
+    "listening": { "pose": "idle", "expression": "idle" },
+    "thinking": { "pose": "think", "expression": "thinking" },
+    "talking": { "pose": "talk", "expression": "idle" },
+    "happy": { "pose": "wave", "expression": "happy" },
+    "celebrate": { "pose": "celebrate", "expression": "celebrate" },
+    "confused": { "pose": "shrug", "expression": "confused" },
+    "sleepy": { "pose": "idle", "expression": "idle" }
+  }
+}

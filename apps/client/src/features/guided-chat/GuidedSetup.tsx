@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from "react";
-import { Button } from "../design/Button";
 import { useUiPreferences } from "../design/localization/Preferences";
 import type { MessageId } from "../design/localization/messages";
 import type {
@@ -50,7 +49,9 @@ export function GuidedSetup({
     async (answers: Record<string, Value>) => {
       setFailed(false);
       try {
-        await onCommit("save", answersToFields(answers, label, goalOptions));
+        if (Object.keys(answers).length === 0) await onCommit("skip", {});
+        else
+          await onCommit("save", answersToFields(answers, label, goalOptions));
         await clear();
       } catch (error) {
         setFailed(true);
@@ -89,17 +90,6 @@ export function GuidedSetup({
           {t("g.setup.error")}
         </p>
       )}
-      <Button
-        variant="quiet"
-        onClick={() => {
-          void onCommit("skip", {}).then(async () => {
-            await clear();
-            setDone(true);
-          });
-        }}
-      >
-        {t("g.setup.skip")}
-      </Button>
     </div>
   );
 }
