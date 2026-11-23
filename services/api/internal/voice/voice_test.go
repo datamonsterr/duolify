@@ -314,7 +314,7 @@ func TestRateLimitAndDailyCap(t *testing.T) {
 	}
 }
 
-func TestEngineFailuresAreTypedAndRefundTheDay(t *testing.T) {
+func TestEngineFailuresAreTypedAndOnlyPreProviderOnesRefundTheDay(t *testing.T) {
 	info := func(domain, reason string, code codes.Code) error {
 		st, err := status.New(code, reason).WithDetails(&errdetails.ErrorInfo{Reason: reason, Domain: domain})
 		if err != nil {
@@ -328,14 +328,15 @@ func TestEngineFailuresAreTypedAndRefundTheDay(t *testing.T) {
 		status int
 		code   string
 		class  string
+		refund bool
 	}{
-		{"both models failed", info(transcribeDomain, "transcribe_failed", codes.Unavailable), 502, "voice_failed", "voice_failed"},
-		{"timeouts", info(transcribeDomain, "transcribe_timeout", codes.Unavailable), 502, "voice_failed", "voice_timeout"},
-		{"cost ceiling", info(transcribeDomain, "transcribe_cost_ceiling", codes.Unavailable), 502, "voice_failed", "voice_cost_ceiling"},
-		{"not promoted", info("engine.duolify", "promotion_evidence_missing", codes.Unavailable), 503, "voice_unavailable", "voice_unavailable"},
-		{"engine rejects the audio", info(transcribeDomain, "invalid_audio", codes.InvalidArgument), 400, "voice_invalid", "voice_invalid"},
-		{"engine unreachable", status.Error(codes.Unavailable, "connection refused"), 502, "voice_failed", "voice_failed"},
-		{"deadline", context.DeadlineExceeded, 502, "voice_failed", "voice_timeout"},
+		{"both models failed", info(transcribeDomain, "transcribe_failed", codes.Unavailable), 502, "voice_failed", "voice_failed", false},
+		{"timeouts", info(transcribeDomain, "transcribe_timeout", codes.Unavailable), 502, "voice_failed", "voice_timeout", false},
+		{"cost ceiling", info(transcribeDomain, "transcribe_cost_ceiling", codes.Unavailable), 502, "voice_failed", "voice_cost_ceiling", false},
+		{"not promoted", info("engine.duolify", "promotion_evidence_missing", codes.Unavailable), 503, "voice_unavailable", "voice_unavailable", true},
+		{"engine rejects the audio", info(transcribeDomain, "invalid_audio", codes.InvalidArgument), 400, "voice_invalid", "voice_invalid", true},
+		{"engine unreachable", status.Error(codes.Unavailable, "connection refused"), 502, "voice_failed", "voice_failed", false},
+		{"deadline", context.DeadlineExceeded, 502, "voice_failed", "voice_timeout", false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -345,8 +346,12 @@ func TestEngineFailuresAreTypedAndRefundTheDay(t *testing.T) {
 			if rec.Code != c.status || errorCode(t, rec) != c.code {
 				t.Fatalf("%d %s", rec.Code, rec.Body)
 			}
-			if got := r.counters.n["voice:day:"+learner+":20261123"]; got != 0 {
-				t.Fatalf("a failed request spent the daily cap: %d", got)
+			want := int64(1)
+			if c.refund {
+				want = 0
+			}
+			if got := r.counters.n["voice:day:"+learner+":20261123"]; got != want {
+				t.Fatalf("daily cap used %d, want %d", got, want)
 			}
 			last := r.events.got[len(r.events.got)-1]
 			if last.name != "$ai_generation" || last.props["error_code"] != c.class || last.props["succeeded"] != false {
@@ -430,5 +435,45 @@ func TestNoTempFilesAreCreated(t *testing.T) {
 	entries, err := readDir(tmp)
 	if err != nil || len(entries) != 0 {
 		t.Fatalf("temp dir holds %v (%v)", entries, err)
+	}
+}
+
+func TestOverPolicyAnswerKeepsTheDailySlot(t *testing.T) {
+	r := newRig(t)
+	r.engine.reply.CostNanos = 600_000
+	if rec := r.post(t, good(webmStream(2000), 2000)); rec.Code != 502 {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if got := r.counters.n["voice:day:"+learner+":20261123"]; got != 1 {
+		t.Fatalf("over-policy answer was billed; day counter %d", got)
+	}
+}
+
+type fakeDays struct{ loc *time.Location }
+
+func (d fakeDays) LocalDay(_ context.Context, _ string, at time.Time) (string, time.Time, error) {
+	l := at.In(d.loc)
+	return l.Format(time.DateOnly), time.Date(l.Year(), l.Month(), l.Day()+1, 0, 0, 0, 0, d.loc), nil
+}
+
+func TestDailyCapFollowsTheLearnerLocalDay(t *testing.T) {
+	r := newRig(t)
+	r.cfg.Transcribe.DailyRequests = 1
+	loc := time.FixedZone("UTC+7", 7*3600)
+	r.now = time.Date(2026, 11, 23, 18, 0, 0, 0, time.UTC) // 01:00 on the 24th in UTC+7
+	r.rebuild()
+	r.svc.opts.Days = fakeDays{loc}
+	if rec := r.post(t, good(webmStream(2000), 2000)); rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if got := r.counters.n["voice:day:"+learner+":20261124"]; got != 1 {
+		t.Fatalf("counter not keyed by local day: %v", r.counters.n)
+	}
+	delete(r.counters.n, "voice:rate:"+learner)
+	rec := r.post(t, good(webmStream(2000), 2000))
+	var body map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if rec.Code != 429 || body["resets_at"] != "2026-11-24T17:00:00Z" {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
 }

@@ -60,6 +60,13 @@ const previewApi: PreviewService = {
       { "X-Quote-ID": quoteId },
     ),
 };
+// A deploy or restart in the middle of a preview surfaces as a network error, 502 or 503. The server has then
+// released the reservation, so retrying the same quote is refused; one automatic retry takes a fresh quote
+// and goes ahead only when it costs no more than the quote the learner accepted.
+function isTransient(e: unknown) {
+  const status = (e as { status?: number } | undefined)?.status;
+  return e instanceof TypeError || status === 502 || status === 503;
+}
 const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">`;
 export function CoursePreview({
   revision,
@@ -221,9 +228,21 @@ export function CoursePreview({
     setBusy(true);
     setError("");
     try {
-      await service.accept(quote.id);
-      if (current !== operation.current) return;
-      const result = await service.preview(revision.id, quote.id);
+      let result: Preview;
+      try {
+        await service.accept(quote.id);
+        if (current !== operation.current) return;
+        result = await service.preview(revision.id, quote.id);
+      } catch (first) {
+        if (!isTransient(first)) throw first;
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        if (current !== operation.current) return;
+        const fresh = await service.quote(revision.id);
+        if (fresh.content_ceiling > quote.content_ceiling) throw first;
+        await service.accept(fresh.id);
+        if (current !== operation.current) return;
+        result = await service.preview(revision.id, fresh.id);
+      }
       if (current !== operation.current) return;
       if (
         !result.sample_outline?.units?.length ||

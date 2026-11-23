@@ -49,6 +49,8 @@ func TestValidateGeneratedLesson(t *testing.T) {
 		{"two roots", `<div id="root">Stars</div><p>Extra</p>`, false},
 		{"missing root", `<div>Stars</div>`, false},
 		{"text outside", `outside<div id="root">Stars</div>`, false},
+		{"engine stylesheet first", `<style data-duolify-regions>#root#root [data-slot="top"]{position:fixed!important}</style><div id="root"><h1 data-slot="top">Stars</h1></div>`, true},
+		{"unmarked style first", `<style>p{}</style><div id="root"></div>`, false},
 		{"engine stylesheet", `<div id="root"><h1 data-slot="top">Stars</h1></div><style data-duolify-regions>#root#root [data-slot="top"]{position:fixed!important}</style>`, true},
 		{"ordinary stylesheet outside", `<div id="root">Stars</div><style>p{color:red}</style>`, false},
 		{"commented root", `<!-- <div id="root">Stars</div> -->`, false},

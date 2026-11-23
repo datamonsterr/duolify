@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/datamonsterr/duolify/services/api/internal/credits"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -22,6 +23,14 @@ func (p PoolLessons) Entitled(ctx context.Context, learner, lesson string) (bool
 		return false, nil
 	}
 	return err == nil, err
+}
+
+// PoolDays resolves the Learner's local day with the same timezone history as the check-in.
+type PoolDays struct{ Pool *pgxpool.Pool }
+
+// LocalDay implements Days.
+func (p PoolDays) LocalDay(ctx context.Context, learner string, at time.Time) (string, time.Time, error) {
+	return credits.LocalDay(ctx, p.Pool, learner, at)
 }
 
 // RedisCounters keeps the limit counters in Redis. Every key gets an expiry in the same transaction

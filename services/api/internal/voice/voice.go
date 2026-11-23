@@ -69,6 +69,11 @@ type Lessons interface {
 	Entitled(ctx context.Context, learner, lesson string) (bool, error)
 }
 
+// Days answers which local day a Learner is in at an instant and when it ends.
+type Days interface {
+	LocalDay(ctx context.Context, learner string, at time.Time) (day string, resets time.Time, err error)
+}
+
 // Counters are the Redis-backed limit counters. Keys always carry an expiry.
 type Counters interface {
 	// Incr adds one to key, sets ttl when the key is new, and returns the count and remaining ttl.
@@ -79,10 +84,12 @@ type Counters interface {
 
 // Options wires the service.
 type Options struct {
-	Engine        Engine
-	Pricing       Pricing
-	Lessons       Lessons
-	Counters      Counters
+	Engine   Engine
+	Pricing  Pricing
+	Lessons  Lessons
+	Counters Counters
+	// Days resolves the Learner's local day for the daily cap. Nil falls back to UTC days.
+	Days          Days
 	Events        analytics.Events
 	Logger        *slog.Logger
 	Now           func() time.Time
@@ -227,9 +234,18 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Daily cap, counted in UTC days; the key expires with the day.
-	dayKey := "voice:day:" + learner + ":" + now.Format("20060102")
-	resets := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, time.UTC)
+	// Daily cap, counted per Learner local day; the key expires with the day.
+	day, resets := now.Format("20060102"), time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, time.UTC)
+	if s.opts.Days != nil {
+		d, next, err := s.opts.Days.LocalDay(r.Context(), learner, now)
+		if err != nil {
+			s.opts.Logger.ErrorContext(r.Context(), "voice local day failed", "event", "voice_counter_failed")
+			fail(w, http.StatusServiceUnavailable, "voice_unavailable", nil)
+			return
+		}
+		day, resets = strings.ReplaceAll(d, "-", ""), next.UTC()
+	}
+	dayKey := "voice:day:" + learner + ":" + day
 	used, _, err := s.opts.Counters.Incr(r.Context(), dayKey, resets.Sub(now)+time.Hour)
 	if err != nil {
 		s.opts.Logger.ErrorContext(r.Context(), "voice limit counter failed", "event", "voice_counter_failed")
@@ -255,8 +271,12 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 	latency := int(s.opts.Now().Sub(started) / time.Millisecond)
 	if err != nil {
-		_ = s.opts.Counters.Decr(context.WithoutCancel(r.Context()), dayKey)
 		httpStatus, code, class := classify(err)
+		// Only failures known to happen before any provider call give the slot back; a timeout, cost
+		// ceiling, cancel or provider failure may already have been billed.
+		if class == "voice_invalid" || class == "voice_unavailable" {
+			_ = s.opts.Counters.Decr(context.WithoutCancel(r.Context()), dayKey)
+		}
 		meta.failed(class, code, latency)
 		fail(w, httpStatus, code, nil)
 		return
@@ -265,7 +285,6 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// The provider answered above the approved ceiling: deliver nothing and say so loudly.
 		meta.failed(class, "voice_failed", latency)
 		s.opts.Logger.ErrorContext(r.Context(), "transcription outside the pricing policy", "event", "voice_over_policy", "cost_nanos", out.CostNanos, "max_cost_nanos", policy.MaxCostNanos, "duration_ms", out.DurationMs, "pricing_version", s.opts.Pricing.Config().Version)
-		_ = s.opts.Counters.Decr(context.WithoutCancel(r.Context()), dayKey)
 		fail(w, http.StatusBadGateway, "voice_failed", nil)
 		return
 	}

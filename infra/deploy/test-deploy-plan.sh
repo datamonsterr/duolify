@@ -69,6 +69,9 @@ expect_reject missing-app-versioning S3_VERSIONING sed -i "/^S3_VERSIONING=/d" e
 expect_reject invalid-app-versioning S3_VERSIONING sed -i "s/^S3_VERSIONING=.*/S3_VERSIONING=unknown/" env
 expect_reject missing-app-key S3_ACCESS_KEY_ID sed -i '/^S3_ACCESS_KEY_ID=/d' env
 expect_reject missing-app-secret S3_SECRET_ACCESS_KEY sed -i '/^S3_SECRET_ACCESS_KEY=/d' env
+expect_reject drain-longer-than-engine-grace ENGINE_DRAIN_TIMEOUT_SECS sh -c "echo ENGINE_DRAIN_TIMEOUT_SECS=300 >> env"
+expect_reject drain-longer-than-api-grace API_DRAIN_TIMEOUT sh -c "echo API_DRAIN_TIMEOUT=5m >> env"
+expect_reject drain-longer-than-worker-grace WORKER_DRAIN_TIMEOUT sh -c "echo WORKER_DRAIN_TIMEOUT=110s >> env"
 expect_reject api-denied-app-key S3_ACCESS_KEY_ID sed -i '0,/<<: \*s3-env/s//<<: *s3-env\n      S3_ACCESS_KEY_ID: ""/' compose.prod.yml
 # The checked-in template (no env file next to the compose files) keeps its placeholders and still passes.
 mkdir "$work/template" && cp "$here/compose.yml" "$here/compose.prod.yml" "$here/Caddyfile" "$here/.env.prod.example" "$work/template/"
