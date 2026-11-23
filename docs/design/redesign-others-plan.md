@@ -28,7 +28,7 @@ Sources: [design-system.md](design-system.md), [screens.md](screens.md), [flows.
 | 5 | Sharing and marketplace (`features/sharing`) | 82 raw buttons, 0 `Button`; `#fff` slide background; hex fallbacks; 640px breakpoint; undefined `--size-touch`; four private dialogs with differing backdrops | High | M |
 | 6 | Streak, league, daily goal, analytics (`features/gamification`) | 13 raw buttons; opacity disabled; bare loading text; focus offsets 2px vs 3px | Medium | M |
 | 7 | Narration and steering | Undefined `--color-text-muted`/`--color-primary-soft`/`--radius-card` with light-only fallbacks; focus ring in `--primary`; 767px breakpoint; raw `.duo-button` | Medium | S |
-| 8 | Pricing, courses, shell rail cards, route boundary | Too many quiet actions per step; two primaries in CourseOutline/CourseCreate; `.pricing button` global override; raw Retry button | Low | S |
+| 8 | Pricing, courses, route boundary (rail cards handed off, see owner feedback) | Too many quiet actions per step; two primaries in CourseOutline/CourseCreate; `.pricing button` global override; raw Retry button | Low | S |
 | 9 | Lesson player (`LessonPlayer.tsx`, non-immersive) | Inline hex toast with 0-padding Undo; 7 equal-weight controls; duplicated control sets; span progress | High, but deferred: shares the file with the immersive overlay owned by the master session | L |
 
 Rows 1–6 ship as one PR each. Rows 7–8 ship if time allows. Row 9 waits for the overlay work to land.
@@ -56,3 +56,4 @@ Raised by the owner on screenshots of the current build. All of it sits in maste
 | Dark theme still has contrast mismatches. | Quick notes is fixed by the notes PR of this plan; the rest is token and primitive work |
 | Courses view: each row holds one or two left-aligned buttons ("Create a course", "Refresh courses", tabs, streak and credits chips), so the learner scrolls far before seeing a course. Group the actions into one toolbar row and lead with the course list. | `features/design/Courses.tsx`, `courses.css` (#372 touches it) |
 | Credits page: buttons are full width and wrap to the next line. | `features/credits/*` |
+| The right rail is unnecessary. Fold streak, XP and credits into one compact block in the left sidebar, and remove the left-bottom footnote so the main panel gets the width. | layout and footnote in `features/shell/AppShell.tsx`; card content in `features/shell/RailCards.tsx` (in this plan's scope, but only worth changing together with the AppShell placement, so it is handed off with it) |
