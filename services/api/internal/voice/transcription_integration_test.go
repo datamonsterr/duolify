@@ -240,6 +240,9 @@ func TestTranscriptionEndpointIntegration(t *testing.T) {
 	for _, tb := range spendTables {
 		before[tb] = rowCount(tb)
 	}
+	// From here the process temp directory is private to this test: any file the upload path wrote
+	// (a multipart spill, a buffer) would be found in it.
+	t.Setenv("TMPDIR", t.TempDir())
 	tempBefore := listTemp(t)
 
 	t.Run("authentication and entitlement", func(t *testing.T) {
@@ -460,7 +463,7 @@ func assertNothingRetained(ctx context.Context, t *testing.T, db *store.Store, r
 		seen[n] = true
 	}
 	for _, n := range after {
-		if !seen[n] && !strings.HasPrefix(n, "testcontainers") && !strings.HasPrefix(n, "go-build") {
+		if !seen[n] {
 			t.Fatalf("new temp entry %s", n)
 		}
 	}
