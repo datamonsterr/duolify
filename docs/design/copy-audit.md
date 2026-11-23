@@ -45,15 +45,15 @@ Distinct visible text nodes per route, from `apps/client/e2e/copy-budget.baselin
 
 | Route | en strings | en violations (h/l/c) | ar strings | ar violations (h/l/c) | Target |
 |---|---:|---|---:|---|---:|
-| learn | 19 | 1/0/0 | 20 | 1/0/0 | 12 |
-| courses | 18 | 1/0/0 | 19 | 1/0/0 | 12 |
-| marketplace | 14 | 0/0/0 | 14 | 0/0/0 | 12 |
-| credits | 16 | 0/1/0 | 17 | 0/1/0 | 12 |
-| notes | 18 | 1/0/1 | 18 | 1/0/0 | 12 |
-| bookmarks | 14 | 0/0/0 | 14 | 0/0/0 | 12 |
+| learn | 18 | 1/0/0 | 19 | 1/0/0 | 12 |
+| courses | 17 | 1/0/0 | 18 | 1/0/0 | 12 |
+| marketplace | 13 | 0/0/0 | 13 | 0/0/0 | 12 |
+| credits | 15 | 0/1/0 | 16 | 0/1/0 | 12 |
+| notes | 17 | 1/0/1 | 17 | 1/0/0 | 12 |
+| bookmarks | 13 | 0/0/0 | 13 | 0/0/0 | 12 |
 | settings | 16 | 0/1/0 | 16 | 0/1/0 | 12 |
-| friends | 17 | 0/0/1 | 18 | 0/0/1 | 12 |
-| leagues | 13 | 0/0/0 | 13 | 0/0/0 | 12 |
+| friends | 16 | 0/0/1 | 17 | 0/0/1 | 12 |
+| leagues | 12 | 0/0/0 | 12 | 0/0/0 | 12 |
 | more | 13 | 0/0/0 | 13 | 0/0/0 | 12 |
 
 ## Exemptions

@@ -188,7 +188,7 @@ export function AppShell() {
           </>
         )}
         <main className="app-main" id="main-content" tabIndex={-1} ref={main}>
-          {path !== "/settings" && (
+          {path !== "/settings" && !mobile && (
             <details className="appearance-menu">
               <summary>{t("settings.title")}</summary>
               <PreferenceControls />
