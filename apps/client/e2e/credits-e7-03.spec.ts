@@ -102,7 +102,12 @@ for (const width of [1280, 390, 320]) {
     await page.getByRole("button", { name: "Get action quote" }).click();
     await page.getByRole("button", { name: "Accept quote terms" }).click();
     await page.getByRole("button", { name: "Reserve credits" }).click();
-    await expect(page.getByRole("alert")).toContainText("Action limit reached");
+    // A free Learner cannot fund lesson_content (190 Credits); funding is checked
+    // before the day cap, so this is an eligible-credits refusal. The cap and
+    // concurrency copy is covered by reserve_and_settle_versioned_ai_quotes.test.tsx.
+    await expect(page.getByRole("alert")).toContainText(
+      "Not enough eligible credits",
+    );
     await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
     expect(
       await page.evaluate(

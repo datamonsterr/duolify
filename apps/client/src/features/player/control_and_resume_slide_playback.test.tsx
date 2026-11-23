@@ -1,3 +1,4 @@
+import { appVersion } from "../../lib/client-build";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import posthog from "posthog-js/dist/module.no-external";
 import { PlaybackClock } from "./playback";
@@ -291,7 +292,7 @@ describe("controlled playback clock", () => {
         distinct_id: "a1111111-1111-4111-8111-111111111111",
         source: "client",
         platform: "web",
-        app_version: "0.1.0",
+        app_version: appVersion,
         index: 0,
         watch_ms: 1000,
         offline: true,

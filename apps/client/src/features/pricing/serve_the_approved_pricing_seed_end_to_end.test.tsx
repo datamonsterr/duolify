@@ -1,3 +1,4 @@
+import { appVersion } from "../../lib/client-build";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -111,7 +112,7 @@ describe("server pricing", () => {
     expect(posthog.capture).toHaveBeenCalledWith("pricing_version_exposed", {
       distinct_id: "8c940797-a555-421e-8dad-b4df96b02213",
       platform: "web",
-      app_version: "0.1.0",
+      app_version: appVersion,
       source: "client",
       pricing_version: approved.version,
       surface: "pack_list",

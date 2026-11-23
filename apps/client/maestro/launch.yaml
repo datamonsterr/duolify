@@ -1,0 +1,19 @@
+appId: app.duolify.client
+androidWebViewHierarchy: devtools
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Learn any topic.*"
+    timeout: 45000
+- takeScreenshot: launch
+- scrollUntilVisible:
+    element: "Get started"
+- takeScreenshot: landing
+- tapOn: "Explore shared example"
+- takeScreenshot: shared-example
+- assertVisible: "Shared example"
+- setOrientation: LANDSCAPE_LEFT
+- takeScreenshot: landscape-example
+- assertVisible: "Shared example"
+- setOrientation: PORTRAIT

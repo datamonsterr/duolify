@@ -120,6 +120,10 @@ export const noteQueue = {
     return queue[index];
   },
 
+  remove(actionKey: string): void {
+    persistQueue(loadQueue().filter((n) => n.actionKey !== actionKey));
+  },
+
   markSynced(actionKey: string, serverNoteId?: string): void {
     this.update(actionKey, {
       status: "synced",

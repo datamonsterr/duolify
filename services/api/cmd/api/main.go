@@ -48,6 +48,7 @@ import (
 	"github.com/datamonsterr/duolify/services/api/internal/steering"
 	"github.com/datamonsterr/duolify/services/api/internal/store"
 	"github.com/datamonsterr/duolify/services/api/internal/telemetry"
+	"github.com/datamonsterr/duolify/services/api/internal/voice"
 	"github.com/datamonsterr/duolify/services/api/internal/worker"
 	"github.com/datamonsterr/duolify/services/api/migrations"
 	"github.com/riverqueue/river"
@@ -462,6 +463,7 @@ func run(ctx context.Context, args []string) (result error) {
 		PricingAdmin:            pricingAdmin,
 		Quotes:                  quotesService,
 		Notes:                   notesService,
+		Voice:                   voice.New(voice.Options{Engine: backend, Pricing: runtimePricing, Lessons: voice.PoolLessons{Pool: db.Pool}, Counters: voice.RedisCounters{Client: redis}, Events: events, Logger: logger}),
 		Eval:                    evalService,
 		LessonTestTracerEnabled: cfg.LessonTestTracerEnabled,
 		LessonTest:              lessonHandler,

@@ -21,6 +21,13 @@ http://:8081 {
 	import /etc/caddy/site.d/*.caddy
 
 	handle /v1/* {
+		# Voice input: one short recording (1 MB audio plus multipart framing). The proxy refuses a larger
+		# body before the API sees it. The audio is never buffered to disk here (reverse_proxy streams the
+		# request) and Caddy's access log records no request bodies.
+		@voice path /v1/voice/transcriptions
+		request_body @voice {
+			max_size 1100KB
+		}
 		reverse_proxy {$API_UPSTREAM:api:8080} {
 			# Server-sent events: flush every write, never buffer, keep streams open.
 			flush_interval -1

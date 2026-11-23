@@ -1,0 +1,7 @@
+{
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://staging-assets.duolify.online; media-src 'self' blob: https://staging-assets.duolify.online; connect-src 'self' https://staging.duolify.online https://staging-api.duolify.online https://staging-assets.duolify.online https://*.posthog.com; frame-src 'self' about:; object-src 'none'; base-uri 'self'; form-action 'self';"
+    }
+  }
+}

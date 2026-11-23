@@ -61,7 +61,10 @@ cmd_init() {
   SELFHOST_ENV_FILE=$env_file bash "$deploy_dir/selfhost.sh" init >&2
   set_setting IMAGE_REGISTRY duolify
   set_setting IMAGE_TAG "${E2E_STACK_IMAGE_TAG:-e2e}"
-  set_setting BIND_ADDRESS 127.0.0.1
+  set_setting BIND_ADDRESS "${E2E_STACK_BIND_ADDRESS:-127.0.0.1}"
+  if [[ -n ${E2E_STACK_ALLOWED_ORIGINS:-} ]]; then
+    set_setting API_ALLOWED_ORIGINS "$E2E_STACK_ALLOWED_ORIGINS"
+  fi
   set_setting HTTP_PORT "$port"
   set_setting HTTPS_PORT "${E2E_STACK_HTTPS_PORT:-18472}"
   set_setting SITE_ADDRESS :80

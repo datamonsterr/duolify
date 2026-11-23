@@ -1,4 +1,8 @@
-import { describeStreak, sideStatus, type FriendStreak } from "./friendStreak";
+import {
+  describeStreak,
+  sideStatus,
+  type FriendStreak,
+} from "./friendStreakModel";
 
 /** One compact line group under a friend row: shared length and both local-day statuses. */
 export function FriendStreakRow({
