@@ -146,23 +146,12 @@ export function AccountPrivacy() {
       </section>
 
       {guided && (exportOpen || deletionOpen) && (
-        <div className="settings-scrim" onClick={closeDialogs}>
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label={exportOpen ? "Export data" : "Delete account"}
-            className="settings-dialog"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={handleKeyDown}
-          >
-            <Suspense fallback={<p role="status" aria-busy="true" />}>
-              <GuidedAccountData
-                mode={exportOpen ? "export" : "delete"}
-                onClose={closeDialogs}
-              />
-            </Suspense>
-          </section>
-        </div>
+        <Suspense fallback={null}>
+          <GuidedAccountData
+            mode={exportOpen ? "export" : "delete"}
+            onClose={closeDialogs}
+          />
+        </Suspense>
       )}
 
       {!guided && exportOpen && (

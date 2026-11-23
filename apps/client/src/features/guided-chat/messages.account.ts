@@ -2,6 +2,8 @@ import { registerMessages } from "../design/localization/messages";
 
 // Account data copy. Turns stay under 90 characters, buttons under 3 words.
 export const accountEn = {
+  "g.export.title": "Export data",
+  "g.delete.title": "Delete account",
   "g.export.pass.q": "Pick a passphrase. It can't be recovered.",
   "g.export.pass.label": "Export passphrase",
   "g.export.confirm.q": "Download your encrypted export?",
@@ -16,6 +18,8 @@ export const accountEn = {
 } as const;
 
 export const accountAr: Record<keyof typeof accountEn, string> = {
+  "g.export.title": "تصدير البيانات",
+  "g.delete.title": "حذف الحساب",
   "g.export.pass.q": "اختر عبارة مرور. لا يمكن استرجاعها.",
   "g.export.pass.label": "عبارة مرور التصدير",
   "g.export.confirm.q": "هل نُنزّل نسختك المشفّرة؟",
