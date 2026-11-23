@@ -2,10 +2,10 @@ import { afterEach, expect, it, vi } from "vitest";
 import {
   createFormatter,
   en,
-  ar,
   expanded,
   resolveLocale,
 } from "./localization/messages";
+import { ar } from "./localization/messages.ar";
 import {
   sanitizePreferences,
   resolveReducedMotion,
