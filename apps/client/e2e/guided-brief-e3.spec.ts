@@ -17,6 +17,7 @@ test.beforeEach(async ({ page }) => {
 
 for (const [width, height] of [
   [390, 844],
+  [844, 390],
   [1280, 800],
 ] as const) {
   test(`course brief as a chat at ${width}px: confirmed revision, no preview or Credits calls`, async ({
