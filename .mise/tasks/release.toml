@@ -4,7 +4,7 @@ run = "for f in scripts/release/*.mjs apps/client/scripts/prepare-android-signin
 
 ["release:test"]
 description = "Unit tests for changelog, APK certificate, notes, version and signing-patch scripts"
-run = "node --test scripts/release/"
+run = "node --test scripts/release/release.test.mjs"
 
 ["release:build"]
 description = "Render the changelog for a tag into dist/release/CHANGELOG.md (usage: mise run release:build -- v0.2.0)"
