@@ -32,6 +32,7 @@ test.describe("E1-07 account export and deletion", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+    await page.goto("/settings#privacy");
 
     // Cancel deletion dialog
     await page.getByRole("button", { name: "Delete account" }).click();

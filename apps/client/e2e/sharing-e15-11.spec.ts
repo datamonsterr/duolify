@@ -239,7 +239,7 @@ for (const mobile of [false, true]) {
     const { copy } = await shared(request, owner, learner, title);
 
     const ownerPage = await pageAs(browser, request, owner, mobile);
-    await ownerPage.page.goto("/settings");
+    await ownerPage.page.goto("/settings#privacy");
     await ownerPage.page
       .getByRole("button", { name: "Delete account" })
       .click();

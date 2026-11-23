@@ -10,12 +10,17 @@ import {
 import {
   setAnalyticsConsent,
   trackAppearanceChanged,
+  trackMascot,
   trackPreference,
 } from "../../lib/analytics";
 import { Button } from "../design/Button";
 import { Icon, type IconName } from "../design/Icon";
 import { useMobileLayout } from "../shell/AdaptiveLayouts";
 import { Feedback } from "../design/chat/Feedback";
+import {
+  setMascotPreference,
+  useMascotPreference,
+} from "../../components/mascot";
 import { PreferenceControls } from "../design/localization/PreferenceControls";
 import { resolveLocale } from "../design/localization/messages";
 import { useUiPreferences } from "../design/localization/Preferences";
@@ -65,6 +70,7 @@ function applyVisualPreferences(settings: LearnerSettings) {
 
 export function Settings() {
   const { t, preferences, update: updateUi } = useUiPreferences();
+  const mascotPref = useMascotPreference();
   // Saving the account's language and appearance applies them to the app, not only this form.
   const applyToApp = (settings: LearnerSettings) => {
     const next = {
@@ -293,6 +299,23 @@ export function Settings() {
                 onChange={bool("narration")}
               />
               {t("settings.narration")}
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={mascotPref.companionVisible}
+                onChange={(event) => {
+                  setMascotPreference({
+                    ...mascotPref,
+                    companionVisible: event.target.checked,
+                  });
+                  trackMascot({
+                    event: "mascot_companion_toggled",
+                    visible: event.target.checked,
+                  });
+                }}
+              />
+              {t("mascot.companion")}
             </label>
             <label>
               {t("settings.narration_speed")}

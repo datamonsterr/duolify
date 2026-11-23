@@ -1,0 +1,471 @@
+{
+ "pairs": [
+  {
+   "name": "round slime, round eyes, smile",
+   "v1": {
+    "schema_version": 1,
+    "rig_version": "original-v1",
+    "info": {
+     "name": "Seed",
+     "bio": "A curious original star.",
+     "backstory": ""
+    },
+    "personality": {
+     "traits": [
+      "curious"
+     ],
+     "speaking_style": "Gentle and clear",
+     "persona_prompt": "Encourage careful observation."
+    },
+    "appearance": {
+     "body_shape": "round",
+     "palette": {
+      "body": "#FFD23F",
+      "accent": "#EE4266",
+      "outline": "#1A1A24"
+     },
+     "eyes": "round",
+     "mouth": "smile",
+     "accessories": []
+    },
+    "expressions": [
+     "idle",
+     "happy",
+     "sad",
+     "thinking",
+     "celebrate"
+    ],
+    "voice_key": "voice-provisional-guide"
+   },
+   "v2": {
+    "schema_version": 2,
+    "rig_version": "original-v2",
+    "catalog_version": 1,
+    "info": {
+     "name": "Seed",
+     "bio": "A curious original star.",
+     "backstory": ""
+    },
+    "identity": {
+     "pronouns": "",
+     "label": ""
+    },
+    "body": {
+     "kind": "fantasy",
+     "age_band": "adult",
+     "build": "average",
+     "height": "medium",
+     "glasses": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "species": "slime",
+     "primary_color": "#FFD23F",
+     "secondary_color": "#EE4266",
+     "wings": "none",
+     "horns": "none",
+     "tail": "none",
+     "eyes": {
+      "shape": "round",
+      "color": "#1A1A24"
+     },
+     "mouth": "smile"
+    },
+    "clothes": {
+     "top": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "bottom": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "shoes": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "outerwear": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "pattern": "solid",
+     "accessories": []
+    },
+    "personality": {
+     "traits": [
+      "curious"
+     ],
+     "speaking_style": "Gentle and clear",
+     "persona_prompt": "Encourage careful observation."
+    },
+    "expressions": [
+     "idle",
+     "happy",
+     "sad",
+     "thinking",
+     "celebrate",
+     "surprised",
+     "confused"
+    ],
+    "voice_key": "voice-provisional-guide"
+   }
+  },
+  {
+   "name": "bean ghost, oval eyes, line mouth",
+   "v1": {
+    "schema_version": 1,
+    "rig_version": "original-v1",
+    "info": {
+     "name": "Seed",
+     "bio": "A curious original star.",
+     "backstory": ""
+    },
+    "personality": {
+     "traits": [
+      "curious"
+     ],
+     "speaking_style": "Gentle and clear",
+     "persona_prompt": "Encourage careful observation."
+    },
+    "appearance": {
+     "body_shape": "bean",
+     "palette": {
+      "body": "#FFD23F",
+      "accent": "#EE4266",
+      "outline": "#1A1A24"
+     },
+     "eyes": "oval",
+     "mouth": "line",
+     "accessories": [
+      "scarf"
+     ]
+    },
+    "expressions": [
+     "idle",
+     "happy",
+     "sad",
+     "thinking",
+     "celebrate"
+    ],
+    "voice_key": "voice-provisional-guide"
+   },
+   "v2": {
+    "schema_version": 2,
+    "rig_version": "original-v2",
+    "catalog_version": 1,
+    "info": {
+     "name": "Seed",
+     "bio": "A curious original star.",
+     "backstory": ""
+    },
+    "identity": {
+     "pronouns": "",
+     "label": ""
+    },
+    "body": {
+     "kind": "fantasy",
+     "age_band": "adult",
+     "build": "average",
+     "height": "medium",
+     "glasses": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "species": "ghost",
+     "primary_color": "#FFD23F",
+     "secondary_color": "#EE4266",
+     "wings": "none",
+     "horns": "none",
+     "tail": "none",
+     "eyes": {
+      "shape": "wide",
+      "color": "#1A1A24"
+     },
+     "mouth": "line"
+    },
+    "clothes": {
+     "top": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "bottom": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "shoes": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "outerwear": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "pattern": "solid",
+     "accessories": [
+      {
+       "kind": "scarf",
+       "color": "#EE4266"
+      }
+     ]
+    },
+    "personality": {
+     "traits": [
+      "curious"
+     ],
+     "speaking_style": "Gentle and clear",
+     "persona_prompt": "Encourage careful observation."
+    },
+    "expressions": [
+     "idle",
+     "happy",
+     "sad",
+     "thinking",
+     "celebrate",
+     "surprised",
+     "confused"
+    ],
+    "voice_key": "voice-provisional-guide"
+   }
+  },
+  {
+   "name": "star fairy, sleepy eyes, open mouth",
+   "v1": {
+    "schema_version": 1,
+    "rig_version": "original-v1",
+    "info": {
+     "name": "Seed",
+     "bio": "A curious original star.",
+     "backstory": ""
+    },
+    "personality": {
+     "traits": [
+      "curious"
+     ],
+     "speaking_style": "Gentle and clear",
+     "persona_prompt": "Encourage careful observation."
+    },
+    "appearance": {
+     "body_shape": "star",
+     "palette": {
+      "body": "#FFD23F",
+      "accent": "#EE4266",
+      "outline": "#1A1A24"
+     },
+     "eyes": "sleepy",
+     "mouth": "open",
+     "accessories": [
+      "badge",
+      "hat"
+     ]
+    },
+    "expressions": [
+     "idle",
+     "happy",
+     "sad",
+     "thinking",
+     "celebrate"
+    ],
+    "voice_key": "voice-provisional-guide"
+   },
+   "v2": {
+    "schema_version": 2,
+    "rig_version": "original-v2",
+    "catalog_version": 1,
+    "info": {
+     "name": "Seed",
+     "bio": "A curious original star.",
+     "backstory": ""
+    },
+    "identity": {
+     "pronouns": "",
+     "label": ""
+    },
+    "body": {
+     "kind": "fantasy",
+     "age_band": "adult",
+     "build": "average",
+     "height": "medium",
+     "glasses": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "species": "fairy",
+     "primary_color": "#FFD23F",
+     "secondary_color": "#EE4266",
+     "wings": "insect",
+     "horns": "none",
+     "tail": "none",
+     "eyes": {
+      "shape": "sleepy",
+      "color": "#1A1A24"
+     },
+     "mouth": "open"
+    },
+    "clothes": {
+     "top": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "bottom": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "shoes": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "outerwear": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "pattern": "solid",
+     "accessories": [
+      {
+       "kind": "badge",
+       "color": "#EE4266"
+      },
+      {
+       "kind": "hat",
+       "color": "#EE4266"
+      }
+     ]
+    },
+    "personality": {
+     "traits": [
+      "curious"
+     ],
+     "speaking_style": "Gentle and clear",
+     "persona_prompt": "Encourage careful observation."
+    },
+    "expressions": [
+     "idle",
+     "happy",
+     "sad",
+     "thinking",
+     "celebrate",
+     "surprised",
+     "confused"
+    ],
+    "voice_key": "voice-provisional-guide"
+   }
+  },
+  {
+   "name": "glasses become body glasses",
+   "v1": {
+    "schema_version": 1,
+    "rig_version": "original-v1",
+    "info": {
+     "name": "Seed",
+     "bio": "A curious original star.",
+     "backstory": ""
+    },
+    "personality": {
+     "traits": [
+      "curious"
+     ],
+     "speaking_style": "Gentle and clear",
+     "persona_prompt": "Encourage careful observation."
+    },
+    "appearance": {
+     "body_shape": "round",
+     "palette": {
+      "body": "#FFD23F",
+      "accent": "#EE4266",
+      "outline": "#1A1A24"
+     },
+     "eyes": "round",
+     "mouth": "smile",
+     "accessories": [
+      "glasses",
+      "scarf"
+     ]
+    },
+    "expressions": [
+     "idle",
+     "happy",
+     "sad",
+     "thinking",
+     "celebrate"
+    ],
+    "voice_key": "voice-provisional-guide"
+   },
+   "v2": {
+    "schema_version": 2,
+    "rig_version": "original-v2",
+    "catalog_version": 1,
+    "info": {
+     "name": "Seed",
+     "bio": "A curious original star.",
+     "backstory": ""
+    },
+    "identity": {
+     "pronouns": "",
+     "label": ""
+    },
+    "body": {
+     "kind": "fantasy",
+     "age_band": "adult",
+     "build": "average",
+     "height": "medium",
+     "glasses": {
+      "style": "round",
+      "color": "#1A1A24"
+     },
+     "species": "slime",
+     "primary_color": "#FFD23F",
+     "secondary_color": "#EE4266",
+     "wings": "none",
+     "horns": "none",
+     "tail": "none",
+     "eyes": {
+      "shape": "round",
+      "color": "#1A1A24"
+     },
+     "mouth": "smile"
+    },
+    "clothes": {
+     "top": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "bottom": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "shoes": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "outerwear": {
+      "style": "none",
+      "color": "#1A1A24"
+     },
+     "pattern": "solid",
+     "accessories": [
+      {
+       "kind": "scarf",
+       "color": "#EE4266"
+      }
+     ]
+    },
+    "personality": {
+     "traits": [
+      "curious"
+     ],
+     "speaking_style": "Gentle and clear",
+     "persona_prompt": "Encourage careful observation."
+    },
+    "expressions": [
+     "idle",
+     "happy",
+     "sad",
+     "thinking",
+     "celebrate",
+     "surprised",
+     "confused"
+    ],
+    "voice_key": "voice-provisional-guide"
+   }
+  }
+ ]
+}

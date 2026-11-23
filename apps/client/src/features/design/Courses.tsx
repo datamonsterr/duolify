@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { trackControl } from "../../lib/analytics";
 import { useShellSession } from "../shell/ShellSession";
 import { Badge } from "./Badge";
+import "./courses.css";
 import { Button } from "./Button";
 import { CourseCard } from "./CourseCard";
 import { AppLink, navigateTo } from "../../lib/navigation";

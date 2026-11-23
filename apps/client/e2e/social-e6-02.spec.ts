@@ -135,7 +135,7 @@ for (const mobile of [false, true]) {
     await expect(add).toBeFocused();
 
     // Settings: rename, cooldown, hold.
-    await page.goto("/settings");
+    await page.goto("/settings#account");
     await page.getByRole("button", { name: "Change username" }).click();
     const rename = page.getByRole("textbox", { name: "New username" });
     await rename.fill(`${p}.mina2`);

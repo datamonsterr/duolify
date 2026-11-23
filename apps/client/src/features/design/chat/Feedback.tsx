@@ -65,7 +65,7 @@ export function Feedback({
       className={`guided-feedback ${tone}`}
       role={blocking ? "alert" : "status"}
     >
-      <div className="guided-feedback-head">
+      <div className="guided-step-label">
         <Icon name={toneIcon[tone]} />
         <strong>{title}</strong>
       </div>

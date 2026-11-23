@@ -4,6 +4,7 @@ package characters_test
 
 import (
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -93,6 +94,10 @@ func TestPrivateCharactersVersionsQuotasAndCast(t *testing.T) {
 	var attempts int
 	if err := f.DB.Pool.QueryRow(ctx, `SELECT count(*) FROM character_screenings WHERE learner_id=$1`, owner).Scan(&attempts); err != nil || attempts != 20 {
 		t.Fatalf("quota not atomic: %d %v", attempts, err)
+	}
+	var limit *characters.LimitError
+	if _, err := s.Edit(ctx, owner, id, characters.EditRequest{ExpectedVersion: 2, Spec: []byte(`{}`)}); !errors.As(err, &limit) || limit.RetryAfter <= 0 || limit.RetryAfter > time.Hour || limit.RetryAfterSeconds() < 1 {
+		t.Fatalf("hourly limit must carry Retry-After within the hour: %v %+v", err, limit)
 	}
 	if err := s.Delete(ctx, owner, id); err != nil {
 		t.Fatal(err)

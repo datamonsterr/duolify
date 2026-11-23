@@ -256,13 +256,13 @@ test("course invite setting saves and applies server-side", async ({
     r.fulfill({ json: { lesson_test_tracer_enabled: true } }),
   );
   await proxySocial(page, request);
-  await page.goto("/settings");
+  await page.goto("/settings#privacy");
   const mine = await me(
     page,
     request,
     `t${Math.random().toString(36).slice(2, 6)}.set`,
   );
-  await page.goto("/settings");
+  await page.goto("/settings#privacy");
   const select = page.getByRole("combobox", { name: "Course invites from" });
   await expect(select).toHaveValue("friends");
   await select.selectOption("nobody");

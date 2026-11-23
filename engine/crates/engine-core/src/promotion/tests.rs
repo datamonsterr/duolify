@@ -228,18 +228,19 @@ fn fingerprint_follows_embedded_inputs_contract_dependencies_and_eval_semantics(
         "engine/crates/engine-eval/src/live.rs",
         "engine/crates/engine-eval/src/runner.rs",
         "engine/crates/engine-eval/src/scoring.rs",
+        "engine/crates/engine-eval/src/transcribe.rs",
     ] {
         assert!(listed(rel), "{rel} must be fingerprinted");
     }
 }
 
-/// Every non-test source under engine-core and engine-providers is either fingerprinted or
+/// Every non-test source under engine-core, engine-providers and engine-eval is either fingerprinted or
 /// explicitly excluded, so a new prompt module cannot escape the evidence.
 #[test]
 fn fingerprint_sources_cover_every_ai_module() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let mut found = vec![];
-    for krate in ["engine-core", "engine-providers"] {
+    for krate in ["engine-core", "engine-providers", "engine-eval"] {
         let mut stack = vec![root.join(krate).join("src")];
         while let Some(dir) = stack.pop() {
             for entry in std::fs::read_dir(&dir).unwrap() {

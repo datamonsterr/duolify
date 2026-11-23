@@ -5,6 +5,13 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import {
+  Mascot,
+  MascotAvatar,
+  useActivity,
+  useMascotAppearance,
+  useMascotState,
+} from "../../components/mascot";
 import { useUiPreferences } from "../design/localization/Preferences";
 import type { LessonRef, ReplyClass, TutorService } from "./tutor";
 import { trackTutorCharacterSelected } from "../characters/analytics";
@@ -440,6 +447,19 @@ export function TutorChat({
   const wasBusy = useRef(false);
   const busy = tutor.phase !== "idle";
   const streaming = tutor.phase === "streaming";
+  // The mascot is the Tutor avatar only while the Cast main guide is the default.
+  const guideIsDefault =
+    tutor.roster.state !== "ready" ||
+    tutor.roster.roster.cast_source === "default";
+  const [typing, pingTyping] = useActivity();
+  const { state: mascotState } = useMascotState({
+    offline: !tutor.online,
+    error: tutor.notice?.kind === "failed",
+    waiting: tutor.phase === "sending",
+    streaming,
+    listening: typing,
+  });
+  const mascotAppearance = useMascotAppearance();
   const showContext = context ?? tutor.messages.length === 0;
 
   useEffect(() => {
@@ -576,6 +596,15 @@ export function TutorChat({
           }}
         >
           <header className="tutor-top">
+            {guideIsDefault && (
+              <MascotAvatar
+                size={32}
+                state={mascotState}
+                chunk={lastReply?.content.length}
+                offline={!tutor.online}
+                appearance={mascotAppearance}
+              />
+            )}
             <h2>{t("tutor.title")}</h2>
             <button
               type="button"
@@ -649,6 +678,13 @@ export function TutorChat({
               tutor.messages.length === 0 &&
               notice?.kind !== "load" && (
                 <div className="tutor-empty">
+                  {guideIsDefault && (
+                    <Mascot
+                      size={72}
+                      state={mascotState}
+                      appearance={mascotAppearance}
+                    />
+                  )}
                   <b>{t("tutor.empty_title")}</b>
                   <div className="tutor-starters">
                     {starters.map((id) => (
@@ -827,7 +863,10 @@ export function TutorChat({
                   disabled={busy}
                   maxLength={4000}
                   dir="auto"
-                  onChange={(event) => tutor.setDraft(event.target.value)}
+                  onChange={(event) => {
+                    pingTyping();
+                    tutor.setDraft(event.target.value);
+                  }}
                   onKeyDown={onKeyDown}
                 />
               </label>

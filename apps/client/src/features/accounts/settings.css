@@ -198,3 +198,25 @@
     margin-block-start: auto;
   }
 }
+
+/* Primary action of a phone view: docked at the bottom of the scrolling main area, inline-end biased,
+   above the tab bar (a separate grid row) and clear of the safe area. */
+.action-dock {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  background: var(--canvas);
+  border-block-start: 1px solid var(--line);
+}
+.action-dock > .duo-button {
+  min-block-size: var(--size-target);
+}
+@media (width < 48rem) {
+  .action-dock > .duo-button {
+    flex: 1;
+  }
+}

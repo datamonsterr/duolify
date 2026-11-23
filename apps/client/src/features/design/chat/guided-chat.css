@@ -181,16 +181,6 @@
   color: var(--success);
   background: var(--success-bg);
 }
-.guided-feedback-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.guided-feedback-head .nav-icon {
-  flex: none;
-  inline-size: 1.25rem;
-  block-size: 1.25rem;
-}
 .guided-feedback :is(p, strong) {
   color: inherit;
 }

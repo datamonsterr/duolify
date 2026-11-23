@@ -15,7 +15,7 @@ type RowRetainer interface {
 }
 
 // RowRetentionResult counts deleted rows per table.
-type RowRetentionResult = struct{ PlaybackSyncEvents, AnswerOperations int64 }
+type RowRetentionResult = struct{ PlaybackSyncEvents, AnswerOperations, GuidedChatDrafts int64 }
 
 // RowRetentionArgs is the content-free periodic retention job.
 type RowRetentionArgs struct{}
@@ -34,7 +34,7 @@ type RowRetentionWorker struct {
 func (w *RowRetentionWorker) Work(ctx context.Context, _ *river.Job[RowRetentionArgs]) error {
 	res, err := w.Service.PurgeExpiredRows(ctx)
 	if w.Logger != nil {
-		w.Logger.InfoContext(ctx, "row retention sweep", "playback_sync_events", res.PlaybackSyncEvents, "lesson_test_answer_operations", res.AnswerOperations, "ok", err == nil)
+		w.Logger.InfoContext(ctx, "row retention sweep", "playback_sync_events", res.PlaybackSyncEvents, "lesson_test_answer_operations", res.AnswerOperations, "guided_chat_drafts", res.GuidedChatDrafts, "ok", err == nil)
 	}
 	return err
 }

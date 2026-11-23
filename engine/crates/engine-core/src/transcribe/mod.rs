@@ -19,10 +19,35 @@ pub const MAX_AUDIO_BYTES: usize = 1_000_000;
 pub const ATTEMPT_TIMEOUT: Duration = Duration::from_secs(8);
 /// No request may cost more than this (0.0005 USD, in nanodollars).
 pub const MAX_COST_NANOS: u64 = 500_000;
-/// Dearest per-second price either model has been listed at (1.11e-5 USD per second). A full
-/// 30 s recording must still fit under `MAX_COST_NANOS` at that price.
+/// Dearest per-second price the fallback has been listed at (1.11e-5 USD per second).
 pub const WORST_NANOS_PER_SECOND: u64 = 11_100;
-const _: () = assert!(MAX_DURATION_MS as u64 / 1000 * WORST_NANOS_PER_SECOND <= MAX_COST_NANOS);
+/// Dearest per-second price the primary has been listed at (3.33e-6 USD per second).
+pub const PRIMARY_NANOS_PER_SECOND: u64 = 3_330;
+/// A primary attempt that times out may still be billed, and the fallback then bills too: a full
+/// 30 s recording must fit under `MAX_COST_NANOS` with both at their worst price.
+const _: () = assert!(
+    MAX_DURATION_MS as u64 / 1000 * (WORST_NANOS_PER_SECOND + PRIMARY_NANOS_PER_SECOND)
+        <= MAX_COST_NANOS
+);
+/// Longest `language_hint` the Engine forwards (`ll`, `lll` or `ll-Xxxx`).
+const MAX_LANGUAGE_HINT_BYTES: usize = 8;
+
+/// An HTTP status the provider answered with, carried inside the provider's `anyhow` error so the
+/// attempt loop can tell a refused request from an outage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HttpStatus(pub u16);
+impl std::fmt::Display for HttpStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "transcription provider answered {}", self.0)
+    }
+}
+impl std::error::Error for HttpStatus {}
+impl HttpStatus {
+    /// A 4xx other than 408 and 429: the same request can never succeed, on any model.
+    pub fn is_permanent_rejection(self) -> bool {
+        (400..500).contains(&self.0) && !matches!(self.0, 408 | 429)
+    }
+}
 
 /// What a provider returns for one recording.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -34,6 +59,10 @@ pub struct Transcription {
     pub seconds: f64,
     /// Provider-reported USD cost in nanodollars (0 when unreported).
     pub cost_nanos: u64,
+    /// False when the provider sent no `usage.cost`; the Engine then estimates it.
+    pub cost_reported: bool,
+    /// Provider confidence for the whole transcript, 0 to 1, when it scores one.
+    pub confidence: Option<f64>,
     pub model: String,
 }
 
@@ -57,6 +86,8 @@ pub enum TranscribeError {
     Timeout,
     /// Every attempt failed.
     Failed,
+    /// The provider refused the request itself (4xx other than 408/429); retrying cannot help.
+    Rejected,
 }
 impl TranscribeError {
     pub fn reason(&self) -> &'static str {
@@ -65,6 +96,7 @@ impl TranscribeError {
             Self::CostCeiling => "transcribe_cost_ceiling",
             Self::Timeout => "transcribe_timeout",
             Self::Failed => "transcribe_failed",
+            Self::Rejected => "transcribe_rejected",
         }
     }
 }
@@ -93,11 +125,34 @@ pub fn validate(rec: &Recording<'_>) -> Result<(), TranscribeError> {
     if !matches!(rec.container, "webm" | "m4a") {
         return Err(TranscribeError::InvalidAudio("container"));
     }
+    if !valid_language_hint(rec.language_hint) {
+        return Err(TranscribeError::InvalidAudio("language_hint"));
+    }
     Ok(())
 }
 
-/// Words Whisper-class models invent on silence or room noise. Only the fallback is filtered, and
-/// only when the whole transcript is one of these, so a real sentence is never touched.
+/// Empty, or an ISO 639 code with an optional script or region: `^[a-z]{2,3}(-[A-Za-z]{2,4})?$`.
+fn valid_language_hint(hint: &str) -> bool {
+    if hint.is_empty() {
+        return true;
+    }
+    if hint.len() > MAX_LANGUAGE_HINT_BYTES {
+        return false;
+    }
+    let (language, subtag) = match hint.split_once('-') {
+        Some((l, s)) => (l, Some(s)),
+        None => (hint, None),
+    };
+    (2..=3).contains(&language.len())
+        && language.bytes().all(|b| b.is_ascii_lowercase())
+        && subtag.is_none_or(|s| {
+            (2..=4).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_alphabetic())
+        })
+}
+
+/// Words Whisper-class models invent on silence or room noise. Only the fallback is filtered, only
+/// when the whole transcript is one of these, and only when the audio itself is quiet (see
+/// `audio_is_quiet`), so a real sentence, or a real spoken "thank you", is never touched.
 const SILENCE_HALLUCINATIONS: [&str; 6] = [
     "thank you",
     "thanks for watching",
@@ -148,9 +203,48 @@ pub fn wer(reference: &str, hypothesis: &str) -> Option<f64> {
     Some(row[h.len()] as f64 / r.len() as f64)
 }
 
-fn is_silence_hallucination(text: &str) -> bool {
+/// Provider confidence below this, when reported, marks the audio as not holding speech.
+const QUIET_CONFIDENCE: f64 = 0.5;
+/// Shortest recording the repetition test is applied to.
+const MIN_QUIET_PROBE_BYTES: usize = 512;
+/// Digital silence encodes to the same few packets over and over: fewer than 60% of its 8-byte
+/// windows are distinct (0.29 for a Opus clip, 0.44 for AAC), against 0.98 or more for any
+/// recording with sound in it (speech, room noise, music).
+const QUIET_DISTINCT_WINDOWS: f64 = 0.6;
+
+/// Whether the recording carries no sound: the provider scored it with low confidence, or the
+/// encoded bytes are the repeating packets of digital silence. The OpenRouter transcription
+/// response exposes no `no_speech_prob`, so absent either signal the audio counts as speech.
+fn audio_is_quiet(audio: &[u8], confidence: Option<f64>) -> bool {
+    if confidence.is_some_and(|c| c.is_finite() && c < QUIET_CONFIDENCE) {
+        return true;
+    }
+    if audio.len() < MIN_QUIET_PROBE_BYTES {
+        return false;
+    }
+    let windows = audio.len() - 7;
+    let distinct: std::collections::HashSet<u64> = audio
+        .windows(8)
+        .map(|w| u64::from_le_bytes(w.try_into().expect("window of 8")))
+        .collect();
+    (distinct.len() as f64) / (windows as f64) < QUIET_DISTINCT_WINDOWS
+}
+
+/// Whether `text` is dropped as invented: punctuation only, or a blocklisted phrase on quiet audio.
+fn is_silence_hallucination(text: &str, audio: &[u8], confidence: Option<f64>) -> bool {
     let n = normalized(text);
-    n.is_empty() || SILENCE_HALLUCINATIONS.contains(&n.as_str())
+    n.is_empty()
+        || (SILENCE_HALLUCINATIONS.contains(&n.as_str()) && audio_is_quiet(audio, confidence))
+}
+
+/// Worst price of `seconds` of audio at `nanos_per_second`, rounded up to whole seconds.
+fn worst_nanos(seconds: f64, nanos_per_second: u64) -> u64 {
+    let s = if seconds.is_finite() {
+        seconds.max(0.0)
+    } else {
+        0.0
+    };
+    (s.ceil() as u64).saturating_mul(nanos_per_second)
 }
 
 /// Transcribes through the primary model, then the fallback once.
@@ -170,6 +264,9 @@ pub async fn transcribe(
     let started = Instant::now();
     let hint = (!rec.language_hint.is_empty()).then_some(rec.language_hint);
     let mut timed_out = 0;
+    // Worst-case spend on attempts that were dropped client-side but may be billed upstream.
+    let mut lost_nanos = 0u64;
+    let claimed_seconds = f64::from(rec.duration_ms) / 1000.0;
     for (index, (provider, fallback)) in [(&router.primary, false), (&router.fallback, true)]
         .into_iter()
         .enumerate()
@@ -189,6 +286,15 @@ pub async fn transcribe(
         .await;
         match attempt {
             Ok(Ok(mut t)) => {
+                if !t.cost_reported {
+                    let rate = if fallback {
+                        WORST_NANOS_PER_SECOND
+                    } else {
+                        PRIMARY_NANOS_PER_SECOND
+                    };
+                    t.cost_nanos = worst_nanos(t.seconds.max(claimed_seconds), rate);
+                }
+                t.cost_nanos = t.cost_nanos.saturating_add(lost_nanos);
                 if t.cost_nanos > MAX_COST_NANOS {
                     tracing::error!(
                         event = "transcribe_cost_ceiling",
@@ -199,7 +305,7 @@ pub async fn transcribe(
                     return Err(TranscribeError::CostCeiling);
                 }
                 t.text = t.text.trim().to_string();
-                if fallback && is_silence_hallucination(&t.text) {
+                if fallback && is_silence_hallucination(&t.text, rec.audio, t.confidence) {
                     t.text.clear();
                 }
                 if t.model.is_empty() {
@@ -212,14 +318,35 @@ pub async fn transcribe(
                     attempts: index as u32 + 1,
                 });
             }
-            Ok(Err(_)) => tracing::warn!(
-                event = "transcribe_attempt_failed",
-                model = %route.model,
-                fallback,
-                "transcription attempt failed"
-            ),
+            Ok(Err(e)) => {
+                let status = e.downcast_ref::<HttpStatus>().copied();
+                tracing::warn!(
+                    event = "transcribe_attempt_failed",
+                    model = %route.model,
+                    fallback,
+                    error_class = match status {
+                        Some(HttpStatus(c)) if c >= 500 => "http_5xx",
+                        Some(HttpStatus(c)) if c >= 400 => "http_4xx",
+                        Some(_) => "http_other",
+                        None => "transport_or_response",
+                    },
+                    status = status.map(|s| s.0),
+                    "transcription attempt failed"
+                );
+                if status.is_some_and(HttpStatus::is_permanent_rejection) {
+                    return Err(TranscribeError::Rejected);
+                }
+            }
             Err(_) => {
                 timed_out += 1;
+                lost_nanos = lost_nanos.saturating_add(worst_nanos(
+                    claimed_seconds,
+                    if fallback {
+                        WORST_NANOS_PER_SECOND
+                    } else {
+                        PRIMARY_NANOS_PER_SECOND
+                    },
+                ));
                 tracing::warn!(
                     event = "transcribe_attempt_timeout",
                     model = %route.model,

@@ -1,12 +1,12 @@
 {
   "learn.en": {
-    "strings": 18,
+    "strings": 19,
     "headings": 1,
     "labels": 0,
     "captions": 0
   },
   "courses.en": {
-    "strings": 17,
+    "strings": 18,
     "headings": 1,
     "labels": 0,
     "captions": 0
@@ -60,13 +60,13 @@
     "captions": 0
   },
   "learn.ar": {
-    "strings": 19,
+    "strings": 20,
     "headings": 1,
     "labels": 0,
     "captions": 0
   },
   "courses.ar": {
-    "strings": 18,
+    "strings": 19,
     "headings": 1,
     "labels": 0,
     "captions": 0
