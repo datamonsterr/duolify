@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -9,6 +9,7 @@ vi.mock("../../../lib/analytics", async (orig) => ({
   trackImmersive: vi.fn(),
 }));
 import ImmersiveLayer from "./ImmersiveLayer";
+import { AUTO_HIDE_MS } from "./autohide";
 import { ImmersiveExtensionsContext } from "./extensions";
 import type { ImmersiveActions, ImmersiveView } from "./types";
 
@@ -78,5 +79,41 @@ describe("end-of-slide countdown", () => {
       </ImmersiveExtensionsContext.Provider>,
     );
     expect(screen.queryByTestId("immersive-countdown")).toBeNull();
+  });
+});
+
+describe("Tab handling while the controls are hidden", () => {
+  it("steals Tab to show the controls, but never inside the answer panel or notes", () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <ImmersiveLayer
+          view={{ ...view, playing: true, ended: false, timeMs: 0 }}
+          actions={actions}
+          lastSlide={false}
+          lessonId="l"
+        />,
+      );
+      act(() => void vi.advanceTimersByTime(AUTO_HIDE_MS + 500));
+      const panel = document.createElement("div");
+      panel.className = "imm-answer-ui";
+      const field = document.createElement("textarea");
+      panel.append(field);
+      document.body.append(panel);
+      const tab = (target: Element) => {
+        const ev = new KeyboardEvent("keydown", {
+          key: "Tab",
+          bubbles: true,
+          cancelable: true,
+        });
+        target.dispatchEvent(ev);
+        return ev.defaultPrevented;
+      };
+      expect(tab(field)).toBe(false);
+      expect(tab(document.body)).toBe(true);
+      panel.remove();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
