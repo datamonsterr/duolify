@@ -121,8 +121,11 @@ func webmDurationMs(b []byte) (ms float64, ok bool) {
 		case idSimpleBlock, idBlock:
 			// track number (vint), int16 timecode relative to the Cluster, flags.
 			if _, t, _ := ebmlVint(payload, false); t > 0 && len(payload) >= t+3 {
-				rel := int16(binary.BigEndian.Uint16(payload[t : t+2]))
-				if at := float64(int64(clusterTime) + int64(rel)); at > latest {
+				rel := int64(binary.BigEndian.Uint16(payload[t : t+2]))
+				if rel > math.MaxInt16 {
+					rel -= 1 << 16 // two's complement
+				}
+				if at := float64(int64(clusterTime) + rel); at > latest { //nolint:gosec // a timecode never nears 2^63
 					latest = at
 				}
 				haveBlock = true

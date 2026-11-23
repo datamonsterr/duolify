@@ -241,7 +241,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	out, err := s.opts.Engine.Transcribe(ctx, &enginev1.TranscribeRequest{
 		Audio:      req.audio,
 		Container:  string(container),
-		DurationMs: uint32(req.durationMs),
+		DurationMs: uint32(req.durationMs), //nolint:gosec // validated to 500..30000 above
 		Purpose:    req.purpose,
 	})
 	latency := int(s.opts.Now().Sub(started) / time.Millisecond)
@@ -277,7 +277,7 @@ func (s *Service) policy() *pricing.TranscriptionConfig {
 // settle checks an Engine answer against the quote policy of the active pricing version. It returns
 // an error class when the answer must not be delivered, else "".
 func settle(policy *pricing.TranscriptionConfig, out *enginev1.TranscribeResponse) string {
-	if int64(out.GetCostNanos()) > policy.MaxCostNanos {
+	if out.GetCostNanos() > uint64(policy.MaxCostNanos) { //nolint:gosec // policy() guarantees a positive ceiling
 		return "voice_over_policy"
 	}
 	// The provider bills by the second: more than the limit plus slack means a longer recording got through.

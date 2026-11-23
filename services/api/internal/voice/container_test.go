@@ -84,7 +84,7 @@ func TestDurationBuckets(t *testing.T) {
 func FuzzMeasureNeverPanics(f *testing.F) {
 	f.Add(webmStream(2000))
 	f.Add(mp4("isom", 1000, 1000))
-	f.Fuzz(func(t *testing.T, in []byte) {
+	f.Fuzz(func(_ *testing.T, in []byte) {
 		sniff(in)
 		webmDurationMs(in)
 		mp4DurationMs(in)

@@ -37,12 +37,18 @@ mkdir -p "$tmp/site.d"
 docker run -d --rm --name "$name" --network host -e "SITE_ADDRESS=:$port" -e "API_UPSTREAM=127.0.0.1:$upstream" \
   -v "$here/Caddyfile:/etc/caddy/Caddyfile:ro" -v "$here/security-headers.caddy:/etc/caddy/security-headers.caddy:ro" \
   -v "$tmp/site.d:/etc/caddy/site.d:ro" caddy:2.11-alpine >/dev/null
-for _ in $(seq 1 30); do curl -s -o /dev/null "http://127.0.0.1:$port/v1/x" && break || sleep 0.5; done
+for _ in $(seq 1 30); do
+  if curl -s -o /dev/null "http://127.0.0.1:$port/v1/x"; then break; fi
+  sleep 0.5
+done
 
 head -c 1000000 /dev/zero >"$tmp/at-limit.bin"
 head -c 1200000 /dev/zero >"$tmp/over.bin"
 status() { curl -s -o /dev/null -w '%{http_code}' -X POST --data-binary "@$2" -H 'Content-Type: application/octet-stream' "http://127.0.0.1:$port$1"; }
-[[ $(status /v1/voice/transcriptions "$tmp/at-limit.bin") == 200 ]] && pass "a 1 MB recording passes" || bad "1 MB recording"
-[[ $(status /v1/voice/transcriptions "$tmp/over.bin") == 413 ]] && pass "a 1.2 MB body is refused with 413 at the edge" || bad "over-limit body"
-[[ $(status /v1/notes "$tmp/over.bin") == 200 ]] && pass "other routes keep their own limits" || bad "other routes"
+expect() { # expect <path> <file> <status> <what>
+  if [[ $(status "$1" "$2") == "$3" ]]; then pass "$4"; else bad "$4"; fi
+}
+expect /v1/voice/transcriptions "$tmp/at-limit.bin" 200 "a 1 MB recording passes"
+expect /v1/voice/transcriptions "$tmp/over.bin" 413 "a 1.2 MB body is refused with 413 at the edge"
+expect /v1/notes "$tmp/over.bin" 200 "other routes keep their own limits"
 [[ $failures -eq 0 ]]

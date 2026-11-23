@@ -77,9 +77,9 @@ func (p *switchablePricing) Config() pricing.Config {
 // recording is a small WebM stream that carries the marker as a block payload.
 func recording(ms int) []byte {
 	el := func(id []byte, payload []byte) []byte {
-		size := []byte{0x80 | byte(len(payload))}
+		size := []byte{0x80 | byte(len(payload)&0x7f)}
 		if len(payload) >= 127 {
-			size = []byte{0x40 | byte(len(payload)>>8), byte(len(payload))}
+			size = []byte{0x40 | byte((len(payload)>>8)&0x3f), byte(len(payload) & 0xff)}
 		}
 		return append(append(append([]byte{}, id...), size...), payload...)
 	}
@@ -166,8 +166,10 @@ func TestTranscriptionEndpointIntegration(t *testing.T) {
 			}
 			return res
 		}
-		if res := post("/v1/auth/code", map[string]any{"email": email, "age_confirmed": true}); res.StatusCode != 202 {
-			t.Fatalf("code: %d", res.StatusCode)
+		codeRes := post("/v1/auth/code", map[string]any{"email": email, "age_confirmed": true})
+		_ = codeRes.Body.Close()
+		if codeRes.StatusCode != 202 {
+			t.Fatalf("code: %d", codeRes.StatusCode)
 		}
 		res := post("/v1/auth/verify", map[string]any{"email": email, "code": mail.Code(email), "age_confirmed": true})
 		defer func() { _ = res.Body.Close() }()
@@ -298,7 +300,7 @@ func TestTranscriptionEndpointIntegration(t *testing.T) {
 		if eng.count() != 1 || !bytes.Contains(eng.heard, []byte(marker)) {
 			t.Fatalf("the Engine did not receive the recording (calls %d)", eng.count())
 		}
-		assertNothingRetained(t, ctx, db, rdb, &logs, events, tempBefore)
+		assertNothingRetained(ctx, t, db, rdb, &logs, events, tempBefore)
 	})
 
 	t.Run("a failed transcription retains nothing either", func(t *testing.T) {
@@ -312,7 +314,7 @@ func TestTranscriptionEndpointIntegration(t *testing.T) {
 		if code != http.StatusBadGateway || body["error"] != "voice_failed" {
 			t.Fatalf("%d %v", code, body)
 		}
-		assertNothingRetained(t, ctx, db, rdb, &logs, events, tempBefore)
+		assertNothingRetained(ctx, t, db, rdb, &logs, events, tempBefore)
 	})
 
 	t.Run("a transcript that is never sent spends no Credits", func(t *testing.T) {
@@ -407,7 +409,7 @@ func listTemp(t *testing.T) []string {
 // assertNothingRetained looks for the marker, and for the transcript, everywhere a leak could land:
 // every row of every Postgres table (which holds the job queue and the outbox), every Redis key and
 // value, the log output, the analytics events and the temp directory.
-func assertNothingRetained(t *testing.T, ctx context.Context, db *store.Store, rdb *redis.Client, logs *bytes.Buffer, events *capture, tempBefore []string) {
+func assertNothingRetained(ctx context.Context, t *testing.T, db *store.Store, rdb *redis.Client, logs *bytes.Buffer, events *capture, tempBefore []string) {
 	t.Helper()
 	rows, err := db.Pool.Query(ctx, `SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'`)
 	if err != nil {

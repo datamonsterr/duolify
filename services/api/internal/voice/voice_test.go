@@ -132,7 +132,7 @@ func (r *rig) rebuild() {
 func (r *rig) post(t *testing.T, u upload, headers ...string) *httptest.ResponseRecorder {
 	t.Helper()
 	body, ct := multipartBody(t, u)
-	req := httptest.NewRequest(http.MethodPost, "/v1/voice/transcriptions", body)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/voice/transcriptions", body)
 	req.Header.Set("Content-Type", ct)
 	for i := 0; i+1 < len(headers); i += 2 {
 		req.Header.Set(headers[i], headers[i+1])
@@ -257,7 +257,7 @@ func TestRejectionsHappenBeforeAnyEngineCall(t *testing.T) {
 
 func TestBodyOverTheLimitIsRefusedByDeclaredLength(t *testing.T) {
 	r := newRig(t)
-	req := httptest.NewRequest(http.MethodPost, "/v1/voice/transcriptions", io.NopCloser(strings.NewReader("x")))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/voice/transcriptions", io.NopCloser(strings.NewReader("x")))
 	req.ContentLength = 5 << 20
 	req.Header.Set("Content-Type", "multipart/form-data; boundary=b")
 	req = req.WithContext(accounts.WithLearnerID(req.Context(), learner))
@@ -402,12 +402,12 @@ func TestEmptyTranscriptIsASuccessTheClientTreatsAsNothingUnderstood(t *testing.
 func TestOnlyPostIsServedAndSignInIsRequired(t *testing.T) {
 	r := newRig(t)
 	rec := httptest.NewRecorder()
-	r.svc.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/voice/transcriptions", nil))
+	r.svc.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/voice/transcriptions", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatal(rec.Code)
 	}
 	body, ct := multipartBody(t, good(webmStream(2000), 2000))
-	req := httptest.NewRequest(http.MethodPost, "/v1/voice/transcriptions", body)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/voice/transcriptions", body)
 	req.Header.Set("Content-Type", ct)
 	rec = httptest.NewRecorder()
 	r.svc.ServeHTTP(rec, req)

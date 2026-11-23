@@ -16,9 +16,9 @@ func ebml(id []byte, payload []byte) []byte {
 	var vint []byte
 	switch {
 	case size < 127:
-		vint = []byte{0x80 | byte(size)}
+		vint = []byte{0x80 | byte(size&0x7f)}
 	default:
-		vint = []byte{0x40 | byte(size>>8), byte(size)}
+		vint = []byte{0x40 | byte((size>>8)&0x3f), byte(size & 0xff)}
 	}
 	return append(append(append([]byte{}, id...), vint...), payload...)
 }
@@ -62,7 +62,8 @@ func webmWithDuration(ms float64) []byte {
 }
 
 func box(kind string, payload []byte) []byte {
-	return append(binary.BigEndian.AppendUint32(nil, uint32(8+len(payload))), append([]byte(kind), payload...)...)
+	size := uint32(8 + len(payload)) //nolint:gosec // fixtures are tiny
+	return append(binary.BigEndian.AppendUint32(nil, size), append([]byte(kind), payload...)...)
 }
 
 // mp4 builds ftyp plus (optionally) moov/mvhd with the given timescale and duration.
