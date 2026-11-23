@@ -1,3 +1,4 @@
+import { guidedEn, guidedAr } from "../../guided-chat/messages";
 import { onboardingEn, onboardingAr } from "../../onboarding/messages";
 import { mascotEn, mascotAr } from "../../../components/mascot/messages";
 // Stable IDs and complete sentences. Feature content stays data, never a message key.
@@ -46,6 +47,7 @@ const reviewMessages = {
 export const en = {
   ...mascotEn,
   ...onboardingEn,
+  ...guidedEn,
   ...reviewMessages,
   "checkin.granted": "+{amount} Credits · daily check-in",
   "checkin.full": "Your check-in bank is full",
@@ -460,6 +462,7 @@ export type MessageId = keyof typeof en;
 export const ar: Record<MessageId, Message> = {
   ...mascotAr,
   ...onboardingAr,
+  ...guidedAr,
   ...reviewMessages,
   "checkin.granted": "+{amount} رصيد · تسجيل الحضور اليومي",
   "checkin.full": "رصيد تسجيل الحضور ممتلئ",
