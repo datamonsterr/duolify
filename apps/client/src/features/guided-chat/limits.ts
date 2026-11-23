@@ -8,6 +8,7 @@ export const apiLimits: Record<
   "profile.daily_minutes": { min: 1, max: 1440 },
   "profile.daily_xp": { min: 1, max: 10000 },
   "brief.text": { max: 500 },
+  "steer.text": { max: 500 },
   "review.text": { max: 2000 },
   "report.text": { max: 1000 },
   "auth.code": { max: 6 },

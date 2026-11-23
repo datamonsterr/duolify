@@ -1,6 +1,12 @@
 import type { APIRequestContext, Browser, Page } from "@playwright/test";
 import { apiBase, webBase } from "./servers";
 import { test, expect } from "./accounts-fixture";
+test.beforeEach(({ page }) =>
+  // The old form stays one release for rollback; this spec covers it.
+  page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_steer", "off"),
+  ),
+);
 
 type Headers = { Authorization: string };
 type Course = {

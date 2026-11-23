@@ -2,7 +2,13 @@
 // Default is on (dev, e2e, staging). `VITE_FEATURE_GUIDED_<NAME>=false` turns a script off,
 // `ab` serves it to half of the Learners by id. A local override (`duolify.guided.<name>` =
 // `on` or `off`) lets QA and the rollback tests pick a side.
-export type GuidedFlag = "onboarding" | "course_brief" | "signin" | "rest";
+export type GuidedFlag =
+  | "onboarding"
+  | "course_brief"
+  | "course_level"
+  | "course_steer"
+  | "signin"
+  | "rest";
 
 const env = import.meta.env as Record<string, string | undefined>;
 
