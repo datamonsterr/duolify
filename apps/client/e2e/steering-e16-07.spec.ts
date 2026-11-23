@@ -12,6 +12,9 @@ for (const mobile of [false, true]) {
     test("quote consent precedes work and immutable diff survives closing", async ({
       page,
     }) => {
+      await page.addInitScript(() =>
+        localStorage.setItem("duolify.guided.course_steer", "off"),
+      );
       await page.emulateMedia({
         colorScheme: mobile ? "dark" : "light",
         reducedMotion: "reduce",

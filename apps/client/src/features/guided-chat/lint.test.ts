@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { ar, en } from "../design/localization/messages";
 import { lintScript } from "./lint";
+import { registerFixtureCopy } from "./messages.fixture";
 import { allScripts, fixtureTour } from "./scripts";
 import type { GuidedScript } from "./types";
 
+registerFixtureCopy();
 const cat = { en, ar };
 const clone = (): GuidedScript => structuredClone(fixtureTour);
 

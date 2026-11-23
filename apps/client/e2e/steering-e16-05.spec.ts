@@ -2,6 +2,24 @@ import type { APIRequestContext, Browser, Page } from "@playwright/test";
 import { apiBase, webBase } from "./servers";
 import { test, expect } from "./accounts-fixture";
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_steer", "off"),
+  );
+});
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_steer", "off"),
+  );
+});
+test.beforeEach(({ page }) =>
+  // The old form stays one release for rollback; this spec covers it.
+  page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.course_steer", "off"),
+  ),
+);
+
 type Headers = { Authorization: string };
 type Course = {
   units: { lessons: { id: string; state: string; content?: string }[] }[];
@@ -164,6 +182,9 @@ for (const mobile of [false, true]) {
       browser,
       request,
       mobile ? { width: 390, height: 844 } : { width: 1280, height: 900 },
+    );
+    await l.page.addInitScript(() =>
+      localStorage.setItem("duolify.guided.course_steer", "off"),
     );
     await l.page.emulateMedia({
       colorScheme: mobile ? "dark" : "light",
