@@ -9,7 +9,6 @@ export const courseEn = {
   "g.steer.scope.rest_of_course": "Rest of course",
   "g.steer.text.q": "What should change? Style and focus only.",
   "g.steer.confirm.q": "Save this instruction?",
-  "g.steer.error": "We couldn't save that. Your text is kept.",
 } as const;
 
 export const courseAr = {
@@ -22,5 +21,4 @@ export const courseAr = {
   "g.steer.scope.rest_of_course": "بقية الدورة",
   "g.steer.text.q": "ما الذي يجب أن يتغير؟ الأسلوب والتركيز فقط.",
   "g.steer.confirm.q": "هل نحفظ هذا التوجيه؟",
-  "g.steer.error": "تعذّر الحفظ. نصّك محفوظ.",
 } as const;

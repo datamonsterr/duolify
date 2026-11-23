@@ -3,6 +3,9 @@ import { UiPreferencesProvider } from "../design/localization/Preferences";
 import { GuidedScriptChat } from "./GuidedScriptChat";
 import type { Draft } from "./engine";
 import { allScripts } from "./scripts";
+import { registerFixtureCopy } from "./messages.fixture";
+
+registerFixtureCopy();
 
 const subscribe = (notify: () => void) => {
   window.addEventListener("online", notify);
