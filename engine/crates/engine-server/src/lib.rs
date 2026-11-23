@@ -1378,7 +1378,9 @@ impl EngineService for Service {
         // Validate bounds early; the boundary itself is rebuilt per prompt by hardened_prompt.
         engine_core::steering::prompt_section(&instructions)
             .map_err(|_| Status::invalid_argument("instruction bounds exceeded"))?;
-        let base = engine_core::lessontest::lesson_prompt(&format!("{context:?}"));
+        let base = engine_core::lessontest::lesson_prompt(
+            &engine_core::lessontest::render_context(&context),
+        );
         let prompts = if cast.is_empty() {
             vec![base]
         } else {

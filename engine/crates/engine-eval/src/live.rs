@@ -235,7 +235,9 @@ pub async fn evaluate(
                 ..Default::default()
             };
             let prompt = engine_core::steering::hardened_prompt(
-                &engine_core::lessontest::lesson_prompt(&format!("{context:?}")),
+                &engine_core::lessontest::lesson_prompt(&engine_core::lessontest::render_context(
+                    &context,
+                )),
                 &[],
             )?;
             let rejected = Rejections::new();

@@ -455,3 +455,37 @@ async fn unknown_language_values_are_dropped() {
     assert_eq!(t.language, "");
     assert_eq!(t.cost_nanos, 0);
 }
+
+#[tokio::test]
+async fn routed_prompts_send_the_skill_prefix_as_system_and_the_data_as_user() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ok("{}"))
+        .mount(&server)
+        .await;
+    let provider = HttpProvider::openrouter("key".into(), server.uri());
+    // Monolithic: one user message, exactly as before.
+    provider
+        .complete_route(&route(HY4, &[], &[]), "ONE PROMPT", 100)
+        .await
+        .unwrap();
+    // Routed: a stable system prefix and the data as the user message.
+    let routed = Route {
+        system: Some("CORE\n\nSKILL".into()),
+        ..route(HY4, &[], &[])
+    };
+    provider.complete_route(&routed, "DATA", 100).await.unwrap();
+    let requests = server.received_requests().await.unwrap();
+    let body = |i: usize| requests[i].body_json::<Value>().unwrap();
+    assert_eq!(
+        body(0)["messages"],
+        json!([{"role": "user", "content": "ONE PROMPT"}])
+    );
+    assert_eq!(
+        body(1)["messages"],
+        json!([
+            {"role": "system", "content": "CORE\n\nSKILL"},
+            {"role": "user", "content": "DATA"}
+        ])
+    );
+}

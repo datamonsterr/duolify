@@ -16,10 +16,10 @@ Future implementation checklist; this change delivers specification and a measur
 
 ## 2. Provider system/user split and dynamic max_tokens (M)
 
-- [ ] 2.1 Integration: `request_model` sends `system` (prefix) and `user` (data) for routed prompts and the single `user` message for monolithic prompts; steering policy envelope unchanged.
+- [x] 2.1 Integration: `request_model` sends `system` (prefix) and `user` (data) for routed prompts and the single `user` message for monolithic prompts; steering policy envelope unchanged.
 - [ ] 2.2 Integration: `max_tokens` = min(task cap, ceiling-derived output) with task minimum; usage records `cached_input_tokens` and bills the cache-read rate.
-- [ ] 2.3 Unit: layout has no volatile value before the first user byte; same prefix across two requests is byte-identical.
-- [ ] 2.4 Implement; replace Rust `Debug` rendering of the lesson request (`format!("{context:?}")` in `engine-server`) with compact JSON behind the same switch and measure the token delta on the golden fixtures.
+- [x] 2.3 Unit: layout has no volatile value before the first user byte; same prefix across two requests is byte-identical.
+- [x] 2.4 Implement; replace Rust `Debug` rendering of the lesson request (`format!("{context:?}")` in `engine-server`) with compact JSON behind the same switch and measure the token delta on the golden fixtures.
 
 ## 3. Split prompts task by task, ordered by spend (L, three PRs)
 

@@ -152,3 +152,27 @@ fn skill_files_are_fingerprinted() {
         );
     }
 }
+
+#[test]
+fn the_system_prefix_is_identical_across_requests_with_different_data() {
+    let l = lib(&format!("{HEAD}{}", skill("a", 1, ""))).unwrap();
+    let ids = ["a".to_string()];
+    let one = l
+        .assemble(
+            "lesson_slides",
+            "CORE",
+            &ids,
+            "learner one 2026-11-24T10:00",
+        )
+        .unwrap();
+    let two = l
+        .assemble(
+            "lesson_slides",
+            "CORE",
+            &ids,
+            "learner two 2026-11-24T10:05",
+        )
+        .unwrap();
+    assert_eq!(one.system, two.system);
+    assert!(!one.system.contains("learner"));
+}

@@ -160,6 +160,12 @@ fn snake(id: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
+/// The embedded library, checked once; a bad bundled file stops the process at first use.
+pub fn bundled() -> &'static Library {
+    static LIB: std::sync::OnceLock<Library> = std::sync::OnceLock::new();
+    LIB.get_or_init(|| Library::bundled().expect("engine/config/skills is valid"))
+}
+
 impl Library {
     /// The embedded library; a boot check (`expect` at startup) rather than a runtime surprise.
     pub fn bundled() -> Result<Library, SkillError> {

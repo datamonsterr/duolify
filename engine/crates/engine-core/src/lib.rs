@@ -99,6 +99,9 @@ pub struct Route {
     pub endpoint: Option<String>,
     pub zdr: bool,
     pub data_collection: Option<String>,
+    /// Byte-stable system prefix of a routed prompt (core, then skills); the call's `input` is
+    /// then the user message. `None` keeps the single user message of a monolithic prompt.
+    pub system: Option<String>,
 }
 /// A rejected answer and the corrective user message sent after it on the repair attempt.
 #[derive(Debug, Clone, Default)]
@@ -117,6 +120,7 @@ impl Model {
             endpoint: self.endpoint.clone(),
             zdr: self.zdr,
             data_collection: self.data_collection.clone(),
+            system: None,
         }
     }
     /// One bounded attempt: exactly one model request, no provider-side chain, so the bounded
@@ -140,6 +144,7 @@ impl Model {
             endpoint: self.endpoint.clone(),
             zdr: self.zdr,
             data_collection: self.data_collection.clone(),
+            system: None,
         }
     }
 }

@@ -345,6 +345,47 @@ pub fn lesson_prompt(context: &str) -> String {
     )
 }
 
+/// A request as compact JSON for a routed prompt: empty, zero and false values are dropped (they
+/// carry no information and the prost `Debug` rendering spells every one out), and `limits` (the
+/// quote's volatile token and price bounds) is not for the model. Keys keep their order.
+pub fn compact_context(request: &serde_json::Value) -> String {
+    fn strip(v: &mut serde_json::Value) -> bool {
+        match v {
+            serde_json::Value::Null => true,
+            serde_json::Value::Bool(b) => !*b,
+            serde_json::Value::Number(n) => n.as_f64() == Some(0.0),
+            serde_json::Value::String(s) => s.is_empty(),
+            serde_json::Value::Array(a) => {
+                a.iter_mut().for_each(|x| {
+                    strip(x);
+                });
+                a.is_empty()
+            }
+            serde_json::Value::Object(o) => {
+                o.retain(|_, x| !strip(x));
+                o.is_empty()
+            }
+        }
+    }
+    let mut v = request.clone();
+    if let Some(o) = v.as_object_mut() {
+        o.remove("limits");
+    }
+    strip(&mut v);
+    v.to_string()
+}
+
+/// The lesson request as prompt data: today's `Debug` rendering while `lesson_slides` is
+/// monolithic (byte-identical prompts), compact JSON once the task is routed.
+pub fn render_context<T: std::fmt::Debug + serde::Serialize>(context: &T) -> String {
+    if crate::skills::bundled().mode("lesson_slides") == crate::skills::PromptMode::Routed
+        && let Ok(v) = serde_json::to_value(context)
+    {
+        return compact_context(&v);
+    }
+    format!("{context:?}")
+}
+
 /// Deterministic fix-up before acceptance: a variant whose choices repeat its source question in
 /// the same order is rotated with `reorder_choices` (the same rule the retry pool uses when it is
 /// exhausted), so the correct text and answer stay identical; a variant whose choices are a
