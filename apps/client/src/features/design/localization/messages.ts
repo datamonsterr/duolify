@@ -1,4 +1,5 @@
 import { onboardingEn, onboardingAr } from "../../onboarding/messages";
+import { mascotEn, mascotAr } from "../../../components/mascot/messages";
 // Stable IDs and complete sentences. Feature content stays data, never a message key.
 // Plural branches follow Intl/CLDR categories; every branch includes its own sentence.
 export type PluralMessage = { other: string } & Partial<
@@ -43,6 +44,7 @@ const reviewMessages = {
   "review.retry": "Retry",
 } satisfies Record<string, Message>;
 export const en = {
+  ...mascotEn,
   ...onboardingEn,
   ...reviewMessages,
   "checkin.granted": "+{amount} Credits · daily check-in",
@@ -456,6 +458,7 @@ export const en = {
 } satisfies Record<string, Message>;
 export type MessageId = keyof typeof en;
 export const ar: Record<MessageId, Message> = {
+  ...mascotAr,
   ...onboardingAr,
   ...reviewMessages,
   "checkin.granted": "+{amount} رصيد · تسجيل الحضور اليومي",

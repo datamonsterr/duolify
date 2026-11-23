@@ -1,0 +1,608 @@
+/* Mascot art and motion. Colours come only from CSS variables bound to design tokens.
+   Motion uses transform, opacity and the individual transform properties only. */
+.m {
+  --m-body: var(--lime, #58c322);
+  --m-body-edge: var(--lime-edge, #46a01a);
+  --m-trim: var(--primary, #1f7a0d);
+  --m-trim-edge: var(--primary-edge, #145208);
+  --m-visor: #0e2606;
+  --m-eye: #e3f8d3;
+  --m-accent: var(--accent, #ffc233);
+  --m-cheek: #ff8a00;
+  --m-sky: #4da6f0;
+  --m-violet: #7b3fe4;
+  --gx: 0px;
+  --gy: 0px;
+  display: block;
+  flex: none;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+}
+.m-main {
+  fill: var(--m-body);
+}
+.m-edge {
+  fill: var(--m-body-edge);
+}
+.m-trim {
+  fill: var(--m-trim);
+}
+path.m-trim,
+.m-arm .m-trim {
+  fill: none;
+  stroke: var(--m-trim);
+  stroke-width: 15;
+  stroke-linecap: round;
+}
+.m-arm .m-edge {
+  fill: none;
+  stroke: var(--m-trim-edge);
+  stroke-width: 15;
+  stroke-linecap: round;
+}
+.m-stem {
+  stroke-width: 6 !important;
+}
+.m-acc {
+  fill: var(--m-accent);
+}
+.m-acc-s {
+  fill: none;
+  stroke: var(--m-accent);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.m-visor {
+  fill: var(--m-visor);
+}
+.m-shine {
+  fill: none;
+  stroke: #fff;
+  stroke-opacity: 0.45;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+.m-reflect {
+  fill: #fff;
+  opacity: 0.07;
+}
+.m-fill,
+.m-fill * {
+  fill: var(--m-eye);
+}
+.m-glint {
+  fill: #fff !important;
+  opacity: 0.95;
+}
+.m-stroke-eye path {
+  fill: none;
+  stroke: var(--m-eye);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.m-line {
+  fill: none;
+  stroke: var(--m-eye);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.m-cheek circle {
+  fill: var(--m-cheek);
+  opacity: 0.55;
+}
+.m-bulb {
+  fill: var(--m-accent);
+  stroke: var(--m-trim-edge);
+  stroke-width: 2.5;
+}
+.m-halo {
+  fill: var(--m-accent);
+  opacity: 0.28;
+}
+.m-core {
+  filter: none;
+}
+.m-shadow {
+  fill: #000;
+  opacity: 0.14;
+}
+.m-rings circle {
+  fill: none;
+  stroke: var(--m-accent);
+  stroke-width: 4;
+  opacity: 0.8;
+}
+.m-badge {
+  fill: var(--surface, #fff);
+  stroke: var(--m-trim);
+  stroke-width: 3;
+}
+.m-sig {
+  fill: none;
+  stroke: var(--m-trim);
+  stroke-width: 3.2;
+  stroke-linecap: round;
+}
+.m-sigdot {
+  fill: var(--m-trim);
+}
+.m-slash {
+  stroke: var(--danger, #d33);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.m-hp-band {
+  fill: none;
+  stroke: var(--m-trim);
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+.m-hp rect {
+  fill: var(--m-accent);
+  stroke: var(--m-trim-edge);
+  stroke-width: 3;
+}
+.m-sprout path {
+  fill: var(--m-body);
+  stroke: var(--m-trim-edge);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+.m-sprout .m-sprout-stem {
+  fill: none;
+  stroke: var(--m-trim);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+.m-scarf rect {
+  fill: var(--m-cheek);
+  stroke: var(--m-trim-edge);
+  stroke-width: 2.5;
+}
+.m-bow path,
+.m-bow circle {
+  fill: var(--m-violet);
+  stroke: var(--m-trim-edge);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+.m-cf {
+  fill: var(--m-accent);
+  translate: var(--dx) var(--dy);
+  rotate: var(--r);
+  transform-origin: 100px 63px;
+}
+.m-cf-b {
+  fill: var(--m-sky);
+}
+.m-cf-c {
+  fill: var(--m-violet);
+}
+.m-cf-d {
+  fill: var(--m-body);
+}
+
+/* Poses (static; they also hold under reduced motion). */
+.m-head,
+.m-body,
+.m-arm,
+.m-ant,
+.m-eyes,
+.m-gaze,
+.m-mouth,
+.m-bob,
+.m-shadow {
+  transform-origin: 100px 136px;
+}
+.m-gaze {
+  transform: translate(var(--gx), var(--gy));
+}
+.m-body,
+.m-shadow {
+  transform-origin: 100px 194px;
+}
+.m-shadow {
+  transform-origin: 100px 207px;
+}
+.m-ant {
+  transform-origin: 100px 46px;
+}
+.m-eyes {
+  transform-origin: 100px 83px;
+}
+.m-mouth {
+  transform-origin: 100px 107px;
+}
+.m-bob {
+  transform-origin: 100px 207px;
+}
+.m-arm-l {
+  transform-origin: 66px 151px;
+}
+.m-arm-r {
+  transform-origin: 134px 151px;
+}
+[data-state="listening"] .m-head {
+  transform: translateY(1px) rotate(-4deg);
+}
+[data-state="thinking"] .m-head {
+  transform: rotate(5deg);
+}
+[data-state="thinking"] .m-gaze {
+  transform: translate(-5px, -5px);
+}
+[data-state="confused"] .m-head {
+  transform: rotate(-7deg);
+}
+[data-state="sleepy"] .m-head {
+  transform: translateY(5px) rotate(9deg);
+}
+[data-state="sleepy"] .m-ant {
+  transform: rotate(-24deg);
+}
+[data-state="happy"] .m-arm-l {
+  transform: rotate(38deg);
+}
+[data-state="happy"] .m-arm-r {
+  transform: rotate(-38deg);
+}
+[data-state="celebrate"] .m-arm-l {
+  transform: rotate(100deg);
+}
+[data-state="celebrate"] .m-arm-r {
+  transform: rotate(-100deg);
+}
+[data-state="talking"] .m-arm-l {
+  transform: rotate(42deg);
+}
+[data-state="thinking"] .m-arm-r {
+  transform: rotate(-78deg);
+}
+[data-state="confused"] .m-arm-r {
+  transform: rotate(-115deg);
+}
+[data-state="sleepy"] .m-arm-l {
+  transform: rotate(-8deg);
+}
+[data-state="sleepy"] .m-arm-r {
+  transform: rotate(8deg);
+}
+.m[data-view="bust"] .m-shadow {
+  display: none;
+}
+.m[data-motion="on"] .m-head,
+.m[data-motion="on"] .m-arm,
+.m[data-motion="on"] .m-gaze,
+.m[data-motion="on"] .m-ant {
+  transition: transform 0.45s cubic-bezier(0.34, 1.45, 0.64, 1);
+}
+
+/* Motion. Pauses off-screen and in hidden tabs through data-paused. */
+.m[data-paused="true"] * {
+  animation-play-state: paused !important;
+}
+.m[data-motion="off"] * {
+  animation: none !important;
+  transition: none !important;
+}
+.m[data-motion="off"] .m-cf {
+  opacity: 0.95;
+}
+@keyframes m-breathe {
+  50% {
+    scale: 1 1.03;
+  }
+}
+@keyframes m-bob {
+  50% {
+    translate: 0 -2.5px;
+  }
+}
+@keyframes m-sway {
+  0%,
+  100% {
+    rotate: -5deg;
+  }
+  50% {
+    rotate: 6deg;
+  }
+}
+@keyframes m-glow {
+  50% {
+    opacity: 0.6;
+    scale: 1.2;
+  }
+}
+@keyframes m-ring {
+  0% {
+    scale: 0.8;
+    opacity: 0.9;
+  }
+  100% {
+    scale: 1.2;
+    opacity: 0;
+  }
+}
+@keyframes m-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+@keyframes m-talk {
+  0%,
+  100% {
+    scale: 1 0.4;
+  }
+  50% {
+    scale: 1 1.1;
+  }
+}
+@keyframes m-nod {
+  50% {
+    translate: 0 -1.5px;
+    rotate: -1.5deg;
+  }
+}
+@keyframes m-look {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 9px 1px;
+  }
+}
+@keyframes m-tilt {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  50% {
+    rotate: -6deg;
+  }
+}
+@keyframes m-hop {
+  0%,
+  100% {
+    translate: 0 0;
+    scale: 1 1;
+  }
+  12% {
+    scale: 1.06 0.92;
+  }
+  38% {
+    translate: 0 -20px;
+    scale: 0.97 1.05;
+  }
+  62% {
+    translate: 0 0;
+    scale: 1 1;
+  }
+  72% {
+    scale: 1.05 0.94;
+  }
+  85% {
+    scale: 0.99 1.02;
+  }
+}
+@keyframes m-shade {
+  38% {
+    scale: 0.7;
+    opacity: 0.07;
+  }
+}
+@keyframes m-cheer {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  50% {
+    rotate: -14deg;
+  }
+}
+@keyframes m-cheerr {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  50% {
+    rotate: 14deg;
+  }
+}
+@keyframes m-pop {
+  0% {
+    translate: 0 0;
+    scale: 1 1;
+  }
+  25% {
+    translate: 0 -9px;
+    scale: 0.96 1.05;
+  }
+  50% {
+    translate: 0 0;
+    scale: 1.05 0.94;
+  }
+  75% {
+    scale: 0.99 1.01;
+  }
+  100% {
+    scale: 1 1;
+  }
+}
+@keyframes m-burst {
+  0% {
+    translate: 0 0;
+    rotate: 0deg;
+    scale: 0.3;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    translate: var(--dx) var(--dy);
+    rotate: var(--r);
+    scale: 1;
+    opacity: 0;
+  }
+}
+@keyframes m-wave {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  50% {
+    rotate: -12deg;
+  }
+}
+@keyframes m-z {
+  0% {
+    translate: 0 8px;
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    translate: 6px -10px;
+    opacity: 0;
+  }
+}
+@keyframes m-wob {
+  0%,
+  100% {
+    rotate: -2deg;
+  }
+  50% {
+    rotate: 3deg;
+  }
+}
+@keyframes m-droop {
+  50% {
+    scale: 1 1.045;
+  }
+}
+.m[data-motion="on"] .m-body {
+  animation: m-breathe 3.6s ease-in-out infinite;
+}
+.m[data-motion="on"] .m-head {
+  animation: m-bob 3.6s ease-in-out infinite;
+}
+.m[data-motion="on"] .m-ant {
+  animation: m-sway 3.2s ease-in-out infinite -0.8s;
+}
+.m[data-motion="on"] .m-halo {
+  animation: m-glow 2.4s ease-in-out infinite;
+  transform-origin: 100px 17px;
+}
+.m[data-motion="on"] .m-rings circle {
+  animation: m-ring 1.3s ease-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.m[data-motion="on"] .m-rings circle + circle {
+  animation-delay: 0.1s;
+}
+.m[data-motion="on"] .m-dot {
+  animation: m-dot 1.2s ease-in-out infinite calc(var(--i) * 0.2s);
+}
+.m[data-state="listening"][data-motion="on"] .m-head {
+  animation: m-nod 2.4s ease-in-out infinite;
+}
+.m[data-state="thinking"][data-motion="on"] .m-gaze {
+  animation: m-look 2.6s ease-in-out infinite;
+}
+.m[data-state="thinking"][data-motion="on"] .m-head {
+  animation: m-tilt 3.2s ease-in-out infinite;
+}
+.m[data-state="thinking"][data-motion="on"] .m-ant {
+  animation: none;
+}
+.m[data-state="thinking"][data-motion="on"] .m-halo {
+  animation-duration: 1s;
+}
+.m[data-state="talking"][data-motion="on"] .m-head {
+  animation: m-nod 0.55s ease-in-out infinite;
+}
+.m[data-state="talking"][data-motion="on"] .m-arm-l {
+  animation: m-wave 0.9s ease-in-out infinite;
+}
+.m[data-motion="on"] .m-loop {
+  animation: m-talk 0.38s ease-in-out infinite;
+}
+.m[data-state="happy"][data-motion="on"] .m-bob {
+  animation: m-pop 0.8s ease-out 1;
+}
+.m[data-state="celebrate"][data-motion="on"] .m-bob {
+  animation: m-hop 1.3s ease-in-out 2;
+}
+.m[data-state="celebrate"][data-motion="on"] .m-shadow {
+  animation: m-shade 1.3s ease-in-out 2;
+}
+.m[data-state="celebrate"][data-motion="on"] .m-arm-l {
+  animation: m-cheer 0.65s ease-in-out infinite;
+}
+.m[data-state="celebrate"][data-motion="on"] .m-arm-r {
+  animation: m-cheerr 0.65s ease-in-out infinite;
+}
+.m[data-state="celebrate"][data-motion="on"] .m-cf {
+  animation: m-burst 1.4s cubic-bezier(0.2, 0.7, 0.3, 1) calc(var(--n) * 0.03s)
+    1 both;
+}
+.m[data-state="celebrate"][data-motion="on"] .m-halo {
+  animation-duration: 0.5s;
+}
+.m[data-state="confused"][data-motion="on"] .m-head {
+  animation: m-wob 1.5s ease-in-out infinite;
+}
+.m[data-state="confused"][data-motion="on"] .m-arm-r {
+  animation: m-wave 0.8s ease-in-out infinite;
+}
+.m[data-state="sleepy"][data-motion="on"] .m-body {
+  animation: m-droop 5.2s ease-in-out infinite;
+}
+.m[data-state="sleepy"][data-motion="on"] .m-head {
+  animation: m-bob 5.2s ease-in-out infinite;
+}
+.m[data-state="sleepy"][data-motion="on"] .m-ant,
+.m[data-state="sleepy"][data-motion="on"] .m-halo {
+  animation: none;
+}
+.m[data-state="sleepy"] .m-halo {
+  opacity: 0.1;
+}
+.m[data-motion="on"] .m-z {
+  animation: m-z 3s ease-in-out infinite;
+}
+.m[data-motion="on"] .m-z2 {
+  animation-delay: 1.2s;
+}
+
+.m-avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--success-bg, #e3f8d3);
+  pointer-events: none;
+}
+.m-avatar .m {
+  overflow: hidden;
+}
+.m-companion {
+  display: inline-flex;
+  flex: none;
+  pointer-events: none;
+  inline-size: 48px;
+  block-size: 48px;
+}

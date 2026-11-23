@@ -38,9 +38,9 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 ## 5. Mascot component and states (M)
 
 - [ ] 5.1 Visual regression: eight states at 32/64/160 px, light and dark, RTL; reduced-motion static poses
-- [ ] 5.2 Unit tests: state derivation from UI events, off-screen pause, size budget (`bundle-budget.json`, 30 KB)
-- [ ] 5.3 Implement `features/mascot` (parts, tokens, CSS/WAAPI animations) from `docs/design/mascot/`; chat avatar, empty states, celebrations, errors
-- [ ] 5.4 Player chrome slot for the corner companion; immersive hide rule; Settings toggle
+- [x] 5.2 Unit tests: state derivation from UI events, off-screen pause, size budget (`bundle-budget.json`, 30 KB)
+- [x] 5.3 Implement `features/mascot` (parts, tokens, CSS/WAAPI animations) from `docs/design/mascot/`; chat avatar, empty states, celebrations, errors
+- [x] 5.4 Player chrome slot for the corner companion; immersive hide rule; Settings toggle
 
 ## 6. Migrate sign-in (M)
 
