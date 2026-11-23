@@ -11,7 +11,8 @@ androidWebViewHierarchy: devtools
 - tapOn: Sign in
 - assertVisible: ".*400 Credits.*daily check-in.*"
 - takeScreenshot: first-check-in
-- assertVisible: Skip for now
+- scrollUntilVisible:
+    element: Skip for now
 - takeScreenshot: onboarding-welcome
 - scrollUntilVisible:
     element: Skip for now
