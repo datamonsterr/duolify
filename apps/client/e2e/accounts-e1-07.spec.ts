@@ -1,6 +1,12 @@
 import { test, expect, resetTokens } from "./accounts-fixture";
 
 test.describe("E1-07 account export and deletion", () => {
+  test.beforeEach(async ({ page }) => {
+    // The old dialogs stay one release behind the flag; these tests cover them.
+    await page.addInitScript(() =>
+      localStorage.setItem("duolify.guided.rest", "off"),
+    );
+  });
   test.afterEach(() => {
     resetTokens();
   });
