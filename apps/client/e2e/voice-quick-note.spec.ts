@@ -131,7 +131,7 @@ for (const vp of [VIEWPORTS[0], VIEWPORTS[1]]) {
         await enterImmersive(page);
         await openRail(page);
         await press(page);
-        await page.waitForTimeout(700);
+        await page.waitForTimeout(1000);
         await page.mouse.up();
         await expect.poll(() => posted.length).toBe(1);
         await page.goto(`${webBase}/notes`);
@@ -144,6 +144,7 @@ for (const vp of [VIEWPORTS[0], VIEWPORTS[1]]) {
         await expect(page.getByTestId("note-anchor-label")).toContainText(
           "dictated",
         );
+        await page.getByTestId("note-breadcrumb").scrollIntoViewIfNeeded();
         await snap(page, info, vp, scheme, "4-notes-entry");
         await chip.click();
         await expect(page).toHaveURL(/\/lesson\/.+\?.*slide=0/);
@@ -172,7 +173,7 @@ test.describe("voice quick note failures", () => {
     await enterImmersive(page);
     await openRail(page);
     await press(page);
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(1000);
     await page.mouse.up();
     await expect(page.getByTestId("toast")).toBeVisible();
     expect(posted).toHaveLength(0);
@@ -190,7 +191,7 @@ test.describe("voice quick note failures", () => {
     await openRail(page);
     state.offline = true;
     await press(page);
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(1000);
     await page.mouse.up();
     await expect(page.getByTestId("toast")).toContainText(/Saved/i);
     const queued = await page.evaluate(() =>
