@@ -1,3 +1,4 @@
+import { appVersion, clientPlatform } from "../../lib/client-build";
 import { isTauri } from "@tauri-apps/api/core";
 import { configureAnalytics, setAnalyticsConsent } from "../../lib/analytics";
 import { secureStore, type Tokens } from "./secure-store";
@@ -114,7 +115,40 @@ async function authBlob(path: string, access: string): Promise<Blob> {
   if (!response.ok) throw new AuthError("Download failed.", response.status);
   return response.blob();
 }
+async function authForm<T>(
+  path: string,
+  form: FormData,
+  access: string,
+): Promise<T> {
+  // No Content-Type: the browser sets the multipart boundary itself.
+  const response = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      ...(cookieMode() ? { [clientHeader]: "web" } : {}),
+      Authorization: `Bearer ${access}`,
+    },
+    body: form,
+  });
+  if (!response.ok) {
+    let details: unknown;
+    try {
+      details = await response.json();
+    } catch {
+      /* No server body on proxy errors. */
+    }
+    const error = new AuthError(
+      (details as { error?: string } | undefined)?.error || "Upload failed.",
+      response.status,
+      details,
+    );
+    const retry = Number(response.headers.get("Retry-After"));
+    if (Number.isFinite(retry) && retry > 0) error.retryAfter = retry;
+    throw error;
+  }
+  return response.json() as Promise<T>;
+}
 export class AuthError extends Error {
+  retryAfter?: number;
   constructor(
     message: string,
     public status: number,
@@ -155,8 +189,8 @@ function identify(value: Learner) {
   configureAnalytics({
     learnerId: value.id,
     optedOut: value.analytics_opt_out || analyticsOptOut(),
-    platform: isTauri() ? "desktop" : "web",
-    appVersion: "0.1.0",
+    platform: clientPlatform(isTauri(), import.meta.env.VITE_MOBILE_PLATFORM),
+    appVersion,
   });
 }
 // Serialize native keychain writes as well as browser writes. A late refresh
@@ -374,6 +408,21 @@ export const session = {
           await expire(expected);
         throw refreshError;
       }
+    }
+  },
+  /** Authenticated multipart upload (voice transcription); rotates the session once on 401. */
+  async upload<T>(path: string, form: FormData): Promise<T> {
+    const expected = generation;
+    const tokens = await credentialStore.read();
+    if (!tokens || expected !== generation)
+      throw new AuthError("Sign in again.", 401);
+    try {
+      return await authForm<T>(path, form, tokens.access_token);
+    } catch (error) {
+      if (!(error instanceof AuthError) || error.status !== 401) throw error;
+      const rotated = await rotate(tokens, expected);
+      if (expected !== generation) throw new AuthError("Session changed.", 401);
+      return authForm<T>(path, form, rotated.access_token);
     }
   },
   /** Authenticated binary read (narration audio); rotates the session once on 401. */

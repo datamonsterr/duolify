@@ -15,6 +15,9 @@ import {
 } from "../../lib/analytics";
 import { tutorService, type RegionAsk } from "./tutor";
 import { RegionThumb } from "./RegionThumb";
+import { VoiceButton } from "../voice/VoiceButton";
+import { DictationCountdown } from "../voice/DictationCountdown";
+import { useDictationWindow } from "../voice/useDictationWindow";
 import {
   lastIndex,
   useTutor,
@@ -482,6 +485,15 @@ export function TutorChat({
   );
   const text = tutor.draft.trim();
   const canSend = !!text && !busy && tutor.online && !tutor.block;
+  const dictation = useDictationWindow({
+    entryPoint: "tutor_sheet",
+    draft: tutor.draft,
+    send: () => sendNow(),
+  });
+  const sendNow = () => {
+    dictation.noteSent();
+    tutor.send();
+  };
   const notice = tutor.notice;
   const transcript = onReadTranscript ? (
     <button
@@ -503,7 +515,7 @@ export function TutorChat({
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault();
-      if (canSend) tutor.send();
+      if (canSend) sendNow();
     }
   }
   // Focus can only move once the nested modal is gone (everything behind it is inert): back to
@@ -783,7 +795,7 @@ export function TutorChat({
             className="tutor-composer"
             onSubmit={(event) => {
               event.preventDefault();
-              if (canSend) tutor.send();
+              if (canSend) sendNow();
             }}
           >
             <fieldset className="tutor-class" disabled={busy}>
@@ -841,6 +853,22 @@ export function TutorChat({
                 </button>
               )}
             </div>
+            <DictationCountdown
+              counting={dictation.counting}
+              onCancel={dictation.cancelAuto}
+            />
+            {lesson && (
+              <VoiceButton
+                purpose="tutor"
+                entryPoint="tutor_sheet"
+                lessonId={lesson.lesson_id}
+                disabled={busy || !tutor.online}
+                onTranscript={({ text, language }) => {
+                  tutor.setDraft(text);
+                  dictation.begin(text, language);
+                }}
+              />
+            )}
             <div className="tutor-help" aria-live="polite">
               <span>
                 {tutor.quote

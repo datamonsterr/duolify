@@ -5,6 +5,7 @@ pub mod report;
 pub mod runner;
 pub mod scoring;
 pub mod tasks;
+pub mod transcribe;
 
 pub use analytics::{SYSTEM_OPERATIONAL_UUID, emit_eval_run_completed};
 pub use judge::parse_judge_verdict;

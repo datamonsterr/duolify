@@ -1,3 +1,4 @@
+import { appVersion } from "../../lib/client-build";
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import posthog from "posthog-js/dist/module.no-external";
 import { session } from "../accounts/session";
@@ -143,7 +144,7 @@ describe("offline playback progress synchronization", () => {
       distinct_id: owner,
       source: "client",
       platform: "web",
-      app_version: "0.1.0",
+      app_version: appVersion,
       lesson_id: lessonId,
       slide_id: "sky-1",
       index: 0,

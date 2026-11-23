@@ -46,3 +46,7 @@ evals/reports/
 /services/api/test/pricingserver/pricingserver
 infra/e2e/.state/
 playwright-report-stack/
+
+# Native mobile projects are generated from Tauri configuration in CI.
+apps/client/src-tauri/gen/android/
+apps/client/src-tauri/gen/apple/

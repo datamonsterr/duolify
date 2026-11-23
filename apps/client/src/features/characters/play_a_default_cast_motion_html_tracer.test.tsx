@@ -288,3 +288,28 @@ describe("E17-01 Client Character Rig & Tracer Unit Tests", () => {
     });
   });
 });
+
+it("identifies native character events with the mobile target and build version", () => {
+  vi.stubEnv("VITE_MOBILE_PLATFORM", "android");
+  Object.defineProperty(window, "__TAURI_INTERNALS__", {
+    value: {},
+    configurable: true,
+  });
+  try {
+    resetCharacterRenderDeduplication();
+    trackCharacterRendered({
+      speaker_key: "guide",
+      character_version: 1,
+      rig_version: "original-v1",
+      expression: "idle",
+      offline: false,
+    });
+    expect(posthog.capture).toHaveBeenCalledWith(
+      "character_rendered",
+      expect.objectContaining({ platform: "android" }),
+    );
+  } finally {
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+    vi.unstubAllEnvs();
+  }
+});

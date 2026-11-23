@@ -96,6 +96,7 @@ jobs:
               - '.npmrc'
               - '.mise/tasks/client.toml'
               - '.mise/tasks/client-stack.toml'
+              - '.mise/tasks/mobile.toml'
               - *tooling
               - *tasks
               - *github
@@ -430,7 +431,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      API_TEST_PACKAGES: ./internal/notes/... ./internal/narration/... ./internal/lessontest/... ./internal/characters/... ./internal/credits/... ./internal/maintenance/...
+      API_TEST_PACKAGES: ./internal/notes/... ./internal/voice/... ./internal/narration/... ./internal/lessontest/... ./internal/characters/... ./internal/credits/... ./internal/maintenance/...
     steps:
       - uses: actions/checkout@v7
         with:
@@ -654,9 +655,9 @@ jobs:
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           HF_GOLDEN_DATASET: ${{ vars.HF_GOLDEN_DATASET || 'datamonsterr/duolify-golden' }}
           # Pinned revision (evals/pinned-datasets.toml); a repo variable may pin a newer reviewed one.
-          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || 'ef44a169c654d8e01d7719a5b632522824292b40' }}
-          # 32 = every case of the pinned revision; a smaller sample cannot cover all 16 tasks.
-          EVAL_SAMPLE_LIMIT: ${{ vars.EVAL_SAMPLE_LIMIT || '32' }}
+          HF_GOLDEN_REVISION: ${{ vars.HF_GOLDEN_REVISION || 'd902ce8cfacc2abf8d585930e2a15d471515b07a' }}
+          # 90 = every case of the pinned revision; a smaller sample cannot cover all 17 tasks.
+          EVAL_SAMPLE_LIMIT: ${{ vars.EVAL_SAMPLE_LIMIT || '90' }}
           EVAL_BUDGET_USD: ${{ vars.EVAL_BUDGET_USD || '0.50' }}
       - name: mise run engine:gate
         if: always()
@@ -826,6 +827,93 @@ jobs:
         env:
           JOB_STATUS: ${{ job.status }}
         run: mise run ci:summary
+
+  mobile-android:
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    # Advisory until Android has three consecutive green runs; do not gate ci-ok.
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: node pnpm rust
+          area: mobile-android
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            /usr/local/lib/android/sdk/ndk/27.2.12479018
+          key: mobile-gradle-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/client/src-tauri/Cargo.lock') }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/client/src-tauri -> target
+          shared-key: mobile-android
+      - run: mise run client:android-free-disk
+      - run: mise run client:install
+      - run: mise run client:android-prerequisites
+      - run: mise run client:mobile-driver-install
+      - run: mise run client:e2e-stack-up
+        env:
+          E2E_STACK_BIND_ADDRESS: 0.0.0.0
+          E2E_STACK_ALLOWED_ORIGINS: http://localhost:18471,http://tauri.localhost,https://tauri.localhost
+      - run: mise run client:android-build
+        env:
+          MOBILE_E2E: '1'
+          VITE_API_URL: http://10.0.2.2:18471
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          disable-animations: true
+          script: mise run client:android-device-test
+      - run: mise run client:e2e-stack-down
+        if: always()
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mobile-screens-android
+          path: apps/client/mobile-screens
+          if-no-files-found: warn
+
+  mobile-ios:
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    # Advisory until device coverage is stable; do not gate ci-ok.
+    continue-on-error: true
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-tools
+        with:
+          tools: node pnpm rust
+          area: mobile-ios
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/client/src-tauri -> target
+          shared-key: mobile-ios
+      - run: mise run client:install
+      - run: mise run client:mobile-driver-install
+      - run: mise run client:ios-build
+      - run: mise run client:ios-device-test
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mobile-screens-ios
+          path: apps/client/mobile-screens
+          if-no-files-found: warn
 
   ci-ok:
     name: ci-ok

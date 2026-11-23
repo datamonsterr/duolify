@@ -1,3 +1,4 @@
+import { appVersion } from "../../lib/client-build";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import posthog from "posthog-js/dist/module.no-external";
 import { isManifest, sandboxDocument } from "./manifest";
@@ -109,7 +110,7 @@ describe("authorized lesson boundary", () => {
         course_id: "course-1",
         source: "client",
         platform: "web",
-        app_version: "0.1.0",
+        app_version: appVersion,
       }),
     );
     expect(JSON.stringify(vi.mocked(posthog.capture).mock.calls)).not.toContain(

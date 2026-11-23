@@ -1,0 +1,96 @@
+.voice-ptt {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  max-width: 100%;
+}
+.voice-mic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 24px;
+  border: 2px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.voice-mic[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.voice-mic.recording {
+  background: #c62828;
+  border-color: #c62828;
+  color: #fff;
+}
+.voice-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.voice-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #c62828;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .voice-dot {
+    animation: voice-pulse 1s ease-in-out infinite;
+  }
+}
+@keyframes voice-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+.voice-meter {
+  width: 96px;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.3);
+  overflow: hidden;
+}
+.voice-meter > span {
+  display: block;
+  height: 100%;
+  background: #2e7d32;
+  transition: width 60ms linear;
+}
+.voice-hint,
+.voice-note {
+  margin: 0;
+  font-size: 0.85rem;
+}
+.voice-note button {
+  margin-inline-start: 8px;
+}
+.voice-explain {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(127, 127, 127, 0.5);
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
+.voice-explain p {
+  margin: 0;
+}
+.voice-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
