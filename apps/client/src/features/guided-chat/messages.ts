@@ -2,14 +2,16 @@
 // The guide's display name is a working name and lives only in this catalogue.
 import type { Message } from "../design/localization/messages";
 
-import { briefAr, briefEn } from "./messages.brief";
-import { courseAr, courseEn } from "./messages.course";
-import { setupAr, setupEn } from "./messages.setup";
+import type { briefAr, briefEn } from "./messages.brief";
+import type { signinAr, signinEn } from "./messages.signin";
+import type { courseAr, courseEn } from "./messages.course";
+import type { setupAr, setupEn } from "./messages.setup";
 
 export const guidedEn = {
-  ...setupEn,
-  ...briefEn,
-  ...courseEn,
+  ...({} as typeof setupEn),
+  ...({} as typeof briefEn),
+  ...({} as typeof signinEn),
+  ...({} as typeof courseEn),
   "guided.guide": "Guide",
   "guided.title": "Guided chat",
   "guided.transcript": "Conversation",
@@ -48,9 +50,10 @@ export const guidedEn = {
 } as const;
 
 export const guidedAr: Record<keyof typeof guidedEn, Message> = {
-  ...setupAr,
-  ...briefAr,
-  ...courseAr,
+  ...({} as typeof setupAr),
+  ...({} as typeof briefAr),
+  ...({} as typeof signinAr),
+  ...({} as typeof courseAr),
   "guided.guide": "المرشد",
   "guided.title": "محادثة موجّهة",
   "guided.transcript": "المحادثة",

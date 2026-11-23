@@ -50,6 +50,7 @@ for (const mobile of [false, true]) {
     await page.getByRole("button", { name: "Get started" }).tap();
     const email = `brief-${mobile}@example.test`;
     await page.getByLabel("Email address").fill(email);
+    await page.getByLabel("Email address").press("Enter");
     await page.getByLabel("I am 16 or older").check();
     await page.getByRole("button", { name: "Send code" }).tap();
     await expect(page.getByLabel("One-time code")).toBeVisible();
