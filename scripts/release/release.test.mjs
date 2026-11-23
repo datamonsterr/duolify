@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { isOnMain } from "./check-on-main.mjs";
 import { renderChangelog, parseSubject } from "./changelog.mjs";
 import { verifyCertOutput } from "./verify-apk-cert.mjs";
 import { releaseNotes } from "./release-notes.mjs";
@@ -7,6 +12,7 @@ import { checkVersions } from "./check-version.mjs";
 import {
   patchGradle,
   keystoreProperties,
+  escapeProperty,
 } from "../../apps/client/scripts/prepare-android-signing.mjs";
 
 const SHA =
@@ -155,5 +161,74 @@ test("keystore properties require every credential", () => {
       "/k.jks",
     ),
     /storeFile=\/k.jks/,
+  );
+});
+
+// Minimal java.util.Properties.load value decoder for round-trip checks.
+function javaUnescape(v) {
+  return v.replace(/\\(u[0-9a-f]{4}|.)/g, (_, c) =>
+    c[0] === "u" && c.length === 5
+      ? String.fromCharCode(parseInt(c.slice(1), 16))
+      : ({ n: "\n", r: "\r", t: "\t", f: "\f" }[c] ?? c),
+  );
+}
+
+test("properties values survive nasty characters", () => {
+  const nasty = [
+    "pa\\ss",
+    "#hash",
+    "!bang",
+    "=eq:colon",
+    " leading",
+    "line\nbreak\rcr",
+    "tab\tx",
+    "ünï\u4e2d",
+    "trailing\\",
+    "a=b#c!d:e",
+  ];
+  for (const pw of nasty) {
+    const out = keystoreProperties(
+      {
+        ANDROID_KEY_ALIAS: "al",
+        ANDROID_KEYSTORE_PASSWORD: pw,
+        ANDROID_KEY_PASSWORD: pw,
+      },
+      "/k.jks",
+    );
+    const lines = out.split("\n").filter(Boolean);
+    assert.equal(
+      lines.length,
+      4,
+      `no injected lines for ${JSON.stringify(pw)}`,
+    );
+    for (const key of ["keyPassword", "storePassword"]) {
+      const l = lines.find((x) => x.startsWith(`${key}=`));
+      assert.equal(javaUnescape(l.slice(key.length + 1)), pw);
+    }
+  }
+  assert.equal(escapeProperty("a\\b"), "a\\\\b");
+});
+
+function git(cwd, ...args) {
+  return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+}
+
+test("main guard accepts main ancestors and rejects other commits", () => {
+  const dir = mkdtempSync(join(tmpdir(), "guard-"));
+  git(dir, "init", "-q", "-b", "main");
+  git(dir, "config", "user.email", "t@t");
+  git(dir, "config", "user.name", "t");
+  git(dir, "commit", "-q", "--allow-empty", "-m", "a");
+  const onMain = git(dir, "rev-parse", "HEAD");
+  git(dir, "update-ref", "refs/remotes/origin/main", onMain);
+  git(dir, "checkout", "-q", "-b", "feature");
+  git(dir, "commit", "-q", "--allow-empty", "-m", "b");
+  const offMain = git(dir, "rev-parse", "HEAD");
+  assert.equal(isOnMain(onMain, { cwd: dir }), true);
+  assert.equal(isOnMain(offMain, { cwd: dir }), false);
+  assert.throws(() => isOnMain("nope", { cwd: dir }), /bad commit sha/);
+  assert.throws(
+    () => isOnMain(onMain, { cwd: dir, ref: "origin/missing" }),
+    /cannot resolve/,
   );
 });

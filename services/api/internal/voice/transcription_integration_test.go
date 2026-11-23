@@ -151,7 +151,7 @@ func TestTranscriptionEndpointIntegration(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	eng := &engineDouble{}
 	events := &capture{}
-	svc := voice.New(voice.Options{Engine: eng, Pricing: prices, Lessons: voice.PoolLessons{Pool: db.Pool}, Counters: voice.RedisCounters{Client: rdb}, Events: events, Logger: logger})
+	svc := voice.New(voice.Options{Engine: eng, Pricing: prices, Lessons: voice.PoolLessons{Pool: db.Pool}, Counters: voice.RedisCounters{Client: rdb}, Days: voice.PoolDays{Pool: db.Pool}, Events: events, Logger: logger})
 	server := httptest.NewServer(httpapi.New(httpapi.Dependencies{Accounts: auth, Voice: svc, Postgres: db.Ping}, logger))
 	defer server.Close()
 
@@ -329,12 +329,12 @@ func TestTranscriptionEndpointIntegration(t *testing.T) {
 	})
 
 	t.Run("daily cap counts, expires and names its reset", func(t *testing.T) {
-		day := "voice:day:" + learnerA + ":" + time.Now().UTC().Format("20060102")
+		day := dayKeyFor(ctx, t, db, learnerA)
 		used, err := rdb.Get(ctx, day).Int()
 		must(err)
-		// The two earlier successes ran; the failed one gave its slot back.
-		if used != 1 {
-			t.Fatalf("daily counter %d, want 1", used)
+		// The earlier success and the provider failure both keep their slot: the provider may have billed.
+		if used != 2 {
+			t.Fatalf("daily counter %d, want 2", used)
 		}
 		if ttl := rdb.TTL(ctx, day).Val(); ttl <= 0 || ttl > 25*time.Hour {
 			t.Fatalf("daily key expiry %v", ttl)
@@ -360,7 +360,7 @@ func TestTranscriptionEndpointIntegration(t *testing.T) {
 	})
 
 	t.Run("burst rate limit has an expiry and Retry-After", func(t *testing.T) {
-		must(rdb.Set(ctx, "voice:day:"+learnerA+":"+time.Now().UTC().Format("20060102"), 0, 2*time.Hour).Err())
+		must(rdb.Set(ctx, dayKeyFor(ctx, t, db, learnerA), 0, 2*time.Hour).Err())
 		must(rdb.Del(ctx, "voice:rate:"+learnerA).Err())
 		var last int
 		var header http.Header
@@ -467,4 +467,14 @@ func assertNothingRetained(ctx context.Context, t *testing.T, db *store.Store, r
 			t.Fatalf("new temp entry %s", n)
 		}
 	}
+}
+
+// dayKeyFor is the daily-cap key the endpoint uses: the Learner's local day.
+func dayKeyFor(ctx context.Context, t *testing.T, db *store.Store, learner string) string {
+	t.Helper()
+	day, _, err := voice.PoolDays{Pool: db.Pool}.LocalDay(ctx, learner, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return "voice:day:" + learner + ":" + strings.ReplaceAll(day, "-", "")
 }

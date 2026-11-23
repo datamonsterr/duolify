@@ -2021,3 +2021,49 @@ fn span_id() -> String {
     static NEXT: AtomicU64 = AtomicU64::new(1);
     format!("{:016x}", NEXT.fetch_add(1, Ordering::Relaxed))
 }
+
+/// Default time in-flight RPCs get to finish after SIGTERM (`ENGINE_DRAIN_TIMEOUT_SECS` overrides it).
+/// It exceeds the longest quoted preview/lesson budget; compose `stop_grace_period` must stay above it.
+pub const DEFAULT_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
+
+/// Reads `ENGINE_DRAIN_TIMEOUT_SECS`; empty, zero or invalid keeps [`DEFAULT_DRAIN_TIMEOUT`].
+pub fn drain_timeout_from(value: Option<&str>) -> std::time::Duration {
+    value
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|s| *s > 0)
+        .map(std::time::Duration::from_secs)
+        .unwrap_or(DEFAULT_DRAIN_TIMEOUT)
+}
+
+/// Runs a tonic server until `signal` resolves, then drains: the server stops accepting connections and
+/// lets in-flight RPCs finish for up to `drain`; after that the server future is dropped, which closes
+/// whatever is left. `build` receives the shutdown future to hand to `serve_with_shutdown`.
+pub async fn serve_with_drain<B, Fut, S>(
+    build: B,
+    signal: S,
+    drain: std::time::Duration,
+) -> Result<(), tonic::transport::Error>
+where
+    B: FnOnce(std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>) -> Fut,
+    Fut: std::future::Future<Output = Result<(), tonic::transport::Error>>,
+    S: std::future::Future<Output = ()>,
+{
+    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+    let server = build(Box::pin(async move {
+        let _ = stopped.await;
+    }));
+    tokio::pin!(server);
+    let deadline = async move {
+        signal.await;
+        tracing::info!(drain_secs = drain.as_secs_f64(), "draining in-flight RPCs");
+        let _ = stop.send(());
+        tokio::time::sleep(drain).await;
+    };
+    tokio::select! {
+        result = &mut server => result,
+        () = deadline => {
+            tracing::warn!("drain timeout reached; closing remaining RPCs");
+            Ok(())
+        }
+    }
+}

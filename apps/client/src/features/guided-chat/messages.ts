@@ -66,7 +66,7 @@ export const guidedEn = {
   "fixture.email.q": "What's your email?",
   "fixture.confirm.q": "Ready to save these?",
   "fixture.code.q": "Enter the code we sent.",
-  "fixture.password.q": "Enter your password to continue.",
+  "fixture.password.q": "Type your password.",
   "fixture.delete.q": "This can't be undone.",
 } as const;
 

@@ -43,6 +43,8 @@ The build is for the arm64 simulator only. It is ad-hoc signed, so it never runs
 
 `workflow_dispatch` with `dry_run` (default on) builds and verifies everything and uploads the files as a workflow artifact without creating a release.
 
+Publishing (tag push, or dispatch with `dry_run=false`) fails unless the commit is an ancestor of `origin/main`. Dispatch with `test_missing_signing=true` blanks the signing secrets to prove the missing-secrets path fails closed.
+
 ## Signing
 
 Secrets (repository secrets, never committed): `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. The keystore is decoded to the runner temp directory, used only by the release build type, and the APK is checked with `apksigner` against `scripts/release/android-cert.sha256` (exactly one signer, exact match, otherwise the job fails and nothing is published). Debug builds in CI are never signed with this key.

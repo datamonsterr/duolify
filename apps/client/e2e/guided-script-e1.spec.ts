@@ -116,7 +116,7 @@ test("secure inputs are real labelled inputs and never reach the draft", async (
   await expect(code).toHaveAttribute("autocomplete", "one-time-code");
   await code.fill("123456");
   await send(page);
-  const pw = page.getByLabel("Enter your password to continue.");
+  const pw = page.getByLabel("Type your password.");
   await expect(pw).toHaveAttribute("type", "password");
   await expect(pw).toHaveAttribute("autocomplete", "current-password");
   await pw.fill("hunter2");

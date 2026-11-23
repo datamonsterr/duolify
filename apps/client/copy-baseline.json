@@ -1,0 +1,290 @@
+{
+  "literals": {
+    "src/App.tsx": 5,
+    "src/features/accounts/AccountPrivacy.tsx": 20,
+    "src/features/accounts/AccountProfile.tsx": 11,
+    "src/features/accounts/learner-context.ts": 10,
+    "src/features/accounts/LearnerContextEditor.tsx": 37,
+    "src/features/accounts/LearnerProfile.tsx": 2,
+    "src/features/accounts/RouteGuard.tsx": 8,
+    "src/features/accounts/Sessions.tsx": 14,
+    "src/features/accounts/Settings.tsx": 35,
+    "src/features/accounts/SetupChat.tsx": 67,
+    "src/features/accounts/SignIn.tsx": 33,
+    "src/features/accounts/SsoBridge.tsx": 12,
+    "src/features/characters/CharacterExportConfirmation.tsx": 6,
+    "src/features/characters/CharacterLibrary.tsx": 32,
+    "src/features/characters/CourseCast.tsx": 17,
+    "src/features/characters/CreateCharacter.tsx": 26,
+    "src/features/characters/fixtures.ts": 1,
+    "src/features/chat/RegionThumb.tsx": 1,
+    "src/features/chat/TutorChat.tsx": 1,
+    "src/features/courses/brief.ts": 9,
+    "src/features/courses/CourseBrief.tsx": 20,
+    "src/features/courses/CourseCreate.tsx": 33,
+    "src/features/courses/CourseLevelOverride.tsx": 12,
+    "src/features/courses/CourseOutline.tsx": 19,
+    "src/features/courses/CoursePreview.tsx": 33,
+    "src/features/courses/OutlineChat.tsx": 24,
+    "src/features/courses/SharedDemo.tsx": 19,
+    "src/features/credits/CheckoutReturn.tsx": 28,
+    "src/features/credits/PlanSummary.tsx": 33,
+    "src/features/credits/ReservationPanel.tsx": 6,
+    "src/features/credits/WalletView.tsx": 41,
+    "src/features/design/brand/Brand.tsx": 1,
+    "src/features/design/chat/fixtures.ts": 21,
+    "src/features/design/chat/GuidedChatDemo.tsx": 16,
+    "src/features/design/CourseCard.tsx": 7,
+    "src/features/design/Courses.tsx": 30,
+    "src/features/design/ExampleCourses.tsx": 8,
+    "src/features/design/localization/PreferenceControls.tsx": 3,
+    "src/features/gamification/DailyGoal.tsx": 23,
+    "src/features/gamification/League.tsx": 44,
+    "src/features/gamification/Streak.tsx": 42,
+    "src/features/lesson-player/immersive/AnswerPanel.tsx": 22,
+    "src/features/lesson-player/immersive/ImmersiveLayer.tsx": 18,
+    "src/features/lesson-player/immersive/ImmersiveNotes.tsx": 7,
+    "src/features/lesson-player/immersive/RegionSelector.tsx": 2,
+    "src/features/lesson-player/LessonPlayer.tsx": 93,
+    "src/features/lessontest/LessonTest.tsx": 48,
+    "src/features/narration/NarrationControl.tsx": 19,
+    "src/features/narration/SegmentNarration.tsx": 16,
+    "src/features/narration/VoicePanel.tsx": 29,
+    "src/features/notes/BookmarksPage.tsx": 22,
+    "src/features/notes/NoteAnchorLine.tsx": 5,
+    "src/features/notes/NotesPage.tsx": 58,
+    "src/features/notes/QuickNotePanel.tsx": 18,
+    "src/features/pricing/PricingView.tsx": 74,
+    "src/features/pricing/QuotePanel.tsx": 37,
+    "src/features/sharing/ArchivedLessons.tsx": 5,
+    "src/features/sharing/BirthDatePrompt.tsx": 10,
+    "src/features/sharing/BlockedCopy.tsx": 6,
+    "src/features/sharing/CourseReviews.tsx": 2,
+    "src/features/sharing/CourseUpdate.tsx": 20,
+    "src/features/sharing/EnrollPanel.tsx": 14,
+    "src/features/sharing/InviteFriends.tsx": 16,
+    "src/features/sharing/market.ts": 15,
+    "src/features/sharing/MarketCoursePage.tsx": 38,
+    "src/features/sharing/MarketplacePage.tsx": 20,
+    "src/features/sharing/MissingLessons.tsx": 35,
+    "src/features/sharing/moderation.ts": 8,
+    "src/features/sharing/ModerationNotices.tsx": 12,
+    "src/features/sharing/ModeratorQueue.tsx": 47,
+    "src/features/sharing/PreviewPublicationDraft.tsx": 1,
+    "src/features/sharing/PublicationDraftPanel.tsx": 17,
+    "src/features/sharing/PublicPreviewPage.tsx": 19,
+    "src/features/sharing/ReasonDialog.tsx": 7,
+    "src/features/sharing/ReceivedInvites.tsx": 8,
+    "src/features/sharing/reports.ts": 6,
+    "src/features/sharing/ReportSheet.tsx": 12,
+    "src/features/sharing/RepublishPanel.tsx": 24,
+    "src/features/sharing/retention.ts": 1,
+    "src/features/sharing/ShareCourse.tsx": 19,
+    "src/features/sharing/UnpublishDialog.tsx": 8,
+    "src/features/shell/AdaptiveLayouts.tsx": 2,
+    "src/features/shell/navigation.ts": 11,
+    "src/features/shell/RailCards.tsx": 8,
+    "src/features/shell/RouteBoundary.tsx": 13,
+    "src/features/social/AddFriend.tsx": 22,
+    "src/features/social/ConfirmBlock.tsx": 6,
+    "src/features/social/ConfirmRemove.tsx": 5,
+    "src/features/social/FriendInvite.tsx": 9,
+    "src/features/social/FriendsPage.tsx": 47,
+    "src/features/social/FriendStreak.tsx": 6,
+    "src/features/social/Nudge.tsx": 5,
+    "src/features/social/PrivacySettings.tsx": 16,
+    "src/features/social/SocialIdentity.tsx": 20,
+    "src/features/steering/ForkWarning.tsx": 10,
+    "src/features/steering/InstructionPanel.tsx": 39,
+    "src/features/steering/ReplanPanel.tsx": 41,
+    "src/features/steering/SteerCourse.tsx": 3,
+    "src/LearnPath.tsx": 37
+  },
+  "catalogue": {
+    "en": {
+      "chat.wait": [
+        "fk-grade"
+      ],
+      "demo.sheet_hint": [
+        "caption-chars"
+      ],
+      "demo.skip_hint": [
+        "fk-grade"
+      ],
+      "demo.topic_error": [
+        "fk-grade"
+      ],
+      "la.custom_failed": [
+        "fk-grade"
+      ],
+      "la.daily_empty": [
+        "fk-grade"
+      ],
+      "la.expired_body": [
+        "fk-grade"
+      ],
+      "la.exports_note": [
+        "caption-chars"
+      ],
+      "la.history_failed": [
+        "fk-grade"
+      ],
+      "la.not_included_body": [
+        "caption-chars"
+      ],
+      "la.not_included_title": [
+        "heading-chars",
+        "heading-words"
+      ],
+      "la.required_body": [
+        "caption-chars",
+        "fk-grade"
+      ],
+      "la.required_title": [
+        "heading-chars",
+        "heading-words"
+      ],
+      "onboarding.courses.body": [
+        "caption-chars"
+      ],
+      "onboarding.courses.title": [
+        "heading-chars"
+      ],
+      "onboarding.credits.body": [
+        "caption-chars"
+      ],
+      "onboarding.credits.title": [
+        "heading-chars",
+        "heading-words"
+      ],
+      "onboarding.enroll_error": [
+        "error-words"
+      ],
+      "onboarding.example_detail": [
+        "fk-grade"
+      ],
+      "onboarding.example_free": [
+        "denylist:enrollment"
+      ],
+      "onboarding.examples_title": [
+        "heading-chars",
+        "heading-words"
+      ],
+      "onboarding.next_lesson.body": [
+        "caption-chars"
+      ],
+      "onboarding.notes.body": [
+        "caption-chars"
+      ],
+      "onboarding.path.body": [
+        "caption-chars"
+      ],
+      "onboarding.progress.body": [
+        "caption-chars"
+      ],
+      "onboarding.progress.title": [
+        "heading-chars",
+        "heading-words"
+      ],
+      "onboarding.settings.body": [
+        "caption-chars"
+      ],
+      "path.locked_help": [
+        "caption-chars"
+      ],
+      "path.review": [
+        "fk-grade"
+      ],
+      "review.text_help": [
+        "caption-chars"
+      ],
+      "review.unlock": [
+        "fk-grade"
+      ],
+      "settings.error": [
+        "error-words"
+      ],
+      "settings.local": [
+        "fk-grade"
+      ],
+      "settings.motion_hint": [
+        "caption-chars"
+      ],
+      "shell.motto": [
+        "fk-grade"
+      ],
+      "tutor.approval_body": [
+        "caption-chars"
+      ],
+      "tutor.approval_title": [
+        "heading-chars",
+        "heading-words"
+      ],
+      "tutor.credits_body": [
+        "caption-chars"
+      ],
+      "tutor.empty_title": [
+        "heading-chars",
+        "heading-words"
+      ],
+      "tutor.idle_body": [
+        "caption-chars"
+      ],
+      "tutor.offline_body": [
+        "caption-chars"
+      ],
+      "tutor.starter_2": [
+        "fk-grade"
+      ],
+      "tutor.too_large_body": [
+        "caption-chars"
+      ],
+      "tutor.too_large_title": [
+        "heading-chars",
+        "heading-words"
+      ],
+      "voice.auto_send": [
+        "fk-grade"
+      ]
+    },
+    "ar": {
+      "la.required_body": [
+        "caption-chars"
+      ],
+      "la.required_title": [
+        "heading-words"
+      ],
+      "onboarding.credits.body": [
+        "caption-chars"
+      ],
+      "onboarding.examples_title": [
+        "heading-words"
+      ],
+      "onboarding.next_lesson.body": [
+        "caption-chars"
+      ],
+      "onboarding.progress.body": [
+        "caption-chars"
+      ],
+      "onboarding.settings.body": [
+        "caption-chars"
+      ],
+      "tutor.approval_body": [
+        "caption-chars"
+      ],
+      "tutor.approval_title": [
+        "heading-words"
+      ],
+      "tutor.empty_title": [
+        "heading-words"
+      ],
+      "tutor.too_large_body": [
+        "caption-chars"
+      ],
+      "tutor.too_large_title": [
+        "heading-chars",
+        "heading-words"
+      ]
+    }
+  }
+}

@@ -90,7 +90,7 @@ test("secure widgets pass axe", async ({ page }) => {
   await page.getByLabel("Enter the code we sent.").fill("123456");
   await page.keyboard.press("Enter");
   await audit(page, "password");
-  await page.getByLabel("Enter your password to continue.").fill("x");
+  await page.getByLabel("Type your password.").fill("x");
   await page.keyboard.press("Enter");
   await audit(page, "destructive confirm");
 });

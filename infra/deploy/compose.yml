@@ -222,6 +222,7 @@ services:
     environment:
       DUOLIFY_ENV: ${DUOLIFY_ENV:-development}
       ENGINE_ADDR_LISTEN: 0.0.0.0:50051
+      ENGINE_DRAIN_TIMEOUT_SECS: ${ENGINE_DRAIN_TIMEOUT_SECS:-90}
       ENGINE_PROVIDER_MODE: ${ENGINE_PROVIDER_MODE:-mock}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
@@ -238,6 +239,8 @@ services:
       test: [CMD, /grpc_health_probe, -addr=127.0.0.1:50051]
     restart: unless-stopped
     logging: *logs
+    # SIGTERM drains in-flight RPCs for ENGINE_DRAIN_TIMEOUT_SECS; Docker's 10 s default would kill them.
+    stop_grace_period: 120s
     deploy: {resources: {limits: {cpus: "1", memory: 384M}}}
 
   api:
@@ -249,6 +252,8 @@ services:
       OPERATIONS_ADDR: :9091
       # Soft heap target: about 80% of the 384M container limit, so the GC works before the OOM killer.
       GOMEMLIMIT: 300MiB
+      # SIGTERM: stop accepting, fail /readyz, let in-flight requests and queue jobs finish this long.
+      API_DRAIN_TIMEOUT: ${API_DRAIN_TIMEOUT:-90s}
     networks: [default, edge]
     depends_on:
       postgres: {condition: service_healthy}
@@ -261,6 +266,7 @@ services:
       test: [CMD, /api, healthcheck]
     restart: unless-stopped
     logging: *logs
+    stop_grace_period: 120s
     deploy: {resources: {limits: {cpus: "1", memory: 384M}}}
 
   # River jobs, including the encrypted nightly backup at 02:00 UTC (and on start).
@@ -274,6 +280,8 @@ services:
       POSTHOG_PERSONAL_API_KEY: ${POSTHOG_PERSONAL_API_KEY:-}
       OPERATIONS_ADDR: :9092
       GOMEMLIMIT: 300MiB
+      # SIGTERM: stop fetching jobs; running jobs get this long, then are cancelled and retried.
+      WORKER_DRAIN_TIMEOUT: ${WORKER_DRAIN_TIMEOUT:-90s}
       # Keeps the application object-store key from app-env: the lessons queue publishes
       # generated lessons, narration and example decks to the application bucket.
       BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?run selfhost.sh init}
@@ -288,6 +296,7 @@ services:
       test: [CMD, /api, healthcheck, --database]
     restart: unless-stopped
     logging: *logs
+    stop_grace_period: 120s
     deploy: {resources: {limits: {cpus: "1", memory: 384M}}}
 
   # Read-only backup access for the restore drill (`selfhost.sh restore-drill`).
