@@ -1,3 +1,4 @@
+import { registerMessages } from "../design/localization/messages";
 // Course brief script copy. Turns stay under 90 characters, buttons under 3 words.
 export const briefEn = {
   "g.brief.topic.q": "What do you want to learn?",
@@ -60,3 +61,5 @@ export const briefAr: Record<keyof typeof briefEn, string> = {
   "g.brief.cancel": "إلغاء مع حفظ المسودة",
   "g.brief.example": "استكشف مثالًا مشتركًا",
 };
+
+registerMessages(briefEn, briefAr);

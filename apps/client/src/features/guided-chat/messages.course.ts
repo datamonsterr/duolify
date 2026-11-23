@@ -1,3 +1,4 @@
+import { registerMessages } from "../design/localization/messages";
 // Course level and steering script copy. Turns stay under 90 characters, buttons under 3 words.
 export const courseEn = {
   "g.level.q": "Which level for this course?",
@@ -22,3 +23,5 @@ export const courseAr = {
   "g.steer.text.q": "ما الذي يجب أن يتغير؟ الأسلوب والتركيز فقط.",
   "g.steer.confirm.q": "هل نحفظ هذا التوجيه؟",
 } as const;
+
+registerMessages(courseEn, courseAr);

@@ -1,3 +1,4 @@
+import { registerMessages } from "../design/localization/messages";
 // Onboarding and profile script copy. Turns stay under 90 characters, buttons under 3 words.
 export const setupEn = {
   "g.setup.goal.q": "What do you want to learn?",
@@ -42,3 +43,5 @@ export const setupAr: Record<keyof typeof setupEn, string> = {
   "g.setup.profile": "تعديل الملف",
   "g.setup.error": "تعذّر الحفظ. حاول مجددًا.",
 };
+
+registerMessages(setupEn, setupAr);
