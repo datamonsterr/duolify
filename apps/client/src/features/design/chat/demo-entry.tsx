@@ -2,9 +2,16 @@ import { UiPreferencesProvider } from "../localization/Preferences";
 import { createRoot } from "react-dom/client";
 import "../../../styles.css";
 import { GuidedChatDemo } from "./GuidedChatDemo";
+import { ScriptFixture } from "../../guided-chat/ScriptFixture";
 
+const scripted =
+  new URLSearchParams(window.location.search).get("fixture") === "script";
 createRoot(document.getElementById("root")!).render(
-  <UiPreferencesProvider>
-    <GuidedChatDemo />
-  </UiPreferencesProvider>,
+  scripted ? (
+    <ScriptFixture />
+  ) : (
+    <UiPreferencesProvider>
+      <GuidedChatDemo />
+    </UiPreferencesProvider>
+  ),
 );

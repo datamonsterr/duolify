@@ -8,13 +8,13 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 
 ## 1. Script engine and widgets (L, two PRs: engine, then widgets)
 
-- [ ] 1.1 Playwright e2e: a fixture script answers via every widget, edits a bubble, resumes after reload (fixture entry beside `guided-chat.html`)
+- [x] 1.1 Playwright e2e: a fixture script answers via every widget, edits a bubble, resumes after reload (fixture entry beside `guided-chat.html`)
 - [ ] 1.2 Integration tests: draft save/restore, branch re-evaluation after edit, local-copy sync, offline queue
-- [ ] 1.3 Unit tests: script schema and CI lint (locale keys EN+AR, branch targets, validators vs API limits, secure steps non-persistent), expression language, validators
-- [ ] 1.4 Implement `features/guided-chat` engine (state machine, closed expression language, branching, edit semantics), reusing E13-03 thread/composer primitives
-- [ ] 1.5 Implement widgets: single, multi-select, time, date, stepper/slider, toggle, short text, long text, file/image, rating, confirm card, secure email/code/password
+- [x] 1.3 Unit tests: script schema and CI lint (locale keys EN+AR, branch targets, validators vs API limits, secure steps non-persistent), expression language, validators
+- [x] 1.4 Implement `features/guided-chat` engine (state machine, closed expression language, branching, edit semantics), reusing E13-03 thread/composer primitives
+- [x] 1.5 Implement widgets: single, multi-select, time, date, stepper/slider, toggle, short text, long text, file/image, rating, confirm card, secure email/code/password
 - [ ] 1.6 API: `guided_chat_drafts` goose migration, `GET|PUT|DELETE /v1/me/guided-drafts/{script_id}` with ownership, size cap, `If-Match`; sqlc, tests; purge worker (30 days idle)
-- [ ] 1.7 Axe and keyboard tests per widget; `role="log"` announcement test; reduced-motion test
+- [x] 1.7 Axe and keyboard tests per widget; `role="log"` announcement test; reduced-motion test
 
 ## 2. Migrate onboarding (M)
 
