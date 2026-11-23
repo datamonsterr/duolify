@@ -67,3 +67,10 @@ Emitters MUST have unit tests and e2e funnel assertions with a PostHog test doub
 #### Scenario: Failed mapping not counted as success
 - **WHEN** all bounded mapping attempts fail and the Default cast is offered
 - **THEN** the analytics test observes `character_create_failed` and no `character_created` event or successful spend
+
+### Requirement: Character v2 creation events and metrics
+Character creation SHALL add `creation_path` (`prompt`, `selector`, `prompt_tweaked`), `kind`, `age_band` and `schema_version` to `character_created`, add `character_draft_proposed` (api: operation, kind, fallback_used) after a validated prompt mapping, and add `character_reported` (reason_code) for reports on shared Characters. `character_updated.fields_changed` MUST extend its allowlist with attribute group paths only (`body.kind`, `body.species`, `body.age_band`, `body.skin`, `body.face`, `body.hair`, `body.head_covering`, `body.eyes`, `body.eyebrows`, `body.facial_hair`, `body.glasses`, `body.build`, `body.markings`, `clothes.top`, `clothes.bottom`, `clothes.shoes`, `clothes.outerwear`, `clothes.accessories`, `identity`, `voice_key`) and never values. Dashboards MUST derive selector versus prompt completion funnel, prompt schema-valid rate, screen reject rate by reason code, share of prompt-created Characters tweaked within 24 hours (fidelity proxy) and render-fallback rate. No names, pronouns, prompts, colours or free text MUST be captured.
+
+#### Scenario: Prompt-created then tweaked
+- **WHEN** a Learner tweaks a prompt-created Character within 24 hours
+- **THEN** `character_updated` lists only attribute group paths and the tweak rate metric increments without any content
