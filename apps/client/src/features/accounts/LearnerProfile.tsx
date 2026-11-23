@@ -1,11 +1,19 @@
 import { useEffect, useState } from "react";
 import { LearnerContextEditor } from "./LearnerContextEditor";
 import { SetupChat } from "./SetupChat";
+import { GuidedSetup } from "../guided-chat/GuidedSetup";
+import { guidedEnabled } from "../guided-chat/flags";
 import { profileApi, type LearnerContext } from "./learner-context";
 import { Feedback } from "../design/chat/Feedback";
 import { Button } from "../design/Button";
 
-export function LearnerProfile({ setup = false }: { setup?: boolean }) {
+export function LearnerProfile({
+  setup = false,
+  entry = "onboarding",
+}: {
+  setup?: boolean;
+  entry?: "onboarding" | "profile";
+}) {
   const [profile, setProfile] = useState<LearnerContext | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -57,6 +65,15 @@ export function LearnerProfile({ setup = false }: { setup?: boolean }) {
     URL.revokeObjectURL(url);
   };
 
+  if (setup && guidedEnabled("onboarding", profile.learner_id)) {
+    return (
+      <GuidedSetup
+        profile={profile}
+        onCommit={profileApi.commit}
+        entryPoint={entry}
+      />
+    );
+  }
   if (setup) {
     return (
       <SetupChat
@@ -76,6 +93,10 @@ export function LearnerProfile({ setup = false }: { setup?: boolean }) {
     />
   );
 }
-export function SetupProfile() {
-  return <LearnerProfile setup />;
+export function SetupProfile({
+  entry = "onboarding",
+}: {
+  entry?: "onboarding" | "profile";
+}) {
+  return <LearnerProfile setup entry={entry} />;
 }
