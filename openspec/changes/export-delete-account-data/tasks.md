@@ -1,8 +1,8 @@
-- [ ] E2E first: settings export, deletion confirmation, successful deletion and recovery states on desktop and mobile.
-- [ ] Integration second: export coverage for all learner-linked tables, session revocation, pseudonymous ledger retention, tombstone replay and restore checks.
-- [ ] Unit third: export filtering/encryption boundaries, deletion confirmation, client cache clearing and analytics opt-out.
-- [ ] Update analytics catalogue, backup fixture, data inventory and account privacy controls.
-- [ ] Run focused API/client mise gates and strict OpenSpec validation; record native Tauri checks as skipped on this host.
+- [x] E2E first: settings export, deletion confirmation, successful deletion and recovery states on desktop and mobile.
+- [x] Integration second: export coverage for all learner-linked tables, session revocation, pseudonymous ledger retention, tombstone replay and restore checks.
+- [x] Unit third: export filtering/encryption boundaries, deletion confirmation, client cache clearing and analytics opt-out.
+- [x] Update analytics catalogue, backup fixture, data inventory and account privacy controls.
+- [x] Run focused API/client mise gates and strict OpenSpec validation; record native Tauri checks as skipped on this host.
 
 ## Erasure coverage (fix/account-erasure-coverage)
 
