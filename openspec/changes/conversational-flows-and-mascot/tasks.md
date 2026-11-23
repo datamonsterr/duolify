@@ -1,0 +1,79 @@
+Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two where noted). Within each group, order is e2e test, integration test, unit test, then code.
+
+## 0. Decisions and docs (S)
+
+- [ ] 0.1 Write ADR "Scripted guided chat and original mascot" recording the design.md decision table; update `CONTEXT.md` with **Guided chat**, **Script**, **Mascot**
+- [ ] 0.2 Amend `docs/design/brand.md` "Avoid mascots" sentence for the original mascot exception; link `docs/design/mascot/`
+- [ ] 0.3 Owner trademark check and final mascot name; update assets if renamed
+
+## 1. Script engine and widgets (L, two PRs: engine, then widgets)
+
+- [ ] 1.1 Playwright e2e: a fixture script answers via every widget, edits a bubble, resumes after reload (fixture entry beside `guided-chat.html`)
+- [ ] 1.2 Integration tests: draft save/restore, branch re-evaluation after edit, local-copy sync, offline queue
+- [ ] 1.3 Unit tests: script schema and CI lint (locale keys EN+AR, branch targets, validators vs API limits, secure steps non-persistent), expression language, validators
+- [ ] 1.4 Implement `features/guided-chat` engine (state machine, closed expression language, branching, edit semantics), reusing E13-03 thread/composer primitives
+- [ ] 1.5 Implement widgets: single, multi-select, time, date, stepper/slider, toggle, short text, long text, file/image, rating, confirm card, secure email/code/password
+- [ ] 1.6 API: `guided_chat_drafts` goose migration, `GET|PUT|DELETE /v1/me/guided-drafts/{script_id}` with ownership, size cap, `If-Match`; sqlc, tests; purge worker (30 days idle)
+- [ ] 1.7 Axe and keyboard tests per widget; `role="log"` announcement test; reduced-motion test
+
+## 2. Migrate onboarding (M)
+
+- [ ] 2.1 e2e: onboarding via chat (keyboard-only and pointer), resume, skip, edit, offline; compare with old flow
+- [ ] 2.2 Script `onboarding.setup`, `profile.edit`, `goal.daily`, `reminder.edit`; flag `FEATURE_GUIDED_ONBOARDING`; 50/50 A/B by Learner id
+- [ ] 2.3 Remove `SetupChat` AI call path behind the flag, keep old form for rollback for one release
+
+## 3. Migrate course creation (M)
+
+- [ ] 3.1 e2e: brief chat to confirmed revision, no preview/Credits side effects, mobile sheet
+- [ ] 3.2 Scripts `course.brief`, `course.level`, `course.steer`; outline proposals stay quoted; update brief draft rules
+
+## 4. Free-text routing (L, two PRs: prefilter/FAQ, classifier)
+
+- [ ] 4.1 Golden set: `guided_intent` cases on the Hugging Face dataset (five routes, EN/AR, destructive phrases, injection, PII); thresholds in `evals/thresholds.toml`
+- [ ] 4.2 e2e: question mid-step answered from FAQ and the step re-asked; paid question shows quote; destructive card not confirmable by text
+- [ ] 4.3 Integration: `POST /v1/me/guided-chat/route`, rate limits (10/min, 40/run), classifier timeout/fallback paths, platform cost cap
+- [ ] 4.4 Implement prefilter, bundled FAQ (EN+AR), classifier call via the `prompt-skill-routing-and-guardrails` guardrail and router, quote card, fallback buttons
+- [ ] 4.5 `mise run engine:eval` passes; promotion evidence per ADR 0019
+
+## 5. Mascot component and states (M)
+
+- [ ] 5.1 Visual regression: eight states at 32/64/160 px, light and dark, RTL; reduced-motion static poses
+- [ ] 5.2 Unit tests: state derivation from UI events, off-screen pause, size budget (`bundle-budget.json`, 30 KB)
+- [ ] 5.3 Implement `features/mascot` (parts, tokens, CSS/WAAPI animations) from `docs/design/mascot/`; chat avatar, empty states, celebrations, errors
+- [ ] 5.4 Player chrome slot for the corner companion; immersive hide rule; Settings toggle
+
+## 6. Migrate sign-in (M)
+
+- [ ] 6.1 e2e: email/code chat with autofill attributes, wrong code, resend, throttle, offline, age gate; pre-auth memory-only
+- [ ] 6.2 Scripts `auth.signin`, `auth.age`; keep return-path allowlist and credential storage rules
+
+## 7. Migrate character flows (M)
+
+- [ ] 7.1 Coordinate with the `custom-characters` rewrite; consume its selectors; e2e for `character.create` and `character.cast`
+- [ ] 7.2 Scripts `character.create`, `character.cast` (chat front end only; pricing and screening unchanged)
+
+## 8. Migrate remaining flows (L, two PRs)
+
+- [ ] 8.1 e2e per flow; scripts `social.*`, `course.share`, `course.invite`, `course.republish`, `course.review`, `report.content`
+- [ ] 8.2 Scripts `credits.confirm`, `account.export`, `account.delete` (destructive card, secure password)
+- [ ] 8.3 Delete old forms and flags one release after each flow's rollout; update `docs/analytics/coverage.md`
+
+## 9. Customisation (M)
+
+- [ ] 9.1 e2e: recolour, accessory, pick a Character, delete the Character, fallback to default
+- [ ] 9.2 API: `mascot` field on settings (validation against `RigPartSpec v1`, partial update), export, erasure, backup tests
+- [ ] 9.3 "Your guide" picker UI; shared `RigPartSpec v1` package consumed by `custom-characters`
+
+## 10. Analytics (S)
+
+- [ ] 10.1 Catalogue and tests: all `guided_chat_*` and `mascot_*` events, content-free, opt-out, `entry_point` not `source`
+- [ ] 10.2 Funnel dashboard: completion vs old form, time to complete, drop-off step, free-text rate; update `docs/analytics/coverage.md`
+
+## 11. Backup and restore (S)
+
+- [ ] 11.1 Add `guided_chat_drafts` and `mascot` to dump coverage, export and erasure tests; restore drill covers expiry purge and tombstones; data inventory docs
+
+## 12. Design review and accessibility (M)
+
+- [ ] 12.1 Screenshots for every script and the mascot states at 390x844, 844x390 and 1280x800, light/dark, EN/AR, reduced motion; commit under `docs/design/reviews/`
+- [ ] 12.2 Screen-reader pass (VoiceOver, TalkBack, NVDA) on onboarding, sign-in and delete account; keyboard-only pass; 200% text; no timing traps
