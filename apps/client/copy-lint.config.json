@@ -1,0 +1,197 @@
+{
+  "arLimitFactor": 1.3,
+  "fk": {
+    "minWords": 5,
+    "maxGrade": 7
+  },
+  "limits": {
+    "heading": {
+      "words": 4,
+      "chars": 24
+    },
+    "button": {
+      "words": 2,
+      "chars": 16
+    },
+    "caption": {
+      "chars": 60
+    },
+    "toast": {
+      "words": 8,
+      "chars": 48
+    },
+    "coach": {
+      "words": 10,
+      "chars": 60
+    },
+    "error": {
+      "words": 12
+    },
+    "chat": {
+      "chars": 90
+    }
+  },
+  "roleSuffixes": {
+    "heading": ["title", "heading"],
+    "button": ["cta", "button", "btn", "tab", "chip"],
+    "caption": ["hint", "help", "note", "caption", "body", "desc"],
+    "toast": ["toast"],
+    "coach": ["coach"],
+    "error": ["error", "failed"],
+    "chat": ["turn"]
+  },
+  "exemptKeyPattern": "(privacy|consent|legal|terms|refund|cost|price|billing|confirm|delete|erase|explain|disclos|minor|moderation)",
+  "denylist": {
+    "utilize": "use",
+    "utilise": "use",
+    "authenticate": "sign in",
+    "authentication": "sign-in",
+    "configure": "set up",
+    "configuration": "setup",
+    "functionality": "feature",
+    "enroll": "join",
+    "enrolled": "joined",
+    "enrollment": "joining",
+    "leverage": "use",
+    "commence": "start",
+    "terminate": "end",
+    "approximately": "about",
+    "additional": "more",
+    "subsequently": "then",
+    "assistance": "help",
+    "purchase": "buy",
+    "initiate": "start",
+    "modify": "change",
+    "navigate": "go",
+    "retrieve": "get",
+    "insufficient": "not enough"
+  },
+  "visibleAttributes": [
+    "aria-label",
+    "aria-description",
+    "aria-placeholder",
+    "aria-roledescription",
+    "title",
+    "placeholder",
+    "alt"
+  ],
+  "visibleProperties": [
+    "label",
+    "title",
+    "placeholder",
+    "ariaLabel",
+    "alt",
+    "description",
+    "heading",
+    "caption",
+    "hint"
+  ],
+  "catalogues": [
+    {
+      "file": "src/features/design/localization/messages.ts",
+      "en": "en",
+      "ar": "ar"
+    }
+  ],
+  "sourceIgnore": [
+    "src/test/",
+    "src/mocks/",
+    "src/features/design/localization/messages.ts",
+    "src/features/onboarding/messages.ts"
+  ],
+  "screens": [
+    {
+      "id": "onboarding",
+      "prefixes": ["onboarding"],
+      "paths": ["src/features/onboarding"]
+    },
+    {
+      "id": "learn-path",
+      "prefixes": ["path"],
+      "paths": ["src/LearnPath.tsx"]
+    },
+    {
+      "id": "courses",
+      "prefixes": ["course"],
+      "paths": ["src/features/courses"]
+    },
+    {
+      "id": "lesson-player",
+      "paths": ["src/features/lesson-player"]
+    },
+    {
+      "id": "lesson-test",
+      "paths": ["src/features/lessontest"]
+    },
+    {
+      "id": "tutor-chat",
+      "prefixes": ["tutor", "chat"],
+      "paths": ["src/features/chat"]
+    },
+    {
+      "id": "voice",
+      "prefixes": ["voice"],
+      "paths": ["src/features/voice"]
+    },
+    {
+      "id": "notes",
+      "paths": ["src/features/notes"]
+    },
+    {
+      "id": "credits",
+      "prefixes": ["credits", "checkin"],
+      "paths": ["src/features/credits"]
+    },
+    {
+      "id": "pricing",
+      "paths": ["src/features/pricing"]
+    },
+    {
+      "id": "settings-accounts",
+      "prefixes": ["settings", "la"],
+      "paths": ["src/features/accounts"]
+    },
+    {
+      "id": "sharing",
+      "paths": ["src/features/sharing"]
+    },
+    {
+      "id": "social",
+      "paths": ["src/features/social"]
+    },
+    {
+      "id": "steering",
+      "paths": ["src/features/steering"]
+    },
+    {
+      "id": "characters",
+      "paths": ["src/features/characters"]
+    },
+    {
+      "id": "gamification",
+      "paths": ["src/features/gamification"]
+    },
+    {
+      "id": "narration",
+      "paths": ["src/features/narration"]
+    },
+    {
+      "id": "shell-nav",
+      "prefixes": ["shell", "nav", "common"],
+      "paths": ["src/features/shell", "src/App.tsx"]
+    },
+    {
+      "id": "reviews",
+      "prefixes": ["review"]
+    },
+    {
+      "id": "moderation",
+      "prefixes": ["moderation"]
+    },
+    {
+      "id": "guided-outline",
+      "prefixes": ["outline", "demo", "summary", "proposal"],
+      "paths": ["src/features/design"]
+    }
+  ]
+}

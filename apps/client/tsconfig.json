@@ -21,6 +21,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"],
+  "include": ["src", "scripts/copy-lint", "scripts/copy-lint.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
