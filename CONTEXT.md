@@ -51,3 +51,6 @@ One term, one meaning. Use these words in code, specs and UI copy.
 | **Course instruction** | One saved steering entry: text, scope (`next lesson`, `rest of course`) and time added. |
 | **Pricing config** | Versioned configuration that holds every credit price, daily free credit amount, credit pack and subscription tier. Changed without a code deploy. |
 | **Action quote** | An immutable, expiring snapshot of an AI action's Pricing version, eligibility, model/input bounds and separate content/audio credit ceilings. Accepting it records consent only; it does not reserve Credits or start provider work. |
+| **Guided chat** | The chat presentation of a task flow: the guide asks fixed scripted questions as bubbles and the Learner answers with inline widgets or free text. Replaces form filling; costs no Credits. |
+| **Script** | A typed, versioned, client-bundled module that defines a guided chat: ordered steps, widgets, validation, branches and the existing endpoint it submits to. |
+| **Mascot** | The original green robot guide shown as the guided chat's avatar. Name is a working name kept in the message catalogue. |

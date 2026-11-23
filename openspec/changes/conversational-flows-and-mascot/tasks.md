@@ -2,8 +2,8 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 
 ## 0. Decisions and docs (S)
 
-- [ ] 0.1 Write ADR "Scripted guided chat and original mascot" recording the design.md decision table; update `CONTEXT.md` with **Guided chat**, **Script**, **Mascot**
-- [ ] 0.2 Amend `docs/design/brand.md` "Avoid mascots" sentence for the original mascot exception; link `docs/design/mascot/`
+- [x] 0.1 Write ADR "Scripted guided chat and original mascot" recording the design.md decision table; update `CONTEXT.md` with **Guided chat**, **Script**, **Mascot**
+- [x] 0.2 Amend `docs/design/brand.md` "Avoid mascots" sentence for the original mascot exception; link `docs/design/mascot/`
 - [ ] 0.3 Owner trademark check and final mascot name; update assets if renamed
 
 ## 1. Script engine and widgets (L, two PRs: engine, then widgets)
