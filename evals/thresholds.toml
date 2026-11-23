@@ -1,6 +1,6 @@
 minimum_score = 1.0
 # The course_preview output cap (tokens) the evidence is recorded for; the live run refuses a different active cap.
-preview_output_limit = 6000
+preview_output_limit = 2500
 
 [tasks]
 course_preview = 1.0
