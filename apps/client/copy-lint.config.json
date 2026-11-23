@@ -90,14 +90,16 @@
     {
       "file": "src/features/design/localization/messages.ts",
       "en": "en",
-      "ar": "ar"
+      "ar": "ar",
+      "arFile": "src/features/design/localization/messages.ar.ts"
     }
   ],
   "sourceIgnore": [
     "src/test/",
     "src/mocks/",
     "src/features/design/localization/messages.ts",
-    "src/features/onboarding/messages.ts"
+    "src/features/onboarding/messages.ts",
+    "src/features/design/localization/messages.ar.ts"
   ],
   "screens": [
     {

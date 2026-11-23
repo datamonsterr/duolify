@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ar, en } from "../design/localization/messages";
+import { en } from "../design/localization/messages";
+import { ar } from "../design/localization/messages.ar";
 import { lintScript } from "./lint";
 import { registerFixtureCopy } from "./messages.fixture";
 import { allScripts, fixtureTour } from "./scripts";
