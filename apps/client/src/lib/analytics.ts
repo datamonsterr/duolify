@@ -1013,6 +1013,74 @@ export function trackRegion(
   }
 }
 
+export type VoiceEntryPoint = "answer_panel" | "tutor_sheet" | "quick_note";
+export type VoiceErrorClass =
+  | "unavailable"
+  | "too_long"
+  | "too_large"
+  | "unsupported_container"
+  | "not_entitled"
+  | "rate_limited"
+  | "daily_cap"
+  | "failed"
+  | "empty"
+  | "offline";
+const voiceBuckets = ["lt_2s", "2_5s", "5_15s", "15_30s"];
+type VoiceCommon = {
+  purpose: "tutor" | "note";
+  entry_point: VoiceEntryPoint;
+};
+/**
+ * Voice input funnel, client tier (immersive-mobile-lesson-player analytics spec). Transcription
+ * outcomes are emitted by the API, which knows the served model. Closed enums only: no audio,
+ * no transcript text, no ids of either. `source` is the emitting tier (client), `entry_point` the UI place.
+ */
+export function trackVoice(
+  value: VoiceCommon &
+    (
+      | {
+          event: "voice_recording_finished" | "voice_recording_cancelled";
+          duration_bucket: string;
+        }
+      | {
+          event: "voice_transcript_used" | "voice_transcript_discarded";
+          edited: boolean;
+        }
+    ),
+) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  if (
+    ![
+      "voice_recording_finished",
+      "voice_recording_cancelled",
+      "voice_transcript_used",
+      "voice_transcript_discarded",
+    ].includes(value.event) ||
+    !["tutor", "note"].includes(value.purpose) ||
+    !["answer_panel", "tutor_sheet", "quick_note"].includes(value.entry_point)
+  )
+    return;
+  const properties: Record<string, string | number | boolean> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? "0.1.0",
+    source: "client",
+    purpose: value.purpose,
+    entry_point: value.entry_point,
+  };
+  if ("duration_bucket" in value) {
+    if (!voiceBuckets.includes(value.duration_bucket)) return;
+    properties.duration_bucket = value.duration_bucket;
+  }
+  if ("edited" in value) properties.edited = value.edited === true;
+  try {
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture(value.event, properties);
+  } catch {
+    /* Dictation never depends on analytics. */
+  }
+}
+
 // E14-01 catalogue: narrate-one-slide-mock-speech/specs/analytics/spec.md. Ids and a
 // duration only; narration text, audio and URLs never leave the device.
 export function trackNarrationPlayed(value: {
