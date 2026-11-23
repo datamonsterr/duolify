@@ -2,9 +2,7 @@
 
 ## Purpose
 Keep every Credit price, pack, Subscription tier and cost limit in one versioned, audited Pricing config in Postgres. Prices change without a code deploy, and each ledger entry and quote records the price version it used.
-
 ## Requirements
-
 ### Requirement: Single versioned Pricing config
 Every credit price of an AI action, the Daily free credits amount, every credit pack, every Subscription tier with its benefits and limits, and the generation and cost limits SHALL live in one versioned Pricing config stored in Postgres. No price, credit amount, pack, tier or benefit value MAY be hard-coded in the client, the API logic or the Engine. Versions MUST be immutable once approved.
 
@@ -359,3 +357,19 @@ A new immutable Pricing config version SHALL record `design_chat_decision: owner
 #### Scenario: Reload failure
 - **WHEN** the database is unavailable after the snapshot expires
 - **THEN** the last good catalogue is served, the alert is raised, and the database is queried at most once per bound
+
+### Requirement: Owner-approved Hy4/GLM routing version
+An immutable approved Pricing version SHALL quote every AI action on `tencent/hy4-flash` with `z-ai/glm-5.3-flash` as fallback, both through `openrouter`, with credit prices, packs, plans and limits identical to the previous approved snapshot. It SHALL be the active quote version once its effective instant has passed, and the unapproved proposal row SHALL remain unapproved and never active.
+
+#### Scenario: Preview quotes the served route
+- **WHEN** a learner requests a preview quote after migrations
+- **THEN** the quote names the approved version, `openrouter/tencent/hy4-flash` and its Hy4 rate, and settlement of Hy4 or GLM usage charges that model's own rate while a Claude model is rejected
+
+#### Scenario: Active version matches the engine
+- **WHEN** CI compares the active approved version with `engine/config/models.toml` and the startup route check runs with engine providers `openrouter`/`openrouter`
+- **THEN** no action is reported as unserved
+
+#### Scenario: Later learner price changes
+- **WHEN** a later version changes a learner-facing price
+- **THEN** it still goes through draft, owner approval and the 72-hour adverse-notice rule
+
