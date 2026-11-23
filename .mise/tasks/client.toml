@@ -81,7 +81,22 @@ run = "pnpm tauri dev"
 ["client:lint-web"]
 description = "Check client web formatting, types and lint without native prerequisites"
 dir = "{{config_root}}/apps/client"
-run = ["pnpm exec eslint .", "pnpm exec prettier --check .", "pnpm exec tsc --noEmit"]
+run = ["pnpm exec eslint .", "pnpm exec prettier --check .", "pnpm exec tsc --noEmit", "node scripts/copy-lint.ts"]
+
+["client:copy-lint"]
+description = "Check the copy budget, plain words, catalogue parity and literals outside catalogues"
+dir = "{{config_root}}/apps/client"
+run = "node scripts/copy-lint.ts"
+
+["client:copy-baseline"]
+description = "Lower copy-baseline.json to the current state (refuses to raise any count)"
+dir = "{{config_root}}/apps/client"
+run = "node scripts/copy-lint.ts --update-baseline"
+
+["client:copy-audit"]
+description = "Regenerate docs/design/copy-audit.md (current and target string counts per screen)"
+dir = "{{config_root}}/apps/client"
+run = "node scripts/copy-lint.ts --audit"
 
 ["client:test-web"]
 description = "Run client web unit and integration tests without native prerequisites"
