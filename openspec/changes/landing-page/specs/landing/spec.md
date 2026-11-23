@@ -42,6 +42,11 @@ The sign-in block SHALL be a single centred column of at most 360 px with the ag
 
 The footer SHALL link Privacy, Terms and Analytics preference and SHALL state only privacy facts the product already enforces.
 
+#### Scenario: Footer is displayed
+
+- **WHEN** a visitor reaches the footer
+- **THEN** the privacy and terms links, analytics preference and privacy note are available
+
 ### Requirement: Anonymous landing analytics
 
 The client SHALL send `landing_viewed`, `landing_video_played`, `landing_video_completed` and `landing_cta_clicked{target}` only when the visitor has not opted out, with no identity and no free text.

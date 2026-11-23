@@ -10,8 +10,8 @@ export const landingEn = {
   "landing.lang_en": "English",
   "landing.lang_ar": "العربية",
   "landing.theme": "Theme",
-  "landing.theme_light": "Light",
-  "landing.theme_dark": "Dark",
+  "landing.theme_light": "Switch to light theme",
+  "landing.theme_dark": "Switch to dark theme",
   "landing.h1": "Learn anything. Like a game.",
   "landing.lede":
     "Tell us a topic. AI builds your course. Play short interactive lessons every day.",
@@ -45,8 +45,8 @@ export const landingAr: Record<keyof typeof landingEn, string> = {
   "landing.lang_en": "English",
   "landing.lang_ar": "العربية",
   "landing.theme": "السمة",
-  "landing.theme_light": "فاتح",
-  "landing.theme_dark": "داكن",
+  "landing.theme_light": "التبديل إلى السمة الفاتحة",
+  "landing.theme_dark": "التبديل إلى السمة الداكنة",
   "landing.h1": "تعلّم أي شيء. كأنه لعبة.",
   "landing.lede":
     "اذكر موضوعًا. يبني الذكاء الاصطناعي دورتك. العب دروسًا تفاعلية قصيرة كل يوم.",

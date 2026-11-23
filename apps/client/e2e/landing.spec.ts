@@ -47,6 +47,9 @@ test("video has a poster, does not autoplay and defers its bytes", async ({
   const video = page.locator(".landing-video video");
   await expect(video).toHaveAttribute("preload", "none");
   await expect(video).toHaveAttribute("poster", /landing-poster/);
+  expect(
+    (await page.request.get((await video.getAttribute("poster")) ?? "")).ok(),
+  ).toBe(true);
   await expect(video).not.toHaveAttribute("autoplay", /.*/);
   expect(await video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
   await expect(video.locator("track[kind=captions]")).toHaveAttribute(
@@ -57,6 +60,21 @@ test("video has a poster, does not autoplay and defers its bytes", async ({
   await expect(page.locator(".landing-play")).toHaveCount(0);
   await expect(video.locator("source")).toHaveCount(0);
   expect(media).toEqual([]);
+});
+
+test("theme icon names its action and toggles appearance", async ({ page }) => {
+  await page.goto("/");
+  const dark = page.getByRole("button", { name: "Switch to dark theme" });
+  await expect(dark.locator("svg[data-icon=moon]")).toBeVisible();
+  const box = await dark.boundingBox();
+  expect(box!.width).toBeGreaterThanOrEqual(44);
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+  await dark.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const light = page.getByRole("button", { name: "Switch to light theme" });
+  await expect(light.locator("svg[data-icon=sun]")).toBeVisible();
+  await light.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 
 test("Get started and header Sign in open the sign-in chat", async ({

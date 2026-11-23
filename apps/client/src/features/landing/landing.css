@@ -101,7 +101,7 @@
   gap: var(--space-6);
 }
 .landing-card {
-  padding: var(--space-6);
+  padding: var(--space-4);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -114,7 +114,7 @@
 }
 .landing-card h2 {
   font-size: var(--font-size-title);
-  margin-block: var(--space-3) var(--space-2);
+  margin-block: var(--space-2) var(--space-1);
 }
 .landing-card p {
   color: var(--muted);
@@ -213,4 +213,10 @@
 }
 .landing-bar select {
   max-inline-size: 6rem;
+}
+
+.landing-bar .landing-theme {
+  inline-size: 44px;
+  min-block-size: 44px;
+  padding: 0;
 }

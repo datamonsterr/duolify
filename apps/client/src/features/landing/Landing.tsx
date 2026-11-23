@@ -28,14 +28,15 @@ export function TopBar({ onSignIn }: { onSignIn: () => void }) {
         </select>
         <Button
           variant="quiet"
-          aria-label={t("landing.theme")}
+          className="landing-theme"
+          aria-label={t(
+            theme === "dark" ? "landing.theme_light" : "landing.theme_dark",
+          )}
           onClick={() =>
             update({ appearance: theme === "dark" ? "light" : "dark" })
           }
         >
-          {theme === "dark"
-            ? t("landing.theme_light")
-            : t("landing.theme_dark")}
+          <Icon name={theme === "dark" ? "sun" : "moon"} />
         </Button>
         <Button variant="quiet" onClick={onSignIn}>
           {t("landing.sign_in")}

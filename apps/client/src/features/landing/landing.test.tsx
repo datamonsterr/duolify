@@ -33,7 +33,9 @@ describe("landing sections", () => {
     const onSignIn = vi.fn();
     wrap(<TopBar onSignIn={onSignIn} />);
     expect(screen.getByLabelText("Language")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Theme" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Switch to dark theme" }),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(onSignIn).toHaveBeenCalled();
   });
