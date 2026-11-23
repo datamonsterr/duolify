@@ -176,6 +176,8 @@ func ResolveMascot(ctx context.Context, q db.DBTX, learnerID pgtype.UUID, stored
 	return out
 }
 
-// MascotSwatchCount and MascotAccessoryCount let the parity test detect allowlist drift.
-func MascotSwatchCount() int    { return len(mascotSwatches) }
+// MascotSwatchCount lets the parity test detect allowlist drift.
+func MascotSwatchCount() int { return len(mascotSwatches) }
+
+// MascotAccessoryCount lets the parity test detect allowlist drift.
 func MascotAccessoryCount() int { return len(mascotAccessories) }
