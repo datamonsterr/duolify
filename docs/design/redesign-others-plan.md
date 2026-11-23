@@ -42,3 +42,17 @@ Rows 1–6 ship as one PR each. Rows 7–8 ship if time allows. Row 9 waits for 
 - A shared sheet/dialog primitive (the #372 `phone-sheet.css`) so feature dialogs stop hand-rolling Escape, focus and backdrop; one breakpoint (48rem) and `--opacity-overlay` for the scrim.
 - `Badge.tsx`: tone icon slot and `offline`/`unavailable` roles.
 - A shared feedback banner (tone icon + title + body) to replace per-feature `role=alert` divs.
+
+## Owner feedback for the master session (2026-11-23)
+
+Raised by the owner on screenshots of the current build. All of it sits in master-owned paths (and partly in #372), so it is handed off rather than changed here.
+
+| Feedback | Where it lives |
+|---|---|
+| The `<details>` "Settings" disclosure at the top of the main column (language, appearance, reduce motion, reset) is unfriendly. Move language and a theme toggle to the top-right of the app bar, side by side; move the rest into the Settings page. | `features/design/localization/PreferenceControls.tsx`, rendered by `features/shell/AppShell.tsx` |
+| Checkboxes are oversized dark-grey squares and misaligned with their labels ("Captio/ns", "Analyti/cs", "Remind/ers" wrap mid-word). Make them round, `--primary` fill when checked with an `--on-primary` tick, keep the 44px target through the label hit area, and align label and control in one responsive row or grid. | global checkbox style (`styles.css`), `features/accounts/settings.css` |
+| Select boxes have no padding before the down arrow. | global `select` style in `styles.css` |
+| Settings sub-sections are links stacked at the bottom; Profile already has a sidebar button. Show the sections as a horizontal tab row at the top, replacing the redundant "Settings" heading. | `features/accounts/Settings.tsx` (#372 is reworking it as a grouped list) |
+| Dark theme still has contrast mismatches. | Quick notes is fixed by the notes PR of this plan; the rest is token and primitive work |
+| Courses view: each row holds one or two left-aligned buttons ("Create a course", "Refresh courses", tabs, streak and credits chips), so the learner scrolls far before seeing a course. Group the actions into one toolbar row and lead with the course list. | `features/design/Courses.tsx`, `courses.css` (#372 touches it) |
+| Credits page: buttons are full width and wrap to the next line. | `features/credits/*` |
