@@ -63,47 +63,81 @@ test("dark contrast: SSO confirmation and invalid link", async ({ page }) => {
   ).toEqual([]);
 });
 
-test("checkboxes are circular, keyboard operable and have a large label", async ({
-  page,
-}) => {
-  await page.goto("/sign-in");
-  await page.evaluate(() => {
-    document.body.insertAdjacentHTML(
-      "beforeend",
-      '<label id="control-label"><input type="checkbox"> Example</label>',
+for (const theme of ["light", "dark"] as const) {
+  test(`checkboxes are circular, keyboard operable and have a large label in ${theme}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto("/sign-in");
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        "beforeend",
+        '<label id="control-label"><input type="checkbox"> Example</label>',
+      );
+    });
+    const checkbox = page.getByRole("checkbox", { name: "Example" });
+    const label = page.locator("#control-label");
+    expect((await label.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect((await label.boundingBox())!.width).toBeGreaterThanOrEqual(44);
+    await expect(checkbox).toHaveCSS("border-radius", "50%");
+    const unchecked = await checkbox.evaluate((element) => {
+      const s = getComputedStyle(element);
+      return [s.borderColor, s.backgroundColor];
+    });
+    const luminance = (color: string) =>
+      color
+        .match(/\d+/g)!
+        .slice(0, 3)
+        .map(Number)
+        .map((v) => v / 255)
+        .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+        .reduce(
+          (sum, value, i) => sum + value * [0.2126, 0.7152, 0.0722][i]!,
+          0,
+        );
+    const levels = unchecked.map(luminance).sort((a, b) => b - a);
+    expect((levels[0]! + 0.05) / (levels[1]! + 0.05)).toBeGreaterThanOrEqual(3);
+    await checkbox.focus();
+    await expect(checkbox).toHaveCSS("outline-style", "solid");
+    const focusColor = await checkbox.evaluate(
+      (element) => getComputedStyle(element).outlineColor,
     );
+    const focusLevels = [luminance(focusColor), luminance(unchecked[1]!)].sort(
+      (a, b) => b - a,
+    );
+    expect(
+      (focusLevels[0]! + 0.05) / (focusLevels[1]! + 0.05),
+    ).toBeGreaterThanOrEqual(3);
+    await page.keyboard.press("Space");
+    await expect(checkbox).toBeChecked();
+    const colors = await checkbox.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const mark = getComputedStyle(element, "::before");
+      const probe = document.createElement("span");
+      probe.style.color = "var(--primary)";
+      element.parentElement!.append(probe);
+      const primary = getComputedStyle(probe).color;
+      probe.style.color = "var(--on-primary)";
+      const onPrimary = getComputedStyle(probe).color;
+      probe.remove();
+      return {
+        background: style.backgroundColor,
+        mark: mark.borderColor,
+        primary,
+        onPrimary,
+      };
+    });
+    expect(colors.background).toBe(colors.primary);
+    expect(colors.mark).toBe(colors.onPrimary);
+    await label.click();
+    await expect(checkbox).not.toBeChecked();
+    await checkbox.evaluate((element: HTMLInputElement) => {
+      element.disabled = true;
+    });
+    await expect(checkbox).toHaveCSS("border-style", "dashed");
+    await expect(checkbox).toHaveCSS("opacity", "1");
   });
-  const checkbox = page.getByRole("checkbox", { name: "Example" });
-  const label = page.locator("#control-label");
-  expect((await label.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-  expect((await label.boundingBox())!.width).toBeGreaterThanOrEqual(44);
-  await expect(checkbox).toHaveCSS("border-radius", "50%");
-  await checkbox.focus();
-  await expect(checkbox).toHaveCSS("outline-style", "solid");
-  await page.keyboard.press("Space");
-  await expect(checkbox).toBeChecked();
-  const colors = await checkbox.evaluate((element) => {
-    const style = getComputedStyle(element);
-    const mark = getComputedStyle(element, "::before");
-    const probe = document.createElement("span");
-    probe.style.color = "var(--primary)";
-    element.parentElement!.append(probe);
-    const primary = getComputedStyle(probe).color;
-    probe.style.color = "var(--on-primary)";
-    const onPrimary = getComputedStyle(probe).color;
-    probe.remove();
-    return {
-      background: style.backgroundColor,
-      mark: mark.borderColor,
-      primary,
-      onPrimary,
-    };
-  });
-  expect(colors.background).toBe(colors.primary);
-  expect(colors.mark).toBe(colors.onPrimary);
-  await label.click();
-  await expect(checkbox).not.toBeChecked();
-});
+}
 
 test("select reserves space at the inline end in both directions", async ({
   page,

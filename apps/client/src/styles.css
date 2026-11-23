@@ -265,7 +265,7 @@ input {
 }
 :root body input[type="checkbox"][type="checkbox"][type="checkbox"]:disabled {
   cursor: default;
-  opacity: 0.6;
+  border-style: dashed;
 }
 :where(label:has(input[type="checkbox"])) {
   display: inline-flex;
@@ -275,6 +275,9 @@ input {
 :root body label:has(input[type="checkbox"]) {
   min-inline-size: var(--size-target);
   min-block-size: var(--size-target);
+}
+:root body label:has(input[type="checkbox"]:disabled) {
+  opacity: 1;
 }
 :root body select:not([multiple]) {
   padding-inline-end: 2.5rem;
