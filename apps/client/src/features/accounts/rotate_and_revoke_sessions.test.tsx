@@ -172,7 +172,9 @@ it("recovers in place without unmounting private drafts and emits only catalogue
   ).toBeVisible();
   expect(draft.closest("[hidden]")).not.toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Sign in again" }));
-  expect(await screen.findByLabelText("Email address")).toHaveFocus();
+  await waitFor(() =>
+    expect(screen.getByLabelText("Email address")).toHaveFocus(),
+  );
   expect(posthog.capture).toHaveBeenCalledWith("ui_recovery_selected", {
     distinct_id: id,
     platform: "web",
@@ -185,7 +187,8 @@ it("recovers in place without unmounting private drafts and emits only catalogue
   fireEvent.change(screen.getByLabelText("Email address"), {
     target: { value: "private@example.test" },
   });
-  fireEvent.click(screen.getByLabelText("I am 16 or older"));
+  fireEvent.submit(screen.getByLabelText("Email address").closest("form")!);
+  fireEvent.click(await screen.findByLabelText("I am 16 or older"));
   fireEvent.click(screen.getByRole("button", { name: "Send code" }));
   fireEvent.change(await screen.findByLabelText("One-time code"), {
     target: { value: "123456" },

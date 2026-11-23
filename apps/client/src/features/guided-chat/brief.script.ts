@@ -1,3 +1,4 @@
+import "./messages.brief";
 import type { GuidedScript } from "./types";
 
 const o = (prefix: string, ids: string[]) =>

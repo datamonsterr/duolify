@@ -226,6 +226,7 @@ export async function signUp(
   await flow?.step("welcome");
   await page.getByRole("button", { name: "Get started" }).click();
   await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Email address").press("Enter");
   await page.getByLabel("I am 16 or older").check();
   await flow?.step("email entered");
   await page.getByRole("button", { name: "Send code" }).click();
