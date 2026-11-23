@@ -12,6 +12,8 @@ export type ImmersiveExtensions = {
   sideRail?: ReactNode;
   /** A note, question or selection is open: nothing may move the Slide on its own. */
   busy?: boolean;
+  /** A tap on the stage; return true when it was used (it then does not toggle the controls). */
+  onStageTap?: () => boolean;
   /** Two-finger spread. Rectangles are normalized to the 16:9 stage (0..1). */
   onRegionGestureStart?: (rect: RegionRect) => void;
   onRegionGestureUpdate?: (rect: RegionRect) => void;

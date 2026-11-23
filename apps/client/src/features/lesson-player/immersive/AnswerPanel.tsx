@@ -12,6 +12,9 @@ import { VoiceButton } from "../../voice/VoiceButton";
 import { DictationCountdown } from "../../voice/DictationCountdown";
 import { useDictationWindow } from "../../voice/useDictationWindow";
 import type { RegionRect } from "./gestures";
+import { useSwipeClose } from "./useSwipeClose";
+
+const SWIPE_HINT = "duolify.imm.swipe-hint";
 
 export type PanelOutcome = {
   outcome: "completed" | "stopped" | "failed";
@@ -27,8 +30,8 @@ type Props = {
   /** The region the question is about; absent: the whole Slide. */
   region?: RegionRect;
   atMs: number;
-  collapsed: boolean;
-  onCollapse: (collapsed: boolean) => void;
+  /** The stage is rotated: the panel docks along the screen bottom and does not swipe. */
+  rotated?: boolean;
   /** Re-ask about, and outline, an area asked about earlier on this Slide. */
   onRestore: (rect: RegionRect) => void;
   onClose: (result: PanelOutcome) => void;
@@ -46,8 +49,7 @@ export default function AnswerPanel({
   slideTitle,
   region,
   atMs,
-  collapsed,
-  onCollapse,
+  rotated = false,
   onRestore,
   onClose,
 }: Props) {
@@ -88,10 +90,36 @@ export default function AnswerPanel({
     setBaseline(new Set(tutor.messages.map((m) => m.id)));
   const shown = tutor.messages.filter((m) => baseline && !baseline.has(m.id));
   const field = useRef<HTMLTextAreaElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  // Swipe toward the docked edge closes; the reply log and the composer keep their own touches.
+  useSwipeClose({
+    panel: panelRef,
+    grabSelector: ".imm-answer-grab, .imm-answer-head",
+    enabled: !rotated,
+    onClose: () => closeRef.current(),
+    reducedMotion:
+      typeof matchMedia === "function" &&
+      matchMedia("(prefers-reduced-motion: reduce)").matches,
+  });
+  useEffect(() => {
+    if (
+      typeof matchMedia !== "function" ||
+      !matchMedia("(pointer: coarse)").matches
+    )
+      return;
+    try {
+      if (localStorage.getItem(SWIPE_HINT)) return;
+      localStorage.setItem(SWIPE_HINT, "1");
+    } catch {
+      /* the hint may show again */
+    }
+    showToast({ id: "swipe-close-hint", message: t("imm.swipe_close") });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const log = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!collapsed) field.current?.focus({ preventScroll: true });
-  }, [collapsed]);
+    field.current?.focus({ preventScroll: true });
+  }, []);
   const lastContent = shown[shown.length - 1]?.content;
   useEffect(() => {
     log.current?.scrollTo?.({ top: log.current.scrollHeight });
@@ -118,6 +146,7 @@ export default function AnswerPanel({
             (!m.anchor.lesson_id || m.anchor.lesson_id === lessonId),
         )?.anchor;
 
+  const closeRef = useRef(() => {});
   const close = () => {
     const failed =
       tutor.notice?.kind === "failed" || lastReply?.status === "interrupted";
@@ -131,6 +160,10 @@ export default function AnswerPanel({
       followUps: Math.max(0, questions - 1),
     });
   };
+
+  useEffect(() => {
+    closeRef.current = close;
+  });
 
   async function saveAsNote(id: string, text: string) {
     setNoteState((s) => ({ ...s, [id]: "saving" }));
@@ -207,20 +240,6 @@ export default function AnswerPanel({
     return () => void emitMascotTalk(false);
   }, [streaming]);
 
-  if (collapsed)
-    return (
-      <button
-        type="button"
-        className="imm-btn imm-icon-btn imm-answer-handle"
-        data-testid="answer-expand"
-        aria-label={t("imm.panel_label")}
-        title={t("imm.panel_label")}
-        onClick={() => onCollapse(false)}
-      >
-        <Icon name="ask" />
-      </button>
-    );
-
   const cannotSend =
     !tutor.draft.trim() || busy || !tutor.online || !!tutor.block;
   const sendReason =
@@ -228,6 +247,7 @@ export default function AnswerPanel({
 
   return (
     <aside
+      ref={panelRef}
       className="imm-answer"
       data-testid="answer-panel"
       aria-label={t("imm.panel_label")}
@@ -239,6 +259,7 @@ export default function AnswerPanel({
         }
       }}
     >
+      <span className="imm-answer-grab" aria-hidden="true" />
       <header className="imm-answer-head">
         {earlier && (
           <button
@@ -255,23 +276,11 @@ export default function AnswerPanel({
         <span className="imm-grow" />
         <button
           type="button"
-          className="imm-btn imm-icon-btn"
-          data-testid="answer-collapse"
-          aria-label={t("imm.hide")}
-          title={t("imm.hide")}
-          onClick={() => onCollapse(true)}
-        >
-          <Icon name="chevron" />
-        </button>
-        <button
-          type="button"
-          className="imm-btn imm-icon-btn"
+          className="imm-sr imm-sr-close"
           data-testid="answer-close"
-          aria-label={t("common.close")}
-          title={t("common.close")}
           onClick={close}
         >
-          <Icon name="close" />
+          {t("common.close")}
         </button>
       </header>
       <div

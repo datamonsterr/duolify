@@ -107,7 +107,9 @@ for (const theme of ["dark", "light"] as const) {
     expect(style.blur).toContain("blur");
     await expect(panel.getByRole("heading")).toHaveCount(0);
     await expect(panel.locator('input[type="checkbox"]')).toHaveCount(0);
-    for (const id of ["answer-collapse", "answer-close", "answer-send"])
+    await expect(panel.getByTestId("answer-collapse")).toHaveCount(0);
+    await expect(panel.locator(".imm-answer-grab")).toBeVisible();
+    for (const id of ["answer-send"])
       expect(
         (await panel.getByTestId(id).innerText()).trim(),
         `${id} is an icon button`,
