@@ -379,3 +379,45 @@ fn trusted_prompt_text_leaves_room_in_the_approved_envelopes() {
         crate::steering::hardened_prompt(&crate::lessontest::lesson_prompt(&context), &[]).unwrap();
     assert!(lesson.len() <= 5500, "lesson prompt {} bytes", lesson.len());
 }
+
+#[test]
+fn short_slide_durations_are_raised_to_400_ms_per_narration_word() {
+    // Spike: models miss the "400 ms per word" rule in 17 of 24 first attempts and need a repair call.
+    let words = |n: usize| vec!["word"; n].join(" ");
+    let lesson = serde_json::json!({
+        "slides": [
+            {"narration": words(10), "duration_ms": 3000},
+            {"narration": words(10), "duration_ms": 9000},
+            {"narration": words(400), "duration_ms": 20000},
+            {"narration": "", "duration_ms": 3000},
+            {"duration_ms": 3000}
+        ],
+        "test": []
+    })
+    .to_string();
+    let fixed: serde_json::Value =
+        serde_json::from_str(&crate::lessontest::prepare_lesson(&lesson).unwrap()).unwrap();
+    let d: Vec<u64> = fixed["slides"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["duration_ms"].as_u64().unwrap())
+        .collect();
+    // Raised, left alone, capped at the 60 s slide maximum, and no narration means no change.
+    assert_eq!(d, [4000, 9000, 60000, 3000, 3000]);
+    assert!(crate::lessontest::prepare_lesson(&fixed.to_string()).is_none());
+}
+
+#[test]
+fn malformed_slides_are_left_for_validation_without_panicking() {
+    for slides in [
+        serde_json::json!([1]),
+        serde_json::json!(["x"]),
+        serde_json::json!([{"narration": 5, "duration_ms": "a"}]),
+        serde_json::json!([{"narration": "a b", "duration_ms": -1}]),
+        serde_json::json!(3),
+    ] {
+        let lesson = serde_json::json!({"slides": slides, "test": []}).to_string();
+        assert!(std::panic::catch_unwind(|| crate::lessontest::prepare_lesson(&lesson)).is_ok());
+    }
+}

@@ -345,7 +345,11 @@ pub fn lesson_prompt(context: &str) -> String {
     )
 }
 
-/// Deterministic fix-up before acceptance: a variant whose choices repeat its source question in
+/// Narration pace the lesson prompt asks for (`LESSON_SHAPE`), enforced by `prepare_lesson`.
+const MIN_MS_PER_WORD: u64 = 400;
+
+/// Deterministic fix-up before acceptance: each slide's `duration_ms` is raised to 400 ms per
+/// narration word (at most the 60 s slide maximum); a variant whose choices repeat its source question in
 /// the same order is rotated with `reorder_choices` (the same rule the retry pool uses when it is
 /// exhausted), so the correct text and answer stay identical; a variant whose choices are a
 /// reordering of the source choices gets `answer_index` pointing at the source's correct text.
@@ -367,6 +371,20 @@ pub fn prepare_lesson(text: &str) -> Option<String> {
             })
             .collect();
     let mut changed = false;
+    // Speaking time is arithmetic, not judgement: raise each slide to the rate the prompt asks for.
+    let slides = v
+        .get_mut("slides")
+        .and_then(serde_json::Value::as_array_mut);
+    for slide in slides.into_iter().flatten() {
+        let words = slide["narration"]
+            .as_str()
+            .map_or(0, |n| n.split_whitespace().count() as u64);
+        let wanted = (words * MIN_MS_PER_WORD).min(u64::from(MAX_DURATION_MS));
+        if slide["duration_ms"].as_u64().is_some_and(|d| d < wanted) {
+            slide["duration_ms"] = serde_json::json!(wanted);
+            changed = true;
+        }
+    }
     // Provider JSON is unvalidated here: only non-panicking accessors (`get_mut`), so a
     // malformed pool is left for `validate_lesson` to reject.
     let pools = v
