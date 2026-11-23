@@ -36,6 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-tools
         with:
@@ -59,6 +60,11 @@ jobs:
           node scripts/release/check-version.mjs "$tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
+      - name: Publish only commits on main
+        if: steps.tag.outputs.publish == 'true'
+        env:
+          SHA: ${{ github.sha }}
+        run: node scripts/release/check-on-main.mjs "$SHA"
 
   android:
     needs: validate
@@ -92,12 +98,19 @@ jobs:
       - run: mise run client:android-prerequisites
       - name: Decode the release keystore
         env:
-          KEYSTORE_B64: ${{ inputs.test_missing_signing && '' || secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ inputs.test_missing_signing && '' || secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ inputs.test_missing_signing && '' || secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ inputs.test_missing_signing && '' || secrets.ANDROID_KEY_PASSWORD }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TEST_MISSING_SIGNING: ${{ inputs.test_missing_signing }}
         run: |
           set -eu
+          # `inputs.x && '' || secret` yields the secret ('' is falsy), so the
+          # failure-path test blanks the secrets here instead.
+          if [ "$TEST_MISSING_SIGNING" = true ]; then
+            KEYSTORE_B64=''; ANDROID_KEYSTORE_PASSWORD=''; ANDROID_KEY_ALIAS=''; ANDROID_KEY_PASSWORD=''
+            export KEYSTORE_B64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD
+          fi
           for v in KEYSTORE_B64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
             if [ -z "${!v}" ]; then echo "::error::missing Android signing secret ($v); refusing to publish an unsigned or debug-signed APK"; exit 1; fi
           done
