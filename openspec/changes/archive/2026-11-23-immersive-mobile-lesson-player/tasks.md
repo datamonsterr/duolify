@@ -61,8 +61,8 @@
 
 ## 7. Documentation, backup and release
 
-- [ ] 7.1 Update `docs/data-inventory.md` (anchors, settings, no audio retention) and the backup notes; restore drill covers the new columns
-- [ ] 7.2 Update `.env.example` and the deploy compose with the new limits and feature switches
-- [ ] 7.3 Design review against `docs/design` at phone and desktop sizes with screenshots attached to the PR
-- [ ] 7.4 Full-stack flow: a Learner plays a Lesson in immersive mode, selects a region, asks by text, saves the reply as a Quick note; screenshots for owner review
-- [ ] 7.5 Sync the delta specs into the main specs when implementation is merged
+- [x] 7.1 Update `docs/data-inventory.md` (anchors, settings, no audio retention) and the backup notes; restore drill covers the new columns (PR #345: data inventory, backup README, restore drill fixture covers playback settings, tutor anchors and note anchors)
+- [x] 7.2 Update `.env.example` and the deploy compose with the new limits and feature switches (no new environment variables exist; documented in .env.example and .env.prod.example; Caddy voice body limit already present)
+- [x] 7.3 Design review against `docs/design` at phone and desktop sizes with screenshots attached to the PR (docs/design/reviews/immersive-2026-11-23; two deviations fixed)
+- [x] 7.4 Full-stack flow: a Learner plays a Lesson in immersive mode, selects a region, asks by text, saves the reply as a Quick note; screenshots for owner review (F15 in e2e-stack/f15-immersive-ask.flow.ts; passed in CI playwright-stack and on staging)
+- [x] 7.5 Sync the delta specs into the main specs when implementation is merged

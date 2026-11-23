@@ -2,9 +2,7 @@
 
 ## Purpose
 Make every AI feature measurable and resilient: a Golden set on Hugging Face, eval thresholds, provider fallback, timeouts and cost limits. Prompt or model changes are tested before merge.
-
 ## Requirements
-
 ### Requirement: Golden set dataset
 The Golden set SHALL be a Hugging Face dataset (`datamonsterr/duolify-golden`) where each row has `task`, `input` (JSON), `rubric` and `checks`. The eval binary MUST download only a pinned immutable dataset revision (40-character hex commit SHA) whose expected SHA-256 is committed in `evals/pinned-datasets.toml`, keyed by dataset and revision. Live evaluations SHALL fail explicitly on non-pinned or unknown revisions before cache access or download. Tasks MUST include `course_preview`, `course_outline`, `lesson_slides`, `lesson_test`, `tutor_chat` and `note_enrich`.
 
@@ -244,6 +242,7 @@ Live golden cases for non-screen tasks MUST run the production prompt builders, 
 #### Scenario: Live lesson case
 - **WHEN** the live eval runs a lesson case
 - **THEN** it builds the production lesson prompt from the case's outline, lesson and learner data and scores whether the production validator delivered the lesson
+
 ### Requirement: Private transcription route
 The transcription route SHALL use qwen/qwen3-asr-0.6b with openai/whisper-large-v3-turbo as fallback via OpenRouter with zero-data-retention and data collection denied.
 When the later transcription endpoint is implemented, it SHALL emit `transcription_requested`, `transcription_succeeded`, `transcription_failed`, and `transcription_fallback_used` events as applicable with duration bucket and model, without audio or transcript text. Existing database and object-storage backups SHALL continue to protect persisted configuration and accounting state; no audio or transcript is stored by this routing change.
@@ -258,3 +257,15 @@ Preview and Lesson generation SHALL log a clear length or truncation reason when
 #### Scenario: Provider stops at output limit
 - **WHEN** a preview or Lesson completion is truncated
 - **THEN** logs identify the length termination
+
+### Requirement: Transcription and region tasks are evaluated and gated
+The Engine SHALL treat transcription, region-grounded lesson Tutor chat and Slide region generation as AI tasks with their own Golden set cases, thresholds, timeouts, fallback and cost ceilings. Each task MUST run on a live Engine only with promotion evidence for that task, and MUST answer with the typed retryable unavailable reason otherwise. Transcription usage MUST be reported with served model, fallback flag, latency and cost like other generations, and MUST carry no audio or transcript text in analytics.
+
+#### Scenario: Region generation regresses
+- **WHEN** a build's live eval shows region descriptions failing the threshold
+- **THEN** that build has no promotion evidence for Lesson generation with regions and the feature stays closed
+
+#### Scenario: Transcription not promoted
+- **WHEN** a live Engine has no promotion evidence for transcription
+- **THEN** the transcription RPC answers with the typed unavailable reason and makes no provider call
+
