@@ -646,7 +646,6 @@ SELECT gen_random_uuid(),'a1111111-1111-4111-8111-111111111111',encode(sha256(co
 		`INSERT INTO tutor_thread_deletion_tombstones(thread_id) VALUES ('fa333333-3333-4333-8333-333333333333')`,
 		`INSERT INTO quick_notes(id, learner_id, action_key, source, slide_id, raw_text, status) VALUES ('fa444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 'anchored-fixture', 'slide', 2, 'anchored fixture note', 'raw_only')`,
 		`INSERT INTO guided_chat_drafts(learner_id, script_id, script_version, step_id, answers) VALUES ('a1111111-1111-4111-8111-111111111111', 'onboarding.setup', 3, 'level', '{"goal":{"value":"Synthetic draft goal"}}')`,
-		`INSERT INTO guided_chat_drafts(learner_id, script_id, script_version, step_id, answers, updated_at, expires_at) VALUES ('a1111111-1111-4111-8111-111111111111', 'course.brief', 1, 'goal', '{"goal":{"value":"Expired draft"}}', now() - interval '40 days', now() - interval '10 days')`,
 		`INSERT INTO quick_note_anchors(note_id, learner_id, playback_ms, rect_x, rect_y, rect_w, rect_h, input_kind) VALUES ('fa444444-4444-4444-8444-444444444444', 'a1111111-1111-4111-8111-111111111111', 12500, 0.1, 0.2, 0.4, 0.3, 'voice')`,
 	} {
 		if _, err = f.DB.Pool.Exec(t.Context(), statement); err != nil {
@@ -1441,7 +1440,11 @@ func (f *Fixture) AssertRestored(t *testing.T, restored *store.Store) {
 	if _, err := restored.Pool.Exec(t.Context(), "DELETE FROM learners WHERE id=$1::uuid", erasedID); err != nil {
 		t.Fatal(err)
 	}
-	// Idle drafts are purged after a restore: the expired row goes, the live one stays.
+	// Idle drafts are purged after a restore: an expired row (added here, because the worker's own
+	// sweep would remove one from the source database before the comparison) goes, the live one stays.
+	if _, err := restored.Pool.Exec(t.Context(), `INSERT INTO guided_chat_drafts(learner_id, script_id, script_version, step_id, answers, updated_at, expires_at) VALUES ('a1111111-1111-4111-8111-111111111111', 'course.brief', 1, 'goal', '{"goal":{"value":"Expired draft"}}', now() - interval '40 days', now() - interval '10 days')`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := retention.New(restored.Pool, retention.Config{}, nil).PurgeExpiredRows(t.Context()); err != nil {
 		t.Fatal(err)
 	}
