@@ -1,3 +1,4 @@
+import { closeOnEscape } from "../../hotkeys/escape";
 import { useUiPreferences } from "../localization/Preferences";
 import {
   useEffect,
@@ -105,10 +106,7 @@ export function Sheet({
       }}
       onKeyDown={(event) => {
         if (!modal || !open) return;
-        if (event.key === "Escape") {
-          event.preventDefault();
-          close();
-        }
+        closeOnEscape(event, () => close());
         if (event.key === "Tab") {
           const nodes = [
             ...(dialog.current?.querySelectorAll<HTMLElement>(focusable) ?? []),

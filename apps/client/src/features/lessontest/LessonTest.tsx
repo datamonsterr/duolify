@@ -1,3 +1,5 @@
+import { useHotkeys } from "../hotkeys/useHotkeys";
+import { shortcutAria } from "../hotkeys/registry";
 import { invalidateCourseProgress } from "../../lib/courseQueries";
 import { CompletionXP } from "../gamification/DailyGoal";
 import { useState, useEffect, useCallback } from "react";
@@ -399,54 +401,34 @@ export function LessonTest({
     setQueueIndex((prev) => prev + 1);
   }, [feedback, onPass, pendingOffline]);
 
-  // Keyboard accessibility: 1-9 to select choice, Enter to Check/Continue
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (showRecap) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          setShowRecap(false);
+  useHotkeys({
+    scope: "lesson_test",
+    surface: "lesson_test",
+    handlers: {
+      lesson_test_select: (event) => {
+        const index = Number(event.key) - 1;
+        if (
+          showRecap ||
+          feedback ||
+          pendingOffline ||
+          !currentQuestion ||
+          index >= currentQuestion.choices.length
+        )
+          return false;
+        handleSelectChoice(index);
+      },
+      lesson_test_submit: () => {
+        if (showRecap) setShowRecap(false);
+        if (showRecap || feedback || pendingOffline) {
           handleContinue();
+        } else if (selectedChoice !== null && !isSubmitting) {
+          handleCheck();
+        } else {
+          return false;
         }
-        return;
-      }
-
-      if (feedback || pendingOffline) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          handleContinue();
-        }
-        return;
-      }
-
-      if (
-        currentQuestion &&
-        e.key >= "1" &&
-        e.key <= String(currentQuestion.choices.length)
-      ) {
-        const choiceIdx = parseInt(e.key, 10) - 1;
-        if (choiceIdx >= 0 && choiceIdx < currentQuestion.choices.length) {
-          e.preventDefault();
-          handleSelectChoice(choiceIdx);
-        }
-      } else if (e.key === "Enter" && selectedChoice !== null) {
-        e.preventDefault();
-        handleCheck();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    showRecap,
-    feedback,
-    currentQuestion,
-    selectedChoice,
-    handleCheck,
-    handleContinue,
-    handleSelectChoice,
-    pendingOffline,
-  ]);
+      },
+    },
+  });
 
   if (waitingToSync) {
     return (
@@ -1067,6 +1049,9 @@ export function LessonTest({
                 >
                   <input
                     type="radio"
+                    aria-keyshortcuts={
+                      shortcutAria("lesson_test_select")?.split(" ")[idx]
+                    }
                     name="choice"
                     value={choice}
                     checked={isSelected}
@@ -1274,6 +1259,7 @@ export function LessonTest({
                   <button
                     type="button"
                     className="btn primary"
+                    aria-keyshortcuts={shortcutAria("lesson_test_submit")}
                     onClick={handleCheck}
                     style={{
                       display: "inline-flex",
@@ -1325,6 +1311,7 @@ export function LessonTest({
               <button
                 type="button"
                 className="btn primary"
+                aria-keyshortcuts={shortcutAria("lesson_test_submit")}
                 onClick={handleContinue}
               >
                 Continue
@@ -1353,6 +1340,7 @@ export function LessonTest({
                   type="button"
                   className="btn primary"
                   disabled={selectedChoice === null || isSubmitting}
+                  aria-keyshortcuts={shortcutAria("lesson_test_submit")}
                   onClick={handleCheck}
                   style={{
                     width: "100%",
@@ -1388,6 +1376,7 @@ export function LessonTest({
               <button
                 type="button"
                 className="btn"
+                aria-keyshortcuts={shortcutAria("lesson_test_submit")}
                 onClick={handleContinue}
                 style={{
                   width: "100%",
