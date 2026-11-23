@@ -1,0 +1,1 @@
+- [x] Implemented: specs live in main (friend-streaks, analytics); code in services/api/internal/social/friend_streak.go with integration test grow_and_protect_shared_friend_streaks_integration_test.go.
