@@ -4,6 +4,10 @@ import { apiBase, resetAuthRateLimits } from "./servers";
 test.use({ hasTouch: true });
 
 test.beforeEach(async ({ page, request }) => {
+  // The old setup chat stays one release for rollback; these tests cover it.
+  await page.addInitScript(() =>
+    localStorage.setItem("duolify.guided.onboarding", "off"),
+  );
   await resetAuthRateLimits(request);
   await page.route(/\/v1\/(auth\/|me(?:\/|$|\?))/, async (route) => {
     const original = route.request();

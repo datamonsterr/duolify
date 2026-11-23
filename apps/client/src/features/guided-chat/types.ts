@@ -59,6 +59,8 @@ export type Step = {
   skippable?: boolean;
   /** false for secrets: never saved to the draft or local copy. */
   persist: boolean;
+  /** Value a number or time widget starts at when nothing is answered. */
+  initial?: Value;
   when?: Expr;
   /** First matching rule wins. Targets must come later in the script. */
   next?: { when: Expr; to: string }[];

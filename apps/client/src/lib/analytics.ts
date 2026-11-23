@@ -1249,3 +1249,76 @@ export function trackOnboarding(value: OnboardingEvent) {
       break;
   }
 }
+
+const guidedChatEvents = [
+  "guided_chat_started",
+  "guided_chat_resumed",
+  "guided_chat_step_answered",
+  "guided_chat_step_edited",
+  "guided_chat_free_text_asked",
+  "guided_chat_abandoned",
+  "guided_chat_completed",
+] as const;
+const guidedRoutes = [
+  "answer",
+  "question",
+  "faq",
+  "command",
+  "off_topic",
+  "fallback",
+] as const;
+const guidedId = /^[a-z][a-z0-9_.]{0,63}$/;
+export type GuidedChatAnalytics = {
+  event: (typeof guidedChatEvents)[number];
+  scriptId: string;
+  entryPoint: string;
+  stepId?: string;
+  widgetType?: string;
+  skipped?: boolean;
+  route?: (typeof guidedRoutes)[number];
+  charged?: boolean;
+  durationMs?: number;
+  freeTextCount?: number;
+};
+/** Content-free guided chat events: ids and enums only, never answers, text or secrets. */
+export function trackGuidedChatEvent(value: GuidedChatAnalytics) {
+  if (!identity || identity.optedOut || !uuid.test(identity.learnerId)) return;
+  if (!guidedChatEvents.includes(value.event)) return;
+  const properties: Record<string, string | number | boolean> = {
+    distinct_id: identity.learnerId,
+    platform: identity.platform,
+    app_version: identity.appVersion ?? appVersion,
+    source: "client",
+  };
+  const ids: [string, string | undefined][] = [
+    ["script_id", value.scriptId],
+    ["entry_point", value.entryPoint],
+    ["step_id", value.stepId],
+    ["widget_type", value.widgetType?.replace("+", "_")],
+  ];
+  for (const [name, id] of ids) {
+    if (id === undefined) continue;
+    if (!guidedId.test(id)) return;
+    properties[name] = id;
+  }
+  if (value.skipped !== undefined) properties.skipped = value.skipped;
+  if (value.charged !== undefined) properties.charged = value.charged;
+  if (value.route && guidedRoutes.includes(value.route))
+    properties.route = value.route;
+  if (value.durationMs !== undefined) {
+    const s = value.durationMs / 1000;
+    properties.duration_ms =
+      s < 10 ? 10_000 : s < 60 ? 60_000 : s < 300 ? 300_000 : 600_000;
+  }
+  if (value.freeTextCount !== undefined)
+    properties.free_text_count = Math.min(
+      40,
+      Math.max(0, Math.floor(value.freeTextCount)),
+    );
+  try {
+    if (!posthog.has_opted_out_capturing())
+      posthog.capture(value.event, properties);
+  } catch {
+    // UI works even when analytics is unavailable.
+  }
+}

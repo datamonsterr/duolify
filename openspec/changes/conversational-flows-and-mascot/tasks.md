@@ -18,9 +18,9 @@ Sizes: S = under 1 day, M = 1-3 days, L = 3-5 days. Each group is one PR (or two
 
 ## 2. Migrate onboarding (M)
 
-- [ ] 2.1 e2e: onboarding via chat (keyboard-only and pointer), resume, skip, edit, offline; compare with old flow
-- [ ] 2.2 Script `onboarding.setup`, `profile.edit`, `goal.daily`, `reminder.edit`; flag `FEATURE_GUIDED_ONBOARDING`; 50/50 A/B by Learner id
-- [ ] 2.3 Remove `SetupChat` AI call path behind the flag, keep old form for rollback for one release
+- [x] 2.1 e2e: onboarding via chat (keyboard-only and pointer), resume, skip, edit, offline; compare with old flow
+- [x] 2.2 Script `onboarding.setup`, `profile.edit`, `goal.daily`, `reminder.edit`; flag `FEATURE_GUIDED_ONBOARDING`; 50/50 A/B by Learner id
+- [x] 2.3 Remove `SetupChat` AI call path behind the flag, keep old form for rollback for one release
 
 ## 3. Migrate course creation (M)
 

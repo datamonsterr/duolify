@@ -76,6 +76,7 @@ export function StepWidget(props: WidgetProps) {
   const file = useRef<File | undefined>(undefined);
   const [value, setValue] = useState<Value>(
     initial ??
+      step.initial ??
       (step.widget === "multi"
         ? []
         : step.widget === "number"
@@ -84,21 +85,12 @@ export function StepWidget(props: WidgetProps) {
             ? null
             : ""),
   );
-  const [text, setText] = useState(
-    step.widget === "chips+text" &&
-      typeof initial === "string" &&
-      !step.options?.some((o) => o.id === initial)
-      ? initial
-      : "",
-  );
   const text0 = typeof value === "string" ? value : "";
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (props.disabled) return;
     if (step.widget === "confirm") return props.onSubmit(true);
-    if (step.widget === "chips+text" && text.trim())
-      return props.onSubmit(text.trim());
     if (step.widget === "number") return props.onSubmit(Number(value));
     props.onSubmit(
       typeof value === "string" &&
@@ -137,26 +129,10 @@ export function StepWidget(props: WidgetProps) {
                   ? [value]
                   : []
             }
-            onChange={(next) => {
-              setValue(step.widget === "multi" ? next : next[0]);
-              setText("");
-            }}
+            onChange={(next) =>
+              setValue(step.widget === "multi" ? next : next[0])
+            }
           />
-          {step.widget === "chips+text" && (
-            <input
-              type="text"
-              name={`${name}-text`}
-              aria-labelledby={promptId}
-              aria-describedby={describedBy}
-              aria-invalid={invalid}
-              dir="auto"
-              value={text}
-              onChange={(e) => {
-                setText(e.target.value);
-                if (e.target.value) setValue("");
-              }}
-            />
-          )}
         </>
       );
       break;
