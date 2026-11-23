@@ -12,6 +12,8 @@ import "./mascot.css";
 export type MascotAppearance = {
   swatch?: MascotSwatch;
   accessories?: readonly MascotAccessory[];
+  /** One of the Learner's own Characters; the built-in art is used if it cannot be shown. */
+  characterId?: string;
 };
 export type MascotProps = {
   state?: MascotState;

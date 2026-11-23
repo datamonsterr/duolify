@@ -27,6 +27,7 @@ import {
   type RouterHistory,
 } from "@tanstack/react-router";
 import { DailyCheckIn } from "./features/credits/DailyCheckIn";
+import { MascotSync } from "./features/accounts/MascotSync";
 import { SignIn } from "./features/accounts/SignIn";
 import { RouteGuard } from "./features/accounts/RouteGuard";
 import { courseTreeQuery, LearnPath } from "./LearnPath";
@@ -153,6 +154,7 @@ function AccountShell() {
       initialPreferences={{ locale: resolveLocale(session.current()?.locale) }}
     >
       <DailyCheckIn />
+      <MascotSync />
       <AppShell />
     </UiPreferencesProvider>
   );
