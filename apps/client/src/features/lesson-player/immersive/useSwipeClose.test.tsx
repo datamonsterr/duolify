@@ -3,7 +3,15 @@ import { useRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { useSwipeClose } from "./useSwipeClose";
 
-function Panel({ onClose, dir }: { onClose: () => void; dir?: "rtl" }) {
+function Panel({
+  onClose,
+  dir,
+  rotated,
+}: {
+  onClose: () => void;
+  dir?: "rtl";
+  rotated?: boolean;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useSwipeClose({
     panel: ref,
@@ -11,6 +19,7 @@ function Panel({ onClose, dir }: { onClose: () => void; dir?: "rtl" }) {
     enabled: true,
     onClose,
     reducedMotion: false,
+    rotated,
   });
   return (
     <div ref={ref} dir={dir} data-testid="panel">
@@ -33,6 +42,28 @@ function drag(el: Element, from: number, to: number, y = 0) {
   fireEvent.pointerMove(el, ev(1, to, y, 400));
   fireEvent.pointerUp(el, ev(1, to, y, 600));
 }
+
+describe("useSwipeClose rotated stage", () => {
+  const swipe = (el: Element, dx: number, dy: number) => {
+    fireEvent.pointerDown(el, ev(1, 100, 100, 0));
+    fireEvent.pointerMove(el, ev(1, 100 + dx / 2, 100 + dy / 2, 200));
+    fireEvent.pointerMove(el, ev(1, 100 + dx, 100 + dy, 400));
+    fireEvent.pointerUp(el, ev(1, 100 + dx, 100 + dy, 600));
+  };
+  it("closes on a downward screen swipe (toward the docked bottom edge)", () => {
+    const onClose = vi.fn();
+    render(<Panel onClose={onClose} rotated />);
+    swipe(screen.getByTestId("grab"), 0, 200);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+  it("ignores a sideways screen swipe and an upward one", () => {
+    const onClose = vi.fn();
+    render(<Panel onClose={onClose} rotated />);
+    swipe(screen.getByTestId("grab"), 200, 0);
+    swipe(screen.getByTestId("grab"), 0, -200);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
 
 describe("useSwipeClose", () => {
   it("closes on a long swipe toward the edge from the grab area", () => {

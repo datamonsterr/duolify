@@ -30,7 +30,7 @@ type Props = {
   /** The region the question is about; absent: the whole Slide. */
   region?: RegionRect;
   atMs: number;
-  /** The stage is rotated: the panel docks along the screen bottom and does not swipe. */
+  /** The stage is rotated: the panel docks along the screen bottom and swipes down. */
   rotated?: boolean;
   /** Re-ask about, and outline, an area asked about earlier on this Slide. */
   onRestore: (rect: RegionRect) => void;
@@ -95,7 +95,8 @@ export default function AnswerPanel({
   useSwipeClose({
     panel: panelRef,
     grabSelector: ".imm-answer-grab, .imm-answer-head",
-    enabled: !rotated,
+    rotated,
+    enabled: true,
     onClose: () => closeRef.current(),
     reducedMotion:
       typeof matchMedia === "function" &&
@@ -104,16 +105,25 @@ export default function AnswerPanel({
   useEffect(() => {
     if (
       typeof matchMedia !== "function" ||
-      !matchMedia("(pointer: coarse)").matches
+      !matchMedia("(hover: none) and (pointer: coarse)").matches
     )
       return;
     try {
       if (localStorage.getItem(SWIPE_HINT)) return;
+    } catch {
+      /* the hint may show again */
+    }
+    const id = showToast({
+      id: "swipe-close-hint",
+      message: t("imm.swipe_close"),
+      skipIfBusy: true,
+    });
+    if (!id) return;
+    try {
       localStorage.setItem(SWIPE_HINT, "1");
     } catch {
       /* the hint may show again */
     }
-    showToast({ id: "swipe-close-hint", message: t("imm.swipe_close") });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const log = useRef<HTMLDivElement>(null);

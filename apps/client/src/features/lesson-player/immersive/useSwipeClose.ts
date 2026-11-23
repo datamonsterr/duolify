@@ -18,12 +18,15 @@ export function useSwipeClose({
   enabled,
   onClose,
   reducedMotion,
+  rotated = false,
 }: {
   panel: RefObject<HTMLElement | null>;
   grabSelector: string;
   enabled: boolean;
   onClose: () => void;
   reducedMotion: boolean;
+  /** The stage is turned 90deg clockwise: stage x runs down the screen, so map the finger into stage space. */
+  rotated?: boolean;
 }) {
   const latest = useRef({ onClose, reducedMotion });
   useEffect(() => {
@@ -69,8 +72,10 @@ export function useSwipeClose({
     };
     const move = (e: PointerEvent) => {
       if (!drag || e.pointerId !== drag.id) return;
-      const dx = e.clientX - drag.x0;
-      const dy = e.clientY - drag.y0;
+      const sx = e.clientX - drag.x0;
+      const sy = e.clientY - drag.y0;
+      const dx = rotated ? sy : sx;
+      const dy = rotated ? -sx : sy;
       if (!drag.locked) {
         if (isHorizontalSwipe(dx, dy)) {
           drag.locked = true;
@@ -95,7 +100,9 @@ export function useSwipeClose({
         shouldClose({
           dx: d.dx,
           sign,
-          extent: el.getBoundingClientRect().width,
+          extent: rotated
+            ? el.getBoundingClientRect().height
+            : el.getBoundingClientRect().width,
           velocity: (d.dx * sign) / dt,
         });
       if (close) latest.current.onClose();
@@ -116,5 +123,5 @@ export function useSwipeClose({
       document.removeEventListener("pointercancel", gone, true);
       rest(false);
     };
-  }, [panel, grabSelector, enabled]);
+  }, [panel, grabSelector, enabled, rotated]);
 }
