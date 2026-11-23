@@ -31,6 +31,7 @@ for (const width of [1280, 390, 320]) {
       await page.getByRole("button", { name: "Get started" }).tap();
       const email = `profile-${width}-${colorScheme}@example.test`;
       await page.getByLabel("Email address").fill(email);
+      await page.getByLabel("Email address").press("Enter");
       await page.getByLabel("I am 16 or older").check();
       await page.getByRole("button", { name: "Send code" }).tap();
       await expect(page.getByLabel("One-time code")).toBeVisible();

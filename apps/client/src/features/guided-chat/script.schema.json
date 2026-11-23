@@ -145,6 +145,7 @@
           "properties": {
             "name": { "type": "string" },
             "autocomplete": { "type": "string" },
+            "labelKey": { "type": "string" },
             "inputMode": { "type": "string" }
           }
         },

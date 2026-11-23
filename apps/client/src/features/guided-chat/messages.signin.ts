@@ -1,6 +1,8 @@
 // Sign-in script copy. Turns stay under 90 characters, buttons under 3 words.
 export const signinEn = {
   "g.signin.email.q": "What's your email address?",
+  "g.signin.email.label": "Email address",
+  "g.signin.code.label": "One-time code",
   "g.signin.age.q": "Confirm to get your code.",
   "g.signin.age.check": "I am 16 or older",
   "g.signin.send_code": "Send code",
@@ -14,6 +16,8 @@ export const signinEn = {
 
 export const signinAr: Record<keyof typeof signinEn, string> = {
   "g.signin.email.q": "ما بريدك الإلكتروني؟",
+  "g.signin.email.label": "عنوان البريد الإلكتروني",
+  "g.signin.code.label": "رمز الاستخدام لمرة واحدة",
   "g.signin.age.q": "أكّد لنرسل لك الرمز.",
   "g.signin.age.check": "عمري 16 عامًا أو أكثر",
   "g.signin.send_code": "أرسل الرمز",

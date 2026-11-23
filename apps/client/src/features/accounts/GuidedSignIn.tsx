@@ -28,6 +28,7 @@ export function GuidedSignIn({
     <div className="guided-signin">
       <GuidedScriptChat
         script={authSignin}
+        focusOnMount
         online={online}
         onEvent={(event) => trackGuidedChat(authSignin, "sign_in", event)}
         onSubmit={() => Promise.resolve()}

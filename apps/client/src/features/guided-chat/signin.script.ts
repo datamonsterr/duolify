@@ -13,7 +13,12 @@ export const authSignin: GuidedScript = {
       promptKey: "g.signin.email.q",
       validate: { type: "email" },
       persist: false,
-      input: { name: "email", autocomplete: "email", inputMode: "email" },
+      input: {
+        name: "email",
+        autocomplete: "email",
+        inputMode: "email",
+        labelKey: "g.signin.email.label",
+      },
       analyticsId: "email",
     },
     {
@@ -37,6 +42,7 @@ export const authSignin: GuidedScript = {
         name: "code",
         autocomplete: "one-time-code",
         inputMode: "numeric",
+        labelKey: "g.signin.code.label",
       },
       actionKey: "g.signin.sign_in",
       submit: "POST /v1/auth/verify",

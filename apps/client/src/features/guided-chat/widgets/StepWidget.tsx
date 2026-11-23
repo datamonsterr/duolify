@@ -302,7 +302,9 @@ export function StepWidget(props: WidgetProps) {
           inputMode={step.input?.inputMode as "email" | "numeric" | undefined}
           autoCapitalize="none"
           spellCheck={false}
-          aria-labelledby={promptId}
+          {...(step.input?.labelKey
+            ? { "aria-label": t(t0(step.input.labelKey)) }
+            : { "aria-labelledby": promptId })}
           aria-describedby={describedBy}
           aria-invalid={invalid}
           value={text0}

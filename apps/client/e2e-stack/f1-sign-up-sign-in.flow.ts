@@ -39,6 +39,7 @@ test(
         second.getByRole("heading", { name: "Welcome back" }),
       ).toBeVisible();
       await second.getByLabel("Email address").fill(email);
+      await second.getByLabel("Email address").press("Enter");
       await second.getByLabel("I am 16 or older").check();
       await second.getByRole("button", { name: "Send code" }).click();
       await expect(second.getByLabel("One-time code")).toBeVisible();

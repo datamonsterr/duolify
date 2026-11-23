@@ -58,6 +58,8 @@ export type GuidedScriptChatProps = {
   ) => Promise<string | null>;
   /** Extra controls under the active widget (e.g. Resend code). */
   stepActions?: (step: Step) => ReactNode;
+  /** Focus the first control on mount (a screen whose only job is the chat, e.g. sign-in). */
+  focusOnMount?: boolean;
   /** Destructive confirm card: Cancel leaves the flow without doing anything. */
   onCancel?: () => void;
 };
@@ -77,6 +79,7 @@ export function GuidedScriptChat({
   onCancel,
   onStepCommit,
   stepActions,
+  focusOnMount = false,
 }: GuidedScriptChatProps) {
   const { t, reducedMotion } = useUiPreferences();
   const uid = useId();
@@ -159,7 +162,7 @@ export function GuidedScriptChat({
   useEffect(() => {
     if (!mounted.current) {
       mounted.current = true;
-      return;
+      if (!focusOnMount) return;
     }
     const box = widgetBox.current;
     const target =
