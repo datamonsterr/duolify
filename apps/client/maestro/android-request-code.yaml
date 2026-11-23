@@ -15,6 +15,7 @@ androidWebViewHierarchy: devtools
     element: Email address
 - tapOn: Email address
 - inputText: ${EMAIL}
+- pressKey: Enter
 - takeScreenshot: sign-in-email
 - scrollUntilVisible:
     element: I am 16 or older

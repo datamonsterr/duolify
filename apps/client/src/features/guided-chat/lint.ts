@@ -46,6 +46,8 @@ export function lintScript(
   script.steps.forEach((step, index) => {
     needKey(step.promptKey);
     step.options?.forEach((o) => needKey(o.labelKey));
+    step.checks?.forEach(needKey);
+    if (step.actionKey) needKey(step.actionKey);
     if (step.errorKey) needKey(step.errorKey);
     if (step.when) checkExpr(step.id, step.when);
     for (const rule of step.next ?? []) {
@@ -90,7 +92,7 @@ export function lintScript(
       problems.push(`${step.id} needs input name and autocomplete`);
   });
   const last = script.steps[script.steps.length - 1];
-  if (last.widget !== "confirm" || !last.submit)
-    problems.push("the last step must be a confirm card with a submit");
+  if (!last.submit)
+    problems.push("the last step must name the endpoint it submits to");
   return problems;
 }

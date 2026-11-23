@@ -41,10 +41,10 @@ it("navigates after browser sign-in without discarding in-memory credentials", a
     </QueryClientProvider>,
   );
   fireEvent.click(await screen.findByRole("button", { name: "Get started" }));
-  fireEvent.change(screen.getByLabelText("Email address"), {
-    target: { value: "browser@example.test" },
-  });
-  fireEvent.click(screen.getByLabelText("I am 16 or older"));
+  const email = await screen.findByLabelText("Email address");
+  fireEvent.change(email, { target: { value: "browser@example.test" } });
+  fireEvent.submit(email.closest("form")!);
+  fireEvent.click(await screen.findByLabelText("I am 16 or older"));
   fireEvent.click(screen.getByRole("button", { name: "Send code" }));
   fireEvent.change(await screen.findByLabelText("One-time code"), {
     target: { value: "123456" },
