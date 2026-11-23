@@ -1,3 +1,4 @@
+import { guidedEn, guidedAr } from "../../guided-chat/messages";
 import { onboardingEn, onboardingAr } from "../../onboarding/messages";
 // Stable IDs and complete sentences. Feature content stays data, never a message key.
 // Plural branches follow Intl/CLDR categories; every branch includes its own sentence.
@@ -44,6 +45,7 @@ const reviewMessages = {
 } satisfies Record<string, Message>;
 export const en = {
   ...onboardingEn,
+  ...guidedEn,
   ...reviewMessages,
   "checkin.granted": "+{amount} Credits · daily check-in",
   "checkin.full": "Your check-in bank is full",
@@ -457,6 +459,7 @@ export const en = {
 export type MessageId = keyof typeof en;
 export const ar: Record<MessageId, Message> = {
   ...onboardingAr,
+  ...guidedAr,
   ...reviewMessages,
   "checkin.granted": "+{amount} رصيد · تسجيل الحضور اليومي",
   "checkin.full": "رصيد تسجيل الحضور ممتلئ",
