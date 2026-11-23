@@ -2,6 +2,7 @@
 
 - Status: Accepted (owner decision, 2026-11-08)
 - Date: 2026-11-08
+- Superseded in part by [ADR 0026](0026-cloudflare-offload-and-melotts.md), which adds an opt-in Workers AI Narration provider. ElevenLabs remains the default pending owner approval of a replacement.
 
 ## Context
 

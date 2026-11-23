@@ -24,7 +24,8 @@ One term, one meaning. Use these words in code, specs and UI copy.
 | **Daily free credits** | Credits granted every day to every learner, sized to cover 3 quick notes and 5 to 8 tutor chat messages. They expire at the end of the day and are spent before purchased credits. |
 | **Check-in Credits** | Non-expiring attendance Credits from the first authenticated app open of a local day: 150 daily plus 250 once on the first check-in (400 on day one), banked with a 1,050 regular-grant cap. Fund all AI actions after eligible Daily free credits and before paid Credits. Attendance is not Lesson effort. |
 | **Subscription** | Paid monthly or yearly plan that grants a monthly credit allowance and extra benefits (see the monetization epic). |
-| **Narration** | Spoken audio for a slide, generated from the slide's narration text with the ElevenLabs API and played in sync with the slide. |
+| **Narration** | Spoken audio for a Slide, generated from the Slide's narration text by a Narration provider and played in sync with the Slide. |
+| **Narration provider** | An Engine text-to-speech adapter that generates Narration audio and supplies or derives timing for captions. |
 | **Curated voice** | A narration voice from the approved no-surcharge set (the default voice plus test fixtures for now). Plus and Pro entitle choosing a non-default one; synthesis still consumes the disclosed narration credits. Changing voice is a new optional synthesis that needs the Learner's explicit consent to a quote; the old voice stays and replays free. |
 | **Tutor chat** | Chatbot with context of the whole course, the current lesson, the learner profile and history. |
 | **Character** | An original mascot-style lesson persona with a name, bio, backstory, speaking style, appearance and an allowlisted voice. Learners can create and customize their own. |
@@ -39,6 +40,11 @@ One term, one meaning. Use these words in code, specs and UI copy.
 | **Promotion evidence** | The committed live eval report (`evals/promotion/live-report.json`) a deployed engine embeds; a live AI feature runs only when its task passed in it for the same build (ADR 0019). |
 | **API** | `services/api`, the Go service that clients call. |
 | **Engine** | `engine/`, the Rust service that runs AI agents. Only the API calls it. |
+| **AI Gateway** | The authenticated Cloudflare gateway the Engine can use for OpenRouter requests, with request-level logging and cache controls. |
+| **Edge Worker** | A Duolify service on Cloudflare Workers for eligible public reads or authenticated Edge chat transport. |
+| **Hyperdrive** | The Cloudflare binding that gives the Edge Worker pooled read-only access to eligible public projections in private Postgres over Cloudflare Tunnel. |
+| **Durable Object** | A Cloudflare instance that coordinates live chat connections for one Learner session. Go and Postgres own the durable turn records. |
+| **Turnstile** | A Cloudflare challenge whose proof the API verifies for protected email-code, sign-up and share preview requests. |
 | **Username** | Unique public handle of a learner, used for invites and the friend list. |
 | **Friend list** | Learners connected by a mutual, accepted friend request. Friends can see each other's streaks and invite each other to courses. |
 | **Course visibility** | One of `private` (only the owner), `link` (anyone with the share link), `public` (listed in the marketplace). |

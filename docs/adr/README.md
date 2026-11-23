@@ -25,5 +25,6 @@
 | [0022](0022-security-headers-and-csp.md) | Security headers and CSP: edge-set web policy, sandboxed lesson frame with its own policy, API middleware | Accepted |
 | [0024](0024-scripted-guided-chat-and-mascot.md) | Scripted guided chat and original mascot | Accepted |
 | [0025](0025-prompt-skills-router-and-input-guard.md) | Prompt skills, skill router and consolidated input guard | Accepted |
+| [0026](0026-cloudflare-offload-and-melotts.md) | Cloudflare offload and the MeloTTS decision | Accepted for implementation planning |
 
 New ADR: copy the newest file, increase the number, keep it under one page.
